@@ -1,4 +1,5 @@
 import type { ChatMessage, TurnMode } from "@houston/protocol";
+import type { PrefetchedObjects } from "@houston/runtime-client/object-sync";
 import type { ServedCredential } from "../auth/auth-file";
 
 /**
@@ -116,4 +117,8 @@ export interface TurnRequest {
   };
   /** Secret turn-local authority. Never log, export, persist, or put in env. */
   grant?: TurnGrant;
+  /** The agent's listing and small files, read by the dispatcher next to
+   *  the store and shipped with a claimed turn so a far-away worker skips
+   *  those round trips. Absent means read the store directly. */
+  prefetch?: PrefetchedObjects;
 }

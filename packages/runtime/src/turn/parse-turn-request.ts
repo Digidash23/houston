@@ -1,4 +1,5 @@
 import { normalizeTurnMode, parseMentions } from "@houston/protocol";
+import { parsePrefetchedObjects } from "@houston/runtime-client/object-sync";
 import type { ServedCredential } from "../auth/auth-file";
 import { assertRoutineEventBounds } from "./parse-routine-events";
 import type { TurnGrant, TurnGrantScope, TurnRequest } from "./types";
@@ -259,5 +260,8 @@ export function parseTurnRequest(body: unknown): TurnRequest {
     routine,
     claim,
     grant,
+    ...(claim && b.prefetch !== undefined
+      ? { prefetch: parsePrefetchedObjects(b.prefetch) }
+      : {}),
   };
 }

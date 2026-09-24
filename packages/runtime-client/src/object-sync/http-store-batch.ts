@@ -87,7 +87,7 @@ export async function landHttpBatch(
   return outcomes;
 }
 
-async function writeAtomically(destFile: string, content: Buffer) {
+export async function writeAtomically(destFile: string, content: Buffer) {
   await mkdir(dirname(destFile), { recursive: true });
   const tempFile = atomicTempPath(destFile, randomUUID());
   try {

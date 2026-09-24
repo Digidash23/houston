@@ -160,7 +160,8 @@ export function createTurnServer(deps: TurnServerDeps): Server {
       }
       let turn: TurnRequest;
       try {
-        turn = parseTurnRequest(await readJson(req, 1024 * 1024));
+        // The dispatcher may inline up to 16 MiB of agent files (base64).
+        turn = parseTurnRequest(await readJson(req, 40 * 1024 * 1024));
       } catch (error) {
         return json(res, 400, {
           error: error instanceof Error ? error.message : String(error),
