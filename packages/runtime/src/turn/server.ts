@@ -62,6 +62,7 @@ function incarnationOK(
 async function readJson(
   req: IncomingMessage,
   maxBytes: number,
+  marks?: Record<string, number>,
 ): Promise<unknown> {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -73,6 +74,7 @@ async function readJson(
     chunks.push(chunk as Buffer);
   }
   const body = Buffer.concat(chunks);
+  if (marks) marks.t_body_received = performance.now();
   // A dispatcher far from this worker gzips a turn that carries prefetched
   // files; the cap then bounds the inflated JSON too.
   const raw =
@@ -103,6 +105,9 @@ export function createTurnServer(deps: TurnServerDeps): Server {
     deps.admission ??
     new AdmissionLimiter(deps.concurrency ?? turnConcurrency());
   return createServer((req, res) => {
+    // The turn's timings start here, before the body streams in, so the
+    // upload of a large envelope is its own step rather than hidden time.
+    const arrival: Record<string, number> = { t_arrived: performance.now() };
     (async () => {
       const path = (req.url || "/").split("?")[0];
       if (req.method === "GET" && path === "/health") {
@@ -169,7 +174,8 @@ export function createTurnServer(deps: TurnServerDeps): Server {
       let turn: TurnRequest;
       try {
         // The dispatcher may inline up to 16 MiB of agent files (base64).
-        turn = parseTurnRequest(await readJson(req, 40 * 1024 * 1024));
+        turn = parseTurnRequest(await readJson(req, 40 * 1024 * 1024, arrival));
+        arrival.t_body_parsed = performance.now();
       } catch (error) {
         return json(res, 400, {
           error: error instanceof Error ? error.message : String(error),
@@ -211,6 +217,7 @@ export function createTurnServer(deps: TurnServerDeps): Server {
         // restarted container refusing to serve (single-use.ts).
         if (spend) await deps.singleUse?.begin();
         await executeTurn(deps, turn, req, res, {
+          ...arrival,
           t0_request: performance.now(),
         });
       } finally {
