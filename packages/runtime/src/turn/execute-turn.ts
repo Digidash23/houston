@@ -32,6 +32,16 @@ import { createTurnTranscript } from "./turn-transcript";
 import type { TurnRequest } from "./types";
 
 /** Execute one admitted turn inside an isolated, disposable filesystem root. */
+/**
+ * Store objects a claimed turn never reads. A turn logs to stderr, never to
+ * the per-agent pod's runtime.log (often the largest object an agent has),
+ * and nothing reads the Claude CLI's rotated .claude.json backups.
+ */
+const CLAIMED_TURN_EXCLUDES = [
+  "workspaces/*/*/.houston/runtime/runtime.log",
+  "claude-login/backups/",
+];
+
 export async function executeTurn(
   deps: TurnServerDeps,
   turn: TurnRequest,
@@ -91,7 +101,10 @@ export async function executeTurn(
       // reads them. An unclaimed (legacy per-workspace) runtime keeps the
       // full tree.
       ...(turn.claim
-        ? { filter: ownConversationOnly(turn.conversationId) }
+        ? {
+            filter: ownConversationOnly(turn.conversationId),
+            excludes: CLAIMED_TURN_EXCLUDES,
+          }
         : {}),
       timings,
     });
