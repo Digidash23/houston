@@ -30,7 +30,24 @@ export interface ObjectStore {
     // biome-ignore lint/suspicious/noConfusingVoidType: additive port widening must accept existing void-returning stores.
   ): Promise<WriteResult | void>;
   delete(key: string, opts?: WriteOptions): Promise<void>;
+  /** Read many objects in one round trip. Keys answered `fallback` were not
+   *  inlined (too large, or a store without the batch route): read those with
+   *  `download`. Written files land atomically, like `download`. */
+  downloadMany?(
+    entries: BatchReadEntry[],
+    opts?: ReadOptions,
+  ): Promise<Map<string, BatchReadOutcome>>;
 }
+
+export interface BatchReadEntry {
+  key: string;
+  destFile: string;
+}
+
+export type BatchReadOutcome =
+  | { status: "ok"; generation?: string }
+  | { status: "missing" }
+  | { status: "fallback" };
 
 export interface ReadOptions {
   signal?: AbortSignal;

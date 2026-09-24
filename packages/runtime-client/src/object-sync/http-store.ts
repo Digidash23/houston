@@ -1,9 +1,11 @@
+import { downloadHttpBatch } from "./http-store-batch";
 import { objectStoreResponseError } from "./http-store-errors";
 import type { HttpObjectStoreOptions } from "./http-store-options";
 import { downloadHttpObject, readHttpManifest } from "./http-store-read";
 import { uploadHttpObject } from "./http-store-write";
 import type { ObjectMetadata } from "./object-manifest";
 import type {
+  BatchReadEntry,
   ObjectStore,
   ReadOptions,
   ReadResult,
@@ -89,6 +91,12 @@ export class HttpObjectStore implements ObjectStore {
       destFile,
       opts?.signal,
     );
+  }
+
+  downloadMany(entries: BatchReadEntry[], opts?: ReadOptions) {
+    const post = (init: RequestInit) =>
+      this.fetch(`${this.baseUrl}/batch`, init);
+    return downloadHttpBatch(post, this.authHeaders(), entries, opts);
   }
 
   async upload(
