@@ -5,6 +5,7 @@ import {
   type Server,
   type ServerResponse,
 } from "node:http";
+import { gunzipSync } from "node:zlib";
 import { MAX_UPLOAD_BODY_BYTES } from "@houston/host/src/turn/files-import";
 import { AdmissionLimiter, turnConcurrency } from "./admission";
 import { executeOp } from "./execute-op";
@@ -71,7 +72,14 @@ async function readJson(
     }
     chunks.push(chunk as Buffer);
   }
-  return JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+  const body = Buffer.concat(chunks);
+  // A dispatcher far from this worker gzips a turn that carries prefetched
+  // files; the cap then bounds the inflated JSON too.
+  const raw =
+    req.headers["content-encoding"] === "gzip"
+      ? gunzipSync(body, { maxOutputLength: maxBytes })
+      : body;
+  return JSON.parse(raw.toString("utf8") || "{}");
 }
 
 function json(
