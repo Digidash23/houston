@@ -137,6 +137,15 @@ async function start(): Promise<Server> {
       console.info(`[code-vm] ready: boot + probe ${bootAndProbeMs} ms`);
     }
     const registrationConfig = await loadWorkerRegistrationConfig();
+    if (config.poolSingleUse) {
+      const { installTurnNetworkMarks } = await import(
+        "./turn/turn-network-marks"
+      );
+      installTurnNetworkMarks([
+        process.env.HOUSTON_POOL_STORE_URL ?? "",
+        process.env.HOUSTON_TURNLOG_URL ?? "",
+      ]);
+    }
     const admission = new AdmissionLimiter(turnConcurrency());
     workerRegistration =
       registrationConfig && !spent

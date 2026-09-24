@@ -159,6 +159,7 @@ export async function runTurn(
     try {
       // The used-token capture spans the prompt so the streamed error path
       // (pi/wire.ts) reads THIS turn's seeded token when it reports.
+      if (turn.timings) turn.timings.t_prompt_start = performance.now();
       await runWithInteractionCapture(interaction, () =>
         runWithUsedTokenCapture(usedTokens, () =>
           session.prompt(

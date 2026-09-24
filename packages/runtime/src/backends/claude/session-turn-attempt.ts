@@ -1,5 +1,6 @@
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { WireEvent } from "@houston/runtime-client";
+import { markTurnOnce } from "../../turn/turn-network-marks";
 import type { ThinkingLevel } from "../types";
 import { toSdkEffort } from "./effort";
 import { classifyText } from "./errors";
@@ -104,6 +105,9 @@ export async function runTurnAttempt(
     for await (const msg of state.deps.query({ prompt: text, options })) {
       if (state.isAborting()) break;
       state.tickLiveness();
+      if (msg.type === "system" && msg.subtype === "init")
+        markTurnOnce("t_claude_init");
+      else markTurnOnce("t_claude_first_message");
       if (msg.type === "result" && msg.subtype === "success") succeeded = true;
       if (isAssistantMessageStart(msg)) state.emitAssistantMessageStart();
       if (hasSessionId(msg)) capturedSessionId = msg.session_id;

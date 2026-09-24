@@ -17,6 +17,7 @@ import {
 import { ownConversationOnly } from "./turn-hot-set";
 import { TurnSetupError } from "./turn-layout";
 import { createTurnLog } from "./turn-log";
+import { setActiveTurnTimings } from "./turn-network-marks";
 import { turnSessionRequest } from "./turn-request";
 import type { makeTurnSandboxFetch } from "./turn-sandbox";
 import { createTurnSandbox } from "./turn-sandbox-startup";
@@ -44,6 +45,7 @@ export async function executeTurn(
     mkdir(join(root, "claude-credstore"), { recursive: true }),
   ]);
   timings.t_tmpdir = performance.now();
+  setActiveTurnTimings(timings);
   const scope = `${turn.workspaceId}/${turn.agentId}`;
   const abort = new AbortController();
   // A CLAIMED turn's lifetime is the claim, not the HTTP connection: the
