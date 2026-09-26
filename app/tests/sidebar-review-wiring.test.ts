@@ -46,11 +46,8 @@ describe("sidebar review wiring", () => {
     );
   });
 
-  it("holds org chart and the phone's New group until the layout settles", () => {
-    const chart = source("components/organization/org-chart-tab.tsx");
+  it("holds the phone's New group until the layout settles", () => {
     const home = source("components/agents-home/agents-home-header.tsx");
-    assert.match(chart, /useSidebarLayoutLoaded\(workspaceId\)/);
-    assert.match(chart, /!layoutReady/);
     assert.match(home, /disabled=\{!sidebar\.ready\}/);
   });
 

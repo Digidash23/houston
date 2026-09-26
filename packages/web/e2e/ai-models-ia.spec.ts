@@ -272,10 +272,10 @@ test("account usage renders on the hub's Connected row and nowhere else", async 
   ).toBeVisible();
 
   // And no usage screen competes with it anywhere. The rail carries nothing
-  // usage-shaped at all: Time worked is a LENS inside Admin,
-  // never a destination of its own, and it rides `capabilities.computeUsage`,
-  // which the fake host does not advertise here. The owner/admin spend roll-up
-  // lives in the same place — the Admin screen, not an extra rail row.
+  // usage-shaped at all: Time worked is never a destination of its own, and
+  // it rides `capabilities.computeUsage`, which the fake host does not
+  // advertise here. The owner/admin message roll-up lives on the Admin
+  // screen's Org chart, not an extra rail row.
   await expect(
     page
       .locator("[data-tour-target='sidebar']")

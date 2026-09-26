@@ -21,6 +21,12 @@ import type { OrgTabId } from "./org-view-model.ts";
  * through `lib/hands-on-gates.ts`, which withholds its Open button when
  * Billing is not this person's to open).
  *
+ * The org chart's faces pin a PERSON too: `requestPerson` opens People and
+ * names who to bring into view. That focus is not one-shot: People keeps the
+ * row highlighted while it is up and lets it go when it unmounts
+ * (`use-person-focus.ts`), so the person stays found while the user acts on
+ * their row.
+ *
  * (Per-agent settings are opened directly by `lib/open-agent.ts`, which routes
  * through the employee's own Settings section rather than pinning anything
  * here.)
@@ -32,10 +38,20 @@ interface OrgNavState {
   requestTab: (tab: OrgTabId) => void;
   /** Drop the pending request once the view has honored it. */
   clearRequestedTab: () => void;
+  /** The member People brings into view and highlights, or null. */
+  focusedPerson: string | null;
+  /** Open People on `userId`. */
+  requestPerson: (userId: string) => void;
+  /** Let the focus go (People does, as it unmounts). */
+  clearFocusedPerson: () => void;
 }
 
 export const useOrgNav = create<OrgNavState>((set) => ({
   requestedTab: null,
   requestTab: (tab) => set({ requestedTab: tab }),
   clearRequestedTab: () => set({ requestedTab: null }),
+  focusedPerson: null,
+  requestPerson: (userId) =>
+    set({ requestedTab: "people", focusedPerson: userId }),
+  clearFocusedPerson: () => set({ focusedPerson: null }),
 }));

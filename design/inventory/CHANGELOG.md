@@ -3,6 +3,21 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v109 - 2026-09-26
+
+Admin lands on the Org chart, which its "Workspace" identity lozenge stands
+for, followed by People, Billing where allowed, and Activity in a team space;
+a personal space keeps the Org chart alone. There is no Usage or Time worked
+section. Company context is not a section: a pill in the Admin header opens
+its editor in a sheet (right side on the desktop, bottom on the phone) in
+every space. The org chart (`org-chart`, replacing `org-chart-folders`) is a
+ledger: a hero band with the last 30 days of hours worked, messages and a
+daily chart, then every AI Employee ranked by hours worked, the #1 featured
+on its own card, each line with its hours bar, messages and its Manages and
+Uses faces. Dense ledgers split into two columns when wide; the phone stacks
+each line. An owner's chart is the organization's; an admin's is scoped to
+their own AI Employees.
+
 ## v108 - 2026-09-26
 
 The rail footer lists Academy, gated Admin, and Settings, with no help

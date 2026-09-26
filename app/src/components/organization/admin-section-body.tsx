@@ -1,34 +1,27 @@
 import type { ReactNode } from "react";
 import { PageContainer } from "../shell/page-shell";
-import { ComputeSection } from "../time-worked/compute-section";
 import ActivityTab from "./activity-tab";
 import BillingTab from "./billing-tab";
-import CompanyContextTab from "./company-context-tab";
 import MembersTab from "./members-tab";
 import OrgChartTab from "./org-chart-tab";
 import type { OrgTabId } from "./org-view-model";
 import type { OrgTabProps, OrgViewContext } from "./organization-view";
-import UsageTab from "./usage-tab";
 
-/** Each context-backed Organization section renders from the shared contract. */
-const SECTION_COMPONENTS: Record<
-  Exclude<OrgTabId, "timeWorked">,
-  (props: OrgTabProps) => ReactNode
-> = {
-  people: MembersTab,
-  billing: BillingTab,
-  companyContext: CompanyContextTab,
-  orgChart: OrgChartTab,
-  activity: ActivityTab,
-  usage: UsageTab,
-};
+/** Each Organization section renders from the shared contract. */
+const SECTION_COMPONENTS: Record<OrgTabId, (props: OrgTabProps) => ReactNode> =
+  {
+    orgChart: OrgChartTab,
+    people: MembersTab,
+    billing: BillingTab,
+    activity: ActivityTab,
+  };
 
 /** Mounts the record's component AS a component, so its hooks stay its own. */
 function PlainSection({
   active,
   ctx,
 }: {
-  active: Exclude<OrgTabId, "timeWorked">;
+  active: OrgTabId;
   ctx: OrgViewContext;
 }) {
   const Section = SECTION_COMPONENTS[active];
@@ -38,9 +31,7 @@ function PlainSection({
 /**
  * The active section's body under the Admin strip. No heading of its own: the
  * header's lozenge already names the section (the shared grammar with
- * Integrations and an employee's screen), so a hero here would say it twice. Every
- * context-backed section renders from the shared `{ ctx }` contract. Time
- * worked has no need for organization context and renders directly.
+ * Integrations and an employee's screen), so a hero here would say it twice.
  *
  * `data-admin-section-body` names the MOUNTED section for the e2e helpers:
  * the header lozenge repaints synchronously on click, so the attribute is
@@ -55,21 +46,14 @@ export function AdminSectionBody({
 }) {
   return (
     <PageContainer
-      // Company context is a pinned page (its editor card owns the bottom
-      // gap), so its container is a height-bounded column with no bottom
-      // padding of its own; every other section pads and scrolls normally.
+      // The org chart's ledger takes the widest measure, so a dense one
+      // can stand in two columns on a wide screen.
       className={
-        active === "companyContext"
-          ? "flex h-full min-h-0 flex-col pt-6"
-          : "pt-6 pb-10"
+        active === "orgChart" ? "max-w-368 pt-6 pb-10 md:pt-10" : "pt-6 pb-10"
       }
       data-admin-section-body={active}
     >
-      {active === "timeWorked" ? (
-        <ComputeSection />
-      ) : (
-        <PlainSection active={active} ctx={ctx} />
-      )}
+      <PlainSection active={active} ctx={ctx} />
     </PageContainer>
   );
 }

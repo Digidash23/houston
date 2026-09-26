@@ -92,7 +92,7 @@ describe("canSeeAiModelsPage (HOU-976)", () => {
   it("does not carry the owner/admin matrix that guards team consumption", () => {
     // Opening the hub (every member connects their OWN AI account there) must
     // not widen the space-wide spend surface with it: the team roll-up lives in
-    // Admin > Usage, which still rides the owner/admin matrix (`canSeeMembers`,
+    // Admin's Org chart, which still rides the owner/admin matrix (`canSeeMembers`,
     // through `canSeeOrganization`). Re-uniting the two would either hide the
     // hub from the member whose own account it exists to manage, or open the
     // space's spend to every member.

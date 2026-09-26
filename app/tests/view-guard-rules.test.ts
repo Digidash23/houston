@@ -107,8 +107,8 @@ describe("deadViewStep", () => {
   });
 
   it("sends a RETIRED view home whatever the gates say", () => {
-    // The Permissions screen and the standalone Time worked screen are gone (a
-    // team's focused agent screen, and a section inside Admin). No
+    // The Permissions screen and the standalone Time worked screen are gone
+    // (agent policy is a team's focused agent screen). No
     // gate can make either valid again, so a `viewMode` an older session
     // persisted must go home rather than strand the user on a blank card.
     for (const viewMode of ["permissions", "time-worked"]) {

@@ -58,9 +58,9 @@ describe("isTopLevelView", () => {
     }
     // Retired `viewMode` values an older install may still have pinned: the
     // global usage page, the Permissions screen (agent policy is a team's
-    // focused agent screen), the standalone Time worked screen (a lens inside
-    // Admin), the Inbox, About me (a Settings section), and the phone's groups
-    // tree (groups are managed from the AI Employees list).
+    // focused agent screen), the standalone Time worked screen, the Inbox,
+    // About me (a Settings section), and the phone's groups tree (groups are
+    // managed from the AI Employees list).
     for (const retired of [
       "usage",
       "permissions",

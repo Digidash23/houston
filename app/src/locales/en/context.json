@@ -32,6 +32,10 @@
     },
     "workspace": {
       "placeholder": "## Who we are\nAcme Corp. B2B fintech, Series A, 40 people.\n\n## Product and customers\nInvoicing software for CFOs at mid-market companies.\n\n## How we communicate\nFriendly and direct. Short sentences. Never overpromise."
+    },
+    "noAgent": {
+      "title": "No AI Employees yet",
+      "body": "What you write here is kept with your AI Employees, so it opens once you hire your first one."
     }
   }
 }

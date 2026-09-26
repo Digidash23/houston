@@ -158,28 +158,5 @@
     "reconnect": "Sign in again to see this account's usage.",
     "error": "Couldn't load usage right now. Try again in a moment.",
     "staleReading": "Couldn't refresh usage. Showing the reading from {{when}}."
-  },
-  "timeWorked": {
-    "range": {
-      "week": "7 days",
-      "month": "30 days",
-      "quarter": "3 months"
-    },
-    "summary": "Your AI Employees worked {{duration}}",
-    "byAgent": "By AI Employee",
-    "duration": {
-      "hm": "{{hours}}h {{minutes}}m",
-      "m": "{{minutes}}m",
-      "underMinute": "<1m",
-      "zero": "0m"
-    },
-    "barLabel": "{{date}}: worked {{duration}}, {{messages}}",
-    "empty": {
-      "title": "No time worked yet",
-      "body": "When your AI Employees work, their time will show here."
-    },
-    "error": "Couldn't load your AI Employees' time right now. Try again in a moment.",
-    "messages_one": "{{count}} message",
-    "messages_other": "{{count}} messages"
   }
 }

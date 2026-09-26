@@ -14,8 +14,8 @@ export const USAGE_DEFAULT_DAYS = 30;
  * gateway 403s a plain member. Usage aggregates change slowly (a daily counter
  * upsert), so a longer `staleTime` avoids refetch churn while a window-focus
  * refetch still catches the day's accumulation. No matching `HoustonEvent`, so
- * there's nothing to invalidate on. Failures surface via `tauriOrg.usage` →
- * `call()` (toast + Report bug).
+ * there's nothing to invalidate on. Failures report through `tauriOrg.usage`
+ * -> `call()`; the chart keeps the last good data on screen.
  */
 export function useOrgUsage(
   enabled: boolean,
