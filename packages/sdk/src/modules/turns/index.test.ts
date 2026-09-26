@@ -136,14 +136,16 @@ async function waitFor(cond: () => boolean, ms = 2_000): Promise<void> {
   }
 }
 
-test("registers every turns command: send, the four conversation controls, observe, history and attachments/save", () => {
+test("registers every turns command: send, the conversation controls and imports, observe, history and attachments/save", () => {
   const { commands } = harness();
   expect([...commands.keys()].sort()).toEqual([
     "turns/attachments/save",
     "turns/cancel",
     "turns/dismissInteraction",
     "turns/history",
+    "turns/importMessages",
     "turns/observe",
+    "turns/retryPendingImports",
     "turns/send",
     "turns/setMode",
     "turns/truncate",

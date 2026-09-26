@@ -1,13 +1,19 @@
 import type { DismissInteractionOutcome } from "@houston/sdk";
+import type {
+  ConversationImportRequest,
+  ConversationImportResult,
+} from "@houston/wire-types";
 import { DEFAULT_AGENT_PATH } from "../synthetic";
 import { truncateConversationVm } from "../turn-stream";
 import { setActivityStatus } from "./activity-status";
 import { runtimeScope } from "./chat-scope";
+import { importConversation, retryPendingImports } from "./conversation-import";
 import type { BaseCtor } from "./mixin";
 
 /**
  * The one-shot controls a user applies to an OPEN conversation: Stop, the Mode
- * pill, the stepper's X, and the edit-and-resend rewind.
+ * pill, the stepper's X, the edit-and-resend rewind, and lines said elsewhere
+ * written in as its history.
  *
  * Each is one `@houston/sdk` turn command and, where the user's own view must
  * move with it, the local fold that follows — the board card a dead turn left
@@ -97,6 +103,25 @@ export function ChatControlsMixin<TBase extends BaseCtor>(Base: TBase) {
         turnId,
       );
       truncateConversationVm(path, sessionKey, turnId);
+    }
+
+    /**
+     * Write lines said elsewhere into a conversation as its real history (the
+     * AI Manager's scripted onboarding), then re-seed that chat's VM so it
+     * opens showing them. The SDK owes the import until it lands.
+     */
+    importConversationMessages(
+      agentPath: string,
+      conversationId: string,
+      request: ConversationImportRequest,
+    ): Promise<ConversationImportResult> {
+      return importConversation(this.ctx, agentPath, conversationId, request);
+    }
+
+    /** Send every import still owed to the agent at `agentPath` again;
+     *  resolves with what still fails. */
+    retryPendingConversationImports(agentPath: string): Promise<unknown[]> {
+      return retryPendingImports(this.ctx, agentPath);
     }
   }
   return ChatControls;

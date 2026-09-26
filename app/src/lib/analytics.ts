@@ -83,26 +83,31 @@ export const analytics = {
       if (event === "chat_message_sent") {
         posthog.people.set({ is_activated: true });
       }
-      // Stamp the onboarding answer as a person property so every cohort,
-      // funnel, and breakdown can slice by segment without joining back to
-      // the one-off event. Set on the confirmed answer (Continue), not the
-      // exploratory clicks. Skippers get "skipped" so they form their own
-      // cohort instead of vanishing into "no property".
-      if (
-        event === "onboarding_segment_continued" &&
-        typeof props?.selected_segment === "string"
-      ) {
-        posthog.people.set({ onboarding_segment: props.selected_segment });
-      }
-      // The other two survey answers, stamped on the same "Continue" beat and
-      // for the same reason: cohort by industry, and read what people actually
-      // want automated without joining back to a one-off event. Skippers get
-      // "skipped" so they form a cohort instead of vanishing into "no value".
+      // Stamp the survey answers as person properties so every cohort,
+      // funnel, and breakdown can slice by industry, role and company size,
+      // and read what people actually want automated, without joining back to
+      // the one-off event. Set on the confirmed answer (Continue), not the exploratory
+      // clicks. Skippers get "skipped" so they form their own cohort instead
+      // of vanishing into "no property".
       if (
         event === "onboarding_industry_continued" &&
         typeof props?.selected_industry === "string"
       ) {
         posthog.people.set({ onboarding_industry: props.selected_industry });
+      }
+      if (
+        event === "onboarding_role_continued" &&
+        typeof props?.selected_role === "string"
+      ) {
+        posthog.people.set({ onboarding_role: props.selected_role });
+      }
+      if (
+        event === "onboarding_company_size_continued" &&
+        typeof props?.selected_company_size === "string"
+      ) {
+        posthog.people.set({
+          onboarding_company_size: props.selected_company_size,
+        });
       }
       if (event === "onboarding_goal_continued") {
         const goal =

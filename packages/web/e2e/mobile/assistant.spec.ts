@@ -12,14 +12,13 @@ import { screen } from "../support/team-nav";
  */
 
 async function openPhoneAssistant(page: Page): Promise<Locator> {
-  const menu = await openMoreMenu(page);
-  await menu.getByRole("button", { name: "AI Manager" }).tap();
+  await page.getByTestId("agents-home-manager").tap();
   const chat = page.getByTestId("assistant-chat");
   await expect(chat).toBeVisible();
   return chat;
 }
 
-test("opens from More as a full-height chat with no nav bar under it", async ({
+test("opens from the Agents list as a full-height chat with no nav bar under it", async ({
   page,
 }) => {
   await page.goto("/");
@@ -55,14 +54,37 @@ test("opens from More as a full-height chat with no nav bar under it", async ({
   expect(overflow).toBeLessThanOrEqual(0);
 });
 
+test("is first in Agents and absent from More", async ({ page }) => {
+  await page.goto("/");
+  const manager = page.getByTestId("agents-home-manager");
+  await expect(manager).toBeVisible();
+  await expect(manager.locator("[data-manager-avatar]")).toHaveAttribute(
+    "aria-hidden",
+    "true",
+  );
+  // Pinned above the roster, the team filter notwithstanding.
+  const firstAgent = page.getByTestId("agents-home-row").first();
+  await expect(firstAgent).toBeVisible();
+  const managerBox = await manager.boundingBox();
+  const agentBox = await firstAgent.boundingBox();
+  if (!managerBox || !agentBox) throw new Error("the list is not laid out");
+  expect(managerBox.y + managerBox.height).toBeLessThanOrEqual(agentBox.y + 1);
+
+  // The More menu keeps its destinations and no longer lists the Manager.
+  const menu = await openMoreMenu(page);
+  await expect(
+    menu.getByRole("button", { name: "Integrations" }),
+  ).toBeVisible();
+  await expect(menu.getByRole("button", { name: "AI Manager" })).toHaveCount(0);
+});
+
 test("the header's back chevron leaves for the Agents tab", async ({
   page,
 }) => {
   await page.goto("/");
   await openPhoneAssistant(page);
 
-  // A More-menu destination is a tab ROOT (the menu navigates with `reset`),
-  // so there is nothing behind the chat to pop: back goes home.
+  // The Manager is pushed from Agents, so back returns to that list.
   await page.getByTestId("assistant-back").tap();
   await expect(screen(page)).toHaveAttribute("data-screen", "agents-home");
   await expect(navBar(page)).toBeVisible();

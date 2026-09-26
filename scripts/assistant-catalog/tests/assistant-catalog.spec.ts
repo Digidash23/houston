@@ -121,10 +121,11 @@ describe("assistant catalog extraction", () => {
       properties: {
         total: { type: "number" },
         // `(string & {})` is a string, not the String prototype's methods.
+        // The literals read in alphabetical order (`literalsInOrder`).
         kind: {
           anyOf: [
-            { const: "widget", type: "string" },
             { const: "gadget", type: "string" },
+            { const: "widget", type: "string" },
             { type: "string" },
           ],
         },

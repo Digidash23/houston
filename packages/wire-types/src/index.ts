@@ -10,6 +10,7 @@
 export * from "./channels";
 export * from "./channels-refusals";
 export * from "./local-model-bridge";
+export * from "./onboarding";
 export * from "./plan";
 export * from "./retry-after";
 export * from "./types";

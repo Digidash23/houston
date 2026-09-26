@@ -9,7 +9,6 @@ export {
 export { humanizeActionDone, humanizeActionGerund } from "./action-labels";
 export type {
   ConversationContentProps,
-  ConversationDownloadProps,
   ConversationEmptyStateProps,
   ConversationProps,
   ConversationScrollButtonProps,
@@ -18,11 +17,14 @@ export type {
 export {
   Conversation,
   ConversationContent,
-  ConversationDownload,
   ConversationEmptyState,
   ConversationScrollButton,
-  messagesToMarkdown,
 } from "./ai-elements/conversation";
+export type { ConversationDownloadProps } from "./ai-elements/conversation-download";
+export {
+  ConversationDownload,
+  messagesToMarkdown,
+} from "./ai-elements/conversation-download";
 export type {
   MessageActionProps,
   MessageActionsProps,

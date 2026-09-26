@@ -9,11 +9,13 @@
       "customize": "Customize"
     },
     "contextHeadline": "What industry does this AI Employee work in?",
+    "selfContextHeadline": "What industry do you work in?",
     "contextPlaceholder": "Tell us in a few words",
     "contextSearch": "Search industries",
     "noContextMatches": "No industries match that.",
     "useQueryAsContext": "Use \"{{query}}\" as the industry",
     "roleHeadline": "What should it do for you?",
+    "selfRoleHeadline": "What's your role?",
     "rolePlaceholder": "Tell us the role in a few words",
     "roleSearch": "Search roles",
     "noRoleMatches": "No roles match that.",
@@ -21,6 +23,7 @@
     "typeToFindAnyRole": "Type any role to find it, from any industry.",
     "moreRoles": "More roles",
     "otherRoles": "Other roles",
+    "leadership": "Leadership",
     "somethingElse": "Something else",
     "chipsKeyboardHint": "Use the arrow keys to move between the options.",
     "continue": "Continue",
@@ -1248,6 +1251,26 @@
       "yard_coordinator": "Yard coordinator",
       "yoga_studio_coordinator": "Yoga studio coordinator",
       "youtube_channel_manager": "YouTube channel manager"
+    },
+    "leadershipRoles": {
+      "founder": "Founder",
+      "co_founder": "Co-founder",
+      "owner": "Owner",
+      "ceo": "CEO",
+      "president": "President",
+      "managing_director": "Managing director",
+      "general_manager": "General manager",
+      "coo": "COO",
+      "cfo": "CFO",
+      "cto": "CTO",
+      "cmo": "CMO",
+      "cro": "CRO",
+      "vp": "VP",
+      "director": "Director",
+      "head_of_department": "Head of department",
+      "partner": "Partner",
+      "team_lead": "Team lead",
+      "manager": "Manager"
     }
   }
 }

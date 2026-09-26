@@ -108,6 +108,7 @@ export function useTeamCardActions({
     case "basic":
       return {
         onBack: back,
+        secondary: { label: t("setup:team.basic.add"), onClick: basic.add },
         primary: {
           kind: "submit",
           formId: formIds.basic,

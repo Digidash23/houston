@@ -10,6 +10,7 @@ import {
 import { SidebarGroupedList } from "./sidebar-grouped-list";
 import { SidebarHeader } from "./sidebar-header";
 import { DEFAULT_SIDEBAR_LABELS } from "./sidebar-labels";
+import { SidebarPinnedList } from "./sidebar-pinned-list";
 import type { SidebarProps } from "./sidebar-props";
 import { SidebarNavList } from "./sidebar-rail-chrome";
 import type { SidebarBaseRowContext } from "./sidebar-row-context";
@@ -29,6 +30,7 @@ export function AppSidebar({
   navSections,
   activeNavId,
   items,
+  pinnedItems = [],
   selectedId,
   onSelect,
   onAdd,
@@ -60,6 +62,13 @@ export function AppSidebar({
      bands' left edge. Its own const because the band wraps it when there is a
      heading and the icon rail renders it bare, so a swap never remounts it. */
   const listInset = collapsed ? "px-2 pt-2" : sidebarBandInset;
+  // Pinned rows sit on the list's inset but outside its scroll box and the
+  // band's fold: folding the list, or scrolling it, never takes them away.
+  const pinned = !collapsed && pinnedItems.length > 0 && (
+    <div className={cn("shrink-0", sidebarBandInset)}>
+      <SidebarPinnedList items={pinnedItems} ctx={baseRowCtx} />
+    </div>
+  );
   const list = (
     <ScrollArea className={cn("min-h-0 flex-1", listInset)}>
       {grouped ? (
@@ -79,7 +88,7 @@ export function AppSidebar({
         </div>
       ) : (
         <SidebarFlatList
-          items={items}
+          items={collapsed ? [...pinnedItems, ...items] : items}
           collapsed={collapsed}
           ctx={baseRowCtx}
           onAdd={onAdd}
@@ -143,12 +152,16 @@ export function AppSidebar({
               collapsed={sectionCollapsed}
               onToggleCollapsed={onToggleSectionCollapsed}
               affordance={sectionAction}
+              lead={pinned}
               contentClassName="flex min-h-0 flex-1 flex-col"
             >
               {list}
             </SidebarBand>
           ) : (
-            list
+            <>
+              {pinned}
+              {list}
+            </>
           )}
         </div>
 

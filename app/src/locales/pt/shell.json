@@ -4,6 +4,7 @@
     "addAgent": "Novo funcionário de IA",
     "aiModels": "Modelos de IA",
     "assistant": "AI Manager",
+    "assistantRole": "Coordena sua equipe de IA",
     "changeColor": "Alterar cor",
     "collapse": "Recolher barra lateral",
     "color": "Cor",
@@ -683,11 +684,10 @@
     "teamTitle": "Grupo"
   },
   "employeeCard": {
-    "changeColor": "Mudar cor",
+    "changeColor": "Mudar cor: {{color}}",
     "namePlaceholder": "ex.: Ana",
     "namePlaceholderForRole": "ex.: {{role}}, Assistente 3, João",
     "nameLabel": "Nome ({{role}})",
-    "suggestName": "Sugerir um nome",
     "nameRequired": "Dê um nome para continuar",
     "status": {
       "joining": "Entrando",
@@ -696,7 +696,6 @@
     },
     "retryLabel": "Tentar contratar {{name}} de novo",
     "removeLabel": "Remover {{name}}",
-    "showCard": "Ver cartão {{current}} de {{total}}",
     "nameHeading": "Nome"
   }
 }

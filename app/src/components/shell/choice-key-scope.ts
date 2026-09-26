@@ -12,6 +12,10 @@
 export interface ChoiceKeyScope {
   /** A person pressed it. The app also dispatches keys at itself. */
   trusted: boolean;
+  /** The question is rendered at all. A kept-alive screen, or a step waiting
+   *  behind the AI Manager's typing, stays mounted while hidden, and a key
+   *  typed on the screen in use must never land in its filter. */
+  onScreen: boolean;
   focusWithin: boolean;
   /** Open layers that are NOT wrapping the question, so they own keys first. */
   layersAbove: number;
@@ -24,7 +28,12 @@ export interface ChoiceKeyScope {
  * that key for its own filter leaves the modal open over an inert page.
  */
 export function choiceOwnsKey(scope: ChoiceKeyScope): boolean {
-  return scope.trusted && scope.focusWithin && scope.layersAbove === 0;
+  return (
+    scope.trusted &&
+    scope.onScreen &&
+    scope.focusWithin &&
+    scope.layersAbove === 0
+  );
 }
 
 /** Where focus and the key came from, relative to the question's own element. */
@@ -84,7 +93,13 @@ export function readChoiceKeyScope(
   step: HTMLElement | null,
   event: { target: EventTarget | null; isTrusted: boolean },
 ): ChoiceKeyScope {
-  if (!step) return { trusted: false, focusWithin: false, layersAbove: 0 };
+  if (!step)
+    return {
+      trusted: false,
+      onScreen: false,
+      focusWithin: false,
+      layersAbove: 0,
+    };
   const active = document.activeElement;
   const layers = Array.from(
     document.querySelectorAll<HTMLElement>(OPEN_LAYER_SELECTOR),
@@ -98,6 +113,8 @@ export function readChoiceKeyScope(
     }));
   return {
     trusted: event.isTrusted,
+    // A `display: none` subtree (`hidden`) has no boxes at all.
+    onScreen: step.getClientRects().length > 0,
     focusWithin: focusWithinStep({
       focusNowhere: active === null || active === document.body,
       focusInStep: active instanceof Node && step.contains(active),

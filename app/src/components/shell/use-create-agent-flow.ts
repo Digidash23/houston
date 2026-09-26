@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { prefilledAgentName } from "../../lib/agent-name-prefill";
 import { logAndReportError } from "../../lib/error-report";
 import { nextFreeAgentColor } from "../../lib/next-agent-color";
 import { useAgentCatalogStore } from "../../stores/agent-catalog";
@@ -32,7 +33,7 @@ export interface CreateAgentFlow {
   roleState: AgentRoleState;
   name: string;
   color: string;
-  /** Names the hire cannot take; Suggest steps over them too. */
+  /** Names the hire cannot take; the prefilled name steps over them too. */
   takenNames: readonly string[];
   /** The card's message slot: why the name cannot be taken, or why the
    *  create did not land. */
@@ -55,8 +56,9 @@ export interface CreateAgentFlow {
  * shape of the flow (which screen is on, and what its header and bottom bar
  * say) rather than the shape of one of its paths.
  *
- * The name is required: a blank one is only flagged once the person presses
- * on. Every field resets when the sheet shuts, so a second open is a fresh
+ * The name arrives filled with the job (`prefilledAgentName`) and follows it
+ * until the person types their own; a name cleared to blank is only flagged
+ * once the person presses on. Every field resets when the sheet shuts, so a second open is a fresh
  * hire and never the last one's half-finished answers.
  */
 export function useCreateAgentFlow({
@@ -70,7 +72,8 @@ export function useCreateAgentFlow({
   const agentDefs = useAgentCatalogStore((s) => s.agents);
   const existingAgents = useAgentStore((s) => s.agents);
   const roleState = useAgentRoleState(open);
-  const [name, setName] = useState("");
+  /** What the person typed, or null while the name follows the job. */
+  const [typed, setTyped] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [attempted, setAttempted] = useState(false);
   const [error, setError] = useState<CreateFailure | null>(null);
@@ -86,7 +89,7 @@ export function useCreateAgentFlow({
 
   useEffect(() => {
     if (open) return;
-    setName("");
+    setTyped(null);
     setPicked(null);
     setAttempted(false);
     setError(null);
@@ -101,6 +104,7 @@ export function useCreateAgentFlow({
     submitted,
     creating,
   });
+  const name = typed ?? prefilledAgentName(roleState.roleLabel, takenNames);
   const issue = employeeNameIssue(name, takenNames);
   const shown = visibleNameIssue(issue, attempted);
   const message = error?.message ?? issueCopy(shown, name);
@@ -117,7 +121,7 @@ export function useCreateAgentFlow({
     // Typing again clears a stale server rejection so the live validation copy
     // (or nothing) takes over.
     onNameChange: (value) => {
-      setName(value);
+      setTyped(value);
       if (error) setError(null);
     },
     onColorChange: setPicked,

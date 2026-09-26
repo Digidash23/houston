@@ -1,7 +1,11 @@
 import { deepStrictEqual, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
 import { isAgentContextId } from "../src/lib/agent-role-catalog.ts";
-import { surveyIndustryContext } from "../src/lib/onboarding-industry-context.ts";
+import {
+  surveyIndustryContext,
+  surveyLeadershipRole,
+  surveyRoleContext,
+} from "../src/lib/onboarding-industry-context.ts";
 import {
   createOnboardingSurveyPreference,
   LEGACY_ONBOARDING_INDUSTRY_CONTEXTS,
@@ -14,7 +18,7 @@ import {
 function storedWith(industry: unknown, industryOther: string | null = null) {
   return JSON.stringify({
     ...createOnboardingSurveyPreference(),
-    segment: "marketing",
+    role: "paralegal",
     industry,
     industryOther,
   });
@@ -128,5 +132,46 @@ describe("surveyIndustryContext", () => {
       }),
       none,
     );
+  });
+});
+
+describe("surveyRoleContext", () => {
+  const none = { roleId: null, customLabel: null };
+  it("preselects a catalog role", () => {
+    deepStrictEqual(surveyRoleContext({ role: "paralegal", roleOther: null }), {
+      roleId: "paralegal",
+      customLabel: null,
+    });
+  });
+
+  it("carries the words behind something else", () => {
+    deepStrictEqual(
+      surveyRoleContext({ role: "something_else", roleOther: "Groomer" }),
+      { roleId: null, customLabel: "Groomer" },
+    );
+  });
+
+  it("has nothing to preselect for a skip, a missing record or no answer", () => {
+    deepStrictEqual(surveyRoleContext(null), none);
+    deepStrictEqual(surveyRoleContext({ role: null, roleOther: null }), none);
+    deepStrictEqual(
+      surveyRoleContext({ role: "skipped", roleOther: null }),
+      none,
+    );
+  });
+
+  it("never turns a leadership position into a job to hire for", () => {
+    for (const role of ["founder", "ceo", "manager"] as const)
+      deepStrictEqual(surveyRoleContext({ role, roleOther: null }), none);
+  });
+});
+
+describe("surveyLeadershipRole", () => {
+  it("preselects the person's own position, and nothing else", () => {
+    strictEqual(surveyLeadershipRole({ role: "co_founder" }), "co_founder");
+    strictEqual(surveyLeadershipRole({ role: "paralegal" }), null);
+    strictEqual(surveyLeadershipRole({ role: "something_else" }), null);
+    strictEqual(surveyLeadershipRole({ role: null }), null);
+    strictEqual(surveyLeadershipRole(null), null);
   });
 });

@@ -100,6 +100,11 @@ export const PROXY_MEMBERS: ProxyMember[] = [
   },
   {
     method: "POST",
+    rest: "conversations/:conversationId/import",
+    engines: STANDING,
+  },
+  {
+    method: "POST",
     rest: "conversations/:conversationId/messages",
     engines: BOTH,
   },

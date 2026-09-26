@@ -1,6 +1,4 @@
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useAgentStore } from "../../../stores/agents";
 import { ContextStep } from "../../shell/context-step";
 import type { AgentRoleStart } from "../../shell/use-agent-role-state";
 import { TeamBasicView } from "./team-basic-view";
@@ -21,15 +19,16 @@ import { useBasicTeam } from "./use-basic-team";
 import { useTeamFinish } from "./use-team-finish";
 import { useTeamHireFlow } from "./use-team-hire-flow";
 import { useTeamHiring } from "./use-team-hiring";
-import { type TeamCardMode, useTeamNavigation } from "./use-team-navigation";
+import { useTeamNavigation } from "./use-team-navigation";
 import { useTeamRoster } from "./use-team-roster";
 
 export const HIRE_FORM_ID = "team-card-hire";
 export const BASIC_FORM_ID = "team-card-basic";
 
 /**
- * The card's content in either frame: the screen in hand, scrolling on its
- * own when it outgrows the frame, over an action row that never scrolls away.
+ * The card's content in the new-workspace dialog: the screen in hand,
+ * scrolling on its own when it outgrows the dialog, over an action row that
+ * never scrolls away.
  *
  * Every hook that holds an answer lives here, above the screens, so moving
  * between them (and back) never loses what was typed or picked, and both
@@ -37,28 +36,17 @@ export const BASIC_FORM_ID = "team-card-basic";
  */
 export function TeamCardFlow({
   workspaceId,
-  mode,
   start,
   onDone,
 }: {
   workspaceId: string;
-  mode: TeamCardMode;
   start: AgentRoleStart;
   onDone: () => void;
 }) {
   const { t } = useTranslation("setup");
-  const nav = useTeamNavigation(mode);
+  const nav = useTeamNavigation();
   const hiring = useTeamHiring(workspaceId);
   const roster = useTeamRoster(hiring);
-  // A first run the person quit after hiring resumes here with those hires
-  // already in the workspace: they are on the team, so Done is theirs without
-  // hiring again. A new workspace starts empty, and the store may still list
-  // the previous workspace's employees while it switches.
-  const [earlierColors] = useState(() =>
-    mode === "first_run"
-      ? useAgentStore.getState().agents.map((agent) => agent.color)
-      : [],
-  );
   const hire = useTeamHireFlow({
     start,
     roster,
@@ -66,7 +54,7 @@ export function TeamCardFlow({
   });
   const industry = hire.team.contextLabel.trim();
   const basic = useBasicTeam({ industry, roster });
-  const finishState = teamFinishState(roster.members, earlierColors.length);
+  const finishState = teamFinishState(roster.members);
   const finish = useTeamFinish(finishState, roster.retrySaves, onDone);
   const hiredCount = roster.members.length;
   const facts = { hasIndustry: industry !== "", hiredCount };
@@ -113,10 +101,7 @@ export function TeamCardFlow({
               />
               <TeamChoiceView
                 basicColors={basic.rows.map((row) => row.color)}
-                hiredColors={[
-                  ...earlierColors,
-                  ...roster.members.map((member) => member.color),
-                ]}
+                hiredColors={roster.members.map((member) => member.color)}
                 onBasic={() => nav.go(startBasic(facts))}
                 onHire={hireNext}
               />

@@ -4,12 +4,18 @@ import { isChoiceSearchable } from "../src/components/shell/choice-step-model.ts
 import {
   ROLE_SEARCH_REACH,
   roleRunsForQuery,
+  SELF_ROLE_SEARCH_REACH,
+  selfRoleRunsForQuery,
 } from "../src/components/shell/role-step-model.ts";
 import {
   AGENT_ROLE_IDS,
   type AgentRoleId,
   rolesForContext,
 } from "../src/lib/agent-role-catalog.ts";
+import {
+  LEADERSHIP_ROLE_IDS,
+  type LeadershipRoleId,
+} from "../src/lib/leadership-roles.ts";
 import en from "../src/locales/en/agent-onboarding.json" with { type: "json" };
 
 const ROLES: Record<string, string> = en.roleSetup.roles;
@@ -128,4 +134,62 @@ test("a query nothing matches leaves no runs for the empty state to hide", () =>
     AGENT_ROLE_IDS.flatMap((id) => idsOf(runs("freight_logistics", ROLES[id]))),
   );
   for (const id of AGENT_ROLE_IDS) assert.ok(reachable.has(id), id);
+});
+
+const POSITIONS: Record<string, string> = en.roleSetup.leadershipRoles;
+const selfRuns = (context: "freight_logistics" | null, query: string) =>
+  selfRoleRunsForQuery(context, query, {
+    ...LABELS,
+    leadershipRole: (id: LeadershipRoleId) => POSITIONS[id],
+    leadership: "Leadership",
+    context: "Freight & logistics",
+  });
+const headings = (sections: ReturnType<typeof runs>) =>
+  sections.map((section) => [section.id, section.label]);
+
+test("the person's own role leads with every leadership position, in order", () => {
+  const sections = selfRuns("freight_logistics", "");
+  assert.deepEqual(headings(sections), [
+    ["leadership", "Leadership"],
+    ["own", "Freight & logistics"],
+    ["common", "More roles"],
+  ]);
+  assert.deepEqual(
+    sections[0].options.map((option) => option.id),
+    [...LEADERSHIP_ROLE_IDS],
+  );
+});
+
+test("a typed industry heads its shared jobs under the positions", () => {
+  assert.deepEqual(headings(selfRuns(null, "")), [
+    ["leadership", "Leadership"],
+    ["common", "More roles"],
+  ]);
+});
+
+test("searching reaches the positions and the jobs alike", () => {
+  const sections = selfRuns("freight_logistics", "director");
+  assert.equal(sections[0].id, "leadership");
+  assert.ok(idsOf(sections).includes("director"));
+  assert.ok(idsOf(sections).includes("account_director"));
+  assert.ok(sections.every((section) => section.label !== undefined));
+  // A query only a position matches is a single run, unheaded.
+  assert.deepEqual(headings(selfRuns("freight_logistics", "CFO")), [
+    ["leadership", undefined],
+  ]);
+  // One no position matches reads exactly as a hire's.
+  assert.deepEqual(
+    selfRuns("freight_logistics", "bookkeep"),
+    runs("freight_logistics", "bookkeep"),
+  );
+  assert.equal(SELF_ROLE_SEARCH_REACH, ROLE_SEARCH_REACH + 18);
+});
+
+test("a hire's role runs never offer a leadership position", () => {
+  for (const context of ["freight_logistics", null] as const) {
+    const ids = new Set(idsOf(runs(context, "")));
+    for (const id of LEADERSHIP_ROLE_IDS) assert.equal(ids.has(id), false, id);
+    for (const id of LEADERSHIP_ROLE_IDS)
+      assert.equal(idsOf(runs(context, POSITIONS[id])).includes(id), false);
+  }
 });

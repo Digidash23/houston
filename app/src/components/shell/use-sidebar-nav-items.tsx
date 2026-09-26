@@ -32,14 +32,13 @@ export function useSidebarNavItems(
     nav?: NavMode;
   },
 ): { navSections: SidebarNavSection[]; activeNavId: string | undefined } {
-  const { showAiModels, showAssistant, showSkills } = useSurfaceGates();
+  const { showAiModels, showSkills } = useSurfaceGates();
   const viewMode = useUIStore((s) => s.viewMode);
   const setViewMode = useUIStore((s) => s.setViewMode);
   return {
     navSections: buildSidebarNavItems({
       t,
       showAiModels,
-      showAssistant,
       showSkills,
       setViewMode: (view) => {
         setViewMode(view, opts?.nav ? { nav: opts.nav } : undefined);

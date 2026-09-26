@@ -15,6 +15,7 @@ import {
   markConversationStopped,
   renameConversation,
 } from "../store/conversations";
+import { handleConversationImport } from "./conversation-import-route";
 import { handleStartTurn } from "./conversation-start-turn";
 import { handleConversationEvents } from "./events-route";
 import { json, type RouteContext, readJson } from "./http-helpers";
@@ -40,7 +41,7 @@ export async function handleConversationRoute(
   }
 
   const convMatch = path.match(
-    /^\/conversations\/([^/]+)\/(messages|events|cancel|dismiss-interaction|title|mode|truncate)$/,
+    /^\/conversations\/([^/]+)\/(messages|events|cancel|dismiss-interaction|title|mode|truncate|import)$/,
   );
   if (!convMatch) return false;
 
@@ -120,6 +121,10 @@ export async function handleConversationRoute(
     else if (result === "not_found")
       json(res, 404, { error: "turn not found" });
     else json(res, 200, { ok: true, removed: result.removed });
+    return true;
+  }
+  if (method === "POST" && action === "import") {
+    await handleConversationImport(ctx, id);
     return true;
   }
   if (method === "POST" && action === "messages") {

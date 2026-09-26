@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 106
+version: 107
 
 components:
   - id: custom-integration-details
@@ -62,6 +62,28 @@ components:
       is driven by the agent's live run status, not local hover.
     a11y: Decorative when paired with a text label; else img role with the agent name as label.
     since: 1
+
+  - id: manager-avatar
+    title: AI Manager avatar
+    purpose: >-
+      The AI Manager's own mark wherever the Manager appears as a member of
+      the team: the rail's pinned row, the phone's pinned Agents row and the
+      phone chat header.
+    anatomy: [squircle, cta-fill, cta-rim, helmet]
+    states: [resting]
+    variants: [rail-expanded, rail-collapsed, phone-list, phone-header]
+    behavior: >-
+      The agent avatar's helmet on a squircle of the filled primary Button's
+      own material: a true superellipse (an SVG path, never a border radius)
+      filled with the Button's resting `cta` fill, a 1px `cta-rim` inside its
+      edge, and the helmet in the Button's `cta-text` label colour, at the
+      agent avatar's 65% ratio on whole pixels at every size. Flat, like the
+      Button. Every colour is the Button's own token, so the mark switches
+      with the theme and the palette exactly as the Button does. It takes the
+      diameter of the slot it renders in, so the collapsed rail shrinks it
+      exactly as it shrinks an agent's avatar.
+    a11y: Decorative (aria-hidden); the Manager's text label beside it is the accessible name.
+    since: 107
 
   - id: agent-list-item
     title: Agent list item
@@ -96,7 +118,14 @@ components:
     variants: [single-player, multiplayer]
     behavior: >-
       Renders an ordered FeedItem stream; auto-sticks to bottom while streaming
-      unless the user scrolled up. Item ordering/merge is view-model driven.
+      unless the user scrolled up. A feed held at its latest message stays
+      pinned there when its own viewport resizes (a card appearing, growing or
+      leaving in the composer slot, the composer growing a line, the phone
+      keyboard), and a feed the person scrolled up in stays where they put it.
+      A send brings the latest message into view wherever the person had
+      scrolled, and so does each answer in a scripted conversation whose
+      answers are taps rather than sends. Item ordering/merge is view-model
+      driven.
       Opens on the transcript's TAIL window (v34): when the view-model reports
       older messages beyond the loaded window, scrolling the top of the feed
       into view fetches and prepends the previous page (quiet spinner while
@@ -1256,7 +1285,8 @@ components:
   - id: sidebar-teams-band
     title: AI Employees sidebar band
     purpose: The heading and create control above the unlabelled agents and group folders.
-    anatomy: [band-label-toggle, band-caret, add-menu-trigger, add-menu, trailing-add-agent-row]
+    anatomy: [band-label-toggle, band-caret, add-menu-trigger, add-menu,
+      pinned-manager-row, trailing-add-agent-row]
     states: [resting, collapsed, menu-open]
     variants: [phone, desktop]
     behavior: >-
@@ -1269,6 +1299,11 @@ components:
       One New AI Employee row follows the last root entry, outside every group,
       flush with root employees and folder headers. It creates an ungrouped
       employee at the top of the root order and cannot be dragged or targeted.
+      The AI Manager leads the list, pinned above every group and root
+      employee while it is reachable: an employee's person row (height,
+      portrait diameter, selected pill) with the Manager's avatar and role,
+      never draggable and never a drop target, and the first avatar on the
+      collapsed rail. Folding the band folds it too.
     a11y: >-
       The label button exposes its expanded state, and the add control has its
       own accessible name. Agent rows remain visible without hover.
@@ -1284,11 +1319,11 @@ components:
     variants: []
     behavior: >-
       The run leads the rail with no band over it, because these are the
-      destinations a user heads for without being asked: the assistant that
-      answers a question they have not worked out how to ask yet, the AI
-      accounts their turns run on, and the apps they have connected. A heading
-      would only name what the glyphs already say, and the rows would still be
-      the first thing read.
+      destinations a user heads for without being asked: the AI accounts
+      their turns run on, and the apps they have connected. A heading would
+      only name what the glyphs already say, and the rows would still be the
+      first thing read. The AI Manager is not among them: it is a member of
+      the team, so it leads the team list instead (see sidebar-teams-band).
       What the SPACE is made of is not here. Administering it -- who is in it,
       what it is called, how long its agents have worked -- is STANDING SETUP
       rather than a place work happens, so it is a section of Settings, reached
@@ -1448,16 +1483,19 @@ components:
     purpose: >-
       The phone's landing screen and the AI Employees tab's root: every agent
       as a chat-list row, the whole roster or one group's, and where the phone
-      manages groups.
+      manages groups. The AI Manager leads it, pinned above the roster.
     anatomy: [title, new-group-control, new-agent-control, group-selector,
-      group-menu, agent-row,
+      group-menu, pinned-manager-row, agent-row,
       avatar-stack, running-ring, preview-line, relative-time, needs-you-chip,
       empty-state]
     states: [list, filtered, loading, no-agents, groups-loading]
     variants: [all-groups, one-group]
     behavior: >-
-      One flat list in the grammar of a messaging app's chat list. Each row is
-      a LARGE avatar on the left -- the agent's helmet, fanned out into a stack
+      One flat list in the grammar of a messaging app's chat list, led by the
+      AI Manager's pinned row when discovery serves it: the same row anatomy
+      with the Manager's gold avatar and its role as the second line, above
+      the roster whatever the team filter says, pushing the assistant chat on
+      a tap. Each agent row is a LARGE avatar on the left -- the agent's helmet, fanned out into a stack
       of three cards (the front one straight, two tilted behind it) when the
       agent holds two or more visible tasks, a single mark otherwise -- then
       the agent's name with the time of its latest movement trailing, and
@@ -1721,14 +1759,16 @@ components:
   - id: connect-ai-card
     title: Connect AI card
     purpose: >-
-      The first-run onboarding screen that connects the person's first AI
-      provider, between the survey and the Build your team card.
-    anatomy: [setup-card, title, subtitle, subscription-card, brand-mark,
+      The AI Manager onboarding conversation's first step, which connects the
+      person's first AI provider before the survey.
+    anatomy: [step-frame, headline, subscription-card, brand-mark,
       live-status, view-more-toggle, provider-browser]
     states: [loading, idle, signing-in, connected]
     variants: []
     behavior: >-
-      Two big subscription cards (Claude, ChatGPT: a wide row on a phone, a
+      The create sheet's frame every onboarding step wears, headline at the
+      sheet's size, in the composer's place: two big
+      subscription cards (Claude, ChatGPT: a wide row on a phone, a
       square tile on desktop) over a collapsed "View more" that opens the
       same provider browser the AI hub and the migration reconnect screen
       mount; with no big card to show, the browser is open and the toggle is
@@ -1737,45 +1777,136 @@ components:
       reporting, so a sign-in started on either resolves the same way. A
       signing-in card turns into a panel carrying its own Cancel. The card never
       advances itself: the first-run route reads the shared provider statuses
-      and moves on to the team card the moment one provider is confirmed
-      connected; a connect only refreshes those statuses.
+      and moves the conversation on to the survey the moment one provider is
+      confirmed connected; a connect only refreshes those statuses.
     a11y: >-
-      The card's title is the screen's heading; each subscription card and
+      The card's title names the step; each subscription card and
       every provider is a real button named by the provider; "View more" is a
       real button with aria-expanded; the sign-in dialogs are modal and trap
       focus.
     since: 101
+  - id: manager-onboarding
+    title: AI Manager onboarding conversation
+    purpose: >-
+      First-run onboarding, and the profile questions an existing account
+      still owes, asked by the AI Manager in its own chat as a scripted
+      conversation.
+    anatomy: [manager-header, manager-message, typing-reveal, answer-receipt,
+      change-answer, question-card, option-row, create-step, step-back,
+      company-size-buttons, goal-field, roster-list, next-actions, handoff-actions, finish-action]
+    states: [opening, typing, asking, saving, save-failed, hiring,
+      hire-failed, finishing, finished]
+    variants: [first-run, profile-completion]
+    behavior: >-
+      The Manager's view runs it in place of the real chat, on the same chat
+      panel: every manager line is authored copy typed out like a streamed
+      reply (whole under reduced motion), and the step in hand replaces the
+      composer. No model is asked anything. A first run opens with the
+      Manager's hello, one short message at a time (the person greeted by
+      first name when their sign-in carries one, then who the Manager is, what
+      an AI Employee does and how the two work together), ending on connecting
+      the AI (see connect-ai-card). Then the survey: the industry and the
+      person's role asked with the create sheet's own two steps, the same
+      component as when an AI Employee is hired, addressed to the person (the
+      leadership positions first under their own heading, which a hire's role
+      step never offers, then the industry's own roles, a search across all of
+      them, "Something else" for their own words), then how big their company
+      is, one tap on a bucket from "Just me" to "1,000+" on the create
+      sheet's own chips (the answer being changed picked), then which task
+      they would love to hand off to an AI Employee, as a few lines of free
+      text in a field of the same family (Continue once there is text, no
+      Skip: the goal is required; Enter sends and Shift+Enter breaks the
+      line). Every step, Connect your
+      AI included, wears the create sheet's frame and headline, so the slot
+      reads as one family. Then the team, with no question
+      about how to build it: the "Build your team" card's own starter team,
+      an employee card per AI Employee named for its job, under a line that
+      says every name, job and color is editable. "Hire one more" (in the
+      footer beside "Hire my team", always in view) adds a card on top,
+      scrolled into view, for the next shared job, and a
+      draft's Remove beside its name lets it go while another card stands.
+      "Hire my team" creates everyone behind the person and holds a
+      spinner until every hire has landed; the Manager then goes straight
+      to its closing. A run resumed with AI Employees already hired lists
+      them over "That's my team" and "Hire one more", which opens the
+      starter team. Then the Manager closes one message at a
+      time: the team is ready, each AI Employee waits to be opened for its
+      first day, and what the Manager does (hands out missions and hires,
+      plus inviting teammates and connecting tools only where the
+      deployment's capabilities serve them, and never inviting teammates to
+      someone who works alone). A person who gave a goal is then
+      offered to start on it, answered with two buttons in the step slot,
+      "Yes, let's do it" and "Not now": either one saves the conversation as
+      the Manager's history and hands the view to the real chat, and "Yes"
+      also sends the chat's first real turn, the answer as the person's
+      bubble over the instruction the Manager reads with it. A person who
+      skipped the goal is asked for a task instead, and the real chat takes
+      over by itself, its composer focused on desktop. Each
+      answer stays as a receipt; the latest carries a visible "Change answer"
+      that asks it again, the answer still picked, except the team hired,
+      which is for good, and nothing changes while the finish is landing.
+      Every create step (the survey's role, the starter team and its
+      industry) also carries the create sheet's Back in its footer while the
+      answer before it can change, above its actions on a phone and at the
+      row's far left on desktop: the same move as that answer's "Change
+      answer". A reload resumes
+      on the step it left from what is persisted: the connected provider, the
+      survey record and the AI Employees already hired, listed on the roster.
+      The profile-completion variant asks only the survey questions still
+      owed, each with "Not now", then thanks the person, and one primary
+      "Continue" button under the thanks hands the view back. The view opens once
+      when onboarding starts, and it and the pinned Manager rows stay
+      reachable until it ends, whether or not the deployment serves a
+      manager.
+    a11y: >-
+      The feed is the chat's own message log; each answer row and catalog
+      chip is a real radio named by its label, at least 44px tall on a phone,
+      and an option row's number key answers it; the create steps keep the
+      create sheet's own keyboard (typing filters, arrows move between chips)
+      and act only while on screen; the goal field is labelled by its question
+      and is 16px on a phone so focusing it never zooms; each company-size
+      bucket is a real button, 44px tall on a phone, the held one
+      aria-pressed, in a fieldset named by the question; "Change answer" is a
+      real, always visible button, and so is a step's Back; the buttons after
+      a hire, the goal offer's two answers and the profile's Continue are real
+      buttons, full width and 44px tall on a phone; a failed save or hire says
+      why in an alert beside its way to try again.
+    since: 107
   - id: build-team-card
     title: Build your team card
     purpose: >-
-      Where a workspace gets its first AI Employees: at the end of first-run
-      onboarding, and inside the New workspace dialog.
-    anatomy: [heading, logo, choice-row, choice-card, avatar-stack,
-      hire-steps, hired-list, employee-card, basic-team-form,
-      attention-notice, footer-bar, back-control, primary-action]
+      Where a new workspace gets its first AI Employees, inside the New
+      workspace dialog.
+    anatomy: [heading, choice-row, choice-card, avatar-stack, hire-steps,
+      hired-list, employee-card, basic-team-form, attention-notice,
+      footer-bar, back-control, primary-action]
     states: [loading, choice, hiring, hired, basic-industry, basic-team,
       working, error]
-    variants: [first-run, new-workspace]
+    variants: []
     behavior: >-
       Opens on two navigation choices: hire one AI Employee at a time through
       the in-app hire (industry, job, then the new hire's employee card to
       name and color), or start with a basic team of three (Executive
       assistant, Operations manager, Finance manager) whose employee cards
-      each need a name before the team is hired. The industry the person gave
-      in the survey is already answered on both paths. After each hire the
+      arrive named for their jobs, under a line saying every name, job and
+      color is editable; "Hire one more" in the footer bar, beside the
+      primary and always in view, adds a card on top, scrolled into view,
+      for the next shared job (no other card changes color), and each draft's Remove lets it go while another card
+      stands. The industry the person gave
+      in the survey is already answered on both paths, and the first hire's
+      job question opens on the person's own role. After each hire the
       card lists who joined, each on their employee card, and offers another
       hire or finishing. Every hire lands with its first day pending; nobody
-      starts working from here. The first-run variant is a full screen on the
-      setup card; the new-workspace variant is the card's content inside the
-      dialog, which owns the frame and the way out. The footer bar never
+      starts working from here. The card is content alone: the dialog owns
+      the frame and the way out. The footer bar never
       scrolls away, and a step slides in from the side it came from. A team of
       cards (the basic team, the roster) sits three across on a desktop, more
-      wrapping into rows of three, so three fit without scrolling; on a phone
-      it is the employee card's carousel. Pressing "Hire my team" with a
+      wrapping into rows of three, never scrolling sideways; cards taller than
+      the window scroll in the card's body above the footer bar. On a phone
+      the cards stack full width. Pressing "Hire my team" with a
       blank name marks it required on its card and takes the person to it.
       Every card stays editable: a hire on the roster renames when its field
-      is left or Enter is pressed, or at once from the dice, and recolors on a
-      swatch, saved through the app's rename and recolor once the hire exists.
+      is left or Enter is pressed, and recolors on a swatch, saved through the app's rename and recolor once the hire exists.
       Hires are created in the background and finishing waits for them. A hire
       made one by one that failed is named on the basic team screen, on its
       card with Retry and Remove, since it holds the team back from finishing.
@@ -1790,68 +1921,61 @@ components:
     purpose: >-
       Name an AI Employee, confirm their job and industry, and pick their
       color in the starter team, hiring roster, and create dialog.
-    anatomy: [surface, photo-panel, engraving, portrait, paintbrush-button,
-      color-picker, color-palette, name-label, name-field, suggest-button,
-      role-choice, industry-choice, brief-picker, message-slot, status-foot,
-      retry-action, remove-action, carousel, pagination-dots]
+    anatomy: [surface, photo-panel, engraving, portrait, name-label,
+      name-field, edit-pencil, role-choice, industry-choice, color-choice,
+      brief-picker, color-palette, message-slot, status-foot, retry-action,
+      remove-action, team-deck]
     states: [draft, joining, hired, failed, name-required, name-invalid,
       brief-picking, color-picking]
     variants: [grid, solo]
     behavior: >-
-      A portrait ID badge with an opaque surface and hairline, no drop shadows.
-      Its semantic employee color tints the body and full-bleed 160px metal
-      header in both themes. A diagonal alloy gradient and soft sheen carry
-      a fine inline SVG engraving seeded by color and role, never the name.
-      The centered flat helmet is 80px on narrow cards and 96px from a 320px
-      container, with no plate, lanyard slot or wordmark. The upper-right
-      Paintbrush button is
-      always visible, 44px on phone and 32px on desktop. It opens
+      A horizontal ID badge with an opaque surface and hairline, no drop
+      shadows. Its semantic employee color tints the body and a full-height
+      metal photo panel down its left edge in both themes: 72px wide on a
+      badge under 320px, 104px from 320px, growing with the badge's height.
+      A diagonal alloy gradient and soft sheen carry a fine inline SVG
+      engraving seeded by color and role, never the name, cropped to the
+      panel (never stretched) with hairline strokes at any size. The centered
+      flat helmet is 48px on the narrow panel and 64px on the wide one, with no
+      plate, lanyard slot or wordmark. Beside the panel sit the name, then
+      Role, Industry and Color: stacked on a badge under 672px, side by side
+      from 672px (a badge alone in the chat), where the panel comes out close
+      to square. The Color choice shows its name led by a swatch. It opens
       ResponsivePopover on desktop or a bottom sheet on phone, with the
       existing radio palette in two rows of five 44px targets. Color selection
       crossfades only paint and helmet opacity over duration.fast (200ms);
       reduced motion changes instantly and controls never remount.
-      Below the photo are a labeled required 16px Name input with dice,
-      then labeled Role and Industry choices with persistent chevrons.
+      The name is a required 16px input in field chrome with its Name label
+      inside it and an always-visible pencil, and a draft its team may let go
+      carries a Remove icon button beside it (44px on a phone); Role, Industry and Color are
+      flat labelled rows with persistent chevrons, 44px tall on a phone. The
+      pencil and chevrons are the edit affordance, so no separate hint line
+      exists. A new hire's name arrives as its job (made
+      unique the way every clash is, "Chief of Staff 2") and follows the job
+      until the person types one, so the hire is one press away; a press or
+      Tab into the name selects it whole.
       Long brief labels wrap; the name placeholder uses complete role examples
       only when they fit, otherwise a short localized name example.
       There is no bottom color section. Draft status is omitted; joining dims
       the portrait, hired shows On your team, and failed retains Retry and
-      optional Remove on the badge. Name errors stay below the field.
-      Suggestions, brief edits, hiring and roster saving keep the shared flow.
-      Team frames widen to max-w-6xl (1152px); three columns have 16px gaps.
-      Solo badges are centered at max-w-xs (320px). Phone team badges use
-      288px snap slides capped to the viewport minus 64px, with peek and dots.
+      optional Remove on the badge (44px on a phone). Name errors stay below
+      the field. Brief edits, hiring and roster saving keep the shared flow.
+      A team deck takes its columns from its own width: three across with
+      16px gaps from 1024px (the 1152px new-workspace frame), badges in a row
+      as tall as the tallest; below that one full-width badge per row with
+      12px gaps (a phone, the AI Manager's chat). Solo badges are centered at
+      max-w-2xl (672px).
     a11y: >-
       Each badge is a fieldset named after the employee. DOM tab order is name,
-      dice, color button, role, industry, then recovery, while CSS places the
-      photo first visually. The name is aria-required and described by a polite
+      role, industry, color, then recovery; the photo panel is hidden from
+      assistive tech. On desktop the naming screen focuses its primary, so Enter
+      hires; a phone focuses nothing, so no keyboard covers the badge. The name is aria-required and described by a polite
       error region; its accessible name includes the job. Color opens focused
       on the selected swatch. Arrow keys, Home and End select within the
       radiogroup; Escape closes the picker and returns focus to its button.
       Brief pickers retain their existing keyboard and focus behavior.
       Every control has a visible focus ring; invalid submission focuses the
-      first name needing attention and reveals its phone slide.
-    since: 101
-  - id: survey-industry-picker
-    title: Survey industry picker
-    purpose: >-
-      The onboarding survey's industry question, asked from the hire
-      catalog's own industries.
-    anatomy: [search-row, chip-well, industry-chip, no-matches, other-row,
-      other-field]
-    states: [idle, filtered, no-matches, picked, other-typing, disabled]
-    variants: [first-run, profile-completion]
-    behavior: >-
-      The same pieces as the hire flow's industry step: a filter paired with
-      the "something else" door, one sorted run of chips in a bounded,
-      scrolling well, and typing anywhere filtering it. A pick selects and the
-      survey's Continue confirms. "Something else" opens a free-text field;
-      the filter's words carry into it. An answer the catalog does not know
-      is stored as something else.
-    a11y: >-
-      Each chip is a radio (checked state announced) on a roving tab stop the
-      arrow keys walk; the filter is a labelled field; the free-text answer is
-      a labelled input.
+      first name needing attention and scrolls its badge into view.
     since: 101
   - id: first-day-offer
     title: First day offer

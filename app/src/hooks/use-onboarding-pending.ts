@@ -10,8 +10,7 @@ import { tauriPreferences } from "../lib/tauri";
 
 /**
  * Engine-preference key for how far a mid-flight first-run onboarding got.
- * Stored as an opaque string in `~/.houston` prefs (same mechanism as
- * `legal_acceptance`), so it survives an app restart.
+ * Stored as an opaque string in `~/.houston` prefs, so it survives an app restart.
  */
 export const ONBOARDING_PENDING_KEY = "onboarding_pending";
 

@@ -31,8 +31,11 @@ export interface SidebarRailModel {
   onArrange: (arrangement: SidebarArrangement) => boolean;
   ready: boolean;
   items: SidebarItem[];
+  /** Rows leading the band, ahead of every folder: the AI Manager. */
+  pinnedItems: SidebarItem[];
   groups: SidebarGroupView[];
   order: SidebarRootEntry[];
+  /** The band's lit row: an agent, or a pinned row's id. */
   selectedAgentId: string | null;
   onSelectAgent: (id: string) => void;
   /** Fold or unfold a folder from its heading. */
@@ -81,6 +84,7 @@ export function SidebarRail({
     onArrange,
     ready,
     items,
+    pinnedItems,
     groups,
     order,
     selectedAgentId,
@@ -132,6 +136,7 @@ export function SidebarRail({
       sectionCollapsed={sectionCollapsed}
       onToggleSectionCollapsed={onToggleSectionCollapsed}
       items={items}
+      pinnedItems={pinnedItems}
       groups={groups}
       order={order}
       onActivateGroup={ready ? onActivateGroup : undefined}

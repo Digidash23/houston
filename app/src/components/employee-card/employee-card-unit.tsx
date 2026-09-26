@@ -13,12 +13,7 @@ export function EmployeeCardUnit({
 }) {
   return (
     <fieldset
-      className={cn(
-        "min-w-0",
-        layout === "grid"
-          ? "w-72 max-w-[calc(100dvw-4rem)] md:w-full md:max-w-none"
-          : "w-full max-w-xs",
-      )}
+      className={cn("flex w-full min-w-0", layout === "solo" && "max-w-2xl")}
     >
       <legend className="sr-only">{label}</legend>
       {card}

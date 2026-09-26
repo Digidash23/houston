@@ -1,20 +1,40 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "../support/fixtures";
-import { awaitAgentsHome, navBar } from "../support/mobile-nav";
 import {
-  buildTeamHeading,
-  completeSurvey,
-  connectAiHeading,
-  connectAiOnCard,
-  resetToFirstRun,
-} from "../support/onboarding";
-import { hireOnTeamCard, hireYourTeamOption } from "../support/team-card";
+  answerCompanySize,
+  answerGoal,
+  answerSurvey,
+  companySizeButton,
+  connectAi,
+  connectAiStep,
+  goalField,
+  INDUSTRY_ANSWER,
+  managerOnboarding,
+  managerStep,
+  pickChip,
+  ROLE_ANSWER,
+} from "../support/manager-onboarding";
+import {
+  finishOnboarding,
+  HIRE_ONE_MORE,
+  hireStarterTeam,
+  roster,
+  STARTER_ROLES,
+  starterTeam,
+  teamNext,
+} from "../support/manager-team";
+import { awaitAgentsHome, navBar } from "../support/mobile-nav";
+import { openManagerOnboarding, resetToFirstRun } from "../support/onboarding";
+import {
+  expectLatestLinesClearOfStep,
+  scrollLogToStart,
+} from "../support/onboarding-scroll";
 
 /**
- * First-run on a phone, end to end: the survey, "Connect your AI", then
- * "Build your team", all full-screen cards outside the phone shell, and then
- * the shell itself. This is the tier-1 gate that keeps the phone from
- * dead-ending a new user in a mandatory onboarding they cannot finish.
+ * First run on a phone, end to end: the AI Manager's conversation full-screen
+ * (its own back header, no nav bar under it), connecting an AI, the survey,
+ * the starter team, and then the app. This is the tier-1 gate that keeps the phone
+ * from dead-ending a new user in a mandatory onboarding they cannot finish.
  */
 
 /** Zero horizontal overflow: the phone layout's standing rule. */
@@ -27,169 +47,145 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow).toBeLessThanOrEqual(0);
 }
 
-test("first run completes on a phone: survey, provider connect, first hire, the app", async ({
+/** A control sized for the thumb: most of the phone's width. */
+async function expectFullWidth(page: Page, control: Locator) {
+  const box = await control.boundingBox();
+  const viewport = page.viewportSize();
+  if (!box || !viewport) throw new Error("the control did not lay out");
+  expect(box.width).toBeGreaterThan(viewport.width * 0.7);
+}
+
+/** A field a phone does not zoom into on focus: 16px text or more. */
+async function expectNoZoomOnFocus(field: Locator) {
+  const size = await field.evaluate((node) =>
+    Number.parseFloat(getComputedStyle(node).fontSize),
+  );
+  expect(size).toBeGreaterThanOrEqual(16);
+}
+
+test("first run completes on a phone: connect, survey, first hire, the app", async ({
   page,
   request,
 }) => {
   test.setTimeout(90_000);
   await resetToFirstRun(request);
-  await page.goto("/");
-  await completeSurvey(page);
+  await openManagerOnboarding(page);
 
-  // Connect on the card (the api-key path; the fake host accepts any key).
-  await expect(connectAiHeading(page)).toBeVisible();
+  // The conversation is a pushed chat: its own way back, no nav bar.
+  await expect(
+    managerOnboarding(page).getByTestId("assistant-back"),
+  ).toBeVisible();
+  await expect(navBar(page)).toHaveCount(0);
+  await expect(connectAiStep(page)).toBeVisible();
   await expectNoHorizontalOverflow(page);
-  await connectAiOnCard(page);
+  await connectAi(page, "tap");
+
+  // The industry: the create sheet's step, its filter and "Something else"
+  // stacked full width for the thumb, the filter never zooming the page.
+  const industry = managerStep(page, "survey-industry");
+  const search = industry.getByPlaceholder("Search industries");
+  await expectFullWidth(page, search);
+  await expectNoZoomOnFocus(search);
+  await expectFullWidth(
+    page,
+    industry.getByRole("button", { name: "Something else" }),
+  );
   await expectNoHorizontalOverflow(page);
+  // The step fills most of the phone, and the manager's line stays above it.
+  await expectLatestLinesClearOfStep(page);
+  await pickChip(page, "survey-industry", INDUSTRY_ANSWER, "tap");
+  await expectLatestLinesClearOfStep(page);
+  // A reader scrolled back through the history still sees their answer land,
+  // the way a sent message brings the real chat down.
+  await scrollLogToStart(page);
+  await pickChip(page, "survey-role", ROLE_ANSWER, "tap");
+  await expectLatestLinesClearOfStep(page);
 
-  // Hire one AI Employee through the card's walk: the survey's industry is
-  // already answered, then a job, then the name screen.
-  await hireYourTeamOption(page).tap();
-  await expect(
-    page.getByRole("heading", {
-      name: "What industry does this AI Employee work in?",
-    }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Continue", exact: true }).tap();
-  await page.getByRole("radio", { name: "Production planner" }).tap();
+  // The company size: thumb-sized chips wrapping in a row, one tap to answer.
+  const [small, next] = await Promise.all([
+    companySizeButton(page, "Just me").boundingBox(),
+    companySizeButton(page, "2–10").boundingBox(),
+  ]);
+  if (!small || !next) throw new Error("the buckets did not lay out");
+  expect(small.height).toBeGreaterThanOrEqual(44);
+  expect(next.y).toBe(small.y);
+  expect(next.x).toBeGreaterThan(small.x);
+  await expectNoHorizontalOverflow(page);
+  await answerCompanySize(page, "tap");
+  await expectLatestLinesClearOfStep(page);
 
-  // The photo corner opens the color sheet with two rows of five.
-  await page.getByRole("button", { name: "Change color" }).tap();
-  await expect(
-    page.getByRole("dialog", { name: "Color", exact: true }),
-  ).toBeVisible();
-  const frame = await page.locator(".setup-step-in").boundingBox();
-  if (!frame) throw new Error("team card did not lay out");
-  const swatches = page
-    .getByRole("radiogroup", { name: "Color" })
-    .getByRole("radio");
-  await expect(swatches.first()).toBeVisible();
-  for (const swatch of await swatches.all()) {
-    const box = await swatch.boundingBox();
-    if (!box) throw new Error("swatch did not lay out");
-    expect(box.x + box.width).toBeLessThanOrEqual(frame.x + frame.width + 1);
-    expect(box.x).toBeGreaterThanOrEqual(frame.x - 1);
-  }
-  await page.keyboard.press("Escape");
-  await expect(
-    page.getByRole("button", { name: "Change color" }),
-  ).toBeFocused();
-  await page
-    .getByRole("textbox", { name: "Name (Production planner)" })
-    .fill("Aurora");
-  await page.getByRole("button", { name: "Hire", exact: true }).tap();
-  await expect(
-    page.getByRole("heading", { name: "You hired your first AI Employee" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Done", exact: true }).tap();
+  // The goal: a field that never zooms, with a thumb-sized Continue and no
+  // way to skip it.
+  await expectNoZoomOnFocus(goalField(page));
+  const goal = managerStep(page, "survey-goal");
+  await expectFullWidth(page, goal.getByRole("button", { name: "Continue" }));
+  await expect(goal.getByRole("button", { name: "Skip" })).toHaveCount(0);
+  await goalField(page).focus();
+  await expectLatestLinesClearOfStep(page);
+  await answerGoal(page, "tap");
+  await expectNoHorizontalOverflow(page);
+  await expectLatestLinesClearOfStep(page);
 
-  // The phone shell takes over, landing on the Agents home with the hire.
+  // The starter team, renamed and hired in one tap.
+  await hireStarterTeam(page, ["Avery", "Felix", "Nora"], "tap");
+  await expectNoHorizontalOverflow(page);
+  await finishOnboarding(page, "tap");
+
+  // The real chat's back chevron leaves for the Agents home, with the hires.
+  await page.getByTestId("assistant-back").tap();
   await expect(navBar(page)).toBeVisible();
   const row = await awaitAgentsHome(page);
-  await expect(row).toContainText("Aurora");
+  await expect(row).toContainText("Avery");
   await expectNoHorizontalOverflow(page);
 });
 
-test("the disclaimer's accept button fits inside the phone card", async ({
+test("the starter team's buttons are sized for the thumb", async ({
   page,
+  request,
 }) => {
-  await page.addInitScript(() => {
-    localStorage.removeItem("houston.pref.legal_acceptance");
+  test.setTimeout(90_000);
+  await resetToFirstRun(request);
+  await openManagerOnboarding(page);
+  await connectAi(page, "tap");
+  await answerSurvey(page, "tap");
+  const step = starterTeam(page);
+  const hire = step.getByRole("button", { name: "Hire my team" });
+  expect((await hire.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+  await expectFullWidth(page, hire);
+  const more = step.getByRole("button", { name: HIRE_ONE_MORE, exact: true });
+  expect((await more.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+  const remove = step.getByRole("button", {
+    name: `Remove ${STARTER_ROLES[0]}`,
+    exact: true,
   });
-  await page.goto("/");
-
-  const accept = page.getByRole("button", {
-    name: "I understand and want to continue",
-  });
-  await expect(accept).toBeVisible();
-  const card = page.locator(".setup-step-in");
-  const [button, frame] = await Promise.all([
-    accept.boundingBox(),
-    card.boundingBox(),
-  ]);
-  if (!button || !frame) throw new Error("disclaimer card did not lay out");
-  expect(button.x + button.width).toBeLessThanOrEqual(frame.x + frame.width);
-  expect(button.x).toBeGreaterThanOrEqual(frame.x);
-
-  await accept.tap();
-  await expect(navBar(page)).toBeVisible();
+  expect((await remove.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+  await expectNoHorizontalOverflow(page);
+  // The manager's latest line stays in view above the team.
+  await expectLatestLinesClearOfStep(page);
 });
 
-test.describe("short phone viewport", () => {
-  // A small phone under Safari's chrome: the card's 88dvh frame is shorter
-  // than the survey column, which then has to scroll rather than overflow
-  // the frame at both ends (the logo above the card, Continue below it).
-  test.use({ viewport: { width: 375, height: 600 } });
-
-  test("the survey scrolls inside its card instead of overflowing it", async ({
-    page,
-    request,
-  }) => {
-    await resetToFirstRun(request);
-    await page.goto("/");
-    const heading = page.getByRole("heading", {
-      name: "What best describes your work?",
-    });
-    await expect(heading).toBeVisible();
-
-    // The card IS the screen on the phone: full width, no floating frame.
-    const card = await page.locator(".setup-step-in").boundingBox();
-    if (!card) throw new Error("survey card did not lay out");
-    expect(card.x).toBe(0);
-    expect(card.width).toBe(375);
-
-    const scroll = page.getByTestId("survey-scroll");
-    const [frame, top] = await Promise.all([
-      scroll.boundingBox(),
-      heading.boundingBox(),
-    ]);
-    if (!frame || !top) throw new Error("survey card did not lay out");
-    expect(top.y).toBeGreaterThanOrEqual(frame.y);
-    expect(
-      await scroll.evaluate((el) => el.scrollHeight > el.clientHeight),
-    ).toBe(true);
-
-    // Continue is reachable by scrolling, and advances — and the next
-    // question opens at ITS top, not at the scroll position Continue left.
-    await page.getByRole("button", { name: "Operations" }).tap();
-    const next = page.getByRole("button", { name: "Continue" });
-    await next.scrollIntoViewIfNeeded();
-    await next.tap();
-    const industry = page.getByRole("heading", {
-      name: "What industry do you work in?",
-    });
-    await expect(industry).toBeVisible();
-    const [frame2, top2] = await Promise.all([
-      scroll.boundingBox(),
-      industry.boundingBox(),
-    ]);
-    if (!frame2 || !top2) throw new Error("industry step did not lay out");
-    expect(top2.y).toBeGreaterThanOrEqual(frame2.y);
-    expect(await scroll.evaluate((el) => el.scrollTop)).toBe(0);
-  });
-});
-
-test("a reload mid-onboarding resumes on the card the user left", async ({
+test("a reload mid-onboarding resumes on the step the user left", async ({
   page,
   request,
 }) => {
   // Phones evict a background tab: leaving to fetch a sign-in code and coming
-  // back reloads the app. The run must re-enter on the card it stood on, never
-  // on the survey with the work so far forgotten, and never in the app early.
+  // back reloads the app. The run must re-enter on the step it stood on, never
+  // at the start with the work so far forgotten, and never in the app early.
+  test.setTimeout(90_000);
   await resetToFirstRun(request);
-  await page.goto("/");
-  await completeSurvey(page);
-  await expect(connectAiHeading(page)).toBeVisible();
+  await openManagerOnboarding(page);
+  await expect(connectAiStep(page)).toBeVisible();
 
   await page.reload();
-  await expect(connectAiHeading(page)).toBeVisible();
+  await expect(connectAiStep(page)).toBeVisible();
 
-  // The first hire flips the zero-agent first-run signal; the pending flag
-  // still holds the user on the team card across a reload.
-  await connectAiOnCard(page);
-  await hireYourTeamOption(page).tap();
-  await hireOnTeamCard(page, "Aurora", "tap");
+  // Hiring flips the zero-agent first-run signal; the pending stage still
+  // holds the person on the team step across a reload.
+  await connectAi(page, "tap");
+  await answerSurvey(page, "tap");
+  await hireStarterTeam(page, null, "tap");
   await page.reload();
-  await expect(buildTeamHeading(page)).toBeVisible();
+  await expect(teamNext(page)).toBeVisible();
+  await expect(roster(page).locator('li[data-status="hired"]')).toHaveCount(3);
   await expect(navBar(page)).toHaveCount(0);
 });

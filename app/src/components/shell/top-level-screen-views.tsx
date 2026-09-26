@@ -32,20 +32,17 @@ import type { KeepAliveView } from "./keep-alive-views";
  */
 export function topLevelScreenViews(gates: {
   showAiModels: boolean;
-  showAssistant: boolean;
   showSkills: boolean;
 }): KeepAliveView[] {
   return [
     // The phone's Agents tab root and the desktop's temporary boot landing.
     // It also handles an empty roster and dead-view fallbacks.
     { id: AGENTS_HOME_VIEW_ID, enabled: true, content: <AgentsHomeView /> },
-    // Gated on DISCOVERY, not on a role: where no assistant exists there is no
-    // address to open a chat at, so the screen is never even mounted.
-    {
-      id: ASSISTANT_VIEW_ID,
-      enabled: gates.showAssistant,
-      content: <AssistantView />,
-    },
+    // Ungated: onboarding runs in this screen, scripted and local, so it must
+    // exist before discovery answers and on a deployment that serves no
+    // manager. Once onboarding is over there, the view guard sends a stale
+    // `viewMode` home (`blockedTopLevelView`).
+    { id: ASSISTANT_VIEW_ID, enabled: true, content: <AssistantView /> },
     { id: ACADEMY_VIEW_ID, enabled: true, content: <AcademyView /> },
     { id: AI_HUB_VIEW_ID, enabled: gates.showAiModels, content: <AiHubView /> },
     { id: SETTINGS_VIEW_ID, enabled: true, content: <SettingsView /> },

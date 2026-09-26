@@ -4,6 +4,7 @@
     "addAgent": "New AI Employee",
     "aiModels": "AI Models",
     "assistant": "AI Manager",
+    "assistantRole": "Runs your AI team",
     "changeColor": "Change color",
     "collapse": "Collapse sidebar",
     "color": "Color",
@@ -683,11 +684,10 @@
     "teamTitle": "Group"
   },
   "employeeCard": {
-    "changeColor": "Change color",
+    "changeColor": "Change color: {{color}}",
     "namePlaceholder": "e.g. Ava",
     "namePlaceholderForRole": "e.g. {{role}}, Assistant 3, Jerry",
     "nameLabel": "Name ({{role}})",
-    "suggestName": "Suggest a name",
     "nameRequired": "Add a name to continue",
     "status": {
       "joining": "Joining",
@@ -696,7 +696,6 @@
     },
     "retryLabel": "Try hiring {{name}} again",
     "removeLabel": "Remove {{name}}",
-    "showCard": "Show card {{current}} of {{total}}",
     "nameHeading": "Name"
   }
 }

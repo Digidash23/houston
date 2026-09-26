@@ -19,6 +19,9 @@ export interface SidebarBandProps {
    * button may not nest inside a button.
    */
   affordance?: ReactNode;
+  /** Rows between the band and its run that the fold never takes: a pinned
+   *  row that must stay reachable while the run is put away. */
+  lead?: ReactNode;
   /** The run this band names. Rendered flush under it, dropped when folded. */
   children: ReactNode;
   /** Extra classes on the CONTENT region (e.g. the scroll box's own sizing). */
@@ -72,6 +75,7 @@ export function SidebarBand({
   collapsed = false,
   onToggleCollapsed,
   affordance,
+  lead,
   children,
   contentClassName,
 }: SidebarBandProps) {
@@ -91,6 +95,7 @@ export function SidebarBand({
           affordance={affordance}
         />
       </div>
+      {lead}
       <div className={contentClassName} id={contentId}>
         {foldable && collapsed ? null : children}
       </div>

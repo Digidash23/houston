@@ -21,6 +21,10 @@ export interface SidebarItem {
    * which is too transient a surface to anchor a menu to.
    */
   affordance?: ReactNode;
+  /** DOM attributes (test ids, tour anchors) on the row: the expanded row's
+   *  root and the collapsed rail's button. The collapsed flyout's copy of the
+   *  row goes without, so an id never matches twice. */
+  dataAttrs?: Record<string, string>;
 }
 
 export interface SidebarNavItemEntry {
@@ -78,6 +82,12 @@ export interface SidebarProps {
   navSections?: SidebarNavSection[];
   activeNavId?: string;
   items: SidebarItem[];
+  /**
+   * Rows that lead the list, ahead of every group (expanded) or every item
+   * (collapsed). Drawn exactly like `items` and selected through the same
+   * `selectedId` / `onSelect`, but never grouped and never draggable.
+   */
+  pinnedItems?: SidebarItem[];
   selectedId?: string | null;
   onSelect: (id: string) => void;
   /**

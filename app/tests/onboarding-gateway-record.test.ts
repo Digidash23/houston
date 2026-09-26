@@ -7,11 +7,15 @@ import {
 
 const remote = (industry: string | null) => ({
   segment: null,
+  role: null,
   industry,
+  companySize: null,
   automationGoal: null,
   goalSkipped: false,
   segmentAnsweredAt: null,
+  roleAnsweredAt: null,
   industryAnsweredAt: null,
+  companySizeAnsweredAt: null,
   goalAnsweredAt: null,
 });
 

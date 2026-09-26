@@ -15,11 +15,9 @@ import { EmployeeNameField } from "./employee-name-field";
 export interface EmployeeCardNameInput {
   value: string;
   onChange: (value: string) => void;
-  onSuggest: () => void;
   onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
   onBlur?: () => void;
   inputRef?: Ref<HTMLInputElement>;
-  autoFocus?: boolean;
 }
 
 export function EditableEmployeeCard({
@@ -34,6 +32,7 @@ export function EditableEmployeeCard({
   recovery,
   onColorChange,
   onBriefChange,
+  onRemove,
 }: {
   layout: EmployeeCardLayout;
   role: string;
@@ -48,6 +47,8 @@ export function EditableEmployeeCard({
   onColorChange: (color: string) => void;
   /** The job or the industry answered again, as the person reads it. */
   onBriefChange: (field: JobBriefField, answer: string) => void;
+  /** Lets this draft go; omitted where it may not be. */
+  onRemove?: () => void;
 }) {
   const { t } = useTranslation("shell");
   const messageId = useId();
@@ -81,6 +82,7 @@ export function EditableEmployeeCard({
           status={status}
           message={{ id: messageId, text: message }}
           recovery={recovery}
+          remove={onRemove ? { name: who, onRemove } : undefined}
           name={
             <EmployeeNameField
               {...name}

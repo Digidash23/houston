@@ -3,6 +3,56 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v107 - 2026-09-26
+
+New `manager-avatar`: the AI Manager's mark, the agent avatar's helmet on a
+squircle of the filled primary Button's own material (its `cta` fill, a 1px
+`cta-rim` and the helmet in `cta-text`), flat, and switching with the theme
+and the palette exactly as the Button does. The AI Manager leaves the rail's top-level run (`sidebar-nav-band`) and leads
+`sidebar-teams-band` as its pinned first person row, selected like an agent
+and first on the collapsed rail.
+`agents-home` pins it above the roster on the phone, and the More menu no
+longer lists it.
+New `manager-onboarding`: first-run onboarding and the owed profile questions
+run inside the AI Manager's chat as a scripted conversation: the Manager's
+hello, one short message at a time, then Connect your AI, the survey and the
+team. The survey asks the person's industry and role with the create sheet's
+own two steps, addressed to them (the role led by the leadership positions,
+which a hire's role step never offers), how big their company is with one tap
+on the create sheet's chips, and which task they would love to hand off to an
+AI Employee, as free text; every step wears the create sheet's frame. The team
+opens straight on the "Build your team" card's starter team, every name, job
+and color editable, with "Hire one more" to add a card and Remove on each
+draft; "Hire my team" hires everyone and the Manager closes. Every
+create step carries the create sheet's Back while the answer before it can
+change, the same move as that answer's "Change answer". The closing tells
+what the Manager does as far as the deployment reaches (never inviting
+teammates to someone who works alone), then offers to start
+on the person's goal with "Yes, let's do it" (the real chat's first turn) or
+"Not now"; with no goal, the real chat takes over by itself. The profile
+questions end on one primary "Continue" button. `connect-ai-card` is the
+conversation's first step, in the create sheet's frame;
+`build-team-card` lives only in the New workspace dialog, and its first hire's
+job opens on the person's survey role. `survey-industry-picker` is gone: the
+industry is one of the conversation's questions. The in-app legal agreement
+step is gone.
+`conversation-feed`: a log held at its latest message stays there when its
+viewport resizes (a card in the composer slot, the phone keyboard), and each
+answer in a scripted conversation brings the latest line into view the way a
+send does.
+`employee-card`: a new hire's name arrives as its job ("Chief of Staff",
+numbered when taken) and follows the job until the person types one, so
+naming is one press. The name field shows an always-visible pencil and
+selects the name whole when reached; the dice is gone. The badge turns
+horizontal at about half its height: the engraved metal becomes a photo panel
+down its left edge, and beside it the name (its label inside the field), then
+Role, Industry and Color as flat labelled rows, stacked on a narrow badge and
+side by side on a wide one. The pencil and chevrons carry the edit hint, whose
+separate line is gone. A team of badges sits three across only where the deck
+is 1024px wide and stacks full width elsewhere, a phone included, where the
+carousel and its dots are gone. On desktop the naming screen focuses its
+primary, and a phone focuses nothing.
+
 ## v106 - 2026-09-26
 
 The AI Employees rail interleaves ungrouped employees with personal groups.

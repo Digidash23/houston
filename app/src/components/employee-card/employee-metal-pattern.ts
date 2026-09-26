@@ -47,29 +47,3 @@ export function employeeEngravingColor(
   );
   return entry ? entry.id : stored;
 }
-
-/** FNV-1a keeps a badge's engraving stable across sessions and name edits. */
-export function employeeMetalSeed(color: string, role: string): number {
-  let hash = 2166136261;
-  for (const char of `${color}\0${role}`) {
-    hash = Math.imul(hash ^ (char.codePointAt(0) ?? 0), 16777619);
-  }
-  return hash >>> 0;
-}
-
-/** One compound path, in a 360 × 160 viewBox. Overscan fills every card width. */
-export function employeeMetalPattern(seed: number): string {
-  const phase = (seed % 360) * (Math.PI / 180);
-  const bend = 18 + ((seed >>> 8) % 18);
-  return Array.from({ length: 64 }, (_, line) => {
-    const base = line * 5 - 80;
-    return Array.from({ length: 25 }, (_, point) => {
-      const x = point * 15;
-      const y =
-        base +
-        Math.sin(x / 76 + phase) * bend +
-        Math.sin(x / 137 - phase + base / 110) * 14;
-      return `${point === 0 ? "M" : "L"}${x},${y.toFixed(2)}`;
-    }).join(" ");
-  }).join(" ");
-}

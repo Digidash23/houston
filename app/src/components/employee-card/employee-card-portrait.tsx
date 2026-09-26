@@ -10,7 +10,7 @@ export function EmployeeCardPortrait({
   return (
     <span
       aria-hidden="true"
-      className={cn("relative size-20 @xs:size-24", dim && "opacity-70")}
+      className={cn("relative size-12 @xs:size-16", dim && "opacity-70")}
     >
       <HoustonHelmet color={relief} className="size-full" />
     </span>

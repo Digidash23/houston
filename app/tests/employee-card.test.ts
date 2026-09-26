@@ -1,91 +1,15 @@
-import { deepStrictEqual, notStrictEqual, strictEqual } from "node:assert";
+import { deepStrictEqual, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
 import {
-  carouselIndex,
   employeeStatusView,
   paletteColumns,
   paletteKeyStep,
 } from "../src/components/employee-card/employee-card-model.ts";
 import {
-  EMPLOYEE_NAME_SUGGESTIONS,
-  nameSuggestionLocale,
-  roleSuggestionOffset,
-  suggestEmployeeName,
-} from "../src/components/employee-card/employee-name-suggestions.ts";
-import {
   employeeNameIssue,
   firstNameIssueIndex,
   visibleNameIssue,
 } from "../src/components/employee-card/employee-name-validation.ts";
-
-const suggest = (role: string, current: string, taken: string[] = []) =>
-  suggestEmployeeName({ locale: "en", role, current, taken });
-
-describe("employee name suggestions", () => {
-  it("offers several friendly names in every app language", () => {
-    for (const locale of ["en", "es", "pt"] as const) {
-      const names = EMPLOYEE_NAME_SUGGESTIONS[locale];
-      strictEqual(names.length >= 10, true, locale);
-      strictEqual(new Set(names).size, names.length, `${locale} repeats`);
-    }
-  });
-
-  it("reads the list from the app language, falling back to English", () => {
-    strictEqual(nameSuggestionLocale("es-MX"), "es");
-    strictEqual(nameSuggestionLocale("pt-BR"), "pt");
-    strictEqual(nameSuggestionLocale("en"), "en");
-    strictEqual(nameSuggestionLocale("fr"), "en");
-  });
-
-  it("opens each job on its own name, the same every time", () => {
-    const first = suggest("Executive assistant", "");
-    strictEqual(first, suggest("Executive assistant", ""));
-    const names = EMPLOYEE_NAME_SUGGESTIONS.en;
-    strictEqual(
-      first,
-      names[roleSuggestionOffset("Executive assistant", names.length)],
-    );
-    const openers = new Set(
-      ["Executive assistant", "Operations manager", "Finance manager"].map(
-        (role) => suggest(role, ""),
-      ),
-    );
-    strictEqual(openers.size, 3);
-  });
-
-  it("moves one name on per press, around the whole list", () => {
-    const names = EMPLOYEE_NAME_SUGGESTIONS.en;
-    const role = "Finance manager";
-    const seen: string[] = [];
-    let current = "";
-    for (let press = 0; press < names.length; press += 1) {
-      current = suggest(role, current);
-      seen.push(current);
-    }
-    deepStrictEqual(new Set(seen).size, names.length);
-    strictEqual(suggest(role, current), seen[0]);
-    // A typed name that is not in the list starts back at the job's opener.
-    strictEqual(suggest(role, "Bartholomew"), seen[0]);
-  });
-
-  it("steps over names already taken, ignoring case", () => {
-    const role = "Executive assistant";
-    const opener = suggest(role, "");
-    const next = suggest(role, "", [opener.toUpperCase()]);
-    notStrictEqual(next, opener);
-    strictEqual(next, suggest(role, opener));
-  });
-
-  it("numbers a name once every suggestion is taken", () => {
-    const names = [...EMPLOYEE_NAME_SUGGESTIONS.en];
-    const name = suggest("Writer", "", names);
-    strictEqual(/ 2$/.test(name), true, name);
-    strictEqual(
-      names.some((n) => name.startsWith(n)),
-      true,
-    );
-  });
-});
 
 describe("employee name validation", () => {
   it("requires a name", () => {
@@ -130,22 +54,6 @@ describe("employee card status", () => {
       dimPortrait: false,
       offersActions: true,
     });
-  });
-});
-
-describe("employee card carousel", () => {
-  it("shows the slide whose start is nearest", () => {
-    strictEqual(carouselIndex(0, 260, 3), 0);
-    strictEqual(carouselIndex(120, 260, 3), 0);
-    strictEqual(carouselIndex(140, 260, 3), 1);
-    strictEqual(carouselIndex(520, 260, 3), 2);
-  });
-
-  it("clamps overscroll and an unmeasured stride", () => {
-    strictEqual(carouselIndex(-40, 260, 3), 0);
-    strictEqual(carouselIndex(9999, 260, 3), 2);
-    strictEqual(carouselIndex(100, 0, 3), 0);
-    strictEqual(carouselIndex(100, 260, 0), 0);
   });
 });
 

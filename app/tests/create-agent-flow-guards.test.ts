@@ -74,7 +74,12 @@ describe("each question's filter is judged by the catalog it reaches", () => {
   // a step passing the runs ON SCREEN would drop its own field mid-query.
   it("hands the role question the whole catalog to reach", () => {
     const role = source("components/shell/role-step.tsx");
-    assert.ok(role.includes("reach: ROLE_SEARCH_REACH"));
+    // The person's own role reaches the leadership positions on top.
+    assert.ok(
+      role.includes(
+        "reach: asksSelf ? SELF_ROLE_SEARCH_REACH : ROLE_SEARCH_REACH",
+      ),
+    );
     // An industry the user typed has no run of its own, so the headline says
     // out loud that typing finds any job.
     assert.ok(role.includes("roleSetup.typeToFindAnyRole"));

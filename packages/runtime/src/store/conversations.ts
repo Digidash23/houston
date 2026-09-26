@@ -1,5 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import type { ConversationImportRequest } from "@houston/protocol";
 import type {
   ConversationHistory,
   ConversationSummary,
@@ -17,6 +18,7 @@ import {
   renameConversationMutationAt,
   type UserMessageMeta,
 } from "./conversation-file";
+import { importConversationMessagesAt } from "./conversation-import";
 import {
   consumeSessionReplayAt,
   stampSessionReplayAt,
@@ -104,6 +106,16 @@ export function createConversationStore(
       notify(() => ({ kind: "truncate", conversationId: id, turnId }));
       return { removed: result.removed };
     },
+    importConversationMessages(
+      id: string,
+      request: ConversationImportRequest,
+    ): number {
+      const imported = importConversationMessagesAt(dir, id, request);
+      // A repair ships the whole document: imported entries carry no live
+      // turn for the per-message shadow ops to key on.
+      if (imported > 0) notify(() => ({ kind: "repair", conversationId: id }));
+      return imported;
+    },
     consumeSessionReplay: (id: string) => consumeSessionReplayAt(dir, id),
     stampSessionReplay: (id: string) => stampSessionReplayAt(dir, id),
   };
@@ -171,5 +183,6 @@ export function listConversations(): ConversationSummary[] {
 export const renameConversation = store.renameConversation;
 export const deleteConversation = store.deleteConversation;
 export const truncateConversation = store.truncateConversation;
+export const importConversationMessages = store.importConversationMessages;
 export const consumeSessionReplay = store.consumeSessionReplay;
 export const stampSessionReplay = store.stampSessionReplay;

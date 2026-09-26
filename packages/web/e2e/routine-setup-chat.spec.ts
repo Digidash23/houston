@@ -195,7 +195,9 @@ test("a routine row opens its screen, and Edit in chat continues to the panel ch
   await expect(
     page.getByRole("textbox", { name: "What this routine does" }),
   ).toHaveValue("p");
-  await expect(page.getByRole("button", { name: "Runs" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Runs", exact: true }),
+  ).toBeVisible();
 
   // "Edit in chat" opens the routine's setup chat in the SAME panel the board
   // uses, headed by the routine's name, and the agent speaks first.

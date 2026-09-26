@@ -65,7 +65,7 @@ export function EmployeeBriefLine({
                 )
               : placeholder
           }
-          className="flex w-full min-w-0 items-center gap-2 rounded-xl bg-input px-3 py-2 text-left outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-focus"
+          className="flex w-full min-w-0 items-center gap-2 rounded-lg px-3 py-1 text-left outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-focus md:py-0.5"
         >
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="text-xs text-ink/70">{title}</span>

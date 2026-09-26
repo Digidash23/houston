@@ -4,7 +4,11 @@
  * (packages/runtime-client/src/client.ts).
  */
 
-import { parseMentions } from "@houston/protocol";
+import {
+  CONVERSATION_IMPORT_INVALID,
+  parseConversationImportRequest,
+  parseMentions,
+} from "@houston/protocol";
 import type { ProviderId } from "@houston/runtime-client";
 import { cancelChat, openChatStream, sendMessage } from "./chat";
 import { json, noContent } from "./http";
@@ -119,6 +123,19 @@ export function handleConversations(
     if (!state.truncateHistory(id, cid, turnId))
       return json({ error: "turn not found" }, 404);
     return json({ ok: true, removed: 0 });
+  }
+  if (action === "import" && method === "POST") {
+    // The real route's refusals, minus the 409: no turn ever runs here.
+    const request = parseConversationImportRequest(body);
+    if (!request)
+      return json(
+        {
+          error: "not a conversation import",
+          code: CONVERSATION_IMPORT_INVALID,
+        },
+        400,
+      );
+    return json({ ok: true, imported: state.importHistory(id, cid, request) });
   }
   if (action === "dismiss-interaction" && method === "POST") {
     // Runtime passthrough: append the durable stop marker to the transcript

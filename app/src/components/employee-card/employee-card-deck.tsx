@@ -1,9 +1,6 @@
 import { durationMs, easing } from "@houston/design-tokens";
-import { cn } from "@houston-ai/core";
 import { motion, useReducedMotion } from "framer-motion";
 import type { ReactNode } from "react";
-import { useTranslation } from "react-i18next";
-import { useCardCarousel } from "./use-card-carousel";
 
 /** The gap between two cards arriving. */
 const STAGGER_S = 0.08;
@@ -12,39 +9,29 @@ const STAGGER_S = 0.08;
 const STAGGER_CAP = 5;
 
 /**
- * A team of employee cards. On a desktop, three across, more wrapping into
- * rows of three. On a phone, a snap carousel of 288px slides where the next
- * card peeks in from the edge, with a dot per card to jump to it: stacked,
- * three badges are a long scroll, and each slide opens its own palette so
- * which card a swatch colors is never in doubt.
+ * A team of employee cards, sized by the room the deck has rather than the
+ * window: three across once it is 1024px wide (the new-workspace dialog on a
+ * desktop), more wrapping into rows of three; below that, one badge per row at
+ * the full width, which is a phone and the AI Manager's chat. A row of three
+ * keeps every card as tall as the tallest.
  *
- * The cards arrive left to right like new hires walking in: the welcome is a
+ * The cards arrive in order like new hires walking in: the welcome is a
  * designated moment, so each rises over `duration.elegant` on the entrance
  * curve. With reduced motion they only fade.
- *
- * The carousel bleeds 20px past its column on a phone, to the frame's edge,
- * so a slide scrolls out of view rather than being clipped mid-card.
  */
 export function EmployeeCardDeck({
   items,
 }: {
   items: readonly { key: string; card: ReactNode }[];
 }) {
-  const { t } = useTranslation("shell");
   const reduce = useReducedMotion() ?? false;
-  const carousel = useCardCarousel(items.length);
-
   return (
-    <div className="flex flex-col gap-3">
-      <ul
-        ref={carousel.list}
-        onScroll={carousel.onScroll}
-        className="-mx-5 flex snap-x snap-mandatory scroll-px-5 gap-3 overflow-x-auto px-5 pt-1 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-[repeat(3,minmax(0,1fr))] md:gap-4 md:overflow-visible md:px-0"
-      >
+    <div className="@container">
+      <ul className="grid grid-cols-1 gap-3 @5xl:grid-cols-3 @5xl:gap-4">
         {items.map((item, index) => (
           <motion.li
             key={item.key}
-            className="flex shrink-0 snap-start justify-center md:block"
+            className="flex min-w-0"
             initial={{
               opacity: 0,
               y: reduce ? 0 : 12,
@@ -61,31 +48,27 @@ export function EmployeeCardDeck({
           </motion.li>
         ))}
       </ul>
-      {items.length > 1 && (
-        <div className="flex justify-center md:hidden">
-          {items.map((item, index) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => carousel.show(index)}
-              aria-label={t("employeeCard.showCard", {
-                current: index + 1,
-                total: items.length,
-              })}
-              aria-current={index === carousel.index || undefined}
-              className="flex size-6 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-focus"
-            >
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "size-2 rounded-full bg-ink transition-opacity duration-200",
-                  index === carousel.index ? "opacity-100" : "opacity-20",
-                )}
-              />
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
+}
+
+/**
+ * Takes the person to the name field of the `index`-th card under `root`: its
+ * badge glides into view (at once under reduced motion), then the field takes
+ * focus.
+ */
+export function focusEmployeeName(
+  root: HTMLElement | null,
+  index: number,
+  reduce: boolean,
+): void {
+  const field = root?.querySelectorAll<HTMLInputElement>(
+    "[data-employee-name]",
+  )[index];
+  if (!field) return;
+  (field.closest("fieldset") ?? field).scrollIntoView({
+    behavior: reduce ? "auto" : "smooth",
+    block: "nearest",
+  });
+  field.focus({ preventScroll: true });
 }

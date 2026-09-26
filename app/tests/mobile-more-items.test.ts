@@ -23,14 +23,14 @@ describe("mobileMoreItems", () => {
     const groups = mobileMoreItems([
       {
         id: "primary",
-        items: [row("assistant"), row("ai-hub"), row("integrations")],
+        items: [row("ai-hub"), row("integrations")],
       },
       { id: "teams", label: "Your AI Employees", items: [row("team")] },
     ]);
     assert.deepEqual(
       groups.map((g) => [g.id, g.label, g.items.map((i) => i.id)]),
       [
-        ["primary", undefined, ["assistant", "ai-hub", "integrations"]],
+        ["primary", undefined, ["ai-hub", "integrations"]],
         ["teams", "Your AI Employees", ["team"]],
       ],
     );
@@ -40,7 +40,7 @@ describe("mobileMoreItems", () => {
     // A heading must never outlive the rows it names — the same rule the rail
     // library applies to its own sections.
     const groups = mobileMoreItems([
-      { id: "primary", items: [row("assistant")] },
+      { id: "primary", items: [row("ai-hub")] },
       { id: "teams", label: "Your AI Employees", items: [] },
     ]);
     assert.deepEqual(

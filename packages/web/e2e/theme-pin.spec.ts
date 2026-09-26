@@ -6,9 +6,9 @@ import { navRow } from "./support/team-nav";
  * colour utilities (bg-input / text-ink) INSIDE the pinned subtree,
  * independent of the app theme on <html>.
  *
- * This is the guarantee the first-run flow relies on (FirstRunScreen pins
- * data-theme="light" so a dark-mode user still gets a light first-run). It only
- * holds because the token→utility
+ * This is the guarantee the pre-app screens rely on (FirstRunScreen pins
+ * data-theme="light" so a dark-mode user still gets a light language gate and
+ * sign-in). It only holds because the token→utility
  * bridge in ui/core/src/globals.css is `@theme inline`: that makes each utility
  * read var(--ht-*) directly (resolved at the consuming element). With a plain
  * `@theme` the utility reads a --color-* that resolved ONCE at :root and merely

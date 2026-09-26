@@ -1,17 +1,24 @@
 import { deepStrictEqual, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
 import {
+  basicTeamAdd,
+  basicTeamRemovable,
+  basicTeamRemove,
+} from "../src/components/onboarding/team/basic-team-edit.ts";
+import {
   BASIC_TEAM_ROLES,
   type BasicTeamDraft,
   basicTeamColors,
   basicTeamDefaults,
-  basicTeamNameIssues,
-  basicTeamSiblingNames,
   basicTeamSubmit,
   hasBasicTeamWork,
 } from "../src/components/onboarding/team/basic-team-model.ts";
 import {
-  capIndustryLabel,
+  basicTeamNameIssues,
+  basicTeamNames,
+} from "../src/components/onboarding/team/basic-team-names.ts";
+import {
+  capAnswerLabel,
   surveyRoleStart,
 } from "../src/components/onboarding/team/team-industry.ts";
 import {
@@ -33,7 +40,8 @@ const LABELS: Record<string, string> = {
   operations_manager: "Operations manager",
   finance_manager: "Finance manager",
 };
-const defaults = () => basicTeamDefaults((id) => LABELS[id]);
+const label = (id: string) => LABELS[id] ?? id;
+const defaults = () => basicTeamDefaults(label);
 const fresh = { hasIndustry: true, hiredCount: 0 };
 
 describe("team card walk", () => {
@@ -115,7 +123,7 @@ describe("basic team", () => {
   const named = (names: readonly string[]): BasicTeamDraft[] =>
     defaults().map((draft, at) => ({ ...draft, name: names[at] ?? "" }));
 
-  it("is the three shared roles, each still to be named", () => {
+  it("is the three shared roles, each named for its job", () => {
     deepStrictEqual(
       [...BASIC_TEAM_ROLES],
       ["executive_assistant", "operations_manager", "finance_manager"],
@@ -125,22 +133,62 @@ describe("basic team", () => {
     }
     deepStrictEqual(
       defaults().map((draft) => draft.name),
-      ["", "", ""],
+      [null, null, null],
     );
+    deepStrictEqual(basicTeamNames(defaults(), []), [
+      "Executive assistant",
+      "Operations manager",
+      "Finance manager",
+    ]);
   });
 
-  it("requires every name, so an untouched team is held back", () => {
-    deepStrictEqual(basicTeamNameIssues(defaults(), []), [
-      "required",
-      "required",
-      "required",
+  it("hires an untouched team as it stands", () => {
+    deepStrictEqual(basicTeamNameIssues(defaults(), []), [null, null, null]);
+    deepStrictEqual(basicTeamSubmit(defaults(), [], 0), { kind: "hire" });
+  });
+
+  it("numbers a job name taken in the workspace, on a card, or dealt before", () => {
+    deepStrictEqual(basicTeamNames(defaults(), ["executive ASSISTANT"]), [
+      "Executive assistant 2",
+      "Operations manager",
+      "Finance manager",
     ]);
+    const typed = defaults().map((draft, at) =>
+      at === 2 ? { ...draft, name: " Operations manager " } : draft,
+    );
+    deepStrictEqual(basicTeamNames(typed, []), [
+      "Executive assistant",
+      "Operations manager 2",
+      " Operations manager ",
+    ]);
+    const sameJob = defaults().map((draft) => ({
+      ...draft,
+      roleLabel: "Bookkeeper",
+    }));
+    deepStrictEqual(basicTeamNames(sameJob, []), [
+      "Bookkeeper",
+      "Bookkeeper 2",
+      "Bookkeeper 3",
+    ]);
+    deepStrictEqual(basicTeamNameIssues(sameJob, []), [null, null, null]);
+  });
+
+  it("follows a new job until the person types a name", () => {
+    const [moved] = defaults().map((draft) => ({
+      ...draft,
+      roleLabel: "Researcher",
+    }));
+    deepStrictEqual(basicTeamNames([moved], []), ["Researcher"]);
+    deepStrictEqual(basicTeamNames([{ ...moved, name: "Ava" }], []), ["Ava"]);
+  });
+
+  it("requires every name, so a name cleared to blank holds the team back", () => {
     const blank = named(["Ava", "   ", "Leo"]);
     deepStrictEqual(basicTeamNameIssues(blank, []), [null, "required", null]);
   });
 
   it("points the submit at the first card whose name holds it back", () => {
-    deepStrictEqual(basicTeamSubmit(defaults(), [], 0), {
+    deepStrictEqual(basicTeamSubmit(named(["", "Leo", ""]), [], 0), {
       kind: "invalid",
       index: 0,
     });
@@ -171,10 +219,10 @@ describe("basic team", () => {
   });
 
   it("counts only the other drafts still to hire as siblings", () => {
-    const rows = named(["Ava", " Leo ", ""]);
-    deepStrictEqual(basicTeamSiblingNames(rows, 0), ["Leo"]);
+    const rows = named(["Ava", " ava ", "Leo"]);
+    deepStrictEqual(basicTeamNameIssues(rows, []), ["taken", "taken", null]);
     rows[1] = { ...rows[1], rosterKey: "hire-1" };
-    deepStrictEqual(basicTeamSiblingNames(rows, 0), []);
+    deepStrictEqual(basicTeamNameIssues(rows, []), [null, null, null]);
   });
 
   it("never re-checks a starter on the roster, and offers only what is left", () => {
@@ -190,6 +238,86 @@ describe("basic team", () => {
     // A starter whose create failed is worth pressing again for.
     strictEqual(hasBasicTeamWork(joined, 1), true);
     deepStrictEqual(basicTeamSubmit(joined, [], 1), { kind: "hire" });
+  });
+});
+
+describe("growing and trimming the basic team", () => {
+  const PALETTE = ["navy", "forest", "crimson", "golden", "teal", "rose"];
+  const next = (taken: readonly string[]) =>
+    PALETTE.find((color) => !taken.includes(color)) ?? PALETTE[0];
+  const shown = (drafts: readonly BasicTeamDraft[]) =>
+    basicTeamColors(drafts, next);
+  const add = (drafts: readonly BasicTeamDraft[]) =>
+    basicTeamAdd(drafts, label, shown(drafts), next);
+
+  it("Hire one more puts the first shared job no card began as on top", () => {
+    const grown = add(defaults());
+    strictEqual(grown.length, 4);
+    const added = grown[0];
+    const expected = AGENT_COMMON_ROLES.find(
+      (id) => !(BASIC_TEAM_ROLES as readonly string[]).includes(id),
+    );
+    strictEqual(added.roleId, expected);
+    strictEqual(added.roleLabel, label(added.roleId));
+    strictEqual(added.rosterKey, null);
+    strictEqual(added.name, null);
+    deepStrictEqual(
+      grown.slice(1).map((draft) => draft.roleId),
+      [...BASIC_TEAM_ROLES],
+    );
+  });
+
+  it("no card changes color when one arrives on top, and the new one takes a free color", () => {
+    const team = defaults();
+    const before = shown(team);
+    const grown = add(team);
+    const after = shown(grown);
+    deepStrictEqual(after.slice(1), before);
+    strictEqual(before.includes(after[0]), false);
+  });
+
+  it("no card changes color when another is let go", () => {
+    const team = defaults();
+    const before = shown(team);
+    const trimmed = basicTeamRemove(team, 0, before);
+    deepStrictEqual(shown(trimmed), before.slice(1));
+  });
+
+  it("every card keeps a key of its own, even once the shared jobs run out", () => {
+    let drafts = defaults();
+    for (let n = 0; n < AGENT_COMMON_ROLES.length + 2; n++)
+      drafts = add(drafts);
+    const keys = drafts.map((draft) => draft.key);
+    strictEqual(new Set(keys).size, keys.length);
+  });
+
+  it("a draft can be let go while another card stands", () => {
+    const team = defaults();
+    strictEqual(basicTeamRemovable(team, 1), true);
+    const trimmed = basicTeamRemove(team, 1, shown(team));
+    deepStrictEqual(
+      trimmed.map((draft) => draft.roleId),
+      ["executive_assistant", "finance_manager"],
+    );
+  });
+
+  it("the last card, and a card already hired, stay", () => {
+    let one = defaults();
+    while (one.length > 1) one = basicTeamRemove(one, 0, shown(one));
+    strictEqual(basicTeamRemovable(one, 0), false);
+    deepStrictEqual(basicTeamRemove(one, 0, shown(one)), one);
+    const hired = defaults().map((draft, at) =>
+      at === 0 ? { ...draft, rosterKey: "member-1" } : draft,
+    );
+    strictEqual(basicTeamRemovable(hired, 0), false);
+    strictEqual(basicTeamRemove(hired, 0, shown(hired)).length, 3);
+  });
+
+  it("a card added after one was let go never reuses its key", () => {
+    const grown = add(defaults());
+    const regrown = add(basicTeamRemove(grown, 0, shown(grown)));
+    const keys = regrown.map((draft) => draft.key);
+    strictEqual(new Set(keys).size, keys.length);
   });
 });
 
@@ -223,34 +351,52 @@ describe("basic team colors", () => {
   });
 });
 
-describe("survey industry as the hire's opening answer", () => {
-  it("preselects a catalog industry", () => {
+describe("the survey's answers as the hire's opening answers", () => {
+  const NO_ROLE = { roleId: null, customLabel: null };
+  it("preselects a catalog industry and role", () => {
     deepStrictEqual(
-      surveyRoleStart({ contextId: "real_estate", customLabel: null }),
-      { contextId: "real_estate", customContext: "" },
+      surveyRoleStart(
+        { contextId: "real_estate", customLabel: null },
+        { roleId: "mls_listing_coordinator", customLabel: null },
+      ),
+      {
+        contextId: "real_estate",
+        customContext: "",
+        roleId: "mls_listing_coordinator",
+        customRole: "",
+      },
     );
   });
 
-  it("opens blank when the survey has no industry", () => {
-    deepStrictEqual(surveyRoleStart({ contextId: null, customLabel: null }), {
-      contextId: null,
-      customContext: "",
-    });
+  it("opens blank when the survey has no industry and no role", () => {
+    deepStrictEqual(
+      surveyRoleStart({ contextId: null, customLabel: null }, NO_ROLE),
+      { contextId: null, customContext: "", roleId: null, customRole: "" },
+    );
+    deepStrictEqual(
+      surveyRoleStart({ contextId: null, customLabel: null }),
+      surveyRoleStart({ contextId: null, customLabel: null }, NO_ROLE),
+    );
   });
 
   it("carries the person's own words, cut to fit", () => {
     const words = `${"Wholesale distribution of construction ".repeat(4)}materials`;
-    const start = surveyRoleStart({ contextId: null, customLabel: words });
+    const start = surveyRoleStart(
+      { contextId: null, customLabel: words },
+      { roleId: null, customLabel: words },
+    );
     strictEqual(start.contextId, null);
-    strictEqual(start.customContext, capIndustryLabel(words));
+    strictEqual(start.customContext, capAnswerLabel(words));
+    strictEqual(start.roleId, null);
+    strictEqual(start.customRole, capAnswerLabel(words));
   });
 });
 
-describe("capIndustryLabel", () => {
+describe("capAnswerLabel", () => {
   it("keeps a label that fits, tidied", () => {
     const zeroWidthSpace = String.fromCodePoint(0x200b);
     strictEqual(
-      capIndustryLabel(`  Dog   grooming${zeroWidthSpace} `),
+      capAnswerLabel(`  Dog   grooming${zeroWidthSpace} `),
       "Dog grooming",
     );
   });
@@ -258,7 +404,7 @@ describe("capIndustryLabel", () => {
   it("cuts on the last whole word that fits", () => {
     const label =
       "Wholesale distribution of construction materials across the southern region";
-    const cut = capIndustryLabel(label);
+    const cut = capAnswerLabel(label);
     strictEqual(
       cut,
       "Wholesale distribution of construction materials across the",
@@ -267,20 +413,20 @@ describe("capIndustryLabel", () => {
   });
 
   it("keeps a word the cap lands right after", () => {
-    strictEqual(capIndustryLabel("abcd efgh ijkl", 9), "abcd efgh");
+    strictEqual(capAnswerLabel("abcd efgh ijkl", 9), "abcd efgh");
   });
 
   it("drops a separator left dangling by the cut", () => {
-    strictEqual(capIndustryLabel("Bakery, cafe, catering", 13), "Bakery, cafe");
-    strictEqual(capIndustryLabel("Bakery & cafe", 9), "Bakery");
+    strictEqual(capAnswerLabel("Bakery, cafe, catering", 13), "Bakery, cafe");
+    strictEqual(capAnswerLabel("Bakery & cafe", 9), "Bakery");
   });
 
   it("cuts inside a single word longer than the cap", () => {
-    strictEqual(capIndustryLabel("x".repeat(80)), "x".repeat(64));
+    strictEqual(capAnswerLabel("x".repeat(80)), "x".repeat(64));
   });
 
   it("counts code points, so an emoji is never split", () => {
-    const cut = capIndustryLabel("🍕".repeat(70));
+    const cut = capAnswerLabel("🍕".repeat(70));
     strictEqual([...cut].length, AGENT_ROLE_PART_MAX_LENGTH);
   });
 });

@@ -116,8 +116,8 @@ class ErrorBoundary extends Component<
 }
 
 /**
- * Install-lifecycle + theme bootstrap, mounted ABOVE the language gate (and
- * the agreement gate inside App). Emits `install_created` and runs
+ * Install-lifecycle + theme bootstrap, mounted above the language gate.
+ * Emits `install_created` and runs
  * `posthog.identify(install_id)` BEFORE
  * any `onboarding_*` event so the sequential acquisition→activation funnel
  * (keyed on `install_created` as step 1) doesn't break at step 2. The gates
@@ -143,7 +143,7 @@ function StartupEffects({ children }: { children: ReactNode }) {
     // race is widest on Windows, where the sidecar spawns slowest. Gating here
     // restores the original "engine-ready" precondition (these used to run in
     // App's mount effect, below <EngineGate>) while still emitting
-    // `install_created` BEFORE the language/disclaimer gates — they render
+    // `install_created` BEFORE the language gate — it renders
     // inside <EngineGate>, i.e. only once this same handshake resolves.
     let cancelled = false;
     void whenEngineReady().then(() => {
@@ -175,8 +175,6 @@ createRoot(rootElement).render(
             <EngineGate>
               <QueryPersistenceProvider>
                 <LanguageGate>
-                  {/* The agreement gate (DisclaimerGate) renders inside App,
-                      AFTER sign-in: language → sign-in → agreement → survey. */}
                   <IdentityKeyedApp />
                   {/* Global workspace-file preview (chat file clicks) — a
                       sibling of App so it overlays every screen, onboarding

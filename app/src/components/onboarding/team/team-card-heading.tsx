@@ -1,7 +1,5 @@
-/**
- * The opening screen's headline, set like the survey's (`survey-header.tsx`)
- * so the first run reads as one voice from the first question to the team.
- */
+/** The "Build your team" card's opening headline, centered over its
+ *  subtitle. */
 export function TeamCardHeading({
   title,
   subtitle,

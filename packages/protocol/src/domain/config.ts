@@ -53,16 +53,4 @@ export interface PreferenceValue {
 }
 
 /** Well-known preference keys (free-form strings remain allowed). */
-export type KnownPreferenceKey = "timezone" | "locale" | "legal_acceptance";
-
-/**
- * JSON-encoded value of the "legal_acceptance" preference. The frontend
- * re-prompts whenever the stored version is lower than the in-app constant.
- */
-export interface LegalAcceptance {
-  version: number;
-  /** RFC3339 timestamp captured at acceptance. */
-  acceptedAt: string;
-}
-
-export const LEGAL_ACCEPTANCE_KEY = "legal_acceptance";
+export type KnownPreferenceKey = "timezone" | "locale";

@@ -1,15 +1,20 @@
 import {
-  employeeMetalColors,
+  agentColorId,
   ResponsivePopover,
   ResponsivePopoverContent,
   ResponsivePopoverTrigger,
   resolveAgentColor,
 } from "@houston-ai/core";
-import { Paintbrush } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { EmployeeColorPalette } from "./employee-color-palette";
 
+/**
+ * The card's color, as a labelled line beside its job and industry: its name
+ * led by a swatch, open to change in plain sight. It opens the palette in a
+ * popover on desktop and a sheet on a phone.
+ */
 export function EmployeeColorPicker({
   color,
   onColorChange,
@@ -18,7 +23,7 @@ export function EmployeeColorPicker({
   onColorChange: (color: string) => void;
 }) {
   const { t } = useTranslation("shell");
-  const metal = employeeMetalColors(resolveAgentColor(color));
+  const colorName = t(`sidebar.colorLabels.${agentColorId(color)}`);
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const palette = useRef<HTMLDivElement>(null);
@@ -28,21 +33,30 @@ export function EmployeeColorPicker({
         <button
           ref={trigger}
           type="button"
-          aria-label={t("employeeCard.changeColor")}
-          title={t("employeeCard.changeColor")}
-          style={{
-            color: metal.relief,
-            background: metal.control,
-            borderColor: metal.engraving,
-          }}
-          className="absolute top-3 right-3 flex size-11 items-center justify-center rounded-full border outline-none hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current md:size-8"
+          aria-label={t("employeeCard.changeColor", { color: colorName })}
+          className="flex w-full min-w-0 items-center gap-2 rounded-lg px-3 py-1 text-left outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-focus md:py-0.5"
         >
-          <Paintbrush aria-hidden="true" className="size-5" />
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="text-xs text-ink/70">{t("sidebar.color")}</span>
+            <span className="flex min-w-0 items-center gap-1.5 text-sm text-ink">
+              <span
+                aria-hidden="true"
+                style={{ backgroundColor: resolveAgentColor(color) }}
+                className="size-3 shrink-0 rounded-full"
+              />
+              <span className="min-w-0 break-words">{colorName}</span>
+            </span>
+          </span>
+          <ChevronDown
+            aria-hidden="true"
+            className="size-4 shrink-0 text-ink-muted"
+          />
         </button>
       </ResponsivePopoverTrigger>
       <ResponsivePopoverContent
         title={t("sidebar.color")}
         aria-label={t("sidebar.color")}
+        align="start"
         className="w-72 rounded-2xl border-line bg-popover p-4 shadow-none"
         onOpenAutoFocus={(event) => {
           event.preventDefault();

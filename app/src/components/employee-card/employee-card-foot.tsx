@@ -59,7 +59,7 @@ export function EmployeeCardFoot({
             type="button"
             size="sm"
             variant="secondary"
-            className="h-7 rounded-full px-3 text-xs"
+            className="h-11 rounded-full px-4 text-xs md:h-7 md:px-3"
             onClick={recovery.onRetry}
             aria-label={t("shell:employeeCard.retryLabel", {
               name: recovery.name,
@@ -72,7 +72,7 @@ export function EmployeeCardFoot({
               type="button"
               size="sm"
               variant="ghost"
-              className="h-7 rounded-full px-3 text-xs"
+              className="h-11 rounded-full px-4 text-xs md:h-7 md:px-3"
               onClick={recovery.onRemove}
               aria-label={t("shell:employeeCard.removeLabel", {
                 name: recovery.name,

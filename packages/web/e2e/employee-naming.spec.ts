@@ -1,7 +1,11 @@
 import { fillAgentBrief, newAgentRow } from "./support/create-agent";
 import { expect, test } from "./support/fixtures";
-import { reachBuildTeamCard, resetToFirstRun } from "./support/onboarding";
-import { basicTeamOption, teamCardNameField } from "./support/team-card";
+import {
+  BASIC_TEAM_ROLES,
+  basicTeamOption,
+  openNewWorkspaceTeamCard,
+  teamCardNameField,
+} from "./support/team-card";
 import { pinTheme, THEMES } from "./visual/support";
 
 for (const theme of THEMES) {
@@ -20,23 +24,45 @@ for (const theme of THEMES) {
     const name = dialog.getByRole("textbox", {
       name: "Name (Financial analyst)",
     });
-    await expect(name).toBeFocused();
+    const create = dialog.getByRole("button", { name: "Create AI Employee" });
+    // Named for its job on arrival, so the desktop focus waits on the hire.
+    await expect(name).toHaveValue("Financial analyst");
+    await expect(create).toBeFocused();
     await expect(name).toHaveCSS("font-size", "16px");
     await expect(name).toHaveAttribute("aria-required", "true");
     await expect(dialog.getByText("New hire", { exact: true })).toHaveCount(0);
-    await dialog.getByRole("button", { name: "Create AI Employee" }).click();
+
+    // A press on the name selects it whole, so typing replaces it.
+    await name.click();
+    await page.keyboard.type("Ava");
+    await expect(name).toHaveValue("Ava");
+    // A name cleared to blank holds the hire back and says why.
+    await name.fill("");
+    await create.click();
     await expect(name).toBeFocused();
     await expect(name).toHaveAttribute("aria-invalid", "true");
     await expect(dialog.getByText("Add a name to continue")).toBeVisible();
+    await name.fill("Ava");
+    await expect(name).not.toHaveAttribute("aria-invalid", "true");
 
     await name.press("Tab");
-    const suggest = dialog.getByRole("button", { name: "Suggest a name" });
-    await expect(suggest).toBeFocused();
-    await suggest.press("Enter");
-    await expect(name).not.toHaveValue("");
-    await expect(name).not.toHaveAttribute("aria-invalid", "true");
-    await suggest.press("Tab");
-    const colorButton = dialog.getByRole("button", { name: "Change color" });
+    const role = dialog.getByRole("button", {
+      name: "Change role: Financial analyst",
+    });
+    await expect(role).toBeFocused();
+    await role.press("Enter");
+    const picker = page.getByRole("dialog", { name: "Role", exact: true });
+    await expect(picker).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(picker).toBeHidden();
+    await expect(role).toBeFocused();
+    await role.press("Tab");
+    const industry = dialog.getByRole("button", {
+      name: "Change industry: Finance",
+    });
+    await expect(industry).toBeFocused();
+    await industry.press("Tab");
+    const colorButton = dialog.getByRole("button", { name: /^Change color: / });
     await expect(colorButton).toBeFocused();
     await colorButton.press("Enter");
     const palette = page.getByRole("radiogroup", { name: "Color" });
@@ -55,21 +81,7 @@ for (const theme of THEMES) {
     await page.keyboard.press("Escape");
     await expect(palette).toBeHidden();
     await expect(colorButton).toBeFocused();
-    await colorButton.press("Tab");
-    const role = dialog.getByRole("button", {
-      name: "Change role: Financial analyst",
-    });
-    await expect(role).toBeFocused();
-    await role.press("Enter");
-    const picker = page.getByRole("dialog", { name: "Role", exact: true });
-    await expect(picker).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(picker).toBeHidden();
-    await expect(role).toBeFocused();
-    await role.press("Tab");
-    await expect(
-      dialog.getByRole("button", { name: "Change industry: Finance" }),
-    ).toBeFocused();
+    await expect(colorButton).toHaveAccessibleName("Change color: Charcoal");
   });
 }
 
@@ -80,36 +92,43 @@ for (const width of [1280, 375]) {
   }) => {
     await page.setViewportSize({ width, height: 800 });
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await resetToFirstRun(request);
-    await page.goto("/");
-    await reachBuildTeamCard(page);
+    const card = await openNewWorkspaceTeamCard(
+      page,
+      request,
+      width >= 768 ? "desktop" : "phone",
+    );
     await basicTeamOption(page).click();
     const first = teamCardNameField(page, "Executive assistant");
     await expect(first).toBeVisible();
     const last = teamCardNameField(page, "Finance manager");
-    const fits = await first.evaluate((field) => {
-      let node: HTMLElement | null = field.parentElement;
-      let scrollContainers = 0;
-      while (node) {
-        if (getComputedStyle(node).overflowY === "auto") {
-          scrollContainers += 1;
-          if (node.scrollHeight > node.clientHeight + 1) return false;
-        }
-        node = node.parentElement;
-      }
-      return scrollContainers > 0;
-    });
-    expect(fits).toBe(true);
+    // Nothing spills sideways: the page and the dialog hold the team's width.
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+    expect(
+      await card.evaluate((node) => node.scrollWidth <= node.clientWidth),
+    ).toBe(true);
+    // The footer never scrolls away, however tall the cards run.
+    await expect(
+      page.getByRole("button", { name: "Hire my team" }),
+    ).toBeInViewport();
+    const [firstBox, lastBox] = await Promise.all([
+      first.boundingBox(),
+      last.boundingBox(),
+    ]);
     if (width >= 768) {
-      const positions = await Promise.all([
-        first.boundingBox(),
-        last.boundingBox(),
-      ]);
-      expect(positions[0]?.y).toBe(positions[1]?.y);
-      expect(positions[1]?.x).toBeGreaterThan(positions[0]?.x ?? 0);
-      await expect(last).toBeInViewport();
-      const frame = await page.locator(".setup-step-in").boundingBox();
+      // Three compact badges across the 1152px frame, all in view at once.
+      const frame = await card.boundingBox();
       expect(frame?.width).toBe(1152);
+      for (const role of BASIC_TEAM_ROLES) {
+        await expect(teamCardNameField(page, role)).toBeInViewport();
+      }
+      expect(firstBox?.y).toBe(lastBox?.y);
+      expect(lastBox?.x).toBeGreaterThan(firstBox?.x ?? 0);
       for (const role of ["Executive assistant", "Operations manager"]) {
         const row = page.getByRole("button", { name: `Change role: ${role}` });
         expect(
@@ -117,12 +136,16 @@ for (const width of [1280, 375]) {
         ).toBe(true);
       }
     } else {
-      const third = page.getByRole("button", { name: "Show card 3 of 3" });
-      await third.click();
-      await expect(last).toBeInViewport();
-      await expect(third).toHaveAttribute("aria-current", "true");
+      // Stacked full width, one badge under the other, never a carousel.
+      expect(lastBox?.x).toBe(firstBox?.x);
+      expect(lastBox?.y).toBeGreaterThan(firstBox?.y ?? 0);
+      await expect(first).toHaveValue("Executive assistant");
+      await expect(last).toHaveValue("Finance manager");
       await last.fill("Felix");
+      await first.fill("");
+      await last.scrollIntoViewIfNeeded();
       await page.getByRole("button", { name: "Hire my team" }).click();
+      // A blank name takes the person back up to its badge.
       await expect(first).toBeFocused();
       await expect(first).toBeInViewport();
     }

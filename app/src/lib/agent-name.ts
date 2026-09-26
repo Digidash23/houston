@@ -66,7 +66,7 @@ export function uniqueAgentName(
  * The longest prefix of `text` within `maxUnits` UTF-16 units (the unit the
  * host's length rule counts) that never splits a surrogate pair.
  */
-function truncateCodePoints(text: string, maxUnits: number): string {
+export function truncateCodePoints(text: string, maxUnits: number): string {
   let head = "";
   for (const codePoint of text) {
     if (head.length + codePoint.length > maxUnits) break;

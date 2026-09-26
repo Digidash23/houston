@@ -86,15 +86,15 @@ test("the sidebar carries only the IA's top-level entries", async ({
   await armOwner(request);
   await page.goto("/");
 
-  // ONE unlabelled run, which needs no heading. The Assistant sits in it
-  // without a tour anchor, so it is addressed by name.
+  // ONE unlabelled run, which needs no heading. The AI Manager is not in it:
+  // it leads the employees band, addressed by its own test id.
   const sidebar = page.locator("[data-tour-target='sidebar']");
   await expect(assistantRow(page)).toBeVisible();
   for (const id of ["ai-hub", "integrations"] as const) {
     await expect(navRow(page, id)).toBeVisible();
   }
-  // Skills closes the run, right after Integrations. Anchorless like the
-  // Assistant, so it is addressed by its own test id.
+  // Skills closes the run, right after Integrations. It carries no tour
+  // anchor, so it is addressed by its own test id.
   await expect(skillsRow(page)).toBeVisible();
   // "Your AI Employees" is the rail's ONE band: nothing is labelled above it, even
   // for the space owner, who holds one more destination than a member.
@@ -146,7 +146,7 @@ test("a plain member gets no Skills row in the rail", async ({
   await expect(navRow(page, "integrations")).toBeVisible();
 
   // Ungated rows are untouched: the Academy is everyone's, Settings is
-  // everyone's chrome, and the Assistant rides discovery rather than a role,
+  // everyone's chrome, and the AI Manager rides discovery rather than a role,
   // so a plain member keeps it.
   await expect(assistantRow(page)).toBeVisible();
   await expect(railButton(page, "Academy")).toBeVisible();

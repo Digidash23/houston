@@ -1,7 +1,7 @@
 // The LIVE WIRING of the onboarding survey's gateway push: which ports the
 // push runs over on a real device, and the catch-up that pushes a record whose
 // own push never landed. Split from `use-onboarding-survey` so that hook reads
-// as "the record and its four saves"; the convergence rules themselves — who
+// as "the record and its saves"; the convergence rules themselves — who
 // owns a push, in what order pushes land, what a failed one is still owed —
 // live in `../lib/onboarding-survey-push`, React-free and driven by app/tests.
 

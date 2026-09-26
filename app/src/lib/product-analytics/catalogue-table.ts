@@ -26,7 +26,7 @@ const CATALOGUE = {
     props: [],
   },
   // First run, in funnel order: the flow starting, each screen it reached,
-  // the gate it had to clear, then the three survey questions (asked at first
+  // then the four survey questions (asked at first
   // run or later from the profile-completion prompt — `source_screen` says
   // which) with the answer each one confirmed.
   onboarding_started: {
@@ -37,18 +37,6 @@ const CATALOGUE = {
     definition: "An onboarding step was reached, once per step per run.",
     props: ["step"],
   },
-  onboarding_agreement_accepted: {
-    definition: "The terms/disclaimer gate was accepted.",
-    props: [],
-  },
-  onboarding_segment_screen_viewed: {
-    definition: "The first-run survey's segment question was shown.",
-    props: ["source_screen"],
-  },
-  onboarding_segment_continued: {
-    definition: "The user confirmed their segment answer.",
-    props: ["selected_segment", "source_screen"],
-  },
   onboarding_industry_screen_viewed: {
     definition: "The survey's industry question was shown.",
     props: ["source_screen"],
@@ -56,6 +44,22 @@ const CATALOGUE = {
   onboarding_industry_continued: {
     definition: "The user confirmed their industry answer.",
     props: ["selected_industry", "source_screen"],
+  },
+  onboarding_role_screen_viewed: {
+    definition: "The survey's role question was shown.",
+    props: ["source_screen"],
+  },
+  onboarding_role_continued: {
+    definition: "The user confirmed their role answer.",
+    props: ["selected_role", "source_screen"],
+  },
+  onboarding_company_size_screen_viewed: {
+    definition: "The survey's company-size question was shown.",
+    props: ["source_screen"],
+  },
+  onboarding_company_size_continued: {
+    definition: "The user confirmed how big their company is.",
+    props: ["selected_company_size", "source_screen"],
   },
   onboarding_goal_screen_viewed: {
     definition: "The survey's goal question was shown.",
@@ -69,6 +73,11 @@ const CATALOGUE = {
   onboarding_completed: {
     definition: "The first-run onboarding flow finished.",
     props: [],
+  },
+  onboarding_goal_handoff: {
+    definition:
+      "The user answered the offer to start on their automation goal as onboarding ended.",
+    props: ["choice"],
   },
   ai_provider_connected: {
     definition: "An AI provider was connected during onboarding.",

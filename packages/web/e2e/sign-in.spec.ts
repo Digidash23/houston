@@ -201,19 +201,17 @@ test.describe("returning user (last sign-in continue)", () => {
 
 /**
  * HOU-1014: on the cloud web app (identity configured) the sign-in screen is
- * the FIRST screen. The first-run language picker and the agreement gate are
- * desktop/self-host concepts — pre-auth their preference writes 401 at the
- * gateway, which dead-ended the agreement's Continue on the deployed web app.
- * A fresh browser (no seeded gate prefs) must land directly on sign-in.
+ * the FIRST screen. The first-run language picker is a desktop/self-host
+ * concept: pre-auth preference writes 401 at the gateway.
+ * A fresh browser (no seeded locale) must land directly on sign-in.
  */
-test("a fresh browser lands on sign-in, never the language or agreement gates", async ({
+test("a fresh browser lands on sign-in, never the language gate", async ({
   page,
 }) => {
-  // Undo the shared boot seed's gate prefs — this init script runs after
+  // Undo the shared boot seed's locale — this init script runs after
   // seedPage's, so the app boots like a genuinely fresh visitor.
   await page.addInitScript(() => {
     localStorage.removeItem("houston.pref.locale");
-    localStorage.removeItem("houston.pref.legal_acceptance");
   });
   await page.goto("/");
 

@@ -11,7 +11,7 @@ import { useSession } from "./use-session";
 /**
  * Preference key for the durable "this user has finished first-run onboarding"
  * flag. An ACCOUNT preference (PRODUCT-1282): it rides `/v1/preferences/:key`
- * on the host/gateway like `legal_acceptance`, so it survives sign-out — which
+ * on the host/gateway, so it survives sign-out — which
  * purges every account-scoped localStorage key — and follows the account to
  * new devices. A device-local copy died with the session, and the next
  * sign-in re-onboarded a returning user whose agent list read empty for a

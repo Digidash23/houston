@@ -2,7 +2,7 @@ import { deepStrictEqual, ok, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
 import {
   applyCompletionDismissed,
-  applySegment,
+  applyRole,
   createOnboardingSurveyPreference,
   markGatewaySynced,
   ONBOARDING_SURVEY_PREF_KEY,
@@ -67,14 +67,14 @@ const record = (
   patch: Partial<OnboardingSurveyPreference> = {},
 ): OnboardingSurveyPreference => ({
   ...createOnboardingSurveyPreference(),
-  segment: "operations",
+  role: "paralegal",
   updatedAt: "2026-08-01T10:00:00.000Z",
   ...patch,
 });
 
 describe("onboarding survey store durability", () => {
   it("keeps the answer on the device when the engine write fails", async () => {
-    // Deliberately non-blocking (the legacy segment pattern): a pod blip must
+    // Deliberately non-blocking: a pod blip must
     // not block the save or re-ask an answered question.
     const h = harness({ failEngineWrite: true });
     await persistSurveyPreference(UID, record(), h.ports);
@@ -156,7 +156,7 @@ describe("reconciling the two copies of one record", () => {
     record({ updatedAt, ...patch });
 
   it("prefers the engine's ANSWERS on a tie, and voids the stale stamp", () => {
-    // TWO DEVICES. This one answered the segment and pushed it (stamped), then
+    // TWO DEVICES. This one answered the role and pushed it (stamped), then
     // device B answered the industry; the fold of B's answer into THIS record
     // holds `updatedAt` (`mergeGatewayOnboarding`), so the engine copy ties
     // with the mirror while holding strictly more. Handing the tie to the
@@ -169,7 +169,7 @@ describe("reconciling the two copies of one record", () => {
     const engine = at("2026-08-01T10:00:00.000Z", { industry: "healthcare" });
 
     const { record: won, healEngine } = reconcileSurveyCopies(mirror, engine);
-    strictEqual(won.segment, "operations");
+    strictEqual(won.role, "paralegal");
     strictEqual(won.industry, "healthcare");
     // The stamp described answers this record no longer matches: dropping it is
     // what lets the (whole-record) catch-up flush repair the gateway.
@@ -241,7 +241,7 @@ describe("local state that never moves updatedAt", () => {
     // the engine AND overwrote the mirror with it: the completion prompt came
     // back on every launch, forever.
     const h = harness();
-    const answered = applySegment(createOnboardingSurveyPreference(), "legal");
+    const answered = applyRole(createOnboardingSurveyPreference(), "paralegal");
     await persistSurveyPreference(UID, answered, h.ports);
 
     h.setEngineWrites(false);
@@ -279,7 +279,7 @@ describe("local state that never moves updatedAt", () => {
 
     const loaded = await loadSurveyPreference(UID, false, h.ports);
     strictEqual(loaded?.industry, "healthcare");
-    strictEqual(loaded?.segment, "operations");
+    strictEqual(loaded?.role, "paralegal");
     strictEqual(loaded?.gatewaySyncedAt, null);
     ok(h.local.get(MIRROR_KEY)?.includes('"industry":"healthcare"'));
     // Nothing to heal — the engine already holds exactly this record.
@@ -318,5 +318,40 @@ describe("local state that never moves updatedAt", () => {
     h.local.set(MIRROR_KEY, serializeOnboardingSurveyPreference(both));
     deepStrictEqual(await loadSurveyPreference(UID, false, h.ports), both);
     deepStrictEqual(h.writes, []);
+  });
+});
+
+describe("an account that answered before the survey existed", () => {
+  it("lifts the legacy department, so the role is never asked", async () => {
+    const h = harness();
+    h.local.set(
+      "houston.onboarding-segment.uid-1",
+      JSON.stringify({
+        segment: "operations",
+        selectedAt: "2026-07-09T00:00:00.000Z",
+        sourceScreen: "first_run_segment",
+      }),
+    );
+    const loaded = await loadSurveyPreference(UID, false, h.ports);
+    strictEqual(loaded?.segment, "operations");
+    strictEqual(loaded?.role, null);
+    ok(h.engine.get(ONBOARDING_SURVEY_PREF_KEY)?.includes('"operations"'));
+  });
+
+  it("keeps a stored survey record's department as it reads it", async () => {
+    const h = harness();
+    // A record from before the role question: no role fields at all.
+    const {
+      role: _role,
+      roleOther: _other,
+      ...before
+    } = record({
+      role: null,
+      segment: "sales",
+    });
+    h.engine.set(ONBOARDING_SURVEY_PREF_KEY, JSON.stringify(before));
+    const loaded = await loadSurveyPreference(UID, false, h.ports);
+    strictEqual(loaded?.segment, "sales");
+    strictEqual(loaded?.role, null);
   });
 });

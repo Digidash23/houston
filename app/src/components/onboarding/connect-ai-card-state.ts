@@ -34,11 +34,11 @@ export type OnboardingBeat =
   | { event: "ai_provider_connected"; provider: string };
 
 /**
- * The funnel beats one route change earns. Only the connect and team cards
- * report a step view here (the survey and the team card's own sub-steps fire
- * their own), once per run. Leaving the connect card for the team card means
- * the card saw the connection land, which is the `ai_provider_connected` beat;
- * arriving on the team card with a provider already connected is not.
+ * The funnel beats one route change earns. Only the connect and team steps
+ * report a step view here (the survey and the team's own sub-steps fire
+ * their own), once per run. Leaving the connect step means it saw the
+ * connection land, which is the `ai_provider_connected` beat; a run that
+ * never stood on the connect step (a provider already connected) reports none.
  */
 export function onboardingBeats(args: {
   previous: OnboardingStep | null;
@@ -49,7 +49,7 @@ export function onboardingBeats(args: {
   const beats: OnboardingBeat[] = [];
   if (
     args.previous === "connectAi" &&
-    args.current === "team" &&
+    args.current !== "connectAi" &&
     args.providerId !== null
   ) {
     beats.push({ event: "ai_provider_connected", provider: args.providerId });

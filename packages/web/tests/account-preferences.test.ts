@@ -164,24 +164,16 @@ test("a pre-fix device-local onboarding_completed is lifted to the account", asy
   expect(store.has("houston.pref.onboarding_completed")).toBe(false);
 });
 
-test("locale, legal_acceptance and the migration flag are account keys", async () => {
-  stubFetch(
-    json(200, { value: "es" }),
-    json(200, { value: '{"version":1}' }),
-    json(200, { value: "1" }),
-  );
+test("locale and the migration flag are account keys", async () => {
+  stubFetch(json(200, { value: "es" }), json(200, { value: "1" }));
   const c = client(true);
 
   await expect(c.getPreference("locale")).resolves.toBe("es");
-  await expect(c.getPreference("legal_acceptance")).resolves.toBe(
-    '{"version":1}',
-  );
   await expect(c.getPreference("migration_reconnect_dismissed")).resolves.toBe(
     "1",
   );
   expect(calls.map((c) => c.url)).toEqual([
     "http://host/v1/preferences/locale",
-    "http://host/v1/preferences/legal_acceptance",
     "http://host/v1/preferences/migration_reconnect_dismissed",
   ]);
 });

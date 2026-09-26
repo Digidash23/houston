@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { SEED_AGENT_ID, SEED_WORKSPACE_ID } from "./config";
+import { ASSISTANT_AGENT_ID, SEED_AGENT_ID, SEED_WORKSPACE_ID } from "./config";
 import { type FakeHost, startFakeHost } from "./server";
 
 const JSON_HEADERS = { "content-type": "application/json" };
@@ -91,6 +91,23 @@ describe("startFakeHost", () => {
     expect(caps.profile).toBe("local");
     expect(caps.providers).toContain("anthropic");
     expect(caps.sharedSkills).toBe(true);
+  });
+
+  it("keeps the manager's address off the roster, so an empty roster still has one", async () => {
+    // A first run is an empty roster; the real host's manager lives on a
+    // hidden agent that emptying the roster never touches.
+    await fetch(`${host.url}/agents/${SEED_AGENT_ID}`, { method: "DELETE" });
+    const roster = (await (await fetch(`${host.url}/agents`)).json()) as {
+      id: string;
+    }[];
+    expect(roster).toEqual([]);
+
+    const res = await fetch(`${host.url}/v1/assistant`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      agent: ASSISTANT_AGENT_ID,
+      conversation: "assistant",
+    });
   });
 
   it("refuses a rename onto a name already in use, like the real host", async () => {

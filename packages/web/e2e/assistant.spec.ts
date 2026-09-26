@@ -1,4 +1,4 @@
-import { FAKE_HOST_URL } from "@houston/fake-host";
+import { ASSISTANT_AGENT_ID, FAKE_HOST_URL } from "@houston/fake-host";
 import type { Locator, Page } from "@playwright/test";
 import { ASSISTANT_COMPOSER, ASSISTANT_PLACEHOLDER } from "./support/composer";
 import { expect, test } from "./support/fixtures";
@@ -8,17 +8,12 @@ import { openTeamSection, screen } from "./support/team-nav";
 /**
  * The personal assistant: a rail row and an infinite 1-on-1 chat behind it.
  *
- * The assistant is an ORDINARY agent conversation reached at an address
- * discovery hands out (`GET /v1/assistant`), so what is worth pinning here is
- * not the chat pipeline (chat.spec.ts owns that) but the four things this
- * surface adds:
- *
- * 1. the rail row leads the unlabelled run and opens a full-window chat;
+ * Discovery (`GET /v1/assistant`) supplies the conversation address. This
+ * spec covers the shell behavior around that chat:
+ * 1. the Manager is pinned above agent groups and opens a full-window chat;
  * 2. an empty thread introduces the assistant instead of showing skill cards —
  *    a 1-on-1 chat opens on the composer, not on a menu;
  * 3. the conversation creates NO activity, so it never appears as a board card.
- *    That is the whole of "it stays out of the board, unread counts and
- *    mentions": every one of those surfaces reads activity rows.
  * 4. what discovery's own answers do to the surface: absence takes the row away
  *    silently, a failure keeps it and says so.
  */
@@ -52,15 +47,22 @@ const userRow = (page: Page, text: string): Locator =>
     .locator('[data-conversation-message-key^="user-"]')
     .filter({ hasText: text });
 
-/** Every activity the seeded agent holds — the board's own source of cards. */
+/** Every activity the manager's agent and the roster hold: the boards' own
+ *  source of cards, wherever a card for the thread could land. */
 async function activityTitles(): Promise<string[]> {
   const agents = (await (await fetch(`${FAKE_HOST_URL}/agents`)).json()) as {
     id: string;
   }[];
-  const { items } = (await (
-    await fetch(`${FAKE_HOST_URL}/agents/${agents[0].id}/activities`)
-  ).json()) as { items: { title: string }[] };
-  return items.map((a) => a.title);
+  const titles: string[] = [];
+  for (const id of [ASSISTANT_AGENT_ID, ...agents.map((agent) => agent.id)]) {
+    const { items } = (await (
+      await fetch(
+        `${FAKE_HOST_URL}/agents/${encodeURIComponent(id)}/activities`,
+      )
+    ).json()) as { items: { title: string }[] };
+    titles.push(...items.map((a) => a.title));
+  }
+  return titles;
 }
 
 test.use({ teamBoard: true });

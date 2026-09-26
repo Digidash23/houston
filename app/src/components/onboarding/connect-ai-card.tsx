@@ -2,6 +2,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { queryKeys } from "../../lib/query-keys";
+import {
+  ManagerStepBody,
+  ManagerStepFrame,
+} from "../assistant/onboarding/manager-step-frame";
 import { ProviderConnectionDialogs } from "../provider-browser/provider-connection-dialogs";
 import { useProviderAutoSelect } from "../provider-browser/use-provider-auto-select";
 import { useProviderBrowserData } from "../provider-browser/use-provider-browser-data";
@@ -12,23 +16,21 @@ import {
   resolveConnectAiView,
 } from "./connect-ai/featured-subscriptions";
 import { FeaturedView } from "./connect-ai/featured-view";
-import { FirstRunScreen } from "./first-run-screen";
-import { SetupCard } from "./setup-card";
 
 /**
- * First-run onboarding's "Connect your AI" card: two cards for the plans most
- * people already pay for (Claude, ChatGPT), and "View more" that swaps them
- * for the full provider browser. The cards and the browser rows share one
- * `useProviderConnections` instance (its `connect` / `cancel`), and the card
- * mounts that instance's dialog stack once, so both start and finish a
- * sign-in identically. `FirstRunOnboarding` mounts
- * `ProviderLoginFallback` + `ClaudeBrowserLogin` beside it so every sign-in
- * can open.
+ * The AI Manager's "Connect your AI" step, in the frame every onboarding step
+ * wears (the create sheet's, headline and all): two cards for the plans most people already pay for
+ * (Claude, ChatGPT), and "View more" that swaps them for the full provider
+ * browser, where an API key is pasted. The cards and the browser rows share
+ * one `useProviderConnections` instance (its `connect` / `cancel`), and the
+ * card mounts that instance's dialog stack once, so both start and finish a
+ * sign-in identically. The shell mounts `ProviderLoginFallback` +
+ * `ClaudeBrowserLogin`, so every sign-in can open.
  *
  * The card never advances itself: the first-run route reads the shared
- * provider statuses and moves on to the team card the moment one provider is
- * confirmed connected. The connect signal only refreshes those statuses so the
- * move happens without waiting for the next poll.
+ * provider statuses and moves on the moment one provider is confirmed
+ * connected. The connect signal only refreshes those statuses so the move
+ * happens without waiting for the next poll.
  */
 export function ConnectAiCard() {
   const { t } = useTranslation("setup");
@@ -54,38 +56,37 @@ export function ConnectAiCard() {
   useProviderAutoSelect(connections, providers, refreshStatuses, false);
 
   return (
-    <FirstRunScreen>
-      <SetupCard
-        title={t("connectAi.title")}
-        subtitle={t("connectAi.subtitle")}
-      >
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
-          {view === "featured" ? (
-            <FeaturedView
-              featured={featured}
-              connections={connections}
-              onViewMore={() => showView("all")}
-              focusToggle={swapped}
-            />
-          ) : (
-            <AllProvidersView
-              providers={providers}
-              connections={connections}
-              catalog={catalog}
-              onShowFewer={
-                featured.length > 0 ? () => showView("featured") : undefined
-              }
-              focusToggle={swapped}
-            />
-          )}
-        </div>
-        <ProviderConnectionDialogs
-          {...connections.dialogProps}
-          // The local provider's model is typed in its dialog and never reaches
-          // the status snapshot, so its connect refreshes the statuses here.
-          onLocalConnected={refreshStatuses}
-        />
-      </SetupCard>
-    </FirstRunScreen>
+    <>
+      <ManagerStepFrame id={`connect-ai-${view}`}>
+        <ManagerStepBody title={t("connectAi.title")}>
+          <div data-testid="manager-connect-ai">
+            {view === "featured" ? (
+              <FeaturedView
+                featured={featured}
+                connections={connections}
+                onViewMore={() => showView("all")}
+                focusToggle={swapped}
+              />
+            ) : (
+              <AllProvidersView
+                providers={providers}
+                connections={connections}
+                catalog={catalog}
+                onShowFewer={
+                  featured.length > 0 ? () => showView("featured") : undefined
+                }
+                focusToggle={swapped}
+              />
+            )}
+          </div>
+        </ManagerStepBody>
+      </ManagerStepFrame>
+      <ProviderConnectionDialogs
+        {...connections.dialogProps}
+        // The local provider's model is typed in its dialog and never reaches
+        // the status snapshot, so its connect refreshes the statuses here.
+        onLocalConnected={refreshStatuses}
+      />
+    </>
   );
 }

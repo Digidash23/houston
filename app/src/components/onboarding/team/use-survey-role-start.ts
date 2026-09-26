@@ -2,7 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { surveyKey } from "../../../hooks/onboarding-survey-flush";
 import { useSession } from "../../../hooks/use-session";
-import { surveyIndustryContext } from "../../../lib/onboarding-industry-context";
+import {
+  surveyIndustryContext,
+  surveyRoleContext,
+} from "../../../lib/onboarding-industry-context";
 import type { OnboardingSurveyPreference } from "../../../lib/onboarding-survey";
 import type { AgentRoleStart } from "../../shell/use-agent-role-state";
 import { surveyRoleStart } from "./team-industry";
@@ -15,7 +18,7 @@ export interface SurveyRoleStart {
 }
 
 /**
- * The person's survey industry, as the hire flow's opening answer.
+ * The person's survey industry and role, as the hire flow's opening answers.
  *
  * A READER of the record App's one `useOnboardingSurvey` owns: the observer
  * never fetches (`enabled: false`), so the owner's load and its catch-up push
@@ -30,7 +33,8 @@ export function useSurveyRoleStart(): SurveyRoleStart {
   });
   const record = query.data ?? null;
   const start = useMemo(
-    () => surveyRoleStart(surveyIndustryContext(record)),
+    () =>
+      surveyRoleStart(surveyIndustryContext(record), surveyRoleContext(record)),
     [record],
   );
   return {

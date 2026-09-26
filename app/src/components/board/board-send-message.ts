@@ -1,6 +1,9 @@
 import type { Activity } from "../../data/activity";
 import { analytics } from "../../lib/analytics";
-import { buildAttachmentPrompt } from "../../lib/attachment-message";
+import {
+  buildAttachmentPrompt,
+  joinModelContext,
+} from "../../lib/attachment-message";
 import { classifyFileKind } from "../../lib/file-kind";
 import { perfSpans } from "../../lib/perf-spans";
 import { showSendFailedToast } from "../../lib/send-error-toast";
@@ -29,15 +32,21 @@ export interface SendBoardMessageDeps {
   setSessionLoading: (sessionKey: string, loading: boolean) => void;
 }
 
-/** Send `text` + `files` into `sessionKey`'s conversation. */
+/**
+ * Send `text` + `files` into `sessionKey`'s conversation. `context` is
+ * model-facing context for this one send, read after the surface's own
+ * `promptContext` and hidden from the chat the same way.
+ */
 export async function sendBoardMessage(
   deps: SendBoardMessageDeps,
   sessionKey: string,
   text: string,
   files: File[],
   overrides: SendOverrides,
+  context?: string,
 ): Promise<void> {
-  const { path, agentId, rawItems, promptContext, setSessionLoading } = deps;
+  const { path, agentId, rawItems, setSessionLoading } = deps;
+  const promptContext = joinModelContext(deps.promptContext, context);
   const activity = (rawItems ?? []).find(
     (a) => rowSessionKey(a) === sessionKey,
   );

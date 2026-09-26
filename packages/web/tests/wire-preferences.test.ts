@@ -85,10 +85,10 @@ describe("the delegated account-preference read", () => {
     expect(delegated.headers.get("Content-Type")).toBeNull();
   });
 
-  test("percent-encodes the key into the path, as the helper did", async () => {
+  test("routes an account key through the preference path", async () => {
     stubFetch(() => json(200, { value: "1" }));
-    await client().getPreference("legal_acceptance");
-    expect(calls[0].url).toBe(`${BASE}/v1/preferences/legal_acceptance`);
+    await client().getPreference("onboarding_completed");
+    expect(calls[0].url).toBe(`${BASE}/v1/preferences/onboarding_completed`);
   });
 
   test("a transient 503 earns the same attempts cpFetch would", async () => {

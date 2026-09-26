@@ -1,8 +1,9 @@
 import { cn, HoustonAvatar, resolveAgentColor } from "@houston-ai/core";
 import type { ReactNode } from "react";
 
-/** The front avatar's diameter: the phone list's large, WhatsApp-sized mark. */
-const FRONT_DIAMETER = 52;
+/** The front avatar's diameter: the phone list's large, WhatsApp-sized mark.
+ *  The pinned AI Manager row wears its own mark at the same size. */
+export const FRONT_DIAMETER = 52;
 /** The two cards fanned out behind it are a step smaller, so the fan reads as
  *  depth rather than as three agents. */
 const BACK_DIAMETER = 46;

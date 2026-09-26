@@ -1,9 +1,5 @@
 import { useTranslation } from "react-i18next";
 import { AGENT_NAME_MAX_LENGTH } from "../../lib/agent-name";
-import {
-  nameSuggestionLocale,
-  suggestEmployeeName,
-} from "./employee-name-suggestions";
 import type { EmployeeNameIssue } from "./employee-name-validation";
 
 /** The copy a card's message slot shows for a name issue, or null. */
@@ -26,18 +22,4 @@ export function useEmployeeNameIssueCopy(): (
         return t("agents:toasts.nameConflict", { name: name.trim() });
     }
   };
-}
-
-/**
- * The next name Suggest offers for `role`, in the app's language, stepping
- * over the names in `taken` (`suggestEmployeeName`).
- */
-export function useEmployeeNameSuggester(): (input: {
-  role: string;
-  current: string;
-  taken: readonly string[];
-}) => string {
-  const { i18n } = useTranslation();
-  const locale = nameSuggestionLocale(i18n.language);
-  return (input) => suggestEmployeeName({ locale, ...input });
 }

@@ -1,13 +1,11 @@
 /**
  * The employee card as plain data: where it stands, how that reads on its
- * foot, and which slide a phone carousel is showing. Testable without
- * rendering.
+ * foot, and how its palette's keys move. Testable without rendering.
  */
 
 /**
- * Where a card is placed. `grid` is a team of cards (three across on a
- * desktop), `solo` one card centred on its own. On a phone both are the same
- * 288px slide.
+ * Where a card is placed. `grid` is one of a team (`EmployeeCardDeck` gives
+ * it its width), `solo` one card centred on its own, never wider than 672px.
  */
 export type EmployeeCardLayout = "grid" | "solo";
 
@@ -36,20 +34,6 @@ export function employeeStatusView(
   status: EmployeeCardStatus,
 ): EmployeeStatusView {
   return STATUS_VIEWS[status];
-}
-
-/**
- * The slide a snap carousel shows at `scrollLeft`: the one whose start is
- * nearest, where each slide takes `stride` (its width plus the gap).
- */
-export function carouselIndex(
-  scrollLeft: number,
-  stride: number,
-  count: number,
-): number {
-  if (count <= 0 || stride <= 0) return 0;
-  const index = Math.round(scrollLeft / stride);
-  return Math.min(Math.max(index, 0), count - 1);
 }
 
 /**

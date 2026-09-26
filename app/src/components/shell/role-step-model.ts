@@ -5,6 +5,10 @@ import {
   rolesForContext,
 } from "../../lib/agent-role-catalog.ts";
 import {
+  LEADERSHIP_ROLE_IDS,
+  type LeadershipRoleId,
+} from "../../lib/leadership-roles.ts";
+import {
   type ChoiceOption,
   type ChoiceSection,
   foldForSearch,
@@ -79,4 +83,48 @@ export function roleRunsForQuery(
     });
   }
   return runs;
+}
+
+/** What the person's own role question can reach: every leadership position
+ *  on top of every job. */
+export const SELF_ROLE_SEARCH_REACH =
+  ROLE_SEARCH_REACH + LEADERSHIP_ROLE_IDS.length;
+
+/** The words the person's own role runs are read in. */
+export interface SelfRoleRunLabels extends RoleRunLabels {
+  leadershipRole: (id: LeadershipRoleId) => string;
+  /** Heads the leadership positions. */
+  leadership: string;
+  /** Heads the picked context's own jobs: the industry's name. */
+  context: string;
+}
+
+/**
+ * The role runs when the person answers for themselves: the leadership
+ * positions lead, in their authored order (the people most likely to decide
+ * on Houston read their answer first), then the job runs of
+ * {@link roleRunsForQuery}. With the positions on top every run is headed, so
+ * no run of jobs reads as more leadership; a query that leaves one run alone
+ * drops the heading, as a single run always does.
+ */
+export function selfRoleRunsForQuery(
+  contextId: AgentContextId | null,
+  query: string,
+  labels: SelfRoleRunLabels,
+): ChoiceSection[] {
+  const needle = foldForSearch(query.trim());
+  const leadership = LEADERSHIP_ROLE_IDS.map(
+    (id): ChoiceOption => ({ id, label: labels.leadershipRole(id) }),
+  ).filter((choice) => !needle || foldForSearch(choice.label).includes(needle));
+  const jobs = roleRunsForQuery(contextId, query, labels);
+  if (leadership.length === 0) return jobs;
+  if (jobs.length === 0) return [{ id: "leadership", options: leadership }];
+  const heading = (run: ChoiceSection) => {
+    if (run.id === "own") return labels.context;
+    return run.id === "common" ? labels.more : labels.other;
+  };
+  return [
+    { id: "leadership", label: labels.leadership, options: leadership },
+    ...jobs.map((run) => ({ ...run, label: run.label ?? heading(run) })),
+  ];
 }

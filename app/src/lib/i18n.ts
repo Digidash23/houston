@@ -25,7 +25,6 @@ import dashboardEn from "../locales/en/dashboard.json";
 import errorsEn from "../locales/en/errors.json";
 import eventsEn from "../locales/en/events.json";
 import integrationsEn from "../locales/en/integrations.json";
-import legalEn from "../locales/en/legal.json";
 import migrationEn from "../locales/en/migration.json";
 import planEn from "../locales/en/plan.json";
 import portableEn from "../locales/en/portable.json";
@@ -50,7 +49,6 @@ import dashboardEs from "../locales/es/dashboard.json";
 import errorsEs from "../locales/es/errors.json";
 import eventsEs from "../locales/es/events.json";
 import integrationsEs from "../locales/es/integrations.json";
-import legalEs from "../locales/es/legal.json";
 import migrationEs from "../locales/es/migration.json";
 import planEs from "../locales/es/plan.json";
 import portableEs from "../locales/es/portable.json";
@@ -75,7 +73,6 @@ import dashboardPt from "../locales/pt/dashboard.json";
 import errorsPt from "../locales/pt/errors.json";
 import eventsPt from "../locales/pt/events.json";
 import integrationsPt from "../locales/pt/integrations.json";
-import legalPt from "../locales/pt/legal.json";
 import migrationPt from "../locales/pt/migration.json";
 import planPt from "../locales/pt/plan.json";
 import portablePt from "../locales/pt/portable.json";
@@ -143,7 +140,6 @@ const resources = {
     assistant: assistantEn,
     auth: authEn,
     setup: setupEn,
-    legal: legalEn,
     shell: shellEn,
     dashboard: dashboardEn,
     settings: settingsEn,
@@ -170,7 +166,6 @@ const resources = {
     assistant: assistantEs,
     auth: authEs,
     setup: setupEs,
-    legal: legalEs,
     shell: shellEs,
     dashboard: dashboardEs,
     settings: settingsEs,
@@ -197,7 +192,6 @@ const resources = {
     assistant: assistantPt,
     auth: authPt,
     setup: setupPt,
-    legal: legalPt,
     shell: shellPt,
     dashboard: dashboardPt,
     settings: settingsPt,
@@ -246,7 +240,6 @@ void i18n
       "assistant",
       "auth",
       "setup",
-      "legal",
       "shell",
       "dashboard",
       "settings",

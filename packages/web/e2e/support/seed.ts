@@ -9,9 +9,7 @@
  *   - run the adapter in host mode (`__HOUSTON_CP__`), matching the
  *     real cloud/desktop-host deployment,
  *   - skip the first-run language picker (locale pref set to `en` → stable,
- *     English text in assertions), and
- *   - skip the legal disclaimer (a version far above CURRENT_DISCLAIMER_VERSION,
- *     so this never silently breaks when the disclaimer is bumped).
+ *     English text in assertions).
  *
  * The keys mirror the adapter's localStorage layout
  * (packages/engine-adapter/src/client.ts `getPreference` → `houston.pref.*`,
@@ -28,13 +26,6 @@ import type { Page } from "@playwright/test";
 const NEW_ENGINE_STORAGE_KEY = "houston.web.engine.new";
 const pref = (key: string) => `houston.pref.${key}`;
 
-/** Far above CURRENT_DISCLAIMER_VERSION (=2) so acceptance always passes — even
- *  after a future disclaimer bump — without coupling the test to the constant. */
-const ACCEPTED_DISCLAIMER = {
-  version: 999999,
-  acceptedAt: "2024-01-01T00:00:00.000Z",
-};
-
 interface Seed {
   storage: Record<string, string>;
 }
@@ -48,7 +39,6 @@ function buildSeed(overrides?: { agentId?: string }): Seed {
         token: FAKE_TOKEN,
       }),
       [pref("locale")]: "en",
-      [pref("legal_acceptance")]: JSON.stringify(ACCEPTED_DISCLAIMER),
       [pref("last_workspace_id")]: SEED_WORKSPACE_ID,
       [pref("last_agent_id")]: agentId,
       // i18next's own language-detector cache — pin it so the very first paint is

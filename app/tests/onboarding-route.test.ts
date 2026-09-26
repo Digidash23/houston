@@ -47,27 +47,24 @@ describe("onboardingRoute (first-run gate)", () => {
     aiConnected: false,
   };
 
-  it("fresh install walks survey, then connect AI, then team", () => {
-    strictEqual(onboardingRoute(base), "survey");
+  it("fresh install walks connect AI, survey, then team", () => {
+    strictEqual(onboardingRoute(base), "connectAi");
+    strictEqual(onboardingRoute({ ...base, aiConnected: true }), "survey");
+    strictEqual(
+      onboardingRoute({ ...base, surveyAnswered: true, aiConnected: true }),
+      "team",
+    );
+  });
+
+  it("an already-connected provider starts at the survey", () => {
+    strictEqual(onboardingRoute({ ...base, aiConnected: true }), "survey");
+  });
+
+  it("Connect AI comes first even with a stored survey", () => {
     strictEqual(
       onboardingRoute({ ...base, surveyAnswered: true }),
       "connectAi",
     );
-    strictEqual(
-      onboardingRoute({ ...base, surveyAnswered: true, aiConnected: true }),
-      "team",
-    );
-  });
-
-  it("an already-connected provider skips straight to the team card", () => {
-    strictEqual(
-      onboardingRoute({ ...base, surveyAnswered: true, aiConnected: true }),
-      "team",
-    );
-  });
-
-  it("the survey comes first even when a provider is connected", () => {
-    strictEqual(onboardingRoute({ ...base, aiConnected: true }), "survey");
   });
 
   it("the pending flag holds the team card after the first hire flips firstRun", () => {
@@ -122,9 +119,21 @@ describe("onboardingRoute (first-run gate)", () => {
     );
   });
 
-  it("a resumed onboarding with an unanswered survey re-asks it", () => {
+  it("a resumed onboarding with no provider returns to Connect AI", () => {
     strictEqual(
       onboardingRoute({ ...base, firstRun: false, pendingStage: "started" }),
+      "connectAi",
+    );
+  });
+
+  it("a resumed onboarding with a provider re-asks an unanswered survey", () => {
+    strictEqual(
+      onboardingRoute({
+        ...base,
+        firstRun: false,
+        pendingStage: "started",
+        aiConnected: true,
+      }),
       "survey",
     );
   });

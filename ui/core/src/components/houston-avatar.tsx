@@ -32,6 +32,11 @@ interface HelmetProps {
   className?: string;
 }
 
+/** The helmet's own drawing space: its paths, and anything painted in their
+ *  coordinates (a stroke width, a userSpaceOnUse gradient), are in these units.
+ *  The glyph is taller than wide, so its height is what fills a square box. */
+export const HELMET_VIEWBOX = { width: 412.248, height: 448.898 } as const;
+
 /** Bare Houston helmet SVG. No container, no halo — just the glyph. */
 export function HoustonHelmet({
   color = HOUSTON_GRAY,
@@ -41,7 +46,7 @@ export function HoustonHelmet({
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 412.248 448.898"
+      viewBox={`0 0 ${HELMET_VIEWBOX.width} ${HELMET_VIEWBOX.height}`}
       width={size}
       height={size}
       className={cn("shrink-0", className)}

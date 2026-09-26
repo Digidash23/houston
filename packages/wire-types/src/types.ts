@@ -13,6 +13,9 @@ import type { AgentInitialConfig, SkillWorkflow } from "@houston/protocol";
 export type {
   AgentArrival,
   AgentInitialConfig,
+  ConversationImportMessage,
+  ConversationImportRequest,
+  ConversationImportResult,
   FirstDayOutcome,
   FirstDayRefusalCode,
   FirstDayStartInput,
@@ -1417,23 +1420,7 @@ export interface PreferenceValue {
 export type KnownPreferenceKey =
   | "timezone"
   | "locale"
-  | "legal_acceptance"
   | "migration_reconnect_dismissed";
-
-/**
- * Persisted record that the user has accepted a given version of the
- * in-app security disclaimer. Stored as the JSON-encoded value of the
- * `"legal_acceptance"` preference. The frontend re-prompts whenever the
- * stored `version` is lower than the current in-app constant.
- */
-export interface LegalAcceptance {
-  version: number;
-  /** RFC3339 timestamp captured at the moment of acceptance. */
-  acceptedAt: string;
-}
-
-/** Preference key for the JSON-encoded [`LegalAcceptance`]. */
-export const LEGAL_ACCEPTANCE_KEY = "legal_acceptance";
 
 /**
  * Preference key marking that the user has seen (and dismissed/completed) the

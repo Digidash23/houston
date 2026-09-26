@@ -18,5 +18,67 @@
     "retry": "Intentar de nuevo",
     "invalidTitle": "El enlace de esta conversación está incompleto",
     "invalidDescription": "Abre el enlace más reciente de Houston desde tu conversación en Slack."
+  },
+  "onboarding": {
+    "say": {
+      "hello": "¡Hola!",
+      "helloNamed": "¡Hola, {{name}}!",
+      "introManager": "Soy tu AI Manager. Armo y dirijo tu equipo de empleados de IA.",
+      "introEmployees": "Cada empleado de IA se encarga de un trabajo. Hace trabajo real en tus herramientas por su cuenta y te avisa cuando termina.",
+      "introHow": "Tú me dices lo que necesitas y yo me aseguro de que el empleado de IA indicado se ocupe.",
+      "connectIntro": "Primero, conectemos la IA que le da vida a tu equipo.",
+      "surveyIntro": "¡Listo, tu IA está conectada! Ahora unas preguntas rápidas para sugerirte el equipo ideal.",
+      "teamIntro": "Gracias, eso me ayuda. Aquí tienes un equipo inicial de empleados de IA, los ayudantes que te quitan trabajo de encima.",
+      "teamResume_one": "Ya tienes 1 empleado de IA en tu equipo. Sigamos donde lo dejaste.",
+      "teamResume_other": "Ya tienes {{count}} empleados de IA en tu equipo. Sigamos donde lo dejaste.",
+      "closingReady": "¡Tu equipo está listo!",
+      "closingEmployees": "Abre cualquiera de tus empleados de IA para que empiece su primer día de trabajo.",
+      "closingManager": {
+        "all": "Recuerda que soy tu AI Manager y estoy aquí para ayudarte. Les asigno misiones a tus empleados de IA, contrato nuevos cuando los necesitas, invito a tus compañeros de equipo y conecto las herramientas que necesitan.",
+        "invite": "Recuerda que soy tu AI Manager y estoy aquí para ayudarte. Les asigno misiones a tus empleados de IA, contrato nuevos cuando los necesitas e invito a tus compañeros de equipo.",
+        "connect": "Recuerda que soy tu AI Manager y estoy aquí para ayudarte. Les asigno misiones a tus empleados de IA, contrato nuevos cuando los necesitas y conecto las herramientas que necesitan.",
+        "core": "Recuerda que soy tu AI Manager y estoy aquí para ayudarte. Les asigno misiones a tus empleados de IA y contrato nuevos cuando los necesitas."
+      },
+      "closingGoal": "Te encantaría delegar: “{{goal}}”. ¿Quieres que ponga a un empleado de IA a cargo?",
+      "closingAsk": "¿Qué tarea harías normalmente por tu cuenta? Cuéntamela y me encargo de que se haga.",
+      "profileIntro": "¡Hola de nuevo! Un par de preguntas rápidas para adaptar Houston a tu forma de trabajar.",
+      "profileThanks": "Gracias, eso me ayuda mucho."
+    },
+    "questions": {
+      "companySize": "¿Qué tan grande es tu empresa?"
+    },
+    "answers": {
+      "connected": "Mi IA está conectada",
+      "skipped": "Omitida"
+    },
+    "choices": {
+      "done": "Ese es mi equipo",
+      "another": "Contratar uno más"
+    },
+    "companySize": {
+      "solo": "Solo yo",
+      "2_10": "2–10",
+      "11_50": "11–50",
+      "51_200": "51–200",
+      "201_1000": "201–1000",
+      "1000_plus": "1000+"
+    },
+    "goal": {
+      "hint": "Piensa en el trabajo que se come tu semana. Tu AI Manager pondrá a un empleado de IA a cargo.",
+      "placeholder": "Por ejemplo: responder los correos de clientes y mantener mi agenda al día",
+      "tooLong": "Es un poco largo. Mantenlo por debajo de {{max}} caracteres."
+    },
+    "changeAnswer": "Cambiar respuesta",
+    "roster": {
+      "joining": "Uniéndose",
+      "hired": "Listo"
+    },
+    "handoff": {
+      "yes": "Sí, hagámoslo",
+      "notNow": "Ahora no"
+    },
+    "finish": {
+      "profileAction": "Continuar"
+    }
   }
 }

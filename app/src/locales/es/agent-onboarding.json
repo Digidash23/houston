@@ -9,11 +9,13 @@
       "customize": "Personaliza"
     },
     "contextHeadline": "¿En qué industria trabaja este empleado de IA?",
+    "selfContextHeadline": "¿En qué industria trabajas?",
     "contextPlaceholder": "Cuéntanos en pocas palabras",
     "contextSearch": "Buscar industrias",
     "noContextMatches": "Ninguna industria coincide con eso.",
     "useQueryAsContext": "Usar \"{{query}}\" como la industria",
     "roleHeadline": "¿Qué debe hacer por ti?",
+    "selfRoleHeadline": "¿Cuál es tu rol?",
     "rolePlaceholder": "Cuéntanos el rol en pocas palabras",
     "roleSearch": "Buscar roles",
     "noRoleMatches": "Ningún rol coincide con eso.",
@@ -21,6 +23,7 @@
     "typeToFindAnyRole": "Escribe cualquier rol para encontrarlo, de cualquier industria.",
     "moreRoles": "Más roles",
     "otherRoles": "Otros roles",
+    "leadership": "Liderazgo",
     "somethingElse": "Otra cosa",
     "chipsKeyboardHint": "Usa las flechas del teclado para moverte entre las opciones.",
     "continue": "Continuar",
@@ -1248,6 +1251,26 @@
       "yard_coordinator": "Coordinador de patio",
       "yoga_studio_coordinator": "Coordinador de clases de yoga",
       "youtube_channel_manager": "Gestor de canal de YouTube"
+    },
+    "leadershipRoles": {
+      "founder": "Fundador",
+      "co_founder": "Cofundador",
+      "owner": "Dueño",
+      "ceo": "CEO",
+      "president": "Presidente",
+      "managing_director": "Director general",
+      "general_manager": "Gerente general",
+      "coo": "COO",
+      "cfo": "CFO",
+      "cto": "CTO",
+      "cmo": "CMO",
+      "cro": "CRO",
+      "vp": "VP",
+      "director": "Director",
+      "head_of_department": "Jefe de área",
+      "partner": "Socio",
+      "team_lead": "Líder de equipo",
+      "manager": "Gerente"
     }
   }
 }
