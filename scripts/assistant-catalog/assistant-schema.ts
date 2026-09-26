@@ -99,7 +99,9 @@ export function schemaForType(
   if (scalar) return scalar;
   if (type.isUnion()) {
     return {
-      anyOf: type.types.map((part) => schemaForType(checker, part, node, seen)),
+      anyOf: literalsInOrder(
+        type.types.map((part) => schemaForType(checker, part, node, seen)),
+      ),
     };
   }
   // `"a" | "b" | (string & {})` — the widening that keeps literal autocomplete
@@ -160,4 +162,20 @@ export function schemaForType(
     ...(required.length > 0 ? { required } : {}),
     additionalProperties: false,
   };
+}
+
+/**
+ * A union's literal branches in alphabetical order, each in a slot a literal
+ * held. The checker lists a union's members by when each type was first
+ * created anywhere in the program, so an unrelated file that happens to use
+ * one of the words first would reorder the catalog without changing it.
+ */
+export function literalsInOrder(branches: JsonSchema[]): JsonSchema[] {
+  const literals = branches
+    .filter((branch) => branch.const !== undefined)
+    .sort((a, b) => String(a.const).localeCompare(String(b.const)));
+  let next = 0;
+  return branches.map((branch) =>
+    branch.const !== undefined ? literals[next++] : branch,
+  );
 }

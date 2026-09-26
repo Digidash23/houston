@@ -205,15 +205,23 @@
                 "type": "string"
               },
               {
+                "const": "crimson",
+                "type": "string"
+              },
+              {
                 "const": "forest",
                 "type": "string"
               },
               {
-                "const": "teal",
+                "const": "golden",
                 "type": "string"
               },
               {
                 "const": "navy",
+                "type": "string"
+              },
+              {
+                "const": "orange",
                 "type": "string"
               },
               {
@@ -225,15 +233,7 @@
                 "type": "string"
               },
               {
-                "const": "crimson",
-                "type": "string"
-              },
-              {
-                "const": "orange",
-                "type": "string"
-              },
-              {
-                "const": "golden",
+                "const": "teal",
                 "type": "string"
               },
               {
@@ -659,7 +659,7 @@
                         "type": "null"
                       },
                       {
-                        "const": "medium",
+                        "const": "high",
                         "type": "string"
                       },
                       {
@@ -667,7 +667,7 @@
                         "type": "string"
                       },
                       {
-                        "const": "high",
+                        "const": "medium",
                         "type": "string"
                       },
                       {
@@ -1118,7 +1118,7 @@
                     "type": "null"
                   },
                   {
-                    "const": "medium",
+                    "const": "high",
                     "type": "string"
                   },
                   {
@@ -1126,7 +1126,7 @@
                     "type": "string"
                   },
                   {
-                    "const": "high",
+                    "const": "medium",
                     "type": "string"
                   },
                   {
@@ -1264,11 +1264,11 @@
           "outcome": {
             "anyOf": [
               {
-                "const": "started",
+                "const": "existing",
                 "type": "string"
               },
               {
-                "const": "existing",
+                "const": "started",
                 "type": "string"
               }
             ]
@@ -1330,15 +1330,23 @@
                 "type": "string"
               },
               {
+                "const": "crimson",
+                "type": "string"
+              },
+              {
                 "const": "forest",
                 "type": "string"
               },
               {
-                "const": "teal",
+                "const": "golden",
                 "type": "string"
               },
               {
                 "const": "navy",
+                "type": "string"
+              },
+              {
+                "const": "orange",
                 "type": "string"
               },
               {
@@ -1350,15 +1358,7 @@
                 "type": "string"
               },
               {
-                "const": "crimson",
-                "type": "string"
-              },
-              {
-                "const": "orange",
-                "type": "string"
-              },
-              {
-                "const": "golden",
+                "const": "teal",
                 "type": "string"
               },
               {
@@ -1643,11 +1643,11 @@
           "schema": {
             "anyOf": [
               {
-                "const": "monthly",
+                "const": "annual",
                 "type": "string"
               },
               {
-                "const": "annual",
+                "const": "monthly",
                 "type": "string"
               }
             ]
@@ -1785,11 +1785,11 @@
                 "type": "null"
               },
               {
-                "const": "monthly",
+                "const": "annual",
                 "type": "string"
               },
               {
-                "const": "annual",
+                "const": "monthly",
                 "type": "string"
               }
             ]
@@ -1797,11 +1797,11 @@
           "plan": {
             "anyOf": [
               {
-                "const": "team",
+                "const": "enterprise",
                 "type": "string"
               },
               {
-                "const": "enterprise",
+                "const": "team",
                 "type": "string"
               }
             ]
@@ -1812,15 +1812,15 @@
           "status": {
             "anyOf": [
               {
-                "const": "free",
-                "type": "string"
-              },
-              {
-                "const": "trialing",
-                "type": "string"
-              },
-              {
                 "const": "active",
+                "type": "string"
+              },
+              {
+                "const": "expired",
+                "type": "string"
+              },
+              {
+                "const": "free",
                 "type": "string"
               },
               {
@@ -1828,7 +1828,7 @@
                 "type": "string"
               },
               {
-                "const": "expired",
+                "const": "trialing",
                 "type": "string"
               }
             ]
@@ -1917,10 +1917,6 @@
                 "status": {
                   "anyOf": [
                     {
-                      "const": "void",
-                      "type": "string"
-                    },
-                    {
                       "const": "draft",
                       "type": "string"
                     },
@@ -1934,6 +1930,10 @@
                     },
                     {
                       "const": "uncollectible",
+                      "type": "string"
+                    },
+                    {
+                      "const": "void",
                       "type": "string"
                     }
                   ]
@@ -2646,15 +2646,15 @@
                         "trigger": {
                           "anyOf": [
                             {
+                              "const": "manual",
+                              "type": "string"
+                            },
+                            {
                               "const": "native",
                               "type": "string"
                             },
                             {
                               "const": "proactive",
-                              "type": "string"
-                            },
-                            {
-                              "const": "manual",
                               "type": "string"
                             }
                           ]
@@ -3127,6 +3127,10 @@
                                   "surface": {
                                     "anyOf": [
                                       {
+                                        "const": "apiKeys",
+                                        "type": "string"
+                                      },
+                                      {
                                         "const": "billing",
                                         "type": "string"
                                       },
@@ -3135,15 +3139,11 @@
                                         "type": "string"
                                       },
                                       {
-                                        "const": "apiKeys",
+                                        "const": "orgDanger",
                                         "type": "string"
                                       },
                                       {
                                         "const": "routineWebhook",
-                                        "type": "string"
-                                      },
-                                      {
-                                        "const": "orgDanger",
                                         "type": "string"
                                       }
                                     ]
@@ -3185,7 +3185,7 @@
                                   "reusableKind": {
                                     "anyOf": [
                                       {
-                                        "const": "skill",
+                                        "const": "learning",
                                         "type": "string"
                                       },
                                       {
@@ -3193,7 +3193,7 @@
                                         "type": "string"
                                       },
                                       {
-                                        "const": "learning",
+                                        "const": "skill",
                                         "type": "string"
                                       }
                                     ]
@@ -3310,11 +3310,15 @@
                         "cause": {
                           "anyOf": [
                             {
-                              "const": "unknown",
+                              "const": "invalid_api_key",
                               "type": "string"
                             },
                             {
                               "const": "no_credentials",
+                              "type": "string"
+                            },
+                            {
+                              "const": "org_policy_blocked",
                               "type": "string"
                             },
                             {
@@ -3326,11 +3330,7 @@
                               "type": "string"
                             },
                             {
-                              "const": "invalid_api_key",
-                              "type": "string"
-                            },
-                            {
-                              "const": "org_policy_blocked",
+                              "const": "unknown",
                               "type": "string"
                             }
                           ]
@@ -3516,11 +3516,11 @@
                         "scope": {
                           "anyOf": [
                             {
-                              "const": "unknown",
+                              "const": "free_tier",
                               "type": "string"
                             },
                             {
-                              "const": "free_tier",
+                              "const": "organization",
                               "type": "string"
                             },
                             {
@@ -3528,7 +3528,7 @@
                               "type": "string"
                             },
                             {
-                              "const": "organization",
+                              "const": "unknown",
                               "type": "string"
                             }
                           ]
@@ -3589,7 +3589,11 @@
                         "reason": {
                           "anyOf": [
                             {
-                              "const": "unknown",
+                              "const": "deprecated",
+                              "type": "string"
+                            },
+                            {
+                              "const": "not_deployed",
                               "type": "string"
                             },
                             {
@@ -3597,15 +3601,11 @@
                               "type": "string"
                             },
                             {
-                              "const": "deprecated",
-                              "type": "string"
-                            },
-                            {
                               "const": "region_restricted",
                               "type": "string"
                             },
                             {
-                              "const": "not_deployed",
+                              "const": "unknown",
                               "type": "string"
                             }
                           ]
@@ -3893,11 +3893,11 @@
                 "role": {
                   "anyOf": [
                     {
-                      "const": "user",
+                      "const": "assistant",
                       "type": "string"
                     },
                     {
-                      "const": "assistant",
+                      "const": "user",
                       "type": "string"
                     }
                   ]
@@ -4105,11 +4105,11 @@
                     "type": "null"
                   },
                   {
-                    "const": "start",
+                    "const": "end",
                     "type": "string"
                   },
                   {
-                    "const": "end",
+                    "const": "start",
                     "type": "string"
                   }
                 ]
@@ -4128,11 +4128,11 @@
                     "role": {
                       "anyOf": [
                         {
-                          "const": "user",
+                          "const": "assistant",
                           "type": "string"
                         },
                         {
-                          "const": "assistant",
+                          "const": "user",
                           "type": "string"
                         }
                       ]
@@ -4216,15 +4216,15 @@
           "schema": {
             "anyOf": [
               {
+                "const": "auto",
+                "type": "string"
+              },
+              {
                 "const": "execute",
                 "type": "string"
               },
               {
                 "const": "plan",
-                "type": "string"
-              },
-              {
-                "const": "auto",
                 "type": "string"
               }
             ]
@@ -5688,11 +5688,11 @@
           "kind": {
             "anyOf": [
               {
-                "const": "openapi",
+                "const": "mcp",
                 "type": "string"
               },
               {
-                "const": "mcp",
+                "const": "openapi",
                 "type": "string"
               }
             ]
@@ -6095,11 +6095,11 @@
           "kind": {
             "anyOf": [
               {
-                "const": "openapi",
+                "const": "mcp",
                 "type": "string"
               },
               {
-                "const": "mcp",
+                "const": "openapi",
                 "type": "string"
               }
             ]
@@ -6331,11 +6331,11 @@
             "kind": {
               "anyOf": [
                 {
-                  "const": "openapi",
+                  "const": "mcp",
                   "type": "string"
                 },
                 {
-                  "const": "mcp",
+                  "const": "openapi",
                   "type": "string"
                 }
               ]
@@ -6632,11 +6632,11 @@
             "kind": {
               "anyOf": [
                 {
-                  "const": "openapi",
+                  "const": "mcp",
                   "type": "string"
                 },
                 {
-                  "const": "mcp",
+                  "const": "openapi",
                   "type": "string"
                 }
               ]
@@ -6850,7 +6850,7 @@
           "kind": {
             "anyOf": [
               {
-                "const": "unknown",
+                "const": "mcp",
                 "type": "string"
               },
               {
@@ -6858,7 +6858,7 @@
                 "type": "string"
               },
               {
-                "const": "mcp",
+                "const": "unknown",
                 "type": "string"
               }
             ]
@@ -6981,7 +6981,7 @@
           "kind": {
             "anyOf": [
               {
-                "const": "unknown",
+                "const": "mcp",
                 "type": "string"
               },
               {
@@ -6989,7 +6989,7 @@
                 "type": "string"
               },
               {
-                "const": "mcp",
+                "const": "unknown",
                 "type": "string"
               }
             ]
@@ -7098,11 +7098,11 @@
           "schema": {
             "anyOf": [
               {
-                "const": "custom",
+                "const": "composio",
                 "type": "string"
               },
               {
-                "const": "composio",
+                "const": "custom",
                 "type": "string"
               }
             ]
@@ -7149,11 +7149,11 @@
           "status": {
             "anyOf": [
               {
-                "const": "error",
+                "const": "active",
                 "type": "string"
               },
               {
-                "const": "active",
+                "const": "error",
                 "type": "string"
               },
               {
@@ -7201,11 +7201,11 @@
           "schema": {
             "anyOf": [
               {
-                "const": "custom",
+                "const": "composio",
                 "type": "string"
               },
               {
-                "const": "composio",
+                "const": "custom",
                 "type": "string"
               }
             ]
@@ -7244,11 +7244,11 @@
             "status": {
               "anyOf": [
                 {
-                  "const": "error",
+                  "const": "active",
                   "type": "string"
                 },
                 {
-                  "const": "active",
+                  "const": "error",
                   "type": "string"
                 },
                 {
@@ -7298,11 +7298,11 @@
           "schema": {
             "anyOf": [
               {
-                "const": "custom",
+                "const": "composio",
                 "type": "string"
               },
               {
-                "const": "composio",
+                "const": "custom",
                 "type": "string"
               }
             ]
@@ -7468,11 +7468,11 @@
           "status": {
             "anyOf": [
               {
-                "const": "error",
+                "const": "active",
                 "type": "string"
               },
               {
-                "const": "active",
+                "const": "error",
                 "type": "string"
               },
               {
@@ -7544,11 +7544,11 @@
                 "status": {
                   "anyOf": [
                     {
-                      "const": "error",
+                      "const": "active",
                       "type": "string"
                     },
                     {
-                      "const": "active",
+                      "const": "error",
                       "type": "string"
                     },
                     {
@@ -7746,11 +7746,11 @@
                         "type": "null"
                       },
                       {
-                        "const": "custom",
+                        "const": "composio",
                         "type": "string"
                       },
                       {
-                        "const": "composio",
+                        "const": "custom",
                         "type": "string"
                       }
                     ]
@@ -7846,11 +7846,11 @@
           "schema": {
             "anyOf": [
               {
-                "const": "custom",
+                "const": "composio",
                 "type": "string"
               },
               {
-                "const": "composio",
+                "const": "custom",
                 "type": "string"
               }
             ]
@@ -8261,11 +8261,11 @@
           "kind": {
             "anyOf": [
               {
-                "const": "openapi",
+                "const": "mcp",
                 "type": "string"
               },
               {
-                "const": "mcp",
+                "const": "openapi",
                 "type": "string"
               }
             ]
@@ -8519,11 +8519,11 @@
           "kind": {
             "anyOf": [
               {
-                "const": "openapi",
+                "const": "mcp",
                 "type": "string"
               },
               {
-                "const": "mcp",
+                "const": "openapi",
                 "type": "string"
               }
             ]
@@ -9455,6 +9455,10 @@
                             "surface": {
                               "anyOf": [
                                 {
+                                  "const": "apiKeys",
+                                  "type": "string"
+                                },
+                                {
                                   "const": "billing",
                                   "type": "string"
                                 },
@@ -9463,15 +9467,11 @@
                                   "type": "string"
                                 },
                                 {
-                                  "const": "apiKeys",
+                                  "const": "orgDanger",
                                   "type": "string"
                                 },
                                 {
                                   "const": "routineWebhook",
-                                  "type": "string"
-                                },
-                                {
-                                  "const": "orgDanger",
                                   "type": "string"
                                 }
                               ]
@@ -9513,7 +9513,7 @@
                             "reusableKind": {
                               "anyOf": [
                                 {
-                                  "const": "skill",
+                                  "const": "learning",
                                   "type": "string"
                                 },
                                 {
@@ -9521,7 +9521,7 @@
                                   "type": "string"
                                 },
                                 {
-                                  "const": "learning",
+                                  "const": "skill",
                                   "type": "string"
                                 }
                               ]
@@ -10223,6 +10223,10 @@
                               "surface": {
                                 "anyOf": [
                                   {
+                                    "const": "apiKeys",
+                                    "type": "string"
+                                  },
+                                  {
                                     "const": "billing",
                                     "type": "string"
                                   },
@@ -10231,15 +10235,11 @@
                                     "type": "string"
                                   },
                                   {
-                                    "const": "apiKeys",
+                                    "const": "orgDanger",
                                     "type": "string"
                                   },
                                   {
                                     "const": "routineWebhook",
-                                    "type": "string"
-                                  },
-                                  {
-                                    "const": "orgDanger",
                                     "type": "string"
                                   }
                                 ]
@@ -10281,7 +10281,7 @@
                               "reusableKind": {
                                 "anyOf": [
                                   {
-                                    "const": "skill",
+                                    "const": "learning",
                                     "type": "string"
                                   },
                                   {
@@ -10289,7 +10289,7 @@
                                     "type": "string"
                                   },
                                   {
-                                    "const": "learning",
+                                    "const": "skill",
                                     "type": "string"
                                   }
                                 ]
@@ -10499,11 +10499,11 @@
                   "type": "string"
                 },
                 {
-                  "const": "title",
+                  "const": "description",
                   "type": "string"
                 },
                 {
-                  "const": "description",
+                  "const": "title",
                   "type": "string"
                 }
               ]
@@ -11048,6 +11048,10 @@
                             "surface": {
                               "anyOf": [
                                 {
+                                  "const": "apiKeys",
+                                  "type": "string"
+                                },
+                                {
                                   "const": "billing",
                                   "type": "string"
                                 },
@@ -11056,15 +11060,11 @@
                                   "type": "string"
                                 },
                                 {
-                                  "const": "apiKeys",
+                                  "const": "orgDanger",
                                   "type": "string"
                                 },
                                 {
                                   "const": "routineWebhook",
-                                  "type": "string"
-                                },
-                                {
-                                  "const": "orgDanger",
                                   "type": "string"
                                 }
                               ]
@@ -11106,7 +11106,7 @@
                             "reusableKind": {
                               "anyOf": [
                                 {
-                                  "const": "skill",
+                                  "const": "learning",
                                   "type": "string"
                                 },
                                 {
@@ -11114,7 +11114,7 @@
                                   "type": "string"
                                 },
                                 {
-                                  "const": "learning",
+                                  "const": "skill",
                                   "type": "string"
                                 }
                               ]
@@ -11694,6 +11694,10 @@
                                 "surface": {
                                   "anyOf": [
                                     {
+                                      "const": "apiKeys",
+                                      "type": "string"
+                                    },
+                                    {
                                       "const": "billing",
                                       "type": "string"
                                     },
@@ -11702,15 +11706,11 @@
                                       "type": "string"
                                     },
                                     {
-                                      "const": "apiKeys",
+                                      "const": "orgDanger",
                                       "type": "string"
                                     },
                                     {
                                       "const": "routineWebhook",
-                                      "type": "string"
-                                    },
-                                    {
-                                      "const": "orgDanger",
                                       "type": "string"
                                     }
                                   ]
@@ -11752,7 +11752,7 @@
                                 "reusableKind": {
                                   "anyOf": [
                                     {
-                                      "const": "skill",
+                                      "const": "learning",
                                       "type": "string"
                                     },
                                     {
@@ -11760,7 +11760,7 @@
                                       "type": "string"
                                     },
                                     {
-                                      "const": "learning",
+                                      "const": "skill",
                                       "type": "string"
                                     }
                                   ]
@@ -12398,6 +12398,10 @@
                             "surface": {
                               "anyOf": [
                                 {
+                                  "const": "apiKeys",
+                                  "type": "string"
+                                },
+                                {
                                   "const": "billing",
                                   "type": "string"
                                 },
@@ -12406,15 +12410,11 @@
                                   "type": "string"
                                 },
                                 {
-                                  "const": "apiKeys",
+                                  "const": "orgDanger",
                                   "type": "string"
                                 },
                                 {
                                   "const": "routineWebhook",
-                                  "type": "string"
-                                },
-                                {
-                                  "const": "orgDanger",
                                   "type": "string"
                                 }
                               ]
@@ -12456,7 +12456,7 @@
                             "reusableKind": {
                               "anyOf": [
                                 {
-                                  "const": "skill",
+                                  "const": "learning",
                                   "type": "string"
                                 },
                                 {
@@ -12464,7 +12464,7 @@
                                   "type": "string"
                                 },
                                 {
-                                  "const": "learning",
+                                  "const": "skill",
                                   "type": "string"
                                 }
                               ]
@@ -12647,7 +12647,7 @@
           "schema": {
             "anyOf": [
               {
-                "const": "user",
+                "const": "admin",
                 "type": "string"
               },
               {
@@ -12655,7 +12655,7 @@
                 "type": "string"
               },
               {
-                "const": "admin",
+                "const": "user",
                 "type": "string"
               }
             ]
@@ -12694,7 +12694,7 @@
           "role": {
             "anyOf": [
               {
-                "const": "user",
+                "const": "admin",
                 "type": "string"
               },
               {
@@ -12702,7 +12702,7 @@
                 "type": "string"
               },
               {
-                "const": "admin",
+                "const": "user",
                 "type": "string"
               }
             ]
@@ -12891,7 +12891,7 @@
                     "role": {
                       "anyOf": [
                         {
-                          "const": "user",
+                          "const": "admin",
                           "type": "string"
                         },
                         {
@@ -12899,7 +12899,7 @@
                           "type": "string"
                         },
                         {
-                          "const": "admin",
+                          "const": "user",
                           "type": "string"
                         }
                       ]
@@ -12954,7 +12954,7 @@
                     "role": {
                       "anyOf": [
                         {
-                          "const": "user",
+                          "const": "admin",
                           "type": "string"
                         },
                         {
@@ -12962,7 +12962,7 @@
                           "type": "string"
                         },
                         {
-                          "const": "admin",
+                          "const": "user",
                           "type": "string"
                         }
                       ]
@@ -12983,7 +12983,7 @@
           "role": {
             "anyOf": [
               {
-                "const": "user",
+                "const": "admin",
                 "type": "string"
               },
               {
@@ -12991,7 +12991,7 @@
                 "type": "string"
               },
               {
-                "const": "admin",
+                "const": "user",
                 "type": "string"
               }
             ]
@@ -13299,7 +13299,7 @@
           "schema": {
             "anyOf": [
               {
-                "const": "user",
+                "const": "admin",
                 "type": "string"
               },
               {
@@ -13307,7 +13307,7 @@
                 "type": "string"
               },
               {
-                "const": "admin",
+                "const": "user",
                 "type": "string"
               }
             ]
@@ -13540,11 +13540,11 @@
                   "type": "string"
                 },
                 {
-                  "const": "not_connected",
+                  "const": "needs_reconnect",
                   "type": "string"
                 },
                 {
-                  "const": "needs_reconnect",
+                  "const": "not_connected",
                   "type": "string"
                 },
                 {
@@ -13651,19 +13651,11 @@
           "schema": {
             "anyOf": [
               {
+                "const": "amazon-bedrock",
+                "type": "string"
+              },
+              {
                 "const": "anthropic",
-                "type": "string"
-              },
-              {
-                "const": "openai-codex",
-                "type": "string"
-              },
-              {
-                "const": "github-copilot",
-                "type": "string"
-              },
-              {
-                "const": "openrouter",
                 "type": "string"
               },
               {
@@ -13671,15 +13663,23 @@
                 "type": "string"
               },
               {
+                "const": "github-copilot",
+                "type": "string"
+              },
+              {
                 "const": "google",
                 "type": "string"
               },
               {
-                "const": "amazon-bedrock",
+                "const": "minimax",
                 "type": "string"
               },
               {
-                "const": "minimax",
+                "const": "openai-codex",
+                "type": "string"
+              },
+              {
+                "const": "openai-compatible",
                 "type": "string"
               },
               {
@@ -13691,7 +13691,7 @@
                 "type": "string"
               },
               {
-                "const": "openai-compatible",
+                "const": "openrouter",
                 "type": "string"
               },
               {
@@ -13757,19 +13757,11 @@
           "schema": {
             "anyOf": [
               {
+                "const": "amazon-bedrock",
+                "type": "string"
+              },
+              {
                 "const": "anthropic",
-                "type": "string"
-              },
-              {
-                "const": "openai-codex",
-                "type": "string"
-              },
-              {
-                "const": "github-copilot",
-                "type": "string"
-              },
-              {
-                "const": "openrouter",
                 "type": "string"
               },
               {
@@ -13777,15 +13769,23 @@
                 "type": "string"
               },
               {
+                "const": "github-copilot",
+                "type": "string"
+              },
+              {
                 "const": "google",
                 "type": "string"
               },
               {
-                "const": "amazon-bedrock",
+                "const": "minimax",
                 "type": "string"
               },
               {
-                "const": "minimax",
+                "const": "openai-codex",
+                "type": "string"
+              },
+              {
+                "const": "openai-compatible",
                 "type": "string"
               },
               {
@@ -13797,7 +13797,7 @@
                 "type": "string"
               },
               {
-                "const": "openai-compatible",
+                "const": "openrouter",
                 "type": "string"
               },
               {
@@ -13872,19 +13872,11 @@
           "schema": {
             "anyOf": [
               {
+                "const": "amazon-bedrock",
+                "type": "string"
+              },
+              {
                 "const": "anthropic",
-                "type": "string"
-              },
-              {
-                "const": "openai-codex",
-                "type": "string"
-              },
-              {
-                "const": "github-copilot",
-                "type": "string"
-              },
-              {
-                "const": "openrouter",
                 "type": "string"
               },
               {
@@ -13892,15 +13884,23 @@
                 "type": "string"
               },
               {
+                "const": "github-copilot",
+                "type": "string"
+              },
+              {
                 "const": "google",
                 "type": "string"
               },
               {
-                "const": "amazon-bedrock",
+                "const": "minimax",
                 "type": "string"
               },
               {
-                "const": "minimax",
+                "const": "openai-codex",
+                "type": "string"
+              },
+              {
+                "const": "openai-compatible",
                 "type": "string"
               },
               {
@@ -13912,7 +13912,7 @@
                 "type": "string"
               },
               {
-                "const": "openai-compatible",
+                "const": "openrouter",
                 "type": "string"
               },
               {
@@ -14075,19 +14075,11 @@
                 "type": "null"
               },
               {
+                "const": "amazon-bedrock",
+                "type": "string"
+              },
+              {
                 "const": "anthropic",
-                "type": "string"
-              },
-              {
-                "const": "openai-codex",
-                "type": "string"
-              },
-              {
-                "const": "github-copilot",
-                "type": "string"
-              },
-              {
-                "const": "openrouter",
                 "type": "string"
               },
               {
@@ -14095,15 +14087,23 @@
                 "type": "string"
               },
               {
+                "const": "github-copilot",
+                "type": "string"
+              },
+              {
                 "const": "google",
                 "type": "string"
               },
               {
-                "const": "amazon-bedrock",
+                "const": "minimax",
                 "type": "string"
               },
               {
-                "const": "minimax",
+                "const": "openai-codex",
+                "type": "string"
+              },
+              {
+                "const": "openai-compatible",
                 "type": "string"
               },
               {
@@ -14115,7 +14115,7 @@
                 "type": "string"
               },
               {
-                "const": "openai-compatible",
+                "const": "openrouter",
                 "type": "string"
               },
               {
@@ -14231,19 +14231,19 @@
                         "status": {
                           "anyOf": [
                             {
-                              "const": "error",
-                              "type": "string"
-                            },
-                            {
-                              "const": "starting",
-                              "type": "string"
-                            },
-                            {
                               "const": "awaiting_user",
                               "type": "string"
                             },
                             {
                               "const": "complete",
+                              "type": "string"
+                            },
+                            {
+                              "const": "error",
+                              "type": "string"
+                            },
+                            {
+                              "const": "starting",
                               "type": "string"
                             }
                           ]
@@ -14260,19 +14260,11 @@
                 "provider": {
                   "anyOf": [
                     {
+                      "const": "amazon-bedrock",
+                      "type": "string"
+                    },
+                    {
                       "const": "anthropic",
-                      "type": "string"
-                    },
-                    {
-                      "const": "openai-codex",
-                      "type": "string"
-                    },
-                    {
-                      "const": "github-copilot",
-                      "type": "string"
-                    },
-                    {
-                      "const": "openrouter",
                       "type": "string"
                     },
                     {
@@ -14280,15 +14272,23 @@
                       "type": "string"
                     },
                     {
+                      "const": "github-copilot",
+                      "type": "string"
+                    },
+                    {
                       "const": "google",
                       "type": "string"
                     },
                     {
-                      "const": "amazon-bedrock",
+                      "const": "minimax",
                       "type": "string"
                     },
                     {
-                      "const": "minimax",
+                      "const": "openai-codex",
+                      "type": "string"
+                    },
+                    {
+                      "const": "openai-compatible",
                       "type": "string"
                     },
                     {
@@ -14300,7 +14300,7 @@
                       "type": "string"
                     },
                     {
-                      "const": "openai-compatible",
+                      "const": "openrouter",
                       "type": "string"
                     },
                     {
@@ -14359,19 +14359,11 @@
           "schema": {
             "anyOf": [
               {
+                "const": "amazon-bedrock",
+                "type": "string"
+              },
+              {
                 "const": "anthropic",
-                "type": "string"
-              },
-              {
-                "const": "openai-codex",
-                "type": "string"
-              },
-              {
-                "const": "github-copilot",
-                "type": "string"
-              },
-              {
-                "const": "openrouter",
                 "type": "string"
               },
               {
@@ -14379,15 +14371,23 @@
                 "type": "string"
               },
               {
+                "const": "github-copilot",
+                "type": "string"
+              },
+              {
                 "const": "google",
                 "type": "string"
               },
               {
-                "const": "amazon-bedrock",
+                "const": "minimax",
                 "type": "string"
               },
               {
-                "const": "minimax",
+                "const": "openai-codex",
+                "type": "string"
+              },
+              {
+                "const": "openai-compatible",
                 "type": "string"
               },
               {
@@ -14399,7 +14399,7 @@
                 "type": "string"
               },
               {
-                "const": "openai-compatible",
+                "const": "openrouter",
                 "type": "string"
               },
               {
@@ -14465,19 +14465,11 @@
           "schema": {
             "anyOf": [
               {
+                "const": "amazon-bedrock",
+                "type": "string"
+              },
+              {
                 "const": "anthropic",
-                "type": "string"
-              },
-              {
-                "const": "openai-codex",
-                "type": "string"
-              },
-              {
-                "const": "github-copilot",
-                "type": "string"
-              },
-              {
-                "const": "openrouter",
                 "type": "string"
               },
               {
@@ -14485,15 +14477,23 @@
                 "type": "string"
               },
               {
+                "const": "github-copilot",
+                "type": "string"
+              },
+              {
                 "const": "google",
                 "type": "string"
               },
               {
-                "const": "amazon-bedrock",
+                "const": "minimax",
                 "type": "string"
               },
               {
-                "const": "minimax",
+                "const": "openai-codex",
+                "type": "string"
+              },
+              {
+                "const": "openai-compatible",
                 "type": "string"
               },
               {
@@ -14505,7 +14505,7 @@
                 "type": "string"
               },
               {
-                "const": "openai-compatible",
+                "const": "openrouter",
                 "type": "string"
               },
               {
@@ -14751,19 +14751,11 @@
                     "type": "null"
                   },
                   {
+                    "const": "amazon-bedrock",
+                    "type": "string"
+                  },
+                  {
                     "const": "anthropic",
-                    "type": "string"
-                  },
-                  {
-                    "const": "openai-codex",
-                    "type": "string"
-                  },
-                  {
-                    "const": "github-copilot",
-                    "type": "string"
-                  },
-                  {
-                    "const": "openrouter",
                     "type": "string"
                   },
                   {
@@ -14771,15 +14763,23 @@
                     "type": "string"
                   },
                   {
+                    "const": "github-copilot",
+                    "type": "string"
+                  },
+                  {
                     "const": "google",
                     "type": "string"
                   },
                   {
-                    "const": "amazon-bedrock",
+                    "const": "minimax",
                     "type": "string"
                   },
                   {
-                    "const": "minimax",
+                    "const": "openai-codex",
+                    "type": "string"
+                  },
+                  {
+                    "const": "openai-compatible",
                     "type": "string"
                   },
                   {
@@ -14791,7 +14791,7 @@
                     "type": "string"
                   },
                   {
-                    "const": "openai-compatible",
+                    "const": "openrouter",
                     "type": "string"
                   },
                   {
@@ -14855,15 +14855,15 @@
             "authState": {
               "anyOf": [
                 {
-                  "const": "unknown",
-                  "type": "string"
-                },
-                {
                   "const": "authenticated",
                   "type": "string"
                 },
                 {
                   "const": "unauthenticated",
+                  "type": "string"
+                },
+                {
+                  "const": "unknown",
                   "type": "string"
                 }
               ]
@@ -14909,11 +14909,11 @@
                   "type": "string"
                 },
                 {
-                  "const": "not_connected",
+                  "const": "needs_reconnect",
                   "type": "string"
                 },
                 {
-                  "const": "needs_reconnect",
+                  "const": "not_connected",
                   "type": "string"
                 },
                 {
@@ -14937,11 +14937,11 @@
                   "type": "string"
                 },
                 {
-                  "const": "path",
+                  "const": "missing",
                   "type": "string"
                 },
                 {
-                  "const": "missing",
+                  "const": "path",
                   "type": "string"
                 }
               ]
@@ -15000,11 +15000,11 @@
                     "unit": {
                       "anyOf": [
                         {
-                          "const": "USD",
+                          "const": "credits",
                           "type": "string"
                         },
                         {
-                          "const": "credits",
+                          "const": "USD",
                           "type": "string"
                         }
                       ]
@@ -15055,11 +15055,11 @@
                   "type": "string"
                 },
                 {
-                  "const": "unauthenticated",
+                  "const": "ok",
                   "type": "string"
                 },
                 {
-                  "const": "ok",
+                  "const": "unauthenticated",
                   "type": "string"
                 },
                 {
@@ -15102,15 +15102,11 @@
                   "id": {
                     "anyOf": [
                       {
-                        "const": "session",
+                        "const": "chat",
                         "type": "string"
                       },
                       {
-                        "const": "week",
-                        "type": "string"
-                      },
-                      {
-                        "const": "week_opus",
+                        "const": "completions",
                         "type": "string"
                       },
                       {
@@ -15122,11 +15118,15 @@
                         "type": "string"
                       },
                       {
-                        "const": "chat",
+                        "const": "session",
                         "type": "string"
                       },
                       {
-                        "const": "completions",
+                        "const": "week",
+                        "type": "string"
+                      },
+                      {
+                        "const": "week_opus",
                         "type": "string"
                       }
                     ]
@@ -15640,15 +15640,11 @@
             "status": {
               "anyOf": [
                 {
-                  "const": "error",
-                  "type": "string"
-                },
-                {
                   "const": "active",
                   "type": "string"
                 },
                 {
-                  "const": "pending",
+                  "const": "error",
                   "type": "string"
                 },
                 {
@@ -15657,6 +15653,10 @@
                 },
                 {
                   "const": "paused_revoked",
+                  "type": "string"
+                },
+                {
+                  "const": "pending",
                   "type": "string"
                 }
               ]
@@ -15753,7 +15753,7 @@
                   "code": {
                     "anyOf": [
                       {
-                        "const": "out_of_credits",
+                        "const": "creator_needs_reconnect",
                         "type": "string"
                       },
                       {
@@ -15761,15 +15761,15 @@
                         "type": "string"
                       },
                       {
-                        "const": "team_not_connected",
-                        "type": "string"
-                      },
-                      {
-                        "const": "creator_needs_reconnect",
+                        "const": "out_of_credits",
                         "type": "string"
                       },
                       {
                         "const": "team_needs_reconnect",
+                        "type": "string"
+                      },
+                      {
+                        "const": "team_not_connected",
                         "type": "string"
                       }
                     ]
@@ -15819,6 +15819,10 @@
           "status": {
             "anyOf": [
               {
+                "const": "cancelled",
+                "type": "string"
+              },
+              {
                 "const": "error",
                 "type": "string"
               },
@@ -15832,10 +15836,6 @@
               },
               {
                 "const": "surfaced",
-                "type": "string"
-              },
-              {
-                "const": "cancelled",
                 "type": "string"
               }
             ]
@@ -15906,11 +15906,11 @@
                     "type": "null"
                   },
                   {
-                    "const": "shared",
+                    "const": "per_run",
                     "type": "string"
                   },
                   {
-                    "const": "per_run",
+                    "const": "shared",
                     "type": "string"
                   }
                 ]
@@ -16118,11 +16118,11 @@
           "chat_mode": {
             "anyOf": [
               {
-                "const": "shared",
+                "const": "per_run",
                 "type": "string"
               },
               {
-                "const": "per_run",
+                "const": "shared",
                 "type": "string"
               }
             ]
@@ -16530,7 +16530,7 @@
                     "type": "string"
                   },
                   {
-                    "const": "past_due",
+                    "const": "lapsed",
                     "type": "string"
                   },
                   {
@@ -16538,7 +16538,7 @@
                     "type": "string"
                   },
                   {
-                    "const": "lapsed",
+                    "const": "past_due",
                     "type": "string"
                   }
                 ]
@@ -16804,7 +16804,7 @@
                     "code": {
                       "anyOf": [
                         {
-                          "const": "out_of_credits",
+                          "const": "creator_needs_reconnect",
                           "type": "string"
                         },
                         {
@@ -16812,15 +16812,15 @@
                           "type": "string"
                         },
                         {
-                          "const": "team_not_connected",
-                          "type": "string"
-                        },
-                        {
-                          "const": "creator_needs_reconnect",
+                          "const": "out_of_credits",
                           "type": "string"
                         },
                         {
                           "const": "team_needs_reconnect",
+                          "type": "string"
+                        },
+                        {
+                          "const": "team_not_connected",
                           "type": "string"
                         }
                       ]
@@ -16870,6 +16870,10 @@
             "status": {
               "anyOf": [
                 {
+                  "const": "cancelled",
+                  "type": "string"
+                },
+                {
                   "const": "error",
                   "type": "string"
                 },
@@ -16883,10 +16887,6 @@
                 },
                 {
                   "const": "surfaced",
-                  "type": "string"
-                },
-                {
-                  "const": "cancelled",
                   "type": "string"
                 }
               ]
@@ -16953,11 +16953,11 @@
             "chat_mode": {
               "anyOf": [
                 {
-                  "const": "shared",
+                  "const": "per_run",
                   "type": "string"
                 },
                 {
-                  "const": "per_run",
+                  "const": "shared",
                   "type": "string"
                 }
               ]
@@ -17357,7 +17357,7 @@
                     "type": "string"
                   },
                   {
-                    "const": "past_due",
+                    "const": "lapsed",
                     "type": "string"
                   },
                   {
@@ -17365,7 +17365,7 @@
                     "type": "string"
                   },
                   {
-                    "const": "lapsed",
+                    "const": "past_due",
                     "type": "string"
                   }
                 ]
@@ -17570,11 +17570,11 @@
                     "type": "null"
                   },
                   {
-                    "const": "shared",
+                    "const": "per_run",
                     "type": "string"
                   },
                   {
-                    "const": "per_run",
+                    "const": "shared",
                     "type": "string"
                   }
                 ]
@@ -17798,11 +17798,11 @@
           "chat_mode": {
             "anyOf": [
               {
-                "const": "shared",
+                "const": "per_run",
                 "type": "string"
               },
               {
-                "const": "per_run",
+                "const": "shared",
                 "type": "string"
               }
             ]
@@ -18257,7 +18257,7 @@
                     "type": "string"
                   },
                   {
-                    "const": "past_due",
+                    "const": "lapsed",
                     "type": "string"
                   },
                   {
@@ -18265,7 +18265,7 @@
                     "type": "string"
                   },
                   {
-                    "const": "lapsed",
+                    "const": "past_due",
                     "type": "string"
                   }
                 ]
@@ -19204,15 +19204,15 @@
                       "type": {
                         "anyOf": [
                           {
+                            "const": "select",
+                            "type": "string"
+                          },
+                          {
                             "const": "text",
                             "type": "string"
                           },
                           {
                             "const": "textarea",
-                            "type": "string"
-                          },
-                          {
-                            "const": "select",
                             "type": "string"
                           }
                         ]
@@ -19430,15 +19430,15 @@
                   "type": {
                     "anyOf": [
                       {
+                        "const": "select",
+                        "type": "string"
+                      },
+                      {
                         "const": "text",
                         "type": "string"
                       },
                       {
                         "const": "textarea",
-                        "type": "string"
-                      },
-                      {
-                        "const": "select",
                         "type": "string"
                       }
                     ]
@@ -20211,11 +20211,11 @@
                         "type": "null"
                       },
                       {
-                        "const": "monthly",
+                        "const": "annual",
                         "type": "string"
                       },
                       {
-                        "const": "annual",
+                        "const": "monthly",
                         "type": "string"
                       }
                     ]
@@ -20223,11 +20223,11 @@
                   "plan": {
                     "anyOf": [
                       {
-                        "const": "team",
+                        "const": "enterprise",
                         "type": "string"
                       },
                       {
-                        "const": "enterprise",
+                        "const": "team",
                         "type": "string"
                       }
                     ]
@@ -20238,15 +20238,15 @@
                   "status": {
                     "anyOf": [
                       {
-                        "const": "free",
-                        "type": "string"
-                      },
-                      {
-                        "const": "trialing",
-                        "type": "string"
-                      },
-                      {
                         "const": "active",
+                        "type": "string"
+                      },
+                      {
+                        "const": "expired",
+                        "type": "string"
+                      },
+                      {
+                        "const": "free",
                         "type": "string"
                       },
                       {
@@ -20254,7 +20254,7 @@
                         "type": "string"
                       },
                       {
-                        "const": "expired",
+                        "const": "trialing",
                         "type": "string"
                       }
                     ]
@@ -20302,7 +20302,7 @@
           "role": {
             "anyOf": [
               {
-                "const": "user",
+                "const": "admin",
                 "type": "string"
               },
               {
@@ -20310,7 +20310,7 @@
                 "type": "string"
               },
               {
-                "const": "admin",
+                "const": "user",
                 "type": "string"
               }
             ]
@@ -20378,11 +20378,11 @@
                         "type": "null"
                       },
                       {
-                        "const": "monthly",
+                        "const": "annual",
                         "type": "string"
                       },
                       {
-                        "const": "annual",
+                        "const": "monthly",
                         "type": "string"
                       }
                     ]
@@ -20390,11 +20390,11 @@
                   "plan": {
                     "anyOf": [
                       {
-                        "const": "team",
+                        "const": "enterprise",
                         "type": "string"
                       },
                       {
-                        "const": "enterprise",
+                        "const": "team",
                         "type": "string"
                       }
                     ]
@@ -20405,15 +20405,15 @@
                   "status": {
                     "anyOf": [
                       {
-                        "const": "free",
-                        "type": "string"
-                      },
-                      {
-                        "const": "trialing",
-                        "type": "string"
-                      },
-                      {
                         "const": "active",
+                        "type": "string"
+                      },
+                      {
+                        "const": "expired",
+                        "type": "string"
+                      },
+                      {
+                        "const": "free",
                         "type": "string"
                       },
                       {
@@ -20421,7 +20421,7 @@
                         "type": "string"
                       },
                       {
-                        "const": "expired",
+                        "const": "trialing",
                         "type": "string"
                       }
                     ]
@@ -20469,7 +20469,7 @@
           "role": {
             "anyOf": [
               {
-                "const": "user",
+                "const": "admin",
                 "type": "string"
               },
               {
@@ -20477,7 +20477,7 @@
                 "type": "string"
               },
               {
-                "const": "admin",
+                "const": "user",
                 "type": "string"
               }
             ]
@@ -20631,15 +20631,15 @@
           "status": {
             "anyOf": [
               {
-                "const": "moving",
-                "type": "string"
-              },
-              {
                 "const": "done",
                 "type": "string"
               },
               {
                 "const": "failed",
+                "type": "string"
+              },
+              {
+                "const": "moving",
                 "type": "string"
               }
             ]
@@ -20701,7 +20701,7 @@
                 "role": {
                   "anyOf": [
                     {
-                      "const": "user",
+                      "const": "admin",
                       "type": "string"
                     },
                     {
@@ -20709,7 +20709,7 @@
                       "type": "string"
                     },
                     {
-                      "const": "admin",
+                      "const": "user",
                       "type": "string"
                     }
                   ]
@@ -20738,11 +20738,11 @@
                               "type": "null"
                             },
                             {
-                              "const": "monthly",
+                              "const": "annual",
                               "type": "string"
                             },
                             {
-                              "const": "annual",
+                              "const": "monthly",
                               "type": "string"
                             }
                           ]
@@ -20750,11 +20750,11 @@
                         "plan": {
                           "anyOf": [
                             {
-                              "const": "team",
+                              "const": "enterprise",
                               "type": "string"
                             },
                             {
-                              "const": "enterprise",
+                              "const": "team",
                               "type": "string"
                             }
                           ]
@@ -20765,15 +20765,15 @@
                         "status": {
                           "anyOf": [
                             {
-                              "const": "free",
-                              "type": "string"
-                            },
-                            {
-                              "const": "trialing",
-                              "type": "string"
-                            },
-                            {
                               "const": "active",
+                              "type": "string"
+                            },
+                            {
+                              "const": "expired",
+                              "type": "string"
+                            },
+                            {
+                              "const": "free",
                               "type": "string"
                             },
                             {
@@ -20781,7 +20781,7 @@
                               "type": "string"
                             },
                             {
-                              "const": "expired",
+                              "const": "trialing",
                               "type": "string"
                             }
                           ]
@@ -20829,7 +20829,7 @@
                 "role": {
                   "anyOf": [
                     {
-                      "const": "user",
+                      "const": "admin",
                       "type": "string"
                     },
                     {
@@ -20837,7 +20837,7 @@
                       "type": "string"
                     },
                     {
-                      "const": "admin",
+                      "const": "user",
                       "type": "string"
                     }
                   ]
@@ -21001,15 +21001,15 @@
           "codeExecution": {
             "anyOf": [
               {
+                "const": "disabled",
+                "type": "string"
+              },
+              {
                 "const": "local-bash",
                 "type": "string"
               },
               {
                 "const": "remote-sandbox",
-                "type": "string"
-              },
-              {
-                "const": "disabled",
                 "type": "string"
               }
             ]
@@ -21050,11 +21050,11 @@
                 "type": "null"
               },
               {
-                "const": "host",
+                "const": "agent",
                 "type": "string"
               },
               {
-                "const": "agent",
+                "const": "host",
                 "type": "string"
               }
             ]
@@ -21136,11 +21136,11 @@
           "profile": {
             "anyOf": [
               {
-                "const": "local",
+                "const": "cloud",
                 "type": "string"
               },
               {
-                "const": "cloud",
+                "const": "local",
                 "type": "string"
               }
             ]
@@ -21160,7 +21160,7 @@
                 "type": "null"
               },
               {
-                "const": "user",
+                "const": "admin",
                 "type": "string"
               },
               {
@@ -21168,7 +21168,7 @@
                 "type": "string"
               },
               {
-                "const": "admin",
+                "const": "user",
                 "type": "string"
               }
             ]
