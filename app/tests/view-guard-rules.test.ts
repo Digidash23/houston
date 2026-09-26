@@ -11,6 +11,7 @@ describe("deadViewStep", () => {
     showAssistant: true,
     showSkills: true,
     onboardingActive: false,
+    showOrganization: true,
     gatesReady: true,
     agentsReady: true,
     agents: [agent],
@@ -98,6 +99,11 @@ describe("deadViewStep", () => {
       "go-home",
     );
     assert.equal(deadViewStep({ ...base, viewMode: "skills-home" }), "keep");
+    assert.equal(
+      deadViewStep({ ...base, viewMode: "admin", showOrganization: false }),
+      "go-home",
+    );
+    assert.equal(deadViewStep({ ...base, viewMode: "admin" }), "keep");
   });
 
   it("sends a RETIRED view home whatever the gates say", () => {
@@ -114,13 +120,14 @@ describe("deadViewStep", () => {
     // Every gate reads false off null capabilities, so acting on that window
     // would bounce the user off a screen they are entitled to, on every boot
     // and every space switch.
-    for (const viewMode of ["ai-hub", "skills-home"]) {
+    for (const viewMode of ["ai-hub", "skills-home", "admin"]) {
       assert.equal(
         deadViewStep({
           ...base,
           viewMode,
           showAiModels: false,
           showSkills: false,
+          showOrganization: false,
           gatesReady: false,
         }),
         "wait",
