@@ -10,6 +10,7 @@ describe("deadViewStep", () => {
     showAiModels: true,
     showAssistant: true,
     showSkills: true,
+    onboardingActive: false,
     gatesReady: true,
     agentsReady: true,
     agents: [agent],
@@ -45,6 +46,30 @@ describe("deadViewStep", () => {
       "go-home",
     );
     assert.equal(deadViewStep({ ...base, viewMode: "assistant" }), "keep");
+  });
+
+  it("keeps the assistant while the manager runs onboarding, whatever discovery says", () => {
+    // Onboarding is scripted and local: it runs on a deployment that serves
+    // no manager, so the gate must not bounce the person out of it.
+    assert.equal(
+      deadViewStep({
+        ...base,
+        viewMode: "assistant",
+        showAssistant: false,
+        onboardingActive: true,
+      }),
+      "keep",
+    );
+    // Once it ends there, the view is stale again and goes home.
+    assert.equal(
+      deadViewStep({
+        ...base,
+        viewMode: "assistant",
+        showAssistant: false,
+        onboardingActive: false,
+      }),
+      "go-home",
+    );
   });
 
   it("waits rather than bouncing the assistant while discovery is in flight", () => {

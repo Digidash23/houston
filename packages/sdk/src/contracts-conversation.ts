@@ -68,6 +68,7 @@ export {
   type TurnAttachmentsSaveInput,
   type TurnAttachmentsSaveResult,
   type TurnConversationInput,
+  type TurnImportInput,
   type TurnSendInput,
   type TurnSetModeInput,
   type TurnTruncateInput,

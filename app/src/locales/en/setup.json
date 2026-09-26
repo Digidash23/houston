@@ -11,7 +11,6 @@
   },
   "connectAi": {
     "title": "Connect your AI",
-    "subtitle": "Your AI Employees need an AI to think with. Sign in to the one you already use, like ChatGPT or Claude.",
     "plans": {
       "claude": {
         "title": "Your Claude subscription",
@@ -54,52 +53,21 @@
     },
     "basic": {
       "title": "Meet your new team",
-      "subtitle": "Three AI Employees, ready to start. Give each one a name and a color.",
+      "subtitle": "Everything here is editable: change any name, job or color before you hire them.",
       "submit": "Hire my team",
+      "add": "Hire one more",
       "attention_one": "{{name}} couldn't join your team yet. Try again or remove them to finish.",
       "attention_other": "{{count}} AI Employees couldn't join your team yet. Try again or remove them to finish.",
       "unsaved_one": "We couldn't save the changes to {{name}} yet. We'll try again when you hire your team.",
       "unsaved_other": "We couldn't save the changes to {{count}} AI Employees yet. We'll try again when you hire your team."
     }
   },
-  "onboardingSegment": {
-    "title": "What best describes your work?",
-    "subtitle": "Your answers personalize your setup.",
-    "options": {
-      "marketing": "Marketing",
-      "product": "Product",
-      "legal": "Legal",
-      "engineering": "Engineering",
-      "student": "Student",
-      "design": "Design",
-      "operations": "Operations",
-      "people_hr": "People & HR",
-      "data_science": "Data science",
-      "finance": "Finance",
-      "sales": "Sales",
-      "something_else": "Something else"
-    }
-  },
   "onboardingSurvey": {
-    "industry": {
-      "title": "What industry do you work in?",
-      "subtitle": "So Houston understands the kind of work you do.",
-      "backToList": "Back to the list"
-    },
     "goal": {
-      "title": "What would you love to automate?",
-      "subtitle": "Describe one task you would happily hand off.",
-      "placeholder": "For example, go through my inbox every morning and draft replies to anything urgent.",
-      "tooLong": "That is a bit long. Please keep it under {{max}} characters."
+      "title": "Which task would you love to hand off to an AI Employee?"
     },
     "completion": {
-      "title": "Help us tailor Houston to you",
-      "subtitle": "A couple of quick questions so Houston fits the way you work.",
       "notNow": "Not now"
-    },
-    "progress": {
-      "label": "Step {{current}} of {{total}}"
-    },
-    "otherPlaceholder": "Tell us in a few words"
+    }
   }
 }

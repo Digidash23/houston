@@ -1,3 +1,4 @@
+import { managerReachable } from "../../lib/manager-reachable.ts";
 import { blockedAgentView } from "../../lib/teams-model.ts";
 import {
   AGENTS_HOME_VIEW_ID,
@@ -109,7 +110,8 @@ export type DeadViewAction = "keep" | "wait" | "go-home";
  * A `viewMode` no screen answers to, a view this caller's gates hide (the AI
  * Models hub for a plain member, the shared Skills library for anyone but the
  * space's owner, Admin outside a team space or below owner/admin, the assistant
- * on a deployment that serves none), or an employee that stopped existing under an
+ * on a deployment that serves none once no onboarding runs in it), or an
+ * employee that stopped existing under an
  * open employee view all fall through every render branch and strand the user on a
  * blank card. Those go home.
  *
@@ -129,6 +131,9 @@ export function deadViewStep(input: {
   showAiModels: boolean;
   showAssistant: boolean;
   showSkills: boolean;
+  /** The manager is running onboarding, which keeps its view reachable
+   *  whatever discovery says (`managerReachable`). */
+  onboardingActive: boolean;
   /** False while the capabilities behind the gates are still loading. */
   gatesReady: boolean;
   agentsReady: boolean;
@@ -142,7 +147,7 @@ export function deadViewStep(input: {
   );
   const gateDead = blockedTopLevelView(input.viewMode, {
     showAiModels: input.showAiModels,
-    showAssistant: input.showAssistant,
+    showAssistant: managerReachable(input),
     showSkills: input.showSkills,
   });
   if (gateDead && !input.gatesReady) return "wait";

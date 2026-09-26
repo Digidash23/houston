@@ -3,34 +3,36 @@
 // window — so `app/tests` drives it directly; the HTTP client that speaks this
 // shape (and the front door consumers import) is `./onboarding-sync.ts`.
 
+import {
+  ONBOARDING_ANSWER_SOMETHING_ELSE,
+  type OnboardingRecordWire,
+} from "@houston/wire-types";
 import { normalizeOnboardingIndustryChoice } from "./onboarding-industry.ts";
 import {
   createOnboardingSurveyPreference,
+  isOnboardingCompanySizeChoice,
   isOnboardingIndustryChoice,
-  isOnboardingSegmentChoice,
+  isOnboardingRoleChoice,
   isValidAutomationGoal,
+  normalizeOnboardingCompanySizeChoice,
+  normalizeOnboardingRoleChoice,
+  type OnboardingCompanySizeChoice,
   type OnboardingIndustryChoice,
-  type OnboardingSegmentChoice,
+  type OnboardingRoleChoice,
   type OnboardingSurveyPreference,
   sameSurveyAnswers,
 } from "./onboarding-survey.ts";
 
-/** The gateway's answer shape. Ids are plain strings on the wire: a value this
- *  build doesn't know (an id added by a newer app) must not poison the read. */
-export interface GatewayOnboardingRecord {
-  segment: string | null;
-  industry: string | null;
-  automationGoal: string | null;
-  goalSkipped: boolean;
-  segmentAnsweredAt: string | null;
-  industryAnsweredAt: string | null;
-  goalAnsweredAt: string | null;
-}
+/** The gateway's answer shape (`@houston/wire-types`), each id already read
+ *  into this build's vocabulary by {@link parseGatewayOnboarding}. */
+export type GatewayOnboardingRecord = OnboardingRecordWire;
 
-/** A PUT body: any non-empty subset of the four answer fields. */
+/** A PUT body this app sends: any non-empty subset of the answer fields. The
+ *  retired department (`segment`) is never among them. */
 export interface OnboardingSyncPatch {
-  segment?: OnboardingSegmentChoice;
+  role?: OnboardingRoleChoice;
   industry?: OnboardingIndustryChoice;
+  companySize?: OnboardingCompanySizeChoice;
   automationGoal?: string;
   goalSkipped?: boolean;
 }
@@ -46,14 +48,18 @@ export function parseGatewayOnboarding(
   if (!value || typeof value !== "object") return null;
   const raw = value as Record<string, unknown>;
   return {
-    segment: isOnboardingSegmentChoice(raw.segment) ? raw.segment : null,
+    segment: asString(raw.segment),
+    role: normalizeOnboardingRoleChoice(raw.role),
     industry: normalizeOnboardingIndustryChoice(raw.industry),
+    companySize: normalizeOnboardingCompanySizeChoice(raw.companySize),
     automationGoal: isValidAutomationGoal(raw.automationGoal)
       ? raw.automationGoal.trim()
       : null,
     goalSkipped: raw.goalSkipped === true,
     segmentAnsweredAt: asString(raw.segmentAnsweredAt),
+    roleAnsweredAt: asString(raw.roleAnsweredAt),
     industryAnsweredAt: asString(raw.industryAnsweredAt),
+    companySizeAnsweredAt: asString(raw.companySizeAnsweredAt),
     goalAnsweredAt: asString(raw.goalAnsweredAt),
   };
 }
@@ -66,14 +72,19 @@ export function sanitizeOnboardingPatch(
   onInvalid: (reason: string) => void,
 ): OnboardingSyncPatch | null {
   const body: OnboardingSyncPatch = {};
-  if (patch.segment !== undefined) {
-    if (isOnboardingSegmentChoice(patch.segment)) body.segment = patch.segment;
-    else onInvalid(`dropped unknown segment "${patch.segment}"`);
+  if (patch.role !== undefined) {
+    if (isOnboardingRoleChoice(patch.role)) body.role = patch.role;
+    else onInvalid(`dropped unknown role "${patch.role}"`);
   }
   if (patch.industry !== undefined) {
     if (isOnboardingIndustryChoice(patch.industry))
       body.industry = patch.industry;
     else onInvalid(`dropped unknown industry "${patch.industry}"`);
+  }
+  if (patch.companySize !== undefined) {
+    if (isOnboardingCompanySizeChoice(patch.companySize))
+      body.companySize = patch.companySize;
+    else onInvalid(`dropped unknown company size "${patch.companySize}"`);
   }
   if (patch.automationGoal !== undefined) {
     if (isValidAutomationGoal(patch.automationGoal))
@@ -88,7 +99,9 @@ export function sanitizeOnboardingPatch(
 function latestAnswerAt(remote: GatewayOnboardingRecord): string | null {
   const stamps = [
     remote.segmentAnsweredAt,
+    remote.roleAnsweredAt,
     remote.industryAnsweredAt,
+    remote.companySizeAnsweredAt,
     remote.goalAnsweredAt,
   ].filter((s): s is string => s !== null && !Number.isNaN(Date.parse(s)));
   if (stamps.length === 0) return null;
@@ -122,11 +135,13 @@ export function mergeGatewayOnboarding(
   const remoteGoal = remote.goalSkipped ? null : remote.automationGoal;
   const merged: OnboardingSurveyPreference = {
     ...base,
-    segment:
-      base.segment ??
-      (isOnboardingSegmentChoice(remote.segment) ? remote.segment : null),
+    segment: base.segment ?? remote.segment,
+    role: base.role ?? normalizeOnboardingRoleChoice(remote.role),
     industry:
       base.industry ?? normalizeOnboardingIndustryChoice(remote.industry),
+    companySize:
+      base.companySize ??
+      normalizeOnboardingCompanySizeChoice(remote.companySize),
     automationGoal: goalAnsweredLocally ? base.automationGoal : remoteGoal,
     goalSkipped: goalAnsweredLocally ? base.goalSkipped : remote.goalSkipped,
     updatedAt: local
@@ -151,41 +166,28 @@ export function onboardingPatchFromSurvey(
   preference: OnboardingSurveyPreference,
 ): OnboardingSyncPatch | null {
   const patch: OnboardingSyncPatch = {};
-  if (preference.segment !== null) patch.segment = preference.segment;
-  if (preference.industry !== null) patch.industry = preference.industry;
+  // "Something else" the person chose always carries their words. Without
+  // them it is an id a newer build stored that this one cannot name
+  // (`normalizeOnboardingRoleChoice`): sending it back would overwrite the
+  // real answer on the gateway.
+  if (
+    preference.role !== null &&
+    !unnamedSomethingElse(preference.role, preference.roleOther)
+  )
+    patch.role = preference.role;
+  if (
+    preference.industry !== null &&
+    !unnamedSomethingElse(preference.industry, preference.industryOther)
+  )
+    patch.industry = preference.industry;
+  if (preference.companySize !== null)
+    patch.companySize = preference.companySize;
   if (preference.automationGoal !== null)
     patch.automationGoal = preference.automationGoal;
   else if (preference.goalSkipped) patch.goalSkipped = true;
   return Object.keys(patch).length > 0 ? patch : null;
 }
 
-/**
- * The catch-up flush's decision: whether this mount still owes the gateway a
- * push. A record whose push never landed (offline, pod waking, signed out at
- * the time) is re-sent ONCE per account, so the account store converges without
- * the user answering anything again. WHAT gets sent is not decided here — the
- * flush derives it from the record it is about to stamp, so payload and stamp
- * can never disagree.
- *
- * The "once" is keyed by uid, not by a bare boolean: two accounts can sign in
- * on one machine within a single app session, and the second one's unsynced
- * record must still get its catch-up. `undefined` means nothing has flushed
- * yet — distinct from `null`, which is the signed-out account slot.
- *
- * A record a SAVE is already pushing is owed nothing: without `pendingFlush`
- * the session's first save duplicates its own PUT (it writes the unsynced
- * record to the cache, then flushes it) and burns the latch on nothing.
- */
-export function owesGatewayCatchUp(input: {
-  survey: OnboardingSurveyPreference | null;
-  uid: string | null;
-  flushedUid: string | null | undefined;
-  /** `updatedAt` of the record whose flush a save already owns, else null. */
-  pendingFlush: string | null;
-}): boolean {
-  const { survey, uid, flushedUid, pendingFlush } = input;
-  if (flushedUid !== undefined && flushedUid === uid) return false;
-  if (!survey || survey.gatewaySyncedAt !== null) return false;
-  if (pendingFlush !== null && pendingFlush === survey.updatedAt) return false;
-  return onboardingPatchFromSurvey(survey) !== null;
+function unnamedSomethingElse(answer: string, words: string | null): boolean {
+  return answer === ONBOARDING_ANSWER_SOMETHING_ELSE && !words?.trim();
 }

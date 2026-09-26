@@ -8,8 +8,9 @@ import { expect, test } from "./support/fixtures";
  * renders for NVIDIA and that the generic api-key dialog stays guide-free
  * (OpenRouter shows none).
  *
- * Reached through the AI hub. First-run's "Connect your AI" card mounts the
- * same provider browser, which owns the connect dialogs, so this covers both.
+ * Reached through the AI hub. The AI Manager's first-run "Connect your AI"
+ * step mounts the same provider browser, which owns the connect dialogs, so
+ * this covers both.
  */
 test("NVIDIA connect dialog shows the NGC Personal Key guide", async ({
   page,

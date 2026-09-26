@@ -1,12 +1,15 @@
 import {
+  normalizeOnboardingCompanySizeChoice,
+  type OnboardingCompanySizeChoice,
+} from "./onboarding-company-size.ts";
+import {
   normalizeOnboardingIndustryChoice,
   type OnboardingIndustryChoice,
 } from "./onboarding-industry.ts";
 import {
-  isOnboardingSegmentChoice,
-  type OnboardingSegmentChoice,
-  type OnboardingSegmentPreference,
-} from "./onboarding-segment.ts";
+  normalizeOnboardingRoleChoice,
+  type OnboardingRoleChoice,
+} from "./onboarding-role.ts";
 
 export const ONBOARDING_SURVEY_PREF_KEY = "houston_onboarding_survey";
 export const ONBOARDING_SURVEY_VERSION = 2;
@@ -19,12 +22,19 @@ export const ONBOARDING_OTHER_MAX_LENGTH = 200;
 
 export interface OnboardingSurveyPreference {
   version: typeof ONBOARDING_SURVEY_VERSION;
-  segment: OnboardingSegmentChoice | null;
+  /** The retired department question, kept from records answered before the
+   *  role question replaced it: it counts the role as answered. Never written
+   *  by this app, only carried. */
+  segment: string | null;
+  role: OnboardingRoleChoice | null;
   /** What "Something else" stands for, in the user's words — captured with the
-   *  pick, null for every named segment. */
-  segmentOther: string | null;
+   *  pick, null for every catalog role. */
+  roleOther: string | null;
   industry: OnboardingIndustryChoice | null;
   industryOther: string | null;
+  /** Absent from records written before the question existed: it reads as
+   *  unanswered, so the profile-completion prompt asks it once. */
+  companySize: OnboardingCompanySizeChoice | null;
   automationGoal: string | null;
   goalSkipped: boolean;
   completionPromptDismissed: boolean;
@@ -58,11 +68,20 @@ function isIsoTimestamp(value: unknown): value is string {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));
 }
 
+/** The legacy department reads as any non-empty string: its vocabulary is
+ *  retired, and an answer must never turn back into a question. */
+function legacySegmentOrNull(value: unknown): string | null {
+  return typeof value === "string" && value.trim() !== "" ? value : null;
+}
+
 /**
- * All-or-nothing, like the segment parser: an unknown id or a missing field
- * means the stored blob is not ours, and re-asking the survey beats rendering
- * a half-trusted record. Every field must be present — the writer always emits
- * the full shape, with explicit nulls for unanswered questions.
+ * All-or-nothing on the fields every record has always carried: a missing one
+ * or an unknown goal means the stored blob is not ours, and re-asking the
+ * survey beats rendering a half-trusted record. The role pair, the company
+ * size and the legacy department read leniently (`version` 2 records were
+ * written before the role and the company size existed, and after the
+ * department was retired), and an unknown role still counts as answered
+ * (`normalizeOnboardingRoleChoice`).
  */
 export function parseOnboardingSurveyPreference(
   raw: string | null,
@@ -77,8 +96,6 @@ export function parseOnboardingSurveyPreference(
   if (!parsed || typeof parsed !== "object") return null;
   const record = parsed as Partial<OnboardingSurveyPreference>;
   if (record.version !== ONBOARDING_SURVEY_VERSION) return null;
-  if (record.segment !== null && !isOnboardingSegmentChoice(record.segment))
-    return null;
   // The industry alone reads leniently: legacy survey ids and contexts this
   // build cannot name are still answers (`normalizeOnboardingIndustryChoice`).
   const industry =
@@ -101,10 +118,12 @@ export function parseOnboardingSurveyPreference(
     return null;
   return {
     version: ONBOARDING_SURVEY_VERSION,
-    segment: record.segment,
-    segmentOther: otherTextOrNull(record.segmentOther),
+    segment: legacySegmentOrNull(record.segment),
+    role: normalizeOnboardingRoleChoice(record.role),
+    roleOther: otherTextOrNull(record.roleOther),
     industry,
     industryOther: otherTextOrNull(record.industryOther),
+    companySize: normalizeOnboardingCompanySizeChoice(record.companySize),
     automationGoal: record.automationGoal?.trim() ?? null,
     goalSkipped: record.goalSkipped,
     completionPromptDismissed: record.completionPromptDismissed,
@@ -123,9 +142,11 @@ export function createOnboardingSurveyPreference(): OnboardingSurveyPreference {
   return {
     version: ONBOARDING_SURVEY_VERSION,
     segment: null,
-    segmentOther: null,
+    role: null,
+    roleOther: null,
     industry: null,
     industryOther: null,
+    companySize: null,
     automationGoal: null,
     goalSkipped: false,
     completionPromptDismissed: false,
@@ -135,8 +156,7 @@ export function createOnboardingSurveyPreference(): OnboardingSurveyPreference {
 }
 
 /**
- * Whether two copies of the record hold the same ANSWERS — the four fields the
- * account store keeps. Everything else (`updatedAt`, the sync stamp, the
+ * Whether two copies of the record hold the same ANSWERS. Everything else (`updatedAt`, the sync stamp, the
  * dismissal) is metadata about them, so this is the predicate that decides
  * whether a stamp still describes what it was written for.
  */
@@ -146,9 +166,11 @@ export function sameSurveyAnswers(
 ): boolean {
   return (
     a.segment === b.segment &&
-    a.segmentOther === b.segmentOther &&
+    a.role === b.role &&
+    a.roleOther === b.roleOther &&
     a.industry === b.industry &&
     a.industryOther === b.industryOther &&
+    a.companySize === b.companySize &&
     a.automationGoal === b.automationGoal &&
     a.goalSkipped === b.goalSkipped
   );
@@ -165,32 +187,11 @@ export function markGatewaySynced(
 }
 
 /**
- * Per-user localStorage key for the device-local mirror. Same reasoning as the
- * segment mirror: the engine pref lives on the user's pod in hosted mode, so a
- * pod blip must not re-prompt an answered survey, and keying by uid keeps two
- * accounts on one machine independent.
+ * Per-user localStorage key for the device-local mirror: the engine pref lives
+ * on the user's pod in hosted mode, so a pod blip must not re-prompt an
+ * answered survey, and keying by uid keeps two accounts on one machine
+ * independent.
  */
 export function onboardingSurveyLocalKey(uid: string | null): string {
   return `houston.onboarding-survey.${uid ?? "local"}`;
-}
-
-/**
- * Builds a v2 survey record from the pre-survey `houston_onboarding_segment`
- * pref. The legacy pref stays where it is (rollback safety); the survey record
- * becomes the only thing read from here on.
- */
-export function liftLegacySegmentPreference(
-  legacy: OnboardingSegmentPreference | null,
-): OnboardingSurveyPreference | null {
-  if (!legacy) return null;
-  return {
-    ...createOnboardingSurveyPreference(),
-    segment: legacy.segment,
-    // The legacy parser only type-checked `selectedAt`, so an unparseable stamp
-    // falls back to the factory's `now` rather than minting a record our own
-    // strict parser would then reject.
-    updatedAt: isIsoTimestamp(legacy.selectedAt)
-      ? legacy.selectedAt
-      : new Date().toISOString(),
-  };
 }

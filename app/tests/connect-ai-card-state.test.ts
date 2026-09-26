@@ -66,10 +66,10 @@ describe("connectedProviderId", () => {
 describe("onboardingBeats", () => {
   const none = new Set<OnboardingStep>();
 
-  it("the connect card reports its step view once", () => {
+  it("the connect step reports its step view once", () => {
     deepStrictEqual(
       onboardingBeats({
-        previous: "survey",
+        previous: null,
         current: "connectAi",
         viewed: none,
         providerId: null,
@@ -99,22 +99,31 @@ describe("onboardingBeats", () => {
     );
   });
 
-  it("connect card to team card reports the connection, then the team view", () => {
+  it("connect step to the survey reports the connection", () => {
     deepStrictEqual(
       onboardingBeats({
         previous: "connectAi",
-        current: "team",
+        current: "survey",
         viewed: new Set<OnboardingStep>(["connectAi"]),
         providerId: "openai",
       }),
-      [
-        { event: "ai_provider_connected", provider: "openai" },
-        { event: "onboarding_step_viewed", step: "team" },
-      ],
+      [{ event: "ai_provider_connected", provider: "openai" }],
     );
   });
 
-  it("arriving on the team card already connected reports no connection", () => {
+  it("a connection that lands with no provider named reports none", () => {
+    deepStrictEqual(
+      onboardingBeats({
+        previous: "connectAi",
+        current: "survey",
+        viewed: new Set<OnboardingStep>(["connectAi"]),
+        providerId: null,
+      }),
+      [],
+    );
+  });
+
+  it("survey to team reports the team view and no connection", () => {
     deepStrictEqual(
       onboardingBeats({
         previous: "survey",

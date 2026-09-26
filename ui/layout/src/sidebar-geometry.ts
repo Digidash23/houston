@@ -45,6 +45,9 @@
 
 export const sidebarClasses = {
   itemsList: "w-0 min-w-full space-y-px pb-2",
+  /** Pinned rows lead the list on its own 1px rhythm, so the first team
+   *  block follows them as the next row rather than as a new section. */
+  pinnedList: "w-0 min-w-full space-y-px pb-px",
 } as const;
 
 /**

@@ -46,6 +46,17 @@ function groupedAttachmentLines(paths: readonly string[]): string[] {
   return lines;
 }
 
+/** Model-facing context from several sources as one block, in order, or
+ *  nothing when none has any. */
+export function joinModelContext(
+  ...parts: (string | undefined)[]
+): string | undefined {
+  const present = parts.filter(
+    (part): part is string => part !== undefined && part !== "",
+  );
+  return present.length > 0 ? present.join("\n\n") : undefined;
+}
+
 export function buildAttachmentPrompt(
   text: string,
   files: readonly File[],

@@ -17,7 +17,7 @@ import {
   killRunningTurns,
   turnBoundary,
 } from "./chat-controls";
-import { SEED_AGENT_ID } from "./config";
+import { ASSISTANT_AGENT_ID, SEED_AGENT_ID } from "./config";
 import { CORS, json } from "./http";
 import { handleAgents } from "./routes";
 import { handleUserRoutes } from "./routes-integrations";
@@ -382,14 +382,14 @@ export async function handle(req: Request): Promise<Response> {
     return json(buildProviderCatalog());
   }
   // Personal-assistant discovery (`GET /v1/assistant`, `AssistantHandle`): the
-  // address the rail's Assistant row and its screen are gated on. The real host
-  // answers a hidden dot-named agent; the fake has no hidden tree, so the seeded
-  // agent stands in — the chat that opens then rides the ordinary per-agent
-  // runtime routes, which is the contract under test. The conversation id is
-  // the host's own constant, and no activity is created for it, so the
-  // assistant thread stays off every board exactly as it does in production.
+  // address the rail's Manager row and its screen are gated on. Like the real
+  // host it answers a hidden agent off the roster, so a first run (an empty
+  // roster) still has its manager; the chat that opens rides the ordinary
+  // per-agent runtime routes, which is the contract under test. The
+  // conversation id is the host's own constant, and no activity is created for
+  // it, so the assistant thread stays off every board as it does in production.
   if (path === "/v1/assistant" && method === "GET") {
-    return json({ agent: SEED_AGENT_ID, conversation: "assistant" });
+    return json({ agent: ASSISTANT_AGENT_ID, conversation: "assistant" });
   }
   const sharedSkillsRoute = handleSharedSkillsRoutes(method, segs, body);
   if (sharedSkillsRoute) return sharedSkillsRoute;

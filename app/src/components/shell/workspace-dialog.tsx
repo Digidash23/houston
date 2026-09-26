@@ -67,7 +67,6 @@ export function CreateWorkspaceDialog({
           </DialogDescription>
           <BuildTeamCard
             workspaceId={workspaceId}
-            mode="new_workspace"
             onDone={() => onOpenChange(false)}
           />
         </DialogContent>

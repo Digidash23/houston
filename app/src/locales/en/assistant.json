@@ -18,5 +18,67 @@
     "retry": "Try again",
     "invalidTitle": "This conversation link is incomplete",
     "invalidDescription": "Open the latest Houston link from your Slack conversation."
+  },
+  "onboarding": {
+    "say": {
+      "hello": "Hi there!",
+      "helloNamed": "Hi {{name}}!",
+      "introManager": "I'm your AI Manager. I build and run your team of AI Employees.",
+      "introEmployees": "Each AI Employee owns one job. They do real work in your tools on their own, and report back when it's done.",
+      "introHow": "You tell me what you need, and I make sure the right AI Employee is on it.",
+      "connectIntro": "First, let's connect the AI that powers your team.",
+      "surveyIntro": "Your AI is connected! Now a few quick questions so I can suggest the right team for you.",
+      "teamIntro": "Thanks, that helps. Here's a starting team of AI Employees for you, the helpers who take work off your plate.",
+      "teamResume_one": "You already have 1 AI Employee on your team. Let's pick up where you left off.",
+      "teamResume_other": "You already have {{count}} AI Employees on your team. Let's pick up where you left off.",
+      "closingReady": "Your team is ready!",
+      "closingEmployees": "Open any of your AI Employees to start their first day of work.",
+      "closingManager": {
+        "all": "Remember that I'm your AI Manager and here to help. I hand out missions to your AI Employees, hire new ones when you need them, invite your teammates and connect the tools they need.",
+        "invite": "Remember that I'm your AI Manager and here to help. I hand out missions to your AI Employees, hire new ones when you need them and invite your teammates.",
+        "connect": "Remember that I'm your AI Manager and here to help. I hand out missions to your AI Employees, hire new ones when you need them and connect the tools they need.",
+        "core": "Remember that I'm your AI Manager and here to help. I hand out missions to your AI Employees and hire new ones when you need them."
+      },
+      "closingGoal": "You'd love to hand off: “{{goal}}”. Want me to put an AI Employee on it?",
+      "closingAsk": "What's a task you'd normally do yourself? Tell me and I'll get it done.",
+      "profileIntro": "Hi again! A couple of quick questions so I can tailor Houston to the way you work.",
+      "profileThanks": "Thanks, that helps me a lot."
+    },
+    "questions": {
+      "companySize": "How big is your company?"
+    },
+    "answers": {
+      "connected": "My AI is connected",
+      "skipped": "Skipped"
+    },
+    "choices": {
+      "done": "That's my team",
+      "another": "Hire one more"
+    },
+    "companySize": {
+      "solo": "Just me",
+      "2_10": "2–10",
+      "11_50": "11–50",
+      "51_200": "51–200",
+      "201_1000": "201–1,000",
+      "1000_plus": "1,000+"
+    },
+    "goal": {
+      "hint": "Think of the work that eats your week. Your AI Manager will put an AI Employee on it.",
+      "placeholder": "For example: answer customer emails and keep my calendar up to date",
+      "tooLong": "That's a little long. Keep it under {{max}} characters."
+    },
+    "changeAnswer": "Change answer",
+    "roster": {
+      "joining": "Joining",
+      "hired": "Ready"
+    },
+    "handoff": {
+      "yes": "Yes, let's do it",
+      "notNow": "Not now"
+    },
+    "finish": {
+      "profileAction": "Continue"
+    }
   }
 }

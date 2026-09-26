@@ -1,98 +1,107 @@
+import type { Route } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
+import { managerOnboarding, reachTeamStep } from "./support/manager-onboarding";
 import {
-  buildTeamHeading,
-  reachBuildTeamCard,
-  resetToFirstRun,
-} from "./support/onboarding";
-import {
-  basicTeamOption,
-  hireOnTeamCard,
-  hireYourTeamOption,
-  TEAM_HIRE_ROLE,
-  teamCardNameField,
-} from "./support/team-card";
+  afterHire,
+  finishOnboarding,
+  hireStarterTeam,
+  roster,
+  STARTER_ROLES,
+  starterTeam,
+  TEAM_DONE_CHOICE,
+  teamNext,
+} from "./support/manager-team";
+import { openManagerOnboarding, resetToFirstRun } from "./support/onboarding";
 import { agentRow } from "./support/team-nav";
 
-const SHELL = 'main[data-tour-target="main"]';
+/**
+ * The starter team's hire in the AI Manager's chat: each card named for its
+ * job and open to a new name, "Hire my team" creating everyone behind the
+ * person and waiting for every hire to land before the Manager closes. A
+ * hire that failed says so on its card and offers Retry; a reload
+ * after the team is hired resumes on it.
+ */
 
-test("hiring one by one builds a roster, and Done hands over to the app", async ({
-  page,
-  request,
-}) => {
+test("renamed cards hire under the names given", async ({ page, request }) => {
   await resetToFirstRun(request);
-  await page.goto("/");
-  await reachBuildTeamCard(page);
+  await openManagerOnboarding(page);
+  await reachTeamStep(page);
 
-  await hireYourTeamOption(page).click();
-  await hireOnTeamCard(page, "Pax");
-  await expect(
-    page.getByRole("heading", { name: "You hired your first AI Employee" }),
-  ).toBeVisible();
-  // A hire on the roster is edited in place: the rename saves on Enter.
-  await expect(page.getByText("On your team", { exact: true })).toBeVisible();
-  await teamCardNameField(page, TEAM_HIRE_ROLE).fill("Piper");
-  await teamCardNameField(page, TEAM_HIRE_ROLE).press("Enter");
-
-  await page.getByRole("button", { name: "Hire another" }).click();
-  await hireOnTeamCard(page, "Quill");
-  await expect(
-    page.getByRole("heading", { name: "You hired 2 AI Employees" }),
-  ).toBeVisible();
-
-  await page.getByRole("button", { name: "Done", exact: true }).click();
-  await expect(page.locator(SHELL)).toBeVisible();
-  await expect(agentRow(page, "Piper")).toBeVisible();
-  await expect(agentRow(page, "Quill")).toBeVisible();
+  const names = ["Olivia", "Felix", "Nora"];
+  await hireStarterTeam(page, names);
+  await finishOnboarding(page);
+  for (const name of names) await expect(agentRow(page, name)).toBeVisible();
 });
 
-test("a reload after the first hire keeps the user on the team card", async ({
+test("a reload after the team is hired resumes on it, and That's my team closes", async ({
   page,
   request,
 }) => {
-  // Hiring flips the zero-agent first-run signal; the pending onboarding flag
-  // is what holds the user on the card until they finish it.
+  // Hiring flips the zero-agent first-run signal; the pending onboarding stage
+  // is what holds the person on the team step until they finish it.
   await resetToFirstRun(request);
-  await page.goto("/");
-  await reachBuildTeamCard(page);
-  await hireYourTeamOption(page).click();
-  await hireOnTeamCard(page, "Pax");
-  // Hire moves on at once; the reload waits for the create to land.
-  await expect(page.getByText("On your team", { exact: true })).toBeVisible();
+  await openManagerOnboarding(page);
+  await reachTeamStep(page);
+  await hireStarterTeam(page, null);
 
   await page.reload();
-  await expect(buildTeamHeading(page)).toBeVisible();
-  await expect(page.locator(SHELL)).toHaveCount(0);
+  await expect(
+    managerOnboarding(page).getByText(
+      "You already have 3 AI Employees on your team. Let's pick up where you left off.",
+    ),
+  ).toBeVisible();
+  await expect(teamNext(page)).toBeVisible();
+  await expect(roster(page).locator('li[data-status="hired"]')).toHaveCount(3);
+
+  await afterHire(page, TEAM_DONE_CHOICE);
+  await finishOnboarding(page);
+  for (const name of STARTER_ROLES)
+    await expect(agentRow(page, name)).toBeVisible();
 });
 
-test("a hire made one by one stays on the team when the basic team joins", async ({
+test("a hire that failed says so on its card, and Retry lands it", async ({
   page,
   request,
 }) => {
   await resetToFirstRun(request);
-  await page.goto("/");
-  await reachBuildTeamCard(page);
+  // The first create fails; every one after it lands.
+  let failures = 1;
+  await page.route(
+    (url) => url.pathname === "/agents",
+    async (route: Route) => {
+      if (route.request().method() !== "POST" || failures === 0) {
+        await route.continue();
+        return;
+      }
+      failures -= 1;
+      await route.fulfill({
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+        body: JSON.stringify({ error: { message: "create failed" } }),
+      });
+    },
+  );
+  await openManagerOnboarding(page);
+  await reachTeamStep(page);
+  const step = starterTeam(page);
+  await step.getByRole("button", { name: "Hire my team" }).click();
 
-  await hireYourTeamOption(page).click();
-  await hireOnTeamCard(page, "Pax");
-
-  // Back from the roster is the choice, which counts the team so far.
-  await page.getByRole("button", { name: "Back", exact: true }).click();
+  // The failure stays on its card, and the Manager does not close yet.
   await expect(
-    page.getByText("You have 1 AI Employee on your team so far"),
+    step.getByText("We could not create this AI Employee. Please try again."),
   ).toBeVisible();
-  await basicTeamOption(page).click();
-  const starters = [
-    ["Executive assistant", "Ava"],
-    ["Operations manager", "Otto"],
-    ["Finance manager", "Felix"],
-  ] as const;
-  for (const [role, name] of starters) {
-    await teamCardNameField(page, role).fill(name);
-  }
-  await page.getByRole("button", { name: "Hire my team" }).click();
+  await expect(
+    managerOnboarding(page).getByText("Your team is ready!", { exact: true }),
+  ).toHaveCount(0);
 
-  await expect(page.locator(SHELL)).toBeVisible();
-  for (const name of ["Pax", "Ava", "Otto", "Felix"]) {
-    await expect(agentRow(page, name)).toBeVisible();
-  }
+  await step.getByRole("button", { name: /^Try hiring .+ again$/ }).click();
+  // Everyone has joined: the same press now only finishes the team.
+  await step.getByRole("button", { name: "Hire my team" }).click();
+  await expect(
+    managerOnboarding(page).getByText("Your team is ready!", { exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
+  await finishOnboarding(page);
 });

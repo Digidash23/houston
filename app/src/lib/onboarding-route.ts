@@ -25,16 +25,17 @@ export function isFirstRun(opts: {
 }
 
 /**
- * The first-run onboarding's screens, in order, plus the app itself:
+ * The first-run onboarding's steps, in order, plus the app itself. Every step
+ * runs in the AI Manager's chat, inside the workspace shell:
  *
- * - `"survey"` — the onboarding survey (job, industry, automation goal).
- * - `"connectAi"` — the "Connect your AI" card, until a provider is connected.
- * - `"team"` — the "Build your team" card, until the user finishes it.
- * - `"app"` — the workspace shell.
+ * - `"connectAi"`: connecting an AI, until a provider is connected.
+ * - `"survey"`: the onboarding survey (job, industry, automation goal).
+ * - `"team"`: building the team, until the user finishes it.
+ * - `"app"`: no onboarding; the manager's view is the real chat.
  */
 export type OnboardingRoute = "app" | "survey" | "connectAi" | "team";
 
-/** The onboarding screens proper (every route except the app). */
+/** The onboarding steps proper (every route except the app). */
 export type OnboardingStep = Exclude<OnboardingRoute, "app">;
 
 export interface OnboardingRouteInputs {
@@ -42,9 +43,9 @@ export interface OnboardingRouteInputs {
   firstRun: boolean;
   /**
    * How far a first run in progress got (`onboarding_pending`). Hiring the
-   * first AI Employee on the team card flips `firstRun` off, so this is what
-   * keeps the user on the card until they finish it, and what resumes an
-   * onboarding interrupted by a quit.
+   * first AI Employee flips `firstRun` off, so this is what keeps the user on
+   * the team step until they finish it, and what resumes an onboarding
+   * interrupted by a quit.
    */
   pendingStage: OnboardingPendingStage;
   /** This account has finished onboarding before (`onboarding_completed`). */
@@ -65,14 +66,14 @@ export interface OnboardingRouteInputs {
 }
 
 /**
- * Which top-level screen the first-run gate renders (HOU-732).
+ * Which first-run step the manager's chat is on, or the app (HOU-732).
  *
  * `firstRun` cannot tell a never-onboarded account from one whose agents were
  * all deleted (or one that finished the cloud-migration wizard with zero cloud
  * agents); `onboardingCompleted` closes that gap, so a completed account with
  * zero agents stays in the app. A pending stage outranks it: onboarding that
  * is mid-flight always resumes where it stands, and a run that reached the
- * team card never goes back to "Connect your AI".
+ * team step never goes back to connecting an AI.
  */
 export function onboardingRoute(opts: OnboardingRouteInputs): OnboardingRoute {
   if (!opts.canCreateAgents || opts.capabilitiesError) return "app";
@@ -80,7 +81,7 @@ export function onboardingRoute(opts: OnboardingRouteInputs): OnboardingRoute {
     opts.pendingStage !== "none" ||
     (opts.firstRun && !opts.onboardingCompleted);
   if (!inProgress) return "app";
+  if (opts.pendingStage !== "team" && !opts.aiConnected) return "connectAi";
   if (!opts.surveyAnswered) return "survey";
-  if (opts.pendingStage === "team" || opts.aiConnected) return "team";
-  return "connectAi";
+  return "team";
 }

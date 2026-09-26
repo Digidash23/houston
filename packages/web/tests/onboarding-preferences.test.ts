@@ -83,8 +83,12 @@ test("hosted setPreference does not swallow a control-plane failure", async () =
 
 const SURVEY_RECORD = JSON.stringify({
   version: 2,
-  segment: "marketing",
-  industry: "technology",
+  segment: null,
+  role: "bookkeeper",
+  roleOther: null,
+  industry: "accounting",
+  industryOther: null,
+  companySize: "2_10",
   automationGoal: "Chase overdue invoices every Monday",
   goalSkipped: false,
   completionPromptDismissed: false,

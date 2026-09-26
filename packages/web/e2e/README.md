@@ -55,12 +55,17 @@ e2e/
     identity.ts     # sign the harness in as a known user (see Signed-in specs below)
     machine-lock.ts # the machine-wide ONE-suite lock (an atomic mkdir in tmpdir,
                     # the holder's pid inside so waiters can steal a dead one)
+    manager-onboarding.ts # the AI Manager's onboarding conversation: its
+                    # question cards and answer rows, connecting an AI, the
+                    # three survey questions
+    manager-team.ts # the conversation's team step (one hire at a time, the
+                    # starter team) and its close into the real chat
     mission.ts      # open the board's empty new-mission composer
     mobile-nav.ts   # the PHONE chrome: the floating nav bar, its More menu,
                     # and an employee's sections via its task list menu
-    onboarding.ts   # reach first-run and walk its cards (survey, Connect your
-                    # AI, Build your team); write one ACCOUNT preference
-                    # straight onto the host
+    onboarding.ts   # first-run host state: reset to zero agents, open the
+                    # manager's onboarding, read and write the ACCOUNT
+                    # preferences (the survey record) straight on the host
     palette.ts      # open the ⌘K command palette (the press retries: the
                     # shortcut listener is attached in an effect)
     plan.ts         # the C19 personal plan: fixtures, arming, the plan-call
@@ -74,6 +79,8 @@ e2e/
     sidebar-layout.ts # the sidebar's stored order + grouping, arranged by
                     # writing it to the HOST before the app boots
     skills-nav.ts   # open one agent's Skills section, landed
+    team-card.ts    # the new-workspace dialog's "Build your team" card: the
+                    # door onto it and its hire / basic-team controls
     team-nav.ts     # the rail (top-level rows) + the screen ON THE
                     # GLASS; open a team's section, and an agent's settings page
                     # through it ("focused agent screen", the ONE door onto agent policy)
@@ -95,8 +102,9 @@ its More menu (`mobile/more-menu.spec.ts`), group management on the AI
 Employees list (`mobile/agents-home-groups.spec.ts`), an employee's sections
 from its task list menu (`mobile/team-tasks.spec.ts`), and Routines
 (`mobile/routines.spec.ts`: list → a routine's own screen), and first-run
-(`mobile/onboarding.spec.ts`: the survey, the Connect your AI card, a first
-hire on the Build your team card, then the phone shell).
+(`mobile/onboarding.spec.ts`: the AI Manager's onboarding conversation
+full-screen, connecting an AI, the survey, a first hire, then the phone
+shell).
 Beside it sit the surfaces a phone draws differently: the assistant as a
 full-height chat (`mobile/assistant.spec.ts`), the chat header's people stack
 (`mobile/chat-header-people.spec.ts`), the composer's one-row toolbar and its
@@ -123,7 +131,7 @@ the `.houston/**` files-first store, and the `/__test__/*` controls all live in
 **Boot.** A browser tab has no Tauri supervisor, so `support/seed.ts` primes
 `localStorage` (engine config + `houston.pref.*`) and sets `window.__HOUSTON_CP__`
 via `page.addInitScript` — before any app script runs. That skips the engine
-Connect screen, forces `en` (stable text assertions), accepts the disclaimer, and
+Connect screen, forces `en` (stable text assertions), and
 runs the adapter in host mode (matching the real cloud/desktop-host
 deployment).
 
@@ -301,7 +309,8 @@ set a 390×844 viewport per test):
 | Phone Routines list + a routine's own screen | light + dark each | `routines.visual.spec.ts` |
 | Chat conversation (settled reply) | light + dark | `chat.visual.spec.ts` |
 | Chat markdown | light + dark | `chat-markdown.visual.spec.ts` |
-| First-run language gate | one (the flow pins `data-theme="light"` itself) | `onboarding.visual.spec.ts` |
+| First-run language gate | one (the pre-app screens pin `data-theme="light"` themselves) | `onboarding.visual.spec.ts` |
+| First-run onboarding in the manager's chat: the Connect your AI step, the first survey question | light + dark each | `onboarding.visual.spec.ts` |
 | Billing (Free with the early offer) + the launch announcement, desktop + phone | light (the announcement pins its own dark frame) | `plan.visual.spec.ts` |
 
 Theme is pinned by setting `data-theme` on `<html>` before the app mounts

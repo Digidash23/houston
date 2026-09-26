@@ -20,6 +20,7 @@ import {
   agentHomeRows,
   agentRowsForTeam,
 } from "./agents-home-model";
+import { ManagerHomeRow } from "./manager-home-row";
 
 /**
  * The mobile Agents home: every agent as a chat-list row — a large avatar
@@ -29,7 +30,9 @@ import {
  * summaries every other badge surface reads — no fetch path of its own — so
  * the rows repaint through the ordinary event invalidation.
  *
- * One FLAT list, narrowed by the group filter under the title (present once
+ * The AI Manager leads the list, pinned above the roster
+ * (`manager-home-row.tsx`). The roster is one FLAT list, narrowed by the
+ * group filter under the title (present once
  * the workspace has a group): every agent by default, or one group's. The
  * choice is a store preference, not a nav level, so drilling into an agent and
  * back finds the filter where it was left. The title block
@@ -70,6 +73,7 @@ export function AgentsHomeList() {
     <div data-testid="agents-home" className="flex h-full flex-col">
       <AgentsHomeHeader teams={teams} selected={team} onSelect={setTeamId} />
       <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+        <ManagerHomeRow />
         {agents.length === 0 ? (
           <Empty className="border-0">
             <EmptyHeader>

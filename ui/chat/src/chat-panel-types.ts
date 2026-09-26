@@ -62,6 +62,8 @@ export interface ChatPanelProps {
   onValueChange?: (value: string) => void;
   /** Increment/change this value to focus the composer textarea. */
   composerFocusToken?: number;
+  /** See `ChatMessagesProps.scrollToLatestToken`. */
+  scrollToLatestToken?: ChatMessagesProps["scrollToLatestToken"];
   attachments?: File[];
   onAttachmentsChange?: (files: File[]) => void;
   onNotice?: (message: string) => void;

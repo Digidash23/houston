@@ -45,9 +45,8 @@ function gatedRuns(source: string): [string, string][] {
 describe("the rail's primary run", () => {
   const primary = navSection("primary");
 
-  it("is Houston, AI Models, Integrations and Skills only", () => {
+  it("contains AI Models, Integrations and Skills only", () => {
     assert.deepEqual(gatedRuns(primary), [
-      ["showAssistant", "assistant"],
       ["showAiModels", "aiModels"],
       ["showSkills", "skills"],
     ]);
@@ -59,32 +58,21 @@ describe("the rail's primary run", () => {
     assert.ok(primary.includes("id: INTEGRATIONS_VIEW_ID"));
   });
 
-  it("is led by the Assistant, then AI Models, then Integrations", () => {
-    // Discovery, not a role: a deployment that serves no assistant has no
-    // address to open a chat at, so the row must not exist there. It leads the
-    // run, ahead of AI Models and Integrations.
-    assert.ok(
-      primary.indexOf("showAssistant ?") < primary.indexOf("showAiModels ?"),
-      "Houston leads the run",
-    );
+  it("holds no AI Manager: it is pinned in the employees band instead", () => {
+    // The Manager is a member of the team, not a destination: it leads the
+    // band (`sidebar-manager-row.tsx`, guarded in sidebar-manager-row.test.ts).
+    assert.ok(!NAV.includes("ASSISTANT_VIEW_ID"));
+    assert.ok(!NAV.includes("rail-assistant"));
+    assert.ok(!HOOK.includes("showAssistant"));
+  });
+
+  it("leads the primary run with AI Models then Integrations", () => {
     assert.ok(
       primary.indexOf("showAiModels ?") <
         primary.indexOf("id: INTEGRATIONS_VIEW_ID"),
       "AI Models comes before Integrations",
     );
-    assert.ok(NAV.includes("onClick: () => setViewMode(ASSISTANT_VIEW_ID)"));
-    assert.ok(NAV.includes('label: t("shell:sidebar.assistant")'));
-    assert.ok(VIEWS.includes("ASSISTANT_VIEW_ID"), "a real top-level view");
-    // Houston leads the run wearing its animated orb, not a static glyph.
-    assert.ok(
-      ROWS.includes("icon: <HoustonLogo />"),
-      "the row renders the logo",
-    );
     assert.ok(!ROWS.includes("Sparkles"), "no static sparkle glyph remains");
-    assert.ok(
-      HOOK.includes("showAssistant"),
-      "the hook feeds the gate from useSurfaceGates",
-    );
   });
 
   it("leaves About me to Settings and the Academy to the footer", () => {

@@ -11,7 +11,6 @@
   },
   "connectAi": {
     "title": "Conecta tu IA",
-    "subtitle": "Tus empleados de IA necesitan una IA para pensar. Inicia sesión en la que ya usas, como ChatGPT o Claude.",
     "plans": {
       "claude": {
         "title": "Tu suscripción de Claude",
@@ -54,52 +53,21 @@
     },
     "basic": {
       "title": "Conoce a tu nuevo equipo",
-      "subtitle": "Tres empleados de IA listos para empezar. Dale a cada uno un nombre y un color.",
+      "subtitle": "Todo aquí se puede editar: cambia cualquier nombre, puesto o color antes de contratarlos.",
       "submit": "Contratar a mi equipo",
+      "add": "Contratar uno más",
       "attention_one": "{{name}} todavía no pudo unirse a tu equipo. Vuelve a intentarlo o quita a este empleado de IA para terminar.",
       "attention_other": "{{count}} empleados de IA todavía no pudieron unirse a tu equipo. Vuelve a intentarlo o quítalos para terminar.",
       "unsaved_one": "Aún no pudimos guardar los cambios de {{name}}. Lo intentaremos de nuevo cuando contrates a tu equipo.",
       "unsaved_other": "Aún no pudimos guardar los cambios de {{count}} empleados de IA. Lo intentaremos de nuevo cuando contrates a tu equipo."
     }
   },
-  "onboardingSegment": {
-    "title": "¿Cuál describe mejor tu trabajo?",
-    "subtitle": "Tus respuestas personalizan tu configuración.",
-    "options": {
-      "marketing": "Marketing",
-      "product": "Producto",
-      "legal": "Legal",
-      "engineering": "Ingeniería",
-      "student": "Estudiante",
-      "design": "Diseño",
-      "operations": "Operaciones",
-      "people_hr": "Personas y RR. HH.",
-      "data_science": "Ciencia de datos",
-      "finance": "Finanzas",
-      "sales": "Ventas",
-      "something_else": "Otra cosa"
-    }
-  },
   "onboardingSurvey": {
-    "industry": {
-      "title": "¿En qué industria trabajas?",
-      "subtitle": "Para que Houston entienda el tipo de trabajo que haces.",
-      "backToList": "Volver a la lista"
-    },
     "goal": {
-      "title": "¿Qué te encantaría automatizar?",
-      "subtitle": "Describe una tarea que delegarías con gusto.",
-      "placeholder": "Por ejemplo, revisar mi correo cada mañana y redactar respuestas para lo urgente.",
-      "tooLong": "Es un poco largo. Manténlo por debajo de {{max}} caracteres."
+      "title": "¿Qué tarea te encantaría delegar a un empleado de IA?"
     },
     "completion": {
-      "title": "Ayúdanos a personalizar Houston para ti",
-      "subtitle": "Un par de preguntas rápidas para que Houston se ajuste a tu forma de trabajar.",
       "notNow": "Ahora no"
-    },
-    "progress": {
-      "label": "Paso {{current}} de {{total}}"
-    },
-    "otherPlaceholder": "Cuéntanos en pocas palabras"
+    }
   }
 }

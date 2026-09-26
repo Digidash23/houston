@@ -1,5 +1,8 @@
+import {
+  ONBOARDING_ANSWER_SKIPPED,
+  ONBOARDING_ANSWER_SOMETHING_ELSE,
+} from "@houston/wire-types";
 import { type AgentContextId, isAgentContextId } from "./agent-role-catalog.ts";
-import { ONBOARDING_SEGMENT_SKIPPED } from "./onboarding-segment.ts";
 
 /**
  * The survey asks the person's industry from the hire catalog's own contexts,
@@ -7,15 +10,16 @@ import { ONBOARDING_SEGMENT_SKIPPED } from "./onboarding-segment.ts";
  * their first AI Employee. "Something else" is the door out of the catalog,
  * captured with the person's own words (`industryOther`).
  */
-export const ONBOARDING_INDUSTRY_SOMETHING_ELSE = "something_else";
+export const ONBOARDING_INDUSTRY_SOMETHING_ELSE =
+  ONBOARDING_ANSWER_SOMETHING_ELSE;
 
 export type OnboardingIndustry =
   | AgentContextId
   | typeof ONBOARDING_INDUSTRY_SOMETHING_ELSE;
 
-// The same sentinel the segment question uses: a dismissal is a first-class
-// stored answer, so the survey never re-asks someone who declined.
-export const ONBOARDING_INDUSTRY_SKIPPED = ONBOARDING_SEGMENT_SKIPPED;
+// A dismissal is a first-class stored answer, so the survey never re-asks
+// someone who declined.
+export const ONBOARDING_INDUSTRY_SKIPPED = ONBOARDING_ANSWER_SKIPPED;
 
 export type OnboardingIndustryChoice =
   | OnboardingIndustry

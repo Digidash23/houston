@@ -14,6 +14,9 @@ export interface SidebarItemRowProps {
   dragListeners?: DraggableSyntheticListeners;
   onKeyDown?: (event: KeyboardEvent<HTMLButtonElement>) => void;
   grouped?: boolean;
+  /** Default true: an agent row is a drag handle. A pinned row sits outside
+   *  every drag container and must not look like one. */
+  draggable?: boolean;
 }
 
 /**
@@ -41,6 +44,7 @@ export function SidebarItemRow({
   dragListeners,
   onKeyDown,
   grouped = false,
+  draggable = true,
 }: SidebarItemRowProps) {
   return (
     <SidebarRowButton
@@ -51,13 +55,14 @@ export function SidebarItemRow({
       icon={item.icon}
       depth={grouped ? "child" : "block"}
       active={isActive}
-      draggable
+      draggable={draggable}
       dragAttributes={dragAttributes}
       dragListeners={dragListeners}
       onKeyDown={onKeyDown}
       onActivate={() => onSelect(item.id)}
       trailing={item.trailing}
       affordance={item.affordance}
+      dataAttrs={item.dataAttrs}
     />
   );
 }

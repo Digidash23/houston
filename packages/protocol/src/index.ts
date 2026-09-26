@@ -1,6 +1,7 @@
 export * from "./auto-continue";
 export * from "./claude-oauth";
 export * from "./conversation";
+export * from "./conversation-import";
 export * from "./core";
 export * from "./domain/activity";
 export * from "./domain/approval";

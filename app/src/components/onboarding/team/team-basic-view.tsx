@@ -1,9 +1,11 @@
 import { useReducedMotion } from "framer-motion";
-import { type FormEvent, useRef } from "react";
+import { type FormEvent, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { EditableEmployeeCard } from "../../employee-card/editable-employee-card";
-import { EmployeeCardDeck } from "../../employee-card/employee-card-deck";
-import { focusEmployeeName } from "../../employee-card/use-card-carousel";
+import {
+  EmployeeCardDeck,
+  focusEmployeeName,
+} from "../../employee-card/employee-card-deck";
 import type { BasicTeamSubmit } from "./basic-team-model";
 import { RosterEmployeeCard } from "./roster-employee-card";
 import { TeamBasicAttention } from "./team-basic-attention";
@@ -11,17 +13,18 @@ import type { RosterPatch } from "./team-roster-edit";
 import type { BasicTeam } from "./use-basic-team";
 
 /**
- * The starter team, welcomed as three new hires: each one an employee card
- * with a name to give (the dice suggests one), a job and an industry open to
- * change, and a color picked from the photo corner,
- * then hired together by the footer's primary. Once hired, a card shows its
+ * The starter team, welcomed as new hires: each one an employee card named
+ * for its job, with the name, the job, the industry and the color all open to
+ * change, then hired together by the footer's primary. Before hiring, the
+ * footer's "Hire one more" adds a card on top, scrolled into view, and a
+ * draft's Remove lets it go. Once hired, a card shows its
  * status and stays editable through the roster. A hire made one by one that
  * failed is named above them (`TeamBasicAttention`), since it holds the team
  * back from finishing.
  *
  * The cards are one form so Enter in any name hires the team, the same as the
  * primary in the footer, which submits it by `formId`. A name that holds the
- * team back takes the person to that card's field (on a phone, its slide).
+ * team back takes the person to that card's field.
  */
 export function TeamBasicView({
   team,
@@ -47,6 +50,17 @@ export function TeamBasicView({
   const { t } = useTranslation("setup");
   const reduce = useReducedMotion() ?? false;
   const form = useRef<HTMLFormElement>(null);
+  // A card added on top is brought into view, wherever the person scrolled.
+  const firstKey = team.rows[0]?.key;
+  const shownFirst = useRef(firstKey);
+  useEffect(() => {
+    if (firstKey === shownFirst.current) return;
+    shownFirst.current = firstKey;
+    form.current?.querySelector("li")?.scrollIntoView({
+      block: "nearest",
+      behavior: reduce ? "auto" : "smooth",
+    });
+  }, [firstKey, reduce]);
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const outcome = onSubmit();
@@ -75,7 +89,7 @@ export function TeamBasicView({
           items={team.rows.map((row, index) => {
             const { joined } = row;
             return {
-              key: row.roleId,
+              key: row.key,
               card: joined ? (
                 <RosterEmployeeCard
                   member={joined}
@@ -94,12 +108,14 @@ export function TeamBasicView({
                   onBriefChange={(field, answer) =>
                     team.answer(index, field, answer)
                   }
+                  onRemove={
+                    row.removable ? () => team.remove(index) : undefined
+                  }
                   message={row.error}
                   invalid={row.error !== null}
                   name={{
                     value: row.name,
                     onChange: (name) => team.rename(index, name),
-                    onSuggest: () => team.suggest(index),
                   }}
                 />
               ),

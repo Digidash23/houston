@@ -132,7 +132,6 @@ export function WorkspaceShell({
                       activeId={viewMode}
                       views={topLevelScreenViews({
                         showAiModels,
-                        showAssistant,
                         showSkills,
                       })}
                     />

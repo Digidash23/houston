@@ -122,6 +122,26 @@ describe("the engine client's conversation-record routes", () => {
     });
   });
 
+  it("imports lines said elsewhere as the transcript's history", async () => {
+    const { client, calls } = makeClient({ ok: true, imported: 2 });
+    const request = {
+      importId: "onboarding:first_run",
+      messages: [
+        { role: "assistant" as const, content: "Hi!" },
+        { role: "user" as const, content: "Retail" },
+      ],
+    };
+    await expect(client.importMessages(ID, request)).resolves.toEqual({
+      ok: true,
+      imported: 2,
+    });
+    expect(calls[0]).toEqual({
+      method: "POST",
+      url: `${ENC}/import`,
+      body: request,
+    });
+  });
+
   it("renames and deletes the SAME url, told apart only by method", async () => {
     const { client, calls } = makeClient();
     await client.renameConversation(ID, "New title");

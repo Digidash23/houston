@@ -87,5 +87,11 @@ export const FAKE_TOKEN = "e2e-token";
  *  shell opens straight onto it. Id doubles as the runtime-proxy route key
  *  (`/agents/<id>/conversations/...`). */
 export const SEED_AGENT_ID = "houston-assistant";
+
+/** The AI Manager's own agent, the address discovery (`GET /v1/assistant`)
+ *  answers. Like the real host's hidden dot-named agent it is never on the
+ *  roster, so emptying the roster for a first run leaves the manager standing,
+ *  and the per-agent routes serve it like any other id. */
+export const ASSISTANT_AGENT_ID = ".assistant";
 export const SEED_AGENT_NAME = "Houston";
 export const SEED_WORKSPACE_ID = "default";

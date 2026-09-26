@@ -9,7 +9,12 @@ import {
 
 test("a question with focus and nothing over it owns the key", () => {
   assert.equal(
-    choiceOwnsKey({ trusted: true, focusWithin: true, layersAbove: 0 }),
+    choiceOwnsKey({
+      trusted: true,
+      onScreen: true,
+      focusWithin: true,
+      layersAbove: 0,
+    }),
     true,
   );
 });
@@ -18,7 +23,12 @@ test("a question owns the key only with focus AND a clear top", () => {
   for (const focusWithin of [true, false]) {
     for (const layersAbove of [0, 1, 2]) {
       assert.equal(
-        choiceOwnsKey({ trusted: true, focusWithin, layersAbove }),
+        choiceOwnsKey({
+          trusted: true,
+          onScreen: true,
+          focusWithin,
+          layersAbove,
+        }),
         focusWithin && layersAbove === 0,
         `focusWithin=${focusWithin} layersAbove=${layersAbove}`,
       );
@@ -31,7 +41,26 @@ test("a key the app dispatched at itself is never the question's", () => {
   // dismiss a portalled modal (`keep-alive-views.tsx`). A synthetic event is
   // untrusted; swallowing it leaves that modal open and the page inert.
   assert.equal(
-    choiceOwnsKey({ trusted: false, focusWithin: true, layersAbove: 0 }),
+    choiceOwnsKey({
+      trusted: false,
+      onScreen: true,
+      focusWithin: true,
+      layersAbove: 0,
+    }),
+    false,
+  );
+});
+
+test("a question that is not on screen owns no key", () => {
+  // The step behind the AI Manager's typing and a kept-alive screen stay
+  // mounted while hidden; typing elsewhere must not land in their filter.
+  assert.equal(
+    choiceOwnsKey({
+      trusted: true,
+      onScreen: false,
+      focusWithin: true,
+      layersAbove: 0,
+    }),
     false,
   );
 });

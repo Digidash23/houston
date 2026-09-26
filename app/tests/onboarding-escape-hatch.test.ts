@@ -5,33 +5,39 @@ import { describe, it } from "node:test";
 const read = (relativePath: string) =>
   readFileSync(new URL(relativePath, import.meta.url), "utf8");
 
-describe("onboarding survey escape hatch", () => {
-  const survey = read("../src/components/onboarding/survey-screen.tsx");
+describe("onboarding survey ownership", () => {
   const routes = read("../src/components/shell/app-routes.tsx");
   const routing = read("../src/hooks/use-first-run-routing.ts");
-
-  it("offers NO escape hatch on the first-run survey — the questions are mandatory", () => {
-    // The three questions are deliberately unskippable (Julian, Aug 2026):
-    // the dismiss affordance is wired only in the FRAMED (profile_completion)
-    // mode, and the first-run mounting passes no dismiss handler. The in-app
-    // completion prompt keeps its "Not now" — that dismisses the PROMPT, not
-    // the setup.
-    assert.match(
-      survey,
-      /onDismiss=\{framed \? \(onDismiss \?\? null\) : null\}/,
-    );
-    assert.doesNotMatch(routes, /mode="first_run"[\s\S]{0,200}?onDismiss/);
-  });
+  const card = read(
+    "../src/components/assistant/onboarding/manager-survey-card.tsx",
+  );
 
   it("mounts the survey hook exactly once, in App's routing hook", () => {
     // `useOnboardingSurvey` runs the record's catch-up flush per instance, so
-    // a second live instance inside the screen would double every recovery
-    // PUT. App's routing hook owns it and App passes the state down.
-    const flow = read("../src/components/onboarding/use-survey-flow.ts");
-    assert.doesNotMatch(flow, /useOnboardingSurvey\(\)/);
-    assert.match(flow, /survey: OnboardingSurveyState/);
+    // a second live instance inside the chat would double every recovery
+    // PUT. App's routing hook owns it and the state is passed down.
     assert.equal((routing.match(/useOnboardingSurvey\(\)/g) ?? []).length, 1);
     assert.doesNotMatch(routes, /useOnboardingSurvey\(\)/);
+    assert.doesNotMatch(card, /useOnboardingSurvey\(\)/);
+    assert.match(card, /survey: OnboardingSurveyState/);
+  });
+});
+
+describe("first-run lifecycle placement", () => {
+  const routes = read("../src/components/shell/app-routes.tsx");
+  const host = read(
+    "../src/components/assistant/onboarding/manager-onboarding-host.tsx",
+  );
+
+  it("runs below the migration gate, so a migrating user never starts a run", () => {
+    assert.match(routes, /<CloudMigrationGate>\s*<ManagerOnboardingHost/);
+  });
+
+  it("mounts beside the shell, never around it, so the shell is not remounted", () => {
+    assert.match(
+      host,
+      /\{route !== "app" \? \(\s*<FirstRunLifecycle[\s\S]*?\) : null\}\s*\{children\}/,
+    );
   });
 });
 
@@ -51,7 +57,7 @@ describe("first-run resume contract", () => {
     );
   });
 
-  it("the team card on screen latches the team stage", () => {
+  it("the team step on screen latches the team stage", () => {
     assert.match(
       hook,
       /shown !== "team" \|\| stage === "team"[\s\S]*?markPending\("team"\)/,

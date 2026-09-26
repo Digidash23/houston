@@ -6,16 +6,13 @@ import {
   briefWithAnswer,
   type JobBriefField,
 } from "../../context/job-brief-model.ts";
-import {
-  type EmployeeNameIssue,
-  employeeNameIssue,
-  firstNameIssueIndex,
-} from "../../employee-card/employee-name-validation.ts";
+import { firstNameIssueIndex } from "../../employee-card/employee-name-validation.ts";
+import { basicTeamNameIssues } from "./basic-team-names.ts";
 import type { RosterMember } from "./team-roster-model.ts";
 
 /**
  * The starter team: the three jobs almost every small business hands off
- * first. All three are shared roles (`AGENT_COMMON_ROLES`), so they read right
+ * first, before the person adds or lets go of any. All three are shared roles (`AGENT_COMMON_ROLES`), so they read right
  * in any industry the person named.
  */
 export const BASIC_TEAM_ROLES = [
@@ -24,18 +21,20 @@ export const BASIC_TEAM_ROLES = [
   "finance_manager",
 ] as const satisfies readonly AgentRoleId[];
 
-export type BasicTeamRoleId = (typeof BASIC_TEAM_ROLES)[number];
-
 export interface BasicTeamDraft {
-  /** The starter this card began as: the card's identity in the team, kept
-   *  when the person gives it another job. */
-  roleId: BasicTeamRoleId;
+  /** The card's identity in the team: kept when the person gives it another
+   *  job, and never reused by a card added later. */
+  key: string;
+  /** The job this card began as: a starter's, or the next shared job "Hire
+   *  one more" dealt. */
+  roleId: AgentRoleId;
   /** The job as the person reads it; also the brief's role. */
   roleLabel: string;
   /** The industry the person gave this card alone, or null for the team's. */
   industry: string | null;
-  /** What the person typed (or Suggest put there); required to hire. */
-  name: string;
+  /** What the person typed, or null while the name follows the job
+   *  (`basicTeamNames`). Required to hire. */
+  name: string | null;
   /** The color the person picked, or null for the next free one. */
   color: string | null;
   /** Set once this member joined the roster; from then on the roster holds
@@ -43,17 +42,25 @@ export interface BasicTeamDraft {
   rosterKey: string | null;
 }
 
-export function basicTeamDefaults(
-  roleLabel: (id: BasicTeamRoleId) => string,
-): BasicTeamDraft[] {
-  return BASIC_TEAM_ROLES.map((roleId) => ({
+export function draftFor(
+  roleId: AgentRoleId,
+  roleLabel: string,
+): BasicTeamDraft {
+  return {
+    key: roleId,
     roleId,
-    roleLabel: roleLabel(roleId),
+    roleLabel,
     industry: null,
-    name: "",
+    name: null,
     color: null,
     rosterKey: null,
-  }));
+  };
+}
+
+export function basicTeamDefaults(
+  roleLabel: (id: AgentRoleId) => string,
+): BasicTeamDraft[] {
+  return BASIC_TEAM_ROLES.map((roleId) => draftFor(roleId, roleLabel(roleId)));
 }
 
 /** The brief a draft is hired with: its job, in its own industry or the
@@ -91,18 +98,6 @@ export function basicTeamAnswered(
   });
 }
 
-/** The names of the drafts still to hire, other than the one at `index`. */
-export function basicTeamSiblingNames(
-  drafts: readonly BasicTeamDraft[],
-  index: number,
-): string[] {
-  return drafts.flatMap((draft, other) =>
-    other !== index && draft.rosterKey === null && draft.name.trim() !== ""
-      ? [draft.name.trim()]
-      : [],
-  );
-}
-
 /**
  * The color each draft wears: the one the person picked, else its default.
  * Every draft deals its default whether or not it was picked over, so a
@@ -119,27 +114,6 @@ export function basicTeamColors(
     dealt.push(fallback);
     return draft.color ?? fallback;
   });
-}
-
-/**
- * What holds each draft back, in order: a blank name (every AI Employee needs
- * one), or a name the host would refuse. Every name is checked against the
- * workspace's AI Employees AND the other drafts, since three hires sharing a
- * name would refuse the second. A member on the roster is settled and never
- * re-checked (its name is itself one of `takenNames`).
- */
-export function basicTeamNameIssues(
-  drafts: readonly BasicTeamDraft[],
-  takenNames: readonly string[],
-): (EmployeeNameIssue | null)[] {
-  return drafts.map((draft, index) =>
-    draft.rosterKey !== null
-      ? null
-      : employeeNameIssue(draft.name, [
-          ...takenNames,
-          ...basicTeamSiblingNames(drafts, index),
-        ]),
-  );
 }
 
 /**

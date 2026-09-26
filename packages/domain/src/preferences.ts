@@ -2,7 +2,7 @@ import { withDocLock } from "./doc-lock";
 import { loadJson, saveJson, type TextStore } from "./store";
 
 /**
- * Per-workspace key-value preferences (timezone, locale, legal_acceptance, …).
+ * Per-workspace key-value preferences (timezone, locale, …).
  * Stored as one doc ABOVE the agent prefixes — `ws/<workspaceId>/preferences.json`
  * — so it survives agent deletion. In cloud personal-tier (one workspace per
  * user) this is effectively per-user; locally it is per-workspace, matching the
@@ -19,7 +19,7 @@ export async function loadPreferences(
 ): Promise<Preferences> {
   const prefs = await loadJson<unknown>(store, prefDocKey(workspaceId), {});
   // A non-object doc (corrupt/hand-edited) reads as empty rather than crashing
-  // the boot-path gates that depend on locale/legal_acceptance.
+  // the boot-path language gate that depends on locale.
   return prefs && typeof prefs === "object" && !Array.isArray(prefs)
     ? (prefs as Preferences)
     : {};

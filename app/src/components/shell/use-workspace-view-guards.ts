@@ -10,13 +10,15 @@ import { openHome } from "../../lib/home-nav";
 import { useAgentStore } from "../../stores/agents";
 import { useUIStore } from "../../stores/ui";
 import { useWorkspaceStore } from "../../stores/workspaces";
+import { useManagerOnboarding } from "../assistant/onboarding/manager-onboarding-context";
 import { useBootLanding } from "./use-boot-landing.ts";
 import { type BootLanding, deadViewStep } from "./view-guard-rules.ts";
 
 /**
  * Desktop boot opens the first employee in rail order once the roster and
- * layout resolve. The other standing rules keep the open view valid, keep a
- * current agent for routing, and record real view transitions.
+ * layout resolve. The other standing rules keep the open view valid (the AI
+ * Manager's view stays open while onboarding runs in it), keep a current agent
+ * for routing, and record real view transitions.
  */
 export function useWorkspaceViewGuards(gates: {
   showAiModels: boolean;
@@ -42,6 +44,7 @@ export function useWorkspaceViewGuards(gates: {
   const agentsReady =
     !agentsLoading &&
     (workspaceId ? loadedWorkspaceId === workspaceId : agentsLoaded);
+  const onboardingActive = useManagerOnboarding() !== null;
 
   const landing = useBootLanding(
     {
@@ -64,6 +67,7 @@ export function useWorkspaceViewGuards(gates: {
       showAiModels,
       showAssistant,
       showSkills,
+      onboardingActive,
       gatesReady: ready,
       agentsReady,
       activeAgentId,
@@ -75,6 +79,7 @@ export function useWorkspaceViewGuards(gates: {
     activeAgentId,
     agentsReady,
     agents,
+    onboardingActive,
     ready,
     showAiModels,
     showAssistant,

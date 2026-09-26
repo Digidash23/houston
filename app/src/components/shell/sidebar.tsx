@@ -10,6 +10,7 @@ import { useAgentStore } from "../../stores/agents";
 import { useUIStore } from "../../stores/ui";
 import { useWorkspaceStore } from "../../stores/workspaces";
 import { SidebarDialogs } from "./sidebar-dialogs";
+import { useSidebarManagerRow } from "./sidebar-manager-row";
 import { SidebarRail, type SidebarRailModel } from "./sidebar-rail";
 import { useAgentActivitySummaries } from "./use-agent-activity-summaries";
 import { useSidebarAutoCollapse } from "./use-sidebar-auto-collapse";
@@ -70,6 +71,12 @@ export function Sidebar({ children }: { children: ReactNode }) {
   const { switchWorkspace, selectAgent } = useSidebarNavigation({
     closeMobileMenu,
   });
+  const manager = useSidebarManagerRow({
+    t,
+    selectedAgentId,
+    selectAgent,
+    closeMobileMenu,
+  });
 
   const model: SidebarRailModel = {
     workspaces,
@@ -84,10 +91,11 @@ export function Sidebar({ children }: { children: ReactNode }) {
     onArrange: sidebar.arrange,
     ready: sidebar.ready,
     items,
+    pinnedItems: manager.pinnedItems,
     groups,
     order: sidebar.layout.order,
-    selectedAgentId,
-    onSelectAgent: selectAgent,
+    selectedAgentId: manager.selectedId,
+    onSelectAgent: manager.onSelect,
     onActivateGroup,
     sectionCollapsed: teamsSectionCollapsed,
     onToggleSectionCollapsed: toggleTeamsSectionCollapsed,

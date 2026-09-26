@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { prefilledAgentName } from "../../../lib/agent-name-prefill";
 import {
   employeeNameIssue,
   visibleNameIssue,
@@ -30,8 +31,9 @@ export interface TeamHireFlow {
  *
  * Hire never waits: the new employee joins the roster at once and is created
  * behind the person (`useTeamRoster`), who lands straight on the roster. The
- * name is required, and checked against the hires still on their way too, so
- * two quick hires can never ask for the same name.
+ * name arrives filled with the job (`prefilledAgentName`) and follows it until
+ * the person types their own. It is required, and checked against the hires
+ * still on their way too, so two quick hires can never ask for the same name.
  *
  * `start` is the survey's industry; it is read once, when the card mounts
  * (`useAgentRoleState` only takes a start on open). An industry changed on
@@ -51,10 +53,13 @@ export function useTeamHireFlow({
   const team = useAgentRoleState(true, start);
   const [cardIndustry, setCardIndustry] = useState<string | null>(null);
   const roleState = hireCardRoleState(team, cardIndustry, setCardIndustry);
-  const [name, setName] = useState("");
+  /** What the person typed, or null while the name follows the job. */
+  const [typed, setTyped] = useState<string | null>(null);
   const [attempted, setAttempted] = useState(false);
   const [color, setColor] = useState(() => roster.nextColor());
 
+  const name =
+    typed ?? prefilledAgentName(roleState.roleLabel, roster.takenNames);
   const issue = employeeNameIssue(name, roster.takenNames);
   const message = issueCopy(visibleNameIssue(issue, attempted), name);
 
@@ -68,7 +73,7 @@ export function useTeamHireFlow({
       nameInvalid: message !== null,
       creating: false,
       submitBlocked: roleState.brief === null,
-      onNameChange: setName,
+      onNameChange: setTyped,
       onColorChange: setColor,
       submit: () => {
         const brief = roleState.brief;
@@ -85,7 +90,7 @@ export function useTeamHireFlow({
     startNextHire: () => {
       team.clearRole();
       setCardIndustry(null);
-      setName("");
+      setTyped(null);
       setAttempted(false);
       setColor(roster.nextColor());
     },

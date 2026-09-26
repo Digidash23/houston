@@ -5,37 +5,58 @@ import {
 } from "./support/connect-ai";
 import { expect, test } from "./support/fixtures";
 import {
-  buildTeamHeading,
-  completeSurvey,
-  connectAiHeading,
-  connectAiOnCard,
-  resetToFirstRun,
-} from "./support/onboarding";
+  connectAi,
+  connectAiStep,
+  managerOnboarding,
+  managerStep,
+  onboardingPrompt,
+  receipt,
+} from "./support/manager-onboarding";
+import { openManagerOnboarding, resetToFirstRun } from "./support/onboarding";
+import { navRow } from "./support/team-nav";
 
 /**
- * First-run's connect beat: after the survey, the full-screen "Connect your
- * AI" card (outside the app shell) leads with two subscription cards, Claude
- * and ChatGPT; "View more" swaps them for every provider in one list.
- * Advancement is app state, never a Next button: the card hands over to
- * "Build your team" the moment the shared provider probe confirms a
- * connection.
+ * First run's opening: the AI Manager's conversation, inside the workspace
+ * shell, opens with the manager's hello (who it is, what it does, one short
+ * message at a time) and starts by connecting an AI. The "Connect your AI" step leads with two
+ * subscription cards, Claude and ChatGPT; "View more" swaps them for every
+ * provider in one list. Advancement is app state, never a Next button: the
+ * conversation moves on to the survey the moment the shared provider probe
+ * confirms a connection, and the person's answer reads "Connected <provider>."
  */
-test("the connect card follows the survey and advances once a provider connects", async ({
+test("first run opens the manager's chat in the shell, and connecting comes first", async ({
   page,
   request,
 }) => {
-  // Onboarding shows when the v3 host reports ZERO agents.
+  // Onboarding starts when the v3 host reports ZERO agents.
   await resetToFirstRun(request);
+  await openManagerOnboarding(page);
 
-  await page.goto("/");
-  await completeSurvey(page);
+  const chat = managerOnboarding(page);
+  // The hello, one message per line: signed out, there is no name to greet.
+  for (const line of [
+    "Hi there!",
+    "I'm your AI Manager. I build and run your team of AI Employees.",
+    "Each AI Employee owns one job. They do real work in your tools on their own, and report back when it's done.",
+    "You tell me what you need, and I make sure the right AI Employee is on it.",
+    "First, let's connect the AI that powers your team.",
+  ])
+    await expect(chat.getByText(line, { exact: true })).toBeVisible();
+  // Inside the shell: the rail stands beside the conversation.
+  await expect(navRow(page, "ai-hub")).toBeVisible();
+  // Answered by clicking: the chat has no composer while it runs.
+  await expect(chat.locator("textarea")).toHaveCount(0);
 
-  await expect(connectAiHeading(page)).toBeVisible();
-  // Outside the shell: no rail, no Mission Control behind the card.
-  await expect(page.locator("[data-tour-target='nav-ai-hub']")).toHaveCount(0);
+  await expect(
+    onboardingPrompt(page).getByText("Connect your AI", { exact: true }),
+  ).toBeVisible();
+  await expect(connectAiStep(page)).toBeVisible();
+  await expect(managerStep(page, "survey-industry")).toHaveCount(0);
 
-  await connectAiOnCard(page);
-  await expect(connectAiHeading(page)).toHaveCount(0);
+  await connectAi(page);
+  await expect(receipt(page, "Connected OpenRouter.")).toBeVisible();
+  await expect(chat.getByText(/^Your AI is connected!/)).toBeVisible();
+  await expect(connectAiStep(page)).toHaveCount(0);
 });
 
 test("View more swaps the featured cards for every provider and back", async ({
@@ -43,9 +64,8 @@ test("View more swaps the featured cards for every provider and back", async ({
   request,
 }) => {
   await resetToFirstRun(request);
-  await page.goto("/");
-  await completeSurvey(page);
-  await expect(connectAiHeading(page)).toBeVisible();
+  await openManagerOnboarding(page);
+  await expect(connectAiStep(page)).toBeVisible();
 
   await expect(subscriptionCard(page, "Claude")).toBeVisible();
   await expect(subscriptionCard(page, "ChatGPT")).toBeVisible();
@@ -71,22 +91,22 @@ test("View more swaps the featured cards for every provider and back", async ({
   await expect(viewMoreProviders(page)).toBeFocused();
 });
 
-test("a reload mid-onboarding resumes on the card the user left", async ({
+test("a reload mid-onboarding resumes on the step the user left", async ({
   page,
   request,
 }) => {
   await resetToFirstRun(request);
-  await page.goto("/");
-  await completeSurvey(page);
-  await expect(connectAiHeading(page)).toBeVisible();
+  await openManagerOnboarding(page);
+  await expect(connectAiStep(page)).toBeVisible();
 
-  // The survey is answered and nothing is connected: the connect card again.
+  // Nothing is connected yet: the connect step again.
   await page.reload();
-  await expect(connectAiHeading(page)).toBeVisible();
+  await expect(connectAiStep(page)).toBeVisible();
 
-  // Connected: a reload lands straight on the team card.
-  await connectAiOnCard(page);
+  // Connected: a reload lands on the survey, the connection kept as history.
+  await connectAi(page);
   await page.reload();
-  await expect(buildTeamHeading(page)).toBeVisible();
-  await expect(connectAiHeading(page)).toHaveCount(0);
+  await expect(managerStep(page, "survey-industry")).toBeVisible();
+  await expect(receipt(page, "Connected OpenRouter.")).toBeVisible();
+  await expect(connectAiStep(page)).toHaveCount(0);
 });

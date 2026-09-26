@@ -7,8 +7,8 @@ import {
 import { expect, test } from "./support/fixtures";
 
 /**
- * First-run LANGUAGE gate (the app's true first screen, before sign-in and the
- * agreement). The default fixture seeds `locale=en` to skip this gate; here we
+ * First-run LANGUAGE gate (the app's true first screen, before sign-in).
+ * The default fixture seeds `locale=en` to skip this gate; here we
  * clear it so the picker renders, and assert its contract:
  *
  *   1. the picker is a clean centered white card on the flat first-run
@@ -23,30 +23,23 @@ import { expect, test } from "./support/fixtures";
  */
 const NEW_ENGINE_STORAGE_KEY = "houston.web.engine.new";
 const pref = (key: string) => `houston.pref.${key}`;
-const ACCEPTED_DISCLAIMER = JSON.stringify({
-  version: 999999,
-  acceptedAt: "2024-01-01T00:00:00.000Z",
-});
 
 test("first-run language gate: flat light card, language buttons, and a single click advances", async ({
   page,
 }) => {
-  // Seed the engine + the later gates, but NOT the locale, so the LanguageGate
+  // Seed the engine, but NOT the locale, so the LanguageGate
   // picker is the first thing shown. (The base fixture pre-seeds locale=en; drop
   // it and the i18next detector cache so the picker actually renders.)
   await page.addInitScript(
     (s: {
       engineKey: string;
       engineVal: string;
-      legalKey: string;
-      legalVal: string;
       wsKey: string;
       wsVal: string;
       agentKey: string;
       agentVal: string;
     }) => {
       localStorage.setItem(s.engineKey, s.engineVal);
-      localStorage.setItem(s.legalKey, s.legalVal);
       localStorage.setItem(s.wsKey, s.wsVal);
       localStorage.setItem(s.agentKey, s.agentVal);
       localStorage.removeItem("houston.pref.locale");
@@ -56,8 +49,6 @@ test("first-run language gate: flat light card, language buttons, and a single c
     {
       engineKey: NEW_ENGINE_STORAGE_KEY,
       engineVal: JSON.stringify({ baseUrl: FAKE_HOST_URL, token: FAKE_TOKEN }),
-      legalKey: pref("legal_acceptance"),
-      legalVal: ACCEPTED_DISCLAIMER,
       wsKey: pref("last_workspace_id"),
       wsVal: SEED_WORKSPACE_ID,
       agentKey: pref("last_agent_id"),

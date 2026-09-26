@@ -40,8 +40,8 @@ export function activeMobileTab(ui: { viewMode: string }): MobileTabId {
  * button) stays off the screen. Chat is a PUSH, not a tab: the pushed mission
  * chat and the board's full-screen mission panel drop the bar so the composer
  * sits on the bottom edge above the keyboard and the back affordances are the
- * way out. The assistant is a chat too, a 1-on-1 reached from the More menu
- * with its own back chevron, so it drops the bar for the same reason; left in
+ * way out. The assistant is a chat too, a 1-on-1 reached from its pinned row
+ * on the AI Employees list, with its own back chevron, so it drops the bar for the same reason; left in
  * place it stacked a third row of controls under the composer, with a New
  * task button beside a chat that already has one.
  */

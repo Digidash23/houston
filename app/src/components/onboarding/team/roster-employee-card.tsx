@@ -60,7 +60,6 @@ export function RosterEmployeeCard({
         onChange: field.onChange,
         onBlur: field.onBlur,
         onKeyDown: field.onKeyDown,
-        onSuggest: field.onSuggest,
       }}
     />
   );

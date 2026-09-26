@@ -2,7 +2,7 @@
  * Web shim for `@tauri-apps/api/window` (`getCurrentWindow`).
  *
  * app/src uses these window methods:
- *  - `close()`        — DisclaimerGate "Decline" (use-legal-acceptance.ts)
+ *  - `close()`        — declared native window method
  *  - `isFullscreen()` — native window controls inset (use-window-controls-inset.ts)
  *  - `onResized`      — refresh the window controls inset on fullscreen changes
  *  - `isFocused()`    — notification nav arming (session-notifications.ts)
@@ -36,7 +36,7 @@ export function getCurrentWindow(): WebWindow {
   return {
     async close(): Promise<void> {
       // Closes only tabs opened via window.open; harmless no-op for a
-      // top-level tab. (DisclaimerGate's Decline is the only caller.)
+      // top-level tab.
       window.close();
     },
     async isFocused(): Promise<boolean> {

@@ -5,15 +5,11 @@ import {
   AI_HUB_VIEW_ID,
   SKILLS_VIEW_ID,
 } from "../../lib/top-level-views";
-import { HoustonLogo } from "../assistant/houston-logo";
-import { ASSISTANT_VIEW_ID } from "../assistant/id";
 import type { SidebarChromeT } from "./sidebar-chrome";
 import { tourAnchor } from "./workspace-tour-steps.ts";
 
 /** The rail's GATED rows, keyed by the gate each one rides. */
 export interface GatedNavRows {
-  /** `showAssistant` — the personal assistant, leading the unlabelled run. */
-  assistant: SidebarNavItemEntry;
   /** `showAiModels` — the AI Models hub, in the unlabelled leading run. */
   aiModels: SidebarNavItemEntry;
   /** `showSkills` — the shared Skills library, closing the leading run. */
@@ -24,9 +20,8 @@ export interface GatedNavRows {
  * The rows a gate can take away, built apart from the runs that compose them
  * (`sidebar-nav-sections.tsx`).
  *
- * They are the only rows with anything to say beyond an id, a label and a
- * glyph — a test id on the Assistant, a tour anchor on AI Models, both on
- * Skills — so keeping them here leaves the composition file free to state the
+ * They carry tour anchors on AI Models and Skills, and a stable test id on
+ * Skills, so keeping them here leaves the composition file free to state the
  * information architecture and nothing else. The UNGATED rows stay inline
  * there: a row every deployment has is part of the IA, not a variable in it.
  */
@@ -36,16 +31,6 @@ export function gatedNavRows(args: {
 }): GatedNavRows {
   const { t, setViewMode } = args;
   return {
-    assistant: {
-      id: ASSISTANT_VIEW_ID,
-      label: t("shell:sidebar.assistant"),
-      // No tour anchor: the tour does not walk this row. The test id is what
-      // tells it apart from an agent the person happened to name "Houston", and
-      // it is only present once discovery has answered, so a click waits for it.
-      icon: <HoustonLogo />,
-      onClick: () => setViewMode(ASSISTANT_VIEW_ID),
-      dataAttrs: { "data-testid": "rail-assistant" },
-    },
     aiModels: {
       id: AI_HUB_VIEW_ID,
       label: t("shell:sidebar.aiModels"),

@@ -63,9 +63,9 @@ other missing hue fails the build.
 complete `--ht-*` role set by one table of rules:
 
 - `build/palette.mjs` merges the halves and holds the inheritance rule: the
-  authored families (`glow.*`, `agent.*`, `filetype.*`, `person.*`, `flash` and
-  every elevation tier) come from the Houston set of the same mode, unchanged. A
-  role that is neither authored nor derived is a build error, so a new token
+  authored families (`glow.*`, `agent.*`, `employee-metal-*`, `filetype.*`,
+  `person.*`, `flash` and every elevation tier) come from the Houston set of the
+  same mode, unchanged. A role that is neither authored nor derived is a build error, so a new token
   cannot silently keep a Houston hex inside someone else's scheme.
 - `build/palette-surfaces.mjs` keeps Houston's ladder structure and alpha washes
   with the palette's hexes.

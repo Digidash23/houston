@@ -46,14 +46,13 @@ export function aboutMeRow(page: Page): Locator {
 }
 
 /**
- * The rail's AI Manager row, leading the unlabelled run. Gated on DISCOVERY
- * (`GET /v1/assistant`), not on a role: a deployment that serves none has no
- * row at all. It carries no tour anchor.
+ * The rail's AI Manager row, pinned first in the employees band. Gated on
+ * DISCOVERY (`GET /v1/assistant`), not on a role: a deployment that serves
+ * none has no row once no onboarding runs in it. It carries no tour anchor.
  */
 export function assistantRow(page: Page): Locator {
   // By test id, never by name: the row's label is product copy that moves
-  // (`shell:sidebar.assistant`), and the test id also appears only once
-  // discovery has answered, so a click waits for the gate rather than racing it.
+  // (`shell:sidebar.assistant`), and an agent may carry the same name.
   return page.getByTestId("rail-assistant");
 }
 

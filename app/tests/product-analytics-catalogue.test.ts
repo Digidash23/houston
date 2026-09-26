@@ -36,14 +36,16 @@ describe("product analytics catalogue", () => {
     const FUNNEL = [
       "onboarding_started",
       "onboarding_step_viewed",
-      "onboarding_agreement_accepted",
-      "onboarding_segment_screen_viewed",
-      "onboarding_segment_continued",
       "onboarding_industry_screen_viewed",
       "onboarding_industry_continued",
+      "onboarding_role_screen_viewed",
+      "onboarding_role_continued",
+      "onboarding_company_size_screen_viewed",
+      "onboarding_company_size_continued",
       "onboarding_goal_screen_viewed",
       "onboarding_goal_continued",
       "onboarding_completed",
+      "onboarding_goal_handoff",
     ] as const;
     for (const name of FUNNEL) {
       strictEqual(
@@ -97,7 +99,6 @@ describe("pickProductProps", () => {
   it("returns an empty payload for an event with no properties", () => {
     deepStrictEqual(pickProductProps("dictation_used", { source: "chat" }), {});
     deepStrictEqual(pickProductProps("session_started"), {});
-    deepStrictEqual(pickProductProps("onboarding_agreement_accepted"), {});
   });
 
   it("keeps the onboarding funnel's one property per step", () => {

@@ -15,6 +15,7 @@
  */
 
 export {
+  ASSISTANT_AGENT_ID,
   FAKE_HOST_PORT,
   FAKE_HOST_URL,
   FAKE_TOKEN,

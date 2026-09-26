@@ -96,17 +96,19 @@ export function useFirstRunRouting() {
   });
 
   // The first-run gate (HOU-732), decided by a pure function so its behaviors
-  // are unit-tested: onboarding in progress walks the survey, the connect-AI
-  // card and the team card, resuming via `onboarding_pending` (and holding the
-  // team card once reached, whatever the provider does); a completed user
-  // (migration done, or an emptied workspace) lands in the shell. The survey is
-  // answered once and persisted in engine prefs; the local latch keeps its
-  // screen up across the gap between its last save and the refreshed flags.
+  // are unit-tested: onboarding in progress walks connecting the AI, the
+  // survey and the team in the AI Manager's chat, resuming via
+  // `onboarding_pending` (and holding the team step once reached, whatever the
+  // provider does); a completed user (migration done, or an emptied workspace)
+  // is done. The survey is answered once and persisted in engine prefs; the
+  // local latch holds its step across the gap between its last save and the
+  // refreshed flags.
   const surveyAnswered =
     firstRunSurveyDone ||
     (!survey.loading &&
-      survey.segmentAnswered &&
+      survey.roleAnswered &&
       survey.industryAnswered &&
+      survey.companySizeAnswered &&
       survey.goalAnswered);
   const route = onboardingRoute({
     firstRun,
@@ -119,8 +121,9 @@ export function useFirstRunRouting() {
   });
 
   // Anyone who answered the job question before industry + goal existed gets
-  // the survey re-opened once, in front of the shell, until they finish it or
-  // say "Not now" (which is remembered in the preference, never re-asked).
+  // the missing questions asked once, in the AI Manager's chat, until they
+  // finish them or say "Not now" (remembered in the preference, never
+  // re-asked).
   const showSurveyPrompt =
     route === "app" &&
     !survey.loading &&

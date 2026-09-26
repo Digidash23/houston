@@ -113,7 +113,6 @@ export const SURFACE_RULES = {
   "app/src/components/shell/openai-compatible-": "AI Models",
   "app/src/components/shell/provider-": "AI Models",
   "app/src/components/shell/ai-": "Onboarding",
-  "app/src/components/shell/disclaimer-gate": "Onboarding",
   "app/src/components/shell/language-gate": "Onboarding",
   "app/src/components/shell/naming-step": "Onboarding",
   "app/src/components/shell/workspace-setup-flow": "Onboarding",

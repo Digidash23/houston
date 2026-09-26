@@ -1,319 +1,278 @@
 import { expect, test } from "./support/fixtures";
 import {
-  answerGoalStep,
-  answerIndustryStep,
-  answerJobStep,
-  connectAiHeading,
-  legacySegmentPreference,
+  answerCompanySize,
+  answerGoal,
+  COMPANY_SIZE_ANSWER,
+  COMPANY_SIZE_QUESTION,
+  changeAnswer,
+  chip,
+  companySizeButton,
+  connectAi,
+  GOAL_ANSWER,
+  GOAL_QUESTION,
+  goalField,
+  INDUSTRY_ANSWER,
+  INDUSTRY_QUESTION,
+  managerStep,
+  pickChip,
+  ROLE_ANSWER,
+  ROLE_QUESTION,
+  receipt,
+  stepContinue,
+} from "./support/manager-onboarding";
+import {
+  openManagerOnboarding,
+  readSurveyRecord,
   resetToFirstRun,
-  seedLegacySegmentMirror,
-  setAccountPreference,
 } from "./support/onboarding";
+import { expectLatestLinesClearOfStep } from "./support/onboarding-scroll";
 
 /**
- * The onboarding survey: what the user does, the industry they do it in, and
- * the one thing they would love to automate.
- *
- * It is mounted from two places, and both are guarded here:
- *   - FIRST RUN — all three questions, ahead of the "Connect your AI" and
- *     "Build your team" cards. Answers persist to the account preference, so a
- *     reload never re-asks.
- *   - PROFILE COMPLETION — the in-app prompt for someone who answered the job
- *     question before the other two existed (the shipped
- *     `houston_onboarding_segment` preference, lifted). It asks only the gaps,
- *     and "Not now" is remembered.
+ * First run's survey, asked by the AI Manager once an AI is connected: the
+ * industry the person works in and their role, asked with the create sheet's
+ * own two steps (the same catalog an AI Employee is hired from, headed by the
+ * leadership positions for the person alone), how big their company is, one
+ * tap, then what they would love to automate, in their own words. Every answer saves to the
+ * account before the manager moves on, so a reload resumes after it with the
+ * answers as history. The profile-completion prompt, which asks the same
+ * questions of older accounts, is onboarding-profile.spec.ts.
  */
 
-const JOB_QUESTION = "What best describes your work?";
-const INDUSTRY_QUESTION = "What industry do you work in?";
-const GOAL_QUESTION = "What would you love to automate?";
-const COMPLETION_PROMPT = "Help us tailor Houston to you";
-/** The workspace shell's own main region (`workspace-shell.tsx`). `getByRole`
- *  is ambiguous here — the agent canvas nests a second <main> inside it. */
-const SHELL = 'main[data-tour-target="main"]';
-
-test("first run walks the three questions and never asks again", async ({
+test("the four questions follow the connection, save, and are never asked again", async ({
   page,
   request,
 }) => {
   await resetToFirstRun(request);
-  await page.goto("/");
+  await openManagerOnboarding(page);
+  await connectAi(page);
 
-  // STEP 1 — the job question. Continue stays disabled until a pill is picked.
-  await expect(page.getByRole("heading", { name: JOB_QUESTION })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
-  await answerJobStep(page);
-
-  // STEP 2 — industry. A fresh question, so Continue is disabled again, and
-  // Back is offered now that there is somewhere to go back to.
+  // The industry: the create sheet's step, addressed to the person, with its
+  // filter and its way out of the catalog. A chip answers at once.
+  const industry = managerStep(page, "survey-industry");
   await expect(
-    page.getByRole("heading", { name: INDUSTRY_QUESTION }),
+    industry.getByRole("heading", { name: INDUSTRY_QUESTION }),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
-  await answerIndustryStep(page);
-
-  // STEP 3 — the automation goal, in the user's own words.
+  await expect(industry.getByPlaceholder("Search industries")).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: GOAL_QUESTION }),
+    industry.getByRole("button", { name: "Something else" }),
   ).toBeVisible();
-  await answerGoalStep(page, "Triage my inbox every morning.");
+  // A step as tall as the catalog still leaves the manager's line in view.
+  await expectLatestLinesClearOfStep(page);
+  await pickChip(page, "survey-industry", INDUSTRY_ANSWER);
 
-  // The survey hands off to the next first-run card: "Connect your AI".
-  await expect(connectAiHeading(page)).toBeVisible();
-
-  // Answered is answered: a reload lands back on the connect card, with no
-  // question of the three re-asked.
-  await page.reload();
-  await expect(connectAiHeading(page)).toBeVisible();
-  for (const question of [JOB_QUESTION, INDUSTRY_QUESTION, GOAL_QUESTION]) {
-    await expect(page.getByRole("heading", { name: question })).toHaveCount(0);
-  }
-});
-
-test('"Something else" opens a required field that captures the answer', async ({
-  page,
-  request,
-}) => {
-  await resetToFirstRun(request);
-  await page.goto("/");
-
-  // The pick alone is not an answer: the field appears and holds Continue.
-  await page.getByRole("button", { name: "Something else" }).click();
-  const field = page.getByPlaceholder("Tell us in a few words");
-  await expect(field).toBeVisible();
-  await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
-
-  await field.fill("Chef");
-  await expect(page.getByRole("button", { name: "Continue" })).toBeEnabled();
-  await page.getByRole("button", { name: "Continue" }).click();
+  // The role: the leadership positions lead, then the industry's own roles,
+  // then the shared ones.
+  const role = managerStep(page, "survey-role");
   await expect(
-    page.getByRole("heading", { name: "What industry do you work in?" }),
+    role.getByRole("heading", { name: ROLE_QUESTION }),
   ).toBeVisible();
+  await expect(role.getByText("Leadership", { exact: true })).toBeVisible();
+  await expect(chip(role, "Founder")).toBeVisible();
+  await expect(chip(role, ROLE_ANSWER)).toBeVisible();
+  await expect(role.getByText("More roles", { exact: true })).toBeVisible();
+  await expectLatestLinesClearOfStep(page);
+  await pickChip(page, "survey-role", ROLE_ANSWER);
 
-  // A named pick shows no field.
-  await expect(page.getByPlaceholder("Tell us in a few words")).toHaveCount(0);
-});
+  // The company size: one tap per bucket, and no way to put it off.
+  const size = managerStep(page, "survey-companySize");
+  await expect(size).toContainText(COMPANY_SIZE_QUESTION);
+  for (const bucket of ["Just me", "2–10", "11–50", "51–200", "201–1,000"])
+    await expect(companySizeButton(page, bucket)).toBeVisible();
+  await expect(companySizeButton(page, "1,000+")).toBeVisible();
+  await expect(size.getByRole("button", { name: "Not now" })).toHaveCount(0);
+  await expectLatestLinesClearOfStep(page);
+  await answerCompanySize(page);
 
-test("the industry question filters the catalog and takes an answer it lacks", async ({
-  page,
-  request,
-}) => {
-  // The industries ARE the hire catalog's contexts, so the create flow starts
-  // an AI Employee from the same answer. Fifty chips need a filter, and an
-  // industry the catalog lacks still has to be answerable.
-  await resetToFirstRun(request);
-  await page.goto("/");
-  await answerJobStep(page);
-  await expect(
-    page.getByRole("heading", { name: INDUSTRY_QUESTION }),
-  ).toBeVisible();
+  // The goal: the person's own words, sent once there are some.
+  const goal = managerStep(page, "survey-goal");
+  await expect(goal).toContainText(GOAL_QUESTION);
+  const send = goal.getByRole("button", { name: "Continue", exact: true });
+  await expect(send).toBeDisabled();
+  await expectLatestLinesClearOfStep(page);
+  await answerGoal(page);
 
-  const search = page.getByPlaceholder("Search industries");
-  await search.fill("manufact");
-  await expect(
-    page.getByRole("radio", { name: "Manufacturing" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("radio", { name: "Finance", exact: true }),
-  ).toHaveCount(0);
-
-  // No chip matches: the typed words become the answer in one press, carried
-  // into the free-text field rather than asked for twice.
-  await search.fill("Artisanal cheese caves");
-  await expect(page.getByText("No industries match that.")).toBeVisible();
-  await page
-    .getByRole("button", {
-      name: 'Use "Artisanal cheese caves" as the industry',
-    })
-    .click();
-  await expect(page.getByPlaceholder("Tell us in a few words")).toHaveValue(
-    "Artisanal cheese caves",
-  );
-  await expect(page.getByRole("button", { name: "Continue" })).toBeEnabled();
-
-  // "Back to the list" hands the question back to the chips.
-  await page.getByRole("button", { name: "Back to the list" }).click();
-  await expect(page.getByPlaceholder("Search industries")).toBeVisible();
-
-  await answerIndustryStep(page);
-  await expect(
-    page.getByRole("heading", { name: GOAL_QUESTION }),
-  ).toBeVisible();
-});
-
-test("an answer whose push failed rides along on the next one", async ({
-  page,
-  request,
-}) => {
-  // The account store is a MIRROR of the answers, and a save that lands stamps
-  // the whole record as synced. So a push must carry everything the record
-  // holds: with a per-answer delta, a job answer whose PUT failed was never
-  // sent again (the stamp the industry's success earned suppressed the
-  // catch-up), and that user's segment was lost to the cohort forever.
-  await resetToFirstRun(request);
-
-  const pushed: Array<Record<string, unknown>> = [];
-  await page.route("**/v1/me/onboarding", async (route) => {
-    if (route.request().method() !== "PUT") {
-      await route.continue();
-      return;
-    }
-    pushed.push(JSON.parse(route.request().postData() ?? "{}"));
-    // The FIRST push (the job answer) never lands.
-    await route.fulfill({
-      status: pushed.length === 1 ? 503 : 200,
-      contentType: "application/json",
-      body: "{}",
+  await expect(managerStep(page, "team-basic")).toBeVisible();
+  await expectLatestLinesClearOfStep(page);
+  for (const answered of [
+    INDUSTRY_ANSWER,
+    ROLE_ANSWER,
+    COMPANY_SIZE_ANSWER,
+    GOAL_ANSWER,
+  ])
+    await expect(receipt(page, answered)).toBeVisible();
+  await expect
+    .poll(() => readSurveyRecord(request))
+    .toMatchObject({
+      segment: null,
+      industry: "accounting",
+      role: "bookkeeper",
+      companySize: "2_10",
+      automationGoal: GOAL_ANSWER,
     });
-  });
 
-  await page.goto("/");
-  await answerJobStep(page);
-  await answerIndustryStep(page);
-  await expect(
-    page.getByRole("heading", { name: GOAL_QUESTION }),
-  ).toBeVisible();
-
-  await expect.poll(() => pushed.length).toBeGreaterThanOrEqual(2);
-  expect(pushed[0]).toMatchObject({ segment: "operations" });
-  // The push that DOES land carries the dropped answer with it.
-  expect(pushed.at(-1)).toMatchObject({
-    segment: "operations",
-    industry: "manufacturing",
-  });
+  // Answered is answered: a reload resumes on the team, the answers kept as
+  // history and none of the four asked again.
+  await page.reload();
+  await expect(managerStep(page, "team-basic")).toBeVisible();
+  await expect(receipt(page, GOAL_ANSWER)).toBeVisible();
+  await expect(managerStep(page, "survey-industry")).toHaveCount(0);
+  await expect(managerStep(page, "survey-role")).toHaveCount(0);
+  await expect(managerStep(page, "survey-companySize")).toHaveCount(0);
+  await expect(managerStep(page, "survey-goal")).toHaveCount(0);
 });
 
-test("Back returns to the previous question with the answer still selected", async ({
+test("a leadership position answers the role, and the company size resumes and changes", async ({
   page,
   request,
 }) => {
   await resetToFirstRun(request);
-  await page.goto("/");
+  await openManagerOnboarding(page);
+  await connectAi(page);
+  await pickChip(page, "survey-industry", INDUSTRY_ANSWER);
 
-  await answerJobStep(page);
-  await expect(
-    page.getByRole("heading", { name: INDUSTRY_QUESTION }),
-  ).toBeVisible();
+  // A position is found by search too, and answers at once.
+  const role = managerStep(page, "survey-role");
+  await role.getByPlaceholder("Search roles").fill("founder");
+  await expect(chip(role, "Co-founder")).toBeVisible();
+  await pickChip(page, "survey-role", "Founder");
+  await expect(managerStep(page, "survey-companySize")).toBeVisible();
+  await expect(receipt(page, "Founder")).toBeVisible();
+  await expect
+    .poll(async () => (await readSurveyRecord(request))?.role)
+    .toBe("founder");
 
-  await page.getByRole("button", { name: "Back" }).click();
-  await expect(page.getByRole("heading", { name: JOB_QUESTION })).toBeVisible();
-  // The pill is still pressed, so Continue is live: going back must not cost
-  // the user the answer they already gave.
+  // Asked again, the position is still the one picked.
+  await changeAnswer(page).click();
   await expect(
-    page.getByRole("button", { name: "Operations" }),
-  ).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: "Continue" })).toBeEnabled();
+    chip(managerStep(page, "survey-role"), "Founder"),
+  ).toHaveAttribute("aria-checked", "true");
+  await stepContinue(page, "survey-role").click();
+
+  // A reload resumes on the company size; the answer given can change.
+  await page.reload();
+  await expect(managerStep(page, "survey-companySize")).toBeVisible();
+  await answerCompanySize(page, "click", "Just me");
+  await expect(managerStep(page, "survey-goal")).toBeVisible();
+  await expect(receipt(page, "Just me")).toBeVisible();
+  await changeAnswer(page).click();
+  await expect(companySizeButton(page, "Just me")).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await answerCompanySize(page, "click", "11–50");
+  await expect(receipt(page, "11–50")).toBeVisible();
+  await expect
+    .poll(async () => (await readSurveyRecord(request))?.companySize)
+    .toBe("11_50");
 });
 
-test("the automation goal offers no skip, and Continue waits for an answer", async ({
+test("a reload between questions resumes on the one still to answer", async ({
   page,
   request,
 }) => {
-  // The step used to carry a "Skip this question" link, and it was taken by
-  // reflex rather than by decision. It is gone: an empty field simply holds
-  // Continue shut, and leaving is the global escape hatch (onboarding-skip).
   await resetToFirstRun(request);
-  await page.goto("/");
+  await openManagerOnboarding(page);
+  await connectAi(page);
+  await pickChip(page, "survey-industry", INDUSTRY_ANSWER);
+  await expect(managerStep(page, "survey-role")).toBeVisible();
 
-  await answerJobStep(page);
-  await answerIndustryStep(page);
-  await expect(
-    page.getByRole("heading", { name: GOAL_QUESTION }),
-  ).toBeVisible();
-
-  await expect(
-    page.getByRole("button", { name: "Skip this question" }),
-  ).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
-
-  // Whitespace is not an answer either, and typing one enables Continue.
-  const field = page.getByRole("textbox", { name: GOAL_QUESTION });
-  await field.fill("   ");
-  await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
-  await field.fill("Triage my inbox every morning.");
-  await expect(page.getByRole("button", { name: "Continue" })).toBeEnabled();
+  await page.reload();
+  await expect(managerStep(page, "survey-role")).toBeVisible();
+  await expect(receipt(page, INDUSTRY_ANSWER)).toBeVisible();
+  await expect(managerStep(page, "survey-industry")).toHaveCount(0);
 });
 
-test("a user with only the job answered is prompted for the rest, once", async ({
+test("the role question searches the whole catalog and takes the person's own words", async ({
   page,
   request,
 }) => {
-  // The shipped build's preference, and nothing else: this account answered the
-  // job question before industry + goal existed. An agent exists, so the boot
-  // routes to the shell and the prompt is what stands in front of it.
-  await setAccountPreference(
-    request,
-    "houston_onboarding_segment",
-    legacySegmentPreference(),
-  );
+  await resetToFirstRun(request);
+  await openManagerOnboarding(page);
+  await connectAi(page);
+  await pickChip(page, "survey-industry", INDUSTRY_ANSWER);
 
-  await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: COMPLETION_PROMPT }),
-  ).toBeVisible();
-  // Only the GAPS are asked — the job question is already answered.
-  await expect(page.getByText(INDUSTRY_QUESTION)).toBeVisible();
-  await expect(page.getByText(JOB_QUESTION)).toHaveCount(0);
+  // A role filed under another industry is one search away.
+  const role = managerStep(page, "survey-role");
+  const search = role.getByPlaceholder("Search roles");
+  await search.fill("paralegal");
+  await expect(chip(role, "Paralegal")).toBeVisible();
 
-  await answerIndustryStep(page);
-  await answerGoalStep(page, "Draft replies to anything urgent.");
+  // Nothing matches: the words typed are the answer.
+  await search.fill("Dog groomer");
+  await role
+    .getByRole("button", { name: 'Use "Dog groomer" as the role' })
+    .click();
+  await role.getByRole("button", { name: "Continue", exact: true }).click();
 
-  // Survey finished: the shell takes over and the prompt is gone for good.
-  await expect(
-    page.getByRole("heading", { name: COMPLETION_PROMPT }),
-  ).toHaveCount(0);
-  await expect(page.locator(SHELL)).toBeVisible();
-
-  await page.reload();
-  await expect(page.locator(SHELL)).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: COMPLETION_PROMPT }),
-  ).toHaveCount(0);
+  await expect(managerStep(page, "survey-companySize")).toBeVisible();
+  await expect(receipt(page, "Dog groomer")).toBeVisible();
+  await expect
+    .poll(() => readSurveyRecord(request))
+    .toMatchObject({ role: "something_else", roleOther: "Dog groomer" });
 });
 
-test("a job answer that only ever reached this device is still lifted", async ({
-  page,
-}) => {
-  // No host preference at all: the answer survived only in the device mirror
-  // the old segment hook wrote FIRST (its engine write failed on a warming
-  // pod). Dropping that copy would re-ask the one question this user answered.
-  await seedLegacySegmentMirror(page);
-
-  await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: COMPLETION_PROMPT }),
-  ).toBeVisible();
-  await expect(page.getByText(INDUSTRY_QUESTION)).toBeVisible();
-  await expect(page.getByText(JOB_QUESTION)).toHaveCount(0);
-});
-
-test('"Not now" dismisses the completion prompt for good', async ({
+test("the goal is sent with Enter, breaks lines with Shift+Enter, and can be skipped", async ({
   page,
   request,
 }) => {
-  await setAccountPreference(
-    request,
-    "houston_onboarding_segment",
-    legacySegmentPreference(),
+  await resetToFirstRun(request);
+  await openManagerOnboarding(page);
+  await connectAi(page);
+  await pickChip(page, "survey-industry", INDUSTRY_ANSWER);
+  await pickChip(page, "survey-role", ROLE_ANSWER);
+  await answerCompanySize(page);
+
+  const field = goalField(page);
+  await field.fill("Reply to leads");
+  await field.press("Shift+Enter");
+  await field.pressSequentially("and book calls");
+  await expect(field).toHaveValue("Reply to leads\nand book calls");
+  await field.press("Enter");
+  await expect(managerStep(page, "team-basic")).toBeVisible();
+  await expect
+    .poll(async () => (await readSurveyRecord(request))?.automationGoal)
+    .toBe("Reply to leads\nand book calls");
+
+  // The goal cannot be skipped: asked again, it offers only Continue.
+  await changeAnswer(page).click();
+  await expect(goalField(page)).toHaveValue("Reply to leads\nand book calls");
+  await expect(
+    managerStep(page, "survey-goal").getByRole("button", { name: "Skip" }),
+  ).toHaveCount(0);
+});
+
+test("Change answer asks the latest question again, the answer still picked", async ({
+  page,
+  request,
+}) => {
+  await resetToFirstRun(request);
+  await openManagerOnboarding(page);
+  await connectAi(page);
+  await pickChip(page, "survey-industry", INDUSTRY_ANSWER);
+  await expect(managerStep(page, "survey-role")).toBeVisible();
+
+  // The industry asked again holds its answer: Continue keeps it.
+  await expect(changeAnswer(page)).toHaveCount(1);
+  await changeAnswer(page).click();
+  const industry = managerStep(page, "survey-industry");
+  await expect(chip(industry, INDUSTRY_ANSWER)).toHaveAttribute(
+    "aria-checked",
+    "true",
   );
+  await stepContinue(page, "survey-industry").click();
+  await expect(managerStep(page, "survey-role")).toBeVisible();
 
-  await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: COMPLETION_PROMPT }),
-  ).toBeVisible();
+  // Only the latest answer offers a change; a new pick replaces the old.
+  await pickChip(page, "survey-role", ROLE_ANSWER);
+  await expect(changeAnswer(page)).toHaveCount(1);
+  await changeAnswer(page).click();
+  const role = managerStep(page, "survey-role");
+  await expect(chip(role, ROLE_ANSWER)).toHaveAttribute("aria-checked", "true");
+  await pickChip(page, "survey-role", "Payroll specialist");
 
-  await page.getByRole("button", { name: "Not now" }).click();
-  await expect(
-    page.getByRole("heading", { name: COMPLETION_PROMPT }),
-  ).toHaveCount(0);
-  await expect(page.locator(SHELL)).toBeVisible();
-
-  // The dismissal is stored on the account, not just this render: a reload
-  // must not re-interrupt someone who already said no.
-  await page.reload();
-  await expect(page.locator(SHELL)).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: COMPLETION_PROMPT }),
-  ).toHaveCount(0);
+  await expect(receipt(page, "Payroll specialist")).toBeVisible();
+  await expect(managerStep(page, "survey-companySize")).toBeVisible();
+  await expect
+    .poll(async () => (await readSurveyRecord(request))?.role)
+    .toBe("payroll_specialist");
 });

@@ -13,9 +13,12 @@
 
 surface: web
 enforced: true
-inventoryVersion: 106
+inventoryVersion: 107
 
 components:
+  manager-avatar:
+    status: implemented
+    ref: "@houston-ai/core ManagerAvatar (manager-avatar.tsx with manager-avatar-geometry.ts, over HoustonHelmet), mounted by app/src/components/shell/sidebar-manager-row.tsx, app/src/components/agents-home/manager-home-row.tsx and app/src/components/assistant/assistant-phone-header.tsx"
   custom-integration-details:
     status: implemented
     ref: app/src/components/integrations/custom-edit-dialog.tsx
@@ -33,7 +36,7 @@ components:
 
   conversation-feed:
     status: implemented
-    ref: "@houston-ai/chat ChatPanel / ChatMessages / Conversation"
+    ref: "@houston-ai/chat ChatPanel / ChatMessages / Conversation, with ConversationViewportPin holding it pinned across viewport resizes and ConversationAutoScroll bringing the latest message in on a send or a new ChatPanel scrollToLatestToken (app/src/components/assistant/onboarding/manager-chat.tsx passes its answer count)"
 
   conversation-map-search:
     status: implemented
@@ -255,7 +258,7 @@ components:
     ref: "app/src/components/shell/team-identity-popover.tsx inside team-identity-name-row.tsx, used by create-team-step.tsx and edit-team-identity-dialog.tsx; the folder menu opens the editor and sidebar.setGroupIdentity saves the glyph and color"
   sidebar-teams-band:
     status: implemented
-    ref: "@houston-ai/layout AppSidebar (SidebarBand + one trailing root-depth SidebarAddRow after every folder and employee), with app/src/components/shell/sidebar-create-button.tsx wearing sidebarRowAffordanceClasses and passed as sectionAction from app/src/components/shell/sidebar-rail.tsx (the band's ONE plus control with helmet and folder-plus menu glyphs, opening the create sheet app/src/components/shell/add-to-workspace-sheet.tsx)"
+    ref: "@houston-ai/layout AppSidebar (SidebarBand + SidebarPinnedList + one trailing root-depth SidebarAddRow after every folder and employee), with app/src/components/shell/sidebar-create-button.tsx wearing sidebarRowAffordanceClasses and passed as sectionAction from app/src/components/shell/sidebar-rail.tsx (the band's ONE plus control with helmet and folder-plus menu glyphs, opening the create sheet app/src/components/shell/add-to-workspace-sheet.tsx); the pinned AI Manager row is app/src/components/shell/sidebar-manager-row.tsx"
   agent-screen:
     status: implemented
     ref: "app/src/components/team-view/agent-view.tsx selects one AI Employee's mission board, routines, files and settings; agent-chrome.tsx renders the desktop and phone section tabs"
@@ -270,7 +273,7 @@ components:
     ref: "app/src/components/shell/mobile-more-menu.tsx (@houston-ai/core Sheet restyled as a floating card, ui store mobileMoreOpen) over the pure mobile-more-items.ts model, rows from sidebar-nav-sections.tsx buildSidebarNavItems so the destinations and tour anchors are the rail's own"
   agents-home:
     status: implemented
-    ref: "app/src/components/agents-home/ (AgentsHomeView switching AgentsHomeList / AgentMissionsScreen on the ui store's agentsHomeAgentId nav level), rows in agent-home-row.tsx over agent-avatar-stack.tsx (@houston-ai/core HoustonAvatar) + NeedsYouChip, the title block in agents-home-header.tsx (New group via the ui store's openCreateFlow('team'), the group selector agents-home-team-filter.tsx over the ui store's agentsHomeTeamId, and shell/team-folder-menu.tsx for the picked group), all over the pure agentHomeRows + agentRowsForTeam in agents-home-model.ts; tab root wiring in app/src/lib/open-mobile-tab.ts and the phone boot landing in use-workspace-view-guards.ts"
+    ref: "app/src/components/agents-home/ (AgentsHomeView switching AgentsHomeList / AgentMissionsScreen on the ui store's agentsHomeAgentId nav level), the pinned AI Manager row in manager-home-row.tsx, agent rows in agent-home-row.tsx over agent-avatar-stack.tsx (@houston-ai/core HoustonAvatar) + NeedsYouChip, the title block in agents-home-header.tsx (New group via the ui store's openCreateFlow('team'), the group selector agents-home-team-filter.tsx over the ui store's agentsHomeTeamId, and shell/team-folder-menu.tsx for the picked group), all over the pure agentHomeRows + agentRowsForTeam in agents-home-model.ts; tab root wiring in app/src/lib/open-mobile-tab.ts and the phone boot landing in use-workspace-view-guards.ts"
   agent-missions-list:
     status: implemented
     ref: "app/src/components/agents-home/agent-missions-screen.tsx (shell/mobile-drilled-header.tsx + the shared board/task-list-filter.tsx status dropdown, board/task-list-menu.tsx chip behind agent-missions-menu.tsx (section rows from agent-missions-model.ts agentMissionsMenuSections over lib/teams-model.ts visibleAgentSections, opened through lib/open-agent.ts openAgentSection; the Move to group dialogs in agent-missions-move.tsx), board/task-list-search.tsx) over agent-missions-list.tsx, drawing @houston-ai/board TaskListGroup bands of agent-mission-row.tsx (agent-avatar-stack.tsx + mission-status-tag.tsx) from the pure agent-missions-model.ts over board/task-list-model.ts (the board's missionColumnIdForStatus mapping); every row pushes the chat via lib/mission-chat.ts; lib/open-agent.ts routes openAgentBoard / openAgentSettings here below md (lib/agent-nav.ts agentDestination), and use-drill-in-mission-target.ts opens a published activityPanelId as the chat above it"
@@ -294,17 +297,17 @@ components:
     ref: "@houston-ai/core FlowChoiceRow + FlowChoiceList (flow-choice-row.tsx)"
   connect-ai-card:
     status: implemented
-    ref: "app/src/components/onboarding/connect-ai-card.tsx (SetupCard over provider-browser/ProviderBrowser), routed by lib/onboarding-route.ts from components/onboarding/first-run-onboarding.tsx"
+    ref: "app/src/components/onboarding/connect-ai-card.tsx (@houston-ai/chat InteractionModal over provider-browser/ProviderBrowser), routed by lib/onboarding-route.ts and mounted by components/assistant/onboarding/first-run-conversation.tsx"
+  manager-onboarding:
+    status: implemented
+    ref: "app/src/components/assistant/onboarding/ (ManagerOnboardingHost + manager-onboarding-context.tsx around the shell, ManagerOnboarding switching first-run-conversation.tsx / profile-conversation.tsx over manager-chat.tsx on @houston-ai/chat ChatPanel, manager-question-card.tsx on InteractionModal + QuestionStepBody, manager-receipt.tsx; the survey in manager-survey-card.tsx: manager-about-step.tsx (shell/context-step.tsx + shell/role-step.tsx, audience self, the role led by the leadership positions), manager-company-size-card.tsx and manager-goal-card.tsx; the team in manager-team-prompt.tsx over use-manager-team.ts (onboarding/team/ roster, hire flow and starter team): manager-team-question-cards.tsx (the choice, and the step after any hire, with manager-roster-list.tsx), manager-team-hire-steps.tsx (the create sheet's context, role and customize steps), manager-team-hire-cards.tsx (onboarding/team/team-basic-view.tsx); every create step in manager-step-frame.tsx, which carries its Back; manager-goal-handoff.tsx closes first run over use-goal-handoff.ts, whose Yes reaches the real chat through stores/manager-handoff.ts and assistant/use-manager-handoff.ts, and manager-finish-card.tsx closes the profile variant), scripted by the pure lib/manager-onboarding/ (script.ts, changeable.ts, survey-script.ts, team-script.ts, closing-script.ts, manager-reach.ts, handoff-prompt.ts, first-name.ts, reveal.ts, earlier-hires.ts), mounted by assistant/assistant-view.tsx"
   build-team-card:
     status: implemented
-    ref: "app/src/components/onboarding/team/ (BuildTeamCard over team-card-flow.tsx: team-choice-view.tsx on onboarding/option-card.tsx's navigate variant, team-hire-view.tsx over the shell/ hire steps, team-hired-view.tsx and team-basic-view.tsx over the shared employee-card/ (roster-employee-card.tsx for hires on the roster), team-card-footer.tsx), hiring through lib/create-employee.ts; the new-workspace variant is mounted by shell/workspace-dialog.tsx"
+    ref: "app/src/components/onboarding/team/ (BuildTeamCard over team-card-flow.tsx: team-choice-view.tsx over team-choice-card.tsx, team-hire-view.tsx over the shell/ hire steps, team-hired-view.tsx and team-basic-view.tsx over the shared employee-card/ (roster-employee-card.tsx for hires on the roster), team-card-footer.tsx), hiring through lib/create-employee.ts; mounted by shell/workspace-dialog.tsx"
   employee-card:
     status: implemented
-    notes: "v100: portrait ID badge with tinted photo panel, helmet and corner color wheel; ResponsivePopover palette in two rows of five; labeled fields and recovery retained; 1152px team frames, 320px solo, 288px phone slides; reduced-motion-safe opacity crossfades."
-    ref: "app/src/components/employee-card/ (EditableEmployeeCard over employee-card.tsx, employee-name-field.tsx, employee-brief-line.tsx (context/job-brief-question.tsx in ui/core's ResponsivePopover) employee-card-paint.tsx, employee-card-metal.tsx (employee-metal-colors.ts + employee-metal-pattern.ts), employee-card-portrait.tsx and employee-color-picker.tsx over employee-color-palette.tsx; EmployeeCardDeck for a team; pure models in employee-card-model.ts, employee-name-suggestions.ts and employee-name-validation.ts); mounted by onboarding/team/ and shell/customize-step.tsx"
-  survey-industry-picker:
-    status: implemented
-    ref: "app/src/components/onboarding/survey-industry-picker.tsx (+ survey-industry-other.tsx, survey-industry-no-matches.tsx) over shell/choice-runs.tsx + shell/choice-row.tsx and lib/onboarding-industry.ts"
+    notes: "v102: horizontal ID badge, a full-height engraved metal photo panel beside the name and flat labelled Role, Industry and Color rows (side by side on a wide badge); name prefilled with the job, pencil always visible, no separate edit hint; ResponsivePopover palette in two rows of five; recovery retained; team decks three across from 1024px and stacked full width below, 672px solo; reduced-motion-safe opacity crossfades."
+    ref: "app/src/components/employee-card/ (EditableEmployeeCard over employee-card.tsx, employee-name-field.tsx, employee-brief-line.tsx (context/job-brief-question.tsx in ui/core's ResponsivePopover) employee-card-paint.tsx, employee-card-metal.tsx (@houston-ai/core employeeMetalColors + metal-engraving.ts contours, seeded from employee-metal-pattern.ts), employee-card-portrait.tsx and employee-color-picker.tsx over employee-color-palette.tsx; EmployeeCardDeck for a team; pure models in employee-card-model.ts and employee-name-validation.ts, the job-named prefill in lib/agent-name-prefill.ts); mounted by onboarding/team/ and shell/customize-step.tsx"
   first-day-offer:
     status: implemented
     ref: "app/src/components/first-day/ (FirstDayHero + FirstDayCompact + FirstDayStartButton in first-day-cta.tsx, FirstDayBanner + FirstDayLead in first-day-banner.tsx, placement in first-day-model.ts + use-first-day-placement.ts) over lib/agent-first-day.ts, mounted by board/mission-board.tsx"

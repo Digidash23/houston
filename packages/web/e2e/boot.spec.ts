@@ -7,7 +7,7 @@ import { litRows, navRow, rail, screen, teamTab } from "./support/team-nav";
 /**
  * The whole harness in one spec: the full desktop UI boots in the browser, on
  * the host adapter (host mode), against the fake host — past the
- * engine Connect screen, the language picker, and the legal disclaimer — and the
+ * engine Connect screen and the language picker — and the
  * files-first board data (`.houston/activity/activity.json`) flows through.
  *
  * It is also where the rail's shape is pinned. There is no global Mission

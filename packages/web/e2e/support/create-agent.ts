@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { FOLLOW_UP_PLACEHOLDER } from "./composer";
+import { prefilledName } from "./employee-name";
 import { rail } from "./team-nav";
 
 /**
@@ -52,8 +53,8 @@ export async function fillAgentBrief(page: Page): Promise<void> {
  *
  * The create sheet (`add-to-workspace-sheet.tsx`) opens on the choice of how
  * to start when it is reached from a "New AI Employee" control, and hiring
- * runs the three-step guided setup (context, role, then the employee card's
- * name and color). On
+ * runs the three-step guided setup (context, role, then the employee card,
+ * which arrives named for the job and is renamed to `name` here). On
  * create success the sheet closes and the board opens on the new employee,
  * whose first day waits for the user's click (`lib/agent-first-day.ts`): no
  * setup task starts and no chat panel opens on its own.
@@ -67,7 +68,7 @@ export async function createAgent(page: Page, name: string): Promise<void> {
   const nameField = page.getByRole("textbox", {
     name: "Name (Financial analyst)",
   });
-  await nameField.waitFor({ state: "visible" });
+  await expect(nameField).toHaveValue(prefilledName("Financial analyst"));
   await nameField.fill(name);
   await page.getByRole("button", { name: "Create AI Employee" }).click();
 

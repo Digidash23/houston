@@ -48,30 +48,32 @@ export interface AgentRoleState {
 }
 
 /**
- * Where the industry question opens: a catalog context to preselect, or the
- * words of an industry the catalog does not list. Both empty opens it blank.
+ * Where the two questions open: a catalog entry to preselect, or the words of
+ * an answer the catalog does not list. Both empty opens a question blank.
  */
 export interface AgentRoleStart {
   contextId: AgentContextId | null;
   customContext: string;
+  roleId: AgentRoleId | null;
+  customRole: string;
 }
 
 export const EMPTY_ROLE_START: AgentRoleStart = {
   contextId: null,
   customContext: "",
+  roleId: null,
+  customRole: "",
 };
 
-function startsCustom(start: AgentRoleStart): boolean {
-  return start.contextId === null && start.customContext !== "";
-}
+const startsCustom = (id: string | null, words: string) =>
+  id === null && words !== "";
 
 /**
  * The context + role answers a hire collects, and the brief they add up to.
  * Every open starts from `start`: the in-app create dialog passes nothing, so
- * an agent's industry is its own and nothing is preselected there; the
- * onboarding team card passes the industry the person gave in the survey,
- * because a first team is hired for the business they just described. The job
- * always starts empty.
+ * an agent's industry is its own and nothing is preselected there; onboarding
+ * passes the person's own survey answers, because a first team is hired for
+ * the business they just described.
  */
 export function useAgentRoleState(
   open: boolean,
@@ -81,13 +83,19 @@ export function useAgentRoleState(
   const [contextId, setContextId] = useState<AgentContextId | null>(
     start.contextId,
   );
-  const [contextIsCustom, setContextIsCustom] = useState(startsCustom(start));
+  const [contextIsCustom, setContextIsCustom] = useState(
+    startsCustom(start.contextId, start.customContext),
+  );
   const [customContext, setCustomContext] = useState(() =>
     capRolePart(start.customContext),
   );
-  const [roleId, setRoleId] = useState<AgentRoleId | null>(null);
-  const [roleIsCustom, setRoleIsCustom] = useState(false);
-  const [customRole, setCustomRole] = useState("");
+  const [roleId, setRoleId] = useState<AgentRoleId | null>(start.roleId);
+  const [roleIsCustom, setRoleIsCustom] = useState(
+    startsCustom(start.roleId, start.customRole),
+  );
+  const [customRole, setCustomRole] = useState(() =>
+    capRolePart(start.customRole),
+  );
 
   const clearRole = () => {
     setRoleId(null);
@@ -101,9 +109,11 @@ export function useAgentRoleState(
   useEffect(() => {
     if (!open) return;
     setContextId(start.contextId);
-    setContextIsCustom(startsCustom(start));
+    setContextIsCustom(startsCustom(start.contextId, start.customContext));
     setCustomContext(capRolePart(start.customContext));
-    clearRole();
+    setRoleId(start.roleId);
+    setRoleIsCustom(startsCustom(start.roleId, start.customRole));
+    setCustomRole(capRolePart(start.customRole));
   }, [open]);
 
   const contextLabel = contextIsCustom

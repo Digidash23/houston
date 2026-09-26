@@ -28,9 +28,8 @@ export function welcomeBridgeUrl(installId: string): string {
  * Ordering matters: the acquisition→activation funnel is keyed on
  * `install_created` as step 1, and PostHog funnels are sequential (each step
  * must occur AFTER the previous). The first onboarding steps
- * (`onboarding_language_selected`, `onboarding_agreement_accepted`) fire from
- * the language/disclaimer gates,
- * which sit ABOVE `<App/>` in the tree and block it from mounting until cleared.
+ * (`onboarding_language_selected`) fires from the language gate,
+ * which sits ABOVE `<App/>` in the tree and blocks it from mounting until cleared.
  * When `analytics.init()` + `install_created` lived in App's mount effect they
  * fired AFTER those gate events, so the funnel broke at step 2 and every
  * downstream step reported 0. Running this at the very top of the tree (above

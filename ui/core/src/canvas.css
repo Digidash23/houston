@@ -178,7 +178,7 @@ body::before {
    `.bg-action`, which also paints progress bars, tab underlines,
    switches and status dots. Unlayered, so it outranks the Tailwind
    utilities (`bg-action`, `text-action-text`, `hover:bg-action/70`)
-   regardless of import order. The label + the currentColor HoustonLogo
+   regardless of import order. The label and any currentColor glyph
    take `color` from these rules.
 
    The rim and the keyboard focus ring share the one `box-shadow` slot, so the

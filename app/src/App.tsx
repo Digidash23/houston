@@ -69,8 +69,8 @@ export default function App() {
 
   // NOTE: install identity, `install_created`, `session_started`, and theme
   // load run in <StartupEffects> at the top of the tree (main.tsx), NOT here.
-  // They MUST fire before the language/disclaimer gates' `onboarding_*` events,
-  // and those gates block <App/> from mounting on a fresh install — so this
+  // They MUST fire before the language gate's `onboarding_*` event,
+  // and that gate blocks <App/> from mounting on a fresh install — so this
   // effect would run too late and break the sequential onboarding funnel.
 
   useAppDocumentListeners();

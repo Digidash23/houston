@@ -10,9 +10,9 @@
  *
  * Boot order matches the desktop entry:
  *   QueryClientProvider > ErrorBoundary > TooltipProvider > EngineGate >
- *   I18nextProvider > LanguageGate > App (sign-in, then the agreement gate)
+ *   I18nextProvider > LanguageGate > App (sign-in)
  * EXCEPT on the cloud web build (identity configured), where the first-run
- * language/agreement gates are skipped: sign-in is the first screen, and the
+ * language gate is skipped: sign-in is the first screen, and the
  * account's stored locale applies after auth (see AppTree below, HOU-1014).
  */
 
@@ -194,9 +194,8 @@ export default function AppTree() {
   // <App/> (which remounts per identity), so one instance pays each event once.
   useUsageAccrual();
   // Cloud web build (Firebase identity baked in): sign-in is the FIRST screen.
-  // The first-run language picker + agreement are desktop/self-host concepts —
-  // pre-auth they can't even persist (the gateway 401s preference writes, which
-  // dead-ended the agreement's Continue, HOU-1014). Language defaults to the
+  // The first-run language picker is a desktop/self-host concept. Pre-auth
+  // preference writes 401 at the gateway (HOU-1014). Language defaults to the
   // browser and the account's stored preference applies after sign-in
   // (SignedInLocaleSync); Settings keeps its picker for changes.
   const cloudWeb = isIdentityConfigured();
@@ -228,8 +227,6 @@ export default function AppTree() {
                     {app}
                   </>
                 ) : (
-                  // The agreement gate (DisclaimerGate) renders inside App,
-                  // after sign-in — mirrors app/src/main.tsx.
                   <LanguageGate>{app}</LanguageGate>
                 )}
               </I18nextProvider>

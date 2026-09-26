@@ -21,8 +21,8 @@ import { SetupCard } from "../onboarding/setup-card";
  * but only to choose the language the screen's own copy renders in. Language is
  * changeable later from Settings.
  *
- * This is the TRUE first screen of the app. Shown before the disclaimer so a
- * Spanish/Portuguese speaker reads the agreement in their own language. Skipped
+ * This is the first screen of the app. Shown before sign-in so a
+ * Spanish/Portuguese speaker sees the sign-in flow in their own language. Skipped
  * once the `locale` engine preference is set; Settings has the same picker for
  * later changes.
  */

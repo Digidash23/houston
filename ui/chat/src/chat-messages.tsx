@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Conversation,
-  ConversationAutoScroll,
   ConversationContent,
   ConversationScrollButton,
   ConversationTopFade,
 } from "./ai-elements/conversation";
+import { ConversationAutoScroll } from "./ai-elements/conversation-auto-scroll";
 import { ConversationLoadOlder } from "./ai-elements/conversation-load-older";
+import { ConversationViewportPin } from "./ai-elements/conversation-viewport-pin";
 import { Message, MessageContent } from "./ai-elements/message";
 import { ChatMessageItem } from "./chat-message-item";
 import type { ChatMessagesProps } from "./chat-messages-types";
@@ -61,6 +62,7 @@ export function ChatMessages({
   senderNameClass,
   mentionPeople,
   conversationMap,
+  scrollToLatestToken,
 }: ChatMessagesProps) {
   const [highlightedMessageKey, setHighlightedMessageKey] = useState<
     string | null
@@ -113,7 +115,11 @@ export function ChatMessages({
 
   return (
     <Conversation className="flex-1 min-h-0">
-      <ConversationAutoScroll status={status} />
+      <ConversationAutoScroll
+        status={status}
+        latestToken={scrollToLatestToken}
+      />
+      <ConversationViewportPin />
       <ConversationTopFade />
       <ConversationContent className="max-w-3xl mx-auto">
         {onLoadOlder ? (

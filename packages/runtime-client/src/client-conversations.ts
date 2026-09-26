@@ -1,7 +1,7 @@
 /**
  * The conversation-record half of {@link HoustonEngineClient}: listing chats,
  * reading a transcript window, and the lifecycle writes over one chat (cancel,
- * mode, dismiss, truncate, rename, delete, title).
+ * mode, dismiss, truncate, import, rename, delete, title).
  *
  * Split out of `./client.ts` for size, not for reach — these are methods OF the
  * conversation client, so they stay on it, and the base declares only the
@@ -18,6 +18,10 @@
  * declare.
  */
 
+import type {
+  ConversationImportRequest,
+  ConversationImportResult,
+} from "@houston/protocol";
 import { EngineCredentialClient } from "./client-auth";
 import type { ConversationHistory, ConversationSummary } from "./types";
 
@@ -95,6 +99,21 @@ export abstract class EngineConversationsClient extends EngineCredentialClient {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ turnId }),
+      },
+    );
+  }
+  /**
+   * Write lines said elsewhere into the transcript as real history, running no
+   * turn. `imported` is 0 when `request.importId` had already landed. Answers
+   * 409 while a turn is queued or running, 400 for a malformed import.
+   */
+  importMessages(id: string, request: ConversationImportRequest) {
+    return this.json<ConversationImportResult>(
+      `/conversations/${encodeURIComponent(id)}/import`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request),
       },
     );
   }

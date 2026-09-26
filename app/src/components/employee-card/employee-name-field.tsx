@@ -1,8 +1,6 @@
-import { durationMs, easing } from "@houston/design-tokens";
 import { cn, Input } from "@houston-ai/core";
-import { motion, useAnimate, useReducedMotion } from "framer-motion";
-import { Dices } from "lucide-react";
-import { type KeyboardEvent, type Ref, useId, useState } from "react";
+import { Pencil } from "lucide-react";
+import { type KeyboardEvent, type Ref, useId, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
   employeeNamePlaceholder,
@@ -10,8 +8,12 @@ import {
 } from "./employee-name-placeholder";
 import { useFittingPlaceholder } from "./use-fitting-placeholder";
 
-const FAST_S = durationMs.fast / 1000;
-
+/**
+ * The card's name, as a field that reads as one at a glance: field chrome with
+ * its label inside it, over the name, and a pencil always showing. Reaching it
+ * by a press anywhere on it (the pencil included) or by Tab selects the name
+ * whole, so typing replaces it.
+ */
 export function EmployeeNameField({
   value,
   label,
@@ -19,9 +21,7 @@ export function EmployeeNameField({
   invalid,
   describedBy,
   inputRef,
-  autoFocus,
   onChange,
-  onSuggest,
   onKeyDown,
   onBlur,
 }: {
@@ -34,9 +34,7 @@ export function EmployeeNameField({
   invalid: boolean;
   describedBy: string;
   inputRef?: Ref<HTMLInputElement>;
-  autoFocus?: boolean;
   onChange: (value: string) => void;
-  onSuggest: () => void;
   onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
   onBlur?: () => void;
 }) {
@@ -52,31 +50,26 @@ export function EmployeeNameField({
     measured.fit.textWidth,
     measured.fit.availableWidth,
   );
-  const reduce = useReducedMotion() ?? false;
-  const [scope, animate] = useAnimate<HTMLDivElement>();
-  const [turns, setTurns] = useState(0);
-
-  const suggest = () => {
-    onSuggest();
-    setTurns((count) => count + 1);
-    animate(
-      "input",
-      reduce ? { opacity: [0, 1] } : { opacity: [0, 1], y: [4, 0] },
-      { duration: FAST_S, ease: easing.entrance },
-    );
-  };
+  // The press that focuses the field selects the name on focus; its own
+  // mouseup would then collapse that selection to a caret, so it is dropped.
+  const keepSelection = useRef(false);
 
   return (
-    <div ref={scope} className="flex min-w-0 flex-col gap-2">
-      <label htmlFor={id} className="text-sm font-medium text-ink">
-        {t("employeeCard.nameHeading")}
-      </label>
-      <div
-        className={cn(
-          "flex min-w-0 items-center rounded-lg border bg-input has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-focus",
-          invalid ? "border-danger" : "border-line-input",
-        )}
+    <div
+      className={cn(
+        "flex min-h-12 min-w-0 rounded-lg border bg-input has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-focus",
+        invalid ? "border-danger" : "border-line-input",
+      )}
+    >
+      {/* The label holds the field, so a press anywhere on it lands in the
+          name; the pencil is a second label for the same field. */}
+      <label
+        htmlFor={id}
+        className="flex min-w-0 flex-1 cursor-text flex-col justify-center py-0.5 pl-3"
       >
+        <span className="text-xs text-ink/70">
+          {t("employeeCard.nameHeading")}
+        </span>
         <Input
           id={id}
           ref={measured.ref}
@@ -84,34 +77,33 @@ export function EmployeeNameField({
           data-employee-name=""
           value={value}
           placeholder={t(placeholder.key, placeholder.values)}
-          autoFocus={autoFocus}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={onKeyDown}
+          onMouseDown={(event) => {
+            keepSelection.current = document.activeElement !== event.target;
+          }}
+          onFocus={(event) => event.currentTarget.select()}
+          onMouseUp={(event) => {
+            if (!keepSelection.current) return;
+            keepSelection.current = false;
+            event.preventDefault();
+          }}
           onBlur={onBlur}
           aria-label={label}
           aria-required="true"
           aria-invalid={invalid || undefined}
           aria-describedby={describedBy}
           autoComplete="off"
-          className="h-11 flex-1 rounded-none border-0 bg-transparent px-3 text-base font-normal placeholder:text-ink/70 transition-none dark:bg-transparent"
+          className="h-6 rounded-none border-0 bg-transparent p-0 text-base font-medium placeholder:font-normal placeholder:text-ink/70 transition-none dark:bg-transparent"
         />
-        <button
-          type="button"
-          onClick={suggest}
-          aria-label={t("employeeCard.suggestName")}
-          title={t("employeeCard.suggestName")}
-          className="flex size-11 shrink-0 items-center justify-center rounded-full text-ink-muted outline-none hover:bg-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-focus active:scale-[0.96] motion-reduce:transform-none"
-        >
-          <motion.span
-            aria-hidden="true"
-            className="flex"
-            animate={{ rotate: reduce ? 0 : turns * 180 }}
-            transition={{ duration: FAST_S, ease: easing.entrance }}
-          >
-            <Dices className="size-4" />
-          </motion.span>
-        </button>
-      </div>
+      </label>
+      <label
+        htmlFor={id}
+        aria-hidden="true"
+        className="flex w-9 shrink-0 cursor-text items-center justify-center text-ink-muted"
+      >
+        <Pencil className="size-4" />
+      </label>
     </div>
   );
 }

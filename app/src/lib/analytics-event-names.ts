@@ -28,21 +28,25 @@ export type AnalyticsEventName =
   // Onboarding
   | "onboarding_started"
   | "onboarding_completed"
-  | "onboarding_segment_screen_viewed"
-  | "onboarding_segment_selected"
-  | "onboarding_segment_continued"
-  // The two questions the segment screen grew into (industry + the automation
-  // goal in the user's own words). Same three-beat shape as the segment step —
-  // viewed / selected / continued — so one funnel covers the whole survey, and
-  // `source_screen` says whether it was asked at first run or later, from the
-  // profile-completion prompt.
+  // The closing's offer to start on the person's automation goal was
+  // answered: `choice` is "accepted" or "declined".
+  | "onboarding_goal_handoff"
+  // The survey's four questions (industry, role, company size, automation
+  // goal), each viewed / selected / continued (the one-tap company size has
+  // no separate selection); `source_screen` says whether it was asked at
+  // first run or later, from the profile-completion prompt.
   | "onboarding_industry_screen_viewed"
   | "onboarding_industry_selected"
   | "onboarding_industry_continued"
+  | "onboarding_role_screen_viewed"
+  | "onboarding_role_selected"
+  | "onboarding_role_continued"
+  | "onboarding_company_size_screen_viewed"
+  | "onboarding_company_size_continued"
   | "onboarding_goal_screen_viewed"
   | "onboarding_goal_continued"
-  // The completion prompt appeared for someone who answered the segment before
-  // the survey existed (or bailed mid-way); `missing_steps` names the gaps.
+  // The completion prompt appeared for someone who left the survey unfinished;
+  // `missing_steps` names the gaps.
   | "onboarding_survey_prompted"
   // One-time "reconnect your AI" moment after upgrading from the legacy build.
   | "migration_reconnect_completed"
@@ -72,7 +76,6 @@ export type AnalyticsEventName =
   // action, not the Continue click. Each fires exactly ONCE (ref/flag-guarded
   // at the call site).
   | "onboarding_language_selected"
-  | "onboarding_agreement_accepted"
   | "ai_provider_connected"
   | "first_message_sent"
   | "first_email_sent"

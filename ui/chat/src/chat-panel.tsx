@@ -4,135 +4,53 @@
  * Generic version: accepts feedItems/status as props, no store dependencies.
  */
 
-import { TooManyAttachmentFilesError } from "@houston-ai/core";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { ChatDropOverlay } from "./chat-drop-overlay";
 import { feedItemsToMessages } from "./chat-helpers";
 import { ChatInput } from "./chat-input";
-import { ChatMessages } from "./chat-messages";
+import { ChatPanelLog } from "./chat-panel-log";
 import type { ChatPanelProps } from "./chat-panel-types";
 import { deriveStatus } from "./chat-status";
-import { ChatThinkingIndicator } from "./chat-thinking-indicator";
-import type { MessageMention } from "./types";
-import {
-  DEFAULT_TOO_MANY_FILES_NOTICE,
-  useAttachmentIntake,
-} from "./use-attachment-intake";
-import { useControllable, useFileDropZone } from "./use-file-drop-zone";
+import { useChatPanelAttachments } from "./use-chat-panel-attachments";
 
 export type { ChatPanelProps } from "./chat-panel-types";
 
-const DefaultThinkingIndicator = () => <ChatThinkingIndicator />;
-
-export function ChatPanel({
-  sessionKey,
-  feedItems,
-  onSend,
-  onStop,
-  onBack,
-  isLoading,
-  placeholder = "Type a message...",
-  emptyState,
-  status: statusProp,
-  thinkingIndicator,
-  transformContent,
-  toolLabels,
-  isSpecialTool,
-  renderToolResult,
-  processLabels,
-  getThinkingMessage,
-  renderMessageAvatar,
-  renderSystemMessage,
-  contextCompactedLabel,
-  renderUserMessage,
-  onEditMessage,
-  canEditMessage,
-  editMessageLabel,
-  enableMessageCopy,
-  canCopyMessage,
-  copyMessageLabel,
-  messageEditing,
-  afterMessages,
-  onLoadOlder,
-  hasOlderMessages,
-  renderTurnSummary,
-  onOpenLink,
-  renderLink,
-  value,
-  onValueChange,
-  composerFocusToken,
-  attachments,
-  onAttachmentsChange,
-  onNotice,
-  prepareAttachments,
-  onAttachmentRejections,
-  footer,
-  composerHeader,
-  attachMenu,
-  queuedMessages,
-  onRemoveQueuedMessage,
-  queuedLabels,
-  canSendEmpty,
-  composerDisabled,
-  composerOverride,
-  composerOverrideMode = "above",
-  composerLabels,
-  dictation,
-  currentUserId,
-  authorLabels,
-  showSenders,
-  agentLabel,
-  renderSenderAvatar,
-  senderNameClass,
-  mentionPeople,
-  messageMentionPeople,
-  renderMentionAvatar,
-  mentionLabels,
-  conversationMap,
-}: ChatPanelProps) {
+export function ChatPanel(props: ChatPanelProps) {
+  const {
+    sessionKey,
+    feedItems,
+    onStop,
+    onBack,
+    isLoading,
+    placeholder = "Type a message...",
+    status: statusProp,
+    value,
+    onValueChange,
+    composerFocusToken,
+    onNotice,
+    prepareAttachments,
+    onAttachmentRejections,
+    footer,
+    composerHeader,
+    attachMenu,
+    queuedMessages,
+    onRemoveQueuedMessage,
+    queuedLabels,
+    canSendEmpty,
+    composerDisabled,
+    composerOverride,
+    composerOverrideMode = "above",
+    composerLabels,
+    dictation,
+    mentionPeople,
+    renderMentionAvatar,
+    mentionLabels,
+  } = props;
   const panelRef = useRef<HTMLDivElement | null>(null);
   const status = statusProp ?? deriveStatus(feedItems, isLoading);
   const messages = useMemo(() => feedItemsToMessages(feedItems), [feedItems]);
-  const hasMessages = messages.length > 0;
-
-  // Attachments state lives at ChatPanel level so the ENTIRE panel can act as
-  // a drop target (not just the composer). When the parent passes controlled
-  // props we forward them; otherwise we manage internally and clear on send.
-  const [files, setFiles] = useControllable<File[]>(
-    attachments,
-    onAttachmentsChange,
-    [],
-  );
-  const isFilesControlled = attachments !== undefined;
-  const addDroppedFiles = useAttachmentIntake({
-    files,
-    setFiles,
-    prepareAttachments,
-    onAttachmentRejections,
-    onNotice,
-    duplicateNotice: composerLabels?.fileAlreadyInChat,
-    tooManyNotice: composerLabels?.tooManyFiles,
-  });
-  const tooManyFilesNotice = composerLabels?.tooManyFiles;
-  const folderReadFailedNotice = composerLabels?.folderReadFailed;
-  const onDropError = useCallback(
-    (error: unknown) => {
-      // No notice channel → rethrow: the failure surfaces as an unhandled
-      // rejection (Sentry) instead of being silently swallowed.
-      if (!onNotice) throw error;
-      onNotice(
-        error instanceof TooManyAttachmentFilesError
-          ? (tooManyFilesNotice ?? DEFAULT_TOO_MANY_FILES_NOTICE)
-          : (folderReadFailedNotice ??
-              "Couldn't read the dropped folder. Try the attach button instead."),
-      );
-    },
-    [onNotice, tooManyFilesNotice, folderReadFailedNotice],
-  );
-  const { isDraggingOver, dropProps } = useFileDropZone(
-    addDroppedFiles,
-    onDropError,
-  );
+  const { files, setFiles, handleSend, isDraggingOver, dropProps } =
+    useChatPanelAttachments(props);
 
   useEffect(() => {
     if (composerFocusToken === undefined) return;
@@ -140,16 +58,6 @@ export function ChatPanel({
       ?.querySelector<HTMLTextAreaElement>('textarea[name="message"]')
       ?.focus();
   }, [composerFocusToken]);
-
-  // Wrap onSend so we clear internally-managed attachments after a send;
-  // in controlled mode the parent is responsible for clearing.
-  const handleSend = useCallback(
-    async (text: string, sent: File[], mentions: MessageMention[]) => {
-      await onSend(text, sent, mentions);
-      if (!isFilesControlled) setFiles([]);
-    },
-    [onSend, isFilesControlled, setFiles],
-  );
 
   return (
     <div
@@ -173,60 +81,7 @@ export function ChatPanel({
           </button>
         </div>
       )}
-      {hasMessages || status !== "ready" ? (
-        <ChatMessages
-          // Remount the whole message list when the conversation changes.
-          // Assistant text renders through Streamdown, a *streaming* markdown
-          // renderer that appends incrementally and holds internal parse/DOM
-          // state. Message keys are position-based ("assistant-1"), so they
-          // collide across conversations and React reuses those Streamdown
-          // instances on a session switch — swapping to a different mission's
-          // final answer leaves the previous reply on screen (the user message,
-          // plain text, updates; the assistant reply does not). Keying the list
-          // by sessionKey resets the subtree so each conversation renders fresh
-          // (#364). sessionKey is stable within a conversation, so live
-          // streaming is unaffected.
-          key={sessionKey}
-          messages={messages}
-          status={status}
-          thinkingIndicator={thinkingIndicator ?? <DefaultThinkingIndicator />}
-          transformContent={transformContent}
-          toolLabels={toolLabels}
-          isSpecialTool={isSpecialTool}
-          renderToolResult={renderToolResult}
-          processLabels={processLabels}
-          getThinkingMessage={getThinkingMessage}
-          renderMessageAvatar={renderMessageAvatar}
-          renderSystemMessage={renderSystemMessage}
-          contextCompactedLabel={contextCompactedLabel}
-          renderUserMessage={renderUserMessage}
-          onEditMessage={onEditMessage}
-          canEditMessage={canEditMessage}
-          editMessageLabel={editMessageLabel}
-          enableMessageCopy={enableMessageCopy}
-          canCopyMessage={canCopyMessage}
-          copyMessageLabel={copyMessageLabel}
-          messageEditing={messageEditing}
-          afterMessages={afterMessages}
-          onLoadOlder={onLoadOlder}
-          hasOlderMessages={hasOlderMessages}
-          renderTurnSummary={renderTurnSummary}
-          onOpenLink={onOpenLink}
-          renderLink={renderLink}
-          currentUserId={currentUserId}
-          authorLabels={authorLabels}
-          showSenders={showSenders}
-          agentLabel={agentLabel}
-          renderSenderAvatar={renderSenderAvatar}
-          senderNameClass={senderNameClass}
-          mentionPeople={messageMentionPeople ?? mentionPeople}
-          conversationMap={conversationMap}
-        />
-      ) : (
-        <div className="flex-1 min-h-0 flex items-center justify-center">
-          {emptyState}
-        </div>
-      )}
+      <ChatPanelLog {...props} messages={messages} status={status} />
 
       {/* Above-card offers keep the composer visible. Replacing interaction
           cards own their input, so the composer is hidden while they are

@@ -4,6 +4,11 @@
  * the real runtime's dead-turn history shape.
  */
 
+import {
+  type ConversationImportRequest,
+  holdsImport,
+  importedMessages,
+} from "@houston/protocol";
 import type { ChatMessage } from "@houston/runtime-client";
 import { EPOCH, emitDomain, SEED_USAGE, state } from "./state-store";
 
@@ -99,6 +104,28 @@ export function truncateHistory(
   state.histories.set(key, list.slice(0, at));
   emitDomain("ConversationsChanged", agentId);
   return true;
+}
+
+/**
+ * Write an import's lines at the end of the transcript (or its start, for
+ * `at: "start"`), mirroring the runtime's import route: an import already
+ * held writes nothing (0).
+ */
+export function importHistory(
+  agentId: string,
+  conversationId: string,
+  request: ConversationImportRequest,
+): number {
+  const key = `${agentId}:${conversationId}`;
+  const list = state.histories.get(key) ?? [];
+  if (holdsImport(list, request.importId)) return 0;
+  const imported = importedMessages(request, EPOCH);
+  state.histories.set(
+    key,
+    request.at === "start" ? [...imported, ...list] : [...list, ...imported],
+  );
+  emitDomain("ConversationsChanged", agentId);
+  return imported.length;
 }
 
 /**

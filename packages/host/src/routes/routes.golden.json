@@ -1751,6 +1751,17 @@
       "POST /conversations/c1/truncate"
     ]
   },
+  "POST /agents/:agentId/conversations/:conversationId/import": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "POST /conversations/c1/import"
+    ]
+  },
   "POST /agents/:agentId/conversations/:conversationId/messages": {
     "status": 200,
     "contentType": "application/json",
@@ -17460,6 +17471,133 @@
       "POST /conversations/c1/truncate/"
     ]
   },
+  "GET /agents/:agentId/conversations/:conversationId/import": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "GET /conversations/c1/import"
+    ]
+  },
+  "GET /agents/:agentId/conversations/:conversationId/import [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "GET /agents/:agentId/conversations/:conversationId/import [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PUT /agents/:agentId/conversations/:conversationId/import": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "PUT /conversations/c1/import"
+    ]
+  },
+  "PUT /agents/:agentId/conversations/:conversationId/import [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PUT /agents/:agentId/conversations/:conversationId/import [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PATCH /agents/:agentId/conversations/:conversationId/import": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "PATCH /conversations/c1/import"
+    ]
+  },
+  "PATCH /agents/:agentId/conversations/:conversationId/import [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PATCH /agents/:agentId/conversations/:conversationId/import [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "DELETE /agents/:agentId/conversations/:conversationId/import": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "DELETE /conversations/c1/import"
+    ]
+  },
+  "DELETE /agents/:agentId/conversations/:conversationId/import [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "DELETE /agents/:agentId/conversations/:conversationId/import [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "POST /agents/:agentId/conversations/:conversationId/import/": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "POST /conversations/c1/import/"
+    ]
+  },
   "GET /agents/:agentId/generate-agent": {
     "status": 200,
     "contentType": "application/json",
@@ -20594,6 +20732,24 @@
     "forwarded": []
   },
   "POST /agents/:agentId/conversations/:conversationId/truncate [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "POST /agents/:agentId/conversations/:conversationId/import [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "POST /agents/:agentId/conversations/:conversationId/import [other]": {
     "status": 403,
     "contentType": "application/json; charset=utf-8",
     "errorCode": "not your agent",

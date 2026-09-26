@@ -1,10 +1,28 @@
 /**
- * Helpers for the "Build your team" card's own controls: its two opening
- * choices and one hire walked from the in-app hire.
+ * The "Build your team" card, which lives in the new-workspace dialog: the
+ * door onto it, its two opening choices, and one hire walked from the in-app
+ * hire.
  */
-import { expect, type Locator, type Page } from "@playwright/test";
-import { type PressMode, press } from "./mobile-nav";
-import { INDUSTRY_ANSWER } from "./onboarding";
+import {
+  type APIRequestContext,
+  expect,
+  type Locator,
+  type Page,
+} from "@playwright/test";
+import { prefilledName } from "./employee-name";
+import { openMoreMenu, type PressMode, press } from "./mobile-nav";
+import { seedAnsweredSurvey } from "./onboarding";
+
+/** The survey's industry every team-card spec seeds, which the card opens
+ *  on. */
+export const TEAM_CARD_INDUSTRY = "Manufacturing";
+
+/** The basic team's three starters, in the order the card lists them. */
+export const BASIC_TEAM_ROLES = [
+  "Executive assistant",
+  "Operations manager",
+  "Finance manager",
+] as const;
 
 /**
  * The job every team-card hire in the specs takes: one of the survey
@@ -14,10 +32,47 @@ import { INDUSTRY_ANSWER } from "./onboarding";
 export const TEAM_HIRE_ROLE = "Production planner";
 
 /**
+ * Boot the seeded shell with the survey answered on the account (the card
+ * opens on {@link TEAM_CARD_INDUSTRY}), create a workspace and land on its
+ * "Build your team" card: the workspace switcher's "Create workspace" (the
+ * rail's on a desktop, the More menu's on a phone), a name, then the card the
+ * dialog opens once the workspace exists. Returns the dialog around the card.
+ */
+export async function openNewWorkspaceTeamCard(
+  page: Page,
+  request: APIRequestContext,
+  device: "desktop" | "phone" = "desktop",
+): Promise<Locator> {
+  await seedAnsweredSurvey(request, TEAM_CARD_INDUSTRY.toLowerCase());
+  await page.goto("/");
+  const switcher =
+    device === "desktop"
+      ? page.locator(
+          '[data-tour-target="spaceSwitcher"] button[aria-haspopup="menu"]',
+        )
+      : (await openMoreMenu(page, "click"))
+          .locator('button[aria-haspopup="menu"]')
+          .first();
+  await switcher.click();
+  await page.getByRole("menuitem", { name: "Create workspace" }).click();
+  const naming = page.getByRole("dialog", { name: "New workspace" });
+  await naming
+    .getByRole("textbox", { name: "Workspace name" })
+    .fill("Acme Corp");
+  await naming
+    .getByRole("button", { name: "Create workspace", exact: true })
+    .click();
+  const card = page.getByRole("dialog", { name: "Let's build your team" });
+  await expect(card).toBeVisible();
+  return card;
+}
+
+/**
  * Hire ONE AI Employee on the "Build your team" card, from its opening choice
  * or from "Hire another": the industry the survey answered is preselected (so
- * Continue confirms it), a job chip answers the next question outright, and
- * the naming card's "Hire" lands the roster. `mode` lets the phone specs tap.
+ * Continue confirms it), a job chip answers the next question outright, the
+ * naming card arrives named for the job and is renamed to `name`, and its
+ * "Hire" lands the roster. `mode` lets the phone specs tap.
  */
 export async function hireOnTeamCard(
   page: Page,
@@ -30,7 +85,7 @@ export async function hireOnTeamCard(
     }),
   ).toBeVisible();
   await expect(
-    page.getByRole("radio", { name: INDUSTRY_ANSWER }),
+    page.getByRole("radio", { name: TEAM_CARD_INDUSTRY }),
   ).toHaveAttribute("aria-checked", "true");
   await press(
     page.getByRole("button", { name: "Continue", exact: true }),
@@ -43,7 +98,9 @@ export async function hireOnTeamCard(
   await expect(
     page.getByRole("heading", { name: "Name your AI Employee", exact: true }),
   ).toBeVisible();
-  await teamCardNameField(page, TEAM_HIRE_ROLE).fill(name);
+  const field = teamCardNameField(page, TEAM_HIRE_ROLE);
+  await expect(field).toHaveValue(prefilledName(TEAM_HIRE_ROLE));
+  await field.fill(name);
   await press(page.getByRole("button", { name: "Hire", exact: true }), mode);
   await expect(page.getByRole("heading", { name: /^You hired/ })).toBeVisible();
 }
@@ -60,9 +117,10 @@ export function basicTeamOption(page: Page): Locator {
 
 /**
  * The name field on an employee card, labelled by the job it was hired for.
- * `.first()` is the caller's call when two cards share a job. Empty, it shows
- * example names, led by the job when the field has room for it whole ("e.g.
- * Executive assistant, Assistant 3, Jerry"), otherwise "e.g. Ava"; required.
+ * `.first()` is the caller's call when two cards share a job. It arrives
+ * holding the job ({@link prefilledName}); cleared, it shows example names,
+ * led by the job when the field has room for it whole ("e.g. Executive
+ * assistant, Assistant 3, Jerry"), otherwise "e.g. Ava"; required.
  */
 export function teamCardNameField(page: Page, role: string): Locator {
   return page.getByRole("textbox", { name: `Name (${role})` });

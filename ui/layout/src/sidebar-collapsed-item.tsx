@@ -34,6 +34,7 @@ export function SidebarCollapsedItem({
       <HoverCardTrigger asChild>
         <button
           type="button"
+          {...(item.dataAttrs ?? {})}
           aria-label={item.name}
           onClick={() => onSelect(item.id)}
           className={cn(
@@ -59,11 +60,14 @@ export function SidebarCollapsedItem({
         className="w-56 p-1"
       >
         {/* The flyout is a transient hover surface: a menu anchored inside it
-            would close with it. The affordance stays on the expanded rail. */}
+            would close with it. The affordance stays on the expanded rail, and
+            the data attributes stay on the trigger, so an id matches once.
+            Nothing drags from it, so it wears no grab cursor. */}
         <SidebarItemRow
-          item={{ ...item, affordance: undefined }}
+          item={{ ...item, affordance: undefined, dataAttrs: undefined }}
           isActive={isActive}
           onSelect={onSelect}
+          draggable={false}
         />
       </HoverCardContent>
     </HoverCard>

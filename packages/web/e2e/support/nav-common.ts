@@ -23,10 +23,11 @@ export type NavRowId = "integrations" | "ai-hub" | "settings";
 /**
  * One top-level rail row — a destination that belongs to nobody.
  *
- * The rail is ONE unlabelled run — the AI Manager, AI Models, Integrations and
- * Skills, the destinations a user reaches for without being asked — over "Your
- * AI Employees", with the Academy and Settings in the footer. **The AI Manager, Skills
- * and the Academy are deliberately absent from this union**: none carries a
+ * The rail is ONE unlabelled run — AI Models, Integrations and Skills, the
+ * destinations a user reaches for without being asked — over "Your AI
+ * Employees", whose first row is the pinned AI Manager, with the Academy and
+ * Settings in the footer. **The AI Manager, Skills and the Academy are
+ * deliberately absent from this union**: none carries a
  * tour anchor, because a target the tour never spotlights is dead weight —
  * address the AI Manager and Skills by their own test ids (`settings-nav.ts`
  * `assistantRow` / `skillsRow`).
