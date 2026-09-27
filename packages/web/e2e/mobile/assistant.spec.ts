@@ -25,7 +25,9 @@ test("opens from the Agents list as a full-height chat with no nav bar under it"
   await expect(navBar(page)).toBeVisible();
 
   const chat = await openPhoneAssistant(page);
-  await expect(chat.getByText("Hi, I'm your AI Manager")).toBeVisible();
+  await expect(
+    chat.getByText("Hi, I'm Houston, your AI Manager"),
+  ).toBeVisible();
   await expect(navBar(page)).toHaveCount(0);
 
   // The composer is the last thing on the screen: nothing sits below it.
@@ -75,7 +77,9 @@ test("is first in Agents and absent from More", async ({ page }) => {
   await expect(
     menu.getByRole("button", { name: "Integrations" }),
   ).toBeVisible();
-  await expect(menu.getByRole("button", { name: "AI Manager" })).toHaveCount(0);
+  await expect(
+    menu.getByRole("button", { name: /Houston|AI Manager/ }),
+  ).toHaveCount(0);
 });
 
 test("the header's back chevron leaves for the Agents tab", async ({

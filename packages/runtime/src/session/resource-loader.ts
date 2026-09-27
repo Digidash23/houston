@@ -25,7 +25,7 @@ import {
  */
 export function systemPromptFor(codeExecution: CodeExecutionMode): string {
   return [
-    "You are Houston, a friendly AI assistant for a non-technical user.",
+    "You are a friendly AI assistant inside Houston, working for a non-technical user.",
     codeExecution === "disabled"
       ? "You can read and edit files in the user's working directory to help them. You cannot run shell commands or execute code; never claim that you can."
       : "You can read and edit files and run commands in the user's working directory to help them.",

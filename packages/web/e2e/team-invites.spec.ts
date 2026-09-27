@@ -193,9 +193,11 @@ test("a needs_upgrade rejection explains itself in a plain toast, keeping the in
 
   const message = page.getByText("This team needs an upgrade");
   await expect(message).toBeVisible();
-  // Informational, NOT the red bug toast: nothing is broken, so the branded
-  // "we have a problem" pair (and its auto-report) must not fire.
-  await expect(page.getByText("Houston, we have a problem!")).toHaveCount(0);
+  // Informational, NOT a red bug toast: nothing is broken, so the toast stack's
+  // `alert` channel stays empty.
+  await expect(
+    page.getByTestId("toast-container").getByRole("alert"),
+  ).toHaveCount(0);
   // The toast row itself carries no danger border (`variant:"info"`).
   await expect(message.locator("xpath=../..")).not.toHaveClass(/border-danger/);
 
@@ -220,7 +222,9 @@ test("an invite revoked behind the user's back disappears on the failed accept",
   await expect(
     page.getByText("This invitation is no longer available"),
   ).toBeVisible();
-  await expect(page.getByText("Houston, we have a problem!")).toHaveCount(0);
+  await expect(
+    page.getByTestId("toast-container").getByRole("alert"),
+  ).toHaveCount(0);
   // Both hooks invalidate the list on the FAILURE path too, so the stale card
   // goes even though nothing was joined.
   await expect(inboxOrNothing(page)).toHaveCount(0);

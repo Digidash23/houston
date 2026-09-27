@@ -92,7 +92,7 @@ describe("resolutionGuidance", () => {
   test("says a resolved parameter takes the id or the exact name", () => {
     const text = resolutionGuidance(op([WORKSPACE_ID, SLUG]));
     expect(text).toContain(
-      'Houston resolves "workspaceId" against what exists',
+      'The app resolves "workspaceId" against what exists',
     );
     expect(text).toContain("pass the id, or the exact name the user gave you");
     expect(text).toContain("refused with the ones that do");

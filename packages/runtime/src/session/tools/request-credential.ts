@@ -59,7 +59,7 @@ export function makeRequestCredentialTool(opts: RequestCredentialToolOptions) {
     name: REQUEST_CREDENTIAL_TOOL_NAME,
     label: "Ask the user for an API key securely",
     description:
-      "Ask the user to authenticate a custom integration. For a key-based integration Houston shows a secure entry card in place of the chat input (the secret never enters the conversation); for a sign-in (oauth) integration the same card shows a Sign in button that opens the service's own sign-in in their browser. Either way Houston automatically sends you a message once it is done so you can continue. NEVER ask the user to type a key or token into the chat.",
+      "Ask the user to authenticate a custom integration. For a key-based integration the app shows a secure entry card in place of the chat input (the secret never enters the conversation); for a sign-in (oauth) integration the same card shows a Sign in button that opens the service's own sign-in in their browser. Either way you automatically get a message once it is done so you can continue. NEVER ask the user to type a key or token into the chat.",
     promptSnippet: "Ask the user to enter a key or sign in via a secure card",
     parameters: CredentialParams,
     executionMode: "sequential",
@@ -80,7 +80,7 @@ export function makeRequestCredentialTool(opts: RequestCredentialToolOptions) {
       const target = await opts.status(toolkit, signal, context);
       if (!target) {
         throw new Error(
-          `No custom integration '${toolkit}' is set up, so Houston cannot show a secure entry card for it. Use the EXACT slug a custom_integration_add result returned. If this service was never added: when it exists in integration_search, connect it through the normal app connect flow instead; for a custom API or MCP server, run custom_integration_detect and custom_integration_add first, then call request_credential again.`,
+          `No custom integration '${toolkit}' is set up, so no secure entry card can be shown for it. Use the EXACT slug a custom_integration_add result returned. If this service was never added: when it exists in integration_search, connect it through the normal app connect flow instead; for a custom API or MCP server, run custom_integration_detect and custom_integration_add first, then call request_credential again.`,
         );
       }
       if (target.state.status === "error") {
@@ -98,7 +98,7 @@ export function makeRequestCredentialTool(opts: RequestCredentialToolOptions) {
         content: [
           {
             type: "text" as const,
-            text: "A secure key-entry step was added to the interaction card Houston shows the user in place of the chat input. Queue anything else this task needs in this same turn, then end your turn. Do not ask the user to confirm - Houston sends you a message automatically once the key is saved.",
+            text: "A secure key-entry step was added to the interaction card the user sees in place of the chat input. Queue anything else this task needs in this same turn, then end your turn. Do not ask the user to confirm - you get a message automatically once the key is saved.",
           },
         ],
         details: { toolkit },

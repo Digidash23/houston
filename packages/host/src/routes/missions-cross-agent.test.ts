@@ -697,6 +697,10 @@ test("a cross-pod start carries the depth it was counted at", async () => {
   );
   // Depth 2 is past the ceiling, so nothing leaves this pod at all.
   expect(r.status).toBe(409);
-  expect(r.body).toMatchObject({ code: "mission_depth" });
+  expect(r.body).toMatchObject({
+    code: "mission_depth",
+    error:
+      "a mission started by another mission can't start further missions - ask in the original chat instead",
+  });
   expect(calls.find((c) => c.url.includes("/missions/start"))).toBeUndefined();
 });

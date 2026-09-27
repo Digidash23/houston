@@ -13,6 +13,7 @@ import type { Agent, Workspace } from "@houston/wire-types";
 export const DEFAULT_WORKSPACE_ID = "default";
 export const DEFAULT_AGENT_ID = "default-agent";
 export const DEFAULT_AGENT_PATH = "houston:default-agent";
+export const DEFAULT_AGENT_NAME = "Nova";
 /**
  * A stored agent colour is a PALETTE ID, never a literal: `resolveAgentColor`
  * (`@houston-ai/core`) maps the id to the themed `--ht-agent-*` custom property
@@ -47,7 +48,7 @@ export function syntheticWorkspace(
 export function syntheticAgent(): Agent {
   return {
     id: DEFAULT_AGENT_ID,
-    name: "Houston",
+    name: DEFAULT_AGENT_NAME,
     folderPath: DEFAULT_AGENT_PATH,
     configId: DEFAULT_AGENT_CONFIG_ID,
     color: DEFAULT_AGENT_COLOR,

@@ -1,4 +1,4 @@
-import { FAKE_HOST_URL } from "@houston/fake-host";
+import { FAKE_HOST_URL, SEED_AGENT_NAME } from "@houston/fake-host";
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import { FOLLOW_UP_PLACEHOLDER } from "./support/composer";
 import { expect, test } from "./support/fixtures";
@@ -174,10 +174,10 @@ test("a shared chat gives every speaker a side, a face and a name", async ({
   );
   expect(peerLinkBg).toMatch(/\/ 0\.1\)$/);
 
-  // The agent's own turn: the Houston mark (an inline glyph) plus its name,
+  // The agent's own turn: its mark (an inline glyph) plus its name,
   // carrying the agent's own colour.
   const replied = row(page, REPLIED);
-  await expect(nameLine(replied)).toHaveText("Houston");
+  await expect(nameLine(replied)).toHaveText(SEED_AGENT_NAME);
   await expect(nameLine(replied)).toHaveClass(/text-agent-|text-ink/);
   await expect(mark(replied)).toBeVisible();
 
@@ -223,10 +223,10 @@ test("a solo chat in multiplayer shows no sender on any turn", async ({
   await expect(asked).toHaveClass(/is-user/);
   await expect(asked).not.toHaveClass(/is-peer/);
 
-  // The agent's reply renders bare — no mark, no "Houston" line above it.
+  // The agent's reply renders bare — no mark, no name line above it.
   const replied = row(page, REPLIED);
   await expect(replied).toBeVisible();
-  await expect(replied).not.toContainText("Houston");
+  await expect(replied).not.toContainText(SEED_AGENT_NAME);
   await expect(mark(replied)).toHaveCount(0);
 });
 

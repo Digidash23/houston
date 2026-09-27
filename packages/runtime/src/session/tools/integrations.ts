@@ -160,7 +160,7 @@ class ActionNotFoundError extends Error {
  * the exact place someone who manages the agent fixes it.
  */
 const NO_AGENT_ACCESS_GUIDANCE =
-  "The user does not have access to this agent, so its connected apps cannot be used for them. Tell the user plainly that someone who manages this agent needs to give them access to it in this agent's Settings, under People. Do not retry until they confirm they have access, do not call request_connection, and never imply Houston lacks the app or that something is broken.";
+  "The user does not have access to this agent, so its connected apps cannot be used for them. Tell the user plainly that someone who manages this agent needs to give them access to it in this agent's Settings, under People. Do not retry until they confirm they have access, do not call request_connection, and never imply the app they asked for is unsupported or that something is broken.";
 
 export interface IntegrationToolOptions {
   call: SandboxFetch;
@@ -173,7 +173,7 @@ export interface IntegrationToolOptions {
  * renders a one-click connect card in place of the chat input.
  */
 const REQUEST_CONNECTION_GUIDANCE =
-  "To let the user connect an app, call the request_connection tool with that app's toolkit (the slug shown in the results). Houston shows the user a one-click connect card in place of the chat input, then automatically sends you a message once the connection is live so you can continue - do not ask the user to confirm.";
+  "To let the user connect an app, call the request_connection tool with that app's toolkit (the slug shown in the results). The user gets a one-click connect card in place of the chat input, and you automatically get a message once the connection is live so you can continue - do not ask the user to confirm.";
 
 /**
  * Ceiling for one integration EXECUTE result. App APIs return unbounded
@@ -275,7 +275,7 @@ export function makeIntegrationTools(opts: IntegrationToolOptions) {
           reason: "Sign in to Houston to use your connected apps.",
         });
         throw new Error(
-          "The user is signed out of Houston, so connected apps can't act for them yet. A sign-in card has been queued in the interaction flow. Queue any request_connection you still need (it will follow the sign-in step), then end your turn. Do NOT tell the user to open Settings - Houston sends you a message automatically once they're signed in.",
+          "The user is signed out of Houston, so connected apps can't act for them yet. A sign-in card has been queued in the interaction flow. Queue any request_connection you still need (it will follow the sign-in step), then end your turn. Do NOT tell the user to open Settings - you get a message automatically once they're signed in.",
         );
       }
       if (code === "grant_expired") {
@@ -430,7 +430,7 @@ export function makeIntegrationTools(opts: IntegrationToolOptions) {
       const blocked = slugsWith("blocked");
       if (blocked.length > 0) {
         parts.push(
-          `These apps are turned off for this agent (${blocked.join(", ")}). Tell the user they can be switched on in this agent's Settings, under Apps (someone who manages the agent can do it; otherwise they should ask whoever does). Do NOT call request_connection for these, and never imply Houston lacks them.`,
+          `These apps are turned off for this agent (${blocked.join(", ")}). Tell the user they can be switched on in this agent's Settings, under Apps (someone who manages the agent can do it; otherwise they should ask whoever does). Do NOT call request_connection for these, and never imply they are unsupported.`,
         );
       }
       return {
@@ -501,7 +501,7 @@ export function makeIntegrationTools(opts: IntegrationToolOptions) {
             content: [
               {
                 type: "text" as const,
-                text: `This action's app is turned off for this agent, so it can't run. Tell the user it can be switched on in this agent's Settings, under Apps (someone who manages the agent can do it; otherwise they should ask whoever does). Do not retry this action until the user confirms it's enabled, and never imply Houston lacks the app.`,
+                text: `This action's app is turned off for this agent, so it can't run. Tell the user it can be switched on in this agent's Settings, under Apps (someone who manages the agent can do it; otherwise they should ask whoever does). Do not retry this action until the user confirms it's enabled, and never imply the app is unsupported.`,
               },
             ],
             details: { action, appTurnedOff: true },
@@ -574,7 +574,7 @@ export function makeRequestConnectionTool() {
     name: REQUEST_CONNECTION_TOOL_NAME,
     label: "Ask the user to connect an app",
     description:
-      "Ask the user to connect one of their apps (Gmail, Slack, Notion, and many more) when an action needs it. This adds a connect step to the one interaction card Houston shows in place of the chat input; queue any questions you also need (via ask_user) in the SAME turn, then end your turn. Never spell out the app's slug or a link in your reply - Houston sends you a message automatically once the connection is live.",
+      "Ask the user to connect one of their apps (Gmail, Slack, Notion, and many more) when an action needs it. This adds a connect step to the one interaction card the user sees in place of the chat input; queue any questions you also need (via ask_user) in the SAME turn, then end your turn. Never spell out the app's slug or a link in your reply - you get a message automatically once the connection is live.",
     promptSnippet: "Ask the user to connect an app so an action can run",
     parameters: ConnectParams,
     executionMode: "sequential",
@@ -594,7 +594,7 @@ export function makeRequestConnectionTool() {
         content: [
           {
             type: "text" as const,
-            text: "This app was added as a connect step to the one interaction card Houston shows the user in place of the chat input. Queue everything else this task needs now (call ask_user for any questions in this same turn), then end your turn. Do not spell out the app's slug or any link in your reply, and do not ask the user to confirm - Houston sends you a message automatically once the connection is live.",
+            text: "This app was added as a connect step to the one interaction card the user sees in place of the chat input. Queue everything else this task needs now (call ask_user for any questions in this same turn), then end your turn. Do not spell out the app's slug or any link in your reply, and do not ask the user to confirm - you get a message automatically once the connection is live.",
           },
         ],
         details: { toolkit },

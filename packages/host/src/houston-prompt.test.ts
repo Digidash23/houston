@@ -315,3 +315,39 @@ test("the prompt keeps task work in the workspace, never /tmp, in BOTH mirrors (
     expect(rs).toContain(needle);
   }
 });
+
+test("every agent learns the AI Manager is Houston, in BOTH mirrors", () => {
+  // The manager's display name is Houston, and every agent (employees and the
+  // manager alike) gets this prompt: employees must resolve "Houston" to the
+  // manager without ever claiming the name, and the app's own actions are
+  // never voiced as "Houston" doing something.
+  const rust = ["base.rs", "integrations.rs", "routines.rs", "skills_memory.rs"]
+    .map((file) =>
+      readFileSync(
+        fileURLToPath(
+          new URL(
+            `../../../app/src-tauri/src/houston_prompt/${file}`,
+            import.meta.url,
+          ),
+        ),
+        "utf8",
+      ),
+    )
+    .join("\n");
+  const ts = norm(houstonSystemPrompt({ triggers: true }));
+  const rs = norm(rust);
+  for (const phrase of [
+    "The user's AI Manager is named Houston: it runs their team of AI Employees.",
+    'When the user says "Houston", they may mean the app or their AI Manager.',
+    "unless your instructions say you are the AI Manager, never introduce yourself as Houston.",
+  ]) {
+    const needle = norm(phrase);
+    expect(ts).toContain(needle);
+    expect(rs).toContain(needle);
+  }
+  // norm() strips whitespace, so an actor phrase reads "Houstonshows".
+  for (const prompt of [ts, rs])
+    expect(prompt).not.toMatch(
+      /Houston(shows|detects|combines|messages|records|attaches|asks|runs|reports|says)/,
+    );
+});

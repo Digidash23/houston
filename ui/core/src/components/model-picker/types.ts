@@ -72,9 +72,9 @@ export const DEFAULT_MODEL_PICKER_LABELS: ModelPickerLabels = {
   modelsLabel: "Models",
   loading: "Loading AIs…",
   empty: "No models found.",
-  noProviders: "Connect an AI to chat with Houston",
+  noProviders: "Connect an AI to start chatting",
   noProvidersHint:
-    "Houston answers using an AI like Claude or ChatGPT. Connect one to get started.",
+    "Answers come from an AI like Claude or ChatGPT. Connect one to get started.",
   noProvidersAction: "Connect AI",
 };
 

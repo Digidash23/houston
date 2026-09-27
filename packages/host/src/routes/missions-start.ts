@@ -4,6 +4,7 @@ import { json, readJson } from "./http";
 import { MAX_AGENT_STARTED_MISSIONS, missionFanout } from "./mission-fanout";
 import {
   MAX_MISSION_DEPTH,
+  MISSION_DEPTH_ERROR,
   type MissionOrigin,
   parseMissionStart,
 } from "./missions-remote";
@@ -64,8 +65,7 @@ export async function handleMissionStart(
   const depth = parent?.origin_session_key ? (parent.origin_depth ?? 1) + 1 : 1;
   if (depth > MAX_MISSION_DEPTH) {
     return json(res, 409, {
-      error:
-        "missions Houston started can't start further missions - ask in the original chat instead",
+      error: MISSION_DEPTH_ERROR,
       code: "mission_depth",
     });
   }

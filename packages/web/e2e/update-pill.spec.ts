@@ -112,9 +112,7 @@ test("a failed install offers the retry with the failure as its description", as
   });
   await expect(retry).toBeVisible();
   await expect(retry).toBeEnabled();
-  await expect(retry).toHaveAccessibleDescription(
-    /couldn't install the update/,
-  );
+  await expect(retry).toHaveAccessibleDescription(/couldn't be installed/);
 });
 
 test("the collapsed footer keeps an icon-only restart with its label and description", async ({

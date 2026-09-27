@@ -1,3 +1,4 @@
+import { SEED_AGENT_NAME } from "@houston/fake-host";
 import type { Page } from "@playwright/test";
 import { expect, test } from "../support/fixtures";
 import { awaitAgentsHome } from "../support/mobile-nav";
@@ -45,7 +46,7 @@ for (const section of ["routines", "files"] as const) {
     // The chip names where it goes: this employee's own task list.
     await expect(page.getByTestId("agent-mobile-back")).toHaveAttribute(
       "aria-label",
-      "Houston",
+      SEED_AGENT_NAME,
     );
     await page.getByTestId("agent-mobile-back").tap();
     await expect(page.getByTestId("agent-missions-screen")).toBeVisible();

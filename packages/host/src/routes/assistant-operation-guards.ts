@@ -30,7 +30,7 @@ export function refusedUnserved(
 ): boolean {
   if (!ctx.unserved.has(operation)) return false;
   json(res, 400, {
-    error: `"${operation}" is not something this Houston can do. Tell the user plainly that it is unavailable here, and do not retry it.`,
+    error: `"${operation}" is not something this app can do. Tell the user plainly that it is unavailable here, and do not retry it.`,
     code: ASSISTANT_UNAVAILABLE_HERE,
   });
   return true;

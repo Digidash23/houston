@@ -188,6 +188,15 @@ describe("what the model and the approver read", () => {
     expect(JSON.stringify(live.catalog)).not.toContain("—");
   });
 
+  it("never names Houston in what the agent reads", () => {
+    // The manager is told "You are Houston", so any "Houston" in an operation
+    // it can see reads as the manager itself acting or owning the thing.
+    const naming = visible
+      .filter((op) => JSON.stringify(op).includes("Houston"))
+      .map((op) => op.name);
+    expect(naming).toEqual([]);
+  });
+
   it("renders every operation's method, policy and parameter resolution", () => {
     const doc = renderOperations(live.catalog);
     expect(doc).toContain(

@@ -1,23 +1,24 @@
 {
   "import": {
     "eyebrow": "De um amigo",
-    "flagged": "Houston marcou este para você dar uma olhada.",
+    "flagged": "Marcado para uma olhada mais atenta.",
     "step1": {
       "title": "Traga um funcionário de IA que alguém compartilhou",
-      "body": "Abra um arquivo que te enviaram, ou cole um link de compartilhamento. Houston lê e mostra o que tem dentro antes de instalar qualquer coisa.",
+      "body": "Abra um arquivo que te enviaram, ou cole um link de compartilhamento. Nós lemos e mostramos o que tem dentro antes de instalar qualquer coisa.",
       "pickFile": "Escolher arquivo",
       "uploadedFrom": "Compartilhado por {{name}}",
       "anonymous": "seu amigo",
       "counts": "{{skills}} skills, {{routines}} rotinas, {{learnings}} aprendizados",
       "anonymizedFlag": "Anonimizado antes do compartilhamento.",
-      "scanChoiceLabel": "Quer que o Houston dê uma olhada?",
+      "scanChoiceLabel": "Quer uma checagem rápida de segurança antes?",
       "scanYesTitle": "Sim, revisar primeiro",
-      "scanYesBody": "Houston procura riscos óbvios. Não é garantia, é uma leitura atenta.",
+      "scanYesBody": "Procuramos riscos óbvios. Não é garantia, é uma leitura atenta.",
       "scanNoTitle": "Não, confio",
       "scanNoBody": "Pular a revisão e continuar.",
       "scanning": "Revisando o pacote.",
-      "scanClean": "Houston não marcou nada.",
-      "scanFlagged": "Houston marcou {{count}} item(ns). Revise enquanto continua."
+      "scanClean": "Nada foi marcado.",
+      "scanFlagged": "{{count}} item(ns) marcado(s). Revise enquanto continua.",
+      "scanDisclaimer": "Este pacote foi revisado automaticamente. A revisão pode ter deixado passar algo. Abra qualquer coisa que pareça estranha antes de instalar."
     },
     "step2": {
       "title": "Dê um nome ao funcionário de IA",

@@ -36,7 +36,7 @@ test("first run opens the manager's chat in the shell, and connecting comes firs
   // The hello, one message per line: signed out, there is no name to greet.
   for (const line of [
     "Hi there!",
-    "I'm your AI Manager. I build and run your team of AI Employees.",
+    "I'm Houston, your AI Manager. I build and run your team of AI Employees.",
     "Each AI Employee owns one job. They do real work in your tools on their own, and report back when it's done.",
     "You tell me what you need, and I make sure the right AI Employee is on it.",
     "First, let's connect the AI that powers your team.",

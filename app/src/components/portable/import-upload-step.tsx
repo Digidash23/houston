@@ -94,7 +94,9 @@ export function ImportUploadStep({
                   ? t("import.step1.scanClean")
                   : t("import.step1.scanFlagged", { count: scan.items.length })}
               </p>
-              <p className="mt-1 text-xs text-ink-muted">{scan.disclaimer}</p>
+              <p className="mt-1 text-xs text-ink-muted">
+                {t("import.step1.scanDisclaimer")}
+              </p>
             </div>
           )}
         </section>

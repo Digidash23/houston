@@ -1,4 +1,8 @@
-import { FAKE_HOST_URL, SEED_AGENT_ID } from "@houston/fake-host";
+import {
+  FAKE_HOST_URL,
+  SEED_AGENT_ID,
+  SEED_AGENT_NAME,
+} from "@houston/fake-host";
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
 import { readSidebarLayout, seedSidebarLayout } from "./support/sidebar-layout";
@@ -14,7 +18,7 @@ test("root employees align with folder headers", async ({ page }) => {
   await page.goto("/");
   const rail = page.locator("[data-tour-target='agents']");
   await expect(rail.locator("[data-sidebar-item]").first()).toContainText(
-    "Houston",
+    SEED_AGENT_NAME,
   );
   await expect(
     rail.locator('[data-sidebar-group-header="empty"]'),
@@ -316,7 +320,7 @@ test("Alt+ArrowDown moves a root employee past a folder", async ({ page }) => {
   });
   await page.goto("/");
   const employee = page.locator(
-    `[data-sidebar-item][data-item-id="${SEED_AGENT_ID}"] button[title="Houston"]`,
+    `[data-sidebar-item][data-item-id="${SEED_AGENT_ID}"] button[title="${SEED_AGENT_NAME}"]`,
   );
   await employee.focus();
   await employee.press("Alt+ArrowDown");

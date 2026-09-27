@@ -1,4 +1,8 @@
-import { FAKE_HOST_URL, SEED_AGENT_ID } from "@houston/fake-host";
+import {
+  FAKE_HOST_URL,
+  SEED_AGENT_ID,
+  SEED_AGENT_NAME,
+} from "@houston/fake-host";
 import { expect, test } from "../support/fixtures";
 import { seedSidebarLayout } from "../support/sidebar-layout";
 
@@ -18,7 +22,7 @@ test("an agent in no folder remains in the phone AI Employees list", async ({
       .locator('svg[viewBox="0 0 412.248 448.898"]'),
   ).toHaveCount(1);
   await expect(page.locator('[data-screen-active="true"]')).toContainText(
-    "Houston",
+    SEED_AGENT_NAME,
   );
 });
 

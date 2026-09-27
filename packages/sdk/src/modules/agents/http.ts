@@ -53,7 +53,7 @@ export async function listAgents(scope: HttpScope): Promise<WireAgent[]> {
 }
 
 /**
- * Creates a new agent. Always choose a `color` for it, one of Houston's ten
+ * Creates a new agent. Always choose a `color` for it, one of the app's ten
  * palette colors: charcoal, forest, teal, navy, purple, rose, crimson, orange,
  * golden, or umber. It is how the new agent is told apart at a glance, and
  * leaving it out gives every agent the same default color.
@@ -62,7 +62,7 @@ export async function listAgents(scope: HttpScope): Promise<WireAgent[]> {
  * `{ name }` and a seeded one posts the fields it was given, in this order.
  *
  * @param name What to call the new agent, in the user's own words.
- * @param color One of Houston's ten palette colours: charcoal, forest,
+ * @param color One of the app's ten palette colours: charcoal, forest,
  *   teal, navy, purple, rose, crimson, orange, golden or umber.
  * @param seed Optional starting files for the new agent. Omit it for a
  *   blank one. A new hire's seeds carry `.houston/config/config.json` holding

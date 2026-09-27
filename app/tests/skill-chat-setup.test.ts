@@ -462,7 +462,7 @@ describe("skill chat setup message", () => {
     );
     const marker = withFile.split("\n")[0] ?? "";
     ok(marker.startsWith("<!--houston:attachments"));
-    ok(!marker.includes("Houston context"));
+    ok(!marker.includes("App context"));
     ok(withFile.includes(ctx));
   });
 

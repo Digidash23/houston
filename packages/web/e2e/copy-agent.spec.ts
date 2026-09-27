@@ -1,4 +1,4 @@
-import { FAKE_HOST_URL } from "@houston/fake-host";
+import { FAKE_HOST_URL, SEED_AGENT_NAME } from "@houston/fake-host";
 import {
   COPY_SOURCE,
   createDialog,
@@ -34,7 +34,9 @@ test("copies an agent, leaving chosen items behind and bringing the chats", asyn
   // The seeded agent is the one source; picking it reads its content and
   // moves on to the first content screen by itself.
   const dialog = createDialog(page);
-  await dialog.getByRole("button", { name: "Houston", exact: true }).click();
+  await dialog
+    .getByRole("button", { name: SEED_AGENT_NAME, exact: true })
+    .click();
   await expect(
     dialog.getByRole("heading", { name: "What should the copy know?" }),
   ).toBeVisible();
@@ -70,14 +72,14 @@ test("copies an agent, leaving chosen items behind and bringing the chats", asyn
 
   // The naming screen is the create dialog's own, pre-filled with the first
   // free "<name> copy" and headed by the source.
-  await expect(dialog.getByText("Based on Houston")).toBeVisible();
+  await expect(dialog.getByText(`Based on ${SEED_AGENT_NAME}`)).toBeVisible();
   const nameField = dialog.getByPlaceholder(/^e\.g\. /);
-  await expect(nameField).toHaveValue("Houston copy");
+  await expect(nameField).toHaveValue(`${SEED_AGENT_NAME} copy`);
   await dialog.getByRole("button", { name: "Create AI Employee" }).click();
 
   // The copy lands in the rail and the dialog is gone.
   await expect(
-    rail(page).getByText("Houston copy", { exact: true }),
+    rail(page).getByText(`${SEED_AGENT_NAME} copy`, { exact: true }),
   ).toBeVisible();
   await expect(dialog).toBeHidden();
 
@@ -103,7 +105,7 @@ test("copies an agent, leaving chosen items behind and bringing the chats", asyn
     id: string;
     name: string;
   }[];
-  const copy = agents.find((a) => a.name === "Houston copy");
+  const copy = agents.find((a) => a.name === `${SEED_AGENT_NAME} copy`);
   expect(copy).toBeTruthy();
   const rows = (await (
     await request.get(`${FAKE_HOST_URL}/agents/${copy?.id}/activities`)
@@ -136,22 +138,24 @@ test("a bare source skips the list screens; chats stay behind by default", async
   ).toBeVisible();
 
   await openCopyWizard(page);
-  await dialog.getByRole("button", { name: "Houston", exact: true }).click();
+  await dialog
+    .getByRole("button", { name: SEED_AGENT_NAME, exact: true })
+    .click();
   // The seed's Memory tab has learnings, so the first content screen shows;
   // no job description, no routines, no skills.
   await expect(
     dialog.getByRole("heading", { name: "What should the copy know?" }),
   ).toBeVisible();
   await expect(
-    dialog.getByText("Houston has no job description yet."),
+    dialog.getByText(`${SEED_AGENT_NAME} has no job description yet.`),
   ).toBeVisible();
   await expect(rowSwitch(page, "Conversations")).not.toBeChecked();
   await next(page);
-  await expect(dialog.getByText("Based on Houston")).toBeVisible();
+  await expect(dialog.getByText(`Based on ${SEED_AGENT_NAME}`)).toBeVisible();
   await dialog.getByRole("button", { name: "Create AI Employee" }).click();
   await expect(dialog).toBeHidden();
   await expect(
-    rail(page).getByText("Houston copy", { exact: true }),
+    rail(page).getByText(`${SEED_AGENT_NAME} copy`, { exact: true }),
   ).toBeVisible();
   await expect(screen(page).getByText("Plan a trip to Tokyo")).toHaveCount(0);
 });

@@ -152,9 +152,9 @@
     "creditsLeft": "{{amount}} left",
     "tokensUsed": "{{amount}} tokens used",
     "tokensSplit": "{{input}} in, {{output}} out",
-    "meteredSince": "measured by Houston since {{when}}",
+    "meteredSince": "measured since {{when}}",
     "noData": "This account reports no limits right now.",
-    "notMeteredYet": "No usage yet. Houston will start measuring with your next message.",
+    "notMeteredYet": "No usage yet. Measuring starts with your next message.",
     "reconnect": "Sign in again to see this account's usage.",
     "error": "Couldn't load usage right now. Try again in a moment.",
     "staleReading": "Couldn't refresh usage. Showing the reading from {{when}}."

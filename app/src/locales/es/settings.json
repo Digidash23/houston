@@ -13,7 +13,7 @@
     "failedTitle": "No pudimos cargar tu configuración",
     "failedBody": "Tu espacio no llegó. Revisa tu conexión e inténtalo de nuevo.",
     "emptyTitle": "No hay ningún espacio disponible",
-    "emptyBody": "Houston no encontró un espacio para tu cuenta. Inténtalo de nuevo o reinicia la aplicación.",
+    "emptyBody": "No encontramos un espacio para tu cuenta. Inténtalo de nuevo o reinicia la aplicación.",
     "retry": "Reintentar"
   },
   "account": {
@@ -24,7 +24,7 @@
     "subtitle": "Así te ven tus compañeros en Houston.",
     "photo": {
       "label": "Foto",
-      "hint": "Las imágenes cuadradas se ven mejor. Houston la achica por ti.",
+      "hint": "Las imágenes cuadradas se ven mejor. Ajustamos el tamaño por ti.",
       "change": "Cambiar foto",
       "changing": "Trabajando en eso…",
       "remove": "Quitar foto"
@@ -112,7 +112,7 @@
     "dialogClose": "Cerrar",
     "errors": {
       "teamMember": "Todavía formas parte de un equipo. Sal de tus equipos, o pásaselos a otra persona, y vuelve a intentarlo.",
-      "network": "No pudimos conectar con Houston. Revisa tu conexión y vuelve a intentarlo.",
+      "network": "No pudimos conectarnos. Revisa tu conexión y vuelve a intentarlo.",
       "generic": "Algo salió mal y tu cuenta no fue eliminada. Vuelve a intentarlo."
     }
   },
@@ -206,10 +206,10 @@
   },
   "channels": {
     "title": "Canales",
-    "navDescription": "Habla con tu asistente desde Slack",
-    "intro": "Tu asistente personal, donde prefieras hablar. Continúa la misma conversación en Houston y Slack.",
+    "navDescription": "Habla con Houston desde Slack",
+    "intro": "Habla con Houston donde estés. Continúa la misma conversación en la app y en Slack.",
     "space": "Espacio de Houston: {{name}}",
-    "empty": "Conecta Slack para enviar mensajes directos a tu asistente.",
+    "empty": "Conecta Slack para enviarle mensajes directos a Houston.",
     "connected": "Conectado",
     "connect": "Conectar Slack",
     "connecting": "Abriendo Slack…",
@@ -229,7 +229,7 @@
     "linkExpired": "Este código venció. Obtén uno nuevo para conectar.",
     "disconnect": "Desconectar",
     "disconnectTitle": "¿Desconectar Slack?",
-    "disconnectDescription": "{{name}} dejará de recibir respuestas del asistente en Slack. Tu conversación se conserva en Houston.",
+    "disconnectDescription": "{{name}} dejará de recibir respuestas de Houston en Slack. Tu conversación se conserva en la app.",
     "cancel": "Cancelar",
     "refresh": "Actualizar conexiones",
     "notConfigured": "Las conexiones de Slack aún no están listas para este espacio de Houston. Pídele a tu administrador de Houston que termine de configurar Slack y actualiza.",

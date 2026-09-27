@@ -156,5 +156,5 @@ test("recording outside a turn is a no-op but still returns the instruction", as
     rationale: "No turn around it.",
   });
   const text = (out.content[0] as { text: string }).text;
-  expect(text).toMatch(/Houston will show/i);
+  expect(text).toMatch(/The app will show/i);
 });

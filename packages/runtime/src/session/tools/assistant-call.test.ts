@@ -329,7 +329,7 @@ test("an operation this Houston cannot perform is refused, unsent", async () => 
     params: { agentPath: "Work/Ada" },
   });
   expect(errorCode(result)).toBe("operation_unavailable_here");
-  expect(text(result)).toContain("not available in this Houston");
+  expect(text(result)).toContain("is not available here");
   expect(calls).toHaveLength(0);
 });
 
@@ -355,7 +355,7 @@ test("the host's own refusal reaches the model with its sentence intact", async 
   mockFetch(() => ({
     status: 400,
     body: {
-      error: '"getOrg" is not something this Houston can do.',
+      error: '"getOrg" is not something this app can do.',
       code: "operation_unavailable_here",
     },
   }));
@@ -364,5 +364,5 @@ test("the host's own refusal reaches the model with its sentence intact", async 
     params: { agentPath: "Work/Ada" },
   });
   expect(errorCode(result)).toBe("operation_unavailable_here");
-  expect(text(result)).toContain("is not something this Houston can do");
+  expect(text(result)).toContain("is not something this app can do");
 });

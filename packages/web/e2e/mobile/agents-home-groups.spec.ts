@@ -1,4 +1,4 @@
-import { SEED_AGENT_ID } from "@houston/fake-host";
+import { SEED_AGENT_ID, SEED_AGENT_NAME } from "@houston/fake-host";
 import type { Page } from "@playwright/test";
 import { expect, test } from "../support/fixtures";
 import { createSheet, teamNameField } from "../support/sidebar-create";
@@ -93,7 +93,7 @@ test("deleting the picked group returns the filter to All groups", async ({
   await confirm.getByRole("button", { name: "Delete group" }).tap();
   await expect(filter(page)).toContainText("All groups");
   await expect(screen(page).getByTestId("team-folder-menu")).toHaveCount(0);
-  await expect(screen(page)).toContainText("Houston");
+  await expect(screen(page)).toContainText(SEED_AGENT_NAME);
   await expect
     .poll(async () =>
       (await readSidebarLayout(page.request)).groups.map((g) => g.id),

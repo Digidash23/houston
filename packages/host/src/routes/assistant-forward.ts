@@ -91,7 +91,7 @@ export async function forwardAssistantCall(
   } catch (err) {
     console.error(`[assistant] ${operation} could not reach the gateway`, err);
     json(res, 502, {
-      error: `could not reach Houston to perform "${operation}"`,
+      error: `could not reach the app to perform "${operation}"`,
       code: "gateway_unreachable",
     });
     return;
@@ -119,7 +119,7 @@ export async function forwardAssistantCall(
         `[assistant] ${operation} answered non-JSON on ${upstream.status}: ${text.slice(0, 300)}`,
       );
       json(res, 502, {
-        error: `Houston answered something unreadable for "${operation}"`,
+        error: `the app answered something unreadable for "${operation}"`,
         code: "gateway_error",
       });
       return;

@@ -22,7 +22,7 @@ Every operation the assistant cannot drive states why in its `@assistant` tag, a
 
 - `applyAgentColor` - hidden: client-side branching; its only request is the list refetch, so use updateAgentColor to write a color.
 - `createAgent` - unschematized: the seed's seeds map is an open record of file path to contents.
-- `generateAgentInstructions` - hidden: a one-shot generation turn on a runtime, not a Houston operation; an assistant writes the instructions itself and saves them with writeAgentFile.
+- `generateAgentInstructions` - hidden: a one-shot generation turn on a runtime, not an app operation; an assistant writes the instructions itself and saves them with writeAgentFile.
 - `listInstalledConfigs` - unschematized: an installed template carries its raw config document, whose shape is the template's own.
 - `updateAgentColor` - unconfirmed: Reversible display preference; changes no agent behavior or access.
 - `createApiKey` - hidden: returns a secret; the full key is revealed once and must not pass through a chat turn.
@@ -139,18 +139,18 @@ Each one ends the agent's turn and asks the user before it runs, and states what
 - `createCheckout`: money. It starts a real subscription, and the card it charges is the user's own.
 - `createPlusCheckout`: money. This starts a paid personal subscription.
 - `disconnectChannel`: outward. It cuts the person's Slack workspace off from their assistant, and every conversation they were having there stops being answered.
-- `conversations.delete`: irreversible. The chat and everything said in it are gone, and Houston keeps no copy.
-- `deleteFile`: irreversible. The file leaves the workspace and Houston keeps no copy to put back.
+- `conversations.delete`: irreversible. The chat and everything said in it are gone, and no copy is kept.
+- `deleteFile`: irreversible. The file leaves the workspace and no copy is kept to put back.
 - `writeAgentFile`: irreversible. It replaces the whole file, and what the user had written there is not kept.
-- `addAgentCustomIntegration`: outward. Houston starts calling an address the user supplied on this agent's behalf, with whatever credential is attached to it.
-- `addCustomIntegration`: outward. Houston starts calling an address the user supplied on their behalf, with whatever credential is attached to it.
-- `detectAgentCustomIntegration`: outward. Houston fetches whatever URL it is handed, so a model-supplied address makes this agent's own network reach a stranger's host.
-- `detectCustomIntegration`: outward. Houston fetches whatever URL it is handed, so a model-supplied address makes Houston's own network reach a stranger's host.
+- `addAgentCustomIntegration`: outward. This agent starts calling an address the user supplied, with whatever credential is attached to it.
+- `addCustomIntegration`: outward. Calls start going to an address the user supplied, on their behalf, with whatever credential is attached to it.
+- `detectAgentCustomIntegration`: outward. Whatever URL it is handed gets fetched, so a model-supplied address makes this agent's own network reach a stranger's host.
+- `detectCustomIntegration`: outward. Whatever URL it is handed gets fetched, so a model-supplied address makes this deployment's own network reach a stranger's host.
 - `integrations.disconnect`: irreversible. Every account the user connected for that app is removed, and reconnecting means signing in to it again.
 - `removeAgentCustomIntegration`: irreversible. The agent loses that app, and setting it up again means pasting its address and credential from scratch.
 - `removeCustomIntegration`: irreversible. Every agent loses that app, and setting it up again means pasting its address and credential from scratch.
-- `submitAgentCustomIntegrationCredential`: outward. It hands a secret to a third-party service Houston then acts against on this agent's behalf.
-- `submitCustomIntegrationCredential`: outward. It hands a secret to a third-party service Houston then acts against on the user's behalf, from every agent that app is on.
+- `submitAgentCustomIntegrationCredential`: outward. It hands a secret to a third-party service this agent then acts against.
+- `submitCustomIntegrationCredential`: outward. It hands a secret to a third-party service that every agent the app is on then acts against, on the user's behalf.
 - `deleteActivity`: irreversible. The mission leaves the board and everything recorded on it goes with it.
 - `updateActivity`: irreversible. It overwrites a mission's fields in place, and no earlier version is kept.
 - `addOrgMember`: outward. It invites a real person into the space, where they can see and drive the agents in it.
@@ -169,12 +169,12 @@ Each one ends the agent's turn and asks the user before it runs, and states what
 - `updateRoutine`: money. A schedule edit retargets recurring spend, changing how often the agent runs and is billed from then on.
 - `setContext`: outward. These notes ride every later conversation with every agent, and the text they replace is not kept.
 - `createSkill`: standing instruction. Once the skill exists the agent follows it in every later turn, changing behavior the user never asked for again.
-- `deleteSharedSkill`: irreversible. The skill disappears for everyone in the workspace and Houston keeps no copy.
-- `deleteSkill`: irreversible. The skill's instructions are gone and Houston keeps no copy, so what the user wrote cannot be recovered.
+- `deleteSharedSkill`: irreversible. The skill disappears for everyone in the workspace and no copy is kept.
+- `deleteSkill`: irreversible. The skill's instructions are gone and no copy is kept, so what the user wrote cannot be recovered.
 - `promoteSharedSkill`: outward. It publishes the skill to everyone in the workspace, and a shared skill already under that name is refused rather than replaced.
 - `putSkillsManifest`: outward. It replaces the whole list, so every skill left out of it is switched off in the same call.
 - `saveSharedSkill`: irreversible. It replaces the shared skill's text for everyone at once, and no earlier version is kept.
-- `saveSkill`: irreversible. It overwrites the skill's text in place and Houston keeps no earlier copy, so what the user wrote cannot be recovered.
+- `saveSkill`: irreversible. It overwrites the skill's text in place and no earlier copy is kept, so what the user wrote cannot be recovered.
 - `acceptOrgInvite`: outward. Accepting joins a shared space under the user's own name, and everyone already in it sees them arrive.
 - `createOrg`: money. A space carries its own subscription, so a repeat leaves a second billable space standing.
 - `declineOrgInvite`: irreversible. A declined invitation stops working, and only whoever sent it can issue another.

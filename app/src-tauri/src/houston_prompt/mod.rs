@@ -71,9 +71,9 @@ mod tests {
         assert!(prompt.contains("switched on in this agent's Settings, under Apps"));
         assert!(!prompt.contains("their admin needs to enable"));
         // …the sign-in card joins the same flow, and app powers are never
-        // claimed unavailable unless Houston says they are not set up…
+        // claimed unavailable unless a tool result says they are not set up…
         assert!(prompt.contains("a sign-in card joins"));
-        assert!(prompt.contains("not set up in this install"));
+        assert!(prompt.contains("unless a tool result says they are not set up in this install"));
         // …the markdown-link connect hack is gone…
         assert!(!prompt.contains("houston_toolkit"));
         assert!(!prompt.contains("markdown link"));

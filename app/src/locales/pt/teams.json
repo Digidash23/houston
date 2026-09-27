@@ -347,7 +347,7 @@
   },
   "moveResume": {
     "done": "{{agent}} terminou de ser movido para {{team}}.",
-    "failed": "{{agent}} não conseguiu terminar de ser movido para {{team}}. O Houston vai tentar de novo na próxima vez que abrir."
+    "failed": "{{agent}} não conseguiu terminar de ser movido para {{team}}. Vamos tentar de novo na próxima vez que o app abrir."
   },
   "moveTeam": {
     "title": "Mover {{team}} para outro espaço",
@@ -383,7 +383,7 @@
   },
   "moveTeamResume": {
     "done": "{{team}} terminou de ser movido para o novo espaço.",
-    "failed": "{{team}} não conseguiu terminar de ser movido. O Houston vai tentar novamente na próxima vez que abrir."
+    "failed": "{{team}} não conseguiu terminar de ser movido. Vamos tentar de novo na próxima vez que o app abrir."
   },
   "billing": {
     "unavailable": "Não foi possível carregar a cobrança desta equipe.",

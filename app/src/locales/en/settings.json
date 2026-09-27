@@ -13,7 +13,7 @@
     "failedTitle": "We couldn't load your settings",
     "failedBody": "Your workspace didn't come through. Check your connection and try again.",
     "emptyTitle": "No workspace available",
-    "emptyBody": "Houston could not find a workspace for your account. Try again or restart the app.",
+    "emptyBody": "We couldn't find a workspace for your account. Try again or restart the app.",
     "retry": "Try again"
   },
   "account": {
@@ -24,7 +24,7 @@
     "subtitle": "How teammates see you across Houston.",
     "photo": {
       "label": "Picture",
-      "hint": "Square images look best. Houston shrinks it for you.",
+      "hint": "Square images look best. We resize it for you.",
       "change": "Change picture",
       "changing": "Working on it…",
       "remove": "Remove picture"
@@ -112,7 +112,7 @@
     "dialogClose": "Close",
     "errors": {
       "teamMember": "You are still part of a team. Leave your teams, or hand them to someone else, then try again.",
-      "network": "We couldn't reach Houston. Check your connection and try again.",
+      "network": "We couldn't connect. Check your connection and try again.",
       "generic": "Something went wrong and your account was not deleted. Please try again."
     }
   },
@@ -206,10 +206,10 @@
   },
   "channels": {
     "title": "Channels",
-    "navDescription": "Talk to your assistant from Slack",
-    "intro": "Your personal assistant, wherever you talk. Continue the same conversation in Houston and Slack.",
+    "navDescription": "Talk to Houston from Slack",
+    "intro": "Talk to Houston wherever you are. Continue the same conversation in the app and in Slack.",
     "space": "Houston space: {{name}}",
-    "empty": "Connect Slack to message your assistant directly.",
+    "empty": "Connect Slack to message Houston directly.",
     "connected": "Connected",
     "connect": "Connect Slack",
     "connecting": "Opening Slack…",
@@ -229,7 +229,7 @@
     "linkExpired": "This code has expired. Get a new code to connect.",
     "disconnect": "Disconnect",
     "disconnectTitle": "Disconnect Slack?",
-    "disconnectDescription": "{{name}} will stop receiving assistant replies in Slack. Your conversation stays in Houston.",
+    "disconnectDescription": "{{name}} will stop getting replies from Houston in Slack. Your conversation stays in the app.",
     "cancel": "Cancel",
     "refresh": "Refresh connections",
     "notConfigured": "Slack connections are not ready for this Houston space. Ask your Houston administrator to finish setting up Slack, then refresh.",

@@ -22,7 +22,7 @@ import { type HttpScope, httpRequest } from "../http";
 type ProviderRow = Omit<ProviderInfo, "id"> & { id: string };
 
 /**
- * Lists the AI providers Houston can use, with which ones are connected.
+ * Lists the AI providers available here, with which ones are connected.
  *
  * One row per provider: the id everything else takes (`openai-codex`), the name
  * the user knows it by ("ChatGPT / Codex (Plus / Pro)"), whether it is

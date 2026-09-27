@@ -32,7 +32,7 @@
   },
   "language": {
     "title": "Idioma",
-    "description": "Elige el idioma que Houston usa para este espacio de trabajo.",
+    "description": "Elige el idioma que usa la app en este espacio de trabajo.",
     "label": "Idioma de la interfaz",
     "toastChanged": "Idioma cambiado"
   },

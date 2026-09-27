@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { ASSISTANT_AGENT_NAME } from "@houston/host/src/routes/assistant";
 import { expect, test, vi } from "vitest";
+import { RULES_HEADING } from "./assistant-rules-context";
 import { learningsDocPath } from "./learnings-context";
 import { buildAgentLoader, makeAgentLoader } from "./resource-loader";
 
@@ -327,7 +328,7 @@ test("makeAgentLoader puts the assistant's operating rules after its memory", as
 
   const prompt = await asCoordinator(() => promptFor(cwd, "plan"));
   const memoryAt = prompt.indexOf("# What you remember about this user");
-  const rulesAt = prompt.indexOf("# How you operate in Houston");
+  const rulesAt = prompt.indexOf(RULES_HEADING);
   expect(rulesAt).toBeGreaterThan(memoryAt);
   expect(prompt.indexOf("You are in Plan mode.")).toBeGreaterThan(rulesAt);
 });
@@ -337,13 +338,13 @@ test("the rules are injected for the coordinator with no memory yet", async () =
   const prompt = await asCoordinator(() =>
     promptFor(agentDirNamed("Assistant")),
   );
-  expect(prompt).toContain("# How you operate in Houston");
+  expect(prompt).toContain(RULES_HEADING);
 });
 
 test("makeAgentLoader omits the operating rules for a normal agent", async () => {
   for (const dir of ["Helper", ASSISTANT_AGENT_NAME]) {
     const prompt = await promptFor(agentDirNamed(dir));
-    expect(prompt).not.toContain("# How you operate in Houston");
+    expect(prompt).not.toContain(RULES_HEADING);
   }
 });
 

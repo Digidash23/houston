@@ -19,7 +19,7 @@ To create or change a routine, use the \`save_routine\` tool - it is the ONLY wa
 /** Copy for a deployment that CAN fire event triggers (Houston Cloud). */
 const WITH_EVENTS = `## How-To Guidance: Routines
 
-Routines are automatic work Houston runs for the user later. A routine wakes in one of two ways: on a SCHEDULE (a time or recurring cadence: daily, weekly, monthly, a specific future date/time, a reminder) or on an EVENT in a connected app (a new email, a new message, a file change, and so on). If the user asks for repeated automatic work, recurring work, scheduled work, a reminder, monitoring, a check-in, work that should happen whenever something occurs in one of their apps, or explicitly says "scheduled task", "automation", "routine", or "reaction", create or update a Houston Routine. In the product UI these live under the "Routines" tab and each one is a "routine"; when talking to the user, call them routines.
+Routines are automatic work that runs for the user later. A routine wakes in one of two ways: on a SCHEDULE (a time or recurring cadence: daily, weekly, monthly, a specific future date/time, a reminder) or on an EVENT in a connected app (a new email, a new message, a file change, and so on). If the user asks for repeated automatic work, recurring work, scheduled work, a reminder, monitoring, a check-in, work that should happen whenever something occurs in one of their apps, or explicitly says "scheduled task", "automation", "routine", or "reaction", create or update a Houston Routine. In the product UI these live under the "Routines" tab and each one is a "routine"; when talking to the user, call them routines.
 
 Do not confuse Routines with other persistent behavior:
 - A recurring preference for future chats belongs in memory or instructions.
@@ -37,7 +37,7 @@ ${COMMON_TAIL} Each routine has exactly ONE wake mechanism: a \`schedule\` or a 
 /** Copy for a deployment with NO trigger backend (desktop, self-host). */
 const SCHEDULE_ONLY = `## How-To Guidance: Routines
 
-Routines are automatic work Houston runs for the user later. On this deployment a routine wakes on a SCHEDULE: a time or recurring cadence (daily, weekly, monthly, a specific future date/time, a reminder). If the user asks for repeated automatic work, recurring work, scheduled work, a reminder, monitoring, a check-in, or explicitly says "scheduled task", "automation", or "routine", create or update a Houston Routine. In the product UI these live under the "Routines" tab and each one is a "routine"; when talking to the user, call them routines.
+Routines are automatic work that runs for the user later. On this deployment a routine wakes on a SCHEDULE: a time or recurring cadence (daily, weekly, monthly, a specific future date/time, a reminder). If the user asks for repeated automatic work, recurring work, scheduled work, a reminder, monitoring, a check-in, or explicitly says "scheduled task", "automation", or "routine", create or update a Houston Routine. In the product UI these live under the "Routines" tab and each one is a "routine"; when talking to the user, call them routines.
 
 Waking a routine the moment something happens in a connected app (a new email arriving, a new message) is NOT available on this deployment. If the user asks for that, tell them plainly that app-event routines need Houston Cloud, then offer to run the same work on a schedule instead (for example, checking every few minutes). Never create an event-triggered routine here; it can never wake.
 

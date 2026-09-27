@@ -2,7 +2,11 @@ import { migrateProviderModel } from "@houston/domain";
 import type { ProjectConfig } from "@houston/wire-types";
 import { emitLocalEcho } from "../bus";
 import * as controlPlane from "../control-plane";
-import { DEFAULT_AGENT_ID, DEFAULT_WORKSPACE_ID } from "../synthetic";
+import {
+  DEFAULT_AGENT_ID,
+  DEFAULT_AGENT_NAME,
+  DEFAULT_WORKSPACE_ID,
+} from "../synthetic";
 // The device layout lives in ONE module: the SDK reads the same keys through its
 // `devicePreferences` port, and a store that refuses still throws from there.
 import { clearLocalPref, readLocalPref, writeLocalPref } from "./device-prefs";
@@ -133,7 +137,7 @@ export function ConfigPrefsMixin<TBase extends BaseCtor>(Base: TBase) {
     }
     async getAgentConfig(): Promise<ProjectConfig> {
       const { provider, model } = await this.ctx.activeOld();
-      return { name: "Houston", provider, model, effort: "medium" };
+      return { name: DEFAULT_AGENT_NAME, provider, model, effort: "medium" };
     }
     async setAgentConfig(
       agentPath: string,

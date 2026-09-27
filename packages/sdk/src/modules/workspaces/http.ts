@@ -65,7 +65,7 @@ export async function writeAgentFile(
 }
 
 /**
- * Reads the background notes Houston gives an agent on every conversation.
+ * Reads the background notes given to an agent on every conversation.
  *
  * Workspace + user context (HOU-711) — gateway-TERMINATED, Supabase-backed, NOT
  * proxied to a pod: the two markdown blobs the Settings screen edits. `kind`
@@ -89,7 +89,7 @@ export async function getContext(
   return ((await res.json()) as { content: string }).content;
 }
 /**
- * Replaces the background notes Houston gives an agent on every conversation.
+ * Replaces the background notes given to an agent on every conversation.
  * @assistant group:settings
  * @assistant confirm: outward. These notes ride every later conversation with every agent, and the text they replace is not kept.
  */

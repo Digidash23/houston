@@ -92,7 +92,7 @@ export function makeAssistantCapabilitiesTool(opts: AssistantToolOptions) {
     name: HOUSTON_CAPABILITIES_TOOL_NAME,
     label: "What Houston can do",
     description:
-      "Search everything you can do inside Houston on the user's behalf - the same actions they could take in the app themselves. Use it whenever they ask you to change, create, delete, schedule, or look something up in Houston, and before saying you cannot do something. Search with words from what they asked ('routine', 'invite', 'mission'); call it with no arguments first to see the groups. Everything it lists can actually be performed here, so trust it over your own memory of what Houston offers. Returns names and summaries only - read one operation's parameters with houston_describe, then perform it with houston_call.",
+      "Search everything you can do inside Houston on the user's behalf - the same actions they could take in the app themselves. Use it whenever they ask you to change, create, delete, schedule, or look something up in Houston, and before saying you cannot do something. Search with words from what they asked ('routine', 'invite', 'mission'); call it with no arguments first to see the groups. Everything it lists can actually be performed here, so trust it over your own memory of what the app offers. Returns names and summaries only - read one operation's parameters with houston_describe, then perform it with houston_call.",
     promptSnippet: "See what Houston can do",
     parameters: CapabilitiesParams,
     executionMode: "parallel",

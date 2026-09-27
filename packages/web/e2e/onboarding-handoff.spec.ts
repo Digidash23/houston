@@ -52,12 +52,12 @@ test("Yes, let's do it hands the goal to the manager as its first real turn", as
   await expect(chat.getByText(goalOffer(), { exact: true })).toBeVisible();
   const sent = chat.locator('[data-conversation-message-key^="user-"]');
   await expect(sent.filter({ hasText: HANDOFF_YES })).toBeVisible();
-  await expect(sent.filter({ hasText: "Written by Houston" })).toHaveCount(0);
+  await expect(sent.filter({ hasText: "Written by the app" })).toHaveCount(0);
 
   // The manager answers what it read: the fake host echoes the prompt, which
   // is the instruction behind the person's answer.
   await expect(
-    chat.getByText(/Roger that\. You said: "\[Written by Houston/),
+    chat.getByText(/Roger that\. You said: "\[Written by the app/),
   ).toBeVisible({ timeout: 15_000 });
 });
 
@@ -113,7 +113,7 @@ test("the closing promises connecting tools only where the deployment connects t
 
   await expect(
     managerOnboarding(page).getByText(
-      "Remember that I'm your AI Manager and here to help. I hand out missions to your AI Employees, hire new ones when you need them and connect the tools they need.",
+      "Remember that I'm your AI Manager and I'm here to help. I hand out missions to your AI Employees, hire new ones when you need them and connect the tools they need.",
       { exact: true },
     ),
   ).toBeVisible({ timeout: 15_000 });

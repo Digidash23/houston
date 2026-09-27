@@ -1,3 +1,4 @@
+import { SEED_AGENT_NAME } from "@houston/fake-host";
 /**
  * Visual-regression baselines for the main shell (sidebar + mission board).
  *
@@ -88,7 +89,7 @@ for (const theme of THEMES) {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
 
-    await expect(await awaitAgentsHome(page)).toContainText("Houston");
+    await expect(await awaitAgentsHome(page)).toContainText(SEED_AGENT_NAME);
     await expect(navBar(page)).toBeVisible();
     await pinTheme(page, theme);
 
@@ -166,7 +167,7 @@ for (const theme of THEMES) {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
 
-    await expect(await awaitAgentsHome(page)).toContainText("Houston");
+    await expect(await awaitAgentsHome(page)).toContainText(SEED_AGENT_NAME);
     await navItem(page, "more").click();
     await expect(moreMenu(page)).toBeVisible();
     await expect(

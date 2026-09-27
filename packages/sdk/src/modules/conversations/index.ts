@@ -160,7 +160,7 @@ export function createConversationsModule(ctx: ModuleContext) {
      *   agent's name is not its id, so read the id from listAgents first.
      * @param id The chat to delete.
      * @assistant group:chat
-     * @assistant confirm: irreversible. The chat and everything said in it are gone, and Houston keeps no copy.
+     * @assistant confirm: irreversible. The chat and everything said in it are gone, and no copy is kept.
      */
     delete: remove,
     suggestTitle,

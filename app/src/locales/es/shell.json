@@ -4,8 +4,8 @@
     "admin": "Administración",
     "addAgent": "Nuevo empleado de IA",
     "aiModels": "Modelos de IA",
-    "assistant": "AI Manager",
-    "assistantRole": "Coordina tu equipo de IA",
+    "assistant": "Houston",
+    "assistantRole": "Tu AI Manager",
     "changeColor": "Cambiar color",
     "collapse": "Contraer barra lateral",
     "color": "Color",
@@ -442,19 +442,19 @@
   },
   "errorToast": {
     "genericDescription": "Algo inesperado salió mal. Inténtalo de nuevo.",
-    "offlineTitle": "Houston, sin conexión",
-    "offlineDescription": "No podemos conectarnos a Houston en este momento. Revisa tu conexión a internet e inténtalo de nuevo.",
-    "engineWakingTitle": "Houston, tu empleado de IA se está despertando",
+    "offlineTitle": "Sin conexión",
+    "offlineDescription": "No podemos conectarnos en este momento. Revisa tu conexión a internet e inténtalo de nuevo.",
+    "engineWakingTitle": "Tu empleado de IA se está despertando",
     "engineWakingDescription": "Suele tardar unos 20 segundos. No necesitas enviar tu mensaje de nuevo.",
-    "updateStuckTitle": "Houston, las actualizaciones no te llegan",
+    "updateStuckTitle": "Las actualizaciones no te llegan",
     "updateStuckDescription": "No hemos podido buscar actualizaciones. Puede que tu red las esté bloqueando. Siempre puedes descargar la última versión en gethouston.ai.",
-    "noAgentTitle": "Houston, primero necesitas un empleado de IA",
+    "noAgentTitle": "Primero necesitas un empleado de IA",
     "noAgentDescription": "Crea un empleado de IA y luego conéctalo desde su configuración. Esta conexión vive en un empleado de IA."
   },
   "openUrl": {
-    "noBrowserTitle": "Houston, no encontramos un navegador web",
+    "noBrowserTitle": "No encontramos un navegador web",
     "noBrowser": "Esta computadora no tiene un navegador web predeterminado. Elige uno en la configuración del sistema y vuelve a intentar el enlace.",
-    "failedTitle": "Houston, ese enlace no se abrió"
+    "failedTitle": "Ese enlace no se abrió"
   },
   "agentDelete": {
     "title": "¿Eliminar el empleado de IA?",
@@ -475,7 +475,7 @@
     "reloadNow": "Recargar ahora"
   },
   "authReconnect": {
-    "heading": "Houston, tenemos un problema",
+    "heading": "Sesión expirada",
     "body": "Tu sesión de {{provider}} expiró. Inicia sesión de nuevo para mantener tus empleados de IA funcionando.",
     "waiting": "Esperando el inicio de sesión en el navegador...",
     "signInWith": "Iniciar sesión con {{provider}}"
@@ -498,18 +498,18 @@
   },
   "reportBug": {
     "reportSuccessTitle": "Reporte enviado",
-    "reportSuccessDescription": "Houston recibió los registros.",
+    "reportSuccessDescription": "Recibimos los registros.",
     "reportErrorTitle": "No se pudo enviar el reporte",
     "reportErrorDescription": "Intenta otra vez en un momento."
   },
   "updateChecker": {
     "launchTitle": "Actualizando Houston",
-    "launchDescription": "Houston se está actualizando a la versión {{version}}. La aplicación se reiniciará en un momento.",
+    "launchDescription": "Actualizando a la versión {{version}}. La aplicación se reiniciará en un momento.",
     "downloading": "Descargando la actualización...",
     "downloadingProgress": "Descargando la actualización... {{progress}}%",
     "installing": "Instalando la actualización...",
-    "errorInstall": "Houston no pudo instalar la actualización. Intenta otra vez en un momento.",
-    "errorRelaunch": "La actualización se instaló, pero Houston no pudo reiniciarse solo. Reinícialo manualmente o intenta otra vez.",
+    "errorInstall": "No se pudo instalar la actualización. Intenta otra vez en un momento.",
+    "errorRelaunch": "La actualización se instaló, pero la aplicación no pudo reiniciarse sola. Reiníciala manualmente o intenta otra vez.",
     "relaunchAction": "Reiniciar Houston",
     "retryAction": "Intentar otra vez",
     "retryUpdateAction": "Falló la actualización. Intentar otra vez",
@@ -529,7 +529,7 @@
   },
   "engineGate": {
     "starting": "Cargando tus empleados de IA…",
-    "reconnected": "Houston se reconectó",
+    "reconnected": "De nuevo en línea",
     "loadFailed": "No pudimos cargar tus modelos de IA disponibles. Revisa tu conexión e inténtalo de nuevo.",
     "authRequiredTitle": "Inicio de sesión requerido",
     "authRequiredBody": "Esta versión se conecta al motor alojado de Houston, pero no tiene inicio de sesión configurado. Define FIREBASE_API_KEY y FIREBASE_PROJECT_ID en esta versión para habilitar el inicio de sesión."
@@ -573,14 +573,14 @@
     "unauthenticated": {
       "title": "Conéctate a {{provider}} de nuevo",
       "titleGeneric": "Conecta una IA",
-      "bodyGeneric": "Houston necesita una IA conectada para poder responder.",
+      "bodyGeneric": "Conecta una IA para recibir una respuesta.",
       "connectProvider": "Conectar IA",
       "reconnectedTitleGeneric": "Conectado",
       "bodyTokenExpired": "Tu sesión de {{provider}} expiró. Vuelve a conectarte para continuar.",
-      "bodyNoCredentials": "Houston necesita que inicies sesión en {{provider}} antes de responder.",
-      "bodyInvalidApiKey": "La clave de API de {{provider}} que tiene Houston ya no es válida. Actualízala y vuelve a intentar.",
+      "bodyNoCredentials": "Inicia sesión en {{provider}} para recibir una respuesta.",
+      "bodyInvalidApiKey": "Tu clave de API de {{provider}} ya no es válida. Actualízala y vuelve a intentar.",
       "bodyTokenRevoked": "Se revocó tu acceso a {{provider}}. Inicia sesión de nuevo para continuar.",
-      "bodyUnknown": "Houston no pudo autenticarse con {{provider}}. Vuelve a conectarte e inténtalo de nuevo.",
+      "bodyUnknown": "No pudimos iniciar sesión en {{provider}}. Vuelve a conectarte e inténtalo de nuevo.",
       "titleOrgPolicy": "{{provider}} bloqueó el acceso por suscripción",
       "bodyOrgPolicyBlocked": "{{provider}} no permite usar tu suscripción aquí, así que iniciar sesión de nuevo no va a ayudar. Agrega una clave de API de {{provider}} en la página Modelos de IA para seguir trabajando.",
       "useApiKey": "Usar una clave de API",
@@ -588,16 +588,16 @@
       "waiting": "Termina de iniciar sesión en tu navegador",
       "reconnectedTitle": "Reconectado a {{provider}}",
       "reconnectedBody": "Ya iniciaste sesión de nuevo. Continúa donde quedaste.",
-      "reconnectedResending": "Ya iniciaste sesión de nuevo. Houston está respondiendo tu mensaje ahora.",
-      "reconnectedResuming": "Ya iniciaste sesión de nuevo. Houston está continuando donde quedaste.",
+      "reconnectedResending": "Ya iniciaste sesión de nuevo. Tu mensaje se está respondiendo ahora.",
+      "reconnectedResuming": "Ya iniciaste sesión de nuevo. Retomando donde quedaste.",
       "signedIn": "Sesión iniciada",
       "failedBody": "El inicio de sesión de {{provider}} no se completó. Inicia sesión de nuevo. {{detail}}"
     },
     "networkUnreachable": {
       "title": "No se puede conectar con {{provider}}",
-      "body": "Houston no pudo conectarse a la API de {{provider}}. Verifica tu conexión y vuelve a intentar.",
+      "body": "No pudimos conectarnos a la API de {{provider}}. Verifica tu conexión y vuelve a intentar.",
       "localTitle": "No se puede conectar con tu modelo local",
-      "localBody": "Houston no pudo conectarse al modelo en tu computador. Asegúrate de que la aplicación del modelo esté abierta y su servidor en ejecución, y vuelve a intentar.",
+      "localBody": "No pudimos conectarnos al modelo en tu computador. Asegúrate de que la aplicación del modelo esté abierta y su servidor en ejecución, y vuelve a intentar.",
       "retry": "Reintentar",
       "checkStatus": "Ver página de estado"
     },
@@ -609,7 +609,7 @@
     },
     "sessionResumeMissing": {
       "title": "Sesión reiniciada",
-      "body": "La conversación anterior de {{provider}} no se pudo reabrir, así que Houston la reinició. Tu mensaje se envió de nuevo y el asistente está respondiendo abajo.",
+      "body": "La conversación anterior de {{provider}} no se pudo reabrir, así que se reinició. Tu mensaje se envió de nuevo y la respuesta está llegando abajo.",
       "tryAgain": "Reintentar"
     },
     "malformedResponse": {
@@ -619,13 +619,13 @@
     },
     "spawnFailed": {
       "title": "No se pudo iniciar {{provider}}",
-      "body": "Houston no pudo iniciar {{provider}}. Reinstala e infórmanos si el problema continúa.",
+      "body": "No pudimos iniciar {{provider}}. Reinstala e infórmanos si el problema continúa.",
       "reinstall": "Reinstalar {{provider}}",
       "reportBug": "Reportar problema"
     },
     "unknown": {
       "title": "Pasó algo inesperado",
-      "body": "Houston no pudo clasificar este error de {{provider}}. Reporta el problema para que aprendamos a manejarlo.",
+      "body": "No pudimos identificar este error de {{provider}}. Repórtalo para que podamos manejarlo la próxima vez.",
       "reportBug": "Reportar problema",
       "rawLabel": "Salida cruda"
     }

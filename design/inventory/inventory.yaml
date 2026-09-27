@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 109
+version: 110
 
 components:
   - id: custom-integration-details
@@ -64,11 +64,11 @@ components:
     since: 1
 
   - id: manager-avatar
-    title: AI Manager avatar
+    title: Houston (AI Manager) avatar
     purpose: >-
-      The AI Manager's own mark wherever the Manager appears as a member of
-      the team: the rail's pinned row, the phone's pinned Agents row and the
-      phone chat header.
+      The mark of Houston, the AI Manager, wherever the Manager appears as a
+      member of the team: the rail's pinned row, the phone's pinned Agents
+      row and the phone chat header.
     anatomy: [squircle, cta-fill, cta-rim, helmet]
     states: [resting]
     variants: [rail-expanded, rail-collapsed, phone-list, phone-header]
@@ -1299,10 +1299,11 @@ components:
       One New AI Employee row follows the last root entry, outside every group,
       flush with root employees and folder headers. It creates an ungrouped
       employee at the top of the root order and cannot be dragged or targeted.
-      The AI Manager leads the list, pinned above every group and root
-      employee while it is reachable: an employee's person row (height,
-      portrait diameter, selected pill) with the Manager's avatar and role,
-      never draggable and never a drop target, and the first avatar on the
+      Houston, the AI Manager, leads the list, pinned above every group and
+      root employee while it is reachable: an employee's person row (height,
+      portrait diameter, selected pill) with the Manager's avatar, its name
+      Houston and its role, Your AI Manager, as the second line, never
+      draggable and never a drop target, and the first avatar on the
       collapsed rail. Folding the band folds it too.
     a11y: >-
       The label button exposes its expanded state, and the add control has its
@@ -1323,8 +1324,8 @@ components:
       their turns run on, the apps they have connected, and the shared Skills
       library when the space owner may edit it. A heading would only name what
       the glyphs already say, and the rows would still be the first thing
-      read. The AI Manager is not among them: it is a member of the team, so
-      it leads the team list instead (see sidebar-teams-band).
+      read. Houston, the AI Manager, is not among them: it is a member of the
+      team, so it leads the team list instead (see sidebar-teams-band).
       The rail's footer holds Academy, Admin and Settings, in that order, with
       no help control. Admin is a gated footer row that opens its own screen
       on the Org chart, then People, Billing where allowed, and Activity in a
@@ -1517,7 +1518,8 @@ components:
     purpose: >-
       The phone's landing screen and the AI Employees tab's root: every agent
       as a chat-list row, the whole roster or one group's, and where the phone
-      manages groups. The AI Manager leads it, pinned above the roster.
+      manages groups. Houston, the AI Manager, leads it, pinned above the
+      roster.
     anatomy: [title, new-group-control, new-agent-control, group-selector,
       group-menu, pinned-manager-row, agent-row,
       avatar-stack, running-ring, preview-line, relative-time, needs-you-chip,
@@ -1526,8 +1528,9 @@ components:
     variants: [all-groups, one-group]
     behavior: >-
       One flat list in the grammar of a messaging app's chat list, led by the
-      AI Manager's pinned row when discovery serves it: the same row anatomy
-      with the Manager's gold avatar and its role as the second line, above
+      pinned row of Houston, the AI Manager, when discovery serves it: the same
+      row anatomy with the Manager's gold avatar, its name Houston and its
+      role, Your AI Manager, as the second line, above
       the roster whatever the team filter says, pushing the assistant chat on
       a tap. Each agent row is a LARGE avatar on the left -- the agent's helmet, fanned out into a stack
       of three cards (the front one straight, two tilted behind it) when the
@@ -1793,8 +1796,8 @@ components:
   - id: connect-ai-card
     title: Connect AI card
     purpose: >-
-      The AI Manager onboarding conversation's first step, which connects the
-      person's first AI provider before the survey.
+      The first step of the onboarding conversation held by Houston, the AI
+      Manager, which connects the person's first AI provider before the survey.
     anatomy: [step-frame, headline, subscription-card, brand-mark,
       live-status, view-more-toggle, provider-browser]
     states: [loading, idle, signing-in, connected]
@@ -1820,11 +1823,11 @@ components:
       focus.
     since: 101
   - id: manager-onboarding
-    title: AI Manager onboarding conversation
+    title: Houston (AI Manager) onboarding conversation
     purpose: >-
       First-run onboarding, and the profile questions an existing account
-      still owes, asked by the AI Manager in its own chat as a scripted
-      conversation.
+      still owes, asked by Houston, the AI Manager, in its own chat as a
+      scripted conversation.
     anatomy: [manager-header, manager-message, typing-reveal, answer-receipt,
       change-answer, question-card, option-row, create-step, step-back,
       company-size-buttons, goal-field, roster-list, next-actions, handoff-actions, finish-action]
@@ -1997,8 +2000,8 @@ components:
       A team deck takes its columns from its own width: three across with
       16px gaps from 1024px (the 1152px new-workspace frame), badges in a row
       as tall as the tallest; below that one full-width badge per row with
-      12px gaps (a phone, the AI Manager's chat). Solo badges are centered at
-      max-w-2xl (672px).
+      12px gaps (a phone, the chat of Houston, the AI Manager). Solo badges are
+      centered at max-w-2xl (672px).
     a11y: >-
       Each badge is a fieldset named after the employee. DOM tab order is name,
       role, industry, color, then recovery; the photo panel is hidden from

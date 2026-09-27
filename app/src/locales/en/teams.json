@@ -347,7 +347,7 @@
   },
   "moveResume": {
     "done": "{{agent}} finished moving to {{team}}.",
-    "failed": "{{agent}} could not finish moving to {{team}}. Houston will try again the next time it starts."
+    "failed": "{{agent}} could not finish moving to {{team}}. We'll try again the next time the app starts."
   },
   "moveTeam": {
     "title": "Move {{team}} to another space",
@@ -383,7 +383,7 @@
   },
   "moveTeamResume": {
     "done": "{{team}} finished moving to its new space.",
-    "failed": "{{team}} could not finish moving. Houston will try again the next time it starts."
+    "failed": "{{team}} could not finish moving. We'll try again the next time the app starts."
   },
   "billing": {
     "unavailable": "We couldn't load billing for this team.",

@@ -111,7 +111,7 @@ test("Channels provides an existing-installation command and confirms disconnect
     page.getByText("Ada · Houston team", { exact: true }),
   ).toHaveCount(0);
   await expect(
-    page.getByText("Connect Slack to message your assistant directly."),
+    page.getByText("Connect Slack to message Houston directly."),
   ).toBeVisible();
   expect(calls).toEqual([
     { method: "POST", path: "/v1/channels/slack/link", body: {} },

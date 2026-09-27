@@ -93,5 +93,8 @@ export const SEED_AGENT_ID = "houston-assistant";
  *  roster, so emptying the roster for a first run leaves the manager standing,
  *  and the per-agent routes serve it like any other id. */
 export const ASSISTANT_AGENT_ID = ".assistant";
-export const SEED_AGENT_NAME = "Houston";
+
+/** The seeded AI Employee's name. Never "Houston": that is the AI Manager's
+ *  display name, and a name-based locator must not match both rows. */
+export const SEED_AGENT_NAME = "Nova";
 export const SEED_WORKSPACE_ID = "default";

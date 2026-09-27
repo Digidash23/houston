@@ -1,4 +1,8 @@
-import { FAKE_HOST_URL, SEED_AGENT_ID } from "@houston/fake-host";
+import {
+  FAKE_HOST_URL,
+  SEED_AGENT_ID,
+  SEED_AGENT_NAME,
+} from "@houston/fake-host";
 import { expect, test } from "./support/fixtures";
 import { createTeam, openCreateDialog } from "./support/sidebar-create";
 import { readSidebarLayout, seedSidebarLayout } from "./support/sidebar-layout";
@@ -14,7 +18,9 @@ test("ungrouped agents lead the sidebar without a team header", async ({
   const rail = page.locator("[data-tour-target='agents']");
   await expect(rail.getByText("Your AI Employees")).toBeVisible();
   await expect(rail.locator("[data-sidebar-group-header]")).toHaveCount(0);
-  await expect(rail.locator("[data-sidebar-item]")).toContainText("Houston");
+  await expect(rail.locator("[data-sidebar-item]")).toContainText(
+    SEED_AGENT_NAME,
+  );
 });
 
 test("one create row closes the mixed root list outside every folder", async ({

@@ -16,7 +16,7 @@
     "localDataIncomplete": "Cerramos tu sesión, pero no pudimos eliminar algunos datos guardados en este dispositivo. No se expone nada privado. Reinicia Houston si algo se ve desactualizado.",
     "generic": "El inicio de sesión falló. Inténtalo de nuevo.",
     "storageUnavailableTitle": "No podemos acceder al almacenamiento seguro de este dispositivo",
-    "storageUnavailableBody": "Houston no pudo abrir el almacenamiento seguro de este dispositivo donde se guarda tu inicio de sesión. Normalmente se soluciona solo. Vuelve a intentarlo y, si sigue pasando, reinicia tu computador.",
+    "storageUnavailableBody": "No pudimos abrir el almacenamiento seguro de este dispositivo donde se guarda tu inicio de sesión. Normalmente se soluciona solo. Vuelve a intentarlo y, si sigue pasando, reinicia tu computador.",
     "storageUnavailableRetry": "Reintentar"
   }
 }
