@@ -9,7 +9,6 @@ describe("deadViewStep", () => {
   const base = {
     showAiModels: true,
     showAssistant: true,
-    showSkills: true,
     onboardingActive: false,
     showOrganization: true,
     gatesReady: true,
@@ -92,13 +91,6 @@ describe("deadViewStep", () => {
       deadViewStep({ ...base, viewMode: "ai-hub", showAiModels: false }),
       "go-home",
     );
-    // The shared library belongs to whoever OWNS the space: a caller whose
-    // gate closed under an open screen must not be left standing on it.
-    assert.equal(
-      deadViewStep({ ...base, viewMode: "skills-home", showSkills: false }),
-      "go-home",
-    );
-    assert.equal(deadViewStep({ ...base, viewMode: "skills-home" }), "keep");
     assert.equal(
       deadViewStep({ ...base, viewMode: "admin", showOrganization: false }),
       "go-home",
@@ -107,11 +99,12 @@ describe("deadViewStep", () => {
   });
 
   it("sends a RETIRED view home whatever the gates say", () => {
-    // The Permissions screen and the standalone Time worked screen are gone
-    // (agent policy is a team's focused agent screen). No
+    // The Permissions screen, the standalone Time worked screen and the
+    // workspace Skills screen are gone (agent policy and skills live on each
+    // employee's own screen). No
     // gate can make either valid again, so a `viewMode` an older session
     // persisted must go home rather than strand the user on a blank card.
-    for (const viewMode of ["permissions", "time-worked"]) {
+    for (const viewMode of ["permissions", "time-worked", "skills-home"]) {
       assert.equal(deadViewStep({ ...base, viewMode }), "go-home", viewMode);
     }
   });
@@ -120,13 +113,12 @@ describe("deadViewStep", () => {
     // Every gate reads false off null capabilities, so acting on that window
     // would bounce the user off a screen they are entitled to, on every boot
     // and every space switch.
-    for (const viewMode of ["ai-hub", "skills-home", "admin"]) {
+    for (const viewMode of ["ai-hub", "admin"]) {
       assert.equal(
         deadViewStep({
           ...base,
           viewMode,
           showAiModels: false,
-          showSkills: false,
           showOrganization: false,
           gatesReady: false,
         }),

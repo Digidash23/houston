@@ -13,9 +13,10 @@ import {
   type SharedSkillRow,
 } from "../../lib/workspace-shared-skills";
 import { useAgentStore } from "../../stores/agents";
+import { everyReadAnswered } from "./workspace-skill-acts";
 
 /**
- * The shared-store model behind the global Skills page when the deployment
+ * The shared-store skills model when the deployment
  * serves it (`capabilities.sharedSkills`, ADR 0003): ONE store query plus one
  * host-local manifest query per agent — no per-agent pod fan-out for the list
  * itself. Same fetch-once-then-event-driven discipline as the copy-based hook
@@ -31,6 +32,8 @@ export function useSharedSkills(args: {
   rows: SharedSkillRow[];
   sharedSlugs: Set<string>;
   loading: boolean;
+  /** The store and every agent's manifest answered. */
+  complete: boolean;
   /** The store read (or an agent's manifest) did not answer. Already toasted
    *  and reported at the call — the surface only says it. */
   failed: boolean;
@@ -55,6 +58,7 @@ export function useSharedSkills(args: {
   const {
     manifests,
     manifestsLoading,
+    manifestsComplete,
     manifestsFailed,
     agentGone,
     retryManifests,
@@ -74,6 +78,7 @@ export function useSharedSkills(args: {
     combine: (results) => ({
       manifests: results.map((r) => r.data?.enabled),
       manifestsLoading: results.some((r) => r.isLoading),
+      manifestsComplete: everyReadAnswered(results),
       manifestsFailed: results.some(
         (r) => r.isError && !isStaleRosterReadError(r.error),
       ),
@@ -112,7 +117,12 @@ export function useSharedSkills(args: {
   return {
     rows,
     sharedSlugs,
-    loading: enabled && (shared.isLoading || manifestsLoading),
+    // An unsettled roster has asked for no manifest yet: still loading, not a
+    // store whose employees all hold nothing.
+    loading:
+      enabled && (shared.isLoading || !rosterSettled || manifestsLoading),
+    complete:
+      !enabled || (shared.isSuccess && rosterSettled && manifestsComplete),
     failed: enabled && (shared.isError || manifestsFailed),
     retry: () => {
       void shared.refetch();

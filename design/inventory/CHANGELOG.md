@@ -3,6 +3,22 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v111 - 2026-09-28
+
+The rail is the team and nothing else. Its top line carries Search and
+Create (`sidebar-top-line`); its foot is the account (`sidebar-account-menu`):
+the person's portrait and name over the workspace, opening one menu with the
+workspaces, Admin, AI Models, Integrations, the Academy and Settings. There
+is no band over the list, no destination run above it, no New AI Employee
+row closing it and no Skills row anywhere (`sidebar-teams-band` and
+`sidebar-nav-band` are retired). AI Employee rows are message-list rows:
+64px around a 40px portrait, a semibold name over the mission they are on
+(or a first-day invitation with a New badge), and hairlines between rows.
+The phone's More card is headed by the same account row. There is no Skills
+screen: an AI Employee's skills live in its settings, whose skill editor
+offers the space's owner Share to workspace, Enable for all and Delete for
+all.
+
 ## v110 - 2026-09-27
 
 The AI Manager's display name is Houston; AI Manager is its role. The

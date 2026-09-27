@@ -21,16 +21,12 @@ export function rail(page: Page): Locator {
 export type NavRowId = "integrations" | "ai-hub" | "settings";
 
 /**
- * One top-level rail row — a destination that belongs to nobody.
- *
- * The rail is ONE unlabelled run — AI Models, Integrations and Skills, the
- * destinations a user reaches for without being asked — over "Your AI
- * Employees", whose first row is the pinned AI Manager, with the Academy and
- * Settings in the footer. **The AI Manager, Skills and the Academy are
- * deliberately absent from this union**: none carries a
- * tour anchor, because a target the tour never spotlights is dead weight —
- * address the AI Manager and Skills by their own test ids (`settings-nav.ts`
- * `assistantRow` / `skillsRow`).
+ * One destination row — AI Models, Integrations, Settings — by its tour
+ * anchor. The rows live in the workspace menu at the rail's foot (the phone's
+ * More card), so a spec opens that first (`workspace-menu.ts`
+ * `openDestination`, or `openNavRow` below). The AI Manager is the rail's
+ * pinned first row instead, addressed by its test id (`settings-nav.ts`
+ * `assistantRow`).
  *
  * Every board belongs to an employee, so a spec that wants the desktop landing
  * board asks for

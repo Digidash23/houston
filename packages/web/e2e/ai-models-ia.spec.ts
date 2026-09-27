@@ -3,6 +3,11 @@ import type { APIRequestContext, Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
 import { adminRow } from "./support/settings-nav";
 import { openAgentSettings } from "./support/team-nav";
+import {
+  openNavRow,
+  openWorkspaceMenu,
+  workspaceMenuTrigger,
+} from "./support/workspace-menu";
 
 /**
  * The AI-models permissioning information architecture — the model-side twin of
@@ -58,23 +63,20 @@ async function armTeamWorkspace(request: APIRequestContext): Promise<void> {
   });
 }
 
-/** A stable nav anchor that is ALWAYS present, so absence assertions never race
+/** A stable control that is ALWAYS present, so absence assertions never race
  *  an unrendered sidebar. */
 const settlesShell = (page: Page) =>
-  expect(page.locator('[data-tour-target="nav-settings"]')).toBeVisible();
+  expect(workspaceMenuTrigger(page)).toBeVisible();
 
-/** Switch space through the REAL switcher UI the shell renders. */
+/** Switch space through the REAL account row the shell renders. */
 async function switchToTeam(page: Page): Promise<void> {
-  await page
-    .locator('[data-tour-target="spaceSwitcher"] button')
-    .first()
-    .click();
-  await page.getByRole("menuitem", { name: TEAM.name }).click();
+  await workspaceMenuTrigger(page).click();
+  await page.getByRole("menuitemcheckbox", { name: TEAM.name }).click();
 }
 
 /** Open the AI Models hub from the sidebar. */
 async function openHub(page: Page): Promise<void> {
-  await page.locator('[data-tour-target="nav-ai-hub"]').click();
+  await openNavRow(page, "ai-hub");
 }
 
 // ── 1. The AI hub has provider and model-directory surfaces ────────────────
@@ -87,7 +89,7 @@ test("Teams owner: the AI hub has AI Providers and AI Models lozenges", async ({
   // second header lozenge and shares the page query with provider discovery.
   await armCapabilities(request, OWNER_CAPS);
   await page.goto("/");
-  await page.locator('[data-tour-target="nav-ai-hub"]').click();
+  await openNavRow(page, "ai-hub");
 
   // Scoped to the header nav: the sidebar row shares the "AI Models" name.
   const headerNav = page.getByRole("navigation", {
@@ -129,11 +131,13 @@ test("Teams member: the AI Models nav is there, and no usage screen is", async (
   await page.goto("/");
   await settlesShell(page);
 
-  await expect(page.locator('[data-tour-target="nav-ai-hub"]')).toBeVisible();
-  await expect(page.locator('[data-tour-target="nav-usage"]')).toHaveCount(0);
+  const menu = await openWorkspaceMenu(page);
+  await expect(menu.locator('[data-tour-target="nav-ai-hub"]')).toBeVisible();
+  await expect(menu.locator('[data-tour-target="nav-usage"]')).toHaveCount(0);
   await expect(
-    page.locator('[data-tour-target="nav-integrations"]'),
+    menu.locator('[data-tour-target="nav-integrations"]'),
   ).toBeVisible();
+  await page.keyboard.press("Escape");
 });
 
 test("Teams member in a team space: the hub is theirs, and says so", async ({
@@ -265,7 +269,7 @@ test("account usage renders on the hub's Connected row and nowhere else", async 
     },
   });
   await page.goto("/");
-  await page.locator('[data-tour-target="nav-ai-hub"]').click();
+  await openNavRow(page, "ai-hub");
 
   await expect(
     page.getByText("Sign in again to see this account's usage."),
@@ -281,7 +285,7 @@ test("account usage renders on the hub's Connected row and nowhere else", async 
       .locator("[data-tour-target='sidebar']")
       .getByRole("button", { name: "Time worked", exact: true }),
   ).toHaveCount(0);
-  await expect(adminRow(page)).toBeVisible();
+  await expect(await adminRow(page)).toBeVisible();
 });
 
 // ── 5. A member connects, and their own turns are configured (HOU-976) ─────

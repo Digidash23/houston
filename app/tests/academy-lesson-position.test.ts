@@ -126,7 +126,7 @@ describe("merging positions", () => {
 });
 
 describe("a position past the end of a shipped lesson", () => {
-  // The tour ships seven beats: a position of 9 was kept by a longer version
+  // The tour ships six beats: a position of 9 was kept by a longer version
   // of it and names a beat that no longer exists.
   const TOUR = HOUSTON_TOUR_LESSON_ID;
 
@@ -143,10 +143,10 @@ describe("a position past the end of a shipped lesson", () => {
   });
 
   it("is refused by record", () => {
-    throws(() => recordLessonPosition(null, TOUR, 7, NOW), RangeError);
+    throws(() => recordLessonPosition(null, TOUR, 6, NOW), RangeError);
     strictEqual(
-      recordLessonPosition(null, TOUR, 6, NOW)?.lessonPositions[TOUR],
-      6,
+      recordLessonPosition(null, TOUR, 5, NOW)?.lessonPositions[TOUR],
+      5,
     );
   });
 

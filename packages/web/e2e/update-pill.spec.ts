@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
+import { workspaceMenuTrigger } from "./support/workspace-menu";
 
 /**
  * The "Restart to update" pill: the one surface a mid-session update find
@@ -80,16 +81,15 @@ test("names the restart, the version it lands on, and wears the action fill in b
 
   const box = await button.boundingBox();
   const footerBox = await footer(page).boundingBox();
-  const academyBox = await footer(page)
-    .getByRole("button", { name: "Academy", exact: true })
-    .boundingBox();
+  // The pill leads the foot, above the account row.
+  const accountBox = await workspaceMenuTrigger(page).boundingBox();
   expect(box).not.toBeNull();
   expect(footerBox).not.toBeNull();
-  expect(academyBox).not.toBeNull();
-  if (box && footerBox && academyBox) {
+  expect(accountBox).not.toBeNull();
+  if (box && footerBox && accountBox) {
     expect(box.x - footerBox.x).toBe(8);
     expect(footerBox.x + footerBox.width - (box.x + box.width)).toBe(8);
-    expect(box.y + box.height).toBeLessThanOrEqual(academyBox.y);
+    expect(box.y + box.height).toBeLessThanOrEqual(accountBox.y);
   }
 });
 

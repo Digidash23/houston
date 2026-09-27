@@ -29,13 +29,11 @@ import {
 export function useWorkspaceViewGuards(gates: {
   showAiModels: boolean;
   showAssistant: boolean;
-  showSkills: boolean;
   showOrganization: boolean;
   /** False while the reads behind the gates are still loading. */
   ready: boolean;
 }): BootLanding {
-  const { showAiModels, showAssistant, showSkills, showOrganization, ready } =
-    gates;
+  const { showAiModels, showAssistant, showOrganization, ready } = gates;
   const viewMode = useUIStore((s) => s.viewMode);
   const requestedTab = useOrgNav((s) => s.requestedTab);
   const clearRequestedTab = useOrgNav((s) => s.clearRequestedTab);
@@ -76,7 +74,6 @@ export function useWorkspaceViewGuards(gates: {
       viewMode,
       showAiModels,
       showAssistant,
-      showSkills,
       onboardingActive,
       showOrganization,
       gatesReady: ready,
@@ -94,7 +91,6 @@ export function useWorkspaceViewGuards(gates: {
     ready,
     showAiModels,
     showAssistant,
-    showSkills,
     showOrganization,
     viewMode,
     landing.kind,

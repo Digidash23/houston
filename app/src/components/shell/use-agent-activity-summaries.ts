@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, useSyncExternalStore } from "react";
 import type { Activity } from "../../data/activity";
 import { useAllConversations } from "../../hooks/queries";
+import { sliceCoverage } from "../../lib/all-conversations-coverage";
 import { queryKeys } from "../../lib/query-keys";
 import type { Agent } from "../../lib/types";
 import {
@@ -53,23 +54,50 @@ export function useAgentActivitySummaries(
   const cacheVersion = useSyncExternalStore(subscribe, () => {
     return activityCacheVersion.current;
   });
+  // A read can confirm an agent has no tasks without changing any row (it had
+  // none before too), so the coverage ledger is watched on its own: that
+  // confirmation is what turns an `unknown` history into `none`.
+  const coverageVersion = useRef(0);
+  const subscribeCoverage = useCallback(
+    (onStoreChange: () => void) =>
+      sliceCoverage.subscribe(() => {
+        coverageVersion.current += 1;
+        onStoreChange();
+      }),
+    [],
+  );
+  const coverageStamp = useSyncExternalStore(
+    subscribeCoverage,
+    () => coverageVersion.current,
+  );
 
   return useMemo(() => {
     // The version stamp is not read below — it is a dependency so the memo
     // recomputes when a board query lands/updates in the cache.
     void cacheVersion;
-    const summaries = buildAgentActivitySummaries(agents, conversations ?? []);
+    void coverageStamp;
+    // "No tasks" is only an answer from rows that hold the read: a slice can be
+    // noted as read (a push patch, or the sweep itself) before the aggregate
+    // these rows come from carries it, and an empty slice in a restored or
+    // missing aggregate would read as a brand-new employee.
+    const summaries = buildAgentActivitySummaries(
+      agents,
+      conversations ?? [],
+      aggregateIsAuthoritative ? sliceCoverage.wasRead : () => false,
+    );
     if (!aggregateIsAuthoritative) {
       // While the aggregate has not fetched for the current roster key (cold
       // boot, pods still waking), an agent with restored/live board data gets
       // its badge from the SAME rows the board and the "Activity N" tab
-      // render — cache reads only, never a fetch.
+      // render — cache reads only, never a fetch. Never a confirmed "no
+      // tasks": these caches can be restored from disk, and a push notes a
+      // slice read without patching them.
       for (const agent of agents) {
         const activities = queryClient.getQueryData<Activity[]>(
           queryKeys.activity(agent.folderPath),
         );
         if (!activities) continue;
-        summaries[agent.id] = summarizeActivities(activities);
+        summaries[agent.id] = summarizeActivities(activities, false);
       }
     }
     return summaries;
@@ -79,5 +107,6 @@ export function useAgentActivitySummaries(
     aggregateIsAuthoritative,
     queryClient,
     cacheVersion,
+    coverageStamp,
   ]);
 }

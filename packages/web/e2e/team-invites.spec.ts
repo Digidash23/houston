@@ -1,10 +1,11 @@
 import { FAKE_HOST_URL } from "@houston/fake-host";
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
+import { workspaceMenuTrigger } from "./support/workspace-menu";
 
 /**
  * C8 team invites, the INVITEE side: the invite inbox that rides the sidebar's
- * `headerBelow` band, directly under the workspace switcher
+ * `headerBelow` band, directly under the rail's top line
  * (`app/src/components/shell/pending-invites.tsx`, mounted by
  * `SidebarInviteInbox`).
  *
@@ -54,25 +55,26 @@ const inbox = (page: Page): Locator =>
 const inviteCards = (page: Page): Locator => inbox(page).getByRole("listitem");
 
 /**
- * Assert the inbox really sits between the switcher and the nav — geometry, not
- * DOM order, because the placement IS the design argument: an invitation
- * belongs where the user picks a space, always visible, not inside the
- * switcher's dropdown and not somewhere further down the rail.
+ * Assert the inbox really sits between the rail's top line and its list —
+ * geometry, not DOM order, because the placement IS the design argument: an
+ * invitation is an action waiting on the person, always visible at the top of
+ * the rail, not inside the account menu and not somewhere down the list.
  */
-async function expectUnderTheSwitcher(page: Page): Promise<void> {
-  const switcher = await page
-    .locator('[data-tour-target="spaceSwitcher"]')
+async function expectUnderTheTopLine(page: Page): Promise<void> {
+  const topLine = await page
+    .locator("[data-tour-target='sidebar']")
+    .getByTestId("rail-search")
     .boundingBox();
   const section = await inbox(page).boundingBox();
   const card = await inviteCards(page).first().boundingBox();
-  // The first row of the rail's unlabelled run of top-level destinations.
+  // The list's first row: the rail's first person.
   const firstNavItem = await page
-    .locator("[data-tour-target='sidebar'] nav button")
+    .locator("[data-tour-target='agents'] button")
     .first()
     .boundingBox();
-  if (!switcher || !section || !card || !firstNavItem)
-    throw new Error("sidebar header, inbox or nav is not laid out");
-  expect(section.y).toBeGreaterThanOrEqual(switcher.y + switcher.height);
+  if (!topLine || !section || !card || !firstNavItem)
+    throw new Error("sidebar top line, inbox or list is not laid out");
+  expect(section.y).toBeGreaterThanOrEqual(topLine.y + topLine.height);
   expect(section.y + section.height).toBeLessThanOrEqual(firstNavItem.y);
   // Full rail width: a card lines up with the rows below it rather than being
   // inset by the collapse toggle's column (the sidebar's `headerBelow` band,
@@ -83,16 +85,12 @@ async function expectUnderTheSwitcher(page: Page): Promise<void> {
   ).toBeLessThanOrEqual(1);
 }
 
-/** Open the switcher dropdown and read back the spaces it offers. */
+/** Open the account row's menu and read back the spaces it offers. */
 async function openSwitcher(page: Page): Promise<void> {
-  await page
-    .locator('[data-tour-target="spaceSwitcher"]')
-    .locator("button")
-    .first()
-    .click();
+  await workspaceMenuTrigger(page).click();
 }
 
-test("a pending invite renders as a card under the workspace switcher", async ({
+test("a pending invite renders as a card under the rail's top line", async ({
   page,
   request,
 }) => {
@@ -104,7 +102,7 @@ test("a pending invite renders as a card under the workspace switcher", async ({
   await page.goto("/");
 
   await expect(inviteCards(page)).toHaveCount(2);
-  await expectUnderTheSwitcher(page);
+  await expectUnderTheTopLine(page);
   // Sorted by team name (`sortInvites`), so the order is stable across polls
   // and an Accept button never slides under the cursor.
   await expect(inviteCards(page).first()).toContainText(
@@ -134,7 +132,9 @@ test("accepting an invite joins the team: the card goes, the space arrives", asy
 
   // The switcher offers only the personal space before the join.
   await openSwitcher(page);
-  await expect(page.getByRole("menuitem", { name: ACME })).toHaveCount(0);
+  await expect(page.getByRole("menuitemcheckbox", { name: ACME })).toHaveCount(
+    0,
+  );
   await page.keyboard.press("Escape");
 
   await page
@@ -153,7 +153,9 @@ test("accepting an invite joins the team: the card goes, the space arrives", asy
   // ...and it really is there. Nothing switched the active space: joining is
   // not going there.
   await openSwitcher(page);
-  await expect(page.getByRole("menuitem", { name: ACME })).toBeVisible();
+  await expect(
+    page.getByRole("menuitemcheckbox", { name: ACME }),
+  ).toBeVisible();
 });
 
 test("declining an invite removes the card", async ({ page, request }) => {
@@ -174,7 +176,9 @@ test("declining an invite removes the card", async ({ page, request }) => {
   await expect(inviteCards(page).first()).toContainText("Bravo Labs");
   // A decline joins nothing, so no space appears.
   await openSwitcher(page);
-  await expect(page.getByRole("menuitem", { name: ACME })).toHaveCount(0);
+  await expect(page.getByRole("menuitemcheckbox", { name: ACME })).toHaveCount(
+    0,
+  );
 });
 
 test("a needs_upgrade rejection explains itself in a plain toast, keeping the invite", async ({
@@ -269,9 +273,7 @@ test("no Spaces capability: the invite inbox renders nothing at all", async ({
 
   // Anchor on a painted shell first, so the absence below can't pass on an
   // empty screen.
-  await expect(
-    page.locator('[data-tour-target="spaceSwitcher"]'),
-  ).toBeVisible();
+  await expect(workspaceMenuTrigger(page)).toBeVisible();
   await expect(inboxOrNothing(page)).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: /pending invitation/ }),

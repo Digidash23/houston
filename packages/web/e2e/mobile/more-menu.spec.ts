@@ -12,8 +12,9 @@ import { screen } from "../support/team-nav";
  * The phone's More menu: the card the nav bar raises for everything outside the
  * AI Employees tree.
  *
- * Its destinations ARE the desktop rail's (`useSidebarNavItems`), so this spec
- * guards the two things that could drift — the list the seeded single-player
+ * It is headed by the same account row as the desktop rail's foot, and its
+ * destinations ARE the desktop menu's (`useSidebarNavItems`), so this spec
+ * guards the things that could drift — the list the seeded single-player
  * deployment actually offers, and the rail's tour anchors resolving to these
  * rows — plus the rule that picking one closes the menu instead of leaving it
  * floating over the screen it opened.
@@ -42,7 +43,7 @@ test("the menu lists what this deployment offers, with the rail's anchors", asyn
   await page.goto("/");
   const menu = await openMoreMenu(page);
 
-  for (const label of ["Integrations", "AI Models", "Skills"]) {
+  for (const label of ["Integrations", "AI Models"]) {
     await expect(
       menu.getByRole("button", { name: label, exact: true }),
       `"${label}" should be a row of the More menu`,
@@ -53,15 +54,17 @@ test("the menu lists what this deployment offers, with the rail's anchors", asyn
   await expect(menu.getByTestId("rail-admin")).toHaveCount(0);
 
   // The rows carry the RAIL's own attributes, so one anchor names the same
-  // destination on both breakpoints. Skills carries a test id rather than a
-  // tour anchor, because the tour does not walk it.
+  // destination on both breakpoints.
   for (const anchor of ["nav-integrations", "nav-ai-hub", "nav-settings"]) {
     await expect(
       moreRow(page, anchor),
       `the menu should carry the "${anchor}" anchor`,
     ).toHaveCount(1);
   }
-  await expect(menu.getByTestId("rail-skills")).toHaveCount(1);
+  // Skills live in each employee's settings: no row for them here.
+  await expect(
+    menu.getByRole("button", { name: "Skills", exact: true }),
+  ).toHaveCount(0);
 
   // The footer cluster holds destinations only: no help group.
   await expect(
@@ -120,4 +123,29 @@ test("a destination row lands on its screen and closes the menu", async ({
     "integrations-home",
   );
   await expect(navItem(page, "more")).toHaveAttribute("aria-current", "page");
+});
+
+test("the account row heads the card and switches workspace from its menu", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const menu = await openMoreMenu(page);
+  const account = menu.locator(
+    '[data-testid="more-account"] button[aria-haspopup="menu"]',
+  );
+  await expect(account).toBeVisible();
+  // It heads the card: nothing in the card sits above it.
+  const accountBox = await account.boundingBox();
+  const firstRow = await moreRow(page, "nav-ai-hub").boundingBox();
+  if (!accountBox || !firstRow) throw new Error("the card is not laid out");
+  expect(accountBox.y + accountBox.height).toBeLessThanOrEqual(firstRow.y);
+
+  // Its menu is the workspace run: the current one checked, then create.
+  await account.tap();
+  await expect(
+    page.getByRole("menuitemcheckbox", { checked: true }),
+  ).toHaveCount(1);
+  await expect(page.getByRole("menuitem").last()).toHaveText(
+    "Create workspace",
+  );
 });

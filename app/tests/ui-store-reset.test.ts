@@ -34,10 +34,6 @@ describe("useUIStore.reset", () => {
 
   it("keeps the per-machine layout preferences", () => {
     useUIStore.getState().setSidebarCollapsed(true);
-    // "Your AI Employees" is the rail's one labelled band, and its fold is a layout
-    // pref like the rail's own width: the rail must come back the way the user
-    // left it, whoever signs in next.
-    useUIStore.getState().toggleTeamsSectionCollapsed();
     // The wide chat is the same kind of pref: how THIS machine lays out the
     // chat, not something the next account should have to choose again.
     useUIStore.getState().setChatWide(true);
@@ -47,7 +43,6 @@ describe("useUIStore.reset", () => {
     const next = useUIStore.getState();
     strictEqual(next.sidebarCollapsed, true);
     strictEqual(next.chatWide, true);
-    strictEqual(next.teamsSectionCollapsed, true);
   });
 
   it("drops a one-shot routine-chat target on an identity change", () => {

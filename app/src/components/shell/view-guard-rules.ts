@@ -115,9 +115,8 @@ export function shouldDropAdminPin(gates: {
  * Whether the open view still exists — and, when it does not, whether that is
  * genuinely stale or merely in flight.
  *
- * A `viewMode` no screen answers to, a view this caller's gates hide (the
- * shared Skills library for anyone but the space's owner, Admin below its
- * organization gate, the assistant on a deployment that serves none once no
+ * A `viewMode` no screen answers to, a view this caller's gates hide (Admin
+ * below its organization gate, the assistant on a deployment that serves none once no
  * onboarding runs in it), or an employee that stopped existing under an
  * open employee view all fall through every render branch and strand the user on a
  * blank card. Those go home.
@@ -137,7 +136,6 @@ export function deadViewStep(input: {
   viewMode: string;
   showAiModels: boolean;
   showAssistant: boolean;
-  showSkills: boolean;
   /** The manager is running onboarding, which keeps its view reachable
    *  whatever discovery says (`managerReachable`). */
   onboardingActive: boolean;
@@ -156,7 +154,6 @@ export function deadViewStep(input: {
   const gateDead = blockedTopLevelView(input.viewMode, {
     showAiModels: input.showAiModels,
     showAssistant: managerReachable(input),
-    showSkills: input.showSkills,
     showOrganization: input.showOrganization,
   });
   if (gateDead && !input.gatesReady) return "wait";

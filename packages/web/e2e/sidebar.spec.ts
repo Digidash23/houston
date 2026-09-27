@@ -1,12 +1,13 @@
 import { expect, test } from "./support/fixtures";
-import { navRow } from "./support/team-nav";
+import { workspaceMenuTrigger } from "./support/workspace-menu";
 
 /**
- * The collapsed rail has one visible expand control above the workspace menu.
+ * The collapsed rail has one visible expand control at its top, and the
+ * account portrait at its foot opens the workspace menu.
  */
 test("collapsed sidebar expands from its visible toggle", async ({ page }) => {
   await page.goto("/");
-  await expect(navRow(page, "integrations")).toBeVisible();
+  await expect(workspaceMenuTrigger(page)).toBeVisible();
 
   const sidebar = page.locator("[data-tour-target='sidebar']");
 
@@ -14,7 +15,7 @@ test("collapsed sidebar expands from its visible toggle", async ({ page }) => {
   await page.getByRole("button", { name: "Collapse sidebar" }).click();
   await expect(sidebar).toHaveCSS("width", "56px");
 
-  // Exactly one expand button sits above the workspace monogram.
+  // Exactly one expand button, at the rail's top.
   const expandBtn = page.getByRole("button", { name: "Expand sidebar" });
   await expect(expandBtn).toHaveCount(1);
   const btnBox = await expandBtn.boundingBox();
@@ -23,14 +24,12 @@ test("collapsed sidebar expands from its visible toggle", async ({ page }) => {
   expect(btnBox.y - asideBox.y).toBeLessThan(30);
 
   await expect(expandBtn.locator("svg")).toBeVisible();
-  const workspaceButton = page
-    .locator('[data-tour-target="spaceSwitcher"] button')
-    .first();
+  const workspaceButton = workspaceMenuTrigger(page);
   await expect(workspaceButton).toBeVisible();
   await expandBtn.click();
-  await expect(sidebar).toHaveCSS("width", "220px");
+  await expect(sidebar).toHaveCSS("width", "272px");
 
-  // The monogram opens its menu and empty rail space leaves the rail closed.
+  // The portrait opens its menu and empty rail space leaves the rail closed.
   await page.getByRole("button", { name: "Collapse sidebar" }).click();
   await expect(sidebar).toHaveCSS("width", "56px");
   await workspaceButton.click();
@@ -39,15 +38,16 @@ test("collapsed sidebar expands from its visible toggle", async ({ page }) => {
   await page.mouse.click(asideBox.x + 28, asideBox.y + asideBox.height - 200);
   await expect(sidebar).toHaveCSS("width", "56px");
 
-  // Nav buttons keep their own action.
-  await sidebar.locator("nav button").first().click();
+  // The top line's own buttons keep their own action.
+  await sidebar.getByTestId("rail-search").click();
   await expect(sidebar).toHaveCSS("width", "56px");
+  await page.keyboard.press("Escape");
 });
 
 /**
- * The AI Manager is not a top-level destination: it leads the employees band,
- * pinned above every group and employee, on the same person row an employee
- * wears, and it keeps that lead on the collapsed icon rail.
+ * The AI Manager is not a destination: it leads the employees list, pinned
+ * above every group and employee, on the same person row an employee wears,
+ * and it keeps that lead on the collapsed icon rail.
  */
 test("Manager is the first employee row in both rail widths", async ({
   page,
@@ -57,10 +57,8 @@ test("Manager is the first employee row in both rail widths", async ({
   const manager = band.getByTestId("rail-assistant");
   await expect(manager).toBeVisible();
   await expect(
-    page
-      .locator("[data-tour-target='sidebar'] nav")
-      .getByTestId("rail-assistant"),
-  ).toHaveCount(0);
+    page.locator("[data-tour-target='sidebar']").getByTestId("rail-assistant"),
+  ).toHaveCount(1);
 
   // Above the first employee.
   const managerBox = await manager.boundingBox();

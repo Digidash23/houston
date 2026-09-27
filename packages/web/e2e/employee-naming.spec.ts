@@ -1,4 +1,4 @@
-import { fillAgentBrief, newAgentRow } from "./support/create-agent";
+import { fillAgentBrief, openNewAgent } from "./support/create-agent";
 import { expect, test } from "./support/fixtures";
 import {
   BASIC_TEAM_ROLES,
@@ -14,7 +14,7 @@ for (const theme of THEMES) {
   }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/");
-    await newAgentRow(page).click();
+    await openNewAgent(page);
     await fillAgentBrief(page);
     await pinTheme(page, theme);
     const dialog = page.getByRole("dialog", {

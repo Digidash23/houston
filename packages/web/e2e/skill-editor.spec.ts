@@ -1,12 +1,12 @@
 import { expect, test } from "./support/fixtures";
-import { openSkillsLibrary } from "./support/settings-nav";
-import { seedAgentSkills } from "./support/skills-nav";
+import { openAgentSkills, seedAgentSkills } from "./support/skills-nav";
 import { screen } from "./support/team-nav";
 
 /**
- * The shared Skills library's full-page EDITOR: one skill, read two ways.
+ * An employee's skill EDITOR: one skill, read two ways.
  *
- * The library row opens the skill IN PLACE of the list (no modal), and the
+ * A row of the employee's Skills section opens the skill IN PLACE of the list
+ * (no modal), and the
  * editor's header carries the Workflow / Text switch — the one control that
  * decides whether a non-technical owner reads their skill as numbered steps or
  * as the markdown behind them. A skill written as plain instructions has no
@@ -18,25 +18,27 @@ import { screen } from "./support/team-nav";
  * what returns the list, because the editor replaced it.
  */
 
-test("the library opens a skill in its editor, switches how it reads, and comes back", async ({
+test("the Skills section opens a skill in its editor, switches how it reads, and comes back", async ({
   page,
   request,
 }) => {
   await seedAgentSkills(request);
   await page.goto("/");
 
-  // The rail's Skills row: the shared library's one door.
-  await openSkillsLibrary(page);
+  await openAgentSkills(page);
   await expect(
     screen(page).getByRole("button", { name: "Create skill" }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: /^Invoice triage\b/ }).click();
+  await screen(page)
+    .getByRole("button", { name: /^Invoice triage\b/ })
+    .click();
 
   // The row opened the skill's own page in place of the list.
   const editor = page.getByTestId("skill-editor");
   await expect(
-    editor.getByRole("heading", { name: "Invoice triage", level: 1 }),
+    // Level 2 inside the rail: its section lozenge is the screen's h1.
+    editor.getByRole("heading", { name: "Invoice triage", level: 2 }),
   ).toBeVisible();
 
   // The header's switch: the skill's two readings, never both at once.
@@ -66,7 +68,7 @@ test("the library opens a skill in its editor, switches how it reads, and comes 
     editor.getByText("This skill has no step-by-step workflow yet"),
   ).toBeVisible();
 
-  // Back to the library list: the editor is gone and the list is on the glass.
+  // Back to the section's list: the editor is gone and the list is on the glass.
   await editor.getByRole("button", { name: "Back to skills" }).click();
   await expect(page.getByTestId("skill-editor")).toHaveCount(0);
   await expect(

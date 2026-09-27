@@ -11,10 +11,9 @@
     ],
     "fileCount": 1
   },
-  "agents-sidebar-nav-item": {
+  "agents-sidebar-profile-menu": {
     "surfaces": [
-      "App shell",
-      "ui/layout (internal)"
+      "App shell"
     ],
     "fileCount": 2
   },
@@ -22,19 +21,13 @@
     "surfaces": [
       "ui/layout (internal)"
     ],
-    "fileCount": 3
+    "fileCount": 1
   },
   "agents-split-view": {
     "surfaces": [
       "ui/board (library)"
     ],
     "fileCount": 1
-  },
-  "agents-workspace-switcher": {
-    "surfaces": [
-      "App shell"
-    ],
-    "fileCount": 2
   },
   "board-bulk-action-bar": {
     "surfaces": [
@@ -69,10 +62,11 @@
   "board-kanban-people": {
     "surfaces": [
       "Activity",
+      "App shell",
       "Settings",
       "ui/board (internal)"
     ],
-    "fileCount": 5
+    "fileCount": 6
   },
   "chat-attachment-message": {
     "surfaces": [
@@ -166,11 +160,12 @@
       "Skills",
       "app/src/components"
     ],
-    "fileCount": 18
+    "fileCount": 17
   },
   "core-avatar": {
     "surfaces": [
       "Activity",
+      "App shell",
       "Organization",
       "Permissions",
       "Settings",
@@ -178,7 +173,7 @@
       "ui/board (library)",
       "ui/store (library)"
     ],
-    "fileCount": 11
+    "fileCount": 12
   },
   "core-badge": {
     "surfaces": [
@@ -212,6 +207,7 @@
       "Skills",
       "Store website",
       "Store website (admin)",
+      "Web app",
       "Your AI Employees",
       "Your Agents",
       "app/src/components",
@@ -222,7 +218,7 @@
       "ui/routines (library)",
       "ui/store (library)"
     ],
-    "fileCount": 141
+    "fileCount": 153
   },
   "core-button-group": {
     "surfaces": [
@@ -233,9 +229,10 @@
   "core-card": {
     "surfaces": [
       "Store website (admin)",
+      "Web app",
       "ui/board (library)"
     ],
-    "fileCount": 2
+    "fileCount": 3
   },
   "core-catalog": {
     "surfaces": [
@@ -300,7 +297,7 @@
       "ui/routines (library)",
       "ui/store (library)"
     ],
-    "fileCount": 17
+    "fileCount": 16
   },
   "core-dialog": {
     "surfaces": [
@@ -320,7 +317,7 @@
       "app/src/components",
       "ui/store (library)"
     ],
-    "fileCount": 30
+    "fileCount": 31
   },
   "core-dropdown-menu": {
     "surfaces": [
@@ -339,7 +336,7 @@
       "ui/routines (library)",
       "ui/store (library)"
     ],
-    "fileCount": 28
+    "fileCount": 30
   },
   "core-empty": {
     "surfaces": [
@@ -357,7 +354,7 @@
       "ui/events (library)",
       "ui/routines (library)"
     ],
-    "fileCount": 24
+    "fileCount": 22
   },
   "core-flow-choice-row": {
     "surfaces": [
@@ -400,14 +397,13 @@
       "Organization",
       "Permissions",
       "Sign in",
-      "Skills",
       "Your AI Employees",
       "Your Agents",
       "app/src/components",
       "ui/chat (library)",
       "ui/store (library)"
     ],
-    "fileCount": 40
+    "fileCount": 36
   },
   "core-hover-card": {
     "surfaces": [
@@ -422,7 +418,6 @@
       "Activity",
       "App shell",
       "Integrations",
-      "Onboarding",
       "Permissions",
       "Settings",
       "Sign in",
@@ -433,7 +428,7 @@
       "ui/review (library)",
       "ui/store (library)"
     ],
-    "fileCount": 28
+    "fileCount": 26
   },
   "core-input-group": {
     "surfaces": [
@@ -449,11 +444,12 @@
   },
   "core-kbd": {
     "surfaces": [
+      "App shell",
       "Chat",
       "Settings",
       "ui/chat (library)"
     ],
-    "fileCount": 3
+    "fileCount": 4
   },
   "core-popover": {
     "surfaces": [
@@ -498,9 +494,10 @@
   "core-sheet": {
     "surfaces": [
       "App shell",
+      "Organization",
       "app/src/components"
     ],
-    "fileCount": 2
+    "fileCount": 4
   },
   "core-skeleton": {
     "surfaces": [
@@ -515,7 +512,7 @@
       "ui/agent (library)",
       "ui/store (library)"
     ],
-    "fileCount": 17
+    "fileCount": 20
   },
   "core-spinner": {
     "surfaces": [
@@ -536,7 +533,7 @@
       "app/src/components",
       "ui/store (library)"
     ],
-    "fileCount": 44
+    "fileCount": 47
   },
   "core-status-badge": {
     "surfaces": [
@@ -559,16 +556,15 @@
   "core-tabs": {
     "surfaces": [
       "Skills",
-      "Store website (admin)",
-      "app/src/components"
+      "Store website (admin)"
     ],
-    "fileCount": 3
+    "fileCount": 2
   },
   "core-textarea": {
     "surfaces": [
-      "Onboarding",
       "Skills",
       "Store website",
+      "app/src/components",
       "ui/store (library)"
     ],
     "fileCount": 6
@@ -590,7 +586,7 @@
       "ui/layout (library)",
       "ui/routines (library)"
     ],
-    "fileCount": 17
+    "fileCount": 14
   },
   "core-verified-badge": {
     "surfaces": [

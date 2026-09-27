@@ -1,13 +1,10 @@
 import type { SkillSummary } from "../../lib/types";
 
 /**
- * The decisions that separate the Skills surface's two scopes, kept pure so
- * they are node-testable and the components stay renderers.
- *
- * ONE surface serves the workspace library (every agent's skills) and an
- * agent's own Skills section in the settings rail (that agent's skills). The
- * scope is the only thing that differs between them, so it is decided here
- * rather than in two components that would drift apart.
+ * How the workspace's skill rows narrow to ONE employee's Skills section, kept
+ * pure so it is node-testable and the components stay renderers. The rows
+ * arrive for the whole workspace; the section shows what this employee has,
+ * pointed at the copy it runs.
  */
 
 /** The slice of a list row these rules read: who the skill is live on. */
@@ -22,9 +19,8 @@ interface ScopedSkillRow {
  */
 export function scopeSkillRows<T extends ScopedSkillRow>(
   rows: readonly T[],
-  agentId: string | null,
+  agentId: string,
 ): T[] {
-  if (agentId === null) return [...rows];
   return rows.filter((row) => row.agents.some((a) => a.id === agentId));
 }
 
@@ -48,7 +44,7 @@ interface OverridableSkillRow {
  * save there rewrites the skill for every other employee while this one keeps
  * its untouched copy. Scoped to the employee, such a row becomes its local copy
  * instead, keeping the override mark so the editor can still offer the
- * workspace version. The library scope (`agentId === null`) reads the store.
+ * workspace version.
  *
  * Until the employee's own list has landed there is nothing to resolve TO, and
  * a row rewritten to "local" while still carrying the store's title would
@@ -65,11 +61,11 @@ interface OverridableSkillRow {
  */
 export function resolveScopedOverrides<T extends OverridableSkillRow>(
   rows: readonly T[],
-  agentId: string | null,
+  agentId: string,
   /** slug → the employee's own copy, or undefined while its list is loading. */
   localsBySlug: ReadonlyMap<string, SkillSummary> | undefined,
 ): T[] {
-  if (agentId === null || localsBySlug === undefined) return [...rows];
+  if (localsBySlug === undefined) return [...rows];
   const resolved: T[] = [];
   for (const row of rows) {
     const mine = (row.overriddenBy ?? []).filter((a) => a.id === agentId);
@@ -88,53 +84,4 @@ export function resolveScopedOverrides<T extends OverridableSkillRow>(
     });
   }
   return resolved;
-}
-
-/**
- * Whether the editor may offer "Share to workspace".
- *
- * Promoting moves a per-employee skill into the store and fans the move out
- * over every holder the row names. An employee's own section narrows that row
- * to itself, so promoting from there would leave the other holders on stale
- * copies that shadow the new store version, and it is a workspace-wide act
- * reached from a screen a manager sees. It belongs to the library alone.
- */
-export function offersPromoteToWorkspace(input: {
-  /** The agent this surface is scoped to, or null for the library. */
-  scopedAgentId: string | null;
-  /** Where the open row's canonical copy lives. */
-  origin?: "shared" | "local";
-  /** `capabilities.sharedSkills` — there is no store to promote into without it. */
-  sharedStore: boolean;
-}): boolean {
-  return (
-    input.sharedStore &&
-    input.origin === "local" &&
-    input.scopedAgentId === null
-  );
-}
-
-/** Where a "Create skill" action lands before anything opens. */
-export type SkillCreateTarget =
-  | { kind: "agent"; agentId: string }
-  | { kind: "choose" }
-  | { kind: "none" };
-
-/**
- * Which agent a new skill is built on. A scoped surface is already standing on
- * one, so it never asks; the library asks only when the workspace holds more
- * than one, and a workspace with none has nothing to create against.
- */
-export function resolveSkillCreateTarget(input: {
-  /** The agent this surface is scoped to, or null for the library. */
-  scopedAgentId: string | null;
-  agentIds: readonly string[];
-}): SkillCreateTarget {
-  if (input.scopedAgentId !== null)
-    return { kind: "agent", agentId: input.scopedAgentId };
-  const [only, ...rest] = input.agentIds;
-  if (only === undefined) return { kind: "none" };
-  return rest.length === 0
-    ? { kind: "agent", agentId: only }
-    : { kind: "choose" };
 }

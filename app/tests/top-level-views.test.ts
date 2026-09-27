@@ -5,7 +5,6 @@ import { AGENTS_HOME_VIEW_ID } from "../src/components/agents-home/id.ts";
 import { ASSISTANT_VIEW_ID } from "../src/components/assistant/id.ts";
 import { INTEGRATIONS_VIEW_ID } from "../src/components/integrations-view/id.ts";
 import { ADMIN_VIEW_ID } from "../src/components/organization/id.ts";
-import { SKILLS_VIEW_ID } from "../src/components/skills-view/id.ts";
 import { SETTINGS_SECTION_IDS } from "../src/lib/settings-sections.ts";
 import type { TeamSectionId } from "../src/lib/teams-model.ts";
 import {
@@ -35,9 +34,7 @@ describe("isTopLevelView", () => {
       SETTINGS_VIEW_ID,
       AI_HUB_VIEW_ID,
       INTEGRATIONS_VIEW_ID,
-      // The shared Skills library, beside Integrations in the rail.
-      SKILLS_VIEW_ID,
-      // Admin, the rail footer's gated dashboard.
+      // Admin, the workspace menu's gated dashboard.
       ADMIN_VIEW_ID,
       // One screen for every team: which team is open is store state, not an id.
       AGENT_VIEW_ID,
@@ -46,21 +43,22 @@ describe("isTopLevelView", () => {
     }
   });
 
-  it("is exactly those nine, and no settings section doubles as one", () => {
+  it("is exactly those eight, and no settings section doubles as one", () => {
     // A Settings section is reached THROUGH `settings`, so no section id may
     // also resolve as a top-level view. Checking the live section list (rather
     // than retired string literals) keeps this failing if a future section is
     // wired up as a top-level view by mistake, and still covers the
     // stale-persisted-`viewMode` case that motivated it.
-    strictEqual(TOP_LEVEL_VIEWS.size, 9);
+    strictEqual(TOP_LEVEL_VIEWS.size, 8);
     for (const section of SETTINGS_SECTION_IDS) {
       strictEqual(isTopLevelView(section), false, section);
     }
     // Retired `viewMode` values an older install may still have pinned: the
     // global usage page, the Permissions screen (agent policy is a team's
     // focused agent screen), the standalone Time worked screen, the Inbox,
-    // About me (a Settings section), and the phone's groups tree (groups are
-    // managed from the AI Employees list).
+    // About me (a Settings section), the phone's groups tree (groups are
+    // managed from the AI Employees list), and the workspace Skills screen
+    // (skills live in each employee's settings).
     for (const retired of [
       "usage",
       "permissions",
@@ -70,6 +68,7 @@ describe("isTopLevelView", () => {
       "agent-store",
       "organization",
       "teams-home",
+      "skills-home",
     ]) {
       strictEqual(isTopLevelView(retired), false, retired);
     }
@@ -78,8 +77,7 @@ describe("isTopLevelView", () => {
   it("treats everything else as an agent tab", () => {
     strictEqual(isTopLevelView("chat"), false);
     strictEqual(isTopLevelView("integrations"), false);
-    // "skills" is the per-agent settings page's Skills SECTION id, which is
-    // why the library's view id is `skills-home` instead.
+    // "skills" is the per-agent settings page's Skills SECTION id.
     strictEqual(isTopLevelView("skills"), false);
   });
 });
@@ -216,13 +214,11 @@ describe("blockedTopLevelView", () => {
     over: {
       showAiModels?: boolean;
       showAssistant?: boolean;
-      showSkills?: boolean;
       showOrganization?: boolean;
     } = {},
   ) => ({
     showAiModels: over.showAiModels ?? false,
     showAssistant: over.showAssistant ?? false,
-    showSkills: over.showSkills ?? false,
     showOrganization: over.showOrganization ?? false,
   });
 
@@ -238,17 +234,6 @@ describe("blockedTopLevelView", () => {
     strictEqual(blockedTopLevelView(AI_HUB_VIEW_ID, gates()), true);
     strictEqual(
       blockedTopLevelView(AI_HUB_VIEW_ID, gates({ showAiModels: true })),
-      false,
-    );
-  });
-
-  it("blocks the shared Skills library for anyone but the space owner", () => {
-    // A skill edit reaches every agent in the space, so a caller whose gate
-    // closed (a role change, a space switch) must not be left standing on the
-    // library with a stale `viewMode`.
-    strictEqual(blockedTopLevelView(SKILLS_VIEW_ID, gates()), true);
-    strictEqual(
-      blockedTopLevelView(SKILLS_VIEW_ID, gates({ showSkills: true })),
       false,
     );
   });

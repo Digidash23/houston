@@ -34,6 +34,8 @@ export function SidebarDragOverlay({
   rowCtx,
   modifiers,
 }: SidebarDragOverlayProps) {
+  // Server rendering has no body to portal to, and nothing is being dragged.
+  if (typeof document === "undefined") return null;
   return createPortal(
     <DragOverlay
       modifiers={modifiers}

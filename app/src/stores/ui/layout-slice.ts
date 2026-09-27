@@ -14,16 +14,6 @@ export interface LayoutFields {
    * the panel already covers the screen.
    */
   chatWide: boolean;
-  /**
-   * Whether "Your teams", the rail's one LABELLED band, is folded away.
-   *
-   * Persisted, because a rail that forgets it was folded on every reload is
-   * worse than one that never folded, and per-MACHINE rather than per-account,
-   * like every other layout pref here. The rows that LEAD the rail (the
-   * Assistant, AI Models, Integrations) wear no band and fold nothing: there is
-   * no heading to fold them under.
-   */
-  teamsSectionCollapsed: boolean;
 }
 
 export interface LayoutActions {
@@ -31,13 +21,11 @@ export interface LayoutActions {
   toggleSidebarCollapsed: () => void;
   setChatWide: (wide: boolean) => void;
   toggleChatWide: () => void;
-  toggleTeamsSectionCollapsed: () => void;
 }
 
 export const layoutInitialState = {
   sidebarCollapsed: false,
   chatWide: false,
-  teamsSectionCollapsed: false,
 } satisfies LayoutFields;
 
 export const createLayoutActions: UISliceCreator<LayoutActions> = (set) => ({
@@ -46,6 +34,4 @@ export const createLayoutActions: UISliceCreator<LayoutActions> = (set) => ({
     set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   setChatWide: (chatWide) => set({ chatWide }),
   toggleChatWide: () => set((s) => ({ chatWide: !s.chatWide })),
-  toggleTeamsSectionCollapsed: () =>
-    set((s) => ({ teamsSectionCollapsed: !s.teamsSectionCollapsed })),
 });

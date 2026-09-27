@@ -4,8 +4,8 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { cn } from "@houston-ai/core";
 import { useLayoutEffect, useRef, useState } from "react";
-import { SidebarAddRow } from "./sidebar-add-row";
 import {
   createSidebarAccessibility,
   keyboardMoveAnnouncement,
@@ -13,6 +13,7 @@ import {
 import { SidebarDragOverlay } from "./sidebar-drag-overlay";
 import type { SidebarGroupView, SidebarRootEntry } from "./sidebar-groups";
 import type { SidebarLabels } from "./sidebar-labels";
+import { sidebarListEnd } from "./sidebar-paint";
 import type { SidebarItem } from "./sidebar-props";
 import type { SidebarBaseRowContext } from "./sidebar-row-context";
 import {
@@ -32,9 +33,6 @@ export interface SidebarGroupedListProps {
   /** A drop landed: the whole arrangement the rail now shows. Answers whether
    *  it was stored; absent, nothing can be dragged. */
   onArrange?: (arrangement: SidebarArrangement) => boolean;
-  onAdd?: () => void;
-  addItemLabel?: string;
-  addItemDataAttrs?: Record<string, string>;
   labels?: SidebarLabels;
 }
 
@@ -52,9 +50,6 @@ export function SidebarGroupedList({
   rowCtx,
   onActivateGroup,
   onArrange,
-  onAdd,
-  addItemLabel,
-  addItemDataAttrs,
   labels,
 }: SidebarGroupedListProps) {
   const drag = useSidebarTreeDrag({ items, groups, order, onArrange });
@@ -110,7 +105,7 @@ export function SidebarGroupedList({
     >
       <div
         ref={listRef}
-        className="flex flex-col gap-px"
+        className={cn("flex flex-col gap-px", sidebarListEnd)}
         data-sidebar-root-list=""
       >
         <span className="sr-only" aria-live="polite" aria-atomic="true">
@@ -137,13 +132,6 @@ export function SidebarGroupedList({
             );
           })}
         </SortableContext>
-        {onAdd && addItemLabel && (
-          <SidebarAddRow
-            label={addItemLabel}
-            onClick={onAdd}
-            dataAttrs={addItemDataAttrs}
-          />
-        )}
       </div>
       <SidebarDragOverlay
         modifiers={[restrictToVerticalAxis]}

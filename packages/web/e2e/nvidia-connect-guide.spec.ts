@@ -1,4 +1,5 @@
 import { expect, test } from "./support/fixtures";
+import { openNavRow } from "./support/workspace-menu";
 
 /**
  * NVIDIA's connect dialog ships a step-by-step key guide (HOU-890): a working
@@ -16,7 +17,7 @@ test("NVIDIA connect dialog shows the NGC Personal Key guide", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.locator("[data-tour-target='nav-ai-hub']").click();
+  await openNavRow(page, "ai-hub");
   await expect(
     page.getByRole("heading", { name: "AI Providers" }),
   ).toBeVisible();

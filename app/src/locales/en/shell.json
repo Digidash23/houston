@@ -44,7 +44,6 @@
     "runningCount_other": "{{count}} issues running",
     "selectWorkspace": "Select workspace",
     "settings": "Settings",
-    "skills": "Skills",
     "teams": {
       "identity": "Icon & color",
       "identityIcons": "Icons",
@@ -394,7 +393,10 @@
       "work": "work",
       "writing": "writing"
     },
-    "employeesSection": "Your AI Employees"
+    "search": "Search",
+    "firstDay": "Start their first day",
+    "working": "Working…",
+    "newAgent": "New"
   },
   "missionChat": {
     "back": "Back"

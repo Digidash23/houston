@@ -1,6 +1,7 @@
 import { FAKE_HOST_URL } from "@houston/fake-host";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
+import { openNavRow } from "./support/workspace-menu";
 
 /**
  * Custom integrations (HOU-550) on the global Integrations page.
@@ -41,7 +42,7 @@ async function armCustomIntegrations(
 
 async function openIntegrationsPage(page: Page): Promise<void> {
   await page.goto("/");
-  await page.locator('[data-tour-target="nav-integrations"]').click();
+  await openNavRow(page, "integrations");
 }
 
 const ACME_PENDING = {

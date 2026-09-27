@@ -14,7 +14,6 @@ import { useSidebarManagerRow } from "./sidebar-manager-row";
 import { SidebarRail, type SidebarRailModel } from "./sidebar-rail";
 import { useAgentActivitySummaries } from "./use-agent-activity-summaries";
 import { useSidebarAutoCollapse } from "./use-sidebar-auto-collapse";
-import { useSidebarNavItems } from "./use-sidebar-nav-items";
 import { useSidebarNavigation } from "./use-sidebar-navigation";
 import { useSidebarTeamsModel } from "./use-sidebar-teams-model";
 
@@ -26,7 +25,6 @@ export function Sidebar({ children }: { children: ReactNode }) {
     "teams",
     "agents",
   ]);
-  const workspaces = useWorkspaceStore((s) => s.workspaces);
   const currentWorkspace = useWorkspaceStore((s) => s.current);
 
   const agents = useAgentStore((s) => s.agents);
@@ -39,12 +37,6 @@ export function Sidebar({ children }: { children: ReactNode }) {
   const collapsed = useUIStore((s) => s.sidebarCollapsed);
   const toggleCollapsed = useUIStore((s) => s.toggleSidebarCollapsed);
   const setSidebarCollapsed = useUIStore((s) => s.setSidebarCollapsed);
-  // Folding "Your AI Employees" is a device layout preference, persisted beside the
-  // rail's own collapse so the rail comes back the way it was left.
-  const teamsSectionCollapsed = useUIStore((s) => s.teamsSectionCollapsed);
-  const toggleTeamsSectionCollapsed = useUIStore(
-    (s) => s.toggleTeamsSectionCollapsed,
-  );
 
   // Below md the rail is not rendered at all: the phone navigates through the
   // floating nav bar and its More menu (`mobile-nav-bar.tsx`). Selecting
@@ -66,8 +58,7 @@ export function Sidebar({ children }: { children: ReactNode }) {
       sidebar,
       summaries: activitySummaries,
     });
-  const { navSections, activeNavId } = useSidebarNavItems(t, closeMobileMenu);
-  const { switchWorkspace, selectAgent } = useSidebarNavigation({
+  const { selectAgent } = useSidebarNavigation({
     closeMobileMenu,
   });
   const manager = useSidebarManagerRow({
@@ -78,15 +69,10 @@ export function Sidebar({ children }: { children: ReactNode }) {
   });
 
   const model: SidebarRailModel = {
-    workspaces,
-    currentWorkspace,
     collapsed,
     onToggleCollapsed: toggleCollapsed,
     onExpand: () => setSidebarCollapsed(false),
     onCreateWorkspace: () => setCreateWsOpen(true),
-    onSwitchWorkspace: switchWorkspace,
-    navSections,
-    activeNavId,
     onArrange: sidebar.arrange,
     ready: sidebar.ready,
     items,
@@ -96,8 +82,6 @@ export function Sidebar({ children }: { children: ReactNode }) {
     selectedAgentId: manager.selectedId,
     onSelectAgent: manager.onSelect,
     onActivateGroup,
-    sectionCollapsed: teamsSectionCollapsed,
-    onToggleSectionCollapsed: toggleTeamsSectionCollapsed,
     onNewTeam: () => openCreateFlow("team"),
     onAddAgent: canCreateAgents
       ? () => {

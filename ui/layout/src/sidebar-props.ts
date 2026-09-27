@@ -7,10 +7,11 @@ export interface SidebarItem {
   id: string;
   name: string;
   icon?: ReactNode;
-  /** The second line of a person row, under the name (an AI Employee's
-   *  role). Absent: the name sits alone, centred, at the same row height. */
-  subtitle?: string;
-  /** Optional right-aligned slot for row badges or status indicators. */
+  /** The line under a person row's name (up to two lines): what the employee
+   *  is doing. Absent: the name sits alone, centred, at the same row height. */
+  subtitle?: ReactNode;
+  /** Row badges or status indicators. A person row carries them at the end of
+   *  its second line; every other row at its right edge. */
   trailing?: ReactNode;
   /**
    * Optional control OUTSIDE the row button, after `trailing` — a "..." menu
@@ -27,60 +28,19 @@ export interface SidebarItem {
   dataAttrs?: Record<string, string>;
 }
 
-export interface SidebarNavItemEntry {
-  id: string;
-  label: string;
-  icon: ReactNode;
-  active?: boolean;
-  onClick: () => void;
-  /** Optional right-aligned slot (e.g. a "Beta" badge). */
-  trailing?: ReactNode;
-  /** Extra DOM attributes (e.g. `data-tour-target`) on the rendered button. */
-  dataAttrs?: Record<string, string>;
-}
-
-/**
- * One labelled run of top-level destinations above the list.
- *
- * The rail's nav is a LIST OF SECTIONS rather than one flat array because the
- * label and the rows it names are one fact: a section whose rows a gate empties
- * must not leave a naked band behind, and the renderer can only guarantee that
- * if it can see which rows belong to which label.
- */
-export interface SidebarNavSection {
-  /** Stable React key. Never rendered. */
-  id: string;
-  /** The band naming this run. Absent → an unlabelled run (the destinations
-   *  that lead the rail and need no heading). */
-  label?: string;
-  items: SidebarNavItemEntry[];
-  /**
-   * Whether this run is folded away behind its band. Controlled, because the
-   * host persists it — a rail that forgets it was folded every reload is worse
-   * than one that never folded. Meaningless without `label`: an unlabelled run
-   * has no band to fold from, exactly like the icon rail.
-   */
-  collapsed?: boolean;
-  /** Absent means the band is a plain label and folds nothing. */
-  onToggleCollapsed?: () => void;
-}
-
 export interface SidebarProps {
-  logo?: ReactNode;
-  /** Header area rendered at the very top (e.g. space/org switcher). */
-  header?: ReactNode;
   /**
-   * A FULL-WIDTH band directly under the header, above the nav (e.g. the
-   * pending-invite inbox). Deliberately not part of `header`: expanded, the
-   * header shares its row with the collapse toggle, so anything tall put there
-   * is inset by the toggle's width AND drags the vertically-centred toggle down
-   * to the middle of the block. This slot spans the rail like every row below
-   * it and leaves the toggle on the header's own line.
+   * The rail's own verbs (search, create), on the top line beside the collapse
+   * toggle when expanded and stacked under it when collapsed. Wear
+   * `sidebarHeaderControlClasses` so they match the toggle.
+   */
+  headerActions?: ReactNode;
+  /**
+   * A FULL-WIDTH notice directly under the top line, above the list (e.g. the
+   * pending-invite inbox). Not part of the top line, which it would crowd:
+   * it spans the rail like every row below it.
    */
   headerBelow?: ReactNode;
-  /** The top-level destinations above the list, in labelled runs. */
-  navSections?: SidebarNavSection[];
-  activeNavId?: string;
   items: SidebarItem[];
   /**
    * Rows that lead the list, ahead of every group (expanded) or every item
@@ -90,28 +50,6 @@ export interface SidebarProps {
   pinnedItems?: SidebarItem[];
   selectedId?: string | null;
   onSelect: (id: string) => void;
-  /**
-   * Creates an item. In the GROUPED list it renders as the row that closes the
-   * list, because creating is the rail's primary action and a primary action
-   * may not live only one level deep inside a menu. In the flat / collapsed
-   * rail it stays the trailing icon button it has always been.
-   */
-  onAdd?: () => void;
-  /** Extra DOM attributes (e.g. `data-tour-target`) on the add-item control. */
-  addItemDataAttrs?: Record<string, string>;
-  /** Names the list. Expanded rail only. */
-  sectionLabel?: string;
-  /** One inline control at the right edge of the section band, expanded only
-   *  (e.g. a "+" menu trigger). */
-  sectionAction?: ReactNode;
-  /**
-   * Fold the WHOLE list away behind the section band. Controlled, because the
-   * host persists it: a rail that forgets it was folded every reload is worse
-   * than one that never folded.
-   */
-  sectionCollapsed?: boolean;
-  /** Absent means the band folds nothing and renders as a plain label. */
-  onToggleSectionCollapsed?: () => void;
   /**
    * Named groups in display order. When provided (even []), the grouped
    * drag-and-drop layout renders; items whose id is in no group render in a

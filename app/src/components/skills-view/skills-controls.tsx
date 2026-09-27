@@ -25,9 +25,9 @@ export function SkillsControls({
   onQueryChange: (query: string) => void;
   /** Build a skill together with the AI Employee — the primary path. */
   onCreateWithChat: () => void;
-  /** Put a skill the workspace already holds on THIS AI Employee. The library
-   *  stands on no employee to add to, so it passes nothing and the control is
-   *  a single button again. */
+  /** Put a skill the workspace already holds on THIS AI Employee. Absent
+   *  where there is no workspace store, and the control is a single button
+   *  again. */
   onAddExisting?: () => void;
   variant: "strip" | "row";
 }) {

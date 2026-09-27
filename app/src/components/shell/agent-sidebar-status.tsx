@@ -78,6 +78,11 @@ interface NeedsYouChipProps {
   label: string;
 }
 
+/** The rail's quiet badge: a recessed chip in muted ink. Shared, so the
+ *  needs-you count and the "New" mark read as one family. */
+const RAIL_BADGE_CLASS =
+  "h-5 min-w-7 bg-input/90 px-2 text-[11px] font-semibold leading-none text-ink/80";
+
 export function NeedsYouChip({ count, label }: NeedsYouChipProps) {
   if (count <= 0) return null;
 
@@ -86,9 +91,19 @@ export function NeedsYouChip({ count, label }: NeedsYouChipProps) {
       variant="secondary"
       aria-label={label}
       title={label}
-      className="h-5 min-w-7 bg-input/90 px-2 text-[11px] font-semibold leading-none text-ink/80"
+      className={RAIL_BADGE_CLASS}
     >
       {count > 99 ? "99+" : count}
+    </Badge>
+  );
+}
+
+/** Marks an employee that has never been given work: the badge a count would
+ *  take, saying why the row is worth opening. */
+export function NewAgentChip({ label }: { label: string }) {
+  return (
+    <Badge variant="secondary" className={RAIL_BADGE_CLASS}>
+      {label}
     </Badge>
   );
 }

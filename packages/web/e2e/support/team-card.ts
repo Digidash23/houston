@@ -12,6 +12,7 @@ import {
 import { prefilledName } from "./employee-name";
 import { openMoreMenu, type PressMode, press } from "./mobile-nav";
 import { seedAnsweredSurvey } from "./onboarding";
+import { workspaceMenuTrigger } from "./workspace-menu";
 
 /** The survey's industry every team-card spec seeds, which the card opens
  *  on. */
@@ -34,8 +35,8 @@ export const TEAM_HIRE_ROLE = "Production planner";
 /**
  * Boot the seeded shell with the survey answered on the account (the card
  * opens on {@link TEAM_CARD_INDUSTRY}), create a workspace and land on its
- * "Build your team" card: the workspace switcher's "Create workspace" (the
- * rail's on a desktop, the More menu's on a phone), a name, then the card the
+ * "Build your team" card: the account menu's "Create workspace" (the rail's
+ * foot on a desktop, the More card's head on a phone), a name, then the card the
  * dialog opens once the workspace exists. Returns the dialog around the card.
  */
 export async function openNewWorkspaceTeamCard(
@@ -45,14 +46,13 @@ export async function openNewWorkspaceTeamCard(
 ): Promise<Locator> {
   await seedAnsweredSurvey(request, TEAM_CARD_INDUSTRY.toLowerCase());
   await page.goto("/");
+  // The account row: at the rail's foot, or heading the phone's More card.
   const switcher =
     device === "desktop"
-      ? page.locator(
-          '[data-tour-target="spaceSwitcher"] button[aria-haspopup="menu"]',
-        )
-      : (await openMoreMenu(page, "click"))
-          .locator('button[aria-haspopup="menu"]')
-          .first();
+      ? workspaceMenuTrigger(page)
+      : (await openMoreMenu(page, "click")).locator(
+          '[data-testid="more-account"] button[aria-haspopup="menu"]',
+        );
   await switcher.click();
   await page.getByRole("menuitem", { name: "Create workspace" }).click();
   const naming = page.getByRole("dialog", { name: "New workspace" });

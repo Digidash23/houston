@@ -15,16 +15,13 @@
  *
  * The add writes the employee's manifest against the workspace store, so a
  * deployment that serves no store has nothing the act could reach: the menu
- * item there would open a dialog that stays empty forever. The library scope
- * adds to nobody, so it is a single "Create skill" button either way.
+ * item there would open a dialog that stays empty forever.
  */
 export function offersAddExisting(input: {
-  /** The employee this surface is scoped to, or null for the library. */
-  agentId: string | null;
   /** `capabilities.sharedSkills` — false on every cloud profile. */
   sharedStore: boolean;
 }): boolean {
-  return input.agentId !== null && input.sharedStore;
+  return input.sharedStore;
 }
 
 /** The slice of a Skills list row these rules read. */
@@ -39,14 +36,12 @@ interface AddableCandidate {
  * The store skills this employee does not load yet, in the caller's order.
  *
  * Rows arrive scoped to the whole workspace, so a row the employee already has
- * carries it among its agents; those are what the list drops. The library
- * scope (`agentId === null`) adds to nobody and therefore offers nothing.
+ * carries it among its agents; those are what the list drops.
  */
 export function addableSkills<T extends AddableCandidate>(
   rows: readonly T[],
-  agentId: string | null,
+  agentId: string,
 ): T[] {
-  if (agentId === null) return [];
   return rows.filter(
     (row) =>
       row.origin === "shared" && !row.agents.some((a) => a.id === agentId),

@@ -5,13 +5,16 @@ import { AUTH_WEB_URL, E2E_VIEWER, signInAsViewer } from "./support/identity";
 import {
   aboutMeRow,
   adminHeading,
-  adminRow,
   assistantRow,
   openAdmin,
   openSettings,
-  skillsRow,
 } from "./support/settings-nav";
 import { navRow, screen } from "./support/team-nav";
+import {
+  openNavRow,
+  openWorkspaceMenu,
+  workspaceMenuTrigger,
+} from "./support/workspace-menu";
 
 /**
  * The rail's information architecture, and what Settings is left holding.
@@ -19,10 +22,10 @@ import { navRow, screen } from "./support/team-nav";
  * Six things must hold, and each of them broke a real user path when it
  * didn't:
  *
- * 1. the rail carries exactly the top-level entries the IA names — ONE
- *    unlabelled run (Assistant, AI Models, Integrations, Skills) over "Your
- *    AI Employees" — with Academy, Admin (behind the org gate) and Settings in
- *    the footer, and no help control;
+ * 1. the rail carries the AI Employees and nothing else, the AI Manager pinned
+ *    first; everything else is the workspace menu at its foot — Admin (behind
+ *    the org gate), AI Models, Integrations, then Academy and Settings — with
+ *    no Skills row and no help control;
  * 2. two retired destinations hold no rail row: agent policy is reached
  *    through each employee's own screen, and **Time worked** has no screen
  *    of its own. Each is asserted absent from the rail by name, so a
@@ -31,7 +34,7 @@ import { navRow, screen } from "./support/team-nav";
  *    sees, plus Danger. The Context editors live in their own surfaces, so
  *    Settings carries no "Help" / "Context" / "Support" / "Workspace" /
  *    "Team" heading;
- * 4. Admin is a top-level screen opened from its rail row, so its header strip
+ * 4. Admin is a top-level screen opened from the workspace menu, so its header strip
  *    carries no way back;
  * 5. the rail's Settings entry ALWAYS lands on the index, including from inside
  *    a section — otherwise it is a dead click, since the view is already
@@ -73,6 +76,11 @@ function railButton(page: Page, name: string): Locator {
     .getByRole("button", { name, exact: true });
 }
 
+/** An item of the open workspace menu, by the name it wears. */
+function menuItem(menu: Locator, name: string): Locator {
+  return menu.getByRole("menuitem", { name, exact: true });
+}
+
 test("the sidebar carries only the IA's top-level entries", async ({
   page,
   request,
@@ -80,84 +88,67 @@ test("the sidebar carries only the IA's top-level entries", async ({
   await armOwner(request);
   await page.goto("/");
 
-  // ONE unlabelled run, which needs no heading. The AI Manager is not in it:
-  // it leads the employees band, addressed by its own test id.
+  // The rail is the team: the AI Manager leads it, addressed by its test id,
+  // and no heading or destination row stands above the employees.
   const sidebar = page.locator("[data-tour-target='sidebar']");
   await expect(assistantRow(page)).toBeVisible();
-  for (const id of ["ai-hub", "integrations"] as const) {
+  await expect(sidebar.getByText("Your AI Employees")).toHaveCount(0);
+  await expect(sidebar.getByText("Workspace", { exact: true })).toHaveCount(0);
+
+  // Everything else is the workspace menu: Admin, AI Models, Integrations,
+  // then the Academy and Settings.
+  const menu = await openWorkspaceMenu(page);
+  await expect(menu.getByTestId("rail-admin")).toBeVisible();
+  for (const id of ["ai-hub", "integrations", "settings"] as const) {
     await expect(navRow(page, id)).toBeVisible();
   }
-  // Skills closes the run, right after Integrations. It carries no tour
-  // anchor, so it is addressed by its own test id.
-  await expect(skillsRow(page)).toBeVisible();
-  // "Your AI Employees" is the rail's ONE band: nothing is labelled above it, even
-  // for the space owner, who holds one more destination than a member.
-  await expect(sidebar.getByText("Workspace", { exact: true })).toHaveCount(0);
-  await expect(sidebar.getByText("Your AI Employees")).toBeVisible();
-  // The footer cluster: Academy, Admin, then Settings. The Academy carries
-  // no tour anchor, so its name is the handle.
-  await expect(railButton(page, "Academy")).toBeVisible();
-  await expect(adminRow(page)).toBeVisible();
-  await expect(navRow(page, "settings")).toBeVisible();
+  await expect(menuItem(menu, "Academy")).toBeVisible();
 
-  // The rows this IA deleted, asserted by the names they used to wear. An owner
-  // on a compute-metering gateway is the ONE caller who saw both, so if
-  // either ever comes back it comes back here.
-  await expect(railButton(page, "Permissions")).toHaveCount(0);
-  await expect(railButton(page, "Time worked")).toHaveCount(0);
-  // About me is a Settings section and the Inbox screen is gone, so neither
-  // may hold a rail slot as well.
-  await expect(railButton(page, "About me")).toHaveCount(0);
-  await expect(railButton(page, "Inbox")).toHaveCount(0);
+  // The rows this IA deleted, asserted by the names they used to wear, in the
+  // menu and on the rail alike. An owner on a compute-metering gateway is the
+  // ONE caller who saw them all, so if any comes back it comes back here.
+  for (const gone of [
+    "Skills",
+    "Permissions",
+    "Time worked",
+    "About me",
+    "Help",
+    "Report a problem",
+  ]) {
+    await expect(menuItem(menu, gone)).toHaveCount(0);
+    await expect(railButton(page, gone)).toHaveCount(0);
+  }
+  await page.keyboard.press("Escape");
 
-  // The global mission board is gone: every board belongs to a team, and the
-  // teams live in their own band below.
-  await expect(page.locator('[data-tour-target="nav-dashboard"]')).toHaveCount(
-    0,
-  );
-  await expect(page.locator('[data-tour-target="nav-usage"]')).toHaveCount(0);
-});
-
-test("a plain member gets no Skills row in the rail", async ({
-  page,
-  request,
-}) => {
-  // The shared library is the space OWNER's authority: editing a skill edits
-  // every agent in the space at once. A plain member does not hold it, so the
-  // rail's lead run ends at Integrations.
-  //
-  // NO `spaces` on purpose: on a C8 host the PERSONAL space has single-player
-  // semantics, so `isSpaceOwner` hands Skills back to whoever is in it whatever
-  // their org role. This is the legacy Teams shape, where the sole workspace
-  // really is the org.
+  // A plain member: the legacy Teams shape, where the sole workspace really
+  // is the org.
   await request.post(`${FAKE_HOST_URL}/__test__/capabilities`, {
     data: { multiplayer: true, teams: true, role: "user" },
   });
   await page.goto("/");
-
-  // A positive signal FIRST, so the absences below cannot pass on an unpainted
-  // rail: Integrations is unconditional for every role in every mode.
-  await expect(navRow(page, "integrations")).toBeVisible();
+  await expect(workspaceMenuTrigger(page)).toBeVisible();
 
   // Ungated rows are untouched: the Academy is everyone's, Settings is
   // everyone's chrome, and the AI Manager rides discovery rather than a role,
-  // so a plain member keeps it. Admin rides the org gate, so it is absent.
+  // so a plain member keeps it. Admin rides the org gate, so it is absent, and
+  // the positive signals in the same open menu make that the gate rather than
+  // an unpainted menu.
   await expect(assistantRow(page)).toBeVisible();
-  await expect(railButton(page, "Academy")).toBeVisible();
+  const memberMenu = await openWorkspaceMenu(page);
+  await expect(navRow(page, "integrations")).toBeVisible();
   await expect(navRow(page, "settings")).toBeVisible();
-  await expect(adminRow(page)).toHaveCount(0);
+  await expect(menuItem(memberMenu, "Academy")).toBeVisible();
+  await expect(memberMenu.getByTestId("rail-admin")).toHaveCount(0);
+  await page.keyboard.press("Escape");
 
-  // The Skills row is simply absent — the gate, not an unpainted rail, which
-  // is what the positive signals above already ruled out. The Integrations
-  // screen still paints its catalog: that one is everyone's.
-  await expect(skillsRow(page)).toHaveCount(0);
-  await navRow(page, "integrations").click();
+  // The Integrations screen still paints its catalog: that one is everyone's.
+  await openNavRow(page, "integrations");
   await expect(
     screen(page).locator("[data-integrations-section='catalog']"),
   ).toBeVisible();
 
-  // Settings keeps no door to it either: the library left the index with the
-  // section, so its old row must not come back.
+  // Settings keeps no Skills door either: skills live in each employee's own
+  // settings.
   await openSettings(page);
   await expect(aboutMeRow(page)).toBeVisible();
   await expect(
@@ -229,13 +220,15 @@ test.describe("Settings is the app's one identity control", () => {
       identity.getByRole("button", { name: "Sign out", exact: true }),
     ).toBeVisible();
 
-    // And it is the ONLY one: the rail no longer carries a face of its own, so
-    // there is exactly one place in the product that says who you are.
+    // And it is the ONLY way out: the rail's account row names the person over
+    // their workspace, but signing out lives here alone.
+    const sidebar = page.locator("[data-tour-target='sidebar']");
     await expect(
-      page
-        .locator("[data-tour-target='sidebar']")
-        .getByText(E2E_VIEWER.displayName),
-    ).toHaveCount(0);
+      workspaceMenuTrigger(page).getByText(E2E_VIEWER.displayName),
+    ).toBeVisible();
+    await expect(sidebar.getByRole("button", { name: "Sign out" })).toHaveCount(
+      0,
+    );
   });
 });
 
@@ -256,15 +249,6 @@ test("Admin opens from its rail row without a back control", async ({
       .getByTestId("page-header")
       .getByRole("button", { name: "Settings", exact: true }),
   ).toHaveCount(0);
-});
-
-test("the footer has no help control", async ({ page, request }) => {
-  await armOwner(request);
-  await page.goto("/");
-  await expect(railButton(page, "Academy")).toBeVisible();
-  // Report bug lives in Settings; the footer holds destinations only.
-  await expect(railButton(page, "Help")).toHaveCount(0);
-  await expect(railButton(page, "Report a problem")).toHaveCount(0);
 });
 
 test("the sidebar Settings entry returns to the index from inside a section", async ({

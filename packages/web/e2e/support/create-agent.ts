@@ -1,21 +1,28 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { FOLLOW_UP_PLACEHOLDER } from "./composer";
 import { prefilledName } from "./employee-name";
-import { rail } from "./team-nav";
 
 /**
- * The "New AI Employee" row at the end of the rail — the door this flow walks.
- *
- * "New AI Employee" names two controls at once: this row at the foot of the
- * full list, and the Agents home's round button
- * (`agents-home-new-agent`, `agents-home-list.tsx`). The Agents home is mounted
- * for the whole session, so a page-wide lookup by accessible name matches both
- * and trips strict mode. The row's marker selects the rail control exactly.
+ * The rail's "+" on its top line — the door this flow walks. Its tour anchor
+ * scopes it to the rail: the Agents home's round button carries the same
+ * anchor and stays mounted for the session.
  */
-export function newAgentRow(page: Page): Locator {
-  return rail(page)
-    .locator("[data-sidebar-add-row]")
-    .getByRole("button", { name: "New AI Employee" });
+export function newAgentButton(page: Page): Locator {
+  return page.locator(
+    "[data-tour-target='sidebar'] [data-tour-target='newAgent']",
+  );
+}
+
+/**
+ * Press the "+" and land on the create sheet. Where the person may also make
+ * a group, the "+" opens a two-item menu first, and the flow picks "New AI
+ * Employee" from it; otherwise the sheet opens straight away.
+ */
+export async function openNewAgent(page: Page): Promise<void> {
+  await newAgentButton(page).click();
+  const item = page.getByRole("menuitem", { name: "New AI Employee" });
+  await item.or(page.getByRole("dialog")).first().waitFor();
+  if (await item.isVisible()) await item.click();
 }
 
 /**
@@ -63,7 +70,7 @@ export async function fillAgentBrief(page: Page): Promise<void> {
  * first day fails loudly here instead of silently obstructing later steps.
  */
 export async function createAgent(page: Page, name: string): Promise<void> {
-  await newAgentRow(page).click();
+  await openNewAgent(page);
   await fillAgentBrief(page);
   const nameField = page.getByRole("textbox", {
     name: "Name (Financial analyst)",
@@ -74,7 +81,7 @@ export async function createAgent(page: Page, name: string): Promise<void> {
 
   // Back in the shell: the sidebar (with its New-agent control) is interactive
   // again and the new agent is present in it.
-  await expect(newAgentRow(page)).toBeVisible();
+  await expect(newAgentButton(page)).toBeVisible();
   await expect(
     page.locator("[data-tour-target='agents']").getByText(name).first(),
   ).toBeVisible();

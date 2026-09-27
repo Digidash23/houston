@@ -1,8 +1,12 @@
 import { SEED_AGENT_ID } from "@houston/fake-host";
-import { newAgentRow } from "./support/create-agent";
+import { newAgentButton } from "./support/create-agent";
 import { expect, test } from "./support/fixtures";
 import { seedSidebarLayout } from "./support/sidebar-layout";
 import { litRows, navRow, rail, screen, teamTab } from "./support/team-nav";
+import {
+  openWorkspaceMenu,
+  workspaceMenuTrigger,
+} from "./support/workspace-menu";
 
 /**
  * The whole harness in one spec: the full desktop UI boots in the browser, on
@@ -10,11 +14,10 @@ import { litRows, navRow, rail, screen, teamTab } from "./support/team-nav";
  * engine Connect screen and the language picker — and the
  * files-first board data (`.houston/activity/activity.json`) flows through.
  *
- * It is also where the rail's shape is pinned. There is no global Mission
- * Control any more: the top-level rows are the ones that belong to nobody
- * (the Assistant, AI Models, Integrations), then "Your AI Employees" under the rail's
- * ONE band, with the Academy and Settings in the footer. Desktop opens the
- * first employee in that band once the roster and layout resolve.
+ * It is also where the rail's shape is pinned: Search and "+" on its top line,
+ * the AI Employees and nothing else under it, and the account row at its foot,
+ * whose menu holds AI Models, Integrations, the Academy and Settings. Desktop
+ * opens the first employee once the roster and layout resolve.
  */
 test("boots past every gate onto the first employee's Tasks", async ({
   page,
@@ -27,15 +30,18 @@ test("boots past every gate onto the first employee's Tasks", async ({
   });
   await page.goto("/");
 
-  // Shell chrome: the whole top-level rail, in the order the user reads it.
+  // Shell chrome: the rail's top line, its people, and its foot.
   const sidebar = page.locator("[data-tour-target='sidebar']");
+  await expect(sidebar.getByTestId("rail-search")).toBeVisible();
+  await expect(newAgentButton(page)).toBeVisible();
+  await expect(sidebar.getByText("Workspace", { exact: true })).toHaveCount(0);
+  await expect(workspaceMenuTrigger(page)).toBeVisible();
+  // The destinations that belong to nobody live in the account row's menu.
+  await openWorkspaceMenu(page);
   await expect(navRow(page, "ai-hub")).toBeVisible();
   await expect(navRow(page, "integrations")).toBeVisible();
-  // The lead run wears no heading: "Your AI Employees" is the rail's only band.
-  await expect(sidebar.getByText("Workspace", { exact: true })).toHaveCount(0);
   await expect(navRow(page, "settings")).toBeVisible();
-  await expect(sidebar.getByText("Your AI Employees")).toBeVisible();
-  await expect(newAgentRow(page)).toBeVisible();
+  await page.keyboard.press("Escape");
 
   // The group header only folds; its first member is selected at boot.
   await expect(

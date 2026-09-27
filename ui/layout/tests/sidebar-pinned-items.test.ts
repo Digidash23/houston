@@ -105,7 +105,7 @@ describe("AppSidebar pinned items", () => {
     const html = render(GROUPED);
     const row = pinnedRow(html);
     assert.ok(row.includes(">Manager<") && row.includes(">Runs the team<"));
-    assert.ok(row.includes('data-diameter="32"'), "the portrait diameter");
+    assert.ok(row.includes('data-diameter="40"'), "the portrait diameter");
     assert.ok(!row.includes("cursor-grab"), "no drag cursor");
     assert.ok(!row.includes("data-sidebar-item"));
     // The employees keep theirs: they are still sortable rows.
@@ -125,23 +125,21 @@ describe("AppSidebar pinned items", () => {
     );
   });
 
-  it("stays in view when the band folds its list away", () => {
-    const html = render({
-      ...GROUPED,
-      sectionLabel: "Your AI Employees",
-      sectionCollapsed: true,
-      onToggleSectionCollapsed: () => {},
-    });
-    assert.ok(html.includes('data-testid="pinned-manager"'));
-    assert.ok(!html.includes(">ada<"), "the folded list is gone");
-    assert.ok(!html.includes(">bob<"));
-  });
-
   it("leads the expanded flat list too", () => {
     const html = render({});
     const pinned = html.indexOf('data-testid="pinned-manager"');
     assert.ok(pinned >= 0 && pinned < html.indexOf(">ada<"));
     assert.ok(!pinnedRow(html).includes("cursor-grab"));
+  });
+
+  it("hands the flat list the same hairline hooks as the grouped one", () => {
+    // The pinned run's rules find the list's rows through these, so a flat
+    // list without them would keep the Manager's line over a hovered or
+    // selected first employee, and hide it with employees below.
+    const html = render({});
+    assert.equal(html.match(/data-sidebar-root-list=""/g)?.length, 1);
+    assert.equal(html.match(/data-sidebar-row=""/g)?.length, 3);
+    assert.ok(html.includes(":last-of-type_[data-person-text]]"), "list end");
   });
 
   it("leads the collapsed rail as an avatar button at the collapsed diameter", () => {
@@ -158,6 +156,20 @@ describe("AppSidebar pinned items", () => {
     assert.ok(tag.includes('aria-label="Manager"'));
     assert.ok(tag.includes("bg-sidebar-active"), "selected");
     assert.ok(pinnedRow(html).includes('data-diameter="24"'));
+  });
+
+  it("ends without a line when no employee row follows it", () => {
+    // The pinned run's last hairline separates it from the list's first row;
+    // with no such row (a workspace of just the AI Manager) it ends the rail
+    // the way the list's own last row does. Pinned by the rule the wrapper
+    // carries, since the compiled CSS never reaches jsdom.
+    const html = render({ items: [] });
+    assert.ok(
+      html.includes(
+        "[&amp;:not(:has(+*_[data-sidebar-row]))_[data-sidebar-row]:last-child_[data-person-text]]:border-transparent",
+      ),
+      "the pinned wrapper hides its last line when nothing follows",
+    );
   });
 
   it("renders nothing extra when there is nothing pinned", () => {

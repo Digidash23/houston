@@ -6,6 +6,7 @@ import {
 import { expect, test } from "./support/fixtures";
 import { createTeam, openCreateDialog } from "./support/sidebar-create";
 import { readSidebarLayout, seedSidebarLayout } from "./support/sidebar-layout";
+import { workspaceMenuTrigger } from "./support/workspace-menu";
 
 test("ungrouped agents lead the sidebar without a team header", async ({
   page,
@@ -16,14 +17,14 @@ test("ungrouped agents lead the sidebar without a team header", async ({
   });
   await page.goto("/");
   const rail = page.locator("[data-tour-target='agents']");
-  await expect(rail.getByText("Your AI Employees")).toBeVisible();
+  await expect(workspaceMenuTrigger(page)).toBeVisible();
   await expect(rail.locator("[data-sidebar-group-header]")).toHaveCount(0);
   await expect(rail.locator("[data-sidebar-item]")).toContainText(
     SEED_AGENT_NAME,
   );
 });
 
-test("one create row closes the mixed root list outside every folder", async ({
+test("the list closes on its rows: creating is the top line's +", async ({
   page,
 }) => {
   await seedSidebarLayout(page.request, {
@@ -38,42 +39,17 @@ test("one create row closes the mixed root list outside every folder", async ({
   });
   await page.goto("/");
   const rail = page.locator("[data-tour-target='agents']");
-  const create = rail.locator("[data-sidebar-add-row]");
-  await expect(create).toHaveCount(1);
+  await expect(rail.locator("[data-sidebar-group='last']")).toBeVisible();
+  // No create row in the list, root or member; the rail's one create control
+  // is the "+" on its top line.
+  await expect(rail.locator("[data-sidebar-add-row]")).toHaveCount(0);
   await expect(
-    rail.locator("[data-sidebar-member-of] [data-sidebar-add-row]"),
-  ).toHaveCount(0);
-  await expect(rail.locator("[data-sidebar-add-row] button")).toHaveClass(
-    /\bpl-2\b/,
-  );
+    page.locator("[data-tour-target='sidebar'] [data-tour-target='newAgent']"),
+  ).toBeVisible();
+  // A member steps in one level from the root rows.
   await expect(
     rail.locator("[data-sidebar-member-of='work'] button").first(),
-  ).toHaveClass(/\bpl-5\b/);
-  const last = rail.locator("[data-sidebar-group='last']");
-  expect((await create.boundingBox())?.y).toBeGreaterThan(
-    (await last.boundingBox())?.y ?? 0,
-  );
-});
-
-test("the create row also follows a final root employee", async ({ page }) => {
-  await seedSidebarLayout(page.request, {
-    groups: [{ id: "work", name: "Work", collapsed: false, agentIds: [] }],
-    order: [
-      { kind: "group", id: "work" },
-      { kind: "agent", id: SEED_AGENT_ID },
-    ],
-  });
-  await page.goto("/");
-  const rail = page.locator("[data-tour-target='agents']");
-  const create = rail.locator("[data-sidebar-add-row]");
-  const employee = rail.locator(
-    `[data-sidebar-item][data-item-id="${SEED_AGENT_ID}"]`,
-  );
-  await expect(create).toHaveCount(1);
-  expect((await create.boundingBox())?.y).toBeGreaterThan(
-    (await employee.boundingBox())?.y ?? 0,
-  );
-  await expect(create.locator("button")).toHaveClass(/\bpl-2\b/);
+  ).toHaveClass(/\bpl-6\b/);
 });
 
 test("the create menu identifies employees and groups by their glyphs", async ({

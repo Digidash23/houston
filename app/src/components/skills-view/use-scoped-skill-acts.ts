@@ -43,7 +43,7 @@ export interface ScopedSkillControls {
 
 export function useScopedSkillActs(args: {
   row: ManagedSkillRow;
-  scopedAgent: Agent | null;
+  scopedAgent: Agent;
   shared: SharedDialogActions | undefined;
   isShared: boolean;
   /** Run an act that leaves the editor behind the dirty-draft confirm. */

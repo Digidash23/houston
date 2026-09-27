@@ -14,7 +14,7 @@ import { useUIStore } from "../../stores/ui";
 import { actThenRefresh } from "./skill-act-refresh";
 
 /**
- * Store-backed actions for the global Skills page (ADR 0003): content is ONE
+ * Store-backed skill actions (ADR 0003): content is ONE
  * write to the workspace store, assignment is per-agent manifest toggles
  * (reversible — no copies move), and an agent's divergent copy is an override
  * the row can revert. Write failures toast their real reason through the
@@ -101,11 +101,13 @@ export function useSharedSkillsActions(workspaceId: string | null) {
       if (workspaceId === null) throw new Error("no workspace");
       await tauriSharedSkills.delete(workspaceId, row.slug);
       const holders = agents.map((a) => a.folderPath);
-      await Promise.allSettled(
+      const settled = await Promise.allSettled(
         holders.map((path) => setManifestEntry(path, row.slug, false)),
       );
       invalidate(holders);
       analytics.track("skill_deleted", { skill_slug: row.slug });
+      if (settled.some((r) => r.status === "rejected"))
+        throw new Error("delete failed for some agents");
       addToast({ title: t("global.skillRemoved"), variant: "success" });
     },
     [addToast, invalidate, setManifestEntry, t, workspaceId],

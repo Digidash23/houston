@@ -2,6 +2,7 @@ import { FAKE_HOST_URL, SEED_AGENT_NAME } from "@houston/fake-host";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { FOLLOW_UP_PLACEHOLDER } from "./support/composer";
 import { expect, test } from "./support/fixtures";
+import { openNavRow } from "./support/workspace-menu";
 
 /**
  * The custom-integration setup chat is embedded INSIDE the Integrations page
@@ -44,7 +45,7 @@ async function armCustomIntegrations(
  */
 async function openCustomIntegrations(page: Page): Promise<void> {
   await page.goto("/");
-  await page.locator('[data-tour-target="nav-integrations"]').click();
+  await openNavRow(page, "integrations");
   await expect(
     page.getByRole("heading", { name: "Integrations", exact: true }),
   ).toBeVisible();
@@ -122,7 +123,7 @@ test("a draft chat survives a reload as a Continue banner that resumes the same 
   // Come back later: the ephemeral open flag is gone, but the draft on the
   // host is not — the cross-agent scan finds it and offers to continue.
   await page.reload();
-  await page.locator('[data-tour-target="nav-integrations"]').click();
+  await openNavRow(page, "integrations");
   await expect(
     page.getByText("You are setting up a custom integration in chat"),
   ).toBeVisible({ timeout: 10_000 });

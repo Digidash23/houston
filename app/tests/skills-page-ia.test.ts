@@ -6,64 +6,36 @@ const read = (rel: string) =>
   readFileSync(new URL(rel, import.meta.url), "utf8");
 
 /**
- * The shared Skills library is a SCREEN, reached from its own rail row. The
- * node runner has no DOM, so the wiring is guarded on source (the repo's
- * React-test idiom).
+ * Skills have no screen of their own: a skill-setup chat's notification opens
+ * the employee's own Skills section, where the chat reopens, unless the person
+ * is already in that employee's settings.
  */
-describe("the Skills page", () => {
-  const page = read("../src/components/skills-view/skills-page.tsx");
-  const views = read("../src/components/shell/top-level-screen-views.tsx");
+describe("the skill-setup notification", () => {
+  const src = read("../src/hooks/session-notification-navigate.ts");
 
-  it("frames the library with ONE tools provider around header and body", () => {
-    // The body portals its search and "Create skill" into the strip, so the
-    // provider has to span both or the tools have nowhere to land.
+  it("lands on the employee's Skills section, arming the chat once there", () => {
+    ok(src.includes('openAgentSettings(agent.id, "skills", {'), "opens it");
+    // Armed on arrival, like the routine chat: a deferred navigation must not
+    // leave the id for another employee's section to spend.
+    ok(src.includes("onOpened: () =>"));
+    ok(src.includes("setPendingSkillChatActivityId(target.activityId)"));
     ok(
-      page.includes("<PageHeaderToolsProvider thresholds={"),
-      "one provider around the whole screen",
-    );
-    ok(page.includes("<SkillsBody listHeader={<SkillsHeader />} />"));
-  });
-
-  it("titles itself with the library's own page title", () => {
-    ok(page.includes('t("global.pageTitle")'));
-    ok(page.includes("heading: true"), "the lozenge carries the screen's h1");
-  });
-
-  it("hands the strip to the LIST, which the editor replaces", () => {
-    // Opening a skill takes the WHOLE screen: the editor brings its own strip,
-    // so the list wears the header and the editor wears nothing of it.
-    const body = read("../src/components/skills-view/skills-view.tsx");
-    ok(body.includes("{listHeader}"), "drawn over the list only");
-    ok(
-      !/<SkillEditorPage[^>]*listHeader/.test(body),
-      "never over the editor, which carries its own back",
+      src.includes("canOpenAgentSettings(capabilities, agent)"),
+      "only for someone who may open that employee's settings",
     );
   });
 
-  it("mounts only where the space-owner gate is open", () => {
-    ok(views.includes("enabled: gates.showSkills"));
-    ok(views.includes("content: <SkillsPage />"));
-  });
-
-  it("sends the skill-setup notification to the Skills screen", () => {
-    // The setup chat's home is the library, and a user already standing on it
-    // is never yanked elsewhere (a bare macOS refocus lands here too).
-    const src = read("../src/hooks/session-notification-navigate.ts");
-    ok(src.includes("setViewMode(SKILLS_VIEW_ID)"), "opens the screen");
-    ok(
-      src.includes("prevViewMode === SKILLS_VIEW_ID"),
-      "the already-there check reads the location",
-    );
-    ok(
-      src.includes("setPendingSkillChatActivityId(target.activityId)"),
-      "the chat to reopen still rides along",
-    );
+  it("stays put only when that employee's Skills section is on screen", () => {
+    ok(src.includes("shown?.agentId === agent.id"));
+    ok(src.includes('shown.section === "skills"'));
+    const pane = read("../src/components/team-view/agent-settings-pane.tsx");
+    ok(pane.includes("onSectionShown={"), "the pane reports what it shows");
   });
 });
 
 /**
- * The Integrations screen is the apps catalog and nothing else: the library
- * left it for a row of its own, so no tab cluster, no tab store, no gate.
+ * The Integrations screen is the apps catalog and nothing else: no tab
+ * cluster, no tab store, no gate.
  */
 describe("the Integrations screen", () => {
   const view = read(

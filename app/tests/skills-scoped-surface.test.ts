@@ -84,9 +84,42 @@ describe("an AI Employee's own Skills section", () => {
     ok(rides(String.raw`tauriSkillsManifest\.revertOverride`));
   });
 
-  it("never offers the workspace-wide promote from inside one employee", () => {
-    ok(editor.includes("offersPromoteToWorkspace({"));
-    ok(editor.includes("scopedAgentId: scopedAgent?.id ?? null"));
+  it("reads every employee only for the menu's acts that reach them all", () => {
+    // The section reads its own employee; the "for everyone" acts need every
+    // holder, so they read the whole workspace, and only while the menu is
+    // open (Radix mounts a menu's content only then).
+    ok(view.includes("const agents = useMemo(() => [agent], [agent]);"));
+    ok(view.includes("useSkillsModels(agents)"));
+    ok(editorPage.includes("workspaceItems={"));
+    ok(editorPage.includes("<WorkspaceSkillMenuItems"));
+    ok(!editor.includes("offersPromoteToWorkspace"));
+  });
+
+  it("keeps the acts that reach every employee to the owner, and to full reads", () => {
+    const menu = read(
+      "../src/components/skills-view/workspace-skill-menu-items.tsx",
+    );
+    ok(menu.includes("const { manageWorkspaceSkills } = useSurfaceGates();"));
+    ok(
+      menu.includes(
+        "manageWorkspaceSkills ? <WorkspaceActs {...props} /> : null",
+      ),
+    );
+    ok(
+      menu.includes("workspaceActsState({"),
+      "nothing before every read lands",
+    );
+    ok(menu.includes("complete: models.complete"), "every read answered");
+    const shared = read("../src/components/skills-view/use-shared-skills.ts");
+    ok(
+      shared.includes("!rosterSettled"),
+      "an unsettled roster has not read the manifests yet",
+    );
+    ok(menu.includes("withCanonicalHolder(asShared, props.agent.id)"));
+    ok(
+      menu.includes("props.guard(() => {"),
+      "share goes through the draft guard",
+    );
   });
 
   it("offers the add only where a workspace store can answer it", () => {

@@ -1,9 +1,9 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { ASSISTANT_COMPOSER } from "./composer";
-import { moreMenu, openMoreMenu } from "./mobile-nav";
 import { screen } from "./team-nav";
+import { openDestination, openDestinations } from "./workspace-menu";
 
-/** Settings sections and the rail's Assistant, Skills, and Admin screens. */
+/** Settings sections and the rail's Assistant and Admin screens. */
 
 /**
  * The Settings index's About me row. What the agents know about the PERSON is
@@ -43,11 +43,13 @@ export async function openAssistant(page: Page): Promise<void> {
   await expect(screen(page).getByPlaceholder(ASSISTANT_COMPOSER)).toBeVisible();
 }
 
-/** The gated Admin row, shared by the rail and phone More menu. */
-export function adminRow(page: Page): Locator {
-  return (page.viewportSize()?.width ?? 768) < 768
-    ? moreMenu(page).getByTestId("rail-admin")
-    : page.locator('[data-tour-target="sidebar"]').getByTestId("rail-admin");
+/**
+ * The gated Admin row of the workspace menu (the phone's More card), OPENED
+ * first so a spec asserting its absence reads the gate, not a closed menu.
+ */
+export async function adminRow(page: Page): Promise<Locator> {
+  const menu = await openDestinations(page);
+  return menu.getByTestId("rail-admin");
 }
 
 /**
@@ -59,38 +61,12 @@ export function adminHeading(page: Page): Locator {
 }
 
 /**
- * The rail's Skills row — the door to the shared library every agent in the
- * space draws from. Shown to the SPACE OWNER, because editing a skill edits
- * everyone's agents at once.
- *
- * By test id, like the AI Manager row and for the same reason: it carries no
- * tour anchor (the tour does not walk it), and its label is product copy that
- * moves. The phone's More menu draws the same row with the same attributes.
- */
-export function skillsRow(page: Page): Locator {
-  return page.getByTestId("rail-skills");
-}
-
-/**
- * Open the shared Skills library: its own screen, from its own rail row. The
- * landing waits on the SCREEN marker rather than the row's highlight — the row
- * repaints synchronously on click, so only the screen attribute proves the
- * view actually swapped in before a spec's first assertion runs.
- */
-export async function openSkillsLibrary(page: Page): Promise<void> {
-  await skillsRow(page).click();
-  await expect(screen(page)).toHaveAttribute("data-screen", "skills-home");
-}
-
-/**
- * Open Admin through the rail row or the phone More menu. A first visit lands
- * on the Org chart, which the identity lozenge stands for; Admin is kept
+ * Open Admin through the workspace menu or the phone More card. A first visit
+ * lands on the Org chart, which the identity lozenge stands for; Admin is kept
  * alive, so a later visit comes back on the section it was left on.
  */
 export async function openAdmin(page: Page): Promise<void> {
-  if ((page.viewportSize()?.width ?? 768) < 768)
-    await openMoreMenu(page, "click");
-  await adminRow(page).click();
+  await (await adminRow(page)).click();
   await expect(screen(page)).toHaveAttribute("data-screen", "admin");
   await expect(adminHeading(page)).toBeVisible();
 }
@@ -222,16 +198,14 @@ export async function openCompanyContext(page: Page): Promise<Locator> {
 }
 
 /**
- * Open the Settings index and wait for it to be on screen. The Settings entry
- * moved to the rail's FOOTER but kept its tour anchor and its accessible name,
- * so this locator is unchanged — if the footer ever drops `nav-settings`, this
- * is the one place to re-point.
+ * Open the Settings index and wait for it to be on screen, through the
+ * workspace menu (the phone's More card), by its `nav-settings` anchor.
  *
  * The wait is what makes a "this row is absent" assertion meaningful: without it
  * the absence could just be the index not painted yet.
  */
 export async function openSettings(page: Page): Promise<void> {
-  await page.locator('[data-tour-target="nav-settings"]').click();
+  await openDestination(page, "nav-settings");
   await expect(
     page.getByRole("heading", { name: "Settings", exact: true }),
   ).toBeVisible();

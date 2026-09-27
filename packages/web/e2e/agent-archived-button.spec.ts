@@ -6,6 +6,7 @@ import {
   returnToActiveTasks,
   screen,
 } from "./support/team-nav";
+import { openNavRow } from "./support/workspace-menu";
 
 /**
  * The board's archived-mission control and its reset contract. There is ONE
@@ -95,7 +96,7 @@ test("leaving the board for another TOP-LEVEL view resets its archived board too
   // reach. The employee screen is kept alive, so nothing unmounts and nothing
   // resets on its own: without the surface router the user returns to the
   // archive they walked away from.
-  await page.locator("[data-tour-target='nav-integrations']").click();
+  await openNavRow(page, "integrations");
   await openTeamSection(page, "Tasks");
   await expect(screen(page).getByText("Left open")).toHaveCount(0);
   await expect(

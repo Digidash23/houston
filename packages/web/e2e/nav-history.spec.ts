@@ -1,5 +1,6 @@
 import { expect, test } from "./support/fixtures";
-import { missionCard, navRow, screen } from "./support/team-nav";
+import { missionCard, screen } from "./support/team-nav";
+import { openNavRow } from "./support/workspace-menu";
 
 /**
  * The navigation stack's browser-history sync: the app
@@ -12,9 +13,9 @@ test("browser back and forward walk the app's screens", async ({ page }) => {
   await page.goto("/");
   await expect(screen(page)).toHaveAttribute("data-screen", "agent");
 
-  await navRow(page, "ai-hub").click();
+  await openNavRow(page, "ai-hub");
   await expect(screen(page)).toHaveAttribute("data-screen", "ai-hub");
-  await navRow(page, "settings").click();
+  await openNavRow(page, "settings");
   await expect(screen(page)).toHaveAttribute("data-screen", "settings");
 
   await page.goBack();
@@ -51,7 +52,7 @@ test("browser back retreats a Settings drill-in to the index", async ({
   page,
 }) => {
   await page.goto("/");
-  await navRow(page, "settings").click();
+  await openNavRow(page, "settings");
   await screen(page).getByText("Keyboard shortcuts").click();
   await expect(
     screen(page).getByRole("button", { name: "Settings" }),
@@ -70,14 +71,14 @@ test("a reload re-boots to a single-entry stack and keeps navigating", async ({
   page,
 }) => {
   await page.goto("/");
-  await navRow(page, "ai-hub").click();
+  await openNavRow(page, "ai-hub");
   await expect(screen(page)).toHaveAttribute("data-screen", "ai-hub");
 
   // viewMode is deliberately not persisted: a refresh lands back on home
   // with a fresh one-entry stack — and navigation still works from there.
   await page.reload();
   await expect(screen(page)).toHaveAttribute("data-screen", "agent");
-  await navRow(page, "settings").click();
+  await openNavRow(page, "settings");
   await expect(screen(page)).toHaveAttribute("data-screen", "settings");
   await page.goBack();
   await expect(screen(page)).toHaveAttribute("data-screen", "agent");

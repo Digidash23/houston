@@ -1,7 +1,7 @@
 /**
  * C8 Spaces state — the CROSS-org surface `GET /v1/orgs` serves: every team the
  * caller belongs to, plus every pending invite addressed to them (the
- * invitee-side inbox the sidebar renders under the workspace switcher).
+ * invitee-side inbox the sidebar renders under its top line).
  *
  * Memberships have ONE source of truth here: the armed team-space rows
  * (`state.teamWorkspaces` — the same rows `GET /v1/workspaces` bridges). So

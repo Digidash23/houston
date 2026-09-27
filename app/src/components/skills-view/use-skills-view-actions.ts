@@ -10,7 +10,7 @@ import { useUIStore } from "../../stores/ui";
 const skillMdPath = (slug: string) => `.agents/skills/${slug}/SKILL.md`;
 
 /**
- * The global Skills page's fan-out actions (HOU-792): every operation is N
+ * The copy-based skill actions (HOU-792): every operation is N
  * calls to the existing per-agent routes (skills are stored ON each agent —
  * there is no shared store, and the hosted gateway only proxies agent-scoped
  * routes). Failures surface per the no-silent-failures rule: the `call`

@@ -7,7 +7,6 @@
  * through the components.
  */
 export interface SidebarLabels {
-  addItem?: string;
   collapseSidebar?: string;
   expandSidebar?: string;
   dragPickedUp?: string;
@@ -26,7 +25,6 @@ export interface SidebarLabels {
 }
 
 export const DEFAULT_SIDEBAR_LABELS: Required<SidebarLabels> = {
-  addItem: "Add item",
   collapseSidebar: "Collapse sidebar",
   expandSidebar: "Expand sidebar",
   dragPickedUp: "Picked up %name%.",

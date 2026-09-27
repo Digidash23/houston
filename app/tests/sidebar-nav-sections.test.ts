@@ -45,11 +45,8 @@ function gatedRuns(source: string): [string, string][] {
 describe("the rail's primary run", () => {
   const primary = navSection("primary");
 
-  it("contains AI Models, Integrations and Skills only", () => {
-    assert.deepEqual(gatedRuns(primary), [
-      ["showAiModels", "aiModels"],
-      ["showSkills", "skills"],
-    ]);
+  it("contains AI Models and Integrations only", () => {
+    assert.deepEqual(gatedRuns(primary), [["showAiModels", "aiModels"]]);
     assert.equal(
       primary.match(/\n {10}id: /g)?.length,
       1,
@@ -110,10 +107,9 @@ describe("the rail's primary run", () => {
 });
 
 describe("the rail's labelled bands", () => {
-  it("declares exactly ONE run, so nothing is labelled above Your AI Employees", () => {
-    // "Your AI Employees" is the rail's only band. A second heading over a run of
-    // destinations would be a second rule for one row shape, and the rows that
-    // LEAD the rail need no heading to be found.
+  it("declares exactly ONE run, with no heading over it", () => {
+    // The workspace menu draws this run unlabelled between its separators; a
+    // heading over it would be a second rule for one row shape.
     assert.equal(
       SECTIONS.match(/\n {6}id: "/g)?.length,
       1,
@@ -132,32 +128,16 @@ describe("the rail's labelled bands", () => {
     assert.ok(!NAV.includes("TIME_WORKED_VIEW_ID"), "no Time worked row");
   });
 
-  it("keeps Admin out of Settings and gives Skills its own row", () => {
-    // Admin is the rail footer's screen (sidebar-footer.tsx); the shared
-    // library is a destination in the leading run, on the space-owner gate.
+  it("keeps Admin out of Settings, and Skills off every menu", () => {
+    // Admin leads the workspace menu's run (sidebar-workspace-menu.tsx).
     assert.ok(!SETTINGS_SECTIONS.includes('"workspace"'));
     assert.ok(!SETTINGS_SECTIONS.includes('"skills"'), "not a section");
     assert.ok(!NAV.includes('label: t("settings:nav.workspace")'));
-    assert.ok(NAV.includes("id: SKILLS_VIEW_ID"), "the Skills row");
-    assert.ok(NAV.includes('label: t("shell:sidebar.skills")'));
-    assert.ok(NAV.includes("onClick: () => setViewMode(SKILLS_VIEW_ID)"));
-    assert.ok(VIEWS.includes("SKILLS_VIEW_ID"), "a real top-level view");
-    // The Houston tour lesson stops on it, so it carries the anchor, and the
-    // specs keep their own stable handle beside it.
-    assert.ok(NAV.includes('tourAnchor("nav-skills")'), "the Skills anchor");
-    assert.ok(NAV.includes('"data-testid": "rail-skills"'));
-  });
-
-  it("puts Skills directly after Integrations, on the space-owner gate", () => {
-    const primary = navSection("primary");
-    assert.ok(
-      primary.indexOf("id: INTEGRATIONS_VIEW_ID") <
-        primary.indexOf("showSkills ?"),
-      "Skills follows Integrations",
-    );
-    assert.ok(
-      HOOK.includes("showSkills"),
-      "the hook feeds the gate from useSurfaceGates",
-    );
+    // Skills are managed on each employee's screen; the workspace library is
+    // reached only from a skill-setup chat's notification.
+    assert.ok(!NAV.includes("SKILLS_VIEW_ID"), "no Skills row");
+    assert.ok(!NAV.includes("nav-skills"), "and no tour anchor for one");
+    assert.ok(!HOOK.includes("showSkills"), "the menu rides no Skills gate");
+    assert.ok(!VIEWS.includes("SKILLS_VIEW_ID"), "and no Skills screen at all");
   });
 });

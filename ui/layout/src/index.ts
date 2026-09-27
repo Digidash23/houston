@@ -3,31 +3,21 @@ export {
   ResizablePanel,
   ResizablePanelGroup,
 } from "./resizable";
-export type {
-  SidebarItem,
-  SidebarLabels,
-  SidebarNavItemEntry,
-  SidebarNavSection,
-  SidebarProps,
-} from "./sidebar";
+export type { SidebarItem, SidebarLabels, SidebarProps } from "./sidebar";
 export { AppSidebar } from "./sidebar";
-export type { SidebarAddRowProps } from "./sidebar-add-row";
-export { SidebarAddRow } from "./sidebar-add-row";
 export {
   SidebarAvatarDiameter,
   useSidebarAvatarDiameter,
 } from "./sidebar-avatar-diameter";
-export type { SidebarBandProps } from "./sidebar-band";
-export { SidebarBand } from "./sidebar-band";
 export { SidebarDragOverlay } from "./sidebar-drag-overlay";
 export type { SidebarFlatListProps } from "./sidebar-flat-list";
 export { SidebarFlatList } from "./sidebar-flat-list";
 export {
-  sidebarBandInset,
   sidebarCollapsedItem,
   sidebarGlyphDiameter,
   sidebarMarkSize,
   sidebarPersonRow,
+  sidebarRailInset,
   sidebarRingClearance,
 } from "./sidebar-geometry";
 export {
@@ -57,13 +47,13 @@ export type {
   SidebarSection,
 } from "./sidebar-groups";
 export { computeSidebarSections } from "./sidebar-groups";
-export type { SidebarNavItemProps } from "./sidebar-nav";
-export { SidebarNavItem } from "./sidebar-nav";
-export { sidebarRowAffordanceClasses } from "./sidebar-paint";
 export {
-  SidebarCollapseToggle,
-  SidebarNavList,
-} from "./sidebar-rail-chrome";
+  sidebarHeaderControlClasses,
+  sidebarRowAffordanceClasses,
+} from "./sidebar-paint";
+export type { SidebarProfileMenuProps } from "./sidebar-profile-menu";
+export { SidebarProfileMenu } from "./sidebar-profile-menu";
+export { SidebarCollapseToggle } from "./sidebar-rail-chrome";
 export type {
   SidebarRowAnatomy,
   SidebarRowButtonProps,
@@ -87,5 +77,3 @@ export type { SplitViewProps } from "./split-view";
 export { SplitView } from "./split-view";
 export type { TabBarProps } from "./tab-bar";
 export { TabBar } from "./tab-bar";
-export type { WorkspaceSwitcherProps } from "./workspace-switcher";
-export { WorkspaceSwitcher } from "./workspace-switcher";

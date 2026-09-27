@@ -1,4 +1,4 @@
-import type { MobileMoreRow } from "./mobile-more-items";
+import type { MenuRow } from "./menu-row";
 
 const ROW_CLASSES =
   "flex min-h-12 w-full items-center gap-3 px-4 text-base text-ink transition-colors active:scale-[0.98] hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-inset";
@@ -9,7 +9,7 @@ const ROW_CLASSES =
  * phone exactly as they resolve to the rail row on the desktop — one
  * vocabulary, two renderings.
  */
-export function MobileMoreRowButton({ row }: { row: MobileMoreRow }) {
+export function MobileMoreRowButton({ row }: { row: MenuRow }) {
   return (
     <button
       type="button"

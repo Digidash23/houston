@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 110
+version: 111
 
 components:
   - id: custom-integration-details
@@ -88,7 +88,7 @@ components:
   - id: agent-list-item
     title: Agent list item
     purpose: A single agent row/card in the agent list or sidebar.
-    anatomy: [avatar, name, role-line, status-chip, unread-or-count-slot, trailing-actions]
+    anatomy: [avatar, name, activity-line, status-chip, unread-or-count-slot, trailing-actions]
     states: [idle, running, needs-you, unread, selected, focused]
     variants: [sidebar-rail-collapsed, list-row, grid-card]
     behavior: >-
@@ -103,6 +103,13 @@ components:
       the label. Read state is per person and per device, and the signal is
       multiplayer-only, so single player, the desktop app and any signed-out
       surface never paint it and reserve no space for it.
+      In the rail, the line under the name says what the employee is doing:
+      the mission at work, else the newest one waiting on the person, else the
+      newest of any kind, in words alone (the running ring and the needs-you
+      count carry the status). An employee whose task list is confirmed empty
+      this session, and whom the person may start, reads "Start their first
+      day" with a New badge in the count's place; until that is confirmed the
+      line shows the employee's role, so a veteran never reads as new.
     a11y: >-
       button/listitem role, name as accessible label, aria-current when
       selected; the unread dot is an image-role element carrying a text label
@@ -1034,19 +1041,18 @@ components:
 
   - id: skill-row
     title: Skill row
-    purpose: A skill in the Skills surface, the chat picker, or the add-an-existing-skill list.
-    anatomy: [icon, name, description, holders-or-add]
+    purpose: A skill in an employee's Skills section, the chat picker, or the add-an-existing-skill list.
+    anatomy: [icon, name, description, shared-chip-or-add]
     states: [rows, loading, empty, no-matches, error, adding]
-    variants: [library-row, agent-row, picker-select-row, addable-row]
+    variants: [agent-row, picker-select-row, addable-row]
     behavior: >-
       Rows ride the shared catalog grammar (CatalogRow) in the "Your skills"
       strip (CatalogShell), capped to a preview behind a "Show all" expander at
       rest and uncapped while a search is active. A row OPENS that skill's
       full-page editor in place of the list -- there is no modal, and no
-      Store / Custom tab strip. The workspace library's rows carry the stack of
-      AI Employees holding the skill and a "Shared" chip for a workspace-store
-      skill; an employee's own scoped list carries neither, because the place it
-      stands in already answers that. The chat picker uses the same row
+      Store / Custom tab strip. A workspace-store skill carries a "Shared"
+      chip; no row carries a stack of holders, because the employee whose
+      section it stands in already answers that. The chat picker uses the same row
       renderer with search and title-sorted rows; selecting a row places that
       skill in the composer. The add-an-existing-skill list is the same row
       with one "Add" action at its right edge, which loads the workspace skill
@@ -1268,13 +1274,14 @@ components:
       targets. A sideways drag of 20px moves the ghost one level in or out,
       which is how an employee enters a collapsed group or leaves a group
       after its last member.
-      Every row is 28px tall around a 20px glyph column, with destination
-      marks at 16px and group marks at 14px, so every glyph edge lands 6-9px
-      from its label. An AI Employee is a person row instead: 44px around a
-      32px portrait, its role under its name, at the same root or member
-      indent as any other row. On the collapsed icon rail it is a 36px square
-      around a 24px avatar, so the avatar and its running ring fit inside the
-      square.
+      A folder header is 28px tall around a 20px glyph column with a 14px
+      group mark. An AI Employee is a person row laid out like a message
+      list: 64px around a 40px portrait, 12px from every edge of its pill,
+      the name in semibold over a muted line of up to two lines with its badge
+      at the end, and a hairline under the text that drops away around a
+      hovered or selected row and under the list's last row. On the collapsed
+      icon rail it is a 36px square around a 24px avatar, so the avatar and
+      its running ring fit inside the square.
     a11y: >-
       The header is one labelled button with a disclosure state. The menu is a
       separate, always-visible button. The glyph is decorative. Enter and Space
@@ -1282,73 +1289,56 @@ components:
       of a folder.
     since: 55
 
-  - id: sidebar-teams-band
-    title: AI Employees sidebar band
-    purpose: The heading and create control above the unlabelled agents and group folders.
-    anatomy: [band-label-toggle, band-caret, add-menu-trigger, add-menu,
-      pinned-manager-row, trailing-add-agent-row]
-    states: [resting, collapsed, menu-open]
-    variants: [phone, desktop]
+  - id: sidebar-top-line
+    title: Sidebar top line
+    purpose: The rail's verbs, search and create, on the line the window chrome already spends.
+    anatomy: [collapse-toggle, search-button, create-button, create-menu]
+    states: [resting, hover, menu-open, icon-rail]
+    variants: [window-controls-inset, plain]
     behavior: >-
-      The band reads Your AI Employees and folds the whole list in the expanded
-      desktop rail. Its create menu offers a new agent when the person may
-      create one and always offers a new group folder. New group opens a compact
-      name and identity dialog and leaves the current screen in place. The phone
-      manages groups on the AI Employees list: New group in its title row and
-      the picked group's menu beside the group filter. The create choices show the helmet and folder-plus glyphs on both breakpoints.
-      One New AI Employee row follows the last root entry, outside every group,
-      flush with root employees and folder headers. It creates an ungrouped
-      employee at the top of the root order and cannot be dragged or targeted.
-      Houston, the AI Manager, leads the list, pinned above every group and
-      root employee while it is reachable: an employee's person row (height,
-      portrait diameter, selected pill) with the Manager's avatar, its name
-      Houston and its role, Your AI Manager, as the second line, never
-      draggable and never a drop target, and the first avatar on the
-      collapsed rail. Folding the band folds it too.
+      The line holds the collapse toggle, then Search and Create at its end.
+      Search opens the command palette, the same one its keyboard shortcut
+      toggles, and its tooltip shows that shortcut. Create opens a new AI
+      Employee when that is the only choice, and otherwise a menu offering a
+      new AI Employee or a new group, with the helmet and folder-plus glyphs.
+      The list under the line has no heading: it is the whole rail. Houston,
+      the AI Manager, leads it, pinned above every group and root employee
+      while it is reachable: an employee's person row with the Manager's
+      avatar, its name Houston and its role, Your AI Manager, as the second
+      line, never draggable and never a drop target, and the first avatar on
+      the collapsed rail. On the icon
+      rail the verbs stack under the expand toggle. The phone has no rail:
+      its roster and its create control live on the AI Employees list.
     a11y: >-
-      The label button exposes its expanded state, and the add control has its
-      own accessible name. Agent rows remain visible without hover.
-    since: 58
+      Every control is a labelled button with a tooltip; the create menu is a
+      standard menu with its own accessible name. Nothing is hover-gated.
+    since: 111
 
-  - id: sidebar-nav-band
-    title: Sidebar nav band
-    purpose: >-
-      The rail's top-level destinations above the AI Employees list: one unlabelled run
-      of rows, with no heading of its own.
-    anatomy: [nav-row, nav-glyph, nav-label, footer-row]
-    states: [resting, hover, active, icon-rail]
-    variants: []
+  - id: sidebar-account-menu
+    title: Sidebar account menu
+    purpose: The rail's foot, and the one menu for everything that is not an AI Employee.
+    anatomy: [person-row-trigger, portrait, name-line, workspace-line, workspace-run,
+      tools-run, personal-run]
+    states: [resting, hover, menu-open, icon-rail, signed-out]
+    variants: [expanded, icon-rail]
     behavior: >-
-      The run leads the rail with no band over it, because these are the
-      destinations a user heads for without being asked: the AI accounts
-      their turns run on, the apps they have connected, and the shared Skills
-      library when the space owner may edit it. A heading would only name what
-      the glyphs already say, and the rows would still be the first thing
-      read. Houston, the AI Manager, is not among them: it is a member of the
-      team, so it leads the team list instead (see sidebar-teams-band).
-      The rail's footer holds Academy, Admin and Settings, in that order, with
-      no help control. Admin is a gated footer row that opens its own screen
-      on the Org chart, then People, Billing where allowed, and Activity in a
-      team space; a personal space keeps the Org chart alone. A Company
-      context pill in the screen's header opens the workspace's standing
-      context in a sheet, from the right on the desktop and from the bottom
-      on the phone, in every space. The row follows the organization gate: owners and admins of a
-      multiplayer team space and callers in a Spaces personal space can reach
-      it. Settings is a permanent footer row for personal setup and remains
-      reachable in every deployment.
-      A run whose rows are all hidden by a gate is DROPPED with its rows: a
-      heading may never outlive the list it names, which is the rule the AI Employees
-      band's list below still lives by.
-      The AI Employees home provides the full roster, while opening an employee
-      enters that employee's own tasks, routines, files and settings.
-      The icon rail keeps the rows and drops their labels: each glyph carries
-      its name in a tooltip, so a destination is never left with nothing on
-      screen to name it.
+      The trigger is a person row like an employee's: the signed-in person's
+      round portrait (photo, else initials), their name, and the workspace
+      they are in on the line under it, so the rail always says where the
+      person is. Without an identity (single-player desktop) the workspace
+      takes the name line beside a plain person glyph. It opens upward (to the
+      right from the icon rail) on three runs: every workspace, the current
+      one checked, then create (a new organization where Spaces are served, a
+      workspace elsewhere); Admin behind the organization gate, then AI Models
+      behind its gate, then Integrations; the Academy, then Settings on its
+      index. There is no Skills row and no help control. The phone's More card
+      is headed by the same account row, its menu opening downward on the
+      workspace run, and lists the other runs as rows from the same builders.
     a11y: >-
-      A destination row announces its own name, never carried by colour or
-      position alone. In the icon rail every row keeps an accessible name
-      through its tooltip trigger.
-    since: 59
+      The trigger is one menu button named by the person and workspace lines
+      (the icon rail names it by tooltip); every item is a menu item with a
+      visible label.
+    since: 111
 
   - id: team-identity-picker
     title: Group identity picker
@@ -1490,17 +1480,17 @@ components:
     purpose: >-
       The phone's long tail behind the nav bar's More item: every destination
       the desktop rail lists, as a floating card rising from the bar.
-    anatomy: [card, workspace-switcher, destination-row, row-glyph]
+    anatomy: [card, account-row, destination-row, row-glyph]
     states: [closed, open]
     variants: []
     behavior: >-
       A floating rounded card anchored just above the nav bar, dismissed by
-      scrim tap or swipe, never a full-height sheet. Its header is the
-      workspace switcher; below it the desktop rail's destinations in the
-      rail's own order, one row each: the unlabelled run (the assistant when
-      discovered, AI Models, Integrations, and Skills for the space owner,
-      each behind the same gate the rail applies), then Academy, Admin when
-      the org gate admits the caller, then Settings. There is no help group.
+      scrim tap or swipe, never a full-height sheet. Its header is the account
+      row (sidebar-account-menu), whose menu opens downward on the workspaces
+      and create; below it the desktop menu's destinations in its own order,
+      one row each: Admin when the org gate admits the caller, AI Models behind
+      its gate and Integrations, then Academy and Settings. There is no help
+      group and no Skills row.
       One list, the rail's own, so a destination cannot exist on the desktop and
       be unreachable on the phone. Picking a destination closes the card and
       RESETS the navigation trail to that screen, with the bar's More item

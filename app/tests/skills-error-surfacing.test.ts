@@ -23,9 +23,37 @@ describe("the Skills surface swallows nothing", () => {
       );
   });
 
-  it("names the two writes the save flow reports", () => {
+  it("never calls a half-applied delete for everyone a success", () => {
+    const actions = readFileSync(
+      new URL("use-shared-skills-actions.ts", dir),
+      "utf8",
+    );
+    const body = actions.slice(
+      actions.indexOf("const deleteShared = useCallback("),
+      actions.indexOf("const promoteToShared = useCallback("),
+    );
+    // A manifest write that failed leaves some employee loading a deleted
+    // skill: the act throws (and is reported) instead of toasting success.
+    ok(body.includes('throw new Error("delete failed for some agents")'));
+    ok(
+      body.indexOf('throw new Error("delete failed for some agents")') <
+        body.indexOf('addToast({ title: t("global.skillRemoved")'),
+    );
+  });
+
+  it("names the writes the save flow and the menu report", () => {
     const save = readFileSync(new URL("use-skill-save.ts", dir), "utf8");
     ok(save.includes('logAndReportError("skill_delete"'), "the delete");
-    ok(save.includes('logAndReportError("skill_unassign"'), "the unassign");
+    const menu = readFileSync(
+      new URL("workspace-skill-menu-items.tsx", dir),
+      "utf8",
+    );
+    ok(menu.includes('report("skill_share_to_workspace")'), "the share");
+    ok(menu.includes('report("skill_enable_for_all")'), "the enable");
+    const page = readFileSync(new URL("skill-editor-page.tsx", dir), "utf8");
+    ok(
+      page.includes('logAndReportError("skill_delete_for_everyone"'),
+      "the delete for everyone",
+    );
   });
 });

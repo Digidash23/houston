@@ -7,7 +7,7 @@ import { TeamGlyph } from "./sidebar-group-header-chrome";
 /** Team blocks live on the rail, at the rail's width. */
 export function Rail({ children }: { children: ReactNode }) {
   return (
-    <div className="w-[220px] space-y-2.5 rounded-xl bg-sidebar px-2 py-2">
+    <div className="w-[272px] space-y-2.5 rounded-xl bg-sidebar px-2 py-2">
       {children}
     </div>
   );

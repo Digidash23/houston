@@ -11,10 +11,8 @@
  * migration. Every section reads the current workspace, so the whole screen
  * sits behind one workspace gate.
  *
- * The shared Skills library is NOT here: it is a screen of its own, opened
- * from the rail's Skills row. An AI Employee's own Skills section is that same
- * surface scoped to that employee, and it lives in the agent's settings, not
- * in this list.
+ * Skills are NOT here: an AI Employee's Skills section lives in that
+ * employee's settings.
  */
 export const SETTINGS_SECTION_IDS = [
   "profile",

@@ -100,18 +100,6 @@ describe("the acts an employee's own Skills section offers", () => {
     strictEqual(acts.revert, undefined);
   });
 
-  it("offers neither in the workspace library", () => {
-    const { shared } = sharedStub();
-    const acts = scopedSkillActions({
-      row: row({ origin: "shared" }),
-      scopedAgent: null,
-      shared,
-      isShared: true,
-    });
-
-    deepStrictEqual(acts, { notice: null });
-  });
-
   it("runs each act against the employee the section stands on", async () => {
     const { shared, calls } = sharedStub();
     const acts = scopedSkillActions({

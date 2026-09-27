@@ -1,5 +1,6 @@
 import { expect, test } from "./support/fixtures";
-import { navRow } from "./support/team-nav";
+
+import { workspaceMenuTrigger } from "./support/workspace-menu";
 
 /**
  * Regression: subtree theme pinning via data-theme must re-resolve Tailwind
@@ -69,7 +70,7 @@ test("data-theme pin re-resolves Tailwind color utilities per subtree", async ({
 }) => {
   await page.goto("/");
   // Anchor: the shell is up, so globals.css (the @theme inline bridge) is loaded.
-  await expect(navRow(page, "integrations")).toBeVisible();
+  await expect(workspaceMenuTrigger(page)).toBeVisible();
 
   // --- Light app: a data-theme="dark" pin must render DARK inside it. ---
   const lightAppUnpinned = await probe(page, "light", null);

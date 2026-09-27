@@ -1,20 +1,18 @@
 /**
  * The rail's row anatomy, defined ONCE.
  *
- * EVERY interactive line in the sidebar is the same row: the top-level
- * destinations above the list, the band that names the list, each team's
- * header, each team's destination rows, and the "New agent" row that closes
- * it. AI Employees are the one exception, and a deliberate one: a person row
- * (see {@link sidebarPersonRow}) carries a bigger avatar and a second line.
- * The rest differ only in what they point at and how far their glyph is
- * indented. If any of them drifts in height, indent, glyph column or
+ * EVERY interactive line in the sidebar's list is the same row: each group's
+ * header, and each person. A person row (see {@link sidebarPersonRow}) is the
+ * one deliberate variation: a bigger portrait and a second line, spaced like a
+ * message list. Rows differ only in what they point at and how far their
+ * glyph is indented. If any of them drifts in height, indent, glyph column or
  * type size, the rail stops reading as one list and starts reading as several
  * stacked ones. So every value lives here and nowhere else, and
  * {@link SidebarRowButton} is the only component that spends them.
  *
  * Six invariants keep every row on the same ladder:
  *
- * 1. **Height is FIXED per anatomy** (`h-7`, 28px; a person row `h-11`, 44px).
+ * 1. **Height is FIXED per anatomy** (`h-7`, 28px; a person row `h-16`, 64px).
  *    No hover, active, focus, badge or missing-role state may change it — a
  *    rail that reflows under the cursor is the single most obvious tell of a
  *    hand-built list.
@@ -29,18 +27,18 @@
  * 3. **Colour is never pinned on the glyph.** A row's icon inherits its label's
  *    colour, so an active row brightens as one object rather than as a label
  *    with a stale grey mark beside it.
- * 4. **ONE weight for the rail's lines.** Every line — nav destination, band,
- *    team header, child row, add row — is set at 510, the notch past
+ * 4. **ONE weight for the rail's lines.** Every glyph row is set at 510, the
+ *    notch past
  *    medium that Linear's rails use. Weight is therefore never a variable: not
  *    of depth, not of state, so nothing re-measures or reflows on click, and
  *    hierarchy is carried entirely by indent and colour. See
  *    `font-weight-510` in `@houston-ai/core`'s globals for why 510 is spelled
  *    the way it is. A person row's NAME is the exception: it is set semibold
  *    at the same 13px, because it names someone rather than somewhere.
- * 5. **Two type sizes and no more.** Every row that points at something is
- *    13px; the band that names the list is 12px. See {@link sidebarRowType}.
- * 6. **One horizontal inset for every band and every run of rows.** See
- *    {@link sidebarBandInset}.
+ * 5. **One type size for the rows.** Every row is 13px; a person row's second
+ *    line is the one 12px exception. See {@link sidebarRowType}.
+ * 6. **One horizontal inset for every run of rows.** See
+ *    {@link sidebarRailInset}.
  */
 
 export const sidebarClasses = {
@@ -51,17 +49,12 @@ export const sidebarClasses = {
 } as const;
 
 /**
- * The ONE horizontal inset the rail's contents sit on: every band heading and
- * every run of rows a band names, and nothing else in the rail may add another.
- *
- * It lives here because a heading inset twice reads as a second list: the
- * `<nav>` that holds a band and `SidebarBand`'s own heading would each add
- * `px-2`, hanging that label 8px right of a band rendered from `sidebar.tsx`
- * inside an unpadded wrapper, while every band's child ROWS stayed on 8px.
- * Spending the value from one export is what makes that unrepeatable: a
- * consumer cannot double it without doubling this.
+ * The ONE horizontal inset the rail's contents sit on: the pinned rows, the
+ * scrolling list and the account row at the foot, and nothing else in the
+ * rail may add another. Spending the value from one export is what keeps the
+ * three on one edge: a consumer cannot double it without doubling this.
  */
-export const sidebarBandInset = "px-2";
+export const sidebarRailInset = "px-2";
 
 /** Every row in the rail is exactly this tall. See invariant 1. */
 export const sidebarRowHeight = "h-7";
@@ -90,22 +83,28 @@ export const sidebarGlyphDiameter = 20;
 export const sidebarRingClearance = 4;
 
 /**
- * The person row: an AI Employee in the expanded rail. Its avatar is a real
- * portrait slot (people may give their employees their own pictures), so it is
- * 32px rather than the 20px glyph column, with the name above the role on two
- * lines. The row is 44px so the avatar sits on even 6px padding; an employee
- * with no role keeps the height and centres its name. The text never grows:
- * the name keeps the rail's 13px and gains weight, the role is 12px and muted.
+ * The person row: an AI Employee in the expanded rail, spaced like a message
+ * list rather than a menu. Its avatar is a real portrait slot (people may give
+ * their employees their own pictures), 40px, with the name above a line that
+ * may run to two. The row is 64px so the avatar sits on even 12px padding and
+ * the name plus two 16px lines (52px) fit with air to spare; a row with less
+ * to say keeps the height and centres what it has. The text never grows: the
+ * name keeps the rail's 13px and gains weight, the line is 12px and muted.
  */
 export const sidebarPersonRow = {
-  height: "h-11",
-  avatarDiameter: 32,
-  iconBox: "flex size-8 shrink-0 items-center justify-center",
+  height: "h-16",
+  avatarDiameter: 40,
+  iconBox: "flex size-10 shrink-0 items-center justify-center",
   /** Avatar edge to text: the portrait fills its box, so this IS the optical
    *  gap, a step wider than a glyph row's because the mark is wider. */
-  iconGap: "mr-2",
-  name: "text-[13px] leading-5 font-semibold",
+  iconGap: "mr-2.5",
+  name: "text-[13px] leading-5 font-semibold text-ink",
   role: "text-xs leading-4 font-normal text-ink-muted",
+  /** Inside the pill, 12px from each edge: the same 12px the portrait keeps
+   *  from the top and bottom, so the portrait sits on even padding all round.
+   *  A grouped row steps in by the rail's usual 12px. */
+  padBlock: "pl-3 pr-3",
+  padChild: "pl-6 pr-3",
 } as const;
 
 /**
@@ -156,19 +155,8 @@ export const sidebarRowEndPad = "pr-2";
 export const sidebarRowEndMargin = "mr-2";
 
 /**
- * The rail's type ramp: exactly two steps, both of them Linear's.
- *
- * - `item` — 13px, worn by EVERY row that points at something: the top-level
- *   destinations, a team header, a team's destination rows, an agent, the
- *   "new" row. One size, so the rail reads as one list.
- * - `band` — 12px, for the one row that names the list instead of pointing at
- *   anything ("Your AI Employees").
- *
- * Both steps carry the SAME weight (`font-weight-510`, see invariant 4), so
- * the only thing that separates the band from the rows it heads is one step of
- * size and its colour. That is deliberate: a band set apart by weight reads as
- * a heading bolted above a list, and the whole point of this rail is that the
- * band is the list's own first line.
+ * The rail's row type: 13px at Linear's 510 (invariant 4), worn by every row
+ * so the rail reads as one list.
  *
  * Line-heights are set explicitly and both are shorter than the 28px row, so
  * the label sits optically centred in the box and descenders survive the
@@ -177,7 +165,6 @@ export const sidebarRowEndMargin = "mr-2";
  */
 export const sidebarRowType = {
   item: "text-[13px] leading-5 font-weight-510",
-  band: "text-xs leading-4 font-weight-510",
 } as const;
 
 /** The 40px top row and 84px host window controls zone reserve space for
@@ -185,4 +172,4 @@ export const sidebarRowType = {
 export const sidebarWindowControlsHeight = "h-10";
 export const sidebarWindowControlsWidth = "w-[84px]";
 export const sidebarCollapsedWidth = "w-[56px]";
-export const sidebarExpandedWidth = "w-[220px]";
+export const sidebarExpandedWidth = "w-[272px]";

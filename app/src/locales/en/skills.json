@@ -7,7 +7,6 @@
     "noMatchingSkills": "No skills match your search",
     "showAllSkills": "Show all {{count}} skills",
     "sharedBadge": "Shared",
-    "agentStackLabel": "AI Employees with this skill: {{names}}",
     "emptyTitle": "No skills yet",
     "emptyDescription": "Skills are the tasks your AI Employees know how to do. Use \"{{action}}\" to build your first one.",
     "noMatchesTitle": "No skills match \"{{query}}\"",
@@ -51,7 +50,6 @@
     "close": "Close"
   },
   "global": {
-    "pageTitle": "Skills",
     "createSkill": "Create skill",
     "createMenu": {
       "withChat": "Create with chat",
@@ -66,18 +64,9 @@
       "emptyDescription": "This AI Employee already has every skill your workspace shares. Create a new one to give it more.",
       "added": "{{name}} added"
     },
-    "noAgentsTitle": "No AI Employees yet",
-    "noAgentsDescription": "Create an AI Employee first. Skills live with your AI Employees, and this page manages them across all of them.",
     "skillUpdated": "Skill updated",
     "skillRemoved": "Skill removed",
     "manage": {
-      "agentsLabel": "AI Employees with this skill",
-      "keepOneAgent": "Keep at least one AI Employee, or use Delete to remove the skill everywhere.",
-      "hasSkillNote": "Has this skill",
-      "shareToManage": "To use this skill with other AI Employees, share it to the workspace. Shared skills keep one version for every AI Employee.",
-      "removeConfirmTitle_one": "Remove from {{count}} AI Employee?",
-      "removeConfirmTitle_other": "Remove from {{count}} AI Employees?",
-      "removeConfirmDescription": "Saving will remove this skill from {{names}}. This cannot be undone.",
       "deleteConfirmTitle": "Delete \"{{name}}\"?",
       "deleteConfirmDescription_one": "This removes the skill from {{count}} AI Employee ({{names}}). This cannot be undone.",
       "deleteConfirmDescription_other": "This removes the skill from {{count}} AI Employees ({{names}}). This cannot be undone.",
@@ -86,11 +75,10 @@
       "revert": "Use workspace version",
       "deleteSharedDescription": "This removes the skill from the workspace for every AI Employee. AI Employees with a modified copy keep their own version.",
       "shareToWorkspace": "Share to workspace",
-      "disableForAgent": "Disable for this AI Employee"
-    },
-    "chatPick": {
-      "title": "Who should build it with you?",
-      "description": "The chat runs with this AI Employee, who also gets the skill. It lands in your workspace, so you can add it to other AI Employees whenever you want."
+      "disableForAgent": "Disable for this AI Employee",
+      "deleteForEveryone": "Delete for all AI Employees",
+      "checkingEveryone": "Checking the other AI Employees…",
+      "checkEveryoneFailed": "Couldn't check the other AI Employees"
     },
     "createdShared": "Skill added to your workspace",
     "enabledForAll_one": "Enabled for {{count}} AI Employee",

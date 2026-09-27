@@ -1,41 +1,37 @@
-import type { SidebarNavSection } from "@houston-ai/layout";
 import { Blocks } from "lucide-react";
 import { INTEGRATIONS_VIEW_ID } from "../integrations-view";
+import type { MenuSection } from "./menu-row";
 import type { SidebarChromeT } from "./sidebar-chrome";
 import { gatedNavRows } from "./sidebar-nav-rows";
 import { tourAnchor } from "./workspace-tour-steps.ts";
 
 /**
- * The rail's top-level destinations: ONE unlabelled run above "Your AI Employees".
+ * The workspace's shared destinations: AI Models, then Integrations, as ONE
+ * unlabelled run.
  *
- * AI Models, Integrations and Skills are the things a user reaches for
- * without being asked, so they lead the rail and need no heading over them.
- * The AI Manager is not a destination here: it is a member of the team, pinned
- * first in the employees band (`sidebar-manager-row.tsx`). Skills follows
- * Integrations because the two answer the same question from either side —
- * what an agent can REACH, and what an agent can DO — and it rides the
- * `showSkills` gate, since editing a skill edits every agent in the space at
- * once. "Your AI Employees" is the rail's only labelled band, drawn below by
- * the teams model.
+ * They are what the workspace SHARES rather than where daily work happens, so
+ * they sit in the middle run of the workspace menu at the rail's foot
+ * (`sidebar-workspace-menu.tsx`) and in the phone's More menu, both built from
+ * this list, rather than on the rail above the employees. Skills are managed
+ * in each employee's own settings.
  *
- * A section the gates empty is DROPPED by the library, band and all
- * (`SidebarNavList` filters on `items.length`), so a heading can never outlive
- * the rows it names.
+ * A section the gates empty is dropped by every renderer, so a run can never
+ * outlive the rows it names.
  *
- * Per-agent policy lives on each employee's own screen. Admin owns members,
- * roles, activity, time worked, and the org chart from its gated footer row.
- * About me is a Settings section beside name and language. Academy, Admin, and
- * Settings form the rail's footer cluster (`sidebar-footer.tsx`).
+ * What lives elsewhere, on purpose: the AI Manager is a member of the team,
+ * pinned first in the rail's list (`sidebar-manager-row.tsx`). Admin (members,
+ * roles, activity, time worked, the org chart) leads this same run in the
+ * menu, gated on `showOrganization`, because it administers the workspace
+ * these tools belong to. About me is a Settings section. The Academy and
+ * Settings are the menu's last run, the person's own.
  */
 export function buildSidebarNavItems(args: {
   t: SidebarChromeT;
   showAiModels: boolean;
-  /** The Skills row: the space owner's, whose agents a skill edit reaches. */
-  showSkills: boolean;
   setViewMode: (view: string) => void;
-}): SidebarNavSection[] {
-  const { t, showAiModels, showSkills, setViewMode } = args;
-  const { aiModels, skills } = gatedNavRows({ t, setViewMode });
+}): MenuSection[] {
+  const { t, showAiModels, setViewMode } = args;
+  const { aiModels } = gatedNavRows({ t, setViewMode });
   return [
     {
       id: "primary",
@@ -48,7 +44,6 @@ export function buildSidebarNavItems(args: {
           onClick: () => setViewMode(INTEGRATIONS_VIEW_ID),
           dataAttrs: tourAnchor("nav-integrations"),
         },
-        ...(showSkills ? [skills] : []),
       ],
     },
   ];

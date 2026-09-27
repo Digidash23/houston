@@ -3,7 +3,7 @@ import type { SkillSummary } from "./types.ts";
 import type { WorkspaceSkillAgent } from "./workspace-skills.ts";
 
 /**
- * The pure model behind the global Skills page when the deployment serves the
+ * The pure skills model when the deployment serves the
  * workspace-shared store (`capabilities.sharedSkills`, ADR 0003). Shared
  * skills live ONCE at the workspace level; each agent's manifest says which
  * ones it loads, and an agent-local copy of the same slug SHADOWS the shared

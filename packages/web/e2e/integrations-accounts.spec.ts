@@ -1,6 +1,7 @@
 import { FAKE_HOST_URL } from "@houston/fake-host";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
+import { openNavRow } from "./support/workspace-menu";
 
 /**
  * Multiple accounts per app (HOU-901).
@@ -33,7 +34,7 @@ async function seedAccount(
 
 async function openIntegrationsPage(page: Page): Promise<void> {
   await page.goto("/");
-  await page.locator('[data-tour-target="nav-integrations"]').click();
+  await openNavRow(page, "integrations");
 }
 
 test("two accounts on one app: one row, named accounts, per-account disconnect", async ({

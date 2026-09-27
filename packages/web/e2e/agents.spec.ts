@@ -3,6 +3,7 @@ import { FOLLOW_UP_PLACEHOLDER } from "./support/composer";
 import { createAgent } from "./support/create-agent";
 import { expect, test } from "./support/fixtures";
 import { missionCard, rail, screen } from "./support/team-nav";
+import { workspaceMenuTrigger } from "./support/workspace-menu";
 
 /**
  * Agent lifecycle through the UI. Creating an agent goes New AI Employee → the
@@ -15,7 +16,7 @@ test("creates an agent and shows it in the sidebar", async ({ page }) => {
   await page.goto("/");
 
   // Sidebar starts with the one seeded agent.
-  await expect(rail(page).getByText("Your AI Employees")).toBeVisible();
+  await expect(workspaceMenuTrigger(page)).toBeVisible();
 
   await createAgent(page, "Marketing Bot");
 
