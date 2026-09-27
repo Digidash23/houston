@@ -14,13 +14,18 @@ import type { PortableContent } from "./portable";
  * and a short reason. An LLM-driven scan is the v2 upgrade — same API.
  *
  * Calibration is intentionally noisy on the side of caution. The UI frames
- * results as "Houston reviewed, here's what stood out", not "Safe ✓".
+ * results as "reviewed automatically, here's what stood out", not "Safe ✓".
  * False positives are recoverable (the user can dismiss); false negatives
  * are not.
  */
 
+/**
+ * Stays on the wire for protocol v3 compatibility (additive-only). The app
+ * renders the localized `portable:import.step1.scanDisclaimer` copy instead,
+ * so both must say the same thing.
+ */
 const DISCLAIMER =
-  "Houston reviewed this package automatically. The review may have missed concerns. Open anything that looks unusual before installing.";
+  "This package was reviewed automatically. The review may have missed concerns. Open anything that looks unusual before installing.";
 
 const EXFIL_SENSITIVE_PATH =
   /(\.ssh\/|\.aws\/|\.npmrc|\.netrc|\.env|id_rsa|id_ed25519|\/etc\/shadow|\/etc\/passwd|keychain)/;

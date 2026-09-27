@@ -27,11 +27,11 @@ export async function resolvedParams(
     resolution = await resolveEntityParams(op, params, ctx.directory);
   } catch (error) {
     // A collection this deployment simply does not have is not an outage: the
-    // model must hear "this Houston has no such thing" once, not retry a list
+    // model must hear "this install has no such thing" once, not retry a list
     // that will never exist (assistant/entity-directory-local.ts).
     if (error instanceof UnsupportedEntityCollectionError) {
       json(res, 400, {
-        error: `${error.collection} are not supported on this Houston, so nothing here can name one. Tell the user plainly that Houston cannot do this for them.`,
+        error: `${error.collection} are not supported on this install, so nothing here can name one. Tell the user plainly that this cannot be done here.`,
         code: "unsupported_entity",
       });
       return null;

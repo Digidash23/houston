@@ -30,7 +30,7 @@ export function operationInventory(catalog: AssistantCatalog): string[] {
   return [
     "## Operation policies and parameter resolution",
     "",
-    "Confirmation means Houston asks the user and mints a receipt for that exact call before it happens. A parameter reads as `enum` (its schema carries every value), `resolved:<list>` (Houston matches an id or the exact name against that live list and refuses with the values that exist), `open:<reason>` (it names something no live list covers, and where to read it instead), or `free text`.",
+    "Confirmation means the app asks the user and mints a receipt for that exact call before it happens. A parameter reads as `enum` (its schema carries every value), `resolved:<list>` (the app matches an id or the exact name against that live list and refuses with the values that exist), `open:<reason>` (it names something no live list covers, and where to read it instead), or `free text`.",
     "",
     "| Operation | Method | Confirmation | Hidden reason | Parameters |",
     "| --- | --- | --- | --- | --- |",

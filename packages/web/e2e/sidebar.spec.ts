@@ -71,19 +71,20 @@ test("Manager is the first employee row in both rail widths", async ({
   // The person row's height, like the agent under it.
   expect(managerBox.height).toBe(agentBox.height);
 
-  // The avatar is decorative: the row's label is its name.
+  // The avatar is decorative: the row's label is its name, then its role.
   await expect(manager.locator("[data-manager-avatar]")).toHaveAttribute(
     "aria-hidden",
     "true",
   );
-  const row = manager.getByRole("button", { name: /AI Manager/ });
+  const row = manager.getByRole("button", { name: /^Houston/ });
+  await expect(row).toContainText("Your AI Manager");
   await row.click();
   await expect(page.getByTestId("assistant-chat")).toBeVisible();
   await expect(row).toHaveAttribute("aria-current", "page");
 
   // Collapsed, it is the first avatar on the icon rail and still lit.
   await page.getByRole("button", { name: "Collapse sidebar" }).click();
-  await expect(manager).toHaveAttribute("aria-label", "AI Manager");
+  await expect(manager).toHaveAttribute("aria-label", "Houston");
   await expect(band.locator("button[aria-label]").first()).toHaveAttribute(
     "data-testid",
     "rail-assistant",

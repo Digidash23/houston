@@ -130,7 +130,7 @@ export const ENTITY_SOURCES: readonly EntityRule[] = [
     after: "definitions",
     discovery: "customIntegrations",
     unlisted:
-      "The directory lists Houston's own things, so read a self-added app's slug from customIntegrations.",
+      "The directory lists the app's own things, so read a self-added app's slug from customIntegrations.",
   },
   // A messaging connection (`/v1/channels/connections/{id}`) shares the segment
   // with an app connection, so it is claimed first, by the path it sits under.

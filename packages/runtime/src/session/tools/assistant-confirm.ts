@@ -38,7 +38,7 @@ function pendingMessage(
   summary: string,
   requestId: string,
 ): string {
-  return `${name} was NOT performed. ${summary} Houston is now showing the user an approval card with exactly these details, and only their own answer can authorize it - you cannot. END YOUR TURN NOW and wait: do not retry this call, do not ask the same thing again in your reply text, and do not work around the gate with other operations. Deleting something and recreating it is not a workaround; the deletion still needs this approval. Once they approve, repeat this exact call unchanged with requestId "${requestId}" and it will run, once.`;
+  return `${name} was NOT performed. ${summary} The app is now showing the user an approval card with exactly these details, and only their own answer can authorize it - you cannot. END YOUR TURN NOW and wait: do not retry this call, do not ask the same thing again in your reply text, and do not work around the gate with other operations. Deleting something and recreating it is not a workaround; the deletion still needs this approval. Once they approve, repeat this exact call unchanged with requestId "${requestId}" and it will run, once.`;
 }
 
 /** What the model is told after the user said no. */
@@ -106,7 +106,7 @@ export async function requestConfirmation(
   } catch (err) {
     return assistantErrorResult(op.name, {
       code: "transport_error",
-      message: `Houston could not be reached to ask the user about that: ${err instanceof Error ? err.message : String(err)}`,
+      message: `The app could not be reached to ask the user about that: ${err instanceof Error ? err.message : String(err)}`,
     });
   }
   const pending = res.ok
@@ -116,7 +116,7 @@ export async function requestConfirmation(
     return assistantErrorResult(op.name, {
       code: "gateway_error",
       status: res.status,
-      message: `Houston could not put that in front of the user for approval (HTTP ${res.status}), so it has not been done. Tell them plainly and ask what they would like instead.`,
+      message: `The app could not put that in front of the user for approval (HTTP ${res.status}), so it has not been done. Tell them plainly and ask what they would like instead.`,
     });
   }
 

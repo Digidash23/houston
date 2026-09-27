@@ -143,7 +143,7 @@
     },
     "readOnly": {
       "title": "These files can’t be changed right now",
-      "description": "Houston can’t save changes there. Check the folder’s permissions and try again."
+      "description": "Changes can’t be saved there. Check the folder’s permissions and try again."
     },
     "conflict": {
       "title": "“{{name}}” already exists",
@@ -221,9 +221,9 @@
       "openFailedTitle": "Couldn’t open the file",
       "savedRenamedDescription": "Saved as {{name}} because {{original}} is open in another program.",
       "saveLocked": "That file is open in another program. Close it there and download again.",
-      "savePermission": "Houston isn't allowed to save into that folder. Choose another folder, like Downloads.",
+      "savePermission": "The app isn't allowed to save into that folder. Choose another folder, like Downloads.",
       "saveDiskFull": "There isn't enough free space on this computer to save the file.",
-      "revealPermission": "Houston isn't allowed to open that folder on this computer. Look for the file where you saved it."
+      "revealPermission": "The app isn't allowed to open that folder on this computer. Look for the file where you saved it."
     },
     "modifiedToday": "Today"
   },

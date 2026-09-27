@@ -134,7 +134,7 @@ export async function hireStarterTeam(
 export const CLOSING_LINES = [
   "Your team is ready!",
   "Open any of your AI Employees to start their first day of work.",
-  "Remember that I'm your AI Manager and here to help. I hand out missions to your AI Employees and hire new ones when you need them.",
+  "Remember that I'm your AI Manager and I'm here to help. I hand out missions to your AI Employees and hire new ones when you need them.",
 ] as const;
 
 /** The closing's last message for a person who named a goal. */

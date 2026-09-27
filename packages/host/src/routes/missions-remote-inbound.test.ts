@@ -161,7 +161,11 @@ test("provenance is required, and a deeper origin is refused", async () => {
     origin: { ...ORIGIN, depth: 2 },
   });
   expect(deep.status).toBe(409);
-  expect((deep.body as { code: string }).code).toBe("mission_depth");
+  expect(deep.body).toMatchObject({
+    code: "mission_depth",
+    error:
+      "a mission started by another mission can't start further missions - ask in the original chat instead",
+  });
   expect(await board()).toEqual([]);
   expect(fired).toEqual([]);
 

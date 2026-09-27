@@ -77,7 +77,7 @@
   "grid": {
     "loading": "Carregando…",
     "emptyTitle": "Ainda não há rotinas",
-    "emptyDescription": "Crie a primeira e o Houston cuida do resto.",
+    "emptyDescription": "Crie a primeira e ela passa a rodar sozinha.",
     "listLabel": "Rotinas",
     "draftTitle": "Rotina sendo criada no chat",
     "draftDiscard": "Descartar",
@@ -237,7 +237,7 @@
       "error": "Precisa de atenção"
     },
     "statusUnknown": "Verificando o gatilho…",
-    "statusTimeout": "O Houston não conseguiu confirmar que este gatilho foi configurado.",
+    "statusTimeout": "Não conseguimos confirmar que este gatilho foi configurado.",
     "waitingFirstEvent": "Ativa. Aguardando o primeiro evento.",
     "reconnect": "Reconectar",
     "statusDisconnectedHint": "A conta conectada foi desconectada.",

@@ -1,3 +1,4 @@
+import { SEED_AGENT_NAME } from "@houston/fake-host";
 import { FOLLOW_UP_PLACEHOLDER } from "./support/composer";
 import { createAgent } from "./support/create-agent";
 import { expect, test } from "./support/fixtures";
@@ -49,7 +50,7 @@ test("switches between two agents", async ({ page }) => {
   // which joins the accessible name. The needs-you COUNT is gone from the rail
   // entirely — a rail says what exists and where you are, not the score.
   await rail(page)
-    .getByRole("button", { name: /^Houston\b/ })
+    .getByRole("button", { name: new RegExp(`^${SEED_AGENT_NAME}\\b`) })
     .click();
   await expect(screen(page).getByText("Plan a trip to Tokyo")).toBeVisible();
 });

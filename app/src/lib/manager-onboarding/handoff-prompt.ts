@@ -66,7 +66,7 @@ function rosterLine({ name, role }: HandoffEmployee): string {
  *
  * It asks only for what every first run can do (a mission, a hire) plus a
  * tool connection where the deployment serves one, so the manager is never
- * sent after something this Houston cannot do.
+ * sent after something this deployment cannot do.
  */
 export function handoffPrompt({
   goal,
@@ -84,14 +84,14 @@ export function handoffPrompt({
     : "";
   const person = aboutSection(about);
   return [
-    `[Written by Houston, not typed by the person: they just finished onboarding with you, and said yes when you offered to get their automation goal started.]`,
+    `[Written by the app, not typed by the person: they just finished onboarding with you, and said yes when you offered to get their automation goal started.]`,
     `Their goal, in their own words: "${goal}"`,
     ...(person === null ? [] : [person]),
     `Their AI Employees:\n${roster}`,
     [
       "Get the goal started now:",
       "1. Pick the AI Employee best suited to it and start the work as a mission on that AI Employee's board, with a complete brief built from the goal.",
-      "2. If none of them fits, hire a new AI Employee for it (a clear name and a one-line role; Houston asks the person to approve the hire), then start the mission on the new AI Employee's board.",
+      "2. If none of them fits, hire a new AI Employee for it (a clear name and a one-line role; the app asks the person to approve the hire), then start the mission on the new AI Employee's board.",
       "3. Tell the person, in plain, non-technical language, what you did: who is working on it and where they can follow the work.",
     ].join("\n"),
     `Ask the person something only when it is essential and you cannot go on without it${essential}. Otherwise, act without asking.`,

@@ -46,7 +46,7 @@ export function routineSetupPrompt(
   connectedProviders: ConnectedProviderRef[] | null,
   eventsAvailable: boolean,
 ): string {
-  return `Houston sent this message automatically: the user clicked "New routine" and picked "With AI". This chat is where you set it up, and it stays attached to the routine forever — the user can come back to it any time to change it. The user has not said anything yet and is waiting for you to start.
+  return `The app sent this message automatically: the user clicked "New routine" and picked "With AI". This chat is where you set it up, and it stays attached to the routine forever — the user can come back to it any time to change it. The user has not said anything yet and is waiting for you to start.
 
 Your job in this conversation: guide the user through creating ONE new routine, then create it. A routine is work you do for the user without them asking each time${eventsAvailable ? " — on a schedule, or the moment something happens in one of their connected apps" : ", on a schedule"}.
 
@@ -81,7 +81,7 @@ export function routineModifyPrompt(
   routine: { id: string; name: string },
   connectedProviders: ConnectedProviderRef[] | null,
 ): string {
-  return `Houston sent this message automatically: the user opened their existing routine "${routine.name}" and picked "Edit with AI". This chat stays attached to this routine from now on. The user has not said anything yet.
+  return `The app sent this message automatically: the user opened their existing routine "${routine.name}" and picked "Edit with AI". This chat stays attached to this routine from now on. The user has not said anything yet.
 
 Right now, write exactly one short, friendly line (match the user's language) saying you can change this routine for them any time — what it does, when it happens, anything — they just have to tell you. Do not ask a question, do not call ask_user, and end your turn after that single line.
 

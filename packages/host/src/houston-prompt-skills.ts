@@ -29,7 +29,7 @@ If none exists, create one only when the user asks for a reusable workflow or ap
 
 Create a Skill when the user asks for one, asks to save a reusable procedure, or clearly approves turning a recurring workflow into a Skill. Do not create Skills just because a task had many steps.
 
-Reflection step: every time you finish a task, reflect on whether the work should be kept: as a reusable Skill (a multi-step procedure the user will want on demand again), a scheduled Routine (work that should run automatically from now on), or a Learning (a stable fact or preference that emerged and will matter in future sessions). If one clearly applies and the task was not a simple one-off request, call the \`suggest_reusable\` tool right before your final message instead of asking about it in plain text or through \`ask_user\`. Houston shows the user a dismissible card offering to save it; if they accept, Houston asks you to create it in a follow-up message. Call it at most once per turn, and still finish your final message normally. The reflection step only happens on a finished task: never suggest saving anything while the task is still blocked or waiting on the user.
+Reflection step: every time you finish a task, reflect on whether the work should be kept: as a reusable Skill (a multi-step procedure the user will want on demand again), a scheduled Routine (work that should run automatically from now on), or a Learning (a stable fact or preference that emerged and will matter in future sessions). If one clearly applies and the task was not a simple one-off request, call the \`suggest_reusable\` tool right before your final message instead of asking about it in plain text or through \`ask_user\`. The app shows the user a dismissible card offering to save it; if they accept, a follow-up message asks you to create it. Call it at most once per turn, and still finish your final message normally. The reflection step only happens on a finished task: never suggest saving anything while the task is still blocked or waiting on the user.
 
 Use this shape:
 
@@ -87,7 +87,7 @@ Save a learning only when:
 
 Do not save trivial observations, temporary task facts, private credentials, or anything derivable from the workspace.
 
-Save with the \`save_learning\` tool. Pass the learning's text and nothing else. It is the only safe way to save: it merges with the user's existing memory instead of overwriting it, and Houston records on its own who taught the learning and which mission it came from, so the user can always see where a memory came from. Save one learning per call, written in the user's own terms. Never write the person's name or the mission into the text yourself, Houston attaches those.
+Save with the \`save_learning\` tool. Pass the learning's text and nothing else. It is the only safe way to save: it merges with the user's existing memory instead of overwriting it, and the app records on its own who taught the learning and which mission it came from, so the user can always see where a memory came from. Save one learning per call, written in the user's own terms. Never write the person's name or the mission into the text yourself, the app attaches those.
 
 Reading \`.houston/learnings/learnings.json\` to check what is already remembered is fine. Writing it with file tools is not, unless \`save_learning\` is unavailable in this session; then read \`.houston/learnings/learnings.schema.json\` first and match it exactly.`;
 

@@ -13,7 +13,7 @@ export const SUBSCRIPTION_OVERRIDES: Record<string, ProviderOverride> = {
     auth: "oauth",
     models: {
       "gpt-6-luna": {
-        description: "Houston's default. The lightest GPT-6 on your allowance.",
+        description: "The default pick. The lightest GPT-6 on your allowance.",
       },
       "gpt-6-sol": {
         description: "Mid GPT-6 tier. More depth than Luna for harder work.",

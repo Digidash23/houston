@@ -28,7 +28,7 @@
       "setupBody": "Descarga única de unos {{sizeMb}} MB.",
       "setupConfirm": "Descargar",
       "setupProgress": "Descargando... {{pct}}%",
-      "micDenied": "Houston necesita acceso al micrófono. Permítelo en la configuración del sistema y vuelve a intentarlo.",
+      "micDenied": "La escritura por voz necesita acceso al micrófono. Permítelo en la configuración del sistema y vuelve a intentarlo.",
       "noMic": "No se encontró ningún micrófono.",
       "failed": "El dictado por voz no funcionó esta vez. Inténtalo de nuevo.",
       "unsupportedTitle": "El dictado por voz no está disponible en esta computadora",
@@ -69,7 +69,7 @@
     "providerUnavailable": "Este proveedor de IA no está disponible aquí. Omite este paso y pídeme que use otro proveedor.",
     "handsOnTitle": "Abrir {{screen}}",
     "handsOnReason": "Esta parte la tienes que hacer tú. Abre {{screen}} y termínala ahí.",
-    "handsOnExplainer": "Houston te lleva a la pantalla. Vuelve y avísame cuando termines.",
+    "handsOnExplainer": "Esto te lleva a la pantalla. Vuelve y avísame cuando termines.",
     "handsOnOpen": "Abrir",
     "handsOnDone": "Listo",
     "handsOnLine": "Abriste {{screen}} y terminaste ahí.",
@@ -146,7 +146,7 @@
     "modelNotAllowedBody": "Los modelos permitidos de este empleado de IA cambiaron. Elige otro de la lista.",
     "missionRowFailed": "No pudimos guardar esta tarea en tu tablero. Tu mensaje sí fue enviado.",
     "interactionDismissFailed": "No pudimos descartar la solicitud.",
-    "interactionBusyTitle": "Houston ya está trabajando en esto",
+    "interactionBusyTitle": "Esto ya está en curso",
     "interactionBusyBody": "La solicitud fue reemplazada por una respuesta nueva. Espera a que termine o presiona Detener para abandonarla."
   },
   "providerError": {
@@ -155,7 +155,7 @@
   },
   "attachmentIssues": {
     "title": "Algunos archivos no se adjuntaron",
-    "description": "Houston conservó tu mensaje y los archivos que sí puede usar.",
+    "description": "Guardamos tu mensaje y los archivos que sí se pueden usar.",
     "close": "Entendido",
     "reasons": {
       "blockedType": "Este tipo de archivo no se puede usar aquí.",
@@ -224,8 +224,8 @@
       "noProviders": {
         "action": "Conectar IA",
         "personal": {
-          "title": "Conecta una IA para chatear con Houston",
-          "hint": "Houston responde usando una IA como Claude o ChatGPT. Conecta una para comenzar."
+          "title": "Conecta una IA para empezar a chatear",
+          "hint": "Las respuestas vienen de una IA como Claude o ChatGPT. Conecta una para comenzar."
         },
         "team": {
           "title": "Conecta tu IA para chatear con los empleados de IA de este equipo",
@@ -240,7 +240,7 @@
       "hiddenByWorkspace_other": "{{count}} modelos más están desactivados en tu espacio de trabajo"
     },
     "modelDescriptions": {
-      "gpt-6-luna": "El predeterminado de Houston. El GPT-6 más liviano para tu cuota.",
+      "gpt-6-luna": "La opción predeterminada. El GPT-6 más liviano para tu cuota.",
       "gpt-6-sol": "Nivel medio de GPT-6. Más profundidad que Luna para trabajo difícil.",
       "gpt-6-astra": "El GPT-6 más capaz. Consume tu cuota 5 veces más rápido que Sol.",
       "gpt-5_5": "Nivel completo de la generación anterior, previo a GPT-5.6.",
@@ -415,7 +415,7 @@
   "approvalCard": {
     "approve": "Sí, adelante",
     "decline": "No, no lo hagas",
-    "closing": "Houston no puede deshacer esto por ti. ¿Quieres continuar?",
+    "closing": "No puedo deshacer esto por ti. ¿Quieres continuar?",
     "affects": "Esto afecta a {{arguments}}.",
     "argument": "{{name}} \"{{value}}\"",
     "exactValue": "Contenido exacto de {{name}}:",

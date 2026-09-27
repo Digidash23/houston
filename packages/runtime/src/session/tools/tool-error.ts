@@ -36,7 +36,7 @@ export type SessionToolErrorCode =
   | "transport_error"
   /** That board already holds as many agent-started missions as it allows. */
   | "mission_cap"
-  /** A mission Houston started may not start further missions. */
+  /** A mission started by another mission may not start further missions. */
   | "mission_depth"
   /** The CALLER already has as many missions running as it may start, spread
    *  across every board it can reach. */

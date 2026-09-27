@@ -3,6 +3,13 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v110 - 2026-09-27
+
+The AI Manager's display name is Houston; AI Manager is its role. The
+pinned rows of `sidebar-teams-band` and `agents-home` read Houston with Your
+AI Manager as the second line, and `manager-avatar`, `manager-onboarding`,
+`connect-ai-card` and `sidebar-nav-band` name it Houston, the AI Manager.
+
 ## v109 - 2026-09-26
 
 Admin lands on the Org chart, which its "Workspace" identity lozenge stands

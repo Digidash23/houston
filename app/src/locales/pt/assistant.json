@@ -1,15 +1,15 @@
 {
-  "title": "AI Manager",
-  "opening": "Abrindo seu AI Manager",
+  "title": "Houston",
+  "opening": "Chamando o Houston…",
   "back": "Voltar",
   "empty": {
-    "heading": "Oi, eu sou seu AI Manager",
-    "capabilities": "Eu posso fazer tudo o que você faz no Houston: criar funcionários de IA, configurar automações, conectar seus apps e achar o que você precisa.",
+    "heading": "Oi, eu sou o Houston, seu AI Manager",
+    "capabilities": "Eu posso fazer tudo o que você faz no app: criar funcionários de IA, configurar automações, conectar seus apps e achar o que você precisa.",
     "safety": "Vou sempre perguntar antes de fazer algo arriscado."
   },
   "failure": {
-    "title": "O Houston não conseguiu iniciar seu AI Manager",
-    "body": "Isso costuma se resolver sozinho. O Houston continua tentando em segundo plano, e você pode tentar de novo agora.",
+    "title": "O Houston não está respondendo",
+    "body": "Isso costuma se resolver sozinho. Continuamos tentando em segundo plano, e você pode tentar de novo agora.",
     "retry": "Tentar de novo"
   },
   "link": {
@@ -23,7 +23,7 @@
     "say": {
       "hello": "Oi!",
       "helloNamed": "Oi, {{name}}!",
-      "introManager": "Eu sou seu AI Manager. Eu monto e comando sua equipe de funcionários de IA.",
+      "introManager": "Eu sou o Houston, seu AI Manager. Eu monto e comando sua equipe de funcionários de IA.",
       "introEmployees": "Cada funcionário de IA cuida de um trabalho. Eles fazem trabalho de verdade nas suas ferramentas por conta própria e avisam você quando terminam.",
       "introHow": "Você me diz do que precisa, e eu garanto que o funcionário de IA certo cuide disso.",
       "connectIntro": "Primeiro, vamos conectar a IA que dá vida à sua equipe.",
@@ -41,7 +41,7 @@
       },
       "closingGoal": "Você adoraria passar adiante: “{{goal}}”. Quer que eu coloque um funcionário de IA nisso?",
       "closingAsk": "Qual tarefa você normalmente faria por conta própria? Me conte e eu cuido para que seja feita.",
-      "profileIntro": "Oi de novo! Algumas perguntas rápidas para eu adaptar o Houston ao seu jeito de trabalhar.",
+      "profileIntro": "Oi de novo! Algumas perguntas rápidas para eu adaptar tudo ao seu jeito de trabalhar.",
       "profileThanks": "Obrigado, isso me ajuda muito."
     },
     "questions": {
@@ -64,7 +64,7 @@
       "1000_plus": "1.000+"
     },
     "goal": {
-      "hint": "Pense no trabalho que consome a sua semana. Seu AI Manager vai colocar um funcionário de IA nisso.",
+      "hint": "Pense no trabalho que consome a sua semana. O Houston vai colocar um funcionário de IA nisso.",
       "placeholder": "Por exemplo: responder aos e-mails de clientes e manter minha agenda em dia",
       "tooLong": "Ficou um pouco longo. Mantenha abaixo de {{max}} caracteres."
     },

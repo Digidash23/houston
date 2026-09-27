@@ -1,3 +1,4 @@
+import { SEED_AGENT_NAME } from "@houston/fake-host";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
 import { openAgentSettings } from "./support/team-nav";
@@ -18,7 +19,7 @@ import { openAgentSettings } from "./support/team-nav";
 /** The agent settings page → its Memory section. */
 async function openMemory(page: Page) {
   await page.goto("/");
-  await openAgentSettings(page, "Houston", "Learnings");
+  await openAgentSettings(page, SEED_AGENT_NAME, "Learnings");
 }
 
 // NOTE: no test title here may END in the word "from" — `check:boundaries`

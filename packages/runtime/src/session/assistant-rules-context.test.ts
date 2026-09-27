@@ -1,6 +1,9 @@
 import { ASSISTANT_CAPABILITY_INDEX } from "@houston/domain/assistant-capability-index";
 import { expect, test } from "vitest";
-import { buildAssistantRulesSection } from "./assistant-rules-context";
+import {
+  buildAssistantRulesSection,
+  RULES_HEADING,
+} from "./assistant-rules-context";
 
 /**
  * The assistant's always-on context: the map of what it can do, then the loop
@@ -18,7 +21,7 @@ test("the context follows the ROLE the host gave this runtime, not its directory
   // The managed assistant pod runs under `/workspace` with an ordinarily-named
   // agent: a directory-shaped gate leaves that pod holding the coordinator's
   // Houston-wide toolset with none of these rails on it.
-  expect(forAssistant()).toContain("# How you operate in Houston");
+  expect(forAssistant()).toContain(RULES_HEADING);
   expect(buildAssistantRulesSection(null)).toBeNull();
 });
 
@@ -31,7 +34,7 @@ test("the capability map is carried in front of the rules", () => {
   expect(section).toContain(ASSISTANT_CAPABILITY_INDEX);
   expect(section).toContain("deleteActivity");
   expect(section.indexOf(ASSISTANT_CAPABILITY_INDEX)).toBeLessThan(
-    section.indexOf("# How you operate in Houston"),
+    section.indexOf(RULES_HEADING),
   );
   expect(section).toContain("look in the map above");
 });
@@ -42,7 +45,7 @@ test("nothing may be called impossible before the search comes back empty", () =
   expect(section).toContain(
     "NEVER tell them something cannot be done until that search comes back empty",
   );
-  expect(section).toContain("Houston cannot do that yet");
+  expect(section).toContain("say plainly that you cannot do that yet");
 });
 
 test("the user never hears what happens behind the scenes", () => {
@@ -87,7 +90,15 @@ test("the rules pin who Houston is and where its work runs", () => {
   const section = forAssistant();
   // Identity: the incident had Houston telling the user the chat ran "under
   // the Dobby agent" while the work sat on its own hidden board.
-  expect(section).toContain("personal assistant");
+  expect(section).toContain(
+    "You are Houston, the user's AI Manager: mission control for their team of AI Employees",
+  );
+  expect(section).toContain("Introduce yourself as Houston");
+  expect(section).toContain("never about Houston in the third person");
+  // The manager IS Houston, so the rules never name the app "Houston" as a
+  // separate actor it could then speak about in the third person.
+  const rules = section.split(RULES_HEADING)[1] ?? "";
+  expect(rules).not.toMatch(/Houston (can|cannot)\b|THIS Houston/);
   expect(section).toContain("no board of your own");
   expect(section).toContain("never claim work ran somewhere it did not");
   // Dispatcher: work belongs to an agent the user can see, named out loud.
@@ -97,7 +108,7 @@ test("the rules pin who Houston is and where its work runs", () => {
 });
 
 test("the rules stay short and leak no internals beyond tool names", () => {
-  const rules = forAssistant().split("# How you operate in Houston")[1] ?? "";
+  const rules = forAssistant().split(RULES_HEADING)[1] ?? "";
   expect(rules.split("\n").length).toBeLessThanOrEqual(20);
   for (const banned of [".houston", ".assistant", "JSON", "HTTP", "schema"]) {
     expect(rules).not.toContain(banned);
@@ -136,9 +147,9 @@ test("the capability list is read as this deployment's own, not Houston's in gen
   // or "promise it anyway because Houston is known to do this".
   const rules = buildAssistantRulesSection("coordinator") ?? "";
   expect(rules).toContain(
-    "houston_capabilities lists only what THIS Houston can do",
+    "houston_capabilities lists only what THIS app can do",
   );
   expect(rules).toContain(
-    "anything it does not return is something this Houston cannot do",
+    "anything it does not return is something this app cannot do",
   );
 });

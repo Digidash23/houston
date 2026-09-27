@@ -1,4 +1,4 @@
-import { FAKE_HOST_URL } from "@houston/fake-host";
+import { FAKE_HOST_URL, SEED_AGENT_NAME } from "@houston/fake-host";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { FOLLOW_UP_PLACEHOLDER } from "./support/composer";
 import { expect, test } from "./support/fixtures";
@@ -7,7 +7,7 @@ import { expect, test } from "./support/fixtures";
  * The custom-integration setup chat is embedded INSIDE the Integrations page
  * (not a board mission): "Add custom integration" opens a guided setup chat
  * right there — no chooser dialog, and with the workspace's single seeded
- * agent no picker either — the agent speaks first (the Houston-sent kickoff
+ * agent no picker either — the agent speaks first (the app-sent kickoff
  * bubble never renders), the chat never appears as a board card, and the page
  * never navigates away. The load-bearing case is the COMPOSIO-ABSENT host (no
  * key, no gateway): the chat must work there too.
@@ -100,7 +100,7 @@ test("a multi-agent workspace interposes ONLY the agent picker before the chat",
   ).toBeVisible();
   await page
     .getByRole("dialog")
-    .getByRole("button", { name: "Houston" })
+    .getByRole("button", { name: SEED_AGENT_NAME })
     .click();
   await expect(page.getByText("Task: Set up a custom integration")).toBeVisible(
     { timeout: 10_000 },

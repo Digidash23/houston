@@ -173,7 +173,6 @@ for (const { refusal, title } of [
       page.getByRole("status").filter({ hasText: title }),
     ).toBeVisible();
     await expect(page.getByRole("alert")).toHaveCount(0);
-    await expect(page.getByText("Houston, we have a problem!")).toHaveCount(0);
     await expect.poll(() => planCallCount("checkout")).toBe(1);
     expect(await openedUrls(page)).toEqual([]);
     // Nothing is outstanding, so the trigger is usable again.

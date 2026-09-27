@@ -62,7 +62,7 @@ test("refuses providers Houston has no connect card for", async () => {
       "minimax-cn",
     ])
       await expect(execute(provider)).rejects.toThrow(
-        `Houston cannot connect '${provider}'`,
+        `'${provider}' cannot be connected here`,
       );
     // Houston's display id for the Codex subscription still connects, even
     // though pi's raw api-key `openai` is the id the drop list names.

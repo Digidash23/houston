@@ -22,7 +22,7 @@ function ManagerSidebarIcon() {
  * board. Gated on reachability (`useManagerReachable`), not on a role: a
  * deployment that serves no assistant has no row once no onboarding runs in
  * it. The test id tells it apart from an agent the person happened to name
- * "AI Manager".
+ * "Houston".
  */
 export function useSidebarManagerRow(args: {
   t: SidebarChromeT;

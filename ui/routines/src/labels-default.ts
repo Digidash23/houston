@@ -81,7 +81,7 @@ export const DEFAULT_GRID_LABELS: RoutinesGridLabels = {
   loading: "Loading…",
   emptyTitle: "No routines yet",
   emptyDescription:
-    "Create your first one and Houston will take care of the rest.",
+    "Create your first one and it runs on its own from then on.",
   listLabel: "Routines",
   draftTitle: "Routine being created in chat",
   draftDiscard: "Discard",

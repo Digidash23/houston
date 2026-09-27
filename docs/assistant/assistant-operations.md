@@ -5,14 +5,14 @@ One row per catalog operation. [Coverage exceptions, schema gaps and route diagn
 
 ## Operation policies and parameter resolution
 
-Confirmation means Houston asks the user and mints a receipt for that exact call before it happens. A parameter reads as `enum` (its schema carries every value), `resolved:<list>` (Houston matches an id or the exact name against that live list and refuses with the values that exist), `open:<reason>` (it names something no live list covers, and where to read it instead), or `free text`.
+Confirmation means the app asks the user and mints a receipt for that exact call before it happens. A parameter reads as `enum` (its schema carries every value), `resolved:<list>` (the app matches an id or the exact name against that live list and refuses with the values that exist), `open:<reason>` (it names something no live list covers, and where to read it instead), or `free text`.
 
 | Operation | Method | Confirmation | Hidden reason | Parameters |
 | --- | --- | --- | --- | --- |
 | `applyAgentColor` | GET | unconfirmed: read-only HTTP GET | client-side branching; its only request is the list refetch, so use updateAgentColor to write a color. | agentId: resolved:agents; color: free text |
 | `createAgent` | POST | confirmed: host approval required | visible | name: free text; color: enum; seed: free text |
 | `deleteAgent` | DELETE | confirmed: host approval required | visible | id: resolved:agents |
-| `generateAgentInstructions` | unroutable | unconfirmed: withheld from dispatch | a one-shot generation turn on a runtime, not a Houston operation; an assistant writes the instructions itself and saves them with writeAgentFile. | description: free text; opts: free text |
+| `generateAgentInstructions` | unroutable | unconfirmed: withheld from dispatch | a one-shot generation turn on a runtime, not an app operation; an assistant writes the instructions itself and saves them with writeAgentFile. | description: free text; opts: free text |
 | `getAgentModelChoice` | GET | unconfirmed: read-only HTTP GET | visible | agentSlugOrId: resolved:agents |
 | `installAgentFromGithub` | POST | confirmed: host approval required | visible | githubUrl: free text |
 | `listAgents` | GET | unconfirmed: read-only HTTP GET | visible | none |
@@ -64,9 +64,9 @@ Confirmation means Houston asks the user and mints a receipt for that exact call
 | `addAgentCustomIntegration` | POST | confirmed: host approval required | visible | agentSlugOrId: resolved:agents; input: free text |
 | `addCustomIntegration` | POST | confirmed: host approval required | visible | input: free text |
 | `agentCustomIntegrations` | GET | unconfirmed: read-only HTTP GET | visible | agentSlugOrId: resolved:agents |
-| `agentCustomIntegrationTools` | GET | unconfirmed: read-only HTTP GET | visible | agentSlugOrId: resolved:agents; slug: open: The directory lists Houston's own things, so read a self-added app's slug from customIntegrations. |
+| `agentCustomIntegrationTools` | GET | unconfirmed: read-only HTTP GET | visible | agentSlugOrId: resolved:agents; slug: open: The directory lists the app's own things, so read a self-added app's slug from customIntegrations. |
 | `customIntegrations` | GET | unconfirmed: read-only HTTP GET | visible | none |
-| `customIntegrationTools` | GET | unconfirmed: read-only HTTP GET | visible | slug: open: The directory lists Houston's own things, so read a self-added app's slug from customIntegrations. |
+| `customIntegrationTools` | GET | unconfirmed: read-only HTTP GET | visible | slug: open: The directory lists the app's own things, so read a self-added app's slug from customIntegrations. |
 | `detectAgentCustomIntegration` | POST | confirmed: host approval required | visible | agentSlugOrId: resolved:agents; url: free text |
 | `detectCustomIntegration` | POST | confirmed: host approval required | visible | url: free text |
 | `integrationConnection` | GET | unconfirmed: read-only HTTP GET | visible | provider: enum; connectionId: open: A connection lives with the integration provider, so read its id from integrationConnections. |
@@ -80,15 +80,15 @@ Confirmation means Houston asks the user and mints a receipt for that exact call
 | `integrations.writes.disconnect` | unroutable | unconfirmed: withheld from dispatch | the variant for a surface that owns its own reads; integrations.disconnect is the one to dispatch, and it also refreshes what the user sees. | toolkit: open: Toolkits belong to the integration provider, so read the slug from integrationToolkits.; opts: free text |
 | `integrationStatus` | GET | unconfirmed: read-only HTTP GET | visible | none |
 | `integrationToolkits` | GET | unconfirmed: read-only HTTP GET | visible | provider: enum |
-| `removeAgentCustomIntegration` | DELETE | confirmed: host approval required | visible | agentSlugOrId: resolved:agents; slug: open: The directory lists Houston's own things, so read a self-added app's slug from customIntegrations. |
-| `removeCustomIntegration` | DELETE | confirmed: host approval required | visible | slug: open: The directory lists Houston's own things, so read a self-added app's slug from customIntegrations. |
-| `startAgentCustomIntegrationOAuth` | POST | unconfirmed: withheld from dispatch | starts a browser sign-in only the user can finish. | agentSlugOrId: resolved:agents; slug: open: The directory lists Houston's own things, so read a self-added app's slug from customIntegrations. |
-| `startCustomIntegrationOAuth` | POST | unconfirmed: withheld from dispatch | starts a browser sign-in only the user can finish. | slug: open: The directory lists Houston's own things, so read a self-added app's slug from customIntegrations. |
-| `submitAgentCustomIntegrationCredential` | POST | confirmed: host approval required | takes a secret; the user pastes the integration's own credential. | agentSlugOrId: resolved:agents; slug: open: The directory lists Houston's own things, so read a self-added app's slug from customIntegrations.; values: free text |
-| `submitCustomIntegrationCredential` | POST | confirmed: host approval required | takes a secret; the user pastes the integration's own credential. | slug: open: The directory lists Houston's own things, so read a self-added app's slug from customIntegrations.; values: free text |
+| `removeAgentCustomIntegration` | DELETE | confirmed: host approval required | visible | agentSlugOrId: resolved:agents; slug: open: The directory lists the app's own things, so read a self-added app's slug from customIntegrations. |
+| `removeCustomIntegration` | DELETE | confirmed: host approval required | visible | slug: open: The directory lists the app's own things, so read a self-added app's slug from customIntegrations. |
+| `startAgentCustomIntegrationOAuth` | POST | unconfirmed: withheld from dispatch | starts a browser sign-in only the user can finish. | agentSlugOrId: resolved:agents; slug: open: The directory lists the app's own things, so read a self-added app's slug from customIntegrations. |
+| `startCustomIntegrationOAuth` | POST | unconfirmed: withheld from dispatch | starts a browser sign-in only the user can finish. | slug: open: The directory lists the app's own things, so read a self-added app's slug from customIntegrations. |
+| `submitAgentCustomIntegrationCredential` | POST | confirmed: host approval required | takes a secret; the user pastes the integration's own credential. | agentSlugOrId: resolved:agents; slug: open: The directory lists the app's own things, so read a self-added app's slug from customIntegrations.; values: free text |
+| `submitCustomIntegrationCredential` | POST | confirmed: host approval required | takes a secret; the user pastes the integration's own credential. | slug: open: The directory lists the app's own things, so read a self-added app's slug from customIntegrations.; values: free text |
 | `triggerTypes` | GET | unconfirmed: read-only HTTP GET | visible | toolkit: open: Toolkits belong to the integration provider, so read the slug from integrationToolkits. |
-| `updateAgentCustomIntegrationDetails` | PATCH | unconfirmed: Corrects the name and website on the card; the connection itself, its address and its credential are untouched. | visible | agentSlugOrId: resolved:agents; slug: open: The directory lists Houston's own things, so read a self-added app's slug from customIntegrations.; details: free text |
-| `updateCustomIntegrationDetails` | PATCH | unconfirmed: Corrects the name and website on the card; the connection itself, its address and its credential are untouched. | visible | slug: open: The directory lists Houston's own things, so read a self-added app's slug from customIntegrations.; details: free text |
+| `updateAgentCustomIntegrationDetails` | PATCH | unconfirmed: Corrects the name and website on the card; the connection itself, its address and its credential are untouched. | visible | agentSlugOrId: resolved:agents; slug: open: The directory lists the app's own things, so read a self-added app's slug from customIntegrations.; details: free text |
+| `updateCustomIntegrationDetails` | PATCH | unconfirmed: Corrects the name and website on the card; the connection itself, its address and its credential are untouched. | visible | slug: open: The directory lists the app's own things, so read a self-added app's slug from customIntegrations.; details: free text |
 | `createActivity` | POST | unconfirmed: Creates a board draft without starting work or spending model tokens. | visible | agentId: resolved:agents; input: free text |
 | `deleteActivity` | DELETE | confirmed: host approval required | visible | agentId: resolved:agents; id: resolved:activities |
 | `listActivities` | GET | unconfirmed: read-only HTTP GET | visible | agentId: resolved:agents |

@@ -73,7 +73,9 @@ test("opens from the rail onto a welcoming empty chat", async ({ page }) => {
 
   // The intro, not a skill showcase: what it can reach, and the promise that
   // keeps a "can do anything" agent trustworthy.
-  await expect(screen(page).getByText("Hi, I'm your AI Manager")).toBeVisible();
+  await expect(
+    screen(page).getByText("Hi, I'm Houston, your AI Manager"),
+  ).toBeVisible();
   await expect(
     screen(page).getByText(/ask before anything risky/),
   ).toBeVisible();
@@ -197,9 +199,9 @@ test("says so, and offers another ask, when the manager will not start", async (
   await page.goto("/");
   await assistantRow(page).click();
 
-  await expect(
-    screen(page).getByText("Houston couldn't start your AI Manager"),
-  ).toBeVisible({ timeout: 30_000 });
+  await expect(screen(page).getByText("Houston isn't responding")).toBeVisible({
+    timeout: 30_000,
+  });
 
   // "Try again" is the whole point of the state: it must put a request on the
   // wire at once rather than wait out the 60s background beat.

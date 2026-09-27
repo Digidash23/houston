@@ -1,6 +1,6 @@
 {
   "setup": {
-    "installHint": "Install the {{cli}} CLI on your machine. Houston will pick it up automatically.",
+    "installHint": "Install the {{cli}} CLI on your machine. It will be picked up automatically.",
     "installGuide": "Install guide",
     "signInWith": "Sign in",
     "waiting": "Waiting for the sign-in to finish in your browser...",
@@ -9,13 +9,13 @@
   },
   "signOutConfirm": {
     "title": "Sign out of {{provider}}?",
-    "description": "Houston will stop using {{provider}} until you sign in again. Existing tasks can still finish their current turn.",
+    "description": "{{provider}} won't be used until you sign in again. Existing tasks can still finish their current turn.",
     "confirm": "Sign out",
     "cancel": "Cancel"
   },
   "toast": {
     "signInFailed": "Couldn't open {{provider}} sign-in",
-    "engineUnavailable": "Houston couldn't reach your workspace. Give it a moment and try again.",
+    "engineUnavailable": "We couldn't reach your workspace. Give it a moment and try again.",
     "connectTimedOut": "The connection didn't complete in time. Please try connecting again.",
     "loginTimedOut": "The sign-in didn't complete in time. Please try again.",
     "signInExpiredTitle": "That sign-in link expired",
@@ -70,13 +70,13 @@
   },
   "apiKey": {
     "title": "Connect {{name}}",
-    "description": "Paste your {{name}} API key. Houston keeps it safe and uses it for your chats.",
+    "description": "Paste your {{name}} API key. We keep it safe and use it for your chats.",
     "getKey": "Get your API key",
     "label": "API key",
     "placeholder": "Paste your API key",
     "endpointLabel": "Endpoint",
     "endpointPlaceholder": "https://your-resource.openai.azure.com",
-    "endpointHelp": "The endpoint URL from your resource in the Azure portal. Houston calls the deployment named exactly like the model, so name your deployments after the model (for example \"gpt-5.5\").",
+    "endpointHelp": "The endpoint URL from your resource in the Azure portal. Each request goes to the deployment named exactly like the model, so name your deployments after the model (for example \"gpt-5.5\").",
     "endpointRequired": "Enter your endpoint URL first. It starts with https:// and comes from your resource in the Azure portal.",
     "required": "Enter your API key first.",
     "verifyFailed": "This key couldn't be connected: {{detail}}",
@@ -125,7 +125,7 @@
   },
   "openaiCompatible": {
     "title": "Connect a local model",
-    "description": "Point Houston at a model running on your computer, like Ollama, LM Studio or vLLM.",
+    "description": "Use a model running on your computer, like Ollama, LM Studio or vLLM.",
     "baseUrlLabel": "Server address",
     "baseUrlPlaceholder": "http://localhost:11434/v1",
     "baseUrlHelp": "The address where your local server is listening. For Ollama this is usually http://localhost:11434/v1.",
@@ -155,8 +155,8 @@
   },
   "claudeLogin": {
     "timeout": "Claude sign-in timed out. Please try connecting again.",
-    "confirmTimeout": "Signed in to Claude, but Houston could not confirm the connection. Please try again.",
-    "handoffFailed": "Signed in to Claude, but Houston hit a problem on our side while finishing the connection. Please try again in a moment, or report a bug if it keeps happening.",
+    "confirmTimeout": "Signed in to Claude, but we couldn't confirm the connection. Please try again.",
+    "handoffFailed": "Signed in to Claude, but we hit a problem on our side while finishing the connection. Please try again in a moment, or report a bug if it keeps happening.",
     "autoFailedTitle": "Couldn't finish connecting automatically",
     "autoFailedBody": "Paste an Anthropic API key to finish connecting.",
     "helperUnsupported": "This computer's processor is too old to run the Claude sign-in helper, so a Claude subscription can't be connected on this machine.",
@@ -164,7 +164,7 @@
   },
   "localModel": {
     "title": "Connect a local model",
-    "description": "Run a model on your own computer and let Houston use it. Houston takes care of the connection.",
+    "description": "Run a model on your own computer and use it here. We take care of the connection.",
     "detecting": "Looking for model apps on your computer...",
     "cancel": "Cancel",
     "connecting": {
@@ -184,11 +184,11 @@
         "ollama": "Runs on its own once installed. Nothing to switch on."
       },
       "get": "Get it",
-      "reassure": "Once it's open, Houston takes care of the rest.",
+      "reassure": "Once it's open, we take care of the rest.",
       "recheck": "Check again"
     },
     "pick": {
-      "body": "Houston found these on your computer. Pick the model you'd like to use.",
+      "body": "We found these on your computer. Pick the model you'd like to use.",
       "modelsFound_one": "{{count}} model available",
       "modelsFound_other": "{{count}} models available",
       "modelLabel": "Model",

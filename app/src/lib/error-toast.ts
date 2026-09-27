@@ -30,10 +30,9 @@ export interface ErrorToastOptions {
 
 /**
  * Surface an EXPECTED, explainable business state as a plain informational
- * toast — NOT the red "we have a problem" + auto-report pair. Used for gateway
- * states a user can understand and act on (C8 `needs_upgrade`: a write blocked
- * because the team's trial expired), where the report-a-bug framing would be
- * wrong: nothing is broken. No Sentry capture, no green report toast. The raw
+ * toast. Used for gateway states a user can understand and act on (C8
+ * `needs_upgrade`: a write blocked because the team's trial expired), where a
+ * bug report would be wrong: nothing is broken. No Sentry capture. The raw
  * diagnostic still reaches the frontend log via the caller's `logger.error`.
  */
 export function showExpectedStateToast(

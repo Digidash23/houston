@@ -17,11 +17,11 @@ const palette = AGENT_COLOR_IDS.join(", ");
 /** Every colour a Houston surface stores: a palette id, a hex, or cleared. */
 function colorProblem(value: unknown): string | undefined {
   if (typeof value !== "string")
-    return `must be one of Houston's colours (${palette}), a #rrggbb value, or "" to clear it.`;
+    return `must be one of the app's colours (${palette}), a #rrggbb value, or "" to clear it.`;
   if (value === "" || HEX.test(value)) return undefined;
   if ((AGENT_COLOR_IDS as readonly string[]).includes(value.toLowerCase()))
     return undefined;
-  return `is not a colour Houston knows. Use one of ${palette}, a #rrggbb value, or "" to clear it.`;
+  return `is not a known colour. Use one of ${palette}, a #rrggbb value, or "" to clear it.`;
 }
 
 /**

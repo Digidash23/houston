@@ -143,7 +143,7 @@ export async function saveSharedSkill(
  * @param slug The shared skill's exact slug, from listSharedSkills. Never
  *   invent one.
  * @assistant group:skills
- * @assistant confirm: irreversible. The skill disappears for everyone in the workspace and Houston keeps no copy.
+ * @assistant confirm: irreversible. The skill disappears for everyone in the workspace and no copy is kept.
  */
 export async function deleteSharedSkill(
   scope: HttpScope,

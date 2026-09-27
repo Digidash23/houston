@@ -26,7 +26,7 @@ export { REQUEST_CREDENTIAL_TOOL_NAME };
 const DetectParams = Type.Object({
   url: Type.String({
     description:
-      "A URL the user provided for the service: an OpenAPI/Swagger document URL, an API docs page, or an MCP server endpoint. Houston inspects it and reports what it is.",
+      "A URL the user provided for the service: an OpenAPI/Swagger document URL, an API docs page, or an MCP server endpoint. It is inspected and the result reports what it is.",
   }),
 });
 type DetectParams = Static<typeof DetectParams>;
@@ -38,7 +38,7 @@ const AddParams = Type.Object({
   }),
   name: Type.String({
     description:
-      "A short human name for the integration, e.g. 'Acme CRM'. Shown to the user in Houston's Integrations page.",
+      "A short human name for the integration, e.g. 'Acme CRM'. Shown to the user on the Integrations page.",
   }),
   url: Type.Optional(
     Type.String({
@@ -131,7 +131,7 @@ export function makeCustomIntegrationTools(opts: CustomIntegrationToolOptions) {
     name: "custom_integration_detect",
     label: "Inspect a service URL",
     description:
-      "Inspect a URL the user provided for a service Houston's app search does not offer: an OpenAPI/Swagger document, or an MCP server endpoint. Reports what it is, a suggested name, and whether it needs an API key. Call this BEFORE custom_integration_add.",
+      "Inspect a URL the user provided for a service integration_search does not offer: an OpenAPI/Swagger document, or an MCP server endpoint. Reports what it is, a suggested name, and whether it needs an API key. Call this BEFORE custom_integration_add.",
     promptSnippet: "Inspect a URL to set up a custom integration",
     parameters: DetectParams,
     executionMode: "sequential",
@@ -155,7 +155,7 @@ export function makeCustomIntegrationTools(opts: CustomIntegrationToolOptions) {
               r.requiresOAuth
                 ? r.oauthSupported
                   ? "It signs in with its own account flow (OAuth): add it with auth 'oauth', then call request_credential with its slug in the same turn - the card shows a Sign in button for the user. NEVER collect an API key for it - a key cannot satisfy its sign-in."
-                  : "It only signs in with its own account flow, which Houston cannot connect to on this install yet: say so honestly, never collect an API key for it, and check whether the service also offers a plain API-key or documented REST API to connect instead."
+                  : "It only signs in with its own account flow, which cannot be connected on this install yet: say so honestly, never collect an API key for it, and check whether the service also offers a plain API-key or documented REST API to connect instead."
                 : r.requiresAuthentication
                   ? "It requires authentication - after adding it, call request_credential so the user can enter their key securely."
                   : "",
@@ -205,8 +205,8 @@ export function makeCustomIntegrationTools(opts: CustomIntegrationToolOptions) {
           ? `Added '${r.name}' (slug: ${r.slug}) with ${r.state.toolCount} available actions. Its actions now appear in integration_search results.`
           : r.state.status === "pending"
             ? r.auth === "oauth"
-              ? `Added '${r.name}' (slug: ${r.slug}). It is waiting for the user to sign in: call request_credential with toolkit '${r.slug}' now - Houston shows a Sign in card in place of the chat input and messages you automatically once they finish. NEVER ask for an API key for it.`
-              : `Added '${r.name}' (slug: ${r.slug}). It is waiting for the user's API key: call request_credential with toolkit '${r.slug}' now so Houston shows a secure entry card - NEVER ask the user to paste a key into the chat.`
+              ? `Added '${r.name}' (slug: ${r.slug}). It is waiting for the user to sign in: call request_credential with toolkit '${r.slug}' now - the user gets a Sign in card in place of the chat input, and you get a message automatically once they finish. NEVER ask for an API key for it.`
+              : `Added '${r.name}' (slug: ${r.slug}). It is waiting for the user's API key: call request_credential with toolkit '${r.slug}' now so the user gets a secure entry card - NEVER ask the user to paste a key into the chat.`
             : `Adding '${r.name}' failed: ${r.state.message}`;
       return {
         content: [{ type: "text" as const, text }],

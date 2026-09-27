@@ -60,8 +60,7 @@ function RoutinesGridEmptySpecimen() {
               labels={{
                 ...DEFAULT_GRID_LABELS,
                 emptyTitle: "Aún no hay rutinas",
-                emptyDescription:
-                  "Crea la primera y Houston se encarga del resto.",
+                emptyDescription: "Crea la primera y desde ahí funciona sola.",
               }}
               action={<Button>Nueva rutina</Button>}
             />

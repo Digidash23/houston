@@ -1,3 +1,4 @@
+import { SEED_AGENT_NAME } from "@houston/fake-host";
 import {
   COPY_SOURCE,
   createDialog,
@@ -32,7 +33,9 @@ test("copies an agent from the Agents home on the phone", async ({
   ).toBeVisible();
 
   await openCopyWizard(page);
-  await dialog.getByRole("button", { name: "Houston", exact: true }).click();
+  await dialog
+    .getByRole("button", { name: SEED_AGENT_NAME, exact: true })
+    .click();
   await expect(rowSwitch(page, "Job description and rules")).toBeChecked();
   await rowSwitch(page, COPY_SOURCE.learnings[0]).click();
   await next(page);
@@ -41,7 +44,7 @@ test("copies an agent from the Agents home on the phone", async ({
   await expect(rowSwitch(page, "Invoice Triage")).toBeChecked();
   await next(page);
 
-  await expect(dialog.getByText("Based on Houston")).toBeVisible();
+  await expect(dialog.getByText(`Based on ${SEED_AGENT_NAME}`)).toBeVisible();
   await dialog.getByRole("button", { name: "Create AI Employee" }).click();
   await expect(dialog).toBeHidden();
 
@@ -54,6 +57,9 @@ test("copies an agent from the Agents home on the phone", async ({
   // same landing every create door uses; its header names it.
   const taskList = page.getByTestId("agent-missions-screen");
   await expect(
-    taskList.getByRole("heading", { level: 1, name: "Houston copy" }),
+    taskList.getByRole("heading", {
+      level: 1,
+      name: `${SEED_AGENT_NAME} copy`,
+    }),
   ).toBeVisible();
 });

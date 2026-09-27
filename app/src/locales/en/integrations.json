@@ -11,7 +11,7 @@
     "button": "Sign in to Houston",
     "failed": "Sign-in couldn't start. Please try again."
   },
-  "reconnectNotice": "We upgraded how apps connect to make it more secure. Please reconnect your apps once; Houston no longer keeps any long-lived key for them.",
+  "reconnectNotice": "We upgraded how apps connect to make it more secure. Please reconnect your apps once; we no longer keep any long-lived key for them.",
   "reconnectDismiss": "Got it",
   "connected": {
     "disconnect": {
@@ -116,7 +116,7 @@
       "title": "Edit details",
       "description": "Change how this integration appears. Your connection stays the same.",
       "website": "Website (optional)",
-      "websiteHelp": "Use the app's website, starting with https://. Houston uses it for the icon.",
+      "websiteHelp": "Use the app's website, starting with https://. It's used for the icon.",
       "save": "Save changes",
       "saving": "Saving..."
     },
@@ -155,7 +155,7 @@
         "api": "Recognized an API service.",
         "mcp": "Recognized an MCP server.",
         "unknown": "We couldn't recognize this address. Check the URL, or let your AI Employee help you in chat.",
-        "mcpOauth": "This server signs in with its own account (OAuth), which Houston can't connect to yet. An API key won't work here.",
+        "mcpOauth": "This server signs in with its own account (OAuth), which isn't supported yet. An API key won't work here.",
         "mcpOauthOk": "This MCP server uses its own sign-in. After adding it, you'll sign in in your browser."
       },
       "nameLabel": "Name",

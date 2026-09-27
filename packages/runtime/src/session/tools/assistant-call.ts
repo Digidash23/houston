@@ -52,7 +52,7 @@ const CallParams = Type.Object({
   requestId: Type.Optional(
     Type.String({
       description:
-        "Only for an operation Houston already asked the user to approve: the requestId from that answer, repeated verbatim with the identical operation and params. Never invent one, and never send one you were not given - it authorizes nothing by itself.",
+        "Only for an operation the app already asked the user to approve: the requestId from that answer, repeated verbatim with the identical operation and params. Never invent one, and never send one you were not given - it authorizes nothing by itself.",
     }),
   ),
 });
@@ -69,7 +69,7 @@ export function makeAssistantCallTool(opts: AssistantToolOptions) {
     name: HOUSTON_CALL_TOOL_NAME,
     label: "Do it in Houston",
     description:
-      "Perform one Houston operation on the user's behalf - the same action they would take in the app themselves. Look the operation up with houston_capabilities, read its parameters with houston_describe, then call it here with the exact name and named arguments. Operations flagged confirm change or delete something the user cannot easily get back: call this normally and Houston itself will show the user an approval card for that exact action - you do not approve anything. When the answer is ERROR needs_confirmation, END YOUR TURN and wait; after they approve, repeat the identical call adding the requestId you were given. Failures come back as ERROR with a named code instead of an exception - read it, fix the call if it was yours to fix, and otherwise explain the problem to the user without mentioning operations, parameters, or HTTP.",
+      "Perform one Houston operation on the user's behalf - the same action they would take in the app themselves. Look the operation up with houston_capabilities, read its parameters with houston_describe, then call it here with the exact name and named arguments. Operations flagged confirm change or delete something the user cannot easily get back: call this normally and the app itself will show the user an approval card for that exact action - you do not approve anything. When the answer is ERROR needs_confirmation, END YOUR TURN and wait; after they approve, repeat the identical call adding the requestId you were given. Failures come back as ERROR with a named code instead of an exception - read it, fix the call if it was yours to fix, and otherwise explain the problem to the user without mentioning operations, parameters, or HTTP.",
     promptSnippet: "Perform a Houston operation",
     parameters: CallParams,
     executionMode: "sequential",
@@ -141,7 +141,7 @@ export function makeAssistantCallTool(opts: AssistantToolOptions) {
       } catch (err) {
         return assistantErrorResult(name, {
           code: "transport_error",
-          message: `Houston could not be reached to perform that: ${err instanceof Error ? err.message : String(err)}`,
+          message: `The app could not be reached to perform that: ${err instanceof Error ? err.message : String(err)}`,
         });
       }
       if (!res.ok) {

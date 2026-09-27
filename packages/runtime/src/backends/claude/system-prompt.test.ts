@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { ASSISTANT_AGENT_NAME } from "@houston/host/src/routes/assistant";
 import { expect, test } from "vitest";
+import { RULES_HEADING } from "../../session/assistant-rules-context";
 import { learningsDocPath } from "../../session/learnings-context";
 import { buildSystemPrompt } from "./system-prompt";
 
@@ -174,7 +175,7 @@ test("the assistant's operating rules land right after its memory", async () => 
     buildSystemPrompt(dir, "You are Houston.", "plan"),
   );
   const memoryAt = prompt.indexOf("# What you remember about this user");
-  const rulesAt = prompt.indexOf("# How you operate in Houston");
+  const rulesAt = prompt.indexOf(RULES_HEADING);
   expect(rulesAt).toBeGreaterThan(memoryAt);
   // Skills, then the overlay, still come after both.
   expect(prompt.indexOf("You are in Plan mode.")).toBeGreaterThan(rulesAt);
@@ -184,13 +185,13 @@ test("the rules render for the coordinator even with no memory yet", async () =>
   const prompt = await asCoordinator(() =>
     buildSystemPrompt(agentDirNamed("Assistant"), "You are Houston."),
   );
-  expect(prompt).toContain("# How you operate in Houston");
+  expect(prompt).toContain(RULES_HEADING);
 });
 
 test("a normal agent gets no operating rules, whatever its directory is called", () => {
   for (const dir of ["Helper", ASSISTANT_AGENT_NAME]) {
     const prompt = buildSystemPrompt(agentDirNamed(dir), "You are Houston.");
-    expect(prompt).not.toContain("# How you operate in Houston");
+    expect(prompt).not.toContain(RULES_HEADING);
     expect(prompt).not.toContain("# What you remember about this user");
   }
 });

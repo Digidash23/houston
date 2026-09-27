@@ -266,7 +266,7 @@ test("houston_describe says plainly that it cannot be done here", async () => {
     ok: false,
     error: { code: "operation_unavailable_here" },
   });
-  expect(text(result)).toContain("not available in this Houston");
+  expect(text(result)).toContain("is not available here");
 });
 
 test("a withheld operation still reads as one that does not exist", async () => {

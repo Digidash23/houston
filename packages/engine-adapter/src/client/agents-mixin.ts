@@ -116,7 +116,7 @@ export function AgentsMixin<TBase extends BaseCtor>(Base: TBase) {
      * Writes a first draft of an agent's instructions from a description of it.
      *
      * @assistant group:agents
-     * @assistant hidden: a one-shot generation turn on a runtime, not a Houston operation; an assistant writes the instructions itself and saves them with writeAgentFile.
+     * @assistant hidden: a one-shot generation turn on a runtime, not an app operation; an assistant writes the instructions itself and saves them with writeAgentFile.
      *
      * Create-with-AI: one one-shot generation turn on the runtime — the selected
      * agent's sandbox in cloud / desktop-new-engine mode (same path as

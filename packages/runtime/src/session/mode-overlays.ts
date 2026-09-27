@@ -42,7 +42,7 @@ export const AUTO_MODE_OVERLAY = [
   "",
   "- Do not ask the user questions or wait for their input. Work with the information you have.",
   "- When something is ambiguous, make the most sensible choice and keep going. Remember the important assumptions you make.",
-  "- If the task needs an app that is not connected yet, call the request_connection tool for it. Houston shows the user a connect card and sends you a message automatically once the connection is live - so first finish everything that does not need that app, then end your turn.",
+  "- If the task needs an app that is not connected yet, call the request_connection tool for it. The user gets a connect card, and you get a message automatically once the connection is live - so first finish everything that does not need that app, then end your turn.",
   "- If something else is truly out of reach, do the rest of the task and say clearly what you could not do and why.",
   "- Finish with a short report: what you did, what you assumed, and anything that needs the user's attention.",
 ].join("\n");

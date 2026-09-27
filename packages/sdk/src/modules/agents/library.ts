@@ -24,7 +24,7 @@ import { AgentsCommand, type InstalledConfig } from "./types";
 // Agent-config library: user-scoped — a template belongs to the account, not
 // to any existing agent.
 /**
- * Lists the agent templates installed in Houston.
+ * Lists the agent templates installed for this account.
  * @assistant group:agents
  * @assistant unschematized: an installed template carries its raw config document, whose shape is the template's own.
  */
@@ -54,7 +54,7 @@ export async function installAgentFromGithub(
 }
 
 /**
- * Change an agent's color. Pick one of Houston's ten palette colors: charcoal,
+ * Change an agent's color. Pick one of the app's ten palette colors: charcoal,
  * forest, teal, navy, purple, rose, crimson, orange, golden, or umber. The new
  * color shows up everywhere that agent appears.
  *
@@ -62,7 +62,7 @@ export async function installAgentFromGithub(
  * announces the change, so every open surface repaints without a refresh.
  * @param agentId The agent this acts on, by the id listAgents returns. An
  *   agent's name is not its id, so read the id from listAgents first.
- * @param color One of Houston's ten palette colours: charcoal, forest,
+ * @param color One of the app's ten palette colours: charcoal, forest,
  *   teal, navy, purple, rose, crimson, orange, golden or umber.
  * @assistant group:agents unconfirmed: Reversible display preference; changes no agent behavior or access.
  */

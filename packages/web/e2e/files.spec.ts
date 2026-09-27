@@ -1,4 +1,8 @@
-import { FAKE_HOST_URL, SEED_AGENT_ID } from "@houston/fake-host";
+import {
+  FAKE_HOST_URL,
+  SEED_AGENT_ID,
+  SEED_AGENT_NAME,
+} from "@houston/fake-host";
 import { expect, test } from "./support/fixtures";
 import { seedSidebarLayout } from "./support/sidebar-layout";
 import { openTeamSection } from "./support/team-nav";
@@ -38,7 +42,9 @@ test("an employee's Files is its own tree under one column band", async ({
   await expect(page.getByRole("button", { name: "Size" })).toHaveCount(1);
   // One employee, one list: no per-agent row that could fold it away.
   await expect(row(page, "Q3 report.pdf")).toBeVisible();
-  await expect(page.getByRole("row", { name: /Houston files/ })).toHaveCount(0);
+  await expect(
+    page.getByRole("row", { name: `${SEED_AGENT_NAME} files` }),
+  ).toHaveCount(0);
   // A colleague in the same group keeps their files on their own screen.
   await expect(page.getByRole("row", { name: /Kai files/ })).toHaveCount(0);
   await expect(
@@ -196,7 +202,7 @@ test("renaming a file onto a name already in use says so and keeps both files", 
   await input.fill("Q3 report.pdf");
   await input.press("Enter");
 
-  // Informational, NOT the red bug pair: nothing is broken, the name is simply
+  // Informational, NOT a red bug toast: nothing is broken, the name is simply
   // taken. `status` is the calm toast channel a screen reader hears too.
   await expect(
     page
@@ -204,7 +210,10 @@ test("renaming a file onto a name already in use says so and keeps both files", 
       .filter({ hasText: "already exists here" })
       .filter({ hasText: "Q3 report.pdf" }),
   ).toBeVisible();
-  await expect(page.getByText("Houston, we have a problem!")).toHaveCount(0);
+  // …and nothing took the red bug channel (`alert`) alongside it.
+  await expect(
+    page.getByTestId("toast-container").getByRole("alert"),
+  ).toHaveCount(0);
 
   // Neither file was lost: the rename did not happen, and the file that held
   // the name is untouched.
@@ -243,7 +252,10 @@ test("a new folder named after an existing file says the name is taken", async (
       .filter({ hasText: "already exists here" })
       .filter({ hasText: "Q3 report.pdf" }),
   ).toBeVisible();
-  await expect(page.getByText("Houston, we have a problem!")).toHaveCount(0);
+  // …and nothing took the red bug channel (`alert`) alongside it.
+  await expect(
+    page.getByTestId("toast-container").getByRole("alert"),
+  ).toHaveCount(0);
 
   // The file is still a file, and no folder took its name.
   await expect(row(page, "Q3 report.pdf")).toHaveCount(1);

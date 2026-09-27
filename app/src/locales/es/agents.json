@@ -143,7 +143,7 @@
     },
     "readOnly": {
       "title": "Estos archivos no se pueden cambiar por ahora",
-      "description": "Houston no puede guardar cambios ahí. Revisa los permisos de la carpeta e inténtalo de nuevo."
+      "description": "No se pueden guardar cambios ahí. Revisa los permisos de la carpeta e inténtalo de nuevo."
     },
     "conflict": {
       "title": "“{{name}}” ya existe",
@@ -221,9 +221,9 @@
       "openFailedTitle": "No se pudo abrir el archivo",
       "savedRenamedDescription": "Se guardó como {{name}} porque {{original}} está abierto en otro programa.",
       "saveLocked": "Ese archivo está abierto en otro programa. Ciérralo ahí y vuelve a descargarlo.",
-      "savePermission": "Houston no tiene permiso para guardar en esa carpeta. Elige otra carpeta, como Descargas.",
+      "savePermission": "La app no tiene permiso para guardar en esa carpeta. Elige otra carpeta, como Descargas.",
       "saveDiskFull": "No hay suficiente espacio libre en este computador para guardar el archivo.",
-      "revealPermission": "Houston no tiene permiso para abrir esa carpeta en este computador. Busca el archivo donde lo guardaste."
+      "revealPermission": "La app no tiene permiso para abrir esa carpeta en este computador. Busca el archivo donde lo guardaste."
     },
     "modifiedToday": "Hoy"
   },
