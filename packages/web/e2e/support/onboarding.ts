@@ -115,7 +115,11 @@ export async function resetToFirstRun(
 export async function openManagerOnboarding(page: Page): Promise<void> {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
-  await expect(page.getByTestId("manager-onboarding")).toBeVisible();
+  // The first wait after a cold boot matches the visual suite's other
+  // boot-dependent waits: CI boots near the 10s default.
+  await expect(page.getByTestId("manager-onboarding")).toBeVisible({
+    timeout: 15_000,
+  });
 }
 
 /**
