@@ -68,9 +68,11 @@ for (const width of ["desktop", "phone"] as const) {
     });
     await boot(page, width);
     const dialog = announcementDialog(page);
+    // The first assertion after a cold boot waits as long as the suite's
+    // other boot-dependent waits (chat, onboarding): CI boots near 10s.
     await expect(
       dialog.getByRole("button", { name: "Get my first month for $10" }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15_000 });
     if (width === "desktop") {
       // The astronaut is painted beside the copy; shoot it decoded, not blank.
       const image = dialog.locator("img");

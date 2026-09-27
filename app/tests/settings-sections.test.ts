@@ -101,9 +101,9 @@ describe("parseSettingsSection", () => {
     strictEqual(parseSettingsSection("connectedAccounts"), null);
     // Admin's People section owns the roster; a stale Settings link cannot land.
     strictEqual(parseSettingsSection("members"), null);
-    // Admin is a top-level screen, Time worked a lens inside it, and agent
+    // Admin is a top-level screen, Time worked has no screen, and agent
     // policy a team's focused agent screen. The company
-    // half of the standing context is an Admin section: a stale pin on any of
+    // half of the standing context opens from Admin's header: a stale pin on any of
     // them must fall back rather than land. The `about-me` VIEW id an older
     // install may have pinned is not a section id either: the section is
     // `aboutMe`.

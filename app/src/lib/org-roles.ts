@@ -96,7 +96,7 @@ export function canSeeMembers(caps: Capabilities | null | undefined): boolean {
  *
  * Opening the hub does NOT widen anything else: the TEAM's own consumption is
  * not on it. Per-account usage on a hub card is the caller's own account
- * (HOU-789), while the space-wide roll-up lives in Admin > Usage behind
+ * (HOU-789), while the space-wide roll-up lives in Admin's Org chart behind
  * {@link canSeeOrganization} (HOU-788), which is untouched.
  *
  * Kept as a function (rather than deleted at every call site) because it names

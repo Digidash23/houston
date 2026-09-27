@@ -15,13 +15,10 @@ import { AdminBody } from "./admin-body";
 import { adminBodyState } from "./admin-body-state";
 import { ADMIN_HEADER_THRESHOLDS, AdminHeader } from "./admin-header";
 import { AdminSectionBody } from "./admin-section-body";
+import { CompanyContextEditor } from "./company-context-editor";
+import { CompanyContextTool } from "./company-context-tool";
 import { useOrgNav } from "./org-nav-store";
-import {
-  canSeeTimeWorked,
-  DEFAULT_ORG_TAB,
-  type OrgTabId,
-  orgTabIds,
-} from "./org-view-model";
+import { DEFAULT_ORG_TAB, type OrgTabId, orgTabIds } from "./org-view-model";
 
 /**
  * The shared context every Organization section receives. `org` is the loaded
@@ -44,11 +41,12 @@ export interface OrgTabProps {
 }
 
 /**
- * The Admin dashboard: Company context, People, Billing, Activity, Usage, and
- * Time worked. A shell only: it loads the org, builds the shared
- * `OrgViewContext`, and swaps sections under the shared header grammar
- * (`AdminHeader` — the same lozenge cluster Integrations and an employee's
- * screen wear), landing on Company context, whose surface the identity lozenge IS.
+ * The Admin dashboard: Org chart, People, Billing and Activity, with the
+ * workspace's Company context one pill away in the header's tools slot. A
+ * shell only: it loads the org, builds the shared `OrgViewContext`, and swaps
+ * sections under the shared header grammar (`AdminHeader`, the same lozenge
+ * cluster Integrations and an employee's screen wear), landing on the Org
+ * chart, whose surface the identity lozenge IS.
  *
  * Permission surfaces (who can use which agent, per-agent ceilings) are NOT
  * here: per-agent policy is discovered on each employee's screen, in its
@@ -85,16 +83,10 @@ export function OrganizationView() {
     current ? isTeamWorkspace(current.id) : false,
   );
   const activeSpaceIsTeam = current ? isTeamWorkspace(current.id) : false;
-  const showTimeWorked = canSeeTimeWorked(capabilities);
   const personal = isPersonalSpace(capabilities, activeSpaceIsTeam);
   const visibleIds = useMemo(
-    () =>
-      orgTabIds({
-        billing: showBilling,
-        timeWorked: showTimeWorked,
-        personal,
-      }),
-    [showBilling, showTimeWorked, personal],
+    () => orgTabIds({ billing: showBilling, personal }),
+    [showBilling, personal],
   );
 
   const [active, setActive] = useState<OrgTabId>(DEFAULT_ORG_TAB);
@@ -113,8 +105,15 @@ export function OrganizationView() {
     [active],
   );
 
-  // Honor a pinned section request — the C8 team-status banner deep-links to
-  // Billing — then clear it. This is an effect on the STORE field, not
+  // Company context opens as a sheet over any section, and each opening
+  // reports under the same `org:` tab_name family as a section switch.
+  const openCompanyContext = useCallback(
+    () => analytics.track("tab_opened", { tab_name: "org:companyContext" }),
+    [],
+  );
+
+  // Honor a pinned section request (the C8 team-status banner deep-links to
+  // Billing), then clear it. This is an effect on the STORE field, not
   // mount-time state, precisely because the screen is kept alive: it fires on
   // the first mount AND while already open, the same way agent settings consumes
   // its own one-shot pin.
@@ -154,9 +153,10 @@ export function OrganizationView() {
               visibleIds={visibleIds}
               onSelect={openSection}
             />
-            {/* One scroller for every section. Company context sizes itself to
-                exactly this height (its card scrolls internally), so the outer
-                scroll only engages as a short-window fallback there. */}
+            <CompanyContextTool onOpened={openCompanyContext}>
+              <CompanyContextEditor />
+            </CompanyContextTool>
+            {/* One scroller for every section. */}
             <div className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
               <AdminSectionBody active={active} ctx={ctx} />
             </div>

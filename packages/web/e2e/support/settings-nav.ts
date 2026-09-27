@@ -82,7 +82,11 @@ export async function openSkillsLibrary(page: Page): Promise<void> {
   await expect(screen(page)).toHaveAttribute("data-screen", "skills-home");
 }
 
-/** Open Admin through the rail row or the phone More menu. */
+/**
+ * Open Admin through the rail row or the phone More menu. A first visit lands
+ * on the Org chart, which the identity lozenge stands for; Admin is kept
+ * alive, so a later visit comes back on the section it was left on.
+ */
 export async function openAdmin(page: Page): Promise<void> {
   if ((page.viewportSize()?.width ?? 768) < 768)
     await openMoreMenu(page, "click");
@@ -104,25 +108,18 @@ export async function openAboutMe(page: Page): Promise<void> {
   ).toBeVisible();
 }
 
-/** The sections of the Admin header cluster, as it labels them (`teams:org.tabs.*`). */
-export type AdminSection =
-  | "People"
-  | "Billing"
-  | "Activity"
-  | "Usage"
-  | "Time worked"
-  | "Org chart"
-  | "Company context";
+/**
+ * The sections of the Admin header cluster, as it labels them
+ * (`teams:org.tabs.*`). A personal space shows the Org chart alone.
+ */
+export type AdminSection = "Org chart" | "People" | "Billing" | "Activity";
 
 /** Section name -> the `data-admin-section-tab` value its lozenge carries. */
 export const ADMIN_SECTION_TAB_IDS: Readonly<Record<AdminSection, string>> = {
-  "Company context": "companyContext",
   "Org chart": "orgChart",
   People: "people",
   Billing: "billing",
   Activity: "activity",
-  Usage: "usage",
-  "Time worked": "timeWorked",
 };
 
 /** One section lozenge of the Admin header cluster, by section. */
@@ -204,6 +201,24 @@ export async function openAdminSection(
   await expect(
     screen(page).locator(`[data-admin-section-body='${id}']`),
   ).toBeVisible();
+}
+
+/**
+ * The Admin header's Company context pill (`teams:org.companyContext.title`).
+ * A header tool rather than a section, so it stands in every space and over
+ * every section; its sheet renders in a portal, outside the screen.
+ */
+export function companyContextButton(page: Page): Locator {
+  return screen(page).locator("[data-company-context-trigger]");
+}
+
+/** Open Admin, then the Company context sheet from the header pill. */
+export async function openCompanyContext(page: Page): Promise<Locator> {
+  await openAdmin(page);
+  await companyContextButton(page).click();
+  const sheet = page.getByRole("dialog", { name: "Company context" });
+  await expect(sheet).toBeVisible();
+  return sheet;
 }
 
 /**

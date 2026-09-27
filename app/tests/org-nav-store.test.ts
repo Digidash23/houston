@@ -18,7 +18,7 @@ beforeEach(() => {
 describe("the Organization dashboard's section pin", () => {
   it("boots with nothing pinned, so the dashboard picks its own section", () => {
     assert.equal(useOrgNav.getState().requestedTab, null);
-    assert.equal(DEFAULT_ORG_TAB, "companyContext");
+    assert.equal(DEFAULT_ORG_TAB, "orgChart");
   });
 
   it("carries the caller's section across the navigation that follows it", () => {

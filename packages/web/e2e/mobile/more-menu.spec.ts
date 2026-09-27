@@ -83,6 +83,14 @@ test("Admin appears in More only for an admitted caller", async ({
   await menu.getByTestId("rail-admin").tap();
   await expect(moreMenu(page)).toBeHidden();
   await expect(screen(page)).toHaveAttribute("data-screen", "admin");
+
+  // The phone keeps Admin's Company context pill too: the strip holds the
+  // section switcher, so the pill takes the row below it and opens its editor
+  // as a bottom sheet.
+  await screen(page).locator("[data-company-context-trigger]").tap();
+  await expect(
+    page.getByRole("dialog", { name: "Company context" }),
+  ).toBeVisible();
 });
 
 test("the Settings row opens the settings index", async ({ page }) => {

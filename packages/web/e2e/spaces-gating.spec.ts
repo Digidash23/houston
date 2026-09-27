@@ -2,6 +2,7 @@ import { FAKE_HOST_URL } from "@houston/fake-host";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
 import {
+  companyContextButton,
   expectAdminSections,
   openAdmin,
   openAdminSection,
@@ -94,9 +95,11 @@ test("spaces host, personal space: Admin drops People", async ({
 
   // Admin administers the SPACE, and a personal space has no
   // people in it to administer: People, Billing and Activity are absent, and
-  // what is left is what one human alone can act on.
+  // what is left is the Org chart. Company context is the space's own words,
+  // so its header pill stays.
   await openAdmin(page);
-  await expectAdminSections(page, ["Company context", "Org chart", "Usage"]);
+  await expectAdminSections(page, ["Org chart"]);
+  await expect(companyContextButton(page)).toBeVisible();
 });
 
 test("regression: a non-spaces Teams host still shows Admin on the personal workspace", async ({
@@ -124,7 +127,7 @@ test("spaces host: switching to a team space gives Admin its People roster", asy
   // Admin is available in both personal and team spaces. The personal
   // space has no People section because it has no team roster.
   await openAdmin(page);
-  await expectAdminSections(page, ["Company context", "Org chart", "Usage"]);
+  await expectAdminSections(page, ["Org chart"]);
 
   // Switch into the team space through the real switcher UI. The rail rebuilds
   // in place — a space switch lands the user on their agent home, and the gate,

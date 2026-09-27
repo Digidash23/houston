@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 108
+version: 109
 
 components:
   - id: custom-integration-details
@@ -1327,9 +1327,11 @@ components:
       it leads the team list instead (see sidebar-teams-band).
       The rail's footer holds Academy, Admin and Settings, in that order, with
       no help control. Admin is a gated footer row that opens its own screen
-      with Company context, Org chart, People where the active team space has
-      a roster, Billing where allowed, Activity, Usage, and Time worked where
-      available. The row follows the organization gate: owners and admins of a
+      on the Org chart, then People, Billing where allowed, and Activity in a
+      team space; a personal space keeps the Org chart alone. A Company
+      context pill in the screen's header opens the workspace's standing
+      context in a sheet, from the right on the desktop and from the bottom
+      on the phone, in every space. The row follows the organization gate: owners and admins of a
       multiplayer team space and callers in a Spaces personal space can reach
       it. Settings is a permanent footer row for personal setup and remains
       reachable in every deployment.
@@ -1390,20 +1392,55 @@ components:
       The employee identity, tabs, and phone back control are labelled.
     since: 102
 
-  - id: org-chart-folders
-    title: Org chart folders
-    purpose: The caller's folder arrangement with agent usage in each folder.
-    anatomy: [ungrouped-card, folder-card, agent-rows, usage-bars]
-    states: [loading, empty, ready, usage-unavailable]
-    variants: [phone, desktop]
+  - id: org-chart
+    title: Org chart
+    purpose: >-
+      The space's month of work and its AI Employees ranked by the hours they
+      worked, with the people who manage and use each one, in Admin.
+    anatomy: [hero-band, space-name, summary-sentence, hero-figure,
+      supporting-stats, area-chart, ledger-caption, relation-key,
+      featured-line, column-captions, ledger-line, hours-bar, face-group,
+      relation-dot, retry-line]
+    states: [loading, empty, ready, hours-loading, hours-hidden,
+      hours-unavailable, messages-loading, messages-hidden,
+      messages-unavailable, messages-not-counted, people-hidden,
+      shared-with-everyone, lit]
+    variants: [ledger, dense, phone, personal, scoped]
     behavior: >-
-      The chart groups visible agents by the caller's SidebarLayout groups.
-      Agents in no folder share one neutral card before the folder cards.
-      Each agent bar uses one scale across the entire chart.
+      The hero names the team space (or, in a personal space, its person)
+      with one sentence of who is here and what they did in the last 30 days,
+      the window's hours worked as a huge figure with messages, AI Employees
+      and people beside it, and a 30-day area chart of the same figure; every
+      total counts the same UTC days its chart draws. The ledger ranks every
+      AI Employee by hours worked, messages breaking ties: rank, helmet, name
+      and role, a fine bar scaled to the top AI Employee with its hours, its
+      messages, and its people as two groups. Manages lists the org owners,
+      who manage every AI Employee, then the admins made its managers; a
+      manager row of someone who is no longer an admin counts as use. Uses
+      lists the rest, or says "Everyone" once for an AI Employee shared with
+      the whole organization, "None" when empty and "People hidden" when the
+      caller does not manage it. The #1 is featured on its own larger card.
+      Past eight AI Employees the lines tighten and, when the ledger is wide
+      enough, split into two columns. While hours load the ledger is a
+      skeleton, so the ranking never reshuffles. Where time worked is not
+      served or fails, messages lead the hero and the bars; where neither can
+      be read, the hero keeps the name and the sentence and no figure is
+      drawn. A failed read says so once with a retry. An owner's chart is the
+      organization's. An admin's is scoped: the hero says "Your AI
+      Employees", totals only their AI Employees, draws no people count and
+      no messages total unless every line's messages are counted, and a line
+      whose messages the gateway does not count for them says "Not counted".
+      A personal space draws no people columns. The phone stacks each line in
+      two rows.
     a11y: >-
-      Folder headings label their cards. Usage remains readable as text, and
-      the neutral card does not imply shared membership.
-    since: 102
+      The space name is a level-2 heading; the ledger is a labelled region
+      of ordered lists; every line is a button named for opening that AI
+      Employee's board, stretched over the line; every face is its own
+      24px-wide button, 44px tall, named for opening that person in People,
+      never nested in the line's and never overlapping another face's
+      target, and People opens with that person's row in view and marked
+      current; the area chart is an image labelled with what it shows.
+    since: 109
 
   - id: mobile-nav-bar
     title: Mobile nav bar

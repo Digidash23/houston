@@ -23,10 +23,10 @@ import { navRow, screen } from "./support/team-nav";
  *    unlabelled run (Assistant, AI Models, Integrations, Skills) over "Your
  *    AI Employees" — with Academy, Admin (behind the org gate) and Settings in
  *    the footer, and no help control;
- * 2. two destinations live BEHIND other screens rather than in the rail: agent
- *    policy is reached through each employee's own screen, and **Time worked**
- *    is a section of Admin. Each is asserted absent from the rail by name, so
- *    a top-level row for either fails here;
+ * 2. two retired destinations hold no rail row: agent policy is reached
+ *    through each employee's own screen, and **Time worked** has no screen
+ *    of its own. Each is asserted absent from the rail by name, so a
+ *    top-level row for either fails here;
  * 3. Settings holds the person's standing setup: the general group everybody
  *    sees, plus Danger. The Context editors live in their own surfaces, so
  *    Settings carries no "Help" / "Context" / "Support" / "Workspace" /
@@ -47,9 +47,9 @@ import { navRow, screen } from "./support/team-nav";
  * in the rail (it rides space ownership) and the Admin dashboard is this
  * caller's to open.
  *
- * `computeUsage` is on deliberately even though nothing in this spec opens
- * Time worked: this deployment advertises the compute capability, so it is the
- * one that makes the standalone row's absence below mean something.
+ * `computeUsage` is on deliberately even though no screen shows Time worked:
+ * this deployment advertises the compute capability, so it is the one that
+ * makes the retired row's absence below mean something.
  */
 const OWNER_CAPS = {
   multiplayer: true,
@@ -181,9 +181,9 @@ test("Settings holds only settings, under one heading", async ({
     main.getByRole("heading", { level: 2, name, exact: true });
   await expect(group("General")).toBeVisible();
   // The five headings that named things which are not settings. Each died with
-  // its rows: what the agents know about the COMPANY and Time worked are
-  // sections of Admin, and the help-shaped rows sit in General rather than
-  // keeping a group of their own.
+  // its rows: what the agents know about the COMPANY opens from Admin's
+  // header, Time worked has no screen, and the help-shaped rows sit in General
+  // rather than keeping a group of their own.
   for (const heading of ["Help", "Context", "Support", "Workspace", "Team"]) {
     await expect(group(heading)).toHaveCount(0);
   }

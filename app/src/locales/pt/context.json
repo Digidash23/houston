@@ -32,6 +32,10 @@
     },
     "workspace": {
       "placeholder": "## Quem somos\nAcme Corp. Fintech B2B, Série A, 40 pessoas.\n\n## Produto e clientes\nSoftware de faturamento para CFOs de empresas de médio porte.\n\n## Como nos comunicamos\nPróximos e diretos. Frases curtas. Nunca prometemos demais."
+    },
+    "noAgent": {
+      "title": "Ainda não há funcionários de IA",
+      "body": "O que você escrever aqui fica com seus funcionários de IA, então abre quando você contratar o primeiro."
     }
   }
 }
