@@ -25,7 +25,7 @@ function frame(key: string, status: number, body = "", generation?: string) {
   return Buffer.concat([length, header, Buffer.from(body)]);
 }
 
-function fakeStore(batchRoute: boolean) {
+function fakeStore(batchRoute: boolean, batchReads = true) {
   const objects: Record<string, string> = {
     "CLAUDE.md": "instructions",
     ".houston/learnings.md": "notes",
@@ -66,6 +66,7 @@ function fakeStore(batchRoute: boolean) {
     baseUrl: "https://store.test/v1/pod/store/org/agent",
     token: "t",
     fetchImpl,
+    batchReads,
   });
   return { store, calls };
 }
@@ -106,6 +107,25 @@ test("a store without the batch route hydrates one object at a time", async () =
     "CLAUDE.md",
     "big.bin",
   ]);
+  expect(calls.filter((call) => call.startsWith("GET /objects/")).length).toBe(
+    4,
+  );
+});
+
+test("a store that did not opt into batch reads never asks the batch route", async () => {
+  // Every standing pod's store sync: hydration stays one GET per object.
+  const { store, calls } = fakeStore(true, false);
+  const dest = mkdtempSync(join(tmpdir(), "houston-batch-"));
+
+  const manifest = await hydrate(store, "", dest);
+
+  expect(store.downloadMany).toBeUndefined();
+  expect([...manifest.keys()].sort()).toEqual([
+    ".houston/learnings.md",
+    "CLAUDE.md",
+    "big.bin",
+  ]);
+  expect(calls.some((call) => call.includes("/batch"))).toBe(false);
   expect(calls.filter((call) => call.startsWith("GET /objects/")).length).toBe(
     4,
   );

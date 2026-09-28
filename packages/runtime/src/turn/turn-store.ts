@@ -71,6 +71,9 @@ export function resolveTurnStore(
       bootId: turn.claim.bootId,
       conversationId: turn.conversationId,
     },
+    // The single-use worker hydrates cold on every turn, so it takes the
+    // batched read; standing pods' stores never set this.
+    batchReads: true,
     ...(config.fetchImpl ? { fetchImpl: config.fetchImpl } : {}),
   });
   return {

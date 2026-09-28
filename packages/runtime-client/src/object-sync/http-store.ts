@@ -5,7 +5,6 @@ import { downloadHttpObject, readHttpManifest } from "./http-store-read";
 import { uploadHttpObject } from "./http-store-write";
 import type { ObjectMetadata } from "./object-manifest";
 import type {
-  BatchReadEntry,
   ObjectStore,
   ReadOptions,
   ReadResult,
@@ -28,6 +27,8 @@ export class HttpObjectStore implements ObjectStore {
   private readonly claim:
     | { token: string; bootId: string; conversationId: string }
     | undefined;
+  /** Present only with `batchReads`: hydration batches iff the store has it. */
+  readonly downloadMany?: ObjectStore["downloadMany"];
 
   constructor(opts: HttpObjectStoreOptions) {
     this.baseUrl = opts.baseUrl.replace(/\/+$/, "");
@@ -38,6 +39,12 @@ export class HttpObjectStore implements ObjectStore {
     this.bootId = opts.bootId;
     this.fence = opts.fence;
     this.claim = opts.claim;
+    if (opts.batchReads) {
+      const post = (init: RequestInit) =>
+        this.fetch(`${this.baseUrl}/batch`, init);
+      this.downloadMany = (entries, readOpts) =>
+        downloadHttpBatch(post, this.authHeaders(), entries, readOpts);
+    }
     if (Boolean(this.bootId) !== Boolean(this.fence)) {
       throw new Error(
         "object store bootId and fence must be configured together",
@@ -91,12 +98,6 @@ export class HttpObjectStore implements ObjectStore {
       destFile,
       opts?.signal,
     );
-  }
-
-  downloadMany(entries: BatchReadEntry[], opts?: ReadOptions) {
-    const post = (init: RequestInit) =>
-      this.fetch(`${this.baseUrl}/batch`, init);
-    return downloadHttpBatch(post, this.authHeaders(), entries, opts);
   }
 
   async upload(

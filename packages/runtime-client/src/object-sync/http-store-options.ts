@@ -14,4 +14,10 @@ export interface HttpObjectStoreOptions {
   fence?: { token?: string };
   /** Per-conversation mutation authority for a pooled worker turn. */
   claim?: { token: string; bootId: string; conversationId: string };
+  /**
+   * Hydrate small objects through the batched `POST /batch` read. Off unless
+   * set: only the per-turn worker's store opts in, so a standing pod's store
+   * sync keeps one GET per object.
+   */
+  batchReads?: boolean;
 }
