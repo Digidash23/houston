@@ -70,6 +70,7 @@ export function activityToConversation(
     ...(a.origin_session_key !== undefined && {
       origin_session_key: a.origin_session_key,
     }),
+    ...(a.origin_agent !== undefined && { origin_agent: a.origin_agent }),
     // Teams attribution (server-stamped in multiplayer only). Spread
     // conditionally so single-player entries don't carry undefined keys.
     ...(a.created_by !== undefined && { created_by: a.created_by }),

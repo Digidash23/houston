@@ -6,9 +6,8 @@ import { useTranslation } from "react-i18next";
 import { useAllConversations } from "../../hooks/queries";
 import { useOpenConversationFeed } from "../../hooks/use-open-conversation-feed";
 import { forgetConversationDraftsOf } from "../../lib/conversation-drafts";
-import { isSetupChatMode } from "../../lib/integration-chat-setup";
 import { missionCardTags } from "../../lib/mission-card";
-import { ARCHIVED_STATUS } from "../../lib/mission-selection";
+import { missionOriginAgentName } from "../../lib/mission-card-agent";
 import {
   type HistoryLoadOptions,
   tauriActivity,
@@ -16,6 +15,7 @@ import {
 } from "../../lib/tauri";
 import type { Agent } from "../../lib/types";
 import { AgentCardAvatar } from "../shell/agent-card-avatar";
+import { archivedMissionRows } from "./archived-mission-filter";
 import { boardItemConversationRow } from "./board-item-row";
 import { agentsByPath, missionCardAgentName } from "./mission-card-agent";
 import { rowSessionKey } from "./session-loading";
@@ -57,57 +57,53 @@ export function useMissionControlArchived(agents: Agent[]) {
       string,
       { agentPath: string; activityId: string }
     > = {};
-    const result = convos
-      // The mirror of the active board's filter: archived missions only, and
-      // never a guided-setup chat (it was never a mission the user managed).
-      .filter(
-        (c) =>
-          c.type === "activity" &&
-          c.status === ARCHIVED_STATUS &&
-          !isSetupChatMode(c.agent),
-      )
-      .map((c) => {
-        map[c.id] = c.agent_path;
-        sessionMap[c.session_key] = {
+    const result = archivedMissionRows(convos).map((c) => {
+      map[c.id] = c.agent_path;
+      sessionMap[c.session_key] = {
+        agentPath: c.agent_path,
+        activityId: c.id,
+      };
+      const originAgentName = missionOriginAgentName(agents, c.origin_agent);
+      return {
+        id: c.id,
+        title: c.title,
+        // Decode a Skill / attachment first-message marker to the user's
+        // words; never echo the raw `<!--houston:...-->` on the card (HOU-425).
+        description: messagePreviewText(c.description),
+        group: missionCardAgentName(
+          agentsByFolderPath,
+          c.agent_path,
+          c.agent_name,
+        ),
+        icon: createElement(AgentCardAvatar, {
+          color: agentsByFolderPath.get(c.agent_path)?.color,
+        }),
+        status: c.status ?? "archived",
+        updatedAt: c.updated_at ?? new Date().toISOString(),
+        tags: missionCardTags({
+          routineId: c.routine_id,
+          routineLabel: t("board:tags.routine"),
+          originSessionKey: c.origin_session_key,
+          agentStartedLabel: originAgentName
+            ? t("board:tags.startedByAgent", {
+                name: originAgentName,
+              })
+            : t("board:tags.agentStarted"),
+          agentMode: c.agent,
+          setupLabel: t("board:tags.setup"),
+        }),
+        metadata: {
           agentPath: c.agent_path,
-          activityId: c.id,
-        };
-        return {
-          id: c.id,
-          title: c.title,
-          // Decode a Skill / attachment first-message marker to the user's
-          // words; never echo the raw `<!--houston:...-->` on the card (HOU-425).
-          description: messagePreviewText(c.description),
-          group: missionCardAgentName(
-            agentsByFolderPath,
-            c.agent_path,
-            c.agent_name,
-          ),
-          icon: createElement(AgentCardAvatar, {
-            color: agentsByFolderPath.get(c.agent_path)?.color,
-          }),
-          status: c.status ?? "archived",
-          updatedAt: c.updated_at ?? new Date().toISOString(),
-          tags: missionCardTags({
-            routineId: c.routine_id,
-            routineLabel: t("board:tags.routine"),
-            originSessionKey: c.origin_session_key,
-            agentStartedLabel: t("board:tags.agentStarted"),
-            agentMode: c.agent,
-            setupLabel: t("board:tags.setup"),
-          }),
-          metadata: {
-            agentPath: c.agent_path,
-            sessionKey: c.session_key,
-            ...(c.agent ? { agent: c.agent } : {}),
-            ...(c.routine_id ? { routineId: c.routine_id } : {}),
-          },
-        };
-      });
+          sessionKey: c.session_key,
+          ...(c.agent ? { agent: c.agent } : {}),
+          ...(c.routine_id ? { routineId: c.routine_id } : {}),
+        },
+      };
+    });
     pathMapRef.current = map;
     sessionMapRef.current = sessionMap;
     return result;
-  }, [convos, agentsByFolderPath, t]);
+  }, [convos, agents, agentsByFolderPath, t]);
 
   const sessionKeyFor = useCallback(
     (activityId: string) => {

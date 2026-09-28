@@ -140,7 +140,7 @@ export function makeMissionTools(opts: MissionToolOptions) {
   });
 
   const MOVE_DESCRIPTION =
-    "Move a finished mission on the user's board to 'done' (reviewed and complete) or 'archived' (put away). Only works on missions that already finished - never one still running, and never the mission this chat belongs to. Move a mission only when the user asked you to manage it, or you started it yourself and reviewed its outcome with read_mission first.";
+    "Move a finished mission on the user's board to 'done' (reviewed and complete) or 'archived' (put away). Only works on missions that already finished - never one still running, and never the mission this chat belongs to. Move a mission only when the user asked you to manage it, or you started it yourself and reviewed its outcome with read_mission first. On another AI Employee's board you can only move missions you started.";
   // Moving is the ONLY thing this tool does, and a model that reads it as the
   // whole of mission management answers that a mission cannot be deleted - the
   // exact failure this cross-reference ends. Only the assistant gets it: an

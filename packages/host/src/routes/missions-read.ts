@@ -105,11 +105,16 @@ export async function handleMissionRead(
   const limit = tailLimit(rawLimit);
   const { items } = await loadActivities(ctx.vfs, ctx.root);
   const mission = items.find((a) => a.id === id);
+  if (!mission)
+    return json(res, 404, {
+      error: "that mission is no longer on the board",
+      code: "mission_not_found",
+    });
   // The convention id covers every mission this feature starts; an explicit
   // `session_key` covers a mission whose chat was keyed differently.
   const candidates = [
     missionConversationId(id),
-    ...(mission ? [missionConversationKey(mission)] : []),
+    missionConversationKey(mission),
   ];
   for (const cid of new Set(candidates)) {
     const raw = await ctx.vfs.readText(
@@ -120,7 +125,8 @@ export async function handleMissionRead(
     const all = conversation.messages ?? [];
     json(res, 200, {
       id,
-      title: conversation.title ?? mission?.title ?? "",
+      status: mission.status,
+      title: conversation.title ?? mission.title,
       totalMessages: all.length,
       messages: all.slice(Math.max(0, all.length - limit)).map((m) => ({
         role: m.role,
@@ -129,10 +135,12 @@ export async function handleMissionRead(
     });
     return;
   }
-  json(res, 404, {
-    error:
-      "that mission has no conversation yet - check list_missions; a just-started mission may not have begun",
-    code: "mission_not_found",
+  json(res, 200, {
+    id,
+    status: mission.status,
+    title: mission.title,
+    totalMessages: 0,
+    messages: [],
   });
 }
 

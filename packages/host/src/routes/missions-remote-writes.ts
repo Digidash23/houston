@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { json, readJson } from "./http";
+import { MISSION_ID_HEADER } from "./missions-calling-agent";
 import { applyMissionStatus } from "./missions-manage";
 import {
   parseMissionOrigin,
@@ -8,6 +9,9 @@ import {
 } from "./missions-remote";
 import type { MissionsCtx } from "./missions-sandbox";
 import { startMission } from "./missions-start-run";
+
+const gatewayMissionID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 /**
  * The two WRITE halves of the per-agent mission family
@@ -26,7 +30,7 @@ import { startMission } from "./missions-start-run";
  * lives in another pod entirely.
  */
 export async function statusInbound(
-  ctx: MissionsCtx,
+  ctx: MissionsCtx & { callingAgent?: string },
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
@@ -42,12 +46,14 @@ export async function statusInbound(
   const parsed = parseMissionStatus(body);
   if (!parsed.ok)
     return json(res, 400, { error: parsed.error, code: parsed.code });
-  await applyMissionStatus(ctx, parsed.value, res);
+  await applyMissionStatus(ctx, parsed.value, res, {
+    ...(ctx.callingAgent ? { requireOrigin: ctx.callingAgent } : {}),
+  });
 }
 
 /** The start half: the same payload a local start parses, plus its origin. */
 export async function startInbound(
-  ctx: MissionsCtx,
+  ctx: MissionsCtx & { callingAgent?: string },
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
@@ -69,7 +75,31 @@ export async function startInbound(
       error: origin.error,
       code: origin.code,
     });
-  // The origin travels whole: the target records WHO asked and at what depth,
-  // which is the only trace of either once the parent's pod is out of reach.
-  await startMission(ctx, parsed.value, origin.value, res);
+  let missionId: string | undefined;
+  if (ctx.deps.gatewayFronted && ctx.callingAgent) {
+    const raw = req.headers[MISSION_ID_HEADER];
+    if (typeof raw !== "string" || !gatewayMissionID.test(raw)) {
+      return json(res, 400, {
+        error: "a valid gateway mission id is required",
+        code: "invalid_mission_id",
+      });
+    }
+    missionId = raw;
+  }
+  const { agent: bodyAgent, ...parsedOrigin } = origin.value;
+  // Only the gateway-verified header can grant an agent move rights on this row.
+  await startMission(
+    ctx,
+    parsed.value,
+    {
+      ...parsedOrigin,
+      ...(ctx.deps.gatewayFronted
+        ? ctx.callingAgent
+          ? { agent: ctx.callingAgent }
+          : {}
+        : { agent: bodyAgent }),
+    },
+    res,
+    missionId,
+  );
 }

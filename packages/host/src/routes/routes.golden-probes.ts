@@ -33,6 +33,8 @@ export const SANDBOX_PROBES: string[] = [
   "POST /sandbox/learnings/save",
   "GET /sandbox/missions",
   "GET /sandbox/missions/read",
+  "GET /sandbox/missions/agents",
+  "GET /sandbox/missions/agents/read",
   "POST /sandbox/missions/start",
   "POST /sandbox/missions/status",
   "POST /sandbox/missions/settle",
@@ -98,6 +100,8 @@ export const USER_PROBES: string[] = [
   "POST /setup-runtime/auth/:provider/login/cancel",
   "POST /setup-runtime/auth/:provider/logout",
   "GET /v1/assistant",
+  "GET /v1/agents/:agentId/delegation",
+  "PUT /v1/agents/:agentId/delegation",
   "GET /agents",
   "POST /agents",
 ];

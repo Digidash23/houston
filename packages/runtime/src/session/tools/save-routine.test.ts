@@ -106,6 +106,15 @@ test("surfaces a host rejection as a tool error (never a silent success)", async
   ).rejects.toThrow(/Event triggers are not available here/);
 });
 
+test("relays the mission-depth refusal as actionable text", async () => {
+  const error =
+    "A mission another AI Employee gave you can't set up routines. Finish the mission, or ask the user to set this up from a chat.";
+  mockFetch(() => ({ status: 409, body: { code: "mission_depth", error } }));
+  await expect(
+    run({ name: "Daily", prompt: "p", schedule: "0 9 * * *" }),
+  ).rejects.toThrow(error);
+});
+
 /**
  * A firing routine must never author routines (PRODUCT-1208): a prompt phrased
  * as a scheduling request ("Every hour, post two quotes…") pushed the agent

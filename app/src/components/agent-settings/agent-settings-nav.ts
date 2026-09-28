@@ -20,6 +20,7 @@ export type AgentSettingsSection =
   | "integrations"
   | "models"
   | "skills"
+  | "delegation"
   | "manage";
 
 /** The two semantic groups used only to keep hidden deep links nearby. */
@@ -43,6 +44,7 @@ export const SECTION_GROUP: Record<AgentSettingsSection, AgentSettingsGroupId> =
     integrations: "permissions",
     models: "permissions",
     skills: "permissions",
+    delegation: "permissions",
     manage: "permissions",
   };
 
@@ -85,6 +87,7 @@ export function agentSettingsSections(
     "manage",
     "job-description",
     "skills",
+    ...(caps?.agentDelegation === true ? (["delegation"] as const) : []),
     "learnings",
     ...agentAccessSections(caps, personalSpace),
   ];
@@ -97,6 +100,7 @@ export const SECTION_TITLES = {
   integrations: "agentAdmin.rows.integrations.title",
   models: "agentAdmin.rows.model.title",
   skills: "agents:subTabs.skills",
+  delegation: "delegation.sectionTitle",
   manage: "agentSettings.manage.sectionTitle",
 } as const satisfies Record<AgentSettingsSection, string>;
 

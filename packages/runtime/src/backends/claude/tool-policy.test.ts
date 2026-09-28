@@ -108,6 +108,40 @@ test("canUseTool approves a file tool whose path is inside the workspace", async
   });
 });
 
+test("canUseTool denies Write and Edit on the board with the mission-tools refusal", async () => {
+  const ws = workspace();
+  const can = makeCanUseTool(ws);
+  const board = ".houston/activity/activity.json";
+  const refusal =
+    "Your board is changed with the mission tools, not by editing files.";
+
+  for (const tool of ["Write", "Edit"]) {
+    const result = await decide(can, tool, { file_path: board });
+    expect(result, tool).toEqual({ behavior: "deny", message: refusal });
+    expect(
+      (await decide(can, tool, { file_path: "notes.txt" })).behavior,
+      tool,
+    ).toBe("allow");
+  }
+  expect((await decide(can, "Read", { file_path: board })).behavior).toBe(
+    "allow",
+  );
+});
+
+test("canUseTool denies Write and Edit on routines but allows reads", async () => {
+  const can = makeCanUseTool(workspace());
+  const file_path = ".houston/routines/routines.json";
+  const message =
+    "Routines are changed with the routine tools, not by editing files.";
+  for (const tool of ["Write", "Edit"]) {
+    expect(await decide(can, tool, { file_path })).toEqual({
+      behavior: "deny",
+      message,
+    });
+  }
+  expect((await decide(can, "Read", { file_path })).behavior).toBe("allow");
+});
+
 test("canUseTool treats shared roots as workspace: reads AND edits allowed", async () => {
   const ws = workspace();
   const shared = workspace();

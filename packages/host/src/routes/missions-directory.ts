@@ -1,8 +1,10 @@
+import type { AgentDelegationRefusalCode } from "@houston/protocol";
 import type { Agent, Workspace } from "../domain/types";
 import { assistantRuntimeRole } from "../launcher/assistant-role";
+import { resolveMissionGateway } from "./agent-caller-wiring";
 import type { AgentRef } from "./agent-refs";
 import type { AssistantGateway } from "./assistant-forward";
-import { resolveAssistantGateway } from "./assistant-wiring";
+import { delegationRefusal } from "./mission-delegation-refusals";
 import { gatewayMissionDirectory } from "./missions-directory-gateway";
 import type { MissionsCtx } from "./missions-sandbox";
 import { reachableAgents } from "./reachable-agents";
@@ -11,11 +13,11 @@ import { reachableAgents } from "./reachable-agents";
  * WHICH agents a mission call may be addressed to — the one place that answers
  * it, because the answer differs by deployment:
  *
- *  - DESKTOP / SELF-HOST: every agent lives in this host, so its own store is
- *    the whole directory.
- *  - MANAGED CLOUD: each agent is its own pod, and the assistant's pod holds
- *    only the assistant. Its agents are the ones the GATEWAY lists for the
- *    user (`GET /agents`), reachable through the pod's gateway credential.
+ *  - DESKTOP / SELF-HOST: regular agents see their own workspace, including
+ *    their own board for explicit self references. The AI Manager spans the
+ *    owner's workspaces.
+ *  - MANAGED CLOUD: regular agents and the AI Manager use the local candidates
+ *    plus agents the gateway lists for their acting person (`GET /agents`).
  *
  * Both shapes answer the same candidate list, so target resolution
  * (missions-target.ts) never branches on the deployment.
@@ -34,13 +36,19 @@ export interface LocalMissionTarget extends AgentRef {
 
 export interface RemoteMissionTarget extends AgentRef {
   remote: true;
+  role?: string;
 }
 
 export type MissionTargetCandidate = LocalMissionTarget | RemoteMissionTarget;
 
 export type MissionDirectoryResult =
   | { ok: true; candidates: MissionTargetCandidate[] }
-  | { ok: false; status: number; code: "agents_unreadable"; error: string };
+  | {
+      ok: false;
+      status: number;
+      code: "agents_unreadable" | AgentDelegationRefusalCode;
+      error: string;
+    };
 
 export interface MissionTargetDirectory {
   /** Every agent the caller can reach, its own space first. */
@@ -57,10 +65,8 @@ export interface MissionDirectoryOptions {
 }
 
 /**
- * Every agent in the calling host's own store — the shared reachability rule
- * (reachable-agents.ts), which is also what the assistant dispatcher resolves
- * its agent parameters against, so the two surfaces can never disagree about
- * who is addressable.
+ * The store supplies addressable agents. Regular agents are narrowed to their
+ * own workspace; the AI Manager keeps the owner's full workspace reach.
  */
 export function localMissionDirectory(
   ctx: MissionsCtx,
@@ -68,15 +74,14 @@ export function localMissionDirectory(
   return {
     async list() {
       const reachable = await reachableAgents(ctx.deps.store, ctx.ws);
+      const manager = assistantRuntimeRole({ agentId: ctx.agent.id });
       return {
         ok: true,
         candidates: reachable
           .filter(
-            ({ agent }) =>
-              !(
-                assistantRuntimeRole({ agentId: ctx.agent.id }) &&
-                agent.id === ctx.agent.id
-              ),
+            ({ workspace, agent }) =>
+              (manager || workspace.id === ctx.ws.id) &&
+              (!manager || agent.id !== ctx.agent.id),
           )
           .map(({ workspace, agent }) => ({
             remote: false as const,
@@ -94,8 +99,8 @@ export function localMissionDirectory(
 
 /**
  * The directory this deployment answers with: the local store, plus the
- * gateway's agents when a gateway both fronts this host and hands it a
- * credential (the managed assistant pod). Local candidates come first, so a
+ * gateway's agents when a gateway fronts this host and hands it a
+ * credential. Local candidates come first, so a
  * host that also holds the agent locally keeps serving it locally.
  */
 export function missionTargetDirectory(
@@ -103,21 +108,18 @@ export function missionTargetDirectory(
   opts: MissionDirectoryOptions = {},
 ): MissionTargetDirectory {
   const local = localMissionDirectory(ctx);
+  const wiring = resolveMissionGateway(ctx);
+  if (!wiring.ok)
+    return {
+      list: async () => ({ ok: false, ...delegationRefusal(wiring.code) }),
+    };
   const gateway =
-    opts.gateway !== undefined
-      ? opts.gateway
-      : // Off the gateway this host serves every agent it knows about, and its
-        // own self-wiring names ITSELF — a directory read there would be this
-        // same store over a loopback hop.
-        ctx.deps.gatewayFronted
-        ? resolveAssistantGateway()
-        : null;
+    opts.gateway !== undefined ? opts.gateway : (wiring.value?.gateway ?? null);
   if (!gateway) return local;
   const remote = gatewayMissionDirectory(gateway, {
     ...opts,
-    excludeIds: assistantRuntimeRole({ agentId: ctx.agent.id })
-      ? [ctx.agent.id, process.env.HOUSTON_AGENT_SLUG ?? ctx.agent.id]
-      : [],
+    actingAs: opts.actingAs ?? wiring.value?.actingAs,
+    excludeIds: [ctx.agent.id, process.env.HOUSTON_AGENT_SLUG ?? ctx.agent.id],
   });
   return {
     async list() {

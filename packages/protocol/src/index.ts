@@ -6,6 +6,7 @@ export * from "./core";
 export * from "./domain/activity";
 export * from "./domain/approval";
 export * from "./domain/config";
+export * from "./domain/delegation";
 export * from "./domain/file-refusal";
 export * from "./domain/first-day";
 export * from "./domain/interaction";

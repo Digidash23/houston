@@ -50,6 +50,16 @@ export * from "./contracts-agent";
 export * from "./contracts-conversation";
 export * from "./local-model-bridge";
 export type { ModuleContext } from "./module-context";
+export {
+  DelegationCommand,
+  type DelegationCommandType,
+  DelegationHttpError,
+  type DelegationModule,
+  delegationWithAccepts,
+  delegationWithAgent,
+  delegationWithMode,
+  otherAddressableAgents,
+} from "./modules/delegation";
 export * from "./modules/plan/announcement-model";
 export * from "./modules/plan/billing-model";
 // The rules around a skill still being built in chat: what counts as one,

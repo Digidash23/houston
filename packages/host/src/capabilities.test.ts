@@ -41,3 +41,11 @@ describe("capability profiles: sharedSkills", () => {
     expect(MANAGED_CLOUD_CAPABILITIES.sharedSkills).toBe(false);
   });
 });
+
+describe("capability profiles: agentDelegation", () => {
+  test("is enabled on local, cloud, and managed cloud", () => {
+    expect(LOCAL_CAPABILITIES.agentDelegation).toBe(true);
+    expect(CLOUD_CAPABILITIES.agentDelegation).toBe(true);
+    expect(MANAGED_CLOUD_CAPABILITIES.agentDelegation).toBe(true);
+  });
+});

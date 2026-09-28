@@ -3,6 +3,12 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v112 - 2026-09-28
+
+AI Employee settings add Teamwork on phone and desktop: one card with two
+dropdowns for outgoing and incoming mission policies, plus a nested pick list
+of other employees with avatar and switch rows.
+
 ## v111 - 2026-09-28
 
 The rail is the team and nothing else. Its top line carries Search and

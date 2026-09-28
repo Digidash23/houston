@@ -87,6 +87,30 @@
       }
     }
   },
+  "delegation": {
+    "sectionTitle": "Teamwork",
+    "outgoing": {
+      "label": "Gives missions to",
+      "aria": "{{name}} gives missions to",
+      "everyone": "Everyone",
+      "picked": "Only the ones I pick",
+      "none": "No one"
+    },
+    "picker": {
+      "rowAria": "Let {{name}} work with {{other}}",
+      "empty": "No other AI Employees in this space yet."
+    },
+    "incoming": {
+      "label": "Takes missions from",
+      "aria": "{{name}} takes missions from",
+      "everyone": "Everyone",
+      "none": "No one"
+    },
+    "loadError": {
+      "title": "Couldn't load these settings",
+      "retry": "Try again"
+    }
+  },
   "agentTeams": {
     "create": {
       "title": "Create a group",

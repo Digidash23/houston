@@ -169,6 +169,7 @@ const ENGINE_CLIENT_OWNERS = new Set([
   "app/src/lib/tauri.ts",
   "app/src/lib/theme-facade.ts",
   "app/src/lib/conversation-import-facade.ts",
+  "app/src/lib/delegation-facade.ts",
 ]);
 const ENGINE_CALL_BYPASS = new Set([
   "app/src/components/agent-actions/use-copy-agent.ts",

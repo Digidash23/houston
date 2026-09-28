@@ -1,12 +1,18 @@
 import type { ServerResponse } from "node:http";
+import type { AgentDelegationRefusalCode } from "@houston/protocol";
 import { assistantRuntimeRole } from "../launcher/assistant-role";
+import { resolveMissionGateway } from "./agent-caller-wiring";
 import {
   agentRefDirectory,
   describeAgentRef,
   matchAgentRefs,
 } from "./agent-refs";
-import { resolveAssistantGateway } from "./assistant-wiring";
 import { json } from "./http";
+import {
+  localDelegationRefusal,
+  type MissionRouteOp,
+} from "./mission-delegation";
+import { delegationRefusal } from "./mission-delegation-refusals";
 import {
   type MissionDirectoryOptions,
   missionTargetDirectory,
@@ -36,7 +42,8 @@ export type MissionRouteError =
   | "invalid_agent"
   | "agent_not_found"
   | "agent_ambiguous"
-  | "agents_unreadable";
+  | "agents_unreadable"
+  | AgentDelegationRefusalCode;
 
 export type MissionRoute =
   | { ok: true; remote: false; ctx: MissionsCtx }
@@ -51,6 +58,7 @@ export async function resolveMissionRoute(
   ctx: MissionsCtx,
   ref: unknown,
   opts: MissionDirectoryOptions = {},
+  op: MissionRouteOp = "read",
 ): Promise<MissionRoute> {
   if (ref === undefined || ref === null) {
     if (assistantRuntimeRole({ agentId: ctx.agent.id })) {
@@ -108,6 +116,8 @@ export async function resolveMissionRoute(
     };
   }
   if (!target.remote) {
+    const refused = await localDelegationRefusal(ctx, target, op);
+    if (refused) return refused;
     return {
       ok: true,
       remote: false,
@@ -121,7 +131,9 @@ export async function resolveMissionRoute(
   }
   // The directory only produced a remote candidate because a gateway answered
   // for it, so the credential that listed it is the one that drives it.
-  const gateway = opts.gateway ?? resolveAssistantGateway();
+  const wiring = resolveMissionGateway(ctx);
+  if (!wiring.ok) return { ok: false, ...delegationRefusal(wiring.code) };
+  const gateway = opts.gateway ?? wiring.value?.gateway;
   if (!gateway) {
     return {
       ok: false,
@@ -136,6 +148,7 @@ export async function resolveMissionRoute(
     route: {
       target,
       gateway,
+      ...(wiring.value?.actingAs ? { actingAs: wiring.value.actingAs } : {}),
       ...(opts.fetchImpl ? { fetchImpl: opts.fetchImpl } : {}),
     },
   };

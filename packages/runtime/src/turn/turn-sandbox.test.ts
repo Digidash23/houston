@@ -1,6 +1,7 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { loadRoutines, saveActivities } from "@houston/domain";
 import { FsVfs } from "@houston/host/src/vfs";
 import type { ObjectStore } from "@houston/runtime-client/object-sync";
 import { expect, test, vi } from "vitest";
@@ -11,6 +12,7 @@ import type { TurnGrantScope } from "./types";
 async function fixture(
   fetchImpl: typeof fetch = fetch,
   scopes: TurnGrantScope[] = ["integrations", "agent-writes"],
+  conversationId = "c1",
 ) {
   const root = await mkdtemp(join(tmpdir(), "turn-sandbox-"));
   const store: ObjectStore = {
@@ -46,12 +48,12 @@ async function fixture(
     prefix: "",
     filesystem,
     workspaceId: "w1",
-    conversationId: "c1",
+    conversationId,
     orgSlug: "org",
     agentSlug: "agent",
     fetchImpl,
   });
-  return { ...sandbox, root };
+  return { ...sandbox, root, filesystem };
 }
 
 const post = (
@@ -59,6 +61,41 @@ const post = (
   path: string,
   body: unknown,
 ) => call(path, { method: "POST", body: JSON.stringify(body) });
+
+test("a pooled delegated mission cannot create or update scheduled work", async () => {
+  const sandbox = await fixture(fetch, ["agent-writes"], "conv-child");
+  const { vfs, workspaceRel } = sandbox.filesystem;
+  await saveActivities(vfs, workspaceRel, [
+    {
+      id: "child",
+      title: "Delegated",
+      description: "",
+      status: "running",
+      session_key: "conv-child",
+      origin_session_key: "conv-parent",
+    },
+  ]);
+  const body = { name: "Daily", prompt: "Summarize", schedule: "0 9 * * *" };
+  for (const request of [
+    body,
+    { ...body, schedule: undefined, trigger: { kind: "webhook" } },
+    { id: "existing", prompt: "Changed" },
+  ]) {
+    const response = await post(
+      sandbox.call,
+      "/sandbox/routines/save",
+      request,
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      code: "mission_depth",
+      error:
+        "A mission another AI Employee gave you can't set up routines. Finish the mission, or ask the user to set this up from a chat.",
+    });
+  }
+  expect((await loadRoutines(vfs, workspaceRel)).items).toEqual([]);
+  await sandbox.dispose();
+});
 
 test.each([
   ["/sandbox/integrations/search", {}],

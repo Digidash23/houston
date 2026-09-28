@@ -36,9 +36,23 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 111
+version: 112
 
 components:
+  - id: agent-delegation-settings
+    title: AI Employee teamwork settings
+    purpose: Set which other AI Employees this one may give missions to and whether it accepts new missions from them.
+    anatomy: [single-settings-card, outgoing-select-row, nested-picked-agent-switch-rows, incoming-select-row]
+    states: [loading, error, outgoing-off, all-agents, picked-agents, empty-roster, saving]
+    variants: [phone, desktop]
+    behavior: >-
+      The delegation policy comes from the shared SDK. Outgoing access applies
+      to reading and starting missions; incoming access controls new missions.
+      The picked list contains only other addressable agents in the active
+      space. Writes update optimistically and roll back on failure.
+    a11y: Both selects have agent-specific accessible names; every picker switch has a descriptive label and a full-row target; retry is keyboard accessible.
+    since: 112
+
   - id: custom-integration-details
     title: Custom integration details
     purpose: Inspect a custom integration and edit its displayed name and brand website without reconnecting.

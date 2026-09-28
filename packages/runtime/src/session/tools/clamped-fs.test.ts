@@ -3,6 +3,7 @@ import {
   mkdtempSync,
   readFileSync,
   realpathSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -168,6 +169,70 @@ test("write/edit cannot overwrite a credential file either", async () => {
       "utf8",
     ),
   ).toContain("MEMBERTOKEN");
+});
+
+test("board file tools allow reading but refuse writes and edits", async () => {
+  const board = join(ws, ".houston", "activity", "activity.json");
+  mkdirSync(join(ws, ".houston", "activity"), { recursive: true });
+  writeFileSync(board, '[{"origin_session_key":"parent"}]');
+  const read = await exec("read", { path: ".houston/activity/activity.json" });
+  expect(JSON.stringify(read.content)).toContain("origin_session_key");
+  await expect(
+    exec("write", { path: ".houston/activity/activity.json", content: "[]" }),
+  ).rejects.toThrow(
+    "Your board is changed with the mission tools, not by editing files.",
+  );
+  await expect(
+    exec("edit", {
+      path: ".houston/activity/activity.json",
+      edits: [{ oldText: "parent", newText: "" }],
+    }),
+  ).rejects.toThrow(
+    "Your board is changed with the mission tools, not by editing files.",
+  );
+  expect(readFileSync(board, "utf8")).toContain("parent");
+  await exec("write", {
+    path: ".houston/runtime/ordinary.json",
+    content: "ordinary",
+  });
+  expect(
+    readFileSync(join(ws, ".houston", "runtime", "ordinary.json"), "utf8"),
+  ).toBe("ordinary");
+});
+
+test("a symlink cannot give write access to the board", async () => {
+  const board = join(ws, ".houston", "activity", "activity.json");
+  mkdirSync(join(ws, ".houston", "activity"), { recursive: true });
+  writeFileSync(board, "[]");
+  const alias = join(ws, "board-alias.json");
+  symlinkSync(board, alias);
+  await expect(
+    exec("write", { path: "board-alias.json", content: "tampered" }),
+  ).rejects.toThrow(
+    "Your board is changed with the mission tools, not by editing files.",
+  );
+  expect(readFileSync(board, "utf8")).toBe("[]");
+});
+
+test("routines file tools allow reads but refuse writes and edits", async () => {
+  const file = join(ws, ".houston", "routines", "routines.json");
+  mkdirSync(join(ws, ".houston", "routines"), { recursive: true });
+  writeFileSync(file, '[{"name":"original"}]');
+  const path = ".houston/routines/routines.json";
+  const refusal =
+    "Routines are changed with the routine tools, not by editing files.";
+
+  expect(JSON.stringify((await exec("read", { path })).content)).toContain(
+    "original",
+  );
+  await expect(exec("write", { path, content: "[]" })).rejects.toThrow(refusal);
+  await expect(
+    exec("edit", {
+      path,
+      edits: [{ oldText: "original", newText: "changed" }],
+    }),
+  ).rejects.toThrow(refusal);
+  expect(readFileSync(file, "utf8")).toBe('[{"name":"original"}]');
 });
 
 test("ls and grep cannot enumerate or search the credential dir", async () => {

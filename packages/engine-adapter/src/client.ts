@@ -39,6 +39,7 @@ import { ChatSendMixin } from "./client/chat-send-mixin";
 import { ConfigPrefsMixin } from "./client/config-prefs-mixin";
 import type { HoustonClientOptions } from "./client/context";
 import { CustomIntegrationsMixin } from "./client/custom-integrations-mixin";
+import { DelegationMixin } from "./client/delegation-mixin";
 import { FirstDayMixin } from "./client/first-day-mixin";
 import { IntegrationsMixin } from "./client/integrations-mixin";
 import { MeProfileMixin } from "./client/me-profile-mixin";
@@ -70,6 +71,7 @@ export const MIXINS = [
   PortableMixin,
   ApiKeysMixin,
   TeamsMixin,
+  DelegationMixin,
   BillingMixin,
   PlanMixin,
   ChannelsMixin,

@@ -1,5 +1,7 @@
 import type { ServerResponse } from "node:http";
+import { isAgentDelegationRefusalCode } from "@houston/protocol";
 import { json } from "./http";
+import { delegationRefusal } from "./mission-delegation-refusals";
 import type {
   MissionOrigin,
   MissionStartInput,
@@ -18,24 +20,48 @@ import type {
  * sentence, because the model has to be able to correct itself.
  */
 
-const missionPath = (route: RemoteMissionRoute, suffix: string): string =>
+export const missionPath = (
+  route: RemoteMissionRoute,
+  suffix: string,
+): string =>
   `${route.gateway.url}/agents/${encodeURIComponent(route.target.id)}/missions${suffix}`;
+
+export function remoteHeaders(
+  route: RemoteMissionRoute,
+): Record<string, string> {
+  return {
+    Authorization: `Bearer ${route.gateway.token}`,
+    ...(route.actingAs ? { "x-houston-acting-as": route.actingAs } : {}),
+  };
+}
 
 /**
  * Start a mission on an agent whose board lives in another pod. Answers the
  * status the caller ended up sending, so the caller can charge the start to its
  * own fan-out budget only when the target actually took it.
  */
-export function forwardMissionStart(
+export async function forwardMissionStart(
   route: RemoteMissionRoute,
   input: MissionStartInput,
   origin: MissionOrigin,
   res: ServerResponse,
-): Promise<number> {
-  return forward(route, "POST", missionPath(route, "/start"), res, {
-    ...input,
-    origin,
-  });
+): Promise<{ status: number; missionId?: string }> {
+  let missionId: string | undefined;
+  const status = await forward(
+    route,
+    "POST",
+    missionPath(route, "/start"),
+    res,
+    {
+      ...input,
+      origin,
+    },
+    (payload) => {
+      const id = (payload as { id?: unknown } | null)?.id;
+      if (typeof id === "string" && id.length > 0) missionId = id;
+    },
+  );
+  return { status, ...(missionId ? { missionId } : {}) };
 }
 
 /** That agent's board, as its own pod reports it. */
@@ -87,14 +113,15 @@ async function forward(
   url: string,
   res: ServerResponse,
   body?: unknown,
+  onSuccess?: (payload: unknown) => void,
 ): Promise<number> {
-  const { target, gateway } = route;
+  const { target } = route;
   let upstream: Response;
   try {
     upstream = await (route.fetchImpl ?? fetch)(url, {
       method,
       headers: {
-        Authorization: `Bearer ${gateway.token}`,
+        ...remoteHeaders(route),
         ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
@@ -120,10 +147,17 @@ async function forward(
     return 502;
   }
   if (upstream.ok) {
+    onSuccess?.(payload);
     json(res, upstream.status, payload);
     return upstream.status;
   }
   const reason = errorText(payload);
+  const code = (payload as { code?: unknown } | null)?.code;
+  if (isAgentDelegationRefusalCode(code)) {
+    const { error } = delegationRefusal(code, target.name);
+    json(res, upstream.status, { code, error });
+    return upstream.status;
+  }
   console.error(
     `[missions] ${target.name} refused the call (${upstream.status}): ${reason}`,
   );

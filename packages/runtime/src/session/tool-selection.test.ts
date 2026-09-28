@@ -561,3 +561,26 @@ test("coordinator without an assistant catalog cannot offer custom credential pr
   expect(selected.toolNames).toContain("request_connection");
   expect(selected.toolNames).toContain("request_provider_connection");
 });
+
+test("directory tools reach regular agents with missions, never the coordinator", () => {
+  for (const personalAssistant of [false, undefined]) {
+    const names = buildToolSelection({
+      codeExecution: "disabled",
+      integrations: false,
+      missions: true,
+      personalAssistant,
+    }).toolNames;
+    expect(names).toContain("list_agents");
+    expect(names).toContain("read_agent");
+    expect(toolNamesForMode("auto", names)).toContain("list_agents");
+    expect(toolNamesForMode("plan", names)).not.toContain("list_agents");
+  }
+  const coordinator = buildToolSelection({
+    codeExecution: "disabled",
+    integrations: false,
+    missions: true,
+    personalAssistant: true,
+  }).toolNames;
+  expect(coordinator).not.toContain("list_agents");
+  expect(coordinator).not.toContain("read_agent");
+});

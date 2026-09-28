@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { loadRoutines, saveRoutines } from "@houston/domain";
-import type { HoustonEvent, Routine } from "@houston/protocol";
+import { loadRoutines, saveActivities, saveRoutines } from "@houston/domain";
+import type { Activity, HoustonEvent, Routine } from "@houston/protocol";
 import { beforeEach, expect, test } from "vitest";
 import type { Agent, Workspace } from "../domain/types";
 import { LocalPaths } from "../paths";
@@ -79,15 +79,28 @@ async function save(
     pin?: LiveTurnPin;
     /** Call as a runtime with no turn of the host's running behind it. */
     noLiveTurn?: boolean;
+    conversationId?: string;
+    actingAs?: string;
+    spoofedActingAs?: string;
+    gatewayFronted?: boolean;
+    triggersEnabled?: boolean;
   } = {},
 ) {
   const headers: Record<string, string> = {
     authorization: "Bearer sb-good",
-    [CONVERSATION_ID_HEADER]: "activity-1",
+    [CONVERSATION_ID_HEADER]: opts.conversationId ?? "activity-1",
   };
+  if (opts.spoofedActingAs)
+    headers["x-houston-acting-as"] = opts.spoofedActingAs;
   liveTurns.forget(agent.id);
   if (!opts.noLiveTurn)
-    liveTurns.start(agent.id, "activity-1", "execute", {}, opts.pin);
+    liveTurns.start(
+      agent.id,
+      opts.conversationId ?? "activity-1",
+      "execute",
+      { actingAs: opts.actingAs },
+      opts.pin,
+    );
   const { res, captured } = fakeRes();
   const handled = await handleSandboxRoutines(
     {
@@ -95,6 +108,8 @@ async function save(
       store,
       vfs,
       paths,
+      gatewayFronted: opts.gatewayFronted,
+      triggersEnabled: opts.triggersEnabled,
       events: {
         emit: (_userId: string, event: HoustonEvent) => events.push(event),
       } as never,
@@ -107,6 +122,134 @@ async function save(
   );
   return { handled, ...captured };
 }
+
+const REFUSAL =
+  "A mission another AI Employee gave you can't set up routines. Finish the mission, or ask the user to set this up from a chat.";
+
+function actingToken(dlg?: string): string {
+  const payload = Buffer.from(
+    JSON.stringify({ sub: "alice", ...(dlg ? { dlg } : {}) }),
+  ).toString("base64url");
+  return `acting-v1.${payload}.signature`;
+}
+
+const TRIGGER = {
+  toolkit: "gmail",
+  trigger_slug: "GMAIL_NEW_GMAIL_MESSAGE",
+  trigger_config: {},
+};
+
+test.each([
+  ["schedule", BASE],
+  ["event trigger", { ...BASE, schedule: undefined, trigger: TRIGGER }],
+])("a delegated gateway turn cannot create a %s routine", async (_kind, body) => {
+  const r = await save(body, {
+    gatewayFronted: true,
+    triggersEnabled: true,
+    actingAs: actingToken("delegator"),
+  });
+  expect(r).toMatchObject({
+    status: 409,
+    body: { code: "mission_depth", error: REFUSAL },
+  });
+  expect(await onDisk()).toEqual([]);
+  expect(events).toEqual([]);
+});
+
+test.each([
+  ["schedule", { prompt: "Changed" }],
+  ["event trigger", { schedule: null, trigger: TRIGGER }],
+])("a delegated gateway turn cannot update a %s routine", async (_kind, update) => {
+  const created = await save(BASE);
+  const original = await onDisk();
+  events = [];
+  const r = await save(
+    { id: (created.body as Routine).id, ...update },
+    {
+      gatewayFronted: true,
+      triggersEnabled: true,
+      actingAs: actingToken("delegator"),
+    },
+  );
+  expect(r).toMatchObject({
+    status: 409,
+    body: { code: "mission_depth", error: REFUSAL },
+  });
+  expect(await onDisk()).toEqual(original);
+  expect(events).toEqual([]);
+});
+
+test("a local delegated mission cannot create or update a routine", async () => {
+  const created = await save(BASE);
+  const original = await onDisk();
+  events = [];
+  const mission: Activity = {
+    id: "child",
+    title: "Delegated",
+    description: "",
+    status: "running",
+    session_key: "conv-child",
+    origin_session_key: "conv-parent",
+  };
+  await saveActivities(vfs, root, [mission]);
+  for (const body of [
+    BASE,
+    { id: (created.body as Routine).id, prompt: "Changed" },
+  ]) {
+    const r = await save(body, { conversationId: "conv-child" });
+    expect(r).toMatchObject({
+      status: 409,
+      body: { code: "mission_depth", error: REFUSAL },
+    });
+  }
+  expect(await onDisk()).toEqual(original);
+  expect(events).toEqual([]);
+});
+
+test("an ordinary chat and a human-started mission may save routines", async () => {
+  const chat = await save(BASE, {
+    gatewayFronted: true,
+    actingAs: actingToken(),
+  });
+  expect(chat.status).toBe(201);
+  await saveActivities(vfs, root, [
+    {
+      id: "human",
+      title: "Human mission",
+      description: "",
+      status: "running",
+      session_key: "conv-human",
+    },
+  ]);
+  const mission = await save(
+    { ...BASE, name: "Another" },
+    { conversationId: "conv-human" },
+  );
+  expect(mission.status).toBe(201);
+  expect(await onDisk()).toHaveLength(2);
+});
+
+test("a delegated mission may pause an existing routine", async () => {
+  const created = await save(BASE);
+  await saveActivities(vfs, root, [
+    {
+      id: "child",
+      title: "Delegated",
+      description: "",
+      status: "running",
+      session_key: "conv-child",
+      origin_session_key: "conv-parent",
+    },
+  ]);
+  const r = await save(
+    { id: (created.body as Routine).id, enabled: false },
+    {
+      conversationId: "conv-child",
+    },
+  );
+  expect(r.status).toBe(200);
+  expect((await onDisk())[0]?.enabled).toBe(false);
+});
 
 async function onDisk(): Promise<Routine[]> {
   return (await loadRoutines(vfs, root)).items;

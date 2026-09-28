@@ -15,6 +15,7 @@ import { createAppearanceModule } from "./modules/appearance";
 import { createBillingModule } from "./modules/billing";
 import { createChannelsModule } from "./modules/channels";
 import { createConversationsModule } from "./modules/conversations";
+import { createDelegationModule } from "./modules/delegation";
 import { createFilesModule } from "./modules/files";
 import { createIntegrationsModule } from "./modules/integrations";
 import { createMigrationModule } from "./modules/migration";
@@ -39,6 +40,8 @@ export interface SdkModules {
   readonly agents: ReturnType<typeof createAgentsModule>;
   /** Conversation facade (history, per-conversation streams). */
   readonly conversations: ReturnType<typeof createConversationsModule>;
+  /** Per-agent outgoing and incoming mission policy. */
+  readonly delegation: ReturnType<typeof createDelegationModule>;
   /** Turn facade (send message, drive a turn). */
   readonly turns: ReturnType<typeof createTurnsModule>;
   /** Board/missions facade (per-agent activities read + CRUD). */
@@ -94,6 +97,7 @@ export const moduleFactories = {
   createPlanModule,
   createChannelsModule,
   createConversationsModule,
+  createDelegationModule,
   createFilesModule,
   createIntegrationsModule,
   createMigrationModule,

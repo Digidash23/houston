@@ -5,6 +5,7 @@ import type { Agent, Workspace } from "../domain/types";
 import { DEFAULT_PATHS, trustedActingAs } from "./agent-authz";
 import { agentRest } from "./agent-rest";
 import { json } from "./http";
+import { trustedCallingAgent } from "./missions-calling-agent";
 import { handleList, handleMissionRead } from "./missions-read";
 import { startInbound, statusInbound } from "./missions-remote-writes";
 import type { MissionsCtx, MissionsDeps } from "./missions-sandbox";
@@ -19,18 +20,15 @@ import { defineRouteFamily } from "./registry";
  *   GET  /agents/{id}/missions/read    one mission's transcript
  *   POST /agents/{id}/missions/status  move a mission on this agent's board
  *
- * WHY it exists: in managed cloud each agent is its own pod, so the personal
- * assistant's `start_mission` cannot reach another agent's board by writing a
- * file — it addresses the gateway, which dispatches here
- * (missions-remote-forward.ts is the other end). Everything a local start does
- * happens on THIS side: the running cap, the row, the reactivity event, the
- * first turn, and the rollback when the turn will not start.
+ * In managed cloud each agent is its own pod. The AI Manager and regular agent
+ * callers address another board through the gateway, which dispatches here.
+ * The running cap, row, reactivity event, first turn, and rollback happen on
+ * the pod that owns the board.
  *
- * The caller is a user (or their assistant acting as them) that the gateway
- * already authorized for this agent, so this route grants no reach of its own.
- * What it must not take on trust is provenance: `origin` is required and its
- * depth is checked here, which is what keeps the board flat when the parent
- * chat lives in a pod this one cannot read.
+ * The gateway authorizes the user, AI Manager, or agent caller for this target.
+ * A verified calling-agent header stamps origin_agent and grants that caller
+ * move rights on its own missions. The body supplies the parent session and
+ * depth, which this pod checks because it cannot read the parent chat.
  */
 
 export interface MissionsDispatchCtx {
@@ -40,6 +38,7 @@ export interface MissionsDispatchCtx {
   author?: ActivityContributor;
   /** The raw gateway-minted acting-as token, for credential reads. */
   actingAs?: string;
+  callingAgent?: string;
 }
 
 /** The three calls this family serves, and the one verb each answers to. */
@@ -93,7 +92,7 @@ export async function handleAgentMissions(
     return true;
   }
   const paths = deps.paths ?? DEFAULT_PATHS;
-  const ctx: MissionsCtx = {
+  const ctx: MissionsCtx & { callingAgent?: string } = {
     deps,
     ws: target.workspace,
     agent: target.agent,
@@ -102,6 +101,7 @@ export async function handleAgentMissions(
     paths,
     ...(target.author ? { author: target.author } : {}),
     ...(target.actingAs ? { actingAs: target.actingAs } : {}),
+    ...(target.callingAgent ? { callingAgent: target.callingAgent } : {}),
   };
 
   if (verb.op === "list") await handleList(ctx, url, res);
@@ -142,6 +142,7 @@ defineRouteFamily({
       ? actingAuthorFromHeader(req.headers[ACTING_AS_HEADER])
       : null;
     const actingAs = trustedActingAs(deps, req);
+    const callingAgent = trustedCallingAgent(deps, req);
     // The handler's own answer, not a discarded one: its `false` is a decline,
     // and swallowing it would report "handled" for a response never written.
     return handleAgentMissions(
@@ -151,6 +152,7 @@ defineRouteFamily({
         agent: authz.agent,
         ...(author ? { author } : {}),
         ...(actingAs ? { actingAs } : {}),
+        ...(callingAgent ? { callingAgent } : {}),
       },
       method,
       agentRest(path),

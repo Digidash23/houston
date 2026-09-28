@@ -112,6 +112,8 @@ export interface Capabilities {
   integrations: string[];
   /** Workspace-shared skills store served by this deployment (ADR 0003). */
   sharedSkills: boolean;
+  /** This deployment serves agent-to-agent mission policy and delegation. */
+  agentDelegation?: boolean;
   /**
    * Whether a custom integration can sign in through its own OAuth flow
    * (PRODUCT-1172): the host serves a browser-reachable callback. Absent/false
@@ -866,6 +868,8 @@ export interface Activity {
   /** The conversation this mission was started from, present only when the
    *  agent created the mission itself (PRODUCT-1244). Server-stamped. */
   origin_session_key?: string;
+  /** Server-stamped agent that started this mission. */
+  origin_agent?: string;
   pending_interaction?: PendingInteraction;
   /** The human who created this mission (Teams attribution). Server-stamped
    *  from the gateway acting-as identity; absent on desktop/single-player. */
@@ -1142,6 +1146,8 @@ export interface ConversationEntry {
   /** The conversation this mission was started from, present only when the
    *  agent created the mission itself (PRODUCT-1244). Server-stamped. */
   origin_session_key?: string;
+  /** Server-stamped agent that started this mission. */
+  origin_agent?: string;
   /** The human who created this mission (Teams attribution). Server-stamped
    *  from the gateway acting-as identity; absent on desktop/single-player. */
   created_by?: string;

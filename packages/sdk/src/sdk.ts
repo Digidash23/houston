@@ -48,6 +48,7 @@ export class HoustonSdk implements SdkModules {
   readonly session: SdkModules["session"];
   readonly agents: SdkModules["agents"];
   readonly conversations: SdkModules["conversations"];
+  readonly delegation: SdkModules["delegation"];
   readonly turns: SdkModules["turns"];
   readonly activities: SdkModules["activities"];
   readonly missions: SdkModules["missions"];
@@ -98,6 +99,7 @@ export class HoustonSdk implements SdkModules {
     this.session = moduleFactories.createSessionModule(ctx);
     this.agents = moduleFactories.createAgentsModule(ctx);
     this.conversations = moduleFactories.createConversationsModule(ctx);
+    this.delegation = moduleFactories.createDelegationModule(ctx);
     // Activities BEFORE turns: the turns module's default board-status output
     // persists a card by session key through the activities module, so that
     // capability must exist first. Injected as a bound function (not the whole

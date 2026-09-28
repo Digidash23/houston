@@ -15,6 +15,7 @@
   "tags": {
     "routine": "Rotina",
     "agentStarted": "Iniciada pelo funcionário de IA",
+    "startedByAgent": "Iniciada por {{name}}",
     "setup": "Configuração"
   },
   "panel": {

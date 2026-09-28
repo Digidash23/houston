@@ -1,17 +1,30 @@
 import { realpathSync } from "node:fs";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { assertAllowedFile, assertContained } from "./fs-guard-containment";
 import {
+  BoardWriteDeniedError,
+  RoutineWriteDeniedError,
+} from "./fs-guard-errors";
+import {
+  contains,
   type RootBoundary,
   realNearest,
   resolveLikePi,
 } from "./fs-guard-paths";
 
 export {
+  BoardWriteDeniedError,
   PathDeniedError,
   PathEscapeError,
   PathNotAllowedError,
+  ProtectedWriteDeniedError,
+  RoutineWriteDeniedError,
 } from "./fs-guard-errors";
+
+const PROTECTED_WRITES = [
+  { family: "activity", refusal: BoardWriteDeniedError },
+  { family: "routines", refusal: RoutineWriteDeniedError },
+] as const;
 
 /**
  * Workspace path guard — the wall that keeps the agent's file tools inside its
@@ -132,6 +145,13 @@ export class WorkspaceGuard {
     );
   }
 
+  /** Protected domain stores are changed through their tools. */
+  clampWrite(raw: string | undefined): string {
+    const proven = this.clamp(raw);
+    this.assertProtectedWritable(proven);
+    return proven;
+  }
+
   /** Guard a path pi already resolved (the operations-hook inner wall). */
   assertInside(absolutePath: string): string {
     if (this.allowedFiles.length)
@@ -142,6 +162,19 @@ export class WorkspaceGuard {
       this.allowedRoots(),
       this.root,
     );
+  }
+
+  assertWritable(absolutePath: string): string {
+    const proven = this.assertInside(absolutePath);
+    this.assertProtectedWritable(proven);
+    return proven;
+  }
+
+  private assertProtectedWritable(proven: string): void {
+    for (const { family, refusal } of PROTECTED_WRITES) {
+      if (contains(proven, join(this.root, ".houston", family)))
+        throw new refusal();
+    }
   }
 
   private allowedRoots(): RootBoundary[] {

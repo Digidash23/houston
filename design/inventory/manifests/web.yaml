@@ -13,12 +13,15 @@
 
 surface: web
 enforced: true
-inventoryVersion: 111
+inventoryVersion: 112
 
 components:
   manager-avatar:
     status: implemented
     ref: "@houston-ai/core ManagerAvatar (manager-avatar.tsx with manager-avatar-geometry.ts, over HoustonHelmet), mounted by app/src/components/shell/sidebar-manager-row.tsx, app/src/components/agents-home/manager-home-row.tsx and app/src/components/assistant/assistant-phone-header.tsx"
+  agent-delegation-settings:
+    status: implemented
+    ref: app/src/components/agent-settings/agent-delegation-section.tsx
   custom-integration-details:
     status: implemented
     ref: app/src/components/integrations/custom-edit-dialog.tsx

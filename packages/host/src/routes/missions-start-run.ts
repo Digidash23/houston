@@ -8,6 +8,7 @@ import {
   upsertById,
 } from "@houston/domain";
 import { normalizeTurnMode } from "@houston/protocol";
+import { assistantRuntimeRole } from "../launcher/assistant-role";
 import { withDocLock } from "./doc-lock";
 import { json } from "./http";
 import {
@@ -37,6 +38,7 @@ export async function startMission(
   input: MissionStartInput,
   origin: MissionOrigin,
   res: ServerResponse,
+  missionId?: string,
 ): Promise<string | null> {
   // The pin resolves against the TARGET's workspace: that agent's credentials,
   // not the caller's, have to serve the mission.
@@ -64,9 +66,11 @@ export async function startMission(
     return null;
   }
 
-  const id = crypto.randomUUID();
+  const id = missionId ?? crypto.randomUUID();
   const guarded = await withDocLock(`${target.root}#activity`, async () => {
     const { items } = await loadActivities(target.vfs, target.root);
+    if (items.some((activity) => activity.id === id))
+      return "duplicate" as const;
     const running = items.filter((a) => a.status === "running").length;
     if (running >= MAX_RUNNING_MISSIONS) return "cap" as const;
     // Provenance the caller cannot author and the target must not lose: WHICH
@@ -87,7 +91,7 @@ export async function startMission(
         new Date().toISOString(),
         target.author,
       ),
-      origin_agent: origin.agent,
+      ...(origin.agent ? { origin_agent: origin.agent } : {}),
       origin_depth: origin.depth,
     };
     await saveActivities(target.vfs, target.root, upsertById(items, activity));
@@ -100,7 +104,21 @@ export async function startMission(
     });
     return null;
   }
+  if (guarded === "duplicate") {
+    json(res, 409, { error: "mission already exists", code: "mission_exists" });
+    return null;
+  }
   fireActivityChanged(target);
+
+  if (
+    target.deps.gatewayFronted &&
+    !target.actingAs &&
+    !assistantRuntimeRole({ agentId: target.agent.id })
+  ) {
+    console.error(
+      "[missions] first mission turn has no gateway acting-as identity",
+    );
+  }
 
   try {
     await channel.fireTurn(
@@ -115,6 +133,7 @@ export async function startMission(
       // Integration calls in the child act as the human driving the parent
       // turn (gateway only) — the same acting hand-off a routine firing does.
       target.author?.user_id,
+      target.actingAs,
     );
   } catch (err) {
     // The mission never started: leave no orphan card stuck on Running.

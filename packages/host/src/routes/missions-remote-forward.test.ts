@@ -1,5 +1,6 @@
 import type { ServerResponse } from "node:http";
 import { expect, test } from "vitest";
+import { readRemoteMissionStatus } from "./mission-fanout";
 import type { RemoteMissionRoute } from "./missions-remote";
 import {
   forwardMissionList,
@@ -66,7 +67,7 @@ const answers = (
 test("a start is addressed to the target's pod and relayed verbatim", async () => {
   const seen: { url: string; init?: RequestInit }[] = [];
   const { res, captured } = fakeRes();
-  await forwardMissionStart(
+  const started = await forwardMissionStart(
     route(answers(201, '{"id":"m-9","title":"t","status":"running"}', seen)),
     { title: "t", prompt: "p" },
     { session_key: "conv-parent", agent: "agent-1", depth: 1 },
@@ -81,6 +82,33 @@ test("a start is addressed to the target's pod and relayed verbatim", async () =
     status: 201,
     body: { id: "m-9", title: "t", status: "running" },
   });
+  expect(started).toEqual({ status: 201, missionId: "m-9" });
+});
+
+test("remote reconciliation reads one mission with acting identity", async () => {
+  const seen: { url: string; init?: RequestInit }[] = [];
+  const remote = route(answers(200, '{"id":"m-9","status":"running"}', seen), {
+    actingAs: "acting-v1.verified",
+  });
+  expect(await readRemoteMissionStatus(remote, "m-9")).toBe("running");
+  expect(seen[0]?.url).toBe(
+    "https://gw.test/agents/slug-1/missions/read?id=m-9",
+  );
+  expect(seen[0]?.init?.headers).toMatchObject({
+    Authorization: "Bearer gw-token",
+    "x-houston-acting-as": "acting-v1.verified",
+  });
+  expect(await readRemoteMissionStatus(remote, "missing")).toBe("unknown");
+});
+
+test("remote reconciliation recognizes settled statuses and surfaces server failures", async () => {
+  for (const status of ["needs_you", "done", "error", "archived"]) {
+    const remote = route(answers(200, JSON.stringify({ id: "m-9", status })));
+    expect(await readRemoteMissionStatus(remote, "m-9")).toBe("settled");
+  }
+  await expect(
+    readRemoteMissionStatus(route(answers(502, "{}")), "m-9"),
+  ).rejects.toThrow("remote board returned 502");
 });
 
 test("a read carries the mission id and limit; a list takes neither", async () => {
@@ -187,4 +215,34 @@ test("anything that is not the pod answering reads as unreachable", async () => 
   expect((garbled.captured.body as { code: string }).code).toBe(
     "agent_unreachable",
   );
+});
+
+test("agent-caller forwarding carries acting identity and typed gateway refusals", async () => {
+  const seen: { url: string; init?: RequestInit }[] = [];
+  const result = fakeRes();
+  await forwardMissionStart(
+    route(
+      answers(
+        403,
+        '{"code":"agent_not_accepting","error":"gateway text"}',
+        seen,
+      ),
+      {
+        actingAs: "acting-v1.verified",
+        gateway: { url: "https://gw.test", token: "a".repeat(64) },
+      },
+    ),
+    { title: "t", prompt: "p" },
+    { session_key: "c", agent: "caller", depth: 1 },
+    result.res,
+  );
+  expect(seen[0]?.init?.headers).toMatchObject({
+    Authorization: `Bearer ${"a".repeat(64)}`,
+    "x-houston-acting-as": "acting-v1.verified",
+  });
+  expect(result.captured.body).toEqual({
+    code: "agent_not_accepting",
+    error:
+      "Dobby isn't taking new missions from other AI Employees right now. You can still read its instructions and missions. The user can turn this on in Dobby's settings under Teamwork, or you can do the work yourself.",
+  });
 });

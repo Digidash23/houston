@@ -17,6 +17,7 @@ import { hostErrorFrom, type SessionToolErrorDetails } from "./tool-error";
 /** One mission's messages, from either source, in the shape the tool renders. */
 export interface MissionTranscript {
   title: string;
+  status?: string;
   messages: { role: string; content: string }[];
   totalMessages: number;
 }
@@ -75,14 +76,14 @@ export function ownTranscript(
 /** Another agent's transcript, served by the host from its file store. */
 export async function targetTranscript(
   call: SandboxFetch,
-  agent: string,
+  agent: string | undefined,
   missionId: string,
   limit: number,
   signal: AbortSignal | undefined,
 ): Promise<
   { ok: true; transcript: MissionTranscript } | SessionToolErrorDetails
 > {
-  const query = `${agentQuery(agent)}&id=${encodeURIComponent(missionId)}&limit=${limit}`;
+  const query = `${agentQuery(agent)}${agent ? "&" : "?"}id=${encodeURIComponent(missionId)}&limit=${limit}`;
   const res = await call(`/sandbox/missions/read${query}`, {
     method: "GET",
     signal,
