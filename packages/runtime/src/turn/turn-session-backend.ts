@@ -28,7 +28,7 @@ export async function openTurnBackendSession(input: {
 }) {
   const { turn, directories } = input;
   const { provider, pin, conversationId, turnId } = turn;
-  const { backend, model } = await finishTurnSessionStartup(
+  const { backend, model, modelRuntime } = await finishTurnSessionStartup(
     turn.startup ?? startTurnSession(directories, turn, input.deps),
   );
   const turnCred = readAuthFile(join(directories.dataDir, "auth.json"))[
@@ -100,5 +100,5 @@ export async function openTurnBackendSession(input: {
     ...(retryReplay?.text ? { freshRetryPromptPrefix: retryReplay.text } : {}),
   });
   if (turn.timings) turn.timings.t_backend_session = performance.now();
-  return { replay, session };
+  return { replay, session, model, modelRuntime };
 }

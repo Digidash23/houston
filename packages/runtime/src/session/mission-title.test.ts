@@ -39,7 +39,7 @@ describe("generateMissionTitle", () => {
     await expect(generateMissionTitle("c1", REQ, run)).resolves.toBe(
       "Weekly sales summary",
     );
-    expect(run).toHaveBeenCalledWith(REQ.text);
+    expect(run).toHaveBeenCalledWith(REQ.text, expect.any(AbortSignal));
   });
 
   test("a title equal to the fallback writes nothing", async () => {
@@ -57,14 +57,21 @@ describe("generateMissionTitle", () => {
     expect(error).toHaveBeenCalledOnce();
   });
 
-  test("a runner past the cap keeps the fallback", async () => {
+  test("a runner past the cap keeps the fallback and is aborted", async () => {
     vi.useFakeTimers();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const run = () => new Promise<string>(() => {});
+    let signal: AbortSignal | undefined;
+    const run = (_excerpt: string, s: AbortSignal) => {
+      signal = s;
+      return new Promise<string>(() => {});
+    };
     const pending = generateMissionTitle("c1", REQ, run, 10_000);
+    expect(signal?.aborted).toBe(false);
     await vi.advanceTimersByTimeAsync(10_000);
     await expect(pending).resolves.toBeNull();
     expect(warn).toHaveBeenCalledOnce();
+    // The cap aborts the model call instead of letting it run on.
+    expect(signal?.aborted).toBe(true);
     vi.useRealTimers();
   });
 });

@@ -34,8 +34,10 @@ export async function titleMissionAfterTurn(
 ): Promise<void> {
   const run =
     opts.run ??
-    ((excerpt: string) =>
-      runWithActingContext(acting, () => titleWithTurnModel(excerpt, model)));
+    ((excerpt: string, signal: AbortSignal) =>
+      runWithActingContext(acting, () =>
+        titleWithTurnModel(excerpt, model, signal),
+      ));
   const title = await generateMissionTitle(
     conversationId,
     request,

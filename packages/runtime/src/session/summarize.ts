@@ -9,15 +9,10 @@ import { config } from "../config";
 import { getHistory, renameConversation } from "../store/conversations";
 import { conversations } from "./conversation-cache";
 import { oneShotText } from "./one-shot";
+import { TITLE_PROMPT } from "./title-prompt";
 
 const errMessage = (err: unknown): string =>
   err instanceof Error ? err.message : String(err);
-
-const TITLE_PROMPT = [
-  "You generate conversation titles.",
-  "Reply with ONLY a title of 3 to 6 plain words for the conversation excerpt the user sends.",
-  "No quotes, no trailing punctuation, no explanations.",
-].join(" ");
 
 /** First turns of the transcript, trimmed to a prompt-sized excerpt. */
 export function buildExcerpt(messages: ChatMessage[]): string {
@@ -37,6 +32,7 @@ export async function generateTitle(opts: {
   model: unknown;
   modelRuntime: ModelRuntime;
   excerpt: string;
+  signal?: AbortSignal;
 }): Promise<string> {
   const text = await oneShotText({
     cwd: opts.cwd,
@@ -44,6 +40,7 @@ export async function generateTitle(opts: {
     modelRuntime: opts.modelRuntime,
     systemPrompt: TITLE_PROMPT,
     prompt: opts.excerpt,
+    ...(opts.signal ? { signal: opts.signal } : {}),
   });
   return text.trim().split("\n")[0]?.trim().slice(0, 80) ?? "";
 }
@@ -102,18 +99,20 @@ export function titlePlan(
 function titleRunners(
   model?: unknown,
   claudeModelId?: string,
+  signal?: AbortSignal,
 ): {
   claude: TitleRunner;
   pi: TitleRunner;
 } {
   return {
-    claude: (excerpt) => claudeTitle(excerpt, claudeModelId),
+    claude: (excerpt) => claudeTitle(excerpt, claudeModelId, signal),
     pi: (excerpt) =>
       generateTitle({
         cwd: config.workspaceDir,
         model: model ?? resolveModel(),
         modelRuntime,
         excerpt,
+        ...(signal ? { signal } : {}),
       }),
   };
 }
@@ -124,7 +123,11 @@ function titleRunners(
  * (the caller truncates) rather than reroute an anthropic title onto pi's client
  * — that reroute is precisely what the compliance gate forbids.
  */
-async function claudeTitle(excerpt: string, modelId?: string): Promise<string> {
+async function claudeTitle(
+  excerpt: string,
+  modelId?: string,
+  signal?: AbortSignal,
+): Promise<string> {
   try {
     return await titleWithClaude({
       excerpt,
@@ -135,6 +138,7 @@ async function claudeTitle(excerpt: string, modelId?: string): Promise<string> {
       // here can never recover onto the team credential (HOU-976).
       dataDir: config.dataDir,
       modelId: modelId ?? resolveModel().id,
+      ...(signal ? { signal } : {}),
     });
   } catch (err) {
     if (err instanceof ClaudeBackendUnavailableError) {
@@ -177,11 +181,16 @@ export async function titleFromText(
 export function titleWithTurnModel(
   excerpt: string,
   model: { provider: string; id: string },
+  signal?: AbortSignal,
 ): Promise<string> {
   return dispatchTitle(
     model.provider,
     excerpt,
-    titleRunners(model, model.provider === "anthropic" ? model.id : undefined),
+    titleRunners(
+      model,
+      model.provider === "anthropic" ? model.id : undefined,
+      signal,
+    ),
   );
 }
 

@@ -13,7 +13,10 @@ export interface MissionTitleRequest {
 }
 
 /** Produce a raw title for an excerpt, on the turn's own provider/model. */
-export type MissionTitleRunner = (excerpt: string) => Promise<string>;
+export type MissionTitleRunner = (
+  excerpt: string,
+  signal: AbortSignal,
+) => Promise<string>;
 
 /** The longest a title may take before the card keeps its fallback. */
 export const MISSION_TITLE_TIMEOUT_MS = 10_000;
@@ -65,9 +68,12 @@ export async function generateMissionTitle(
   const excerpt = request.text.trim().slice(0, EXCERPT_MAX);
   if (!excerpt) return null;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  // Aborted when the cap trips, so a slow model call stops spending (and, in a
+  // per-turn sandbox, stops holding the turn open) instead of running on.
+  const abort = new AbortController();
   try {
     const raw = await Promise.race([
-      run(excerpt),
+      run(excerpt, abort.signal),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new MissionTitleTimeout()), timeoutMs);
       }),
@@ -75,15 +81,17 @@ export async function generateMissionTitle(
     const title = cleanMissionTitle(raw);
     return title && title !== request.fallback ? title : null;
   } catch (err) {
-    if (err instanceof MissionTitleTimeout)
+    if (err instanceof MissionTitleTimeout) {
+      abort.abort();
       console.warn(
         `[mission-title] no title within ${timeoutMs} ms for ${conversationId}; keeping the fallback`,
       );
-    else
+    } else {
       console.error(
         `[mission-title] title failed for ${conversationId}; keeping the fallback:`,
         err instanceof Error ? err.message : String(err),
       );
+    }
     return null;
   } finally {
     if (timer) clearTimeout(timer);
