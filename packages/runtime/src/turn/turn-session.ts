@@ -211,8 +211,8 @@ export async function runTurn(
       turnId,
       emit,
     });
-    await finishTitle?.();
-    return outcome;
+    const missionTitle = await finishTitle?.();
+    return missionTitle ? { ...outcome, missionTitle } : outcome;
   } catch (error) {
     return handleTurnSessionFailure({
       error,

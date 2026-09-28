@@ -1,11 +1,12 @@
-import type { Dirent } from "node:fs";
-import { readdir, stat } from "node:fs/promises";
-import { join, posix, relative, sep } from "node:path";
+import { stat } from "node:fs/promises";
+import { join, posix } from "node:path";
 import { fileSha256 } from "./file-hash";
 import { DEFAULT_EXCLUDES, excluded, type HydrateManifest } from "./hydrate";
 import type { ObjectMetadata } from "./object-manifest";
 import type { ObjectStore } from "./object-store";
 import { deleteOwnedObject, uploadChangedObject } from "./sync-back-conflicts";
+import type { ConflictBackoff } from "./sync-back-merge-retry";
+import { walkFiles } from "./sync-back-walk";
 
 export interface SyncResult {
   uploaded: string[];
@@ -25,6 +26,9 @@ export interface SyncResult {
    * be garbage.
    */
   conflicts: { key: string; reason: string }[];
+  /** Merged documents that lost a first race, with the merge rounds each
+   *  took (landed or not: a conflict entry names the ones that never did). */
+  merges: { key: string; attempts: number }[];
   /** Changed paths rejected by the caller's write scope. */
   outOfScope: number;
   /** Bytes the next hydration must materialize, excluding local-only paths. */
@@ -45,25 +49,8 @@ export interface SyncBackOptions {
    * standing daemon retries on its next tick and keeps the default.
    */
   holdDeletesOnFailure?: boolean;
-}
-
-async function walkFiles(dir: string, base: string): Promise<string[]> {
-  const out: string[] = [];
-  let entries: Dirent[];
-  try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code;
-    if (code === "ENOENT" || code === "ENOTDIR") return [];
-    throw err;
-  }
-  for (const entry of entries) {
-    const abs = join(dir, entry.name);
-    if (entry.isSymbolicLink()) continue;
-    if (entry.isDirectory()) out.push(...(await walkFiles(abs, base)));
-    else out.push(relative(base, abs).split(sep).join("/"));
-  }
-  return out;
+  /** Delay between merge rounds of a contended document (tests pass 0). */
+  conflictBackoff?: ConflictBackoff;
 }
 
 /** Upload changes and conditionally remove objects owned by the prior hydrate. */
@@ -89,11 +76,13 @@ export async function syncBack(
   const uploaded: string[] = [];
   const skipped: SyncResult["skipped"] = [];
   const conflicts: SyncResult["conflicts"] = [];
+  const merges: SyncResult["merges"] = [];
   const nextManifest: HydrateManifest = new Map();
   let outOfScope = 0;
   let refreshed: Promise<Map<string, ObjectMetadata>> | undefined;
-  const refresh = () => {
+  const refresh = (fresh = false) => {
     if (!store.manifest) return undefined;
+    if (fresh) refreshed = undefined;
     refreshed ??= store
       .manifest(prefix)
       .then(
@@ -146,7 +135,10 @@ export async function syncBack(
       previous,
       generationAware,
       refresh,
+      ...(opts.conflictBackoff ? { backoff: opts.conflictBackoff } : {}),
     });
+    if (result.mergeAttempts)
+      merges.push({ key: rel, attempts: result.mergeAttempts });
     // Second half of the vanish window: the file outlived the hash above but
     // was unlinked before the upload re-read it. Same reconciliation as the
     // walk-stage skip: out of the next manifest, delete pass settles the store.
@@ -193,6 +185,7 @@ export async function syncBack(
     deleted,
     skipped,
     conflicts,
+    merges,
     outOfScope,
     manifest: nextManifest,
     totalBytes,

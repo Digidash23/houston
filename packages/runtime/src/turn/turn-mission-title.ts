@@ -10,14 +10,15 @@ import { readAnthropicToken } from "../backends/claude/read-token";
 import type { ClaudeQuery } from "../backends/claude/session";
 import { titleWithClaude } from "../backends/claude/title";
 import {
-  generateMissionTitle,
   type MissionTitleRequest,
   type MissionTitleRunner,
+  runMissionTitle,
 } from "../session/mission-title";
 import { oneShotText } from "../session/one-shot";
 import { TITLE_PROMPT } from "../session/title-prompt";
 import { turnAuthStore } from "./turn-backend";
 import { fsTextStore } from "./turn-fs-store";
+import type { MissionTitleReport } from "./turn-mission-title-outcome";
 import type { RemoteActivityReader } from "./turn-mission-title-remote";
 import type { TurnDirectories } from "./turn-session-types";
 
@@ -76,7 +77,7 @@ export async function writeMissionTitleInTree(
   title: string,
   fallback: string,
   readRemote?: RemoteActivityReader,
-): Promise<boolean> {
+): Promise<"written" | "renamed" | "card_missing"> {
   const store = fsTextStore();
   const { items: local } = await loadActivities(store, workspaceDir);
   let items = local;
@@ -89,23 +90,23 @@ export async function writeMissionTitleInTree(
     console.warn(
       `[mission-title] no card for ${conversationId} in the hydrated or stored board; keeping the fallback`,
     );
-    return false;
+    return "card_missing";
   }
-  if (current.title !== fallback) return false;
+  if (current.title !== fallback) return "renamed";
   const next = applyActivityUpdate(
     current,
     { title },
     new Date().toISOString(),
   );
   await saveActivities(store, workspaceDir, upsertById(items, next));
-  return true;
+  return "written";
 }
 
 /**
  * Start the title the moment the reply is complete, so it overlaps the turn's
  * own finishing work (workspace diff, transcript append); the returned `finish`
- * awaits it and writes the card. Never rejects: a failed title or write keeps
- * the fallback and is reported.
+ * awaits it, writes the card, and reports what happened. Never rejects: a
+ * failed title or write keeps the fallback and is reported.
  */
 export function startTurnMissionTitle(input: {
   conversationId: string;
@@ -114,29 +115,37 @@ export function startTurnMissionTitle(input: {
   workspaceDir: string;
   readRemote?: RemoteActivityReader;
   timeoutMs?: number;
-}): () => Promise<void> {
-  const pending = generateMissionTitle(
+}): () => Promise<MissionTitleReport> {
+  const started = performance.now();
+  const pending = runMissionTitle(
     input.conversationId,
     input.request,
     input.run,
     input.timeoutMs,
   );
+  const report = (outcome: MissionTitleReport["outcome"]) => ({
+    outcome,
+    ms: Math.round(performance.now() - started),
+  });
   return async () => {
-    const title = await pending;
-    if (!title) return;
+    const result = await pending;
+    if ("miss" in result) return report(result.miss);
     try {
-      await writeMissionTitleInTree(
-        input.workspaceDir,
-        input.conversationId,
-        title,
-        input.request.fallback,
-        input.readRemote,
+      return report(
+        await writeMissionTitleInTree(
+          input.workspaceDir,
+          input.conversationId,
+          result.title,
+          input.request.fallback,
+          input.readRemote,
+        ),
       );
     } catch (err) {
       console.error(
         `[mission-title] card write failed for ${input.conversationId}; keeping the fallback:`,
         err instanceof Error ? err.message : String(err),
       );
+      return report("write_failed");
     }
   };
 }

@@ -1,9 +1,4 @@
-import { randomUUID } from "node:crypto";
-import { readFile, rm, stat, writeFile } from "node:fs/promises";
-import { atomicTempPath } from "@houston/protocol";
 import { ACTIVITY_DOC, mergeActivityArrays } from "./activity-merge";
-import { fileSha256 } from "./file-hash";
-import type { ObjectStore } from "./object-store";
 
 const ROUTINES_DOC = ".houston/routines/routines.json";
 const LEARNINGS_DOC = ".houston/learnings/learnings.json";
@@ -127,34 +122,4 @@ export function mergeDocumentBodies(
     ),
   };
   return `${JSON.stringify(merged, null, 2)}\n`;
-}
-
-/** Merge a conflict-sensitive document and replace its local copy. */
-export async function mergeSyncBackDocument(opts: {
-  store: ObjectStore;
-  abs: string;
-  key: string;
-  relativePath: string;
-  /** Hydrated bytes of this document, when the sync layer kept them. */
-  base?: string;
-}): Promise<string | undefined> {
-  if (!isMergedDocument(opts.relativePath)) return undefined;
-  const localBody = await readFile(opts.abs, "utf8");
-  const remoteTemp = atomicTempPath(opts.abs, `${randomUUID()}.remote`);
-  try {
-    await opts.store.download(opts.key, remoteTemp);
-    const remoteBody = await readFile(remoteTemp, "utf8");
-    const merged = mergeDocumentBodies(
-      opts.relativePath,
-      localBody,
-      remoteBody,
-      opts.base,
-    );
-    if (merged === undefined) return undefined;
-    await writeFile(opts.abs, merged);
-    const { size } = await stat(opts.abs);
-    return fileSha256(opts.abs, size);
-  } finally {
-    await rm(remoteTemp, { force: true });
-  }
 }

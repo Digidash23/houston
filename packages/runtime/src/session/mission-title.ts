@@ -41,6 +41,12 @@ export function cleanMissionTitle(value: string | undefined): string | null {
 
 class MissionTitleTimeout extends Error {}
 
+/** Why a title run produced nothing better than the fallback. */
+export type MissionTitleMiss = "timeout" | "error" | "no_title";
+
+/** A usable title, or the reason there is none. */
+export type MissionTitleResult = { title: string } | { miss: MissionTitleMiss };
+
 /**
  * Run the title within {@link MISSION_TITLE_TIMEOUT_MS}. Resolves the title to
  * write, or null when there is nothing better than the fallback. Never rejects:
@@ -53,8 +59,19 @@ export async function generateMissionTitle(
   run: MissionTitleRunner,
   timeoutMs = MISSION_TITLE_TIMEOUT_MS,
 ): Promise<string | null> {
+  const result = await runMissionTitle(conversationId, request, run, timeoutMs);
+  return "title" in result ? result.title : null;
+}
+
+/** {@link generateMissionTitle}, naming why a run kept the fallback. */
+export async function runMissionTitle(
+  conversationId: string,
+  request: MissionTitleRequest,
+  run: MissionTitleRunner,
+  timeoutMs = MISSION_TITLE_TIMEOUT_MS,
+): Promise<MissionTitleResult> {
   const excerpt = request.text.trim().slice(0, EXCERPT_MAX);
-  if (!excerpt) return null;
+  if (!excerpt) return { miss: "no_title" };
   let timer: ReturnType<typeof setTimeout> | undefined;
   // Aborted when the cap trips, so a slow model call stops spending (and, in a
   // per-turn sandbox, stops holding the turn open) instead of running on.
@@ -67,20 +84,22 @@ export async function generateMissionTitle(
       }),
     ]);
     const title = cleanMissionTitle(raw);
-    return title && title !== request.fallback ? title : null;
+    return title && title !== request.fallback
+      ? { title }
+      : { miss: "no_title" };
   } catch (err) {
     if (err instanceof MissionTitleTimeout) {
       abort.abort();
       console.warn(
         `[mission-title] no title within ${timeoutMs} ms for ${conversationId}; keeping the fallback`,
       );
-    } else {
-      console.error(
-        `[mission-title] title failed for ${conversationId}; keeping the fallback:`,
-        err instanceof Error ? err.message : String(err),
-      );
+      return { miss: "timeout" };
     }
-    return null;
+    console.error(
+      `[mission-title] title failed for ${conversationId}; keeping the fallback:`,
+      err instanceof Error ? err.message : String(err),
+    );
+    return { miss: "error" };
   } finally {
     if (timer) clearTimeout(timer);
   }
