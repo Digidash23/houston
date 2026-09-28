@@ -1,15 +1,14 @@
 import { SEED_AGENT_ID } from "@houston/fake-host";
 import { expect, test } from "./support/fixtures";
-import { openSkillsLibrary } from "./support/settings-nav";
 import { openAgentSkills } from "./support/skills-nav";
 import { screen } from "./support/team-nav";
 
 /**
  * A workspace-shared skill (ADR 0003) lives in the store, never on an agent:
  * an AI Employee LOADS it through its manifest, which is a reversible write
- * and never a copy. The library's editor is where a skill is put on every
- * employee; the employee's own scoped editor is where it is taken off again,
- * and a content edit from either side writes the ONE workspace copy.
+ * and never a copy. An employee's Skills section is where it is put on that
+ * employee ("Add an existing skill") and taken off again, and a content edit
+ * writes the ONE workspace copy.
  */
 
 const SKILL = {
@@ -19,7 +18,7 @@ const SKILL = {
     '---\nname: meeting-prep\ntitle: "Meeting prep"\ndescription: "Prep before meetings"\n---\n# Steps\n',
 };
 
-test("a workspace skill is enabled from the library and disabled from the employee", async ({
+test("a workspace skill is added to an employee and disabled again", async ({
   page,
   request,
   fakeHost,
@@ -32,23 +31,18 @@ test("a workspace skill is enabled from the library and disabled from the employ
 
   await page.goto("/");
 
-  // The library lists the store's skill before any employee loads it, and its
-  // editor's More actions menu is what puts it on them.
-  await openSkillsLibrary(page);
-  await screen(page)
-    .getByRole("button", { name: /^Meeting prep\b/ })
-    .click();
-  await screen(page)
-    .getByTestId("skill-editor")
-    .getByRole("button", { name: "More actions" })
-    .click();
-  await page
-    .getByRole("menuitem", { name: "Enable for all AI Employees" })
-    .click();
-
-  // The employee's own section now lists it, and its editor carries no
-  // cross-agent assignment — the section it stands in already answers that.
+  // The store's skill goes on the employee from its own section: a manifest
+  // write, never a copy.
   await openAgentSkills(page);
+  await screen(page).getByRole("button", { name: "Create skill" }).click();
+  await page.getByRole("menuitem", { name: "Add an existing skill" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Add Meeting prep" }).click();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+
+  // The section now lists it, and its editor carries no cross-agent
+  // assignment: the section it stands in already answers that.
   await screen(page)
     .getByRole("button", { name: /^Meeting prep\b/ })
     .click();
@@ -135,6 +129,53 @@ test("an employee's own version of a workspace skill goes only after a confirm t
     .getByRole("button", { name: "Disable for this AI Employee" })
     .click();
 
+  await expect(screen(page).getByTestId("skill-editor")).toHaveCount(0);
+  await expect(
+    screen(page).getByRole("button", { name: /^Meeting prep\b/ }),
+  ).toHaveCount(0);
+});
+
+test("a workspace skill is deleted for every employee from one employee's editor", async ({
+  page,
+  request,
+  fakeHost,
+}) => {
+  const stored = await request.post(
+    `${fakeHost.url}/v1/workspaces/default/shared-skills`,
+    { data: SKILL },
+  );
+  expect(stored.status()).toBe(201);
+
+  await page.goto("/");
+  await openAgentSkills(page);
+  await screen(page).getByRole("button", { name: "Create skill" }).click();
+  await page.getByRole("menuitem", { name: "Add an existing skill" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Add Meeting prep" }).click();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+
+  await screen(page)
+    .getByRole("button", { name: /^Meeting prep\b/ })
+    .click();
+  const editor = screen(page).getByTestId("skill-editor");
+  // The menu reads every employee's skills while it is open, then offers the
+  // acts that reach them all.
+  await editor.getByRole("button", { name: "More actions" }).click();
+  await page
+    .getByRole("menuitem", { name: "Delete for all AI Employees" })
+    .click();
+  const confirm = page.getByRole("alertdialog");
+  await expect(
+    confirm.getByText(
+      "This removes the skill from the workspace for every AI Employee.",
+      { exact: false },
+    ),
+  ).toBeVisible();
+  await confirm.getByRole("button", { name: "Delete" }).click();
+
+  // The skill is gone from the store, so the section's list no longer has it
+  // and there is nothing left to add back.
   await expect(screen(page).getByTestId("skill-editor")).toHaveCount(0);
   await expect(
     screen(page).getByRole("button", { name: /^Meeting prep\b/ }),

@@ -1,28 +1,31 @@
 import { Sheet, SheetContent, SheetTitle } from "@houston-ai/core";
-import { WorkspaceSwitcher } from "@houston-ai/layout";
-import { Building2, Settings } from "lucide-react";
+import { SidebarProfileMenu } from "@houston-ai/layout";
+import { Settings } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSurfaceGates } from "../../hooks/use-surface-gates";
 import { openAdmin } from "../../lib/open-admin";
-import {
-  ACADEMY_VIEW_ID,
-  ADMIN_VIEW_ID,
-  SETTINGS_VIEW_ID,
-} from "../../lib/top-level-views";
+import { ACADEMY_VIEW_ID, SETTINGS_VIEW_ID } from "../../lib/top-level-views";
 import { useUIStore } from "../../stores/ui";
-import { useWorkspaceStore } from "../../stores/workspaces";
-import { type MobileMoreRow, mobileMoreItems } from "./mobile-more-items";
+import type { MenuRow } from "./menu-row";
+import { mobileMoreItems } from "./mobile-more-items";
 import { MobileMoreBand, MobileMoreRowButton } from "./mobile-more-row";
 import { SidebarDialogs } from "./sidebar-dialogs";
-import { academyNavRow } from "./sidebar-nav-rows";
+import { academyNavRow, adminNavRow } from "./sidebar-nav-rows";
 import { useSidebarNavItems } from "./use-sidebar-nav-items";
 import { useSidebarNavigation } from "./use-sidebar-navigation";
+import {
+  useAccountFace,
+  useWorkspaceCreate,
+  WorkspaceSwitchItems,
+} from "./workspace-account";
 import { tourAnchor } from "./workspace-tour-steps";
 
 /**
- * The phone's "More": a floating card raised by the nav bar, holding the
- * workspace switcher and the long tail of destinations.
+ * The phone's "More": a floating card raised by the nav bar, headed by the
+ * account row (the same person-over-workspace row as the desktop rail's foot,
+ * whose menu switches or creates a workspace) and holding the long tail of
+ * destinations.
  *
  * A card and not a full bottom sheet, because it is a MENU: it answers "where
  * else can I go" and then gets out of the way, so it hovers over the bar that
@@ -35,8 +38,8 @@ import { tourAnchor } from "./workspace-tour-steps";
  * destination from the menu is a tab-level move, not a level pushed onto the
  * tree the user was in.
  *
- * The rail's footer cluster closes the list in the rail's own order: Academy,
- * Admin behind the org gate, then Settings.
+ * The runs follow the desktop menu's: Admin (behind the org gate) leads the
+ * workspace's tools, and the Academy and Settings close the list.
  */
 export function MobileMoreMenu() {
   const { t } = useTranslation(["shell", "common", "teams"]);
@@ -46,9 +49,9 @@ export function MobileMoreMenu() {
   const openSettings = useUIStore((s) => s.openSettings);
   const setViewMode = useUIStore((s) => s.setViewMode);
   const close = useCallback(() => setOpen(false), [setOpen]);
-  const workspaces = useWorkspaceStore((s) => s.workspaces);
-  const currentWorkspace = useWorkspaceStore((s) => s.current);
   const [createWsOpen, setCreateWsOpen] = useState(false);
+  const face = useAccountFace();
+  const create = useWorkspaceCreate(() => setCreateWsOpen(true));
 
   const { navSections } = useSidebarNavItems(t, close, { nav: "reset" });
   const groups = mobileMoreItems(navSections);
@@ -61,14 +64,11 @@ export function MobileMoreMenu() {
       close();
     },
   });
-  const admin: MobileMoreRow = {
-    id: ADMIN_VIEW_ID,
+  const admin = adminNavRow({
     label: t("shell:sidebar.admin"),
-    icon: <Building2 className="h-4 w-4" />,
-    onClick: () => openAdmin({ nav: "reset" }),
-    dataAttrs: { "data-testid": "rail-admin" },
-  };
-  const settings: MobileMoreRow = {
+    onOpen: () => openAdmin({ nav: "reset" }),
+  });
+  const settings: MenuRow = {
     id: SETTINGS_VIEW_ID,
     label: t("shell:sidebar.settings"),
     icon: <Settings className="h-4 w-4" />,
@@ -96,28 +96,29 @@ export function MobileMoreMenu() {
           <SheetTitle className="sr-only">
             {t("shell:moreMenu.title")}
           </SheetTitle>
-          <div className="min-w-0 pr-2">
-            <WorkspaceSwitcher
-              workspaces={workspaces}
-              currentId={currentWorkspace?.id ?? null}
-              currentName={
-                currentWorkspace?.name ?? t("shell:sidebar.selectWorkspace")
-              }
-              onSwitch={switchWorkspace}
-              onCreate={() => {
-                close();
-                setCreateWsOpen(true);
-              }}
-              collapsed={false}
-              createLabel={t("shell:sidebar.createWorkspace")}
-            />
+          <div className="pt-1">
+            <SidebarProfileMenu
+              avatar={face.avatar}
+              title={face.title}
+              subtitle={face.subtitle}
+              side="bottom"
+              dataAttrs={{ "data-testid": "more-account" }}
+            >
+              <WorkspaceSwitchItems
+                onSwitch={switchWorkspace}
+                createLabel={create.label}
+                onCreate={() => {
+                  // The create dialog stands on its own: the card steps aside.
+                  close();
+                  create.onCreate();
+                }}
+              />
+            </SidebarProfileMenu>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto pb-2">
-            {groups.map((group, index) => (
-              <div
-                key={group.id}
-                className={index === 0 ? undefined : "border-line border-t"}
-              >
+            {showOrganization && <MobileMoreRowButton row={admin} />}
+            {groups.map((group) => (
+              <div key={group.id}>
                 {group.label && <MobileMoreBand label={group.label} />}
                 {group.items.map((row) => (
                   <MobileMoreRowButton key={row.id} row={row} />
@@ -126,7 +127,6 @@ export function MobileMoreMenu() {
             ))}
             <div className="border-line border-t">
               <MobileMoreRowButton row={academy} />
-              {showOrganization && <MobileMoreRowButton row={admin} />}
               <MobileMoreRowButton row={settings} />
             </div>
           </div>
@@ -138,6 +138,7 @@ export function MobileMoreMenu() {
         createWorkspaceOpen={createWsOpen}
         onCreateWorkspaceOpenChange={setCreateWsOpen}
       />
+      {create.dialog}
     </>
   );
 }

@@ -11,7 +11,7 @@ describe("sidebar review wiring", () => {
     const rail = source("components/shell/sidebar-rail.tsx");
     const menu = source("components/shell/team-folder-menu.tsx");
     assert.match(sidebar, /ready: sidebar\.ready/);
-    assert.match(rail, /onArrange=\{ready \? onArrange : undefined\}/);
+    assert.match(rail, /onArrange=\{ready \? model\.onArrange : undefined\}/);
     assert.match(sidebar, /onArrange: sidebar\.arrange/);
     assert.equal(
       existsSync(

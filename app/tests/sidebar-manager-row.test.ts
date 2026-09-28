@@ -95,7 +95,7 @@ describe("the pinned Manager row", () => {
     assert.ok(SIDEBAR.includes("pinnedItems: manager.pinnedItems"));
     assert.ok(SIDEBAR.includes("selectedAgentId: manager.selectedId"));
     assert.ok(SIDEBAR.includes("onSelectAgent: manager.onSelect"));
-    assert.ok(RAIL.includes("pinnedItems={pinnedItems}"));
+    assert.ok(RAIL.includes("pinnedItems={model.pinnedItems}"));
   });
 });
 

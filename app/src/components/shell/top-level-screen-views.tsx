@@ -12,8 +12,6 @@ import { INTEGRATIONS_VIEW_ID, IntegrationsView } from "../integrations-view";
 import { OrganizationView } from "../organization";
 import { ADMIN_VIEW_ID } from "../organization/id";
 import { SettingsView } from "../settings/settings-view";
-import { SKILLS_VIEW_ID } from "../skills-view/id";
-import { SkillsPage } from "../skills-view/skills-page";
 import { AgentView } from "../team-view/agent-view";
 import type { KeepAliveView } from "./keep-alive-views";
 import { adminViewEnabled } from "./top-level-screen-plan";
@@ -24,10 +22,6 @@ import { adminViewEnabled } from "./top-level-screen-plan";
  * The Academy is ungated: learning the product exists in every deployment.
  * Settings carries personal setup sections (`lib/settings-sections.ts`).
  *
- * The shared Skills library is its own screen, gated like the rail row that
- * opens it: a skill edit reaches every agent in the space, so the surface
- * belongs to whoever owns it.
- *
  * Each employee's policy is reached through their own screen. Admin owns the
  * space's administration and follows the organization gate: it stays mounted
  * while that gate resolves so it can show a neutral frame. Employee screens
@@ -36,7 +30,6 @@ import { adminViewEnabled } from "./top-level-screen-plan";
  */
 export function topLevelScreenViews(gates: {
   showAiModels: boolean;
-  showSkills: boolean;
   showOrganization: boolean;
   ready: boolean;
 }): KeepAliveView[] {
@@ -57,7 +50,6 @@ export function topLevelScreenViews(gates: {
       enabled: true,
       content: <IntegrationsView />,
     },
-    { id: SKILLS_VIEW_ID, enabled: gates.showSkills, content: <SkillsPage /> },
     {
       id: ADMIN_VIEW_ID,
       enabled: adminViewEnabled(gates),

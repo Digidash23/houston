@@ -1,6 +1,6 @@
 # @houston-ai/layout
 
-App-level layout primitives: a sidebar for navigation, a workspace switcher, a split view for panels, and a tab bar. The Houston app mounts the sidebar family and the workspace switcher. `TabBar` and `SplitView` are library primitives exercised by their showcase specimens (`ui/showcase/specimens/areas/agents/`).
+App-level layout primitives: a sidebar of people, its account row, a split view for panels, and a tab bar. The Houston app mounts the sidebar family and the account row (the rail's foot and the head of the phone's More card). `TabBar` and `SplitView` are library primitives exercised by their showcase specimens (`ui/showcase/specimens/areas/agents/`).
 
 ## Install
 
@@ -15,12 +15,11 @@ import { AppSidebar, TabBar, SplitView } from "@houston-ai/layout"
 import "@houston-ai/layout/src/styles.css"
 
 <AppSidebar
-  logo={<Logo />}
-  items={projects}
+  headerActions={<SearchAndCreate />}
+  items={people}
   selectedId={activeId}
   onSelect={setActiveId}
-  onAdd={createProject}
-  labels={{ addItem: "Add project" }}
+  footer={<SidebarProfileMenu avatar={<Face />} title="Ada" subtitle="Acme">{menuItems}</SidebarProfileMenu>}
 />
 
 <TabBar
@@ -37,19 +36,15 @@ import "@houston-ai/layout/src/styles.css"
 
 Pass `groups` (even `[]`) and `order` to render the mixed drag-and-drop layout. `order` interleaves root items and groups; new root items lead and groups missing from `order` trail. Root items align with group headers. Only items inside a group use the child indent. Each group has one header row followed by its items, sharing the geometry in `src/sidebar-geometry.ts`.
 
-That ladder is not only the group blocks. **Every interactive line in the rail is one `SidebarRowButton`** -- the top-level nav destinations, the band that names the list, each group header, each agent, and the "New agent" row that closes it. The only two forks are the icon-only collapsed rail (a different anatomy, not a narrower row) and inline rename (the consumer swaps the row for a field). `tests/sidebar-row-anatomy.test.ts` asserts that every one of those modules goes through the component and that none of them restates its geometry.
+**Every interactive line in the rail's list is one `SidebarRowButton`**: each group header and each agent. The one fork is the icon-only collapsed rail (a different anatomy, not a narrower row). `tests/sidebar-row-anatomy.test.ts` asserts that both modules go through the component and that neither restates its geometry.
+
+The rail holds nothing but people. The host's verbs (search, create) sit on the top line (`headerActions`), and everything that is not a person lives behind the host's footer, typically `SidebarProfileMenu`.
 
 ```tsx
 <AppSidebar
   items={agents}
   selectedId={openAgentId}
   onSelect={openAgent}
-  // The band that names the list. Its LABEL is the collapse toggle; the
-  // action opens the creation menu.
-  sectionLabel="Your AI Employees"
-  sectionAction={<TeamsBandMenu />}
-  sectionCollapsed={bandCollapsed}
-  onToggleSectionCollapsed={toggleBand}
   order={layout.order}
   groups={layout.groups.map((group) => ({
     id: group.id,
@@ -65,10 +60,6 @@ That ladder is not only the group blocks. **Every interactive line in the rail i
   onActivateGroup={toggleGroupFold}
   // A drop hands over the whole arrangement the rail now shows.
   onArrange={saveArrangement}
-  // In grouped mode this renders as the row that CLOSES the list, not as an
-  // icon button: creating an agent is the rail's primary action.
-  onAdd={createAgent}
-  labels={{ addItem: "New agent" }}
 />
 ```
 
@@ -78,18 +69,17 @@ Each folder's collapsed flag is controlled and persisted by the host. Root items
 
 ## Exports
 
-- `AppSidebar` -- the navigation rail: agent list (flat or grouped into folders), nav items, header/footer slots, add, rename, delete, keyboard shortcuts, and optional labels for app-level i18n
-- `SidebarRowButton` -- **THE rail row.** A fixed 28px box, a 20px glyph column (a 16px Lucide mark or a 14px group mark), a truncating label, a `trailing` slot inside the button and an `affordance` slot beside it; `depth` picks the indent (`block` heads a block, `child` hangs under one), `active` paints the inset pill (drawn on a layer behind the content, so it can be inset without moving the glyph column) and sets `aria-current`, `band` drops it to the 12px type step for the row that names the list, `disclosure` turns it into a real `<button aria-expanded aria-controls>` with a small filled triangle after the label that rotates a quarter turn when it opens. Everything else in this list is a preset of it
-- Person rows -- every AI Employee row renders `SidebarRowButton` with `anatomy="person"`: a 44px row around a 32px portrait, the name over its `subtitle` (the item's role; an item with no `subtitle` keeps the height and centres its name). `sidebarPersonRow` holds that geometry
+- `AppSidebar` -- the rail: a top line (the collapse toggle and the host's `headerActions`), an optional full-width `headerBelow` notice, the list of people (flat or grouped into folders, `pinnedItems` first) and the host's `footer`; optional `labels` for app-level i18n
+- `SidebarRowButton` -- **THE rail row.** A fixed 28px box, a 20px glyph column (a 16px Lucide mark or a 14px group mark), a truncating label, a `trailing` slot inside the button and an `affordance` slot beside it; `depth` picks the indent (`block` heads a block, `child` hangs under one), `active` paints the pill (drawn on a layer behind the content, so it can be inset without moving the glyph column) and sets `aria-current`, `disclosure` turns it into a real `<button aria-expanded aria-controls>` with a small filled triangle after the label that rotates a quarter turn when it opens
+- Person rows -- every AI Employee row renders `SidebarRowButton` with `anatomy="person"`, laid out like a message list: a 64px row around a 40px portrait, the name in semibold over a muted `subtitle` of up to two lines, and the item's `trailing` badge at the end of that line. A hairline separates rows and drops away around a hovered or selected row. `sidebarPersonRow` holds that geometry
+- `SidebarProfileMenu` -- the account row: a person row (portrait, name, workspace) that opens a host-owned menu upward from the rail's foot, to the right from the icon rail, or wherever the host's `side` says (the phone's More card opens it downward)
 - `sidebarCollapsedItem` -- an AI Employee on the collapsed icon rail: a 36px square around a 24px avatar, so the avatar and its running ring (`sidebarRingClearance`) fit inside it, with the needs-you chip on the avatar's shoulder. The rail supplies the diameter through `SidebarAvatarDiameter`; a host's avatar reads it with `useSidebarAvatarDiameter()`, so one icon node serves both rails
-- `sidebarRowAffordanceClasses` -- the class string a row's trailing control wears (`...`, `+`), exported so a host mounting its own menu into `sectionAction` cannot drift from the ones the library draws
-- `SidebarSectionHeader` -- the band that names the list ("Your AI Employees"). Its label is itself the collapse toggle, with the disclosure triangle right after the words and one trailing `action` slot opposite; with no `onToggleCollapsed` it degrades to a plain label
-- `SidebarAddRow` -- the single "New agent" row after the mixed root list, wearing the top-level row geometry
+- `sidebarHeaderControlClasses` -- the class string the top line's controls wear (the collapse toggle, the host's search and create), exported so a host's actions match the toggle
+- `sidebarRowAffordanceClasses` -- the class string a row's trailing control wears (a group's `...`)
 - `SidebarGroupHeader` -- a block's header: ONE `<button aria-expanded>` carrying the glyph, the name, the disclosure triangle and an optional `trailing` rollup badge. The triangle is an INDICATOR: the whole row is the fold toggle, and `onActivate` reports the click so the host writes the new `collapsed` back
-- `SidebarGroupedList`, `SidebarFlatList`, `SidebarNavItem` -- the pieces `AppSidebar` composes, exported for hosts that assemble their own rail
+- `SidebarGroupedList`, `SidebarFlatList` -- the pieces `AppSidebar` composes, exported for hosts that assemble their own rail
 - `flattenSidebar`, `projectSidebarDrop`, `arrangementFromRows` -- the pure drag model: rows, where a drop lands, and the arrangement it stores
 - `computeSidebarSections` -- walks the mixed root order, fills in new items and missing groups, and renders only actual root entries
-- `WorkspaceSwitcher` -- the rail's top slot
 - `TabBar` -- horizontal tab strip with badges and action slots. Its consumer is the showcase specimen (`ui/showcase/specimens/areas/agents/tab-bar.tsx`)
 - `SplitView` -- two-pane layout with resizable divider
 - `ResizablePanelGroup`, `ResizablePanel`, `ResizableHandle` -- lower-level resizable primitives

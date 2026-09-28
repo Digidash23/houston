@@ -7,6 +7,7 @@ import type { Agent } from "../../lib/types";
 import { useUIStore } from "../../stores/ui";
 import type { AgentItemArgs } from "./agent-sidebar-items";
 import { buildTeamSidebarLists } from "./team-sidebar-lists";
+import { useFirstDayInvites } from "./use-first-day-invites";
 import {
   type TeamActivateHandlers,
   useTeamActivate,
@@ -37,6 +38,7 @@ export function useSidebarTeamsModel(args: {
   const activeAgentId = useUIStore((s) => s.activeAgentId);
 
   const teams = useTeams();
+  const invites = useFirstDayInvites(agents, args.summaries);
   const selectedAgentId =
     viewMode === "agent" && agents.some((agent) => agent.id === activeAgentId)
       ? activeAgentId
@@ -54,6 +56,8 @@ export function useSidebarTeamsModel(args: {
     summaries: args.summaries,
     runningLabel: (count) => t("shell:sidebar.runningCount", { count }),
     needsYouLabel: (count) => t("shell:sidebar.needsYouCount", { count }),
+    newLabel: t("shell:sidebar.newAgent"),
+    invitesFirstDay: (agent) => invites.has(agent.id),
   });
 
   return {

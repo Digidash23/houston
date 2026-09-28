@@ -1,5 +1,9 @@
 import { isSetupChatMode } from "../../lib/integration-chat-setup.ts";
 import type { UnreadConversationInput } from "../../lib/unread-model.ts";
+import {
+  createHeadlineTracker,
+  type MissionHeadline,
+} from "./mission-headline-model.ts";
 
 export interface AgentActivitySummaryInput {
   id: string;
@@ -15,11 +19,32 @@ export interface AgentActivitySummaryInput {
 export interface ActivityConversationSummaryInput
   extends UnreadConversationInput {
   status?: string | null;
+  title?: string;
 }
+
+/**
+ * Whether the agent has ever been given work, as far as this session KNOWS.
+ *
+ * `none` is only ever a confirmed answer: the agent's slice was read in full
+ * this session (`sliceCoverage`) and held no task at all. Anything short of
+ * that (cold boot, a pod still waking, a failed read) is `unknown`, so a
+ * veteran employee is never shown as brand new while its tasks load.
+ */
+export type WorkHistory = "unknown" | "none" | "some";
 
 export interface AgentActivitySummary {
   needsYouCount: number;
   runningCount: number;
+  /** What the row leads with (`mission-headline-model.ts`); null until the
+   *  agent has a live (non-archived, titled) mission. */
+  headline: MissionHeadline | null;
+  history: WorkHistory;
+}
+
+/** Any task row, archived and setup chats included, is work already begun. */
+function historyOf(rowCount: number, wasRead: boolean): WorkHistory {
+  if (rowCount > 0) return "some";
+  return wasRead ? "none" : "unknown";
 }
 
 /** What a TEAM's header says on behalf of the agent rows folded under it. */
@@ -63,6 +88,8 @@ export interface ActivitySummaryInput {
   status?: string | null;
   /** Agent-mode id; routine-setup chats never count toward badges. */
   agent?: string | null;
+  title?: string;
+  updated_at?: string;
 }
 
 /**
@@ -74,56 +101,78 @@ export interface ActivitySummaryInput {
  */
 export function summarizeActivities(
   activities: ActivitySummaryInput[],
+  /** Whether this agent's slice was read in full this session. */
+  wasRead: boolean,
 ): AgentActivitySummary {
   const summary: AgentActivitySummary = {
     needsYouCount: 0,
     runningCount: 0,
+    headline: null,
+    history: historyOf(activities.length, wasRead),
   };
+  const headline = createHeadlineTracker();
   for (const activity of activities) {
     if (isSetupChatMode(activity.agent)) continue;
+    headline.note(activity);
     if (activity.status === "needs_you") {
       summary.needsYouCount += 1;
     } else if (activity.status === "running") {
       summary.runningCount += 1;
     }
   }
+  summary.headline = headline.headline();
   return summary;
 }
 
-/**
- * The sidebar's per-agent badge numbers.
- *
- */
+/** The sidebar's per-agent badge numbers and the mission each row names. */
 export function buildAgentActivitySummaries(
   agents: AgentActivitySummaryInput[],
   conversations: ActivityConversationSummaryInput[],
+  /** Whether an agent's slice was read in full this session. */
+  wasRead: (agentPath: string) => boolean,
 ): Record<string, AgentActivitySummary> {
   const summaries: Record<string, AgentActivitySummary> = {};
   const agentIdByPath = new Map<string, string>();
+  const taskRows = new Map<string, number>();
+  const headlines = new Map<string, ReturnType<typeof createHeadlineTracker>>();
 
   for (const agent of agents) {
     summaries[agent.id] = {
       needsYouCount: 0,
       runningCount: 0,
+      headline: null,
+      history: "unknown",
     };
     agentIdByPath.set(agent.folderPath, agent.id);
+    headlines.set(agent.id, createHeadlineTracker());
   }
 
   for (const conversation of conversations) {
     if (conversation.type !== "activity") continue;
-    if (isSetupChatMode(conversation.agent)) continue;
-
     const agentId = agentIdByPath.get(conversation.agent_path);
     if (!agentId) continue;
+    taskRows.set(agentId, (taskRows.get(agentId) ?? 0) + 1);
+    if (isSetupChatMode(conversation.agent)) continue;
 
     const summary = summaries[agentId];
     if (!summary) continue;
 
+    headlines.get(agentId)?.note(conversation);
     if (conversation.status === "needs_you") {
       summary.needsYouCount += 1;
     } else if (conversation.status === "running") {
       summary.runningCount += 1;
     }
+  }
+
+  for (const agent of agents) {
+    const summary = summaries[agent.id];
+    if (!summary) continue;
+    summary.headline = headlines.get(agent.id)?.headline() ?? null;
+    summary.history = historyOf(
+      taskRows.get(agent.id) ?? 0,
+      wasRead(agent.folderPath),
+    );
   }
 
   return summaries;

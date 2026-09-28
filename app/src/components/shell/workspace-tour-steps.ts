@@ -4,11 +4,13 @@
  * A caller names one of these and builds its selector with `tourSelector`,
  * never a hand-written string, so a typo is a compile error instead of a
  * spotlight that silently finds nothing. Every name here is rendered by a real
- * element: `sidebar-nav-sections.tsx` and `sidebar-nav-rows.tsx` (the rail's
- * nav rows, Skills and the Academy included, which the phone's More menu
- * draws too), `sidebar-chrome.tsx`
- * (the space switcher), `sidebar-rail.tsx` (`newAgent`), `sidebar-footer.tsx`
- * (`nav-settings`), `@houston-ai/layout`'s sidebar (`agents`),
+ * element: `sidebar-nav-sections.tsx` and `sidebar-nav-rows.tsx` (the
+ * workspace menu's destinations, the Academy included, which the
+ * phone's More menu draws too), `sidebar-workspace-menu.tsx`
+ * (`workspaceMenu`, the trigger at the rail's foot),
+ * `sidebar-workspace-menu-items.tsx` and `mobile-more-menu.tsx`
+ * (`nav-settings`), `sidebar-header-actions.tsx` (`newAgent`, the rail's "+"),
+ * `@houston-ai/layout`'s sidebar (`agents`),
  * `workspace-shell.tsx` (`main`), `new-mission-button.tsx` (`newMission` on
  * desktop), `agents-home-list.tsx` (`newAgent` again, the phone's own create
  * control), and `mobile-nav-bar.tsx` (`newMission` again — the round compose
@@ -24,14 +26,13 @@
  * shell by them.
  */
 export const TOUR_TARGETS = [
-  "spaceSwitcher",
+  "workspaceMenu",
   "agents",
   "main",
   "newMission",
   "nav-integrations",
   "nav-ai-hub",
   "nav-settings",
-  "nav-skills",
   "nav-academy",
   "newAgent",
   "mobileMenu",

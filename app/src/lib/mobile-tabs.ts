@@ -5,8 +5,8 @@
  * The bar is a Linear-style floating pill with two entries, AI Employees and
  * More, plus a separate round compose button. AI Employees is a TREE: it roots
  * on the employee list and holds every employee drill-in below it. More is a
- * MENU over the shell (the workspace switcher, the long tail of destinations,
- * help), so it lights for every location the tree does not own rather than
+ * MENU over the shell (the account row, the long tail of destinations), so it
+ * lights for every location the tree does not own rather than
  * naming a screen of its own.
  *
  * Pure and store-free so the rule is unit-tested (`app/tests/mobile-tabs.

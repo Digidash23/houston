@@ -31,20 +31,19 @@ export interface SurfaceGates {
    */
   showWorkspaceDanger: boolean;
   /**
+   * The skill acts that reach EVERY employee from one employee's skill editor
+   * (Share to workspace, Enable for all, Delete for all). A skill in the store
+   * is what every agent in the space can do, so editing it for everyone
+   * belongs to whoever OWNS the space (`isSpaceOwner`), not to the manager of
+   * one employee. The gateway is the enforcer; a hidden act is the whole of
+   * the claim being made here.
+   */
+  manageWorkspaceSkills: boolean;
+  /**
    * The AI Models hub holds each caller's connected accounts and usage
    * (HOU-789). Every caller can reach their own accounts.
    */
   showAiModels: boolean;
-  /**
-   * The shared Skills library: its rail row and the screen behind it. Skills
-   * are what every agent in the space can do, so editing them edits everyone's
-   * agents at once: that belongs to whoever OWNS the space (`isSpaceOwner`),
-   * not to the manager who runs it and not to a member who uses it. A caller
-   * without it has no row and no screen, and a `viewMode` left on the library
-   * when the gate closes goes home (`blockedTopLevelView`). The gateway is the
-   * enforcer; a hidden row is the whole of the claim being made here.
-   */
-  showSkills: boolean;
   /**
    * The AI Manager, the rail's lead row and a screen of its own. Not a role
    * gate: it asks whether this deployment HOLDS an assistant at all
@@ -95,7 +94,10 @@ export function surfaceGatesFor(inputs: SurfaceGateInputs): SurfaceGates {
       isTeam &&
       canDeleteWorkspace(capabilities),
     showAiModels: canSeeAiModelsPage(capabilities),
-    showSkills: isSpaceOwner(capabilities, isTeam),
+    // Unanswered capabilities read as single player, which owns everything:
+    // nothing until the deployment has said who owns this space.
+    manageWorkspaceSkills:
+      !capabilitiesLoading && isSpaceOwner(capabilities, isTeam),
     showAssistant: !assistant.unavailable,
     // Discovery stays OUT of `ready`: an unanswered discovery keeps
     // `showAssistant` true, so the guard has nothing to bounce, and a slow or

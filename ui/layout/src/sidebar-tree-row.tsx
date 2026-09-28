@@ -5,6 +5,7 @@ import type { KeyboardEvent } from "react";
 import { SidebarGroupHeader } from "./sidebar-group-header";
 import type { SidebarGroupView } from "./sidebar-groups";
 import { SidebarItemRow } from "./sidebar-item-row";
+import { sidebarRowNeighbour } from "./sidebar-paint";
 import type { SidebarItem } from "./sidebar-props";
 import type { SidebarRowContext } from "./sidebar-row-context";
 import {
@@ -85,6 +86,7 @@ export function SidebarTreeRowView({
   return (
     <div
       ref={sortable.setNodeRef}
+      data-sidebar-row=""
       data-sidebar-item={row.kind === "agent" ? "" : undefined}
       data-item-id={row.kind === "agent" ? row.id : undefined}
       data-sidebar-member-of={member ? row.parentId : undefined}
@@ -95,6 +97,7 @@ export function SidebarTreeRowView({
       }}
       className={cn(
         "relative touch-manipulation",
+        sidebarRowNeighbour,
         member && "sidebar-disclosure-in",
         sortable.isDragging && "opacity-40",
       )}

@@ -7,8 +7,8 @@ import {
   expectTeamSections,
   openAgentScreen,
   openAgentSettings,
-  rail,
 } from "./support/team-nav";
+import { workspaceMenuTrigger } from "./support/workspace-menu";
 
 /**
  * Agent POLICY: who may use an agent, and what the agent itself may reach.
@@ -423,7 +423,7 @@ test("a plain member cannot reach the agent settings page at all", async ({
     },
   });
   await page.goto("/");
-  await expect(rail(page).getByText("Your AI Employees")).toBeVisible();
+  await expect(workspaceMenuTrigger(page)).toBeVisible();
 
   // The employee's WORK is theirs — Tasks, Routines, Files — but the one section
   // that CONFIGURES is not, and the agent settings page has no other door:

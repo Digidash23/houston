@@ -1,44 +1,37 @@
 import { cn, ScrollArea } from "@houston-ai/core";
-import { SidebarBand } from "./sidebar-band";
 import { SidebarFlatList } from "./sidebar-flat-list";
 import {
-  sidebarBandInset,
   sidebarCollapsedWidth,
   sidebarExpandedWidth,
+  sidebarRailInset,
   sidebarWindowControlsWidth,
 } from "./sidebar-geometry";
 import { SidebarGroupedList } from "./sidebar-grouped-list";
 import { SidebarHeader } from "./sidebar-header";
 import { DEFAULT_SIDEBAR_LABELS } from "./sidebar-labels";
+import { sidebarPinnedNeighbour } from "./sidebar-paint";
 import { SidebarPinnedList } from "./sidebar-pinned-list";
 import type { SidebarProps } from "./sidebar-props";
-import { SidebarNavList } from "./sidebar-rail-chrome";
 import type { SidebarBaseRowContext } from "./sidebar-row-context";
 
 export type { SidebarLabels } from "./sidebar-labels";
-export type {
-  SidebarItem,
-  SidebarNavItemEntry,
-  SidebarNavSection,
-  SidebarProps,
-} from "./sidebar-props";
+export type { SidebarItem, SidebarProps } from "./sidebar-props";
 
+/**
+ * The rail: a top line (the collapse toggle and the host's verbs), an optional
+ * full-width notice under it, the list of people, and the host's footer.
+ *
+ * The list is the rail's only content: pinned rows first, outside the scroll
+ * box so scrolling never takes them away, then the grouped (or flat) list.
+ * Everything that is not a person lives in the host's footer.
+ */
 export function AppSidebar({
-  logo,
-  header,
+  headerActions,
   headerBelow,
-  navSections,
-  activeNavId,
   items,
   pinnedItems = [],
   selectedId,
   onSelect,
-  onAdd,
-  addItemDataAttrs,
-  sectionLabel,
-  sectionAction,
-  sectionCollapsed = false,
-  onToggleSectionCollapsed,
   groups,
   order,
   onActivateGroup,
@@ -52,51 +45,13 @@ export function AppSidebar({
 }: SidebarProps) {
   const l = { ...DEFAULT_SIDEBAR_LABELS, ...labels };
   const grouped = !collapsed && groups !== undefined;
-  // Folding is an EXPANDED-rail idea and `SidebarBand` owns it: the band
-  // only exists when `!collapsed`, so the icon rail can never inherit a hidden
-  // list — it renders `list` bare, with every row reachable.
-
   const baseRowCtx: SidebarBaseRowContext = { selectedId, onSelect };
 
-  /* The rail's one list, on the SHARED band inset so its rows sit on the nav
-     bands' left edge. Its own const because the band wraps it when there is a
-     heading and the icon rail renders it bare, so a swap never remounts it. */
-  const listInset = collapsed ? "px-2 pt-2" : sidebarBandInset;
-  // Pinned rows sit on the list's inset but outside its scroll box and the
-  // band's fold: folding the list, or scrolling it, never takes them away.
+  // Pinned rows sit on the list's inset but outside its scroll box.
   const pinned = !collapsed && pinnedItems.length > 0 && (
-    <div className={cn("shrink-0", sidebarBandInset)}>
+    <div className={cn("shrink-0", sidebarRailInset, sidebarPinnedNeighbour)}>
       <SidebarPinnedList items={pinnedItems} ctx={baseRowCtx} />
     </div>
-  );
-  const list = (
-    <ScrollArea className={cn("min-h-0 flex-1", listInset)}>
-      {grouped ? (
-        <div className="sidebar-disclosure-in">
-          <SidebarGroupedList
-            items={items}
-            groups={groups}
-            order={order}
-            onActivateGroup={onActivateGroup}
-            onArrange={onArrange}
-            onAdd={onAdd}
-            addItemLabel={l.addItem}
-            addItemDataAttrs={addItemDataAttrs}
-            rowCtx={baseRowCtx}
-            labels={l}
-          />
-        </div>
-      ) : (
-        <SidebarFlatList
-          items={collapsed ? [...pinnedItems, ...items] : items}
-          collapsed={collapsed}
-          ctx={baseRowCtx}
-          onAdd={onAdd}
-          addItemLabel={l.addItem}
-          addItemDataAttrs={addItemDataAttrs}
-        />
-      )}
-    </ScrollArea>
   );
 
   return (
@@ -114,59 +69,49 @@ export function AppSidebar({
         )}
       >
         <SidebarHeader
+          actions={headerActions}
           collapsed={collapsed}
           windowControlsInset={windowControlsInset}
           collapseLabel={l.collapseSidebar}
           expandLabel={l.expandSidebar}
           onToggleCollapsed={onToggleCollapsed}
-        >
-          {header}
-        </SidebarHeader>
+        />
 
         {headerBelow}
 
-        {logo && !header && !collapsed && (
-          <div className="flex items-center justify-between px-4 pt-4 pb-2">
-            <div className="flex items-center gap-2">{logo}</div>
-          </div>
-        )}
-
-        {navSections && navSections.length > 0 && (
-          <SidebarNavList
-            navSections={navSections}
-            activeNavId={activeNavId}
-            collapsed={collapsed}
-          />
-        )}
-
-        {/* The list and the band that names it, wrapped so the tour can
-            spotlight just this region. */}
+        {/* Wrapped so the tour can spotlight just the list. */}
         <div data-tour-target="agents" className="flex min-h-0 flex-1 flex-col">
-          {sectionLabel && !collapsed ? (
-            /* The host's section band is the SAME `SidebarBand` as the nav runs above
-               it — one band component for the whole rail. It is the only one
-               that carries an affordance (the "+" that creates) and the only
-               one whose content is a scroll box, hence the sizing classes. */
-            <SidebarBand
-              label={sectionLabel}
-              collapsed={sectionCollapsed}
-              onToggleCollapsed={onToggleSectionCollapsed}
-              affordance={sectionAction}
-              lead={pinned}
-              contentClassName="flex min-h-0 flex-1 flex-col"
-            >
-              {list}
-            </SidebarBand>
-          ) : (
-            <>
-              {pinned}
-              {list}
-            </>
-          )}
+          {pinned}
+          <ScrollArea
+            className={cn(
+              "min-h-0 flex-1",
+              collapsed ? "px-2 pt-2" : sidebarRailInset,
+            )}
+          >
+            {grouped ? (
+              <div className="sidebar-disclosure-in">
+                <SidebarGroupedList
+                  items={items}
+                  groups={groups}
+                  order={order}
+                  onActivateGroup={onActivateGroup}
+                  onArrange={onArrange}
+                  rowCtx={baseRowCtx}
+                  labels={l}
+                />
+              </div>
+            ) : (
+              <SidebarFlatList
+                items={collapsed ? [...pinnedItems, ...items] : items}
+                collapsed={collapsed}
+                ctx={baseRowCtx}
+              />
+            )}
+          </ScrollArea>
         </div>
 
         {/* shrink-0 so a short window squeezes the scrollable list, never the
-            footer row. */}
+            footer. */}
         {footer && <div className="shrink-0">{footer}</div>}
       </aside>
 

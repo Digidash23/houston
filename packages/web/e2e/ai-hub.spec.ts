@@ -1,6 +1,7 @@
 import { FAKE_HOST_URL } from "@houston/fake-host";
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
+import { openNavRow } from "./support/workspace-menu";
 
 /**
  * The AI models hub, end to end against the fake host — now in the shared
@@ -24,8 +25,8 @@ test("opens the AI hub, browses providers and models via modals", async ({
 }) => {
   await page.goto("/");
 
-  // The sidebar carries the top-level item. Opening it lands on the hub.
-  await page.getByRole("button", { name: "AI models" }).click();
+  // The workspace menu carries the destination. Opening it lands on the hub.
+  await openNavRow(page, "ai-hub");
 
   // Scoped to the header nav: the sidebar row shares the "AI Models" name.
   const headerNav = page.getByRole("navigation", {
@@ -126,10 +127,10 @@ function connectedRow(page: Page): { body: Locator; root: Locator } {
   return { body, root: body.locator("xpath=../..") };
 }
 
-/** Open the AI models hub from the sidebar. */
+/** Open the AI models hub from the workspace menu. */
 async function openHub(page: Page): Promise<void> {
   await page.goto("/");
-  await page.getByRole("button", { name: "AI models" }).click();
+  await openNavRow(page, "ai-hub");
 }
 
 /**

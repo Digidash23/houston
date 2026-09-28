@@ -1,20 +1,17 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import {
-  type MobileMoreGroup,
-  mobileMoreItems,
-} from "../src/components/shell/mobile-more-items.ts";
+import type { MenuSection } from "../src/components/shell/menu-row.ts";
+import { mobileMoreItems } from "../src/components/shell/mobile-more-items.ts";
 
-// The phone More menu's model: the rail's own destination runs, minus the
-// ones a gate emptied. The rail composes ONE
-// unlabelled run today; the mapper mirrors the library's section shape, bands
-// and all, so the menu draws whatever the rail hands it.
+// The phone More menu's model: the shared destination runs, minus the ones a
+// gate emptied. One unlabelled run is composed today; the mapper keeps labels
+// so the menu draws whatever runs it is handed.
 
 const requireSource = (rel: string) =>
   readFileSync(new URL(rel, import.meta.url), "utf8");
 
-const row = (id: string): MobileMoreGroup["items"][number] => ({
+const row = (id: string): MenuSection["items"][number] => ({
   id,
   label: id,
   icon: null,
@@ -63,7 +60,9 @@ describe("mobile More screen rows", () => {
         "{showOrganization && <MobileMoreRowButton row={admin} />}",
       ),
     );
-    assert.ok(source.includes('"data-testid": "rail-admin"'));
+    assert.ok(source.includes("adminNavRow({"), "the rail's own Admin row");
+    const rows = requireSource("../src/components/shell/sidebar-nav-rows.tsx");
+    assert.ok(rows.includes('dataAttrs: { "data-testid": "rail-admin" }'));
     assert.ok(!source.includes("mobileMoreFooterRows"));
     assert.ok(!source.includes("moreMenu.help"));
   });

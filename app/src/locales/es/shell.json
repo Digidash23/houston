@@ -44,7 +44,6 @@
     "runningCount_other": "{{count}} asuntos en curso",
     "selectWorkspace": "Elige un espacio de trabajo",
     "settings": "Configuración",
-    "skills": "Skills",
     "teams": {
       "identity": "Ícono y color",
       "identityIcons": "Íconos",
@@ -394,7 +393,10 @@
       "work": "trabajo",
       "writing": "escritura redacción"
     },
-    "employeesSection": "Tus empleados de IA"
+    "search": "Buscar",
+    "firstDay": "Empieza su primer día",
+    "working": "Trabajando…",
+    "newAgent": "Nuevo"
   },
   "missionChat": {
     "back": "Atrás"

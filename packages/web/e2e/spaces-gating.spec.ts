@@ -6,10 +6,9 @@ import {
   expectAdminSections,
   openAdmin,
   openAdminSection,
-  openSkillsLibrary,
-  skillsRow,
 } from "./support/settings-nav";
-import { navRow, screen } from "./support/team-nav";
+
+import { workspaceMenuTrigger } from "./support/workspace-menu";
 
 /**
  * C8 Spaces gating (HOU-824 / HOU-878): when the host advertises
@@ -66,23 +65,22 @@ async function armTeamWorkspace(request: APIRequestContext): Promise<void> {
   });
 }
 
-/** A rail row that is ALWAYS present, whatever the gates say: the anchor that
- *  keeps an absence assertion from passing on an unpainted rail. */
+/** A rail control that is ALWAYS present, whatever the gates say: the anchor
+ *  that keeps an absence assertion from passing on an unpainted rail. */
 const railPainted = (page: Page) =>
-  expect(navRow(page, "settings")).toBeVisible();
+  expect(workspaceMenuTrigger(page)).toBeVisible();
 
 /**
- * Open the workspace switcher and switch to the named space through the REAL
- * switcher UI (the same DropdownMenu the shell renders), then wait for the
- * switcher itself to name the new space — the switch drops the query cache and
- * re-establishes the event stream, so the assertions must not start until it has
- * settled.
+ * Switch to the named space through the REAL account row at the rail's foot
+ * (the same DropdownMenu the shell renders), then wait for the row itself to
+ * name the new space: the switch drops the query cache and re-establishes the
+ * event stream, so the assertions must not start until it has settled.
  */
 async function switchToSpace(page: Page, name: string): Promise<void> {
-  const switcher = page.locator('[data-tour-target="spaceSwitcher"]');
-  await switcher.locator("button").first().click();
-  await page.getByRole("menuitem", { name }).click();
-  await expect(switcher.getByText(name, { exact: true })).toBeVisible();
+  const trigger = workspaceMenuTrigger(page);
+  await trigger.click();
+  await page.getByRole("menuitemcheckbox", { name }).click();
+  await expect(trigger.getByText(name, { exact: true })).toBeVisible();
 }
 
 test("spaces host, personal space: Admin drops People", async ({
@@ -170,54 +168,6 @@ test("team space: inviting a fresh email through Admin > People renders a pendin
   // Exact: the "Invitation sent to <email>…" confirmation also contains the
   // address; the exact-text node is the pending-invite ROW.
   await expect(page.getByText(email, { exact: true })).toBeVisible();
-});
-
-/**
- * The rail's Skills row is the same question asked of a different surface:
- * skills are what every agent in the space can do, so editing them edits
- * everyone's agents at once and that belongs to whoever OWNS the space
- * (`isSpaceOwner`). A personal space has single-player semantics, so its one
- * human owns it whatever their org role reads.
- */
-test("Skills belongs to the space owner: a Manager loses it in a team space", async ({
-  page,
-  request,
-}) => {
-  await armCapabilities(request, { ...SPACES_OWNER_CAPS, role: "admin" });
-  await armTeamWorkspace(request);
-  await page.goto("/");
-
-  // Personal space first: single-player semantics, so the row is theirs.
-  await expect(skillsRow(page)).toBeVisible();
-
-  await switchToSpace(page, TEAM.name);
-
-  // In the team space an admin runs the place but does not own it, so the row
-  // goes. The Integrations row stays — it is everyone's — which is what makes
-  // the absence a gate rather than an unpainted rail.
-  await expect(skillsRow(page)).toHaveCount(0);
-  await expect(navRow(page, "integrations")).toBeVisible();
-
-  // And it really is about OWNERSHIP, not about being junior: the same caller
-  // still reaches the owner/admin dashboard through its rail row.
-  await openAdmin(page);
-});
-
-test("the space owner keeps Skills in their team space", async ({
-  page,
-  request,
-}) => {
-  await armCapabilities(request, SPACES_OWNER_CAPS);
-  await armTeamWorkspace(request);
-  await page.goto("/");
-  await expect(skillsRow(page)).toBeVisible();
-
-  await switchToSpace(page, TEAM.name);
-  await openSkillsLibrary(page);
-  // The library itself, under the screen's own header strip.
-  await expect(
-    screen(page).getByRole("button", { name: "Create skill" }),
-  ).toBeVisible();
 });
 
 test("switching back to the personal space keeps Admin reachable", async ({

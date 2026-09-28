@@ -1,18 +1,8 @@
-import {
-  AppSidebar,
-  type SidebarRootEntry,
-  WorkspaceSwitcher,
-} from "@houston-ai/layout";
+import { AppSidebar, type SidebarRootEntry } from "@houston-ai/layout";
 import { useState } from "react";
 
-import { BlockRollup, CreateBandMenu, UpdateNotice } from "./app-sidebar-stage";
-import {
-  agentGroups,
-  agentItems,
-  navEntries,
-  TeamIcon,
-  workspaces,
-} from "./sample";
+import { BlockRollup, RailActions, RailFoot } from "./app-sidebar-stage";
+import { agentGroups, agentItems, TeamIcon } from "./sample";
 
 export interface LiveSidebarProps {
   /** Pass `groups` and the drag-and-drop grouped layout replaces the flat list. */
@@ -21,7 +11,7 @@ export interface LiveSidebarProps {
   teams?: boolean;
   /** Start as the 56px icon rail. The toggle stays live either way. */
   startCollapsed?: boolean;
-  /** The full shell chrome: workspace switcher header, nav items, footer. */
+  /** The full shell chrome: the top line's verbs and the account foot. */
   chrome?: boolean;
   /** Reserve a top row for host window controls. */
   windowControlsInset?: boolean;
@@ -31,8 +21,8 @@ export interface LiveSidebarProps {
 
 /**
  * `AppSidebar` wired the way a host wires it: every callback moves real state,
- * so selecting, folding a group, folding the whole band and dragging agents and
- * groups anywhere in the rail all behave here exactly as in the product.
+ * so selecting, folding a group and dragging agents and groups anywhere in the
+ * rail all behave here exactly as in the product.
  *
  * `onActivateGroup` FOLDS here, as it does in Houston's own rail. The library
  * takes no position: what activating a group heading does is the host's rule.
@@ -50,13 +40,7 @@ export function LiveSidebar({
   const [selectedId, setSelectedId] = useState<string | null>(
     initialSelectedId,
   );
-  const [activeNavId, setActiveNavId] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(startCollapsed);
-  const [workspaceId, setWorkspaceId] = useState("personal");
-  const [sectionCollapsed, setSectionCollapsed] = useState(false);
-
-  const current =
-    workspaces.find((one) => one.id === workspaceId) ?? workspaces[0];
 
   /**
    * Does this block hold the open view? Its HEADER paints active either way:
@@ -71,40 +55,7 @@ export function LiveSidebar({
       windowControlsInset={windowControlsInset}
       collapsed={collapsed}
       onToggleCollapsed={() => setCollapsed((on) => !on)}
-      header={
-        chrome ? (
-          <WorkspaceSwitcher
-            workspaces={[...workspaces]}
-            currentId={current.id}
-            currentName={current.name}
-            onSwitch={setWorkspaceId}
-            onCreate={() => setWorkspaceId("personal")}
-            collapsed={collapsed}
-            compactTop={windowControlsInset || collapsed}
-          />
-        ) : undefined
-      }
-      navSections={
-        chrome
-          ? [
-              {
-                id: "nav",
-                items: navEntries.map((entry) => ({
-                  id: entry.id,
-                  label: entry.label,
-                  icon: <entry.icon className="size-4" />,
-                  onClick: () => setActiveNavId(entry.id),
-                })),
-              },
-            ]
-          : undefined
-      }
-      activeNavId={activeNavId}
-      sectionLabel={teams ? "Your AI Employees" : "Your agents"}
-      sectionAction={teams ? <CreateBandMenu /> : undefined}
-      sectionCollapsed={sectionCollapsed}
-      onToggleSectionCollapsed={() => setSectionCollapsed((on) => !on)}
-      labels={{ addItem: "New agent" }}
+      headerActions={chrome ? <RailActions collapsed={collapsed} /> : undefined}
       items={agentItems}
       order={order}
       groups={
@@ -132,7 +83,6 @@ export function LiveSidebar({
       }
       selectedId={selectedId}
       onSelect={setSelectedId}
-      onAdd={() => setSelectedId(null)}
       onActivateGroup={(id) =>
         setGroups((all) =>
           all.map((group) =>
@@ -150,7 +100,7 @@ export function LiveSidebar({
         );
         return true;
       }}
-      footer={chrome ? <UpdateNotice /> : undefined}
+      footer={chrome ? <RailFoot collapsed={collapsed} /> : undefined}
     />
   );
 }

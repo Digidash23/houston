@@ -57,12 +57,11 @@ export function WorkspaceShell({
   const [panelContainer, setPanelContainer] = useState<HTMLDivElement | null>(
     null,
   );
-  // The top-level screen gates. The AI Models hub admits every caller;
-  // `showSkills` limits the shared library to the space owner,
+  // The top-level screen gates. `showAiModels` gates the AI Models hub,
   // `showOrganization` admits Admin, and `showAssistant` depends on assistant
   // discovery. `ready` says when the guarded views can redirect without
   // bouncing a user during loading.
-  const { showAiModels, showAssistant, showSkills, showOrganization, ready } =
+  const { showAiModels, showAssistant, showOrganization, ready } =
     useSurfaceGates();
   // Keying the kept-alive set by workspace drops every cached screen when the
   // user switches workspace/space: their contents are workspace-scoped.
@@ -71,7 +70,6 @@ export function WorkspaceShell({
   const landing = useWorkspaceViewGuards({
     showAiModels,
     showAssistant,
-    showSkills,
     showOrganization,
     ready,
   });
@@ -132,7 +130,6 @@ export function WorkspaceShell({
                       activeId={viewMode}
                       views={topLevelScreenViews({
                         showAiModels,
-                        showSkills,
                         showOrganization,
                         ready,
                       })}

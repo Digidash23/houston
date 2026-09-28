@@ -160,7 +160,7 @@ const gates = (over: Partial<SurfaceGates> = {}): SurfaceGates => ({
   showBilling: true,
   showWorkspaceDanger: true,
   showAiModels: true,
-  showSkills: true,
+  manageWorkspaceSkills: true,
   showAssistant: true,
   ready: true,
   ...over,

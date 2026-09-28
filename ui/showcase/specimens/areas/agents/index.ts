@@ -2,15 +2,14 @@ import type { Specimen } from "../../../src/specimen";
 import { specimen as appSidebar } from "./app-sidebar";
 import { specimen as filesBrowser } from "./files-browser";
 import { specimen as sidebarGroupHeader } from "./sidebar-group-header";
-import { specimen as sidebarNavItem } from "./sidebar-nav-item";
+import { specimen as sidebarProfileMenu } from "./sidebar-profile-menu";
 import { specimen as sidebarRowButton } from "./sidebar-row-button";
 import { specimen as splitView } from "./split-view";
 import { specimen as tabBar } from "./tab-bar";
-import { specimen as workspaceSwitcher } from "./workspace-switcher";
 
 /**
  * The **Your Agents** area: the frame the product lives in — the rail of
- * agents and its groups, the workspace switcher above it — and the two
+ * agents and its groups, the account row at its foot — and the two
  * surfaces behind Agent Settings. `TabBar` is here as a library component the
  * app no longer mounts (see its page).
  *
@@ -28,10 +27,9 @@ import { specimen as workspaceSwitcher } from "./workspace-switcher";
  * display and merely *used* by this area's sample content.
  */
 export const specimens: readonly Specimen[] = [
-  workspaceSwitcher,
   sidebarRowButton,
-  sidebarNavItem,
   sidebarGroupHeader,
+  sidebarProfileMenu,
   appSidebar,
   tabBar,
   splitView,

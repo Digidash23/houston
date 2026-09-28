@@ -59,8 +59,9 @@ export const ACADEMY_LESSONS: Record<string, LessonSpec> = {
     chapterId: GETTING_STARTED_CHAPTER_ID,
     experience: 25,
     // Every stop only has to be seen, so each waits on the user's Next. The
-    // four destinations past the board live in the phone's More menu, so the
-    // phone lights More for them.
+    // four destinations past the board live behind the workspace menu at the
+    // rail's foot (the More menu on the phone), so both screens light the
+    // menu's trigger for them.
     steps: [
       {
         kind: "spotlight",
@@ -86,25 +87,19 @@ export const ACADEMY_LESSONS: Record<string, LessonSpec> = {
       {
         kind: "spotlight",
         id: "aiModels",
-        target: onEitherScreen("nav-ai-hub", "mobileMenu"),
+        target: onEitherScreen("workspaceMenu", "mobileMenu"),
         advanceOn: { type: "acknowledged" },
       },
       {
         kind: "spotlight",
         id: "integrations",
-        target: onEitherScreen("nav-integrations", "mobileMenu"),
-        advanceOn: { type: "acknowledged" },
-      },
-      {
-        kind: "spotlight",
-        id: "skills",
-        target: onEitherScreen("nav-skills", "mobileMenu"),
+        target: onEitherScreen("workspaceMenu", "mobileMenu"),
         advanceOn: { type: "acknowledged" },
       },
       {
         kind: "spotlight",
         id: "academy",
-        target: onEitherScreen("nav-academy", "mobileMenu"),
+        target: onEitherScreen("workspaceMenu", "mobileMenu"),
         advanceOn: { type: "acknowledged" },
       },
     ],

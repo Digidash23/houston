@@ -67,9 +67,6 @@ describe("Agent Settings a11y", () => {
     const header = read(
       "../src/components/skills-view/skill-editor-header.tsx",
     );
-    ok(
-      /level=\{frame === "inline" \? 2 : 1\}/.test(header),
-      "the editable title takes its heading level from the frame",
-    );
+    ok(/level=\{2\}/.test(header), "the editable title is an h2");
   });
 });

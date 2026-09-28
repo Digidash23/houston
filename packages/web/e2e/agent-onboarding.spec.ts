@@ -3,7 +3,8 @@ import { FOLLOW_UP_PLACEHOLDER } from "./support/composer";
 import {
   closeActivityPanel,
   fillAgentBrief,
-  newAgentRow,
+  newAgentButton,
+  openNewAgent,
 } from "./support/create-agent";
 import { expect, test } from "./support/fixtures";
 import { missionCard, screen } from "./support/team-nav";
@@ -51,7 +52,7 @@ function firstDayButton(page: Page, name: string) {
 /** Open the create dialog and make an agent from scratch, leaving the dialog to
  *  close itself onto the new agent's board, first day still pending. */
 async function createFromScratch(page: Page, name: string) {
-  await newAgentRow(page).click();
+  await openNewAgent(page);
   await fillAgentBrief(page);
   const nameField = page.getByPlaceholder(/^e\.g\. /);
   await nameField.waitFor({ state: "visible" });
@@ -191,7 +192,7 @@ test("closing the setup panel leaves the shell usable with the agent in the side
   // new agent and its New-agent control is interactive again.
   await closeActivityPanel(page);
   await expect(page.getByPlaceholder(FOLLOW_UP_PLACEHOLDER)).toHaveCount(0);
-  await expect(newAgentRow(page)).toBeVisible();
+  await expect(newAgentButton(page)).toBeVisible();
   const sidebar = page.locator("[data-tour-target='agents']");
   await expect(sidebar.getByText("Cirrus").first()).toBeVisible();
 });
@@ -200,7 +201,7 @@ test('"Something else" answers in the row the filter stood in', async ({
   page,
 }) => {
   await page.goto("/");
-  await newAgentRow(page).click();
+  await openNewAgent(page);
 
   const dialog = page.getByRole("dialog");
   // The seeded roster gives the dialog its opening choice; the guided brief

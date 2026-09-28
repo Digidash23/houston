@@ -62,17 +62,43 @@ export const sidebarRowState = {
 export const sidebarRowButtonClasses = {
   root: `group/row relative ${sidebarRowHeight} flex w-full min-w-0 items-center ${sidebarRowFill}`,
   button: `relative flex ${sidebarRowHeight} min-w-0 flex-1 items-center ${sidebarRowEndPad} text-left focus-visible:outline-none`,
-  /** Heads a block: sits one step left of everything it contains. */
-  depthBlock: "pl-2",
-  /** Indented under a block head, in the shared glyph column. */
-  depthChild: "pl-5",
+  /** Heads a block: sits one step left of everything it contains, on the same
+   *  12px edge as a root person row's portrait (`sidebarPersonRow.padBlock`),
+   *  so folder headers and root employees share one left edge. */
+  depthBlock: "pl-3",
+  /** Indented under a block head, one 12px step in, like a member person
+   *  row (`sidebarPersonRow.padChild`). */
+  depthChild: "pl-6",
   /** The person row's own height, overriding the glyph row's on both
    *  elements (tailwind-merge keeps the later height). */
   personHeight: sidebarPersonRow.height,
   personIcon: `${sidebarPersonRow.iconBox} ${sidebarPersonRow.iconGap}`,
-  personText: "flex min-w-0 flex-col",
+  /**
+   * The text column, stretched to the row's full height so its hairline runs
+   * along the row's foot from the text's left edge, the way a message list
+   * separates threads without cutting under the portraits. `font-variation-
+   * settings: normal` undoes the row's inherited `"wght" 510`, which would
+   * otherwise override both lines' weights and make the name and the line
+   * read as one weight.
+   */
+  personText:
+    "flex min-w-0 flex-1 flex-col justify-center self-stretch border-b border-line [font-variation-settings:normal] group-hover/row:border-transparent",
+  /** A person row without the hairline: the selected one (drawing it would
+   *  cut a line through the pill) and the account row that ends the rail,
+   *  which separates nothing from anything below it. */
+  personTextBare: "border-transparent",
+  /** The pill spans the row's full width: a person row carries its own 12px
+   *  padding instead of the glyph rows' 6px inset. */
+  personFill: "before:inset-x-0",
+  personPadBlock: sidebarPersonRow.padBlock,
+  personPadChild: sidebarPersonRow.padChild,
+  /** One line of a person row: its text truncates, its end item never. */
+  personLine: "flex min-w-0 items-start gap-2",
   personName: `min-w-0 truncate ${sidebarPersonRow.name}`,
-  personRole: `min-w-0 truncate ${sidebarPersonRow.role}`,
+  /** Up to two lines, then an ellipsis: room for a task title to read whole,
+   *  the way a message list previews a message. */
+  personRole: `min-w-0 flex-1 line-clamp-2 break-words ${sidebarPersonRow.role}`,
+  personBadge: "flex shrink-0 items-center",
   draggable: "cursor-grab active:cursor-grabbing",
   icon: `${sidebarIconBox} ${sidebarIconGap}`,
   /**
@@ -99,9 +125,38 @@ export const sidebarRowButtonClasses = {
 } as const;
 
 /**
- * A row's trailing control: the "..." menu on a team or an agent, the "+" on
- * the band. A SIBLING of the row button, never a child, because a button may
- * not nest inside a button.
+ * A control on the rail's top line: the collapse toggle and the host's header
+ * actions beside it (search, create). One class, so the line reads as one set
+ * of buttons rather than a toggle with lookalikes parked next to it.
+ */
+export const sidebarHeaderControlClasses =
+  "flex size-7 shrink-0 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus data-[state=open]:bg-hover data-[state=open]:text-ink";
+
+/**
+ * A person row's hairline stays out of the way of the pill beside it, the way
+ * a message list drops the separators around its selection. The row's OWN
+ * line hides under its hover and selection (`personText`); these hide the
+ * line of the row ABOVE. The pill is translucent, so it cannot simply paint
+ * over that line: a pill a pixel under a visible line is exactly the
+ * imprecise edge this exists to prevent.
+ *
+ * `sidebarRowNeighbour` goes on every `[data-sidebar-row]` wrapper, the one
+ * element per row in a run of siblings. `sidebarPinnedNeighbour` goes on the
+ * pinned run, whose next row is the first of the scrolling list beside it;
+ * with no such row, the run ends the rail without a line, as the list does.
+ */
+export const sidebarRowNeighbour =
+  "[&:has(+*:hover)_[data-person-text]]:border-transparent [&:has(+*_[aria-current=page])_[data-person-text]]:border-transparent";
+/** On the list: its last row separates nothing from anything below it, so
+ *  it ends the list without a line, the way a message list ends. */
+export const sidebarListEnd =
+  "[&>[data-sidebar-row]:last-of-type_[data-person-text]]:border-transparent";
+export const sidebarPinnedNeighbour =
+  "[&:has(+*_[data-sidebar-root-list]>[data-sidebar-row]:first-of-type:hover)_[data-sidebar-row]:last-child_[data-person-text]]:border-transparent [&:has(+*_[data-sidebar-root-list]>[data-sidebar-row]:first-of-type_[aria-current=page])_[data-sidebar-row]:last-child_[data-person-text]]:border-transparent [&:not(:has(+*_[data-sidebar-row]))_[data-sidebar-row]:last-child_[data-person-text]]:border-transparent";
+
+/**
+ * A row's trailing control: the "..." menu on a group. A SIBLING of the row
+ * button, never a child, because a button may not nest inside a button.
  *
  * Always rendered, muted at rest, strengthening on hover / focus / open.
  * Houston forbids hover-GATED affordances: a control that only exists under the
@@ -110,9 +165,9 @@ export const sidebarRowButtonClasses = {
  * `relative` for one reason only: the row's pill is an absolutely positioned
  * `::before`, and a static sibling would paint underneath it.
  *
- * Exported from the package because `app/` mounts its own menus into the band's
- * action slot, and a hand-copied class string is how two triggers on the same
- * row end up looking like two different controls.
+ * Exported from the package because `app/` mounts its own menus into a row's
+ * affordance slot, and a hand-copied class string is how two triggers on the
+ * same row end up looking like two different controls.
  */
 export const sidebarRowAffordanceClasses = `relative ${sidebarRowEndMargin} flex size-6 shrink-0 items-center justify-center rounded-md text-ink-muted/60 transition-[background-color,color] duration-100 hover:bg-hover hover:text-ink focus-visible:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus data-[state=open]:bg-hover data-[state=open]:text-ink`;
 

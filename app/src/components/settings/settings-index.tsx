@@ -38,8 +38,8 @@ interface SettingsIndexProps {
  *
  * The page holds ONE general group (identity, About me, plan, channels,
  * appearance, language, notifications, and the shortcut, bug-report and
- * migration rows), plus Danger. The shared Skills library and Admin have their
- * own rail rows.
+ * migration rows), plus Danger. Admin is its own screen; an AI Employee's
+ * Skills live in that employee's settings.
  *
  * The page OPENS on the signed-in person: identity is the header, and
  * everything below it is a preference.

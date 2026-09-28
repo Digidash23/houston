@@ -7,7 +7,6 @@
     "noMatchingSkills": "Nenhuma skill corresponde à sua busca",
     "showAllSkills": "Ver todas as {{count}} skills",
     "sharedBadge": "Compartilhada",
-    "agentStackLabel": "Funcionários de IA com esta skill: {{names}}",
     "emptyTitle": "Você ainda não tem skills",
     "emptyDescription": "As skills são as tarefas que seus funcionários de IA sabem fazer. Use \"{{action}}\" para criar a primeira.",
     "noMatchesTitle": "Nenhuma skill corresponde a \"{{query}}\"",
@@ -51,7 +50,6 @@
     "close": "Fechar"
   },
   "global": {
-    "pageTitle": "Skills",
     "createSkill": "Criar skill",
     "createMenu": {
       "withChat": "Criar com o chat",
@@ -66,18 +64,9 @@
       "emptyDescription": "Este funcionário de IA já tem todas as skills que seu espaço de trabalho compartilha. Crie uma nova para dar mais a ele.",
       "added": "{{name}} adicionada"
     },
-    "noAgentsTitle": "Nenhum funcionário de IA ainda",
-    "noAgentsDescription": "Crie um funcionário de IA primeiro. As skills vivem com seus funcionários de IA, e esta página gerencia todas elas em um só lugar.",
     "skillUpdated": "Skill atualizada",
     "skillRemoved": "Skill removida",
     "manage": {
-      "agentsLabel": "Funcionários de IA com esta skill",
-      "keepOneAgent": "Mantenha pelo menos um funcionário de IA, ou use Excluir para remover a skill de todos.",
-      "hasSkillNote": "Tem esta skill",
-      "shareToManage": "Para usar esta skill com outros funcionários de IA, compartilhe com o espaço. Skills compartilhadas mantêm uma única versão para todos os funcionários de IA.",
-      "removeConfirmTitle_one": "Remover de {{count}} funcionário de IA?",
-      "removeConfirmTitle_other": "Remover de {{count}} funcionários de IA?",
-      "removeConfirmDescription": "Ao salvar, esta skill será removida de {{names}}. Isso não pode ser desfeito.",
       "deleteConfirmTitle": "Excluir \"{{name}}\"?",
       "deleteConfirmDescription_one": "Isso remove a skill de {{count}} funcionário de IA ({{names}}). Não pode ser desfeito.",
       "deleteConfirmDescription_other": "Isso remove a skill de {{count}} funcionários de IA ({{names}}). Não pode ser desfeito.",
@@ -86,11 +75,10 @@
       "revert": "Usar versão do espaço",
       "deleteSharedDescription": "Isso remove a skill do espaço de trabalho para todos os funcionários de IA. Funcionários de IA com uma cópia modificada mantêm a própria versão.",
       "shareToWorkspace": "Compartilhar com o espaço",
-      "disableForAgent": "Desativar para este funcionário de IA"
-    },
-    "chatPick": {
-      "title": "Quem vai construir com você?",
-      "description": "O chat abre com esse funcionário de IA, que também recebe a skill. Ela fica no seu espaço de trabalho, e você pode adicioná-la a outros funcionários de IA quando quiser."
+      "disableForAgent": "Desativar para este funcionário de IA",
+      "deleteForEveryone": "Excluir para todos os funcionários de IA",
+      "checkingEveryone": "Verificando os outros funcionários de IA…",
+      "checkEveryoneFailed": "Não foi possível verificar os outros funcionários de IA"
     },
     "createdShared": "Skill adicionada ao seu espaço de trabalho",
     "enabledForAll_one": "Ativada para {{count}} funcionário de IA",

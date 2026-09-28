@@ -18,12 +18,11 @@ import type {
  *
  * The write is the SAME one the skill editor commits for its assignment
  * (`SharedDialogActions.onApply`), so an add here and an enable there are one
- * behavior with one invalidation; only the notice names the intent. The library scope opens
- * nothing: it stands on no employee to add to.
+ * behavior with one invalidation; only the notice names the intent.
  */
 export function useAddExistingSkill(opts: {
-  /** The employee this surface is scoped to, or null for the library. */
-  agent: Agent | null;
+  /** The employee whose Skills section this is. */
+  agent: Agent;
   /** Every row this surface's scope reads, BEFORE it is narrowed to the
    *  employee — a skill it does not have yet is exactly what is offered. */
   rows: ManagedSkillRow[];
@@ -34,24 +33,21 @@ export function useAddExistingSkill(opts: {
   onRetry: () => void;
 }): {
   node: ReactNode;
-  /** Open the dialog; undefined where there is no employee to add to, or no
-   *  workspace store the add could write against. */
+  /** Open the dialog; undefined where there is no workspace store the add
+   *  could write against. */
   start: (() => void) | undefined;
 } {
   const { agent, rows, shared, loading, failed, onRetry } = opts;
   const { t } = useTranslation("skills");
   const [open, setOpen] = useState(false);
 
-  const skills = useMemo(
-    () => addableSkills(rows, agent?.id ?? null),
-    [rows, agent],
-  );
+  const skills = useMemo(() => addableSkills(rows, agent.id), [rows, agent]);
 
   const onAdd = useCallback(
     async (row: ManagedSkillRow) => {
-      // Unreachable: without an employee or a store there is nothing to
-      // offer, so the list is empty and no row exists to press.
-      if (agent === null || shared === undefined) return;
+      // Unreachable: without a store there is nothing to offer, so the list
+      // is empty and no row exists to press.
+      if (shared === undefined) return;
       await shared.onApply(
         // Narrowed by `addableSkills`, which keeps store rows only.
         row as SharedSkillRow,
@@ -80,10 +76,7 @@ export function useAddExistingSkill(opts: {
         onAdd={onAdd}
       />
     ),
-    start: offersAddExisting({
-      agentId: agent?.id ?? null,
-      sharedStore: shared !== undefined,
-    })
+    start: offersAddExisting({ sharedStore: shared !== undefined })
       ? () => setOpen(true)
       : undefined,
   };

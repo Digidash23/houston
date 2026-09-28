@@ -5,7 +5,12 @@ export const APP_SIDEBAR_PROPS: readonly SpecimenProp[] = [
   {
     name: "items",
     type: "SidebarItem[]",
-    note: "{ id, name, icon?, trailing? }. The agents themselves. No menu slot: an agent is renamed, recoloured, moved and deleted where it is configured, so a rail row offers none of it.",
+    note: "{ id, name, icon?, subtitle?, trailing? }. The agents themselves, as message-list rows: `subtitle` is the one or two lines under the name, `trailing` the badge at their end. No menu slot: an agent is renamed, recoloured, moved and deleted where it is configured, so a rail row offers none of it.",
+  },
+  {
+    name: "pinnedItems",
+    type: "SidebarItem[]",
+    note: "Rows that lead the list outside its scroll box (the AI Manager): drawn and selected like `items`, never grouped or dragged.",
   },
   {
     name: "selectedId",
@@ -44,11 +49,6 @@ export const APP_SIDEBAR_PROPS: readonly SpecimenProp[] = [
     note: "The block's header was activated — ONE hit target carrying the glyph, the name, the disclosure triangle and the rollup badge. It folds or unfolds the block, and `collapsed` on the view model stays the single controlled truth about the fold: the host writes the new value back. The triangle is an indicator, never a second control.",
   },
   {
-    name: "onAdd",
-    type: "() => void",
-    note: "Creates an agent. In the GROUPED list it renders as the row that CLOSES the list, because this is the rail's primary action and a primary action may not live only one level deep inside a menu. Flat and collapsed, it stays the trailing icon button.",
-  },
-  {
     name: "collapsed",
     type: "boolean",
     note: "The icon rail is 56px, or 84px with windowControlsInset. Defaults to false. Grouping is expanded-only; the icon rail renders the flat list.",
@@ -59,9 +59,9 @@ export const APP_SIDEBAR_PROPS: readonly SpecimenProp[] = [
     note: "Adds the always-visible collapse or expand button. Only the button toggles the rail.",
   },
   {
-    name: "header",
+    name: "headerActions",
     type: "ReactNode",
-    note: "Top slot for the WorkspaceSwitcher. Without an inset, it shares its expanded row with the collapse button; with an inset, it sits below the controls row.",
+    note: "The host's verbs (search, create) on the rail's top line: after the collapse toggle, at the line's end, when expanded; stacked under the toggle when collapsed. Wear `sidebarHeaderControlClasses` so they match the toggle.",
   },
   {
     name: "windowControlsInset",
@@ -71,52 +71,17 @@ export const APP_SIDEBAR_PROPS: readonly SpecimenProp[] = [
   {
     name: "headerBelow",
     type: "ReactNode",
-    note: "A FULL-WIDTH band under the header and above the nav (e.g. the pending-invite inbox). Separate from `header` so it spans the rail instead of being inset by the collapse toggle, and so the toggle stays on the header's own line.",
-  },
-  {
-    name: "logo",
-    type: "ReactNode",
-    note: "Legacy top slot, rendered only when there is no `header`.",
-  },
-  {
-    name: "navSections",
-    type: "SidebarNavSection[]",
-    note: "The destinations above the agent list, in labelled runs. A section whose items are all gated away is dropped with its band.",
-  },
-  {
-    name: "activeNavId",
-    type: "string",
-    note: "Which nav entry is lit. Overrides each entry's own `active`.",
-  },
-  {
-    name: "sectionLabel / sectionAction",
-    type: "string / ReactNode",
-    note: 'The "Your AI Employees" band and its ONE trailing control — the menu that creates an AI Employee or a group. Expanded only.',
-  },
-  {
-    name: "sectionCollapsed",
-    type: "boolean",
-    note: "Folds the WHOLE list away behind the band, whose label is itself the toggle. Controlled, because the host persists it: a rail that forgets it was folded on every reload is worse than one that never folded. Ignored on the icon rail, which has no band to fold from.",
-  },
-  {
-    name: "onToggleSectionCollapsed",
-    type: "() => void",
-    note: "Absent means the band folds nothing and renders as a plain label, promising no click it cannot honour.",
+    note: "A FULL-WIDTH notice under the top line and above the list (e.g. the pending-invite inbox), spanning the rail like every row below it.",
   },
   {
     name: "footer",
     type: "ReactNode",
-    note: "Bottom slot; `shrink-0`, so a short window squeezes the list instead.",
+    note: "Bottom slot, typically the account (`SidebarProfileMenu`); `shrink-0`, so a short window squeezes the list instead.",
   },
   {
     name: "labels",
     type: "SidebarLabels",
-    note: "Labels for the add row and the collapse/expand control. English defaults keep both states readable.",
-  },
-  {
-    name: "addItemDataAttrs",
-    type: "Record<string, string>",
-    note: "Extra DOM attributes on the add-agent control, e.g. a product-tour target.",
+    note: "Labels for the collapse/expand control and the drag announcements. English defaults keep every state readable.",
   },
   {
     name: "children",

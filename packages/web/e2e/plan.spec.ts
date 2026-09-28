@@ -22,6 +22,7 @@ import {
   stubOpener,
 } from "./support/plan";
 import { openSettings } from "./support/settings-nav";
+import { workspaceMenuTrigger } from "./support/workspace-menu";
 
 /**
  * C19 personal plan: the Billing screen, the Plus checkout, the weekly message
@@ -377,9 +378,7 @@ for (const close of ["Maybe later", "the X", "Escape"] as const) {
     // It never comes back: not in this session, not after a reload.
     await page.reload();
     await expect.poll(() => planCallCount("plan")).toBeGreaterThan(1);
-    await expect(
-      page.locator('[data-tour-target="nav-settings"]'),
-    ).toBeVisible();
+    await expect(workspaceMenuTrigger(page)).toBeVisible();
     await expect(announcementDialog(page)).toHaveCount(0);
     expect(await planCallCount("announcement")).toBe(1);
   });

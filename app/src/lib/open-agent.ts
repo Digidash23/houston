@@ -104,6 +104,7 @@ export function openAgentSection(
 export function openAgentSettings(
   agentId: string,
   section?: AgentSettingsSection,
+  opts?: OpenAgentOptions,
 ): void {
   withSettledAgent(agentId, (exists) => {
     if (!exists) {
@@ -120,6 +121,7 @@ export function openAgentSettings(
     }
     useAgentSettingsNav.getState().requestAgentDetail(agentId, section);
     openDestination(agentDestination(agentId, "settings", isMobileViewport()));
+    opts?.onOpened?.();
   });
 }
 

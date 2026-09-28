@@ -10,9 +10,9 @@ import { useSharedSkillsActions } from "./use-shared-skills-actions";
 import { useWorkspaceSkills } from "./use-workspace-skills";
 
 /**
- * The skills the surface lists and the writes it commits, for whatever set of
- * agents its scope names — every agent in the workspace for the library, the
- * one agent for its own Skills section.
+ * The skills the surface lists and the writes it commits, for the agents it is
+ * given: the one employee for its own Skills section, or every employee for
+ * the editor menu's acts that reach them all.
  *
  * Store-backed when the deployment serves the workspace-shared skills store
  * (ADR 0003); otherwise the copy-based model, where a skill lives on each
@@ -23,6 +23,8 @@ export interface SkillsModels {
   /** folderPath → that agent's list, which the setup chat needs. */
   listsByPath: Map<string, SkillSummary[] | undefined>;
   loading: boolean;
+  /** Every agent's read answered, so a row names every holder. */
+  complete: boolean;
   failed: boolean;
   /** Read every source again — the user-initiated retry. */
   retry: () => void;
@@ -63,6 +65,7 @@ export function useSkillsModels(agents: Agent[]): SkillsModels {
     loading: sharedMode
       ? copyModel.loading || sharedModel.loading
       : copyModel.loading,
+    complete: copyModel.complete && sharedModel.complete,
     failed: sharedMode
       ? copyModel.failed || sharedModel.failed
       : copyModel.failed,

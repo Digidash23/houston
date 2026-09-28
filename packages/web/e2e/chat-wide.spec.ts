@@ -2,11 +2,11 @@ import { FAKE_HOST_URL } from "@houston/fake-host";
 import { expect, test } from "./support/fixtures";
 import {
   missionCard,
-  navRow,
   openArchivedTasks,
   openTeamSection,
   screen,
 } from "./support/team-nav";
+import { openNavRow } from "./support/workspace-menu";
 
 /**
  * The wide chat (PRODUCT-1722): a mission's chat can fill the whole content
@@ -80,7 +80,7 @@ test("the wide preference never hides a setup chat's host", async ({
   // wide: the rail is the way to another screen. Leaving the board releases
   // its claim and the board comes back; then the Routines intake claims the
   // panel WITHOUT wide consent, so its list stays beside the chat.
-  await navRow(page, "integrations").click();
+  await openNavRow(page, "integrations");
   await expect(page.locator("main")).toBeVisible();
   await expect(panel).toBeHidden();
   await openTeamSection(page, "Routines");

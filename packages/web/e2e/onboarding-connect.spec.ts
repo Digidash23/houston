@@ -13,7 +13,8 @@ import {
   receipt,
 } from "./support/manager-onboarding";
 import { openManagerOnboarding, resetToFirstRun } from "./support/onboarding";
-import { navRow } from "./support/team-nav";
+
+import { workspaceMenuTrigger } from "./support/workspace-menu";
 
 /**
  * First run's opening: the AI Manager's conversation, inside the workspace
@@ -43,7 +44,7 @@ test("first run opens the manager's chat in the shell, and connecting comes firs
   ])
     await expect(chat.getByText(line, { exact: true })).toBeVisible();
   // Inside the shell: the rail stands beside the conversation.
-  await expect(navRow(page, "ai-hub")).toBeVisible();
+  await expect(workspaceMenuTrigger(page)).toBeVisible();
   // Answered by clicking: the chat has no composer while it runs.
   await expect(chat.locator("textarea")).toHaveCount(0);
 

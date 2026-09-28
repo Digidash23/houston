@@ -1,28 +1,26 @@
-import type { SidebarNavItemEntry } from "@houston-ai/layout";
-import { Boxes, GraduationCap, ListChecks } from "lucide-react";
+import { Boxes, Building2, GraduationCap } from "lucide-react";
 import {
   ACADEMY_VIEW_ID,
+  ADMIN_VIEW_ID,
   AI_HUB_VIEW_ID,
-  SKILLS_VIEW_ID,
 } from "../../lib/top-level-views";
+import type { MenuRow } from "./menu-row";
 import type { SidebarChromeT } from "./sidebar-chrome";
 import { tourAnchor } from "./workspace-tour-steps.ts";
 
 /** The rail's GATED rows, keyed by the gate each one rides. */
 export interface GatedNavRows {
-  /** `showAiModels` — the AI Models hub, in the unlabelled leading run. */
-  aiModels: SidebarNavItemEntry;
-  /** `showSkills` — the shared Skills library, closing the leading run. */
-  skills: SidebarNavItemEntry;
+  /** `showAiModels` — the AI Models hub, leading the shared run. */
+  aiModels: MenuRow;
 }
 
 /**
  * The rows a gate can take away, built apart from the runs that compose them
  * (`sidebar-nav-sections.tsx`).
  *
- * They carry tour anchors on AI Models and Skills, and a stable test id on
- * Skills, so keeping them here leaves the composition file free to state the
- * information architecture and nothing else. The UNGATED rows stay inline
+ * AI Models carries its tour anchor, so keeping it here leaves the
+ * composition file free to state the information architecture and nothing
+ * else. The UNGATED rows stay inline
  * there: a row every deployment has is part of the IA, not a variable in it.
  */
 export function gatedNavRows(args: {
@@ -38,21 +36,14 @@ export function gatedNavRows(args: {
       onClick: () => setViewMode(AI_HUB_VIEW_ID),
       dataAttrs: tourAnchor("nav-ai-hub"),
     },
-    skills: {
-      id: SKILLS_VIEW_ID,
-      label: t("shell:sidebar.skills"),
-      icon: <ListChecks className="h-4 w-4" />,
-      onClick: () => setViewMode(SKILLS_VIEW_ID),
-      dataAttrs: { ...tourAnchor("nav-skills"), "data-testid": "rail-skills" },
-    },
   };
 }
 
 /**
- * The Academy row, built here because BOTH breakpoints' footer clusters draw
- * it: the rail's foot right above Settings (`sidebar-footer.tsx`) and the tail
- * of the phone's More menu (`mobile-more-menu.tsx`). One row, one label, one
- * destination, whichever cluster renders it.
+ * The Academy row, built here because BOTH breakpoints draw it: the workspace
+ * menu's last run, right above Settings (`sidebar-workspace-menu.tsx`), and
+ * the tail of the phone's More menu (`mobile-more-menu.tsx`). One row, one
+ * label, one destination, whichever menu renders it.
  *
  * It is ungated on purpose, like Settings beside it: every deployment ships
  * the Academy, and learning to fly is nobody's admin territory. The Houston
@@ -63,12 +54,31 @@ export function academyNavRow(args: {
    *  draw this row hold `t` over different namespace sets. */
   label: string;
   onOpen: () => void;
-}): SidebarNavItemEntry {
+}): MenuRow {
   return {
     id: ACADEMY_VIEW_ID,
     label: args.label,
     icon: <GraduationCap className="h-4 w-4" />,
     onClick: args.onOpen,
     dataAttrs: tourAnchor("nav-academy"),
+  };
+}
+
+/**
+ * The Admin row, built once for both breakpoints: the head of the workspace
+ * run in the rail's menu and in the phone's More card. Callers show it only
+ * behind the organization gate (`showOrganization`).
+ */
+export function adminNavRow(args: {
+  /** `shell:sidebar.admin`, resolved by the caller. */
+  label: string;
+  onOpen: () => void;
+}): MenuRow {
+  return {
+    id: ADMIN_VIEW_ID,
+    label: args.label,
+    icon: <Building2 className="h-4 w-4" />,
+    onClick: args.onOpen,
+    dataAttrs: { "data-testid": "rail-admin" },
   };
 }

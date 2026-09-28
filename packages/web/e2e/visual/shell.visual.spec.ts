@@ -26,7 +26,8 @@ import {
   navItem,
   openPhoneTeamSection,
 } from "../support/mobile-nav";
-import { missionCard, navRow } from "../support/team-nav";
+import { missionCard } from "../support/team-nav";
+import { workspaceMenuTrigger } from "../support/workspace-menu";
 import { pinTheme, THEMES } from "./support";
 
 for (const theme of THEMES) {
@@ -40,7 +41,7 @@ for (const theme of THEMES) {
       .click();
 
     // Anchor on the shell being fully painted before pinning theme + comparing.
-    await expect(navRow(page, "integrations")).toBeVisible();
+    await expect(workspaceMenuTrigger(page)).toBeVisible();
     await expect(missionCard(page, "Plan a trip to Tokyo")).toBeVisible();
     await expect(missionCard(page, "Draft the launch email")).toBeVisible();
     await pinTheme(page, theme);

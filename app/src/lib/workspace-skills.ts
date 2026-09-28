@@ -2,7 +2,7 @@ import { skillDisplayTitle } from "./humanize-skill-name.ts";
 import type { SkillSummary } from "./types.ts";
 
 /**
- * The pure model behind the global Skills page (HOU-792): skills live ON each
+ * The pure copy-based skills model (HOU-792): skills live ON each
  * agent (`<agent>/.agents/skills/<slug>/`, no shared store), so the workspace
  * view is an aggregation — one row per slug, carrying which agents have a copy.
  * Node-test covered; the page stays a renderer.

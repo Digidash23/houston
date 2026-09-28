@@ -23,7 +23,7 @@ export interface DialogFields {
    *  board's own agents; `null` = the full roster (the top bar's compose). */
   newMissionSheetAgentIds: string[] | null;
   /** Whether the phone's "More" menu is open (the floating card the nav bar
-   *  raises: the workspace switcher, the long tail of destinations, help).
+   *  raises: the account row and the long tail of destinations).
    *  Session-only, never persisted: a menu restored open after a reload is a
    *  trap on a phone. It is deliberately NOT a nav entry — a menu the back
    *  button could pop would be a place, which it is not. */

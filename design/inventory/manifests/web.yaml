@@ -13,7 +13,7 @@
 
 surface: web
 enforced: true
-inventoryVersion: 110
+inventoryVersion: 111
 
 components:
   manager-avatar:
@@ -25,14 +25,15 @@ components:
   agent-avatar:
     status: implemented
     ref: "@houston-ai/core HoustonAvatar (resolveAgentColor + employeeMetalColors) / AgentAvatar"
-    notes: Metal disc with the helmet at 65% at every size; the sidebar shows each AI Employee as a person row (32px avatar, name over role).
+    notes: Metal disc with the helmet at 65% at every size; the sidebar shows each AI Employee as a person row (40px avatar, name over its activity line).
 
   agent-list-item:
     status: partial
-    ref: "@houston-ai/layout SidebarNavItem + @houston-ai/core HoustonAvatar"
+    ref: "@houston-ai/layout SidebarRowButton (person anatomy) + @houston-ai/core HoustonAvatar"
     notes: >-
       No single shared agent-list-item component; the row is composed in app/
-      from generic nav + avatar primitives. Aggregate status is app-side.
+      (agent-sidebar-items.tsx, agent-row-line.ts) from the generic person row
+      and avatar primitives. Aggregate status is app-side.
 
   conversation-feed:
     status: implemented
@@ -250,15 +251,15 @@ components:
   sidebar-team-block:
     status: implemented
     ref: "@houston-ai/layout AppSidebar (SidebarGroupedList renders root employees, folder headers and folder members as one flat @dnd-kit sortable tree, SidebarTreeRowView per row, the dragged row drawn as a ghost at its landing slot and depth; SidebarRowButton gives root employees and folder headers one left edge and indents only folder members), composed in app/src/components/shell/team-sidebar-lists.tsx"
-  sidebar-nav-band:
+  sidebar-account-menu:
     status: implemented
-    ref: "@houston-ai/layout AppSidebar -> SidebarNavList (SidebarNavItem per row), built by app/src/components/shell/sidebar-nav-sections.tsx with gates from useSurfaceGates(); the Academy, gated Admin, and Settings footer rows are app/src/components/shell/sidebar-footer.tsx"
+    ref: "@houston-ai/layout SidebarProfileMenu, filled by app/src/components/shell/sidebar-workspace-menu.tsx and sidebar-workspace-menu-items.tsx from the rows sidebar-nav-sections.tsx builds; the phone's More card is mobile-more-menu.tsx"
   team-identity-picker:
     status: implemented
     ref: "app/src/components/shell/team-identity-popover.tsx inside team-identity-name-row.tsx, used by create-team-step.tsx and edit-team-identity-dialog.tsx; the folder menu opens the editor and sidebar.setGroupIdentity saves the glyph and color"
-  sidebar-teams-band:
+  sidebar-top-line:
     status: implemented
-    ref: "@houston-ai/layout AppSidebar (SidebarBand + SidebarPinnedList + one trailing root-depth SidebarAddRow after every folder and employee), with app/src/components/shell/sidebar-create-button.tsx wearing sidebarRowAffordanceClasses and passed as sectionAction from app/src/components/shell/sidebar-rail.tsx (the band's ONE plus control with helmet and folder-plus menu glyphs, opening the create sheet app/src/components/shell/add-to-workspace-sheet.tsx); the pinned row of Houston, the AI Manager, is app/src/components/shell/sidebar-manager-row.tsx"
+    ref: "@houston-ai/layout AppSidebar headerActions (sidebarHeaderControlClasses), filled by app/src/components/shell/sidebar-header-actions.tsx and sidebar-create-button.tsx; the pinned row of Houston, the AI Manager, is sidebar-manager-row.tsx"
   agent-screen:
     status: implemented
     ref: "app/src/components/team-view/agent-view.tsx selects one AI Employee's mission board, routines, files and settings; agent-chrome.tsx renders the desktop and phone section tabs"

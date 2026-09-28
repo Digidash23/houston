@@ -12,12 +12,6 @@ import ptTeams from "../src/locales/pt/teams.json" with { type: "json" };
 // The group rail's copy must speak the product's own words in every locale:
 // "empleados de IA" / "funcionários de IA", and the "space" the folder moves to.
 describe("sidebar group copy", () => {
-  it("titles the rail band with the locale's AI Employee term", () => {
-    strictEqual(en.sidebar.employeesSection, "Your AI Employees");
-    strictEqual(es.sidebar.employeesSection, "Tus empleados de IA");
-    strictEqual(pt.sidebar.employeesSection, "Seus funcionários de IA");
-  });
-
   it("names AI Employees, never agents, in the drag instructions", () => {
     // The library is product-agnostic: its default speaks of items, like its
     // "Add item" default.

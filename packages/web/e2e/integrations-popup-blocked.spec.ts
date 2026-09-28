@@ -1,6 +1,7 @@
 import { FAKE_HOST_URL } from "@houston/fake-host";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
+import { openNavRow } from "./support/workspace-menu";
 
 /**
  * The OAuth tab and the popup blocker (PRODUCT-1625).
@@ -66,7 +67,7 @@ async function armComposio(request: APIRequestContext): Promise<void> {
 
 async function openIntegrationsPage(page: Page): Promise<void> {
   await page.goto("/");
-  await page.locator('[data-tour-target="nav-integrations"]').click();
+  await openNavRow(page, "integrations");
 }
 
 test("the OAuth tab is claimed inside the click and pointed at the minted link", async ({
