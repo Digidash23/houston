@@ -4,6 +4,10 @@ import { join } from "node:path";
 import type { Options, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import type { Activity } from "@houston/protocol";
+import {
+  ObjectNotFoundError,
+  type ObjectStore,
+} from "@houston/runtime-client/object-sync";
 import { beforeEach, expect, test, vi } from "vitest";
 import { writeAuthFile } from "../auth/auth-file";
 import type { ClaudeQuery } from "../backends/claude/session";
@@ -11,6 +15,7 @@ import type { HarnessBackend, HarnessSession } from "../backends/types";
 import { changedEventTypes } from "./turn-changed-events";
 import { turnActivityKey } from "./turn-filesystem";
 import { turnTitleRunner, writeMissionTitleInTree } from "./turn-mission-title";
+import { remoteActivityReader } from "./turn-mission-title-remote";
 import { runTurn, type TurnDirectories } from "./turn-session";
 
 vi.mock("./turn-runtime", () => ({
@@ -220,4 +225,87 @@ test("anthropic titles through the Claude SDK on the turn's own token and model"
   expect(seen?.model).toContain("sonnet");
   abort.abort();
   expect(seen?.abortController?.signal.aborted).toBe(true);
+});
+
+test("a card hydration missed is titled from the fresh stored board", async () => {
+  // Hydrated before the card landed: the local board has only an older card.
+  const dirs = await directories([card("old", "Older mission")]);
+  const stored = [
+    card("old", "Older mission"),
+    { ...card("m1", FALLBACK), updated_at: "2026-09-28T10:00:00Z" },
+  ];
+  const readRemote = vi.fn(async () => stored);
+  expect(
+    await writeMissionTitleInTree(
+      dirs.workspaceDir,
+      "activity-m1",
+      "Weekly sales report",
+      FALLBACK,
+      readRemote,
+    ),
+  ).toBe(true);
+  expect(readRemote).toHaveBeenCalledOnce();
+  // Local = the fresh stored doc with only that card retitled.
+  expect(await cardTitle(dirs, "m1")).toBe("Weekly sales report");
+  expect(await cardTitle(dirs, "old")).toBe("Older mission");
+});
+
+test("a stored card the user renamed keeps its name", async () => {
+  const dirs = await directories([]);
+  const readRemote = async () => [card("m1", "My own name")];
+  expect(
+    await writeMissionTitleInTree(
+      dirs.workspaceDir,
+      "activity-m1",
+      "T",
+      FALLBACK,
+      readRemote,
+    ),
+  ).toBe(false);
+});
+
+test("a card found nowhere warns with its conversation", async () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  const dirs = await directories([]);
+  expect(
+    await writeMissionTitleInTree(
+      dirs.workspaceDir,
+      "activity-m1",
+      "T",
+      FALLBACK,
+      async () => null,
+    ),
+  ).toBe(false);
+  expect(
+    warn.mock.calls.some((c) => String(c[0]).includes("activity-m1")),
+  ).toBe(true);
+});
+
+test("the remote reader reads the store key sync-back writes", async () => {
+  const keys: string[] = [];
+  const store = {
+    list: async () => [],
+    upload: async () => undefined,
+    delete: async () => undefined,
+    download: async (key: string, dest: string) => {
+      keys.push(key);
+      await writeFile(dest, JSON.stringify([card("m1", FALLBACK)]));
+    },
+  } as unknown as ObjectStore;
+  const read = remoteActivityReader(store, "", "workspaces/Houston/Agent");
+  expect((await read())?.map((a) => a.id)).toEqual(["m1"]);
+  expect(keys).toEqual([
+    "workspaces/Houston/Agent/.houston/activity/activity.json",
+  ]);
+  const missing = remoteActivityReader(
+    {
+      ...store,
+      download: async (key: string) => {
+        throw new ObjectNotFoundError(key, "gone");
+      },
+    } as unknown as ObjectStore,
+    "",
+    "workspaces/Houston/Agent",
+  );
+  expect(await missing()).toBeNull();
 });

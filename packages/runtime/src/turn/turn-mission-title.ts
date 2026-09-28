@@ -18,6 +18,7 @@ import { oneShotText } from "../session/one-shot";
 import { TITLE_PROMPT } from "../session/title-prompt";
 import { turnAuthStore } from "./turn-backend";
 import { fsTextStore } from "./turn-fs-store";
+import type { RemoteActivityReader } from "./turn-mission-title-remote";
 import type { TurnDirectories } from "./turn-session-types";
 
 /**
@@ -61,18 +62,36 @@ export function turnTitleRunner(input: {
  * Title the mission's card in the hydrated tree, BEFORE sync-back, so the write
  * lands with the turn's other writes and `ActivityChanged` ships in the terminal
  * frame's `changed`. Written only while the card still shows the fallback it was
- * created with — a rename the user made meanwhile wins. Resolves true on write.
+ * created with — a rename the user made meanwhile wins.
+ *
+ * The card is created concurrently with the send, so the tree hydrated at
+ * dispatch often predates it. Then the doc is re-read fresh from the store and
+ * the local file becomes THAT doc with the one card retitled: sync-back's
+ * conflict merge then starts from the remote's fields, never from the stale
+ * hydrated copy. A card found nowhere is reported, never silently dropped.
  */
 export async function writeMissionTitleInTree(
   workspaceDir: string,
   conversationId: string,
   title: string,
   fallback: string,
+  readRemote?: RemoteActivityReader,
 ): Promise<boolean> {
   const store = fsTextStore();
-  const { items } = await loadActivities(store, workspaceDir);
-  const current = items.find((a) => addressesMission(a, conversationId));
-  if (!current || current.title !== fallback) return false;
+  const { items: local } = await loadActivities(store, workspaceDir);
+  let items = local;
+  let current = items.find((a) => addressesMission(a, conversationId));
+  if (!current && readRemote) {
+    items = (await readRemote()) ?? [];
+    current = items.find((a) => addressesMission(a, conversationId));
+  }
+  if (!current) {
+    console.warn(
+      `[mission-title] no card for ${conversationId} in the hydrated or stored board; keeping the fallback`,
+    );
+    return false;
+  }
+  if (current.title !== fallback) return false;
   const next = applyActivityUpdate(
     current,
     { title },
@@ -93,6 +112,7 @@ export function startTurnMissionTitle(input: {
   request: MissionTitleRequest;
   run: MissionTitleRunner;
   workspaceDir: string;
+  readRemote?: RemoteActivityReader;
   timeoutMs?: number;
 }): () => Promise<void> {
   const pending = generateMissionTitle(
@@ -110,6 +130,7 @@ export function startTurnMissionTitle(input: {
         input.conversationId,
         title,
         input.request.fallback,
+        input.readRemote,
       );
     } catch (err) {
       console.error(

@@ -7,6 +7,7 @@ import type { TurnServerDeps } from "./server-types";
 import { finishTurnDurability } from "./turn-durability";
 import type { TurnFilesystem } from "./turn-filesystem";
 import type { createTurnLog } from "./turn-log";
+import { remoteActivityReader } from "./turn-mission-title-remote";
 import { turnSessionRequest } from "./turn-request";
 import {
   prepareRoutineTurn,
@@ -126,6 +127,14 @@ export async function executeReadyTurn(input: {
               input.timings,
               input.startup,
             );
+            // The card may postdate hydration: its title re-reads the board
+            // from the store sync-back writes (turn-mission-title-remote.ts).
+            if (request.missionTitle)
+              request.readRemoteActivity = remoteActivityReader(
+                input.resolved.store,
+                input.resolved.prefix,
+                input.filesystem.workspaceRel,
+              );
             return input.deps.runTurn
               ? input.deps.runTurn(directories, request)
               : runTurn(directories, request, input.deps.turnSessionDeps);

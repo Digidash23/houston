@@ -52,3 +52,38 @@ test("a failed title writes nothing and does not throw", async () => {
   });
   expect(fetchImpl).not.toHaveBeenCalled();
 });
+
+test("a host refusal is reported, not dropped", async () => {
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  const fetchImpl = vi.fn(async () => new Response("{}", { status: 400 }));
+  await titleMissionAfterTurn("activity-m1", REQ, MODEL, undefined, {
+    run: async () => "Weekly sales summary",
+    fetchImpl: fetchImpl as unknown as typeof fetch,
+    retryDelaysMs: [],
+  });
+  expect(error).toHaveBeenCalledOnce();
+  expect(String(error.mock.calls[0]?.[0])).toContain("HTTP 400");
+});
+
+test("an unreachable host is a warning, not a Sentry error", async () => {
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const fetchImpl = vi.fn(async () => new Response("", { status: 503 }));
+  await titleMissionAfterTurn("activity-m1", REQ, MODEL, undefined, {
+    run: async () => "Weekly sales summary",
+    fetchImpl: fetchImpl as unknown as typeof fetch,
+    retryDelaysMs: [],
+  });
+  expect(error).not.toHaveBeenCalled();
+  expect(warn).toHaveBeenCalledOnce();
+});
+
+test("a 200 {ok:false} (card renamed meanwhile) stays quiet", async () => {
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  const fetchImpl = vi.fn(async () => Response.json({ ok: false }));
+  await titleMissionAfterTurn("activity-m1", REQ, MODEL, undefined, {
+    run: async () => "Weekly sales summary",
+    fetchImpl: fetchImpl as unknown as typeof fetch,
+  });
+  expect(error).not.toHaveBeenCalled();
+});

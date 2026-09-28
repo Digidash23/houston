@@ -190,6 +190,9 @@ export async function runTurn(
                 claudeQuery: deps.claudeSdk?.query,
               }),
             workspaceDir,
+            ...(turn.readRemoteActivity
+              ? { readRemote: turn.readRemoteActivity }
+              : {}),
           })
         : null;
     const outcome = finishSuccessfulTurn({
