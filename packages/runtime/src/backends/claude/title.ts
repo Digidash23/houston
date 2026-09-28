@@ -30,6 +30,8 @@ export interface ClaudeTitleParams {
   modelId?: string;
   /** Injected for tests; production lazily imports the optional SDK. */
   query?: ClaudeQuery;
+  /** Aborts the title query (a caller's time cap). */
+  signal?: AbortSignal;
 }
 
 export async function titleWithClaude(p: ClaudeTitleParams): Promise<string> {
@@ -55,6 +57,7 @@ export async function titleWithClaude(p: ClaudeTitleParams): Promise<string> {
     dataDir: p.dataDir,
     modelId: p.modelId,
     query: p.query,
+    ...(p.signal ? { signal: p.signal } : {}),
   });
   return text.trim().split("\n")[0]?.trim().slice(0, 80) ?? "";
 }

@@ -17,6 +17,8 @@ export interface OneShotOptions {
   /** Reasoning level for the turn. Omit to leave pi's own default in place
    *  (settings-dependent), pass one to pin it — pi clamps to the model. */
   thinkingLevel?: PiThinkingLevel;
+  /** Aborts the in-flight prompt (a caller's time cap). */
+  signal?: AbortSignal;
 }
 
 /**
@@ -60,9 +62,12 @@ export async function oneShotText(opts: OneShotOptions): Promise<string> {
       text += e.assistantMessageEvent.delta ?? "";
     }
   });
+  const onAbort = () => void session.abort();
+  opts.signal?.addEventListener("abort", onAbort, { once: true });
   try {
-    await session.prompt(opts.prompt);
+    if (!opts.signal?.aborted) await session.prompt(opts.prompt);
   } finally {
+    opts.signal?.removeEventListener("abort", onAbort);
     unsub();
     session.dispose();
   }

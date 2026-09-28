@@ -84,6 +84,11 @@ import { runWithTurnModel } from "./turn-model-context";
 import { buildTurnResumeInfo } from "./turn-resume-info";
 import type { ProvidedContext } from "./workspace-context";
 
+/** A turn that ended on a clean `done`, and the model its reply came from. */
+export interface CleanTurn {
+  model: { provider: string; id: string };
+}
+
 /** A turn's pinned provider/model/effort/mode. Absent = keep current/default. */
 export interface TurnPin {
   provider?: string | null;
@@ -196,8 +201,11 @@ export async function execTurn(
   recorded: RecordedUserTurn,
   pin?: TurnPin,
   acting?: ActingContext,
-) {
+): Promise<CleanTurn | null> {
   const { author, priorAuthors } = recorded;
+  // Set only on the clean-`done` path: the model the reply came from, which the
+  // after-turn mission title reuses (turn-start.ts).
+  let clean: CleanTurn | null = null;
   let assistantText = "";
   // The turn's reasoning, accumulated for persistence so a history reload can
   // replay it in the mission log (HOU-717) — same lifecycle as assistantText.
@@ -756,6 +764,7 @@ export async function execTurn(
       // (auth/credential-health.ts; covers the macOS Keychain re-login no
       // fingerprint can observe).
       clearProviderMarks(model.provider);
+      clean = { model: { provider: model.provider, id: model.id } };
       publish(id, {
         type: "done",
         data: null,
@@ -915,4 +924,5 @@ export async function execTurn(
       thrownTyped ?? providerError,
     );
   }
+  return clean;
 }

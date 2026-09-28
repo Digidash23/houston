@@ -102,6 +102,12 @@ export interface StreamTurnOptions {
    * it, and no feed item is derived from it.
    */
   approvals?: MessageApproval[];
+  /**
+   * A new mission's first message: the runtime titles the card after this
+   * turn's reply (see the wire's `SessionStartRequest.missionTitle`). A wire
+   * passenger like `approvals`, set only on a new mission's first send.
+   */
+  missionTitle?: { fallback: string; text: string };
 }
 
 /**
@@ -263,6 +269,7 @@ export async function streamTurn(
         displayText: opts.displayText,
         mentions,
         approvals: opts.approvals,
+        missionTitle: opts.missionTitle,
       });
     } catch (e) {
       registry.endSend(key);
@@ -357,6 +364,7 @@ export async function streamTurn(
             displayText: opts.displayText,
             mentions,
             approvals: opts.approvals,
+            missionTitle: opts.missionTitle,
           });
         try {
           await send();

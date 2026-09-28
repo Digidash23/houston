@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { parseMentions } from "@houston/protocol";
+import { parseMentions, parseMissionTitle } from "@houston/protocol";
 import type { ConversationSummary } from "@houston/runtime-client";
 import type { Agent, Workspace } from "../domain/types";
 import { BodyTooLargeError } from "../routes/read-body";
@@ -147,6 +147,7 @@ export async function dispatchCloudrun(
         // plain text in `text`. Sanitized here with the same shared guard the
         // runtime re-applies on receipt.
         parseMentions(body.mentions),
+        parseMissionTitle(body.missionTitle),
       );
     }
   }

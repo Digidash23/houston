@@ -5,8 +5,10 @@ import type {
   WireFrame,
 } from "@houston/runtime-client";
 import type { MessageAuthor } from "../session/attribution";
+import type { MissionTitleRequest } from "../session/mission-title";
 import type { SandboxFetch } from "../session/tools/sandbox-fetch";
 import type { ProvidedContext } from "../session/workspace-context";
+import type { RemoteActivityReader } from "./turn-mission-title-remote";
 import type { TurnSessionStartupTask } from "./turn-session-startup";
 import type { TurnGrantScope } from "./types";
 
@@ -35,6 +37,10 @@ export interface TurnSessionRequest {
   turnId: string;
   displayText?: string;
   mentions?: ChatMessage["mentions"];
+  /** A new mission's first send: title its card after the reply. */
+  missionTitle?: MissionTitleRequest;
+  /** Fresh read of the stored board doc, for a card hydration missed. */
+  readRemoteActivity?: RemoteActivityReader;
   author?: MessageAuthor;
   context?: ProvidedContext;
   /** Non-secret capability scopes copied from the parsed turn grant. */

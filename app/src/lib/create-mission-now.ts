@@ -33,7 +33,7 @@ import { hiddenPromptDisplayText } from "./hidden-prompt-display-text";
 import { logger } from "./logger";
 import { hasHiddenPrompt, missionPrompt } from "./mission-prompt";
 import { landMissionRow } from "./mission-row-landing";
-import { fallbackMissionTitle, refreshMissionTitle } from "./mission-title";
+import { fallbackMissionTitle } from "./mission-title";
 import { showSendFailedToast } from "./send-error-toast";
 import { tauriActivity, tauriChat } from "./tauri";
 
@@ -84,16 +84,12 @@ export function startMissionNow(
       modeOverride: opts.modeOverride,
       mentions: opts.mentions,
       displayText: hiddenPromptDisplayText(text, hasHiddenPrompt(opts)),
+      // The runtime titles the card after this first turn's reply.
+      missionTitle:
+        mission.titleText !== undefined
+          ? { fallback: mission.title, text: mission.titleText }
+          : undefined,
     });
-    // The AI title pass needs the row: it lands whenever the pod answers.
-    const landedId = await row;
-    if (landedId && mission.titleText !== undefined) {
-      void refreshMissionTitle({
-        agentPath: agent.folderPath,
-        activityId: landedId,
-        text: mission.titleText,
-      });
-    }
   })().catch((e) => {
     // The send failed BEFORE a turn stream existed (attachment save, refused
     // start) — nothing wrote to the VM, so the toast is its only surface.

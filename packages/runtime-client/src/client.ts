@@ -147,6 +147,7 @@ export class HoustonEngineClient extends EngineConversationsClient {
         displayText: opts.displayText,
         mentions: opts.mentions,
         approvals: opts.approvals,
+        missionTitle: opts.missionTitle,
       }),
       signal: opts.signal,
     });

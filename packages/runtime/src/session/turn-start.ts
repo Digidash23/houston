@@ -11,7 +11,14 @@ import { config } from "../config";
 import type { ActingContext } from "./acting-context";
 import { publish } from "./bus";
 import { type Conversation, getConversation } from "./conversation-cache";
-import { execTurn, recordUserTurn, type TurnPin } from "./exec-turn";
+import {
+  type CleanTurn,
+  execTurn,
+  recordUserTurn,
+  type TurnPin,
+} from "./exec-turn";
+import type { MissionTitleRequest } from "./mission-title";
+import { titleMissionAfterTurn } from "./mission-title-report";
 import {
   connectedProviderForTurn,
   pinnedProviderUnavailable,
@@ -74,7 +81,7 @@ export async function runTurn(
    * so a restart that kills the resume too settles it and stops — one
    * automatic resume per interrupted turn (PRODUCT-1785).
    */
-  options?: { resumeOf?: string },
+  options?: { resumeOf?: string; missionTitle?: MissionTitleRequest },
 ): Promise<void> {
   // Mint the turn's wire identity up front so even a turn that fails before
   // executing (the guards below) terminates under one id.
@@ -166,9 +173,16 @@ export async function runTurn(
   // Keep the queue chain alive past a turn. execTurn already surfaces its own
   // failure as an `error` event, so this guard never swallows a user-visible one.
   conv.queue = run.catch(() => {});
+  let clean: CleanTurn | null = null;
   try {
-    await run;
+    clean = await run;
   } finally {
     conv.pending--;
   }
+  // A new mission's first turn titles its card AFTER the reply is published,
+  // outside the workdir lock and the conversation queue, so neither the user's
+  // `done` nor the next turn waits on it. A failed/stopped turn keeps the
+  // fallback title.
+  if (options?.missionTitle && clean)
+    void titleMissionAfterTurn(id, options.missionTitle, clean.model, acting);
 }

@@ -11,7 +11,7 @@ import type {
 } from "./agent-provisioning/entry";
 import { hiddenPromptDisplayText } from "./hidden-prompt-display-text";
 import { logger } from "./logger";
-import { refreshMissionTitle } from "./mission-title";
+import { fallbackMissionTitle } from "./mission-title";
 import { healStaleRosterFromError } from "./roster-heal";
 import { tauriActivity, tauriChat, tauriProvider } from "./tauri";
 import {
@@ -117,17 +117,16 @@ export async function wireWarmingSend(
       // A prompt from either hidden source (built now, or resolved at queue
       // time) means the bubble must show the user's words instead.
       displayText: hiddenPromptDisplayText(send.text, wire.source !== "text"),
+      // The title this mission skipped at queue time (HOU-713): the runtime
+      // titles the card after this first turn's reply. The card was created
+      // with the same fallback (create-mission-warming.ts).
+      missionTitle: send.titleText
+        ? {
+            fallback: fallbackMissionTitle(send.titleText),
+            text: send.titleText,
+          }
+        : undefined,
     });
-    // The AI title pass this mission skipped at queue time (HOU-713): the
-    // row just landed and the engine answers now. Fire-and-forget — a
-    // failure keeps the fallback title (refreshMissionTitle logs it).
-    if (rowId && send.titleText) {
-      void refreshMissionTitle({
-        agentPath: entry.agentPath,
-        activityId: rowId,
-        text: send.titleText,
-      });
-    }
   } catch (e) {
     if (abortsFlushAsAgentGone(e)) return "abort";
     // tauriChat.send already toasted the real reason; keep flushing the

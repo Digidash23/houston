@@ -17,7 +17,7 @@ import {
   type MissionPromptOptions,
   missionPrompt,
 } from "./mission-prompt";
-import { fallbackMissionTitle, refreshMissionTitle } from "./mission-title";
+import { fallbackMissionTitle } from "./mission-title";
 import { tauriActivity, tauriChat } from "./tauri";
 
 /** Build a session key for a given activity id. */
@@ -148,6 +148,10 @@ export async function createMission(
       modeOverride: opts.modeOverride,
       mentions: opts.mentions,
       displayText: hiddenPromptDisplayText(text, hasHiddenPrompt(opts)),
+      // The runtime titles the card after this first turn's reply.
+      missionTitle: opts.title
+        ? undefined
+        : { fallback: title, text: titleText },
     });
 
     analytics.track("mission_created", {
@@ -155,14 +159,6 @@ export async function createMission(
       provider: opts.providerOverride,
       model: opts.modelOverride,
     });
-
-    if (!opts.title) {
-      void refreshMissionTitle({
-        agentPath: agent.folderPath,
-        activityId: conversationId,
-        text: titleText,
-      });
-    }
   } catch (e) {
     try {
       await tauriActivity.delete(agent.folderPath, conversationId);

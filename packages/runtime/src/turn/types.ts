@@ -1,6 +1,7 @@
 import type { ChatMessage, TurnMode } from "@houston/protocol";
 import type { PrefetchedObjects } from "@houston/runtime-client/object-sync";
 import type { ServedCredential } from "../auth/auth-file";
+import type { MissionTitleRequest } from "../session/mission-title";
 
 /**
  * Independently deployable authority carried by a per-turn grant. `code-run`
@@ -68,6 +69,11 @@ export interface TurnRequest {
    * message mentions nobody.
    */
   mentions?: ChatMessage["mentions"];
+  /**
+   * A new mission's first send: title its card after the reply, in this same
+   * worker, before sync-back (turn-mission-title.ts). Absent on every other turn.
+   */
+  missionTitle?: MissionTitleRequest;
   /** Gateway-minted identity reused across a retried dispatch. */
   turnId?: string;
   /** Per-claim gateway token. Secret material, never log this value. */
