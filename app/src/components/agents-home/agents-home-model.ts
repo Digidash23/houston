@@ -1,3 +1,4 @@
+import type { MissionStarter } from "@houston/protocol";
 import { isSetupChatMode } from "../../lib/integration-chat-setup.ts";
 import { ARCHIVED_STATUS } from "../../lib/mission-selection.ts";
 import type { TeamView } from "../../lib/teams-model.ts";
@@ -36,6 +37,12 @@ export interface AgentHomeConversation {
   /** Agent-mode id; setup chats never appear on the home surfaces. */
   agent?: string | null;
   updated_at?: string;
+  /** Who started the task, the facts its origin tag reads
+   *  (`missionStartedBy`, PRODUCT-1928). */
+  routine_id?: string;
+  origin_session_key?: string;
+  origin_agent?: string;
+  started_by?: MissionStarter;
 }
 
 export interface AgentHomeRow {

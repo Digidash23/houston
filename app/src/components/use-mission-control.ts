@@ -16,14 +16,15 @@ import { useAllConversations } from "../hooks/queries";
 import { useUserProfiles } from "../hooks/queries/use-user-profiles";
 import { useCapabilities } from "../hooks/use-capabilities";
 import { getConversationStatus } from "../hooks/use-conversation-vm";
+import { useMissionOriginTag } from "../hooks/use-mission-origin-tag";
 import { useWarmingConversations } from "../hooks/use-warming-conversations";
 import { latestCachedAllConversations } from "../lib/all-conversations-cache";
 import { buildAttachmentPrompt } from "../lib/attachment-message";
 import { forgetConversationDraftsOf } from "../lib/conversation-drafts";
+import type { RawConversation } from "../lib/conversations-facade";
 import { createMission } from "../lib/create-mission";
 import { isSetupChatMode } from "../lib/integration-chat-setup";
 import { missionCardTags } from "../lib/mission-card";
-import { missionOriginAgentName } from "../lib/mission-card-agent";
 import { armMissionDoneCelebration } from "../lib/mission-done-celebration";
 import {
   buildMissionPeople,
@@ -38,7 +39,6 @@ import { showSendFailedToast } from "../lib/send-error-toast";
 import { sweepIsAuthoritative } from "../lib/sweep-authoritative";
 import {
   type HistoryLoadOptions,
-  type RawConversation,
   tauriActivity,
   tauriAttachments,
   tauriChat,
@@ -55,7 +55,7 @@ import { resolveFollowUpOverrides } from "./mission-control-send";
 import { AgentCardAvatar } from "./shell/agent-card-avatar";
 
 export function useMissionControl(agents: Agent[]) {
-  const { t } = useTranslation(["chat", "board"]);
+  const { t } = useTranslation("chat");
   const queryClient = useQueryClient();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -137,6 +137,7 @@ export function useMissionControl(agents: Agent[]) {
   // web adapter stamps from a registry that does not know the host's agents —
   // so every card read "Houston". See `mission-card-agent.ts`.
   const agentsByFolderPath = useMemo(() => agentsByPath(agents), [agents]);
+  const originTagOf = useMissionOriginTag(agents);
   const items: KanbanItem[] = useMemo(() => {
     if (!convos) return [];
     const map: Record<string, string> = {};
@@ -162,7 +163,6 @@ export function useMissionControl(agents: Agent[]) {
           activityId: c.id,
         };
         const people = multiplayer ? buildMissionPeople(c, profiles) : [];
-        const originAgentName = missionOriginAgentName(agents, c.origin_agent);
         return {
           id: c.id,
           title: c.title,
@@ -179,18 +179,7 @@ export function useMissionControl(agents: Agent[]) {
           }),
           status: c.status ?? "",
           updatedAt: c.updated_at ?? new Date().toISOString(),
-          tags: missionCardTags({
-            routineId: c.routine_id,
-            routineLabel: t("board:tags.routine"),
-            originSessionKey: c.origin_session_key,
-            agentStartedLabel: originAgentName
-              ? t("board:tags.startedByAgent", {
-                  name: originAgentName,
-                })
-              : t("board:tags.agentStarted"),
-            agentMode: c.agent,
-            setupLabel: t("board:tags.setup"),
-          }),
+          tags: missionCardTags(originTagOf(c)),
           metadata: {
             agentPath: c.agent_path,
             sessionKey: c.session_key,
@@ -208,7 +197,7 @@ export function useMissionControl(agents: Agent[]) {
     pathMapRef.current = map;
     sessionMapRef.current = sessionMap;
     return result;
-  }, [convos, agents, agentsByFolderPath, multiplayer, profiles, t]);
+  }, [convos, agentsByFolderPath, originTagOf, multiplayer, profiles]);
 
   // Which conversation is open, and its live feed — including the beat after a
   // create, before the sweep has returned the new mission's row.

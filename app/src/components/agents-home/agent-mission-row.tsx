@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { formatRelativeTime } from "../organization/org-time";
 import { AgentAvatarStack } from "./agent-avatar-stack";
 import type { AgentHomeConversation } from "./agents-home-model";
+import { MissionOriginTag } from "./mission-origin-tag";
 import { MissionStatusTag } from "./mission-status-tag";
 
 /**
@@ -10,7 +11,8 @@ import { MissionStatusTag } from "./mission-status-tag";
  * the Agents home row above it: the agent's large avatar on the left (its
  * running ring while THIS task runs), the task's title with the movement's
  * time trailing, the preview line under it ("Typing" while running, else the
- * task's own description), and the status label as a small tag beneath.
+ * task's own description), and the status label as a small tag beneath, with
+ * the origin tag beside it when the task was not the user's own doing.
  *
  * The avatar is the AGENT's, repeated on every row on purpose: the list is
  * one agent's thread of conversations, and the mark is what says so at a
@@ -21,11 +23,15 @@ import { MissionStatusTag } from "./mission-status-tag";
 export function AgentMissionRow({
   mission,
   status,
+  originTag,
   color,
   onOpen,
 }: {
   mission: AgentHomeConversation;
   status: TaskRowStatus;
+  /** Who started the task, in words (`useMissionOriginTag`); none for the
+   *  user's own. */
+  originTag?: string;
   /** The owning agent's stored colour id. */
   color?: string;
   onOpen: (mission: AgentHomeConversation) => void;
@@ -69,8 +75,9 @@ export function AgentMissionRow({
               {running ? t("agentsHome.typing") : mission.description}
             </span>
           )}
-          <span className="mt-1 flex">
+          <span className="mt-1 flex min-w-0 gap-1">
             <MissionStatusTag status={status} />
+            {originTag && <MissionOriginTag label={originTag} />}
           </span>
         </span>
       </button>

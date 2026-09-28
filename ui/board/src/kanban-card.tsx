@@ -18,6 +18,7 @@ import {
   peopleGutterClass,
   stackSlots,
 } from "./kanban-people-logic";
+import { KanbanTag } from "./kanban-tag";
 import type { KanbanItem } from "./types";
 
 export interface KanbanCardLabels {
@@ -498,12 +499,7 @@ export function KanbanCard({
           <div className="flex items-center justify-between mt-2.5">
             <div className="flex items-center gap-1 flex-wrap min-w-0">
               {item.tags?.map((tag) => (
-                <span
-                  key={tag}
-                  className="inline-flex h-[18px] items-center rounded-full bg-chip px-2 text-[10px] font-medium text-ink-muted"
-                >
-                  {tag}
-                </span>
+                <KanbanTag key={tag} label={tag} />
               ))}
             </div>
             <div className="flex items-center gap-1.5 shrink-0">{actions}</div>

@@ -2,6 +2,11 @@ import { FAKE_HOST_URL, SEED_AGENT_ID } from "@houston/fake-host";
 import type { Page } from "@playwright/test";
 import { FOLLOW_UP_PLACEHOLDER } from "./support/composer";
 import { expect, test } from "./support/fixtures";
+import {
+  ARCHIVED_HOUSTON_MISSION,
+  ORIGIN_MISSIONS,
+  seedOriginMissions,
+} from "./support/origin-missions";
 import { seedSidebarLayout } from "./support/sidebar-layout";
 import {
   missionCard,
@@ -169,6 +174,46 @@ test("renders the seeded missions on the board", async ({ page }) => {
   // Seeded in state.ts: one "needs_you" mission, one "done" mission.
   await expect(missionCard(page, "Plan a trip to Tokyo")).toBeVisible();
   await expect(missionCard(page, "Draft the launch email")).toBeVisible();
+});
+
+/**
+ * Every card that was not the user's own doing says who started it
+ * (PRODUCT-1928): Houston's, a routine's, an AI Employee's. The archived list
+ * row wears the same tag as the board card.
+ */
+test("tags each mission card with who started it", async ({
+  page,
+  request,
+}) => {
+  await seedOriginMissions(request);
+  await page.goto("/");
+
+  for (const mission of ORIGIN_MISSIONS) {
+    await expect(
+      page
+        .locator(`[data-kanban-card="${mission.id}"]`)
+        .getByText(mission.tag, {
+          exact: true,
+        }),
+    ).toBeVisible();
+  }
+  // The user's own mission wears no origin tag.
+  const own = page.locator('[data-kanban-card="act-1"]');
+  await expect(own).toBeVisible();
+  for (const tag of new Set(ORIGIN_MISSIONS.map((m) => m.tag)))
+    await expect(own.getByText(tag, { exact: true })).toHaveCount(0);
+  // The archived one stays off the active board, and its archive row wears
+  // the tag.
+  await expect(missionCard(page, ARCHIVED_HOUSTON_MISSION.title)).toHaveCount(
+    0,
+  );
+  await openArchivedTasks(page);
+  const archivedRow = screen(page)
+    .getByRole("option")
+    .filter({ hasText: ARCHIVED_HOUSTON_MISSION.title });
+  await expect(
+    archivedRow.getByText(ARCHIVED_HOUSTON_MISSION.tag, { exact: true }),
+  ).toBeVisible();
 });
 
 test("restores cached missions before starting fresh board reads", async ({

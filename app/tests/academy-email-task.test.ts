@@ -5,7 +5,7 @@ import {
   emailTask,
 } from "../src/lib/academy/email-lesson/email-task.ts";
 import { createSliceCoverage } from "../src/lib/all-conversations-coverage.ts";
-import type { RawConversation } from "../src/lib/tauri.ts";
+import type { RawConversation } from "../src/lib/conversations-facade.ts";
 
 // The user sends the lesson's request as an ordinary task, so the lesson finds
 // that task as the sender's one it did not know about when it asked.

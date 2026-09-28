@@ -18,8 +18,11 @@
     "framer-motion": "12.42.2",
     "lucide-react": "0.577.0"
   },
+  "devDependencies": {
+    "tsx": "4.23.0"
+  },
   "scripts": {
-    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "test": "node --import tsx --test tests/*.test.ts",
     "typecheck": "tsgo --noEmit"
   }
 }

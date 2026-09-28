@@ -1,6 +1,6 @@
+import type { RawConversation } from "../../lib/conversations-facade";
 import { isSetupChatMode } from "../../lib/integration-chat-setup";
 import { ARCHIVED_STATUS } from "../../lib/mission-selection";
-import type { RawConversation } from "../../lib/tauri";
 
 export function archivedMissionRows(
   conversations: readonly RawConversation[],

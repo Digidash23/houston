@@ -16,6 +16,7 @@
     "routine": "Rutina",
     "agentStarted": "Iniciada por el empleado de IA",
     "startedByAgent": "Iniciada por {{name}}",
+    "houstonStarted": "Iniciada por Houston",
     "setup": "Configuración"
   },
   "panel": {

@@ -2,6 +2,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { docKey, saveActivities } from "@houston/domain";
 import type { Activity, HoustonEvent } from "@houston/protocol";
 import { beforeEach, expect, test } from "vitest";
+import { ACTING_AS_HEADER } from "../auth/acting";
+import { assistantCallHeaders } from "../auth/assistant-call";
 import type { Agent, Workspace } from "../domain/types";
 import { conversationKey, LocalPaths } from "../paths";
 import type { RuntimeChannel, TurnPin } from "../ports";
@@ -453,4 +455,77 @@ test("the inbound start echoes resolved provider and model", async () => {
     provider: "openai-codex",
     model: "gpt-6-luna",
   });
+});
+
+/** A start carrying exactly `headers`, on a pod fronted or not. */
+async function startWith(
+  headers: Record<string, string>,
+  opts: { gatewayFronted: boolean; callingAgent?: string },
+): Promise<Activity | undefined> {
+  const deps = {
+    store,
+    vfs,
+    paths,
+    channels: { local: channel },
+    gatewayFronted: opts.gatewayFronted,
+    events: { emit: () => {} },
+  } as unknown as MissionsDeps;
+  const { res, captured } = fakeRes();
+  const body = { title: "t", prompt: "p", origin: ORIGIN };
+  const req = fakeReq(body, headers);
+  Object.assign(req, { socket: { remoteAddress: "127.0.0.1" } });
+  await handleAgentMissions(
+    deps,
+    {
+      workspace: ws,
+      agent,
+      ...(opts.callingAgent ? { callingAgent: opts.callingAgent } : {}),
+    },
+    "POST",
+    "missions/start",
+    new URL(`http://pod/agents/${agent.id}/missions/start`),
+    req,
+    res,
+  );
+  expect(captured.status).toBe(201);
+  return (await board()).at(-1);
+}
+
+const viaAssistant = {
+  [ACTING_AS_HEADER]: `acting-v1.${Buffer.from(
+    JSON.stringify({ sub: "u-1", via: "assistant" }),
+  ).toString("base64url")}.sig`,
+};
+
+test("a start the gateway minted for the AI Manager is stamped as Houston's", async () => {
+  const row = await startWith(viaAssistant, { gatewayFronted: true });
+  expect(row?.started_by).toBe("houston");
+});
+
+test("a start from a verified calling agent is stamped as an employee's", async () => {
+  const row = await startWith(
+    {
+      ...viaAssistant,
+      "x-houston-mission-id": "0d3b1c7e-2f4a-4b8c-9d6e-1a2b3c4d5e6f",
+    },
+    { gatewayFronted: true, callingAgent: "verified-caller" },
+  );
+  expect(row?.started_by).toBe("employee");
+});
+
+test("a person's direct start records no starter", async () => {
+  const row = await startWith({}, { gatewayFronted: true });
+  expect(row && "started_by" in row).toBe(false);
+});
+
+test("off the gateway, an acting header claiming the manager is ignored", async () => {
+  const row = await startWith(viaAssistant, { gatewayFronted: false });
+  expect(row && "started_by" in row).toBe(false);
+});
+
+test("off the gateway, the dispatcher's loopback proof marks the manager", async () => {
+  const row = await startWith(assistantCallHeaders(), {
+    gatewayFronted: false,
+  });
+  expect(row?.started_by).toBe("houston");
 });

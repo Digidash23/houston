@@ -7,6 +7,7 @@ import { addressesMission } from "@houston/domain/conversation-keys";
 import {
   type Activity,
   type ActivityUpdate,
+  isMissionStarter,
   resolveInteractionPatch,
 } from "@houston/protocol";
 import { ACTIVITY_PATH, emitDomain, fileKey, ISO, state } from "./state-store";
@@ -53,6 +54,11 @@ export function createActivity(
     // reason as the attribution keys: an e2e needs to seed a child mission.
     ...(input.origin_session_key !== undefined && {
       origin_session_key: input.origin_session_key,
+    }),
+    // Which AI started it (PRODUCT-1928): the real host stamps it from the
+    // verified caller; accepted here so an e2e can seed a Houston-started card.
+    ...(isMissionStarter(input.started_by) && {
+      started_by: input.started_by,
     }),
   };
   setActivities(agentId, [...listActivities(agentId), activity]);

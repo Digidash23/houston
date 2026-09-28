@@ -7,6 +7,7 @@ import {
   missionFanout,
   readRemoteMissionStatus,
 } from "./mission-fanout";
+import { callerMissionStarter } from "./mission-starter";
 import {
   MAX_MISSION_DEPTH,
   MISSION_DEPTH_ERROR,
@@ -132,7 +133,10 @@ export async function handleMissionStart(
       }
       return;
     }
-    const started = await startMission(route.ctx, parsed.value, origin, res);
+    // The starter is the CALLER's role, read before the route retargeted it.
+    const started = await startMission(route.ctx, parsed.value, origin, res, {
+      startedBy: callerMissionStarter(ctx.agent.id),
+    });
     if (started) {
       await missionFanout.recordReserved(ctx.agent.id, {
         missionId: started,

@@ -47,6 +47,8 @@ test("conversation mapping falls back to the activity-<id> session key", () => {
   expect(entry.session_key).toBe("activity-act-2");
   expect(entry.agent).toBeUndefined();
   expect(entry.routine_id).toBeUndefined();
+  // A person's mission names no starter.
+  expect("started_by" in entry).toBe(false);
   // No attribution on single-player activities.
   expect("created_by" in entry).toBe(false);
   expect("contributors" in entry).toBe(false);
@@ -75,4 +77,19 @@ test("conversation mapping threads Teams attribution (created_by + contributors)
     { user_id: "user-jane", name: "Jane" },
     { user_id: "user-bob" },
   ]);
+});
+
+test("conversation mapping carries which AI started the mission (PRODUCT-1928)", () => {
+  const entry = activityToConversation(
+    {
+      id: "act-9",
+      title: "Weekly report",
+      description: "",
+      status: "running",
+      started_by: "houston",
+    },
+    "/agents/Ada",
+    "Ada",
+  );
+  expect(entry.started_by).toBe("houston");
 });

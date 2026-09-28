@@ -7,10 +7,12 @@
  * re-exports them so `app/src` sees one surface.
  */
 
+export * from "./activities";
 export * from "./agents";
 export * from "./channels";
 export * from "./channels-refusals";
 export * from "./delegation";
+export * from "./interactions";
 export * from "./local-model-bridge";
 export * from "./onboarding";
 export * from "./plan";

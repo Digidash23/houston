@@ -1,5 +1,5 @@
 import type { SliceCoverage } from "../../all-conversations-coverage.ts";
-import type { RawConversation } from "../../tauri.ts";
+import type { RawConversation } from "../../conversations-facade.ts";
 
 /**
  * Which task is the one the lesson asked for. Pure, so it unit-tests without

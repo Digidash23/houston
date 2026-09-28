@@ -2,12 +2,11 @@ import type { KanbanItem } from "@houston-ai/board";
 import type { FeedItem } from "@houston-ai/chat";
 import { messagePreviewText } from "@houston-ai/chat";
 import { createElement, useCallback, useMemo, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { useAllConversations } from "../../hooks/queries";
+import { useMissionOriginTag } from "../../hooks/use-mission-origin-tag";
 import { useOpenConversationFeed } from "../../hooks/use-open-conversation-feed";
 import { forgetConversationDraftsOf } from "../../lib/conversation-drafts";
 import { missionCardTags } from "../../lib/mission-card";
-import { missionOriginAgentName } from "../../lib/mission-card-agent";
 import {
   type HistoryLoadOptions,
   tauriActivity,
@@ -28,8 +27,6 @@ import { rowSessionKey } from "./session-loading";
  * stays data-only: items, feed, history, delete, and the session→agent maps.
  */
 export function useMissionControlArchived(agents: Agent[]) {
-  const { t } = useTranslation(["board"]);
-
   const agentPaths = useMemo(() => agents.map((a) => a.folderPath), [agents]);
   const { data: convos } = useAllConversations(agentPaths);
 
@@ -38,6 +35,7 @@ export function useMissionControlArchived(agents: Agent[]) {
   // web adapter stamps from a registry that does not know the host's agents —
   // so every card read "Houston". See `mission-card-agent.ts`.
   const agentsByFolderPath = useMemo(() => agentsByPath(agents), [agents]);
+  const originTagOf = useMissionOriginTag(agents);
   const agentMap = useMemo(() => {
     const m: Record<string, Agent> = {};
     for (const a of agents) m[a.folderPath] = a;
@@ -63,7 +61,6 @@ export function useMissionControlArchived(agents: Agent[]) {
         agentPath: c.agent_path,
         activityId: c.id,
       };
-      const originAgentName = missionOriginAgentName(agents, c.origin_agent);
       return {
         id: c.id,
         title: c.title,
@@ -80,18 +77,7 @@ export function useMissionControlArchived(agents: Agent[]) {
         }),
         status: c.status ?? "archived",
         updatedAt: c.updated_at ?? new Date().toISOString(),
-        tags: missionCardTags({
-          routineId: c.routine_id,
-          routineLabel: t("board:tags.routine"),
-          originSessionKey: c.origin_session_key,
-          agentStartedLabel: originAgentName
-            ? t("board:tags.startedByAgent", {
-                name: originAgentName,
-              })
-            : t("board:tags.agentStarted"),
-          agentMode: c.agent,
-          setupLabel: t("board:tags.setup"),
-        }),
+        tags: missionCardTags(originTagOf(c)),
         metadata: {
           agentPath: c.agent_path,
           sessionKey: c.session_key,
@@ -103,7 +89,7 @@ export function useMissionControlArchived(agents: Agent[]) {
     pathMapRef.current = map;
     sessionMapRef.current = sessionMap;
     return result;
-  }, [convos, agents, agentsByFolderPath, t]);
+  }, [convos, agentsByFolderPath, originTagOf]);
 
   const sessionKeyFor = useCallback(
     (activityId: string) => {

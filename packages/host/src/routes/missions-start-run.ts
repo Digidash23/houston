@@ -7,7 +7,7 @@ import {
   saveActivities,
   upsertById,
 } from "@houston/domain";
-import { normalizeTurnMode } from "@houston/protocol";
+import { type MissionStarter, normalizeTurnMode } from "@houston/protocol";
 import { assistantRuntimeRole } from "../launcher/assistant-role";
 import { withDocLock } from "./doc-lock";
 import { json } from "./http";
@@ -38,7 +38,7 @@ export async function startMission(
   input: MissionStartInput,
   origin: MissionOrigin,
   res: ServerResponse,
-  missionId?: string,
+  opts: { missionId?: string; startedBy?: MissionStarter } = {},
 ): Promise<string | null> {
   // The pin resolves against the TARGET's workspace: that agent's credentials,
   // not the caller's, have to serve the mission.
@@ -66,7 +66,7 @@ export async function startMission(
     return null;
   }
 
-  const id = missionId ?? crypto.randomUUID();
+  const id = opts.missionId ?? crypto.randomUUID();
   const guarded = await withDocLock(`${target.root}#activity`, async () => {
     const { items } = await loadActivities(target.vfs, target.root);
     if (items.some((activity) => activity.id === id))
@@ -74,9 +74,10 @@ export async function startMission(
     const running = items.filter((a) => a.status === "running").length;
     if (running >= MAX_RUNNING_MISSIONS) return "cap" as const;
     // Provenance the caller cannot author and the target must not lose: WHICH
-    // agent asked, and how deep this mission sits. Across pods the parent chat
-    // is unreadable from here, so the row itself is the only place either fact
-    // survives - and the next start counts its depth from this number.
+    // agent asked, whether that was Houston, and how deep this mission sits.
+    // Across pods the parent chat is unreadable from here, so the row itself is
+    // the only place these facts survive - and the next start counts its depth
+    // from this number.
     const activity = {
       ...createActivity(
         {
@@ -93,6 +94,7 @@ export async function startMission(
       ),
       ...(origin.agent ? { origin_agent: origin.agent } : {}),
       origin_depth: origin.depth,
+      ...(opts.startedBy ? { started_by: opts.startedBy } : {}),
     };
     await saveActivities(target.vfs, target.root, upsertById(items, activity));
     return activity;

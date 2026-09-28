@@ -6,13 +6,9 @@ import {
   type NewActivity,
   resolveInteractionPatch,
 } from "@houston/protocol";
-import {
-  cloneContributor,
-  sanitizeContributors,
-  upsertContributor,
-} from "./contributors";
+import { sanitizeActivityStamps } from "./activity-stamps";
+import { cloneContributor, upsertContributor } from "./contributors";
 import { docKey } from "./layout";
-import { sanitizeMentions } from "./mentions";
 import { toCanonicalProviderId } from "./provider-dialect";
 import {
   type DocDiagnostic,
@@ -66,21 +62,7 @@ export function normalizeActivities(
       typeof entry.status === "string"
     ) {
       const activity = { description: "", ...entry } as Activity;
-      if (typeof entry.created_by !== "string") {
-        delete activity.created_by;
-      }
-      if (entry.contributors !== undefined) {
-        if (Array.isArray(entry.contributors)) {
-          activity.contributors = sanitizeContributors(entry.contributors);
-        } else {
-          delete activity.contributors;
-        }
-      }
-      if (entry.mentioned !== undefined) {
-        const mentioned = sanitizeMentions(entry.mentioned);
-        if (mentioned) activity.mentioned = mentioned;
-        else delete activity.mentioned;
-      }
+      sanitizeActivityStamps(activity, entry);
       if (
         entry.pending_interaction !== undefined &&
         !isValidPendingInteraction(entry.pending_interaction)

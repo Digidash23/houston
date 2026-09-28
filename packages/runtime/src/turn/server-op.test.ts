@@ -340,6 +340,52 @@ test("mission attribution (actingAs.name) reaches the activity handler", async (
   ]);
 });
 
+/** POST an activity create as an op whose envelope `actingAs` carries `via`
+ *  (omitted when undefined) and answer the created row. */
+async function createActivityOp(
+  via?: unknown,
+): Promise<Record<string, unknown>> {
+  const { storeRoot } = await seedAgent();
+  const base = await listen(
+    createTurnServer({
+      store: new LocalDirStore(storeRoot),
+      token: "",
+      runTurn: noopTurn,
+    }),
+  );
+  const body = opBody("agent-1", await heartbeatOK(), {
+    kind: "route",
+    method: "POST",
+    rest: "activities",
+    contentType: "application/json",
+    body: JSON.stringify({ title: "Draft the memo", status: "needs_you" }),
+  });
+  if (via !== undefined) (body.actingAs as { via?: unknown }).via = via;
+  const { json } = await postOp(base, body);
+  expect(json.status, JSON.stringify(json)).toBe(201);
+  return JSON.parse(json.body as string) as Record<string, unknown>;
+}
+
+test("an asleep agent's card created by the AI Manager (actingAs.via) is started by Houston", async () => {
+  const created = await createActivityOp("assistant");
+  expect(created.started_by).toBe("houston");
+  // The acting human is still recorded as ever.
+  expect(created.created_by).toBe("user-1");
+});
+
+test("an op without actingAs.via stamps no started_by", async () => {
+  const created = await createActivityOp();
+  expect("started_by" in created).toBe(false);
+});
+
+test("an unknown actingAs.via is ignored: the op runs, no started_by", async () => {
+  for (const via of ["employee", "", 1, { kind: "assistant" }]) {
+    const created = await createActivityOp(via);
+    expect("started_by" in created, JSON.stringify(via)).toBe(false);
+    expect(created.created_by).toBe("user-1");
+  }
+});
+
 test("a settings claim runs on the worker and syncs settings.json back (never moves a set provider)", async () => {
   const { storeRoot, agentId, prefix } = await seedAgent();
   const store = new LocalDirStore(storeRoot);

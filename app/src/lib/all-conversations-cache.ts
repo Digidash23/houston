@@ -43,9 +43,9 @@ export function latestCachedAllConversations<T>(
 
 /**
  * A cached conversation row as the board-seeding fallback reads it. Mirrors
- * `RawConversation` (lib/tauri.ts) structurally — conversations are derived
- * 1:1 from board activities (`activityToConversation`), so the row carries
- * everything a mission card renders.
+ * `RawConversation` (lib/conversations-facade.ts) structurally — conversations
+ * are derived 1:1 from board activities (`activityToConversation`), so the row
+ * carries everything a mission card renders.
  */
 interface CachedConversationRow {
   id: string;

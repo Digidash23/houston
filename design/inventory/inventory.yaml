@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 112
+version: 114
 
 components:
   - id: agent-delegation-settings
@@ -828,9 +828,17 @@ components:
       opens the full roster; it is absent while nobody but the viewer is on
       the task, so a solo chat never shows your own face as a dead control.
       A card wears at most ONE tag pill, and only for a mission the user did not
-      start by typing: a routine's run, a mission the agent started for itself,
-      or the agent's own set-up mission. A mission the user asked for carries no
-      pill at all.
+      start by typing: a routine's run ("Routine"), the agent's own set-up
+      mission ("Set up"), a mission Houston, the AI Manager, started ("Started
+      by Houston"), or one an AI Employee started ("Started by" the employee's
+      name when the roster knows it, else "Started by AI Employee"), first match
+      in that order. Who started it is the SDK's one decision
+      (`missionStartedBy`), worded once for the board card, the archived
+      list row and the phone's task rows (`agent-missions-list`); a mission
+      older than that record keeps the label it always had. A mission the user
+      asked for carries no pill at all. The archived list row wears the card's
+      own pill at the end of its title line, so the row stays one line, capped
+      so a long tag truncates before the title does.
     a11y: >-
       article/button role; title as label; checkbox labeled; status not
       color-only; each action button is a >=24px hit box whose icon-only glyph
@@ -1583,9 +1591,9 @@ components:
       Agents home; the drill level between the agent tree and a task's chat.
     anatomy: [drilled-header, back-chip, agent-avatar, task-count, overflow-menu,
       status-filter, inline-search, task-group, task-row, avatar, preview-line,
-      relative-time, status-tag, archived-group, empty-state]
+      relative-time, status-tag, origin-tag, archived-group, empty-state]
     states: [sectioned, filtered, searching, search-empty, filter-empty,
-      archived-collapsed, archived-expanded, no-tasks]
+      archived-collapsed, archived-expanded, no-tasks, origin-tagged]
     variants: []
     behavior: >-
       The drilled phone header names the agent (avatar with its running ring)
@@ -1608,7 +1616,11 @@ components:
       runs), the task's title with the movement's relative time trailing, a
       preview line under it ("Typing" while running, else the task's own
       description), and a small status tag beneath (Needs you / Running /
-      Done / Archived) in the status's own tone. The "..." menu holds the two
+      Done / Archived) in the status's own tone, with an origin tag beside it
+      in the neutral chip when the task was not the person's own doing, the
+      same tag the board card wears (Routine, Set up, Started by Houston,
+      Started by the employee), truncating a long name rather than widening
+      the row. The "..." menu holds the two
       things the screen will not spend a permanent row on: Search reveals an
       inline field that narrows the rows by title as the user types (Escape
       or its own control closes it), and Archived resets the filter to All,

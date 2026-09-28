@@ -15,7 +15,7 @@ import {
   resolveAgentColor,
 } from "@houston-ai/core";
 import { useTranslation } from "react-i18next";
-import type { RawConversation } from "../lib/tauri";
+import type { RawConversation } from "../lib/conversations-facade";
 import type { Agent } from "../lib/types";
 import { missionCardAgentName } from "./board/mission-card-agent";
 

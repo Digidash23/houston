@@ -3,6 +3,22 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v114 - 2026-09-28
+
+The archived missions list (`mission-card`'s `archived-list-row`) wears the
+board card's tag pill (Routine, Set up, Started by Houston, Started by
+the employee's name, Started by AI Employee) at the end of the title line.
+The row stays one line, and a long tag truncates before the title does. The card and the row draw the same pill.
+
+## v113 - 2026-09-28
+
+A mission Houston, the AI Manager, started wears "Started by Houston" on its
+board card and on the phone's task rows, archived ones included. The phone's task
+rows (`agent-missions-list`) gain an origin tag beside the status tag, the
+same tag the board card wears: Routine, Set up, Started by Houston,
+Started by {{name}}, or Started by AI Employee when the employee's name is
+unknown. Missions older than this record keep their label.
+
 ## v112 - 2026-09-28
 
 AI Employee settings add Teamwork on phone and desktop: one card with two

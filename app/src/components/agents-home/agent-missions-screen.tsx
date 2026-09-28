@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useAllConversations } from "../../hooks/queries";
 import { useAgentWarmup } from "../../hooks/use-agent-warmup";
 import { useCapabilities } from "../../hooks/use-capabilities";
+import { useMissionOriginTag } from "../../hooks/use-mission-origin-tag";
 import { useTeams } from "../../hooks/use-teams";
 import { openMissionChat } from "../../lib/mission-chat";
 import { openAgentSection } from "../../lib/open-agent";
@@ -43,6 +44,7 @@ export function AgentMissionsScreen({ agent }: { agent: Agent }) {
   const { t } = useTranslation(["shell", "dashboard"]);
   const openAgentsHome = useUIStore((s) => s.openAgentsHome);
   const agents = useAgentStore((s) => s.agents);
+  const originTagOf = useMissionOriginTag(agents);
   const teams = useTeams();
   const { capabilities } = useCapabilities();
   const menuSections = agentMissionsMenuSections(
@@ -183,6 +185,7 @@ export function AgentMissionsScreen({ agent }: { agent: Agent }) {
             archivedRef={archived}
             onToggleArchived={() => setArchivedOpen((open) => !open)}
             onOpen={openMission}
+            originTagOf={originTagOf}
           />
         )}
       </div>

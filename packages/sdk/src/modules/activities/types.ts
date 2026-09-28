@@ -17,6 +17,7 @@ import type {
   NewActivity,
   PendingInteraction,
 } from "@houston/protocol";
+import type { MissionStartedBy } from "./started-by";
 
 /**
  * The canonical activity statuses (`packages/domain/src/activities.ts`,
@@ -50,6 +51,9 @@ export interface ActivityItem {
   /** The parent conversation, present only when the agent started this
    *  mission itself (PRODUCT-1244). Additive VM field. */
   originSessionKey?: string;
+  /** Who started this mission (PRODUCT-1928), by `missionStartedBy`:
+   *  the one answer every surface labels a card with. Additive VM field. */
+  startedBy: MissionStartedBy;
   /** The agent-mode/config the mission runs under, when set. */
   agent?: string;
   worktreePath?: string | null;

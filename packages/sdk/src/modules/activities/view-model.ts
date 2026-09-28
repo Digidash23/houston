@@ -11,6 +11,7 @@
 
 import { addressesMission, missionConversationKey } from "@houston/domain";
 import type { Activity } from "@houston/protocol";
+import { missionStartedBy } from "./started-by";
 import type { ActivityItem } from "./types";
 
 /**
@@ -44,6 +45,7 @@ export function toActivityItem(a: Activity): ActivityItem {
     title: a.title,
     status: a.status,
     sessionKey: sessionKeyOf(a),
+    startedBy: missionStartedBy(a),
     ...(a.description ? { description: a.description } : {}),
     ...(a.updated_at !== undefined ? { updatedAt: a.updated_at } : {}),
     ...(a.routine_id !== undefined ? { routineId: a.routine_id } : {}),

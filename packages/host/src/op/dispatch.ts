@@ -1,6 +1,10 @@
 import { createServer, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import type { ActivityContributor, HoustonEvent } from "@houston/protocol";
+import type {
+  ActivityContributor,
+  HoustonEvent,
+  MissionStarter,
+} from "@houston/protocol";
 import type { CustomIntegrationManager } from "../integrations/custom/manager";
 import { LocalPaths } from "../paths";
 import { LocalWorkspaceStore } from "../store/local";
@@ -26,6 +30,9 @@ export interface AgentOpRequest {
   /** Verified acting identity (routines' created_by, activity contributors). */
   actingSub?: string;
   actingAuthor?: ActivityContributor | null;
+  /** `houston` when the gateway verified the AI Manager made this write: a
+   *  card it creates is stamped `started_by` (PRODUCT-1928). */
+  startedBy?: MissionStarter;
   triggersEnabled: boolean;
   /** Raw query string (files routes take `?path=`), no leading `?`. */
   query?: string;
@@ -121,6 +128,9 @@ export async function dispatchAgentOp(opts: {
           : {}),
         ...(opts.request.actingAuthor
           ? { actingAuthor: opts.request.actingAuthor }
+          : {}),
+        ...(opts.request.startedBy
+          ? { startedBy: opts.request.startedBy }
           : {}),
         triggersEnabled: opts.request.triggersEnabled,
         ...(opts.customIntegrations

@@ -69,7 +69,9 @@ export function resolveAssistantGateway(
 ): AssistantGateway | null {
   const configured = envAssistantGateway(wiring.env ?? process.env);
   if (configured) return configured;
-  return wiring.self ? normalize(wiring.self) : null;
+  // Marked loopback so the dispatcher proves the manager to its own routes;
+  // a configured gateway above never is.
+  return wiring.self ? { ...normalize(wiring.self), loopback: true } : null;
 }
 
 /**

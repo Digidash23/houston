@@ -13,7 +13,7 @@
 
 surface: web
 enforced: true
-inventoryVersion: 112
+inventoryVersion: 114
 
 components:
   manager-avatar:
@@ -156,7 +156,7 @@ components:
 
   mission-card:
     status: implemented
-    ref: "@houston-ai/board KanbanCard / KanbanListItem"
+    ref: "@houston-ai/board KanbanCard / KanbanListItem, both wearing the one tag pill in kanban-tag.tsx"
 
   mission-board:
     status: implemented
@@ -280,7 +280,7 @@ components:
     ref: "app/src/components/agents-home/ (AgentsHomeView switching AgentsHomeList / AgentMissionsScreen on the ui store's agentsHomeAgentId nav level), the pinned row of Houston, the AI Manager, in manager-home-row.tsx, agent rows in agent-home-row.tsx over agent-avatar-stack.tsx (@houston-ai/core HoustonAvatar) + NeedsYouChip, the title block in agents-home-header.tsx (New group via the ui store's openCreateFlow('team'), the group selector agents-home-team-filter.tsx over the ui store's agentsHomeTeamId, and shell/team-folder-menu.tsx for the picked group), all over the pure agentHomeRows + agentRowsForTeam in agents-home-model.ts; tab root wiring in app/src/lib/open-mobile-tab.ts and the phone boot landing in use-workspace-view-guards.ts"
   agent-missions-list:
     status: implemented
-    ref: "app/src/components/agents-home/agent-missions-screen.tsx (shell/mobile-drilled-header.tsx + the shared board/task-list-filter.tsx status dropdown, board/task-list-menu.tsx chip behind agent-missions-menu.tsx (section rows from agent-missions-model.ts agentMissionsMenuSections over lib/teams-model.ts visibleAgentSections, opened through lib/open-agent.ts openAgentSection; the Move to group dialogs in agent-missions-move.tsx), board/task-list-search.tsx) over agent-missions-list.tsx, drawing @houston-ai/board TaskListGroup bands of agent-mission-row.tsx (agent-avatar-stack.tsx + mission-status-tag.tsx) from the pure agent-missions-model.ts over board/task-list-model.ts (the board's missionColumnIdForStatus mapping); every row pushes the chat via lib/mission-chat.ts; lib/open-agent.ts routes openAgentBoard / openAgentSettings here below md (lib/agent-nav.ts agentDestination), and use-drill-in-mission-target.ts opens a published activityPanelId as the chat above it"
+    ref: "app/src/components/agents-home/agent-missions-screen.tsx (shell/mobile-drilled-header.tsx + the shared board/task-list-filter.tsx status dropdown, board/task-list-menu.tsx chip behind agent-missions-menu.tsx (section rows from agent-missions-model.ts agentMissionsMenuSections over lib/teams-model.ts visibleAgentSections, opened through lib/open-agent.ts openAgentSection; the Move to group dialogs in agent-missions-move.tsx), board/task-list-search.tsx) over agent-missions-list.tsx, drawing @houston-ai/board TaskListGroup bands of agent-mission-row.tsx (agent-avatar-stack.tsx + mission-status-tag.tsx + mission-origin-tag.tsx, worded by hooks/use-mission-origin-tag.ts over the SDK's missionStartedBy) from the pure agent-missions-model.ts over board/task-list-model.ts (the board's missionColumnIdForStatus mapping); every row pushes the chat via lib/mission-chat.ts; lib/open-agent.ts routes openAgentBoard / openAgentSettings here below md (lib/agent-nav.ts agentDestination), and use-drill-in-mission-target.ts opens a published activityPanelId as the chat above it"
   task-row:
     status: implemented
     ref: "@houston-ai/board task-row.tsx + task-list-group.tsx over the pure task-row-styles.ts status mapping; bound by app/src/components/agents-home/agent-missions-list.tsx"

@@ -31,6 +31,10 @@
       "types": "./src/first-day.ts",
       "import": "./src/first-day.ts"
     },
+    "./mission-started-by": {
+      "types": "./src/modules/activities/started-by.ts",
+      "import": "./src/modules/activities/started-by.ts"
+    },
     "./provider-catalog": {
       "types": "./src/provider-catalog.ts",
       "import": "./src/provider-catalog.ts"
