@@ -155,39 +155,6 @@ export function ChatHistoryMixin<TBase extends BaseCtor>(Base: TBase) {
         : this.ctx.engine;
       return loadOlderPage(engine, agentPath, sessionKey);
     }
-
-    /**
-     * Ask the engine to summarize the user's first message into a short mission
-     * title. Cloud: the per-agent runtime client (the same path other conversation
-     * calls take) runs an LLM title turn in the agent's sandbox. Local: the single
-     * runtime. A clean truncation fallback covers an empty model reply, a missing
-     * agent, or any transport failure — the title is cosmetic, never block the send.
-     */
-    async summarizeActivity(
-      message: string,
-      opts: { agentPath?: string } = {},
-    ) {
-      const truncated =
-        message.replace(/\s+/g, " ").trim().slice(0, 60) || "New chat";
-      try {
-        const agentId =
-          opts.agentPath || this.ctx.currentAgentId() || undefined;
-        // Cloud with no agent selected has no sandbox to run the title turn in;
-        // local names its single runtime with the empty id.
-        const scope = this.ctx.cp ? agentId : "";
-        if (scope !== undefined) {
-          const { title } = await this.ctx.sdk.conversations.suggestTitle(
-            scope,
-            message,
-          );
-          const clean = title.trim();
-          if (clean) return { title: clean, description: "" };
-        }
-      } catch {
-        /* engine unreachable / not authed / no agent → fall back to truncation */
-      }
-      return { title: truncated, description: "" };
-    }
   }
   return ChatHistory;
 }

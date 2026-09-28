@@ -153,9 +153,10 @@ async function claudeTitle(
 
 /**
  * Title an arbitrary excerpt (the composer's first message), independent of any
- * stored conversation. Powers the adapter's `summarizeActivity(message)` —
- * which has the message text but no conversation id — so a board mission gets a
- * real LLM title instead of a client-side truncation. Returns "" for empty
+ * stored conversation. Powers `POST /title` for shipped clients that predate the
+ * send's `missionTitle` field — they have the message text but no conversation
+ * id — so a board mission gets a real LLM title instead of a client-side
+ * truncation. Returns "" for empty
  * input or when the model emits nothing (the caller falls back to truncation).
  *
  * The model is resolved LAZILY (only once we know there is text to title), so

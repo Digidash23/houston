@@ -29,6 +29,7 @@ export async function handleConversationRoute(
     json(res, 200, listConversations());
     return true;
   }
+  // Serves shipped clients that predate the send's `missionTitle` field.
   if (method === "POST" && path === "/title") {
     await handleTitleFromText(ctx);
     return true;

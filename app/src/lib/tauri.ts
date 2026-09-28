@@ -611,10 +611,6 @@ export const tauriChat = {
     call<{ hasOlder: boolean }>("load_older_chat_history", () =>
       getEngine().loadOlderChatHistory(agentPath, sessionKey),
     ),
-  summarize: (message: string) =>
-    call<{ title: string; description: string }>("summarize_activity", () =>
-      getEngine().summarizeActivity(message),
-    ),
 };
 
 // ─── Composer attachments ─────────────────────────────────────────────

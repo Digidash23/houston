@@ -103,7 +103,9 @@ export function createConversationsModule(ctx: ModuleContext) {
    * Runs a one-shot title turn on the agent's runtime over an excerpt — the
    * composer's first message — with no stored conversation of its own. Answers
    * `""` when the model emits nothing, which the caller replaces with its own
-   * truncation rather than blocking on a cosmetic value.
+   * truncation rather than blocking on a cosmetic value. Current surfaces title
+   * a new mission through the send's `missionTitle` instead; this binds the
+   * route that clients shipped before it still call.
    * @param agentId The agent this acts on, by the id listAgents returns. An
    *   agent's name is not its id, so read the id from listAgents first.
    * @param text The excerpt to title.

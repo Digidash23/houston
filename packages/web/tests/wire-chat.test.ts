@@ -139,31 +139,6 @@ test("truncateConversation posts the turn it cuts at", async () => {
   expectGatewayHeaders(post);
 });
 
-test("summarizeActivity titles the excerpt on the agent's own runtime", async () => {
-  stubEngine({ title: "Trip to Lisbon" });
-
-  const titled = await client().summarizeActivity("plan a trip to Lisbon", {
-    agentPath: AGENT,
-  });
-
-  const post = onlyCall();
-  expect(post.method).toBe("POST");
-  expect(post.url).toBe(`${BASE}/agents/${AGENT}/title`);
-  expect(post.body).toBe(JSON.stringify({ text: "plan a trip to Lisbon" }));
-  expectGatewayHeaders(post);
-  expect(titled).toEqual({ title: "Trip to Lisbon", description: "" });
-});
-
-test("a title the engine cannot produce falls back to truncation, never blocking the send", async () => {
-  stubRouted(() => json(503, { error: "engine waking" }));
-
-  const titled = await client().summarizeActivity("plan a trip", {
-    agentPath: AGENT,
-  });
-
-  expect(titled).toEqual({ title: "plan a trip", description: "" });
-});
-
 // ---- the reads and the send ----
 
 test("loadChatHistory reads the tail window, then attaches the observer stream", async () => {

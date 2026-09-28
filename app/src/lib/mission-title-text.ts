@@ -11,17 +11,6 @@ export function fallbackMissionTitle(text: string): string {
   return `${base.trimEnd()}...`;
 }
 
-export function cleanGeneratedTitle(value: string | undefined): string | null {
-  if (!value) return null;
-  const normalized = normalizeSpaces(value)
-    .replace(/^["'`]+|["'`.]+$/g, "")
-    .trim();
-  if (!normalized) return null;
-
-  const words = normalized.split(" ").slice(0, 6);
-  return takeChars(words.join(" "), 64);
-}
-
 function normalizeSpaces(value: string): string {
   return value.trim().split(/\s+/).filter(Boolean).join(" ");
 }
