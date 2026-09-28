@@ -169,6 +169,23 @@ export async function titleFromText(
 }
 
 /**
+ * Title an excerpt on ONE turn's own resolved model (its provider, model id and,
+ * through the caller's acting context, its credential) — never the agent-wide
+ * active provider. Same compliance gate as every title: anthropic runs through
+ * the Claude Agent SDK, everything else through pi's one-shot.
+ */
+export function titleWithTurnModel(
+  excerpt: string,
+  model: { provider: string; id: string },
+): Promise<string> {
+  return dispatchTitle(
+    model.provider,
+    excerpt,
+    titleRunners(model, model.provider === "anthropic" ? model.id : undefined),
+  );
+}
+
+/**
  * Summarize a conversation into a short title and persist it. Returns the new
  * title, or null when the conversation does not exist or is empty. The model is
  * resolved LAZILY (after the existence check) so a missing/empty conversation

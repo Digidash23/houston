@@ -16,6 +16,7 @@ import { handleMissionSettle, handleMissionStatus } from "./missions-manage";
 import { handleList, handleMissionRead } from "./missions-read";
 import { missionsContext } from "./missions-sandbox-context";
 import { handleMissionStart } from "./missions-start";
+import { handleMissionTitle } from "./missions-title";
 import { defineRouteFamily } from "./registry";
 
 /**
@@ -99,11 +100,12 @@ defineRouteFamily({
     { method: "POST", path: "/sandbox/missions/start" },
     { method: "POST", path: "/sandbox/missions/status" },
     { method: "POST", path: "/sandbox/missions/settle" },
+    { method: "POST", path: "/sandbox/missions/title" },
   ],
   phase: "sandbox",
   classification: "internal-sandbox",
   reason:
-    "The agent's mission tools and its turn-end report call these with a per-sandbox HMAC token, never a client.",
+    "The agent's mission tools, its turn-end report and its after-turn mission title call these with a per-sandbox HMAC token, never a client.",
   source: "packages/host/src/routes/missions-sandbox.ts",
   handler: ({ deps, method, path, url, req, res }) =>
     handleSandboxMissions(deps, method, path, url, req, res),
@@ -125,6 +127,7 @@ export async function handleSandboxMissions(
   const isStart = method === "POST" && path === "/sandbox/missions/start";
   const isStatus = method === "POST" && path === "/sandbox/missions/status";
   const isSettle = method === "POST" && path === "/sandbox/missions/settle";
+  const isTitle = method === "POST" && path === "/sandbox/missions/title";
   if (
     !isList &&
     !isRead &&
@@ -132,7 +135,8 @@ export async function handleSandboxMissions(
     !isAgentRead &&
     !isStart &&
     !isStatus &&
-    !isSettle
+    !isSettle &&
+    !isTitle
   )
     return false;
 
@@ -153,6 +157,7 @@ export async function handleSandboxMissions(
   else if (isAgentRead) await handleAgentProfile(ctx, url, res);
   else if (isStart) await handleMissionStart(ctx, req, res);
   else if (isStatus) await handleMissionStatus(ctx, req, res);
+  else if (isTitle) await handleMissionTitle(ctx, req, res);
   else await handleMissionSettle(ctx, req, res);
   return true;
 }
