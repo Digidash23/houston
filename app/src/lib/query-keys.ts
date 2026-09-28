@@ -170,6 +170,7 @@ export const queryKeys = {
    * this.
    */
   agentSettings: (agentId: string) => ["agent-settings", agentId] as const,
+  agentDelegation: (agentId: string) => ["agent-delegation", agentId] as const,
   /**
    * Teams v2: the ACTING user's per-agent model choice plus the agent's
    * effective `allowedModels` ceiling (`GET /agents/:slug/model-choice`). Keyed

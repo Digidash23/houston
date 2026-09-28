@@ -23,6 +23,7 @@ import { forgetConversationDraftsOf } from "../lib/conversation-drafts";
 import { createMission } from "../lib/create-mission";
 import { isSetupChatMode } from "../lib/integration-chat-setup";
 import { missionCardTags } from "../lib/mission-card";
+import { missionOriginAgentName } from "../lib/mission-card-agent";
 import { armMissionDoneCelebration } from "../lib/mission-done-celebration";
 import {
   buildMissionPeople,
@@ -161,6 +162,7 @@ export function useMissionControl(agents: Agent[]) {
           activityId: c.id,
         };
         const people = multiplayer ? buildMissionPeople(c, profiles) : [];
+        const originAgentName = missionOriginAgentName(agents, c.origin_agent);
         return {
           id: c.id,
           title: c.title,
@@ -181,7 +183,11 @@ export function useMissionControl(agents: Agent[]) {
             routineId: c.routine_id,
             routineLabel: t("board:tags.routine"),
             originSessionKey: c.origin_session_key,
-            agentStartedLabel: t("board:tags.agentStarted"),
+            agentStartedLabel: originAgentName
+              ? t("board:tags.startedByAgent", {
+                  name: originAgentName,
+                })
+              : t("board:tags.agentStarted"),
             agentMode: c.agent,
             setupLabel: t("board:tags.setup"),
           }),
@@ -202,7 +208,7 @@ export function useMissionControl(agents: Agent[]) {
     pathMapRef.current = map;
     sessionMapRef.current = sessionMap;
     return result;
-  }, [convos, agentsByFolderPath, multiplayer, profiles, t]);
+  }, [convos, agents, agentsByFolderPath, multiplayer, profiles, t]);
 
   // Which conversation is open, and its live feed — including the beat after a
   // create, before the sweep has returned the new mission's row.

@@ -13,11 +13,13 @@ Confirmation means the app asks the user and mints a receipt for that exact call
 | `createAgent` | POST | confirmed: host approval required | visible | name: free text; color: enum; seed: free text |
 | `deleteAgent` | DELETE | confirmed: host approval required | visible | id: resolved:agents |
 | `generateAgentInstructions` | unroutable | unconfirmed: withheld from dispatch | a one-shot generation turn on a runtime, not an app operation; an assistant writes the instructions itself and saves them with writeAgentFile. | description: free text; opts: free text |
+| `getAgentDelegation` | GET | unconfirmed: read-only HTTP GET | visible | agentId: resolved:agents |
 | `getAgentModelChoice` | GET | unconfirmed: read-only HTTP GET | visible | agentSlugOrId: resolved:agents |
 | `installAgentFromGithub` | POST | confirmed: host approval required | visible | githubUrl: free text |
 | `listAgents` | GET | unconfirmed: read-only HTTP GET | visible | none |
 | `listInstalledConfigs` | GET | unconfirmed: read-only HTTP GET | visible | none |
 | `renameAgent` | PATCH | confirmed: host approval required | visible | id: resolved:agents; name: free text |
+| `setAgentDelegation` | PUT | confirmed: host approval required | visible | agentId: resolved:agents; policy: free text |
 | `setAgentModelChoice` | PUT | confirmed: host approval required | visible | agentSlugOrId: resolved:agents; choice: free text |
 | `startFirstDay` | POST | confirmed: host approval required | visible | agentId: resolved:agents; input: free text |
 | `updateAgentColor` | PUT | unconfirmed: Reversible display preference; changes no agent behavior or access. | visible | agentId: resolved:agents; color: enum |

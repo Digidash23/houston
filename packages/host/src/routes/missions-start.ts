@@ -1,7 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { loadActivities, missionConversationKey } from "@houston/domain";
+import { actingDelegatorFromHeader } from "../auth/acting";
 import { json, readJson } from "./http";
-import { MAX_AGENT_STARTED_MISSIONS, missionFanout } from "./mission-fanout";
+import {
+  MAX_AGENT_STARTED_MISSIONS,
+  missionFanout,
+  readRemoteMissionStatus,
+} from "./mission-fanout";
 import {
   MAX_MISSION_DEPTH,
   MISSION_DEPTH_ERROR,
@@ -52,7 +57,17 @@ export async function handleMissionStart(
       code: "not_in_turn",
     });
   }
-  const route = await resolveMissionRoute(ctx, body.agent);
+  // Runtime file tools and Claude SDK writers refuse board writes. A shell in
+  // managed pods can still edit the board, so the gateway ledger and dlg are
+  // the authority for one hop.
+  if (ctx.deps.gatewayFronted && actingDelegatorFromHeader(ctx.actingAs)) {
+    return json(res, 409, {
+      error:
+        "missions started by an AI Employee can't start further missions - ask in the original chat instead",
+      code: "mission_depth",
+    });
+  }
+  const route = await resolveMissionRoute(ctx, body.agent, {}, "start");
   if (!route.ok) return refuseMissionRoute(route, res);
   // The parent chat is on the CALLER's board, hence this read is not the
   // target's. A parent that is itself a mission carries the depth it was
@@ -71,10 +86,7 @@ export async function handleMissionStart(
   }
   // The CALLER's own budget, which no single target board can see: without it
   // one agent spreads its starts over every other agent and trips nobody's cap.
-  if (
-    (await missionFanout.running(ctx.agent.id, ctx.vfs)) >=
-    MAX_AGENT_STARTED_MISSIONS
-  ) {
+  if (!(await missionFanout.reserve(ctx.agent.id, ctx.vfs, ctx.actingAs))) {
     return json(res, 409, {
       error: `you already have ${MAX_AGENT_STARTED_MISSIONS} missions running - wait for some to finish before starting more`,
       code: "mission_fanout",
@@ -85,27 +97,50 @@ export async function handleMissionStart(
     agent: ctx.agent.id,
     depth,
   };
-  if (route.remote) {
-    const status = await forwardMissionStart(
-      route.route,
-      parsed.value,
-      origin,
-      res,
-    );
-    // The other pod owns the id it minted and never reports the mission ending,
-    // so the slot is charged under an id of this side's own and aged out
-    // (mission-fanout.ts) rather than reconciled.
-    if (status >= 200 && status < 300)
-      missionFanout.record(ctx.agent.id, {
-        missionId: crypto.randomUUID(),
-        boardRoot: null,
+  let recorded = false;
+  try {
+    if (route.remote) {
+      const started = await forwardMissionStart(
+        route.route,
+        parsed.value,
+        origin,
+        res,
+      );
+      // A malformed successful response still consumes a slot: without the id
+      // the caller cannot prove when the remote mission settles.
+      if (started.status >= 200 && started.status < 300) {
+        const missionId = started.missionId;
+        if (!missionId)
+          console.error("[missions] remote start returned no mission id");
+        await missionFanout.recordReserved(ctx.agent.id, {
+          missionId: missionId ?? crypto.randomUUID(),
+          boardRoot: null,
+          ...(missionId
+            ? {
+                readStatus: (actingAs?: string) =>
+                  readRemoteMissionStatus(
+                    {
+                      ...route.route,
+                      actingAs: actingAs ?? route.route.actingAs,
+                    },
+                    missionId,
+                  ),
+              }
+            : {}),
+        });
+        recorded = true;
+      }
+      return;
+    }
+    const started = await startMission(route.ctx, parsed.value, origin, res);
+    if (started) {
+      await missionFanout.recordReserved(ctx.agent.id, {
+        missionId: started,
+        boardRoot: route.ctx.root,
       });
-    return;
+      recorded = true;
+    }
+  } finally {
+    if (!recorded) await missionFanout.releaseReservation(ctx.agent.id);
   }
-  const started = await startMission(route.ctx, parsed.value, origin, res);
-  if (started)
-    missionFanout.record(ctx.agent.id, {
-      missionId: started,
-      boardRoot: route.ctx.root,
-    });
 }

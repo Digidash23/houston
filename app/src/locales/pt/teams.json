@@ -87,6 +87,30 @@
       }
     }
   },
+  "delegation": {
+    "sectionTitle": "Trabalho em equipe",
+    "outgoing": {
+      "label": "Passa missões para",
+      "aria": "{{name}} passa missões para",
+      "everyone": "Todos",
+      "picked": "Apenas os que eu escolher",
+      "none": "Ninguém"
+    },
+    "picker": {
+      "rowAria": "Permitir que {{name}} trabalhe com {{other}}",
+      "empty": "Ainda não há outros funcionários de IA neste espaço."
+    },
+    "incoming": {
+      "label": "Recebe missões de",
+      "aria": "{{name}} recebe missões de",
+      "everyone": "Todos",
+      "none": "Ninguém"
+    },
+    "loadError": {
+      "title": "Não foi possível carregar estas configurações",
+      "retry": "Tentar novamente"
+    }
+  },
   "agentTeams": {
     "create": {
       "title": "Criar um grupo",

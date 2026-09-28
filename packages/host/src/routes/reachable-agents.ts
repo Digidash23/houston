@@ -10,18 +10,15 @@ import {
 /**
  * WHICH agents a caller can address, and how a written reference matches one.
  *
- * One place, because two surfaces answer the same question and must answer it
- * identically: the mission routes retarget a board at a named agent
- * (`routes/missions-target.ts`), and the assistant dispatcher resolves every
- * agent-identifier parameter of a catalogued operation
- * (`assistant/entity-resolution.ts`). A reference the one accepts and the other
- * spells differently is a bug the user experiences as Houston acting on the
- * wrong agent.
+ * The mission routes and assistant dispatcher share reference matching, but
+ * their candidate sets deliberately differ for regular agents: missions stay
+ * in the caller's workspace, while the AI Manager spans the owner's workspaces.
  *
  * The ladder itself lives in agent-refs.ts, over the flat shape a candidate in
  * another pod also has; this module answers only WHICH agents are candidates.
  *
- * Scope is the workspaces of the user who owns the calling agent — never more.
+ * This base directory spans the workspaces of the calling agent's owner.
+ * Mission callers narrow it in missions-directory.ts.
  * Hidden dot-agents (the personal assistant itself, the setup runtime) are
  * synthetic and list-hidden by construction: they are not a place work can go
  * and never a target, so they are absent here and can never match.

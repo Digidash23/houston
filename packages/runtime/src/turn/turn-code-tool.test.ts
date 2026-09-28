@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
@@ -89,6 +89,7 @@ async function startTurnOn(
 ): Promise<TurnBackendDeps> {
   const { startTurnSession, finishTurnSessionStartup } = startup;
   const root = mkdtempSync(join(tmpdir(), "turn-code-"));
+  mkdirSync(join(root, "workspace"));
   type RunTurnDeps = NonNullable<Parameters<typeof startTurnSession>[2]>;
   let captured: TurnBackendDeps | null = null;
   const deps: RunTurnDeps = {

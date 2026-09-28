@@ -1,6 +1,9 @@
+import { mkdtempSync, rmSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Readable } from "node:stream";
-import { beforeEach, expect, test } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import { assistantApprovals } from "../assistant/approvals";
 import type {
   CaptureResult,
@@ -10,8 +13,15 @@ import type {
   WorkspaceStore,
 } from "../ports";
 import type { ControlPlaneDeps } from "../server";
+import { LocalWorkspaceStore } from "../store/local";
 import { MemoryWorkspaceStore } from "../store/memory";
 import { MemoryVfs } from "../vfs";
+import type { AgentRouteDeps } from "./agent-authz";
+import {
+  delegationDocKey,
+  readAgentDelegation,
+  writeAgentDelegation,
+} from "./agent-delegation-store";
 import { liveTurns } from "./live-turn";
 import { missionFanout } from "./mission-fanout";
 import { dispatchGroup } from "./registry/all";
@@ -160,9 +170,10 @@ function res() {
 
 async function rename(
   name: string,
-  d: ReturnType<typeof deps> = deps(),
+  d: AgentRouteDeps = deps(),
+  id = agentId,
 ): Promise<{ status: number; json: Record<string, unknown> }> {
-  const path = `/agents/${encodeURIComponent(agentId)}`;
+  const path = `/agents/${encodeURIComponent(id)}`;
   const response = res();
   const handled = await dispatchGroup("agent-crud", {
     deps: d,
@@ -176,6 +187,140 @@ async function rename(
   expect(handled).toBe(true);
   return { status: response.status, json: JSON.parse(response.body || "{}") };
 }
+
+test("delete of N cannot prune A's policy after A is renamed to N", async () => {
+  const root = mkdtempSync(join(tmpdir(), "houston-delete-rename-"));
+  try {
+    const store = new LocalWorkspaceStore(root, "alice");
+    const workspace = await store.getOrCreatePersonalWorkspace("alice");
+    const a = await store.createAgent({ workspaceId: workspace.id, name: "A" });
+    const n = await store.createAgent({ workspaceId: workspace.id, name: "N" });
+    await writeAgentDelegation(vfs, workspace.id, a.id, {
+      mode: "off",
+      agents: [],
+      acceptsMissions: false,
+    });
+    const d = { store, channels: { local: channel }, vfs };
+    const originalDelete = d.store.deleteAgent.bind(d.store);
+    let entered: (() => void) | undefined;
+    let resume: (() => void) | undefined;
+    const deleted = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      resume = resolve;
+    });
+    d.store.deleteAgent = async (id) => {
+      await originalDelete(id);
+      entered?.();
+      await gate;
+    };
+    const path = `/agents/${encodeURIComponent(n.id)}`;
+    const response = res();
+    const deleting = dispatchGroup("agent-crud", {
+      deps: d,
+      userId: "alice",
+      method: "DELETE",
+      path,
+      url: new URL(path, "http://host.local"),
+      req: reqWithBody({}),
+      res: response,
+    });
+    await deleted;
+    const renaming = rename("N", d, a.id);
+    await Promise.race([
+      renaming,
+      new Promise((resolve) => setTimeout(resolve, 30)),
+    ]);
+    resume?.();
+    await deleting;
+    expect((await renaming).status).toBe(200);
+    expect(await readAgentDelegation(vfs, workspace.id, n.id)).toMatchObject({
+      mode: "off",
+    });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a conflicting local rename leaves the destination agent's explicit policy intact", async () => {
+  const root = mkdtempSync(join(tmpdir(), "houston-rename-policy-"));
+  try {
+    const store = new LocalWorkspaceStore(root, "alice");
+    const workspace = await store.getOrCreatePersonalWorkspace("alice");
+    const a = await store.createAgent({ workspaceId: workspace.id, name: "A" });
+    const b = await store.createAgent({ workspaceId: workspace.id, name: "B" });
+    await vfs.writeText(
+      delegationDocKey(workspace.id),
+      JSON.stringify({
+        version: 1,
+        agents: {
+          [a.id]: { mode: "all", agents: [], acceptsMissions: true },
+          [b.id]: { mode: "off", agents: [], acceptsMissions: false },
+        },
+      }),
+    );
+    const before = await vfs.readText(delegationDocKey(workspace.id));
+    const result = await rename("B", { store, channels: {}, vfs }, a.id);
+    expect(result.status).toBe(409);
+    expect(await vfs.readText(delegationDocKey(workspace.id))).toBe(before);
+    expect(await readAgentDelegation(vfs, workspace.id, b.id)).toEqual({
+      mode: "off",
+      agents: [],
+      acceptsMissions: false,
+    });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("concurrent local renames to one name preserve the winner's policy", async () => {
+  const root = mkdtempSync(join(tmpdir(), "houston-rename-race-"));
+  try {
+    const store = new LocalWorkspaceStore(root, "alice");
+    const workspace = await store.getOrCreatePersonalWorkspace("alice");
+    const a = await store.createAgent({ workspaceId: workspace.id, name: "A" });
+    const b = await store.createAgent({ workspaceId: workspace.id, name: "B" });
+    await vfs.writeText(
+      delegationDocKey(workspace.id),
+      JSON.stringify({
+        version: 1,
+        agents: {
+          [a.id]: { mode: "off", agents: [], acceptsMissions: false },
+          [b.id]: { mode: "picked", agents: [], acceptsMissions: true },
+        },
+      }),
+    );
+    const outcomes = await Promise.all([
+      rename("C", { store, channels: {}, vfs }, a.id),
+      rename("C", { store, channels: {}, vfs }, b.id),
+    ]);
+    expect(outcomes.map((outcome) => outcome.status).sort()).toEqual([
+      200, 409,
+    ]);
+    const winner = (await store.getAgent(a.id)) ? b : a;
+    expect(
+      await readAgentDelegation(vfs, workspace.id, `${workspace.id}/C`),
+    ).toMatchObject(
+      winner.id === a.id
+        ? { mode: "off", acceptsMissions: false }
+        : { mode: "picked", acceptsMissions: true },
+    );
+    expect(
+      await readAgentDelegation(vfs, workspace.id, winner.id),
+    ).toMatchObject({ mode: "all" });
+    const loser = winner.id === a.id ? b : a;
+    expect(
+      await readAgentDelegation(vfs, workspace.id, loser.id),
+    ).toMatchObject(
+      loser.id === a.id
+        ? { mode: "off", acceptsMissions: false }
+        : { mode: "picked", acceptsMissions: true },
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test("rename quiesces the standing runtime BEFORE the store moves the directory", async () => {
   const { status, json } = await rename("Marketing");
@@ -294,6 +439,153 @@ test("rename trims the submitted name before storing it", async () => {
   const { status, json } = await rename("  Marketing  ");
   expect(status).toBe(200);
   expect(json.name).toBe("Marketing");
+});
+
+test("a policy copy failure refuses rename before the directory moves", async () => {
+  const nextId = `${workspaceId}/Marketing`;
+  await vfs.writeText(
+    delegationDocKey(workspaceId),
+    JSON.stringify({
+      version: 1,
+      agents: {
+        [agentId]: { mode: "off", agents: [], acceptsMissions: false },
+      },
+    }),
+  );
+  const base = deps();
+  const moved = {
+    ...base,
+    store: {
+      ...base.store,
+      renameAgent: async (id: string, name: string) => ({
+        ...(await base.store.renameAgent(id, name)),
+        id: `${workspaceId}/${name}`,
+      }),
+    },
+  };
+  vi.spyOn(vfs, "writeText").mockRejectedValueOnce(
+    new Error("policy write failed"),
+  );
+  await expect(rename("Marketing", moved)).rejects.toThrow(
+    "policy write failed",
+  );
+  expect(calls).not.toContain(`rename:${agentId}:Marketing`);
+  expect(await readAgentDelegation(vfs, workspaceId, nextId)).toMatchObject({
+    mode: "all",
+  });
+  expect(await readAgentDelegation(vfs, workspaceId, agentId)).toMatchObject({
+    mode: "off",
+  });
+});
+
+test("a failed policy cleanup after the directory moves closes the new id", async () => {
+  const nextId = `${workspaceId}/Marketing`;
+  await vfs.writeText(
+    delegationDocKey(workspaceId),
+    JSON.stringify({
+      version: 1,
+      agents: {
+        [agentId]: { mode: "off", agents: [], acceptsMissions: false },
+      },
+    }),
+  );
+  const base = deps();
+  const moved = {
+    ...base,
+    store: {
+      ...base.store,
+      renameAgent: async (id: string, name: string) => ({
+        ...(await base.store.renameAgent(id, name)),
+        id: `${workspaceId}/${name}`,
+      }),
+    },
+  };
+  const write = vfs.writeText.bind(vfs);
+  vi.spyOn(vfs, "writeText")
+    .mockImplementationOnce(write)
+    .mockRejectedValueOnce(new Error("policy cleanup failed"));
+  const report = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    await expect(rename("Marketing", moved)).rejects.toThrow(
+      "policy cleanup failed",
+    );
+    expect(calls).toContain(`rename:${agentId}:Marketing`);
+    expect(await readAgentDelegation(vfs, workspaceId, nextId)).toEqual({
+      mode: "off",
+      agents: [],
+      acceptsMissions: false,
+    });
+  } finally {
+    report.mockRestore();
+  }
+});
+
+test("a failed directory rename rolls back its policy copy", async () => {
+  const nextId = `${workspaceId}/Marketing`;
+  await vfs.writeText(
+    delegationDocKey(workspaceId),
+    JSON.stringify({
+      version: 1,
+      agents: {
+        [agentId]: { mode: "off", agents: [], acceptsMissions: false },
+      },
+    }),
+  );
+  const base = deps();
+  const rejected = {
+    ...base,
+    store: {
+      ...base.store,
+      renameAgent: async () => {
+        throw new Error("directory rename failed");
+      },
+    },
+  };
+  await expect(rename("Marketing", rejected)).rejects.toThrow(
+    "directory rename failed",
+  );
+  expect(await readAgentDelegation(vfs, workspaceId, nextId)).toMatchObject({
+    mode: "all",
+  });
+  expect(await readAgentDelegation(vfs, workspaceId, agentId)).toMatchObject({
+    mode: "off",
+  });
+  const doc = JSON.parse(
+    (await vfs.readText(delegationDocKey(workspaceId))) ?? "{}",
+  ) as { agents: Record<string, unknown> };
+  expect(doc.agents[nextId]).toBeUndefined();
+});
+
+test("a failed directory rename restores an orphan destination's prior raw policy", async () => {
+  const nextId = `${workspaceId}/Marketing`;
+  const prior = { mode: "picked", agents: [], acceptsMissions: false };
+  await vfs.writeText(
+    delegationDocKey(workspaceId),
+    JSON.stringify({
+      version: 1,
+      agents: {
+        [agentId]: { mode: "off", agents: [], acceptsMissions: false },
+        [nextId]: prior,
+      },
+    }),
+  );
+  const base = deps();
+  const rejected = {
+    ...base,
+    store: {
+      ...base.store,
+      renameAgent: async () => {
+        throw new Error("directory rename failed");
+      },
+    },
+  };
+  await expect(rename("Marketing", rejected)).rejects.toThrow(
+    "directory rename failed",
+  );
+  const doc = JSON.parse(
+    (await vfs.readText(delegationDocKey(workspaceId))) ?? "{}",
+  ) as { agents: Record<string, unknown> };
+  expect(doc.agents[nextId]).toEqual(prior);
 });
 
 test("DELETE runs inside the quiesced span too (a stale dispatch must not resurrect a deleted agent)", async () => {

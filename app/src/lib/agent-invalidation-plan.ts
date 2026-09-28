@@ -88,6 +88,7 @@ export function planInvalidation(
     case "AgentsChanged":
       if (open && eventTargetsOpenWorkspace(ev.data.workspace_id, open)) {
         plan.reloadAgentsWorkspace = open;
+        plan.invalidate.push(["agent-delegation"]);
       }
       break;
     case "SidebarLayoutChanged":

@@ -65,8 +65,10 @@ export interface Activity {
    * WHICH agent started this mission, server-stamped beside
    * `origin_session_key`. On one machine the parent chat is readable from the
    * caller's own board; across pods it is not, so without this the only record
-   * of who asked for the work is thrown away at the pod boundary. Provenance
-   * only - nothing is authorized by it.
+   * of who asked for the work is thrown away at the pod boundary. This is also
+   * an authorization input: an agent may move a mission on another agent's
+   * board only when this id matches its own. In cloud, the gateway-verified
+   * `x-houston-calling-agent` header is what stamps it.
    */
   origin_agent?: string;
   /**

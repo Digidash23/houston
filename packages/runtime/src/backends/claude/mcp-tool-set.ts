@@ -4,6 +4,7 @@ import {
   COORDINATOR_TOOL_NAMES,
   toolNamesForMode,
 } from "../../session/tool-selection";
+import { makeAgentDirectoryTools } from "../../session/tools/agent-directory";
 import { makeAskUserTool } from "../../session/tools/ask-user";
 import {
   type AssistantToolOptions,
@@ -132,6 +133,9 @@ export function buildBridgedToolSet(
               ...input.integrations,
               personalAssistant: input.personalAssistant ?? false,
             }),
+            ...(input.personalAssistant
+              ? []
+              : makeAgentDirectoryTools(input.integrations)),
           ]
         : []),
       // The assistant family rides its OWN gate (not the integrations one) and

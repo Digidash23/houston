@@ -58,6 +58,7 @@ export const GROUP_PHASES = {
   // keeps the authz call inside its handler rather than taking the agent
   // phase's (which would answer 403 to a wrong method on someone else's agent).
   "agent-color": "user",
+  "agent-delegation": "user",
   // The user's own agents, then everything scoped to ONE of them. Every group
   // below is agent-phase: the dispatcher runs the ownership check for the agent
   // the matched pattern names, so none of them can answer without one.

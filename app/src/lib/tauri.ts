@@ -1131,6 +1131,7 @@ export interface RawConversation {
   /** The conversation this mission was started from, present only when the
    *  agent created the mission itself (PRODUCT-1244). Server-stamped. */
   origin_session_key?: string;
+  origin_agent?: string;
   /** The human who created this mission (Teams attribution). Server-stamped
    *  from the gateway acting-as identity; absent on desktop/single-player. */
   created_by?: string;
@@ -1238,6 +1239,7 @@ function conversationToRaw(
     agent: c.agent,
     routine_id: c.routine_id,
     origin_session_key: c.origin_session_key,
+    origin_agent: c.origin_agent,
     created_by: c.created_by,
     contributors: c.contributors,
     mentioned: c.mentioned,

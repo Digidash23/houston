@@ -1,6 +1,7 @@
 import { assistantOptions } from "./assistant-family";
 import { personalAssistant } from "./runtime-role";
 import { sandboxCall } from "./sandbox-call";
+import { makeAgentDirectoryTools } from "./tools/agent-directory";
 import { credentialTools } from "./tools/credential-tools";
 import { makeIntegrationTools } from "./tools/integrations";
 import { makeMissionTools } from "./tools/missions";
@@ -61,6 +62,9 @@ export const missionTools = sandboxCall
   ? [
       ...makeMissionTools({ call: sandboxCall, personalAssistant }),
       makeReadMissionTool({ call: sandboxCall, personalAssistant }),
+      ...(personalAssistant
+        ? []
+        : makeAgentDirectoryTools({ call: sandboxCall })),
     ]
   : [];
 

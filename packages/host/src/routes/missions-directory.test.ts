@@ -23,6 +23,7 @@ async function ctxFor(
   const store = new MemoryWorkspaceStore({ defaultRuntime: "local" });
   const ws = await store.getOrCreatePersonalWorkspace("alice");
   const agent = await store.createAgent({ workspaceId: ws.id, name: "Helper" });
+  await store.createAgent({ workspaceId: ws.id, name: "Writer" });
   const deps = {
     store,
     channels: {},
@@ -47,11 +48,21 @@ function listing(body: unknown, status = 200): typeof fetch {
     })) as typeof fetch;
 }
 
-test("the local directory is this host's addressable agents", async () => {
+test("the local directory includes the caller for explicit self resolution", async () => {
   const result = await localMissionDirectory(await ctxFor()).list();
   expect(result.ok && result.candidates).toEqual([
     expect.objectContaining({ name: "Helper", remote: false }),
+    expect.objectContaining({ name: "Writer", remote: false }),
   ]);
+});
+
+test("an agent can name its own board", async () => {
+  const ctx = await ctxFor();
+  const { resolveMissionRoute } = await import("./missions-target");
+  const result = await resolveMissionRoute(ctx, ctx.agent.name);
+  expect(result).toMatchObject({ ok: true, remote: false });
+  if (result.ok && !result.remote)
+    expect(result.ctx.agent.id).toBe(ctx.agent.id);
 });
 
 test("a candidate is a reference the shared ladder resolves", async () => {
@@ -60,15 +71,17 @@ test("a candidate is a reference the shared ladder resolves", async () => {
   // candidate missing a field is a target the caller could only name one way.
   const result = await localMissionDirectory(await ctxFor()).list();
   if (!result.ok) throw new Error("expected a directory");
-  const helper = result.candidates[0];
-  if (!helper) throw new Error("expected a candidate");
+  const writer = result.candidates.find(
+    (candidate) => candidate.name === "Writer",
+  );
+  if (!writer) throw new Error("expected a candidate");
   for (const ref of [
-    helper.id,
-    "helper",
-    `${helper.workspace}/HELPER`,
-    `${helper.workspaceId}/Helper`,
+    writer.id,
+    "writer",
+    `${writer.workspace}/WRITER`,
+    `${writer.workspaceId}/Writer`,
   ]) {
-    expect(matchAgentRefs(result.candidates, ref)).toEqual([helper]);
+    expect(matchAgentRefs(result.candidates, ref)).toEqual([writer]);
   }
 });
 
@@ -126,6 +139,19 @@ test("an unreadable gateway is an error, never an empty directory", async () => 
   }
 });
 
+test("gateway delegation refusals keep their typed code and useful sentence", async () => {
+  const result = await gatewayMissionDirectory(gateway, {
+    fetchImpl: listing({ code: "delegation_off", error: "gateway text" }, 403),
+  }).list();
+  expect(result).toMatchObject({
+    ok: false,
+    status: 403,
+    code: "delegation_off",
+    error:
+      "You're not set up to work with other AI Employees. If the user wants this, they can turn it on in your settings under Teamwork.",
+  });
+});
+
 test("a fronted pod lists both sides; an unfronted host stays local", async () => {
   const fetchImpl = listing([{ id: "slug-1", name: "Dobby" }]);
   const fronted = await missionTargetDirectory(
@@ -134,6 +160,7 @@ test("a fronted pod lists both sides; an unfronted host stays local", async () =
   ).list();
   expect(fronted.ok && fronted.candidates.map((c) => c.name)).toEqual([
     "Helper",
+    "Writer",
     "Dobby",
   ]);
 
@@ -142,6 +169,7 @@ test("a fronted pod lists both sides; an unfronted host stays local", async () =
   const desktop = await missionTargetDirectory(await ctxFor()).list();
   expect(desktop.ok && desktop.candidates.map((c) => c.name)).toEqual([
     "Helper",
+    "Writer",
   ]);
 });
 
@@ -152,7 +180,7 @@ test("the coordinator is excluded by identity even with a public name", async ()
   const ctx = await ctxFor({ gatewayFronted: true });
   expect(await localMissionDirectory(ctx).list()).toEqual({
     ok: true,
-    candidates: [],
+    candidates: [expect.objectContaining({ name: "Writer" })],
   });
 });
 test("ambiguous remote names include their distinct ids", async () => {

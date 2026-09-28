@@ -9,6 +9,7 @@ import {
   resolve,
   sep,
 } from "node:path";
+import { ProtectedWriteDeniedError, WorkspaceGuard } from "./fs-guard";
 
 /**
  * Artifact write-back for `run_code`, kept apart from the tool itself.
@@ -39,6 +40,7 @@ export interface SavedArtifacts {
   updated: string[];
   renamed: { requested: string; savedAs: string }[];
   skipped: string[];
+  refused: string[];
 }
 
 /** Resolve a workspace-relative path strictly inside the workspace; reject escapes. */
@@ -77,20 +79,27 @@ export async function saveArtifacts(
     updated: [],
     renamed: [],
     skipped: [],
+    refused: [],
   };
+  const guard = new WorkspaceGuard(workspaceDir);
   for (const a of artifacts) {
     try {
       let abs = safeJoin(workspaceDir, a.path);
       const collided = existsSync(abs) && !declared.has(abs);
       if (collided) abs = nonColliding(abs);
-      await mkdir(dirname(abs), { recursive: true });
-      await writeFile(abs, Buffer.from(a.contentBase64, "base64"));
+      const writable = guard.assertWritable(abs);
+      await mkdir(dirname(writable), { recursive: true });
+      await writeFile(writable, Buffer.from(a.contentBase64, "base64"));
       const rel = relative(workspaceDir, abs);
       if (collided) out.renamed.push({ requested: a.path, savedAs: rel });
       else if (declared.has(abs)) out.updated.push(rel);
       else out.saved.push(rel);
-    } catch {
-      out.skipped.push(a.path);
+    } catch (error) {
+      if (error instanceof ProtectedWriteDeniedError) {
+        out.refused.push(error.message);
+      } else {
+        out.skipped.push(a.path);
+      }
     }
   }
   return out;
@@ -123,6 +132,7 @@ export function summarizeRun(
   }
   if (files.skipped.length)
     parts.push(`[could not save (invalid path): ${files.skipped.join(", ")}]`);
+  for (const refusal of files.refused) parts.push(`[${refusal}]`);
   if (result.droppedArtifacts?.length) {
     parts.push(
       `[these files were produced but too large to return: ${result.droppedArtifacts.join(", ")}]`,

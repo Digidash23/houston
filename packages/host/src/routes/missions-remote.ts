@@ -19,7 +19,7 @@ export interface RemoteMissionRoute {
   target: RemoteMissionTarget;
   gateway: AssistantGateway;
   fetchImpl?: typeof fetch;
-  // The gateway derives the acting user from the authenticated pod credential.
+  actingAs?: string;
 }
 
 /** A board move, in the vocabulary both entries take it in. */
@@ -45,8 +45,8 @@ export interface MissionStartInput {
  */
 export interface MissionOrigin {
   session_key: string;
-  /** The calling agent's id, recorded on the target's row as provenance. */
-  agent: string;
+  /** The verified calling agent is absent for AI Manager starts. */
+  agent?: string;
   /** How deep the mission being started sits: 1 when a person's chat asked. */
   depth: number;
 }

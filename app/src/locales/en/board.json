@@ -15,6 +15,7 @@
   "tags": {
     "routine": "Routine",
     "agentStarted": "Started by AI Employee",
+    "startedByAgent": "Started by {{name}}",
     "setup": "Set up"
   },
   "panel": {

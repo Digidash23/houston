@@ -19,6 +19,7 @@ import { targetPaths } from "./tool-target-paths";
  */
 /** The mutating/executing built-ins a LIVE flip to plan mode must stop. */
 const PLAN_DENIED_TOOLS = new Set(["Edit", "Write", "Bash"]);
+const FILE_WRITE_TOOLS = new Set(["Edit", "Write"]);
 
 export function makeCanUseTool(
   workspaceDir: string,
@@ -44,7 +45,10 @@ export function makeCanUseTool(
       // `blockedPath` — clamp it too, so an escape our own parsing missed is
       // still caught (Bash has no single path field of its own).
       if (options.blockedPath) paths.push(options.blockedPath);
-      for (const p of paths) guard.clamp(p);
+      for (const p of paths) {
+        if (FILE_WRITE_TOOLS.has(toolName)) guard.clampWrite(p);
+        else guard.clamp(p);
+      }
       return { behavior: "allow", updatedInput: input };
     } catch (err) {
       return {

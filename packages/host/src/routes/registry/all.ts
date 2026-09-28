@@ -40,6 +40,7 @@ import "../assistant";
 import "../trigger-events";
 import "../routine-fires";
 import "../agent-color";
+import "../agent-delegation";
 import "../agents-crud";
 import "../agents-modify";
 import "../agents-credentials";

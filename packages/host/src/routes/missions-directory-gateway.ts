@@ -1,4 +1,6 @@
+import { isAgentDelegationRefusalCode } from "@houston/protocol";
 import type { AssistantGateway } from "./assistant-forward";
+import { delegationRefusal } from "./mission-delegation-refusals";
 import type { MissionTargetDirectory } from "./missions-directory";
 
 /** The client-facing agent shape the gateway lists (`toAgentJson`). */
@@ -6,6 +8,7 @@ interface GatewayAgent {
   id: string;
   name: string;
   workspaceId?: string;
+  role?: string;
 }
 
 const isGatewayAgent = (value: unknown): value is GatewayAgent =>
@@ -48,12 +51,36 @@ export function gatewayMissionDirectory(
         return unreadable;
       }
       if (!response.ok) {
+        if (response.status === 403 || response.status === 409) {
+          let refusal: unknown;
+          try {
+            refusal = await response.json();
+          } catch (err) {
+            console.error(
+              "[missions] gateway returned unreadable delegation refusal",
+              err,
+            );
+          }
+          const code = (refusal as { code?: unknown } | null)?.code;
+          if (isAgentDelegationRefusalCode(code))
+            return {
+              ok: false,
+              ...delegationRefusal(code),
+              status: response.status,
+            };
+        }
         console.error(
           `[missions] the gateway refused the agent list (${response.status})`,
         );
         return unreadable;
       }
-      const payload: unknown = await response.json().catch(() => null);
+      let payload: unknown;
+      try {
+        payload = await response.json();
+      } catch (err) {
+        console.error("[missions] gateway returned unreadable agent list", err);
+        return unreadable;
+      }
       if (!Array.isArray(payload)) {
         console.error("[missions] the gateway's agent list was not a list");
         return unreadable;
@@ -67,6 +94,7 @@ export function gatewayMissionDirectory(
           name: a.name,
           workspace: a.workspaceId ?? "",
           workspaceId: a.workspaceId ?? "",
+          ...(a.role ? { role: a.role } : {}),
         }));
       return { ok: true, candidates };
     },

@@ -9,6 +9,7 @@
 
 export * from "./channels";
 export * from "./channels-refusals";
+export * from "./delegation";
 export * from "./local-model-bridge";
 export * from "./onboarding";
 export * from "./plan";

@@ -442,6 +442,36 @@ test("the guard answers with the path it proved, not the name it was given", () 
   expect(guard.assertInside(link)).toBe(real);
 });
 
+test("routines stay readable but every write path refuses the routines store", () => {
+  const workspace = realpathSync(
+    mkdtempSync(join(tmpdir(), "houston-routines-")),
+  );
+  const routines = join(workspace, ".houston", "routines");
+  mkdirSync(routines, { recursive: true });
+  const file = join(routines, "routines.json");
+  writeFileSync(file, "[]");
+  const alias = join(workspace, "routines-alias.json");
+  symlinkSync(file, alias);
+  const guard = new WorkspaceGuard(workspace);
+  const refusal =
+    "Routines are changed with the routine tools, not by editing files.";
+
+  expect(guard.clamp(file)).toBe(file);
+  expect(guard.assertInside(file)).toBe(file);
+  for (const path of [
+    ".houston/routines/routines.json",
+    file,
+    alias,
+    ".houston/routines/new.json",
+  ]) {
+    expect(() => guard.clampWrite(path), path).toThrow(refusal);
+  }
+  expect(() => guard.assertWritable(file)).toThrow(refusal);
+  expect(() => guard.clampWrite(".houston/activity/activity.json")).toThrow(
+    "Your board is changed with the mission tools, not by editing files.",
+  );
+});
+
 test("an NTFS data-stream suffix cannot launder a denied name", () => {
   // `auth.json::$DATA` opens `auth.json` on Windows while reading, segment by
   // segment, as a different file entirely.
