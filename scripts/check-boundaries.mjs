@@ -189,7 +189,6 @@ const ENGINE_CALL_BYPASS = new Set([
   "app/src/lib/cloud-migration-transport.ts",
   "app/src/lib/local-bridge-binding.ts",
   "app/src/lib/mission-row-landing.ts",
-  "app/src/lib/mission-title.ts",
   "app/src/lib/warming-send-row.ts",
   "app/src/main.tsx",
   "app/src/stores/agent-provisioning.ts",
