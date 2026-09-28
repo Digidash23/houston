@@ -9,7 +9,6 @@ import {
   canSeeAiModelsPage,
   canSeeMembers,
   GRANTABLE_ROLES,
-  hasAgentTeams,
   isMultiplayer,
   isSpaceOwner,
   orgRole,
@@ -93,7 +92,7 @@ describe("canSeeAiModelsPage (HOU-976)", () => {
   it("does not carry the owner/admin matrix that guards team consumption", () => {
     // Opening the hub (every member connects their OWN AI account there) must
     // not widen the space-wide spend surface with it: the team roll-up lives in
-    // Admin > Usage, which still rides the owner/admin matrix (`canSeeMembers`,
+    // Admin's Org chart, which still rides the owner/admin matrix (`canSeeMembers`,
     // through `canSeeOrganization`). Re-uniting the two would either hide the
     // hub from the member whose own account it exists to manage, or open the
     // space's spend to every member.
@@ -203,25 +202,6 @@ describe("isSpaceOwner", () => {
 
   it("multiplayer without an explicit role denies (least privilege)", () => {
     strictEqual(isSpaceOwner(caps({ multiplayer: true }), true), false);
-  });
-});
-
-describe("hasAgentTeams (C13 feature-detect)", () => {
-  it("true only when the host advertises the surface", () => {
-    strictEqual(hasAgentTeams(caps({ agentTeams: true })), true);
-  });
-
-  it("false when the host advertises it as off", () => {
-    strictEqual(hasAgentTeams(caps({ agentTeams: false })), false);
-  });
-
-  it("absent means the LOCAL backend — desktop, self-host, pre-C13 gateways", () => {
-    strictEqual(hasAgentTeams(caps()), false);
-  });
-
-  it("no capabilities at all is the local backend too", () => {
-    strictEqual(hasAgentTeams(null), false);
-    strictEqual(hasAgentTeams(undefined), false);
   });
 });
 

@@ -5,7 +5,12 @@ export const APP_SIDEBAR_PROPS: readonly SpecimenProp[] = [
   {
     name: "items",
     type: "SidebarItem[]",
-    note: "{ id, name, icon?, trailing? }. The agents themselves. No menu slot: an agent is renamed, recoloured, moved and deleted where it is configured, so a rail row offers none of it.",
+    note: "{ id, name, icon?, subtitle?, trailing? }. The agents themselves, as message-list rows: `subtitle` is the one or two lines under the name, `trailing` the badge at their end. No menu slot: an agent is renamed, recoloured, moved and deleted where it is configured, so a rail row offers none of it.",
+  },
+  {
+    name: "pinnedItems",
+    type: "SidebarItem[]",
+    note: "Rows that lead the list outside its scroll box (the AI Manager): drawn and selected like `items`, never grouped or dragged.",
   },
   {
     name: "selectedId",
@@ -34,99 +39,49 @@ export const APP_SIDEBAR_PROPS: readonly SpecimenProp[] = [
     note: "Paints the block's HEADER as the selected row. Controlled. A block carries no destination rows, so its header is the only row that can say the open view belongs here — folded or open alike.",
   },
   {
-    name: "defaultGroup",
-    type: "{ name, icon?, trailing?, collapsed?, active? }",
-    note: "Turns the trailing default block (the agents in no group) into a labelled team: the workspace's own. It folds exactly like a named one — a block that folded everywhere except here would be the one row in the rail that answers a click differently. What it does not get is what the container itself lacks: no ⋯ menu, no rename, no delete, no drag handle.",
-  },
-  {
-    name: "onActivateDefault",
-    type: "() => void",
-    note: "The default block's header was activated. Its own callback because that block is not a stored group and has no id to hand back.",
-  },
-  {
-    name: "onMoveItem",
-    type: "(itemId, { groupId, beforeItemId }) => void",
-    note: "An agent was reordered WITHIN its own block. groupId is always the block it was already in (null = the ungrouped section): a drag cannot move an agent between blocks, so it is the position that changed and never the block.",
-  },
-  {
-    name: "onMoveGroup",
-    type: "(groupId, beforeGroupId: string | null) => void",
-    note: "Group reorder. null = move to the end.",
+    name: "onArrange",
+    type: "({ order, members }) => boolean",
+    note: "A drop landed. Carries the whole arrangement the rail now shows: the top-level order (agents and groups interleaved) and every group's members. The host stores it as given and answers whether it did; the rail keeps the dropped order only on true. Absent means the rail offers no drag.",
   },
   {
     name: "onActivateGroup",
     type: "(groupId: string) => void",
-    note: "The block's header was activated — ONE hit target carrying the glyph, the name, the disclosure triangle and the rollup badge. The library does NOT decide what that means: a host may open the block's screen, fold the block, or both, and `collapsed` on the view model stays the single controlled truth about the fold. The triangle is an indicator, never a second control.",
-  },
-  {
-    name: "onAdd",
-    type: "() => void",
-    note: "Creates an agent. In the GROUPED list it renders as the row that CLOSES the list, because this is the rail's primary action and a primary action may not live only one level deep inside a menu. Flat and collapsed, it stays the trailing icon button.",
+    note: "The block's header was activated — ONE hit target carrying the glyph, the name, the disclosure triangle and the rollup badge. It folds or unfolds the block, and `collapsed` on the view model stays the single controlled truth about the fold: the host writes the new value back. The triangle is an indicator, never a second control.",
   },
   {
     name: "collapsed",
     type: "boolean",
-    note: "The 56px icon rail. Defaults to false. Grouping is expanded-only — the rail always renders the flat list.",
+    note: "The icon rail is 56px, or 84px with windowControlsInset. Defaults to false. Grouping is expanded-only; the icon rail renders the flat list.",
   },
   {
     name: "onToggleCollapsed",
     type: "() => void",
-    note: "Adds the always-visible collapse button; also fires on a click anywhere non-interactive on the collapsed rail.",
+    note: "Adds the always-visible collapse or expand button. Only the button toggles the rail.",
   },
   {
-    name: "header",
+    name: "headerActions",
     type: "ReactNode",
-    note: "Top slot — the WorkspaceSwitcher. Shares its row with the collapse button.",
+    note: "The host's verbs (search, create) on the rail's top line: after the collapse toggle, at the line's end, when expanded; stacked under the toggle when collapsed. Wear `sidebarHeaderControlClasses` so they match the toggle.",
+  },
+  {
+    name: "windowControlsInset",
+    type: "boolean",
+    note: "Reserves a 40px controls row and an 84px zone at the top of the rail. The collapsed rail is 84px wide. Defaults to false.",
   },
   {
     name: "headerBelow",
     type: "ReactNode",
-    note: "A FULL-WIDTH band under the header and above the nav (e.g. the pending-invite inbox). Separate from `header` so it spans the rail instead of being inset by the collapse toggle, and so the toggle stays on the header's own line.",
-  },
-  {
-    name: "logo",
-    type: "ReactNode",
-    note: "Legacy top slot, rendered only when there is no `header`.",
-  },
-  {
-    name: "navSections",
-    type: "SidebarNavSection[]",
-    note: "The destinations above the agent list, in labelled runs. A section whose items are all gated away is dropped with its band.",
-  },
-  {
-    name: "activeNavId",
-    type: "string",
-    note: "Which nav entry is lit. Overrides each entry's own `active`.",
-  },
-  {
-    name: "sectionLabel / sectionAction",
-    type: "string / ReactNode",
-    note: 'The "Your teams" band and its ONE trailing control — the menu that creates an agent, creates a team and joins one. Expanded only.',
-  },
-  {
-    name: "sectionCollapsed",
-    type: "boolean",
-    note: "Folds the WHOLE list away behind the band, whose label is itself the toggle. Controlled, because the host persists it: a rail that forgets it was folded on every reload is worse than one that never folded. Ignored on the icon rail, which has no band to fold from.",
-  },
-  {
-    name: "onToggleSectionCollapsed",
-    type: "() => void",
-    note: "Absent means the band folds nothing and renders as a plain label, promising no click it cannot honour.",
+    note: "A FULL-WIDTH notice under the top line and above the list (e.g. the pending-invite inbox), spanning the rail like every row below it.",
   },
   {
     name: "footer",
     type: "ReactNode",
-    note: "Bottom slot; `shrink-0`, so a short window squeezes the list instead.",
+    note: "Bottom slot, typically the account (`SidebarProfileMenu`); `shrink-0`, so a short window squeezes the list instead.",
   },
   {
     name: "labels",
     type: "SidebarLabels",
-    note: "The two strings the rail renders itself: `addItem` (the add-agent row, and its tooltip on the icon rail) and `collapseSidebar` (the collapse button). English defaults, so a host that passes nothing still gets readable words. Everything else on the rail is a name or a node the host composed.",
-  },
-  {
-    name: "addItemDataAttrs",
-    type: "Record<string, string>",
-    note: "Extra DOM attributes on the add-agent control, e.g. a product-tour target.",
+    note: "Labels for the collapse/expand control and the drag announcements. English defaults keep every state readable.",
   },
   {
     name: "children",

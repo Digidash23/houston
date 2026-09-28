@@ -1,6 +1,15 @@
-import { Tooltip, TooltipContent, TooltipTrigger } from "@houston-ai/core";
-import { sidebarRowAffordanceClasses } from "@houston-ai/layout";
-import { Plus } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  HoustonHelmet,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@houston-ai/core";
+import { sidebarHeaderControlClasses } from "@houston-ai/layout";
+import { FolderPlus, Plus } from "lucide-react";
 import type { ReactNode } from "react";
 
 export interface SidebarCreateLabels {
@@ -11,37 +20,35 @@ export interface SidebarCreateLabels {
 }
 
 /**
- * The ONE "+" on the rail's "Your teams" band: everything a user can ADD to
- * this rail, behind a single control.
+ * The ONE "+" on the rail's top line: everything a user can ADD to the rail,
+ * behind a single control.
  *
- * It opens the create sheet and nothing else. The sheet itself asks "what do
- * you want to add?" when there is a choice to make and opens straight on the
- * one thing this user may create when there is not, so the two can never
- * disagree — the control only has to NAME what pressing it does, which is why
- * a caller who may create only teams reads "New team" rather than "Create".
+ * When both choices are available, its menu opens the corresponding form
+ * directly. A sole available choice opens that form with one press. With
+ * nothing to create it renders nothing at all.
  *
- * With nothing to create it renders nothing at all: a plain member on a
- * gateway that predates C13 may create neither an agent nor a team, and the
- * band keeps its label and drops the control.
- *
- * The button wears the library's OWN affordance treatment, imported rather
- * than restated: it sits in a `SidebarRowButton`'s affordance slot beside a
- * team's "..." menu, and two triggers on the same row diverging because one of
- * them was hand-copied is exactly what the shared class exists to prevent.
- * Always visible and muted, strengthening on hover and focus — Houston forbids
- * hover-GATED affordances.
+ * It wears the library's header-control treatment, the same class as the
+ * collapse toggle and the search button beside it, so the top line reads as
+ * one set. Always visible and muted, strengthening on hover and focus: Houston
+ * forbids hover-GATED affordances.
  */
 export function SidebarCreateButton({
   labels,
-  canAddAgent,
-  canAddTeam,
-  onOpen,
+  onNewAgent,
+  onNewTeam,
+  collapsed,
+  dataAttrs,
 }: {
   labels: SidebarCreateLabels;
-  canAddAgent: boolean;
-  canAddTeam: boolean;
-  onOpen: () => void;
+  onNewAgent?: () => void;
+  onNewTeam?: () => void;
+  /** Icon rail: the tooltip and the menu open to the right. */
+  collapsed: boolean;
+  /** Tour anchor on the button. */
+  dataAttrs?: Record<string, string>;
 }): ReactNode {
+  const canAddAgent = onNewAgent !== undefined;
+  const canAddTeam = onNewTeam !== undefined;
   if (!canAddAgent && !canAddTeam) return null;
   const label =
     canAddAgent && canAddTeam
@@ -50,19 +57,58 @@ export function SidebarCreateButton({
         ? labels.newAgent
         : labels.newTeam;
 
+  const side = collapsed ? "right" : "bottom";
+  const glyph = <Plus className="size-4" aria-hidden="true" />;
+
+  if (!onNewAgent || !onNewTeam) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={label}
+            onClick={onNewAgent ?? onNewTeam}
+            className={sidebarHeaderControlClasses}
+            {...dataAttrs}
+          >
+            {glyph}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side={side}>{label}</TooltipContent>
+      </Tooltip>
+    );
+  }
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-label={label}
-          onClick={onOpen}
-          className={sidebarRowAffordanceClasses}
-        >
-          <Plus className="size-4" aria-hidden="true" />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="bottom">{label}</TooltipContent>
-    </Tooltip>
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={label}
+              className={sidebarHeaderControlClasses}
+              {...dataAttrs}
+            >
+              {glyph}
+            </button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side={side}>{label}</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent
+        side={side}
+        align={collapsed ? "start" : "end"}
+        collisionPadding={8}
+      >
+        <DropdownMenuItem onSelect={onNewAgent}>
+          <HoustonHelmet size={16} color="currentColor" />
+          {labels.newAgent}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onNewTeam}>
+          <FolderPlus className="size-4" aria-hidden="true" />
+          {labels.newTeam}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

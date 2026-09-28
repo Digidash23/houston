@@ -7,20 +7,25 @@ Calling an operation returns the host's raw response. Where the adapter function
 
 ## agents
 
-- `createAgent`: Creates a new agent. Always choose a `color` for it, one of Houston's ten palette colors: charcoal, forest, teal, navy, purple, rose, crimson, orange, golden, or umber. It is how the new agent is told apart at a glance, and leaving it out gives every agent the same default color. **Confirmation required.**
+- `createAgent`: Creates a new agent. Always choose a `color` for it, one of the app's ten palette colors: charcoal, forest, teal, navy, purple, rose, crimson, orange, golden, or umber. It is how the new agent is told apart at a glance, and leaving it out gives every agent the same default color. **Confirmation required.**
 - `deleteAgent`: Deletes an agent and everything in it. **Confirmation required.**
+- `getAgentDelegation`: Reads which AI Employees an agent may work with and whether it takes missions.
 - `getAgentModelChoice`: Reads which AI model the user picked for an agent.
 - `installAgentFromGithub`: Installs an agent from a GitHub repository. **Confirmation required.**
 - `listAgents`: Lists the user's agents.
-- `listInstalledConfigs`: Lists the agent templates installed in Houston.
+- `listInstalledConfigs`: Lists the agent templates installed for this account.
 - `renameAgent`: Renames an agent. **Confirmation required.**
+- `setAgentDelegation`: Sets which AI Employees an agent may work with and whether it takes missions. **Confirmation required.**
 - `setAgentModelChoice`: Chooses which AI model an agent uses. **Confirmation required.**
-- `updateAgentColor`: Change an agent's color. Pick one of Houston's ten palette colors: charcoal, forest, teal, navy, purple, rose, crimson, orange, golden, or umber. The new color shows up everywhere that agent appears.
+- `startFirstDay`: Starts an AI Employee's first day: its setup task, where it introduces itself and works out with the user how it should help. Only a new hire whose first day is still waiting can start one; asking again for one that already started hands back the same task instead of making another. **Confirmation required.**
+- `updateAgentColor`: Change an agent's color. Pick one of the app's ten palette colors: charcoal, forest, teal, navy, purple, rose, crimson, orange, golden, or umber. The new color shows up everywhere that agent appears.
 
 ## billing
 
 - `createCheckout`: Starts the checkout that subscribes the team workspace to a paid plan. **Confirmation required.**
+- `createPlusCheckout`: Start a Plus subscription checkout. **Confirmation required.**
 - `getBilling`: Shows the plan, trial, and payment status of the team workspace.
+- `listPlusInvoices`: List the person's recent Plus invoices.
 
 ## channels
 
@@ -58,7 +63,7 @@ Calling an operation returns the host's raw response. Where the adapter function
 - `detectCustomIntegration`: Checks what kind of service a link the user pasted points to. **Confirmation required.**
 - `integrationConnection`: Checks whether a connection to an outside app has finished.
 - `integrationConnections`: Lists the accounts the user has connected for one outside app.
-- `integrations.disconnect`: Disconnects an outside app from Houston, removing every account the user connected for it. **Confirmation required.**
+- `integrations.disconnect`: Disconnects an outside app, removing every account the user connected for it. **Confirmation required.**
 - `integrations.refresh`: Shows which outside apps are available to connect and which ones the user has already connected. (not callable yet)
 - `integrationStatus`: Shows which outside apps can be connected and which ones already are.
 - `integrationToolkits`: Lists the outside apps available to connect.
@@ -91,7 +96,7 @@ Calling an operation returns the host's raw response. Where the adapter function
 ## providers
 
 - `forgetCredential`: Signs the workspace out of an AI provider. **Confirmation required.**
-- `listAgentProviders`: Lists the AI providers Houston can use, with which ones are connected.
+- `listAgentProviders`: Lists the AI providers available here, with which ones are connected.
 - `providers.refresh`: Refreshes which AI providers an agent can use and which one it is signed in to. (not callable yet)
 - `providers.refreshStatus`: Shows which AI provider an agent is signed in to right now.
 
@@ -101,17 +106,21 @@ Calling an operation returns the host's raw response. Where the adapter function
 - `cancelRoutineRun`: Stops a routine run that is currently under way. **Confirmation required.**
 - `createRoutine`: Creates a routine so an agent repeats work on a schedule. **Confirmation required.**
 - `deleteRoutine`: Deletes a routine so it stops running on its schedule. **Confirmation required.**
+- `keepRoutine`: Choose the one Free routine that keeps firing. **Confirmation required.**
+- `listPlanRoutines`: List the person's enabled routines across all spaces.
 - `listRoutineRuns`: Lists the times an agent's routines have run, including any run in progress.
 - `listRoutines`: Lists an agent's routines.
+- `resumeRoutines`: Resume routines paused while away. **Confirmation required.**
 - `runRoutineNow`: Runs a routine right now instead of waiting for its next scheduled time. **Confirmation required.**
 - `updateRoutine`: Updates a routine's schedule or instructions. **Confirmation required.**
 
 ## settings
 
-- `getContext`: Reads the background notes Houston gives an agent on every conversation.
+- `getContext`: Reads the background notes given to an agent on every conversation.
 - `getMyProfile`: Reads the user's own name and photo.
-- `preferences.setLocale`: Sets the language Houston's own screens are shown in, for one workspace.
-- `setContext`: Replaces the background notes Houston gives an agent on every conversation. **Confirmation required.**
+- `getPlan`: Read the person's plan across all spaces.
+- `preferences.setLocale`: Sets the language the app's own screens are shown in, for one workspace.
+- `setContext`: Replaces the background notes given to an agent on every conversation. **Confirmation required.**
 - `setMyProfile`: Updates the user's own name or photo.
 
 ## skills
@@ -145,17 +154,9 @@ Calling an operation returns the host's raw response. Where the adapter function
 
 ## teams
 
-- `createAgentTeam`: Creates a team in this space.
-- `deleteAgentTeam`: Deletes a team. **Confirmation required.**
 - `getAgentSettings`: Reads which apps and AI models an agent is allowed to use.
-- `listAgentTeamMembers`: Lists the people who joined a team.
-- `listAgentTeams`: Lists the teams of people and agents in this space.
-- `removeAgentTeamMember`: Removes someone from a team, or leaves it. **Confirmation required.**
 - `setAgentAssignments`: Chooses who may use an agent, and at what access level. **Confirmation required.**
 - `setAgentSettings`: Chooses which apps and AI models an agent is allowed to use. **Confirmation required.**
-- `setAgentTeam`: Moves an agent into another team in this space. **Confirmation required.**
-- `setAgentTeamMemberOwner`: Gives someone ownership of a team, or takes it away. **Confirmation required.**
-- `updateAgentTeam`: Renames a team, reorders it, restyles it, or updates the notes it shares. **Confirmation required.**
 
 ## workspaces
 

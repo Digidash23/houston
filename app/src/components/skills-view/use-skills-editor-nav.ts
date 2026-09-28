@@ -7,7 +7,7 @@ import {
 import type { ManagedSkillRow } from "./skill-editor-props";
 
 /**
- * The Skills library's one navigation state: the list, or ONE skill's editor
+ * The Skills section's one navigation state: the list, or ONE skill's editor
  * in its place. The open row is held by SLUG and re-resolved from the live
  * rows every render, so a skill the agent renames or re-assigns under the
  * editor stays in step.

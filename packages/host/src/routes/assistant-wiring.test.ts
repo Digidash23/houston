@@ -40,7 +40,22 @@ test("both env halves are required — a half-configured pair is not a gateway",
 });
 
 test("an unfronted host is its own gateway — the family is on with nothing to configure", () => {
-  expect(resolveAssistantGateway({ env: {}, self: SELF })).toEqual(SELF);
+  // Marked loopback: only a call to itself may carry the manager proof.
+  expect(resolveAssistantGateway({ env: {}, self: SELF })).toEqual({
+    ...SELF,
+    loopback: true,
+  });
+});
+
+test("a configured gateway is never loopback, even beside a self", () => {
+  const gateway = resolveAssistantGateway({
+    env: {
+      HOUSTON_ASSISTANT_CP_URL: "https://g",
+      HOUSTON_ASSISTANT_TOKEN: "t",
+    },
+    self: SELF,
+  });
+  expect(gateway).not.toHaveProperty("loopback");
 });
 
 test("gateway-fronted with no env pair resolves nothing — the dispatcher stays 501", () => {

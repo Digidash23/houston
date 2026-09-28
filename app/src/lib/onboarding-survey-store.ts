@@ -9,13 +9,13 @@
 // browser storage and no network.
 
 import {
-  ONBOARDING_SEGMENT_PREF_KEY,
-  type OnboardingSegmentPreference,
-  onboardingSegmentLocalKey,
-  parseOnboardingSegmentPreference,
-} from "./onboarding-segment.ts";
-import {
+  type LegacySegmentPreference,
   liftLegacySegmentPreference,
+  ONBOARDING_SEGMENT_PREF_KEY,
+  onboardingSegmentLocalKey,
+  parseLegacySegmentPreference,
+} from "./onboarding-legacy-segment.ts";
+import {
   ONBOARDING_SURVEY_PREF_KEY,
   type OnboardingSurveyPreference,
   onboardingSurveyLocalKey,
@@ -91,23 +91,23 @@ export async function persistSurveyPreference(
 async function readLegacySegment(
   ports: SurveyStorePorts,
   uid: string | null,
-): Promise<OnboardingSegmentPreference | null> {
+): Promise<LegacySegmentPreference | null> {
   let raw: string | null = null;
   try {
     raw = await ports.getPreference(ONBOARDING_SEGMENT_PREF_KEY);
   } catch {
     // Engine unreachable (hosted pod waking) — the legacy mirror answers.
   }
-  const fromEngine = parseOnboardingSegmentPreference(raw);
+  const fromEngine = parseLegacySegmentPreference(raw);
   if (fromEngine) return fromEngine;
-  return parseOnboardingSegmentPreference(
+  return parseLegacySegmentPreference(
     ports.readLocal(onboardingSegmentLocalKey(uid)),
   );
 }
 
 /**
  * Engine preference, else the device mirror, else the pre-survey segment
- * preference lifted into a v2 record (the legacy key stays put for rollback).
+ * preference lifted into a survey record (the legacy key stays put for rollback).
  * Two copies that both parse are reconciled field by field
  * ({@link reconcileSurveyCopies}) — neither side is trusted wholesale.
  *

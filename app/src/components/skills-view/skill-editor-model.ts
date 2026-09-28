@@ -66,8 +66,8 @@ export function reconcileSkillDraft(
 
 /**
  * The row whose skill owns a setup chat, by that chat's activity id. A
- * skill-finished notification lands on the Skills library carrying only the
- * activity id, and the editor is what has to open for it; the frontmatter's
+ * skill-finished notification lands on the employee's Skills section carrying
+ * only the activity id, and the editor is what has to open for it; the frontmatter's
  * `setup_activity_id` is the skill's own record of which chat built it.
  */
 export function skillRowForActivity<T extends { summary: SkillSummary }>(
@@ -81,7 +81,7 @@ export function skillRowForActivity<T extends { summary: SkillSummary }>(
 }
 
 /**
- * What a skill-chat notification resolves to against the library's rows.
+ * What a skill-chat notification resolves to against the section's rows.
  * `wait` means nothing to act on YET (no notification, or the rows are still
  * landing); `drop` is the id nothing claims once they have, which must be
  * spent rather than left to hijack the next chat the user opens.

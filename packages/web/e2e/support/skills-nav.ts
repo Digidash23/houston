@@ -1,4 +1,8 @@
-import { FAKE_HOST_URL, SEED_AGENT_ID } from "@houston/fake-host";
+import {
+  FAKE_HOST_URL,
+  SEED_AGENT_ID,
+  SEED_AGENT_NAME,
+} from "@houston/fake-host";
 import { type APIRequestContext, expect, type Page } from "@playwright/test";
 import { openAgentSettings, screen } from "./team-nav";
 
@@ -13,7 +17,7 @@ import { openAgentSettings, screen } from "./team-nav";
  */
 
 /** The seeded agent every skills spec works against. */
-const DEFAULT_AGENT = "Houston";
+const DEFAULT_AGENT = SEED_AGENT_NAME;
 
 /** One skill as a spec seeds it: the slug the host stores it under, and the
  *  title the surfaces display (the humanized slug, since nothing writes a

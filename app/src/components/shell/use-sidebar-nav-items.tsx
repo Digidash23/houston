@@ -1,26 +1,18 @@
-import type { SidebarNavSection } from "@houston-ai/layout";
 import { useSurfaceGates } from "../../hooks/use-surface-gates";
 import type { NavMode } from "../../lib/nav-stack";
-import { isTopLevelView } from "../../lib/top-level-views";
 import { useUIStore } from "../../stores/ui";
+import type { MenuSection } from "./menu-row";
 import type { SidebarChromeT } from "./sidebar-chrome";
 import { buildSidebarNavItems } from "./sidebar-nav-sections";
 
 /**
- * The rail's top-level nav sections and which row is lit.
+ * The workspace's shared destinations, gated for this caller.
  *
- * Every entry navigates AND closes the phone's More menu — the one rule both
- * callbacks below share, so they are paired here instead of being repeated at
- * the call site. The active id comes from the same place because it answers the
- * same question: only a TOP-LEVEL view lights a nav row, and a team screen
- * lights a team row instead (`useSidebarTeamsModel`).
+ * Every entry navigates AND closes the phone's More menu, the one rule every
+ * row shares, so it is applied here instead of at each call site.
  *
- * Every entry POINTS AT A SCREEN. "Guide me" points at none, so it is an item
- * behind the footer's help control (`sidebar-help-menu.tsx`) rather than a row
- * here, and arming the tour is not composed in this hook.
- *
- * The rail's FOOTER cluster is not here either: the Academy and Settings are
- * drawn by `sidebar-footer.tsx`, below the teams the rail lists.
+ * Admin and the person's own run (the Academy, Settings) are not here: the
+ * workspace menu and the phone's More menu each place them around these.
  */
 export function useSidebarNavItems(
   t: SidebarChromeT,
@@ -31,21 +23,17 @@ export function useSidebarNavItems(
      *  menu is a tab-level move, not a level pushed onto the current tree. */
     nav?: NavMode;
   },
-): { navSections: SidebarNavSection[]; activeNavId: string | undefined } {
-  const { showAiModels, showAssistant, showSkills } = useSurfaceGates();
-  const viewMode = useUIStore((s) => s.viewMode);
+): { navSections: MenuSection[] } {
+  const { showAiModels } = useSurfaceGates();
   const setViewMode = useUIStore((s) => s.setViewMode);
   return {
     navSections: buildSidebarNavItems({
       t,
       showAiModels,
-      showAssistant,
-      showSkills,
       setViewMode: (view) => {
         setViewMode(view, opts?.nav ? { nav: opts.nav } : undefined);
         closeMobileMenu();
       },
     }),
-    activeNavId: isTopLevelView(viewMode) ? viewMode : undefined,
   };
 }

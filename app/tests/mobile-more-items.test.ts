@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import {
-  type MobileMoreGroup,
-  mobileMoreFooterRows,
-  mobileMoreItems,
-} from "../src/components/shell/mobile-more-items.ts";
+import type { MenuSection } from "../src/components/shell/menu-row.ts";
+import { mobileMoreItems } from "../src/components/shell/mobile-more-items.ts";
 
-// The phone More menu's model: the rail's own destination runs, minus the
-// ones a gate emptied, plus the two help actions. The rail composes ONE
-// unlabelled run today; the mapper mirrors the library's section shape, bands
-// and all, so the menu draws whatever the rail hands it.
+// The phone More menu's model: the shared destination runs, minus the ones a
+// gate emptied. One unlabelled run is composed today; the mapper keeps labels
+// so the menu draws whatever runs it is handed.
 
-const row = (id: string): MobileMoreGroup["items"][number] => ({
+const requireSource = (rel: string) =>
+  readFileSync(new URL(rel, import.meta.url), "utf8");
+
+const row = (id: string): MenuSection["items"][number] => ({
   id,
   label: id,
   icon: null,
@@ -23,15 +23,15 @@ describe("mobileMoreItems", () => {
     const groups = mobileMoreItems([
       {
         id: "primary",
-        items: [row("assistant"), row("ai-hub"), row("integrations")],
+        items: [row("ai-hub"), row("integrations")],
       },
-      { id: "teams", label: "Your teams", items: [row("team")] },
+      { id: "teams", label: "Your AI Employees", items: [row("team")] },
     ]);
     assert.deepEqual(
       groups.map((g) => [g.id, g.label, g.items.map((i) => i.id)]),
       [
-        ["primary", undefined, ["assistant", "ai-hub", "integrations"]],
-        ["teams", "Your teams", ["team"]],
+        ["primary", undefined, ["ai-hub", "integrations"]],
+        ["teams", "Your AI Employees", ["team"]],
       ],
     );
   });
@@ -40,8 +40,8 @@ describe("mobileMoreItems", () => {
     // A heading must never outlive the rows it names — the same rule the rail
     // library applies to its own sections.
     const groups = mobileMoreItems([
-      { id: "primary", items: [row("assistant")] },
-      { id: "teams", label: "Your teams", items: [] },
+      { id: "primary", items: [row("ai-hub")] },
+      { id: "teams", label: "Your AI Employees", items: [] },
     ]);
     assert.deepEqual(
       groups.map((g) => g.id),
@@ -50,30 +50,20 @@ describe("mobileMoreItems", () => {
   });
 });
 
-describe("mobileMoreFooterRows", () => {
-  it("names the two help actions, in order, wired to their handlers", () => {
-    let guided = 0;
-    let reported = 0;
-    const rows = mobileMoreFooterRows({
-      guideMe: "Guide me",
-      reportProblem: "Report a problem",
-      onGuideMe: () => {
-        guided += 1;
-      },
-      onReportProblem: () => {
-        reported += 1;
-      },
-    });
-    assert.deepEqual(
-      rows.map((r) => [r.id, r.label]),
-      [
-        ["guideMe", "Guide me"],
-        ["reportProblem", "Report a problem"],
-      ],
+describe("mobile More screen rows", () => {
+  it("gates Admin and omits the Help group", () => {
+    const source = requireSource(
+      "../src/components/shell/mobile-more-menu.tsx",
     );
-    rows[0].onSelect();
-    rows[1].onSelect();
-    assert.equal(guided, 1);
-    assert.equal(reported, 1);
+    assert.ok(
+      source.includes(
+        "{showOrganization && <MobileMoreRowButton row={admin} />}",
+      ),
+    );
+    assert.ok(source.includes("adminNavRow({"), "the rail's own Admin row");
+    const rows = requireSource("../src/components/shell/sidebar-nav-rows.tsx");
+    assert.ok(rows.includes('dataAttrs: { "data-testid": "rail-admin" }'));
+    assert.ok(!source.includes("mobileMoreFooterRows"));
+    assert.ok(!source.includes("moreMenu.help"));
   });
 });

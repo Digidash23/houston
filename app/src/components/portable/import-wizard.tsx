@@ -91,6 +91,7 @@ export function ImportAgentWizard() {
       {currentStep === "name" && (
         <ImportNameStep
           name={wizard.name}
+          nameError={wizard.nameIssueText}
           onNameChange={wizard.setName}
           color={wizard.color}
           onColorChange={wizard.setColor}

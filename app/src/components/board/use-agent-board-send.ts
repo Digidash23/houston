@@ -115,6 +115,7 @@ export function useAgentBoardSend({
       text: string,
       files: File[],
       overrides: SendOverrides,
+      context?: string,
     ) =>
       sendBoardMessage(
         {
@@ -129,6 +130,7 @@ export function useAgentBoardSend({
         text,
         files,
         overrides,
+        context,
       ),
     [path, agent.id, rawItems, promptContext],
   );

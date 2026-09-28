@@ -3,9 +3,12 @@ import { useTranslation } from "react-i18next";
 import { useAssistant } from "../../hooks/use-assistant";
 import { AssistantChat } from "./assistant-chat";
 import { AssistantFailureState } from "./assistant-failure-state";
+import { ManagerOnboarding } from "./onboarding/manager-onboarding";
+import { useManagerOnboarding } from "./onboarding/manager-onboarding-context";
 
 /**
- * The assistant screen: discovery, then the chat.
+ * The assistant screen: the onboarding the manager runs, when one is running,
+ * else discovery, then the chat.
  *
  * Discovery is the one thing the app cannot work out for itself (which agent
  * holds the assistant, which conversation to open), so the screen waits on it
@@ -25,6 +28,12 @@ import { AssistantFailureState } from "./assistant-failure-state";
  * the user; that deployment simply has no manager.
  */
 export function AssistantView() {
+  const onboarding = useManagerOnboarding();
+  if (onboarding) return <ManagerOnboarding state={onboarding} />;
+  return <RealAssistantView />;
+}
+
+function RealAssistantView() {
   const { t } = useTranslation("assistant");
   const { handle, isLoading, failure, retry } = useAssistant();
 

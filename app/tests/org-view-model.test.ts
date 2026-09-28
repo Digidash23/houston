@@ -4,7 +4,6 @@ import type { AuditEntry, Capabilities } from "@houston/engine-adapter";
 import {
   AUDIT_PAGE_SIZE,
   canSeeOrganization,
-  canSeeTimeWorked,
   nextAuditCursor,
   ORG_TAB_IDS,
   orgTabIds,
@@ -72,62 +71,37 @@ describe("canSeeOrganization", () => {
 });
 
 describe("ORG_TAB_IDS", () => {
-  it("is the always-present sections in display order", () => {
-    // Company context leads because it is the header's identity lozenge
-    // (the landing section), and it is unconditional because the whole Admin
-    // view is already gated on `canSeeOrganization`, which is false in a
-    // personal space, so a second branch for it here would be dead code.
-    strictEqual(
-      ORG_TAB_IDS.join(","),
-      "companyContext,orgChart,people,activity,usage",
-    );
+  it("is a team space's always-present sections in display order", () => {
+    // The Org chart leads because it is the header's identity lozenge (the
+    // landing section). Company context is a header tool, never a section.
+    strictEqual(ORG_TAB_IDS.join(","), "orgChart,people,activity");
   });
 });
 
 describe("orgTabIds", () => {
   it("splices billing in after People only when it is in scope", () => {
     strictEqual(
-      orgTabIds({ personal: false, billing: false, timeWorked: false }).join(
-        ",",
-      ),
-      "companyContext,orgChart,people,activity,usage",
+      orgTabIds({ personal: false, billing: false }).join(","),
+      "orgChart,people,activity",
     );
     strictEqual(
-      orgTabIds({ personal: false, billing: true, timeWorked: false }).join(
-        ",",
-      ),
-      "companyContext,orgChart,people,billing,activity,usage",
-    );
-  });
-
-  it("adds Time worked last only when compute usage is in scope", () => {
-    strictEqual(
-      orgTabIds({ personal: false, billing: false, timeWorked: true }).join(
-        ",",
-      ),
-      "companyContext,orgChart,people,activity,usage,timeWorked",
+      orgTabIds({ personal: false, billing: true }).join(","),
+      "orgChart,people,billing,activity",
     );
   });
 });
 
 describe("personal workspace sections", () => {
-  it("keeps context, org chart, and usage without organizational administration", () => {
+  it("keeps the Org chart alone, with no organizational administration", () => {
+    // Billing in scope still cannot reach a personal space: it has no roster.
     strictEqual(
-      orgTabIds({ personal: true, billing: true, timeWorked: false }).join(","),
-      "companyContext,orgChart,usage",
+      orgTabIds({ personal: true, billing: true }).join(","),
+      "orgChart",
     );
     strictEqual(
-      orgTabIds({ personal: true, billing: false, timeWorked: true }).join(","),
-      "companyContext,orgChart,usage,timeWorked",
+      orgTabIds({ personal: true, billing: false }).join(","),
+      "orgChart",
     );
-  });
-});
-
-describe("canSeeTimeWorked", () => {
-  it("offers Time worked only where the deployment meters compute", () => {
-    strictEqual(canSeeTimeWorked({ ...OWNER, computeUsage: true }), true);
-    strictEqual(canSeeTimeWorked(OWNER), false);
-    strictEqual(canSeeTimeWorked(null), false);
   });
 });
 

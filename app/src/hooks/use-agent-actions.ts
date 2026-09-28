@@ -1,6 +1,7 @@
+import { isAgentNameReserved, isAgentNameTaken } from "@houston/sdk";
 import type { TFunction } from "i18next";
-import { AGENT_NAME_MAX_LENGTH, agentNameIssue } from "../lib/agent-name";
-import { isAgentNameConflictError } from "../lib/agent-name-conflict";
+import { useEmployeeNameIssueCopy } from "../components/employee-card/use-employee-name";
+import { agentNameIssue } from "../lib/agent-name";
 import { showExpectedStateToast } from "../lib/error-toast";
 import { renameAgentWithFollowUp } from "../lib/rename-agent-follow-up";
 import { useAgentStore } from "../stores/agents";
@@ -33,23 +34,23 @@ export function useAgentActions(args: {
   const renameAgent = useAgentStore((s) => s.rename);
   const deleteAgent = useAgentStore((s) => s.delete);
   const updateAgentColor = useAgentStore((s) => s.updateColor);
+  const issueCopy = useEmployeeNameIssueCopy();
 
   const rename = async (agentId: string, newName: string) => {
     if (!workspaceId) return;
     // Validate BEFORE the PATCH (HOU-1166): bad shapes and known duplicates
     // get the expected-state toast without a round-trip. The 409 catch below
     // stays for races (a sibling took the name after this list loaded).
+    // The agent's own current name is passed so one already called Houston
+    // keeps it (the AI Manager's name is only refused as a NEW name).
     const issue = agentNameIssue(
       newName,
       agentNamesById.filter((a) => a.id !== agentId).map((a) => a.name),
+      agentNamesById.find((a) => a.id === agentId)?.name,
     );
     if (issue) {
       showExpectedStateToast(
-        issue === "taken"
-          ? t("agents:toasts.nameConflict", { name: newName.trim() })
-          : issue === "tooLong"
-            ? t("agents:nameErrors.tooLong", { max: AGENT_NAME_MAX_LENGTH })
-            : t("agents:nameErrors.invalidChars"),
+        issueCopy(issue, newName),
         t("agents:toasts.nameConflictDescription"),
       );
       return;
@@ -66,9 +67,18 @@ export function useAgentActions(args: {
         remapAgentId,
       });
     } catch (err) {
-      if (isAgentNameConflictError(err)) {
+      if (isAgentNameTaken(err)) {
         showExpectedStateToast(
           t("agents:toasts.nameConflict", { name: newName }),
+          t("agents:toasts.nameConflictDescription"),
+        );
+        return;
+      }
+      // The loaded list still showed this agent under "Houston" after it was
+      // renamed elsewhere, so the pre-check let the name through.
+      if (isAgentNameReserved(err)) {
+        showExpectedStateToast(
+          t("agents:nameErrors.reserved"),
           t("agents:toasts.nameConflictDescription"),
         );
         return;

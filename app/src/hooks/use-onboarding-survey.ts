@@ -2,18 +2,20 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { isHostedGatewayEngine } from "../lib/engine";
 import {
+  applyCompanySize,
   applyCompletionDismissed,
   applyGoal,
-  applyGoalSkipped,
   applyIndustry,
-  applySegment,
+  applyRole,
   createOnboardingSurveyPreference,
+  isCompanySizeAnswered,
   isGoalAnswered,
   isIndustryAnswered,
-  isSegmentAnswered,
+  isRoleAnswered,
   needsCompletionPrompt,
+  type OnboardingCompanySizeChoice,
   type OnboardingIndustryChoice,
-  type OnboardingSegmentChoice,
+  type OnboardingRoleChoice,
   type OnboardingSurveyPreference,
 } from "../lib/onboarding-survey";
 import { liveSurveyStorePorts } from "../lib/onboarding-survey-ports";
@@ -40,28 +42,31 @@ const SURVEY_STALE_MS = 30 * 60_000;
 export interface OnboardingSurveyState {
   loading: boolean;
   survey: OnboardingSurveyPreference | null;
-  segmentAnswered: boolean;
+  roleAnswered: boolean;
   industryAnswered: boolean;
+  companySizeAnswered: boolean;
   goalAnswered: boolean;
   needsCompletionPrompt: boolean;
-  saveSegment: (
-    segment: OnboardingSegmentChoice,
-    other?: string | null,
-  ) => Promise<void>;
   saveIndustry: (
     industry: OnboardingIndustryChoice,
     other?: string | null,
   ) => Promise<void>;
-  /** `null` records the skip. A goal outside the accepted length throws — the
-   *  UI blocks it long before this, and a caller bug must not vanish. */
-  saveGoal: (text: string | null) => Promise<void>;
+  saveRole: (
+    role: OnboardingRoleChoice,
+    other?: string | null,
+  ) => Promise<void>;
+  saveCompanySize: (companySize: OnboardingCompanySizeChoice) => Promise<void>;
+  /** A goal outside the accepted length throws — the UI blocks it long
+   *  before this, and a caller bug must not vanish. The goal cannot be
+   *  skipped. */
+  saveGoal: (text: string) => Promise<void>;
   dismissCompletionPrompt: () => Promise<void>;
 }
 
 /**
- * The onboarding survey (segment · industry · automation goal) as ONE resumable
- * record: which questions are answered, whether the profile-completion prompt
- * is owed, and the four saves. Every save persists locally first and pushes to
+ * The onboarding survey (industry · role · company size · automation goal) as
+ * ONE resumable record: which questions are answered, whether the
+ * profile-completion prompt is owed, and the saves. Every save persists locally first and pushes to
  * the account store in the background — a failed push only leaves
  * `gatewaySyncedAt` null, which the next mount retries.
  *
@@ -115,24 +120,26 @@ export function useOnboardingSurvey(): OnboardingSurveyState {
     [claim, flush, qc, uid],
   );
 
-  const saveSegment = useCallback(
-    (segment: OnboardingSegmentChoice, other: string | null = null) =>
-      save((p) => applySegment(p, segment, other), true),
-    [save],
-  );
-
   const saveIndustry = useCallback(
     (industry: OnboardingIndustryChoice, other: string | null = null) =>
       save((p) => applyIndustry(p, industry, other), true),
     [save],
   );
 
+  const saveRole = useCallback(
+    (role: OnboardingRoleChoice, other: string | null = null) =>
+      save((p) => applyRole(p, role, other), true),
+    [save],
+  );
+
+  const saveCompanySize = useCallback(
+    (companySize: OnboardingCompanySizeChoice) =>
+      save((p) => applyCompanySize(p, companySize), true),
+    [save],
+  );
+
   const saveGoal = useCallback(
-    async (text: string | null) => {
-      if (text === null) {
-        await save(applyGoalSkipped, true);
-        return;
-      }
+    async (text: string) => {
       // An out-of-range goal is unreachable from the UI (Continue stays
       // disabled until it validates) and `applyGoal` throws on one, which the
       // caller surfaces. Never discard it quietly: a dropped answer that only
@@ -152,12 +159,14 @@ export function useOnboardingSurvey(): OnboardingSurveyState {
   return {
     loading: sessionLoading || query.isPending,
     survey,
-    segmentAnswered: isSegmentAnswered(survey),
+    roleAnswered: isRoleAnswered(survey),
     industryAnswered: isIndustryAnswered(survey),
+    companySizeAnswered: isCompanySizeAnswered(survey),
     goalAnswered: isGoalAnswered(survey),
     needsCompletionPrompt: needsCompletionPrompt(survey),
-    saveSegment,
     saveIndustry,
+    saveRole,
+    saveCompanySize,
     saveGoal,
     dismissCompletionPrompt,
   };

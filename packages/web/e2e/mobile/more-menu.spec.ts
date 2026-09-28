@@ -1,3 +1,4 @@
+import { FAKE_HOST_URL } from "@houston/fake-host";
 import { expect, test } from "../support/fixtures";
 import {
   moreMenu,
@@ -9,10 +10,11 @@ import { screen } from "../support/team-nav";
 
 /**
  * The phone's More menu: the card the nav bar raises for everything outside the
- * Agents and Teams trees.
+ * AI Employees tree.
  *
- * Its destinations ARE the desktop rail's (`useSidebarNavItems`), so this spec
- * guards the two things that could drift — the list the seeded single-player
+ * It is headed by the same account row as the desktop rail's foot, and its
+ * destinations ARE the desktop menu's (`useSidebarNavItems`), so this spec
+ * guards the things that could drift — the list the seeded single-player
  * deployment actually offers, and the rail's tour anchors resolving to these
  * rows — plus the rule that picking one closes the menu instead of leaving it
  * floating over the screen it opened.
@@ -41,38 +43,60 @@ test("the menu lists what this deployment offers, with the rail's anchors", asyn
   await page.goto("/");
   const menu = await openMoreMenu(page);
 
-  for (const label of ["Integrations", "AI Models", "Skills"]) {
+  for (const label of ["Integrations", "AI Models"]) {
     await expect(
       menu.getByRole("button", { name: label, exact: true }),
       `"${label}" should be a row of the More menu`,
     ).toBeVisible();
   }
 
-  // Administering the space is a Settings section, reached through the gear in
-  // this menu's header line — never a destination row of its own here.
-  await expect(
-    menu.getByRole("button", { name: "Workspace management" }),
-  ).toHaveCount(0);
+  // The single-player seed is below the org gate, so Admin has no row.
+  await expect(menu.getByTestId("rail-admin")).toHaveCount(0);
 
-  // The rows carry the RAIL's own attributes, which is what lets the guided
-  // setup ring the same destination on both breakpoints. Skills carries a test
-  // id rather than a tour anchor, because the tour does not walk it.
+  // The rows carry the RAIL's own attributes, so one anchor names the same
+  // destination on both breakpoints.
   for (const anchor of ["nav-integrations", "nav-ai-hub", "nav-settings"]) {
     await expect(
       moreRow(page, anchor),
       `the menu should carry the "${anchor}" anchor`,
     ).toHaveCount(1);
   }
-  await expect(menu.getByTestId("rail-skills")).toHaveCount(1);
+  // Skills live in each employee's settings: no row for them here.
+  await expect(
+    menu.getByRole("button", { name: "Skills", exact: true }),
+  ).toHaveCount(0);
 
-  // The two help actions band the footer; neither points at a screen.
-  await expect(menu.getByRole("button", { name: "Guide me" })).toBeVisible();
+  // The footer cluster holds destinations only: no help group.
   await expect(
     menu.getByRole("button", { name: "Report a problem" }),
+  ).toHaveCount(0);
+  await expect(menu.getByText("Help", { exact: true })).toHaveCount(0);
+});
+
+test("Admin appears in More only for an admitted caller", async ({
+  page,
+  request,
+}) => {
+  await request.post(`${FAKE_HOST_URL}/__test__/capabilities`, {
+    data: { multiplayer: true, teams: true, role: "owner" },
+  });
+  await page.goto("/");
+  const menu = await openMoreMenu(page);
+  await expect(menu.getByTestId("rail-admin")).toHaveCount(1);
+  await menu.getByTestId("rail-admin").tap();
+  await expect(moreMenu(page)).toBeHidden();
+  await expect(screen(page)).toHaveAttribute("data-screen", "admin");
+
+  // The phone keeps Admin's Company context pill too: the strip holds the
+  // section switcher, so the pill takes the row below it and opens its editor
+  // as a bottom sheet.
+  await screen(page).locator("[data-company-context-trigger]").tap();
+  await expect(
+    page.getByRole("dialog", { name: "Company context" }),
   ).toBeVisible();
 });
 
-test("the Settings gear opens the settings index", async ({ page }) => {
+test("the Settings row opens the settings index", async ({ page }) => {
   await page.goto("/");
   await openMoreMenu(page);
 
@@ -101,14 +125,27 @@ test("a destination row lands on its screen and closes the menu", async ({
   await expect(navItem(page, "more")).toHaveAttribute("aria-current", "page");
 });
 
-test("Report a problem lands on the bug-report section", async ({ page }) => {
+test("the account row heads the card and switches workspace from its menu", async ({
+  page,
+}) => {
   await page.goto("/");
   const menu = await openMoreMenu(page);
+  const account = menu.locator(
+    '[data-testid="more-account"] button[aria-haspopup="menu"]',
+  );
+  await expect(account).toBeVisible();
+  // It heads the card: nothing in the card sits above it.
+  const accountBox = await account.boundingBox();
+  const firstRow = await moreRow(page, "nav-ai-hub").boundingBox();
+  if (!accountBox || !firstRow) throw new Error("the card is not laid out");
+  expect(accountBox.y + accountBox.height).toBeLessThanOrEqual(firstRow.y);
 
-  await menu.getByRole("button", { name: "Report a problem" }).tap();
-  await expect(moreMenu(page)).toBeHidden();
-  await expect(screen(page)).toHaveAttribute("data-screen", "settings");
+  // Its menu is the workspace run: the current one checked, then create.
+  await account.tap();
   await expect(
-    screen(page).getByRole("heading", { name: "Report bug" }),
-  ).toBeVisible();
+    page.getByRole("menuitemcheckbox", { checked: true }),
+  ).toHaveCount(1);
+  await expect(page.getByRole("menuitem").last()).toHaveText(
+    "Create workspace",
+  );
 });

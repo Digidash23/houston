@@ -1,7 +1,7 @@
 import { FAKE_HOST_URL } from "@houston/fake-host";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
-import { openAboutMe, openAdminSection } from "./support/settings-nav";
+import { openAboutMe, openCompanyContext } from "./support/settings-nav";
 import { screen } from "./support/team-nav";
 
 /**
@@ -13,10 +13,10 @@ import { screen } from "./support/team-nav";
  *    their language. It is ungated: it exists in every deployment, including a
  *    solo desktop install.
  *  - **Company context** — what the agents know about the COMPANY. It is
- *    shared by everyone in the space, so it is the space owner's: a section of
- *    the Admin dashboard behind Settings > Workspace management, which is itself
- *    gated to a team space and therefore never appears on a personal/solo
- *    install.
+ *    shared by everyone in the space, so it is the space owner's: a pill in
+ *    the Admin header opening its editor in a sheet, available to a
+ *    multiplayer team owner or admin and in a Spaces personal space. A solo
+ *    install has no org read.
  *
  * The underlying data did not move: each half still reads and writes its own
  * slot of the same blob (`WORKSPACE.md` / `USER.md` locally, the org+user blobs
@@ -67,42 +67,47 @@ test("About me is a Settings section, drilled from the index", async ({
   ).toBeVisible();
 });
 
-test("Company context is a section of Admin, editing the workspace's half", async ({
+test("Company context opens from the Admin header, editing the workspace's half", async ({
   page,
   request,
 }) => {
   await armOwner(request);
   await seedEmptyContext(page);
   await page.goto("/");
-  await openAdminSection(page, "Company context");
+  const sheet = await openCompanyContext(page);
+
+  // The sheet names itself and what belongs in it, since no section does.
+  await expect(
+    sheet.getByText(
+      "What all your AI Employees know on every task and routine they run.",
+    ),
+  ).toBeVisible();
 
   // The WORKSPACE slot: the editor is already open (no invite empty state),
   // and its greyed suggestion is a short 3-part example RENDERED as real
   // headings (the overlay is aria-hidden decoration, so it is asserted as
   // text, never by role): the words appear, the "##" syntax never does.
-  const editor = screen(page).getByRole("textbox");
-  await expect(screen(page).getByText("Who we are")).toBeVisible();
-  await expect(screen(page).getByText("How we communicate")).toBeVisible();
-  await expect(screen(page).getByText("## Who we are")).toHaveCount(0);
+  const editor = sheet.getByRole("textbox");
+  await expect(sheet.getByText("Who we are")).toBeVisible();
+  await expect(sheet.getByText("How we communicate")).toBeVisible();
+  await expect(sheet.getByText("## Who we are")).toHaveCount(0);
 
   // And only that half. The person's context is not duplicated inside the Admin
   // dashboard — it is theirs, not the admin's, which is the whole reason the two
   // split.
   await expect(editor).toHaveCount(1);
-  await expect(screen(page).getByText(/I'm Juan/)).toHaveCount(0);
+  await expect(sheet.getByText(/I'm Juan/)).toHaveCount(0);
 
-  // The identity lozenge ("Workspace") stands for this very section, so it is
-  // the current one — and the section titles ITSELF: a level-2 hero naming
-  // Company context and what belongs in it, since the lozenge doesn't.
+  // A tool over the page, not a section of it: closing the sheet returns to
+  // the Org chart, which the identity lozenge ("Workspace") still marks as
+  // the current section. The modal sheet hides the page from the
+  // accessibility tree while open, so the lozenge is read after it closes.
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+  await expect(
+    screen(page).locator("[data-admin-section-body='orgChart']"),
+  ).toBeVisible();
   await expect(
     screen(page).getByRole("button", { name: "Workspace", exact: true }),
   ).toHaveAttribute("aria-current", "page");
-  await expect(
-    screen(page).getByRole("heading", { name: "Company context", level: 2 }),
-  ).toBeVisible();
-  await expect(
-    screen(page).getByText(
-      "What all your AI Employees know on every task and routine they run.",
-    ),
-  ).toBeVisible();
 });

@@ -1,21 +1,28 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { FOLLOW_UP_PLACEHOLDER } from "./composer";
-import { rail } from "./team-nav";
+import { prefilledName } from "./employee-name";
 
 /**
- * The DEFAULT team's "New AI Employee" row in the rail — the door this flow walks.
- *
- * "New AI Employee" names two controls at once: this row at the foot of an expanded
- * team block, and the Agents home's round button
- * (`agents-home-new-agent`, `agents-home-list.tsx`). The Agents home is mounted
- * for the whole session, so a page-wide lookup by accessible name matches both
- * and trips strict mode. Naming the block also fixes WHERE the agent lands: a
- * team's row creates into that team, and these flows want the default one.
+ * The rail's "+" on its top line — the door this flow walks. Its tour anchor
+ * scopes it to the rail: the Agents home's round button carries the same
+ * anchor and stays mounted for the session.
  */
-export function newAgentRow(page: Page): Locator {
-  return rail(page)
-    .locator('[data-sidebar-drop-section=""]')
-    .getByRole("button", { name: "New AI Employee" });
+export function newAgentButton(page: Page): Locator {
+  return page.locator(
+    "[data-tour-target='sidebar'] [data-tour-target='newAgent']",
+  );
+}
+
+/**
+ * Press the "+" and land on the create sheet. Where the person may also make
+ * a group, the "+" opens a two-item menu first, and the flow picks "New AI
+ * Employee" from it; otherwise the sheet opens straight away.
+ */
+export async function openNewAgent(page: Page): Promise<void> {
+  await newAgentButton(page).click();
+  const item = page.getByRole("menuitem", { name: "New AI Employee" });
+  await item.or(page.getByRole("dialog")).first().waitFor();
+  if (await item.isVisible()) await item.click();
 }
 
 /**
@@ -25,8 +32,8 @@ export function newAgentRow(page: Page): Locator {
  * the job it takes over. Each pick advances the dialog on its own, so this
  * leaves the caller on the customize step, where the name lives.
  *
- * The choice screen only exists when the user has an agent to copy and no
- * tutorial is running (`create-agent-steps-model.ts`), so this waits for
+ * The choice screen only exists when the user has an agent to copy
+ * (`create-agent-steps-model.ts`), so this waits for
  * whichever screen the sheet actually opened on before deciding — never a
  * bare visibility poll against a surface that is still mounting.
  *
@@ -43,6 +50,9 @@ export async function fillAgentBrief(page: Page): Promise<void> {
   await page
     .getByRole("radio", { name: "Financial analyst", exact: true })
     .click();
+  await expect(
+    page.getByRole("heading", { name: "Name your AI Employee", exact: true }),
+  ).toBeVisible();
 }
 
 /**
@@ -50,46 +60,38 @@ export async function fillAgentBrief(page: Page): Promise<void> {
  *
  * The create sheet (`add-to-workspace-sheet.tsx`) opens on the choice of how
  * to start when it is reached from a "New AI Employee" control, and hiring
- * runs the three-step guided setup (context, role, then name and color). On
- * create success the sheet
- * fires the agent's self-setup mission in the normal shell
- * (`startAgentSetupMission`), switches to the board view, auto-opens the chat
- * panel on that mission (`setActivityPanelId(conversationId, { forceOpen:
- * true })`), and closes immediately.
+ * runs the three-step guided setup (context, role, then the employee card,
+ * which arrives named for the job and is renamed to `name` here). On
+ * create success the sheet closes and the board opens on the new employee,
+ * whose first day waits for the user's click (`lib/agent-first-day.ts`): no
+ * setup task starts and no chat panel opens on its own.
  *
- * This shared helper leaves callers on the board with the auto-opened panel
- * DISMISSED, so sidebar/board interactions aren't obstructed by the ~45%-width
- * chat panel. It asserts the panel really opened on the setup mission first, so
- * a broken auto-open fails loudly here instead of silently later.
+ * It asserts the panel stayed closed, so a regression back to an auto-started
+ * first day fails loudly here instead of silently obstructing later steps.
  */
 export async function createAgent(page: Page, name: string): Promise<void> {
-  await newAgentRow(page).click();
+  await openNewAgent(page);
   await fillAgentBrief(page);
-  const nameField = page.getByPlaceholder("e.g. Product manager, Sales, Jerry");
-  await nameField.waitFor({ state: "visible" });
+  const nameField = page.getByRole("textbox", {
+    name: "Name (Financial analyst)",
+  });
+  await expect(nameField).toHaveValue(prefilledName("Financial analyst"));
   await nameField.fill(name);
   await page.getByRole("button", { name: "Create AI Employee" }).click();
 
-  // The sheet closes and the setup-mission chat auto-opens as a right-side
-  // panel. Its "Getting set up" mission uses the follow-up composer (an
-  // existing conversation), so that composer is the stable "panel opened"
-  // signal — independent of whatever the agent says first.
-  await expect(page.getByPlaceholder(FOLLOW_UP_PLACEHOLDER)).toBeVisible({
-    timeout: 10_000,
-  });
-
-  await closeActivityPanel(page);
-
   // Back in the shell: the sidebar (with its New-agent control) is interactive
   // again and the new agent is present in it.
-  await expect(newAgentRow(page)).toBeVisible();
+  await expect(newAgentButton(page)).toBeVisible();
   await expect(
     page.locator("[data-tour-target='agents']").getByText(name).first(),
   ).toBeVisible();
+  // The follow-up composer is what an open chat panel shows; with the first
+  // day waiting for the user, nothing opens it.
+  await expect(page.getByPlaceholder(FOLLOW_UP_PLACEHOLDER)).toBeHidden();
 }
 
 /**
- * Dismiss the auto-opened activity (chat) panel. Escape closes the mission
+ * Dismiss the open activity (chat) panel. Escape closes the mission
  * panel, but if the composer holds focus the first press only blurs it (and a
  * mid-flight streamed turn can swallow one press to stop streaming), so press
  * until the panel's composer is gone.

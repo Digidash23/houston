@@ -3,8 +3,9 @@
     "greeting": "Hi! I'm {{name}}, your new AI Employee. Tell me about what you'd like help with: you can describe a task in your own words, share a few details about how you like things done, or attach files that give me context. The more you tell me, the better my work will fit what you need. What would you like to start with?"
   },
   "setupGreeting": {
-    "text": "Hi, I'm {{name}}. Give me a few seconds to get going. The most important thing we'll do together is create Skills, so you start automating your work.",
-    "textWithRole": "Hi, I'm {{name}}, your {{role}}. Give me a few seconds to get going. The most important thing we'll do together is create Skills, so you start automating your work."
+    "text": "Hi, I'm **{{name}}**! Today is my *first day*, so help me learn how I can be most useful to you.\n\nTogether we'll write down how I do my everyday work. In Houston, these step-by-step procedures are called **Skills**.\n\nLet's start with **one task you do every day**. We'll do it together once, then I'll save it as a Skill so I can do it for you anytime.\n\nHere are a few tasks we could start with:",
+    "textWithRole": "Hi, I'm **{{name}}**, your {{role}}! Today is my *first day*, so help me learn how I can be most useful to you.\n\nTogether we'll write down how I do my everyday work. In Houston, these step-by-step procedures are called **Skills**.\n\nLet's start with **one task you do every day**. We'll do it together once, then I'll save it as a Skill so I can do it for you anytime.\n\nHere are a few tasks we could start with:",
+    "textRoleAsName": "Hi, I'm your **{{role}}**! Today is my *first day*, so help me learn how I can be most useful to you.\n\nTogether we'll write down how I do my everyday work. In Houston, these step-by-step procedures are called **Skills**.\n\nLet's start with **one task you do every day**. We'll do it together once, then I'll save it as a Skill so I can do it for you anytime.\n\nHere are a few tasks we could start with:"
   },
   "composer": {
     "placeholder": "Ask anything...",
@@ -27,7 +28,7 @@
       "setupBody": "One-time download, about {{sizeMb}} MB.",
       "setupConfirm": "Download",
       "setupProgress": "Downloading... {{pct}}%",
-      "micDenied": "Houston needs microphone access. Allow it in system settings, then try again.",
+      "micDenied": "Voice typing needs microphone access. Allow it in system settings, then try again.",
       "noMic": "No microphone was found.",
       "failed": "Voice typing didn't work this time. Please try again.",
       "unsupportedTitle": "Voice typing isn't available on this computer",
@@ -68,7 +69,7 @@
     "providerUnavailable": "This AI provider is unavailable here. Skip this step and ask me to use another provider.",
     "handsOnTitle": "Open {{screen}}",
     "handsOnReason": "This part needs your own hands. Open {{screen}} and finish it there.",
-    "handsOnExplainer": "Houston takes you to the screen. Come back and tell me when you are finished.",
+    "handsOnExplainer": "This takes you to the screen. Come back and tell me when you are finished.",
     "handsOnOpen": "Open",
     "handsOnDone": "Done",
     "handsOnLine": "Opened {{screen}} and finished there.",
@@ -145,7 +146,7 @@
     "modelNotAllowedBody": "This AI Employee's allowed models changed. Pick another one from the list.",
     "missionRowFailed": "We could not save this task to your board. Your message was still sent.",
     "interactionDismissFailed": "Couldn't dismiss the request.",
-    "interactionBusyTitle": "Houston is already working on this",
+    "interactionBusyTitle": "This is already in progress",
     "interactionBusyBody": "The request was replaced by a new reply. Wait for it to finish, or press Stop to abandon it."
   },
   "providerError": {
@@ -154,7 +155,7 @@
   },
   "attachmentIssues": {
     "title": "Some files were not attached",
-    "description": "Houston kept your prompt and the files it can use.",
+    "description": "We kept your message and the files that can be used.",
     "close": "Got it",
     "reasons": {
       "blockedType": "This file type cannot be used here.",
@@ -223,8 +224,8 @@
       "noProviders": {
         "action": "Connect AI",
         "personal": {
-          "title": "Connect an AI to chat with Houston",
-          "hint": "Houston answers using an AI like Claude or ChatGPT. Connect one to get started."
+          "title": "Connect an AI to start chatting",
+          "hint": "Answers come from an AI like Claude or ChatGPT. Connect one to get started."
         },
         "team": {
           "title": "Connect your AI to chat with this team's AI Employees",
@@ -239,7 +240,7 @@
       "hiddenByWorkspace_other": "{{count}} more models are turned off in your workspace"
     },
     "modelDescriptions": {
-      "gpt-6-luna": "Houston's default. The lightest GPT-6 on your allowance.",
+      "gpt-6-luna": "The default pick. The lightest GPT-6 on your allowance.",
       "gpt-6-sol": "Mid GPT-6 tier. More depth than Luna for harder work.",
       "gpt-6-astra": "Most capable GPT-6. Uses your allowance 5x faster than Sol.",
       "gpt-5_5": "Previous-generation full tier, from before GPT-5.6.",
@@ -414,7 +415,7 @@
   "approvalCard": {
     "approve": "Yes, go ahead",
     "decline": "No, don't do it",
-    "closing": "Houston cannot undo this for you. Should I go ahead?",
+    "closing": "I can't undo this for you. Should I go ahead?",
     "affects": "This affects {{arguments}}.",
     "argument": "{{name}} \"{{value}}\"",
     "exactValue": "The exact {{name}}:",

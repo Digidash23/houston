@@ -1,13 +1,14 @@
-import { FAKE_HOST_URL } from "@houston/fake-host";
+import { FAKE_HOST_URL, SEED_AGENT_NAME } from "@houston/fake-host";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { FOLLOW_UP_PLACEHOLDER } from "./support/composer";
 import { expect, test } from "./support/fixtures";
+import { openNavRow } from "./support/workspace-menu";
 
 /**
  * The custom-integration setup chat is embedded INSIDE the Integrations page
  * (not a board mission): "Add custom integration" opens a guided setup chat
  * right there — no chooser dialog, and with the workspace's single seeded
- * agent no picker either — the agent speaks first (the Houston-sent kickoff
+ * agent no picker either — the agent speaks first (the app-sent kickoff
  * bubble never renders), the chat never appears as a board card, and the page
  * never navigates away. The load-bearing case is the COMPOSIO-ABSENT host (no
  * key, no gateway): the chat must work there too.
@@ -44,7 +45,7 @@ async function armCustomIntegrations(
  */
 async function openCustomIntegrations(page: Page): Promise<void> {
   await page.goto("/");
-  await page.locator('[data-tour-target="nav-integrations"]').click();
+  await openNavRow(page, "integrations");
   await expect(
     page.getByRole("heading", { name: "Integrations", exact: true }),
   ).toBeVisible();
@@ -100,7 +101,7 @@ test("a multi-agent workspace interposes ONLY the agent picker before the chat",
   ).toBeVisible();
   await page
     .getByRole("dialog")
-    .getByRole("button", { name: "Houston" })
+    .getByRole("button", { name: SEED_AGENT_NAME })
     .click();
   await expect(page.getByText("Task: Set up a custom integration")).toBeVisible(
     { timeout: 10_000 },
@@ -122,7 +123,7 @@ test("a draft chat survives a reload as a Continue banner that resumes the same 
   // Come back later: the ephemeral open flag is gone, but the draft on the
   // host is not — the cross-agent scan finds it and offers to continue.
   await page.reload();
-  await page.locator('[data-tour-target="nav-integrations"]').click();
+  await openNavRow(page, "integrations");
   await expect(
     page.getByText("You are setting up a custom integration in chat"),
   ).toBeVisible({ timeout: 10_000 });

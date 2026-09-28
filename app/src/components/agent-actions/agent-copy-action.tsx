@@ -7,6 +7,7 @@ import { stayOpen } from "../../lib/dialog-stay-open";
 import { teamDisplayName } from "../../lib/team-display";
 import type { TeamView } from "../../lib/teams-model";
 import type { Agent } from "../../lib/types";
+import { useEmployeeNameIssueCopy } from "../employee-card/use-employee-name";
 import { TeamGlyph } from "../shell/team-glyph";
 import { suggestCopyName } from "./copy-agent-model";
 
@@ -36,6 +37,9 @@ export function AgentCopyDialog({
   onCopy: (name: string, team: TeamView | null) => Promise<boolean>;
 }) {
   const { t } = useTranslation(["agents", "teams", "common"]);
+  const issueCopy = useEmployeeNameIssueCopy({
+    taken: (trimmed) => t("agents:copyAgent.nameTaken", { name: trimmed }),
+  });
   const [name, setName] = useState("");
   const [teamId, setTeamId] = useState<string | null>(currentTeamId);
 
@@ -56,14 +60,7 @@ export function AgentCopyDialog({
   }, [open]);
 
   const issue = agentNameIssue(name, [...existingNames]);
-  const issueText =
-    issue === "taken"
-      ? t("agents:copyAgent.nameTaken", { name: name.trim() })
-      : issue === "tooLong"
-        ? t("agents:nameErrors.tooLong", { max: AGENT_NAME_MAX_LENGTH })
-        : issue === "invalidChars"
-          ? t("agents:nameErrors.invalidChars")
-          : null;
+  const issueText = issueCopy(issue, name);
 
   return (
     <FormDialog
@@ -114,9 +111,7 @@ export function AgentCopyDialog({
                 onClick={() => setTeamId(team.id)}
               >
                 <TeamGlyph team={team} className="size-4 shrink-0" />
-                <span className="truncate">
-                  {teamDisplayName(team, t("teams:teamView.defaultName"))}
-                </span>
+                <span className="truncate">{teamDisplayName(team)}</span>
                 {team.id === teamId && (
                   <Check className="ml-auto size-4 shrink-0" />
                 )}

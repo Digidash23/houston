@@ -17,11 +17,11 @@ function AppSidebarSpecimen() {
     <TooltipProvider>
       <SpecimenPage
         title="AppSidebar"
-        intro="The rail the whole product hangs off: the workspace switcher, the destinations, and every agent the user has."
+        intro="The rail the whole product hangs off: a top line for the host's verbs, every AI Employee the user has, and a foot for the account."
       >
         <SpecimenSection
           title="Variants"
-          note="No `variant` prop. The rail's shape is which slots it is given — and one decision: pass `groups` and the flat list becomes the grouped drag-and-drop layout. Add an `icon` to a group and `defaultGroup` for the trailing block, and each block becomes a team: one header row, then its agents. Every example below is live; select, fold and drag them."
+          note="No `variant` prop. The rail's shape is which slots it is given — and one decision: pass `groups` and the flat list becomes the grouped drag-and-drop layout. Add an `icon` to a group and each block becomes a team: one header row, then its agents. Every example below is live; select, fold and drag them."
         >
           <SpecimenRow label="Flat list">
             <SidebarStage>
@@ -38,25 +38,26 @@ function AppSidebarSpecimen() {
               <LiveSidebar grouped teams />
             </SidebarStage>
           </SpecimenRow>
-          <SpecimenRow label="Full shell chrome — header, nav, footer">
+          <SpecimenRow label="Full shell chrome: top-line verbs and the account foot">
             <SidebarStage>
               <LiveSidebar chrome grouped teams />
+            </SidebarStage>
+          </SpecimenRow>
+          <SpecimenRow label="Window controls inset — expand and collapse the rail">
+            <SidebarStage>
+              <LiveSidebar chrome windowControlsInset />
+              <LiveSidebar chrome windowControlsInset startCollapsed />
             </SidebarStage>
           </SpecimenRow>
         </SpecimenSection>
 
         <SpecimenSection
           title="Anatomy"
-          note="A team block is ONE ladder, not a header with a list under it: the team row and every agent row share one fixed height, one glyph column and one type size, with hierarchy carried by an indent inside the row so the inset pills line up in a single column down the left edge. The team row itself is one hit target — glyph, name, triangle and rollup badge together — and nothing sits beside it. Its glyph is monochrome on purpose: the identity colour in that column belongs to the agent avatars one indent to the right."
+          note="Agent rows are laid out like a message list: a 40px portrait, the name in semibold, one or two muted lines under it and a badge at the end, with a hairline between rows that drops away around a hovered or selected row. A team row is one hit target (glyph, name, triangle and rollup badge together) and its glyph is monochrome on purpose: the identity colour belongs to the agent avatars."
         >
-          <SpecimenRow label="Expanded team, collapsed team, default block">
+          <SpecimenRow label="Expanded team, collapsed team, ungrouped top-level agents">
             <SidebarStage>
               <LiveSidebar grouped teams />
-            </SidebarStage>
-          </SpecimenRow>
-          <SpecimenRow label="The band — its label folds the whole list, its + creates and joins">
-            <SidebarStage>
-              <LiveSidebar chrome grouped teams />
             </SidebarStage>
           </SpecimenRow>
         </SpecimenSection>
@@ -94,9 +95,9 @@ function AppSidebarSpecimen() {
 
         <SpecimenSection
           title="Sizes"
-          note="Two widths, and they are the component's own: 220px expanded, 56px collapsed, with a 200ms width transition between them. Height always comes from the parent."
+          note="The expanded rail is 272px. The collapsed rail is 56px, or 84px with a window controls inset. Width changes use a 200ms transition. Height comes from the parent."
         >
-          <SpecimenRow label="220px ↔ 56px — click the panel button to switch">
+          <SpecimenRow label="272px or 56px: click the panel button to switch">
             <SidebarStage>
               <LiveSidebar chrome />
             </SidebarStage>

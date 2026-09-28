@@ -1,14 +1,15 @@
 import { expect, test } from "./support/fixtures";
-import { navRow } from "./support/team-nav";
+
+import { workspaceMenuTrigger } from "./support/workspace-menu";
 
 /**
  * Regression: subtree theme pinning via data-theme must re-resolve Tailwind
  * colour utilities (bg-input / text-ink) INSIDE the pinned subtree,
  * independent of the app theme on <html>.
  *
- * This is the guarantee the first-run flow relies on (FirstRunScreen pins
- * data-theme="light" so a dark-mode user still gets a light first-run). It only
- * holds because the token→utility
+ * This is the guarantee the pre-app screens rely on (FirstRunScreen pins
+ * data-theme="light" so a dark-mode user still gets a light language gate and
+ * sign-in). It only holds because the token→utility
  * bridge in ui/core/src/globals.css is `@theme inline`: that makes each utility
  * read var(--ht-*) directly (resolved at the consuming element). With a plain
  * `@theme` the utility reads a --color-* that resolved ONCE at :root and merely
@@ -69,7 +70,7 @@ test("data-theme pin re-resolves Tailwind color utilities per subtree", async ({
 }) => {
   await page.goto("/");
   // Anchor: the shell is up, so globals.css (the @theme inline bridge) is loaded.
-  await expect(navRow(page, "integrations")).toBeVisible();
+  await expect(workspaceMenuTrigger(page)).toBeVisible();
 
   // --- Light app: a data-theme="dark" pin must render DARK inside it. ---
   const lightAppUnpinned = await probe(page, "light", null);

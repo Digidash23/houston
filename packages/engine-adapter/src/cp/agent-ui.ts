@@ -35,6 +35,7 @@ export function toUiAgent(a: WireAgent, colors = colorOverlay()): Agent {
     // colors server-side, so the overlay never held them (the reported
     // everything-turned-purple migration bug).
     color: colors[a.id] ?? a.color ?? DEFAULT_AGENT_COLOR,
+    role: a.role,
     createdAt: iso,
     lastOpenedAt: iso,
     assigned: a.assigned,
@@ -70,7 +71,7 @@ export function renamedAgentToUi(previousId: string, agent: WireAgent): Agent {
  * the single-request host leaf that publishes this intent.
  * @param agentId The agent this acts on, by the id listAgents returns. An
  *   agent's name is not its id, so read the id from listAgents first.
- * @param color One of Houston's ten palette colours: charcoal, forest,
+ * @param color One of the app's ten palette colours: charcoal, forest,
  *   teal, navy, purple, rose, crimson, orange, golden or umber.
  * @assistant group:agents hidden: client-side branching; its only request is the list refetch, so use updateAgentColor to write a color.
  */

@@ -9,7 +9,7 @@
  * {@link EngineCallOptions}, then runs the expected-state ladder in
  * {@link surfaceError} before anything reaches the user.
  *
- * OS-native calls (`reveal_file`, `open_url`, `pick_directory`, terminal
+ * OS-native calls (`reveal_file`, `open_url`, terminal
  * launching, local CLI probes, frontend log writes) do NOT flow through the
  * engine — they live in `./os-bridge` because the engine may run on a remote
  * VPS where those APIs would be meaningless.
@@ -17,7 +17,6 @@
 
 import type {
   AddCustomIntegrationInput,
-  AgentAssignment,
   CredentialScope,
   CustomEndpoint,
   EditableProfileUpdate,
@@ -30,18 +29,15 @@ import type {
   SkillsManifest,
 } from "@houston/engine-adapter";
 import type { IntegrationProviderId } from "@houston/protocol";
-import type { DismissInteractionOutcome } from "@houston/sdk";
+import {
+  type DismissInteractionOutcome,
+  plusCheckoutRefusal,
+} from "@houston/sdk";
 import { shouldUseClaudeDesktopLogin } from "../components/shell/provider-login-url";
 import { actingUser } from "./acting-user";
-import {
-  isAgentGoneError,
-  isStaleRosterReadError,
-  partitionStaleRosterReads,
-} from "./agent-gone";
-import { isAgentNameConflictError } from "./agent-name-conflict";
+import { isAgentGoneError, isStaleRosterReadError } from "./agent-gone";
 import {
   blockWriteWhileWarming,
-  blockWriteWhileWarmingById,
   isAgentPathCreating,
   type WarmingWriteOptions,
 } from "./agent-warming-guard";
@@ -78,7 +74,8 @@ import { isModelNotAllowedError } from "./model-not-allowed";
 import { isNetworkTransportError } from "./network-transport-error";
 import { isNoAgentForProviderWriteError } from "./no-agent-provider-write-error";
 import { isOrgAdminRequiredError } from "./org-admin-required-error";
-import { osIsTauri, osPickDirectory } from "./os-bridge";
+import { osIsTauri } from "./os-bridge";
+import { surfacePlanMessageLimit } from "./plan-message-limit";
 import { isProviderLoginSessionLostError } from "./provider-login-session-lost";
 import { toDisplayProviderIdOrNull } from "./provider-overrides";
 import { normalizeLegacyModel } from "./providers";
@@ -94,13 +91,7 @@ import {
   isToolkitNoAuthError,
   isToolkitOauthUnavailableError,
 } from "./toolkit-connect-refusals";
-import type {
-  Agent,
-  FileEntry,
-  SkillDetail,
-  SkillSummary,
-  Workspace,
-} from "./types";
+import type { FileEntry, SkillDetail, SkillSummary, Workspace } from "./types";
 
 export { withAttachmentPaths } from "./attachment-message";
 
@@ -153,6 +144,15 @@ async function call<T>(
 }
 
 /**
+ * The same wrapper for the namespaces of this layer that live in files of
+ * their own (the `*-facade.ts` modules, split out because this module is
+ * already the app's whole engine surface). It is this policy layer's own seam,
+ * not a licence to reach the engine elsewhere: a namespace belongs here or in a
+ * file `scripts/check-boundaries.mjs` names, and nowhere else.
+ */
+export { call as engineCall };
+
+/**
  * A passive agent-scoped READ — fired by roster-driven queries and event
  * refetches, never by a user action. When the local roster is stale (the
  * agent was deleted/unshared on another device, or a space switch refired
@@ -165,7 +165,10 @@ async function call<T>(
  * the honest surface. Every other failure keeps the default loud path, and
  * writes never route through here.
  */
-function passiveAgentRead<T>(label: string, fn: () => Promise<T>): Promise<T> {
+export function passiveAgentRead<T>(
+  label: string,
+  fn: () => Promise<T>,
+): Promise<T> {
   return call<T>(label, fn, undefined, {
     silence: isStaleRosterReadError,
   }).catch((err) => {
@@ -220,6 +223,8 @@ async function surfaceError(
   // predicate over the whole error (e.g. `isMissingSkillError`, which reads the
   // `HoustonEngineError` `.status`) rather than a tagged error kind.
   if (options?.silence?.(err)) return;
+
+  if (await surfacePlanMessageLimit(err)) return;
 
   // Expected business state, not a bug: a write into a team whose trial expired
   // (C8 `needs_upgrade`). Surface the real reason as a plain info toast — never
@@ -395,100 +400,7 @@ export const tauriWorkspaces = {
 };
 
 // ─── Agents ───────────────────────────────────────────────────────────
-
-export interface CreateAgentResult {
-  agent: Agent;
-}
-
-/** Engine wire agent → app Agent. Exported for flows that receive an agent
- *  record outside the tauriAgents wrappers (the import wizard, HOU-710). */
-export function toAgent(a: import("@houston/engine-adapter").Agent): Agent {
-  return {
-    id: a.id,
-    name: a.name,
-    folderPath: a.folderPath,
-    localDir: a.localDir,
-    configId: a.configId,
-    color: a.color,
-    createdAt: a.createdAt,
-    lastOpenedAt: a.lastOpenedAt,
-    assigned: a.assigned,
-    assignedUserIds: a.assignedUserIds,
-    access: a.access,
-    assignments: a.assignments,
-  };
-}
-
-export const tauriAgents = {
-  list: (workspaceId: string) =>
-    call<Agent[]>("list_agents", async () =>
-      (await getEngine().listAgents(workspaceId)).map(toAgent),
-    ),
-  pickDirectory: () => osPickDirectory(),
-  create: (
-    workspaceId: string,
-    name: string,
-    configId: string,
-    color?: string,
-    claudeMd?: string,
-    installedPath?: string,
-    seeds?: Record<string, string>,
-    existingPath?: string,
-  ) =>
-    call<CreateAgentResult>(
-      "create_agent",
-      async () => {
-        const r = await getEngine().createAgent(workspaceId, {
-          name,
-          configId,
-          color,
-          claudeMd,
-          installedPath,
-          seeds,
-          existingPath,
-        });
-        return {
-          agent: toAgent(r.agent),
-        };
-      },
-      undefined,
-      // A 409 (name already taken) renders as friendly inline copy in the
-      // create dialog — the generic red bug toast would double-surface it.
-      { silence: isAgentNameConflictError },
-    ),
-  delete: (workspaceId: string, id: string) =>
-    call<void>("delete_agent", () => getEngine().deleteAgent(workspaceId, id)),
-  rename: (workspaceId: string, id: string, newName: string) => {
-    // A rename dispatches into the agent's engine — held while it warms up.
-    blockWriteWhileWarmingById(id);
-    return call<Agent>(
-      "rename_agent",
-      async () =>
-        toAgent(await getEngine().renameAgent(workspaceId, id, newName)),
-      undefined,
-      { silence: isAgentNameConflictError },
-    );
-  },
-  updateColor: (workspaceId: string, id: string, color: string) =>
-    call<Agent>("update_agent_color", async () =>
-      toAgent(await getEngine().updateAgent(workspaceId, id, { color })),
-    ),
-  /** Agent configs installed on disk (bundled + user-authored), merged with the
-   *  built-in templates by the agent loader to populate the create-agent gallery. */
-  listInstalledConfigs: () =>
-    call<Array<{ config: unknown; path: string }>>(
-      "list_installed_configs",
-      () => getEngine().listInstalledConfigs(),
-    ),
-  /** Multiplayer: set which org members may use this agent, and at what access
-   *  level. Pass the `AgentAssignment[]` (`{userId, access}`) roster from the
-   *  Share dialog — every row states its own access, so nothing can demote a
-   *  manager by omission. Empty = everyone. */
-  setAssignments: (agentSlugOrId: string, assignments: AgentAssignment[]) =>
-    call<void>("set_agent_assignments", () =>
-      getEngine().setAgentAssignments(agentSlugOrId, assignments),
-    ),
-};
+// Agent CRUD (`tauriAgents`, `toAgent`) lives in `./agents-facade`.
 
 /**
  * Teams v2: an agent's allowed-toolkit ceiling. `get` reads the agent + org
@@ -641,10 +553,6 @@ export const tauriChat = {
   /** Drop one queued (not yet sent) message from a conversation's send queue. */
   removeQueued: (agentPath: string, sessionKey: string, id: string) =>
     getEngine().removeQueuedMessage(agentPath, sessionKey, id),
-  startOnboarding: (agentPath: string, sessionKey: string) =>
-    call<void>("start_onboarding_session", async () => {
-      await getEngine().startOnboarding(agentPath, sessionKey);
-    }),
   stop: (agentPath: string, sessionKey: string) =>
     call<void>("stop_session", async () => {
       await getEngine().cancelSession(agentPath, sessionKey);
@@ -1092,134 +1000,8 @@ export const tauriFiles = {
 };
 
 // ─── Conversations ────────────────────────────────────────────────────
-
-export interface RawConversation {
-  id: string;
-  title: string;
-  description?: string;
-  status?: string;
-  type: "primary" | "activity";
-  session_key: string;
-  updated_at?: string;
-  agent_path: string;
-  agent_name: string;
-  agent?: string;
-  routine_id?: string;
-  /** The conversation this mission was started from, present only when the
-   *  agent created the mission itself (PRODUCT-1244). Server-stamped. */
-  origin_session_key?: string;
-  /** The human who created this mission (Teams attribution). Server-stamped
-   *  from the gateway acting-as identity; absent on desktop/single-player. */
-  created_by?: string;
-  /** Humans who started or collaborated on this mission (Teams attribution).
-   *  Server-stamped in multiplayer only; absent on desktop/single-player. */
-  contributors?: { user_id: string; name?: string }[];
-  /** Teammates @mentioned in this mission's chat, latest per person.
-   *  Server-stamped in multiplayer only; absent on desktop/single-player. */
-  mentioned?: { user_id: string; at: string; by?: string }[];
-}
-
-/**
- * One cross-agent conversation sweep: the rows every agent that answered
- * returned, plus the agents whose read failed — each carrying the error it
- * failed WITH, so the recovery layer can classify the surface. A non-empty
- * `failedAgents` means the rows are INCOMPLETE and must not be treated as the
- * whole truth (see lib/all-conversations-recovery.ts).
- */
-export interface AllConversationsSweep {
-  items: RawConversation[];
-  failedAgents: import("@houston/engine-adapter").FailedAgentRead[];
-}
-
-export const tauriConversations = {
-  list: (agentPath: string) =>
-    isAgentPathCreating(agentPath)
-      ? Promise.resolve<RawConversation[]>([])
-      : passiveAgentRead<RawConversation[]>("list_conversations", async () =>
-          (await getEngine().listConversations(agentPath)).map(
-            conversationToRaw,
-          ),
-        ),
-  /** @param options pass `{ surface: false }` for an attempt the caller will
-   *  retry — the failure it surfaces is the LAST one, exactly once. */
-  listAll: (agentPaths: string[], options?: EngineCallOptions) => {
-    // A JUST-CREATED agent has no conversations yet and its read would hold
-    // the whole bulk scan — sweep only past those. An EXISTING asleep agent
-    // stays IN the sweep: dropping it resolves Mission Control without its
-    // missions (a successful partial list that overwrites the restored cache);
-    // keeping it holds the sweep until its pod wakes while the cached rows
-    // keep painting.
-    const reachable = agentPaths.filter((p) => !isAgentPathCreating(p));
-    if (reachable.length === 0)
-      return Promise.resolve<AllConversationsSweep>({
-        items: [],
-        failedAgents: [],
-      });
-    // A sweep where SOME agents failed resolves (partial) rather than throwing,
-    // so `call()` raises no toast for it — the query layer owns that surface
-    // (one toast per incomplete sweep, plus a bounded re-sweep). Only a sweep
-    // where EVERY agent failed rejects, and that keeps the toast + capture.
-    //
-    // A PASSIVE read like every other roster-driven one (`passiveAgentRead`):
-    // an agent the server no longer knows (`404 agent not found` — the local
-    // roster is stale after a space switch or a delete on another device) or
-    // one this viewer may not read (`403 not allowed` — unassigned on another
-    // device, HOUSTON-APP-5AV / 5AT) is not a failed read of OUR agent. The
-    // error is silenced and the roster heals; in a partial sweep the stale
-    // agents leave `failedAgents` (nothing to re-sweep, nothing to report —
-    // HOUSTON-APP-4WR / 58R / 55E), and a sweep where EVERY agent is stale
-    // rejects quietly (the caller's surface silences it too) so the cache
-    // keeps the last real rows for the roster reload that follows. Every
-    // real failure keeps its loud path.
-    return call<AllConversationsSweep>(
-      "list_all_conversations",
-      async () => {
-        const { conversations, failedAgents } =
-          await getEngine().listAllConversations(reachable);
-        const { stale, failed } = partitionStaleRosterReads(failedAgents);
-        if (stale.length > 0) {
-          logger.warn(
-            `[engine:list_all_conversations] ${stale.length} agent(s) gone from the roster or not readable by this viewer: ${stale
-              .map((g) => `${g.agentPath} (${String(g.reason)})`)
-              .join(", ")}`,
-          );
-          healStaleRosterFromError(stale[0].reason);
-        }
-        return {
-          items: conversations.map(conversationToRaw),
-          failedAgents: failed,
-        };
-      },
-      undefined,
-      { silence: isStaleRosterReadError, ...options },
-    ).catch((err) => {
-      healStaleRosterFromError(err);
-      throw err;
-    });
-  },
-};
-
-function conversationToRaw(
-  c: import("@houston/engine-adapter").ConversationEntry,
-): RawConversation {
-  return {
-    id: c.id,
-    title: c.title,
-    description: c.description,
-    status: c.status,
-    type: c.type as "primary" | "activity",
-    session_key: c.session_key,
-    updated_at: c.updated_at,
-    agent_path: c.agent_path,
-    agent_name: c.agent_name,
-    agent: c.agent,
-    routine_id: c.routine_id,
-    origin_session_key: c.origin_session_key,
-    created_by: c.created_by,
-    contributors: c.contributors,
-    mentioned: c.mentioned,
-  };
-}
+// The conversation reads (`tauriConversations`, `RawConversation`) live in
+// `./conversations-facade`.
 
 // ─── Routines (engine-backed) ─────────────────────────────────────────
 
@@ -2143,103 +1925,37 @@ export const tauriOrg = {
     call("create_checkout", () => getEngine().createCheckout(interval)),
   /** C8 billing: open the Stripe customer portal (owner only); returns `{url}`. */
   createPortal: () => call("create_portal", () => getEngine().createPortal()),
-};
-
-/**
- * C13 agent teams: the active space's server-owned teams (named groups of
- * agents AND people). Hosted-gateway only — the adapter throws "agent teams
- * require the hosted gateway" anywhere else, so every caller feature-detects on
- * `capabilities.agentTeams` first rather than probing and degrading.
- *
- * Every MUTATION takes an `options?: EngineCallOptions` passthrough. That is how
- * the hooks silence the EXPECTED business states (`isExpectedAgentTeamError`)
- * and surface them as one authored informational toast of their own instead of
- * `call()`'s red report-a-bug pair. Reads take no passthrough: a failed read has
- * no expected state to explain, so it must reach us as a bug.
- */
-export const tauriAgentTeams = {
-  list: () => call("agent_teams_list", () => getEngine().listAgentTeams()),
-  create: (
-    input: { name: string; icon?: string; color?: string },
-    options?: EngineCallOptions,
-  ) =>
+  getPlan: () => call("get_plan", () => getEngine().getPlan()),
+  dismissPlanAnnouncement: () =>
+    call("dismiss_plan_announcement", () =>
+      getEngine().dismissPlanAnnouncement(),
+    ),
+  /** C19: start a Plus checkout. The refusals a person can be in (already
+   *  Plus, account being deleted, plan off) are silenced here: the checkout
+   *  surfaces them itself with authored copy (`plus-checkout-failure`). */
+  createPlusCheckout: () =>
     call(
-      "agent_team_create",
-      () => getEngine().createAgentTeam(input),
+      "create_plus_checkout",
+      () => getEngine().createPlusCheckout(),
       undefined,
-      options,
+      { silence: (error) => plusCheckoutRefusal(error) !== null },
     ),
-  /** Rename, reorder or restyle a team. `icon`/`color` are the C13 identity
-   *  fields: a string SETS, `""` CLEARS, an omitted key leaves the field alone
-   *  (`null` is a `400`, not a clear). `context` is the team's shared prose and
-   *  follows none of that: any string is valid and `""` is simply empty. */
-  update: (
-    teamId: string,
-    patch: {
-      name?: string;
-      sortOrder?: number;
-      icon?: string;
-      color?: string;
-      context?: string;
-    },
-    options?: EngineCallOptions,
-  ) =>
-    call(
-      "agent_team_update",
-      () => getEngine().updateAgentTeam(teamId, patch),
-      undefined,
-      options,
-    ),
-  /** Delete a team. The space's default team refuses this (`400 default_team`),
-   *  which the caller explains rather than reports. */
-  remove: (teamId: string, options?: EngineCallOptions) =>
-    call<void>(
-      "agent_team_delete",
-      () => getEngine().deleteAgentTeam(teamId),
-      undefined,
-      options,
-    ),
-  /** One team's EXPLICIT membership rows. Implicit owners (a space owner/admin)
-   *  are a permission rule, not a row, so they are deliberately absent. */
-  members: (teamId: string) =>
-    call("agent_team_members", () => getEngine().listAgentTeamMembers(teamId)),
-  // No `join`: a member is shown only the teams they are already in (the
-  // gateway filters the list), so there is no "other teams" bucket to join from
-  // and the app has no caller. No gateway serves the route either
-  // (PRODUCT-1821), which is why nothing below it exists.
-  /** Remove a member. The caller's own id is a LEAVE; anyone else's is an
-   *  owner-only removal. Same route either way — the gateway tells them apart. */
-  removeMember: (teamId: string, userId: string, options?: EngineCallOptions) =>
-    call<void>(
-      "agent_team_member_remove",
-      () => getEngine().removeAgentTeamMember(teamId, userId),
-      undefined,
-      options,
-    ),
-  setMemberOwner: (
-    teamId: string,
-    userId: string,
-    owner: boolean,
-    options?: EngineCallOptions,
-  ) =>
-    call<void>(
-      "agent_team_member_owner",
-      () => getEngine().setAgentTeamMemberOwner(teamId, userId, owner),
-      undefined,
-      options,
-    ),
-  /** Move one agent into a team. On the gateway an agent's id IS its slug. */
-  setAgentTeam: (
-    agentSlugOrId: string,
-    teamId: string,
-    options?: EngineCallOptions,
-  ) =>
-    call<void>(
-      "agent_set_team",
-      () => getEngine().setAgentTeam(agentSlugOrId, teamId),
-      undefined,
-      options,
-    ),
+  createPlusPortal: () =>
+    call("create_plus_portal", () => getEngine().createPlusPortal()),
+  listPlusInvoices: () =>
+    call("list_plus_invoices", () => getEngine().listPlusInvoices()),
+  listPlanRoutines: () =>
+    call("list_plan_routines", () => getEngine().listPlanRoutines()),
+  keepRoutine: (key: import("@houston/engine-adapter").PlanRoutineKey) =>
+    call("keep_plan_routine", () => getEngine().keepRoutine(key)),
+  resumeRoutines: () =>
+    call("resume_plan_routines", () => getEngine().resumeRoutines()),
+  /** C19 presence heartbeat: a passive background call, never a toast. A
+   *  failure is still logged and reported once here. */
+  reportPresence: () =>
+    call("report_presence", () => getEngine().reportPresence(), undefined, {
+      toast: false,
+    }),
 };
 
 /**

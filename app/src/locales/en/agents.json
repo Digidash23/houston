@@ -51,7 +51,8 @@
   },
   "nameErrors": {
     "invalidChars": "AI Employee names can't contain slashes or special characters",
-    "tooLong": "AI Employee names can be at most {{max}} characters"
+    "tooLong": "AI Employee names can be at most {{max}} characters",
+    "reserved": "Houston is your AI Manager's name. Pick another one."
   },
   "instructions": {
     "specific": "Specific instructions",
@@ -61,7 +62,8 @@
       "role": "Role",
       "addIndustry": "Add industry",
       "addRole": "Add role"
-    }
+    },
+    "loadFailed": "Couldn't load the job description."
   },
   "learnings": {
     "emptyTitle": "No learnings yet",
@@ -142,7 +144,7 @@
     },
     "readOnly": {
       "title": "These files can’t be changed right now",
-      "description": "Houston can’t save changes there. Check the folder’s permissions and try again."
+      "description": "Changes can’t be saved there. Check the folder’s permissions and try again."
     },
     "conflict": {
       "title": "“{{name}}” already exists",
@@ -220,20 +222,20 @@
       "openFailedTitle": "Couldn’t open the file",
       "savedRenamedDescription": "Saved as {{name}} because {{original}} is open in another program.",
       "saveLocked": "That file is open in another program. Close it there and download again.",
-      "savePermission": "Houston isn't allowed to save into that folder. Choose another folder, like Downloads.",
+      "savePermission": "The app isn't allowed to save into that folder. Choose another folder, like Downloads.",
       "saveDiskFull": "There isn't enough free space on this computer to save the file.",
-      "revealPermission": "Houston isn't allowed to open that folder on this computer. Look for the file where you saved it."
+      "revealPermission": "The app isn't allowed to open that folder on this computer. Look for the file where you saved it."
     },
     "modifiedToday": "Today"
   },
   "copyAgent": {
     "row": "Duplicate {{name}}",
-    "rowDescription": "Create a duplicate in one of your teams. Conversations are not duplicated.",
+    "rowDescription": "Create a duplicate in one of your groups. Conversations are not duplicated.",
     "title": "Duplicate {{name}}",
     "body": "The duplicate starts with the same job description, skills, routines, learnings and color. Conversations stay with the original and are never duplicated.",
     "nameLabel": "Name for the duplicate",
-    "nameTaken": "An AI Employee named {{name}} already exists. AI Employee names are shared across all your teams, so give the duplicate its own name.",
-    "teamLabel": "Team for the duplicate",
+    "nameTaken": "An AI Employee named {{name}} already exists. AI Employee names are shared across all your groups, so give the duplicate its own name.",
+    "teamLabel": "Group for the duplicate",
     "confirm": "Create duplicate",
     "copySuffix": "copy",
     "toasts": {
@@ -285,8 +287,5 @@
         "clearAll": "Clear"
       }
     }
-  },
-  "rowMenu": {
-    "label": "Options for {{name}}"
   }
 }

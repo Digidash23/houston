@@ -345,6 +345,51 @@ test("depth 1: an agent-started mission can't start missions", async () => {
   expect(fired).toEqual([]);
 });
 
+test("a delegated mission still cannot start another mission on a later turn", async () => {
+  await saveActivities(vfs, root, [
+    {
+      ...PARENT,
+      origin_agent: "another-agent",
+      origin_session_key: "conv-grandparent",
+      origin_depth: 1,
+    },
+  ]);
+  const first = await call(
+    "POST",
+    "/sandbox/missions/start",
+    { title: "first", prompt: "p" },
+    { conversationId: "conv-parent" },
+  );
+  const later = await call(
+    "POST",
+    "/sandbox/missions/start",
+    { title: "later", prompt: "p" },
+    { conversationId: "conv-parent" },
+  );
+  expect(first.body).toMatchObject({ code: "mission_depth" });
+  expect(later.body).toMatchObject({ code: "mission_depth" });
+  expect(await onDisk()).toHaveLength(1);
+  expect(fired).toEqual([]);
+});
+
+test("a delegated turn cannot start on its own board after its row is removed", async () => {
+  await saveActivities(vfs, root, []);
+  const r = await call(
+    "POST",
+    "/sandbox/missions/start",
+    { title: "escaped", prompt: "p" },
+    {
+      conversationId: "conv-parent",
+      gatewayFronted: true,
+      actingAs: `acting-v1.${Buffer.from(JSON.stringify({ sub: "person", dlg: "delegator" })).toString("base64url")}.sig`,
+    },
+  );
+  expect(r.status).toBe(409);
+  expect(r.body).toMatchObject({ code: "mission_depth" });
+  expect(await onDisk()).toEqual([]);
+  expect(fired).toEqual([]);
+});
+
 test("the running cap refuses a flood", async () => {
   const running = Array.from({ length: 20 }, (_, i) => ({
     id: `r-${i}`,
@@ -567,7 +612,52 @@ test("the started row records WHO asked and how deep it sits", async () => {
     origin_session_key: "conv-parent",
     origin_agent: agent.id,
     origin_depth: 1,
+    started_by: "employee",
   });
+});
+
+test("a start from the desktop's AI Manager is stamped as Houston's", async () => {
+  // The desktop coordinator is the dot-named `.assistant` no user can create,
+  // so it is installed here the way the local store would hold it. It keeps no
+  // board of its own: every start it makes names an employee's.
+  const employee = await store.createAgent({
+    workspaceId: ws.id,
+    name: "Dobby",
+  });
+  const coordinator: Agent = {
+    id: `${ws.id}/.assistant`,
+    workspaceId: ws.id,
+    name: ".assistant",
+    createdAt: Date.now(),
+  };
+  const real = store;
+  const delegate = Object.create(real) as MemoryWorkspaceStore;
+  delegate.getAgent = async (id) =>
+    id === coordinator.id ? coordinator : real.getAgent(id);
+  store = delegate;
+  agent = coordinator;
+  root = paths.agentRoot(ws, agent);
+  await saveActivities(vfs, root, [PARENT]);
+  missionFanout.forget(agent.id);
+  try {
+    const r = await call(
+      "POST",
+      "/sandbox/missions/start",
+      { agent: "Dobby", title: "t", prompt: "p" },
+      { conversationId: "conv-parent" },
+    );
+    expect(r.status).toBe(201);
+    const board = JSON.parse(
+      (await vfs.readText(docKey(paths.agentRoot(ws, employee), "activity"))) ??
+        "[]",
+    ) as Activity[];
+    expect(board[0]).toMatchObject({
+      origin_agent: coordinator.id,
+      started_by: "houston",
+    });
+  } finally {
+    missionFanout.forget(agent.id);
+  }
 });
 
 test("the caller's own budget refuses a flood spread across boards", async () => {
@@ -586,6 +676,40 @@ test("the caller's own budget refuses a flood spread across boards", async () =>
   expect(r.status).toBe(409);
   expect(r.body).toMatchObject({ code: "mission_fanout" });
   expect(fired).toEqual([]);
+});
+
+test("a remote flood remains capped after an hour until the boards settle", async () => {
+  const startedAt = Date.now() - 2 * 3600_000;
+  let status: "running" | "settled" = "running";
+  for (let i = 0; i < 20; i++)
+    missionFanout.record(
+      agent.id,
+      {
+        missionId: `remote-${i}`,
+        boardRoot: null,
+        readStatus: async () => status,
+      },
+      startedAt,
+    );
+  const refused = await call(
+    "POST",
+    "/sandbox/missions/start",
+    { title: "next", prompt: "p" },
+    { conversationId: "conv-parent" },
+  );
+  expect(refused.status).toBe(409);
+  expect(refused.body).toMatchObject({ code: "mission_fanout" });
+  status = "settled";
+  expect(await missionFanout.running(agent.id, vfs, Date.now() + 60_000)).toBe(
+    0,
+  );
+  const allowed = await call(
+    "POST",
+    "/sandbox/missions/start",
+    { title: "next", prompt: "p" },
+    { conversationId: "conv-parent" },
+  );
+  expect(allowed.status).toBe(201);
 });
 
 test("a finished local mission gives its caller's slot back", async () => {

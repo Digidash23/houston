@@ -1,4 +1,5 @@
-import { strictEqual } from "node:assert";
+import { ok, strictEqual } from "node:assert";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { personDisplayName } from "../src/components/organization/people-tab-model.ts";
 
@@ -39,4 +40,24 @@ test("the caller's last resort names a person with nothing else", () => {
     personDisplayName(member(undefined, undefined), "Teammate"),
     "Teammate",
   );
+});
+
+const read = (rel: string) =>
+  readFileSync(new URL(rel, import.meta.url), "utf8");
+
+test("every surface naming a person spells it through the one rule", () => {
+  // Directly, or through `rosterPersonName` — the member row's wrapper for
+  // it, which supplies the row's own fallback (`org-members-tab.test.ts`).
+  for (const rel of [
+    "../src/components/organization/people-roster-row.tsx",
+    "../src/components/organization/people-roster-confirm.tsx",
+    "../src/components/organization/org-roster.ts",
+    "../src/components/agent-settings/agent-person-row.tsx",
+    "../src/components/agent-settings/agent-people-model.ts",
+    "../src/components/organization/org-chart-people.ts",
+  ])
+    ok(
+      /\b(personDisplayName|rosterPersonName)\b/.test(read(rel)),
+      `${rel} names a person through the shared helper`,
+    );
 });

@@ -13,7 +13,9 @@ import {
   REQUEST_CONNECTION_TOOL_NAME,
 } from "./tools/integrations";
 import {
+  LIST_AGENTS_TOOL_NAME,
   LIST_MISSIONS_TOOL_NAME,
+  READ_AGENT_TOOL_NAME,
   START_MISSION_TOOL_NAME,
   UPDATE_MISSION_STATUS_TOOL_NAME,
 } from "./tools/mission-tool-names";
@@ -89,6 +91,9 @@ export function buildToolSelection(input: ToolSelectionInput): ToolSelection {
           LIST_MISSIONS_TOOL_NAME,
           READ_MISSION_TOOL_NAME,
           UPDATE_MISSION_STATUS_TOOL_NAME,
+          ...(input.personalAssistant
+            ? []
+            : [LIST_AGENTS_TOOL_NAME, READ_AGENT_TOOL_NAME]),
         ]
       : []),
     // The assistant family shares save_routine's reach: execute AND auto,

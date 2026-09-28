@@ -189,6 +189,24 @@ describe("what the mixin softens, and what it must not", () => {
     );
   });
 
+  test("a move into a team that holds the name rejects 409 name_taken", async () => {
+    stubFetch(() =>
+      json(409, {
+        error: "an agent with that name exists",
+        code: "name_taken",
+      }),
+    );
+    const err = await client()
+      .moveAgent("ag-1", ORG_SLUG)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(HoustonEngineError);
+    expect((err as HoustonEngineError).status).toBe(409);
+    expect((err as HoustonEngineError).body).toMatchObject({
+      code: "name_taken",
+    });
+    expect(soleCall().url).toBe(`${BASE}/v1/agents/ag-1/move`);
+  });
+
   test("a rejection keeps the gateway's parsed body and status", async () => {
     stubFetch(() =>
       json(409, { error: "members remain", code: "has_members" }),

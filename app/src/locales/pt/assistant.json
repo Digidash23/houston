@@ -1,15 +1,15 @@
 {
-  "title": "AI Manager",
-  "opening": "Abrindo seu AI Manager",
+  "title": "Houston",
+  "opening": "Chamando o Houston…",
   "back": "Voltar",
   "empty": {
-    "heading": "Oi, eu sou seu AI Manager",
-    "capabilities": "Eu posso fazer tudo o que você faz no Houston: criar funcionários de IA, configurar automações, conectar seus apps e achar o que você precisa.",
+    "heading": "Oi, eu sou o Houston, seu AI Manager",
+    "capabilities": "Eu posso fazer tudo o que você faz no app: criar funcionários de IA, configurar automações, conectar seus apps e achar o que você precisa.",
     "safety": "Vou sempre perguntar antes de fazer algo arriscado."
   },
   "failure": {
-    "title": "O Houston não conseguiu iniciar seu AI Manager",
-    "body": "Isso costuma se resolver sozinho. O Houston continua tentando em segundo plano, e você pode tentar de novo agora.",
+    "title": "O Houston não está respondendo",
+    "body": "Isso costuma se resolver sozinho. Continuamos tentando em segundo plano, e você pode tentar de novo agora.",
     "retry": "Tentar de novo"
   },
   "link": {
@@ -18,5 +18,67 @@
     "retry": "Tentar novamente",
     "invalidTitle": "O link desta conversa está incompleto",
     "invalidDescription": "Abra o link mais recente do Houston na sua conversa no Slack."
+  },
+  "onboarding": {
+    "say": {
+      "hello": "Oi!",
+      "helloNamed": "Oi, {{name}}!",
+      "introManager": "Eu sou o Houston, seu AI Manager. Eu monto e comando sua equipe de funcionários de IA.",
+      "introEmployees": "Cada funcionário de IA cuida de um trabalho. Eles fazem trabalho de verdade nas suas ferramentas por conta própria e avisam você quando terminam.",
+      "introHow": "Você me diz do que precisa, e eu garanto que o funcionário de IA certo cuide disso.",
+      "connectIntro": "Primeiro, vamos conectar a IA que dá vida à sua equipe.",
+      "surveyIntro": "Pronto, sua IA está conectada! Agora algumas perguntas rápidas para eu sugerir a equipe certa para você.",
+      "teamIntro": "Obrigado, isso ajuda. Aqui está uma equipe inicial de funcionários de IA para você, os ajudantes que tiram trabalho das suas mãos.",
+      "teamResume_one": "Você já tem 1 funcionário de IA na sua equipe. Vamos continuar de onde você parou.",
+      "teamResume_other": "Você já tem {{count}} funcionários de IA na sua equipe. Vamos continuar de onde você parou.",
+      "closingReady": "Sua equipe está pronta!",
+      "closingEmployees": "Abra qualquer um dos seus funcionários de IA para começar o primeiro dia de trabalho dele.",
+      "closingManager": {
+        "all": "Lembre que eu sou seu AI Manager e estou aqui para ajudar. Eu passo missões para seus funcionários de IA, contrato novos quando você precisa, convido seus colegas de equipe e conecto as ferramentas de que eles precisam.",
+        "invite": "Lembre que eu sou seu AI Manager e estou aqui para ajudar. Eu passo missões para seus funcionários de IA, contrato novos quando você precisa e convido seus colegas de equipe.",
+        "connect": "Lembre que eu sou seu AI Manager e estou aqui para ajudar. Eu passo missões para seus funcionários de IA, contrato novos quando você precisa e conecto as ferramentas de que eles precisam.",
+        "core": "Lembre que eu sou seu AI Manager e estou aqui para ajudar. Eu passo missões para seus funcionários de IA e contrato novos quando você precisa."
+      },
+      "closingGoal": "Você adoraria passar adiante: “{{goal}}”. Quer que eu coloque um funcionário de IA nisso?",
+      "closingAsk": "Qual tarefa você normalmente faria por conta própria? Me conte e eu cuido para que seja feita.",
+      "profileIntro": "Oi de novo! Algumas perguntas rápidas para eu adaptar tudo ao seu jeito de trabalhar.",
+      "profileThanks": "Obrigado, isso me ajuda muito."
+    },
+    "questions": {
+      "companySize": "Qual é o tamanho da sua empresa?"
+    },
+    "answers": {
+      "connected": "Minha IA está conectada",
+      "skipped": "Pulada"
+    },
+    "choices": {
+      "done": "Essa é minha equipe",
+      "another": "Contratar mais um"
+    },
+    "companySize": {
+      "solo": "Só eu",
+      "2_10": "2–10",
+      "11_50": "11–50",
+      "51_200": "51–200",
+      "201_1000": "201–1.000",
+      "1000_plus": "1.000+"
+    },
+    "goal": {
+      "hint": "Pense no trabalho que consome a sua semana. O Houston vai colocar um funcionário de IA nisso.",
+      "placeholder": "Por exemplo: responder aos e-mails de clientes e manter minha agenda em dia",
+      "tooLong": "Ficou um pouco longo. Mantenha abaixo de {{max}} caracteres."
+    },
+    "changeAnswer": "Mudar resposta",
+    "roster": {
+      "joining": "Entrando",
+      "hired": "Pronto"
+    },
+    "handoff": {
+      "yes": "Sim, vamos lá",
+      "notNow": "Agora não"
+    },
+    "finish": {
+      "profileAction": "Continuar"
+    }
   }
 }

@@ -75,7 +75,7 @@ export async function updateCustomIntegrationDetails(
  * @param slug The custom integration's exact slug, from customIntegrations.
  * @param values The credential fields the integration asked for, keyed by
  *   field name.
- * @assistant group:integrations confirm: outward. It hands a secret to a third-party service Houston then acts against on the user's behalf, from every agent that app is on.
+ * @assistant group:integrations confirm: outward. It hands a secret to a third-party service that every agent the app is on then acts against, on the user's behalf.
  * @assistant hidden: takes a secret; the user pastes the integration's own credential.
  * @assistant hands: request_credential
  */
@@ -115,7 +115,7 @@ export async function startCustomIntegrationOAuth(
  *
  * @param url The full https address of the service's API description.
  * @assistant group:integrations
- * @assistant confirm: outward. Houston fetches whatever URL it is handed, so a model-supplied address makes Houston's own network reach a stranger's host.
+ * @assistant confirm: outward. Whatever URL it is handed gets fetched, so a model-supplied address makes this deployment's own network reach a stranger's host.
  */
 export async function detectCustomIntegration(
   scope: HttpScope,
@@ -133,7 +133,7 @@ export async function detectCustomIntegration(
  * @param input The connector to add: where its API description lives and
  *   how it authenticates.
  * @assistant group:integrations
- * @assistant confirm: outward. Houston starts calling an address the user supplied on their behalf, with whatever credential is attached to it.
+ * @assistant confirm: outward. Calls start going to an address the user supplied, on their behalf, with whatever credential is attached to it.
  * @assistant unschematized: the input's headers is an open record of header name to value.
  */
 export async function addCustomIntegration(

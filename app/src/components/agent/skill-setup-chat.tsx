@@ -32,8 +32,7 @@ interface Props {
    *  to the panel chrome's close X and Escape. */
   onClose: () => void;
   /** The manual escape hatch (HOU-791 keeps it): THIS skill's raw markdown —
-   *  the editor's Text view beside the chat on the Skills library, the edit
-   *  modal on the per-agent surface. Only offered on an installed skill's chat. */
+   *  the editor's Text view beside the chat in the employee's Skills section. Only offered on an installed skill's chat. */
   onEditManually?: () => void;
   /** Throw this unfinished chat away and start over on a fresh one. Only
    *  offered on a draft that exists (nothing to discard before it does). */
@@ -45,9 +44,8 @@ interface Props {
  * panel — the same split the Routines section and the mission board use: the
  * Skills catalog stays visible on the left while the conversation opens as
  * its own screen card on the right. Mounting this component IS what opens
- * the panel (and unmounting closes it), so every host — the agent settings
- * page's Skills section and the global Skills page — gets the split without
- * extra wiring.
+ * the panel (and unmounting closes it), so its host — an employee's Skills
+ * section in its settings — gets the split without extra wiring.
  *
  * The guided chat is a real mission under the hood, but every board filters
  * it out via the skill-setup sentinel — its only home is this panel. The
@@ -113,7 +111,7 @@ export function SkillSetupChat({
   if (!activity) {
     const surface = (
       <div className="flex h-full min-h-0 flex-col">
-        <div className="shrink-0 bg-background px-4 py-3 dark:bg-transparent">
+        <div className="shrink-0 bg-pane px-4 py-3">
           <div className="mx-auto flex w-full max-w-3xl items-center gap-3">
             <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
               {missionLabel}

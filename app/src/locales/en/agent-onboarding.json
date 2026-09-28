@@ -1,22 +1,21 @@
 {
   "setupMission": {
-    "title": "Getting set up",
-    "startFailed": "We could not start setup. Please try again."
+    "title": "Getting set up"
   },
   "roleSetup": {
-    "back": "Back",
-    "unlinkProject": "Unlink existing project",
     "steps": {
       "context": "Industry",
       "role": "Role",
       "customize": "Customize"
     },
     "contextHeadline": "What industry does this AI Employee work in?",
+    "selfContextHeadline": "What industry do you work in?",
     "contextPlaceholder": "Tell us in a few words",
     "contextSearch": "Search industries",
     "noContextMatches": "No industries match that.",
     "useQueryAsContext": "Use \"{{query}}\" as the industry",
     "roleHeadline": "What should it do for you?",
+    "selfRoleHeadline": "What's your role?",
     "rolePlaceholder": "Tell us the role in a few words",
     "roleSearch": "Search roles",
     "noRoleMatches": "No roles match that.",
@@ -24,18 +23,18 @@
     "typeToFindAnyRole": "Type any role to find it, from any industry.",
     "moreRoles": "More roles",
     "otherRoles": "Other roles",
+    "leadership": "Leadership",
     "somethingElse": "Something else",
     "chipsKeyboardHint": "Use the arrow keys to move between the options.",
     "continue": "Continue",
     "cancel": "Cancel",
     "customize": {
-      "headline": "Give it a name and a color",
+      "headline": "Name your AI Employee",
       "changeIndustry": "Change industry: {{answer}}",
       "changeRole": "Change role: {{answer}}"
     },
     "createFailed": "We could not create this AI Employee. Please try again.",
-    "placementFailedTitle": "Created in the default team",
-    "placementFailedBody": "We could not put {{name}} in the team you picked. You can move it any time from its menu.",
+    "saveFailed": "We couldn't save your changes yet. We'll try again when you finish.",
     "contexts": {
       "accounting": "Accounting",
       "advertising": "Advertising",
@@ -473,6 +472,7 @@
       "film_festival_coordinator": "Festival coordinator",
       "finance_and_insurance_clerk": "Finance and insurance clerk",
       "finance_business_partner": "Finance business partner",
+      "finance_manager": "Finance manager",
       "finance_reporting_analyst": "Financial reporting analyst",
       "finance_risk_manager": "Risk manager",
       "financial_analyst": "Financial analyst",
@@ -772,6 +772,7 @@
       "open_house_coordinator": "Open house coordinator",
       "operations_consultant": "Operations consultant",
       "operations_coordinator": "Operations coordinator",
+      "operations_manager": "Operations manager",
       "order_desk_clerk": "Order desk clerk",
       "order_fulfillment_clerk": "Order fulfillment clerk",
       "order_status_clerk": "Order status clerk",
@@ -1250,6 +1251,26 @@
       "yard_coordinator": "Yard coordinator",
       "yoga_studio_coordinator": "Yoga studio coordinator",
       "youtube_channel_manager": "YouTube channel manager"
+    },
+    "leadershipRoles": {
+      "founder": "Founder",
+      "co_founder": "Co-founder",
+      "owner": "Owner",
+      "ceo": "CEO",
+      "president": "President",
+      "managing_director": "Managing director",
+      "general_manager": "General manager",
+      "coo": "COO",
+      "cfo": "CFO",
+      "cto": "CTO",
+      "cmo": "CMO",
+      "cro": "CRO",
+      "vp": "VP",
+      "director": "Director",
+      "head_of_department": "Head of department",
+      "partner": "Partner",
+      "team_lead": "Team lead",
+      "manager": "Manager"
     }
   }
 }

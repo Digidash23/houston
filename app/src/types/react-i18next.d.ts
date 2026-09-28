@@ -21,8 +21,8 @@ import type dashboard from "../locales/en/dashboard.json";
 import type errors from "../locales/en/errors.json";
 import type events from "../locales/en/events.json";
 import type integrations from "../locales/en/integrations.json";
-import type legal from "../locales/en/legal.json";
 import type migration from "../locales/en/migration.json";
+import type plan from "../locales/en/plan.json";
 import type portable from "../locales/en/portable.json";
 import type providers from "../locales/en/providers.json";
 import type routines from "../locales/en/routines.json";
@@ -41,7 +41,6 @@ declare module "react-i18next" {
       assistant: typeof assistant;
       auth: typeof auth;
       setup: typeof setup;
-      legal: typeof legal;
       shell: typeof shell;
       dashboard: typeof dashboard;
       settings: typeof settings;
@@ -56,6 +55,7 @@ declare module "react-i18next" {
       integrations: typeof integrations;
       migration: typeof migration;
       portable: typeof portable;
+      plan: typeof plan;
       context: typeof context;
       teams: typeof teams;
       agentOnboarding: typeof agentOnboarding;

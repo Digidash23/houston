@@ -41,10 +41,6 @@ describe("addableSkills", () => {
     deepStrictEqual(slugs, ["invoices", "payroll", "contracts"]);
   });
 
-  it("offers nothing to the workspace library, which adds to nobody", () => {
-    deepStrictEqual(addableSkills(rows, null), []);
-  });
-
   it("offers nothing where the deployment serves no store", () => {
     // No `origin` at all is the copy-based model: every row is an agent's own.
     deepStrictEqual(
@@ -62,14 +58,10 @@ describe("addableSkills", () => {
  */
 describe("offersAddExisting", () => {
   it("offers the add on an employee where the workspace shares skills", () => {
-    strictEqual(offersAddExisting({ agentId: "a", sharedStore: true }), true);
+    strictEqual(offersAddExisting({ sharedStore: true }), true);
   });
 
   it("never offers it where the deployment serves no store", () => {
-    strictEqual(offersAddExisting({ agentId: "a", sharedStore: false }), false);
-  });
-
-  it("never offers it in the library, which adds to nobody", () => {
-    strictEqual(offersAddExisting({ agentId: null, sharedStore: true }), false);
+    strictEqual(offersAddExisting({ sharedStore: false }), false);
   });
 });

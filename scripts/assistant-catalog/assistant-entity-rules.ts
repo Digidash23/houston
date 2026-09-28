@@ -24,7 +24,7 @@ import { FIELD_SOURCES } from "./assistant-field-rules.ts";
 export interface EntityRule {
   /**
    * The literal path segment a placeholder must directly follow for this rule
-   * to claim it. `/v1/org/teams/{teamId}` -> `teams`.
+   * to claim it. `/v1/org/invites/{inviteId}` -> `invites`.
    */
   after?: string;
   /**
@@ -103,12 +103,6 @@ export const ENTITY_SOURCES: readonly EntityRule[] = [
       "The directory covers one organization, so read another one's slug from listOrgs.",
   },
   {
-    after: "teams",
-    names: ["teamId"],
-    discovery: "listAgentTeams",
-    collection: "teams",
-  },
-  {
     after: "members",
     names: ["userId"],
     discovery: "getOrgPeople",
@@ -136,7 +130,7 @@ export const ENTITY_SOURCES: readonly EntityRule[] = [
     after: "definitions",
     discovery: "customIntegrations",
     unlisted:
-      "The directory lists Houston's own things, so read a self-added app's slug from customIntegrations.",
+      "The directory lists the app's own things, so read a self-added app's slug from customIntegrations.",
   },
   // A messaging connection (`/v1/channels/connections/{id}`) shares the segment
   // with an app connection, so it is claimed first, by the path it sits under.

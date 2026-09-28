@@ -1,19 +1,22 @@
+import { SEED_AGENT_NAME } from "@houston/fake-host";
+import { FOLLOW_UP_PLACEHOLDER } from "./support/composer";
 import { createAgent } from "./support/create-agent";
 import { expect, test } from "./support/fixtures";
-import { rail, screen } from "./support/team-nav";
+import { missionCard, rail, screen } from "./support/team-nav";
+import { workspaceMenuTrigger } from "./support/workspace-menu";
 
 /**
  * Agent lifecycle through the UI. Creating an agent goes New AI Employee → the
- * guided brief → name + create, which POSTs to the fake host's `/agents`, fires the
- * agent's self-setup mission, and auto-opens its chat panel (dismissed by the
- * shared `createAgent` helper), landing the new agent in the sidebar (via the
- * AgentsChanged reactivity event).
+ * guided brief → name + create, which POSTs to the fake host's `/agents` and
+ * lands the new agent in the sidebar (via the AgentsChanged reactivity event).
+ * Its first day waits for the user: nothing starts until the board's
+ * "Start <name>'s first day" button is pressed.
  */
 test("creates an agent and shows it in the sidebar", async ({ page }) => {
   await page.goto("/");
 
   // Sidebar starts with the one seeded agent.
-  await expect(page.getByText("Your teams")).toBeVisible();
+  await expect(workspaceMenuTrigger(page)).toBeVisible();
 
   await createAgent(page, "Marketing Bot");
 
@@ -23,7 +26,7 @@ test("creates an agent and shows it in the sidebar", async ({ page }) => {
 });
 
 /**
- * Clicking an agent in the rail opens ITS team's board, narrowed to it — so the
+ * Clicking an agent in the rail opens ITS board, narrowed to it — so the
  * seeded agent's "Plan a trip to Tokyo" must vanish on a fresh agent and return
  * when we switch back. Lookups are scoped to the screen ON THE GLASS: every
  * top-level view is kept alive, so the (hidden) global board holds the same
@@ -33,18 +36,49 @@ test("switches between two agents", async ({ page }) => {
   await page.goto("/");
   await expect(screen(page).getByText("Plan a trip to Tokyo")).toBeVisible();
 
-  // Create a second agent; it becomes selected, with an empty board of its own.
+  // Create a second agent; it becomes selected, its board holding only the
+  // start of its first day.
   await createAgent(page, "Research Bot");
   await expect(screen(page).getByText("Plan a trip to Tokyo")).toHaveCount(0);
+  await expect(
+    screen(page).getByRole("button", {
+      name: "Start Research Bot's first day",
+    }),
+  ).toBeVisible();
 
   // Switch back to the seeded agent → its mission returns. Anchored rather than
   // exact: an agent row may still carry a quiet unread mark inside its button,
   // which joins the accessible name. The needs-you COUNT is gone from the rail
   // entirely — a rail says what exists and where you are, not the score.
   await rail(page)
-    .getByRole("button", { name: /^Houston\b/ })
+    .getByRole("button", { name: new RegExp(`^${SEED_AGENT_NAME}\\b`) })
     .click();
   await expect(screen(page).getByText("Plan a trip to Tokyo")).toBeVisible();
+});
+
+/**
+ * A new hire's board IS its start button: pressing it creates the setup task,
+ * opens its chat beside the board, and takes the button away for good.
+ */
+test("starts a new AI Employee's first day from its board", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.locator("[data-tour-target='agents']")).toBeVisible();
+
+  await createAgent(page, "Ops Bot");
+  const start = screen(page).getByRole("button", {
+    name: "Start Ops Bot's first day",
+  });
+  await expect(start).toBeVisible();
+
+  await start.click();
+  await expect(page.getByPlaceholder(FOLLOW_UP_PLACEHOLDER)).toBeVisible({
+    timeout: 10_000,
+  });
+  await expect(page.getByText("Task: Getting set up")).toBeVisible();
+  await expect(missionCard(page, "Getting set up")).toBeVisible();
+  await expect(start).toHaveCount(0);
 });
 
 /*

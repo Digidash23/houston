@@ -1,5 +1,4 @@
 import { expect, test } from "./support/fixtures";
-import { openSkillsLibrary } from "./support/settings-nav";
 import {
   openAgentSkills,
   seedAgentSkills,
@@ -8,15 +7,12 @@ import {
 import { screen } from "./support/team-nav";
 
 /**
- * An AI Employee's Skills section IS the workspace Skills surface, scoped to
- * that employee: the same rows, the same full-page editor with the skill's
- * chat beside it, never a modal. The ONE difference is reach — the scoped
- * editor carries no "AI Employees with this skill" section, because the
- * section it stands in already answers that question, while the library's
- * editor keeps it. Guards the split so the per-agent surface can never quietly
- * grow workspace-wide side effects.
+ * An AI Employee's Skills section opens a skill's full-page editor in place of
+ * the list, with the skill's chat beside it, never a modal. It carries no
+ * "AI Employees with this skill" section: the section it stands in already
+ * answers that question.
  */
-test("the agent's Skills section opens the same editor, minus cross-agent assignment", async ({
+test("the agent's Skills section opens a skill's editor in place, with its chat", async ({
   page,
   request,
 }) => {
@@ -43,22 +39,11 @@ test("the agent's Skills section opens the same editor, minus cross-agent assign
   await expect(
     screen(page).getByRole("button", { name: "Create skill" }),
   ).toBeVisible();
-
-  // The library keeps the section for the same skill. The rail's Skills row is
-  // the door that disambiguates it from the employee's own.
-  await openSkillsLibrary(page);
-  await page.getByRole("button", { name: /^Invoice triage\b/ }).click();
-  await expect(
-    // The library is the screen, so here the skill's name IS the h1.
-    editor.getByRole("heading", { name: "Invoice triage", level: 1 }),
-  ).toBeVisible();
-  await expect(editor.getByText("AI Employees with this skill")).toBeVisible();
 });
 
 /**
- * The scoped surface's "Create skill" is a MENU, and its second way is the one
- * the library has no use for: putting a skill the workspace already shares on
- * THIS employee. Adding is a manifest write, so the row leaves the dialog and
+ * The section's "Create skill" is a MENU where there is a workspace store, and
+ * its second way puts a skill the workspace already shares on THIS employee. Adding is a manifest write, so the row leaves the dialog and
  * joins the employee's own list without anything being copied.
  */
 test("the agent's Skills section adds a workspace skill it does not have yet", async ({

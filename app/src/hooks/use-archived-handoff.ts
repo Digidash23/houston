@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
+import type { RawConversation } from "../lib/conversations-facade";
 import { RUNNING_STATUS } from "../lib/mission-selection";
-import type { RawConversation } from "../lib/tauri";
 import { useUIStore } from "../stores/ui";
 
 interface ArchivedHandoffOptions {

@@ -1,17 +1,24 @@
+import type { Capabilities } from "@houston/engine-adapter";
 import { INTEGRATIONS_VIEW_ID } from "../components/integrations-view/id";
-import { SKILLS_VIEW_ID } from "../components/skills-view/id";
+import { useAgentSettingsNav } from "../components/team-view/agent-settings-nav-store";
+import { canOpenAgentSettings } from "../lib/agent-nav";
 import { isIntegrationSetupMode } from "../lib/integration-chat-setup";
 import { logger } from "../lib/logger";
 import {
   activityIdForSessionKey,
   type NotificationNav,
 } from "../lib/notification-nav";
-import { openAgentBoard, openAgentSection } from "../lib/open-agent";
+import {
+  openAgentBoard,
+  openAgentSection,
+  openAgentSettings,
+} from "../lib/open-agent";
 import { queryClient } from "../lib/query-client";
 import { queryKeys } from "../lib/query-keys";
 import { isRoutineSetupMode } from "../lib/routine-chat-setup";
 import { isSkillSetupMode } from "../lib/skill-chat-setup";
 import { tauriActivity } from "../lib/tauri";
+import { AGENT_VIEW_ID } from "../lib/top-level-views";
 import { useAgentStore } from "../stores/agents";
 import { useUIStore } from "../stores/ui";
 
@@ -93,31 +100,57 @@ export async function navigateToNotificationTarget({
   // here too (focus is the click proxy — there is no desktop click event).
   const prevViewMode = useUIStore.getState().viewMode;
   if (target.setupKind === "skill") {
-    // A skill-setup chat has no board card: its home is the Skills library,
-    // the screen behind the rail's Skills row. HOU-980's rule applies: a user
-    // already on the surface hosting the chat is never yanked elsewhere (an
-    // open chat is visible there already, a closed one was closed
-    // deliberately) — which is why this branch runs BEFORE the agent switch,
-    // so staying leaves the world untouched.
-    if (prevViewMode === SKILLS_VIEW_ID) {
-      logger.debug("[notification] already on the Skills library, staying put");
+    // A skill-setup chat has no board card: its home is the employee's own
+    // Skills section, in its settings, where the chat reopens on the spot.
+    // HOU-980's rule applies: a user already on that section is never yanked
+    // (an open chat is visible there already, a closed one was closed
+    // deliberately), and a bare macOS refocus lands here too.
+    const ui = useUIStore.getState();
+    const shown = useAgentSettingsNav.getState().shown;
+    if (
+      prevViewMode === AGENT_VIEW_ID &&
+      ui.activeAgentId === agent.id &&
+      ui.agentSection === "settings" &&
+      shown?.agentId === agent.id &&
+      shown.section === "skills"
+    ) {
+      logger.debug(
+        "[notification] already on the employee's Skills, staying put",
+      );
       return;
     }
+    const capabilities = queryClient.getQueryData<Capabilities>(
+      queryKeys.capabilities(),
+    );
     useAgentStore.getState().setCurrent(agent);
-    useUIStore.getState().setViewMode(SKILLS_VIEW_ID);
-    useUIStore.getState().setPendingSkillChatActivityId(target.activityId);
+    if (canOpenAgentSettings(capabilities, agent)) {
+      // Armed on arrival, like the routine chat: a deferred navigation must
+      // not leave the id for another employee's section to spend.
+      openAgentSettings(agent.id, "skills", {
+        onOpened: () =>
+          useUIStore
+            .getState()
+            .setPendingSkillChatActivityId(target.activityId),
+      });
+      return;
+    }
+    // Someone who cannot configure the employee has no Skills section to
+    // land on: the employee's board is the one place they can reach it. The
+    // setup chat has no card there, so nothing is opened over the board.
+    openAgentBoard(agent.id);
     return;
   }
   useAgentStore.getState().setCurrent(agent);
   if (target.setupKind === "routine") {
-    // A routine-setup chat has no board card: its home is the Routines section
-    // of the agent's TEAM, filtered to that agent, where the chat reopens on
-    // the spot. The owner rides along with the activity id because that list is
-    // cross-agent and the id alone would not say whose chat it is.
-    openAgentSection(agent.id, "routines");
-    useUIStore.getState().setPendingRoutineChat({
-      agentId: agent.id,
-      activityId: target.activityId,
+    // A routine-setup chat has no board card: its home is the agent's Routines
+    // section, where the chat reopens on the spot. The owner rides along with
+    // the activity id so the section knows whose chat the id names.
+    openAgentSection(agent.id, "routines", {
+      onOpened: () =>
+        useUIStore.getState().setPendingRoutineChat({
+          agentId: agent.id,
+          activityId: target.activityId,
+        }),
     });
     return;
   }
@@ -140,11 +173,12 @@ export async function navigateToNotificationTarget({
     ui.setIntegrationSetupChatAgentId(agent.id);
     return;
   }
-  // A standard mission: the board its card lives on — the agent's TEAM Mission
-  // Control, filtered to that agent — then the mission published for that board
-  // to open.
-  openAgentBoard(agent.id);
-  useUIStore.getState().setActivityPanelId(target.activityId, {
-    forceOpen: true,
+  // A standard mission: the agent's board, where its card lives, then the
+  // mission published for that board to open.
+  openAgentBoard(agent.id, {
+    onOpened: () =>
+      useUIStore.getState().setActivityPanelId(target.activityId, {
+        forceOpen: true,
+      }),
   });
 }

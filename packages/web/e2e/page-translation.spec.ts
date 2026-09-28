@@ -1,6 +1,8 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
-import { completeSurvey, resetToFirstRun } from "./support/onboarding";
+import { connectAiStep, reachTeamStep } from "./support/manager-onboarding";
+import { hireStarterTeam } from "./support/manager-team";
+import { openManagerOnboarding, resetToFirstRun } from "./support/onboarding";
 import { missionCard } from "./support/team-nav";
 
 /**
@@ -63,7 +65,7 @@ test("the document opts out of browser translation", async ({ page }) => {
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
 });
 
-test("a translated first run survives the survey's saving spinner", async ({
+test("a translated first run survives the manager's onboarding conversation", async ({
   page,
   request,
 }) => {
@@ -76,21 +78,17 @@ test("a translated first run survives the survey's saving spinner", async ({
     }
     if (text.includes("[foreign-dom]")) rescues.push(text);
   });
-  // HOUSTON-APP-5CA's exact shape: Chrome on iOS translated the first-run
-  // survey. Each Continue renders a spinner BEFORE its label while the answer
-  // saves, an insertBefore whose reference is the translated text node.
+  // HOUSTON-APP-5CA's shape: Chrome on iOS translated the first run. A
+  // hire's card swaps its "Joining" status for "On your team", a node swap
+  // whose reference is the translated text node.
   await resetToFirstRun(request);
-  await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: "What best describes your work?" }),
-  ).toBeVisible();
+  await openManagerOnboarding(page);
+  await expect(connectAiStep(page)).toBeVisible();
 
   await translateLikeChrome(page);
-  await completeSurvey(page);
+  await reachTeamStep(page);
+  await hireStarterTeam(page, null);
 
-  await expect(
-    page.getByRole("heading", { name: "Welcome to Houston!" }),
-  ).toBeVisible();
   await expect(page.getByText("App crashed")).toHaveCount(0);
   expect(crashes).toEqual([]);
   // The guard did the work (the translator's wrappers were hit), and said so.

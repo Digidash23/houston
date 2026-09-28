@@ -12,6 +12,7 @@ import type {
   Activity,
   ActivityContributor,
   HoustonEvent,
+  MissionStarter,
   NewActivity,
 } from "@houston/protocol";
 import { activityUpdateSchema } from "@houston/protocol";
@@ -52,12 +53,18 @@ export async function handleActivitiesData(
   req: IncomingMessage,
   res: ServerResponse,
   emit?: (event: HoustonEvent) => void,
-  // The verified acting human (C2), server-stamped onto the mission as
-  // `created_by` + a contributor entry on create, and upserted as a contributor
-  // on PATCH. Null/absent on desktop/self-host (non-gateway-fronted), so a
-  // single-player activity.json stays byte-identical (no attribution keys).
-  author?: ActivityContributor,
+  stamps: {
+    // The verified acting human (C2), server-stamped onto the mission as
+    // `created_by` + a contributor entry on create, and upserted as a
+    // contributor on PATCH. Absent on desktop/self-host (non-gateway-fronted),
+    // so a single-player activity.json stays byte-identical.
+    author?: ActivityContributor;
+    // Which AI created the card, stamped on create only and never from the
+    // body: `createActivity` copies no `started_by`, and PATCH refuses it.
+    startedBy?: MissionStarter;
+  } = {},
 ): Promise<void> {
+  const { author, startedBy } = stamps;
   const fireChange = () =>
     emit?.({ type: "ActivityChanged", agentPath: agentId });
   const nowIso = new Date().toISOString();
@@ -97,12 +104,15 @@ export async function handleActivitiesData(
     // stamped only by the missions sandbox route — never trusted from a client
     // create, or any client could dress a mission up as agent-started.
     delete body.origin_session_key;
-    const activity = createActivity(
-      body as unknown as NewActivity,
-      (body.id as string | undefined) ?? crypto.randomUUID(),
-      nowIso,
-      author ?? undefined,
-    );
+    const activity: Activity = {
+      ...createActivity(
+        body as unknown as NewActivity,
+        (body.id as string | undefined) ?? crypto.randomUUID(),
+        nowIso,
+        author,
+      ),
+      ...(startedBy ? { started_by: startedBy } : {}),
+    };
     const landed = await locked(async () => {
       const { items } = await loadActivities(store, root);
       const existing = items.find((item) => item.id === activity.id);

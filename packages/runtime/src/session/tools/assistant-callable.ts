@@ -77,6 +77,6 @@ export function refusedUnavailableHere(
   if (!op || !isCallableOperation(op) || isServedHere(op.name)) return null;
   return assistantErrorResult(name, {
     code: ASSISTANT_UNAVAILABLE_HERE,
-    message: `${name} is not available in this Houston. Do not retry it - tell the user plainly that it cannot be done here, and search houston_capabilities for something you can do instead.`,
+    message: `${name} is not available here. Do not retry it - tell the user plainly that it cannot be done here, and search houston_capabilities for something you can do instead.`,
   });
 }

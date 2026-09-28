@@ -7,8 +7,14 @@
  * re-exports them so `app/src` sees one surface.
  */
 
-export * from "./channels.ts";
-export * from "./channels-refusals.ts";
-export * from "./local-model-bridge.ts";
-export * from "./retry-after.ts";
-export * from "./types.ts";
+export * from "./activities";
+export * from "./agents";
+export * from "./channels";
+export * from "./channels-refusals";
+export * from "./delegation";
+export * from "./interactions";
+export * from "./local-model-bridge";
+export * from "./onboarding";
+export * from "./plan";
+export * from "./retry-after";
+export * from "./types";

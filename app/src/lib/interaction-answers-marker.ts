@@ -58,6 +58,17 @@ export function encodeInteractionAnswersMessage(
   for (const r of args.handsOnRedirects)
     lines.push({ answer: args.handsOnRedirectLine(r.name, r.text) });
 
+  return encodeInteractionAnswers(lines, body);
+}
+
+/**
+ * `body` (the flat text the model reads) behind the marker carrying `lines`,
+ * so the transcript renders them as the answered-question receipt.
+ */
+export function encodeInteractionAnswers(
+  lines: InteractionAnswerLine[],
+  body: string,
+): string {
   const payload: InteractionAnswersPayload = { lines };
   return `${MARKER_PREFIX}${JSON.stringify(payload)}${MARKER_SUFFIX}\n\n${body}`;
 }

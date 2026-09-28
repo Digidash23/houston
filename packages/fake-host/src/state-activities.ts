@@ -7,6 +7,7 @@ import { addressesMission } from "@houston/domain/conversation-keys";
 import {
   type Activity,
   type ActivityUpdate,
+  isMissionStarter,
   resolveInteractionPatch,
 } from "@houston/protocol";
 import { ACTIVITY_PATH, emitDomain, fileKey, ISO, state } from "./state-store";
@@ -46,11 +47,18 @@ export function createActivity(
       contributors: input.contributors,
     }),
     ...(input.mentioned !== undefined && { mentioned: input.mentioned }),
+    // The mode sentinel a setup task carries (the first-day route stamps it).
+    ...(input.agent !== undefined && { agent: input.agent }),
     // The agent-started marker (PRODUCT-1244) is stamped by the real host's
     // missions route, never by a client POST — accept it here for the same
     // reason as the attribution keys: an e2e needs to seed a child mission.
     ...(input.origin_session_key !== undefined && {
       origin_session_key: input.origin_session_key,
+    }),
+    // Which AI started it (PRODUCT-1928): the real host stamps it from the
+    // verified caller; accepted here so an e2e can seed a Houston-started card.
+    ...(isMissionStarter(input.started_by) && {
+      started_by: input.started_by,
     }),
   };
   setActivities(agentId, [...listActivities(agentId), activity]);

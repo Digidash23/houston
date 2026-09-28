@@ -99,24 +99,30 @@ describe("automation chat setup message", () => {
 
   it("setup chats never count toward the needs-you badge", () => {
     const agents = [{ id: "a", folderPath: "/w/a" }];
-    const summaries = buildAgentActivitySummaries(agents, [
-      {
-        id: "setup",
-        agent_path: "/w/a",
-        type: "activity",
-        status: "needs_you",
-        agent: ROUTINE_SETUP_AGENT_MODE,
-      },
-      {
-        id: "real",
-        agent_path: "/w/a",
-        type: "activity",
-        status: "needs_you",
-      },
-    ]);
+    const summaries = buildAgentActivitySummaries(
+      agents,
+      [
+        {
+          id: "setup",
+          agent_path: "/w/a",
+          type: "activity",
+          status: "needs_you",
+          agent: ROUTINE_SETUP_AGENT_MODE,
+        },
+        {
+          id: "real",
+          agent_path: "/w/a",
+          type: "activity",
+          status: "needs_you",
+        },
+      ],
+      () => true,
+    );
     deepStrictEqual(summaries.a, {
       needsYouCount: 1,
       runningCount: 0,
+      headline: null,
+      history: "some",
     });
   });
 

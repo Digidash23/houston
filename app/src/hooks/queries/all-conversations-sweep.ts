@@ -18,6 +18,7 @@ import {
   type SweepRecoveryState,
   stepSweepRecovery,
 } from "../../lib/all-conversations-recovery";
+import { tauriConversations } from "../../lib/conversations-facade";
 import {
   showConnectivityErrorToast,
   showEngineWakingToast,
@@ -29,7 +30,7 @@ import {
   representativeSweepFailure,
 } from "../../lib/partial-sweep-surface";
 import { queryKeys } from "../../lib/query-keys";
-import { surfaceEngineError, tauriConversations } from "../../lib/tauri";
+import { surfaceEngineError } from "../../lib/tauri";
 import { isTransientEngineError } from "../../lib/transient-error";
 
 // Bookkeeping for the ONE cross-agent aggregate. Module scope, not refs: seven

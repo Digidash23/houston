@@ -1,6 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { docKey } from "@houston/domain";
+import {
+  docKey,
+  loadActivities,
+  missionConversationKey,
+} from "@houston/domain";
 import { appendLearningChecked } from "@houston/host/src/routes/learning-write";
+import {
+  DELEGATED_ROUTINE_REFUSAL,
+  isRoutinePause,
+} from "@houston/host/src/routes/mission-delegation-refusals";
 import {
   createRoutineChecked,
   updateRoutineChecked,
@@ -26,6 +34,23 @@ async function saveRoutine(
   deps: TurnWriteRoutesDeps,
   body: Record<string, unknown>,
 ): Promise<Response> {
+  const { items: missions } = await loadActivities(
+    deps.filesystem.vfs,
+    deps.filesystem.workspaceRel,
+  );
+  if (
+    !isRoutinePause(body) &&
+    missions.some(
+      (item) =>
+        missionConversationKey(item) === deps.conversationId &&
+        Boolean(item.origin_session_key),
+    )
+  ) {
+    return json(409, {
+      code: "mission_depth",
+      error: DELEGATED_ROUTINE_REFUSAL,
+    });
+  }
   const { id, ...fields } = body;
   const creating = typeof id !== "string" || id === "";
   const stableId = creating ? randomUUID() : id;

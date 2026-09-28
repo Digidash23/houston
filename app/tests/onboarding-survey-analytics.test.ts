@@ -21,6 +21,11 @@ describe("onboarding survey analytics", () => {
       "onboarding_industry_screen_viewed",
       "onboarding_industry_selected",
       "onboarding_industry_continued",
+      "onboarding_role_screen_viewed",
+      "onboarding_role_selected",
+      "onboarding_role_continued",
+      "onboarding_company_size_screen_viewed",
+      "onboarding_company_size_continued",
       "onboarding_goal_screen_viewed",
       "onboarding_goal_continued",
       "onboarding_survey_prompted",
@@ -29,9 +34,22 @@ describe("onboarding survey analytics", () => {
     }
   });
 
+  it("retires the department question's events", () => {
+    for (const event of [
+      "onboarding_segment_screen_viewed",
+      "onboarding_segment_selected",
+      "onboarding_segment_continued",
+    ]) {
+      strictEqual(EVENTS.has(event), false, `"${event}" is still declared`);
+    }
+    strictEqual(PROPERTY_UNION.has("selected_segment"), false);
+  });
+
   it("whitelists every survey event property", () => {
     for (const prop of [
       "selected_industry",
+      "selected_role",
+      "selected_company_size",
       "goal_provided",
       "missing_steps",
     ]) {
@@ -54,6 +72,10 @@ describe("onboarding survey analytics", () => {
     );
     ok(track.includes('event === "onboarding_industry_continued"'));
     ok(track.includes("onboarding_industry: props.selected_industry"));
+    ok(track.includes('event === "onboarding_role_continued"'));
+    ok(track.includes("onboarding_role: props.selected_role"));
+    ok(track.includes('event === "onboarding_company_size_continued"'));
+    ok(track.includes("onboarding_company_size: props.selected_company_size"));
     ok(track.includes('event === "onboarding_goal_continued"'));
     ok(track.includes("props.goal_text.slice(0, GOAL_PERSON_PROP_MAX)"));
     ok(track.includes('"skipped"'));

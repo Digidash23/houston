@@ -3,6 +3,7 @@ import type { APIRequestContext, Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
 import { AUTH_WEB_URL, E2E_VIEWER, signInAsViewer } from "./support/identity";
 import { openSettings } from "./support/settings-nav";
+import { openNavRow } from "./support/workspace-menu";
 
 /**
  * A user names themselves, and Houston believes them everywhere.
@@ -70,7 +71,7 @@ async function armSpace(request: APIRequestContext): Promise<void> {
 /** Sign in, then walk the real sidebar into Settings > Profile. */
 async function openProfileSettings(page: Page): Promise<void> {
   await signInAsViewer(page);
-  await page.locator('[data-tour-target="nav-settings"]').click();
+  await openNavRow(page, "settings");
   await page.getByRole("button", { name: "Profile" }).click();
   await expect(page.getByTestId("profile-name-input")).toBeVisible();
 }

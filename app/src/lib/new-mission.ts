@@ -1,48 +1,29 @@
+import { missionControlDraftScope } from "../components/board/mission-control-scope.ts";
 import { useAgentStore } from "../stores/agents.ts";
+import {
+  newConversationDraftKey,
+  newTaskHeldBySeed,
+  seedDraft,
+} from "../stores/drafts.ts";
 import { useUIStore } from "../stores/ui.ts";
-import { currentTeams } from "./current-teams.ts";
 import { openHome } from "./home-nav.ts";
 import { openMissionChat } from "./mission-chat.ts";
 import type { NewMissionScope } from "./new-mission-scope.ts";
-import { openAgentBoard } from "./open-agent.ts";
-import { teamById } from "./teams-model.ts";
+import { openAgentBoard, openComposeBoard } from "./open-agent.ts";
 import { isMissionBoardView } from "./top-level-views.ts";
 import type { Agent } from "./types.ts";
 import { isMobileViewport } from "./viewport.ts";
 
 /**
- * Start a new mission from ANYWHERE: the ⌘N shortcut and the phone nav bar's
- * compose button share this one rule, so the two can never land differently.
- *
- * A team view is already showing the cross-agent board that owns the handler
- * (every board belongs to a team now): open its picker where the user is. The
- * guard is two-part because the `team` view also renders Team Settings,
- * Routines, Files and the no-agents empty state, none of which mounts a board
- * — with no registered handler the request has to fall through to the
- * navigate-then-fire path instead of silently doing nothing.
- *
- * Deliberately the VIEW-level predicate, not `isMissionBoardSurface` like the
- * arrow and Enter keys in `board-keys.ts`. This action has somewhere honest to
- * go when no board is on the glass (navigate to the board that owns the
- * handler, then fire), so a team's Routines section should fall through to
- * that path rather than be excluded. The arrows and Enter have no such
- * fallback, which is why they must not claim the key on a non-board section.
- * The asymmetry is the point.
- *
- * Anywhere else: go to the board that owns the handler — the team board of the
- * agent the user last worked with — and fire once it has registered. With no
- * agent to name one (a fresh space, or an agent the last space switch dropped)
- * the fallback is home, the first team's Mission Control, whose board
- * registers the same handler. Doing nothing here instead would be an
- * affordance that silently fails.
- *
- * `scope` is the phone's context (`lib/new-mission-scope.ts`) and is
- * deliberately DESKTOP-INERT: the desktop composes into whichever board is on
- * the glass, which already carries the same context.
+ * Compose on the current employee's board when it is mounted. Otherwise open
+ * a board first (`openComposeBoard`). The phone uses its scoped chat picker.
  */
 export function startNewMission(
   scope: NewMissionScope = { kind: "home" },
 ): void {
+  // A seeded composer (the email lesson's ask) keeps its words until the
+  // lesson moves on; a New task opened by hand waits for it.
+  if (newTaskHeldBySeed()) return;
   // The phone fork, before any board handler: composing on the phone is the
   // agent picker sheet into an empty draft CHAT push (`lib/mission-chat.ts`),
   // never the desktop board's side composer. One agent skips the question.
@@ -57,15 +38,13 @@ export function startNewMission(
     fire();
     return;
   }
-  const { current, agents } = useAgentStore.getState();
-  if (current && agents.length > 0) openAgentBoard(current.id);
-  else openHome();
+  openComposeBoard();
   setTimeout(fire, 50);
 }
 
 /**
  * The scoped phone compose, or `false` when the scope named nothing usable —
- * a deleted agent or an emptied team falls through to the roster-wide
+ * a deleted agent falls through to the roster-wide
  * question rather than dead-ending on a stale id.
  */
 function composeScoped(scope: NewMissionScope): boolean {
@@ -75,15 +54,6 @@ function composeScoped(scope: NewMissionScope): boolean {
       .agents.find((a) => a.id === scope.agentId);
     if (!agent) return false;
     openMissionChat(agent, null);
-    return true;
-  }
-  if (scope.kind === "team") {
-    const roster = teamById(currentTeams(), scope.teamId)?.agents ?? [];
-    if (roster.length === 0) return false;
-    askRoster(
-      roster,
-      roster.map((a) => a.id),
-    );
     return true;
   }
   return false;
@@ -108,4 +78,36 @@ function askRoster(roster: Agent[], scopeIds: string[] | undefined): void {
     return;
   }
   useUIStore.getState().setNewMissionSheetOpen(true, scopeIds);
+}
+
+/**
+ * Open `agent`'s New task composer with `draft` already typed in, the way the
+ * user would reach it by hand: on the desktop, the agent's board with its
+ * composer open (the board takes `newTaskRequest`); on the phone, the empty
+ * draft chat. The words are a SEED ({@link seedDraft}): the composer shows
+ * them in a slot of their own, so a draft the user had parked there is never
+ * touched. Sending stays the user's own act.
+ *
+ * Returns the end of the seed, for the caller to run once it is done with the
+ * composer, whether or not the words were sent.
+ */
+export function composeTaskFor(agent: Agent, draft: string): () => void {
+  if (isMobileViewport()) {
+    // The phone's chat reads the Mission Control scope (`use-mission-chat-source.ts`).
+    const end = seedDraft(
+      newConversationDraftKey(missionControlDraftScope()),
+      draft,
+    );
+    openMissionChat(agent, null);
+    return end;
+  }
+  // An employee's board saves its composer under its own scope
+  // (`use-agent-board-scope.ts`).
+  const end = seedDraft(
+    newConversationDraftKey(missionControlDraftScope(agent.id)),
+    draft,
+  );
+  useUIStore.getState().requestNewTask(agent.id);
+  openAgentBoard(agent.id);
+  return end;
 }

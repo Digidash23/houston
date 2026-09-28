@@ -116,6 +116,7 @@ export const ARCHIVED: KanbanItem[] = [
     title: "Reply to the three new customer intros",
     status: "done",
     updatedAt: "2026-02-24T11:02:00.000Z",
+    tags: ["Started by Houston"],
   },
 ];
 

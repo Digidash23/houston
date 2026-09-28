@@ -1,9 +1,11 @@
 {
   "sidebar": {
     "academy": "Academy",
+    "admin": "Admin",
     "addAgent": "New AI Employee",
     "aiModels": "AI Models",
-    "assistant": "AI Manager",
+    "assistant": "Houston",
+    "assistantRole": "Your AI Manager",
     "changeColor": "Change color",
     "collapse": "Collapse sidebar",
     "color": "Color",
@@ -21,26 +23,37 @@
     },
     "createDialog": "Create",
     "createWorkspace": "Create workspace",
+    "drag": {
+      "pickedUp": "Picked up %name%.",
+      "movedOver": "%name% over %over%.",
+      "dropped": "Dropped %name% over %over%.",
+      "cancelled": "Cancelled moving %name%.",
+      "instructions": "Drag with the pointer. Use Alt+Up or Alt+Down to reorder, and Alt+Right or Alt+Left to move an AI Employee into or out of a group.",
+      "keyboardMoved": "Moved %name% to position %position% at the top level.",
+      "keyboardMovedInGroup": "Moved %name% to position %position% in %group%.",
+      "keyboardEnteredGroup": "Moved %name% into %group%.",
+      "keyboardLeftGroup": "Moved %name% out of %group%, to the top level."
+    },
     "expand": "Expand sidebar",
-    "guideMe": "Guide me",
-    "help": "Help",
     "integrations": "Integrations",
     "needsYouCount_one": "{{count}} issue needs you",
     "needsYouCount_other": "{{count}} issues need you",
     "newMission": "New task",
-    "newTeam": "New team",
-    "reportProblem": "Report a problem",
+    "newTeam": "New group",
     "runningCount_one": "{{count}} issue running",
     "runningCount_other": "{{count}} issues running",
     "selectWorkspace": "Select workspace",
     "settings": "Settings",
-    "skills": "Skills",
     "teams": {
-      "identity": "Change icon & name",
+      "identity": "Icon & color",
       "identityIcons": "Icons",
       "identityColors": "Colors",
       "identitySearch": "Search icons…",
-      "identitySearchEmpty": "No icons found"
+      "identitySearchEmpty": "No icons found",
+      "menu": "Actions for {{name}}",
+      "rename": "Rename",
+      "move": "Move to another space",
+      "delete": "Delete group"
     },
     "teamIcons": {
       "bank": "Bank",
@@ -367,7 +380,7 @@
       "staircase": "staircase",
       "starred": "starred",
       "support": "support",
-      "team": "team",
+      "team": "group team",
       "tech": "tech",
       "tee": "tee",
       "time": "time",
@@ -380,7 +393,10 @@
       "work": "work",
       "writing": "writing"
     },
-    "yourTeams": "Your teams"
+    "search": "Search",
+    "firstDay": "Start their first day",
+    "working": "Working…",
+    "newAgent": "New"
   },
   "missionChat": {
     "back": "Back"
@@ -393,7 +409,7 @@
       "title": "No AI Employees yet",
       "description": "Create an AI Employee to get started. Everything they work on shows up here."
     },
-    "allTeams": "All teams",
+    "allGroups": "All groups",
     "noTasks": "No tasks yet",
     "typing": "Typing..."
   },
@@ -417,16 +433,10 @@
       "description": "Start a task with the compose button and it will show up here."
     }
   },
-  "teamsHome": {
-    "title": "Teams",
-    "tree": "Teams and their sections",
-    "newTeam": "New team"
-  },
   "tabBar": {
     "agents": "AI Employees",
     "label": "Main navigation",
-    "more": "More",
-    "teams": "Teams"
+    "more": "More"
   },
   "sentrySmoke": {
     "nativeTriggeredTitle": "Native Sentry smoke triggered",
@@ -434,19 +444,19 @@
   },
   "errorToast": {
     "genericDescription": "Something unexpected went wrong. Please try again.",
-    "offlineTitle": "Houston, connection lost",
-    "offlineDescription": "We can't reach Houston right now. Check your internet connection and try again.",
-    "engineWakingTitle": "Houston, your AI Employee is waking up",
+    "offlineTitle": "Connection lost",
+    "offlineDescription": "We can't connect right now. Check your internet connection and try again.",
+    "engineWakingTitle": "Your AI Employee is waking up",
     "engineWakingDescription": "It usually takes about 20 seconds. You don't need to send your message again.",
-    "updateStuckTitle": "Houston, updates can't reach you",
+    "updateStuckTitle": "Updates can't reach you",
     "updateStuckDescription": "We haven't been able to check for updates. Your network may be blocking them. You can always get the latest version at gethouston.ai.",
-    "noAgentTitle": "Houston, you need an AI Employee first",
+    "noAgentTitle": "You need an AI Employee first",
     "noAgentDescription": "Create an AI Employee, then connect from its settings. This connection lives on an AI Employee."
   },
   "openUrl": {
-    "noBrowserTitle": "Houston, we couldn't find a web browser",
+    "noBrowserTitle": "We couldn't find a web browser",
     "noBrowser": "This computer has no default web browser. Choose one in your system settings, then try the link again.",
-    "failedTitle": "Houston, that link didn't open"
+    "failedTitle": "That link didn't open"
   },
   "agentDelete": {
     "title": "Delete AI Employee?",
@@ -454,7 +464,10 @@
   },
   "workspaceDialog": {
     "title": "New workspace",
-    "createFailed": "We couldn't create the workspace. Please try again."
+    "createFailed": "We couldn't create the workspace. Please try again.",
+    "nameLabel": "Workspace name",
+    "nameTaken": "You already have a workspace with this name.",
+    "create": "Create workspace"
   },
   "agentUpdate": {
     "title": "AI Employee update available",
@@ -464,7 +477,7 @@
     "reloadNow": "Reload now"
   },
   "authReconnect": {
-    "heading": "Houston, we have a problem",
+    "heading": "Session expired",
     "body": "Your {{provider}} session expired. Sign in again to keep your AI Employees running.",
     "waiting": "Waiting for browser sign-in...",
     "signInWith": "Sign in with {{provider}}"
@@ -481,22 +494,24 @@
     "stillStarting": "Your AI Employee is taking longer than usual to start. We are still trying, hang tight.",
     "blockedBody": "It is almost ready. This action will be available in a moment, as soon as your AI Employee finishes setting up.",
     "stalledTitle": "Still working on it",
-    "stalledBody": "This is taking longer than a normal start. We have not given up, your chat and messages are safe and will pick up the moment your AI Employee answers."
+    "stalledBody": "This is taking longer than a normal start. We have not given up, your chat and messages are safe and will pick up the moment your AI Employee answers.",
+    "gettingReadyTitle": "Getting {{name}} ready",
+    "gettingReadyBody": "This takes a minute or two. Feel free to look around while we set up {{name}}."
   },
   "reportBug": {
     "reportSuccessTitle": "Report sent",
-    "reportSuccessDescription": "Houston received the logs.",
+    "reportSuccessDescription": "We received the logs.",
     "reportErrorTitle": "Could not send report",
     "reportErrorDescription": "Try again in a moment."
   },
   "updateChecker": {
     "launchTitle": "Upgrading Houston",
-    "launchDescription": "Houston is updating to version {{version}}. The app will restart in a moment.",
+    "launchDescription": "Updating to version {{version}}. The app will restart in a moment.",
     "downloading": "Downloading update...",
     "downloadingProgress": "Downloading update... {{progress}}%",
     "installing": "Installing update...",
-    "errorInstall": "Houston couldn't install the update. Try again in a moment.",
-    "errorRelaunch": "Update installed, but Houston couldn't relaunch itself. Relaunch manually or try again.",
+    "errorInstall": "The update couldn't be installed. Try again in a moment.",
+    "errorRelaunch": "Update installed, but the app couldn't relaunch itself. Relaunch manually or try again.",
     "relaunchAction": "Relaunch Houston",
     "retryAction": "Try again",
     "retryUpdateAction": "Update failed. Try again",
@@ -507,8 +522,6 @@
   "naming": {
     "dialogTitle": "Name your AI Employee",
     "tagline": "Name your AI Employee and tell it what job it does",
-    "namePlaceholder": "e.g. Product manager, Sales, Jerry",
-    "linkExistingProject": "Link existing project",
     "createAgent": "Create AI Employee"
   },
   "newAgent": {
@@ -518,7 +531,7 @@
   },
   "engineGate": {
     "starting": "Loading your AI Employees…",
-    "reconnected": "Houston reconnected",
+    "reconnected": "Back online",
     "loadFailed": "Couldn't load your available AI models. Check your connection and try again.",
     "authRequiredTitle": "Sign-in required",
     "authRequiredBody": "This build connects to Houston's hosted engine, but no sign-in is configured. Set FIREBASE_API_KEY and FIREBASE_PROJECT_ID for this build to enable sign-in."
@@ -562,14 +575,14 @@
     "unauthenticated": {
       "title": "Sign in to {{provider}} again",
       "titleGeneric": "Connect an AI",
-      "bodyGeneric": "Houston needs an AI connected before it can answer.",
+      "bodyGeneric": "Connect an AI to get an answer.",
       "connectProvider": "Connect AI",
       "reconnectedTitleGeneric": "Connected",
       "bodyTokenExpired": "Your {{provider}} session expired. Reconnect to continue.",
-      "bodyNoCredentials": "Houston needs you to sign in to {{provider}} before it can answer.",
-      "bodyInvalidApiKey": "The {{provider}} API key Houston has is no longer valid. Update it and try again.",
+      "bodyNoCredentials": "Sign in to {{provider}} to get an answer.",
+      "bodyInvalidApiKey": "Your {{provider}} API key is no longer valid. Update it and try again.",
       "bodyTokenRevoked": "Your {{provider}} access was revoked. Sign in again to continue.",
-      "bodyUnknown": "Houston could not authenticate with {{provider}}. Reconnect and try again.",
+      "bodyUnknown": "We couldn't sign in to {{provider}}. Reconnect and try again.",
       "titleOrgPolicy": "{{provider}} blocked subscription access",
       "bodyOrgPolicyBlocked": "{{provider}} does not allow your subscription to be used here, so signing in again will not help. Add a {{provider}} API key on the AI Models page to keep working.",
       "useApiKey": "Use an API key",
@@ -577,16 +590,16 @@
       "waiting": "Finish signing in using your browser",
       "reconnectedTitle": "Reconnected to {{provider}}",
       "reconnectedBody": "You are signed in again. Pick up where you left off.",
-      "reconnectedResending": "You are signed in again. Houston is answering your message now.",
-      "reconnectedResuming": "You are signed in again. Houston is continuing where you left off.",
+      "reconnectedResending": "You are signed in again. Your message is being answered now.",
+      "reconnectedResuming": "You are signed in again. Picking up where you left off.",
       "signedIn": "Signed in",
       "failedBody": "The {{provider}} sign-in did not finish. Sign in again. {{detail}}"
     },
     "networkUnreachable": {
       "title": "Cannot reach {{provider}}",
-      "body": "Houston could not reach the {{provider}} API. Check your internet, then try again.",
+      "body": "We couldn't reach the {{provider}} API. Check your internet, then try again.",
       "localTitle": "Cannot reach your local model",
-      "localBody": "Houston could not reach the model on your computer. Make sure the model app is open and its server is running, then try again.",
+      "localBody": "We couldn't reach the model on your computer. Make sure the model app is open and its server is running, then try again.",
       "retry": "Try again",
       "checkStatus": "Check status page"
     },
@@ -598,7 +611,7 @@
     },
     "sessionResumeMissing": {
       "title": "Session restarted",
-      "body": "The previous {{provider}} conversation could not be reopened, so Houston restarted it. Your message was sent again and the assistant is responding below.",
+      "body": "The previous {{provider}} conversation could not be reopened, so it was restarted. Your message was sent again and the reply is on its way below.",
       "tryAgain": "Try again"
     },
     "malformedResponse": {
@@ -608,13 +621,13 @@
     },
     "spawnFailed": {
       "title": "Could not start {{provider}}",
-      "body": "Houston could not start {{provider}}. Try reinstalling, then report it if it keeps happening.",
+      "body": "We couldn't start {{provider}}. Try reinstalling, then report it if it keeps happening.",
       "reinstall": "Reinstall {{provider}}",
       "reportBug": "Report bug"
     },
     "unknown": {
       "title": "Something unexpected happened",
-      "body": "Houston could not classify this {{provider}} error. Report it so we can teach Houston to handle it next time.",
+      "body": "We couldn't identify this {{provider}} error. Report it so we can handle it next time.",
       "reportBug": "Report bug",
       "rawLabel": "Raw output"
     }
@@ -633,8 +646,7 @@
     "groups": {
       "actions": "Actions",
       "agents": "AI Employees",
-      "recentMissions": "Recent tasks",
-      "teams": "Teams"
+      "recentMissions": "Recent tasks"
     },
     "actions": {
       "newMission": "Start new task",
@@ -663,13 +675,27 @@
     }
   },
   "moreMenu": {
-    "help": "Help",
     "title": "More"
   },
   "addToWorkspace": {
     "title": "Add to your workspace",
     "headline": "What do you want to add?",
     "agentTitle": "AI Employee",
-    "teamTitle": "Team"
+    "teamTitle": "Group"
+  },
+  "employeeCard": {
+    "changeColor": "Change color: {{color}}",
+    "namePlaceholder": "e.g. Ava",
+    "namePlaceholderForRole": "e.g. {{role}}, Assistant 3, Jerry",
+    "nameLabel": "Name ({{role}})",
+    "nameRequired": "Add a name to continue",
+    "status": {
+      "joining": "Joining",
+      "hired": "On your team",
+      "failed": "Didn't join"
+    },
+    "retryLabel": "Try hiring {{name}} again",
+    "removeLabel": "Remove {{name}}",
+    "nameHeading": "Name"
   }
 }

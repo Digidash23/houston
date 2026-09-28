@@ -8,9 +8,22 @@
  * the same PR or the app compiles against a contract nothing serves.
  */
 
-import type { SkillWorkflow } from "@houston/protocol";
+import type { AgentInitialConfig, SkillWorkflow } from "@houston/protocol";
+import type { Agent } from "./agents";
 
-export type { SkillWorkflow, SkillWorkflowStep } from "@houston/protocol";
+export type {
+  AgentArrival,
+  AgentInitialConfig,
+  ConversationImportMessage,
+  ConversationImportRequest,
+  ConversationImportResult,
+  FirstDayOutcome,
+  FirstDayRefusalCode,
+  FirstDayStartInput,
+  FirstDayStartResult,
+  SkillWorkflow,
+  SkillWorkflowStep,
+} from "@houston/protocol";
 
 export const PROTOCOL_VERSION = 1 as const;
 
@@ -100,6 +113,8 @@ export interface Capabilities {
   integrations: string[];
   /** Workspace-shared skills store served by this deployment (ADR 0003). */
   sharedSkills: boolean;
+  /** This deployment serves agent-to-agent mission policy and delegation. */
+  agentDelegation?: boolean;
   /**
    * Whether a custom integration can sign in through its own OAuth flow
    * (PRODUCT-1172): the host serves a browser-reachable callback. Absent/false
@@ -160,15 +175,8 @@ export interface Capabilities {
    * predate it. Feature-detect flag only — the gateway is the sole enforcer.
    */
   computeUsage?: boolean;
-  /**
-   * Whether this deployment serves C13 agent teams: named groups of agents +
-   * people INSIDE one space, server-owned. A feature-detect flag the frontend
-   * reads to swap `useTeams()` from the local `sidebar_layout` backend to the
-   * server one; absent/false on desktop/self-host and on gateways that predate
-   * it, where teams stay the user's local sidebar grouping. DISTINCT from
-   * `teams` (which flags multiplayer itself). The gateway is the sole enforcer.
-   */
-  agentTeams?: boolean;
+  /** C19 personal plan is configured on this deployment. */
+  plan?: boolean;
   /**
    * Whether this deployment can delete a team space (`DELETE /v1/orgs/:slug`,
    * PRODUCT-1410). A feature-detect flag the frontend reads to show the
@@ -291,58 +299,6 @@ export interface OrgPerson {
   userId: string;
   displayName?: string;
   photoUrl?: string;
-}
-
-/**
- * One team inside the active space (C13): a named group of agents and the
- * people who subscribed to it. `joined`, `owner` and `memberCount` are the
- * CALLER's EFFECTIVE values, resolved server-side — never raw membership rows,
- * so an org owner/admin reads `owner: true` on every team and everyone reads
- * `joined: true` on the default one.
- */
-export interface AgentTeam {
-  id: string;
-  name: string;
-  /** The space's catch-all team: undeletable, and everyone belongs to it. */
-  isDefault: boolean;
-  sortOrder: number;
-  /**
-   * The agents of this team the CALLER may see. Role-filtered server-side (the
-   * same C7 v2 matrix `GET /agents` obeys), so it is the caller's VIEW of the
-   * team's roster, never the whole of it.
-   */
-  agentSlugs: string[];
-  /** Explicit membership rows, except on the default team, where it is the
-   *  space's member count (everyone is in it and it holds no rows). */
-  memberCount: number;
-  joined: boolean;
-  owner: boolean;
-  /** The team's glyph NAME (`^[a-z0-9-]{1,32}$`), never an image. ABSENT when
-   *  unset — the vocabulary is the client's, the gateway validates shape only. */
-  icon?: string;
-  /** `#rrggbb` or a theme token name. ABSENT when unset. */
-  color?: string;
-  /**
-   * The team's shared CONTEXT: prose every agent of the team is given before it
-   * starts a turn. Unlike {@link AgentTeam.icon}/{@link AgentTeam.color} this is
-   * a plain text column with an empty default, so a gateway that supports it
-   * always serves the key (`""` when nobody has written one). Its ABSENCE is
-   * therefore the feature detection: a gateway that predates the column omits
-   * it, and the client hides the editor rather than offering a write the
-   * gateway would 400 and an injection no agent would ever see.
-   */
-  context?: string;
-}
-
-/**
- * One EXPLICIT membership row of a team. Implicit owners (an org owner/admin,
- * who owns every team) are a permission rule, not a roster entry, and are
- * deliberately absent here — never derive `joined`/`owner` for the caller from
- * this list; read them off {@link AgentTeam}.
- */
-export interface AgentTeamMember {
-  userId: string;
-  owner: boolean;
 }
 
 /**
@@ -712,301 +668,13 @@ export interface WorkspaceContext {
   user: string;
 }
 
-/** A user-created, collapsible sidebar section that agents are dragged into. */
-export interface SidebarGroup {
-  /** Stable client-minted id (never an agent id). */
-  id: string;
-  name: string;
-  collapsed: boolean;
-  /** Member agent ids, in drag order. */
-  agentIds: string[];
-  /** Shared context injected into every member agent's system prompt (a
-   *  group-scoped `WORKSPACE.md`), mirrored to each member's `GROUP.md`.
-   *  Absent/empty = no group context. */
-  context?: string;
-  /** The team's glyph NAME (never an image), the LOCAL half of the identity
-   *  C13 stores server-side. Absent = unset, which is "render your own
-   *  default" and not "render nothing". */
-  icon?: string;
-  /** The team's color: `#rrggbb` or a theme token name. Absent = unset.
-   *  Nothing is added to {@link SidebarLayout} for the DEFAULT team, which is
-   *  VIRTUAL locally (it IS the workspace, holding every agent in no group) and
-   *  so carries no identity of its own to store. */
-  color?: string;
-}
-
-/**
- * Per-workspace sidebar arrangement: the user's named groups plus the manual
- * (drag) order of everything. Ordering is ALWAYS manual — there is no sort
- * mode. Agents in no group render in the default section in `ungroupedOrder`;
- * a brand-new agent is appended. Persisted as the `sidebar_layout` workspace
- * preference (JSON). Absent/corrupt reads as `{ groups: [], ungroupedOrder: [] }`.
- */
-export interface SidebarLayout {
-  /** Named groups, in display order. */
-  groups: SidebarGroup[];
-  /** Drag order of agents not in any group. */
-  ungroupedOrder: string[];
-  /** Whether the DEFAULT team block is folded shut in the rail. A named team is
-   *  a stored {@link SidebarGroup} and keeps its own `collapsed`; the default
-   *  team is VIRTUAL (it is the workspace itself, holding every agent in no
-   *  group), so it has no group row to hold the flag and it lives here instead.
-   *  Absent = false (expanded). */
-  defaultCollapsed?: boolean;
-  /** The DEFAULT team's shared context — the exact counterpart of
-   *  {@link SidebarGroup.context} for the one team that owns no group row to
-   *  hold it, and here for the same reason `defaultCollapsed` is. Its members
-   *  are every agent in NO named group, and the host mirrors it to each of
-   *  their `GROUP.md` files on the layout write, so "every agent in this team
-   *  knows this" is delivered by the SAME mechanism a named team uses.
-   *  Absent/empty = no default-team context. NOT `WORKSPACE.md`: that file is
-   *  workspace-wide and every agent reads it whatever team it is in. */
-  defaultContext?: string;
-}
-
-// ---------- Workspace-scoped agent CRUD ----------
-
-export interface Agent {
-  id: string;
-  name: string;
-  folderPath: string;
-  configId: string;
-  color?: string;
-  createdAt: string;
-  lastOpenedAt?: string;
-  /**
-   * The agent's absolute on-disk directory, reported only when the engine is
-   * co-located with the files (TS host, local profile). This is what the
-   * desktop shell hands to the OS reveal/open commands — `folderPath` there is
-   * a route key, not a path (HOU-677). Absent on cloud and on the legacy Rust
-   * engine (whose `folderPath` is already the real path).
-   */
-  localDir?: string;
-  /**
-   * Multiplayer only: whether the CURRENT user has been assigned this agent
-   * (i.e. may use it). Absent in single-player mode, where every agent is the
-   * sole user's. The host computes this per-caller.
-   */
-  assigned?: boolean;
-  /**
-   * Multiplayer only: the org-member user ids this agent is assigned to.
-   * Empty means "everyone in the org". Absent in single-player mode. Only
-   * populated for callers who may manage assignments (owner/admin).
-   *
-   * Retained for back-compat alongside the richer `assignments` (Teams v2);
-   * the two carry the same user set for a manager/owner caller.
-   */
-  assignedUserIds?: string[];
-  /**
-   * Teams v2: the CURRENT caller's effective access to this agent —
-   * `"manager"` (may reconfigure) or `"user"` (may only use). Owner is always
-   * `"manager"`. Absent in single-player mode and on hosts that predate Teams.
-   */
-  access?: AgentAccess;
-  /**
-   * Teams v2: the full assignee list with per-person access level. Populated
-   * only for callers who may manage the agent (owner, or an admin who is an
-   * agent-manager); absent for agents an admin merely uses, and in
-   * single-player mode. `assignedUserIds` mirrors these user ids for back-compat.
-   */
-  assignments?: AgentAssignment[];
-}
-
-export interface CreateAgent {
-  name: string;
-  configId: string;
-  color?: string;
-  claudeMd?: string;
-  installedPath?: string;
-  seeds?: Record<string, string>;
-  existingPath?: string;
-}
-
-export interface CreateAgentResult {
-  agent: Agent;
-}
-
-export interface UpdateAgent {
-  color: string;
-}
+export type {
+  SidebarGroup,
+  SidebarLayout,
+  SidebarRootEntry,
+} from "@houston/protocol";
 
 // ---------- Agents / agent-data files ----------
-
-/** A choice the agent authored, or a structural approval control whose label
- *  the surface owns in its own locale (`kind: "approval"`, id-keyed). */
-export type InteractionOption =
-  | InteractionChoiceOption
-  | { kind: "approval"; id: "approve" | "decline" };
-
-export interface InteractionChoiceOption {
-  kind?: "choice";
-  id: string;
-  label: string;
-  /** One muted line of consequence or benefit shown after the label. */
-  description?: string;
-  /** Mark AT MOST one option as the suggested default. */
-  recommended?: boolean;
-}
-
-/** The Houston screens a `hands_on` step sends the user to. CLOSED: a client
- *  can only hand over a screen it knows how to open. Mirrors
- *  `packages/protocol/src/domain/interaction-types.ts`. */
-export type HandsOnSurface =
-  | "apiKeys"
-  | "billing"
-  | "files"
-  | "routineWebhook"
-  | "orgDanger";
-
-/** One step in the interaction sequence. `id` is tool-assigned (`q1`..`qN` for
- *  question steps, `s1` for the single signin step, `c1`..`cN` for connect
- *  steps, `h1`..`hN` for hands-on steps) so each step's outcome is
- *  addressable. */
-export type InteractionStep =
-  | {
-      kind: "question";
-      id: string;
-      question: string;
-      /** Verbatim material the question is ABOUT, when it is too long or too
-       *  multi-line to read inside a sentence. Shown under the question in its
-       *  own scrollable block, so a value the user approves is always visible. */
-      detail?: string;
-      options?: InteractionOption[];
-      /** Lowercase toolkit slug when the question concerns an integration (e.g.
-       *  "gmail"); the app resolves it to the app's identity and BRANDS the
-       *  question card's header with the logo + name. Absent = a plain question. */
-      toolkit?: string;
-      /** Present ONLY on an approval card for a destructive Houston operation:
-       *  the host-issued id of the pending request this card decides. The
-       *  user's answer travels back carrying it, which binds the approval to
-       *  ONE exact call and makes it usable once. */
-      requestId?: string;
-    }
-  | { kind: "signin"; id: string; reason?: string }
-  | { kind: "connect"; id: string; toolkit: string; reason?: string }
-  /** The user must enter a custom integration's API key in a secure field (never
-   *  into the chat). `toolkit` is the custom integration's slug (HOU-550). */
-  | { kind: "credential"; id: string; toolkit: string; reason?: string }
-  | { kind: "provider_connect"; id: string; provider: string; reason?: string }
-  /** An errand only the user's own hands can finish on a Houston screen —
-   *  billing, a key revealed once, files from their device. Nothing can observe
-   *  the outcome, so the card asks them to say Done or Skip. */
-  | {
-      kind: "hands_on";
-      id: string;
-      surface: HandsOnSurface;
-      reason?: string;
-    }
-  /** The model finished planning: a short plan summary the user approves by
-   *  choosing a mode (start working / Autopilot) or dismisses to keep planning. */
-  | { kind: "plan_ready"; id: string; summary: string }
-  /** The model finished cleanly and offers to save the just-completed work as a
-   *  reusable Skill, a scheduled Routine, or a Learning to remember. Optional and
-   *  dismissible; a non-blocking offer the settled card renders. Steps never pick
-   *  the board status — a clean finish always settles `needs_you`. Mirrors
-   *  `packages/protocol/src/domain/interaction.ts`. */
-  | {
-      kind: "suggest_reusable";
-      id: string;
-      reusableKind: "skill" | "routine" | "learning";
-      title: string;
-      rationale: string;
-    }
-  /** Optional, concrete follow-up actions after a clean finish. A non-blocking
-   * offer the settled card renders; it never affects which status the turn settles. */
-  | {
-      kind: "suggest_actions";
-      id: string;
-      actions: { id: string; label: string; message: string }[];
-    };
-
-/**
- * The ordered steps a mission is waiting on the user for — recorded when the
- * model ends a turn by asking (ask_user) and/or requesting a connection
- * (request_connection). Present drives the `needs_you` board card and the
- * composer-replacing card, which walks the user through the steps one at a time;
- * absent means the mission needs nothing. Question steps come first (at most 3),
- * then at most one signin step, then connect steps.
- */
-export interface PendingInteraction {
-  steps: InteractionStep[];
-}
-
-export interface Activity {
-  id: string;
-  title: string;
-  description: string;
-  status: string;
-  claude_session_id?: string | null;
-  session_key?: string;
-  agent?: string;
-  routine_id?: string;
-  routine_run_id?: string;
-  /** The installed skill (directory slug) this setup chat belongs to. The
-   *  durable reverse direction of the skill <-> chat link (HOU-791). */
-  skill_slug?: string;
-  updated_at?: string;
-  provider?: string;
-  model?: string;
-  /** The conversation this mission was started from, present only when the
-   *  agent created the mission itself (PRODUCT-1244). Server-stamped. */
-  origin_session_key?: string;
-  pending_interaction?: PendingInteraction;
-  /** The human who created this mission (Teams attribution). Server-stamped
-   *  from the gateway acting-as identity; absent on desktop/single-player. */
-  created_by?: string;
-  /** Humans who started or collaborated on this mission (Teams attribution).
-   *  Server-stamped in multiplayer only; absent on desktop/single-player. */
-  contributors?: { user_id: string; name?: string }[];
-  /** Teammates @mentioned in this mission's chat, latest per person.
-   *  Server-stamped in multiplayer only; absent on desktop/single-player. */
-  mentioned?: { user_id: string; at: string; by?: string }[];
-}
-
-/**
- * A mission's board status. The closed set a WRITE may set, mirroring
- * `ACTIVITY_STATUSES` (@houston/domain) — which this package cannot import, it
- * being a dependency-free client type mirror. Reads keep `Activity.status` open
- * on purpose: a status written by a newer host renders neutrally instead of
- * being dropped.
- */
-export type ActivityStatus =
-  | "running"
-  | "needs_you"
-  | "done"
-  | "error"
-  | "archived";
-
-export interface ActivityUpdate {
-  title?: string;
-  description?: string;
-  status?: ActivityStatus;
-  claude_session_id?: string | null;
-  session_key?: string;
-  agent?: string;
-  routine_id?: string;
-  routine_run_id?: string;
-  skill_slug?: string;
-  provider?: string | null;
-  model?: string | null;
-  /** Set to record a new pending interaction; `null` clears it explicitly. */
-  pending_interaction?: PendingInteraction | null;
-}
-
-export interface NewActivity {
-  /**
-   * Client-generated id, so the caller knows the id (and the derived
-   * `activity-<id>` session key) before the request lands — optimistic
-   * mission creation against a warming engine (HOU-693). Omitted → the
-   * host assigns one.
-   */
-  id?: string;
-  title: string;
-  description?: string;
-  agent?: string;
-  provider?: string;
-  model?: string;
-}
 
 /**
  * Whether a routine's runs share one chat or each start a fresh one.
@@ -1203,72 +871,6 @@ export interface ProjectFile {
 export interface InstalledConfig {
   config: unknown;
   path: string;
-}
-
-// ---------- Conversations ----------
-
-export interface ConversationEntry {
-  id: string;
-  title: string;
-  description?: string;
-  status?: string;
-  type: string;
-  session_key: string;
-  updated_at?: string;
-  agent_path: string;
-  agent_name: string;
-  agent?: string;
-  routine_id?: string;
-  /** The row's provider/model pin (pi's canonical provider id), carried so a
-   *  board seeded from the cross-agent sweep never presents a pinned chat as
-   *  pin-less (PRODUCT-1771). Absent on rows that were never pinned. */
-  provider?: string;
-  model?: string;
-  /** The conversation this mission was started from, present only when the
-   *  agent created the mission itself (PRODUCT-1244). Server-stamped. */
-  origin_session_key?: string;
-  /** The human who created this mission (Teams attribution). Server-stamped
-   *  from the gateway acting-as identity; absent on desktop/single-player. */
-  created_by?: string;
-  /** Humans who started or collaborated on this mission (Teams attribution).
-   *  Server-stamped in multiplayer only; absent on desktop/single-player. */
-  contributors?: { user_id: string; name?: string }[];
-  /** Teammates @mentioned in this mission's chat, latest per person.
-   *  Server-stamped in multiplayer only; absent on desktop/single-player. */
-  mentioned?: { user_id: string; at: string; by?: string }[];
-}
-
-/**
- * The result of a CROSS-AGENT conversation sweep (`listAllConversations`).
- *
- * In hosted mode the sweep is a fan-out — one read per agent — and any single
- * agent's read can fail on its own (a pod that never woke, a gateway blip)
- * while every other agent answers. A bare array cannot express that: it either
- * rejects (blanking the board over one sick agent) or looks like a complete
- * answer (silently dropping that agent's missions and freezing the gap in
- * cache). So the sweep reports WHICH agents it could not read, and the caller
- * decides how to recover (HOU-981).
- *
- * `failedAgents` empty = a complete, trustworthy answer.
- */
-export interface AllConversationsResult {
-  /** Rows from every agent that answered, flattened. */
-  conversations: ConversationEntry[];
-  /** Agents whose read failed in THIS sweep. Non-empty = partial. */
-  failedAgents: FailedAgentRead[];
-}
-
-/**
- * One agent the sweep could not read, WITH the error its read threw. The
- * reason travels so the surface layer can classify the failure — a waking
- * pod's "engine unavailable" 503 is an expected state with its own quiet
- * surface, while a real failure must reach crash reporting — instead of
- * reporting every partial sweep blind (HOUSTON-APP-538).
- */
-export interface FailedAgentRead {
-  agentPath: string;
-  /** What the read threw, verbatim. */
-  reason: unknown;
 }
 
 // ---------- Skills ----------
@@ -1505,23 +1107,7 @@ export interface PreferenceValue {
 export type KnownPreferenceKey =
   | "timezone"
   | "locale"
-  | "legal_acceptance"
   | "migration_reconnect_dismissed";
-
-/**
- * Persisted record that the user has accepted a given version of the
- * in-app security disclaimer. Stored as the JSON-encoded value of the
- * `"legal_acceptance"` preference. The frontend re-prompts whenever the
- * stored `version` is lower than the current in-app constant.
- */
-export interface LegalAcceptance {
-  version: number;
-  /** RFC3339 timestamp captured at the moment of acceptance. */
-  acceptedAt: string;
-}
-
-/** Preference key for the JSON-encoded [`LegalAcceptance`]. */
-export const LEGAL_ACCEPTANCE_KEY = "legal_acceptance";
 
 /**
  * Preference key marking that the user has seen (and dismissed/completed) the
@@ -2010,6 +1596,8 @@ export interface PortableInstallRequest {
   agentName: string;
   agentColor?: string | null;
   selection: PortableInstallSelection;
+  /** The config the installed agent is born with, as on any create. */
+  config?: AgentInitialConfig;
 }
 
 export interface PortableInstalledAgent {

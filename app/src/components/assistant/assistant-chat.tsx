@@ -13,15 +13,14 @@ import {
 } from "../../lib/tauri";
 import { useUIStore } from "../../stores/ui";
 import { useAttachmentRejectionDialog } from "../attachment-rejection-dialog";
-import { useAgentBoardSend } from "../board/use-agent-board-send";
 import { useBoardDrafts } from "../board/use-board-drafts";
 import { useBoardLabels } from "../board/use-board-labels";
-import { useBoardSendQueue } from "../board/use-board-send-queue";
 import { useAgentChatPanel } from "../use-agent-chat-panel";
 import { useQueuedMessageLabels } from "../use-queued-message-labels";
 import { assistantAgent } from "./assistant-agent";
 import { AssistantEmptyState } from "./assistant-empty-state";
 import { AssistantPhoneHeader } from "./assistant-phone-header";
+import { useAssistantSend } from "./use-assistant-send";
 import { useContextCommandMenu } from "./use-context-command-menu";
 
 const noop = () => {};
@@ -69,31 +68,7 @@ export function AssistantChat({ handle }: { handle: AssistantHandle }) {
       panel.effectiveModel,
     ),
   });
-  const overrides = useMemo(
-    () => ({
-      providerOverride: panel.effectiveProvider,
-      modelOverride: panel.effectiveModel,
-      modeOverride: panel.turnMode,
-    }),
-    [panel.effectiveProvider, panel.effectiveModel, panel.turnMode],
-  );
-
-  // No board behind this chat (`rawItems: undefined`, not an empty board): the
-  // send hook's per-conversation loading then follows the SDK conversation VM
-  // alone, which is the only lifecycle signal an activity-less chat has — it
-  // starts the spinner on the turn and ends it on the settle.
-  const send = useAgentBoardSend({
-    agent,
-    rawItems: undefined,
-    openSessionKey: sessionKey,
-  });
-  const sendQueue = useBoardSendQueue({
-    selectedSessionKey: sessionKey,
-    selectedAgentPath: path,
-    overrides,
-    resolveSendPin: panel.resolveSendPin,
-    sendMessageNow: send.sendMessageNow,
-  });
+  const { send, sendQueue } = useAssistantSend(agent, sessionKey, panel);
 
   // The composer "+" menu gains the two conversation commands. They travel as
   // ordinary messages (the runtime reads them at the turn route), so the menu

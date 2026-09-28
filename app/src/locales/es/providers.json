@@ -1,6 +1,6 @@
 {
   "setup": {
-    "installHint": "Instala la CLI de {{cli}} en tu computador. Houston la detecta sola.",
+    "installHint": "Instala la CLI de {{cli}} en tu computador. Se detecta sola.",
     "installGuide": "Guía de instalación",
     "signInWith": "Iniciar sesión",
     "waiting": "Esperando a que termines de iniciar sesión en tu navegador...",
@@ -9,13 +9,13 @@
   },
   "signOutConfirm": {
     "title": "¿Cerrar sesión de {{provider}}?",
-    "description": "Houston dejará de usar {{provider}} hasta que vuelvas a iniciar sesión. Las tareas existentes pueden terminar su turno actual.",
+    "description": "{{provider}} no se usará hasta que vuelvas a iniciar sesión. Las tareas existentes pueden terminar su turno actual.",
     "confirm": "Cerrar sesión",
     "cancel": "Cancelar"
   },
   "toast": {
     "signInFailed": "No se pudo abrir el inicio de sesión de {{provider}}",
-    "engineUnavailable": "Houston no pudo conectarse con tu espacio de trabajo. Espera un momento e intenta de nuevo.",
+    "engineUnavailable": "No pudimos conectarnos con tu espacio de trabajo. Espera un momento e intenta de nuevo.",
     "connectTimedOut": "La conexión no se completó a tiempo. Intenta conectarte de nuevo.",
     "loginTimedOut": "El inicio de sesión no se completó a tiempo. Intenta de nuevo.",
     "signInExpiredTitle": "Ese enlace de inicio de sesión expiró",
@@ -70,13 +70,13 @@
   },
   "apiKey": {
     "title": "Conectar {{name}}",
-    "description": "Pega tu clave de API de {{name}}. Houston la guarda de forma segura y la usa para tus chats.",
+    "description": "Pega tu clave de API de {{name}}. La guardamos de forma segura y la usamos para tus chats.",
     "getKey": "Obtén tu clave de API",
     "label": "Clave de API",
     "placeholder": "Pega tu clave de API",
     "endpointLabel": "Punto de conexión",
     "endpointPlaceholder": "https://tu-recurso.openai.azure.com",
-    "endpointHelp": "La URL del punto de conexión de tu recurso en el portal de Azure. Houston llama a la implementación con el mismo nombre del modelo, así que nombra tus implementaciones igual que el modelo (por ejemplo \"gpt-5.5\").",
+    "endpointHelp": "La URL del punto de conexión de tu recurso en el portal de Azure. Cada solicitud va a la implementación con el mismo nombre del modelo, así que nombra tus implementaciones igual que el modelo (por ejemplo \"gpt-5.5\").",
     "endpointRequired": "Primero ingresa la URL del punto de conexión. Empieza con https:// y la encuentras en tu recurso del portal de Azure.",
     "required": "Primero ingresa tu clave de API.",
     "verifyFailed": "No se pudo conectar esta clave: {{detail}}",
@@ -125,7 +125,7 @@
   },
   "openaiCompatible": {
     "title": "Conecta un modelo local",
-    "description": "Apunta Houston a un modelo que corre en tu computador, como Ollama, LM Studio o vLLM.",
+    "description": "Usa un modelo que corre en tu computador, como Ollama, LM Studio o vLLM.",
     "baseUrlLabel": "Dirección del servidor",
     "baseUrlPlaceholder": "http://localhost:11434/v1",
     "baseUrlHelp": "La dirección donde escucha tu servidor local. Para Ollama suele ser http://localhost:11434/v1.",
@@ -155,8 +155,8 @@
   },
   "claudeLogin": {
     "timeout": "El inicio de sesión de Claude expiró. Intenta conectarte de nuevo.",
-    "confirmTimeout": "Iniciaste sesión en Claude, pero Houston no pudo confirmar la conexión. Inténtalo de nuevo.",
-    "handoffFailed": "Iniciaste sesión en Claude, pero Houston tuvo un problema de nuestro lado al terminar la conexión. Inténtalo de nuevo en un momento o reporta un error si sigue pasando.",
+    "confirmTimeout": "Iniciaste sesión en Claude, pero no pudimos confirmar la conexión. Inténtalo de nuevo.",
+    "handoffFailed": "Iniciaste sesión en Claude, pero tuvimos un problema de nuestro lado al terminar la conexión. Inténtalo de nuevo en un momento o reporta un error si sigue pasando.",
     "autoFailedTitle": "No se pudo completar la conexión automáticamente",
     "autoFailedBody": "Pega una clave de API de Anthropic para terminar de conectar.",
     "helperUnsupported": "El procesador de este computador es demasiado antiguo para ejecutar el asistente de inicio de sesión de Claude, así que no se puede conectar una suscripción de Claude en esta máquina.",
@@ -164,7 +164,7 @@
   },
   "localModel": {
     "title": "Conecta un modelo local",
-    "description": "Ejecuta un modelo en tu propio computador y deja que Houston lo use. Houston se encarga de la conexión.",
+    "description": "Ejecuta un modelo en tu propio computador y úsalo aquí. Nosotros nos encargamos de la conexión.",
     "detecting": "Buscando apps de modelos en tu computador...",
     "cancel": "Cancelar",
     "connecting": {
@@ -184,11 +184,11 @@
         "ollama": "Funciona solo una vez instalado. No hay que activar nada."
       },
       "get": "Descargar",
-      "reassure": "Cuando esté abierta, Houston se encarga del resto.",
+      "reassure": "Cuando esté abierta, nos encargamos del resto.",
       "recheck": "Buscar de nuevo"
     },
     "pick": {
-      "body": "Houston encontró estos en tu computador. Elige el modelo que quieres usar.",
+      "body": "Encontramos estos en tu computador. Elige el modelo que quieres usar.",
       "modelsFound_one": "{{count}} modelo disponible",
       "modelsFound_other": "{{count}} modelos disponibles",
       "modelLabel": "Modelo",

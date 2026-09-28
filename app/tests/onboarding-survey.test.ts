@@ -1,26 +1,35 @@
 import { deepStrictEqual, strictEqual, throws } from "node:assert";
 import { describe, it } from "node:test";
-import { createOnboardingSegmentPreference } from "../src/lib/onboarding-segment.ts";
+import type { LegacySegmentPreference } from "../src/lib/onboarding-legacy-segment.ts";
 import {
+  applyCompanySize,
   applyCompletionDismissed,
   applyGoal,
   applyGoalSkipped,
   applyIndustry,
-  applySegment,
+  applyRole,
   createOnboardingSurveyPreference,
+  isCompanySizeAnswered,
   isGoalAnswered,
   isIndustryAnswered,
+  isOnboardingCompanySizeChoice,
   isOnboardingIndustry,
   isOnboardingIndustryChoice,
-  isSegmentAnswered,
+  isOnboardingRole,
+  isOnboardingRoleChoice,
+  isRoleAnswered,
   isValidAutomationGoal,
   liftLegacySegmentPreference,
   markGatewaySynced,
   needsCompletionPrompt,
+  normalizeOnboardingCompanySizeChoice,
+  normalizeOnboardingRoleChoice,
+  ONBOARDING_COMPANY_SIZE_SKIPPED,
   ONBOARDING_GOAL_MAX_LENGTH,
-  ONBOARDING_INDUSTRIES,
   ONBOARDING_INDUSTRY_SKIPPED,
-  ONBOARDING_SEGMENT_SKIPPED,
+  ONBOARDING_INDUSTRY_SOMETHING_ELSE,
+  ONBOARDING_ROLE_SKIPPED,
+  ONBOARDING_ROLE_SOMETHING_ELSE,
   ONBOARDING_SURVEY_PREF_KEY,
   ONBOARDING_SURVEY_VERSION,
   type OnboardingSurveyPreference,
@@ -34,49 +43,76 @@ function answered(
 ): OnboardingSurveyPreference {
   return {
     ...createOnboardingSurveyPreference(),
-    segment: "marketing",
-    industry: "technology",
+    role: "store_manager",
+    industry: "software_it",
+    companySize: "51_200",
     automationGoal: "Chase overdue invoices every Monday",
     ...overrides,
   };
 }
 
 describe("onboarding survey ids", () => {
-  it("pins the pref key, version and industry list", () => {
+  it("pins the pref key and version", () => {
     strictEqual(ONBOARDING_SURVEY_PREF_KEY, "houston_onboarding_survey");
     strictEqual(ONBOARDING_SURVEY_VERSION, 2);
-    deepStrictEqual(
-      [...ONBOARDING_INDUSTRIES],
-      [
-        "technology",
-        "finance",
-        "legal",
-        "healthcare",
-        "education",
-        "retail",
-        "manufacturing",
-        "real_estate",
-        "marketing_agencies",
-        "government_nonprofit",
-        "consulting",
-        "something_else",
-      ],
-    );
   });
 
-  it("accepts only known industry ids", () => {
+  it("accepts the hire catalog's contexts and the door out of them", () => {
     strictEqual(isOnboardingIndustry("healthcare"), true);
-    strictEqual(isOnboardingIndustry("government_nonprofit"), true);
+    strictEqual(isOnboardingIndustry("software_it"), true);
+    strictEqual(isOnboardingIndustry(ONBOARDING_INDUSTRY_SOMETHING_ELSE), true);
     strictEqual(isOnboardingIndustry("crypto free text"), false);
+    // The survey's own legacy ids are read (normalized), never written.
+    strictEqual(isOnboardingIndustry("government_nonprofit"), false);
     // "skipped" is a persistable CHOICE, never one of the industry answers.
     strictEqual(isOnboardingIndustry(ONBOARDING_INDUSTRY_SKIPPED), false);
     strictEqual(isOnboardingIndustryChoice(ONBOARDING_INDUSTRY_SKIPPED), true);
-    strictEqual(isOnboardingIndustryChoice("retail"), true);
+    strictEqual(isOnboardingIndustryChoice("retail_ecommerce"), true);
+    strictEqual(isOnboardingIndustryChoice("retail"), false);
     strictEqual(isOnboardingIndustryChoice("crypto free text"), false);
   });
 
-  it("shares one skip sentinel across both questions", () => {
-    strictEqual(ONBOARDING_INDUSTRY_SKIPPED, ONBOARDING_SEGMENT_SKIPPED);
+  it("accepts the hire catalog's roles and the door out of them", () => {
+    strictEqual(isOnboardingRole("paralegal"), true);
+    strictEqual(isOnboardingRole(ONBOARDING_ROLE_SOMETHING_ELSE), true);
+    strictEqual(isOnboardingRole("marketing"), false);
+    strictEqual(isOnboardingRole(ONBOARDING_ROLE_SKIPPED), false);
+    strictEqual(isOnboardingRoleChoice(ONBOARDING_ROLE_SKIPPED), true);
+    strictEqual(isOnboardingRoleChoice("my own free text"), false);
+  });
+
+  it("accepts the leadership positions as the person's role", () => {
+    strictEqual(isOnboardingRole("founder"), true);
+    strictEqual(isOnboardingRole("ceo"), true);
+    strictEqual(isOnboardingRoleChoice("head_of_department"), true);
+    strictEqual(normalizeOnboardingRoleChoice("co_founder"), "co_founder");
+  });
+
+  it("accepts the company-size buckets and the skip, nothing else", () => {
+    for (const size of ["solo", "2_10", "1000_plus", "skipped"])
+      strictEqual(isOnboardingCompanySizeChoice(size), true, size);
+    strictEqual(isOnboardingCompanySizeChoice("huge"), false);
+    strictEqual(isOnboardingCompanySizeChoice(""), false);
+    strictEqual(normalizeOnboardingCompanySizeChoice("11_50"), "11_50");
+    // A bucket this build cannot name is asked again: one tap, no guessing.
+    strictEqual(normalizeOnboardingCompanySizeChoice("5000_plus"), null);
+    strictEqual(normalizeOnboardingCompanySizeChoice(7), null);
+  });
+
+  it("reads a role this build cannot name as answered, never as a question", () => {
+    strictEqual(normalizeOnboardingRoleChoice("paralegal"), "paralegal");
+    strictEqual(normalizeOnboardingRoleChoice("skipped"), "skipped");
+    strictEqual(
+      normalizeOnboardingRoleChoice("role_from_a_newer_catalog"),
+      ONBOARDING_ROLE_SOMETHING_ELSE,
+    );
+    strictEqual(normalizeOnboardingRoleChoice(""), null);
+    strictEqual(normalizeOnboardingRoleChoice(7), null);
+  });
+
+  it("shares one skip sentinel across the questions", () => {
+    strictEqual(ONBOARDING_INDUSTRY_SKIPPED, ONBOARDING_ROLE_SKIPPED);
+    strictEqual(ONBOARDING_COMPANY_SIZE_SKIPPED, ONBOARDING_ROLE_SKIPPED);
     strictEqual(ONBOARDING_INDUSTRY_SKIPPED, "skipped");
   });
 
@@ -172,12 +208,15 @@ describe("onboarding survey persistence", () => {
 
   it("round-trips skipped answers so the survey never re-prompts", () => {
     const record = applyGoalSkipped(
-      applyIndustry(
-        applySegment(
-          createOnboardingSurveyPreference(),
-          ONBOARDING_SEGMENT_SKIPPED,
+      applyCompanySize(
+        applyIndustry(
+          applyRole(
+            createOnboardingSurveyPreference(),
+            ONBOARDING_ROLE_SKIPPED,
+          ),
+          ONBOARDING_INDUSTRY_SKIPPED,
         ),
-        ONBOARDING_INDUSTRY_SKIPPED,
+        ONBOARDING_COMPANY_SIZE_SKIPPED,
       ),
     );
     deepStrictEqual(
@@ -202,10 +241,8 @@ describe("onboarding survey persistence", () => {
       );
     reject({ version: 1 });
     reject({ version: undefined });
-    reject({ segment: "founder_free_text" });
-    reject({ segment: undefined });
-    reject({ industry: "crypto" });
     reject({ industry: undefined });
+    reject({ industry: 7 });
     reject({ automationGoal: "" });
     reject({ automationGoal: "x".repeat(ONBOARDING_GOAL_MAX_LENGTH + 1) });
     reject({ automationGoal: 7 });
@@ -213,6 +250,34 @@ describe("onboarding survey persistence", () => {
     reject({ completionPromptDismissed: null });
     reject({ updatedAt: "not a date" });
     reject({ gatewaySyncedAt: "not a date" });
+  });
+
+  it("reads the role and the retired department leniently", () => {
+    const parse = (overrides: Record<string, unknown>) =>
+      parseOnboardingSurveyPreference(
+        JSON.stringify({ ...answered(), ...overrides }),
+      );
+    // Written before the role question existed: still a record.
+    const before = parse({ role: undefined, roleOther: undefined });
+    strictEqual(before?.role, null);
+    strictEqual(before?.roleOther, null);
+    strictEqual(parse({ role: "newer_role" })?.role, "something_else");
+    strictEqual(parse({ segment: "founder" })?.segment, "founder");
+    strictEqual(parse({ segment: 7 })?.segment, null);
+    strictEqual(parse({ segment: undefined })?.segment, null);
+    strictEqual(parse({ roleOther: "x".repeat(201) })?.roleOther, null);
+  });
+
+  it("reads a record written before the company size existed as unanswered", () => {
+    const parse = (overrides: Record<string, unknown>) =>
+      parseOnboardingSurveyPreference(
+        JSON.stringify({ ...answered(), ...overrides }),
+      );
+    const before = parse({ companySize: undefined });
+    strictEqual(before?.companySize, null);
+    strictEqual(before?.automationGoal, "Chase overdue invoices every Monday");
+    strictEqual(parse({ companySize: "solo" })?.companySize, "solo");
+    strictEqual(parse({ companySize: "huge" })?.companySize, null);
   });
 
   it("normalizes a whitespace-padded goal on read", () => {
@@ -231,9 +296,11 @@ describe("onboarding survey updates", () => {
       {
         version: ONBOARDING_SURVEY_VERSION,
         segment: null,
-        segmentOther: null,
+        role: null,
+        roleOther: null,
         industry: null,
         industryOther: null,
+        companySize: null,
         automationGoal: null,
         goalSkipped: false,
         completionPromptDismissed: false,
@@ -247,8 +314,9 @@ describe("onboarding survey updates", () => {
   it("leaves the input untouched and clears the sync stamp on every ANSWER", () => {
     const synced = markGatewaySynced(answered(), "2026-08-08T10:00:00.000Z");
     for (const next of [
-      applySegment(synced, "legal"),
+      applyRole(synced, "paralegal"),
       applyIndustry(synced, "finance"),
+      applyCompanySize(synced, "solo"),
       applyGoal(synced, "book my travel"),
       applyGoalSkipped(synced),
     ]) {
@@ -256,7 +324,7 @@ describe("onboarding survey updates", () => {
       strictEqual(Number.isNaN(Date.parse(next.updatedAt)), false);
     }
     strictEqual(synced.gatewaySyncedAt, "2026-08-08T10:00:00.000Z");
-    strictEqual(synced.segment, "marketing");
+    strictEqual(synced.role, "store_manager");
   });
 
   it("keeps a synced record synced when only local UI state changes", () => {
@@ -272,6 +340,12 @@ describe("onboarding survey updates", () => {
     strictEqual(synced.completionPromptDismissed, false);
     // An unsynced record stays unsynced — dismissal invents no sync either.
     strictEqual(applyCompletionDismissed(answered()).gatewaySyncedAt, null);
+  });
+
+  it("keeps the role's own words for something else alone", () => {
+    const custom = applyRole(answered(), "something_else", "  Groomer ");
+    strictEqual(custom.roleOther, "Groomer");
+    strictEqual(applyRole(custom, "paralegal").roleOther, null);
   });
 
   it("keeps the goal text and the skip flag mutually exclusive", () => {
@@ -292,37 +366,39 @@ describe("onboarding survey updates", () => {
   });
 });
 
+const legacy = (segment: string): LegacySegmentPreference => ({
+  segment,
+  selectedAt: "2026-07-09T00:00:00.000Z",
+});
+
 describe("onboarding survey legacy lift", () => {
-  it("carries the legacy segment answer into a v2 record", () => {
-    const legacy = createOnboardingSegmentPreference("operations");
-    deepStrictEqual(liftLegacySegmentPreference(legacy), {
+  it("carries the legacy department into a survey record", () => {
+    deepStrictEqual(liftLegacySegmentPreference(legacy("operations")), {
       version: ONBOARDING_SURVEY_VERSION,
       segment: "operations",
-      segmentOther: null,
+      role: null,
+      roleOther: null,
       industry: null,
       industryOther: null,
+      companySize: null,
       automationGoal: null,
       goalSkipped: false,
       completionPromptDismissed: false,
-      updatedAt: legacy.selectedAt,
+      updatedAt: "2026-07-09T00:00:00.000Z",
       gatewaySyncedAt: null,
     });
   });
 
   it("carries a legacy skip too, and lifts nothing when there is nothing", () => {
     strictEqual(
-      liftLegacySegmentPreference(
-        createOnboardingSegmentPreference(ONBOARDING_SEGMENT_SKIPPED),
-      )?.segment,
-      ONBOARDING_SEGMENT_SKIPPED,
+      liftLegacySegmentPreference(legacy("skipped"))?.segment,
+      "skipped",
     );
     strictEqual(liftLegacySegmentPreference(null), null);
   });
 
   it("produces a record its own parser accepts", () => {
-    const lifted = liftLegacySegmentPreference(
-      createOnboardingSegmentPreference("design"),
-    );
+    const lifted = liftLegacySegmentPreference(legacy("design"));
     if (!lifted) throw new Error("expected a lifted record");
     deepStrictEqual(
       parseOnboardingSurveyPreference(
@@ -334,7 +410,7 @@ describe("onboarding survey legacy lift", () => {
 
   it("falls back to now when the legacy stamp is unparseable", () => {
     const lifted = liftLegacySegmentPreference({
-      ...createOnboardingSegmentPreference("sales"),
+      ...legacy("sales"),
       selectedAt: "whenever",
     });
     strictEqual(Number.isNaN(Date.parse(lifted?.updatedAt ?? "")), false);
@@ -344,48 +420,84 @@ describe("onboarding survey legacy lift", () => {
 describe("onboarding survey answered semantics", () => {
   it("counts a skip as an answer", () => {
     const skippedAll = applyGoalSkipped(
-      applyIndustry(
-        applySegment(
-          createOnboardingSurveyPreference(),
-          ONBOARDING_SEGMENT_SKIPPED,
+      applyCompanySize(
+        applyIndustry(
+          applyRole(
+            createOnboardingSurveyPreference(),
+            ONBOARDING_ROLE_SKIPPED,
+          ),
+          ONBOARDING_INDUSTRY_SKIPPED,
         ),
-        ONBOARDING_INDUSTRY_SKIPPED,
+        ONBOARDING_COMPANY_SIZE_SKIPPED,
       ),
     );
-    strictEqual(isSegmentAnswered(skippedAll), true);
+    strictEqual(isRoleAnswered(skippedAll), true);
     strictEqual(isIndustryAnswered(skippedAll), true);
+    strictEqual(isCompanySizeAnswered(skippedAll), true);
     strictEqual(isGoalAnswered(skippedAll), true);
     strictEqual(needsCompletionPrompt(skippedAll), false);
   });
 
+  it("counts a department answered before the role question as the role", () => {
+    const legacyOnly = {
+      ...createOnboardingSurveyPreference(),
+      segment: "operations",
+    };
+    strictEqual(isRoleAnswered(legacyOnly), true);
+  });
+
   it("treats a missing record as unanswered", () => {
-    strictEqual(isSegmentAnswered(null), false);
+    strictEqual(isRoleAnswered(null), false);
     strictEqual(isIndustryAnswered(null), false);
+    strictEqual(isCompanySizeAnswered(null), false);
     strictEqual(isGoalAnswered(null), false);
     strictEqual(needsCompletionPrompt(null), false);
   });
 
-  it("prompts only a segmented user with a gap who has not dismissed it", () => {
-    const segmentOnly = applySegment(
-      createOnboardingSurveyPreference(),
-      "product",
-    );
-    strictEqual(needsCompletionPrompt(segmentOnly), true);
+  it("prompts only someone whose job is answered, with a gap, who has not dismissed it", () => {
+    const jobOnly = {
+      ...createOnboardingSurveyPreference(),
+      segment: "product",
+    };
+    strictEqual(needsCompletionPrompt(jobOnly), true);
     strictEqual(
-      needsCompletionPrompt(applyIndustry(segmentOnly, "education")),
+      needsCompletionPrompt(applyIndustry(jobOnly, "education")),
       true, // goal still missing
     );
     strictEqual(
       needsCompletionPrompt(
-        applyGoal(applyIndustry(segmentOnly, "education"), "sort my inbox"),
+        applyGoal(applyIndustry(jobOnly, "education"), "sort my inbox"),
+      ),
+      true, // company size still missing
+    );
+    strictEqual(
+      needsCompletionPrompt(
+        applyCompanySize(
+          applyGoal(applyIndustry(jobOnly, "education"), "sort my inbox"),
+          "2_10",
+        ),
       ),
       false,
     );
+    // An account that finished the survey before the company size existed
+    // is asked it once, and never again after "Not now".
+    const beforeSize = answered({ companySize: null });
+    strictEqual(needsCompletionPrompt(beforeSize), true);
     strictEqual(
-      needsCompletionPrompt(applyCompletionDismissed(segmentOnly)),
+      needsCompletionPrompt(applyCompletionDismissed(beforeSize)),
       false,
     );
-    // Never prompt someone who has not answered the first question at all.
+    strictEqual(
+      needsCompletionPrompt(applyCompletionDismissed(jobOnly)),
+      false,
+    );
+    strictEqual(
+      needsCompletionPrompt(
+        applyRole(createOnboardingSurveyPreference(), "paralegal"),
+      ),
+      true,
+    );
+    // Never prompt someone who has not answered the job question at all.
     strictEqual(
       needsCompletionPrompt(createOnboardingSurveyPreference()),
       false,

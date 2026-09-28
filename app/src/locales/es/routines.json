@@ -77,7 +77,7 @@
   "grid": {
     "loading": "Cargando…",
     "emptyTitle": "Aún no hay rutinas",
-    "emptyDescription": "Crea la primera y Houston se encarga del resto.",
+    "emptyDescription": "Crea la primera y desde ahí funciona sola.",
     "listLabel": "Rutinas",
     "draftTitle": "Rutina en creación en el chat",
     "draftDiscard": "Descartar",
@@ -237,7 +237,7 @@
       "error": "Requiere atención"
     },
     "statusUnknown": "Verificando el disparador…",
-    "statusTimeout": "Houston no pudo confirmar que este disparador quedó configurado.",
+    "statusTimeout": "No pudimos confirmar que este disparador quedó configurado.",
     "waitingFirstEvent": "Activa. Esperando el primer evento.",
     "reconnect": "Reconectar",
     "statusDisconnectedHint": "La cuenta conectada se desconectó.",

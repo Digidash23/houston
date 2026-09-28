@@ -3,6 +3,7 @@ import { TOKEN_EXPIRED_EVENT } from "../../auth-expiry";
 import type { SdkConfig, SdkPorts } from "../../ports";
 import { HoustonSdk } from "../../sdk";
 import type { SdkEvent } from "../../store";
+import { memoryKv } from "../../test-ports";
 import { createAuthFetch } from "../session/auth-fetch";
 import {
   AGENTS_SCOPE,
@@ -156,17 +157,14 @@ function makeHarness(
   );
 
   const store = new Map<string, string>();
-  const storage = {
-    get: async (k: string) => store.get(k) ?? null,
-    set: async (k: string, v: string) => void store.set(k, v),
-    delete: async (k: string) => void store.delete(k),
-  };
+  const storage = memoryKv(store);
   // Model a real host: `ports.fetch` IS the auth-fetch (token stamping + 401
   // reporting with token identity) — a bare fetch would make every 401 look
   // tokenless and be suppressed by the notifier.
   const ports: SdkPorts = {
     fetch: createAuthFetch(fetchImpl as unknown as typeof fetch, storage),
     storage,
+    devicePreferences: memoryKv(),
     clock: clock.clock,
     logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   };
@@ -309,6 +307,28 @@ describe("agents module — reactivity", () => {
     sse.push({ type: "AgentsChanged", workspaceId: "w1" });
     await vi.waitFor(() =>
       expect(snapshot(h.sdk)?.items.map((i) => i.id)).toEqual(["a1", "a2"]),
+    );
+  });
+
+  it("carries each agent's role and refetches when an AgentRoleChanged frame arrives", async () => {
+    const sse = makeSse();
+    const h = makeHarness({
+      agents: [{ ...A("a1", "Ada"), role: "Bookkeeper" }],
+      eventsResponder: () => sse.response,
+    });
+    disposeCurrent = () => {
+      sse.close();
+      h.sdk.agents.dispose();
+    };
+    await vi.waitFor(() =>
+      expect(snapshot(h.sdk)?.items[0]?.role).toBe("Bookkeeper"),
+    );
+    // The employee rewrote its own job description; the host names the new
+    // role on the listing and announces it with this frame.
+    h.state.agents = [{ ...A("a1", "Ada"), role: "Controller" }];
+    sse.push({ type: "AgentRoleChanged", agentPath: "a1" });
+    await vi.waitFor(() =>
+      expect(snapshot(h.sdk)?.items[0]?.role).toBe("Controller"),
     );
   });
 

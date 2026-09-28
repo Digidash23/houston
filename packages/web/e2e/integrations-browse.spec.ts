@@ -2,6 +2,7 @@ import { FAKE_HOST_URL } from "@houston/fake-host";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { activatePendingConnection } from "./support/activate-pending-connection";
 import { expect, test } from "./support/fixtures";
+import { openNavRow } from "./support/workspace-menu";
 
 /**
  * The redesigned personal Integrations page — the flat, airy "plane". A hero
@@ -27,7 +28,7 @@ async function armCapabilities(
 
 async function openIntegrationsPage(page: Page): Promise<void> {
   await page.goto("/");
-  await page.locator('[data-tour-target="nav-integrations"]').click();
+  await openNavRow(page, "integrations");
 }
 
 async function addHighLevelToCatalog(page: Page): Promise<void> {

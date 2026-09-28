@@ -83,6 +83,8 @@ export interface Capabilities {
   integrations: string[];
   /** Workspace-shared skills store served by this deployment (ADR 0003). */
   sharedSkills: boolean;
+  /** This deployment serves agent-to-agent mission policy and delegation. */
+  agentDelegation?: boolean;
   /**
    * Whether routines may be woken by an external event (a Composio trigger)
    * instead of a cron schedule. Requires an integration key AND a public webhook
@@ -90,6 +92,8 @@ export interface Capabilities {
    * hides the event-wake option when false. Absent = off (legacy hosts stay valid).
    */
   triggers?: boolean;
+  /** C19 personal plan routes are configured on this deployment. */
+  plan?: boolean;
   /**
    * Whether a custom integration can sign in through its own OAuth flow
    * (PRODUCT-1172): the host can serve a browser-reachable callback (the

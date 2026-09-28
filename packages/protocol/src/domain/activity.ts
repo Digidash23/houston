@@ -4,6 +4,7 @@
 
 import { z } from "zod";
 import type { PendingInteraction } from "./interaction";
+import type { MissionStarter } from "./mission-starter";
 
 /** A human who started or collaborated on a mission. Server-stamped from the
  *  gateway-injected acting-as identity (hosted Teams); never sent by the agent. */
@@ -65,8 +66,10 @@ export interface Activity {
    * WHICH agent started this mission, server-stamped beside
    * `origin_session_key`. On one machine the parent chat is readable from the
    * caller's own board; across pods it is not, so without this the only record
-   * of who asked for the work is thrown away at the pod boundary. Provenance
-   * only - nothing is authorized by it.
+   * of who asked for the work is thrown away at the pod boundary. This is also
+   * an authorization input: an agent may move a mission on another agent's
+   * board only when this id matches its own. In cloud, the gateway-verified
+   * `x-houston-calling-agent` header is what stamps it.
    */
   origin_agent?: string;
   /**
@@ -76,6 +79,15 @@ export interface Activity {
    * pod (`routes/missions-start.ts`).
    */
   origin_depth?: number;
+  /**
+   * Which AI started this mission (PRODUCT-1928): `houston` for the AI
+   * Manager, `employee` for an AI Employee. The host stamps it on the typed
+   * mission-creation routes from what it verified about the caller, and never
+   * accepts it from a `NewActivity` body or a PATCH. A raw agent-file write or
+   * an archive import carries whatever the file holds, like `created_by` and
+   * `origin_agent`. Absent on a person's mission and on missions older than it.
+   */
+  started_by?: MissionStarter;
   /** The human who created this mission (Teams attribution). Server-stamped. */
   created_by?: string;
   /** Humans who started or collaborated on this mission (Teams attribution).

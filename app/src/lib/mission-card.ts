@@ -1,35 +1,48 @@
-// Explicit `.ts` extension: `node --test --experimental-strip-types` loads this
-// module directly (app/tests/mission-card.test.ts).
-import { isAgentSetupMode } from "./agent-setup-mode.ts";
+import type { MissionStartedBy } from "@houston/sdk/mission-started-by";
+
+/** The words each origin reads as, already translated by the caller. */
+export interface MissionOriginLabels {
+  routine: string;
+  setup: string;
+  houston: string;
+  /** An AI Employee whose name the roster no longer knows. */
+  employee: string;
+  employeeNamed: (name: string) => string;
+}
 
 /**
- * The tags a mission card wears. The ONE rule both mission boards read (the
- * active board and the archive), so a mission can never be labelled one way in
- * one and another way in the other.
- *
- * A mission wears at most one tag, and only when it was not the user's own
- * doing: a routine's run, a mission the agent started for itself, or the agent's
- * own self-setup mission.
+ * The origin tag a mission wears on every surface (the active board, the
+ * archive, the phone's task rows). WHO started it is the SDK's decision
+ * (`missionStartedBy`); this only puts it into words. A person's own mission
+ * wears none.
  */
-export function missionCardTags({
-  routineId,
-  routineLabel,
-  originSessionKey,
-  agentStartedLabel,
-  agentMode,
-  setupLabel,
-}: {
-  routineId?: string | null;
-  routineLabel: string;
-  /** Present when the agent started this mission itself (PRODUCT-1244). */
-  originSessionKey?: string | null;
-  agentStartedLabel?: string;
-  /** The activity's mode field, which carries the self-setup sentinel. */
-  agentMode?: string | null;
-  setupLabel?: string;
-}): string[] | undefined {
-  if (routineId) return [routineLabel];
-  if (isAgentSetupMode(agentMode) && setupLabel) return [setupLabel];
-  if (originSessionKey && agentStartedLabel) return [agentStartedLabel];
-  return undefined;
+export function missionOriginLabel(
+  startedBy: MissionStartedBy,
+  labels: MissionOriginLabels,
+  employeeName?: string,
+): string | undefined {
+  switch (startedBy.kind) {
+    case "person":
+      return undefined;
+    case "routine":
+      return labels.routine;
+    case "setup":
+      return labels.setup;
+    case "houston":
+      return labels.houston;
+    case "employee":
+      return employeeName
+        ? labels.employeeNamed(employeeName)
+        : labels.employee;
+    default: {
+      // A new SDK origin fails the build here instead of reading as untagged.
+      const unhandled: never = startedBy;
+      return unhandled;
+    }
+  }
+}
+
+/** A board card's tag list: its origin tag alone, or none. */
+export function missionCardTags(originTag?: string): string[] | undefined {
+  return originTag ? [originTag] : undefined;
 }

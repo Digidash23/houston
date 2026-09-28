@@ -4,27 +4,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@houston-ai/core";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useTeamMoveFlow } from "../../hooks/use-team-move-flow";
 import {
+  canRetryTeamMove,
   finishTeamMove,
   isTeamMoveDismissable,
   type TeamMoveSource,
   teamMoveFailureCopy,
 } from "../../lib/move-team";
-import {
-  addInviteEmails,
-  isExpectedShareError,
-  ownableTeams,
-  reconcileCreatedTeam,
-  sendableInvites,
-  shareErrorCode,
-} from "../../lib/share-via-team";
+import { ownableTeams, reconcileCreatedTeam } from "../../lib/share-via-team";
+import { closedPostscriptFailureToast } from "../../lib/team-move-retry";
+import { useUIStore } from "../../stores/ui";
+import { useMovePickCopy } from "../agent/pick-step-copy";
 import { InviteStep } from "../agent/share-via-team-invite";
 import { BusyStep, PickStep } from "../agent/share-via-team-steps";
 import { TeamMoveConfirm } from "./team-move-confirm";
 import { TeamMoveFailure } from "./team-move-failure";
+import { useTeamMoveInvites } from "./use-team-move-invites";
 export function TeamMoveFlow({
   source,
   open,
@@ -35,17 +32,23 @@ export function TeamMoveFlow({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useTranslation("teams");
+  const pickCopy = useMovePickCopy();
   const flow = useTeamMoveFlow(source, open);
   const { state, setState } = flow;
-  const [invites, setInvites] = useState<ReturnType<typeof addInviteEmails>>(
-    [],
-  );
-  const [sending, setSending] = useState(false);
+  const movingSource = flow.movingSource;
+  const invites = useTeamMoveInvites(flow.addMember);
+  const openTeamMove = useUIStore((store) => store.openTeamMove);
+  const addToast = useUIStore((store) => store.addToast);
   // The failing agent's index is how many actually made it: the run stops
   // there, so the copy must not imply the rest are already in the new team.
   const moveFailure =
     state.step === "moveFailed"
-      ? teamMoveFailureCopy(state.index, source.agents.length)
+      ? teamMoveFailureCopy(
+          state.index,
+          movingSource.agents.length,
+          state.error,
+          movingSource.agents[state.index]?.name ?? source.name,
+        )
       : null;
   const create = async (name: string) => {
     try {
@@ -60,41 +63,24 @@ export function TeamMoveFlow({
           : {
               step: "pick",
               creating: false,
-              createError: t("shareViaTeam.pick.failed"),
+              createError: t("moveTeam.pick.failed"),
             },
       );
     }
   };
 
-  const send = async () => {
-    setSending(true);
-    for (const invite of sendableInvites(invites)) {
-      try {
-        await flow.addMember.mutateAsync({
-          email: invite.email,
-          role: "user",
-          options: { silence: isExpectedShareError },
-        });
-        setInvites((items) =>
-          items.map((item) =>
-            item.email === invite.email ? { ...item, status: "sent" } : item,
-          ),
-        );
-      } catch (error) {
-        setInvites((items) =>
-          items.map((item) =>
-            item.email === invite.email
-              ? {
-                  ...item,
-                  status: "failed",
-                  error: shareErrorCode(error) ?? "error",
-                }
-              : item,
-          ),
-        );
-      }
-    }
-    setSending(false);
+  const closeUnfinished = () => {
+    const toast = closedPostscriptFailureToast(
+      state,
+      source,
+      {
+        title: t("moveTeamResume.failed", { team: source.name }),
+        retry: t("moveTeam.retry"),
+      },
+      openTeamMove,
+    );
+    onOpenChange(false);
+    if (toast) addToast(toast);
   };
 
   return (
@@ -112,6 +98,7 @@ export function TeamMoveFlow({
         </DialogHeader>
         {state.step === "pick" && (
           <PickStep
+            copy={pickCopy}
             teams={ownableTeams(flow.orgs.data?.orgs ?? [])}
             creating={state.creating}
             createError={state.createError}
@@ -136,14 +123,14 @@ export function TeamMoveFlow({
         {state.step === "movingAgents" && (
           <BusyStep
             heading={t("moveTeam.moving", {
-              name: source.agents[state.index]?.name ?? source.name,
+              name: movingSource.agents[state.index]?.name ?? source.name,
               index: state.index + 1,
-              total: source.agents.length,
+              total: movingSource.agents.length,
             })}
             body={t("moveTeam.movingBody")}
           />
         )}
-        {["cleanupSource", "switching", "recreate", "placing"].includes(
+        {["createTarget", "cleanupSource", "switching"].includes(
           state.step,
         ) && <BusyStep heading={t(`moveTeam.${state.step}`)} />}
         {state.step === "moveFailed" && moveFailure && (
@@ -151,12 +138,9 @@ export function TeamMoveFlow({
             body={
               moveFailure.key === "moveFailedFirst"
                 ? t("moveTeam.moveFailedFirst", { count: moveFailure.count })
-                : t("moveTeam.moveFailedNext", {
-                    moved: moveFailure.moved,
-                    total: moveFailure.total,
-                  })
+                : t(`moveTeam.${moveFailure.key}`, moveFailure)
             }
-            onRetry={flow.moveAgents}
+            onRetry={canRetryTeamMove(state) ? flow.moveAgents : undefined}
             onClose={() => onOpenChange(false)}
           />
         )}
@@ -165,26 +149,24 @@ export function TeamMoveFlow({
             body={
               // A team with no agents skips straight to the postscript, so
               // there is no count to report: the whole move is the subject.
-              source.agents.length === 0
+              movingSource.agents.length === 0
                 ? t("moveTeam.postscriptFailedEmpty")
                 : t("moveTeam.postscriptFailed", {
-                    count: source.agents.length,
+                    count: movingSource.agents.length,
                   })
             }
             onRetry={flow.retryPostscript}
-            onClose={() => onOpenChange(false)}
+            onClose={closeUnfinished}
           />
         )}
         {state.step === "invite" && (
           <InviteStep
             agentName={source.name}
             team={state.target}
-            invites={invites}
-            sending={sending}
-            onAddEmails={(emails) =>
-              setInvites((items) => addInviteEmails(items, emails))
-            }
-            onSend={send}
+            invites={invites.invites}
+            sending={invites.sending}
+            onAddEmails={invites.addEmails}
+            onSend={invites.send}
             onDone={() => {
               setState(finishTeamMove);
               onOpenChange(false);

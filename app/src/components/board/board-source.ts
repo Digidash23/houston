@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import type { HistoryLoadOptions } from "../../lib/tauri";
 import type { TurnMode } from "../../lib/turn-mode";
 import type { Agent } from "../../lib/types";
+import type { FirstDayPlacement } from "../first-day/first-day-model";
+import type { BoardSelectionModel } from "./board-selection-model";
 
 /**
  * Shared mission-board architecture.
@@ -18,7 +20,7 @@ import type { Agent } from "../../lib/types";
  * right agent — live behind this `BoardSource` interface, which
  * `useMissionControlSource` builds. This is the headless-logic pattern: one
  * presentational/wiring component, an injected data backend. Mission Control
- * and each team board are the SAME source narrowed by a
+ * and each employee board are the SAME source narrowed by a
  * `MissionControlScope`, so they never drift apart.
  */
 
@@ -35,32 +37,6 @@ export interface SendOverrides {
    *  setting: it comes from the submit, not the toolbar. Absent on an
    *  agent-initiated send (retry, auto-resume, routine). */
   mentions?: MessageMention[];
-}
-
-/**
- * Multi-select state + bulk mutations for one board. The set-state half is
- * generic (see `useSelectionSet`); the bulk dispatch (`move` / `archive` /
- * `remove`) groups the selection by agent before writing, because one
- * cross-agent selection can span several agents. The section lock, toggle
- * guard, header actions, and bulk-bar labels are derived by `<MissionBoard>`
- * and stay out of here.
- */
-export interface BoardSelectionModel {
-  selectedIds: ReadonlySet<string>;
-  /** Add/remove a single card. The shared component applies the section-lock
-   *  guard before calling this. */
-  toggle: (item: KanbanItem) => void;
-  /** Add a whole section's ids to the selection (the column header
-   *  "Select all in column"). Additive + idempotent — deselect is the bulk
-   *  bar's "Clear", never this. */
-  selectAll: (ids: string[]) => void;
-  clear: () => void;
-  /** Move every selected card to `status` (a bulk move target). */
-  move: (status: string) => Promise<void>;
-  /** Archive every selected card. */
-  archive: () => Promise<void>;
-  /** Delete every selected card. */
-  remove: () => Promise<void>;
 }
 
 /**
@@ -95,7 +71,7 @@ export interface BoardSource {
   activeAgent: Agent | null;
   /**
    * Scope for the new-conversation composer draft (HOU-730): a per-board
-   * constant (Mission Control, or one per team board), so a parked first
+   * constant (Mission Control, or one per employee board), so a parked first
    * message survives switching the target agent but never surfaces in another
    * board's composer.
    */
@@ -193,6 +169,10 @@ export interface BoardSource {
    *  dot). Resolved against the full in-scope set so a search that hides the
    *  open card doesn't drop the indicator. */
   selectedRunning: boolean;
+
+  // ── First day ─────────────────────────────────────────────────────────────
+  /** Where the board offers to start a waiting employee's first day. */
+  firstDay: FirstDayPlacement<Agent>;
 
   // ── Slots rendered by the component ───────────────────────────────────────
   /** Toolbar rendered above the board (filters, search, New mission).

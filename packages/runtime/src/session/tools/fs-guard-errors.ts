@@ -44,3 +44,21 @@ export class PathDeniedError extends Error {
     this.name = "PathDeniedError";
   }
 }
+
+export class ProtectedWriteDeniedError extends Error {}
+
+export class BoardWriteDeniedError extends ProtectedWriteDeniedError {
+  constructor() {
+    super(
+      "Your board is changed with the mission tools, not by editing files.",
+    );
+    this.name = "BoardWriteDeniedError";
+  }
+}
+
+export class RoutineWriteDeniedError extends ProtectedWriteDeniedError {
+  constructor() {
+    super("Routines are changed with the routine tools, not by editing files.");
+    this.name = "RoutineWriteDeniedError";
+  }
+}

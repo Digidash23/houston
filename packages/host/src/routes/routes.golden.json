@@ -179,6 +179,27 @@
     ],
     "forwarded": []
   },
+  "GET /sandbox/missions/agents": {
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": null,
+    "bodyKeys": [
+      "agents"
+    ],
+    "forwarded": []
+  },
+  "GET /sandbox/missions/agents/read": {
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": null,
+    "bodyKeys": [
+      "id",
+      "instructions",
+      "name",
+      "truncated"
+    ],
+    "forwarded": []
+  },
   "POST /sandbox/missions/start": {
     "status": 400,
     "contentType": "application/json; charset=utf-8",
@@ -400,7 +421,7 @@
     "errorCode": null,
     "bodyKeys": [
       "groups",
-      "ungroupedOrder"
+      "order"
     ],
     "forwarded": []
   },
@@ -760,6 +781,27 @@
     ],
     "forwarded": []
   },
+  "GET /v1/agents/:agentId/delegation": {
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": null,
+    "bodyKeys": [
+      "acceptsMissions",
+      "agents",
+      "mode"
+    ],
+    "forwarded": []
+  },
+  "PUT /v1/agents/:agentId/delegation": {
+    "status": 400,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "Choose all, picked, or off for delegation mode.",
+    "bodyKeys": [
+      "code",
+      "error"
+    ],
+    "forwarded": []
+  },
   "GET /agents": {
     "status": 200,
     "contentType": "application/json; charset=utf-8",
@@ -882,6 +924,16 @@
     "contentType": "application/json; charset=utf-8",
     "errorCode": "run not found",
     "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "POST /agents/:agentId/first-day": {
+    "status": 409,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "Probe has no first day waiting to start",
+    "bodyKeys": [
+      "code",
       "error"
     ],
     "forwarded": []
@@ -1741,6 +1793,17 @@
       "POST /conversations/c1/truncate"
     ]
   },
+  "POST /agents/:agentId/conversations/:conversationId/import": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "POST /conversations/c1/import"
+    ]
+  },
   "POST /agents/:agentId/conversations/:conversationId/messages": {
     "status": 200,
     "contentType": "application/json",
@@ -2565,6 +2628,96 @@
     "forwarded": []
   },
   "GET /sandbox/missions/read/": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "POST /sandbox/missions/agents": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PUT /sandbox/missions/agents": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PATCH /sandbox/missions/agents": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "DELETE /sandbox/missions/agents": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "GET /sandbox/missions/agents/": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "POST /sandbox/missions/agents/read": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PUT /sandbox/missions/agents/read": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PATCH /sandbox/missions/agents/read": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "DELETE /sandbox/missions/agents/read": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "GET /sandbox/missions/agents/read/": {
     "status": 401,
     "contentType": "application/json; charset=utf-8",
     "errorCode": "unauthorized",
@@ -7926,6 +8079,105 @@
     ],
     "forwarded": []
   },
+  "POST /v1/agents/:agentId/delegation": {
+    "status": 405,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "method not allowed",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "POST /v1/agents/:agentId/delegation [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "POST /v1/agents/:agentId/delegation [other]": {
+    "status": 405,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "method not allowed",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PATCH /v1/agents/:agentId/delegation": {
+    "status": 405,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "method not allowed",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PATCH /v1/agents/:agentId/delegation [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PATCH /v1/agents/:agentId/delegation [other]": {
+    "status": 405,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "method not allowed",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "DELETE /v1/agents/:agentId/delegation": {
+    "status": 405,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "method not allowed",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "DELETE /v1/agents/:agentId/delegation [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "DELETE /v1/agents/:agentId/delegation [other]": {
+    "status": 405,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "method not allowed",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "GET /v1/agents/:agentId/delegation/": {
+    "status": 404,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not found",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PUT /v1/agents/:agentId/delegation/": {
+    "status": 404,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not found",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
   "PUT /agents": {
     "status": 404,
     "contentType": "application/json; charset=utf-8",
@@ -9382,6 +9634,133 @@
     ],
     "forwarded": [
       "POST /routines/r1/runs/run1/cancel/"
+    ]
+  },
+  "GET /agents/:agentId/first-day": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "GET /first-day"
+    ]
+  },
+  "GET /agents/:agentId/first-day [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "GET /agents/:agentId/first-day [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PUT /agents/:agentId/first-day": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "PUT /first-day"
+    ]
+  },
+  "PUT /agents/:agentId/first-day [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PUT /agents/:agentId/first-day [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PATCH /agents/:agentId/first-day": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "PATCH /first-day"
+    ]
+  },
+  "PATCH /agents/:agentId/first-day [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PATCH /agents/:agentId/first-day [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "DELETE /agents/:agentId/first-day": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "DELETE /first-day"
+    ]
+  },
+  "DELETE /agents/:agentId/first-day [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "DELETE /agents/:agentId/first-day [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "POST /agents/:agentId/first-day/": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "POST /first-day/"
     ]
   },
   "POST /agents/:agentId/activity": {
@@ -17323,6 +17702,133 @@
       "POST /conversations/c1/truncate/"
     ]
   },
+  "GET /agents/:agentId/conversations/:conversationId/import": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "GET /conversations/c1/import"
+    ]
+  },
+  "GET /agents/:agentId/conversations/:conversationId/import [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "GET /agents/:agentId/conversations/:conversationId/import [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PUT /agents/:agentId/conversations/:conversationId/import": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "PUT /conversations/c1/import"
+    ]
+  },
+  "PUT /agents/:agentId/conversations/:conversationId/import [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PUT /agents/:agentId/conversations/:conversationId/import [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PATCH /agents/:agentId/conversations/:conversationId/import": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "PATCH /conversations/c1/import"
+    ]
+  },
+  "PATCH /agents/:agentId/conversations/:conversationId/import [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PATCH /agents/:agentId/conversations/:conversationId/import [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "DELETE /agents/:agentId/conversations/:conversationId/import": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "DELETE /conversations/c1/import"
+    ]
+  },
+  "DELETE /agents/:agentId/conversations/:conversationId/import [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "DELETE /agents/:agentId/conversations/:conversationId/import [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "POST /agents/:agentId/conversations/:conversationId/import/": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "POST /conversations/c1/import/"
+    ]
+  },
   "GET /agents/:agentId/generate-agent": {
     "status": 200,
     "contentType": "application/json",
@@ -18665,6 +19171,44 @@
     ],
     "forwarded": []
   },
+  "GET /v1/agents/:agentId/delegation [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "GET /v1/agents/:agentId/delegation [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "code",
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PUT /v1/agents/:agentId/delegation [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PUT /v1/agents/:agentId/delegation [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "code",
+      "error"
+    ],
+    "forwarded": []
+  },
   "GET /agents [anon]": {
     "status": 401,
     "contentType": "application/json; charset=utf-8",
@@ -18909,6 +19453,24 @@
     "forwarded": []
   },
   "POST /agents/:agentId/routines/:routineId/runs/:runId/cancel [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "POST /agents/:agentId/first-day [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "POST /agents/:agentId/first-day [other]": {
     "status": 403,
     "contentType": "application/json; charset=utf-8",
     "errorCode": "not your agent",
@@ -20439,6 +21001,24 @@
     "forwarded": []
   },
   "POST /agents/:agentId/conversations/:conversationId/truncate [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "POST /agents/:agentId/conversations/:conversationId/import [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "POST /agents/:agentId/conversations/:conversationId/import [other]": {
     "status": 403,
     "contentType": "application/json; charset=utf-8",
     "errorCode": "not your agent",

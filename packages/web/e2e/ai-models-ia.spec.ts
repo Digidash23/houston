@@ -1,8 +1,13 @@
 import { FAKE_HOST_URL } from "@houston/fake-host";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
-import { openSettings, workspaceRow } from "./support/settings-nav";
+import { adminRow } from "./support/settings-nav";
 import { openAgentSettings } from "./support/team-nav";
+import {
+  openNavRow,
+  openWorkspaceMenu,
+  workspaceMenuTrigger,
+} from "./support/workspace-menu";
 
 /**
  * The AI-models permissioning information architecture — the model-side twin of
@@ -16,8 +21,7 @@ import { openAgentSettings } from "./support/team-nav";
  *    shared AI account at all — every agent runs on the AI account of whoever
  *    messages it — so the hub is visible to EVERYONE and shows each viewer their
  *    own accounts, with no role-gated section inside it. The space-wide spend
- *    roll-up did NOT open up with it: it lives in Settings > Workspace
- *    management, behind the unchanged owner/admin gate.
+ *    roll-up did NOT open up with it: it lives in Admin, behind the unchanged owner/admin gate.
  *  - Each member's own model pick lives in the composer, not the hub.
  *  - USAGE (how much of each connected AI account is left) belongs to the
  *    account, so it renders on the hub's Connected row. There is no separate
@@ -59,23 +63,20 @@ async function armTeamWorkspace(request: APIRequestContext): Promise<void> {
   });
 }
 
-/** A stable nav anchor that is ALWAYS present, so absence assertions never race
+/** A stable control that is ALWAYS present, so absence assertions never race
  *  an unrendered sidebar. */
 const settlesShell = (page: Page) =>
-  expect(page.locator('[data-tour-target="nav-settings"]')).toBeVisible();
+  expect(workspaceMenuTrigger(page)).toBeVisible();
 
-/** Switch space through the REAL switcher UI the shell renders. */
+/** Switch space through the REAL account row the shell renders. */
 async function switchToTeam(page: Page): Promise<void> {
-  await page
-    .locator('[data-tour-target="spaceSwitcher"] button')
-    .first()
-    .click();
-  await page.getByRole("menuitem", { name: TEAM.name }).click();
+  await workspaceMenuTrigger(page).click();
+  await page.getByRole("menuitemcheckbox", { name: TEAM.name }).click();
 }
 
 /** Open the AI Models hub from the sidebar. */
 async function openHub(page: Page): Promise<void> {
-  await page.locator('[data-tour-target="nav-ai-hub"]').click();
+  await openNavRow(page, "ai-hub");
 }
 
 // ── 1. The AI hub has provider and model-directory surfaces ────────────────
@@ -88,7 +89,7 @@ test("Teams owner: the AI hub has AI Providers and AI Models lozenges", async ({
   // second header lozenge and shares the page query with provider discovery.
   await armCapabilities(request, OWNER_CAPS);
   await page.goto("/");
-  await page.locator('[data-tour-target="nav-ai-hub"]').click();
+  await openNavRow(page, "ai-hub");
 
   // Scoped to the header nav: the sidebar row shares the "AI Models" name.
   const headerNav = page.getByRole("navigation", {
@@ -124,17 +125,19 @@ test("Teams member: the AI Models nav is there, and no usage screen is", async (
   // and the hub is the only surface that can manage it, so it is never hidden.
   // No usage nav rides in with it: account usage belongs to the account (it
   // renders on the hub's Connected row, HOU-789) and the space-wide roll-up
-  // stays inside Settings > Workspace management.
+  // stays inside Admin.
   await armCapabilities(request, { ...SPACES_CAPS, role: "user" });
   await armTeamWorkspace(request);
   await page.goto("/");
   await settlesShell(page);
 
-  await expect(page.locator('[data-tour-target="nav-ai-hub"]')).toBeVisible();
-  await expect(page.locator('[data-tour-target="nav-usage"]')).toHaveCount(0);
+  const menu = await openWorkspaceMenu(page);
+  await expect(menu.locator('[data-tour-target="nav-ai-hub"]')).toBeVisible();
+  await expect(menu.locator('[data-tour-target="nav-usage"]')).toHaveCount(0);
   await expect(
-    page.locator('[data-tour-target="nav-integrations"]'),
+    menu.locator('[data-tour-target="nav-integrations"]'),
   ).toBeVisible();
+  await page.keyboard.press("Escape");
 });
 
 test("Teams member in a team space: the hub is theirs, and says so", async ({
@@ -266,24 +269,23 @@ test("account usage renders on the hub's Connected row and nowhere else", async 
     },
   });
   await page.goto("/");
-  await page.locator('[data-tour-target="nav-ai-hub"]').click();
+  await openNavRow(page, "ai-hub");
 
   await expect(
     page.getByText("Sign in again to see this account's usage."),
   ).toBeVisible();
 
   // And no usage screen competes with it anywhere. The rail carries nothing
-  // usage-shaped at all: Time worked is a LENS inside Workspace management,
-  // never a destination of its own, and it rides `capabilities.computeUsage`,
-  // which the fake host does not advertise here. The owner/admin spend roll-up
-  // lives in the same place — a Settings section, not a rail row.
+  // usage-shaped at all: Time worked is never a destination of its own, and
+  // it rides `capabilities.computeUsage`, which the fake host does not
+  // advertise here. The owner/admin message roll-up lives on the Admin
+  // screen's Org chart, not an extra rail row.
   await expect(
     page
       .locator("[data-tour-target='sidebar']")
       .getByRole("button", { name: "Time worked", exact: true }),
   ).toHaveCount(0);
-  await openSettings(page);
-  await expect(workspaceRow(page)).toBeVisible();
+  await expect(await adminRow(page)).toBeVisible();
 });
 
 // ── 5. A member connects, and their own turns are configured (HOU-976) ─────

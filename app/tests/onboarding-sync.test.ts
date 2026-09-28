@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import {
   applyIndustry,
-  applySegment,
+  applyRole,
   createOnboardingSurveyPreference,
   markGatewaySynced,
   type OnboardingSurveyPreference,
@@ -73,37 +73,78 @@ function json(body: unknown, status = 200): Response {
 }
 
 const FULL_REMOTE: GatewayOnboardingRecord = {
-  segment: "operations",
+  segment: null,
+  role: "medical_receptionist",
   industry: "healthcare",
+  companySize: "11_50",
   automationGoal: "chase overdue invoices",
   goalSkipped: false,
-  segmentAnsweredAt: "2026-08-01T10:00:00.000Z",
+  segmentAnsweredAt: null,
+  roleAnsweredAt: "2026-08-01T10:00:00.000Z",
   industryAnsweredAt: "2026-08-02T10:00:00.000Z",
+  companySizeAnsweredAt: "2026-08-02T11:00:00.000Z",
   goalAnsweredAt: "2026-08-03T10:00:00.000Z",
 };
 
 describe("parseGatewayOnboarding", () => {
-  it("keeps known ids and drops ones this build doesn't know", () => {
+  it("keeps known ids and folds an unknown industry or role into something_else", () => {
     deepStrictEqual(
       parseGatewayOnboarding({
         segment: "legal",
+        role: "role_from_a_newer_catalog",
         industry: "quantum_widgets",
+        companySize: "a_bucket_from_a_newer_build",
         automationGoal: "  file my taxes  ",
         goalSkipped: false,
         segmentAnsweredAt: "2026-08-01T10:00:00.000Z",
+        roleAnsweredAt: "2026-08-04T10:00:00.000Z",
         industryAnsweredAt: null,
+        companySizeAnsweredAt: "2026-08-04T11:00:00.000Z",
         goalAnsweredAt: "",
       }),
       {
         segment: "legal",
-        industry: null,
+        role: "something_else",
+        industry: "something_else",
+        companySize: null,
         automationGoal: "file my taxes",
         goalSkipped: false,
         segmentAnsweredAt: "2026-08-01T10:00:00.000Z",
+        roleAnsweredAt: "2026-08-04T10:00:00.000Z",
         industryAnsweredAt: null,
+        companySizeAnsweredAt: "2026-08-04T11:00:00.000Z",
         goalAnsweredAt: null,
       },
     );
+  });
+
+  it("keeps a leadership position and a company size it knows", () => {
+    const record = parseGatewayOnboarding({
+      role: "founder",
+      companySize: "solo",
+      companySizeAnsweredAt: "2026-08-04T11:00:00.000Z",
+    });
+    strictEqual(record?.role, "founder");
+    strictEqual(record?.companySize, "solo");
+    strictEqual(record?.companySizeAnsweredAt, "2026-08-04T11:00:00.000Z");
+  });
+
+  it("reads a legacy row, answered before the role question, as it is", () => {
+    const legacy = parseGatewayOnboarding({
+      segment: "operations",
+      industry: null,
+      automationGoal: null,
+      goalSkipped: false,
+      segmentAnsweredAt: "2026-08-01T10:00:00.000Z",
+      industryAnsweredAt: null,
+      goalAnsweredAt: null,
+    });
+    strictEqual(legacy?.segment, "operations");
+    strictEqual(legacy?.role, null);
+    strictEqual(legacy?.roleAnsweredAt, null);
+    // Answered before the company size existed.
+    strictEqual(legacy?.companySize, null);
+    strictEqual(legacy?.companySizeAnsweredAt, null);
   });
 
   it("rejects a non-object body", () => {
@@ -188,10 +229,19 @@ describe("putGatewayOnboarding", () => {
   it("PUTs the trimmed subset and reports success", async () => {
     const sent: Sent[] = [];
     strictEqual(
-      await putGatewayOnboarding(deps([json(FULL_REMOTE)], sent), {
-        industry: "legal",
-        automationGoal: "  draft NDAs  ",
-      }),
+      await putGatewayOnboarding(
+        deps(
+          [
+            json({
+              ...FULL_REMOTE,
+              industry: "legal",
+              automationGoal: "draft NDAs",
+            }),
+          ],
+          sent,
+        ),
+        { industry: "legal", automationGoal: "  draft NDAs  " },
+      ),
       true,
     );
     strictEqual(sent[0].method, "PUT");
@@ -201,18 +251,121 @@ describe("putGatewayOnboarding", () => {
     });
   });
 
+  it("pins the body byte for byte: the role, never the retired department", async () => {
+    const sent: Sent[] = [];
+    await putGatewayOnboarding(deps([json(FULL_REMOTE)], sent), {
+      role: "paralegal",
+      industry: "legal",
+      automationGoal: "Draft NDAs",
+    });
+    strictEqual(sent[0].url, "https://gw.example/v1/me/onboarding");
+    strictEqual(
+      sent[0].body,
+      '{"role":"paralegal","industry":"legal","automationGoal":"Draft NDAs"}',
+    );
+  });
+
+  it("pins the company size and a leadership role byte for byte", async () => {
+    const sent: Sent[] = [];
+    await putGatewayOnboarding(deps([json(FULL_REMOTE)], sent), {
+      role: "ceo",
+      companySize: "201_1000",
+    });
+    strictEqual(sent[0].body, '{"role":"ceo","companySize":"201_1000"}');
+  });
+
+  it("sends every company size and its skip as they are", async () => {
+    for (const companySize of [
+      "solo",
+      "2_10",
+      "11_50",
+      "51_200",
+      "201_1000",
+      "1000_plus",
+      "skipped",
+    ] as const) {
+      const sent: Sent[] = [];
+      await putGatewayOnboarding(deps([json(FULL_REMOTE)], sent), {
+        companySize,
+      });
+      strictEqual(sent[0].body, JSON.stringify({ companySize }));
+    }
+  });
+
+  it("sends the two role answers outside the catalog as they are", async () => {
+    for (const role of ["something_else", "skipped"] as const) {
+      const sent: Sent[] = [];
+      await putGatewayOnboarding(deps([json(FULL_REMOTE)], sent), { role });
+      strictEqual(sent[0].body, JSON.stringify({ role }));
+    }
+  });
+
   it("writes as the USER, never as the pinned team space", async () => {
     // The write gate derives billing from the pinned team, so with the header
     // on, a plain member of an expired team got a silent 403 storing their own
     // onboarding answers — and it burned the once-per-account catch-up.
     const sent: Sent[] = [];
     strictEqual(
-      await putGatewayOnboarding(deps([json(FULL_REMOTE)], sent), {
-        segment: "legal",
-      }),
+      await putGatewayOnboarding(
+        deps([json({ ...FULL_REMOTE, role: "paralegal" })], sent),
+        { role: "paralegal" },
+      ),
       true,
     );
     strictEqual(sent[0].org, null);
+  });
+
+  it("is not synced when the gateway's answer lacks a field it was sent", async () => {
+    // A gateway that predates `role` ignores it and still answers 200: the
+    // record must stay owed so the role is sent again once it is stored.
+    const sent: Sent[] = [];
+    const { role: _dropped, ...olderGateway } = FULL_REMOTE;
+    strictEqual(
+      await putGatewayOnboarding(
+        deps([json({ ...olderGateway, industry: "legal" })], sent),
+        { role: "ceo", industry: "legal" },
+      ),
+      false,
+    );
+    strictEqual(sent.length, 1);
+  });
+
+  it("stores the rest when one field is refused, and stays owed", async () => {
+    // A role a newer build offers than this gateway knows: the other answers
+    // must not be held back by it.
+    const sent: Sent[] = [];
+    strictEqual(
+      await putGatewayOnboarding(
+        deps(
+          [
+            json({ error: "role unknown", code: "invalid_role" }, 400),
+            json({ ...FULL_REMOTE, industry: "legal", companySize: "2_10" }),
+          ],
+          sent,
+        ),
+        { role: "ceo", industry: "legal", companySize: "2_10" },
+      ),
+      false,
+    );
+    deepStrictEqual(
+      sent.map((s) => s.body),
+      [
+        '{"role":"ceo","industry":"legal","companySize":"2_10"}',
+        '{"industry":"legal","companySize":"2_10"}',
+      ],
+    );
+  });
+
+  it("sends nothing more when the refused field was all it held", async () => {
+    const sent: Sent[] = [];
+    strictEqual(
+      await putGatewayOnboarding(
+        deps([json({ code: "invalid_company_size" }, 400)], sent),
+        { companySize: "2_10" },
+      ),
+      false,
+    );
+    strictEqual(sent.length, 1);
   });
 
   it("never sends a body the gateway would 400", async () => {
@@ -220,7 +373,8 @@ describe("putGatewayOnboarding", () => {
     strictEqual(await putGatewayOnboarding(deps([], sent), {}), false);
     strictEqual(
       await putGatewayOnboarding(deps([], sent), {
-        segment: "astronaut" as never,
+        role: "astronaut" as never,
+        companySize: "huge" as never,
         automationGoal: "   ",
       }),
       false,
@@ -252,31 +406,40 @@ describe("mergeGatewayOnboarding", () => {
 
   it("fills only the questions this device has no answer for", () => {
     const merged = mergeGatewayOnboarding(
-      local({ segment: "engineering", updatedAt: "2026-08-05T09:00:00.000Z" }),
+      local({ role: "paralegal", updatedAt: "2026-08-05T09:00:00.000Z" }),
       FULL_REMOTE,
     );
     ok(merged);
-    strictEqual(merged.segment, "engineering"); // the local answer wins
+    strictEqual(merged.role, "paralegal"); // the local answer wins
     strictEqual(merged.industry, "healthcare");
+    strictEqual(merged.companySize, "11_50");
     strictEqual(merged.automationGoal, "chase overdue invoices");
     strictEqual(merged.goalSkipped, false);
     strictEqual(merged.updatedAt, "2026-08-05T09:00:00.000Z");
-    // Still ahead of the gateway (the segment was never pushed) — the catch-up
+    // Still ahead of the gateway (the role was never pushed) — the catch-up
     // flush must still fire.
     strictEqual(merged.gatewaySyncedAt, null);
+  });
+
+  it("keeps a local company size over the gateway's", () => {
+    const merged = mergeGatewayOnboarding(
+      local({ role: "founder", companySize: "solo" }),
+      FULL_REMOTE,
+    );
+    strictEqual(merged?.companySize, "solo");
   });
 
   it("adopts a remote-only record as already synced", () => {
     const merged = mergeGatewayOnboarding(null, FULL_REMOTE);
     ok(merged);
-    strictEqual(merged.segment, "operations");
+    strictEqual(merged.role, "medical_receptionist");
     strictEqual(merged.industry, "healthcare");
     strictEqual(merged.updatedAt, "2026-08-03T10:00:00.000Z");
     ok(merged.gatewaySyncedAt);
   });
 
   it("carries a remote skip as an answered goal", () => {
-    const merged = mergeGatewayOnboarding(local({ segment: "sales" }), {
+    const merged = mergeGatewayOnboarding(local({ role: "paralegal" }), {
       ...FULL_REMOTE,
       automationGoal: null,
       goalSkipped: true,
@@ -290,7 +453,7 @@ describe("mergeGatewayOnboarding", () => {
     // A contradictory row (text AND goal_skipped) means the user retracted the
     // text; resurrecting it would put words back in their mouth. `goalSkipped`
     // wins, and the text is dropped.
-    const merged = mergeGatewayOnboarding(local({ segment: "sales" }), {
+    const merged = mergeGatewayOnboarding(local({ role: "paralegal" }), {
       ...FULL_REMOTE,
       automationGoal: "chase overdue invoices",
       goalSkipped: true,
@@ -302,8 +465,9 @@ describe("mergeGatewayOnboarding", () => {
 
   it("reports no change when the gateway adds nothing", () => {
     const complete = local({
-      segment: "operations",
+      role: "medical_receptionist",
       industry: "healthcare",
+      companySize: "11_50",
       automationGoal: "chase overdue invoices",
     });
     strictEqual(mergeGatewayOnboarding(complete, FULL_REMOTE), null);
@@ -314,15 +478,32 @@ describe("mergeGatewayOnboarding", () => {
     strictEqual(
       mergeGatewayOnboarding(null, {
         segment: null,
+        role: null,
         industry: null,
+        companySize: null,
         automationGoal: null,
         goalSkipped: false,
         segmentAnsweredAt: null,
+        roleAnsweredAt: null,
         industryAnsweredAt: null,
+        companySizeAnsweredAt: null,
         goalAnsweredAt: null,
       }),
       null,
     );
+  });
+
+  it("brings a legacy department answered on another device, so the role is never asked", () => {
+    const merged = mergeGatewayOnboarding(null, {
+      ...FULL_REMOTE,
+      segment: "operations",
+      role: null,
+      segmentAnsweredAt: "2026-08-01T10:00:00.000Z",
+      roleAnsweredAt: null,
+    });
+    ok(merged);
+    strictEqual(merged.segment, "operations");
+    strictEqual(merged.role, null);
   });
 });
 
@@ -331,15 +512,52 @@ describe("onboardingPatchFromSurvey", () => {
     deepStrictEqual(
       onboardingPatchFromSurvey({
         ...createOnboardingSurveyPreference(),
-        segment: "design",
-        industry: "retail",
+        role: "merchandiser",
+        industry: "retail_ecommerce",
+        companySize: "51_200",
         automationGoal: "sort my inbox",
       }),
       {
-        segment: "design",
-        industry: "retail",
+        role: "merchandiser",
+        industry: "retail_ecommerce",
+        companySize: "51_200",
         automationGoal: "sort my inbox",
       },
+    );
+  });
+
+  it("never pushes back a something-else read off the gateway without words", () => {
+    // A newer build stored a role or industry this build cannot name, which
+    // reads here as "something else" with no words of the person's. Pushing it
+    // back would overwrite the real answer.
+    deepStrictEqual(
+      onboardingPatchFromSurvey({
+        ...createOnboardingSurveyPreference(),
+        role: "something_else",
+        industry: "something_else",
+        companySize: "2_10",
+      }),
+      { companySize: "2_10" },
+    );
+    deepStrictEqual(
+      onboardingPatchFromSurvey({
+        ...createOnboardingSurveyPreference(),
+        role: "something_else",
+        roleOther: "Dog groomer",
+        industry: "something_else",
+        industryOther: "Pet care",
+      }),
+      { role: "something_else", industry: "something_else" },
+    );
+  });
+
+  it("never pushes the retired department it carries", () => {
+    strictEqual(
+      onboardingPatchFromSurvey({
+        ...createOnboardingSurveyPreference(),
+        segment: "design",
+      }),
+      null,
     );
   });
 
@@ -380,7 +598,7 @@ describe("owesGatewayCatchUp", () => {
     patch: Partial<OnboardingSurveyPreference> = {},
   ): OnboardingSurveyPreference => ({
     ...createOnboardingSurveyPreference(),
-    segment: "design",
+    role: "merchandiser",
     ...patch,
   });
 
@@ -514,10 +732,10 @@ describe("owesGatewayCatchUp", () => {
 
 describe("a save pushes the WHOLE record", () => {
   it("carries an earlier answer whose own push never landed", async () => {
-    // The scenario that loses an answer forever: the segment's PUT fails (the
+    // The scenario that loses an answer forever: the industry's PUT fails (the
     // claim is released, and nothing re-renders, so this session's catch-up
-    // never wakes), then the industry's PUT succeeds and stamps the WHOLE
-    // record as synced. With a per-save DELTA payload the segment is now
+    // never wakes), then the role's PUT succeeds and stamps the WHOLE
+    // record as synced. With a per-save DELTA payload the industry is now
     // neither at the gateway nor owed to it — `owesGatewayCatchUp` skips a
     // stamped record and the gateway merge only ever fills local gaps.
     const sent: Sent[] = [];
@@ -526,25 +744,28 @@ describe("a save pushes the WHOLE record", () => {
       sent,
     );
 
-    let record = applySegment(createOnboardingSurveyPreference(), "operations");
-    const segmentLanded = await putGatewayOnboarding(
-      gateway,
-      onboardingPatchFromSurvey(record) ?? {},
+    let record = applyIndustry(
+      createOnboardingSurveyPreference(),
+      "healthcare",
     );
-    strictEqual(segmentLanded, false);
-    strictEqual(record.gatewaySyncedAt, null);
-
-    record = applyIndustry(record, "healthcare");
     const industryLanded = await putGatewayOnboarding(
       gateway,
       onboardingPatchFromSurvey(record) ?? {},
     );
-    strictEqual(industryLanded, true);
+    strictEqual(industryLanded, false);
+    strictEqual(record.gatewaySyncedAt, null);
+
+    record = applyRole(record, "medical_receptionist");
+    const roleLanded = await putGatewayOnboarding(
+      gateway,
+      onboardingPatchFromSurvey(record) ?? {},
+    );
+    strictEqual(roleLanded, true);
     record = markGatewaySynced(record, "2026-08-08T12:00:00.000Z");
 
     // The second body carries BOTH answers, so the stamp it earns is truthful.
     deepStrictEqual(JSON.parse(sent[1].body ?? ""), {
-      segment: "operations",
+      role: "medical_receptionist",
       industry: "healthcare",
     });
     strictEqual(
@@ -574,7 +795,7 @@ describe("flush ownership wiring", () => {
 
   it("hands the flush the RECORD, and never a per-save delta", () => {
     match(hook, /if \(pushesAnswers\) void flush\(next\);/);
-    doesNotMatch(hook, /=> \(\{ segment \}\)|=> \(\{ industry \}\)/);
+    doesNotMatch(hook, /=> \(\{ role \}\)|=> \(\{ industry \}\)/);
   });
 
   it("feeds the claim into the catch-up and latches only when it pushes", () => {

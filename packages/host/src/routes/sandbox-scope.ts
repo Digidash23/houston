@@ -76,7 +76,7 @@ export function refuseOutOfCoordinatorScope(
   if (COORDINATOR_SCOPE.some((allowed) => allowed.test(path))) return false;
   json(res, 403, {
     error:
-      "Houston's assistant does not do this itself - start a mission and let one of your agents do it",
+      "The AI Manager does not do this itself - start a mission and let one of your agents do it",
     code: "coordinator_scope",
   });
   return true;

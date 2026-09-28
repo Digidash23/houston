@@ -90,7 +90,7 @@ test("the always-on rules carry the mandatory loop", () => {
     "Restate the outcome",
     "search houston_capabilities",
     "NEVER tell them something cannot be done until that search comes back empty",
-    "Houston cannot do that yet",
+    "say plainly that you cannot do that yet",
     "wait for their answer",
     "ask which one they mean",
     "houston_describe",

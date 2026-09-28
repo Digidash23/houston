@@ -1,14 +1,17 @@
 import { ConfirmDialog } from "@houston-ai/core";
 import { useTranslation } from "react-i18next";
 import { skillDisplayTitle } from "../../lib/humanize-skill-name";
+import type { Agent } from "../../lib/types";
 import type { WorkspaceSkillRow } from "../../lib/workspace-skills";
 import type { ScopedActKind } from "./scoped-skill-actions";
+import type { WorkspaceDeleteRequest } from "./workspace-skill-menu-items";
 
 /**
- * The editor's destructive handshakes, split out for the 200-line rule.
- * Copy-based rows confirm unassignment (copies get deleted) and
- * delete-everywhere; a store-backed row reaches only the delete confirm, with
- * copy that says modified per-agent versions survive.
+ * The editor's handshakes, split out for the 200-line rule: leaving unsaved
+ * work, and the destructive acts.
+ * Delete removes THIS employee's copy, so its confirm names this employee
+ * alone; Delete for all names every holder, or the workspace for a store
+ * skill.
  *
  * The third handshake belongs to an employee that keeps its OWN version of a
  * workspace skill: both scoped acts delete that version, and neither reads as
@@ -16,12 +19,14 @@ import type { ScopedActKind } from "./scoped-skill-actions";
  */
 export function SkillEditorConfirms({
   row,
-  pendingRemoveCount,
-  pendingRemoveNames,
-  onConfirmRemove,
-  onCancelRemove,
+  agent,
+  pendingLeave,
+  onCancelLeave,
+  onConfirmLeave,
+  deleteForEveryone,
+  onCancelDeleteForEveryone,
+  onConfirmDeleteForEveryone,
   confirmDelete,
-  deleteSharedCopy,
   onConfirmDelete,
   onCancelDelete,
   scopedAct,
@@ -29,14 +34,17 @@ export function SkillEditorConfirms({
   onCancelScopedAct,
 }: {
   row: WorkspaceSkillRow;
-  /** >0 opens the unassign confirm (copy-based saves only). */
-  pendingRemoveCount: number;
-  pendingRemoveNames: string;
-  onConfirmRemove: () => void;
-  onCancelRemove: () => void;
+  /** The employee whose copy Delete removes. */
+  agent: Agent;
+  /** Leaving a dirty editor awaits the discard handshake. */
+  pendingLeave: boolean;
+  onCancelLeave: () => void;
+  onConfirmLeave: () => void;
+  /** A delete for every employee awaiting its handshake, or null. */
+  deleteForEveryone: WorkspaceDeleteRequest | null;
+  onCancelDeleteForEveryone: () => void;
+  onConfirmDeleteForEveryone: () => void;
   confirmDelete: boolean;
-  /** Store-backed row: the delete copy names the workspace, not agents. */
-  deleteSharedCopy: boolean;
   onConfirmDelete: () => void;
   onCancelDelete: () => void;
   /** The scoped act awaiting its handshake, or null while none is. */
@@ -57,20 +65,34 @@ export function SkillEditorConfirms({
           description: t("skills:global.scopedOverride.disableConfirmBody"),
           confirm: t("skills:global.manage.disableForAgent"),
         };
+  const everyoneDescription =
+    deleteForEveryone && deleteForEveryone.holders.length > 0
+      ? t("skills:global.manage.deleteConfirmDescription", {
+          count: deleteForEveryone.holders.length,
+          names: deleteForEveryone.holders.join(", "),
+        })
+      : t("skills:global.manage.deleteSharedDescription");
   return (
     <>
       <ConfirmDialog
-        open={pendingRemoveCount > 0}
-        onOpenChange={(open) => !open && onCancelRemove()}
-        title={t("skills:global.manage.removeConfirmTitle", {
-          count: pendingRemoveCount,
-        })}
-        description={t("skills:global.manage.removeConfirmDescription", {
-          names: pendingRemoveNames,
-        })}
-        confirmLabel={t("skills:detail.saveChanges")}
+        open={pendingLeave}
+        onOpenChange={(open) => !open && onCancelLeave()}
+        title={t("skills:editor.discardConfirmTitle")}
+        description={t("skills:editor.discardConfirmBody")}
+        confirmLabel={t("skills:editor.discardConfirmConfirm")}
         cancelLabel={t("common:actions.cancel")}
-        onConfirm={onConfirmRemove}
+        onConfirm={onConfirmLeave}
+      />
+      <ConfirmDialog
+        open={deleteForEveryone !== null}
+        onOpenChange={(open) => !open && onCancelDeleteForEveryone()}
+        title={t("skills:global.manage.deleteConfirmTitle", {
+          name: skillDisplayTitle(row.summary),
+        })}
+        description={everyoneDescription}
+        confirmLabel={t("common:actions.delete")}
+        cancelLabel={t("common:actions.cancel")}
+        onConfirm={onConfirmDeleteForEveryone}
       />
       <ConfirmDialog
         open={confirmDelete}
@@ -78,14 +100,10 @@ export function SkillEditorConfirms({
         title={t("skills:global.manage.deleteConfirmTitle", {
           name: skillDisplayTitle(row.summary),
         })}
-        description={
-          deleteSharedCopy
-            ? t("skills:global.manage.deleteSharedDescription")
-            : t("skills:global.manage.deleteConfirmDescription", {
-                count: row.agents.length,
-                names: row.agents.map((a) => a.name).join(", "),
-              })
-        }
+        description={t("skills:global.manage.deleteConfirmDescription", {
+          count: 1,
+          names: agent.name,
+        })}
         confirmLabel={t("common:actions.delete")}
         cancelLabel={t("common:actions.cancel")}
         onConfirm={onConfirmDelete}

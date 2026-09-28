@@ -117,6 +117,10 @@ export interface ChatMessagesProps {
    * agent reply still chips for Julian. Empty/absent renders no chips.
    */
   mentionPeople?: readonly MentionPerson[];
+  /** Change this value to bring the latest message into view even when the
+   *  person scrolled up, the way sending does: for a surface whose answers
+   *  are taps, not sends. */
+  scrollToLatestToken?: number;
   /** Props-only configuration for the optional Conversation Map. */
   conversationMap?: {
     labels?: ConversationMapLabels;

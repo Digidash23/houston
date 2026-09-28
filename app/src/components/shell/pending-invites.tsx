@@ -53,8 +53,8 @@ export function PendingInviteList({
 
 /**
  * The invite inbox as the sidebar mounts it: the `headerBelow` band, a
- * full-width row directly under the workspace switcher. It owns its own data
- * gate so the switcher header stays about switching spaces.
+ * full-width row directly under the rail's top line. It owns its own data
+ * gate so the rail stays about its people.
  *
  * Spaces-gated on BOTH sides. The FETCH is gated because off a Spaces host
  * `listOrgs` has nothing to answer; the RENDER is gated because disabling a

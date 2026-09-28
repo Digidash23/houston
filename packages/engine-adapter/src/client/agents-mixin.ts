@@ -11,6 +11,7 @@ import type {
 import * as agents from "../agents";
 import * as controlPlane from "../control-plane";
 import { readAgentList } from "./agent-list";
+import { createAgentViaCp, renameAgentViaCp } from "./agents-cp";
 import { HoustonEngineError } from "./errors";
 import { deploymentServes } from "./host-capabilities";
 import type { BaseCtor } from "./mixin";
@@ -47,21 +48,7 @@ export function AgentsMixin<TBase extends BaseCtor>(Base: TBase) {
       workspaceId: string,
       req: CreateAgent,
     ): Promise<CreateAgentResult> {
-      if (this.ctx.cp) {
-        // Delegate the wire write to the SDK (byte-identical POST /agents with
-        // the full `{ name, claudeMd?, seeds? }` body, no refetch). The RETURNED
-        // wire agent carries the id the color overlay needs — layer it on and map
-        // to the UI shape callers expect.
-        const wire = await viaSdk("/agents", () =>
-          this.ctx.sdk.agents.writes.create({
-            name: req.name,
-            claudeMd: req.claudeMd,
-            seeds: req.seeds,
-          }),
-        );
-        this.ctx.noteAgentAdded(wire.id);
-        return { agent: controlPlane.createdAgentToUi(wire, req.color) };
-      }
+      if (this.ctx.cp) return createAgentViaCp(this.ctx, req);
       return agents.createAgent(workspaceId, req);
     }
     async renameAgent(
@@ -69,20 +56,7 @@ export function AgentsMixin<TBase extends BaseCtor>(Base: TBase) {
       agentId: string,
       newName: string,
     ): Promise<Agent> {
-      if (this.ctx.cp) {
-        // SDK delegates the PATCH /agents/:id write; web carries the color
-        // overlay across the (possibly new) id and maps to the UI shape.
-        const wire = await viaSdk(controlPlane.agentPath(agentId), () =>
-          this.ctx.sdk.agents.writes.rename(agentId, newName),
-        );
-        // A rename mints a new id: the old one 404s from here on, so provider
-        // routing must stop naming it (HOUSTON-APP-52F).
-        if (wire.id !== agentId) {
-          this.ctx.noteAgentGone(agentId);
-          this.ctx.noteAgentAdded(wire.id);
-        }
-        return controlPlane.renamedAgentToUi(agentId, wire);
-      }
+      if (this.ctx.cp) return renameAgentViaCp(this.ctx, agentId, newName);
       return agents.renameAgent(workspaceId, agentId, newName);
     }
     async updateAgent(
@@ -114,7 +88,7 @@ export function AgentsMixin<TBase extends BaseCtor>(Base: TBase) {
      * Writes a first draft of an agent's instructions from a description of it.
      *
      * @assistant group:agents
-     * @assistant hidden: a one-shot generation turn on a runtime, not a Houston operation; an assistant writes the instructions itself and saves them with writeAgentFile.
+     * @assistant hidden: a one-shot generation turn on a runtime, not an app operation; an assistant writes the instructions itself and saves them with writeAgentFile.
      *
      * Create-with-AI: one one-shot generation turn on the runtime — the selected
      * agent's sandbox in cloud / desktop-new-engine mode (same path as

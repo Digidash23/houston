@@ -1,7 +1,7 @@
 import type { AgentAssignment, OrgMember } from "@houston/engine-adapter";
 import { useMutation } from "@tanstack/react-query";
+import { tauriAgents } from "../../lib/agents-facade";
 import { analytics } from "../../lib/analytics";
-import { tauriAgents } from "../../lib/tauri";
 import type { Agent } from "../../lib/types";
 import { useAgentStore } from "../../stores/agents";
 import { useWorkspaceStore } from "../../stores/workspaces";

@@ -1,153 +1,87 @@
-import type { OrgMember } from "@houston/engine-adapter";
-import { Empty, EmptyTitle } from "@houston-ai/core";
-import { useMemo } from "react";
-import { useTranslation } from "react-i18next";
-import { useAgentTeams, useOrgUsage } from "../../hooks/queries";
-import { useCapabilities } from "../../hooks/use-capabilities";
-import { useSession } from "../../hooks/use-session";
-import { useTeams } from "../../hooks/use-teams";
-import { hasAgentTeams } from "../../lib/org-roles";
-import { useAgentStore } from "../../stores/agents";
-import { CARD_GRID, ChartSkeleton } from "./org-chart-cards";
-import { orgChartUsage } from "./org-chart-model";
-import { OrgChartRetryLine } from "./org-chart-retry-line";
-import { OrgChartTeamCard } from "./org-chart-team-card";
 import {
-  orgChartRoster,
-  orgChartScale,
-  orgChartTeamOrder,
-  orgChartTeamsState,
-  orgChartUsageState,
-} from "./org-chart-view-model";
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+  useIsMobile,
+} from "@houston-ai/core";
+import { useTranslation } from "react-i18next";
+import { openAgentBoard } from "../../lib/open-agent";
+import { OrgChartHero } from "./org-chart-hero";
+import { OrgChartLedger } from "./org-chart-ledger";
+import { OrgChartRetryLine } from "./org-chart-retry-line";
+import { OrgChartSkeleton } from "./org-chart-skeleton";
+import { useOrgNav } from "./org-nav-store";
 import type { OrgTabProps } from "./organization-view";
+import { useOrgChartData } from "./use-org-chart-data";
 
 /**
- * Admin > Org chart: every team of the space with the humans in it and the
- * agents it runs, each agent carrying its share of the last 30 days of
- * messages.
- *
- * It is the one screen that answers "who works here" with both kinds of worker
- * in the same frame, so the two are drawn in the same row grammar — a face, a
- * name, a number — and the bars are scaled to ONE busiest agent across the
- * whole chart rather than per card, which is what makes two cards comparable.
- *
- * Usage is owner/admin-only (the gateway 403s anyone else), and a caller
- * without it gets the chart with no numbers at all rather than a page of
- * zeroes: the counts, the bars and the window caption disappear together.
+ * Admin > Org chart, the ledger: the space's month in one hero band (its
+ * hours of work, its messages, a 30-day chart), then every AI Employee
+ * ranked by the hours it worked, the #1 featured, each with the people who
+ * manage and use it. A line opens its board; a face opens People on that
+ * person. A read that fails says so once with a retry instead of drawing
+ * zeroes. A personal space is its one person: the hero names them and the
+ * ledger draws no people columns.
  */
 export default function OrgChartTab({ ctx }: OrgTabProps) {
   const { t } = useTranslation("teams");
-  const teams = useTeams();
-  const agentsLoaded = useAgentStore((s) => s.loaded);
-  const { capabilities } = useCapabilities();
-  const serverBacked = hasAgentTeams(capabilities);
-  // The same cache entry `useTeams` composes from; read here for the one thing
-  // a composed TeamView[] cannot carry, which is whether the read landed.
-  const {
-    isLoading: teamsLoading,
-    isError: teamsError,
-    refetch: refetchTeams,
-  } = useAgentTeams(serverBacked);
-  const { data: session } = useSession();
-  const permitted = ctx.role === "owner" || ctx.role === "admin";
-  const { data: rows, isLoading, isError, refetch } = useOrgUsage(permitted);
+  const isMobile = useIsMobile();
+  const requestPerson = useOrgNav((store) => store.requestPerson);
+  const chart = useOrgChartData(ctx);
 
-  const cards = useMemo(() => orgChartTeamOrder(teams), [teams]);
-  const usage = useMemo(
-    () =>
-      orgChartUsage(
-        cards.flatMap((team) => team.agents),
-        rows ?? [],
-      ),
-    [cards, rows],
-  );
-  const scale = orgChartScale(usage.byAgent);
-  const state = orgChartUsageState({ permitted, isLoading, isError });
-
-  const selfId = session?.uid ?? null;
-  const self: OrgMember | null = useMemo(
-    () =>
-      session
-        ? {
-            userId: session.uid,
-            role: ctx.role,
-            displayName: session.displayName ?? undefined,
-            email: session.email || undefined,
-            photoUrl: session.photoUrl ?? undefined,
-          }
-        : null,
-    [session, ctx.role],
-  );
-  const roster = useMemo(
-    () =>
-      orgChartRoster({
-        personal: ctx.isPersonal,
-        roster: ctx.org.members ?? [],
-        self,
-      }),
-    [ctx.isPersonal, ctx.org.members, self],
-  );
-
-  const teamsState = orgChartTeamsState({
-    agentsLoaded,
-    teamsLoading,
-    teamsError,
-    teamCount: cards.length,
-  });
-
-  if (teamsState === "loading")
-    return (
-      <div className="mt-2">
-        <ChartSkeleton label={t("orgChart.loading")} />
-      </div>
-    );
-
-  // "No teams yet" is a claim about the company, so a failed read says what
-  // actually happened and offers the way to try again.
-  if (teamsState === "error")
-    return (
-      <OrgChartRetryLine
-        className="mt-6"
-        message={t("orgChart.teamsUnavailable")}
-        retryLabel={t("orgChart.retry")}
-        onRetry={() => void refetchTeams()}
-      />
-    );
-
-  if (teamsState === "empty")
+  if (chart.state === "loading")
+    return <OrgChartSkeleton label={t("orgChart.loading")} />;
+  if (chart.state === "empty")
     return (
       <Empty className="mt-6">
-        <EmptyTitle>{t("orgChart.empty")}</EmptyTitle>
+        <EmptyHeader>
+          <EmptyTitle>{t("orgChart.empty")}</EmptyTitle>
+          <EmptyDescription>{t("orgChart.emptyBody")}</EmptyDescription>
+        </EmptyHeader>
       </Empty>
     );
 
-  return (
-    <div className="mt-2 flex flex-col gap-4">
-      {state === "error" ? (
-        <OrgChartRetryLine
-          message={t("orgChart.usageUnavailable")}
-          retryLabel={t("orgChart.retry")}
-          onRetry={() => void refetch()}
-        />
-      ) : state === "hidden" ? null : (
-        <p className="text-sm text-ink-muted">{t("orgChart.window")}</p>
-      )}
+  const failures = [
+    chart.reads.hours === "error" && {
+      id: "hours",
+      message: t("orgChart.hoursUnavailable"),
+      retry: chart.retry.hours,
+    },
+    chart.reads.messages === "error" && {
+      id: "messages",
+      message: t("orgChart.messagesUnavailable"),
+      retry: chart.retry.messages,
+    },
+  ].flatMap((failure) => (failure ? [failure] : []));
 
-      <ul className={CARD_GRID}>
-        {cards.map((team) => (
-          <OrgChartTeamCard
-            key={team.id}
-            team={team}
-            roster={roster}
-            personal={ctx.isPersonal}
-            serverBacked={serverBacked}
-            selfId={selfId}
-            usage={usage}
-            scale={scale}
-            state={state}
-          />
-        ))}
-      </ul>
+  return (
+    <div className="flex flex-col gap-7 md:gap-10">
+      <OrgChartHero
+        title={chart.title}
+        lead={chart.lead}
+        figures={chart.figures}
+        series={chart.series}
+      />
+      {failures.length > 0 && (
+        <div className="-mt-3 flex flex-col gap-1 md:-mt-6">
+          {failures.map((failure) => (
+            <OrgChartRetryLine
+              key={failure.id}
+              message={failure.message}
+              retryLabel={t("orgChart.retry")}
+              onRetry={failure.retry}
+            />
+          ))}
+        </div>
+      )}
+      <OrgChartLedger
+        lines={chart.lines}
+        columns={chart.columns}
+        phone={isMobile}
+        onOpenBoard={openAgentBoard}
+        onOpenPerson={requestPerson}
+      />
     </div>
   );
 }

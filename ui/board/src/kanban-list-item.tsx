@@ -9,6 +9,7 @@ import {
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { KanbanCardLabels } from "./kanban-card";
+import { KanbanTag } from "./kanban-tag";
 import type { BoardSearchSnippet, KanbanItem } from "./types";
 
 export interface KanbanListItemProps {
@@ -28,9 +29,10 @@ export interface KanbanListItemProps {
 
 /**
  * Compact row for the Archived missions list: agent icon + name, mission title,
- * and a delete button. The title is shown plainly; when a search matched only
- * in the body/history, a short highlighted fragment appears below so the user
- * sees why the mission surfaced.
+ * the mission's tag pills (the board card's own chip), and a delete button.
+ * The title is shown plainly; when a search matched only in the body/history,
+ * a short highlighted fragment appears below so the user sees why the mission
+ * surfaced.
  */
 export function KanbanListItem({
   item,
@@ -85,6 +87,16 @@ export function KanbanListItem({
             <span className="text-[13px] font-medium text-ink flex-1 truncate">
               {item.title}
             </span>
+            {/* The card's tag pills, at the end of the title line: the row
+               stays one line, and the tag is capped so the title keeps most
+               of it on a narrow pane. */}
+            {item.tags?.length ? (
+              <span className="flex min-w-0 max-w-[40%] shrink-0 items-center gap-1">
+                {item.tags.map((tag) => (
+                  <KanbanTag key={tag} label={tag} />
+                ))}
+              </span>
+            ) : null}
           </div>
           {snippet && (
             <p className="mt-1 text-xs leading-snug text-ink-muted line-clamp-2">

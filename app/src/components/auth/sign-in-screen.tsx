@@ -1,3 +1,4 @@
+import { HoustonHelmet } from "@houston-ai/core";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -10,7 +11,6 @@ import {
 import { describeLastSignIn, readLastSignIn } from "../../lib/last-sign-in";
 import { logger } from "../../lib/logger";
 import { FirstRunScreen } from "../onboarding/first-run-screen";
-import { HoustonLogo } from "../shell/experience-card";
 import { authErrorKey } from "./auth-errors";
 import { ContinueLastSignIn } from "./continue-last-sign-in";
 import { EmailSignIn } from "./email-sign-in";
@@ -136,7 +136,7 @@ export function SignInScreen() {
   return (
     <FirstRunScreen>
       <div className="flex items-center gap-2 px-6 pt-14 pb-6 text-ink md:px-8">
-        <HoustonLogo size={24} />
+        <HoustonHelmet color="currentColor" size={24} />
         <span className="text-lg font-semibold tracking-tight">Houston</span>
       </div>
 
@@ -144,7 +144,7 @@ export function SignInScreen() {
         {/* A plain white card, hairline + soft shadow, floating on the grey
             first-run background. The FirstRunScreen wrapper pins light, so the
             login reads the same bright way in both app themes. */}
-        <div className="grid w-full max-w-3xl grid-cols-1 overflow-hidden rounded-2xl border border-line bg-card text-ink shadow-[0_4px_24px_rgba(0,0,0,0.06)] md:grid-cols-3">
+        <div className="grid w-full max-w-3xl grid-cols-1 overflow-hidden rounded-2xl border border-line bg-card text-ink shadow-raised md:grid-cols-3">
           <div className="flex flex-col gap-5 bg-card p-6 md:col-span-2 md:p-8">
             <h1 className="text-lg font-medium">{tAuth("title")}</h1>
 

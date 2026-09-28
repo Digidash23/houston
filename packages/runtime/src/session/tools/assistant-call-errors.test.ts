@@ -93,3 +93,38 @@ test("a chat the assistant may not change is a named state, not a gateway error"
     message: sentence,
   });
 });
+
+test("a createAgent onto a taken name reads as the host's own sentence", async () => {
+  // What `assistant-forward.ts` relays for the host's 409 `name_taken`: the
+  // upstream body, verbatim, as the error text.
+  const upstream = JSON.stringify({
+    error: 'an agent named "Mia" already exists in this workspace',
+    code: "name_taken",
+  });
+  const error = await refusal(409, { error: upstream, code: "gateway_error" });
+
+  expect(error).toMatchObject({ code: "gateway_error", status: 409 });
+  expect(assistantErrorResult("createAgent", error).content[0]).toMatchObject({
+    text: expect.stringContaining(
+      'an agent named \\"Mia\\" already exists in this workspace',
+    ),
+  });
+});
+
+test("a createAgent named Houston reads as the host's reserved-name sentence", async () => {
+  // The host's 400 `name_reserved`, relayed by `assistant-forward.ts` as the
+  // upstream body: the sentence tells the manager what to do next.
+  const upstream = JSON.stringify({
+    error:
+      "Houston is the AI Manager's own name, so an AI Employee can't use it. Ask the user for another name.",
+    code: "name_reserved",
+  });
+  const error = await refusal(400, { error: upstream, code: "gateway_error" });
+
+  expect(error).toMatchObject({ code: "gateway_error", status: 400 });
+  expect(assistantErrorResult("createAgent", error).content[0]).toMatchObject({
+    text: expect.stringContaining(
+      "Houston is the AI Manager's own name, so an AI Employee can't use it. Ask the user for another name.",
+    ),
+  });
+});

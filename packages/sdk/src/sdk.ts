@@ -48,18 +48,21 @@ export class HoustonSdk implements SdkModules {
   readonly session: SdkModules["session"];
   readonly agents: SdkModules["agents"];
   readonly conversations: SdkModules["conversations"];
+  readonly delegation: SdkModules["delegation"];
   readonly turns: SdkModules["turns"];
   readonly activities: SdkModules["activities"];
   readonly missions: SdkModules["missions"];
   readonly providers: SdkModules["providers"];
   readonly integrations: SdkModules["integrations"];
   readonly preferences: SdkModules["preferences"];
+  readonly appearance: SdkModules["appearance"];
   readonly spaces: SdkModules["spaces"];
   readonly workspaces: SdkModules["workspaces"];
   readonly account: SdkModules["account"];
   readonly org: SdkModules["org"];
   readonly teams: SdkModules["teams"];
   readonly billing: SdkModules["billing"];
+  readonly plan: SdkModules["plan"];
   readonly channels: SdkModules["channels"];
   readonly routines: SdkModules["routines"];
   readonly skills: SdkModules["skills"];
@@ -96,6 +99,7 @@ export class HoustonSdk implements SdkModules {
     this.session = moduleFactories.createSessionModule(ctx);
     this.agents = moduleFactories.createAgentsModule(ctx);
     this.conversations = moduleFactories.createConversationsModule(ctx);
+    this.delegation = moduleFactories.createDelegationModule(ctx);
     // Activities BEFORE turns: the turns module's default board-status output
     // persists a card by session key through the activities module, so that
     // capability must exist first. Injected as a bound function (not the whole
@@ -115,12 +119,14 @@ export class HoustonSdk implements SdkModules {
     this.providers = moduleFactories.createProvidersModule(ctx);
     this.integrations = moduleFactories.createIntegrationsModule(ctx);
     this.preferences = moduleFactories.createPreferencesModule(ctx);
+    this.appearance = moduleFactories.createAppearanceModule(ctx);
     this.spaces = moduleFactories.createSpacesModule(ctx);
     this.workspaces = moduleFactories.createWorkspacesModule(ctx);
     this.account = moduleFactories.createAccountModule(ctx);
     this.org = moduleFactories.createOrgModule(ctx);
     this.teams = moduleFactories.createTeamsModule(ctx);
     this.billing = moduleFactories.createBillingModule(ctx);
+    this.plan = moduleFactories.createPlanModule(ctx);
     this.channels = moduleFactories.createChannelsModule(ctx);
     this.routines = moduleFactories.createRoutinesModule(ctx);
     this.skills = moduleFactories.createSkillsModule(ctx);

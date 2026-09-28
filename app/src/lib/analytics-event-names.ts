@@ -28,21 +28,25 @@ export type AnalyticsEventName =
   // Onboarding
   | "onboarding_started"
   | "onboarding_completed"
-  | "onboarding_segment_screen_viewed"
-  | "onboarding_segment_selected"
-  | "onboarding_segment_continued"
-  // The two questions the segment screen grew into (industry + the automation
-  // goal in the user's own words). Same three-beat shape as the segment step —
-  // viewed / selected / continued — so one funnel covers the whole survey, and
-  // `source_screen` says whether it was asked at first run or later, from the
-  // profile-completion prompt.
+  // The closing's offer to start on the person's automation goal was
+  // answered: `choice` is "accepted" or "declined".
+  | "onboarding_goal_handoff"
+  // The survey's four questions (industry, role, company size, automation
+  // goal), each viewed / selected / continued (the one-tap company size has
+  // no separate selection); `source_screen` says whether it was asked at
+  // first run or later, from the profile-completion prompt.
   | "onboarding_industry_screen_viewed"
   | "onboarding_industry_selected"
   | "onboarding_industry_continued"
+  | "onboarding_role_screen_viewed"
+  | "onboarding_role_selected"
+  | "onboarding_role_continued"
+  | "onboarding_company_size_screen_viewed"
+  | "onboarding_company_size_continued"
   | "onboarding_goal_screen_viewed"
   | "onboarding_goal_continued"
-  // The completion prompt appeared for someone who answered the segment before
-  // the survey existed (or bailed mid-way); `missing_steps` names the gaps.
+  // The completion prompt appeared for someone who left the survey unfinished;
+  // `missing_steps` names the gaps.
   | "onboarding_survey_prompted"
   // One-time "reconnect your AI" moment after upgrading from the legacy build.
   | "migration_reconnect_completed"
@@ -68,22 +72,16 @@ export type AnalyticsEventName =
   // Onboarding funnel (acquisition→activation) — one event per step the user
   // actually clears, so a single PostHog funnel can show where first-run drops
   // off (broken down by `app_os` for Mac vs Windows). Action-first: where a
-  // real action exists (provider/apps connected, message/email sent) we fire on
-  // the action, not the Continue click. Each fires exactly ONCE per install
-  // (ref/flag-guarded at the call site).
+  // real action exists (AI connected, message/email sent) we fire on the
+  // action, not the Continue click. Each fires exactly ONCE (ref/flag-guarded
+  // at the call site).
   | "onboarding_language_selected"
-  | "onboarding_agreement_accepted"
   | "ai_provider_connected"
-  | "tools_provider_connected"
   | "first_message_sent"
   | "first_email_sent"
   // Fires once per onboarding screen reached (carries `step`), so a single
-  // funnel shows exactly where people drop off in the redesigned flow.
+  // funnel shows exactly where people drop off in the first-run flow.
   | "onboarding_step_viewed"
-  // Escape hatch: the user bailed out of a stuck onboarding step (HOU-555).
-  // Carries `step`, `provider`, `model` so skip-rate can be broken down by
-  // model — some models send the email but never emit the completion marker.
-  | "onboarding_skipped"
   // Houston Academy: the learning surface was opened (`source` names where
   // from) and a chapter was cleared (`chapter` is the chapter id). Chapter
   // completion is awarded once per account, so the event doubles as the
@@ -109,8 +107,8 @@ export type AnalyticsEventName =
   // A workspace-internal duplicate (`agent_slug` is the SOURCE agent);
   // `source` names the door: the agent's Settings row or the create dialog.
   | "agent_copied"
-  // Fired when an agent's self-setup mission auto-starts after it is
-  // created/imported. Carries `source` (created vs imported).
+  // Fired when the user starts an AI Employee's first day (its self-setup
+  // task). Carries `source` (how the employee arrived) when it is known.
   | "agent_onboarding_started"
   | "chat_message_sent"
   | "chat_message_received"

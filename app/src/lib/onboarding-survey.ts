@@ -1,35 +1,56 @@
+import type { OnboardingCompanySizeChoice } from "./onboarding-company-size.ts";
 import type { OnboardingIndustryChoice } from "./onboarding-industry.ts";
-import type { OnboardingSegmentChoice } from "./onboarding-segment.ts";
+import type { OnboardingRoleChoice } from "./onboarding-role.ts";
 import {
   isValidAutomationGoal,
   ONBOARDING_GOAL_MAX_LENGTH,
   type OnboardingSurveyPreference,
 } from "./onboarding-survey-record.ts";
 
-// This module is the survey's front door: the vocabulary (segment ids, industry
-// ids) and the persisted record live in their own modules, consumers import
-// everything from here.
+// This module is the survey's front door: the vocabulary (role ids, industry
+// ids, company sizes), the persisted record and what counts as answered live
+// in their own modules, consumers import everything from here.
+export {
+  isOnboardingCompanySize,
+  isOnboardingCompanySizeChoice,
+  normalizeOnboardingCompanySizeChoice,
+  ONBOARDING_COMPANY_SIZE_IDS,
+  ONBOARDING_COMPANY_SIZE_SKIPPED,
+  type OnboardingCompanySize,
+  type OnboardingCompanySizeChoice,
+} from "./onboarding-company-size.ts";
 export {
   isOnboardingIndustry,
   isOnboardingIndustryChoice,
-  ONBOARDING_INDUSTRIES,
+  LEGACY_ONBOARDING_INDUSTRY_CONTEXTS,
+  normalizeOnboardingIndustryChoice,
   ONBOARDING_INDUSTRY_SKIPPED,
+  ONBOARDING_INDUSTRY_SOMETHING_ELSE,
   type OnboardingIndustry,
   type OnboardingIndustryChoice,
 } from "./onboarding-industry.ts";
+export { liftLegacySegmentPreference } from "./onboarding-legacy-segment.ts";
 export {
-  isOnboardingSegment,
-  isOnboardingSegmentChoice,
-  ONBOARDING_SEGMENT_SKIPPED,
-  ONBOARDING_SEGMENTS,
-  type OnboardingSegment,
-  type OnboardingSegmentChoice,
-} from "./onboarding-segment.ts";
+  isOnboardingRole,
+  isOnboardingRoleChoice,
+  normalizeOnboardingRoleChoice,
+  ONBOARDING_ROLE_SKIPPED,
+  ONBOARDING_ROLE_SOMETHING_ELSE,
+  type OnboardingRole,
+  type OnboardingRoleChoice,
+  type OnboardingRoleId,
+} from "./onboarding-role.ts";
+export {
+  isCompanySizeAnswered,
+  isGoalAnswered,
+  isIndustryAnswered,
+  isRoleAnswered,
+  needsCompletionPrompt,
+} from "./onboarding-survey-answered.ts";
 export {
   createOnboardingSurveyPreference,
   isValidAutomationGoal,
   isValidOtherText,
-  liftLegacySegmentPreference,
   markGatewaySynced,
   ONBOARDING_GOAL_MAX_LENGTH,
   ONBOARDING_OTHER_MAX_LENGTH,
@@ -42,15 +63,16 @@ export {
   serializeOnboardingSurveyPreference,
 } from "./onboarding-survey-record.ts";
 
-/** The answer fields (the gateway mirrors the four original ones; the two
- *  "other" labels live in the account preference — see onboarding-sync.ts). */
+/** The answer fields (the gateway mirrors the ids, the company size and the
+ *  goal; the two "other" labels live in the account preference — see onboarding-sync.ts). */
 type AnswerPatch = Partial<
   Pick<
     OnboardingSurveyPreference,
-    | "segment"
-    | "segmentOther"
+    | "role"
+    | "roleOther"
     | "industry"
     | "industryOther"
+    | "companySize"
     | "automationGoal"
     | "goalSkipped"
   >
@@ -87,16 +109,16 @@ function reviseLocalState(
   return { ...preference, ...patch };
 }
 
-export function applySegment(
+export function applyRole(
   preference: OnboardingSurveyPreference,
-  segment: OnboardingSegmentChoice,
+  role: OnboardingRoleChoice,
   other: string | null = null,
 ): OnboardingSurveyPreference {
   // The free text belongs to "Something else" alone: a named pick clears it,
   // so a back-and-forth re-pick can never strand a stale label.
   return reviseAnswer(preference, {
-    segment,
-    segmentOther: segment === "something_else" ? (other?.trim() ?? null) : null,
+    role,
+    roleOther: role === "something_else" ? (other?.trim() ?? null) : null,
   });
 }
 
@@ -110,6 +132,13 @@ export function applyIndustry(
     industryOther:
       industry === "something_else" ? (other?.trim() ?? null) : null,
   });
+}
+
+export function applyCompanySize(
+  preference: OnboardingSurveyPreference,
+  companySize: OnboardingCompanySizeChoice,
+): OnboardingSurveyPreference {
+  return reviseAnswer(preference, { companySize });
 }
 
 export function applyGoal(
@@ -136,36 +165,4 @@ export function applyCompletionDismissed(
   preference: OnboardingSurveyPreference,
 ): OnboardingSurveyPreference {
   return reviseLocalState(preference, { completionPromptDismissed: true });
-}
-
-export function isSegmentAnswered(
-  preference: OnboardingSurveyPreference | null,
-): boolean {
-  return preference !== null && preference.segment !== null;
-}
-
-export function isIndustryAnswered(
-  preference: OnboardingSurveyPreference | null,
-): boolean {
-  return preference !== null && preference.industry !== null;
-}
-
-export function isGoalAnswered(
-  preference: OnboardingSurveyPreference | null,
-): boolean {
-  return (
-    preference !== null &&
-    (preference.automationGoal !== null || preference.goalSkipped)
-  );
-}
-
-/** The survey is resumable: an answered segment with a gap re-opens it once. */
-export function needsCompletionPrompt(
-  preference: OnboardingSurveyPreference | null,
-): boolean {
-  if (preference === null || preference.completionPromptDismissed) return false;
-  return (
-    isSegmentAnswered(preference) &&
-    (!isIndustryAnswered(preference) || !isGoalAnswered(preference))
-  );
 }

@@ -7,7 +7,7 @@ import { defineRoute } from "./registry";
 
 /**
  * User-level resources the host owns: workspaces (the tenancy container) and
- * preferences (timezone / locale / legal_acceptance). Personal tier → one
+ * preferences (timezone / locale). Personal tier → one
  * workspace per user, so these are scoped to the caller's own workspace and
  * need no agent. The sidebar layout rides the same ownership seam and lives in
  * account-sidebar.ts.
@@ -73,7 +73,7 @@ defineRoute({
   },
 });
 
-// Preferences key-value (boot-path reads: locale, legal_acceptance, timezone).
+// Preferences key-value (boot-path reads: locale, timezone).
 // Scoped to the caller's own personal workspace, so no id rides the path.
 defineRoute({
   group: "account",

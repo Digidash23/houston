@@ -1,70 +1,179 @@
 import { loadActivities } from "@houston/domain";
 import type { Vfs } from "../vfs";
+import type { RemoteMissionStatus } from "./mission-fanout-remote-status";
 
-/**
- * HOW MUCH WORK ONE AGENT MAY HAVE OUT AT ONCE, counted on the CALLER's side.
- *
- * Each board already refuses a 21st running mission (`missions-start.ts`), and
- * that is the wrong subject on its own: a caller that spreads its starts over
- * fifty agents never trips any single board's cap while putting a thousand
- * missions in flight. The subject that has to be capped is the CALLER, so this
- * ledger records what one agent started and refuses the next start once it is
- * already running this many.
- *
- * The count is deliberately per AGENT rather than per turn: a loop that starts
- * work, ends its turn and starts more on the next one is the same runaway.
- */
+export { readRemoteMissionStatus } from "./mission-fanout-remote-status";
+
+/** A caller's cap spans target boards and turns. */
 export const MAX_AGENT_STARTED_MISSIONS = 20;
 
-/**
- * How long a CROSS-POD start holds its caller's slot without further evidence.
- *
- * A local start is reconciled exactly - the caller's host owns the target board
- * and re-reads the row's status below. A start in another pod is not: the
- * target never reports back, so the caller would either hold the slot forever
- * (one afternoon of legitimate delegation and the agent can never start work
- * again) or not count it at all. This is the bound in between: long enough that
- * a burst is still fully counted while it happens, short enough that finished
- * work stops being charged for.
- */
+/** Unreadable remote slots remain charged for at most a day after start. */
 const REMOTE_HOLD_MS = 60 * 60 * 1000;
+const REMOTE_FAILURE_CEILING_MS = 24 * 60 * 60 * 1000;
+const REMOTE_CHECK_CACHE_MS = 30_000;
+const REMOTE_FAILURE_CACHE_MS = 60_000;
+const RECONCILE_BATCH_SIZE = 4;
 
 interface StartedMission {
   readonly missionId: string;
   /** The target board's vfs root, or null when it lives in another pod. */
   readonly boardRoot: string | null;
   readonly startedAt: number;
+  readonly readStatus?: (actingAs?: string) => Promise<RemoteMissionStatus>;
+  checkedAt?: number;
+  failedAt?: number;
 }
 
 class MissionFanout {
   private readonly started = new Map<string, StartedMission[]>();
+  private readonly pending = new Map<string, number>();
+  private readonly locks = new Map<string, Promise<void>>();
+
+  private async locked<T>(
+    callerAgentId: string,
+    run: () => Promise<T>,
+  ): Promise<T> {
+    const previous = this.locks.get(callerAgentId);
+    let unlock: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      unlock = resolve;
+    });
+    this.locks.set(callerAgentId, gate);
+    if (previous) await previous;
+    try {
+      return await run();
+    } finally {
+      if (this.locks.get(callerAgentId) === gate)
+        this.locks.delete(callerAgentId);
+      unlock();
+    }
+  }
+
+  async reserve(
+    callerAgentId: string,
+    vfs: Vfs,
+    actingAs?: string,
+  ): Promise<boolean> {
+    await this.running(callerAgentId, vfs, Date.now(), actingAs);
+    return this.locked(callerAgentId, async () => {
+      const running = this.started.get(callerAgentId)?.length ?? 0;
+      const pending = this.pending.get(callerAgentId) ?? 0;
+      if (running + pending >= MAX_AGENT_STARTED_MISSIONS) return false;
+      this.pending.set(callerAgentId, pending + 1);
+      return true;
+    });
+  }
+
+  async recordReserved(
+    callerAgentId: string,
+    mission: Parameters<MissionFanout["record"]>[1],
+  ): Promise<void> {
+    await this.locked(callerAgentId, async () => {
+      this.dropReservation(callerAgentId);
+      this.record(callerAgentId, mission);
+    });
+  }
+
+  async releaseReservation(callerAgentId: string): Promise<void> {
+    await this.locked(callerAgentId, async () => {
+      this.dropReservation(callerAgentId);
+    });
+  }
+
+  private dropReservation(callerAgentId: string): void {
+    const pending = this.pending.get(callerAgentId) ?? 0;
+    if (pending <= 1) this.pending.delete(callerAgentId);
+    else this.pending.set(callerAgentId, pending - 1);
+  }
 
   /**
    * How many missions this agent still has running, after dropping the ones it
-   * can prove are finished. Local rows are re-read; remote ones age out.
+   * can prove are finished. Transient remote read failures keep their slots
+   * until the failure ceiling.
    */
-  async running(callerAgentId: string, vfs: Vfs, now = Date.now()) {
-    const entries = this.started.get(callerAgentId);
+  async running(
+    callerAgentId: string,
+    vfs: Vfs,
+    now = Date.now(),
+    actingAs?: string,
+  ) {
+    const entries = [...(this.started.get(callerAgentId) ?? [])];
     if (!entries?.length) return 0;
-    const live: StartedMission[] = [];
-    for (const entry of entries) {
-      if (entry.boardRoot === null) {
-        if (now - entry.startedAt < REMOTE_HOLD_MS) live.push(entry);
-        continue;
+    const live = new Set<StartedMission>();
+    for (let i = 0; i < entries.length; i += RECONCILE_BATCH_SIZE) {
+      const batch = entries.slice(i, i + RECONCILE_BATCH_SIZE);
+      const active = await Promise.all(
+        batch.map((entry) => this.isActive(entry, vfs, now, actingAs)),
+      );
+      for (let j = 0; j < batch.length; j++) {
+        const entry = batch[j];
+        if (active[j] && entry) live.add(entry);
       }
-      const { items } = await loadActivities(vfs, entry.boardRoot);
-      const row = items.find((a) => a.id === entry.missionId);
-      if (row?.status === "running") live.push(entry);
     }
-    if (live.length) this.started.set(callerAgentId, live);
-    else this.started.delete(callerAgentId);
-    return live.length;
+    return this.locked(callerAgentId, async () => {
+      const current = this.started.get(callerAgentId) ?? [];
+      const kept = current.filter((entry) =>
+        entries.includes(entry) ? live.has(entry) : true,
+      );
+      if (kept.length) this.started.set(callerAgentId, kept);
+      else this.started.delete(callerAgentId);
+      return kept.length;
+    });
+  }
+
+  private async isActive(
+    entry: StartedMission,
+    vfs: Vfs,
+    now: number,
+    actingAs?: string,
+  ): Promise<boolean> {
+    if (entry.boardRoot !== null) {
+      const { items } = await loadActivities(vfs, entry.boardRoot);
+      return items.find((a) => a.id === entry.missionId)?.status === "running";
+    }
+    if (now - entry.startedAt < REMOTE_HOLD_MS) return true;
+    if (
+      entry.checkedAt !== undefined &&
+      now - entry.startedAt < REMOTE_FAILURE_CEILING_MS &&
+      now - entry.checkedAt < REMOTE_CHECK_CACHE_MS
+    )
+      return true;
+    if (
+      entry.failedAt !== undefined &&
+      now - entry.startedAt < REMOTE_FAILURE_CEILING_MS &&
+      now - entry.failedAt < REMOTE_FAILURE_CACHE_MS
+    )
+      return true;
+    entry.checkedAt = now;
+    try {
+      if (!entry.readStatus) throw new Error("remote status reader missing");
+      const status = await entry.readStatus(actingAs);
+      if (status === "running") return true;
+      return false;
+    } catch (error) {
+      entry.checkedAt = undefined;
+      entry.failedAt = now;
+      console.error(
+        `[missions] could not reconcile remote mission ${entry.missionId}`,
+        error,
+      );
+      if (now - entry.startedAt < REMOTE_FAILURE_CEILING_MS) return true;
+      console.error(
+        `[missions] remote mission ${entry.missionId} exceeded the 24 hour unreadable limit`,
+        error,
+      );
+      return false;
+    }
   }
 
   /** Charge one started mission to its caller. */
   record(
     callerAgentId: string,
-    mission: { missionId: string; boardRoot: string | null },
+    mission: {
+      missionId: string;
+      boardRoot: string | null;
+      readStatus?: (actingAs?: string) => Promise<RemoteMissionStatus>;
+    },
     now = Date.now(),
   ): void {
     const entries = this.started.get(callerAgentId) ?? [];
@@ -72,18 +181,10 @@ class MissionFanout {
     this.started.set(callerAgentId, entries);
   }
 
-  /** Release a slot a start reserved and then failed to use. */
-  release(callerAgentId: string, missionId: string): void {
-    const entries = this.started.get(callerAgentId);
-    if (!entries) return;
-    const left = entries.filter((e) => e.missionId !== missionId);
-    if (left.length) this.started.set(callerAgentId, left);
-    else this.started.delete(callerAgentId);
-  }
-
   /** Drop an agent's ledger - it was renamed or deleted, so the id is dead. */
   forget(callerAgentId: string): void {
     this.started.delete(callerAgentId);
+    this.pending.delete(callerAgentId);
   }
 }
 

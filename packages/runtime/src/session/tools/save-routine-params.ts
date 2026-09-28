@@ -46,7 +46,7 @@ export const SaveRoutineParams = Type.Object({
   }),
   prompt: Type.String({
     description:
-      "The instruction Houston runs each time the scheduled task wakes.",
+      "The instruction that runs each time the scheduled task wakes.",
   }),
   schedule: Type.Optional(
     Type.String({

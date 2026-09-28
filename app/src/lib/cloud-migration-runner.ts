@@ -7,8 +7,9 @@
  * `cloud-migration-step.ts`).
  */
 
-import { runProvisioningProbe } from "./agent-provisioning";
+import { runProvisioningProbe } from "./agent-provisioning/probe";
 import { chunkPaths, type MigrationTask } from "./cloud-migration";
+import { migratedAgentCreate } from "./cloud-migration-plan";
 import type {
   AgentMigrationProgress,
   MigrationCounts,
@@ -21,9 +22,6 @@ import {
   type SourceHostHandshake,
 } from "./cloud-migration-transport";
 import { getEngine } from "./engine";
-
-/** The cloud agents are created as ordinary personal assistants. */
-const MIGRATED_AGENT_CONFIG_ID = "personal-assistant";
 
 export interface RunTaskDeps {
   /** The synthetic v3 workspace the cloud agents are created in. */
@@ -41,7 +39,7 @@ export interface RunTaskDeps {
 
 /**
  * Long-poll the freshly created agent until its pod answers — the exact
- * readiness contract the post-create UI uses (`lib/agent-provisioning.ts`):
+ * readiness contract the post-create UI uses (`lib/agent-provisioning/probe.ts`):
  * any per-agent request is held server-side until the engine is reachable, so
  * a cheap read doubles as the probe. Reused, not reimplemented (HOU-693).
  */
@@ -78,15 +76,7 @@ export async function runMigrationTask(
   if (!agentId || !agentPath) {
     deps.patchProgress({ step: "creating" });
     const created = await step("creating", () =>
-      getEngine().createAgent(deps.workspaceId, {
-        name: task.targetName,
-        configId: MIGRATED_AGENT_CONFIG_ID,
-        // Seed the legacy overlay color onto the created cloud agent. The cp
-        // adapter's create routes `color` into the color overlay keyed by the
-        // NEW agent id (createdAgentToUi → setColor); undefined falls back to
-        // DEFAULT_AGENT_COLOR — so this is the only seed point needed.
-        color: task.color,
-      }),
+      getEngine().createAgent(deps.workspaceId, migratedAgentCreate(task)),
     );
     agentId = created.agent.id;
     agentPath = created.agent.folderPath;

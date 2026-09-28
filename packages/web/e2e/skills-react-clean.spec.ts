@@ -1,5 +1,4 @@
 import { expect, test } from "./support/fixtures";
-import { openSkillsLibrary } from "./support/settings-nav";
 import { openAgentSkills } from "./support/skills-nav";
 import { screen } from "./support/team-nav";
 
@@ -11,8 +10,8 @@ import { screen } from "./support/team-nav";
  * activity-cache subscription re-rendering synchronously from another
  * component's render (setState-in-render).
  *
- * Both scopes of the one surface are walked: an AI Employee's own Skills
- * section and the workspace library.
+ * The surface is an AI Employee's own Skills section, walked from its empty
+ * state into its guided create chat.
  */
 test("skills surfaces render without React integrity errors", async ({
   page,
@@ -41,12 +40,10 @@ test("skills surfaces render without React integrity errors", async ({
   // its count stand over rows, never over an absence.
   await expect(screen(page).getByText("No skills yet")).toBeVisible();
 
-  // The shared library, reached the way a user reaches it: the rail's Skills
-  // row, which disambiguates it from the agent's own Skills section.
-  await openSkillsLibrary(page);
-  await expect(page.getByRole("tab")).toHaveCount(0);
-  // The library creates one way, so its button opens the guided chat itself.
-  await page.getByRole("button", { name: "Create skill" }).click();
+  // With a workspace store "Create skill" is a menu; its first way opens the
+  // guided chat beside the list.
+  await screen(page).getByRole("button", { name: "Create skill" }).click();
+  await page.getByRole("menuitem", { name: "Create with chat" }).click();
   await expect(page.getByTestId("mission-panel")).toBeVisible();
 
   const react = errors.filter(

@@ -8,8 +8,7 @@ import {
 /**
  * The global personal Integrations surface: what this person's agents can
  * reach outside themselves, as the apps CATALOG under one identity lozenge.
- * What those agents can DO is the Skills library, its own screen from its own
- * rail row.
+ * What each agent can DO lives in that agent's own Skills section.
  *
  * The tools provider spans the header and the body, so the catalog portals its
  * own search and actions into the strip.

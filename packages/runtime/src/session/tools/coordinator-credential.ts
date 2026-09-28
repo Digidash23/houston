@@ -27,7 +27,7 @@ export function makeCoordinatorCredentialTool(options: AssistantToolOptions) {
         !Array.isArray(payload.items)
       )
         throw new Error(
-          "Houston returned an unreadable custom integration list.",
+          "The app returned an unreadable custom integration list.",
         );
       const target: unknown = payload.items.find(
         (entry: unknown) =>
@@ -39,7 +39,7 @@ export function makeCoordinatorCredentialTool(options: AssistantToolOptions) {
       if (!target) return null;
       if (typeof target !== "object" || !("state" in target))
         throw new Error(
-          "Houston returned an unreadable custom integration status.",
+          "The app returned an unreadable custom integration status.",
         );
       const state = target.state;
       if (typeof state === "object" && state !== null && "status" in state) {
@@ -58,7 +58,7 @@ export function makeCoordinatorCredentialTool(options: AssistantToolOptions) {
           return { state: { status: "error", message: state.message } };
       }
       throw new Error(
-        "Houston returned an unreadable custom integration status.",
+        "The app returned an unreadable custom integration status.",
       );
     },
   });

@@ -1,113 +1,25 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-  bootGuardStep,
-  deadViewStep,
-  INITIAL_BOOT_GUARD,
-} from "../src/components/shell/view-guard-rules.ts";
-import type { TeamView } from "../src/lib/teams-model.ts";
+import { deadViewStep } from "../src/components/shell/view-guard-rules.ts";
+import type { Agent } from "../src/lib/types.ts";
 
-const team = (id: string): TeamView =>
-  ({ id, name: id, agents: [] }) as unknown as TeamView;
-
-const TEAMS = [team("team-a"), team("team-b")];
-
-describe("bootGuardStep", () => {
-  it("arms on the first run instead of looking already booted", () => {
-    // `undefined` (never run) must not read as `null` (a resolved "no
-    // workspace"), or a deployment without one would never boot at all.
-    const step = bootGuardStep(INITIAL_BOOT_GUARD, {
-      workspaceId: null,
-      viewMode: "agents-home",
-      hasHomeTeam: true,
-    });
-    assert.equal(step.action, "wait");
-    assert.deepEqual(step.state, { workspaceId: null, armed: true });
-  });
-
-  it("waits on the landing while no team has resolved, staying armed", () => {
-    const armed = { workspaceId: "ws-1", armed: true };
-    const step = bootGuardStep(armed, {
-      workspaceId: "ws-1",
-      viewMode: "agents-home",
-      hasHomeTeam: false,
-    });
-    assert.equal(step.action, "wait");
-    assert.equal(step.state.armed, true);
-  });
-
-  it("opens home the moment the first team lands, once", () => {
-    const armed = { workspaceId: "ws-1", armed: true };
-    const first = bootGuardStep(armed, {
-      workspaceId: "ws-1",
-      viewMode: "agents-home",
-      hasHomeTeam: true,
-    });
-    assert.equal(first.action, "open-home-team");
-    assert.equal(first.state.armed, false);
-
-    // Back on the landing later by the user's own click: never yanked again.
-    const again = bootGuardStep(first.state, {
-      workspaceId: "ws-1",
-      viewMode: "agents-home",
-      hasHomeTeam: true,
-    });
-    assert.equal(again.action, "wait");
-  });
-
-  it("disarms when the user navigates during the teams read", () => {
-    const armed = { workspaceId: "ws-1", armed: true };
-    const moved = bootGuardStep(armed, {
-      workspaceId: "ws-1",
-      viewMode: "integrations-home",
-      hasHomeTeam: false,
-    });
-    assert.equal(moved.action, "wait");
-    assert.equal(moved.state.armed, false);
-
-    // The teams land and the user is back on the landing: their click stands.
-    const later = bootGuardStep(moved.state, {
-      workspaceId: "ws-1",
-      viewMode: "agents-home",
-      hasHomeTeam: true,
-    });
-    assert.equal(later.action, "wait");
-  });
-
-  it("re-arms on a workspace change without reading the outgoing view", () => {
-    const done = { workspaceId: "ws-1", armed: false };
-    // The view open on the tick the id changes belongs to the space just LEFT,
-    // so it must not disarm the new one (a space switch lands on home, which is
-    // the Agents home while the new space's teams are in flight).
-    const switched = bootGuardStep(done, {
-      workspaceId: "ws-2",
-      viewMode: "team",
-      hasHomeTeam: false,
-    });
-    assert.deepEqual(switched.state, { workspaceId: "ws-2", armed: true });
-
-    const landed = bootGuardStep(switched.state, {
-      workspaceId: "ws-2",
-      viewMode: "agents-home",
-      hasHomeTeam: true,
-    });
-    assert.equal(landed.action, "open-home-team");
-  });
-});
+const agent = { id: "agent-a", name: "Agent A" } as Agent;
 
 describe("deadViewStep", () => {
   const base = {
     showAiModels: true,
     showAssistant: true,
-    showSkills: true,
+    onboardingActive: false,
+    showOrganization: true,
     gatesReady: true,
-    teams: TEAMS,
-    activeTeamId: "team-a",
+    agentsReady: true,
+    agents: [agent],
+    activeAgentId: "agent-a",
   };
 
   it("keeps a live view", () => {
     assert.equal(deadViewStep({ ...base, viewMode: "agents-home" }), "keep");
-    assert.equal(deadViewStep({ ...base, viewMode: "team" }), "keep");
+    assert.equal(deadViewStep({ ...base, viewMode: "agent" }), "keep");
     // Ungated: no gate can take the Academy away, so the guard must never
     // send a user home off it.
     assert.equal(deadViewStep({ ...base, viewMode: "academy" }), "keep");
@@ -136,6 +48,30 @@ describe("deadViewStep", () => {
     assert.equal(deadViewStep({ ...base, viewMode: "assistant" }), "keep");
   });
 
+  it("keeps the assistant while the manager runs onboarding, whatever discovery says", () => {
+    // Onboarding is scripted and local: it runs on a deployment that serves
+    // no manager, so the gate must not bounce the person out of it.
+    assert.equal(
+      deadViewStep({
+        ...base,
+        viewMode: "assistant",
+        showAssistant: false,
+        onboardingActive: true,
+      }),
+      "keep",
+    );
+    // Once it ends there, the view is stale again and goes home.
+    assert.equal(
+      deadViewStep({
+        ...base,
+        viewMode: "assistant",
+        showAssistant: false,
+        onboardingActive: false,
+      }),
+      "go-home",
+    );
+  });
+
   it("waits rather than bouncing the assistant while discovery is in flight", () => {
     // Discovery is null until it lands, so the gate reads false in that window:
     // acting on it would throw the user off the screen they just opened.
@@ -155,21 +91,20 @@ describe("deadViewStep", () => {
       deadViewStep({ ...base, viewMode: "ai-hub", showAiModels: false }),
       "go-home",
     );
-    // The shared library belongs to whoever OWNS the space: a caller whose
-    // gate closed under an open screen must not be left standing on it.
     assert.equal(
-      deadViewStep({ ...base, viewMode: "skills-home", showSkills: false }),
+      deadViewStep({ ...base, viewMode: "admin", showOrganization: false }),
       "go-home",
     );
-    assert.equal(deadViewStep({ ...base, viewMode: "skills-home" }), "keep");
+    assert.equal(deadViewStep({ ...base, viewMode: "admin" }), "keep");
   });
 
   it("sends a RETIRED view home whatever the gates say", () => {
-    // The Permissions screen and the standalone Time worked screen are gone (a
-    // team's focused agent screen, and a section inside Admin). No
+    // The Permissions screen, the standalone Time worked screen and the
+    // workspace Skills screen are gone (agent policy and skills live on each
+    // employee's own screen). No
     // gate can make either valid again, so a `viewMode` an older session
     // persisted must go home rather than strand the user on a blank card.
-    for (const viewMode of ["permissions", "time-worked"]) {
+    for (const viewMode of ["permissions", "time-worked", "skills-home"]) {
       assert.equal(deadViewStep({ ...base, viewMode }), "go-home", viewMode);
     }
   });
@@ -178,13 +113,13 @@ describe("deadViewStep", () => {
     // Every gate reads false off null capabilities, so acting on that window
     // would bounce the user off a screen they are entitled to, on every boot
     // and every space switch.
-    for (const viewMode of ["ai-hub", "skills-home"]) {
+    for (const viewMode of ["ai-hub", "admin"]) {
       assert.equal(
         deadViewStep({
           ...base,
           viewMode,
           showAiModels: false,
-          showSkills: false,
+          showOrganization: false,
           gatesReady: false,
         }),
         "wait",
@@ -193,27 +128,55 @@ describe("deadViewStep", () => {
     }
   });
 
-  it("sends a team view whose team is gone home", () => {
+  it("sends a deleted employee screen home", () => {
     assert.equal(
-      deadViewStep({ ...base, viewMode: "team", activeTeamId: "team-gone" }),
+      deadViewStep({ ...base, viewMode: "agent", activeAgentId: "agent-gone" }),
       "go-home",
     );
   });
 
-  it("waits out a dead team view while the teams read is in flight", () => {
-    // TanStack answers `[]` on the first read, so with NO teams at all a dead
-    // team view is indistinguishable from one about to resolve.
+  it("waits for the roster before judging a restored employee screen", () => {
     assert.equal(
-      deadViewStep({ ...base, viewMode: "team", teams: [] }),
+      deadViewStep({
+        ...base,
+        viewMode: "agent",
+        agents: [],
+        agentsReady: false,
+      }),
       "wait",
     );
   });
 
-  it("still sends a non-top-level view home with no teams", () => {
+  it("keeps an employee screen while that employee is visible", () => {
+    assert.equal(
+      deadViewStep({
+        ...base,
+        viewMode: "agent",
+        activeAgentId: agent.id,
+        agents: [agent],
+      }),
+      "keep",
+    );
+    assert.equal(
+      deadViewStep({
+        ...base,
+        viewMode: "agent",
+        activeAgentId: agent.id,
+        agents: [],
+      }),
+      "go-home",
+    );
+  });
+
+  it("keeps an employee screen after a folder is deleted", () => {
+    assert.equal(deadViewStep({ ...base, viewMode: "agent" }), "keep");
+  });
+
+  it("still sends a non-top-level view home without employees", () => {
     // No teams read can ever make `chat` a screen, so this one is genuinely
     // stale, not in flight — and home with no teams is the Inbox.
     assert.equal(
-      deadViewStep({ ...base, viewMode: "chat", teams: [] }),
+      deadViewStep({ ...base, viewMode: "chat", agents: [] }),
       "go-home",
     );
   });

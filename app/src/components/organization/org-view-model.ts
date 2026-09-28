@@ -1,6 +1,5 @@
 import type { AuditEntry, Capabilities } from "@houston/engine-adapter";
 import { canSeeMembers, isPersonalSpace } from "../../lib/org-roles.ts";
-import { showComputeSection } from "../time-worked/compute-usage-model.ts";
 
 /**
  * Pure, DOM-free logic for the Organization dashboard (Teams v2 + C8 billing).
@@ -9,79 +8,61 @@ import { showComputeSection } from "../time-worked/compute-usage-model.ts";
  */
 
 /**
- * The sections of Workspace management. Company context is the workspace half
- * of the standing context every agent starts a turn with. Per-agent policy
- * lives in each team's focused agent screen.
+ * The sections of Admin. The workspace's Company context is not one of them:
+ * it is a header tool that opens its editor in a sheet over whichever section
+ * is showing. Per-agent policy lives in each team's focused agent screen.
  */
-export type OrgTabId =
-  | "companyContext"
-  | "orgChart"
-  | "people"
-  | "billing"
-  | "activity"
-  | "usage"
-  | "timeWorked";
+export type OrgTabId = "orgChart" | "people" | "billing" | "activity";
 
 /**
  * The section the dashboard lands on: what the header's identity lozenge
- * stands for, the same way a team's lozenge IS its board. The section titles
- * itself in its body (the lozenge says "Workspace", not "Company context").
+ * stands for, the same way a team's lozenge IS its board. The lozenge says
+ * "Workspace", and the org chart is the workspace drawn whole.
  */
-export const DEFAULT_ORG_TAB: OrgTabId = "companyContext";
+export const DEFAULT_ORG_TAB: OrgTabId = "orgChart";
 
 /**
- * The always-present sections. `billing` (C8) is the only conditional one, added
- * by {@link orgTabIds} on a Spaces host, in a team space, for owner/admin — see
- * that function for the authoritative display order.
+ * The sections of a team space. `billing` (C8) is the only conditional one,
+ * added by {@link orgTabIds} on a Spaces host, in a team space, for
+ * owner/admin; see that function for the authoritative display order.
  */
 export const ORG_TAB_IDS: readonly OrgTabId[] = [
-  "companyContext",
   "orgChart",
   "people",
   "activity",
-  "usage",
 ] as const;
 
 /**
  * The tab ids in display order, written out literally so the order reads off
- * the source: Company context (the identity lozenge and landing section), then
- * Org chart, People, Billing when `canSeeBillingTab` (in `lib/billing-gates`)
- * holds, then Activity, Usage, and gated Time worked. Pure so the tab set is
- * unit-tested without React; the view maps each id to its component + `t()`
- * label.
+ * the source: Org chart (the identity lozenge and landing section), then
+ * People, Billing when `canSeeBillingTab` (in `lib/billing-gates`) holds, then
+ * Activity. A personal space has no roster to administer, so it keeps the Org
+ * chart alone. Pure so the tab set is unit-tested without React; the view maps
+ * each id to its component + `t()` label.
  *
- * Company context takes no gate of its own on purpose: the whole dashboard is
- * mounted only behind {@link canSeeOrganization}, which is false on a personal
- * space (`isPersonalSpace`), so "org spaces only" is already enforced one level
- * up and a second branch here would be dead code.
+ * The Org chart takes no gate of its own: the whole dashboard is mounted
+ * behind {@link canSeeOrganization}, including in a Spaces personal space.
  */
 export function orgTabIds(gates: {
   billing: boolean;
-  timeWorked: boolean;
   personal: boolean;
 }): readonly OrgTabId[] {
+  if (gates.personal) return ["orgChart"];
   return [
-    "companyContext",
     "orgChart",
-    ...(!gates.personal ? (["people"] as const) : []),
-    ...(gates.billing && !gates.personal ? (["billing"] as const) : []),
-    ...(!gates.personal ? (["activity"] as const) : []),
-    "usage",
-    ...(gates.timeWorked ? (["timeWorked"] as const) : []),
+    "people",
+    ...(gates.billing ? (["billing"] as const) : []),
+    "activity",
   ];
 }
 
 /**
- * Whether the Organization dashboard renders as the face of Settings >
- * Workspace management.
+ * Whether the organization gate admits the Admin dashboard.
  *
- * On a C8 Spaces host the personal space is single-player semantics
- * (non-invitable, no roster, no policy — the gateway 403s a member-add with
- * `personal_space`), so the dashboard is a TEAM-space surface: it hides
- * whenever the active space is personal, whatever the role. On a non-spaces
- * multiplayer host (exactly one org) there is no personal/team split, so
- * `activeSpaceIsTeam` is irrelevant and the gate falls through to the
- * members-roster rule.
+ * On a C8 Spaces host the personal space has a sole caller who owns it, so the
+ * dashboard is available there. On a non-spaces multiplayer host (exactly one
+ * org) there is no personal/team split, so `activeSpaceIsTeam` is irrelevant
+ * and the gate falls through to the members-roster rule.
  *
  * That base rule is exactly the members-roster gate (`canSeeMembers` is already
  * "multiplayer AND owner|admin": `orgRole` returns null off-multiplayer and the
@@ -95,12 +76,6 @@ export function canSeeOrganization(
 ): boolean {
   if (isPersonalSpace(caps, activeSpaceIsTeam)) return true;
   return canSeeMembers(caps);
-}
-
-export function canSeeTimeWorked(
-  caps: Capabilities | null | undefined,
-): boolean {
-  return showComputeSection(caps);
 }
 
 /** How many audit entries one page pulls (contract §5: host clamps to ≤ 200). */

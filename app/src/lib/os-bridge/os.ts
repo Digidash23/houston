@@ -7,13 +7,9 @@
  */
 
 import { isTauri } from "@tauri-apps/api/core";
+import { getCurrent } from "@tauri-apps/plugin-deep-link";
 import { toUrlOpenFailure, UrlOpenError } from "../url-open-failure.ts";
 import { invokeNative } from "./invoke.ts";
-
-/** macOS folder picker (osascript). */
-export function osPickDirectory(): Promise<string | null> {
-  return invokeNative<string | null>("pick_directory");
-}
 
 /**
  * Open a URL in the user's default browser. Resolves `false` when the browser
@@ -42,6 +38,12 @@ export async function osOpenUrl(url: string): Promise<boolean> {
 export function osFocusWindow(): Promise<void> {
   if (!isTauri()) return Promise.resolve();
   return invokeNative<void>("focus_main_window");
+}
+
+/** Links that launched this desktop process, including a cold start. */
+export function osCurrentDeepLinks(): Promise<string[]> {
+  if (!isTauri()) return Promise.resolve([]);
+  return getCurrent().then((urls) => urls ?? []);
 }
 
 /** Reveal an agent-relative file in Finder / Explorer. */

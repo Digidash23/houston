@@ -1,3 +1,4 @@
+import { withInitialConfigSeed } from "@houston/domain";
 import type { Agent, CreateAgent } from "@houston/wire-types";
 import { writeAgentFile } from "./agent-files";
 import { DEFAULT_AGENT_COLOR, syntheticAgent } from "./synthetic";
@@ -7,7 +8,7 @@ import { DEFAULT_AGENT_COLOR, syntheticAgent } from "./synthetic";
  *
  * The new TS engine is single-user with no agent concept, so the desktop UI's
  * agents are persisted client-side (one bucket per synthetic workspace). One
- * default "Houston" agent is seeded on first access so the shell has a usable
+ * default agent (`syntheticAgent`) is seeded on first access so the shell has a usable
  * agent immediately; the user can create / rename / recolor / delete more. Each
  * agent gets its own `folderPath`, which namespaces its board, config, and chats
  * (chat conversations key off the per-mission `session_key`).
@@ -32,7 +33,7 @@ function save(store: Store): void {
   }
 }
 
-/** Agents for a workspace, seeding the default Houston agent on first access. */
+/** Agents for a workspace, seeding the default agent on first access. */
 function seeded(store: Store, workspaceId: string): Agent[] {
   let agents = store[workspaceId];
   if (!agents) {
@@ -79,7 +80,8 @@ export function createAgent(
   // does on create — otherwise AI-generated instructions (the AI-assist flow)
   // would be silently dropped.
   if (req.claudeMd) writeAgentFile(agent.folderPath, "CLAUDE.md", req.claudeMd);
-  for (const [relPath, content] of Object.entries(req.seeds ?? {})) {
+  const seeds = withInitialConfigSeed(req.seeds, req.config);
+  for (const [relPath, content] of Object.entries(seeds ?? {})) {
     writeAgentFile(agent.folderPath, relPath, content);
   }
   return { agent };

@@ -3,16 +3,17 @@ import { FOLLOW_UP_PLACEHOLDER } from "./support/composer";
 import {
   closeActivityPanel,
   fillAgentBrief,
-  newAgentRow,
+  newAgentButton,
+  openNewAgent,
 } from "./support/create-agent";
 import { expect, test } from "./support/fixtures";
 import { missionCard, screen } from "./support/team-nav";
 
 /**
- * The agent self-setup flow. Creating an agent through the dialog fires the
- * agent's self-setup mission in the normal shell, switches to the board, and
- * auto-opens the chat panel on that mission
- * (`setActivityPanelId(conversationId, { forceOpen: true })`).
+ * The agent self-setup flow. Creating an agent through the dialog lands on its
+ * board with its first day pending (`lib/agent-first-day.ts`); the board's
+ * "Start <name>'s first day" button fires the self-setup mission and opens the
+ * chat panel on it beside the board.
  *
  * The user typed nothing, so the mission has NO user bubble: the directive
  * rides the auto-continue marker and the transcript folds it away on both the
@@ -26,10 +27,12 @@ import { missionCard, screen } from "./support/team-nav";
  * it stays at the top of the transcript once the agent itself replies.
  */
 
-/** The hello for an agent created through `fillAgentBrief` (Finance /
- *  Financial analyst), word for word from `chat:setupGreeting.textWithRole`. */
+/** The first paragraph of the hello for an agent created through
+ *  `fillAgentBrief` (Finance / Financial analyst), word for word from
+ *  `chat:setupGreeting.textWithRole`. Only the first paragraph: the greeting
+ *  renders as separate `<p>` elements, so the whole text never matches one. */
 function setupHello(name: string): string {
-  return `Hi, I'm ${name}, your Financial analyst. Give me a few seconds to get going. The most important thing we'll do together is create Skills, so you start automating your work.`;
+  return `Hi, I'm ${name}, your financial analyst! Today is my first day, so help me learn how I can be most useful to you.`;
 }
 
 /** Everything in the transcript that is NOT a user bubble (`is-user` is the
@@ -38,31 +41,53 @@ function agentMessages(page: Page) {
   return page.locator("[data-conversation-message-key]:not(.is-user)");
 }
 
-/** Open the create dialog and make an agent from scratch (leaves the dialog to
- *  close itself and the setup-mission panel to auto-open). */
+/** The new agent's board offer, scoped to the screen ON THE GLASS: every
+ *  kept-alive board can show the same employee's start button. */
+function firstDayButton(page: Page, name: string) {
+  return screen(page).getByRole("button", {
+    name: `Start ${name}'s first day`,
+  });
+}
+
+/** Open the create dialog and make an agent from scratch, leaving the dialog to
+ *  close itself onto the new agent's board, first day still pending. */
 async function createFromScratch(page: Page, name: string) {
-  await newAgentRow(page).click();
+  await openNewAgent(page);
   await fillAgentBrief(page);
-  const nameField = page.getByPlaceholder("e.g. Product manager, Sales, Jerry");
+  const nameField = page.getByPlaceholder(/^e\.g\. /);
   await nameField.waitFor({ state: "visible" });
   await nameField.fill(name);
   await page.getByRole("button", { name: "Create AI Employee" }).click();
+  await expect(firstDayButton(page, name)).toBeVisible({ timeout: 10_000 });
 }
 
-test("creating an agent auto-starts its setup mission and opens the chat", async ({
+/** Create an agent, then start its first day from the board: the setup
+ *  mission starts and its chat panel opens. */
+async function createAndStartFirstDay(page: Page, name: string) {
+  await createFromScratch(page, name);
+  await firstDayButton(page, name).click();
+}
+
+test("creating an agent waits for the user; the first-day button starts setup", async ({
   page,
 }) => {
   await page.goto("/");
   await expect(missionCard(page, "Plan a trip to Tokyo")).toBeVisible();
 
   await createFromScratch(page, "Aurora");
+  // Nothing starts on its own: no chat panel opened on the create.
+  await expect(page.getByPlaceholder(FOLLOW_UP_PLACEHOLDER)).toBeHidden();
 
-  // (a) The chat panel auto-opens on the setup mission: its follow-up composer
-  // (an existing conversation) and "Getting set up" title are present.
+  await firstDayButton(page, "Aurora").click();
+
+  // (a) The chat panel opens on the setup mission: its follow-up composer
+  // (an existing conversation) and "Getting set up" title are present, and
+  // the start button is gone for good.
   await expect(page.getByPlaceholder(FOLLOW_UP_PLACEHOLDER)).toBeVisible({
     timeout: 10_000,
   });
   await expect(page.getByText("Task: Getting set up")).toBeVisible();
+  await expect(firstDayButton(page, "Aurora")).toHaveCount(0);
 });
 
 test("the welcome chat is live before the board sweep returns its row", async ({
@@ -70,12 +95,15 @@ test("the welcome chat is live before the board sweep returns its row", async ({
 }) => {
   await page.goto("/");
   await expect(missionCard(page, "Plan a trip to Tokyo")).toBeVisible();
+  // Created first, so the new board has painted its start button before the
+  // hold below begins.
+  await createFromScratch(page, "Solstice");
 
   // Hold every activities READ, so the cross-agent sweep cannot return the new
   // mission's row for the whole assertion budget below. That is the co-located
   // reality this guards: no warming entry carries the identity, and the sweep
   // is a beat behind — so the panel opens on a card nobody can name unless the
-  // create published it (`lib/created-mission-handoff.ts`). Without the
+  // first-day start published it (`lib/created-mission-handoff.ts`). Without the
   // publish the chat sits blank here until the hold lifts.
   const SWEEP_HOLD_MS = 8_000;
   await page.route(/\/activities(\?|$)/, async (route) => {
@@ -87,7 +115,7 @@ test("the welcome chat is live before the board sweep returns its row", async ({
     await route.fallback();
   });
 
-  await createFromScratch(page, "Solstice");
+  await firstDayButton(page, "Solstice").click();
 
   // The hello is derived rather than fetched, but deriving it takes the agent
   // path and session key of a mission the sweep has not returned — so its
@@ -102,7 +130,7 @@ test("the setup mission opens on its hello, with no user bubble at all", async (
   page,
 }) => {
   await page.goto("/");
-  await createFromScratch(page, "Stratus");
+  await createAndStartFirstDay(page, "Stratus");
 
   await expect(page.getByPlaceholder(FOLLOW_UP_PLACEHOLDER)).toBeVisible({
     timeout: 10_000,
@@ -130,7 +158,7 @@ test("the setup mission shows as a card on the new agent's board", async ({
   page,
 }) => {
   await page.goto("/");
-  await createFromScratch(page, "Nimbus");
+  await createAndStartFirstDay(page, "Nimbus");
 
   // (b) The board carries a "Getting set up" mission card for the new agent,
   // and the seeded agent's mission is gone (a fresh agent has its own board).
@@ -154,7 +182,7 @@ test("closing the setup panel leaves the shell usable with the agent in the side
   page,
 }) => {
   await page.goto("/");
-  await createFromScratch(page, "Cirrus");
+  await createAndStartFirstDay(page, "Cirrus");
 
   await expect(page.getByPlaceholder(FOLLOW_UP_PLACEHOLDER)).toBeVisible({
     timeout: 10_000,
@@ -164,7 +192,7 @@ test("closing the setup panel leaves the shell usable with the agent in the side
   // new agent and its New-agent control is interactive again.
   await closeActivityPanel(page);
   await expect(page.getByPlaceholder(FOLLOW_UP_PLACEHOLDER)).toHaveCount(0);
-  await expect(newAgentRow(page)).toBeVisible();
+  await expect(newAgentButton(page)).toBeVisible();
   const sidebar = page.locator("[data-tour-target='agents']");
   await expect(sidebar.getByText("Cirrus").first()).toBeVisible();
 });
@@ -173,7 +201,7 @@ test('"Something else" answers in the row the filter stood in', async ({
   page,
 }) => {
   await page.goto("/");
-  await newAgentRow(page).click();
+  await openNewAgent(page);
 
   const dialog = page.getByRole("dialog");
   // The seeded roster gives the dialog its opening choice; the guided brief
@@ -184,7 +212,9 @@ test('"Something else" answers in the row the filter stood in', async ({
   const answer = dialog.getByRole("textbox", {
     name: "Tell us in a few words",
   });
-  const runs = dialog.locator("[data-tutorial-target='createAgentBrief']");
+  // The chips' radio group (named for the question) sits inside the wrapper
+  // that dims and goes inert while a typed answer holds the row.
+  const runs = dialog.locator('[role="radiogroup"]').locator("xpath=..");
   await expect(filter).toBeVisible();
 
   // Taking the door swaps the row IN PLACE: the filter's own slot becomes the

@@ -1,3 +1,4 @@
+import type { MissionStarter } from "@houston/protocol";
 import { isSetupChatMode } from "../../lib/integration-chat-setup.ts";
 import { ARCHIVED_STATUS } from "../../lib/mission-selection.ts";
 import type { TeamView } from "../../lib/teams-model.ts";
@@ -36,6 +37,12 @@ export interface AgentHomeConversation {
   /** Agent-mode id; setup chats never appear on the home surfaces. */
   agent?: string | null;
   updated_at?: string;
+  /** Who started the task, the facts its origin tag reads
+   *  (`missionStartedBy`, PRODUCT-1928). */
+  routine_id?: string;
+  origin_session_key?: string;
+  origin_agent?: string;
+  started_by?: MissionStarter;
 }
 
 export interface AgentHomeRow {
@@ -125,11 +132,9 @@ export function agentHomeFilterTeam(
   return teams.find((team) => team.id === teamId) ?? null;
 }
 
-/** Whether the home offers the team filter at all: a workspace with only its
- *  default team has nothing to narrow by, and a control that offers one
- *  choice is a control that lies. */
+/** A folder filter is useful beside the all-agents choice. */
 export function agentHomeHasTeamFilter(teams: readonly TeamView[]): boolean {
-  return teams.length > 1;
+  return teams.length > 0;
 }
 
 /** The rows under the filter: every row, or the chosen team's members in the

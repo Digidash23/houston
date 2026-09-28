@@ -1,4 +1,8 @@
 import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
+import {
+  type AgentDelegationRefusalCode,
+  isAgentDelegationRefusalCode,
+} from "@houston/protocol";
 
 /**
  * Failures the sibling tools of `houston_call` report as VALUES.
@@ -36,7 +40,7 @@ export type SessionToolErrorCode =
   | "transport_error"
   /** That board already holds as many agent-started missions as it allows. */
   | "mission_cap"
-  /** A mission Houston started may not start further missions. */
+  /** A mission started by another mission may not start further missions. */
   | "mission_depth"
   /** The CALLER already has as many missions running as it may start, spread
    *  across every board it can reach. */
@@ -51,7 +55,8 @@ export type SessionToolErrorCode =
    *  providers only, so it is never relayed from a host reply. */
   | "invalid_model"
   | "agent_unreachable"
-  | "agent_refused";
+  | "agent_refused"
+  | AgentDelegationRefusalCode;
 
 export interface SessionToolError {
   code: SessionToolErrorCode;
@@ -87,11 +92,17 @@ export async function hostErrorFrom(
   res: Response,
   what: string,
 ): Promise<SessionToolError> {
-  const detail = await res.text().catch(() => "");
+  let detail = "";
+  try {
+    detail = await res.text();
+  } catch (err) {
+    console.error("[mission tools] could not read host refusal", err);
+  }
   let payload: unknown;
   try {
     payload = JSON.parse(detail);
-  } catch {
+  } catch (err) {
+    console.error("[mission tools] host refusal was not JSON", err);
     payload = null;
   }
   if (typeof payload === "object" && payload !== null) {
@@ -113,10 +124,12 @@ function isActionableCode(code: unknown): code is SessionToolErrorCode {
     code === "mission_cap" ||
     code === "mission_depth" ||
     code === "mission_fanout" ||
+    code === "mission_not_found" ||
     code === "agent_not_found" ||
     code === "agent_ambiguous" ||
     code === "invalid_provider" ||
     code === "agent_unreachable" ||
-    code === "agent_refused"
+    code === "agent_refused" ||
+    isAgentDelegationRefusalCode(code)
   );
 }

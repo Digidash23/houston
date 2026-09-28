@@ -27,6 +27,7 @@ import { ActivitiesMixin } from "./client/activities-mixin";
 import { AgentFilesMixin } from "./client/agent-files-mixin";
 import { AgentsMixin } from "./client/agents-mixin";
 import { ApiKeysMixin } from "./client/api-keys-mixin";
+import { AppearanceMixin } from "./client/appearance-mixin";
 import { AssistantMixin } from "./client/assistant-mixin";
 import { HoustonClientBase } from "./client/base";
 import { BillingMixin } from "./client/billing-mixin";
@@ -38,11 +39,13 @@ import { ChatSendMixin } from "./client/chat-send-mixin";
 import { ConfigPrefsMixin } from "./client/config-prefs-mixin";
 import type { HoustonClientOptions } from "./client/context";
 import { CustomIntegrationsMixin } from "./client/custom-integrations-mixin";
+import { DelegationMixin } from "./client/delegation-mixin";
+import { FirstDayMixin } from "./client/first-day-mixin";
 import { IntegrationsMixin } from "./client/integrations-mixin";
 import { MeProfileMixin } from "./client/me-profile-mixin";
 import type { BaseCtor } from "./client/mixin";
-import { OrgTeamsMixin } from "./client/org-teams-mixin";
 import { OrgsMixin } from "./client/orgs-mixin";
+import { PlanMixin } from "./client/plan-mixin";
 import { PortableMixin } from "./client/portable-mixin";
 import { ProjectFilesMixin } from "./client/project-files-mixin";
 import { ProviderCredentialsMixin } from "./client/provider-credentials-mixin";
@@ -68,8 +71,9 @@ export const MIXINS = [
   PortableMixin,
   ApiKeysMixin,
   TeamsMixin,
-  OrgTeamsMixin,
+  DelegationMixin,
   BillingMixin,
+  PlanMixin,
   ChannelsMixin,
   SpacesMixin,
   OrgsMixin,
@@ -89,7 +93,9 @@ export const MIXINS = [
   AgentFilesMixin,
   ActivitiesMixin,
   ConfigPrefsMixin,
+  AppearanceMixin,
   AgentsMixin,
+  FirstDayMixin,
   WorkspacesMixin,
   AssistantMixin,
   BootMixin,

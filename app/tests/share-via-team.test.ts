@@ -6,11 +6,11 @@ import {
   applyMovePoll,
   assertInviteReady,
   canRetryMove,
-  classifyMoveError,
   createFailed,
   finish,
   initialState,
   isDismissable,
+  isExpectedMoveAnswer,
   isExpectedShareError,
   markInviteFailed,
   markInviteSending,
@@ -181,22 +181,6 @@ describe("move pipeline", () => {
   });
 });
 
-describe("classifyMoveError", () => {
-  for (const code of [
-    "unsupported_move",
-    "unmovable_volume",
-    "needs_upgrade",
-  ] as const) {
-    it(`passes through ${code}`, () =>
-      strictEqual(classifyMoveError(code), code));
-  }
-  it("maps anything else to unknown", () => {
-    strictEqual(classifyMoveError("weird"), "unknown");
-    strictEqual(classifyMoveError(undefined), "unknown");
-    strictEqual(classifyMoveError(null), "unknown");
-  });
-});
-
 describe("move rejection + retry", () => {
   it("moveRejected from confirm classifies the code", () => {
     deepStrictEqual(moveRejected(pickTeam(TEAM), "unsupported_move"), {
@@ -214,6 +198,17 @@ describe("move rejection + retry", () => {
   it("unmovable_volume is terminal: no retry (contact support)", () => {
     const failed = moveRejected(pickTeam(TEAM), "unmovable_volume");
     strictEqual(canRetryMove(failed), false);
+  });
+
+  it("name_taken is its own authored state, with no retry until a rename", () => {
+    const failed = moveRejected(pickTeam(TEAM), "name_taken");
+    deepStrictEqual(failed, {
+      step: "moveFailed",
+      team: TEAM,
+      error: "name_taken",
+    });
+    strictEqual(canRetryMove(failed), false);
+    strictEqual(isDismissable(failed), true);
   });
 
   it("startMove resumes from a retryable moveFailed", () => {
@@ -300,6 +295,7 @@ describe("isExpectedShareError (silence C8 states from the bug toast)", () => {
     "unsupported_move",
     "unmovable_volume",
     "needs_upgrade",
+    "name_taken",
     "already_member",
   ]) {
     it(`silences the expected C8 code ${code}`, () => {
@@ -313,6 +309,19 @@ describe("isExpectedShareError (silence C8 states from the bug toast)", () => {
     strictEqual(isExpectedShareError(new Error("boom")), false);
     strictEqual(isExpectedShareError(null), false);
     strictEqual(isExpectedShareError(undefined), false);
+  });
+});
+
+describe("isExpectedMoveAnswer (what a move wire keeps out of Sentry)", () => {
+  it("covers every expected share state plus a live move owning the agent", () => {
+    strictEqual(isExpectedMoveAnswer({ kind: "name_taken" }), true);
+    strictEqual(isExpectedMoveAnswer({ body: { code: "name_taken" } }), true);
+    strictEqual(isExpectedMoveAnswer({ code: "move_in_progress" }), true);
+  });
+
+  it("still reports an unexpected move failure", () => {
+    strictEqual(isExpectedMoveAnswer({ kind: "internal_error" }), false);
+    strictEqual(isExpectedMoveAnswer(new Error("boom")), false);
   });
 });
 

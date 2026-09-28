@@ -1,6 +1,6 @@
-import { Spinner } from "@houston-ai/core";
 import { useTranslation } from "react-i18next";
 import { ContextEditorBox } from "../../context/context-editor";
+import { ContextSlotWaiting } from "../../context/context-slot-waiting";
 import { useContextSlot } from "../../context/context-slots";
 
 /**
@@ -17,8 +17,9 @@ import { useContextSlot } from "../../context/context-slots";
  *
  * The stored file is the workspace context blob's `user` slot
  * (`context-slots.ts` → `use-workspace-context.ts`), which the open agent's
- * runtime reads into its prompt. `ready` gates the box behind a spinner while
- * that read lands: a loading frame, not an empty state.
+ * runtime reads into its prompt. The box waits for that read behind
+ * {@link ContextSlotWaiting}: a loading frame, or the honest word that the
+ * workspace has no AI Employee yet.
  */
 export function AboutMeSection() {
   const { t } = useTranslation(["settings", "context"]);
@@ -32,7 +33,7 @@ export function AboutMeSection() {
       <p className="text-sm text-ink-muted mb-6">
         {t("context:aboutMe.subtitle")}
       </p>
-      {editor.ready ? (
+      {editor.state === "ready" ? (
         <ContextEditorBox
           layout={{ rows: 14 }}
           ariaLabel={t("context:aboutMe.title")}
@@ -41,9 +42,7 @@ export function AboutMeSection() {
           placeholder={t("context:editor.user.placeholder")}
         />
       ) : (
-        <div className="flex items-center justify-center py-16">
-          <Spinner className="h-5 w-5" />
-        </div>
+        <ContextSlotWaiting state={editor.state} />
       )}
     </section>
   );

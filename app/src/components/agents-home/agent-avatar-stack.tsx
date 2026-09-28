@@ -1,8 +1,9 @@
 import { cn, HoustonAvatar, resolveAgentColor } from "@houston-ai/core";
 import type { ReactNode } from "react";
 
-/** The front avatar's diameter: the phone list's large, WhatsApp-sized mark. */
-const FRONT_DIAMETER = 52;
+/** The front avatar's diameter: the phone list's large, WhatsApp-sized mark.
+ *  The pinned AI Manager row wears its own mark at the same size. */
+export const FRONT_DIAMETER = 52;
 /** The two cards fanned out behind it are a step smaller, so the fan reads as
  *  depth rather than as three agents. */
 const BACK_DIAMETER = 46;
@@ -72,10 +73,9 @@ export function AgentAvatarStack({
 }
 
 /**
- * An OPAQUE disc under each card. The avatar's own tint is a translucent mix
- * over the chip surface, so on its own a card behind shows through the one in
- * front and the fan reads as a ghost; the screen's background underneath, plus
- * a hairline of it as the card's edge, is what makes each card solid.
+ * A disc of the screen's background under each card, ringed by a hairline of
+ * it: the avatars are the same metal in the same colour, so without that edge
+ * the overlapping cards melt into one shape instead of reading as a fan.
  */
 function Card({
   children,

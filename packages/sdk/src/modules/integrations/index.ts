@@ -135,8 +135,8 @@ export function createIntegrationsModule(
   }
 
   /**
-   * Disconnects an outside app from Houston, removing every account the user
-   * connected for it.
+   * Disconnects an outside app, removing every account the user connected
+   * for it.
    * @param toolkit The outside app to disconnect, by the toolkit slug
    *   integrationToolkits returned.
    * @assistant group:integrations

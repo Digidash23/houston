@@ -16,7 +16,7 @@
     "localDataIncomplete": "We signed you out, but some data cached on this device couldn't be removed. Nothing private is exposed. Restart Houston if anything looks out of date.",
     "generic": "Sign-in failed. Please try again.",
     "storageUnavailableTitle": "Can't reach this device's secure storage",
-    "storageUnavailableBody": "Houston couldn't open the secure storage on this device where your sign-in is kept. This usually clears up on its own. Try again, and if it keeps happening, restart your computer.",
+    "storageUnavailableBody": "We couldn't open the secure storage on this device where your sign-in is kept. This usually clears up on its own. Try again, and if it keeps happening, restart your computer.",
     "storageUnavailableRetry": "Try again"
   }
 }

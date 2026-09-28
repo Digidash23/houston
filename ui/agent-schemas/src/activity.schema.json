@@ -31,6 +31,20 @@
         "type": "string",
         "description": "The conversation this mission was started from, present only when the agent created the mission itself. Set by Houston, not by the agent."
       },
+      "origin_agent": {
+        "type": "string",
+        "description": "The agent that started this mission. Set by Houston, not by the agent."
+      },
+      "origin_depth": {
+        "type": "integer",
+        "minimum": 1,
+        "description": "How deep in the delegation chain this mission sits. Set by Houston, not by the agent."
+      },
+      "started_by": {
+        "type": "string",
+        "enum": ["houston", "employee"],
+        "description": "Which AI started this mission. Set by Houston, not by the agent."
+      },
       "created_by": {
         "type": "string",
         "description": "The human who created this mission. Set by Houston, not by the agent."

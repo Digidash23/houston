@@ -13,24 +13,12 @@ export const SIDEBAR_ROW_CONSUMERS: readonly {
   what: string;
 }[] = [
   {
-    who: "SidebarNavItem",
-    what: "The top-level destinations: Houston, AI Models and Integrations above the teams, plus the footer's Academy and Settings. Block depth, no disclosure. (The collapsed icon rail is its own anatomy and does not come through here.)",
-  },
-  {
-    who: "SidebarBand",
-    what: 'The "Your teams" band. Block depth, the 12px `band` type step, a disclosure, and the host\'s create menu in the affordance slot.',
-  },
-  {
     who: "SidebarGroupHeader",
     what: "A team block's header. Block depth, a disclosure, the rollup badge in the trailing slot, the drag handle, and active whenever the block owns the open view. ONE hit target, with nothing beside it: a team's name and mark are changed in the host's own dialog.",
   },
   {
     who: "SidebarItemRow",
-    what: "An agent. Child depth, the avatar in the glyph box, at most one quiet mark in the trailing slot, drag cursor from the sortable wrapper. NO affordance: an agent is renamed, recoloured, moved and deleted on the focused agent screen, so the row has no menu and reserves no column for one.",
-  },
-  {
-    who: "SidebarAddRow",
-    what: 'The "New agent" row that closes the list. Child depth, muted, and the anchor the guided tour points at.',
+    what: "An agent, in the `person` anatomy: a 40px portrait, the name over one or two muted lines, the badge at their end, drag cursor from the sortable wrapper. NO affordance: an agent is renamed, recoloured, moved and deleted on the focused agent screen, so the row has no menu and reserves no column for one.",
   },
 ];
 
@@ -50,16 +38,6 @@ export const SIDEBAR_ROW_BUTTON_PROPS: readonly SpecimenProp[] = [
     name: "depth",
     type: '"block" | "child"',
     note: "The whole of the indent, and nothing else. `block` heads a block (8px); `child` hangs under one (20px), in the shared glyph column. Both sit at the same 13px and the SAME weight — the rail runs at one weight throughout (510), so depth is spoken by indent alone and selecting a row can never re-measure its label.",
-  },
-  {
-    name: "band",
-    type: "boolean",
-    note: 'The row NAMES the list rather than pointing at anything ("Your teams"): 12px against the rows\' 13px, at the same 510 weight as everything else in the rail. Size is the whole distinction — the band used to be semibold grey, which read as a heading bolted above a list instead of the first line of one.',
-  },
-  {
-    name: "muted",
-    type: "boolean",
-    note: 'A quieter resting label, for a row that names things rather than opening one — the trailing "new" row.',
   },
   {
     name: "active",

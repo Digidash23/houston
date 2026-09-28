@@ -1,9 +1,11 @@
 {
   "sidebar": {
     "academy": "Academia",
+    "admin": "Administração",
     "addAgent": "Novo funcionário de IA",
     "aiModels": "Modelos de IA",
-    "assistant": "AI Manager",
+    "assistant": "Houston",
+    "assistantRole": "Seu AI Manager",
     "changeColor": "Alterar cor",
     "collapse": "Recolher barra lateral",
     "color": "Cor",
@@ -21,26 +23,37 @@
     },
     "createDialog": "Criar",
     "createWorkspace": "Criar espaço de trabalho",
+    "drag": {
+      "pickedUp": "Você pegou %name%.",
+      "movedOver": "%name% sobre %over%.",
+      "dropped": "Você soltou %name% sobre %over%.",
+      "cancelled": "Você cancelou a movimentação de %name%.",
+      "instructions": "Arraste com o ponteiro. Use Alt+Cima ou Alt+Baixo para reordenar, e Alt+Direita ou Alt+Esquerda para mover um funcionário de IA para dentro ou fora de um grupo.",
+      "keyboardMoved": "Você moveu %name% para a posição %position% do nível principal.",
+      "keyboardMovedInGroup": "Você moveu %name% para a posição %position% em %group%.",
+      "keyboardEnteredGroup": "Você moveu %name% para %group%.",
+      "keyboardLeftGroup": "Você tirou %name% de %group% para o nível principal."
+    },
     "expand": "Expandir barra lateral",
-    "guideMe": "Me guie",
-    "help": "Ajuda",
     "integrations": "Integrações",
     "needsYouCount_one": "{{count}} assunto precisa de você",
     "needsYouCount_other": "{{count}} assuntos precisam de você",
     "newMission": "Nova tarefa",
-    "newTeam": "Nova equipe",
-    "reportProblem": "Relatar um problema",
+    "newTeam": "Novo grupo",
     "runningCount_one": "{{count}} assunto em execução",
     "runningCount_other": "{{count}} assuntos em execução",
     "selectWorkspace": "Escolha um espaço de trabalho",
     "settings": "Configurações",
-    "skills": "Skills",
     "teams": {
-      "identity": "Alterar ícone e nome",
+      "identity": "Ícone e cor",
       "identityIcons": "Ícones",
       "identityColors": "Cores",
       "identitySearch": "Pesquisar ícones…",
-      "identitySearchEmpty": "Nenhum ícone encontrado"
+      "identitySearchEmpty": "Nenhum ícone encontrado",
+      "menu": "Ações para {{name}}",
+      "rename": "Renomear",
+      "move": "Mover para outro espaço",
+      "delete": "Excluir grupo"
     },
     "teamIcons": {
       "bank": "Banco",
@@ -367,7 +380,7 @@
       "staircase": "escada",
       "starred": "estrela destacado",
       "support": "suporte ajuda",
-      "team": "equipe time",
+      "team": "grupo time equipe",
       "tech": "tecnologia técnico",
       "tee": "camiseta",
       "time": "tempo hora",
@@ -380,7 +393,10 @@
       "work": "trabalho",
       "writing": "escrita redação"
     },
-    "yourTeams": "Suas equipes"
+    "search": "Buscar",
+    "firstDay": "Comece o primeiro dia",
+    "working": "Trabalhando…",
+    "newAgent": "Novo"
   },
   "missionChat": {
     "back": "Voltar"
@@ -393,7 +409,7 @@
       "title": "Ainda não há funcionários de IA",
       "description": "Crie um funcionário de IA para começar. Tudo em que eles trabalharem aparecerá aqui."
     },
-    "allTeams": "Todas as equipes",
+    "allGroups": "Todos os grupos",
     "noTasks": "Ainda não há tarefas",
     "typing": "Digitando..."
   },
@@ -417,16 +433,10 @@
       "description": "Comece uma tarefa com o botão de compor e ela aparecerá aqui."
     }
   },
-  "teamsHome": {
-    "title": "Equipes",
-    "tree": "Equipes e suas seções",
-    "newTeam": "Nova equipe"
-  },
   "tabBar": {
     "agents": "Funcionários de IA",
     "label": "Navegação principal",
-    "more": "Mais",
-    "teams": "Equipes"
+    "more": "Mais"
   },
   "sentrySmoke": {
     "nativeTriggeredTitle": "Teste nativo do Sentry acionado",
@@ -434,19 +444,19 @@
   },
   "errorToast": {
     "genericDescription": "Algo inesperado deu errado. Tente novamente.",
-    "offlineTitle": "Houston, sem conexão",
-    "offlineDescription": "Não conseguimos conectar ao Houston agora. Verifique sua conexão com a internet e tente novamente.",
-    "engineWakingTitle": "Houston, seu funcionário de IA está acordando",
+    "offlineTitle": "Sem conexão",
+    "offlineDescription": "Não conseguimos conectar agora. Verifique sua conexão com a internet e tente novamente.",
+    "engineWakingTitle": "Seu funcionário de IA está acordando",
     "engineWakingDescription": "Costuma levar cerca de 20 segundos. Você não precisa enviar sua mensagem de novo.",
-    "updateStuckTitle": "Houston, as atualizações não estão chegando",
+    "updateStuckTitle": "As atualizações não estão chegando",
     "updateStuckDescription": "Não conseguimos verificar atualizações. Sua rede pode estar bloqueando. Você sempre pode baixar a versão mais recente em gethouston.ai.",
-    "noAgentTitle": "Houston, você precisa de um funcionário de IA primeiro",
+    "noAgentTitle": "Você precisa de um funcionário de IA primeiro",
     "noAgentDescription": "Crie um funcionário de IA e depois conecte pelas configurações dele. Esta conexão fica em um funcionário de IA."
   },
   "openUrl": {
-    "noBrowserTitle": "Houston, não encontramos um navegador web",
+    "noBrowserTitle": "Não encontramos um navegador web",
     "noBrowser": "Este computador não tem um navegador web padrão. Escolha um nas configurações do sistema e tente o link novamente.",
-    "failedTitle": "Houston, esse link não abriu"
+    "failedTitle": "Esse link não abriu"
   },
   "agentDelete": {
     "title": "Excluir o funcionário de IA?",
@@ -454,7 +464,10 @@
   },
   "workspaceDialog": {
     "title": "Novo espaço de trabalho",
-    "createFailed": "Não conseguimos criar o espaço de trabalho. Tente novamente."
+    "createFailed": "Não conseguimos criar o espaço de trabalho. Tente novamente.",
+    "nameLabel": "Nome do espaço de trabalho",
+    "nameTaken": "Você já tem um espaço de trabalho com esse nome.",
+    "create": "Criar espaço de trabalho"
   },
   "agentUpdate": {
     "title": "Atualização do funcionário de IA disponível",
@@ -464,7 +477,7 @@
     "reloadNow": "Recarregar agora"
   },
   "authReconnect": {
-    "heading": "Houston, temos um problema",
+    "heading": "Sessão expirada",
     "body": "Sua sessão no {{provider}} expirou. Entre de novo para manter seus funcionários de IA funcionando.",
     "waiting": "Aguardando o login no navegador...",
     "signInWith": "Entrar com {{provider}}"
@@ -481,22 +494,24 @@
     "stillStarting": "Seu funcionário de IA está demorando mais que o normal para iniciar. Ainda estamos tentando, aguarde um momento.",
     "blockedBody": "Está quase pronto. Essa ação estará disponível em instantes, assim que seu funcionário de IA terminar de se configurar.",
     "stalledTitle": "Ainda estamos nessa",
-    "stalledBody": "Isso está demorando mais que o normal. Não desistimos, seu chat e suas mensagens estão seguros e vão continuar assim que seu funcionário de IA responder."
+    "stalledBody": "Isso está demorando mais que o normal. Não desistimos, seu chat e suas mensagens estão seguros e vão continuar assim que seu funcionário de IA responder.",
+    "gettingReadyTitle": "Preparando {{name}}",
+    "gettingReadyBody": "Isso leva um ou dois minutos. Fique à vontade para explorar enquanto preparamos {{name}}."
   },
   "reportBug": {
     "reportSuccessTitle": "Relatório enviado",
-    "reportSuccessDescription": "Houston recebeu os registros.",
+    "reportSuccessDescription": "Recebemos os registros.",
     "reportErrorTitle": "Não foi possível enviar o relatório",
     "reportErrorDescription": "Tente de novo em instantes."
   },
   "updateChecker": {
     "launchTitle": "Atualizando o Houston",
-    "launchDescription": "O Houston está sendo atualizado para a versão {{version}}. O aplicativo vai reiniciar em instantes.",
+    "launchDescription": "Atualizando para a versão {{version}}. O aplicativo vai reiniciar em instantes.",
     "downloading": "Baixando a atualização...",
     "downloadingProgress": "Baixando a atualização... {{progress}}%",
     "installing": "Instalando a atualização...",
-    "errorInstall": "O Houston não conseguiu instalar a atualização. Tente de novo em instantes.",
-    "errorRelaunch": "A atualização foi instalada, mas o Houston não conseguiu reiniciar sozinho. Reinicie manualmente ou tente de novo.",
+    "errorInstall": "Não foi possível instalar a atualização. Tente de novo em instantes.",
+    "errorRelaunch": "A atualização foi instalada, mas o aplicativo não conseguiu reiniciar sozinho. Reinicie manualmente ou tente de novo.",
     "relaunchAction": "Reiniciar o Houston",
     "retryAction": "Tentar de novo",
     "retryUpdateAction": "A atualização falhou. Tentar de novo",
@@ -507,8 +522,6 @@
   "naming": {
     "dialogTitle": "Dê um nome ao seu funcionário de IA",
     "tagline": "Dê um nome ao seu funcionário de IA e diga qual é o trabalho dele",
-    "namePlaceholder": "ex. Gerente de produto, Vendas, Jerry",
-    "linkExistingProject": "Vincular projeto existente",
     "createAgent": "Criar funcionário de IA"
   },
   "newAgent": {
@@ -518,7 +531,7 @@
   },
   "engineGate": {
     "starting": "Carregando seus funcionários de IA…",
-    "reconnected": "Houston reconectou",
+    "reconnected": "De volta online",
     "loadFailed": "Não foi possível carregar seus modelos de IA disponíveis. Verifique sua conexão e tente novamente.",
     "authRequiredTitle": "Login necessário",
     "authRequiredBody": "Esta versão se conecta ao motor hospedado do Houston, mas não tem login configurado. Defina FIREBASE_API_KEY e FIREBASE_PROJECT_ID nesta versão para habilitar o login."
@@ -557,14 +570,14 @@
     "unauthenticated": {
       "title": "Conecte-se ao {{provider}} novamente",
       "titleGeneric": "Conecte uma IA",
-      "bodyGeneric": "O Houston precisa de uma IA conectada para poder responder.",
+      "bodyGeneric": "Conecte uma IA para receber uma resposta.",
       "connectProvider": "Conectar IA",
       "reconnectedTitleGeneric": "Conectado",
       "bodyTokenExpired": "Sua sessão do {{provider}} expirou. Reconecte para continuar.",
-      "bodyNoCredentials": "O Houston precisa que você entre no {{provider}} antes de responder.",
-      "bodyInvalidApiKey": "A chave de API do {{provider}} que o Houston tem não é mais válida. Atualize e tente de novo.",
+      "bodyNoCredentials": "Entre no {{provider}} para receber uma resposta.",
+      "bodyInvalidApiKey": "Sua chave de API do {{provider}} não é mais válida. Atualize e tente de novo.",
       "bodyTokenRevoked": "Seu acesso ao {{provider}} foi revogado. Entre novamente para continuar.",
-      "bodyUnknown": "O Houston não conseguiu se autenticar no {{provider}}. Reconecte e tente novamente.",
+      "bodyUnknown": "Não conseguimos entrar no {{provider}}. Reconecte e tente novamente.",
       "titleOrgPolicy": "{{provider}} bloqueou o acesso por assinatura",
       "bodyOrgPolicyBlocked": "O {{provider}} não permite usar sua assinatura aqui, então entrar de novo não vai ajudar. Adicione uma chave de API do {{provider}} na página Modelos de IA para continuar trabalhando.",
       "useApiKey": "Usar uma chave de API",
@@ -572,16 +585,16 @@
       "waiting": "Conclua o login no seu navegador",
       "reconnectedTitle": "Reconectado a {{provider}}",
       "reconnectedBody": "Você entrou de novo. Continue de onde parou.",
-      "reconnectedResending": "Você entrou de novo. O Houston está respondendo sua mensagem agora.",
-      "reconnectedResuming": "Você entrou de novo. O Houston está continuando de onde parou.",
+      "reconnectedResending": "Você entrou de novo. Sua mensagem está sendo respondida agora.",
+      "reconnectedResuming": "Você entrou de novo. Retomando de onde parou.",
       "signedIn": "Sessão iniciada",
       "failedBody": "O login de {{provider}} não foi concluído. Entre novamente. {{detail}}"
     },
     "networkUnreachable": {
       "title": "Não foi possível alcançar o {{provider}}",
-      "body": "O Houston não conseguiu acessar a API do {{provider}}. Verifique sua internet e tente de novo.",
+      "body": "Não conseguimos acessar a API do {{provider}}. Verifique sua internet e tente de novo.",
       "localTitle": "Não foi possível alcançar seu modelo local",
-      "localBody": "O Houston não conseguiu acessar o modelo no seu computador. Verifique se o aplicativo do modelo está aberto e com o servidor em execução, depois tente de novo.",
+      "localBody": "Não conseguimos acessar o modelo no seu computador. Verifique se o aplicativo do modelo está aberto e com o servidor em execução, depois tente de novo.",
       "retry": "Tentar de novo",
       "checkStatus": "Ver página de status"
     },
@@ -593,7 +606,7 @@
     },
     "sessionResumeMissing": {
       "title": "Sessão reiniciada",
-      "body": "A conversa anterior do {{provider}} não pôde ser reaberta, então o Houston a reiniciou. Sua mensagem foi enviada novamente e o assistente está respondendo abaixo.",
+      "body": "A conversa anterior do {{provider}} não pôde ser reaberta, então ela foi reiniciada. Sua mensagem foi enviada novamente e a resposta está chegando abaixo.",
       "tryAgain": "Tentar de novo"
     },
     "malformedResponse": {
@@ -603,13 +616,13 @@
     },
     "spawnFailed": {
       "title": "Não foi possível iniciar o {{provider}}",
-      "body": "O Houston não conseguiu iniciar {{provider}}. Tente reinstalar e nos avise se continuar.",
+      "body": "Não conseguimos iniciar {{provider}}. Tente reinstalar e nos avise se continuar.",
       "reinstall": "Reinstalar {{provider}}",
       "reportBug": "Relatar problema"
     },
     "unknown": {
       "title": "Aconteceu algo inesperado",
-      "body": "O Houston não conseguiu classificar este erro do {{provider}}. Relate para que possamos aprender a tratar.",
+      "body": "Não conseguimos identificar este erro do {{provider}}. Relate para que possamos tratá-lo na próxima vez.",
       "reportBug": "Relatar problema",
       "rawLabel": "Saída bruta"
     },
@@ -633,8 +646,7 @@
     "groups": {
       "actions": "Ações",
       "agents": "Funcionários de IA",
-      "recentMissions": "Tarefas recentes",
-      "teams": "Equipes"
+      "recentMissions": "Tarefas recentes"
     },
     "actions": {
       "newMission": "Iniciar nova tarefa",
@@ -663,13 +675,27 @@
     }
   },
   "moreMenu": {
-    "help": "Ajuda",
     "title": "Mais"
   },
   "addToWorkspace": {
     "title": "Adicionar ao seu espaço de trabalho",
     "headline": "O que você quer adicionar?",
     "agentTitle": "Funcionário de IA",
-    "teamTitle": "Equipe"
+    "teamTitle": "Grupo"
+  },
+  "employeeCard": {
+    "changeColor": "Mudar cor: {{color}}",
+    "namePlaceholder": "ex.: Ana",
+    "namePlaceholderForRole": "ex.: {{role}}, Assistente 3, João",
+    "nameLabel": "Nome ({{role}})",
+    "nameRequired": "Dê um nome para continuar",
+    "status": {
+      "joining": "Entrando",
+      "hired": "Na sua equipe",
+      "failed": "Não entrou"
+    },
+    "retryLabel": "Tentar contratar {{name}} de novo",
+    "removeLabel": "Remover {{name}}",
+    "nameHeading": "Nome"
   }
 }

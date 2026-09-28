@@ -61,15 +61,24 @@ describe("Agent Settings a11y", () => {
     ok(skills.includes("<SkillsBody"), "the shared surface is the section");
   });
 
+  it("Teamwork opens in the plain access column without a hero", () => {
+    const sections = read(
+      "../src/components/agent-settings/agent-settings-section.tsx",
+    );
+    const teamwork = sections
+      .split('case "delegation":')[1]
+      ?.split('case "manage":')[0];
+    ok(teamwork?.includes("<AccessColumn>"));
+    ok(!teamwork?.includes("HeroAccessColumn"));
+    ok(!teamwork?.includes("PageHero"));
+  });
+
   it("a skill opened from the rail titles itself below that lozenge", () => {
     // The editor replaces the section in place, and the rail's own lozenge is
     // already the screen's h1 — the skill's name is the level beneath it.
     const header = read(
       "../src/components/skills-view/skill-editor-header.tsx",
     );
-    ok(
-      /level=\{frame === "inline" \? 2 : 1\}/.test(header),
-      "the editable title takes its heading level from the frame",
-    );
+    ok(/level=\{2\}/.test(header), "the editable title is an h2");
   });
 });

@@ -13,17 +13,17 @@ import { LessonRunner } from "../academy/lessons/lesson-runner";
 import { CommandPalette } from "../command-palette";
 import { MissionChatScreen } from "../mission-chat/mission-chat-screen";
 import { MobileNewMissionSheet } from "../mobile-new-mission-sheet";
-import { InAppOnboarding } from "../onboarding/in-app-onboarding";
 import { ImportAgentWizard } from "../portable/import-wizard";
 import { ShortcutCheatsheet } from "../shortcut-cheatsheet";
 import { AddToWorkspaceSheet } from "./add-to-workspace-sheet";
 import { AgentWarmingDialog } from "./agent-warming-dialog";
+import { BootLandingContent } from "./boot-landing-placeholder";
 import { DetailPanelProvider } from "./detail-panel-context";
 import { KeepAliveViews } from "./keep-alive-views";
 import { MobileMoreMenu } from "./mobile-more-menu";
 import { MobileNavBar } from "./mobile-nav-bar";
+import { PlanLifecycle } from "./plan-lifecycle";
 import { ShellPanelCard } from "./shell-panel-card";
-import { ShellTitleStrip } from "./shell-title-strip";
 import { Sidebar } from "./sidebar";
 import { TeamStatusBanner } from "./team-status-banner";
 import { topLevelScreenViews } from "./top-level-screen-views";
@@ -40,49 +40,42 @@ interface WorkspaceShellProps {
  * The app frame: the rail, the ONE floating screen card, and the shared detail
  * panel beside it.
  *
- * Every screen is a top-level view (`topLevelScreenViews`) — Mission Control, a
- * team, Integrations, Skills, Settings, the AI hub. Agents have no
- * screen of their own: an agent's work is a slice of its TEAM's sections, and
- * configuring one is the agent settings page reached through Team Settings.
- * `lib/agent-nav.ts` owns that translation, so the frame never has to know it,
- * and this file is layout plus the dialogs that float over it — the standing
- * view rules live in {@link useWorkspaceViewGuards}.
+ * Every screen is a top-level view (`topLevelScreenViews`). Each employee's
+ * work and settings live on their own screen. This frame holds the layout and
+ * floating dialogs; {@link useWorkspaceViewGuards} owns the standing view rules.
  */
 export function WorkspaceShell({
   toasts,
   onDismissToast,
 }: WorkspaceShellProps) {
+  // Personal plan prompts and presence stay mounted across app views.
   useSettingsLanding();
   useAssistantLanding();
   const missionPanelOpen = useUIStore((s) => s.missionPanelOpen);
   const viewMode = useUIStore((s) => s.viewMode);
-  const inAppOnboardingActive = useUIStore((s) => s.inAppOnboardingActive);
   const activeLessonId = useUIStore((s) => s.activeLessonId);
   const [panelContainer, setPanelContainer] = useState<HTMLDivElement | null>(
     null,
   );
-  // The gated top-level screens. `showAiModels` keeps a stale `viewMode` from
-  // showing the AI Models hub to a plain member (it is owner/admin only in a
-  // Teams workspace: org-level providers + admin model policy), `showSkills`
-  // does the same for the shared library (a skill edit reaches every agent in
-  // the space, so it is the owner's), and `showAssistant` for a deployment
-  // that serves no assistant. `ready` says whether the gates mean anything
-  // yet, so the guard waits instead of bouncing a user mid-load.
-  const { showAiModels, showAssistant, showSkills, ready } = useSurfaceGates();
+  // The top-level screen gates. `showAiModels` gates the AI Models hub,
+  // `showOrganization` admits Admin, and `showAssistant` depends on assistant
+  // discovery. `ready` says when the guarded views can redirect without
+  // bouncing a user during loading.
+  const { showAiModels, showAssistant, showOrganization, ready } =
+    useSurfaceGates();
   // Keying the kept-alive set by workspace drops every cached screen when the
   // user switches workspace/space: their contents are workspace-scoped.
   const currentWorkspace = useWorkspaceStore((s) => s.current);
 
-  useWorkspaceViewGuards({
+  const landing = useWorkspaceViewGuards({
     showAiModels,
     showAssistant,
-    showSkills,
+    showOrganization,
     ready,
   });
   useKeyboardShortcuts();
 
   const isMobile = useIsMobile();
-  const overlayTitleBar = osIsTauri() && isMac;
   // The phone's pushed chat screen: chat is a PLACE below md, full-screen
   // over the content with the bottom chrome gone (`phoneChromeHidden` says
   // when). Desktop ignores the pair entirely.
@@ -97,18 +90,14 @@ export function WorkspaceShell({
   return (
     <DetailPanelProvider value={panelContainer}>
       {/* Transparent so the window background reads up through the content.
-          Column layout: a seamless overlay title-bar strip on top, then the
-          sidebar + content row below it.
+          The rail reserves space for native window controls; the content
+          card reaches the top gutter. The column also hosts phone navigation.
           h-dvh (not h-screen) so mobile browser chrome (the collapsing URL
-          bar) never pushes the composer below the visible viewport.
-          The shell stays fully interactive under the in-app onboarding: the
-          user must click the real controls, so that overlay does its own
-          selective blocking. */}
+          bar) never pushes the composer below the visible viewport. */}
       {/* The PHONE is one flat background edge to edge: no gutter frame, no
           floating screen card. The desktop keeps the Arc canvas, where the
           transparent frame lets the window background read through. */}
       <div className="flex h-dvh flex-col bg-background text-ink md:bg-transparent">
-        <ShellTitleStrip overlayTitleBar={overlayTitleBar} />
         <div className="flex min-h-0 flex-1">
           <Sidebar>
             {/* Transparent row: on the desktop the window gutter shows in the
@@ -116,8 +105,12 @@ export function WorkspaceShell({
               panel are each their OWN rounded "screen" card so the rounding
               reads against it. The phone has no gutter, so no gap and no
               rounding. `relative` anchors the phone's full-screen mission
-              panel overlay. */}
-            <div className="relative flex min-w-0 flex-1 gap-0 overflow-hidden md:gap-2">
+              panel overlay. In the macOS desktop window that gap is also a
+              window drag region, like the gutter around it. */}
+            <div
+              data-tauri-drag-region={osIsTauri() && isMac ? true : undefined}
+              className="relative flex min-w-0 flex-1 gap-0 overflow-hidden md:gap-2"
+            >
               <main
                 {...tourAnchor("main")}
                 data-panel-wide={panelWide ? "true" : undefined}
@@ -131,15 +124,17 @@ export function WorkspaceShell({
               >
                 <TeamStatusBanner />
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                  <KeepAliveViews
-                    key={currentWorkspace?.id ?? "no-workspace"}
-                    activeId={viewMode}
-                    views={topLevelScreenViews({
-                      showAiModels,
-                      showAssistant,
-                      showSkills,
-                    })}
-                  />
+                  <BootLandingContent landing={landing}>
+                    <KeepAliveViews
+                      key={currentWorkspace?.id ?? "no-workspace"}
+                      activeId={viewMode}
+                      views={topLevelScreenViews({
+                        showAiModels,
+                        showOrganization,
+                        ready,
+                      })}
+                    />
+                  </BootLandingContent>
                 </div>
               </main>
               {missionPanelOpen && (
@@ -156,7 +151,7 @@ export function WorkspaceShell({
             </div>
           </Sidebar>
         </div>
-        {/* The floating nav bar (Agents / Teams / More + compose); CSS-hidden
+        {/* The floating nav bar (AI Employees / More + compose); CSS-hidden
             at md+ and gone while a chat is up on the phone (pushed screen,
             the board's full-screen panel, the assistant): chat is a push, not
             a tab, so the back affordances are the way out and the composer
@@ -166,17 +161,13 @@ export function WorkspaceShell({
         <MobileNewMissionSheet />
         <AddToWorkspaceSheet />
         <AgentWarmingDialog />
+        <PlanLifecycle />
         <ImportAgentWizard />
         <CommandPalette />
         <ShortcutCheatsheet />
         <ToastContainer toasts={toasts} onDismiss={onDismissToast} />
       </div>
-      {inAppOnboardingActive && <InAppOnboarding />}
-      {/* The guided setup OWNS the screen while it runs: both surfaces spotlight
-          the real app, so two of them at once would point at two controls and
-          teach neither. Arming the setup clears any armed lesson (`stores/ui`);
-          this is the other direction, a lesson armed while it is already up. */}
-      {!inAppOnboardingActive && activeLessonId !== null && (
+      {activeLessonId !== null && (
         <LessonRunner key={activeLessonId} lessonId={activeLessonId} />
       )}
     </DetailPanelProvider>

@@ -1,26 +1,21 @@
 import { expect, test } from "./support/fixtures";
-import { agentRow, navRow } from "./support/team-nav";
+import { workspaceMenuTrigger } from "./support/workspace-menu";
 
 /**
- * Collapsed-sidebar expand affordances (HOU-657): the workspace monogram at
- * the TOP of the rail doubles as the expand button (hover swaps the initial
- * for the expand icon), clicking empty rail space also expands, and clicks on
- * interactive rail elements (nav, agents) keep their own action.
+ * The collapsed rail has one visible expand control at its top, and the
+ * account portrait at its foot opens the workspace menu.
  */
-test("collapsed sidebar expands from the top monogram and rail clicks", async ({
-  page,
-}) => {
+test("collapsed sidebar expands from its visible toggle", async ({ page }) => {
   await page.goto("/");
-  await expect(navRow(page, "integrations")).toBeVisible();
+  await expect(workspaceMenuTrigger(page)).toBeVisible();
 
   const sidebar = page.locator("[data-tour-target='sidebar']");
 
-  // Collapse via the (unchanged) top-right collapse button.
+  // Collapse via the top-right toggle.
   await page.getByRole("button", { name: "Collapse sidebar" }).click();
   await expect(sidebar).toHaveCSS("width", "56px");
 
-  // Exactly one expand button, and it sits at the TOP of the rail (the
-  // monogram slot) — not at the bottom where the old toggle lived.
+  // Exactly one expand button, at the rail's top.
   const expandBtn = page.getByRole("button", { name: "Expand sidebar" });
   await expect(expandBtn).toHaveCount(1);
   const btnBox = await expandBtn.boundingBox();
@@ -28,52 +23,69 @@ test("collapsed sidebar expands from the top monogram and rail clicks", async ({
   if (!btnBox || !asideBox) throw new Error("missing bounding boxes");
   expect(btnBox.y - asideBox.y).toBeLessThan(30);
 
-  // Hover swaps the monogram for the expand icon; click expands.
-  await expandBtn.hover();
   await expect(expandBtn.locator("svg")).toBeVisible();
+  const workspaceButton = workspaceMenuTrigger(page);
+  await expect(workspaceButton).toBeVisible();
   await expandBtn.click();
-  await expect(sidebar).toHaveCSS("width", "220px");
+  await expect(sidebar).toHaveCSS("width", "272px");
 
-  // Clicking an EMPTY spot on the collapsed rail expands too.
+  // The portrait opens its menu and empty rail space leaves the rail closed.
   await page.getByRole("button", { name: "Collapse sidebar" }).click();
   await expect(sidebar).toHaveCSS("width", "56px");
+  await workspaceButton.click();
+  await expect(page.getByRole("menuitem").first()).toBeVisible();
+  await page.keyboard.press("Escape");
   await page.mouse.click(asideBox.x + 28, asideBox.y + asideBox.height - 200);
-  await expect(sidebar).toHaveCSS("width", "220px");
+  await expect(sidebar).toHaveCSS("width", "56px");
 
-  // Clicking an interactive rail element (a nav button) must NOT expand.
-  await page.getByRole("button", { name: "Collapse sidebar" }).click();
+  // The top line's own buttons keep their own action.
+  await sidebar.getByTestId("rail-search").click();
   await expect(sidebar).toHaveCSS("width", "56px");
-  await sidebar.locator("nav button").first().click();
-  await expect(sidebar).toHaveCSS("width", "56px");
+  await page.keyboard.press("Escape");
 });
 
 /**
- * The agent row's "..." menu: the settings page's actions re-anchored on the
- * rail. It sits in the affordance slot (outside the row button, after the
- * needs-you count), is always visible (never hover-gated), and each action
- * opens the SAME confirmation surface the agent's Settings section uses.
+ * The AI Manager is not a destination: it leads the employees list, pinned
+ * above every group and employee, on the same person row an employee wears,
+ * and it keeps that lead on the collapsed icon rail.
  */
-test("an agent row's ... menu offers copy and delete behind their own dialogs", async ({
+test("Manager is the first employee row in both rail widths", async ({
   page,
 }) => {
   await page.goto("/");
-  const row = agentRow(page, "Houston").locator("..");
-  const trigger = row.getByTestId("agent-row-menu");
-  await expect(trigger).toBeVisible();
-
-  // Copy opens the copy dialog, pre-named with the first free name.
-  await trigger.click();
-  await page.getByRole("menuitem", { name: "Duplicate Houston" }).click();
-  await expect(page.locator("#agent-copy-name")).toHaveValue("Houston copy");
-  await page.keyboard.press("Escape");
-  await expect(page.locator("#agent-copy-name")).toHaveCount(0);
-
-  // Delete asks for confirmation first; cancelling keeps the agent.
-  await trigger.click();
-  await page.getByRole("menuitem", { name: "Delete Houston" }).click();
+  const band = page.locator("[data-tour-target='agents']");
+  const manager = band.getByTestId("rail-assistant");
+  await expect(manager).toBeVisible();
   await expect(
-    page.getByRole("alertdialog").or(page.getByRole("dialog")).first(),
-  ).toContainText("Delete");
-  await page.getByRole("button", { name: "Cancel" }).click();
-  await expect(agentRow(page, "Houston")).toBeVisible();
+    page.locator("[data-tour-target='sidebar']").getByTestId("rail-assistant"),
+  ).toHaveCount(1);
+
+  // Above the first employee.
+  const managerBox = await manager.boundingBox();
+  const firstAgent = band.locator("[data-sidebar-item]").first();
+  const agentBox = await firstAgent.boundingBox();
+  if (!managerBox || !agentBox) throw new Error("the band is not laid out");
+  expect(managerBox.y + managerBox.height).toBeLessThanOrEqual(agentBox.y + 1);
+  // The person row's height, like the agent under it.
+  expect(managerBox.height).toBeCloseTo(agentBox.height, 1);
+
+  // The avatar is decorative: the row's label is its name, then its role.
+  await expect(manager.locator("[data-manager-avatar]")).toHaveAttribute(
+    "aria-hidden",
+    "true",
+  );
+  const row = manager.getByRole("button", { name: /^Houston/ });
+  await expect(row).toContainText("Your AI Manager");
+  await row.click();
+  await expect(page.getByTestId("assistant-chat")).toBeVisible();
+  await expect(row).toHaveAttribute("aria-current", "page");
+
+  // Collapsed, it is the first avatar on the icon rail and still lit.
+  await page.getByRole("button", { name: "Collapse sidebar" }).click();
+  await expect(manager).toHaveAttribute("aria-label", "Houston");
+  await expect(band.locator("button[aria-label]").first()).toHaveAttribute(
+    "data-testid",
+    "rail-assistant",
+  );
+  await expect(manager).toHaveClass(/bg-sidebar-active/);
 });

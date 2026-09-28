@@ -26,12 +26,69 @@ const strLit = (entries, indent) =>
     indent,
   );
 
-export function buildTs(light, dark) {
+/** One theme's elevation tiers, each as a single box-shadow string. */
+const boxShadows = (tokens, indent) =>
+  strLit(
+    shadows(tokens).map(({ name, layers }) => ({
+      name,
+      value: layers.map(shadowLayerCss).join(", "),
+    })),
+    indent,
+  );
+
+/**
+ * The palette library as the picker reads it: ordered, named, and carrying four
+ * resolved hexes per palette so a swatch needs no CSS-variable lookup.
+ */
+const paletteList = (palettes) =>
+  `[\n${palettes
+    .map((p) =>
+      [
+        "  {",
+        `    id: ${JSON.stringify(p.id)},`,
+        `    name: ${JSON.stringify(p.name)},`,
+        `    mode: ${JSON.stringify(p.mode)},`,
+        `    swatch: ${strLit(
+          Object.entries(p.swatch).map(([name, value]) => ({ name, value })),
+          "      ",
+        )},`,
+        "  },",
+      ].join("\n"),
+    )
+    .join("\n")}\n]`;
+
+export function buildTs(light, dark, palettes) {
   const durations = scale(light, "duration");
   const parts = [
     HEADER,
     "",
     'export type ThemeName = "light" | "dark";',
+    "",
+    "/**",
+    " * One entry of the palette library. `mode` is the resolved theme a palette",
+    " * belongs to; `swatch` holds the four hexes the picker paints, already",
+    " * composited so a translucent screen tone is a real colour.",
+    " */",
+    "export type Palette = {",
+    "  readonly id: string;",
+    "  readonly name: string;",
+    '  readonly mode: "light" | "dark";',
+    "  readonly swatch: {",
+    "    readonly base: string;",
+    "    readonly background: string;",
+    "    readonly ink: string;",
+    "    readonly accent: string;",
+    "  };",
+    "};",
+    "",
+    "/**",
+    " * Every palette, in picker order: the two authored Houston sets, then the",
+    " * imported light palettes, then the dark ones. An imported palette is worn by",
+    ' * setting data-palette="<id>" alongside the resolved data-theme.',
+    " */",
+    `export const palettes = ${paletteList(palettes)} as const satisfies readonly Palette[];`,
+    "",
+    'export type PaletteId = (typeof palettes)[number]["id"];',
     "",
     "/** Semantic colours, keyed by the same names as the --ht-* CSS variables. */",
     `export const color = {\n  light: ${strLit(colors(light), "    ")},\n  dark: ${strLit(
@@ -40,6 +97,8 @@ export function buildTs(light, dark) {
     )},\n} as const;`,
     "",
     `export const space = ${strLit(scale(light, "space"))} as const;`,
+    "",
+    `export const layout = ${strLit(scale(light, "layout"))} as const;`,
     "",
     `export const radius = ${strLit(scale(light, "radius"))} as const;`,
     "",
@@ -64,13 +123,14 @@ export function buildTs(light, dark) {
     "/** Cubic-bezier control points [x1, y1, x2, y2]. */",
     `export const easing = ${lit(easings(light).map((e) => [e.name, `[${e.value.join(", ")}]`]))} as const;`,
     "",
-    "/** Ready-to-use CSS box-shadow strings. */",
-    `export const shadow = ${lit(
-      shadows(light).map((s) => [
-        s.name,
-        JSON.stringify(s.layers.map(shadowLayerCss).join(", ")),
-      ]),
-    )} as const;`,
+    "/** Employee badge alloy mixing ratios. */",
+    `export const employeeMetal = ${lit(scale(light, "employeeMetal").map((e) => [e.name, String(e.value)]))} as const;`,
+    "",
+    "/** Elevation tiers as ready-to-use CSS box-shadow strings, per theme. */",
+    `export const shadow = {\n  light: ${boxShadows(light, "    ")},\n  dark: ${boxShadows(
+      dark,
+      "    ",
+    )},\n} as const;`,
     "",
   ];
   return parts.join("\n");

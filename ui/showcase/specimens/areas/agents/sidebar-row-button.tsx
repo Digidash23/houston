@@ -1,5 +1,5 @@
 import { SidebarRowButton } from "@houston-ai/layout";
-import { LayoutDashboard, Plus, Users } from "lucide-react";
+import { LayoutDashboard, Users } from "lucide-react";
 
 import type { Specimen } from "../../../src/specimen";
 import {
@@ -17,11 +17,11 @@ function SidebarRowButtonSpecimen() {
   return (
     <SpecimenPage
       title="SidebarRowButton"
-      intro="THE rail row. Every interactive line in the sidebar is one of these — the top-level destinations, the band that names the list, each team header, each destination row, each agent, and the row that closes the list."
+      intro="THE rail row. Every interactive line in the sidebar's list is one of these: each team header and each agent."
     >
       <SpecimenSection
         title="Anatomy"
-        note="A fixed 28px box, a 20px glyph column, a truncating label, an optional trailing slot inside the button and an optional affordance beside it. The pill is INSET 6px from each edge and rounded on the same radius the team screen's section lozenges wear, so it reads as a row floating on the rail rather than as a bar cut across it. It is painted on a layer of its own, behind the content, which is what lets it be inset without dragging the glyph column with it: hierarchy stays the indent INSIDE a full-width button, so the pills line up in one clean column instead of stepping in and out with their contents. Click anything — the highlight is live."
+        note="A fixed 28px box, a 20px glyph column, a truncating label, an optional trailing slot inside the button and an optional affordance beside it. The pill is INSET 6px from each edge and rounded on the same radius an employee screen's section lozenges wear, so it reads as a row floating on the rail rather than as a bar cut across it. It is painted on a layer of its own, behind the content, which is what lets it be inset without dragging the glyph column with it: hierarchy stays the indent INSIDE a full-width button, so the pills line up in one clean column instead of stepping in and out with their contents. Click anything — the highlight is live."
       >
         <SpecimenRow label="One block, every row kind">
           <Ladder />
@@ -51,9 +51,9 @@ function SidebarRowButtonSpecimen() {
 
       <SpecimenSection
         title="States"
-        note="Rest, hover, focus and active, and a row can be active AND a disclosure at once: that is a collapsed team standing in for the destination row it is hiding, so the rail never goes dark on the question of where you are. Hover is `bg-sidebar-hover` (6%) against the pill's `bg-sidebar-active` (10%): a ratio, so the row under the cursor is unmistakable without ever passing for the selected one. Focus rides the same inset layer, so the ring traces the pill instead of a rectangle wider than the fill it is outlining. `muted` is not a state but a role — a row that names things rather than opening one."
+        note="Rest, hover, focus and active, and a row can be active AND a disclosure at once: that is a collapsed team standing in for the destination row it is hiding, so the rail never goes dark on the question of where you are. Hover is `bg-sidebar-hover` (6%) against the pill's `bg-sidebar-active` (10%): a ratio, so the row under the cursor is unmistakable without ever passing for the selected one. Focus rides the same inset layer, so the ring traces the pill instead of a rectangle wider than the fill it is outlining."
       >
-        <SpecimenRow label="Rest (hover me) / active / muted">
+        <SpecimenRow label="Rest (hover me) / active">
           <Rail>
             <SidebarRowButton
               label="Routines"
@@ -64,12 +64,6 @@ function SidebarRowButtonSpecimen() {
               label="Mission Control"
               icon={<LayoutDashboard className="size-4" />}
               active
-              onActivate={noop}
-            />
-            <SidebarRowButton
-              label="New agent"
-              muted
-              icon={<Plus className="size-4" />}
               onActivate={noop}
             />
           </Rail>
@@ -90,17 +84,10 @@ function SidebarRowButtonSpecimen() {
 
       <SpecimenSection
         title="Type"
-        note="Two sizes and no more. Every row that points at something is 13px; the band that merely names the list is 12px, and never carries a block head's weight. A third size, or a semibold band, and the rail stops reading as one list and starts reading as a form."
+        note="One size: every row is 13px at the rail's one 510 weight, so the rail reads as one list. A person row's second line is the single 12px exception."
       >
-        <SpecimenRow label="13px item / 12px band">
+        <SpecimenRow label="13px rows">
           <Rail>
-            <SidebarRowButton
-              label="Your teams"
-              depth="block"
-              band
-              disclosure={{ expanded: true }}
-              onActivate={noop}
-            />
             <SidebarRowButton
               label="Operations"
               depth="block"

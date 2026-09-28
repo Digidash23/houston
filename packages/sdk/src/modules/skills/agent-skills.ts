@@ -95,7 +95,7 @@ export async function createSkill(
  * @param content The skill's full new text. It replaces what was there, so
  *   send the whole thing.
  * @assistant group:skills
- * @assistant confirm: irreversible. It overwrites the skill's text in place and Houston keeps no earlier copy, so what the user wrote cannot be recovered.
+ * @assistant confirm: irreversible. It overwrites the skill's text in place and no earlier copy is kept, so what the user wrote cannot be recovered.
  */
 export async function saveSkill(
   scope: HttpScope,
@@ -119,7 +119,7 @@ export async function saveSkill(
  *   agent's name is not its id, so read the id from listAgents first.
  * @param slug The skill's exact slug, from listSkills. Never invent one.
  * @assistant group:skills
- * @assistant confirm: irreversible. The skill's instructions are gone and Houston keeps no copy, so what the user wrote cannot be recovered.
+ * @assistant confirm: irreversible. The skill's instructions are gone and no copy is kept, so what the user wrote cannot be recovered.
  */
 export async function deleteSkill(
   scope: HttpScope,

@@ -1,169 +1,102 @@
 import type {
-  SidebarDefaultGroupView,
+  SidebarArrangement,
   SidebarGroupView,
   SidebarItem,
-  SidebarNavSection,
+  SidebarRootEntry,
 } from "@houston-ai/layout";
 import { AppSidebar } from "@houston-ai/layout";
-import type { TFunction } from "i18next";
 import type { ReactNode } from "react";
-import type { Workspace } from "../../lib/types";
 import { SidebarInviteInbox } from "./pending-invites";
-import { buildSidebarLabels, SidebarWorkspaceHeader } from "./sidebar-chrome";
-import { SidebarCreateButton } from "./sidebar-create-button";
+import { buildSidebarLabels, type SidebarChromeT } from "./sidebar-chrome";
 import { SidebarFooter } from "./sidebar-footer";
-import type { ServerTeamActions } from "./use-server-team-actions";
-import { tourAnchor } from "./workspace-tour-steps.ts";
+import { SidebarHeaderActions } from "./sidebar-header-actions";
 
 /** Everything the rail RENDERS, resolved by `Sidebar` and handed over whole. */
 export interface SidebarRailModel {
-  workspaces: Workspace[];
-  currentWorkspace: Workspace | null;
   collapsed: boolean;
   onToggleCollapsed: () => void;
   onExpand: () => void;
   onCreateWorkspace: () => void;
-  onSwitchWorkspace: (id: string) => void;
-  navSections: SidebarNavSection[];
-  activeNavId: string | undefined;
-  teamActions: ServerTeamActions;
+  /** Stores a drop: the whole arrangement the rail now shows. False when
+   *  nothing was written, so the rail keeps the stored order. */
+  onArrange: (arrangement: SidebarArrangement) => boolean;
+  ready: boolean;
   items: SidebarItem[];
+  /** Rows leading the list, ahead of every folder: the AI Manager. */
+  pinnedItems: SidebarItem[];
   groups: SidebarGroupView[];
-  defaultGroup: SidebarDefaultGroupView | undefined;
+  order: SidebarRootEntry[];
+  /** The lit row: an agent, or a pinned row's id. */
   selectedAgentId: string | null;
   onSelectAgent: (id: string) => void;
-  /** A team's name was clicked. What that does is the four-arm grammar in
-   *  `lib/team-header-click.ts`, executed by `use-sidebar-teams-model.ts`. */
+  /** Fold or unfold a folder from its heading. */
   onActivateGroup: (id: string) => void;
-  /** The DEFAULT block's name was clicked (it hands back no id). */
-  onActivateDefault: () => void;
-  /** Fold the whole "Your teams" list (persisted in the UI store). */
-  sectionCollapsed: boolean;
-  onToggleSectionCollapsed: () => void;
-  /** Absent when this caller may not create teams. */
-  onNewTeam: (() => void) | undefined;
-  onAddAgentToTeam: ((teamId: string | null) => void) | undefined;
+  /** Opens the create sheet on a new folder; the rail withholds it until the
+   *  layout read succeeds. */
+  onNewTeam: () => void;
   /** Absent when this caller may not create agents. */
   onAddAgent: (() => void) | undefined;
-  /** The band's "+": open the create sheet on its opening choice. */
-  onOpenCreate: () => void;
 }
 
 /**
  * The rail itself: one `AppSidebar` invocation, fed entirely by the view model
- * `Sidebar` composed. It renders TWICE — as the fixed desktop rail and inside
- * the mobile drawer — from the same element type, so switching presentation
- * never remounts the sidebar tree. Mobile is always expanded: collapse is a
- * rail concept.
+ * `Sidebar` composed. The phone does not render this rail: it manages
+ * employees and groups from the AI Employees list.
  *
- * A component and not a closure inside `Sidebar` because that file was over the
- * 200-line limit and this is the cohesive half: everything here is "what the
- * rail LOOKS like", everything left there is "what the rail knows".
+ * Three zones, top to bottom. The top line holds the rail's two verbs, search
+ * and create (`sidebar-header-actions.tsx`). The body is the team and nothing
+ * else: the AI Manager pinned first, then the folders and employees in the
+ * person's own order, with no heading over them because they are the whole
+ * rail. The foot is the workspace menu (`sidebar-footer.tsx`), the one door to
+ * everything that is not an employee.
+ *
+ * Pending invitations keep their own full-width band right under the top line:
+ * they are an action waiting on the person, not a place in a menu.
  */
 export function SidebarRail({
   model,
   t,
-  mobile,
+  windowControlsInset = false,
   gutterChildren,
 }: {
   model: SidebarRailModel;
-  t: TFunction<["shell", "common", "portable", "teams", "agents"]>;
-  /** Hosted in the mobile drawer (always expanded, no collapse toggle). */
-  mobile: boolean;
+  t: SidebarChromeT;
+  windowControlsInset?: boolean;
   /** The floating "screen" the desktop rail sits beside. */
   gutterChildren?: ReactNode;
 }) {
-  const {
-    workspaces,
-    currentWorkspace,
-    collapsed,
-    onToggleCollapsed,
-    onExpand,
-    onCreateWorkspace,
-    onSwitchWorkspace,
-    navSections,
-    activeNavId,
-    teamActions,
-    items,
-    groups,
-    defaultGroup,
-    selectedAgentId,
-    onSelectAgent,
-    onActivateGroup,
-    onActivateDefault,
-    sectionCollapsed,
-    onToggleSectionCollapsed,
-    onNewTeam,
-    onAddAgentToTeam,
-    onAddAgent,
-    onOpenCreate,
-  } = model;
-  const effectiveCollapsed = mobile ? false : collapsed;
-
+  const { collapsed, ready } = model;
   return (
     <AppSidebar
-      collapsed={effectiveCollapsed}
-      onToggleCollapsed={mobile ? undefined : onToggleCollapsed}
-      header={
-        <SidebarWorkspaceHeader
+      windowControlsInset={windowControlsInset}
+      collapsed={collapsed}
+      onToggleCollapsed={model.onToggleCollapsed}
+      headerActions={
+        <SidebarHeaderActions
           t={t}
-          workspaces={workspaces}
-          currentId={currentWorkspace?.id ?? null}
-          currentName={currentWorkspace?.name}
-          collapsed={effectiveCollapsed}
-          onSwitch={onSwitchWorkspace}
-          onCreate={onCreateWorkspace}
-          onExpand={onExpand}
+          collapsed={collapsed}
+          onNewAgent={model.onAddAgent}
+          onNewTeam={ready ? model.onNewTeam : undefined}
         />
       }
-      // Pending team invitations: same place in the eye (right under the
-      // switcher, where a user picks a space), but their OWN full-width row —
-      // the header line belongs to the switcher and the collapse toggle.
       headerBelow={
-        <SidebarInviteInbox
-          collapsed={effectiveCollapsed}
-          onExpand={onExpand}
-        />
+        <SidebarInviteInbox collapsed={collapsed} onExpand={model.onExpand} />
       }
-      navSections={navSections}
-      activeNavId={activeNavId}
-      sectionLabel={t("shell:sidebar.yourTeams")}
-      // ONE control on the band: everything a user can ADD to this rail, behind
-      // a single "+" that opens the create sheet. The sheet decides whether
-      // there is a choice to make.
-      sectionAction={
-        <SidebarCreateButton
-          labels={{
-            title: t("shell:sidebar.createDialog"),
-            newAgent: t("shell:sidebar.addAgent"),
-            newTeam: t("shell:sidebar.newTeam"),
-          }}
-          canAddAgent={onAddAgent !== undefined}
-          canAddTeam={onNewTeam !== undefined}
-          onOpen={onOpenCreate}
-        />
-      }
-      sectionCollapsed={sectionCollapsed}
-      onToggleSectionCollapsed={onToggleSectionCollapsed}
-      items={items}
-      groups={groups}
-      defaultGroup={defaultGroup}
-      onActivateGroup={onActivateGroup}
-      onActivateDefault={onActivateDefault}
-      // A drag reorders an agent inside its OWN team and nothing more: moving
-      // an agent between teams is a named action on the team screen.
-      onMoveItem={teamActions.moveItem}
-      // Reordering a team goes through the team actions on BOTH backends: on a
-      // server host it is a `sortOrder` write, not a stored-layout one, and
-      // writing the overlay there would only pretend to have moved something.
-      onMoveGroup={teamActions.moveGroup}
-      selectedId={selectedAgentId}
-      onSelect={onSelectAgent}
-      onAdd={onAddAgent}
-      onAddToGroup={onAddAgentToTeam}
-      addItemDataAttrs={tourAnchor("newAgent")}
+      items={model.items}
+      pinnedItems={model.pinnedItems}
+      groups={model.groups}
+      order={model.order}
+      onActivateGroup={ready ? model.onActivateGroup : undefined}
+      onArrange={ready ? model.onArrange : undefined}
+      selectedId={model.selectedAgentId}
+      onSelect={model.onSelectAgent}
       labels={buildSidebarLabels(t)}
-      footer={<SidebarFooter collapsed={effectiveCollapsed} />}
+      footer={
+        <SidebarFooter
+          collapsed={collapsed}
+          onCreateWorkspace={model.onCreateWorkspace}
+        />
+      }
     >
       {gutterChildren}
     </AppSidebar>

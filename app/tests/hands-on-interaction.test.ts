@@ -160,7 +160,7 @@ const gates = (over: Partial<SurfaceGates> = {}): SurfaceGates => ({
   showBilling: true,
   showWorkspaceDanger: true,
   showAiModels: true,
-  showSkills: true,
+  manageWorkspaceSkills: true,
   showAssistant: true,
   ready: true,
   ...over,
@@ -214,8 +214,8 @@ test("every hands-on screen maps to a real navigation", () => {
   for (const call of [
     'ui.openSettings("apiKeys")',
     "ui.openSettings(null)",
-    'requestTab("billing")',
-    "ui.openTeamView(",
+    'openAdmin({ section: "billing" })',
+    "openAgentSection(",
     '"files" : "routines"',
   ])
     ok(nav.includes(call), `missing navigation: ${call}`);

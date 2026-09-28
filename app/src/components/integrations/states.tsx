@@ -4,10 +4,10 @@ import {
   EmptyDescription,
   EmptyHeader,
   EmptyTitle,
+  HoustonHelmet,
 } from "@houston-ai/core";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { HoustonLogo } from "../shell/experience-card";
 
 /**
  * The BOOT gate only: Houston is still working out whether this deployment even
@@ -33,7 +33,8 @@ export function LoadingState() {
   const { t } = useTranslation("integrations");
   return (
     <Empty className="border-0">
-      <HoustonLogo
+      <HoustonHelmet
+        color="currentColor"
         size={48}
         className="mb-2 animate-pulse motion-reduce:animate-none"
       />
@@ -103,7 +104,7 @@ export function ReconnectBanner({
   const { t } = useTranslation("integrations");
   return (
     <div className="flex items-start gap-2 rounded-xl bg-chip p-4 text-sm text-ink-muted">
-      <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+      <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success-ink" />
       <span className="flex-1">{t("reconnectNotice")}</span>
       <AsyncButton
         variant="ghost"

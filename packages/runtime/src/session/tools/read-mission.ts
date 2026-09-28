@@ -42,6 +42,8 @@ export type ReadMissionDetails =
 
 /** The bounded, chronological render of a transcript. */
 function render(transcript: MissionTranscript): string {
+  if (transcript.totalMessages === 0 && transcript.status === "running")
+    return `Mission "${transcript.title}". This mission hasn't started talking yet (status: running). Check again later.`;
   // Fill newest-first so the total cap drops the OLDEST lines — the recent
   // outcome is what a review needs — then restore chronological order.
   const lines: string[] = [];
@@ -109,6 +111,17 @@ export function makeReadMissionTool(opts: ReadMissionToolOptions) {
         transcript = read.transcript;
       } else {
         transcript = ownTranscript(params.id, limit);
+        if (!transcript) {
+          const read = await targetTranscript(
+            opts.call,
+            undefined,
+            params.id,
+            limit,
+            signal,
+          );
+          if (!read.ok) return toolErrorResult(read.error);
+          transcript = read.transcript;
+        }
       }
       if (!transcript) {
         return toolErrorResult({

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SdkConfig, SdkPorts } from "../../ports";
 import { HoustonSdk } from "../../sdk";
+import { memoryKv } from "../../test-ports";
 import {
   type SidebarLayout,
   WorkspacesCommand,
@@ -24,7 +25,10 @@ const WORKSPACE = {
 
 const LAYOUT: SidebarLayout = {
   groups: [{ id: "g1", name: "Ops", collapsed: false, agentIds: ["a1"] }],
-  ungroupedOrder: ["a2"],
+  order: [
+    { kind: "agent", id: "a2" },
+    { kind: "group", id: "g1" },
+  ],
 };
 
 /**
@@ -48,11 +52,8 @@ function makeSdk(answer: (path: string) => Response) {
   const store = new Map<string, string>();
   const ports: SdkPorts = {
     fetch: fetchImpl as unknown as typeof fetch,
-    storage: {
-      get: async (k) => store.get(k) ?? null,
-      set: async (k, v) => void store.set(k, v),
-      delete: async (k) => void store.delete(k),
-    },
+    storage: memoryKv(store),
+    devicePreferences: memoryKv(),
     clock: { now: () => 0, setTimeout: () => 0, clearTimeout: () => {} },
     logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   };
@@ -182,5 +183,57 @@ describe("the workspaces commands", () => {
     });
     expect(result).toMatchObject({ ok: false });
     expect(calls).toEqual([]);
+  });
+
+  it("refuses an invalid root entry before making a request", async () => {
+    const { sdk, calls } = ok(LAYOUT);
+    const result = await sdk.dispatch({
+      id: "4",
+      type: WorkspacesCommand.SetSidebarLayout,
+      payload: {
+        workspaceId: "w1",
+        layout: { groups: [], order: [{ kind: "nested", id: "g" }] },
+      },
+    });
+    expect(result).toMatchObject({ ok: false });
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses malformed group fields before making a request", async () => {
+    for (const group of [
+      { id: 1, name: "Ops", collapsed: false, agentIds: [] },
+      { id: "g", name: null, collapsed: false, agentIds: [] },
+      { id: "g", name: "Ops", collapsed: "no", agentIds: [] },
+      { id: "g", name: "Ops", collapsed: false, agentIds: [1] },
+      { id: "g", name: "Ops", collapsed: false, agentIds: [], icon: 2 },
+      { id: "g", name: "Ops", collapsed: false, agentIds: [], color: false },
+    ]) {
+      const { sdk, calls } = ok(LAYOUT);
+      const result = await sdk.dispatch({
+        id: "bad",
+        type: WorkspacesCommand.SetSidebarLayout,
+        payload: { workspaceId: "w1", layout: { groups: [group], order: [] } },
+      });
+      expect(result).toMatchObject({ ok: false });
+      expect(calls).toEqual([]);
+    }
+  });
+  it("refuses a layout the host's strict parser rejects before making a request", async () => {
+    const group = { id: "g", name: "Ops", collapsed: false, agentIds: [] };
+    for (const layout of [
+      { groups: [{ ...group, name: "x".repeat(61) }], order: [] },
+      { groups: [group, group], order: [] },
+      { groups: [{ ...group, id: "" }], order: [] },
+      { groups: [group], order: [{ kind: "group", id: "missing" }] },
+    ]) {
+      const { sdk, calls } = ok(LAYOUT);
+      const result = await sdk.dispatch({
+        id: "limits",
+        type: WorkspacesCommand.SetSidebarLayout,
+        payload: { workspaceId: "w1", layout },
+      });
+      expect(result).toMatchObject({ ok: false });
+      expect(calls).toEqual([]);
+    }
   });
 });

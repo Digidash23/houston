@@ -78,6 +78,7 @@ function withPlanGate(def: AnyToolDefinition): AnyToolDefinition {
 function withClampedPath(
   def: AnyToolDefinition,
   guard: WorkspaceGuard,
+  write = false,
 ): AnyToolDefinition {
   return {
     ...def,
@@ -86,7 +87,9 @@ function withClampedPath(
       if (raw !== undefined && typeof raw !== "string") {
         throw new Error(`${def.name}: 'path' must be a string`);
       }
-      const abs = guard.clamp(raw as string | undefined);
+      const abs = write
+        ? guard.clampWrite(raw as string | undefined)
+        : guard.clamp(raw as string | undefined);
       return def.execute(
         toolCallId,
         { ...(params as object), path: abs },
@@ -104,18 +107,20 @@ export function makeClampedFileTools(
 ): AnyToolDefinition[] {
   const guard = new WorkspaceGuard(workspaceDir, options);
   const g = (path: string) => guard.assertInside(path);
+  const writable = (path: string) => guard.assertWritable(path);
 
   // Inner-wall operations mirror pi's defaults exactly, plus the guard.
   const editOps = {
     readFile: (p: string) => fsReadFile(g(p)),
     writeFile: (p: string, content: string) =>
-      fsWriteFile(g(p), content, "utf-8"),
+      fsWriteFile(writable(p), content, "utf-8"),
     access: (p: string) => fsAccess(g(p), constants.R_OK | constants.W_OK),
   };
   const writeOps = {
     writeFile: (p: string, content: string) =>
-      fsWriteFile(g(p), content, "utf-8"),
-    mkdir: (dir: string) => fsMkdir(g(dir), { recursive: true }).then(() => {}),
+      fsWriteFile(writable(p), content, "utf-8"),
+    mkdir: (dir: string) =>
+      fsMkdir(writable(dir), { recursive: true }).then(() => {}),
   };
   const lsOps = {
     exists: async (p: string) => {
@@ -150,12 +155,14 @@ export function makeClampedFileTools(
       withClampedPath(
         createEditToolDefinition(workspaceDir, { operations: editOps }),
         guard,
+        true,
       ),
     ),
     withPlanGate(
       withClampedPath(
         createWriteToolDefinition(workspaceDir, { operations: writeOps }),
         guard,
+        true,
       ),
     ),
   ];

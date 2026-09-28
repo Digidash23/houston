@@ -1,0 +1,71 @@
+/** The three line sizes: the featured #1, a roomy ledger, a dense one. */
+export type LineSize = "featured" | "line" | "dense";
+
+/**
+ * Per-size type and cell widths, shared by the lines and their header. The
+ * roomy sizes let the bar breathe; the dense one gives the name the room and
+ * holds the bar to a fixed stub, as two columns of it must fit side by side.
+ * The skeletons stand in for a figure at its own size, so nothing moves when
+ * it lands.
+ */
+export const LINE = {
+  featured: {
+    agent: "flex-7 gap-3",
+    rank: "w-8 text-sm",
+    avatar: 56,
+    name: "text-xl",
+    role: "text-sm",
+    barCell: "min-w-0 flex-6 gap-3.5",
+    figure: "w-20 text-3xl",
+    figureSkeleton: "h-6 w-16",
+    unit: "text-sm",
+    bar: "h-1",
+    messages: "w-24 text-lg",
+    messagesSkeleton: "h-3.5 w-11",
+    messagesWidth: "w-24",
+    manages: "w-32",
+    uses: "w-28",
+    faces: 4,
+  },
+  line: {
+    agent: "flex-7 gap-3",
+    rank: "w-8 text-xs",
+    rankWidth: "w-8",
+    /** The name's inset past the rank: gap, helmet, gap and padding. */
+    indent: "pl-17.5",
+    avatar: 40,
+    name: "text-base",
+    role: "text-xs",
+    barCell: "min-w-0 flex-6 gap-3.5",
+    figure: "w-20 text-xl",
+    figureSkeleton: "h-4 w-11",
+    unit: "text-xs",
+    bar: "h-0.75",
+    messages: "w-24 text-base",
+    messagesSkeleton: "h-3 w-10",
+    messagesWidth: "w-24",
+    manages: "w-32",
+    uses: "w-28",
+    faces: 4,
+  },
+  dense: {
+    agent: "flex-1 gap-2",
+    rank: "w-6 text-xs",
+    rankWidth: "w-6",
+    indent: "pl-12.5",
+    avatar: 30,
+    name: "text-sm",
+    role: "text-xs",
+    barCell: "w-36 shrink-0 gap-2.5",
+    figure: "w-12 text-base",
+    figureSkeleton: "h-3 w-9",
+    unit: "text-xs",
+    bar: "h-0.75",
+    messages: "w-16 text-sm",
+    messagesSkeleton: "h-2.5 w-9",
+    messagesWidth: "w-16",
+    manages: "ml-2 w-24",
+    uses: "w-20",
+    faces: 3,
+  },
+} as const;

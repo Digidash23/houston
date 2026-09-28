@@ -235,6 +235,14 @@
     "classification": "sdk"
   },
   {
+    "pattern": "/v1/agents/{slug}/delegation",
+    "methods": [
+      "GET",
+      "PUT"
+    ],
+    "classification": "sdk"
+  },
+  {
     "pattern": "/v1/agents/{slug}/missions",
     "methods": [
       "GET",
@@ -533,10 +541,31 @@
     "classification": "sdk"
   },
   {
+    "pattern": "/v1/me/plan",
+    "methods": [
+      "GET"
+    ],
+    "classification": "sdk"
+  },
+  {
+    "pattern": "/v1/me/plus/invoices",
+    "methods": [
+      "GET"
+    ],
+    "classification": "sdk"
+  },
+  {
     "pattern": "/v1/me/profile",
     "methods": [
       "GET",
       "PUT"
+    ],
+    "classification": "sdk"
+  },
+  {
+    "pattern": "/v1/me/routines",
+    "methods": [
+      "GET"
     ],
     "classification": "sdk"
   },
@@ -585,21 +614,6 @@
   },
   {
     "pattern": "/v1/org/profiles",
-    "methods": [
-      "GET"
-    ],
-    "classification": "sdk"
-  },
-  {
-    "pattern": "/v1/org/teams",
-    "methods": [
-      "GET",
-      "POST"
-    ],
-    "classification": "sdk"
-  },
-  {
-    "pattern": "/v1/org/teams/{teamId}/members",
     "methods": [
       "GET"
     ],
@@ -685,6 +699,14 @@
     "classification": "sdk"
   },
   {
+    "pattern": "/v1/workspaces/{org}/sidebar-layout",
+    "methods": [
+      "GET",
+      "PUT"
+    ],
+    "classification": "sdk"
+  },
+  {
     "pattern": "/agents/{slug}",
     "methods": [
       "PATCH",
@@ -703,14 +725,6 @@
   },
   {
     "pattern": "/v1/org/members/{userId}",
-    "methods": [
-      "PATCH",
-      "DELETE"
-    ],
-    "classification": "sdk"
-  },
-  {
-    "pattern": "/v1/org/teams/{teamId}",
     "methods": [
       "PATCH",
       "DELETE"
@@ -1063,6 +1077,41 @@
     "classification": "sdk"
   },
   {
+    "pattern": "/v1/me/plan/announcement",
+    "methods": [
+      "POST"
+    ],
+    "classification": "sdk"
+  },
+  {
+    "pattern": "/v1/me/plus/checkout",
+    "methods": [
+      "POST"
+    ],
+    "classification": "sdk"
+  },
+  {
+    "pattern": "/v1/me/plus/portal",
+    "methods": [
+      "POST"
+    ],
+    "classification": "sdk"
+  },
+  {
+    "pattern": "/v1/me/presence",
+    "methods": [
+      "POST"
+    ],
+    "classification": "sdk"
+  },
+  {
+    "pattern": "/v1/me/routines/resume",
+    "methods": [
+      "POST"
+    ],
+    "classification": "sdk"
+  },
+  {
     "pattern": "/v1/org-invites/{inviteId}/accept",
     "methods": [
       "POST"
@@ -1152,17 +1201,9 @@
     "classification": "sdk"
   },
   {
-    "pattern": "/v1/agents/{slug}/team",
+    "pattern": "/v1/me/routines/keep",
     "methods": [
       "PUT"
-    ],
-    "classification": "sdk"
-  },
-  {
-    "pattern": "/v1/org/teams/{teamId}/members/{userId}",
-    "methods": [
-      "PUT",
-      "DELETE"
     ],
     "classification": "sdk"
   }

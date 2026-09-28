@@ -1,54 +1,73 @@
-import { AgentBriefRecap } from "./agent-brief-recap";
-import { AgentIdentityForm } from "./agent-identity-form";
-import type { RecapSegmentId } from "./create-step-recap";
+import type { FormEvent } from "react";
+import { useEffect, useRef } from "react";
+import { isMobileViewport } from "../../lib/viewport";
+import { EditableEmployeeCard } from "../employee-card/editable-employee-card";
 import type { CreateAgentFlow } from "./use-create-agent-flow";
 
+/** The button that submits `form` from outside it: the frame's primary. */
+const primaryOf = (form: HTMLFormElement | null) =>
+  Array.from(form?.elements ?? []).find(
+    (element): element is HTMLButtonElement =>
+      element instanceof HTMLButtonElement && element.type === "submit",
+  );
+
 /**
- * Step 3 of the guided setup: a name and a colour, and nothing else. The two
- * answers behind it are already made, so the screen states them as two chips
- * rather than asking again; each chip is also the way back to its question.
+ * The last step of a hire: the new AI Employee's own card, centred, already
+ * named for its job, so the hire is one press away. The card carries the job
+ * and the industry the two questions before it answered, and the name and the
+ * color, each open to a change in plain sight: the name's pencil and each
+ * line's chevron say so on the card itself.
  *
- * The composition centres on one axis: face, answers, palette and name all
- * share it. This screen collects one short thing, so it is a standing portrait
- * in the compact frame rather than a form pinned to a left rail like the two
- * questions before it, and what it asks for is the sheet's own title. On a
- * phone the column scrolls, which is what keeps the name field clear of the
- * keyboard; the action it submits is in the sheet's bottom bar either way.
+ * The action is the frame's bottom bar, which submits this form by `formId`,
+ * so Enter in the name and a press on the bar are the same submit. On a
+ * desktop the bar's primary takes the focus, so Enter hires at once; a phone
+ * focuses nothing, since a focused name would raise the keyboard over the
+ * card. A submit the name holds back puts the person back in the field, with
+ * the card saying why.
  */
 export function CustomizeStep({
   flow,
   formId,
-  onChangeAnswer,
 }: {
   flow: CreateAgentFlow;
   formId: string;
-  /** Back to the question that collected an answer, from its own chip. */
-  onChangeAnswer: (step: RecapSegmentId) => void;
 }) {
+  const form = useRef<HTMLFormElement>(null);
+  const nameField = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isMobileViewport()) return;
+    primaryOf(form.current)?.focus({ preventScroll: true });
+  }, []);
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (flow.submit() === "invalid") nameField.current?.focus();
+  };
+
   return (
-    <div className="mx-auto w-full max-w-sm">
-      <AgentIdentityForm
-        formId={formId}
-        name={flow.name}
+    <form
+      ref={form}
+      id={formId}
+      onSubmit={submit}
+      className="flex flex-col items-center"
+    >
+      <EditableEmployeeCard
+        layout="solo"
+        role={flow.roleState.roleLabel.trim()}
+        industry={flow.roleState.contextLabel.trim()}
+        status="draft"
         color={flow.color}
-        error={flow.error}
-        existingPath={flow.existingPath}
-        nameInvalid={flow.nameInvalid}
-        showLinkProject={flow.showLinkProject}
-        onNameChange={flow.onNameChange}
         onColorChange={flow.onColorChange}
-        onExistingPathChange={flow.onExistingPathChange}
-        onSubmit={flow.onSubmit}
-        header={
-          <AgentBriefRecap
-            answers={{
-              context: flow.roleState.contextLabel,
-              role: flow.roleState.roleLabel,
-            }}
-            onChange={onChangeAnswer}
-          />
-        }
+        onBriefChange={flow.roleState.answerBrief}
+        message={flow.message}
+        invalid={flow.nameInvalid}
+        name={{
+          value: flow.name,
+          onChange: flow.onNameChange,
+          inputRef: nameField,
+        }}
       />
-    </div>
+    </form>
   );
 }

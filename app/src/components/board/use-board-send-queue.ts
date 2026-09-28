@@ -37,6 +37,7 @@ export function useBoardSendQueue({
     text: string,
     files: File[],
     overrides: SendOverrides,
+    context?: string,
   ) => Promise<void>;
 }) {
   const settledOverrides = useCallback(async (): Promise<SendOverrides> => {
@@ -94,6 +95,22 @@ export function useBoardSendQueue({
     [sendMessageNow, settledOverrides],
   );
 
+  // A message Houston writes for the person (their `text` as the bubble, over
+  // a hidden `context` the model reads), on the same settled pin as a typed
+  // send.
+  const sendAuthored = useCallback(
+    async (sessionKey: string, text: string, context: string) => {
+      await sendMessageNow(
+        sessionKey,
+        text,
+        [],
+        await settledOverrides(),
+        context,
+      );
+    },
+    [sendMessageNow, settledOverrides],
+  );
+
   const queuedMessages = useMemo<AIBoardProps["queuedMessages"]>(
     () =>
       selectedSessionKey
@@ -109,6 +126,7 @@ export function useBoardSendQueue({
 
   return {
     handleSendMessage,
+    sendAuthored,
     queuedMessages,
     onRemoveQueuedMessage,
   };

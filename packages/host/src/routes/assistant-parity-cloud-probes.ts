@@ -13,17 +13,19 @@ import {
  * fact, "and here is why that is correct" is the contract.
  */
 const AGENT = { agentSlugOrId: PROBE_AGENT };
-const NO_TEAM = { teamId: "no-such-team" };
 const NO_USER = { userId: "no-such-user" };
 const NO_INVITE = { inviteId: "no-such-invite" };
 
 const SPACES = "spaces and their membership exist only on the hosted gateway";
-const TEAMS =
-  "teams group agents for teammates, which a single-user host has none of";
 const PER_AGENT_POLICY = "manager-set per-agent policy is a Teams surface";
 const API_KEYS = "personal API keys authenticate against the hosted public API";
 const CHANNELS =
   "the gateway holds the Slack app's credentials and receives its events, so a messaging connection exists only there";
+
+const PERSONAL_PLAN =
+  "the personal plan (usage limit, Plus) is metered and billed by the hosted gateway";
+const PLAN_ROUTINES =
+  "the plan's routine limits are enforced by the hosted control plane's scheduler";
 
 export const CLOUD_ONLY_PROBES: readonly CloudOnlyProbe[] = [
   // The space itself, and who is in it.
@@ -60,6 +62,21 @@ export const CLOUD_ONLY_PROBES: readonly CloudOnlyProbe[] = [
     interval: "monthly",
   }),
   cloudOnly("createPortal", "billing is a hosted-subscription concern"),
+
+  // The personal plan (C19): limits and Plus are metered and billed by the gateway.
+  cloudOnly("getPlan", PERSONAL_PLAN),
+  cloudOnly("createPlusCheckout", PERSONAL_PLAN),
+  cloudOnly("createPlusPortal", PERSONAL_PLAN),
+  cloudOnly("listPlusInvoices", PERSONAL_PLAN),
+  cloudOnly("dismissPlanAnnouncement", PERSONAL_PLAN),
+  cloudOnly("reportPresence", PERSONAL_PLAN),
+  cloudOnly("listPlanRoutines", PLAN_ROUTINES),
+  cloudOnly("keepRoutine", PLAN_ROUTINES, {
+    orgSlug: "no-such-org",
+    agentSlug: "no-such-agent",
+    routineId: "no-such-routine",
+  }),
+  cloudOnly("resumeRoutines", PLAN_ROUTINES),
   cloudOnly("orgUsage", "usage is metered by the gateway that bills for it", {
     days: 1,
   }),
@@ -73,19 +90,7 @@ export const CLOUD_ONLY_PROBES: readonly CloudOnlyProbe[] = [
     "the record of who did what is written by the gateway that authorizes them",
   ),
 
-  // Teams, and the per-agent ceilings a manager sets through them.
-  cloudOnly("listAgentTeams", TEAMS),
-  cloudOnly("createAgentTeam", TEAMS, { input: { name: "Probe" } }),
-  cloudOnly("updateAgentTeam", TEAMS, { ...NO_TEAM, patch: {} }),
-  cloudOnly("deleteAgentTeam", TEAMS, NO_TEAM),
-  cloudOnly("listAgentTeamMembers", TEAMS, NO_TEAM),
-  cloudOnly("removeAgentTeamMember", TEAMS, { ...NO_TEAM, ...NO_USER }),
-  cloudOnly("setAgentTeamMemberOwner", TEAMS, {
-    ...NO_TEAM,
-    ...NO_USER,
-    owner: false,
-  }),
-  cloudOnly("setAgentTeam", TEAMS, { ...AGENT, teamId: "no-such-team" }),
+  // The per-agent ceilings a manager sets on a shared agent.
   cloudOnly("setAgentAssignments", PER_AGENT_POLICY, {
     ...AGENT,
     assignments: [],

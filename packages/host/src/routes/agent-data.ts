@@ -1,12 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { loadRoutineRuns } from "@houston/domain";
-import type { ActivityContributor, HoustonEvent } from "@houston/protocol";
-import { actingAuthorFor, routineActorFor } from "../auth/acting";
+import type { HoustonEvent } from "@houston/protocol";
 import type { Agent, Workspace } from "../domain/types";
 import type { WorkspacePaths } from "../paths";
 import type { Vfs } from "../vfs";
 import { DEFAULT_PATHS } from "./agent-authz";
 import { handleActivitiesData } from "./agent-data-activities";
+import { type AgentDataCaller, agentDataCaller } from "./agent-data-caller";
 import { handleDocsData } from "./agent-data-docs";
 import { handleRoutinesData } from "./agent-data-routines";
 import { agentRest } from "./agent-rest";
@@ -46,23 +46,7 @@ export async function handleAgentData(
   req: IncomingMessage,
   res: ServerResponse,
   emit?: (event: HoustonEvent) => void,
-  // The verified acting identity of THIS request (C2) — recorded as a new
-  // routine's `created_by` and re-stamped on PATCH, so a fired routine turn
-  // acts as whoever last shaped it. Gateway-fronted pods pass the gateway-
-  // minted acting sub (the id the gateway re-authorizes at fire time, HOU-689);
-  // the desktop passes its local owner. Absent in callers that don't carry
-  // identity; the field then stays as-is (absent on create).
-  createdBy?: string,
-  // The verified acting human as a full contributor (C2) — activities stamp
-  // `created_by` + a contributor entry from it (routines take the sub-only
-  // `createdBy` above). Null/absent off the gateway, keeping single-player
-  // activity.json byte-identical.
-  author?: ActivityContributor,
-  // Whether this deployment can fire event-driven routines (a trigger backend
-  // exists — Houston Cloud only). When false, a routine write carrying a
-  // `trigger` binding is rejected: it could never wake here (a schedule can).
-  // Reads still list existing trigger routines; the gate applies to writes only.
-  triggersEnabled = false,
+  caller: AgentDataCaller = {},
 ): Promise<boolean> {
   const m = rest.match(
     /^(activities|routines|routine_runs|config|learnings)(?:\/([^/]+))?$/,
@@ -95,7 +79,7 @@ export async function handleAgentData(
       req,
       res,
       emit,
-      author,
+      { author: caller.author, startedBy: caller.startedBy },
     );
     return true;
   }
@@ -111,7 +95,11 @@ export async function handleAgentData(
         req,
         res,
         fireChange,
-        { triggersEnabled, nowIso, createdBy },
+        {
+          triggersEnabled: caller.triggersEnabled ?? false,
+          nowIso,
+          createdBy: caller.createdBy,
+        },
       )
     )
       return true;
@@ -188,8 +176,6 @@ defineRouteFamily({
       req,
       res,
       emit,
-      routineActorFor(deps, req, userId),
-      actingAuthorFor(deps, req) ?? undefined,
-      deps.triggersEnabled ?? false,
+      agentDataCaller(deps, req, userId),
     ),
 });

@@ -1,11 +1,5 @@
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-  useIsMobile,
-} from "@houston-ai/core";
-import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
+import { useIsMobile } from "@houston-ai/core";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Agent } from "../../lib/types";
 import { useAgentStore } from "../../stores/agents";
@@ -25,44 +19,25 @@ import { useUnfinishedSkillDrafts } from "./use-unfinished-skill-drafts";
 import { useWorkspaceSkillRows } from "./workspace-skill-rows";
 
 /**
- * The Skills surface, in both of its scopes.
+ * One AI Employee's Skills, the section in its settings rail: the skills it
+ * has, a search, and a "Create skill" menu whose second way puts a skill the
+ * workspace already holds on this employee. It stands inside the frame the
+ * rail already provides.
  *
- * Unscoped it is the workspace LIBRARY: every AI Employee's skills in one
- * list, each row carrying who holds it. Given an `agent` it is that employee's
- * own Skills section in the settings rail — the same list, the same states,
- * the same search and its own "Create skill" menu, narrowed to what that
- * employee has and standing inside the frame the rail already provides.
- *
- * Either way the LIST is the library; clicking a skill replaces it with that
- * skill's EDITOR — its workflow (or markdown) here, its chat in the shell's
- * right panel. The editor brings its OWN header, whose back arrow returns the
- * list. "Create skill" opens the guided create chat in the same panel with the
- * list still on the left; on an employee's own section it is a menu, whose
- * second way puts a skill the workspace already holds on that employee.
+ * Clicking a skill replaces the list with that skill's EDITOR: its workflow
+ * (or markdown) here, its chat in the shell's right panel. The editor brings
+ * its OWN header, whose back arrow returns the list. "Create skill" opens the
+ * guided create chat in the same panel with the list still on the left.
  */
-export function SkillsBody({
-  listHeader,
-  agent,
-}: {
-  listHeader?: ReactNode;
-  /** Scope the surface to ONE AI Employee; omit for the workspace library. */
-  agent?: Agent;
-}) {
+export function SkillsBody({ agent }: { agent: Agent }) {
   const { t } = useTranslation("skills");
   const workspaceAgents = useAgentStore((s) => s.agents);
-  const agents = useMemo(
-    () => (agent ? [agent] : workspaceAgents),
-    [agent, workspaceAgents],
-  );
+  const agents = useMemo(() => [agent], [agent]);
   const models = useSkillsModels(agents);
-  // The shared store lists every skill it holds, so a scoped surface drops the
+  // The shared store lists every skill it holds, so the surface drops the
   // ones this employee does not load and points what is left at the copy that
   // employee runs; the copy-based model is already narrow.
-  const rows = useScopedSkillRows(
-    models.rows,
-    models.listsByPath,
-    agent ?? null,
-  );
+  const rows = useScopedSkillRows(models.rows, models.listsByPath, agent);
   const actions = useSkillsViewActions();
   const [query, setQuery] = useState("");
 
@@ -87,8 +62,7 @@ export function SkillsBody({
     [models.rows, models.listsByPath],
   );
   const create = useSkillCreateFlow({
-    agents: workspaceAgents,
-    scopedAgent: agent ?? null,
+    agent,
     skillsByPath,
     skillsFailed: models.failed,
     onEditSkill,
@@ -96,7 +70,7 @@ export function SkillsBody({
   // Reads the UNSCOPED rows: a workspace skill this employee does not have
   // yet is exactly what the dialog offers, and scoping already dropped it.
   const addExisting = useAddExistingSkill({
-    agent: agent ?? null,
+    agent,
     rows: models.rows,
     shared: models.shared,
     loading: models.loading,
@@ -116,17 +90,15 @@ export function SkillsBody({
     rows,
     query,
     onOpenEditor: nav.open,
-    showAgentStack: agent === undefined,
   });
   // A creation chat closed before the skill exists is listed here or nowhere:
   // setup chats are kept off every mission board. It sits ABOVE the skills as
   // the thing still being made, out of their count and their search.
   const drafts = useUnfinishedSkillDrafts(
-    agent ?? null,
+    agent,
     skillsByPath,
     create.openActivityId,
   );
-  const frame = agent ? "inline" : "screen";
   const editing = nav.editing;
 
   return (
@@ -135,9 +107,8 @@ export function SkillsBody({
         <SkillEditorPage
           key={editing.slug}
           row={editing}
-          agents={agents}
-          scopedAgent={agent ?? null}
-          frame={frame}
+          workspaceAgents={workspaceAgents}
+          agent={agent}
           onApply={actions.applySkillChanges}
           onDeleteEverywhere={actions.deleteSkillEverywhere}
           shared={models.shared}
@@ -151,24 +122,8 @@ export function SkillsBody({
           }
         />
       ) : (
-        <SkillsSurfaceFrame
-          frame={frame}
-          header={listHeader}
-          padClassName="pt-6 pb-10"
-          // The list marker names its scope, so a test can wait for the ONE it
-          // opened while the other scope sits in a kept-alive screen.
-          dataAttrs={{ "data-skills-list": agent ? "agent" : "workspace" }}
-        >
-          {agents.length === 0 ? (
-            <Empty>
-              <EmptyHeader>
-                <EmptyTitle>{t("global.noAgentsTitle")}</EmptyTitle>
-                <EmptyDescription>
-                  {t("global.noAgentsDescription")}
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          ) : models.loading && rows.length === 0 ? (
+        <SkillsSurfaceFrame dataAttrs={{ "data-skills-list": "agent" }}>
+          {models.loading && rows.length === 0 ? (
             <SkillsListSkeleton />
           ) : models.failed && rows.length === 0 ? (
             // Rows that DID land keep the list: a partial read is still the

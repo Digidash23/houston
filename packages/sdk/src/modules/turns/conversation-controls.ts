@@ -1,7 +1,8 @@
 /**
  * The one-shot controls a surface applies to an EXISTING conversation: stop the
  * running turn, switch the mode it runs under, retire its pending interaction,
- * and cut the transcript for an edit-and-resend.
+ * cut the transcript for an edit-and-resend, and write in lines said elsewhere
+ * (`conversation-imports.ts`).
  *
  * Each is a single request against the agent's own runtime and answers exactly
  * what the runtime said — no stream, no VM fold, no refetch. Kept beside the
@@ -11,6 +12,7 @@
  */
 
 import type { ModuleContext } from "../../module-context";
+import { createConversationImports } from "./conversation-imports";
 import { isTurnRunningRejection } from "./turn-errors";
 import {
   asConversationInput,
@@ -133,5 +135,11 @@ export function createConversationControls(ctx: ModuleContext) {
     return truncate(input.conversationId, input.agentId, input.turnId);
   });
 
-  return { cancel, setMode, dismissInteraction, truncate };
+  return {
+    cancel,
+    setMode,
+    dismissInteraction,
+    truncate,
+    ...createConversationImports(ctx),
+  };
 }

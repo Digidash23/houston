@@ -10,9 +10,9 @@
  *
  * Boot order matches the desktop entry:
  *   QueryClientProvider > ErrorBoundary > TooltipProvider > EngineGate >
- *   I18nextProvider > LanguageGate > App (sign-in, then the agreement gate)
+ *   I18nextProvider > LanguageGate > App (sign-in)
  * EXCEPT on the cloud web build (identity configured), where the first-run
- * language/agreement gates are skipped: sign-in is the first screen, and the
+ * language gate is skipped: sign-in is the first screen, and the
  * account's stored locale applies after auth (see AppTree below, HOU-1014).
  */
 
@@ -33,7 +33,7 @@ import { isIdentityConfigured } from "@houston/app/lib/identity";
 import { initFrontendLogging, logger } from "@houston/app/lib/logger";
 import { queryClient } from "@houston/app/lib/query-client";
 import { initSentry } from "@houston/app/lib/sentry";
-import { loadTheme } from "@houston/app/lib/theme";
+import { loadThemePreference } from "@houston/app/lib/theme";
 import { TooltipProvider } from "@houston-ai/core";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Component, type ReactNode, useEffect, useState } from "react";
@@ -77,14 +77,16 @@ class ErrorBoundary extends Component<
   }
   render() {
     if (this.state.error) {
+      // The token CSS is a static import of this module (globals.css, below), so
+      // the --ht-* vars are already in the document when the tree crashes.
       return (
         <div
           style={{
             position: "fixed",
             inset: 0,
             padding: 32,
-            background: "#1e1e1e",
-            color: "#ffdddd",
+            background: "var(--ht-base)",
+            color: "var(--ht-ink)",
             fontFamily: "ui-monospace, Menlo, monospace",
             fontSize: 13,
             whiteSpace: "pre-wrap",
@@ -94,7 +96,7 @@ class ErrorBoundary extends Component<
         >
           <h1
             style={{
-              color: "#ff6666",
+              color: "var(--ht-danger)",
               fontSize: 24,
               margin: 0,
               marginBottom: 16,
@@ -102,7 +104,7 @@ class ErrorBoundary extends Component<
           >
             App crashed
           </h1>
-          <p style={{ fontSize: 15, marginBottom: 16, color: "#ffffff" }}>
+          <p style={{ fontSize: 15, marginBottom: 16, color: "var(--ht-ink)" }}>
             {this.state.error.message}
           </p>
           <pre style={{ fontSize: 12, opacity: 0.85 }}>
@@ -155,7 +157,7 @@ function useEngineTheme(): void {
   useEffect(() => {
     let cancelled = false;
     void whenEngineReady().then(() => {
-      if (!cancelled) void loadTheme();
+      if (!cancelled) void loadThemePreference();
     });
     return () => {
       cancelled = true;
@@ -192,9 +194,8 @@ export default function AppTree() {
   // <App/> (which remounts per identity), so one instance pays each event once.
   useUsageAccrual();
   // Cloud web build (Firebase identity baked in): sign-in is the FIRST screen.
-  // The first-run language picker + agreement are desktop/self-host concepts —
-  // pre-auth they can't even persist (the gateway 401s preference writes, which
-  // dead-ended the agreement's Continue, HOU-1014). Language defaults to the
+  // The first-run language picker is a desktop/self-host concept. Pre-auth
+  // preference writes 401 at the gateway (HOU-1014). Language defaults to the
   // browser and the account's stored preference applies after sign-in
   // (SignedInLocaleSync); Settings keeps its picker for changes.
   const cloudWeb = isIdentityConfigured();
@@ -226,8 +227,6 @@ export default function AppTree() {
                     {app}
                   </>
                 ) : (
-                  // The agreement gate (DisclaimerGate) renders inside App,
-                  // after sign-in — mirrors app/src/main.tsx.
                   <LanguageGate>{app}</LanguageGate>
                 )}
               </I18nextProvider>

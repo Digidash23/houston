@@ -81,7 +81,7 @@ export function resolutionGuidance(op: AssistantOperation): string {
     ),
   ]);
   if (resolved.length === 0) return "";
-  return ` Houston resolves ${resolved.join(", ")} against what exists: pass the id, or the exact name the user gave you. A value that matches nothing is refused with the ones that do.`;
+  return ` The app resolves ${resolved.join(", ")} against what exists: pass the id, or the exact name the user gave you. A value that matches nothing is refused with the ones that do.`;
 }
 
 /**
@@ -107,7 +107,7 @@ export function describeOperation(op: AssistantOperation): string {
     returns: op.returns,
   });
   const guidance = op.confirm
-    ? " This operation is hard to undo, so Houston asks the user itself: call houston_call normally, and if it answers ERROR needs_confirmation, end your turn and wait for their decision on the card Houston shows them."
+    ? " This operation is hard to undo, so the app asks the user itself: call houston_call normally, and if it answers ERROR needs_confirmation, end your turn and wait for their decision on the card the app shows them."
     : "";
   return `${contract}\n\nPass these to houston_call keyed by parameter name.${choiceGuidance(op)}${resolutionGuidance(op)}${sourceGuidance(op)}${guidance}`;
 }

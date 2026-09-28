@@ -1,8 +1,8 @@
 import type { PortableExportSelection } from "@houston/engine-adapter";
+import { isAgentNameTaken } from "@houston/sdk";
 import { useTranslation } from "react-i18next";
-import { isAgentNameConflictError } from "../../lib/agent-name-conflict";
-import { finishAgentSetup } from "../../lib/agent-setup";
 import { isAgentWarmingError } from "../../lib/agent-warming-guard";
+import { toAgent } from "../../lib/agents-facade";
 import { analytics } from "../../lib/analytics";
 import { chatCopyComplete, copyAgentChats } from "../../lib/copy-agent-chats";
 import { getEngine } from "../../lib/engine";
@@ -11,7 +11,7 @@ import { genericErrorDescription } from "../../lib/error-report";
 import { showExpectedStateToast } from "../../lib/error-toast";
 import { logger } from "../../lib/logger";
 import { openAgentBoard } from "../../lib/open-agent";
-import { tauriConfig, toAgent } from "../../lib/tauri";
+import { tauriConfig } from "../../lib/tauri";
 import type { TeamView } from "../../lib/teams-model";
 import type { Agent } from "../../lib/types";
 import { useAgentStore } from "../../stores/agents";
@@ -27,6 +27,9 @@ import { fullPortableSelection } from "./copy-agent-model";
  * "Export a copy" carries — conversations and files are not part of it), the
  * package installs as an ordinary create-with-seeds, and the one move action
  * files the copy in the chosen team.
+ *
+ * The copy is born on the source's provider/model, carried by the install
+ * itself, so there is nothing to write once its engine wakes.
  *
  * `selection` narrows what the package carries (the create dialog's "Copy an
  * agent" wizard lets the user leave items behind); absent, the copy is
@@ -77,20 +80,20 @@ export function useCopyAgent(): (args: {
         },
       });
       const uploaded = await engine.importPreview(bytes);
+      const source = await tauriConfig.read(agent.folderPath);
       const installed = await engine.importInstall({
         packageId: uploaded.packageId,
         workspaceName: workspaceName ?? "",
         agentName: name.trim(),
         agentColor: color ?? agent.color,
         selection: fullPortableSelection(uploaded.preview),
+        // The copy is born on the source's brain. It already knows its job,
+        // so it has no first day to run.
+        config: { provider: source.provider, model: source.model },
       });
-      // Reveal now (the optimistic create/import contract, HOU-710), and file
-      // the copy in its team BEFORE navigating — openAgentBoard resolves its
-      // destination from the live teams model, so the move must have settled
-      // (on a server host the roster only learns it after the round trip;
-      // navigating earlier lands on the default team's board).
+      // File the copy in its chosen group before opening its Tasks screen.
       adoptAgent(toAgent(installed.agent));
-      if (team) await moveAgent(installed.agent.id, team);
+      if (team) moveAgent(installed.agent.id, team);
       analytics.track("agent_copied", { agent_slug: agent.id, source: via });
       addToast({
         variant: "success",
@@ -145,25 +148,10 @@ export function useCopyAgent(): (args: {
           }
         })();
       }
-      // The model pin dispatches to the copy's engine — on the hosted profile a
-      // pod still cold-starting — so it finishes in the background like the
-      // other create doors (HOU-649); the wrappers toast their own failures.
-      void (async () => {
-        try {
-          const cfg = await tauriConfig.read(agent.folderPath);
-          await finishAgentSetup(installed.agentPath, {
-            provider: cfg.provider,
-            model: cfg.model,
-            routine: null,
-          });
-        } catch (e) {
-          logger.error(`[copy-agent] model pin failed: ${e}`);
-        }
-      })();
       return true;
     } catch (err) {
       // The 409 race: a sibling took the name after the dialog's live check.
-      if (isAgentNameConflictError(err)) {
+      if (isAgentNameTaken(err)) {
         showExpectedStateToast(
           t("toasts.nameConflict", { name: name.trim() }),
           t("toasts.nameConflictDescription"),

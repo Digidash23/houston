@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { docKey, saveActivities } from "@houston/domain";
 import type { Activity, HoustonEvent } from "@houston/protocol";
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { Agent, Workspace } from "../domain/types";
 import { conversationKey, LocalPaths } from "../paths";
 import type {
@@ -12,6 +12,7 @@ import type {
 } from "../ports";
 import { MemoryWorkspaceStore } from "../store/memory";
 import { MemoryVfs } from "../vfs";
+import { writeAgentDelegation } from "./agent-delegation-store";
 import { ASSISTANT_CP_URL_ENV, ASSISTANT_TOKEN_ENV } from "./assistant-wiring";
 import { CONVERSATION_ID_HEADER } from "./learnings-sandbox";
 import { liveTurns } from "./live-turn";
@@ -50,7 +51,13 @@ let otherUsersAgent: Agent;
 let callerRoot: string;
 let targetRoot: string;
 let events: HoustonEvent[];
-let fired: { agentId: string; cid: string; text: string; pin?: TurnPin }[];
+let fired: {
+  agentId: string;
+  cid: string;
+  text: string;
+  pin?: TurnPin;
+  actingAs?: string;
+}[];
 
 const vault: CredentialVault = {
   sandboxToken: () => "sb",
@@ -64,8 +71,16 @@ const channel = {
     cid: string,
     text: string,
     pin?: TurnPin,
+    _actingUser?: string,
+    actingAs?: string,
   ): Promise<void> {
-    fired.push({ agentId: ctx.agent.id, cid, text, pin });
+    fired.push({
+      agentId: ctx.agent.id,
+      cid,
+      text,
+      pin,
+      ...(actingAs ? { actingAs } : {}),
+    });
   },
 } as unknown as RuntimeChannel;
 
@@ -141,15 +156,21 @@ function stubGateway(
   const previous = {
     url: process.env[ASSISTANT_CP_URL_ENV],
     token: process.env[ASSISTANT_TOKEN_ENV],
+    agentUrl: process.env.HOUSTON_INTEGRATIONS_URL,
+    hostToken: process.env.HOUSTON_HOST_TOKEN,
     fetch: globalThis.fetch,
   };
   restoreGateway = () => {
     process.env[ASSISTANT_CP_URL_ENV] = previous.url;
     process.env[ASSISTANT_TOKEN_ENV] = previous.token;
+    process.env.HOUSTON_INTEGRATIONS_URL = previous.agentUrl;
+    process.env.HOUSTON_HOST_TOKEN = previous.hostToken;
     globalThis.fetch = previous.fetch;
   };
   process.env[ASSISTANT_CP_URL_ENV] = "https://gw.test";
   process.env[ASSISTANT_TOKEN_ENV] = "gw-token";
+  process.env.HOUSTON_INTEGRATIONS_URL = "https://gw.test";
+  process.env.HOUSTON_HOST_TOKEN = "a".repeat(64);
   globalThis.fetch = (async (
     input: string | URL | Request,
     init?: RequestInit,
@@ -179,6 +200,7 @@ async function call(
     search?: string;
     store?: WorkspaceStore;
     gatewayFronted?: boolean;
+    actingAs?: string;
   } = {},
 ) {
   const headers: Record<string, string> = { authorization: "Bearer sb-good" };
@@ -188,7 +210,11 @@ async function call(
   const claimed = opts.forgedConversationId ?? opts.conversationId;
   if (claimed) headers[CONVERSATION_ID_HEADER] = claimed;
   if (opts.conversationId)
-    liveTurns.start(caller.id, opts.conversationId, "execute");
+    liveTurns.start(caller.id, opts.conversationId, "execute", {
+      actingAs: opts.gatewayFronted
+        ? (opts.actingAs ?? "acting-v1.test")
+        : undefined,
+    });
   else liveTurns.forget(caller.id);
   const { res, captured } = fakeRes();
   const url = new URL(`http://host${path}${opts.search ?? ""}`);
@@ -247,8 +273,127 @@ beforeEach(async () => {
 
 afterEach(() => {
   missionFanout.forget(caller.id);
+  vi.unstubAllEnvs();
   restoreGateway?.();
   restoreGateway = null;
+});
+
+test("off and picked policies restrict other boards, while the manager is exempt", async () => {
+  await writeAgentDelegation(vfs, ws.id, caller.id, {
+    mode: "off",
+    agents: [],
+    acceptsMissions: true,
+  });
+  const off = await call("GET", "/sandbox/missions", undefined, {
+    search: "?agent=Dobby",
+  });
+  expect(off.body).toMatchObject({ code: "delegation_off" });
+  const own = await call("GET", "/sandbox/missions", undefined);
+  expect(own.status).toBe(200);
+
+  await writeAgentDelegation(vfs, ws.id, caller.id, {
+    mode: "picked",
+    agents: [],
+    acceptsMissions: true,
+  });
+  const picked = await call("GET", "/sandbox/missions", undefined, {
+    search: "?agent=Dobby",
+  });
+  expect(picked.body).toMatchObject({ code: "agent_not_allowed" });
+
+  await writeAgentDelegation(vfs, ws.id, caller.id, {
+    mode: "picked",
+    agents: [target.id],
+    acceptsMissions: true,
+  });
+  const chosen = await call("GET", "/sandbox/missions", undefined, {
+    search: "?agent=Dobby",
+  });
+  expect(chosen.status).toBe(200);
+
+  vi.stubEnv("HOUSTON_MANAGED_CLOUD", "1");
+  vi.stubEnv("HOUSTON_ASSISTANT_USER_ID", "owner");
+  const manager = await call("GET", "/sandbox/missions", undefined, {
+    search: "?agent=Dobby",
+  });
+  expect(manager.status).toBe(200);
+});
+
+test("an incoming block refuses starts but permits reads", async () => {
+  await writeAgentDelegation(vfs, ws.id, target.id, {
+    mode: "all",
+    agents: [],
+    acceptsMissions: false,
+  });
+  const start = await call(
+    "POST",
+    "/sandbox/missions/start",
+    {
+      agent: "Dobby",
+      title: "t",
+      prompt: "p",
+    },
+    { conversationId: "conv-parent" },
+  );
+  expect(start.body).toMatchObject({ code: "agent_not_accepting" });
+  const read = await call("GET", "/sandbox/missions", undefined, {
+    search: "?agent=Dobby",
+  });
+  expect(read.status).toBe(200);
+});
+
+test("a cross-board move requires the caller's origin; an own-board move does not", async () => {
+  const row: Activity = {
+    id: "m-1",
+    title: "Review",
+    description: "",
+    status: "needs_you",
+  };
+  await saveActivities(vfs, targetRoot, [row]);
+  const denied = await call(
+    "POST",
+    "/sandbox/missions/status",
+    {
+      agent: "Dobby",
+      id: row.id,
+      status: "done",
+    },
+    { conversationId: "conv-parent" },
+  );
+  expect(denied.body).toMatchObject({ code: "not_mission_origin" });
+  await saveActivities(vfs, targetRoot, [{ ...row, origin_agent: caller.id }]);
+  const allowed = await call(
+    "POST",
+    "/sandbox/missions/status",
+    {
+      agent: "Dobby",
+      id: row.id,
+      status: "done",
+    },
+    { conversationId: "conv-parent" },
+  );
+  expect(allowed.status).toBe(200);
+  await saveActivities(vfs, callerRoot, [PARENT, row]);
+  const own = await call(
+    "POST",
+    "/sandbox/missions/status",
+    {
+      id: row.id,
+      status: "done",
+    },
+    { conversationId: "conv-parent" },
+  );
+  expect(own.status).toBe(200);
+});
+
+test("a fronted regular agent needs an acting person for other pods", async () => {
+  stubGateway([], { "/agents": [{ id: "other", name: "Other" }] });
+  const result = await call("GET", "/sandbox/missions", undefined, {
+    gatewayFronted: true,
+    actingAs: "",
+    search: "?agent=Other",
+  });
+  expect(result.body).toMatchObject({ code: "no_acting_person" });
 });
 
 test("a named agent gets the mission on ITS board, started like a UI mission", async () => {
@@ -407,6 +552,7 @@ test("list, status and read all act on the named agent's board", async () => {
       description: "",
       status: "needs_you",
       origin_session_key: "conv-parent",
+      origin_agent: caller.id,
       updated_at: "2026-09-01T00:00:00.000Z",
     },
   ]);
@@ -473,9 +619,28 @@ test("read answers 404 for a mission that has no transcript yet", async () => {
   expect(r.status).toBe(404);
 });
 
-test("a bare name that fits two reachable agents is refused, not guessed", async () => {
-  // M2: alice reaches two workspaces that BOTH hold a "Dobby". A bare name
-  // must not silently pick one board over the other.
+test("a running mission with no transcript reports its status to another agent", async () => {
+  await saveActivities(vfs, targetRoot, [
+    {
+      id: "quiet",
+      title: "Quiet work",
+      description: "",
+      status: "running",
+    },
+  ]);
+  const read = await call("GET", "/sandbox/missions/read", undefined, {
+    search: "?agent=Dobby&id=quiet",
+  });
+  expect(read.status).toBe(200);
+  expect(read.body).toMatchObject({
+    id: "quiet",
+    status: "running",
+    totalMessages: 0,
+    messages: [],
+  });
+});
+
+test("a regular agent cannot reach another workspace, even when its owner can", async () => {
   const { store: ambiguous, agent: teamDobby } = withSecondDobby();
   const r = await call(
     "POST",
@@ -483,24 +648,86 @@ test("a bare name that fits two reachable agents is refused, not guessed", async
     { agent: "Dobby", title: "t", prompt: "p" },
     { conversationId: "conv-parent", store: ambiguous },
   );
-  expect(r.status).toBe(409);
-  // Each candidate carries its ID, the one spelling that is never ambiguous:
-  // in cloud two same-named agents both render as "Dobby" without it.
-  const message = String((r.body as { error: string }).error);
-  expect(message).toContain(`(id ${target.id}, in Personal)`);
-  expect(message).toContain(`(id ${teamDobby.id}, in Team)`);
-  expect(await boardOf(targetRoot)).toEqual([]);
-  expect(fired).toEqual([]);
-
-  // The qualified name still resolves, on the workspace it names.
-  const ok = await call(
+  expect(r.status).toBe(201);
+  expect(fired[0]?.agentId).toBe(target.id);
+  const other = await call(
     "POST",
     "/sandbox/missions/start",
     { agent: "Team/Dobby", title: "t", prompt: "p" },
     { conversationId: "conv-parent", store: ambiguous },
   );
-  expect(ok.status).toBe(201);
+  expect(other.status).toBe(404);
+  expect(fired.some((turn) => turn.agentId === teamDobby.id)).toBe(false);
+});
+
+test("the manager retains cross-workspace reach and ignores agent policy", async () => {
+  const { store: wider, agent: teamDobby } = withSecondDobby();
+  await writeAgentDelegation(vfs, ws.id, caller.id, {
+    mode: "off",
+    agents: [],
+    acceptsMissions: true,
+  });
+  vi.stubEnv("HOUSTON_MANAGED_CLOUD", "1");
+  vi.stubEnv("HOUSTON_ASSISTANT_USER_ID", "owner");
+  const result = await call(
+    "POST",
+    "/sandbox/missions/start",
+    {
+      agent: "Team/Dobby",
+      title: "t",
+      prompt: "p",
+    },
+    { conversationId: "conv-parent", store: wider },
+  );
+  expect(result.status).toBe(201);
   expect(fired[0]?.agentId).toBe(teamDobby.id);
+});
+
+test("a delegated mission's first turn retains the verified acting person", async () => {
+  stubGateway([], { "/agents": [] });
+  const result = await call(
+    "POST",
+    "/sandbox/missions/start",
+    {
+      agent: "Dobby",
+      title: "t",
+      prompt: "p",
+    },
+    { conversationId: "conv-parent", gatewayFronted: true },
+  );
+  expect(result.status).toBe(201);
+  expect(fired[0]?.actingAs).toBe("acting-v1.test");
+});
+
+test("a delegated live turn cannot start another agent's mission locally or remotely", async () => {
+  await saveActivities(vfs, callerRoot, []);
+  const actingAs = `acting-v1.${Buffer.from(JSON.stringify({ sub: "person", dlg: "delegator" })).toString("base64url")}.sig`;
+  const local = await call(
+    "POST",
+    "/sandbox/missions/start",
+    { agent: target.name, title: "child", prompt: "p" },
+    { conversationId: "conv-parent", gatewayFronted: true, actingAs },
+  );
+  expect(local.status).toBe(409);
+  expect(local.body).toMatchObject({ code: "mission_depth" });
+  expect(await boardOf(targetRoot)).toEqual([]);
+
+  const calls: { url: string; init: RequestInit | undefined }[] = [];
+  stubGateway(calls, {
+    "/agents": [{ id: "slug-remote", name: "Remote", workspaceId: "Houston" }],
+    "/agents/slug-remote/missions/start": { id: "escaped", status: "running" },
+  });
+  const remote = await call(
+    "POST",
+    "/sandbox/missions/start",
+    { agent: "Remote", title: "child", prompt: "p" },
+    { conversationId: "conv-parent", gatewayFronted: true, actingAs },
+  );
+  expect(remote.status).toBe(409);
+  expect(remote.body).toMatchObject({ code: "mission_depth" });
+  expect(calls.some((entry) => entry.url.endsWith("/missions/start"))).toBe(
+    false,
+  );
 });
 
 test("in managed cloud the gateway's agents are reachable targets", async () => {
@@ -542,6 +769,10 @@ test("in managed cloud the gateway's agents are reachable targets", async () => 
   expect(started?.url).toBe(
     "https://gw.test/agents/slug-kreacher/missions/start",
   );
+  expect(started?.init?.headers).toMatchObject({
+    Authorization: `Bearer ${"a".repeat(64)}`,
+    "x-houston-acting-as": "acting-v1.test",
+  });
   expect(JSON.parse(String(started?.init?.body))).toEqual({
     title: "Roast the website",
     prompt: "Roast it.",
@@ -677,6 +908,86 @@ test("the caller's budget is spent across every board, not per board", async () 
   expect(fired).toEqual([]);
 });
 
+test("21 concurrent remote starts reserve only 20 caller slots", async () => {
+  stubGateway([], {
+    "/agents": [{ id: "slug-remote", name: "Remote", workspaceId: "Houston" }],
+    "/agents/slug-remote/missions/start": { id: "started", status: "running" },
+  });
+  const gatewayFetch = globalThis.fetch;
+  let startsAtBoundary = 0;
+  let releaseStarts: (() => void) | undefined;
+  const held = new Promise<void>((resolve) => {
+    releaseStarts = resolve;
+  });
+  globalThis.fetch = (async (
+    input: string | URL | Request,
+    init?: RequestInit,
+  ) => {
+    if (new URL(String(input)).pathname.endsWith("/missions/start")) {
+      startsAtBoundary++;
+      if (startsAtBoundary === 20) releaseStarts?.();
+      await held;
+    }
+    return gatewayFetch(input, init);
+  }) as typeof fetch;
+  const starts = Array.from({ length: 21 }, (_, index) =>
+    call(
+      "POST",
+      "/sandbox/missions/start",
+      {
+        agent: "Remote",
+        title: `mission-${index}`,
+        prompt: "p",
+      },
+      { conversationId: "conv-parent", gatewayFronted: true },
+    ),
+  );
+  const results = await Promise.all(starts);
+  expect(results.filter((result) => result.status === 201)).toHaveLength(20);
+  expect(
+    results.filter(
+      (result) =>
+        result.status === 409 &&
+        (result.body as { code?: string })?.code === "mission_fanout",
+    ),
+  ).toHaveLength(1);
+});
+
+test("a refused remote start returns its caller reservation", async () => {
+  stubGateway([], {
+    "/agents": [{ id: "slug-remote", name: "Remote", workspaceId: "Houston" }],
+    "/agents/slug-remote/missions/start": { id: "started", status: "running" },
+  });
+  const gatewayFetch = globalThis.fetch;
+  let refuseFirst = true;
+  globalThis.fetch = (async (
+    input: string | URL | Request,
+    init?: RequestInit,
+  ) => {
+    if (
+      new URL(String(input)).pathname.endsWith("/missions/start") &&
+      refuseFirst
+    ) {
+      refuseFirst = false;
+      return new Response(JSON.stringify({ error: "refused" }), {
+        status: 409,
+      });
+    }
+    return gatewayFetch(input, init);
+  }) as typeof fetch;
+  const input = { agent: "Remote", title: "t", prompt: "p" };
+  const opts = { conversationId: "conv-parent", gatewayFronted: true };
+  expect(
+    (await call("POST", "/sandbox/missions/start", input, opts)).status,
+  ).toBe(409);
+  const results = await Promise.all(
+    Array.from({ length: 20 }, () =>
+      call("POST", "/sandbox/missions/start", input, opts),
+    ),
+  );
+  expect(results.filter((result) => result.status === 201)).toHaveLength(20);
+});
+
 test("a cross-pod start carries the depth it was counted at", async () => {
   // The calling chat is itself a mission, one level down. The forwarded origin
   // has to say so: the target's pod cannot read this board to find out.
@@ -697,6 +1008,10 @@ test("a cross-pod start carries the depth it was counted at", async () => {
   );
   // Depth 2 is past the ceiling, so nothing leaves this pod at all.
   expect(r.status).toBe(409);
-  expect(r.body).toMatchObject({ code: "mission_depth" });
+  expect(r.body).toMatchObject({
+    code: "mission_depth",
+    error:
+      "a mission started by another mission can't start further missions - ask in the original chat instead",
+  });
   expect(calls.find((c) => c.url.includes("/missions/start"))).toBeUndefined();
 });

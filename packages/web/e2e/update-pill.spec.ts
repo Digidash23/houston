@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
+import { workspaceMenuTrigger } from "./support/workspace-menu";
 
 /**
  * The "Restart to update" pill: the one surface a mid-session update find
@@ -13,7 +14,8 @@ import { expect, test } from "./support/fixtures";
  * simulated status.
  */
 
-const pill = (page: Page) => page.getByTestId("update-pill");
+const footer = (page: Page) => page.getByTestId("sidebar-footer");
+const pill = (page: Page) => footer(page).getByTestId("update-pill");
 const restartButton = (page: Page) =>
   pill(page).getByRole("button", { name: /Restart to update/ });
 
@@ -77,22 +79,17 @@ test("names the restart, the version it lands on, and wears the action fill in b
   // the pill is never the gutter's own colour in either.
   expect(darkFill).not.toBe(lightFill);
 
-  // The pill holds the window's top-right corner, and the shell makes room
-  // for it there: it never covers the board's own top-right control (New
-  // task), which a pill floated over the corner used to sit on.
   const box = await button.boundingBox();
-  const viewport = page.viewportSize();
-  const newTask = await page
-    .getByRole("button", { name: "New task" })
-    .first()
-    .boundingBox();
+  const footerBox = await footer(page).boundingBox();
+  // The pill leads the foot, above the account row.
+  const accountBox = await workspaceMenuTrigger(page).boundingBox();
   expect(box).not.toBeNull();
-  expect(viewport).not.toBeNull();
-  expect(newTask).not.toBeNull();
-  if (box && viewport && newTask) {
-    expect(box.y).toBeLessThan(40);
-    expect(viewport.width - (box.x + box.width)).toBeLessThan(40);
-    expect(box.y + box.height).toBeLessThanOrEqual(newTask.y);
+  expect(footerBox).not.toBeNull();
+  expect(accountBox).not.toBeNull();
+  if (box && footerBox && accountBox) {
+    expect(box.x - footerBox.x).toBe(8);
+    expect(footerBox.x + footerBox.width - (box.x + box.width)).toBe(8);
+    expect(box.y + box.height).toBeLessThanOrEqual(accountBox.y);
   }
 });
 
@@ -115,7 +112,29 @@ test("a failed install offers the retry with the failure as its description", as
   });
   await expect(retry).toBeVisible();
   await expect(retry).toBeEnabled();
-  await expect(retry).toHaveAccessibleDescription(
-    /couldn't install the update/,
+  await expect(retry).toHaveAccessibleDescription(/couldn't be installed/);
+});
+
+test("the collapsed footer keeps an icon-only restart with its label and description", async ({
+  page,
+}) => {
+  await showScene(page, "pill");
+  await page
+    .getByRole("button", { name: "Collapse sidebar", exact: true })
+    .click();
+  const button = restartButton(page);
+  await expect(button).toBeVisible();
+  await expect(button).toHaveText("");
+  await expect(button).toHaveAccessibleDescription(
+    /Version 0\.6\.16 is downloaded/,
   );
+  await expect(button).toHaveCSS("background-color", await actionFill(page));
+  await button.hover();
+  await expect(
+    page.getByRole("tooltip", { name: "Restart to update" }),
+  ).toBeVisible();
+  await button.click();
+  await expect(
+    pill(page).getByRole("button", { name: /Restarting/ }),
+  ).toBeDisabled();
 });

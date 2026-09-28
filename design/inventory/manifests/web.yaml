@@ -13,26 +13,34 @@
 
 surface: web
 enforced: true
-inventoryVersion: 82
+inventoryVersion: 115
 
 components:
+  manager-avatar:
+    status: implemented
+    ref: "@houston-ai/core ManagerAvatar (manager-avatar.tsx with manager-avatar-geometry.ts, over HoustonHelmet), mounted by app/src/components/shell/sidebar-manager-row.tsx, app/src/components/agents-home/manager-home-row.tsx and app/src/components/assistant/assistant-phone-header.tsx"
+  agent-delegation-settings:
+    status: implemented
+    ref: app/src/components/agent-settings/agent-delegation-section.tsx
   custom-integration-details:
     status: implemented
     ref: app/src/components/integrations/custom-edit-dialog.tsx
   agent-avatar:
     status: implemented
-    ref: "@houston-ai/core HoustonAvatar / AgentAvatar (resolveAgentColor)"
+    ref: "@houston-ai/core HoustonAvatar (resolveAgentColor + employeeMetalColors) / AgentAvatar"
+    notes: Metal disc with the helmet at 65% at every size; the sidebar shows each AI Employee as a person row (40px avatar, name over its activity line).
 
   agent-list-item:
     status: partial
-    ref: "@houston-ai/layout SidebarNavItem + @houston-ai/core HoustonAvatar"
+    ref: "@houston-ai/layout SidebarRowButton (person anatomy) + @houston-ai/core HoustonAvatar"
     notes: >-
       No single shared agent-list-item component; the row is composed in app/
-      from generic nav + avatar primitives. Aggregate status is app-side.
+      (agent-sidebar-items.tsx, agent-row-line.ts) from the generic person row
+      and avatar primitives. Aggregate status is app-side.
 
   conversation-feed:
     status: implemented
-    ref: "@houston-ai/chat ChatPanel / ChatMessages / Conversation"
+    ref: "@houston-ai/chat ChatPanel / ChatMessages / Conversation, with ConversationViewportPin holding it pinned across viewport resizes and ConversationAutoScroll bringing the latest message in on a send or a new ChatPanel scrollToLatestToken (app/src/components/assistant/onboarding/manager-chat.tsx passes its answer count)"
 
   conversation-map-search:
     status: implemented
@@ -148,11 +156,11 @@ components:
 
   mission-card:
     status: implemented
-    ref: "@houston-ai/board KanbanCard / KanbanListItem"
+    ref: "@houston-ai/board KanbanCard / KanbanListItem, both wearing the one tag pill in kanban-tag.tsx"
 
   mission-board:
     status: implemented
-    ref: "@houston-ai/board KanbanBoard / AIBoard / KanbanColumn, desktop-only: app/src/components/board/mission-board.tsx forks below md to board/team-task-list.tsx instead"
+    ref: "@houston-ai/board KanbanBoard / AIBoard / KanbanColumn, desktop-only: app/src/components/board/mission-board.tsx; below md team-view/agent-view.tsx moves the employee's Tasks to agents-home/agent-missions-screen.tsx"
 
   mentions-inbox:
     status: partial
@@ -245,40 +253,40 @@ components:
 
   sidebar-team-block:
     status: implemented
-    ref: "@houston-ai/layout AppSidebar (SidebarGroupSection over SidebarGroupHeader + SidebarBlockContent; every rail row drawn through SidebarRowButton on the one anatomy in sidebar-classes.ts -- SidebarNavItem, SidebarBand, SidebarGroupHeader, SidebarItemRow, SidebarAddRow), composed in app/src/components/shell/team-sidebar-lists.tsx"
-  sidebar-nav-band:
+    ref: "@houston-ai/layout AppSidebar (SidebarGroupedList renders root employees, folder headers and folder members as one flat @dnd-kit sortable tree, SidebarTreeRowView per row, the dragged row drawn as a ghost at its landing slot and depth; SidebarRowButton gives root employees and folder headers one left edge and indents only folder members), composed in app/src/components/shell/team-sidebar-lists.tsx"
+  sidebar-account-menu:
     status: implemented
-    ref: "@houston-ai/layout AppSidebar -> SidebarNavList (SidebarBand per labelled run, SidebarNavItem per row, one sidebarBandInset), built by app/src/components/shell/sidebar-nav-sections.tsx with the Workspace gates from useSurfaceGates() and the inbox count from useMentionInbox; the footer Settings row is app/src/components/shell/sidebar-footer.tsx"
+    ref: "@houston-ai/layout SidebarProfileMenu, filled by app/src/components/shell/sidebar-workspace-menu.tsx and sidebar-workspace-menu-items.tsx from the rows sidebar-nav-sections.tsx builds; the phone's More card is mobile-more-menu.tsx"
   team-identity-picker:
     status: implemented
-    ref: "app/src/components/shell/team-identity-popover.tsx (swatch row + icon search + glyph grid over @houston-ai/layout SidebarGroupGlyph) inside the shared team-identity-name-row.tsx, rendered by the create sheet's team step (app/src/components/shell/create-team-step.tsx, inside app/src/components/shell/add-to-workspace-sheet.tsx) and by app/src/components/shell/edit-team-identity-dialog.tsx (the rail menu's one Change icon & name door), composed in app/src/components/shell/team-identity.ts from AGENT_COLORS and rendered by app/src/components/shell/team-glyph.tsx; the write is useSetAgentTeamIdentity (optimistic) or sidebar.setGroupIdentity off-capability"
-  sidebar-teams-band:
+    ref: "app/src/components/shell/team-identity-popover.tsx inside team-identity-name-row.tsx, used by create-team-step.tsx and edit-team-identity-dialog.tsx; the folder menu opens the editor and sidebar.setGroupIdentity saves the glyph and color"
+  sidebar-top-line:
     status: implemented
-    ref: "@houston-ai/layout AppSidebar (SidebarBand + SidebarAddRow, both over SidebarRowButton), with app/src/components/shell/sidebar-create-button.tsx wearing sidebarRowAffordanceClasses and passed as sectionAction from app/src/components/shell/sidebar-rail.tsx (the band's ONE plus control, opening the create sheet app/src/components/shell/add-to-workspace-sheet.tsx)"
-  team-screen:
+    ref: "@houston-ai/layout AppSidebar headerActions (sidebarHeaderControlClasses), filled by app/src/components/shell/sidebar-header-actions.tsx and sidebar-create-button.tsx; the pinned row of Houston, the AI Manager, is sidebar-manager-row.tsx"
+  agent-screen:
     status: implemented
-    ref: "app/src/components/team-view/ (TeamView switching TeamMissionControl over @houston-ai/board MissionBoard, TeamRoutines over @houston-ai/routines RoutinesGrid, TeamFiles over the shared AgentFilesSurface, TeamSettings), with AgentReadsFailed naming any agent whose read failed; the phone Tasks list is board/team-task-list.tsx + team-task-row.tsx over the pure board/task-list-model.ts, its header menu team-view/team-tasks-menu.tsx, the two halves sharing board/task-list-chrome.tsx"
+    ref: "app/src/components/team-view/agent-view.tsx selects one AI Employee's mission board, routines, files and settings; agent-chrome.tsx renders the desktop and phone section tabs"
+  org-chart:
+    status: implemented
+    ref: "app/src/components/organization/org-chart-tab.tsx over use-org-chart-data.ts, org-chart-view-model.ts, org-chart-scope.ts, org-chart-model.ts, org-chart-people.ts and org-chart-format.ts; org-chart-hero.tsx (with org-chart-area-chart.tsx) over org-chart-ledger.tsx, desktop org-chart-line.tsx with org-chart-line-people.tsx, phone org-chart-phone-line.tsx, faces org-chart-faces.tsx opening People on that person (use-person-focus.ts)"
   mobile-nav-bar:
     status: implemented
     ref: "app/src/components/shell/mobile-nav-bar.tsx binding @houston-ai/core FloatingNavBar (items + NeedsYouChip badge over the agent activity rollup), rules in app/src/lib/mobile-tabs.ts with the tap side in app/src/lib/open-mobile-tab.ts (nav-stack reset mode); the new-task control runs lib/new-mission.ts startNewMission over lib/new-mission-scope.ts and carries the guided setup's newMission tour anchor (onboarding/in-app-mobile-targets.ts)"
   mobile-more-menu:
     status: implemented
-    ref: "app/src/components/shell/mobile-more-menu.tsx (@houston-ai/core Sheet restyled as a floating card, ui store mobileMoreOpen) over the pure mobile-more-items.ts model, rows from sidebar-nav-sections.tsx buildSidebarNavItems so the destinations and tour anchors are the rail's own"
-  teams-home:
-    status: implemented
-    ref: "app/src/components/teams-home/ (TeamsHomeView over the pure teams-home-model.ts teamTreeRows + teamTreeTarget), section taps push through the ui store's openTeamView; the phone team screen header is app/src/components/team-view/team-mobile-header.tsx and the drilled level's phone tabs are team-view/team-settings-mobile-tabs.tsx under team-settings-header.tsx"
+    ref: "app/src/components/shell/mobile-more-menu.tsx (@houston-ai/core Sheet restyled as a floating card, ui store mobileMoreOpen) over mobile-more-items.ts, with sidebar-nav-sections.tsx destinations followed by Academy, gated Admin, and Settings"
   agents-home:
     status: implemented
-    ref: "app/src/components/agents-home/ (AgentsHomeView switching AgentsHomeList / AgentMissionsScreen on the ui store's agentsHomeAgentId nav level), rows in agent-home-row.tsx over agent-avatar-stack.tsx (@houston-ai/core HoustonAvatar) + NeedsYouChip, the team selector in agents-home-team-filter.tsx over the ui store's agentsHomeTeamId, all over the pure agentHomeRows + agentRowsForTeam in agents-home-model.ts; tab root wiring in app/src/lib/open-mobile-tab.ts and the phone boot landing in use-workspace-view-guards.ts"
+    ref: "app/src/components/agents-home/ (AgentsHomeView switching AgentsHomeList / AgentMissionsScreen on the ui store's agentsHomeAgentId nav level), the pinned row of Houston, the AI Manager, in manager-home-row.tsx, agent rows in agent-home-row.tsx over agent-avatar-stack.tsx (@houston-ai/core HoustonAvatar) + NeedsYouChip, the title block in agents-home-header.tsx (New group via the ui store's openCreateFlow('team'), the group selector agents-home-team-filter.tsx over the ui store's agentsHomeTeamId, and shell/team-folder-menu.tsx for the picked group), all over the pure agentHomeRows + agentRowsForTeam in agents-home-model.ts; tab root wiring in app/src/lib/open-mobile-tab.ts and the phone boot landing in use-workspace-view-guards.ts"
   agent-missions-list:
     status: implemented
-    ref: "app/src/components/agents-home/agent-missions-screen.tsx (shell/mobile-drilled-header.tsx + the shared board/task-list-filter.tsx status dropdown, board/task-list-menu.tsx chip behind agent-missions-menu.tsx, board/task-list-search.tsx) over agent-missions-list.tsx, drawing @houston-ai/board TaskListGroup bands of agent-mission-row.tsx (agent-avatar-stack.tsx + mission-status-tag.tsx) from the pure agent-missions-model.ts over board/task-list-model.ts (the board's missionColumnIdForStatus mapping); active rows push the chat via lib/mission-chat.ts, archived rows keep lib/open-agent.ts openAgentBoard + the published activityPanelId"
+    ref: "app/src/components/agents-home/agent-missions-screen.tsx (shell/mobile-drilled-header.tsx + the shared board/task-list-filter.tsx status dropdown, board/task-list-menu.tsx chip behind agent-missions-menu.tsx (section rows from agent-missions-model.ts agentMissionsMenuSections over lib/teams-model.ts visibleAgentSections, opened through lib/open-agent.ts openAgentSection; the Move to group dialogs in agent-missions-move.tsx), board/task-list-search.tsx) over agent-missions-list.tsx, drawing @houston-ai/board TaskListGroup bands of agent-mission-row.tsx (agent-avatar-stack.tsx + mission-status-tag.tsx + mission-origin-tag.tsx, worded by hooks/use-mission-origin-tag.ts over the SDK's missionStartedBy) from the pure agent-missions-model.ts over board/task-list-model.ts (the board's missionColumnIdForStatus mapping); every row pushes the chat via lib/mission-chat.ts; lib/open-agent.ts routes openAgentBoard / openAgentSettings here below md (lib/agent-nav.ts agentDestination), and use-drill-in-mission-target.ts opens a published activityPanelId as the chat above it"
   task-row:
     status: implemented
-    ref: "@houston-ai/board task-row.tsx + task-list-group.tsx over the pure task-row-styles.ts status mapping; bound by app/src/components/agents-home/agent-missions-list.tsx and app/src/components/board/team-task-list.tsx"
+    ref: "@houston-ai/board task-row.tsx + task-list-group.tsx over the pure task-row-styles.ts status mapping; bound by app/src/components/agents-home/agent-missions-list.tsx"
   mission-chat-screen:
     status: implemented
-    ref: "app/src/components/mission-chat/ (MissionChatScreen over useMissionChatSource + the shared board/use-board-chat-wiring.tsx, rendered through @houston-ai/board AIBoard panelOnly), nav level chatAgentId/chatMissionId in lib/nav-stack.ts + stores/ui.ts openMissionChat, keyboard inset via hooks/use-visual-viewport-inset.ts, shell mount + bar hiding in shell/workspace-shell.tsx"
+    ref: "app/src/components/mission-chat/ (MissionChatScreen picking the active chat, useMissionChatSource + the shared board/use-board-chat-wiring.tsx, or archived-mission-chat.tsx over the archive's board/use-archived-chat-props.tsx by the sweep row's status, both rendered through @houston-ai/board AIBoard panelOnly), nav level chatAgentId/chatMissionId in lib/nav-stack.ts + stores/ui.ts openMissionChat, keyboard inset via hooks/use-visual-viewport-inset.ts, shell mount + bar hiding in shell/workspace-shell.tsx"
   new-mission-sheet:
     status: implemented
     ref: "app/src/components/mobile-new-mission-sheet.tsx (@houston-ai/core Sheet side=bottom over the agent roster), opened by lib/new-mission.ts startNewMission's phone fork (ui store newMissionSheetOpen), picking pushes the draft chat via lib/mission-chat.ts"
@@ -291,6 +299,34 @@ components:
   flow-choice-row:
     status: implemented
     ref: "@houston-ai/core FlowChoiceRow + FlowChoiceList (flow-choice-row.tsx)"
+  connect-ai-card:
+    status: implemented
+    ref: "app/src/components/onboarding/connect-ai-card.tsx (@houston-ai/chat InteractionModal over provider-browser/ProviderBrowser), routed by lib/onboarding-route.ts and mounted by components/assistant/onboarding/first-run-conversation.tsx"
+  manager-onboarding:
+    status: implemented
+    ref: "app/src/components/assistant/onboarding/ (ManagerOnboardingHost + manager-onboarding-context.tsx around the shell, ManagerOnboarding switching first-run-conversation.tsx / profile-conversation.tsx over manager-chat.tsx on @houston-ai/chat ChatPanel, manager-question-card.tsx on InteractionModal + QuestionStepBody, manager-receipt.tsx; the survey in manager-survey-card.tsx: manager-about-step.tsx (shell/context-step.tsx + shell/role-step.tsx, audience self, the role led by the leadership positions), manager-company-size-card.tsx and manager-goal-card.tsx; the team in manager-team-prompt.tsx over use-manager-team.ts (onboarding/team/ roster, hire flow and starter team): manager-team-question-cards.tsx (the choice, and the step after any hire, with manager-roster-list.tsx), manager-team-hire-steps.tsx (the create sheet's context, role and customize steps), manager-team-hire-cards.tsx (onboarding/team/team-basic-view.tsx); every create step in manager-step-frame.tsx, which carries its Back; manager-goal-handoff.tsx closes first run over use-goal-handoff.ts, whose Yes reaches the real chat through stores/manager-handoff.ts and assistant/use-manager-handoff.ts, and manager-finish-card.tsx closes the profile variant), scripted by the pure lib/manager-onboarding/ (script.ts, changeable.ts, survey-script.ts, team-script.ts, closing-script.ts, manager-reach.ts, handoff-prompt.ts, first-name.ts, reveal.ts, earlier-hires.ts), mounted by assistant/assistant-view.tsx"
+  build-team-card:
+    status: implemented
+    ref: "app/src/components/onboarding/team/ (BuildTeamCard over team-card-flow.tsx: team-choice-view.tsx over team-choice-card.tsx, team-hire-view.tsx over the shell/ hire steps, team-hired-view.tsx and team-basic-view.tsx over the shared employee-card/ (roster-employee-card.tsx for hires on the roster), team-card-footer.tsx), hiring through lib/create-employee.ts; mounted by shell/workspace-dialog.tsx"
+  employee-card:
+    status: implemented
+    notes: "v102: horizontal ID badge, a full-height engraved metal photo panel beside the name and flat labelled Role, Industry and Color rows (side by side on a wide badge); name prefilled with the job, pencil always visible, no separate edit hint; ResponsivePopover palette in two rows of five; recovery retained; team decks three across from 1024px and stacked full width below, 672px solo; reduced-motion-safe opacity crossfades."
+    ref: "app/src/components/employee-card/ (EditableEmployeeCard over employee-card.tsx, employee-name-field.tsx, employee-brief-line.tsx (context/job-brief-question.tsx in ui/core's ResponsivePopover) employee-card-paint.tsx, employee-card-metal.tsx (@houston-ai/core employeeMetalColors + metal-engraving.ts contours, seeded from employee-metal-pattern.ts), employee-card-portrait.tsx and employee-color-picker.tsx over employee-color-palette.tsx; EmployeeCardDeck for a team; pure models in employee-card-model.ts and employee-name-validation.ts, the job-named prefill in lib/agent-name-prefill.ts); mounted by onboarding/team/ and shell/customize-step.tsx"
+  first-day-offer:
+    status: implemented
+    ref: "app/src/components/first-day/ (FirstDayHero + FirstDayCompact + FirstDayStartButton in first-day-cta.tsx, FirstDayBanner + FirstDayLead in first-day-banner.tsx, placement in first-day-model.ts + use-first-day-placement.ts) over lib/agent-first-day.ts, mounted by board/mission-board.tsx"
+  academy-path:
+    status: implemented
+    ref: "app/src/components/academy/ (academy-path.tsx, academy-chapter-section.tsx, academy-path-node.tsx over the pure academy-path-state.ts), lessons in academy/lessons/registry.ts"
   messaging-channels-settings:
     status: implemented
     ref: app/src/components/settings/sections/channels.tsx
+
+  personal-plan-dialogs:
+    status: partial
+    ref: "app/src/components/shell/plan-lifecycle.tsx + plan-announcement-dialog.tsx + plan-announcement-plans.tsx"
+    notes: The plan dialogs render in app and are not extracted as reusable ui components.
+  personal-billing-screen:
+    status: partial
+    ref: "app/src/components/settings/sections/plan.tsx"
+    notes: Settings content shared by desktop and web; includes preview usage, early offer, and launch price states.

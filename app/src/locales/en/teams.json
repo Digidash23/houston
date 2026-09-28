@@ -58,11 +58,12 @@
       "sectionTitle": "Settings",
       "identity": "Change color & name",
       "identityTitle": "Change color & name for {{name}}",
-      "moveTeam": "Move to another team",
-      "chooseTeam": "Choose a team",
+      "moveTeam": "Move to group",
+      "chooseTeam": "Choose a group",
       "moveOrganization": "Move to another organization",
       "moveOrganizationDescription": "Move this AI Employee into an organization so a team can work with it.",
-      "delete": "Delete {{name}}"
+      "delete": "Delete {{name}}",
+      "noTeam": "No group"
     },
     "people": {
       "helper": "Pick whether everyone on your team can use this AI Employee, or only the people you choose.",
@@ -86,72 +87,40 @@
       }
     }
   },
+  "delegation": {
+    "sectionTitle": "Teamwork",
+    "outgoing": {
+      "label": "Gives missions to",
+      "aria": "{{name}} gives missions to",
+      "everyone": "Everyone",
+      "picked": "Only the ones I pick",
+      "none": "No one"
+    },
+    "picker": {
+      "rowAria": "Let {{name}} work with {{other}}",
+      "empty": "No other AI Employees in this space yet."
+    },
+    "incoming": {
+      "label": "Takes missions from",
+      "aria": "{{name}} takes missions from",
+      "everyone": "Everyone",
+      "none": "No one"
+    },
+    "loadError": {
+      "title": "Couldn't load these settings",
+      "retry": "Try again"
+    }
+  },
   "agentTeams": {
     "create": {
-      "title": "Create a team",
-      "submit": "Create team",
-      "newAgent": "New AI Employee",
-      "members": "Members, optional",
-      "membersSelected_one": "{{count}} member selected",
-      "membersSelected_other": "{{count}} members selected",
-      "membersFailedTitle": "Some people were not added",
-      "membersFailedBody": "We could not add {{names}} to {{team}}. You can add them from the team's Members list."
+      "title": "Create a group",
+      "submit": "Create group"
     },
     "form": {
       "iconAndName": "Icon & Name",
-      "nameLabel": "Team name",
+      "nameLabel": "Group name",
       "namePlaceholder": "e.g. Marketing",
-      "tooLong": "Keep the name under {{max}} characters."
-    },
-    "errors": {
-      "default_team": {
-        "title": "This is the space's main team",
-        "body": "Everyone in the space is already in it, so it cannot be removed and it has no separate member list."
-      },
-      "personal_space": {
-        "title": "Only you are in this space",
-        "body": "You can group your AI Employees into teams here. To work with other people, create an organization."
-      },
-      "not_team_owner": {
-        "title": "Only this team's owners can change it",
-        "body": "Ask one of them to make this change for you."
-      },
-      "invalid_team_id": {
-        "title": "We could not tell which team to move this to",
-        "body": "Nothing changed. Please try again."
-      },
-      "invalid_name": {
-        "title": "That team name will not work",
-        "body": "A team name has to be short, up to 60 characters. Try a shorter one."
-      },
-      "invalid_icon": {
-        "title": "We could not set that icon",
-        "body": "Nothing changed. Please pick one of the icons in the list."
-      },
-      "invalid_color": {
-        "title": "We could not set that color",
-        "body": "Nothing changed. Please pick one of the colors in the list."
-      },
-      "not_a_member": {
-        "title": "That person is not in this space yet",
-        "body": "Invite them to the space first, then add them to this team."
-      }
-    },
-    "leave": "Leave team",
-    "settings": {
-      "members": {
-        "title": "People",
-        "subtitle": "The people who joined this team.",
-        "empty": "No one has joined this team yet.",
-        "error": "We could not load this list. Please try again.",
-        "defaultNote": "Everyone in this space is already in this team, so there is no separate list to manage.",
-        "adminNote": "Owners and managers of this space can manage every team, so they do not show up here.",
-        "ownerLabel": "Owner",
-        "memberLabel": "Member",
-        "you": "(you)",
-        "changeRole": "Change role for {{name}}",
-        "remove": "Remove"
-      }
+      "tooLong": "Use up to {{max}} characters."
     }
   },
   "integrations": {
@@ -175,13 +144,13 @@
       "label": "Workspace sections",
       "people": "People",
       "billing": "Billing",
-      "companyContext": "Company context",
       "activity": "Activity",
-      "usage": "Usage",
-      "timeWorked": "Time worked",
       "orgChart": "Org chart"
     },
-    "companyContextHint": "What all your AI Employees know on every task and routine they run.",
+    "companyContext": {
+      "title": "Company context",
+      "description": "What all your AI Employees know on every task and routine they run."
+    },
     "loading": "Loading your workspace...",
     "unavailable": "We couldn't load your workspace."
   },
@@ -193,7 +162,7 @@
       "viewerOnly": "You can use this AI Employee. Someone who manages it can change who has access.",
       "empty": {
         "title": "No people yet",
-        "body": "Invite teammates from Settings > Workspace management to manage their access here."
+        "body": "Invite teammates from Admin to manage their access here."
       }
     }
   },
@@ -325,17 +294,6 @@
       "unknown": "{{actor}} made a change ({{action}})"
     }
   },
-  "usageTab": {
-    "error": "We couldn't load usage.",
-    "empty": {
-      "title": "No usage yet",
-      "body": "Once your team starts chatting with AI Employees, message counts show up here."
-    },
-    "summary_one": "{{count}} message in the last 30 days",
-    "summary_other": "{{count}} messages in the last 30 days",
-    "messages_one": "{{count}} message",
-    "messages_other": "{{count}} messages"
-  },
   "createTeam": {
     "trigger": "Create organization",
     "title": "Create an organization",
@@ -385,6 +343,7 @@
       "unsupported_move": "This AI Employee can't be moved to that team.",
       "unmovable_volume": "This AI Employee's storage can't be moved automatically yet. Contact support.",
       "needs_upgrade": "This team needs an upgrade before you can move AI Employees into it.",
+      "name_taken": "This AI Employee can't move there because that team already has an AI Employee with this name. Rename it first, then try again.",
       "unknown": "Something went wrong during the move.",
       "timeout": "The move is taking longer than expected. It may still finish in the background. You can try again or close this.",
       "retry": "Try again",
@@ -413,34 +372,47 @@
   },
   "moveResume": {
     "done": "{{agent}} finished moving to {{team}}.",
-    "failed": "{{agent}} could not finish moving to {{team}}. Houston will try again the next time it starts."
+    "failed": "{{agent}} could not finish moving to {{team}}. We'll try again the next time the app starts.",
+    "nameTaken": "{{agent}} can't move to {{team}} because that team already has an AI Employee with this name. Rename it first, then try again."
   },
   "moveTeam": {
-    "title": "Move {{team}} to an organization",
+    "title": "Move {{team}} to another space",
+    "pick": {
+      "subtitle": "Pick a space to move this group into, or create a new one.",
+      "empty": "You don't have another space yet. Create one to move this group into.",
+      "createTrigger": "Create a new space",
+      "namePlaceholder": "e.g. Marketing",
+      "nameLabel": "Space name",
+      "create": "Create",
+      "creating": "Creating…",
+      "failed": "We couldn't create the space. Please try again."
+    },
     "confirm": {
       "body_one": "Move {{team}} and its {{count}} AI Employee to {{destination}}?",
       "body_other": "Move {{team}} and its {{count}} AI Employees to {{destination}}?",
       "downtime": "AI Employees pause while they move.",
-      "move": "Move team"
+      "move": "Move group"
     },
     "moving": "Moving {{name}} ({{index}} of {{total}})",
     "movingBody": "AI Employees move one at a time. Please keep this window open.",
-    "cleanupSource": "Cleaning up the personal team",
-    "switching": "Switching to the organization",
-    "recreate": "Recreating the team",
-    "placing": "Putting AI Employees in their team",
+    "createTarget": "Creating the group in the destination space",
+    "cleanupSource": "Removing the group from this space",
+    "switching": "Switching to the space",
     "moveFailedFirst_one": "The AI Employee could not move.",
     "moveFailedFirst_other": "None of the {{count}} AI Employees moved. The first one could not move.",
     "moveFailedNext": "{{moved}} of {{total}} AI Employees moved. The next AI Employee could not move.",
+    "moveFailedNameTaken": "{{name}} can't move there because that team already has an AI Employee with this name. Rename it first, then try again.",
+    "moveFailedNextNameTaken": "{{moved}} of {{total}} AI Employees moved. {{name}} can't move there because that team already has an AI Employee with this name. Rename it first, then try again.",
     "postscriptFailed_one": "The AI Employee moved, but setup did not finish.",
     "postscriptFailed_other": "All {{count}} AI Employees moved, but setup did not finish.",
-    "postscriptFailedEmpty": "The team could not finish moving.",
+    "postscriptFailedEmpty": "The group could not finish moving.",
     "retry": "Try again",
     "close": "Close"
   },
   "moveTeamResume": {
-    "done": "{{team}} finished moving to its organization.",
-    "failed": "{{team}} moved its AI Employees, but setup could not finish. Houston will try again the next time it starts."
+    "done": "{{team}} finished moving to its new space.",
+    "failed": "{{team}} could not finish moving. We'll try again the next time the app starts.",
+    "nameTaken": "{{team}} could not finish moving because the new team already has an AI Employee with the same name as one being moved. Rename that AI Employee first, then try again."
   },
   "billing": {
     "unavailable": "We couldn't load billing for this team.",
@@ -502,30 +474,11 @@
     }
   },
   "teamView": {
-    "defaultName": "New Team",
     "tabs": {
       "missionControl": "Tasks",
       "routines": "Routines",
       "files": "Files",
-      "settings": "Team Settings",
-      "context": "Context",
-      "people": "People",
-      "label": "Team sections"
-    },
-    "settingsTabs": {
-      "context": "Context",
-      "agents": "AI Employees",
-      "people": "People",
-      "settings": "Settings",
-      "label": "Team settings sections"
-    },
-    "settingsActions": {
-      "identity": "Change icon & name",
-      "moveToOrganization": "Move to an organization",
-      "moveToOrganizationDescription": "Move this team and its AI Employees into an organization so people can work with them.",
-      "leave": "Leave team",
-      "delete": "Delete team",
-      "onlyTeamDeleteDescription": "This is your only team, so it can't be deleted."
+      "label": "AI Employee sections"
     },
     "agentTabs": {
       "settings": "Settings"
@@ -536,91 +489,109 @@
     },
     "move": {
       "confirmTitle": "Move {{agent}} to {{team}}?",
-      "confirmBody": "{{agent}} moves to {{team}}. People who can see that team will see this AI Employee in it.",
+      "confirmBody": "{{agent}} moves to {{team}}.",
       "confirm": "Move AI Employee",
       "cancel": "Cancel"
     },
     "agentMenu": {
       "delete": "Delete AI Employee"
     },
-    "context": {
-      "title": "Team context",
-      "explainer": "Every AI Employee in this team knows this.",
-      "placeholder": "What should every AI Employee in this team know? The company, the customers, how you work."
-    },
-    "missionControl": {
-      "empty": {
-        "workspaceTitle": "No AI Employees yet",
-        "workspaceBody": "Create your first AI Employee and its tasks will show up here.",
-        "createAgent": "Create AI Employee",
-        "teamTitle": "No AI Employees in this team yet",
-        "teamBody": "Create an AI Employee here or use the AI Employee's Settings section to move it into {{name}}."
-      }
-    },
     "routines": {
       "newRoutine": "New routine",
-      "empty": {
-        "workspaceTitle": "No AI Employees yet",
-        "workspaceBody": "Create your first AI Employee and everything it does on its own will show up here.",
-        "createAgent": "Create AI Employee",
-        "teamTitle": "No AI Employees in this team yet",
-        "teamBody": "Create an AI Employee here or use the AI Employee's Settings section to move it into {{name}}."
-      },
-      "noRoutines": {
-        "title": "Nothing runs on its own yet",
-        "body": "Set up a routine and this team's AI Employees will start working without being asked."
-      },
       "unreadable": {
-        "title": "Couldn't load this team's routines",
-        "body": "Nothing here is missing on purpose. Try again above to see what these AI Employees run on their own."
-      },
-      "pickAgent": {
-        "title": "Which AI Employee should run this?",
-        "description": "Pick the AI Employee that will do the work. You can change it while you set the routine up."
-      }
-    },
-    "files": {
-      "empty": {
-        "workspaceTitle": "No AI Employees yet",
-        "workspaceBody": "Create your first AI Employee and the files it keeps will show up here.",
-        "createAgent": "Create AI Employee",
-        "teamTitle": "No AI Employees in this team yet",
-        "teamBody": "Create an AI Employee here or use the AI Employee's Settings section to move it into {{name}}."
-      }
-    },
-    "settings": {
-      "navUnavailable": "We couldn't open this AI Employee's settings yet",
-      "navUnavailableBody": "This AI Employee's team is still loading. Wait a moment and try again. If it keeps happening, report it as a bug.",
-      "policy": {
-        "everyone": "Everyone",
-        "people_one": "{{count}} person",
-        "people_other": "{{count}} people",
-        "integrationsAllowed_one": "{{count}} allowed",
-        "integrationsAllowed_other": "{{count}} allowed",
-        "modelsAllowed_one": "{{count}} allowed",
-        "modelsAllowed_other": "{{count}} allowed",
-        "allIntegrations": "All integrations allowed",
-        "allModels": "All models allowed",
-        "unavailable": "Couldn't load"
+        "title": "Couldn't load this AI Employee's routines",
+        "body": "Try again above to see what this AI Employee runs on its own."
       }
     }
   },
   "orgChart": {
-    "window": "Messages in the last 30 days",
-    "people_one": "{{count}} person",
-    "people_other": "{{count}} people",
-    "agents_one": "{{count}} AI Employee",
-    "agents_other": "{{count}} AI Employees",
-    "people": "People",
-    "agents": "AI Employees",
-    "empty": "No teams yet",
-    "emptyTeam": "No AI Employees in this team yet",
-    "membersUnavailable": "People could not be loaded.",
-    "teamsUnavailable": "Teams could not be loaded.",
-    "usageUnavailable": "Usage unavailable",
+    "caption": "Organization",
+    "captionPersonal": "Personal space",
+    "captionYours": "Your AI Employees",
+    "crew": "<strong>{{agents}}</strong> and <strong>{{people}}</strong>.",
+    "crewPersonal": "<strong>{{agents}}</strong>.",
+    "crewYours_one": "Your <strong>{{agents}}</strong>.",
+    "crewYours_other": "Your <strong>{{agents}}</strong>.",
+    "workBoth": "<strong>{{messages}}</strong> and <strong>{{hours}}</strong> of work in the last 30 days.",
+    "workBothManaged": "<strong>{{messages}}</strong> to the AI Employees you manage and <strong>{{hours}}</strong> of work in the last 30 days.",
+    "workHours": "<strong>{{hours}}</strong> of work in the last 30 days.",
+    "workMessages": "<strong>{{messages}}</strong> in the last 30 days.",
+    "workMessagesManaged": "<strong>{{messages}}</strong> to the AI Employees you manage in the last 30 days.",
+    "agentCount_one": "{{count}} AI Employee",
+    "agentCount_other": "{{count}} AI Employees",
+    "peopleCount_one": "{{count}} person",
+    "peopleCount_other": "{{count}} people",
+    "messagesAmount_one": "{{value}} message",
+    "messagesAmount_other": "{{value}} messages",
+    "hoursAmount_one": "{{value}} hour",
+    "hoursAmount_other": "{{value}} hours",
+    "minutesAmount_one": "{{value}} minute",
+    "minutesAmount_other": "{{value}} minutes",
+    "messagesUnit_one": "message",
+    "messagesUnit_other": "messages",
+    "hoursUnit_one": "hour",
+    "hoursUnit_other": "hours",
+    "minutesUnit_one": "minute",
+    "minutesUnit_other": "minutes",
+    "unitHours": "h",
+    "unitMinutes": "min",
+    "heroHours": "Hours of work",
+    "heroMessages": "Messages",
+    "heroMessagesManaged": "Messages to AI Employees you manage",
+    "chartHours": "Hours worked · last 30 days",
+    "chartMessages": "Messages · last 30 days",
+    "chartMessagesManaged": "Messages to AI Employees you manage · last 30 days",
+    "chartHoursLabel": "Hours worked each day over the last 30 days",
+    "chartMessagesLabel": "Messages each day over the last 30 days",
+    "chartMessagesManagedLabel": "Messages to AI Employees you manage each day over the last 30 days",
+    "today": "Today",
+    "statMessages_one": "<strong>{{value}}</strong> message",
+    "statMessages_other": "<strong>{{value}}</strong> messages",
+    "statMessagesManaged_one": "<strong>{{value}}</strong> message to AI Employees you manage",
+    "statMessagesManaged_other": "<strong>{{value}}</strong> messages to AI Employees you manage",
+    "statAgents_one": "<strong>{{value}}</strong> AI Employee",
+    "statAgents_other": "<strong>{{value}}</strong> AI Employees",
+    "statPeople_one": "<strong>{{value}}</strong> person",
+    "statPeople_other": "<strong>{{value}}</strong> people",
+    "ledgerLabel": "AI Employees, ranked",
+    "rankedByHours": "Ranked by hours",
+    "rankedByMessages": "Ranked by messages",
+    "rankedByName": "AI Employees",
+    "colAgent": "AI Employee",
+    "colHours": "Hours worked",
+    "colMessages": "Messages",
+    "manages": "Manages",
+    "uses": "Uses",
+    "legendManages": "Manages · can change it",
+    "legendUses": "Uses · can talk to it",
+    "none": "None",
+    "everyone": "Everyone",
+    "peopleHidden": "People hidden",
+    "notCounted": "Not counted",
+    "openBoardFor": "Open {{name}}'s board",
+    "openPerson": "Open {{name}} in People",
+    "more": "+{{count}}",
+    "hoursUnavailable": "Hours worked unavailable.",
+    "messagesUnavailable": "Messages unavailable.",
     "retry": "Try again",
-    "openTeam": "Open {{name}}",
-    "unknownPerson": "Team member",
-    "loading": "Loading your teams..."
+    "loading": "Loading your org chart...",
+    "empty": "No AI Employees yet",
+    "emptyBody": "Hire your first AI Employee and it appears here, with the people who manage it and use it."
+  },
+  "phoneEmployee": {
+    "emptyGroup": {
+      "title": "No AI Employees in this group",
+      "description": "Open an AI Employee, tap its ⋯ menu and choose Move to group."
+    }
+  },
+  "groupDelete": {
+    "title": "Delete \"{{name}}\"?",
+    "description": "The AI Employees in this group stay. They move out of the group, nothing else changes.",
+    "confirm": "Delete group",
+    "cancel": "Cancel"
+  },
+  "agentNav": {
+    "settingsUnavailable": "We couldn't open this AI Employee's settings",
+    "settingsUnavailableBody": "This AI Employee is no longer in this space. It may have been removed or moved."
   }
 }

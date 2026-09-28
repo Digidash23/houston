@@ -9,7 +9,12 @@ import {
 
 test("a question with focus and nothing over it owns the key", () => {
   assert.equal(
-    choiceOwnsKey({ trusted: true, focusWithin: true, layersAbove: 0 }),
+    choiceOwnsKey({
+      trusted: true,
+      onScreen: true,
+      focusWithin: true,
+      layersAbove: 0,
+    }),
     true,
   );
 });
@@ -18,7 +23,12 @@ test("a question owns the key only with focus AND a clear top", () => {
   for (const focusWithin of [true, false]) {
     for (const layersAbove of [0, 1, 2]) {
       assert.equal(
-        choiceOwnsKey({ trusted: true, focusWithin, layersAbove }),
+        choiceOwnsKey({
+          trusted: true,
+          onScreen: true,
+          focusWithin,
+          layersAbove,
+        }),
         focusWithin && layersAbove === 0,
         `focusWithin=${focusWithin} layersAbove=${layersAbove}`,
       );
@@ -31,7 +41,26 @@ test("a key the app dispatched at itself is never the question's", () => {
   // dismiss a portalled modal (`keep-alive-views.tsx`). A synthetic event is
   // untrusted; swallowing it leaves that modal open and the page inert.
   assert.equal(
-    choiceOwnsKey({ trusted: false, focusWithin: true, layersAbove: 0 }),
+    choiceOwnsKey({
+      trusted: false,
+      onScreen: true,
+      focusWithin: true,
+      layersAbove: 0,
+    }),
+    false,
+  );
+});
+
+test("a question that is not on screen owns no key", () => {
+  // The step behind the AI Manager's typing and a kept-alive screen stay
+  // mounted while hidden; typing elsewhere must not land in their filter.
+  assert.equal(
+    choiceOwnsKey({
+      trusted: true,
+      onScreen: false,
+      focusWithin: true,
+      layersAbove: 0,
+    }),
     false,
   );
 });
@@ -80,24 +109,26 @@ test("focus held elsewhere leaves the key to whoever holds it", () => {
   );
 });
 
+const wrapping = { containsStep: true, beforeStep: true };
+const later = { containsStep: false, beforeStep: false };
+const beneath = { containsStep: false, beforeStep: true };
+
 test("the sheet around the question is not a layer above it", () => {
-  assert.equal(countLayersAbove([{ containsStep: true }]), 0);
+  assert.equal(countLayersAbove([wrapping]), 0);
 });
 
-test("a layer that does not wrap the question is above it", () => {
-  assert.equal(countLayersAbove([{ containsStep: false }]), 1);
+test("a layer opened after the question is above it", () => {
+  assert.equal(countLayersAbove([later]), 1);
+});
+
+test("the dialog under a popover the question lives in is beneath it", () => {
+  // A card in the create sheet opens its role picker as a popover: portalled
+  // after the sheet, so the sheet does not wrap the question yet sits under it.
+  assert.equal(countLayersAbove([beneath, wrapping]), 0);
 });
 
 test("open layers are counted apart from the ones wrapping the question", () => {
-  assert.equal(
-    countLayersAbove([
-      { containsStep: true },
-      { containsStep: false },
-      { containsStep: true },
-      { containsStep: false },
-    ]),
-    2,
-  );
+  assert.equal(countLayersAbove([wrapping, later, beneath, later]), 2);
 });
 
 test("nothing open means nothing above", () => {

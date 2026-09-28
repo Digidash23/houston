@@ -1,5 +1,6 @@
 import type { ServerResponse } from "node:http";
 import { ACTING_AS_HEADER } from "../auth/acting";
+import { assistantCallHeaders } from "../auth/assistant-call";
 import type { AssistantUpstreamRequest } from "./assistant-dispatch";
 import { json } from "./http";
 
@@ -15,6 +16,9 @@ export interface AssistantGateway {
   /** Base URL of the gateway, no trailing slash. */
   url: string;
   token: string;
+  /** This host calling itself (desktop, self-host): only then does the
+   *  request carry the in-process manager proof (`auth/assistant-call.ts`). */
+  loopback?: true;
 }
 
 /**
@@ -83,15 +87,21 @@ export async function forwardAssistantCall(
           ? { "Content-Type": "application/json" }
           : {}),
         ...(actingAs ? { [ACTING_AS_HEADER]: actingAs } : {}),
+        // The proof never leaves the process: a configured gateway is another
+        // machine, and only this host's own routes may be told it.
+        ...(gateway.loopback ? assistantCallHeaders() : {}),
       },
       ...(request.body !== undefined
         ? { body: JSON.stringify(request.body) }
         : {}),
+      // Fetch re-sends custom headers across a redirect, so a followed 3xx
+      // would carry the proof off this host; a 3xx answers as a refusal.
+      ...(gateway.loopback ? { redirect: "manual" as const } : {}),
     });
   } catch (err) {
     console.error(`[assistant] ${operation} could not reach the gateway`, err);
     json(res, 502, {
-      error: `could not reach Houston to perform "${operation}"`,
+      error: `could not reach the app to perform "${operation}"`,
       code: "gateway_unreachable",
     });
     return;
@@ -102,7 +112,10 @@ export async function forwardAssistantCall(
     console.error(
       `[assistant] ${operation} refused by the gateway (${upstream.status}): ${text.slice(0, 300)}`,
     );
-    json(res, upstream.status, {
+    // A refused redirect (loopback 3xx) has no target the caller could use.
+    const status =
+      upstream.status >= 300 && upstream.status < 400 ? 502 : upstream.status;
+    json(res, status, {
       error: text.slice(0, 300) || `gateway returned ${upstream.status}`,
       code: "gateway_error",
     });
@@ -119,7 +132,7 @@ export async function forwardAssistantCall(
         `[assistant] ${operation} answered non-JSON on ${upstream.status}: ${text.slice(0, 300)}`,
       );
       json(res, 502, {
-        error: `Houston answered something unreadable for "${operation}"`,
+        error: `the app answered something unreadable for "${operation}"`,
         code: "gateway_error",
       });
       return;

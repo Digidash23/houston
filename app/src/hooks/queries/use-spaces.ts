@@ -39,9 +39,8 @@ export function useOrgs(enabled: boolean) {
  * the `{moveId}` ticket; the caller then polls {@link useAgentMoveStatus} to
  * terminal `done` BEFORE inviting (C8 share pipeline order is a contract rule).
  *
- * This hook is used ONLY by the share-via-team flow, which renders the C8 move
- * rejections (`unsupported_move` / `unmovable_volume` / `needs_upgrade`) inline
- * as a `MoveFailedStep`. So we `silence` those expected states from `call()`'s
+ * This hook is used ONLY by the share-via-team flow, which renders every C8 move
+ * refusal the SDK classifies (`isMoveRefusalCode`) inline as a `MoveFailedStep`. So we `silence` those expected states from `call()`'s
  * generic red bug toast + Sentry report — the inline step is their sole surface.
  * Any OTHER move failure still toasts + captures.
  */

@@ -52,8 +52,8 @@ export function makeRequestHandsOnTool({
   const surfaceList = offered.join(", ");
   return defineTool({
     name: REQUEST_HANDS_ON_TOOL_NAME,
-    label: "Hand a Houston screen to the user",
-    description: `Send the user to a Houston screen to finish something only they can do there: ${personalAssistant ? "pay or change a plan, copy a key Houston shows once, pick files from their device, copy a routine's webhook, or destroy a shared space" : "copy a key Houston shows once, pick files from their device, or copy a routine's webhook"}. Houston shows a card that opens the screen for them and asks them to confirm when they are finished. Valid screens: ${surfaceList}. Never describe the clicks in chat and never ask them to paste a secret into the conversation. Queue the card, finish independent work, then end your turn.`,
+    label: "Hand an app screen to the user",
+    description: `Send the user to a screen in the app to finish something only they can do there: ${personalAssistant ? "pay or change a plan, copy a key the app shows once, pick files from their device, copy a routine's webhook, or destroy a shared space" : "copy a key the app shows once, pick files from their device, or copy a routine's webhook"}. The app shows a card that opens the screen for them and asks them to confirm when they are finished. Valid screens: ${surfaceList}. Never describe the clicks in chat and never ask them to paste a secret into the conversation. Queue the card, finish independent work, then end your turn.`,
     parameters: Type.Object({
       surface: Type.String(),
       reason: Type.Optional(Type.String()),
@@ -67,11 +67,11 @@ export function makeRequestHandsOnTool({
       // until the user hits Skip (the same lesson as the hidden provider ids).
       if (!isHandsOnSurface(surface))
         throw new Error(
-          `Houston has no '${params.surface}' screen to hand over. Use one of: ${surfaceList}.`,
+          `The app has no '${params.surface}' screen to hand over. Use one of: ${surfaceList}.`,
         );
       if (!personalAssistant && ACCOUNT_OWNER_SURFACES.has(surface))
         throw new Error(
-          `Houston's '${surface}' screen is the user's own to open, not yours to hand over. Say what you need and why in your reply and let them decide. Screens you may hand over: ${surfaceList}.`,
+          `The '${surface}' screen is the user's own to open, not yours to hand over. Say what you need and why in your reply and let them decide. Screens you may hand over: ${surfaceList}.`,
         );
       const reason = params.reason?.trim();
       recordHandsOn({ surface, ...(reason ? { reason } : {}) });
@@ -79,7 +79,7 @@ export function makeRequestHandsOnTool({
         content: [
           {
             type: "text" as const,
-            text: "A card that opens that screen was queued. End your turn after any independent work; Houston messages you once the user says they finished there, or that they skipped it.",
+            text: "A card that opens that screen was queued. End your turn after any independent work; you get a message once the user says they finished there, or that they skipped it.",
           },
         ],
         details: { surface },

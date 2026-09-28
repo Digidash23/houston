@@ -1,15 +1,16 @@
 import { resolveAgentColor } from "@houston-ai/core";
-import { isSidebarGroupGlyph, SidebarGroupGlyph } from "@houston-ai/layout";
+import {
+  isSidebarGroupGlyph,
+  SidebarGroupGlyph,
+  sidebarMarkSize,
+} from "@houston-ai/layout";
 import { Users } from "lucide-react";
 import type { ReactElement } from "react";
 import { teamDisplayColor, teamDisplayIcon } from "../../lib/team-display";
 import type { TeamView } from "../../lib/teams-model";
 
 /**
- * The mark a team wears, everywhere a team is drawn: its block header in the
- * rail, row 1 of its own screen, and the rows of the "Move to team" picker. ONE
- * component for all of them, so no two surfaces can disagree about what a team
- * looks like.
+ * The mark a personal group wears in the rail, phone tree, org chart and pickers.
  *
  * **A team's glyph DOES pin a colour, and that bends `sidebar-anatomy.md`'s
  * third invariant on purpose.** That rule ("a row's glyph never pins a colour",
@@ -30,10 +31,10 @@ import type { TeamView } from "../../lib/teams-model";
  */
 export function TeamGlyph({
   team,
-  className = "size-3.5",
+  className = sidebarMarkSize.glyph,
 }: {
   team: TeamView;
-  /** Defaults to the rail's own 14px box; Team Settings asks for 20px. */
+  /** Defaults to the rail's own 14px mark; callers size other surfaces. */
   className?: string;
 }): ReactElement {
   const icon = teamDisplayIcon(team);
@@ -44,7 +45,6 @@ export function TeamGlyph({
     ) : (
       <Users className={className} />
     );
-  if (!color) return mark;
   // Through an inline style custom-property value, never a class name: the
   // stored value is user-pickable and may be a raw `#rrggbb` a server host
   // holds, which no Tailwind class can express. `resolveAgentColor` maps a
@@ -52,7 +52,10 @@ export function TeamGlyph({
   // recolours on a theme flip with no re-render) and passes a hex through
   // verbatim. Exactly how an agent avatar wears its colour.
   return (
-    <span className="flex" style={{ color: resolveAgentColor(color) }}>
+    <span
+      className="flex"
+      style={color ? { color: resolveAgentColor(color) } : undefined}
+    >
       {mark}
     </span>
   );

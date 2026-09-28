@@ -1,8 +1,8 @@
 import { FAKE_HOST_URL } from "@houston/fake-host";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
-import { adminHeading, openWorkspaceManagement } from "./support/settings-nav";
 import { screen } from "./support/team-nav";
+import { openNavRow, openWorkspaceMenu } from "./support/workspace-menu";
 
 /**
  * The integrations permissioning information architecture (the IA end-state).
@@ -49,7 +49,7 @@ async function armCapabilities(
 
 async function openIntegrations(page: Page): Promise<void> {
   await page.goto("/");
-  await page.locator('[data-tour-target="nav-integrations"]').click();
+  await openNavRow(page, "integrations");
 }
 
 // ── 1. Plain member: no Admin dashboard, but the personal catalog stays ────
@@ -64,23 +64,22 @@ test("Teams member: no Admin dashboard, but the Integrations nav opens the perso
   await armCapabilities(request, { ...OWNER_CAPS, role: "user" });
   await page.goto("/");
 
-  // The Integrations nav IS present for a member now (unconditional), and it
-  // opens the personal catalog — never the org policy question. Asserted FIRST
-  // so the Admin absence below cannot pass on an unpainted rail.
-  const integrationsNav = page.locator('[data-tour-target="nav-integrations"]');
+  // The Integrations row IS present for a member (unconditional), and it
+  // opens the personal catalog — never the org policy question. Asserted in
+  // the same open menu as the Admin absence, so that absence is the gate and
+  // not an unpainted menu. AI Models and Settings are there too, the rows
+  // every caller gets.
+  const menu = await openWorkspaceMenu(page);
+  const integrationsNav = menu.locator('[data-tour-target="nav-integrations"]');
   await expect(integrationsNav).toBeVisible();
+  await expect(menu.locator('[data-tour-target="nav-ai-hub"]')).toBeVisible();
+  await expect(menu.locator('[data-tour-target="nav-settings"]')).toBeVisible();
 
-  // No Admin dashboard for a plain member: Workspace management is everyone's
-  // door, and behind the org gate it falls back to the read-only workspace-name
-  // row, so the absence is asserted on the FACE rather than on a rail row.
-  await openWorkspaceManagement(page);
-  await expect(adminHeading(page)).toHaveCount(0);
-  await expect(
-    screen(page).getByText("Workspace name", { exact: true }),
-  ).toBeVisible();
+  // A plain member has no Admin row.
+  await expect(menu.getByTestId("rail-admin")).toHaveCount(0);
 
-  // The rail stays put while Settings is open, so the catalog is one click
-  // away, and the identity lozenge carries the screen's h1.
+  // The Integrations row opens the catalog directly, and its identity
+  // lozenge carries the screen's h1.
   await integrationsNav.click();
   await expect(
     page.getByRole("heading", { name: "Integrations", exact: true }),
@@ -93,10 +92,6 @@ test("Teams member: no Admin dashboard, but the Integrations nav opens the perso
       name: "Which apps can agents in this workspace use?",
     }),
   ).toHaveCount(0);
-
-  // AI Models and Settings remain too, the rows every caller gets.
-  await expect(page.locator('[data-tour-target="nav-ai-hub"]')).toBeVisible();
-  await expect(page.locator('[data-tour-target="nav-settings"]')).toBeVisible();
 });
 
 // ── 2. Integrations page: personal connections only, no agent list ─────────

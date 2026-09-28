@@ -82,7 +82,7 @@ export function createPreferencesModule(ctx: ModuleContext): PreferencesModule {
   const set = (key: string, value: string | null): Promise<string | null> =>
     run(() => client.setPreference(key, value));
   /**
-   * Sets the language Houston's own screens are shown in, for one workspace.
+   * Sets the language the app's own screens are shown in, for one workspace.
    * @param workspaceId The workspace this acts on, by the id listWorkspaces
    *   returns.
    * @param locale The language to switch to, or nothing to follow the device.

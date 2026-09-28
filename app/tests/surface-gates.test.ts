@@ -166,7 +166,7 @@ describe("surfaceGatesFor", () => {
     );
   });
 
-  it("keeps Skills to the space owner in a team workspace", () => {
+  it("keeps the AI Models hub for every member of a team workspace", () => {
     const member = { multiplayer: true, role: "user" } as never;
     const gates = surfaceGatesFor({
       capabilities: member,
@@ -174,17 +174,43 @@ describe("surfaceGatesFor", () => {
       assistant: present,
       capabilitiesLoading: false,
     });
-    strictEqual(gates.showSkills, false);
-    // Everyone keeps the AI Models hub; the org-level narrowing lives in the
-    // screen, not the rail.
+    // The org-level narrowing lives in the screen, not the menu.
     strictEqual(gates.showAiModels, true);
-    strictEqual(
+    strictEqual("showSkills" in gates, false, "no Skills screen to gate");
+  });
+
+  it("keeps the skill acts that reach every employee to the space owner", () => {
+    // Share to workspace, Enable for all and Delete for all edit every
+    // employee's skills at once: that is the owner's call, not a manager's.
+    const as = (role: string) =>
       surfaceGatesFor({
-        capabilities: owner,
+        capabilities: { multiplayer: true, role } as never,
         isTeam: true,
         assistant: present,
         capabilitiesLoading: false,
-      }).showSkills,
+      }).manageWorkspaceSkills;
+    strictEqual(as("owner"), true);
+    strictEqual(as("admin"), false);
+    strictEqual(as("user"), false);
+    // Nothing before the deployment has described itself: unanswered
+    // capabilities read as single player, which would show anyone the acts.
+    strictEqual(
+      surfaceGatesFor({
+        capabilities: null,
+        isTeam: true,
+        assistant: present,
+        capabilitiesLoading: true,
+      }).manageWorkspaceSkills,
+      false,
+    );
+    // Single player: one human, everything is theirs.
+    strictEqual(
+      surfaceGatesFor({
+        capabilities: null,
+        isTeam: false,
+        assistant: present,
+        capabilitiesLoading: false,
+      }).manageWorkspaceSkills,
       true,
     );
   });

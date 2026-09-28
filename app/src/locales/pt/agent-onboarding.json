@@ -1,22 +1,21 @@
 {
   "setupMission": {
-    "title": "Configurando",
-    "startFailed": "Não conseguimos iniciar a configuração. Tente novamente."
+    "title": "Configurando"
   },
   "roleSetup": {
-    "back": "Voltar",
-    "unlinkProject": "Desvincular projeto existente",
     "steps": {
       "context": "Indústria",
       "role": "Cargo",
       "customize": "Personalize"
     },
     "contextHeadline": "Em que indústria este funcionário de IA trabalha?",
+    "selfContextHeadline": "Em qual indústria você trabalha?",
     "contextPlaceholder": "Conte em poucas palavras",
     "contextSearch": "Buscar indústrias",
     "noContextMatches": "Nenhuma indústria corresponde a isso.",
     "useQueryAsContext": "Usar \"{{query}}\" como a indústria",
     "roleHeadline": "O que ele deve fazer por você?",
+    "selfRoleHeadline": "Qual é a sua função?",
     "rolePlaceholder": "Conte o cargo em poucas palavras",
     "roleSearch": "Buscar cargos",
     "noRoleMatches": "Nenhum cargo corresponde a isso.",
@@ -24,18 +23,18 @@
     "typeToFindAnyRole": "Digite qualquer cargo para encontrá-lo, de qualquer indústria.",
     "moreRoles": "Mais cargos",
     "otherRoles": "Outros cargos",
+    "leadership": "Liderança",
     "somethingElse": "Outra coisa",
     "chipsKeyboardHint": "Use as setas do teclado para se mover entre as opções.",
     "continue": "Continuar",
     "cancel": "Cancelar",
     "customize": {
-      "headline": "Dê um nome e uma cor",
+      "headline": "Dê um nome ao seu AI Employee",
       "changeIndustry": "Alterar indústria: {{answer}}",
       "changeRole": "Alterar cargo: {{answer}}"
     },
     "createFailed": "Não conseguimos criar este funcionário de IA. Tente novamente.",
-    "placementFailedTitle": "Criado na equipe padrão",
-    "placementFailedBody": "Não conseguimos colocar {{name}} na equipe que você escolheu. Você pode movê-lo quando quiser pelo menu dele.",
+    "saveFailed": "Ainda não conseguimos salvar suas alterações. Vamos tentar de novo quando você terminar.",
     "contexts": {
       "accounting": "Contabilidade",
       "advertising": "Publicidade",
@@ -473,6 +472,7 @@
       "film_festival_coordinator": "Coordenador de festivais",
       "finance_and_insurance_clerk": "Auxiliar de financiamento e seguros",
       "finance_business_partner": "Parceiro financeiro de negócio",
+      "finance_manager": "Gerente financeiro",
       "finance_reporting_analyst": "Analista de relatórios",
       "finance_risk_manager": "Gestor de riscos",
       "financial_analyst": "Analista financeiro",
@@ -772,6 +772,7 @@
       "open_house_coordinator": "Coordenador de visitação",
       "operations_consultant": "Consultor de operações",
       "operations_coordinator": "Coordenador de operações",
+      "operations_manager": "Gerente de operações",
       "order_desk_clerk": "Auxiliar de central de pedidos",
       "order_fulfillment_clerk": "Auxiliar de expedição de pedidos",
       "order_status_clerk": "Auxiliar de pedidos",
@@ -1250,6 +1251,26 @@
       "yard_coordinator": "Coordenador de pátio",
       "yoga_studio_coordinator": "Coordenador de aulas de ioga",
       "youtube_channel_manager": "Gestor de canal do YouTube"
+    },
+    "leadershipRoles": {
+      "founder": "Fundador",
+      "co_founder": "Cofundador",
+      "owner": "Proprietário",
+      "ceo": "CEO",
+      "president": "Presidente",
+      "managing_director": "Diretor-geral",
+      "general_manager": "Gerente-geral",
+      "coo": "COO",
+      "cfo": "CFO",
+      "cto": "CTO",
+      "cmo": "CMO",
+      "cro": "CRO",
+      "vp": "VP",
+      "director": "Diretor",
+      "head_of_department": "Chefe de departamento",
+      "partner": "Sócio",
+      "team_lead": "Líder de equipe",
+      "manager": "Gerente"
     }
   }
 }

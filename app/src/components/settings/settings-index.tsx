@@ -1,17 +1,21 @@
 import { channelUnavailableReason } from "@houston/engine-adapter";
 import {
   Bug,
-  Building2,
   CircleUserRound,
   CloudUpload,
+  CreditCard,
   Keyboard,
   MessagesSquare,
   UserRound,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChannels } from "../../hooks/queries/use-channels";
+import { useCapabilities } from "../../hooks/use-capabilities";
 import { genericErrorDescription } from "../../lib/error-report";
-import type { SettingsSectionId } from "../../lib/settings-sections";
+import {
+  type SettingsSectionId,
+  settingsSectionAvailable,
+} from "../../lib/settings-sections";
 import { useUIStore } from "../../stores/ui";
 import { PageContainer, PageHero } from "../shell/page-shell";
 import { SettingsIdentityHeader } from "./identity-header";
@@ -30,13 +34,12 @@ interface SettingsIndexProps {
 
 /**
  * The settings landing page: the standing setup a person adjusts, about their
- * own app and about the space they run.
+ * own app and preferences.
  *
- * The page holds ONE general group (identity, About me, appearance, language,
- * notifications, then the standing setup of the space and the help-shaped
- * rows), plus Danger. One row administers the SPACE rather than the person:
- * Workspace management. The shared Skills library is a screen of its own, off
- * the rail's Skills row, so no row here leads to it.
+ * The page holds ONE general group (identity, About me, plan, channels,
+ * appearance, language, notifications, and the shortcut, bug-report and
+ * migration rows), plus Danger. Admin is its own screen; an AI Employee's
+ * Skills live in that employee's settings.
  *
  * The page OPENS on the signed-in person: identity is the header, and
  * everything below it is a preference.
@@ -51,6 +54,7 @@ export function SettingsIndex({
 }: SettingsIndexProps) {
   const { t } = useTranslation("settings");
   const channels = useChannels();
+  const { capabilities } = useCapabilities();
   const channelsAvailable =
     !!channels.data ||
     channelUnavailableReason(channels.error) === "not-configured";
@@ -98,6 +102,14 @@ export function SettingsIndex({
             description={t("settings:index.rows.aboutMe")}
             onClick={() => onSelect("aboutMe")}
           />
+          {settingsSectionAvailable("plan", capabilities) && (
+            <SettingsRow
+              icon={CreditCard}
+              title={t("plan:title")}
+              description={t("plan:nav")}
+              onClick={() => onSelect("plan")}
+            />
+          )}
           {channelsAvailable && (
             <SettingsRow
               icon={MessagesSquare}
@@ -109,12 +121,6 @@ export function SettingsIndex({
           <AppearanceSection />
           <LanguageSection />
           <NotificationsSection />
-          <SettingsRow
-            icon={Building2}
-            title={t("settings:nav.workspace")}
-            description={t("settings:index.rows.workspace")}
-            onClick={() => onSelect("workspace")}
-          />
           {/* The API-keys row is HIDDEN for now (HOU-806): the Agents API
               surface lives in the Routines tab. The section, its strings, and
               all plumbing remain — restore by re-adding this row (and the

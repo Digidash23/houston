@@ -68,7 +68,7 @@ export async function readProjectFile(
 /**
  * Permanently deletes a file from an agent's workspace.
  * @assistant group:files
- * @assistant confirm: irreversible. The file leaves the workspace and Houston keeps no copy to put back.
+ * @assistant confirm: irreversible. The file leaves the workspace and no copy is kept to put back.
  */
 export async function deleteFile(
   scope: HttpScope,

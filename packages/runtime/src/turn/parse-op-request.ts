@@ -1,8 +1,21 @@
+import { ACTING_VIA_ASSISTANT } from "@houston/host/src/auth/acting";
 import type { ServedCredential } from "../auth/auth-file";
 import { type AgentOp, ID, parseAgentOp, str } from "./op-grammar";
 import type { TurnRequest } from "./types";
 
 export type { AgentOp } from "./op-grammar";
+
+/**
+ * The acting human of an op, plus `via: "assistant"` when the gateway
+ * verified the caller is the AI Manager's credential (PRODUCT-1928): the op
+ * twin of the acting-as token's `via` claim an awake pod reads. Trusted for
+ * the same reason `userId` is: an envelope reaches `/op` only from the
+ * gateway (deployment IAM + the pool's X-Internal-Token), which builds it
+ * from its own verified principal, never from client input.
+ */
+export type OpActingAs = NonNullable<TurnRequest["actingAs"]> & {
+  via?: typeof ACTING_VIA_ASSISTANT;
+};
 
 /**
  * An OP is a write the gateway routes to a pool worker instead of waking the
@@ -15,7 +28,7 @@ export interface OpRequest {
   gcsPrefix: string;
   hostToken: string;
   claim: NonNullable<TurnRequest["claim"]>;
-  actingAs?: TurnRequest["actingAs"];
+  actingAs?: OpActingAs;
   /** The connecting member's acting-as token (their own credential row in a
    *  team space) — only a credential op needs it. */
   actingToken?: string;
@@ -24,13 +37,16 @@ export interface OpRequest {
   op: AgentOp;
 }
 
-function parseActing(raw: unknown): TurnRequest["actingAs"] {
+// An unknown `via` reads as absent rather than failing the op: the write is
+// still the acting human's, it just earns no "Started by Houston" tag.
+function parseActing(raw: unknown): OpActingAs | undefined {
   if (!raw || typeof raw !== "object") return undefined;
-  const a = raw as { userId?: unknown; name?: unknown };
+  const a = raw as { userId?: unknown; name?: unknown; via?: unknown };
   if (typeof a.userId !== "string" || !a.userId) return undefined;
   return {
     userId: a.userId,
     ...(typeof a.name === "string" && a.name ? { name: a.name } : {}),
+    ...(a.via === ACTING_VIA_ASSISTANT ? { via: ACTING_VIA_ASSISTANT } : {}),
   };
 }
 

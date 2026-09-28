@@ -1,23 +1,24 @@
 {
   "import": {
     "eyebrow": "From a friend",
-    "flagged": "Houston flagged this one for a closer look.",
+    "flagged": "Flagged for a closer look.",
     "step1": {
       "title": "Bring in an AI Employee someone shared",
-      "body": "Open a file they sent, or paste a share link. Houston reads it and shows you what is inside before anything is installed.",
+      "body": "Open a file they sent, or paste a share link. We read it and show you what is inside before anything is installed.",
       "pickFile": "Choose a file",
       "uploadedFrom": "Shared by {{name}}",
       "anonymous": "your friend",
       "counts": "{{skills}} skills, {{routines}} routines, {{learnings}} learnings",
       "anonymizedFlag": "Anonymized before sharing.",
-      "scanChoiceLabel": "Should Houston take a quick look?",
+      "scanChoiceLabel": "Want a quick safety check first?",
       "scanYesTitle": "Yes, review it first",
-      "scanYesBody": "Houston scans for obvious risks. Not a guarantee, just a careful read.",
+      "scanYesBody": "We scan for obvious risks. Not a guarantee, just a careful read.",
       "scanNoTitle": "No, I trust them",
       "scanNoBody": "Skip the review and continue.",
       "scanning": "Reviewing the package.",
-      "scanClean": "Houston did not flag anything.",
-      "scanFlagged": "Houston flagged {{count}} item(s). Review them as you continue."
+      "scanClean": "Nothing was flagged.",
+      "scanFlagged": "{{count}} item(s) flagged. Review them as you continue.",
+      "scanDisclaimer": "This package was reviewed automatically. The review may have missed concerns. Open anything that looks unusual before installing."
     },
     "step2": {
       "title": "Name your AI Employee",

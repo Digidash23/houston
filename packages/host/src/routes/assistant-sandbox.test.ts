@@ -76,25 +76,25 @@ const CATALOG: AssistantCatalog = {
       },
     },
     {
-      name: "setAgentTeam",
-      group: "teams",
-      description: "Put an agent on a team.",
+      name: "remindOrgMember",
+      group: "org",
+      description: "Nudge a person in the space.",
       confirm: false,
       hidden: false,
       params: [
         {
-          name: "team",
+          name: "member",
           required: true,
           schema: { type: "string" },
-          resolver: "teams",
+          resolver: "members",
         },
       ],
       returns: { type: "object" },
       route: {
         method: "POST",
-        path: "/v1/teams/assign",
+        path: "/v1/org/remind",
         pathParams: [],
-        query: { team: "team" },
+        query: { member: "member" },
         body: null,
         bodyFields: null,
       },
@@ -1571,20 +1571,20 @@ test("a read outside a turn still reads", async () => {
 
 /**
  * A collection this deployment does not have at all. Answered as a refusal the
- * model can act on ("Houston cannot do this here") rather than an empty list,
- * which would have it offering to create the user's first team on a host that
- * has no teams (assistant/entity-directory-local.ts).
+ * model can act on ("this cannot be done here") rather than an empty list,
+ * which would have it offering to invite the user's first teammate on a host
+ * that has no team space (assistant/entity-directory-local.ts).
  */
-test("a local host says teams are not supported, not that there are none yet", async () => {
+test("a local host says members are not supported, not that there are none yet", async () => {
   const { calls, impl } = fetchStub(() => ({ body: { ok: true } }));
   const result = await call(
-    { operation: "setAgentTeam", params: { team: "Growth" } },
+    { operation: "remindOrgMember", params: { member: "Jules" } },
     { fetchImpl: impl, conversationId: "conv-1" },
   );
   expect(result.status).toBe(400);
   expect(result.body).toMatchObject({ code: "unsupported_entity" });
   expect(String((result.body as { error: string }).error)).toContain(
-    "not supported on this Houston",
+    "not supported on this install",
   );
   expect(calls).toEqual([]);
 });
@@ -1604,7 +1604,7 @@ test("an operation this deployment cannot perform is refused by name", async () 
   );
   expect(out.status).toBe(400);
   expect(out.body).toMatchObject({ code: "operation_unavailable_here" });
-  expect(JSON.stringify(out.body)).toContain("this Houston");
+  expect(JSON.stringify(out.body)).toContain("this app can do");
   // Nothing was addressed: the refusal is the whole of what happened.
   expect(calls).toEqual([]);
 });

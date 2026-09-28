@@ -7,7 +7,7 @@ import {
   statSync,
 } from "node:fs";
 import { join } from "node:path";
-import { validateAgentName } from "@houston/domain";
+import { sameAgentName, validateAgentName } from "@houston/domain";
 import type {
   Agent,
   AgentId,
@@ -124,16 +124,40 @@ export class LocalWorkspaceStore implements WorkspaceStore {
     return out;
   }
 
+  /** Whether an agent in `workspaceId` other than `except` already claims
+   *  `name`'s folder (see `sameAgentName`). Checked on every filesystem, so a
+   *  case-sensitive volume (Linux, an engine pod) refuses what macOS would. */
+  private nameTaken(
+    workspaceId: WorkspaceId,
+    name: string,
+    except?: string,
+  ): boolean {
+    return this.listDirs(join(this.root, workspaceId)).some(
+      (existing) => existing !== except && sameAgentName(existing, name),
+    );
+  }
+
   async createAgent(input: {
     workspaceId: WorkspaceId;
     name: string;
   }): Promise<Agent> {
     const v = validateAgentName(input.name);
     if (!v.ok) throw new InvalidAgentNameError(input.name, v.reason);
-    mkdirSync(join(this.root, input.workspaceId, input.name), {
-      recursive: true,
-    });
-    return this.toAgent(input.workspaceId, input.name);
+    const wsDir = join(this.root, input.workspaceId);
+    mkdirSync(wsDir, { recursive: true });
+    if (this.nameTaken(input.workspaceId, v.name))
+      throw new AgentNameConflictError(v.name);
+    // A plain (non-recursive) mkdir is the atomic claim: it fails on a folder
+    // that already exists, including one a racing create just made, so a
+    // returned agent is always a folder THIS call created.
+    try {
+      mkdirSync(join(wsDir, v.name));
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "EEXIST")
+        throw new AgentNameConflictError(v.name);
+      throw err;
+    }
+    return this.toAgent(input.workspaceId, v.name);
   }
 
   async renameAgent(id: AgentId, name: string): Promise<Agent> {
@@ -141,16 +165,19 @@ export class LocalWorkspaceStore implements WorkspaceStore {
     if (!agent) throw new Error(`renameAgent: unknown agent ${id}`);
     const v = validateAgentName(name);
     if (!v.ok) throw new InvalidAgentNameError(name, v.reason);
-    if (name === agent.name) return agent;
+    if (v.name === agent.name) return agent;
+    const dest = join(this.root, agent.workspaceId, v.name);
     // Check BEFORE renameSync: moving onto an existing directory throws a raw
-    // ENOTEMPTY that would surface as a 500 (#172).
-    if (existsSync(join(this.root, agent.workspaceId, name)))
-      throw new AgentNameConflictError(name);
-    renameSync(
-      join(this.root, agent.workspaceId, agent.name),
-      join(this.root, agent.workspaceId, name),
-    );
-    return this.toAgent(agent.workspaceId, name);
+    // ENOTEMPTY that would surface as a 500 (#172). A new spelling of the
+    // agent's own name ("mia" to "Mia") is the one destination that already
+    // "exists" on a case-insensitive volume and is still free.
+    if (
+      this.nameTaken(agent.workspaceId, v.name, agent.name) ||
+      (!sameAgentName(agent.name, v.name) && existsSync(dest))
+    )
+      throw new AgentNameConflictError(v.name);
+    renameSync(join(this.root, agent.workspaceId, agent.name), dest);
+    return this.toAgent(agent.workspaceId, v.name);
   }
 
   async deleteAgent(id: AgentId): Promise<void> {

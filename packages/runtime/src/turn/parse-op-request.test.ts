@@ -115,3 +115,32 @@ test("the endpoint kind parses; azure's endpoint rides the credential op", () =>
   });
   expect(azure.op).toMatchObject({ endpoint: "https://r.openai.azure.com" });
 });
+
+test("actingAs.via: only the assistant marker survives, anything else reads as absent", () => {
+  const envelope = (actingAs: unknown) => ({
+    workspaceId: "w1",
+    agentId: "a1",
+    gcsPrefix: "ws/w1/a1",
+    hostToken: "ht",
+    claim: { id: "c", bootId: "b", token: "t", heartbeatUrl: "http://x/hb" },
+    actingAs,
+    op: { kind: "route", method: "POST", rest: "activities", body: "{}" },
+  });
+  expect(
+    parseOpRequest(envelope({ userId: "u1", name: "Ada", via: "assistant" }))
+      .actingAs,
+  ).toEqual({ userId: "u1", name: "Ada", via: "assistant" });
+  expect(parseOpRequest(envelope({ userId: "u1" })).actingAs).toEqual({
+    userId: "u1",
+  });
+  for (const via of ["employee", "", "ASSISTANT", 1, null, { a: 1 }]) {
+    expect(
+      parseOpRequest(envelope({ userId: "u1", via })).actingAs,
+      JSON.stringify(via),
+    ).toEqual({ userId: "u1" });
+  }
+  // A marker without an acting human is no acting identity at all.
+  expect(
+    parseOpRequest(envelope({ via: "assistant" })).actingAs,
+  ).toBeUndefined();
+});

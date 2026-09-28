@@ -69,7 +69,7 @@ function harness(opts?: { gateway?: boolean }): Harness {
       device = record;
     },
     put: async (patch) => {
-      const goal = String(patch.automationGoal ?? patch.segment ?? "?");
+      const goal = String(patch.automationGoal ?? patch.role ?? "?");
       sent.push(goal);
       inFlight += 1;
       peak = Math.max(peak, inFlight);

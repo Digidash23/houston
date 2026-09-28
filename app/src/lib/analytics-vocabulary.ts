@@ -21,8 +21,6 @@ export type AnalyticsProperty =
   | "config_id"
   | "agent_mode"
   | "mission"
-  | "integrations_skipped"
-  | "tutorial_run"
   | "source"
   | "error_kind"
   | "workspace_count"
@@ -54,16 +52,21 @@ export type AnalyticsProperty =
   | "surface"
   // Cloud migration (payload sizes, where already known)
   | "bytes"
-  | "selected_segment"
-  // Onboarding survey: the industry id, whether the automation goal was given
-  // or skipped, and (on onboarding_survey_prompted) which questions are still
-  // open — "industry", "goal", or "industry,goal".
+  // Onboarding survey: the industry and role ids, the company-size bucket,
+  // whether the automation goal was given or skipped, and (on
+  // onboarding_survey_prompted) which questions are still open, as a comma
+  // list of survey steps like "industry,companySize,goal".
   | "selected_industry"
+  | "selected_role"
+  | "selected_company_size"
   | "goal_provided"
   | "missing_steps"
-  // Which screen asked the question: "first_run_segment" (the onboarding flow)
+  // Which screen asked the question: "first_run_role" (the onboarding flow)
   // or "profile_completion" (the later prompt for an unfinished survey).
   | "source_screen"
+  // The answer to the onboarding's offer to start on the automation goal
+  // (onboarding_goal_handoff): "accepted" or "declined".
+  | "choice"
   // The automation goal IN THE USER'S OWN WORDS. Deliberately absent from
   // ALLOWED_PROPS: it is free text, so it never rides an event (autocapture
   // masks user content and events must stay content-free). `track` reads it
@@ -86,8 +89,6 @@ export const ALLOWED_PROPS = new Set<AnalyticsProperty>([
   "config_id",
   "agent_mode",
   "mission",
-  "integrations_skipped",
-  "tutorial_run",
   "source",
   "error_kind",
   "workspace_count",
@@ -114,11 +115,13 @@ export const ALLOWED_PROPS = new Set<AnalyticsProperty>([
   "conversation_length",
   "surface",
   "bytes",
-  "selected_segment",
   "selected_industry",
+  "selected_role",
+  "selected_company_size",
   "goal_provided",
   "missing_steps",
   "source_screen",
+  "choice",
   "chapter",
   "lesson",
   "role",

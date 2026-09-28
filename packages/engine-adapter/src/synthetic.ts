@@ -1,4 +1,5 @@
 import { canonicalProviderId, migrateProviderModel } from "@houston/domain";
+import type { AgentColorId } from "@houston/domain/agent-color-ids";
 import { toDisplayProviderId } from "@houston/domain/provider-dialect";
 import type { Agent, Workspace } from "@houston/wire-types";
 
@@ -12,7 +13,14 @@ import type { Agent, Workspace } from "@houston/wire-types";
 export const DEFAULT_WORKSPACE_ID = "default";
 export const DEFAULT_AGENT_ID = "default-agent";
 export const DEFAULT_AGENT_PATH = "houston:default-agent";
-export const DEFAULT_AGENT_COLOR = "#7a5cff";
+export const DEFAULT_AGENT_NAME = "Nova";
+/**
+ * A stored agent colour is a PALETTE ID, never a literal: `resolveAgentColor`
+ * (`@houston-ai/core`) maps the id to the themed `--ht-agent-*` custom property
+ * and hands any unknown string straight back, so a raw hex here would render
+ * off-palette and stay fixed across the theme switch.
+ */
+export const DEFAULT_AGENT_COLOR: AgentColorId = "purple";
 /**
  * Config id the seeded agent renders as. MUST match a real `AgentDefinition`
  * (`app/src/agents/builtin/*`) or the shell can't resolve `agentDef` and falls
@@ -40,7 +48,7 @@ export function syntheticWorkspace(
 export function syntheticAgent(): Agent {
   return {
     id: DEFAULT_AGENT_ID,
-    name: "Houston",
+    name: DEFAULT_AGENT_NAME,
     folderPath: DEFAULT_AGENT_PATH,
     configId: DEFAULT_AGENT_CONFIG_ID,
     color: DEFAULT_AGENT_COLOR,

@@ -179,6 +179,8 @@ test("a blocked app points the user at the agent's Settings Apps section and nev
   expect(text).not.toContain("admin");
   // The guidance explicitly forbids the connect card for a blocked app.
   expect(text).toContain("Do NOT call request_connection");
+  // A turned-off app is real: the model must never call it unsupported.
+  expect(text).toContain("never imply they are unsupported");
   // And it never offers to connect it (no "not connected yet" connect prompt).
   expect(text).not.toContain("not connected yet");
 });
@@ -560,9 +562,9 @@ test("a 403 (toolkit_not_allowed) returns Settings Apps guidance, not a raw erro
   const text = (out.content[0] as { text: string }).text;
   expect(text).toContain("turned off for this agent");
   expect(text).toContain("this agent's Settings, under Apps");
-  // It tells the model NOT to retry, and never to imply Houston lacks the app.
+  // It tells the model NOT to retry, and never to call the app unsupported.
   expect(text).toContain("Do not retry");
-  expect(text).toContain("never imply Houston lacks the app");
+  expect(text).toContain("never imply the app is unsupported");
   expect(text).not.toContain("admin");
   expect(out.details).toEqual({
     action: "SALESFORCE_CREATE_LEAD",
@@ -599,6 +601,7 @@ test("a 403 (not_assigned) returns access guidance on BOTH search and execute, n
     expect(text).toContain("Settings");
     expect(text).toContain("People");
     expect(text).toContain("Do not retry");
+    expect(text).toContain("never imply the app they asked for is unsupported");
     // Never the raw body, the gateway's jargon, or a connect offer.
     expect(text).not.toContain("not_assigned");
     expect(text).not.toContain("assigned");

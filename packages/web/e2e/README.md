@@ -55,13 +55,21 @@ e2e/
     identity.ts     # sign the harness in as a known user (see Signed-in specs below)
     machine-lock.ts # the machine-wide ONE-suite lock (an atomic mkdir in tmpdir,
                     # the holder's pid inside so waiters can steal a dead one)
+    manager-onboarding.ts # the AI Manager's onboarding conversation: its
+                    # question cards and answer rows, connecting an AI, the
+                    # three survey questions
+    manager-team.ts # the conversation's team step (one hire at a time, the
+                    # starter team) and its close into the real chat
     mission.ts      # open the board's empty new-mission composer
     mobile-nav.ts   # the PHONE chrome: the floating nav bar, its More menu,
-                    # and the Teams tree (the phone's only section switcher)
-    onboarding.ts   # reach the first-run survey and walk it; write one ACCOUNT
-                    # preference straight onto the host
+                    # and an employee's sections via its task list menu
+    onboarding.ts   # first-run host state: reset to zero agents, open the
+                    # manager's onboarding, read and write the ACCOUNT
+                    # preferences (the survey record) straight on the host
     palette.ts      # open the ⌘K command palette (the press retries: the
                     # shortcut listener is attached in an effect)
+    plan.ts         # the C19 personal plan: fixtures, arming, the plan-call
+                    # ledger, the stubbed Stripe opener, the fixed page clock
     run-locked.ts   # run a full Playwright suite under the machine lock — the
                     # `test:e2e` / `test:visual` entry point
     seed.ts         # localStorage + window.__HOUSTON_CP__ primed before any app script
@@ -71,10 +79,11 @@ e2e/
     sidebar-layout.ts # the sidebar's stored order + grouping, arranged by
                     # writing it to the HOST before the app boots
     skills-nav.ts   # open one agent's Skills section, landed
+    team-card.ts    # the new-workspace dialog's "Build your team" card: the
+                    # door onto it and its hire / basic-team controls
     team-nav.ts     # the rail (top-level rows) + the screen ON THE
                     # GLASS; open a team's section, and an agent's settings page
                     # through it ("focused agent screen", the ONE door onto agent policy)
-    tour-nav.ts     # arm the guided tour from the footer's help control
   mobile/           # phone-project specs (see Mobile below)
   visual/           # the visual-regression project + its baselines (see below)
   *.spec.ts         # the tests
@@ -89,12 +98,13 @@ phone layout from rotting. The tier-1 set walks the core journey — sign-in
 (`mobile/sign-in.spec.ts`, against the identity-ON server via
 `test.use({ baseURL: AUTH_WEB_URL })`), boot + overflow smoke, Agents home,
 mission chat push, hardware back, the nav bar (`mobile/nav-bar.spec.ts`) and
-its More menu (`mobile/more-menu.spec.ts`), the Teams tree
-(`mobile/teams-home.spec.ts`), a team's task list
-(`mobile/team-tasks.spec.ts`), and Routines
+its More menu (`mobile/more-menu.spec.ts`), group management on the AI
+Employees list (`mobile/agents-home-groups.spec.ts`), an employee's sections
+from its task list menu (`mobile/team-tasks.spec.ts`), and Routines
 (`mobile/routines.spec.ts`: list → a routine's own screen), and first-run
-(`mobile/onboarding.spec.ts`: the survey, then the whole in-app setup over
-the phone shell — More-menu rows, provider connect, first agent, first task).
+(`mobile/onboarding.spec.ts`: the AI Manager's onboarding conversation
+full-screen, connecting an AI, the survey, a first hire, then the phone
+shell).
 Beside it sit the surfaces a phone draws differently: the assistant as a
 full-height chat (`mobile/assistant.spec.ts`), the chat header's people stack
 (`mobile/chat-header-people.spec.ts`), the composer's one-row toolbar and its
@@ -108,9 +118,10 @@ rather than `.click()` and assert zero horizontal overflow
 The phone chrome is addressed through `support/mobile-nav.ts`: the floating
 nav bar (`mobile-nav-bar`, items by `data-tab`), its More card
 (`mobile-more-menu`, rows by the RAIL's `data-tour-target`), the compose
-button, and `openPhoneTeamSection` — the Teams tree is the phone's only
-section switcher, so a team's Tasks/Routines/Files are reached through it and
-never through `openTeamSection` (the desktop strip, absent below md).
+button, and `openPhoneTeamSection`, which drills into an employee from the AI
+Employees list (its task list) and opens Routines or Files of its own screen
+from the task list's "..." menu; that screen's tabs switch in place, and its
+Tasks tab and back chip return to the task list.
 
 The host itself (`@houston/fake-host`): `startFakeHost`/`stop`, the `/v1/*` +
 `/agents/*` surface, the `StreamChannel` + `serveResumableStream` chat stream,
@@ -120,7 +131,7 @@ the `.houston/**` files-first store, and the `/__test__/*` controls all live in
 **Boot.** A browser tab has no Tauri supervisor, so `support/seed.ts` primes
 `localStorage` (engine config + `houston.pref.*`) and sets `window.__HOUSTON_CP__`
 via `page.addInitScript` — before any app script runs. That skips the engine
-Connect screen, forces `en` (stable text assertions), accepts the disclaimer, and
+Connect screen, forces `en` (stable text assertions), and
 runs the adapter in host mode (matching the real cloud/desktop-host
 deployment).
 
@@ -197,30 +208,25 @@ inbox and can force a per-invite `needs_upgrade` / `already_member` /
 `{ spaces:true }`, because the sidebar cards are capability-gated on the client
 (`team-invites.spec.ts`).
 
-**C13 agent-teams arming.** `POST /__test__/agent-teams`
-(`{ teams: [{ id, name, isDefault?, sortOrder?, agentIds?, members? }],
-personalSpace? }`) arms the server-owned team world `GET /v1/org/teams` serves —
-who is in each team, which agents it holds, and who owns it. Pair it with
-`/__test__/capabilities` `{ agentTeams:true }` (the client feature-detects on the
-capability, never on the data) and with `/__test__/org` `{ agents, members }`,
-because a team is only as real as the fleet and roster behind it. That is the
-whole setup for `agent-teams.spec.ts`: the rail listing only the teams the caller
-is in, creating a team with the TYPED name, a drag that writes
-`PUT /v1/agents/:slug/team` and rolls back on a refusal, and focused agent screen'
-Members card. Browsing and JOINING other teams is dead product: a member only
-ever sees the teams they are part of, people are added through the Members card,
-and the rail's "+" is New agent · New team. `personalSpace: true` arms the space
-a user has to themselves: the teams behave exactly the same there (real list,
-create/patch/delete, the agent move), but every PEOPLE affordance is gone from
-the client, no Members card, because the gateway refuses the member writes with
-`403 personal_space`. With the capability off
-the client runs the pre-C13 local `sidebar_layout` backend unchanged, which is
-what `sidebar-teams.spec.ts` / `sidebar-dnd.spec.ts` /
-`team-manager-gate.spec.ts` already guards.
+The personal rail reads `SidebarLayout` groups. Its "+" offers New AI Employee
+and New group, and one New AI Employee row closes the root list outside every
+folder; `sidebar-teams.spec.ts` checks folder actions and row placement, and
+`sidebar-dnd.spec.ts` checks stored order and cross-group drops. Team spaces
+remain separate from these personal groups.
 
 The seeded catalog (`SEED_TOOLKIT_SLUGS`, exported for specs) holds 15 A-Z apps,
 enough that a tight allowlist blocks past the locked preview cap (8) so the
 "+N more" overflow is exercisable.
+
+**C19 personal plan arming.** `POST /__test__/plan` arms the plan AND its
+capability in one call; `support/plan.ts` holds the fixtures (`freePlan`,
+`plusPlan`, `planRoutine`), reads the host's plan ledger back
+(`planCallCount`), stubs `window.open` so no spec reaches Stripe
+(`stubOpener`, `blocked` = the popup blocker, which surfaces the fallback
+link), and starts the page clock at a fixed instant (`installPlanClock`) so
+the launch copy and the preview-versus-enforced mode are a function of the
+fixture, not the day the suite runs (`plan.spec.ts`, `mobile/plan.spec.ts`,
+`plan-dismissal.spec.ts`).
 
 **Board.** The mission board is files-first: it reads/writes
 `.houston/activity/activity.json` through `/agents/:id/agentfile/*`. The fake host
@@ -299,16 +305,18 @@ set a 390×844 viewport per test):
 | Screen | Themes | Spec |
 | --- | --- | --- |
 | Mission board (home: the first team's) | light + dark; the 640px narrow run is already the phone task list | `shell.visual.spec.ts` |
-| Phone shell (Agents home + nav bar), Teams tree, More menu, team tasks, mission chat, agent missions | light + dark each | `shell.visual.spec.ts` |
+| Phone shell (Agents home + nav bar), More menu, team tasks, mission chat, agent missions | light + dark each | `shell.visual.spec.ts` |
 | Phone Routines list + a routine's own screen | light + dark each | `routines.visual.spec.ts` |
 | Chat conversation (settled reply) | light + dark | `chat.visual.spec.ts` |
 | Chat markdown | light + dark | `chat-markdown.visual.spec.ts` |
-| First-run language gate | one (the flow pins `data-theme="light"` itself) | `onboarding.visual.spec.ts` |
+| First-run language gate | one (the pre-app screens pin `data-theme="light"` themselves) | `onboarding.visual.spec.ts` |
+| First-run onboarding in the manager's chat: the Connect your AI step, the first survey question | light + dark each | `onboarding.visual.spec.ts` |
+| Billing (Free with the early offer) + the launch announcement, desktop + phone | light (the announcement pins its own dark frame) | `plan.visual.spec.ts` |
 
 Theme is pinned by setting `data-theme` on `<html>` before the app mounts
-(`visual/support.ts` `seedTheme`) — NOT the `houston.pref.theme` preference: the
-web entry (`NewEngineRoot`) never runs the desktop's `loadTheme` bootstrap, so
-that pref is inert here.
+(`visual/support.ts` `pinTheme`) — NOT the `houston.pref.theme` preference: the
+web entry reads that preference only after it mounts (`loadThemePreference` in
+`app-tree.tsx`), which would race the screenshot; the attribute is deterministic.
 
 The visual scripts cap parallelism at `--workers=2`: full-page screenshots are
 CPU-heavy, and at higher worker counts the pinned CI container starves renders

@@ -19,6 +19,11 @@ export {
   activitiesScope,
   type CreatedActivity,
 } from "./modules/activities";
+export {
+  type MissionStartedBy,
+  type MissionStartFacts,
+  missionStartedBy,
+} from "./modules/activities/started-by";
 // ===== Agents module contract ==========================================
 export {
   AGENTS_CHANGED_EVENT,
@@ -36,6 +41,8 @@ export {
   type AgentsViewModel,
   type AgentsWrites,
   type InstalledConfig,
+  isAgentNameReserved,
+  isAgentNameTaken,
   type WireAgent,
 } from "./modules/agents";
 // ===== Files module contract ===========================================

@@ -1,43 +1,60 @@
-import { newAgentRow } from "./support/create-agent";
+import { SEED_AGENT_ID } from "@houston/fake-host";
+import { newAgentButton } from "./support/create-agent";
 import { expect, test } from "./support/fixtures";
+import { seedSidebarLayout } from "./support/sidebar-layout";
 import { litRows, navRow, rail, screen, teamTab } from "./support/team-nav";
+import {
+  openWorkspaceMenu,
+  workspaceMenuTrigger,
+} from "./support/workspace-menu";
 
 /**
  * The whole harness in one spec: the full desktop UI boots in the browser, on
  * the host adapter (host mode), against the fake host — past the
- * engine Connect screen, the language picker, and the legal disclaimer — and the
+ * engine Connect screen and the language picker — and the
  * files-first board data (`.houston/activity/activity.json`) flows through.
  *
- * It is also where the rail's shape is pinned. There is no global Mission
- * Control any more: the top-level rows are the ones that belong to nobody
- * (the Assistant, AI Models, Integrations), then "Your teams" under the rail's
- * ONE band, with the Academy and Settings in the footer — and boot lands on
- * the FIRST team's Tasks board.
+ * It is also where the rail's shape is pinned: Search and "+" on its top line,
+ * the AI Employees and nothing else under it, and the account row at its foot,
+ * whose menu holds AI Models, Integrations, the Academy and Settings. Desktop
+ * opens the first employee once the roster and layout resolve.
  */
-test("boots past every gate onto the first team's Tasks board", async ({
+test("boots past every gate onto the first employee's Tasks", async ({
   page,
 }) => {
+  await seedSidebarLayout(page.request, {
+    groups: [
+      { id: "home", name: "Home", collapsed: false, agentIds: [SEED_AGENT_ID] },
+    ],
+    order: [],
+  });
   await page.goto("/");
 
-  // Shell chrome: the whole top-level rail, in the order the user reads it.
+  // Shell chrome: the rail's top line, its people, and its foot.
   const sidebar = page.locator("[data-tour-target='sidebar']");
+  await expect(sidebar.getByTestId("rail-search")).toBeVisible();
+  await expect(newAgentButton(page)).toBeVisible();
+  await expect(sidebar.getByText("Workspace", { exact: true })).toHaveCount(0);
+  await expect(workspaceMenuTrigger(page)).toBeVisible();
+  // The destinations that belong to nobody live in the account row's menu.
+  await openWorkspaceMenu(page);
   await expect(navRow(page, "ai-hub")).toBeVisible();
   await expect(navRow(page, "integrations")).toBeVisible();
-  // The lead run wears no heading: "Your teams" is the rail's only band.
-  await expect(sidebar.getByText("Workspace", { exact: true })).toHaveCount(0);
   await expect(navRow(page, "settings")).toBeVisible();
-  await expect(sidebar.getByText("Your teams")).toBeVisible();
-  await expect(newAgentRow(page)).toBeVisible();
+  await page.keyboard.press("Escape");
 
-  // The board a user lands on is a TEAM's, and the two halves of the chrome say
-  // so between them. The RAIL says which team: its block is a name and its
-  // agents, so the block's own header is the row that lights — and it lights
-  // rather than one of its agents, because boot pins nobody. The SCREEN says
-  // which section: the team's own lozenge is the board's door, and it is the
-  // one wearing `aria-current`.
+  // The group header only folds; its first member is selected at boot.
   await expect(
-    litRows(rail(page).locator("[data-sidebar-default-header]")),
+    litRows(rail(page).locator('[data-sidebar-group-header="home"]')),
+  ).toHaveCount(0);
+  await expect(
+    litRows(
+      rail(page).locator(
+        `[data-sidebar-item][data-item-id="${SEED_AGENT_ID}"]`,
+      ),
+    ),
   ).toHaveCount(1);
+  await expect(screen(page)).toHaveAttribute("data-screen", "agent");
   await expect(teamTab(page, "Tasks")).toHaveAttribute("aria-current", "page");
 
   // The board rendered with its three columns + the seeded missions (proves the

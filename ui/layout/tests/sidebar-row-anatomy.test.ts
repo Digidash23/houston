@@ -1,19 +1,24 @@
-import { ok, strictEqual } from "node:assert";
-import { readFileSync } from "node:fs";
+import { deepStrictEqual, ok, strictEqual } from "node:assert";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
-  sidebarBandInset,
   sidebarClasses,
+  sidebarGlyphDiameter,
   sidebarIconBox,
+  sidebarMarkSize,
+  sidebarPersonRow,
+  sidebarRailInset,
   sidebarRowType,
 } from "../src/sidebar-geometry.ts";
 import {
   sidebarCollapsedItemClasses,
+  sidebarPinnedNeighbour,
   sidebarRowAffordanceClasses,
   sidebarRowButtonClasses,
   sidebarRowFill,
+  sidebarRowNeighbour,
   sidebarRowState,
 } from "../src/sidebar-paint.ts";
 
@@ -38,30 +43,14 @@ function source(file: string): string {
  * below is what keeps a new row kind from quietly forking it.
  */
 const ROW_CONSUMERS = [
-  "sidebar-nav.tsx", // the top-level destinations
-  "sidebar-band.tsx", // the ONE band: "Workspace", "Your teams"
-  "sidebar-group-header.tsx", // a team block's header
+  "sidebar-group-header.tsx", // a folder's header
   "sidebar-item-row.tsx", // an agent row
-  "sidebar-add-row.tsx", // the "New agent" row that closes the list
-];
-
-/**
- * The rail modules that render rows but must NEVER compose a band themselves:
- * the band is `sidebar-band.tsx`'s alone.
- */
-const BAND_PROP = /^\s*band\s*$/m;
-
-const BAND_FREE = [
-  "sidebar-nav.tsx",
-  "sidebar-group-header.tsx",
-  "sidebar-item-row.tsx",
-  "sidebar-add-row.tsx",
 ];
 
 describe("sidebar row anatomy", () => {
   it("draws EVERY rail row through the one row component", () => {
-    // The whole design: a nav destination, the band, a team header, an agent
-    // and the add row are one object wearing different options. A module that
+    // The whole design: a team header and an agent are one object wearing
+    // different options. A module that
     // hand-rolls a row is how the rail went back to reading as several stacked
     // lists.
     for (const file of ROW_CONSUMERS) {
@@ -70,72 +59,22 @@ describe("sidebar row anatomy", () => {
     }
   });
 
-  it("draws EVERY band through the ONE band component", () => {
-    // The rail names two bands — "Workspace" and "Your teams" — and both are
-    // `SidebarBand`. Nothing else may compose a band: a second one would drift
-    // in its type step, its triangle placement, its fold or the gap under it,
-    // and the rail would read as lists that merely resemble each other.
-    // `sidebar-rail-chrome.tsx` renders the nav runs, `sidebar.tsx` the teams
-    // list.
-    for (const file of ["sidebar-rail-chrome.tsx", "sidebar.tsx"]) {
-      ok(source(file).includes("<SidebarBand"), file);
-    }
-    // And no band is hand-rolled: only the section component itself may put a
-    // row into the `band` type step, which is the bare `band` prop.
-    for (const file of BAND_FREE) {
-      strictEqual(BAND_PROP.test(source(file)), false, file);
-    }
-    ok(BAND_PROP.test(source("sidebar-band.tsx")));
-  });
-
-  it("lets the band component own the fold and its aria wiring", () => {
-    // `aria-controls` has to resolve, so the content region is minted and kept
-    // by the component rather than by each caller. A caller passing its own id
-    // is how two bands ended up controlling the same region.
-    const src = source("sidebar-band.tsx");
-    ok(src.includes("useId()"));
-    ok(src.includes("expanded: !collapsed"));
-    // Folded drops the ROWS, never the region they live in.
-    ok(src.includes("collapsed ? null : children"));
-  });
-
-  it("puts EVERY band on ONE left edge", () => {
-    // A band whose `<nav>` is padded AND whose heading pads itself is inset
-    // twice, hanging its label 8px right of a band inset once — while every
-    // band's child ROWS sit at 8px either way, so only the labels drift and the
-    // rail reads as two lists that happen to be stacked. The inset is one
-    // export, spent once per heading and once per run of rows.
-    ok(includes(sidebarBandInset, "px-2"));
-
-    // The band component insets its heading with that value and nothing else:
-    // it is the ONLY thing in the rail that insets a band heading.
-    const band = source("sidebar-band.tsx");
-    ok(band.includes("sidebarBandInset"));
-    strictEqual(
-      /\bp[xl]-[\d.]/.test(band),
-      false,
-      "the band heading must carry no horizontal pad of its own",
-    );
-
-    // Neither renderer wraps its band in an element that pads horizontally.
-    // In the nav chrome the only horizontal pad left belongs to the COLLAPSED
-    // icon rail, which renders no bands at all.
-    const chrome = source("sidebar-rail-chrome.tsx");
-    const navOpen = chrome.indexOf("<nav");
-    const nav = chrome.slice(navOpen, chrome.indexOf(">", navOpen) + 1);
-    for (const line of nav.split("\n")) {
-      if (/\bp[xl]-[\d.]/.test(line)) ok(line.includes("collapsed"), line);
-    }
-    ok(chrome.includes("sidebarBandInset"), "the nav rows share the inset");
-
-    // And the teams band's wrapper in `sidebar.tsx` pads nothing.
+  it("puts the pinned rows, the list and the account row on ONE left edge", () => {
+    // The inset is one export, spent once per run of rows: a second pad
+    // anywhere hangs that run off the column the others sit on.
+    ok(includes(sidebarRailInset, "px-2"));
     const rail = source("sidebar.tsx");
     const wrapper = /data-tour-target="agents"[^>]*className="([^"]*)"/.exec(
       rail,
     );
-    ok(wrapper, "the teams band's wrapper");
+    ok(wrapper, "the list's wrapper");
     strictEqual(/\bp[xl]-[\d.]/.test(wrapper[1]), false, wrapper[1]);
-    ok(rail.includes("sidebarBandInset"), "the teams list shares the inset");
+    strictEqual(
+      rail.match(/sidebarRailInset/g)?.length,
+      3,
+      "import, pinned, list",
+    );
+    ok(source("sidebar-profile-menu.tsx").includes("sidebarRailInset"));
   });
 
   it("keeps the row geometry OUT of its consumers", () => {
@@ -147,6 +86,7 @@ describe("sidebar row anatomy", () => {
         "h-7",
         "pl-5",
         "size-5",
+        "size-4",
         "text-[13px]",
         "text-xs",
         "font-weight-510",
@@ -171,8 +111,8 @@ describe("sidebar row anatomy", () => {
   it("indents CHILD rows one step past the block rows they hang under", () => {
     // Two indents and only two: a block head sits at the rail's edge, and
     // everything it contains shares one glyph column 12px to its right.
-    ok(includes(sidebarRowButtonClasses.depthBlock, "pl-2"));
-    ok(includes(sidebarRowButtonClasses.depthChild, "pl-5"));
+    ok(includes(sidebarRowButtonClasses.depthBlock, "pl-3"));
+    ok(includes(sidebarRowButtonClasses.depthChild, "pl-6"));
     // The pill spans the row either way — hierarchy is inside it, never a
     // ragged left edge.
     ok(includes(sidebarRowButtonClasses.root, "w-full"));
@@ -184,35 +124,29 @@ describe("sidebar row anatomy", () => {
     ok(sidebarRowButtonClasses.icon.startsWith(sidebarIconBox));
     ok(includes(sidebarIconBox, "size-5"));
     ok(includes(sidebarIconBox, "shrink-0"));
+    // The box sizes the bare mark it holds, so one icon node can serve the
+    // rail and the phone's More menu at their own sizes.
+    ok(sidebarIconBox.endsWith(sidebarMarkSize.slot));
+    ok(includes(sidebarMarkSize.slot, "[&>svg]:size-4"));
+    ok(includes(sidebarMarkSize.slot, "[&>img]:size-4"));
+    strictEqual(sidebarMarkSize.glyph, "size-3.5");
+    // A mark sized off the column fills it exactly.
+    strictEqual(sidebarGlyphDiameter, 20);
     // The box itself carries no gap: the gap is the ROW's, spent beside it, so
     // a consumer mounting the box elsewhere does not inherit rail spacing.
     strictEqual(/\bm[rlxe]-/.test(sidebarIconBox), false, sidebarIconBox);
   });
 
-  it("runs on TWO type sizes and no more: 13px rows, a 12px band", () => {
-    // Every row that points at something is one size, so the rail reads as one
-    // list; the band that merely names the list is one step down. A third size
-    // anywhere is how a rail starts looking like a settings form.
+  it("runs every row at ONE type size", () => {
+    // One size, so the rail reads as one list. A second size anywhere is how a
+    // rail starts looking like a settings form.
     ok(includes(sidebarRowType.item, "text-[13px]"));
-    ok(includes(sidebarRowType.band, "text-xs"));
+    deepStrictEqual(Object.keys(sidebarRowType), ["item"]);
     // The size lives on the type ramp, never on the geometry class, or the two
     // would have to be kept in step by hand.
     for (const token of tokens(sidebarRowButtonClasses.button)) {
       strictEqual(/^text-(\[|sm$|xs$|base$)/.test(token), false, token);
     }
-  });
-
-  it("paints the band one step OFF muted, toward the ink", () => {
-    // "Your teams" in `ink-muted` read as disabled next to the rows under it.
-    // It takes the same resting label colour as every other row (one step
-    // toward the ink) and is set apart by SIZE, which is the quiet way.
-    ok(includes(sidebarRowState.restText, "text-hover-text"));
-    strictEqual(
-      source("sidebar-band.tsx").includes("muted"),
-      false,
-      "the band must not be muted",
-    );
-    ok(source("sidebar-band.tsx").includes("band"));
   });
 
   it("gives both type steps a line-height shorter than the row", () => {
@@ -267,7 +201,7 @@ describe("sidebar row anatomy", () => {
   });
 
   it("never goes bold anywhere in the rail", () => {
-    // "Your teams" reading as semibold grey was the tell that the rail had been
+    // "Your AI Employees" reading as semibold grey was the tell that the rail had been
     // built as a heading with a list under it.
     for (const cls of [
       ...Object.values(sidebarRowType),
@@ -342,12 +276,9 @@ describe("sidebar row anatomy", () => {
     }
   });
 
-  it("renders block headers without a menu affordance column", () => {
-    strictEqual(
-      source("sidebar-group-header.tsx").includes("affordance="),
-      false,
-    );
-    strictEqual(source("sidebar-block-header.tsx").includes("menu="), false);
+  it("renders block headers with the host's menu affordance", () => {
+    ok(source("sidebar-group-header.tsx").includes("affordance={affordance}"));
+    strictEqual(source("sidebar-tree-row.tsx").includes("menu="), false);
   });
 
   it("gives the row a visible focus ring, ON the pill it is outlining", () => {
@@ -372,7 +303,7 @@ describe("sidebar row anatomy", () => {
     // A fill spanning the rail edge to edge is a bar: at 28px tall an 8px
     // corner is invisible and the rail reads as stacked rectangles. Pulling the
     // paint 6px in from each side is what makes the corner legible, on the same
-    // `rounded-lg` the team screen's section lozenges wear.
+    // `rounded-lg` an employee screen's section lozenges wear.
     ok(sidebarRowFill.includes("before:left-1.5"));
     ok(sidebarRowFill.includes("before:right-1.5"));
     ok(sidebarRowFill.includes("before:rounded-lg"));
@@ -386,9 +317,7 @@ describe("sidebar row anatomy", () => {
       strictEqual(/rounded-/.test(cls), false, cls);
       strictEqual(/-?[lmr][xrl]?-1\.5/.test(cls), false, cls);
     }
-    // No consumer restates the INSET either. (Radius is NOT checked per file:
-    // the collapsed icon rail lives in `sidebar-nav.tsx` too and rounds its own
-    // 36px glyph, which is a different object — see the last test here.)
+    // No consumer restates the INSET either.
     for (const file of ROW_CONSUMERS) {
       strictEqual(/-1\.5\b/.test(source(file)), false, file);
     }
@@ -418,9 +347,20 @@ describe("sidebar row anatomy", () => {
       "a row-level gap would couple the two sides again",
     );
     // Glyph EDGE to first letter is this margin plus the slack the mark leaves
-    // in the 20px box (0 for an avatar, 2px for a 16px Lucide mark, 3px for a
-    // 14px team mark): 6px lands it at 6-9px, Linear's range.
+    // in the 20px box: 0 for a mark that fills it, 2px for a 16px Lucide mark,
+    // and 3px for a 14px team mark. Every glyph kind must land in 6-9px, Linear's range.
     ok(includes(sidebarRowButtonClasses.icon, "mr-1.5"));
+    const px = (token: string) => Number(token.split("-").pop()) * 4;
+    const box = px("size-5");
+    const gap = px("mr-1.5");
+    for (const glyph of [sidebarGlyphDiameter, 16, px(sidebarMarkSize.glyph)]) {
+      const edge = gap + (box - glyph) / 2;
+      ok(
+        edge >= 6 && edge <= 9,
+        `glyph ${glyph}px sits ${edge}px off its label`,
+      );
+      strictEqual(Number.isInteger((box - glyph) / 2), true, `${glyph}px`);
+    }
     // A badge is a separate object from the name, not part of the phrase, so it
     // gets more air than the icon does — strictly more.
     ok(includes(sidebarRowButtonClasses.trailing, "ml-2"));
@@ -453,10 +393,11 @@ describe("sidebar row anatomy", () => {
     // is more over there". Local SVG, because no icon set ships this shape at
     // this weight and a dependency for one path would be absurd.
     const src = source("sidebar-row-button.tsx");
-    strictEqual(src.includes("lucide-react"), false, "no icon-set chevron");
-    ok(src.includes("<svg"));
-    ok(src.includes('viewBox="0 0 16 16"'));
-    ok(src.includes("<path"));
+    const mark = source("sidebar-row-caret.tsx");
+    strictEqual(mark.includes("lucide-react"), false, "no icon-set chevron");
+    ok(mark.includes("<svg"));
+    ok(mark.includes('viewBox="0 0 16 16"'));
+    ok(mark.includes("<path"));
     ok(includes(sidebarRowButtonClasses.caret, "fill-current"));
     // Linear's own 16px box. At 12px the same 5x7 mark was a speck.
     ok(includes(sidebarRowButtonClasses.caret, "size-4"));
@@ -470,9 +411,7 @@ describe("sidebar row anatomy", () => {
     // pinned to the row's right edge, and never a second placement option.
     ok(src.includes("c.labelGroup"));
     strictEqual(src.includes('"trailing"'), false, "no trailing caret side");
-    for (const file of ["sidebar-band.tsx", "sidebar-group-header.tsx"]) {
-      strictEqual(source(file).includes("caret:"), false, file);
-    }
+    strictEqual(source("sidebar-group-header.tsx").includes("caret:"), false);
   });
 
   it("states the selected row once, and shares it across every row kind", () => {
@@ -511,7 +450,7 @@ describe("sidebar row anatomy", () => {
     // One rhythm from the band to the last row: a block adds no vertical space
     // of its own, so two teams sit exactly as far apart as two agents do. The
     // 10px it used to insert read as a hole in the rail — Linear's does not.
-    const src = source("sidebar-group-section.tsx");
+    const src = source("sidebar-tree-row.tsx");
     for (const gap of ["pt-2.5", "first:pt-0", "mt-"])
       strictEqual(src.includes(gap), false, `block spacing: ${gap}`);
     ok(includes(sidebarClasses.itemsList, "space-y-px"));
@@ -524,6 +463,151 @@ describe("sidebar row anatomy", () => {
     // to sit beside and no width to be inset from.
     ok(includes(sidebarCollapsedItemClasses.trailing, "absolute"));
     ok(includes(sidebarCollapsedItemClasses.trailing, "pointer-events-none"));
+    // Where it perches is `sidebar-collapsed-item.test.ts`'s: on the avatar's
+    // shoulder.
     strictEqual("root" in sidebarCollapsedItemClasses, false);
+  });
+});
+
+describe("sidebar person row", () => {
+  const px = (token: string) => Number(token.split("-").pop()) * 4;
+
+  it("seats a 40px portrait on even padding in a fixed 64px row", () => {
+    strictEqual(sidebarPersonRow.height, "h-16");
+    strictEqual(sidebarRowButtonClasses.personHeight, "h-16");
+    ok(includes(sidebarPersonRow.iconBox, "size-10"));
+    strictEqual(px("size-10"), sidebarPersonRow.avatarDiameter);
+    const padding = (px("h-16") - sidebarPersonRow.avatarDiameter) / 2;
+    strictEqual(padding, 12);
+    ok(sidebarRowButtonClasses.personIcon.startsWith(sidebarPersonRow.iconBox));
+    ok(includes(sidebarRowButtonClasses.personIcon, sidebarPersonRow.iconGap));
+  });
+
+  it("keeps the rail's text size: a bolder name over a muted role", () => {
+    ok(includes(sidebarPersonRow.name, "text-[13px]"));
+    ok(includes(sidebarPersonRow.name, "font-semibold"));
+    ok(includes(sidebarPersonRow.role, "text-xs"));
+    ok(includes(sidebarPersonRow.role, "text-ink-muted"));
+    // The name and a two-line line fit with room to spare: 20 + 2 x 16 < 64.
+    ok(px("leading-5") + 2 * px("leading-4") < px("h-16"));
+    ok(includes(sidebarRowButtonClasses.personName, "truncate"));
+    ok(includes(sidebarRowButtonClasses.personRole, "line-clamp-2"));
+  });
+
+  it("draws every AI Employee row as a person, laid out like a message list", () => {
+    const row = source("sidebar-item-row.tsx");
+    ok(row.includes('anatomy="person"'));
+    ok(row.includes("subtitle={item.subtitle}"));
+    // A row with neither a line nor a badge drops the second line, never the
+    // row's height.
+    const button = source("sidebar-row-button.tsx");
+    ok(button.includes("{(subtitle || trailing) && ("));
+    ok(button.includes("person && c.personHeight"));
+    // The line clamps; the badge at its end never shrinks.
+    ok(includes(sidebarRowButtonClasses.personBadge, "shrink-0"));
+  });
+});
+
+describe("sidebar person row, message-list details", () => {
+  it("gives the name and the line their own weights", () => {
+    // The row's `font-weight-510` sets `font-variation-settings`, which is
+    // inherited and beats `font-weight`: without the reset both lines render
+    // at 510 and the name stops standing out.
+    ok(
+      includes(
+        sidebarRowButtonClasses.personText,
+        "[font-variation-settings:normal]",
+      ),
+    );
+    ok(includes(sidebarPersonRow.name, "font-semibold"));
+    ok(includes(sidebarPersonRow.name, "text-ink"));
+    ok(includes(sidebarPersonRow.role, "font-normal"));
+  });
+
+  it("separates rows with a hairline under the text, never under the pill", () => {
+    ok(includes(sidebarRowButtonClasses.personText, "border-b"));
+    ok(includes(sidebarRowButtonClasses.personText, "border-line"));
+    ok(includes(sidebarRowButtonClasses.personText, "self-stretch"));
+    const button = source("sidebar-row-button.tsx");
+    ok(button.includes("active && c.personTextBare"));
+    ok(source("sidebar-profile-menu.tsx").includes("row.personTextBare"));
+  });
+
+  it("drops the hairlines around a hovered or selected row, never under a pill", () => {
+    // The pill is translucent: a line it cannot cover must not be drawn.
+    ok(
+      includes(
+        sidebarRowButtonClasses.personText,
+        "group-hover/row:border-transparent",
+      ),
+    );
+    ok(source("sidebar-row-button.tsx").includes('data-person-text=""'));
+    // The row ABOVE hides its line too, whether the next row is a sibling in
+    // the tree or the scrolling list's first row under the pinned run.
+    ok(
+      sidebarRowNeighbour.includes(
+        "[&:has(+*:hover)_[data-person-text]]:border-transparent",
+      ),
+    );
+    ok(
+      sidebarRowNeighbour.includes(
+        "[&:has(+*_[aria-current=page])_[data-person-text]]:border-transparent",
+      ),
+    );
+    ok(
+      sidebarPinnedNeighbour.includes("[data-sidebar-row]:first-of-type:hover"),
+    );
+    const tree = source("sidebar-tree-row.tsx");
+    ok(
+      tree.includes('data-sidebar-row=""') &&
+        tree.includes("sidebarRowNeighbour,"),
+    );
+    const pinned = source("sidebar-pinned-list.tsx");
+    ok(
+      pinned.includes('data-sidebar-row=""') &&
+        pinned.includes("className={sidebarRowNeighbour}"),
+    );
+    ok(source("sidebar.tsx").includes("sidebarPinnedNeighbour)"));
+  });
+
+  it("spans the pill across the row and pads the portrait evenly inside it", () => {
+    ok(includes(sidebarRowButtonClasses.personFill, "before:inset-x-0"));
+    // 12px from the pill's side, the same 12px it keeps top and bottom.
+    ok(includes(sidebarPersonRow.padBlock, "pl-3"));
+    ok(includes(sidebarPersonRow.padBlock, "pr-3"));
+    ok(includes(sidebarPersonRow.padChild, "pl-6"));
+    const button = source("sidebar-row-button.tsx");
+    ok(button.includes("person && [c.personHeight, c.personFill]"));
+  });
+});
+
+describe("employee depth", () => {
+  it("keeps root employees on the folder header edge and indents only members", () => {
+    // The glyph rows' indents are the person rows' own, so a folder header's
+    // glyph and a root employee's portrait start on one edge.
+    strictEqual(
+      sidebarRowButtonClasses.depthBlock,
+      sidebarPersonRow.padBlock.split(" ")[0],
+    );
+    strictEqual(
+      sidebarRowButtonClasses.depthChild,
+      sidebarPersonRow.padChild.split(" ")[0],
+    );
+    ok(includes(sidebarRowButtonClasses.depthBlock, "pl-3"));
+    ok(includes(sidebarRowButtonClasses.depthChild, "pl-6"));
+    ok(
+      source("sidebar-item-row.tsx").includes(
+        'depth={grouped ? "child" : "block"}',
+      ),
+    );
+    ok(source("sidebar-tree-row.tsx").includes("grouped={inGroup}"));
+  });
+
+  it("closes the list on its rows alone: creating is the host's top-line verb", () => {
+    for (const file of ["sidebar-grouped-list.tsx", "sidebar-flat-list.tsx"]) {
+      const src = source(file);
+      strictEqual(/onAdd|addItem|SidebarAddRow/.test(src), false, file);
+    }
+    strictEqual(existsSync(join(SRC, "sidebar-add-row.tsx")), false);
   });
 });

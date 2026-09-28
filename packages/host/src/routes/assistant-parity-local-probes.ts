@@ -1,3 +1,4 @@
+import { LOCAL_INTEGRATION_PROBES } from "./assistant-parity-local-integrations";
 import {
   PROBE_AGENT,
   PROBE_FOLDER,
@@ -42,6 +43,11 @@ export const LOCAL_PROBES: readonly Probe[] = [
   probe("preferences.setLocale", { ...WORKSPACE, locale: "en" }),
   probe("listInstalledConfigs"),
   probe("updateAgentColor", { agentId: PROBE_AGENT, color: "teal" }),
+  probe("getAgentDelegation", AGENT),
+  probe("setAgentDelegation", {
+    ...AGENT,
+    policy: { mode: "all", agents: [], acceptsMissions: true },
+  }),
   proxied(
     "listAgentProviders",
     AGENT,
@@ -80,6 +86,8 @@ export const LOCAL_PROBES: readonly Probe[] = [
     routineId: NO_ROUTINE,
     runId: "no-such-run",
   }),
+  // The probe agent has no first day waiting: the handler's own 409.
+  probe("startFirstDay", { ...AGENT, input: {} }),
 
   // Skills, per agent and shared across the workspace.
   probe("listSkills", AGENT),
@@ -123,51 +131,7 @@ export const LOCAL_PROBES: readonly Probe[] = [
   probe("listProjectFiles", AGENT_PATH),
   probe("deleteFile", { ...AGENT_PATH, relPath: PROBE_FOLDER_RENAMED }),
 
-  // Integrations, including the ones a user adds themselves.
-  probe("integrationStatus"),
-  probe("integrationToolkits", { provider: "composio" }),
-  probe("integrationConnections", { provider: "composio" }),
-  probe("integrationConnection", {
-    provider: "composio",
-    connectionId: "no-such-connection",
-  }),
-  probe("triggerTypes", { toolkit: "gmail" }),
-  probe("customIntegrations"),
-  probe("addCustomIntegration", { input: {} }),
-  probe("detectCustomIntegration", { url: "not-a-url" }),
-  probe("customIntegrationTools", { slug: "no-such-integration" }),
-  probe("removeCustomIntegration", { slug: "no-such-integration" }),
-  // The same connectors, addressed through the agent that owns them.
-  probe("agentCustomIntegrations", { agentSlugOrId: PROBE_AGENT }),
-  probe("addAgentCustomIntegration", { agentSlugOrId: PROBE_AGENT, input: {} }),
-  probe("detectAgentCustomIntegration", {
-    agentSlugOrId: PROBE_AGENT,
-    url: "not-a-url",
-  }),
-  probe("agentCustomIntegrationTools", {
-    agentSlugOrId: PROBE_AGENT,
-    slug: "no-such-integration",
-  }),
-  probe("removeAgentCustomIntegration", {
-    agentSlugOrId: PROBE_AGENT,
-    slug: "no-such-integration",
-  }),
-  probe("updateCustomIntegrationDetails", {
-    slug: "no-such-integration",
-    details: {},
-  }),
-  probe("updateAgentCustomIntegrationDetails", {
-    agentSlugOrId: PROBE_AGENT,
-    slug: "no-such-integration",
-    details: {},
-  }),
-  probe("integrations.disconnect", { toolkit: "gmail" }),
-  proxied(
-    "providers.refreshStatus",
-    AGENT,
-    "GET auth/status is the engine's own route; the host relays it",
-  ),
-  probe("forgetCredential", { ...AGENT, provider: "openrouter" }),
+  ...LOCAL_INTEGRATION_PROBES,
 
   // The chats of one agent, and the transcript of one, which the agent's own
   // engine holds.

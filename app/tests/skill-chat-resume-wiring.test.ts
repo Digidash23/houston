@@ -39,8 +39,10 @@ describe("the create chat's resume decision", () => {
   it("only resumes where the unfinished chats are listed", () => {
     ok(chatOpen.includes("allowResume: initial.allowResume"));
     ok(
-      createFlow.includes("allowResume: scopedAgent !== null"),
-      "the library lists none, so it resumes none",
+      createFlow.includes(
+        'openChat(agent, { kind: "create", allowResume: true })',
+      ),
+      "the section lists the employee's unfinished chats, so a create may resume one",
     );
   });
 

@@ -1,5 +1,6 @@
 import { FAKE_HOST_URL } from "@houston/fake-host";
 import { expect, test } from "./support/fixtures";
+import { openNavRow } from "./support/workspace-menu";
 
 for (const width of [1280, 390]) {
   test(`custom name and website can be edited without reconnecting at ${width}px`, async ({
@@ -54,7 +55,7 @@ for (const width of [1280, 390]) {
       route.abort(),
     );
     await page.goto("/");
-    await page.locator('[data-tour-target="nav-integrations"]').click();
+    await openNavRow(page, "integrations");
     await page.setViewportSize({ width, height: 900 });
     await page.getByRole("button", { name: "Supabase MCP MCP server" }).click();
     await page

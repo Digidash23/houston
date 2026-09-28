@@ -11,14 +11,17 @@
 import { createAccountModule } from "./modules/account";
 import { createActivitiesModule } from "./modules/activities";
 import { createAgentsModule } from "./modules/agents";
+import { createAppearanceModule } from "./modules/appearance";
 import { createBillingModule } from "./modules/billing";
 import { createChannelsModule } from "./modules/channels";
 import { createConversationsModule } from "./modules/conversations";
+import { createDelegationModule } from "./modules/delegation";
 import { createFilesModule } from "./modules/files";
 import { createIntegrationsModule } from "./modules/integrations";
 import { createMigrationModule } from "./modules/migration";
 import { createMissionsSearchModule } from "./modules/missions-search";
 import { createOrgModule } from "./modules/org";
+import { createPlanModule } from "./modules/plan";
 import { createPreferencesModule } from "./modules/preferences";
 import { createProvidersModule } from "./modules/providers";
 import { createRoutinesModule } from "./modules/routines";
@@ -37,6 +40,8 @@ export interface SdkModules {
   readonly agents: ReturnType<typeof createAgentsModule>;
   /** Conversation facade (history, per-conversation streams). */
   readonly conversations: ReturnType<typeof createConversationsModule>;
+  /** Per-agent outgoing and incoming mission policy. */
+  readonly delegation: ReturnType<typeof createDelegationModule>;
   /** Turn facade (send message, drive a turn). */
   readonly turns: ReturnType<typeof createTurnsModule>;
   /** Board/missions facade (per-agent activities read + CRUD). */
@@ -49,6 +54,8 @@ export interface SdkModules {
   readonly integrations: ReturnType<typeof createIntegrationsModule>;
   /** Preferences facade (key/value preferences + workspace locale). */
   readonly preferences: ReturnType<typeof createPreferencesModule>;
+  /** Appearance facade (this device's theme mode and its two palette picks). */
+  readonly appearance: ReturnType<typeof createAppearanceModule>;
   /** Spaces facade (memberships, invitations, agent moves between spaces). */
   readonly spaces: ReturnType<typeof createSpacesModule>;
   /** Workspaces facade (workspace list, agent docs, context notes, sidebar). */
@@ -61,6 +68,7 @@ export interface SdkModules {
   readonly teams: ReturnType<typeof createTeamsModule>;
   /** Billing facade (the team's subscription + the Stripe hand-offs). */
   readonly billing: ReturnType<typeof createBillingModule>;
+  readonly plan: ReturnType<typeof createPlanModule>;
   /** Channels facade (the messaging accounts the personal assistant answers in). */
   readonly channels: ReturnType<typeof createChannelsModule>;
   /** Routines facade (an agent's scheduled work, its runs, its webhook key). */
@@ -84,9 +92,12 @@ export const moduleFactories = {
   createAccountModule,
   createActivitiesModule,
   createAgentsModule,
+  createAppearanceModule,
   createBillingModule,
+  createPlanModule,
   createChannelsModule,
   createConversationsModule,
+  createDelegationModule,
   createFilesModule,
   createIntegrationsModule,
   createMigrationModule,

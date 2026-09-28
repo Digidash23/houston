@@ -262,3 +262,80 @@ test("a failed control surfaces the engine's status — never swallowed", async 
     client().truncateConversation(AGENT, SK, "turn-9"),
   ).rejects.toMatchObject({ status: 409 });
 });
+
+// ---- lines said elsewhere, written in as history ----
+
+const IMPORT = {
+  importId: "onboarding:first_run",
+  messages: [
+    { role: "assistant" as const, content: "Hi Ana!" },
+    { role: "user" as const, content: "Retail and e-commerce" },
+  ],
+};
+
+/** The import answers `imported`; the history read after it answers the lines. */
+function stubImport(imported: number) {
+  stubRouted((call: Call) =>
+    call.url.endsWith("/import")
+      ? json(200, { ok: true, imported })
+      : json(200, { id: SK, title: "t", messages: [], totalMessages: 0 }),
+  );
+}
+
+test("importConversationMessages posts the import, then reads the tail window to re-seed the chat", async () => {
+  stubImport(2);
+
+  await expect(
+    client().importConversationMessages(AGENT, SK, IMPORT),
+  ).resolves.toEqual({ ok: true, imported: 2 });
+
+  const [post, read] = calls;
+  expect(calls).toHaveLength(2);
+  expect(post.method).toBe("POST");
+  expect(post.url).toBe(`${BASE}/agents/${AGENT}/conversations/${SK}/import`);
+  expect(post.body).toBe(JSON.stringify(IMPORT));
+  expect(post.headers.get("Content-Type")).toBe("application/json");
+  expectGatewayHeaders(post);
+  expect(read.method).toBe("GET");
+  expect(read.url).toBe(
+    `${BASE}/agents/${AGENT}/conversations/${SK}/messages?limit=${CHAT_OPEN_WINDOW}`,
+  );
+});
+
+test("an import that already landed reads nothing more", async () => {
+  stubImport(0);
+  await client().importConversationMessages(AGENT, SK, IMPORT);
+  expect(onlyCall().url).toBe(
+    `${BASE}/agents/${AGENT}/conversations/${SK}/import`,
+  );
+});
+
+test("a refused import surfaces its status and is sent again by the retry", async () => {
+  stubRouted(() => json(409, { error: "turn running" }));
+  await expect(
+    client().importConversationMessages(AGENT, SK, IMPORT),
+  ).rejects.toMatchObject({ status: 409 });
+
+  reset();
+  stubImport(2);
+  await expect(
+    client().retryPendingConversationImports(AGENT),
+  ).resolves.toEqual([]);
+  expect(calls.map((call) => [call.method, call.url, call.body])).toEqual([
+    [
+      "POST",
+      `${BASE}/agents/${AGENT}/conversations/${SK}/import`,
+      JSON.stringify(IMPORT),
+    ],
+    [
+      "GET",
+      `${BASE}/agents/${AGENT}/conversations/${SK}/messages?limit=${CHAT_OPEN_WINDOW}`,
+      null,
+    ],
+  ]);
+
+  // Landed: nothing is owed any more.
+  reset();
+  await client().retryPendingConversationImports(AGENT);
+  expect(calls).toEqual([]);
+});

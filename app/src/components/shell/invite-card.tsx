@@ -12,10 +12,10 @@ import {
 } from "../../lib/invite-model";
 
 /**
- * One pending team invitation, offered where the user picks a space: directly
- * under the workspace switcher, ALWAYS visible (never behind a hover or a menu
- * — the switcher's dropdown would hide the whole thing behind a click, and an
- * invitation nobody sees is an invitation nobody accepts).
+ * One pending team invitation, offered at the top of the rail, directly under
+ * its top line, ALWAYS visible (never behind a hover or a menu — the account
+ * menu would hide the whole thing behind a click, and an invitation nobody
+ * sees is an invitation nobody accepts).
  *
  * The inviter is named only when the gateway sends something human; today
  * `invitedBy` is the inviter's user id, which no invitee-side read can resolve

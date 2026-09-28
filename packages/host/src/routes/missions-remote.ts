@@ -19,7 +19,7 @@ export interface RemoteMissionRoute {
   target: RemoteMissionTarget;
   gateway: AssistantGateway;
   fetchImpl?: typeof fetch;
-  // The gateway derives the acting user from the authenticated pod credential.
+  actingAs?: string;
 }
 
 /** A board move, in the vocabulary both entries take it in. */
@@ -45,15 +45,15 @@ export interface MissionStartInput {
  */
 export interface MissionOrigin {
   session_key: string;
-  /** The calling agent's id, recorded on the target's row as provenance. */
-  agent: string;
+  /** The verified calling agent is absent for AI Manager starts. */
+  agent?: string;
   /** How deep the mission being started sits: 1 when a person's chat asked. */
   depth: number;
 }
 
 /**
  * The deepest a mission may sit. Depth 1 is work a PERSON asked for; a mission
- * Houston started would be depth 2, which is refused - the board stays a flat
+ * started by another mission would be depth 2, which is refused - the board stays a flat
  * list and a spawn loop cannot run away.
  *
  * The number is carried rather than assumed because the caller's parent chat
@@ -61,6 +61,10 @@ export interface MissionOrigin {
  * caller counts it from its own board and the target enforces the ceiling.
  */
 export const MAX_MISSION_DEPTH = 1;
+
+/** The model reads this refusal, so it names no product as the actor. */
+export const MISSION_DEPTH_ERROR =
+  "a mission started by another mission can't start further missions - ask in the original chat instead";
 
 export type MissionParse<T> =
   | { ok: true; value: T }
@@ -147,8 +151,7 @@ export function parseMissionOrigin(
     return {
       ok: false,
       code: "mission_depth",
-      error:
-        "missions Houston started can't start further missions - ask in the original chat instead",
+      error: MISSION_DEPTH_ERROR,
     };
   }
   return { ok: true, value: { session_key: sessionKey, agent, depth } };

@@ -116,6 +116,6 @@ test("throws on duplicate action ids", async () => {
 test("recording outside a turn is a no-op but returns the instruction", async () => {
   const out = await run({ actions });
   expect((out.content[0] as { text: string }).text).toMatch(
-    /Houston will show/i,
+    /The app will show/i,
   );
 });

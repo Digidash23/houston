@@ -1,5 +1,6 @@
 import {
   type BoardSearchSnippet,
+  type KanbanItem,
   KanbanList,
   KanbanListItem,
 } from "@houston-ai/board";
@@ -35,6 +36,16 @@ export const SNIPPET: Record<string, BoardSearchSnippet> = {
     text: "…assigned the pricing follow-up to Ana Silva and set Thursday as the deadline.",
     ranges: [{ start: 14, end: 21 }],
   },
+};
+
+/** A routine's run: the row wears the board card's "Routine" tag. */
+const ROUTINE_RUN: KanbanItem = {
+  id: "m-weekly",
+  group: "Meeting Notes",
+  title: "Weekly pipeline summary for the Monday sync",
+  status: "done",
+  updatedAt: "2026-02-23T08:00:00.000Z",
+  tags: ["Routine"],
 };
 
 /** The list as Mission Control's Archived view mounts it, with a working delete. */
@@ -98,12 +109,19 @@ export function LiveArchivedList({
   );
 }
 
-/** One row on its own, so the two row shapes can be compared side by side. */
+/** One row on its own, so the row shapes can be compared side by side. */
 export function Rows() {
   return (
     <div className="flex w-full max-w-lg flex-col gap-1.5">
       <KanbanListItem
         item={ARCHIVED[1]}
+        avatar={AGENT_ICON}
+        labels={LABELS}
+        onSelect={() => {}}
+        onDelete={() => {}}
+      />
+      <KanbanListItem
+        item={ROUTINE_RUN}
         avatar={AGENT_ICON}
         labels={LABELS}
         onSelect={() => {}}

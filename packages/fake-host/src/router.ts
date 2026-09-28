@@ -17,12 +17,16 @@ import {
   killRunningTurns,
   turnBoundary,
 } from "./chat-controls";
-import { SEED_AGENT_ID } from "./config";
+import { ASSISTANT_AGENT_ID, SEED_AGENT_ID } from "./config";
 import { CORS, json } from "./http";
 import { handleAgents } from "./routes";
-import { handleAgentTeamsRoutes } from "./routes-agent-teams";
 import { handleUserRoutes } from "./routes-integrations";
 import { handleMeRoutes } from "./routes-me";
+import {
+  handlePlanCallsControl,
+  handlePlanControl,
+  handlePlanRoutes,
+} from "./routes-plan";
 import { lastPortableExport, resetPortable } from "./routes-portable";
 import { handleSetupRuntime } from "./routes-setup-runtime";
 import { handleSharedSkillsRoutes } from "./routes-shared-skills";
@@ -271,25 +275,6 @@ export async function handle(req: Request): Promise<Response> {
       agents: state.listAgents(),
     });
   }
-  // Arm the C13 agent-team world `GET /v1/org/teams` serves: `{ teams: [{ id,
-  // name, isDefault?, sortOrder?, icon?, color?, agentIds?, members? }],
-  // personalSpace? }`. Omit `icon`/`color` to arm a team that HAS no identity —
-  // the field is then absent from the row, and so from the wire.
-  // Arming REPLACES it wholesale; an omitted (or `null`) `teams` clears it back
-  // to lazy, so the next read mints the default team again. The client
-  // feature-detects on the capability, not on this data, so pair it with
-  // `/__test__/capabilities` `{ agentTeams:true }`. Returns the armed value.
-  if (path === "/__test__/agent-teams" && method === "POST") {
-    const body = await parseBody(req);
-    return json(
-      state.armAgentTeams(
-        Array.isArray(body?.teams)
-          ? (body.teams as state.AgentTeamSeed[])
-          : null,
-        body?.personalSpace === true,
-      ),
-    );
-  }
   // Arm the team-space rows `GET /v1/workspaces` bridges in (C8 Spaces): each
   // `{ slug, name }` becomes an `{ id:"org:<slug>", kind:"org" }` switcher row,
   // served alongside the always-present personal seed row. A `slug` must be
@@ -323,6 +308,17 @@ export async function handle(req: Request): Promise<Response> {
   // empties the inbox.
   if (path === "/__test__/space-invites" && method === "POST") {
     return handleSpaceInvitesControl(await parseBody(req));
+  }
+  // Arm the C19 personal plan: the PlanSummary `GET /v1/me/plan` serves, the
+  // invoices/routines, the Stripe URLs, and the chat send's `429
+  // message_limit`. Also advertises the `plan` capability (the gateway's one
+  // switch drives both); `{ summary: null }` (and reset) turns both off.
+  if (path === "/__test__/plan" && method === "POST") {
+    return handlePlanControl(await parseBody(req));
+  }
+  // The plan-call ledger: every plan route hit (and refused send) since arming.
+  if (path === "/__test__/plan-calls" && method === "GET") {
+    return handlePlanCallsControl();
   }
   // Seed a connection at a status the UI can't be clicked into: `pending` (an
   // abandoned sign-in) or `error` (the provider refused). `{toolkit, status}`.
@@ -386,14 +382,14 @@ export async function handle(req: Request): Promise<Response> {
     return json(buildProviderCatalog());
   }
   // Personal-assistant discovery (`GET /v1/assistant`, `AssistantHandle`): the
-  // address the rail's Assistant row and its screen are gated on. The real host
-  // answers a hidden dot-named agent; the fake has no hidden tree, so the seeded
-  // agent stands in — the chat that opens then rides the ordinary per-agent
-  // runtime routes, which is the contract under test. The conversation id is
-  // the host's own constant, and no activity is created for it, so the
-  // assistant thread stays off every board exactly as it does in production.
+  // address the rail's Manager row and its screen are gated on. Like the real
+  // host it answers a hidden agent off the roster, so a first run (an empty
+  // roster) still has its manager; the chat that opens rides the ordinary
+  // per-agent runtime routes, which is the contract under test. The
+  // conversation id is the host's own constant, and no activity is created for
+  // it, so the assistant thread stays off every board as it does in production.
   if (path === "/v1/assistant" && method === "GET") {
-    return json({ agent: SEED_AGENT_ID, conversation: "assistant" });
+    return json({ agent: ASSISTANT_AGENT_ID, conversation: "assistant" });
   }
   const sharedSkillsRoute = handleSharedSkillsRoutes(method, segs, body);
   if (sharedSkillsRoute) return sharedSkillsRoute;
@@ -405,13 +401,13 @@ export async function handle(req: Request): Promise<Response> {
   const teamsRoute = handleTeamsRoutes(method, segs, body, url);
   if (teamsRoute) return teamsRoute;
 
-  // --- C13 agent teams (the space's teams of agents + people) ---
-  const agentTeamsRoute = handleAgentTeamsRoutes(method, segs, body);
-  if (agentTeamsRoute) return agentTeamsRoute;
-
   // --- C8 Spaces gateway routes (the cross-org list + the invitee's inbox) ---
   const spacesRoute = handleSpacesRoutes(method, segs, body);
   if (spacesRoute) return spacesRoute;
+
+  // --- C19 personal plan (per person, across spaces) ---
+  const planRoute = handlePlanRoutes(method, segs, body);
+  if (planRoute) return planRoute;
 
   // --- the caller's own editable display profile (name + photo) ---
   const meRoute = handleMeRoutes(method, segs, body);

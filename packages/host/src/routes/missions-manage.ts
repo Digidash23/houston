@@ -7,9 +7,11 @@ import {
   upsertById,
 } from "@houston/domain";
 import type { PendingInteraction } from "@houston/protocol";
+import { assistantRuntimeRole } from "../launcher/assistant-role";
 import { withDocLock } from "./doc-lock";
 import { json, readJson } from "./http";
 import { liveTurns } from "./live-turn";
+import { delegationRefusal } from "./mission-delegation-refusals";
 import { type MissionStatusInput, parseMissionStatus } from "./missions-remote";
 import { forwardMissionStatus } from "./missions-remote-forward";
 import { fireActivityChanged, type MissionsCtx } from "./missions-sandbox";
@@ -38,13 +40,18 @@ export async function handleMissionStatus(
   const parsed = parseMissionStatus(body);
   if (!parsed.ok)
     return json(res, 400, { error: parsed.error, code: parsed.code });
-  const route = await resolveMissionRoute(callerCtx, body.agent);
+  const route = await resolveMissionRoute(callerCtx, body.agent, {}, "status");
   if (!route.ok) return refuseMissionRoute(route, res);
   if (route.remote) {
     await forwardMissionStatus(route.route, parsed.value, res);
     return;
   }
-  await applyMissionStatus(route.ctx, parsed.value, res);
+  await applyMissionStatus(route.ctx, parsed.value, res, {
+    ...(route.ctx.agent.id !== callerCtx.agent.id &&
+    !assistantRuntimeRole({ agentId: callerCtx.agent.id })
+      ? { requireOrigin: callerCtx.agent.id }
+      : {}),
+  });
 }
 
 /**
@@ -57,11 +64,14 @@ export async function applyMissionStatus(
   ctx: MissionsCtx,
   { id, status }: MissionStatusInput,
   res: ServerResponse,
+  opts: { requireOrigin?: string } = {},
 ): Promise<void> {
   const outcome = await withDocLock(`${ctx.root}#activity`, async () => {
     const { items } = await loadActivities(ctx.vfs, ctx.root);
     const current = items.find((a) => a.id === id);
     if (!current) return "not_found" as const;
+    if (opts.requireOrigin && current.origin_agent !== opts.requireOrigin)
+      return "not_origin" as const;
     if (current.status === "running") return "running" as const;
     if (missionConversationKey(current) === ctx.conversationId)
       return "self" as const;
@@ -78,6 +88,11 @@ export async function applyMissionStatus(
   });
   if (outcome === "not_found") {
     json(res, 404, { error: "no mission with that id - check list_missions" });
+    return;
+  }
+  if (outcome === "not_origin") {
+    const { code, error } = delegationRefusal("not_mission_origin");
+    json(res, 403, { code, error });
     return;
   }
   if (outcome === "running") {

@@ -11,10 +11,9 @@
     ],
     "fileCount": 1
   },
-  "agents-sidebar-nav-item": {
+  "agents-sidebar-profile-menu": {
     "surfaces": [
-      "App shell",
-      "ui/layout (internal)"
+      "App shell"
     ],
     "fileCount": 2
   },
@@ -22,19 +21,13 @@
     "surfaces": [
       "ui/layout (internal)"
     ],
-    "fileCount": 3
+    "fileCount": 1
   },
   "agents-split-view": {
     "surfaces": [
       "ui/board (library)"
     ],
     "fileCount": 1
-  },
-  "agents-workspace-switcher": {
-    "surfaces": [
-      "App shell"
-    ],
-    "fileCount": 2
   },
   "board-bulk-action-bar": {
     "surfaces": [
@@ -69,10 +62,11 @@
   "board-kanban-people": {
     "surfaces": [
       "Activity",
+      "App shell",
       "Settings",
       "ui/board (internal)"
     ],
-    "fileCount": 5
+    "fileCount": 6
   },
   "chat-attachment-message": {
     "surfaces": [
@@ -139,12 +133,6 @@
     ],
     "fileCount": 3
   },
-  "core-accordion": {
-    "surfaces": [
-      "Your teams"
-    ],
-    "fileCount": 1
-  },
   "core-alert": {
     "surfaces": [
       "Store website",
@@ -172,11 +160,12 @@
       "Skills",
       "app/src/components"
     ],
-    "fileCount": 15
+    "fileCount": 17
   },
   "core-avatar": {
     "surfaces": [
       "Activity",
+      "App shell",
       "Organization",
       "Permissions",
       "Settings",
@@ -184,7 +173,7 @@
       "ui/board (library)",
       "ui/store (library)"
     ],
-    "fileCount": 11
+    "fileCount": 12
   },
   "core-badge": {
     "surfaces": [
@@ -218,8 +207,9 @@
       "Skills",
       "Store website",
       "Store website (admin)",
+      "Web app",
+      "Your AI Employees",
       "Your Agents",
-      "Your teams",
       "app/src/components",
       "ui/agent (library)",
       "ui/board (library)",
@@ -228,7 +218,7 @@
       "ui/routines (library)",
       "ui/store (library)"
     ],
-    "fileCount": 138
+    "fileCount": 152
   },
   "core-button-group": {
     "surfaces": [
@@ -239,9 +229,10 @@
   "core-card": {
     "surfaces": [
       "Store website (admin)",
+      "Web app",
       "ui/board (library)"
     ],
-    "fileCount": 2
+    "fileCount": 3
   },
   "core-catalog": {
     "surfaces": [
@@ -296,6 +287,7 @@
   "core-confirm-dialog": {
     "surfaces": [
       "AI Models",
+      "App shell",
       "Files",
       "Settings",
       "Skills",
@@ -320,12 +312,12 @@
       "Settings",
       "Skills",
       "Store website",
+      "Your AI Employees",
       "Your Agents",
-      "Your teams",
       "app/src/components",
       "ui/store (library)"
     ],
-    "fileCount": 30
+    "fileCount": 31
   },
   "core-dropdown-menu": {
     "surfaces": [
@@ -337,7 +329,6 @@
       "Skills",
       "Store website",
       "Your Agents",
-      "Your teams",
       "app/src/components",
       "ui/board (library)",
       "ui/chat (library)",
@@ -345,25 +336,25 @@
       "ui/routines (library)",
       "ui/store (library)"
     ],
-    "fileCount": 31
+    "fileCount": 30
   },
   "core-empty": {
     "surfaces": [
       "AI Models",
       "Activity",
+      "App shell",
       "Archived",
       "Chat",
       "Integrations",
       "Organization",
       "Settings",
       "Skills",
-      "Your teams",
       "app/src/components",
       "ui/agent (library)",
       "ui/events (library)",
       "ui/routines (library)"
     ],
-    "fileCount": 23
+    "fileCount": 22
   },
   "core-flow-choice-row": {
     "surfaces": [
@@ -401,18 +392,18 @@
       "Activity",
       "App shell",
       "Chat",
-      "Files",
       "Integrations",
+      "Onboarding",
       "Organization",
       "Permissions",
-      "Skills",
+      "Sign in",
+      "Your AI Employees",
       "Your Agents",
-      "Your teams",
       "app/src/components",
       "ui/chat (library)",
       "ui/store (library)"
     ],
-    "fileCount": 31
+    "fileCount": 36
   },
   "core-hover-card": {
     "surfaces": [
@@ -427,17 +418,17 @@
       "Activity",
       "App shell",
       "Integrations",
-      "Onboarding",
       "Permissions",
       "Settings",
       "Sign in",
       "Store website",
       "Store website (admin)",
+      "Your Agents",
       "app/src/components",
       "ui/review (library)",
       "ui/store (library)"
     ],
-    "fileCount": 26
+    "fileCount": 25
   },
   "core-input-group": {
     "surfaces": [
@@ -453,11 +444,12 @@
   },
   "core-kbd": {
     "surfaces": [
+      "App shell",
       "Chat",
       "Settings",
       "ui/chat (library)"
     ],
-    "fileCount": 3
+    "fileCount": 4
   },
   "core-popover": {
     "surfaces": [
@@ -488,10 +480,11 @@
       "AI Models",
       "Routines",
       "Settings",
+      "app/src/components",
       "ui/chat (library)",
       "ui/store (library)"
     ],
-    "fileCount": 5
+    "fileCount": 7
   },
   "core-separator": {
     "surfaces": [
@@ -502,13 +495,15 @@
   "core-sheet": {
     "surfaces": [
       "App shell",
+      "Organization",
       "app/src/components"
     ],
-    "fileCount": 2
+    "fileCount": 4
   },
   "core-skeleton": {
     "surfaces": [
       "AI Models",
+      "App shell",
       "Integrations",
       "Organization",
       "Settings",
@@ -518,7 +513,7 @@
       "ui/agent (library)",
       "ui/store (library)"
     ],
-    "fileCount": 17
+    "fileCount": 21
   },
   "core-spinner": {
     "surfaces": [
@@ -535,10 +530,11 @@
       "Skills",
       "Store website",
       "Store website (admin)",
+      "Your Agents",
       "app/src/components",
       "ui/store (library)"
     ],
-    "fileCount": 39
+    "fileCount": 46
   },
   "core-status-badge": {
     "surfaces": [
@@ -554,23 +550,23 @@
       "Import & export",
       "Integrations",
       "Settings",
+      "app/src/components",
       "ui/routines (library)"
     ],
-    "fileCount": 7
+    "fileCount": 8
   },
   "core-tabs": {
     "surfaces": [
       "Skills",
-      "Store website (admin)",
-      "app/src/components"
+      "Store website (admin)"
     ],
-    "fileCount": 3
+    "fileCount": 2
   },
   "core-textarea": {
     "surfaces": [
-      "Onboarding",
       "Skills",
       "Store website",
+      "app/src/components",
       "ui/store (library)"
     ],
     "fileCount": 6
@@ -592,7 +588,7 @@
       "ui/layout (library)",
       "ui/routines (library)"
     ],
-    "fileCount": 16
+    "fileCount": 14
   },
   "core-verified-badge": {
     "surfaces": [

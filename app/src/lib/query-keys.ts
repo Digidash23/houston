@@ -148,6 +148,9 @@ export const queryKeys = {
    *  App-scoped — reads the active space; dropped whole on a space switch by
    *  `resetCacheForSpaceChange`, so it never carries the prior team's billing. */
   billing: () => ["billing"] as const,
+  plan: () => ["plan"] as const,
+  plusInvoices: () => ["plus-invoices"] as const,
+  planRoutines: () => ["plan-routines"] as const,
   /** C8 spaces: one agent-move's progress, keyed by agent + moveId so two
    *  moves (or a retry with a fresh id) never share a poll. */
   agentMove: (agentId: string, moveId: string) =>
@@ -167,6 +170,7 @@ export const queryKeys = {
    * this.
    */
   agentSettings: (agentId: string) => ["agent-settings", agentId] as const,
+  agentDelegation: (agentId: string) => ["agent-delegation", agentId] as const,
   /**
    * Teams v2: the ACTING user's per-agent model choice plus the agent's
    * effective `allowedModels` ceiling (`GET /agents/:slug/model-choice`). Keyed
@@ -175,11 +179,4 @@ export const queryKeys = {
    */
   agentModelChoice: (agentId: string) =>
     ["agent-model-choice", agentId] as const,
-
-  /** C13 agent teams: the active space's teams, as the CALLER sees them
-   *  (`GET /v1/org/teams`). App-scoped — one active space at a time, and a
-   *  space switch drops the whole cache (`resetCacheForSpaceChange`). */
-  agentTeams: () => ["agent-teams"] as const,
-  /** C13: one team's EXPLICIT membership rows. Keyed by team id. */
-  agentTeamMembers: (teamId: string) => ["agent-team-members", teamId] as const,
 };

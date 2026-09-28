@@ -20,7 +20,7 @@ import type { SessionToolError } from "./tool-error";
  */
 
 const AGENT_DESCRIPTION =
-  "Another agent's name, to put this on THEIR board instead of your own. Omit it for your own board.";
+  "Another AI Employee's name, from list_agents, to act on THEIR board instead of your own. Omit it for your own board.";
 
 const ASSISTANT_AGENT_DESCRIPTION =
   "REQUIRED: the name of the agent whose board this belongs on. You have no board of your own, so always name one of the user's agents - list them first if you are not sure which exist.";

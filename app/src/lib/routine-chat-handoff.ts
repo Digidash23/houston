@@ -88,7 +88,7 @@ export function routineIntakeHandoffPrompt(
       ? scheduleHintSaveRule()
       : aiWakeSaveRule();
 
-  return `Houston sent this message automatically: the user just started a new routine${wake ? " and already chose, in a visual picker, WHEN it runs" : ""}. This chat is where you finish setting it up and create it. It stays attached to the routine forever — the user can come back any time to change it. The user has not typed anything here yet and is waiting for you to start.
+  return `The app sent this message automatically: the user just started a new routine${wake ? " and already chose, in a visual picker, WHEN it runs" : ""}. This chat is where you finish setting it up and create it. It stays attached to the routine forever — the user can come back any time to change it. The user has not typed anything here yet and is waiting for you to start.
 
 Your job in this conversation: finish this ONE routine with the user, then create it. A routine is work you do for the user without them asking each time.
 

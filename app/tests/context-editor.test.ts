@@ -58,15 +58,6 @@ describe("context-editor source", () => {
     );
   });
 
-  it("derives the box's accessible name from the page title", () => {
-    ok(
-      box.includes(
-        '<ContextEditorBox layout="fill" ariaLabel={title} {...box} />',
-      ),
-      "ContextEditorPage names the editor after its hero",
-    );
-  });
-
   it("uses MarkdownEditor inside the standing prose box", () => {
     ok(
       box.includes("<MarkdownEditor"),
@@ -98,15 +89,5 @@ describe("context-editor source", () => {
       toolbar.includes("hover:bg-chip hover:text-ink"),
       "the pressed fill survives its own hover",
     );
-  });
-});
-
-describe("Admin analytics sections", () => {
-  it("keeps Activity, Usage, and Time worked at the top tab level", () => {
-    const view = read("../src/components/organization/organization-view.tsx");
-    const body = read("../src/components/organization/admin-section-body.tsx");
-    ok(view.includes("canSeeTimeWorked(capabilities)"));
-    ok(body.includes("activity: ActivityTab"));
-    ok(body.includes("usage: UsageTab"));
   });
 });

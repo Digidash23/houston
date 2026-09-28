@@ -4,7 +4,11 @@
  * shape (CommandRegistry.dispatch turns the throw into `ok: false`).
  */
 
-import { parseMentions } from "@houston/protocol";
+import {
+  type ConversationImportRequest,
+  parseConversationImportRequest,
+  parseMentions,
+} from "@houston/protocol";
 import type { FeedAuthor, FeedMention } from "./vm-output";
 
 /** Arguments for starting a turn — the `turns/send` command payload. */
@@ -70,6 +74,12 @@ export interface TurnSetModeInput extends TurnConversationInput {
 export interface TurnTruncateInput extends TurnConversationInput {
   /** The user turn the transcript is cut at; it and everything after it go. */
   turnId: string;
+}
+
+/** The `turns/importMessages` command payload. */
+export interface TurnImportInput extends TurnConversationInput {
+  /** The lines to write, named by the import they belong to. */
+  request: ConversationImportRequest;
 }
 
 const str = (v: unknown): string | undefined =>
@@ -140,4 +150,21 @@ export function asTruncateInput(payload: unknown): TurnTruncateInput {
   if (turnId === undefined)
     throw new Error("turns/truncate requires a string turnId");
   return { ...asConversationInput(payload, "turns/truncate"), turnId };
+}
+
+export function asImportInput(payload: unknown): TurnImportInput {
+  const request = parseConversationImportRequest(
+    (payload as { request?: unknown })?.request,
+  );
+  if (!request)
+    throw new Error("turns/importMessages requires an import request");
+  return { ...asConversationInput(payload, "turns/importMessages"), request };
+}
+
+/** Guard for a command that acts on one agent's chats; `command` names it. */
+export function asAgentInput(payload: unknown, command: string): string {
+  const agentId = (payload as { agentId?: unknown } | null)?.agentId;
+  if (typeof agentId !== "string")
+    throw new Error(`${command} requires a string agentId`);
+  return agentId;
 }

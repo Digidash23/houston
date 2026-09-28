@@ -1,9 +1,6 @@
 import { deepStrictEqual, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
-import {
-  offersPromoteToWorkspace,
-  resolveScopedOverrides,
-} from "../src/components/skills-view/skills-scope.ts";
+import { resolveScopedOverrides } from "../src/components/skills-view/skills-scope.ts";
 import type { SkillSummary } from "../src/lib/types.ts";
 
 /**
@@ -58,15 +55,6 @@ const rows = [
 const locals = new Map([["invoices", ANAS_COPY]]);
 
 describe("resolveScopedOverrides", () => {
-  it("leaves the workspace library on the store copy", () => {
-    const resolved = resolveScopedOverrides(rows, null, new Map());
-    deepStrictEqual(
-      resolved.map((r) => r.origin),
-      ["shared", "shared", "local"],
-    );
-    strictEqual(resolved[0].summary, STORE_COPY);
-  });
-
   it("resolves an override to the copy the employee actually runs", () => {
     const [invoices] = resolveScopedOverrides(rows, "ana", locals);
     strictEqual(invoices.origin, "local");
@@ -116,60 +104,6 @@ describe("resolveScopedOverrides", () => {
   });
 
   it("never hands back the caller's array", () => {
-    strictEqual(resolveScopedOverrides(rows, null, new Map()) === rows, false);
-  });
-});
-
-/**
- * "Share to workspace" moves a skill out of one AI Employee and into the
- * store for the whole space, and it fans the move out over every holder the
- * ROW names. An employee's own section narrows that row to itself, so the act
- * would leave every other holder on a stale copy that shadows the new store
- * version — and it is a workspace-wide act reached from a per-employee
- * screen. It belongs to the library alone.
- */
-describe("offersPromoteToWorkspace", () => {
-  it("offers the library a skill that lives on employees only", () => {
-    strictEqual(
-      offersPromoteToWorkspace({
-        scopedAgentId: null,
-        origin: "local",
-        sharedStore: true,
-      }),
-      true,
-    );
-  });
-
-  it("never offers it inside one employee's own section", () => {
-    strictEqual(
-      offersPromoteToWorkspace({
-        scopedAgentId: "ana",
-        origin: "local",
-        sharedStore: true,
-      }),
-      false,
-    );
-  });
-
-  it("never offers it for a skill the workspace already holds", () => {
-    strictEqual(
-      offersPromoteToWorkspace({
-        scopedAgentId: null,
-        origin: "shared",
-        sharedStore: true,
-      }),
-      false,
-    );
-  });
-
-  it("never offers it where the deployment serves no store", () => {
-    strictEqual(
-      offersPromoteToWorkspace({
-        scopedAgentId: null,
-        origin: "local",
-        sharedStore: false,
-      }),
-      false,
-    );
+    strictEqual(resolveScopedOverrides(rows, "ana", undefined) === rows, false);
   });
 });

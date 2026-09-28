@@ -15,7 +15,7 @@ import { PageHeaderTools } from "../shell/page-header/page-header-tools";
 import type { SkillsListState } from "./skills-list-model";
 
 /**
- * The states the Skills library owes beside its rows: nothing created yet, a
+ * The states the Skills list owes beside its rows: nothing created yet, a
  * search that matched nothing, the read that did not answer, and the wait
  * before any of them is known.
  *
@@ -76,7 +76,7 @@ export function SkillsListSkeleton() {
   );
 }
 
-/** The library list with no rows to show, in whichever of its two senses. */
+/** The list with no rows to show, in whichever of its two senses. */
 export function SkillsListEmpty({
   state,
   query,
@@ -105,7 +105,7 @@ export function SkillsListEmpty({
 }
 
 /** A read that did not answer, said once with the way to try it again. Shared
- *  by the library list and the editor's body, which fail the same way. */
+ *  by the list and the editor's body, which fail the same way. */
 export function SkillsRetryEmpty({
   title,
   description,

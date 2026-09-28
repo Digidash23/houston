@@ -1,24 +1,14 @@
+import { canRetryMoveError, type MoveErrorKind } from "@houston/sdk";
 import type { TeamRef } from "./share-via-team";
 
-export type TeamMoveStage =
-  | "cleanupSource"
-  | "switching"
-  | "recreate"
-  | "placing";
-export type TeamMoveFailureKind =
-  | "unsupported_move"
-  | "unmovable_volume"
-  | "needs_upgrade"
-  | "timeout"
-  | "unknown";
+export type TeamMoveStage = "createTarget" | "cleanupSource" | "switching";
 
 export interface TeamMoveSource {
   id: string;
+  workspaceId: string;
   name: string;
   icon?: string;
   color?: string;
-  context?: string;
-  isDefault: boolean;
   agents: { id: string; name: string }[];
 }
 
@@ -30,15 +20,13 @@ export type TeamMoveState =
       step: "moveFailed";
       target: TeamRef;
       index: number;
-      error: TeamMoveFailureKind;
+      error: MoveErrorKind;
+      /** Reopened from a move parked on a taken name: the person may have
+       *  renamed the agent since, so its retry shows. */
+      parked?: true;
     }
-  | { step: TeamMoveStage; target: TeamRef; teamId?: string }
-  | {
-      step: "postscriptFailed";
-      target: TeamRef;
-      stage: TeamMoveStage;
-      teamId?: string;
-    }
+  | { step: TeamMoveStage; target: TeamRef }
+  | { step: "postscriptFailed"; target: TeamRef; stage: TeamMoveStage }
   | { step: "invite"; target: TeamRef }
   | { step: "done"; target: TeamRef };
 
@@ -68,16 +56,14 @@ export function agentMoveDone(
 ): TeamMoveState {
   if (state.step !== "movingAgents") return state;
   const next = state.index + 1;
-  if (next < source.agents.length) return { ...state, index: next };
-  return {
-    step: source.isDefault ? "switching" : "cleanupSource",
-    target: state.target,
-  };
+  return next < source.agents.length
+    ? { ...state, index: next }
+    : { step: "createTarget", target: state.target };
 }
 
 export function teamAgentMoveFailed(
   state: TeamMoveState,
-  error: TeamMoveFailureKind,
+  error: MoveErrorKind,
 ): TeamMoveState {
   if (state.step !== "movingAgents") return state;
   return {
@@ -88,71 +74,67 @@ export function teamAgentMoveFailed(
   };
 }
 
-/**
- * What the failure face may honestly claim, as the copy key it needs and that
- * key's variables.
- *
- * Agents move ONE AT A TIME and the run stops at the first refusal, so the
- * failing agent's index IS the number that made it: everything from there on
- * was never attempted. "One of them could not move" would tell the user the
- * rest are already in the new team, and they would go looking for them there.
- *
- * `moveFailedFirst` counts the whole team, because nothing moved and the only
- * number worth saying is how big the job still is. `moveFailedNext` needs no
- * plural: it is only reachable with at least one agent moved and one refused.
- */
+/** Whether the failed move's retry can succeed. */
+export function canRetryTeamMove(
+  state: Extract<TeamMoveState, { step: "moveFailed" }>,
+): boolean {
+  return state.parked === true || canRetryMoveError(state.error);
+}
+
 export function teamMoveFailureCopy(
   moved: number,
   total: number,
+  error?: MoveErrorKind,
+  name = "",
 ):
   | { key: "moveFailedFirst"; count: number }
-  | { key: "moveFailedNext"; moved: number; total: number } {
+  | { key: "moveFailedNext"; moved: number; total: number }
+  | { key: "moveFailedNameTaken"; name: string }
+  | {
+      key: "moveFailedNextNameTaken";
+      moved: number;
+      total: number;
+      name: string;
+    } {
+  // A taken name is the one failure the person fixes themselves: name the
+  // agent, so they know which one to rename.
+  if (error === "name_taken")
+    return moved <= 0
+      ? { key: "moveFailedNameTaken", name }
+      : { key: "moveFailedNextNameTaken", moved, total, name };
   return moved <= 0
     ? { key: "moveFailedFirst", count: total }
     : { key: "moveFailedNext", moved, total };
 }
 
-export function postscriptDone(
-  state: TeamMoveState,
-  source: TeamMoveSource,
-  teamId?: string,
-): TeamMoveState {
+export function postscriptDone(state: TeamMoveState): TeamMoveState {
+  if (state.step === "createTarget")
+    return { step: "cleanupSource", target: state.target };
   if (state.step === "cleanupSource")
     return { step: "switching", target: state.target };
   if (state.step === "switching")
-    return source.isDefault
-      ? { step: "invite", target: state.target }
-      : { step: "recreate", target: state.target };
-  if (state.step === "recreate")
-    return { step: "placing", target: state.target, teamId };
-  if (state.step === "placing") return { step: "invite", target: state.target };
+    return { step: "invite", target: state.target };
   return state;
 }
 
 export function teamPostscriptFailed(state: TeamMoveState): TeamMoveState {
   if (
+    state.step !== "createTarget" &&
     state.step !== "cleanupSource" &&
-    state.step !== "switching" &&
-    state.step !== "recreate" &&
-    state.step !== "placing"
+    state.step !== "switching"
   )
     return state;
   return {
     step: "postscriptFailed",
     target: state.target,
-    stage: state.step as TeamMoveStage,
-    ...("teamId" in state && state.teamId ? { teamId: state.teamId } : {}),
+    stage: state.step,
   };
 }
 
 export function retryTeamMove(state: TeamMoveState): TeamMoveState {
   if (state.step === "moveFailed") return startTeamAgents(state);
   if (state.step === "postscriptFailed")
-    return {
-      step: state.stage,
-      target: state.target,
-      ...(state.teamId ? { teamId: state.teamId } : {}),
-    };
+    return { step: state.stage, target: state.target };
   return state;
 }
 
@@ -165,9 +147,8 @@ export function finishTeamMove(state: TeamMoveState): TeamMoveState {
 export function isTeamMoveDismissable(state: TeamMoveState): boolean {
   return ![
     "movingAgents",
+    "createTarget",
     "cleanupSource",
     "switching",
-    "recreate",
-    "placing",
   ].includes(state.step);
 }

@@ -1,136 +1,172 @@
-import type { OrgMember } from "@houston/engine-adapter";
+import type { Agent, OrgMember } from "@houston/engine-adapter";
+import type { OrgChartUsage, OrgChartWork } from "./org-chart-model.ts";
+import { type AgentPeople, agentPeople } from "./org-chart-people.ts";
+import { messagesCounted, type OrgChartScope } from "./org-chart-scope.ts";
 
 /**
- * Pure, DOM-free derivations for Admin > Org chart: the order the team cards
- * read in, the one scale every usage bar is drawn against, which humans a card
- * has to show, and the single question of whether message counts are drawn at
- * all. Node:test-safe (no React, no DOM). Membership and the message totals
- * themselves are `org-chart-model.ts`.
+ * The org chart as data: the ledger of AI Employees ranked by the hours they
+ * worked, each with its people, and which figure leads the hero when time
+ * worked cannot be read. Pure and DOM-free.
  */
 
 /**
- * What the chart puts where a message count would go. `hidden` is a caller the
- * gateway serves no usage to: the counts, the bars AND the window caption go
- * away together, because a chart of zeroes would read as a silent company
- * rather than as a number nobody is allowed to see.
+ * Where one read stands. `hidden` is a read this caller or deployment does
+ * not get at all (time worked off the hosted cloud, message usage for a
+ * non-admin): its numbers go away rather than reading as zeroes. A read
+ * that never landed is `loading` even while its query is parked off screen,
+ * so no figure is ever drawn from data that is not there.
  */
-export type OrgChartUsageState = "hidden" | "loading" | "error" | "ready";
+export type OrgChartRead = "hidden" | "loading" | "error" | "ready";
 
-export function orgChartUsageState(input: {
-  permitted: boolean;
-  isLoading: boolean;
+export function orgChartRead(input: {
+  enabled: boolean;
+  hasData: boolean;
   isError: boolean;
-}): OrgChartUsageState {
-  if (!input.permitted) return "hidden";
-  if (input.isError) return "error";
-  if (input.isLoading) return "loading";
-  return "ready";
+}): OrgChartRead {
+  if (!input.enabled) return "hidden";
+  if (input.hasData) return "ready";
+  return input.isError ? "error" : "loading";
 }
 
-/**
- * The team cards in reading order: the named teams the company built, then the
- * default team, which is whoever is left over. Alone it is not leftovers but
- * the whole company, so it stays first and the chart opens on people rather
- * than on an afterthought.
- */
-export function orgChartTeamOrder<T extends { isDefault: boolean }>(
-  teams: readonly T[],
-): T[] {
-  if (teams.length <= 1) return [...teams];
-  return [
-    ...teams.filter((team) => !team.isDefault),
-    ...teams.filter((team) => team.isDefault),
-  ];
-}
+export type OrgChartState = "loading" | "empty" | "ready";
 
-/**
- * The busiest agent in the WHOLE chart. Every bar is drawn against this one
- * scale, so a half-full bar means the same thing in every card. Never 0: the
- * percentage divides by it.
- */
-export function orgChartScale(byAgent: ReadonlyMap<string, number>): number {
-  let max = 0;
-  for (const messages of byAgent.values()) max = Math.max(max, messages);
-  return max || 1;
-}
-
-/**
- * How much of an agent's bar is filled. A silent agent stays EMPTY (its row
- * still renders, so a team reads complete), while any real traffic keeps a 2%
- * floor so one message is still visible beside the busiest agent.
- */
-export function orgChartBarPercent(messages: number, scale: number): number {
-  if (messages <= 0) return 0;
-  return Math.max(2, Math.min(100, Math.round((messages / scale) * 100)));
-}
-
-/**
- * Whether a card's humans can be counted yet. The membership read is the only
- * thing between a card and its people, and a card that counts off an empty
- * `data` while that read is in flight claims a team nobody is in. `ready` with
- * no read to make is the everyone-card ({@link orgChartTeamMembership}): its
- * people are the workspace roster, already in hand.
- */
-export type OrgChartMembersState = "ready" | "loading" | "error";
-
-export function orgChartMembersState(input: {
-  readsMembers: boolean;
-  isPending: boolean;
-  isError: boolean;
-}): OrgChartMembersState {
-  if (!input.readsMembers) return "ready";
-  if (input.isError) return "error";
-  return input.isPending ? "loading" : "ready";
-}
-
-/**
- * What the chart draws in place of its cards. "No teams yet" is a claim about
- * the company, so it is spent only on a read that SETTLED and found none: a
- * failed teams read says so and offers the retry, and teams already in hand
- * are drawn even when a refetch behind them failed.
- */
-export type OrgChartTeamsState = "loading" | "error" | "empty" | "ready";
-
-export function orgChartTeamsState(input: {
+export function orgChartState(input: {
   agentsLoaded: boolean;
-  teamsLoading: boolean;
-  teamsError: boolean;
-  teamCount: number;
-}): OrgChartTeamsState {
+  agentCount: number;
+}): OrgChartState {
   if (!input.agentsLoaded) return "loading";
-  if (input.teamCount > 0) return "ready";
-  if (input.teamsLoading) return "loading";
-  return input.teamsError ? "error" : "empty";
+  return input.agentCount > 0 ? "ready" : "empty";
+}
+
+/** The figure the hero leads with and the ledger's bars measure. */
+export type OrgChartMetric = "hours" | "messages";
+
+export interface OrgChartLead {
+  metric: OrgChartMetric;
+  loading: boolean;
 }
 
 /**
- * Whose humans one card lists, and whether it has a membership read to make.
- *
- * `everyone` is a team whose people ARE the workspace roster: the default team
- * (agents nobody filed), the personal space (one human, the caller), and every
- * team on the local backend, which stores no human memberships at all. Only a
- * named team on an `agentTeams` host has explicit rows worth fetching.
+ * Hours lead whenever time worked is on, holding a skeleton while it loads
+ * rather than flashing messages first. Hidden or failed hours hand the lead
+ * to messages; with neither readable there is no figure at all.
  */
-export function orgChartTeamMembership(input: {
-  personal: boolean;
-  serverBacked: boolean;
-  isDefault: boolean;
-}): { everyone: boolean; readsMembers: boolean } {
-  const everyone = input.personal || input.isDefault || !input.serverBacked;
-  return { everyone, readsMembers: !everyone };
+export function orgChartLead(
+  hours: OrgChartRead,
+  messages: OrgChartRead,
+): OrgChartLead | null {
+  if (hours === "ready" || hours === "loading")
+    return { metric: "hours", loading: hours === "loading" };
+  if (messages === "ready" || messages === "loading")
+    return { metric: "messages", loading: messages === "loading" };
+  return null;
 }
 
 /**
- * The humans the chart has to work with. A personal space has exactly one —
- * the caller — and the gateway serves no roster there, so the session fills the
- * gap rather than leaving the card with no people in it.
+ * The ledger's columns. The bar column carries the lead metric; messages get
+ * their own column only beside hours (when they lead, the bar is theirs).
+ * A personal space has one person, so it draws no people columns.
  */
-export function orgChartRoster(input: {
-  personal: boolean;
-  roster: readonly OrgMember[];
-  self: OrgMember | null;
-}): OrgMember[] {
-  if (input.roster.length > 0) return [...input.roster];
-  if (!input.personal || !input.self) return [];
-  return [input.self];
+export interface LedgerColumns {
+  bar: OrgChartLead | null;
+  messages: "ready" | "loading" | null;
+  people: boolean;
 }
+
+export function ledgerColumns(
+  lead: OrgChartLead | null,
+  messages: OrgChartRead,
+  personal: boolean,
+): LedgerColumns {
+  const beside =
+    lead?.metric === "hours" &&
+    (messages === "ready" || messages === "loading");
+  return { bar: lead, messages: beside ? messages : null, people: !personal };
+}
+
+export interface LedgerLine {
+  id: string;
+  name: string;
+  /** The role its job description names, when it has one. */
+  role?: string;
+  color?: string;
+  workMs: number;
+  /** `null` where the gateway does not count its messages for this caller. */
+  messages: number | null;
+  /** Its bar against the top AI Employee by the lead metric, 0 to 1. */
+  share: number;
+  /** `null` when the caller cannot see who it is assigned to. */
+  people: AgentPeople | null;
+}
+
+/**
+ * The people of one agent, its users ordered by who talks to it most over
+ * the window, then by name, so the faces that show first are the ones that
+ * use it.
+ */
+function peopleOf(
+  agent: Agent,
+  members: readonly OrgMember[],
+  talked: ReadonlyMap<string, number>,
+): AgentPeople | null {
+  const people = agentPeople(agent, members);
+  if (people === null || people.uses === "everyone") return people;
+  const uses = [...people.uses].sort(
+    (a, b) => (talked.get(b.userId) ?? 0) - (talked.get(a.userId) ?? 0),
+  );
+  return { manages: people.manages, uses };
+}
+
+/**
+ * One line per agent, ranked by hours worked with messages breaking ties,
+ * by messages alone when hours are not readable, then by name. A read that
+ * is not there, or a count the caller is not served, ranks as zero; the
+ * lines never draw it as one.
+ */
+export function buildLedger(
+  agents: readonly Agent[],
+  members: readonly OrgMember[],
+  reads: {
+    work: OrgChartWork | null;
+    usage: OrgChartUsage | null;
+    scope: OrgChartScope;
+  },
+): LedgerLine[] {
+  const lines = agents.map((agent) => {
+    const usage = reads.usage?.byAgent.get(agent.id);
+    const talked = new Map(
+      (usage?.talkers ?? []).map((t) => [t.userId, t.messages]),
+    );
+    const counted = messagesCounted(agent, reads.scope);
+    return {
+      id: agent.id,
+      name: agent.name,
+      role: agent.role?.trim() || undefined,
+      color: agent.color,
+      workMs: reads.work?.byAgent.get(agent.id) ?? 0,
+      messages: counted ? (usage?.total ?? 0) : null,
+      share: 0,
+      people: peopleOf(agent, members, talked),
+    };
+  });
+  const messages = (line: LedgerLine) => line.messages ?? 0;
+  lines.sort(
+    (a, b) =>
+      b.workMs - a.workMs ||
+      messages(b) - messages(a) ||
+      (reads.usage
+        ? Number(a.messages === null) - Number(b.messages === null)
+        : 0) ||
+      a.name.localeCompare(b.name),
+  );
+  const measure = (line: LedgerLine) =>
+    reads.work ? line.workMs : messages(line);
+  const top = Math.max(0, ...lines.map(measure));
+  return lines.map((line) => ({
+    ...line,
+    share: top > 0 ? measure(line) / top : 0,
+  }));
+}
+
+/** Past this many AI Employees the ledger tightens and, when wide, splits. */
+export const DENSE_LEDGER = 8;

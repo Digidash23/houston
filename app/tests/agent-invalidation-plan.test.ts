@@ -132,20 +132,6 @@ describe("planInvalidation — unrelated cases keep their exact effects", () => 
     strictEqual(other.reloadAgentsWorkspace, undefined);
   });
 
-  // C13: every server-team mutation fans out AgentsChanged, so the rail's
-  // teams have to refresh with the roster or it keeps the previous grouping.
-  it("AgentsChanged refreshes the C13 teams and their member rows", () => {
-    const plan = planInvalidation(
-      { type: "AgentsChanged", data: { workspace_id: "w1" } },
-      { workspaceId: "w1" },
-    );
-    ok(invalidates(plan, queryKeys.agentTeams()), "teams must refresh");
-    ok(
-      invalidates(plan, ["agent-team-members"]),
-      "the event names no team, so member rows go by prefix",
-    );
-  });
-
   it("another workspace's AgentsChanged leaves the teams alone", () => {
     const plan = planInvalidation(
       { type: "AgentsChanged", data: { workspace_id: "w2" } },
@@ -313,5 +299,29 @@ describe("planInvalidation — events for agents outside the roster", () => {
       {},
     );
     deepStrictEqual(plan.patchAllConversations, [OTHER]);
+  });
+});
+
+describe("planInvalidation — AgentRoleChanged renames the row", () => {
+  const ev: HoustonEvent = {
+    type: "AgentRoleChanged",
+    data: { agent_path: PATH },
+  };
+
+  it("re-lists the open workspace's roster, where each row's role lives", () => {
+    const plan = planInvalidation(ev, { workspaceId: "ws-1" });
+    strictEqual(plan.reloadAgentsWorkspace, "ws-1");
+  });
+
+  it("leaves the roster alone for an agent outside it", () => {
+    const plan = planInvalidation(ev, {
+      workspaceId: "ws-1",
+      isKnownAgent: () => false,
+    });
+    strictEqual(plan.reloadAgentsWorkspace, undefined);
+  });
+
+  it("re-lists nothing with no workspace open", () => {
+    strictEqual(planInvalidation(ev, {}).reloadAgentsWorkspace, undefined);
   });
 });

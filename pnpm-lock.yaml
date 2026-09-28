@@ -464,6 +464,9 @@ importers:
       '@houston/runtime-client':
         specifier: workspace:*
         version: link:../runtime-client
+      '@houston/wire-types':
+        specifier: workspace:*
+        version: link:../wire-types
       fflate:
         specifier: 0.8.3
         version: 0.8.3
@@ -647,6 +650,9 @@ importers:
 
   packages/sdk:
     dependencies:
+      '@houston/design-tokens':
+        specifier: workspace:*
+        version: link:../design-tokens
       '@houston/domain':
         specifier: workspace:*
         version: link:../domain
@@ -656,6 +662,9 @@ importers:
       '@houston/runtime-client':
         specifier: workspace:*
         version: link:../runtime-client
+      '@houston/wire-types':
+        specifier: workspace:*
+        version: link:../wire-types
     devDependencies:
       '@houston/fake-host':
         specifier: workspace:*
@@ -717,6 +726,9 @@ importers:
       '@houston-ai/skills':
         specifier: workspace:*
         version: link:../../ui/skills
+      '@houston/design-tokens':
+        specifier: workspace:*
+        version: link:../design-tokens
       '@houston/domain':
         specifier: workspace:*
         version: link:../domain
@@ -883,6 +895,10 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.2.7(react@19.2.7)
+    devDependencies:
+      tsx:
+        specifier: 4.23.0
+        version: 4.23.0
 
   ui/chat:
     dependencies:
@@ -1050,6 +1066,10 @@ importers:
       react-resizable-panels:
         specifier: 4.12.1
         version: 4.12.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+    devDependencies:
+      jsdom:
+        specifier: 29.1.1
+        version: 29.1.1(@noble/hashes@2.2.0)
 
   ui/review:
     dependencies:

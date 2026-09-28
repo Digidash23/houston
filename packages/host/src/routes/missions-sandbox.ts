@@ -11,6 +11,7 @@ import type {
 } from "../ports";
 import type { Vfs } from "../vfs";
 import { bearer, json } from "./http";
+import { handleAgentDirectory, handleAgentProfile } from "./missions-agents";
 import { handleMissionSettle, handleMissionStatus } from "./missions-manage";
 import { handleList, handleMissionRead } from "./missions-read";
 import { missionsContext } from "./missions-sandbox-context";
@@ -93,6 +94,8 @@ defineRouteFamily({
   members: [
     { method: "GET", path: "/sandbox/missions" },
     { method: "GET", path: "/sandbox/missions/read" },
+    { method: "GET", path: "/sandbox/missions/agents" },
+    { method: "GET", path: "/sandbox/missions/agents/read" },
     { method: "POST", path: "/sandbox/missions/start" },
     { method: "POST", path: "/sandbox/missions/status" },
     { method: "POST", path: "/sandbox/missions/settle" },
@@ -116,10 +119,22 @@ export async function handleSandboxMissions(
 ): Promise<boolean> {
   const isList = method === "GET" && path === "/sandbox/missions";
   const isRead = method === "GET" && path === "/sandbox/missions/read";
+  const isAgents = method === "GET" && path === "/sandbox/missions/agents";
+  const isAgentRead =
+    method === "GET" && path === "/sandbox/missions/agents/read";
   const isStart = method === "POST" && path === "/sandbox/missions/start";
   const isStatus = method === "POST" && path === "/sandbox/missions/status";
   const isSettle = method === "POST" && path === "/sandbox/missions/settle";
-  if (!isList && !isRead && !isStart && !isStatus && !isSettle) return false;
+  if (
+    !isList &&
+    !isRead &&
+    !isAgents &&
+    !isAgentRead &&
+    !isStart &&
+    !isStatus &&
+    !isSettle
+  )
+    return false;
 
   // Authenticate the sandbox (NOT a user JWT) — same gate as the other
   // /sandbox/* routes.
@@ -134,6 +149,8 @@ export async function handleSandboxMissions(
 
   if (isList) await handleList(ctx, url, res);
   else if (isRead) await handleMissionRead(ctx, url, res);
+  else if (isAgents) await handleAgentDirectory(ctx, res);
+  else if (isAgentRead) await handleAgentProfile(ctx, url, res);
   else if (isStart) await handleMissionStart(ctx, req, res);
   else if (isStatus) await handleMissionStatus(ctx, req, res);
   else await handleMissionSettle(ctx, req, res);

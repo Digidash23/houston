@@ -51,7 +51,8 @@
   },
   "nameErrors": {
     "invalidChars": "El nombre del empleado de IA no puede contener barras ni caracteres especiales",
-    "tooLong": "El nombre del empleado de IA puede tener máximo {{max}} caracteres"
+    "tooLong": "El nombre del empleado de IA puede tener máximo {{max}} caracteres",
+    "reserved": "Houston es el nombre de tu AI Manager. Elige otro."
   },
   "instructions": {
     "specific": "Instrucciones específicas",
@@ -61,7 +62,8 @@
       "role": "Rol",
       "addIndustry": "Agregar industria",
       "addRole": "Agregar rol"
-    }
+    },
+    "loadFailed": "No se pudo cargar la descripción del puesto."
   },
   "learnings": {
     "emptyTitle": "Aún no hay aprendizajes",
@@ -142,7 +144,7 @@
     },
     "readOnly": {
       "title": "Estos archivos no se pueden cambiar por ahora",
-      "description": "Houston no puede guardar cambios ahí. Revisa los permisos de la carpeta e inténtalo de nuevo."
+      "description": "No se pueden guardar cambios ahí. Revisa los permisos de la carpeta e inténtalo de nuevo."
     },
     "conflict": {
       "title": "“{{name}}” ya existe",
@@ -220,20 +222,20 @@
       "openFailedTitle": "No se pudo abrir el archivo",
       "savedRenamedDescription": "Se guardó como {{name}} porque {{original}} está abierto en otro programa.",
       "saveLocked": "Ese archivo está abierto en otro programa. Ciérralo ahí y vuelve a descargarlo.",
-      "savePermission": "Houston no tiene permiso para guardar en esa carpeta. Elige otra carpeta, como Descargas.",
+      "savePermission": "La app no tiene permiso para guardar en esa carpeta. Elige otra carpeta, como Descargas.",
       "saveDiskFull": "No hay suficiente espacio libre en este computador para guardar el archivo.",
-      "revealPermission": "Houston no tiene permiso para abrir esa carpeta en este computador. Busca el archivo donde lo guardaste."
+      "revealPermission": "La app no tiene permiso para abrir esa carpeta en este computador. Busca el archivo donde lo guardaste."
     },
     "modifiedToday": "Hoy"
   },
   "copyAgent": {
     "row": "Duplicar a {{name}}",
-    "rowDescription": "Crea un duplicado en uno de tus equipos. Las conversaciones no se duplican.",
+    "rowDescription": "Crea un duplicado en uno de tus grupos. Las conversaciones no se duplican.",
     "title": "Duplicar a {{name}}",
     "body": "El duplicado empieza con la misma descripción del puesto, skills, rutinas, aprendizajes y color. Las conversaciones se quedan con el original y nunca se duplican.",
     "nameLabel": "Nombre del duplicado",
-    "nameTaken": "Ya existe un empleado de IA llamado {{name}}. Los nombres de empleados de IA se comparten entre todos tus equipos, así que dale al duplicado un nombre propio.",
-    "teamLabel": "Equipo del duplicado",
+    "nameTaken": "Ya existe un empleado de IA llamado {{name}}. Los nombres de empleados de IA se comparten entre todos tus grupos, así que dale al duplicado un nombre propio.",
+    "teamLabel": "Grupo del duplicado",
     "confirm": "Crear duplicado",
     "copySuffix": "copia",
     "toasts": {
@@ -285,8 +287,5 @@
         "clearAll": "Quitar todo"
       }
     }
-  },
-  "rowMenu": {
-    "label": "Opciones de {{name}}"
   }
 }

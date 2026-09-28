@@ -2,6 +2,7 @@ import type { Server } from "node:http";
 import { docKey } from "@houston/domain";
 import type { Activity, Capabilities, Routine } from "@houston/protocol";
 import { afterAll, beforeAll, expect, test } from "vitest";
+import { assistantCallHeaders } from "../auth/assistant-call";
 import { ProxyChannel } from "../channel/proxy";
 import { MemoryCredentialStore } from "../credentials/store";
 import type { RuntimeEndpoint, RuntimeLauncher, TokenVerifier } from "../ports";
@@ -919,5 +920,75 @@ test("no vfs wired → typed data routes answer 503, runtime dispatch unaffected
     expect(r.status).toBe(503);
   } finally {
     await new Promise<void>((r) => noVfs.close(() => r()));
+  }
+});
+
+const viaAssistant = (sub: string) =>
+  `acting-v1.${Buffer.from(
+    JSON.stringify({ sub, via: "assistant", exp: 4102444800 }),
+  ).toString("base64url")}.sig`;
+
+async function createCard(
+  at: string,
+  headers: Record<string, string>,
+  body: Record<string, unknown> = {},
+): Promise<Activity> {
+  const created = await fetch(`${at}/agents/${agentId}/activities`, {
+    method: "POST",
+    headers: { ...auth("alice"), ...headers },
+    body: JSON.stringify({ title: "From the manager", ...body }),
+  });
+  expect(created.status).toBe(201);
+  return (await created.json()) as Activity;
+}
+
+test("activities: a card the desktop AI Manager creates is stamped as Houston's (PRODUCT-1928)", async () => {
+  const card = await createCard(base, assistantCallHeaders());
+  expect(card.started_by).toBe("houston");
+  const listed = (await (
+    await fetch(`${base}/agents/${agentId}/activities`, {
+      headers: auth("alice"),
+    })
+  ).json()) as { items: Activity[] };
+  expect(listed.items.find((a) => a.id === card.id)?.started_by).toBe(
+    "houston",
+  );
+});
+
+test("activities: a plain create records no starter, and neither body nor PATCH can author one", async () => {
+  const plain = await createCard(base, {});
+  expect("started_by" in plain).toBe(false);
+  const forged = await createCard(base, {}, { started_by: "houston" });
+  expect("started_by" in forged).toBe(false);
+  // Off the gateway an acting header is client input: its via claim is ignored.
+  const spoofed = await createCard(base, {
+    "x-houston-acting-as": viaAssistant("mallory"),
+  });
+  expect("started_by" in spoofed).toBe(false);
+  const patched = await fetch(
+    `${base}/agents/${agentId}/activities/${plain.id}`,
+    {
+      method: "PATCH",
+      headers: auth("alice"),
+      body: JSON.stringify({ started_by: "houston" }),
+    },
+  );
+  expect(patched.status).toBe(400);
+});
+
+test("activities (gateway-fronted): the gateway's via claim stamps Houston, the loopback proof does not", async () => {
+  const fronted = createControlPlaneServer({ ...deps(), gatewayFronted: true });
+  await new Promise<void>((r) => fronted.listen(0, "127.0.0.1", () => r()));
+  const addr = fronted.address();
+  const at = `http://127.0.0.1:${typeof addr === "object" && addr ? addr.port : 0}`;
+  try {
+    const managed = await createCard(at, {
+      "x-houston-acting-as": viaAssistant("owner-sub"),
+    });
+    expect(managed.started_by).toBe("houston");
+    const proofOnly = await createCard(at, assistantCallHeaders());
+    expect("started_by" in proofOnly).toBe(false);
+  } finally {
+    await new Promise<void>((r) => fronted.close(() => r()));
   }
 });

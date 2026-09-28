@@ -5,12 +5,10 @@ import type { Agent } from "../../lib/types";
 /**
  * The ONE nav model for configuring a single agent.
  *
- * There is one surface now — the canonical settings page — reached through two
- * doors (Team Settings, and Settings > Permissions in multiplayer). It names
- * its rail from here, so a section can never mean two different things or be
- * gated two different ways. The per-agent Context / Admin tabs that used to
- * render their own one-group rails from `contextTabGroups` / `adminTabGroups`
- * went away with the agent tab shell, and so did those builders.
+ * One surface, the canonical settings page, is reached through two doors (the
+ * employee's own Settings section, and Settings > Permissions in multiplayer).
+ * It names its rail from here, so a section can never mean two different
+ * things or be gated two different ways.
  *
  * Pure and DOM-free, so the visibility rules are unit-tested
  * (`app/tests/agent-settings-nav.test.ts`).
@@ -22,6 +20,7 @@ export type AgentSettingsSection =
   | "integrations"
   | "models"
   | "skills"
+  | "delegation"
   | "manage";
 
 /** The two semantic groups used only to keep hidden deep links nearby. */
@@ -45,6 +44,7 @@ export const SECTION_GROUP: Record<AgentSettingsSection, AgentSettingsGroupId> =
     integrations: "permissions",
     models: "permissions",
     skills: "permissions",
+    delegation: "permissions",
     manage: "permissions",
   };
 
@@ -87,6 +87,7 @@ export function agentSettingsSections(
     "manage",
     "job-description",
     "skills",
+    ...(caps?.agentDelegation === true ? (["delegation"] as const) : []),
     "learnings",
     ...agentAccessSections(caps, personalSpace),
   ];
@@ -99,6 +100,7 @@ export const SECTION_TITLES = {
   integrations: "agentAdmin.rows.integrations.title",
   models: "agentAdmin.rows.model.title",
   skills: "agents:subTabs.skills",
+  delegation: "delegation.sectionTitle",
   manage: "agentSettings.manage.sectionTitle",
 } as const satisfies Record<AgentSettingsSection, string>;
 

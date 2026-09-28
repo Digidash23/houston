@@ -180,6 +180,28 @@ test("normalize sanitizes attribution: malformed dropped, valid preserved", () =
   expect("contributors" in (items[1] ?? {})).toBe(false);
 });
 
+test("normalize keeps a valid started_by and drops a hand-typed one", () => {
+  const row = { title: "T", status: "running", description: "" };
+  const { items } = normalizeActivities(
+    [
+      { ...row, id: "a1", started_by: "houston" },
+      { ...row, id: "a2", started_by: "employee" },
+      { ...row, id: "a3", started_by: "Houston" },
+      { ...row, id: "a4", started_by: 1 },
+      { ...row, id: "a5" },
+    ],
+    "k",
+  );
+  expect(items.map((a) => a.started_by)).toEqual([
+    "houston",
+    "employee",
+    undefined,
+    undefined,
+    undefined,
+  ]);
+  expect(items.slice(2).some((a) => "started_by" in a)).toBe(false);
+});
+
 test("attribution survives a save → load round-trip", async () => {
   const store = memStore();
   const a = createActivity({ title: "Deck" }, "act-1", NOW, ALICE);

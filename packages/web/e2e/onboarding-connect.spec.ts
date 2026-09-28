@@ -1,51 +1,113 @@
+import {
+  showFewerProviders,
+  subscriptionCard,
+  viewMoreProviders,
+} from "./support/connect-ai";
 import { expect, test } from "./support/fixtures";
-import { completeSurvey, resetToFirstRun } from "./support/onboarding";
+import {
+  connectAi,
+  connectAiStep,
+  managerOnboarding,
+  managerStep,
+  onboardingPrompt,
+  receipt,
+} from "./support/manager-onboarding";
+import { openManagerOnboarding, resetToFirstRun } from "./support/onboarding";
+
+import { workspaceMenuTrigger } from "./support/workspace-menu";
 
 /**
- * First-run's connect beat, as the game-style in-app tutorial: after the
- * survey the welcome overlay opens over the REAL shell, and each step
- * spotlights the actual control (in-app-onboarding.tsx + tutorial-spotlight)
- * — the user clicks the real sidebar row, lands on the real AI hub, and
- * connects there. Advancement is app state (viewMode, the shared provider
- * status probe), never a Next button.
+ * First run's opening: the AI Manager's conversation, inside the workspace
+ * shell, opens with the manager's hello (who it is, what it does, one short
+ * message at a time) and starts by connecting an AI. The "Connect your AI" step leads with two
+ * subscription cards, Claude and ChatGPT; "View more" swaps them for every
+ * provider in one list. Advancement is app state, never a Next button: the
+ * conversation moves on to the survey the moment the shared provider probe
+ * confirms a connection, and the person's answer reads "Connected <provider>."
  */
-test("first-run tutorial walks the user to the AI hub through the real sidebar", async ({
+test("first run opens the manager's chat in the shell, and connecting comes first", async ({
   page,
   request,
 }) => {
-  // Onboarding shows when the v3 host reports ZERO agents.
+  // Onboarding starts when the v3 host reports ZERO agents.
   await resetToFirstRun(request);
+  await openManagerOnboarding(page);
 
-  await page.goto("/");
-  await completeSurvey(page);
+  const chat = managerOnboarding(page);
+  // The hello, one message per line: signed out, there is no name to greet.
+  for (const line of [
+    "Hi there!",
+    "I'm Houston, your AI Manager. I build and run your team of AI Employees.",
+    "Each AI Employee owns one job. They do real work in your tools on their own, and report back when it's done.",
+    "You tell me what you need, and I make sure the right AI Employee is on it.",
+    "First, let's connect the AI that powers your team.",
+  ])
+    await expect(chat.getByText(line, { exact: true })).toBeVisible();
+  // Inside the shell: the rail stands beside the conversation.
+  await expect(workspaceMenuTrigger(page)).toBeVisible();
+  // Answered by clicking: the chat has no composer while it runs.
+  await expect(chat.locator("textarea")).toHaveCount(0);
 
-  // Welcome beat: one action only.
   await expect(
-    page.getByRole("heading", { name: "Welcome to Houston!" }),
+    onboardingPrompt(page).getByText("Connect your AI", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Start setup" }).click();
+  await expect(connectAiStep(page)).toBeVisible();
+  await expect(managerStep(page, "survey-industry")).toHaveCount(0);
 
-  // The WHAT position: a centered card narrates the step ahead (why the AI
-  // must be connected) with its own button.
-  await expect(
-    page.getByRole("dialog", { name: "Connect your AI" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Show me" }).click();
+  await connectAi(page);
+  await expect(receipt(page, "Connected OpenRouter.")).toBeVisible();
+  await expect(chat.getByText(/^Your AI is connected!/)).toBeVisible();
+  await expect(connectAiStep(page)).toHaveCount(0);
+});
 
-  // The HOW position: a chip pinned at the AI Models row; the row itself
-  // stays clickable through the spotlight's hole.
-  await expect(
-    page.getByRole("dialog", { name: "Click AI Models" }),
-  ).toBeVisible();
-  await page.locator("[data-tour-target='nav-ai-hub']").click();
+test("View more swaps the featured cards for every provider and back", async ({
+  page,
+  request,
+}) => {
+  await resetToFirstRun(request);
+  await openManagerOnboarding(page);
+  await expect(connectAiStep(page)).toBeVisible();
 
-  // The REAL hub opened, and the tutorial advanced to the connect step
-  // (zero-agent first-run: no provider is confirmed connected yet, so the
-  // coach card holds until one is).
+  await expect(subscriptionCard(page, "Claude")).toBeVisible();
+  await expect(subscriptionCard(page, "ChatGPT")).toBeVisible();
+  await expect(page.getByPlaceholder("Search providers")).toHaveCount(0);
+
+  await viewMoreProviders(page).click();
+  // The button pressed is gone, so focus lands on the one that swaps back.
+  const showFewer = showFewerProviders(page);
+  await expect(showFewer).toBeFocused();
+  await expect(page.getByPlaceholder("Search providers")).toBeVisible();
+  // The list replaces the featured cards and includes their providers, listed
+  // under the company that makes each one.
+  await expect(subscriptionCard(page, "Claude")).toHaveCount(0);
+  await expect(subscriptionCard(page, "ChatGPT")).toHaveCount(0);
+  await page.getByPlaceholder("Search providers").fill("claude");
   await expect(
-    page.getByRole("heading", { name: "AI Providers" }),
+    page.getByRole("button", { name: "Connect Anthropic" }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("dialog", { name: "Pick the AI you already use." }),
-  ).toBeVisible();
+
+  await showFewer.click();
+  await expect(page.getByPlaceholder("Search providers")).toHaveCount(0);
+  await expect(subscriptionCard(page, "Claude")).toBeVisible();
+  await expect(viewMoreProviders(page)).toBeFocused();
+});
+
+test("a reload mid-onboarding resumes on the step the user left", async ({
+  page,
+  request,
+}) => {
+  await resetToFirstRun(request);
+  await openManagerOnboarding(page);
+  await expect(connectAiStep(page)).toBeVisible();
+
+  // Nothing is connected yet: the connect step again.
+  await page.reload();
+  await expect(connectAiStep(page)).toBeVisible();
+
+  // Connected: a reload lands on the survey, the connection kept as history.
+  await connectAi(page);
+  await page.reload();
+  await expect(managerStep(page, "survey-industry")).toBeVisible();
+  await expect(receipt(page, "Connected OpenRouter.")).toBeVisible();
+  await expect(connectAiStep(page)).toHaveCount(0);
 });

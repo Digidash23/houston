@@ -2,7 +2,6 @@ import type { PortableInventoryPreview } from "@houston/engine-adapter";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useCapabilities } from "../../hooks/use-capabilities";
-import { useTeams } from "../../hooks/use-teams";
 import { isAgentManager } from "../../lib/agent-access";
 import { AGENT_NAME_MAX_LENGTH, agentNameIssue } from "../../lib/agent-name";
 import { getEngine } from "../../lib/engine";
@@ -12,6 +11,7 @@ import { useAgentStore } from "../../stores/agents";
 import { useUIStore } from "../../stores/ui";
 import { suggestCopyName } from "../agent-actions/copy-agent-model";
 import { useCopyAgent } from "../agent-actions/use-copy-agent";
+import { useEmployeeNameIssueCopy } from "../employee-card/use-employee-name";
 import {
   type CopyWizardStep,
   copyWizardSteps,
@@ -27,16 +27,17 @@ import {
  * Settings "Copy agent" row runs, fed this selection.
  */
 export function useCopyAgentWizard(args: {
-  targetTeamId: string | null;
   onBack: () => void;
   onDone: () => void;
 }) {
   const { t } = useTranslation("agents");
   const agents = useAgentStore((s) => s.agents);
   const { capabilities } = useCapabilities();
-  const teams = useTeams();
   const addToast = useUIStore((s) => s.addToast);
   const copyAgent = useCopyAgent();
+  const issueCopy = useEmployeeNameIssueCopy({
+    taken: (trimmed) => t("copyAgent.nameTaken", { name: trimmed }),
+  });
 
   const [source, setSource] = useState<Agent | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -58,14 +59,7 @@ export function useCopyAgentWizard(args: {
   const step: CopyWizardStep = steps[stepIndex] ?? "source";
   const existingNames = agents.map((agent) => agent.name);
   const nameIssue = agentNameIssue(name, existingNames);
-  const nameIssueMessage =
-    nameIssue === "taken"
-      ? t("copyAgent.nameTaken", { name: name.trim() })
-      : nameIssue === "tooLong"
-        ? t("nameErrors.tooLong", { max: AGENT_NAME_MAX_LENGTH })
-        : nameIssue === "invalidChars"
-          ? t("nameErrors.invalidChars")
-          : null;
+  const nameIssueMessage = issueCopy(nameIssue, name);
 
   const pick = async (agent: Agent) => {
     setLoadingId(agent.id);
@@ -127,11 +121,10 @@ export function useCopyAgentWizard(args: {
   const submit = async () => {
     if (creating || !source || !selection || !name.trim() || nameIssue) return;
     setCreating(true);
-    const team = teams.find((entry) => entry.id === args.targetTeamId) ?? null;
     const ok = await copyAgent({
       agent: source,
       name,
-      team,
+      team: null,
       color,
       selection: toCopySelection(selection),
       copyChats,

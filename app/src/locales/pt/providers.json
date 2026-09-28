@@ -1,6 +1,6 @@
 {
   "setup": {
-    "installHint": "Instale a CLI {{cli}} no seu computador. Houston detecta sozinho.",
+    "installHint": "Instale a CLI {{cli}} no seu computador. Ela é detectada automaticamente.",
     "installGuide": "Guia de instalação",
     "signInWith": "Entrar",
     "waiting": "Esperando você terminar o login no navegador...",
@@ -9,13 +9,13 @@
   },
   "signOutConfirm": {
     "title": "Sair de {{provider}}?",
-    "description": "Houston vai parar de usar {{provider}} até você entrar de novo. As tarefas em andamento podem terminar o turno atual.",
+    "description": "{{provider}} não será usado até você entrar de novo. As tarefas em andamento podem terminar o turno atual.",
     "confirm": "Sair",
     "cancel": "Cancelar"
   },
   "toast": {
     "signInFailed": "Não foi possível abrir o login de {{provider}}",
-    "engineUnavailable": "O Houston não conseguiu acessar seu espaço de trabalho. Aguarde um instante e tente de novo.",
+    "engineUnavailable": "Não conseguimos acessar seu espaço de trabalho. Aguarde um instante e tente de novo.",
     "connectTimedOut": "A conexão não foi concluída a tempo. Tente conectar de novo.",
     "loginTimedOut": "O login não foi concluído a tempo. Tente de novo.",
     "signInExpiredTitle": "Esse link de login expirou",
@@ -70,13 +70,13 @@
   },
   "apiKey": {
     "title": "Conectar {{name}}",
-    "description": "Cole sua chave de API do {{name}}. O Houston a mantém em segurança e a usa nos seus chats.",
+    "description": "Cole sua chave de API do {{name}}. Nós a mantemos em segurança e a usamos nos seus chats.",
     "getKey": "Obtenha sua chave de API",
     "label": "Chave de API",
     "placeholder": "Cole sua chave de API",
     "endpointLabel": "Endpoint",
     "endpointPlaceholder": "https://seu-recurso.openai.azure.com",
-    "endpointHelp": "A URL do endpoint do seu recurso no portal do Azure. O Houston chama a implantação com o mesmo nome do modelo, então nomeie suas implantações igual ao modelo (por exemplo \"gpt-5.5\").",
+    "endpointHelp": "A URL do endpoint do seu recurso no portal do Azure. Cada solicitação vai para a implantação com o mesmo nome do modelo, então nomeie suas implantações igual ao modelo (por exemplo \"gpt-5.5\").",
     "endpointRequired": "Primeiro informe a URL do endpoint. Ela começa com https:// e está no seu recurso no portal do Azure.",
     "required": "Primeiro informe sua chave de API.",
     "verifyFailed": "Não foi possível conectar esta chave: {{detail}}",
@@ -125,7 +125,7 @@
   },
   "openaiCompatible": {
     "title": "Conecte um modelo local",
-    "description": "Aponte o Houston para um modelo rodando no seu computador, como Ollama, LM Studio ou vLLM.",
+    "description": "Use um modelo rodando no seu computador, como Ollama, LM Studio ou vLLM.",
     "baseUrlLabel": "Endereço do servidor",
     "baseUrlPlaceholder": "http://localhost:11434/v1",
     "baseUrlHelp": "O endereço onde o seu servidor local escuta. No Ollama costuma ser http://localhost:11434/v1.",
@@ -155,8 +155,8 @@
   },
   "claudeLogin": {
     "timeout": "O login do Claude expirou. Tente conectar novamente.",
-    "confirmTimeout": "Você entrou no Claude, mas o Houston não conseguiu confirmar a conexão. Tente novamente.",
-    "handoffFailed": "Você entrou no Claude, mas o Houston teve um problema do nosso lado ao concluir a conexão. Tente novamente em instantes ou reporte um erro se continuar acontecendo.",
+    "confirmTimeout": "Você entrou no Claude, mas não conseguimos confirmar a conexão. Tente novamente.",
+    "handoffFailed": "Você entrou no Claude, mas tivemos um problema do nosso lado ao concluir a conexão. Tente novamente em instantes ou reporte um erro se continuar acontecendo.",
     "autoFailedTitle": "Não foi possível concluir a conexão automaticamente",
     "autoFailedBody": "Cole uma chave de API da Anthropic para terminar de conectar.",
     "helperUnsupported": "O processador deste computador é muito antigo para executar o assistente de login do Claude, então não é possível conectar uma assinatura do Claude nesta máquina.",
@@ -164,7 +164,7 @@
   },
   "localModel": {
     "title": "Conecte um modelo local",
-    "description": "Rode um modelo no seu próprio computador e deixe o Houston usá-lo. O Houston cuida da conexão.",
+    "description": "Rode um modelo no seu próprio computador e use aqui. Nós cuidamos da conexão.",
     "detecting": "Procurando apps de modelos no seu computador...",
     "cancel": "Cancelar",
     "connecting": {
@@ -184,11 +184,11 @@
         "ollama": "Funciona sozinho depois de instalado. Não precisa ativar nada."
       },
       "get": "Baixar",
-      "reassure": "Assim que estiver aberto, o Houston cuida do resto.",
+      "reassure": "Assim que estiver aberto, nós cuidamos do resto.",
       "recheck": "Procurar de novo"
     },
     "pick": {
-      "body": "O Houston encontrou estes no seu computador. Escolha o modelo que você quer usar.",
+      "body": "Encontramos estes no seu computador. Escolha o modelo que você quer usar.",
       "modelsFound_one": "{{count}} modelo disponível",
       "modelsFound_other": "{{count}} modelos disponíveis",
       "modelLabel": "Modelo",

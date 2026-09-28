@@ -23,15 +23,8 @@ const ROWS = read("../src/components/shell/sidebar-nav-rows.tsx");
  *  change, so every "the rail says X" assertion reads them as one source. */
 const NAV = `${SECTIONS}\n${ROWS}`;
 const HOOK = read("../src/components/shell/use-sidebar-nav-items.tsx");
-const FOOTER = read("../src/components/shell/sidebar-footer.tsx");
-const SHELL = read("../src/components/shell/workspace-shell.tsx");
-const TITLE_STRIP = read("../src/components/shell/shell-title-strip.tsx");
-const HELP = read("../src/components/shell/sidebar-help-menu.tsx");
-const GUIDED_SETUP = read("../src/hooks/use-run-guided-setup.ts");
 const VIEWS = read("../src/lib/top-level-views.ts");
 const SETTINGS_SECTIONS = read("../src/lib/settings-sections.ts");
-/** The phone's long tail, which mirrors the rail's footer cluster. */
-const MORE_MENU = read("../src/components/shell/mobile-more-menu.tsx");
 
 /** The source of one nav section, from its id to the next section's. */
 function navSection(id: string): string {
@@ -52,12 +45,8 @@ function gatedRuns(source: string): [string, string][] {
 describe("the rail's primary run", () => {
   const primary = navSection("primary");
 
-  it("is Houston, AI Models, Integrations and Skills only", () => {
-    assert.deepEqual(gatedRuns(primary), [
-      ["showAssistant", "assistant"],
-      ["showAiModels", "aiModels"],
-      ["showSkills", "skills"],
-    ]);
+  it("contains AI Models and Integrations only", () => {
+    assert.deepEqual(gatedRuns(primary), [["showAiModels", "aiModels"]]);
     assert.equal(
       primary.match(/\n {10}id: /g)?.length,
       1,
@@ -66,32 +55,21 @@ describe("the rail's primary run", () => {
     assert.ok(primary.includes("id: INTEGRATIONS_VIEW_ID"));
   });
 
-  it("is led by the Assistant, then AI Models, then Integrations", () => {
-    // Discovery, not a role: a deployment that serves no assistant has no
-    // address to open a chat at, so the row must not exist there. It leads the
-    // run, ahead of AI Models and Integrations.
-    assert.ok(
-      primary.indexOf("showAssistant ?") < primary.indexOf("showAiModels ?"),
-      "Houston leads the run",
-    );
+  it("holds no AI Manager: it is pinned in the employees band instead", () => {
+    // The Manager is a member of the team, not a destination: it leads the
+    // band (`sidebar-manager-row.tsx`, guarded in sidebar-manager-row.test.ts).
+    assert.ok(!NAV.includes("ASSISTANT_VIEW_ID"));
+    assert.ok(!NAV.includes("rail-assistant"));
+    assert.ok(!HOOK.includes("showAssistant"));
+  });
+
+  it("leads the primary run with AI Models then Integrations", () => {
     assert.ok(
       primary.indexOf("showAiModels ?") <
         primary.indexOf("id: INTEGRATIONS_VIEW_ID"),
       "AI Models comes before Integrations",
     );
-    assert.ok(NAV.includes("onClick: () => setViewMode(ASSISTANT_VIEW_ID)"));
-    assert.ok(NAV.includes('label: t("shell:sidebar.assistant")'));
-    assert.ok(VIEWS.includes("ASSISTANT_VIEW_ID"), "a real top-level view");
-    // Houston leads the run wearing its animated orb, not a static glyph.
-    assert.ok(
-      ROWS.includes("icon: <HoustonLogo />"),
-      "the row renders the logo",
-    );
     assert.ok(!ROWS.includes("Sparkles"), "no static sparkle glyph remains");
-    assert.ok(
-      HOOK.includes("showAssistant"),
-      "the hook feeds the gate from useSurfaceGates",
-    );
   });
 
   it("leaves About me to Settings and the Academy to the footer", () => {
@@ -122,21 +100,16 @@ describe("the rail's primary run", () => {
   });
 
   it("carries no row that points at no screen", () => {
-    // "Guide me" was exactly that: the one entry that could never light,
-    // holding a permanent slot among destinations. It moved to the footer's
-    // help control, so nothing here arms the tour any more.
-    assert.ok(!NAV.includes("GUIDE_ME_NAV_ID"));
-    assert.ok(!NAV.includes("startTour"));
+    // A row that can never light would hold a permanent slot among
+    // destinations.
     assert.ok(!NAV.includes("active: false"));
-    assert.ok(!VIEWS.includes("guide-me"), "no view claims that id either");
   });
 });
 
 describe("the rail's labelled bands", () => {
-  it("declares exactly ONE run, so nothing is labelled above Your teams", () => {
-    // "Your teams" is the rail's only band. A second heading over a run of
-    // destinations would be a second rule for one row shape, and the rows that
-    // LEAD the rail need no heading to be found.
+  it("declares exactly ONE run, with no heading over it", () => {
+    // The workspace menu draws this run unlabelled between its separators; a
+    // heading over it would be a second rule for one row shape.
     assert.equal(
       SECTIONS.match(/\n {6}id: "/g)?.length,
       1,
@@ -155,155 +128,16 @@ describe("the rail's labelled bands", () => {
     assert.ok(!NAV.includes("TIME_WORKED_VIEW_ID"), "no Time worked row");
   });
 
-  it("leaves Workspace management to Settings and gives Skills its own row", () => {
-    // Administering the space is standing setup, so it is a Settings section.
-    // The shared library is a destination instead: a rail row of its own,
-    // right after Integrations, on the space-owner gate.
-    assert.ok(SETTINGS_SECTIONS.includes('"workspace"'));
+  it("keeps Admin out of Settings, and Skills off every menu", () => {
+    // Admin leads the workspace menu's run (sidebar-workspace-menu.tsx).
+    assert.ok(!SETTINGS_SECTIONS.includes('"workspace"'));
     assert.ok(!SETTINGS_SECTIONS.includes('"skills"'), "not a section");
     assert.ok(!NAV.includes('label: t("settings:nav.workspace")'));
-    assert.ok(NAV.includes("id: SKILLS_VIEW_ID"), "the Skills row");
-    assert.ok(NAV.includes('label: t("shell:sidebar.skills")'));
-    assert.ok(NAV.includes("onClick: () => setViewMode(SKILLS_VIEW_ID)"));
-    assert.ok(VIEWS.includes("SKILLS_VIEW_ID"), "a real top-level view");
-    // The tour does not walk it, so it carries a test id rather than an
-    // anchor: a target in the union no step spotlights is dead weight.
-    assert.ok(!NAV.includes('tourAnchor("nav-skills")'), "no Skills anchor");
-    assert.ok(NAV.includes('"data-testid": "rail-skills"'));
-  });
-
-  it("puts Skills directly after Integrations, on the space-owner gate", () => {
-    const primary = navSection("primary");
-    assert.ok(
-      primary.indexOf("id: INTEGRATIONS_VIEW_ID") <
-        primary.indexOf("showSkills ?"),
-      "Skills follows Integrations",
-    );
-    assert.ok(
-      HOOK.includes("showSkills"),
-      "the hook feeds the gate from useSurfaceGates",
-    );
-  });
-});
-
-describe("the rail's footer cluster", () => {
-  it("draws the Academy directly above Settings", () => {
-    // The bottom of the rail is what a person opens about their own use of
-    // Houston: learning to fly, then their preferences. Both are ungated, and
-    // the Academy must come first in the source so it renders above the gear.
-    assert.ok(FOOTER.includes("academyNavRow("), "built from the shared row");
-    assert.ok(FOOTER.includes('label: t("sidebar.academy")'));
-    assert.ok(FOOTER.includes("active={viewMode === ACADEMY_VIEW_ID}"));
-    assert.ok(
-      FOOTER.indexOf("ACADEMY_VIEW_ID)") <
-        FOOTER.indexOf("active={viewMode === SETTINGS_VIEW_ID}"),
-      "the Academy row is drawn before the Settings row",
-    );
-    assert.ok(VIEWS.includes("ACADEMY_VIEW_ID"), "a real top-level view");
-  });
-
-  it("is ONE row, shared with the phone's More menu", () => {
-    // Two breakpoints, one destination: the menu spends the same builder, so
-    // the label, the glyph and the view id cannot drift apart.
-    assert.ok(ROWS.includes("export function academyNavRow("));
-    assert.ok(MORE_MENU.includes("academyNavRow("));
-    assert.ok(MORE_MENU.includes('label: t("shell:sidebar.academy")'));
-    // A menu destination is a tab-level move on the phone, never a level
-    // pushed onto the tree the user was standing in.
-    assert.ok(
-      MORE_MENU.includes('setViewMode(ACADEMY_VIEW_ID, { nav: "reset" })'),
-    );
-    assert.ok(MORE_MENU.includes("<MobileMoreRowButton row={academy} />"));
-  });
-});
-
-describe("Settings left the nav for the footer", () => {
-  it("is in no nav section at all", () => {
-    assert.ok(!NAV.includes("SETTINGS_VIEW_ID"));
-    assert.ok(!NAV.includes('tourAnchor("nav-settings")'));
-    assert.ok(!NAV.includes("openSettingsIndex"));
-  });
-
-  it("is drawn in the footer through the library's own row", () => {
-    assert.ok(
-      FOOTER.includes('import { SidebarNavItem } from "@houston-ai/layout"'),
-    );
-    assert.ok(FOOTER.includes("<SidebarNavItem"));
-    assert.ok(FOOTER.includes("collapsed={props.collapsed}"));
-  });
-
-  it("keeps the tour's Settings anchor resolving, and opens the INDEX", () => {
-    assert.ok(FOOTER.includes('dataAttrs={tourAnchor("nav-settings")}'));
-    assert.ok(FOOTER.includes("openSettings(null)"));
-    assert.ok(FOOTER.includes("setMobileMoreOpen(false)"));
-    assert.ok(FOOTER.includes("active={viewMode === SETTINGS_VIEW_ID}"));
-  });
-
-  it("sits beside the footer's help control, not above a nav row", () => {
-    // "Guide me" and "Report a problem" are the two things a stuck user reaches
-    // for, and neither is a destination, so they are menu items on a control
-    // next to the gear rather than rows among the app's screens.
-    assert.ok(FOOTER.includes("<SidebarHelpMenu"));
-    assert.ok(FOOTER.includes("collapsed={props.collapsed}"));
-    assert.ok(FOOTER.includes('help: t("sidebar.help")'));
-    assert.ok(FOOTER.includes('guideMe: t("sidebar.guideMe")'));
-    assert.ok(FOOTER.includes('reportProblem: t("sidebar.reportProblem")'));
-    // Report a problem opens the ONE bug-report surface rather than a second
-    // copy of it.
-    assert.ok(FOOTER.includes('openSettings("reportBug")'));
-  });
-
-  it("is the rail's last row: the avatar menu below it is gone", () => {
-    // The account avatar expanded into "Account settings", which opened THIS
-    // row's destination — a second door onto one page. Identity moved into the
-    // Settings index (`settings/identity-header.tsx`), so nothing about a user
-    // menu may survive in the footer.
-    assert.ok(!FOOTER.includes("UserMenu"));
-    assert.ok(!FOOTER.includes("user-menu"));
-    // Nothing sits below Settings any more: the update surfaces (launch
-    // overlay, restart pill) are window chrome mounted by the shell, not a
-    // rail row.
-    assert.ok(!FOOTER.includes("<UpdateChecker"));
-    // The strip above the content row is the shell's, mounted by it.
-    assert.ok(SHELL.includes("<ShellTitleStrip"));
-    assert.ok(TITLE_STRIP.includes("<UpdateChecker />"));
-  });
-});
-
-describe("the Guide me composition", () => {
-  it("goes home BEFORE arming the in-app onboarding", () => {
-    // The onboarding operates over the workspace shell, so the store is left
-    // first — arming against Settings would overlay the wrong surface.
-    assert.ok(
-      GUIDED_SETUP.indexOf("openHome();") <
-        GUIDED_SETUP.indexOf("setInAppOnboardingActive(true);"),
-    );
-  });
-
-  it("is defined ONCE, and the footer's menu item spends it", () => {
-    // The Academy's setup chapter runs the same guided setup. Two copies of
-    // the arming order is one copy waiting to drift, so the footer holds the
-    // affordance and the hook holds the composition.
-    const start = FOOTER.indexOf("onGuideMe={() => {");
-    assert.ok(start >= 0, "the footer composes onGuideMe");
-    assert.ok(FOOTER.includes("useRunGuidedSetup()"));
-    assert.ok(FOOTER.slice(start).includes("runGuidedSetup();"));
-    assert.ok(!FOOTER.includes("setInAppOnboardingFirstRun"));
-  });
-
-  it("keeps the tour's replay anchor on the control that replays it", () => {
-    // The `appTour` step spotlights whatever a user clicks to run the tour
-    // again. That is the help control now, so the anchor travels with it, and
-    // nothing in the nav may still claim it.
-    assert.ok(HELP.includes('tourAnchor("appTour")'));
-    assert.ok(!NAV.includes('tourAnchor("appTour")'));
-  });
-
-  it("runs both menu items one tick AFTER the menu closes", () => {
-    // Radix restores focus to the trigger when its content unmounts, which
-    // lands after a synchronous handler has already mounted the tour overlay or
-    // moved the view. The band's create menu defers for the same reason.
-    assert.ok(HELP.includes("onSelect={() => setTimeout(onGuideMe, 0)}"));
-    assert.ok(HELP.includes("onSelect={() => setTimeout(onReportProblem, 0)}"));
+    // Skills are managed on each employee's screen; the workspace library is
+    // reached only from a skill-setup chat's notification.
+    assert.ok(!NAV.includes("SKILLS_VIEW_ID"), "no Skills row");
+    assert.ok(!NAV.includes("nav-skills"), "and no tour anchor for one");
+    assert.ok(!HOOK.includes("showSkills"), "the menu rides no Skills gate");
+    assert.ok(!VIEWS.includes("SKILLS_VIEW_ID"), "and no Skills screen at all");
   });
 });

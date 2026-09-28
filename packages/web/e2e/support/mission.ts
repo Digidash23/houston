@@ -1,3 +1,4 @@
+import { SEED_AGENT_NAME } from "@houston/fake-host";
 import type { Page } from "@playwright/test";
 import { NEW_TASK_PLACEHOLDER } from "./composer";
 import { expect } from "./fixtures";
@@ -11,7 +12,7 @@ import { expect } from "./fixtures";
  */
 export async function openNewMission(
   page: Page,
-  agentName = "Houston",
+  agentName = SEED_AGENT_NAME,
 ): Promise<void> {
   await page
     .locator("[data-screen-active='true']")

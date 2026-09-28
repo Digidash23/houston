@@ -3,6 +3,214 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v115 - 2026-09-28
+
+The launch announcement is copy and plans only: the astronaut panel is gone
+and the dialog narrows to its content column (`announcement-dialog-width`
+48rem), on phone and desktop.
+
+## v114 - 2026-09-28
+
+The archived missions list (`mission-card`'s `archived-list-row`) wears the
+board card's tag pill (Routine, Set up, Started by Houston, Started by
+the employee's name, Started by AI Employee) at the end of the title line.
+The row stays one line, and a long tag truncates before the title does. The card and the row draw the same pill.
+
+## v113 - 2026-09-28
+
+A mission Houston, the AI Manager, started wears "Started by Houston" on its
+board card and on the phone's task rows, archived ones included. The phone's task
+rows (`agent-missions-list`) gain an origin tag beside the status tag, the
+same tag the board card wears: Routine, Set up, Started by Houston,
+Started by {{name}}, or Started by AI Employee when the employee's name is
+unknown. Missions older than this record keep their label.
+
+## v112 - 2026-09-28
+
+AI Employee settings add Teamwork on phone and desktop: one card with two
+dropdowns for outgoing and incoming mission policies, plus a nested pick list
+of other employees with avatar and switch rows.
+
+## v111 - 2026-09-28
+
+The rail is the team and nothing else. Its top line carries Search and
+Create (`sidebar-top-line`); its foot is the account (`sidebar-account-menu`):
+the person's portrait and name over the workspace, opening one menu with the
+workspaces, Admin, AI Models, Integrations, the Academy and Settings. There
+is no band over the list, no destination run above it, no New AI Employee
+row closing it and no Skills row anywhere (`sidebar-teams-band` and
+`sidebar-nav-band` are retired). AI Employee rows are message-list rows:
+64px around a 40px portrait, a semibold name over the mission they are on
+(or a first-day invitation with a New badge), and hairlines between rows.
+The phone's More card is headed by the same account row. There is no Skills
+screen: an AI Employee's skills live in its settings, whose skill editor
+offers the space's owner Share to workspace, Enable for all and Delete for
+all.
+
+## v110 - 2026-09-27
+
+The AI Manager's display name is Houston; AI Manager is its role. The
+pinned rows of `sidebar-teams-band` and `agents-home` read Houston with Your
+AI Manager as the second line, and `manager-avatar`, `manager-onboarding`,
+`connect-ai-card` and `sidebar-nav-band` name it Houston, the AI Manager.
+
+## v109 - 2026-09-26
+
+Admin lands on the Org chart, which its "Workspace" identity lozenge stands
+for, followed by People, Billing where allowed, and Activity in a team space;
+a personal space keeps the Org chart alone. There is no Usage or Time worked
+section. Company context is not a section: a pill in the Admin header opens
+its editor in a sheet (right side on the desktop, bottom on the phone) in
+every space. The org chart (`org-chart`, replacing `org-chart-folders`) is a
+ledger: a hero band with the last 30 days of hours worked, messages and a
+daily chart, then every AI Employee ranked by hours worked, the #1 featured
+on its own card, each line with its hours bar, messages and its Manages and
+Uses faces. Dense ledgers split into two columns when wide; the phone stacks
+each line. An owner's chart is the organization's; an admin's is scoped to
+their own AI Employees.
+
+## v108 - 2026-09-26
+
+The rail footer lists Academy, gated Admin, and Settings, with no help
+control. Admin opens its own screen; Settings holds only personal setup.
+The phone More card mirrors these destinations beneath the workspace
+switcher, with Settings as a row, and has no Help rows.
+
+## v107 - 2026-09-26
+
+New `manager-avatar`: the AI Manager's mark, the agent avatar's helmet on a
+squircle of the filled primary Button's own material (its `cta` fill, a 1px
+`cta-rim` and the helmet in `cta-text`), flat, and switching with the theme
+and the palette exactly as the Button does. The AI Manager leaves the rail's top-level run (`sidebar-nav-band`) and leads
+`sidebar-teams-band` as its pinned first person row, selected like an agent
+and first on the collapsed rail.
+`agents-home` pins it above the roster on the phone, and the More menu no
+longer lists it.
+New `manager-onboarding`: first-run onboarding and the owed profile questions
+run inside the AI Manager's chat as a scripted conversation: the Manager's
+hello, one short message at a time, then Connect your AI, the survey and the
+team. The survey asks the person's industry and role with the create sheet's
+own two steps, addressed to them (the role led by the leadership positions,
+which a hire's role step never offers), how big their company is with one tap
+on the create sheet's chips, and which task they would love to hand off to an
+AI Employee, as free text; every step wears the create sheet's frame. The team
+opens straight on the "Build your team" card's starter team, every name, job
+and color editable, with "Hire one more" to add a card and Remove on each
+draft; "Hire my team" hires everyone and the Manager closes. Every
+create step carries the create sheet's Back while the answer before it can
+change, the same move as that answer's "Change answer". The closing tells
+what the Manager does as far as the deployment reaches (never inviting
+teammates to someone who works alone), then offers to start
+on the person's goal with "Yes, let's do it" (the real chat's first turn) or
+"Not now"; with no goal, the real chat takes over by itself. The profile
+questions end on one primary "Continue" button. `connect-ai-card` is the
+conversation's first step, in the create sheet's frame;
+`build-team-card` lives only in the New workspace dialog, and its first hire's
+job opens on the person's survey role. `survey-industry-picker` is gone: the
+industry is one of the conversation's questions. The in-app legal agreement
+step is gone.
+`conversation-feed`: a log held at its latest message stays there when its
+viewport resizes (a card in the composer slot, the phone keyboard), and each
+answer in a scripted conversation brings the latest line into view the way a
+send does.
+`employee-card`: a new hire's name arrives as its job ("Chief of Staff",
+numbered when taken) and follows the job until the person types one, so
+naming is one press. The name field shows an always-visible pencil and
+selects the name whole when reached; the dice is gone. The badge turns
+horizontal at about half its height: the engraved metal becomes a photo panel
+down its left edge, and beside it the name (its label inside the field), then
+Role, Industry and Color as flat labelled rows, stacked on a narrow badge and
+side by side on a wide one. The pencil and chevrons carry the edit hint, whose
+separate line is gone. A team of badges sits three across only where the deck
+is 1024px wide and stacks full width elsewhere, a phone included, where the
+carousel and its dots are gone. On desktop the naming screen focuses its
+primary, and a phone focuses nothing.
+
+## v106 - 2026-09-26
+
+The AI Employees rail interleaves ungrouped employees with personal groups.
+Group headings fold and expose their actions, while employees open their own
+Tasks, Routines, Files and Settings screens. Dragging moves
+employees within groups, between groups and the root, and reorders root entries.
+The New AI Employee row sits at the root after the other entries. The org chart
+uses the caller's groups and one ungrouped card. The phone's nav bar holds AI
+Employees and More: the AI Employees list is where the phone manages groups,
+with New group in its title row and the picked group's menu (Rename, Icon &
+color, Move to another space, Delete group) beside the "All groups" selector.
+An employee's task list menu opens its Routines, Files and Settings. The
+separate phone groups tree (`teams-home`) is removed. The phone has one task
+list per employee, on the AI Employees tab: every way into an employee's
+Tasks lands there, an archived task opens as the same pushed chat an active
+one does, and a notification about a task opens its chat above the list. An
+employee's Routines list never asks which employee a new routine is for, and
+the routine row has no owner chip or cross-agent variant. Alt+Arrow keys move
+a focused rail row the same ways a drag does.
+
+## v105 - 2026-09-26
+
+The launch announcement becomes a dark mission briefing with a desktop astronaut
+panel, responsive Free, Plus, and Teams panels, live countdown, plan-derived
+launch prices and offer, and one persistent dismissal across every close path.
+
+## v104 - 2026-09-26
+
+The plan dialogs add a one-time launch announcement after routine prompts.
+Billing adds preview usage, an early offer, and a struck-through comparison
+price with an accessible spoken price on phone and desktop.
+
+## v103 - 2026-09-26
+
+The personal Billing screen shows Free and Plus plan cards, weekly usage,
+routine actions, and recent invoices on phone and desktop. Checkout return
+pages provide public web entry points back to Settings.
+
+## v102 - 2026-09-26
+
+The chat composer shows personal weekly usage near its limit and yields to a
+plan limit card at 100%. The card offers the Plan section. Free plan routine
+choices open as focus-managed dialogs on phone and desktop.
+
+## v101 - 2026-09-25
+
+First-run onboarding is the survey (its industry question asked from the hire
+catalog's industries), a Connect AI card (two subscription cards over "View
+more") and a Build your team card, which the New workspace dialog also uses.
+Every AI Employee is named on one portrait ID badge: a 160px metal header,
+seeded fine engraving, light-edge helmet relief and corner Paintbrush above
+the labeled required 16px Name
+input with dice, Role and Industry. Color opens the existing keyboard palette
+in a desktop popover or phone sheet, two rows of five 44px targets. Color
+crossfades across the badge and portrait in 200ms; reduced motion is instant.
+The old bottom color section is removed. Long brief labels wrap and narrow
+name fields use a short localized example. Progress and recovery stay on the
+badge. Team frames widen to 1152px for three comfortable columns; phones keep
+288px snap slides with peek and dots. Solo badges center at 320px in the create
+dialog. No drop shadows in either theme. Every AI Employee avatar wears the badge's
+metal: a deep 135deg disc of the employee's color, the helmet in light relief
+and a faint light line along its top, from the same recipe as the badge.
+Keyboard order remains name, dice,
+color, role, industry, and Escape returns focus from the palette. New
+AI Employees wait on their board for the person
+to start their first day. The Academy path lists chapters of lessons,
+and the help control and the phone's More menu keep only "Report a problem":
+the guided tour is two Academy lessons.
+The sidebar's rows are 28px tall around a 20px glyph column: destination
+marks at 16px and team marks at 14px, the label 6px past the column. Each AI
+Employee is a person row instead: a 32px avatar in a 44px row, the name in
+semibold at 13px over its role in muted 12px, read live from its job
+description; no role keeps the height. On the collapsed icon rail an AI
+Employee is a 24px avatar in the 36px square, so its running ring fits, with
+the needs-you chip on the avatar's shoulder.
+Every avatar is the employee metal disc with the helmet in relief at 65%,
+centered on whole pixels.
+
+## v100 - 2026-09-23
+
+The composer lists its attachments as chips, and a chip's icon slot carries the
+shared file-type glyph: the bare mark in its file-type tone, the same one the
+Files list rows and chat's file chips wear. A folder keeps the monochrome folder
+glyph.
+
 ## v99 - 2026-09-23
 
 A skill row opens that skill's full-page editor in place of the list: no

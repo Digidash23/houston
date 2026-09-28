@@ -1,38 +1,57 @@
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAllConversations } from "../../hooks/queries";
+import { useAgentWarmup } from "../../hooks/use-agent-warmup";
+import { useCapabilities } from "../../hooks/use-capabilities";
+import { useMissionOriginTag } from "../../hooks/use-mission-origin-tag";
+import { useTeams } from "../../hooks/use-teams";
 import { openMissionChat } from "../../lib/mission-chat";
-import { openAgentBoard } from "../../lib/open-agent";
+import { openAgentSection } from "../../lib/open-agent";
+import { visibleAgentSections } from "../../lib/teams-model";
 import type { Agent } from "../../lib/types";
 import { useAgentStore } from "../../stores/agents";
 import { useUIStore } from "../../stores/ui";
 import { TaskListFilter } from "../board/task-list-filter";
 import type { TaskListFilterId } from "../board/task-list-model";
 import { TaskListSearch } from "../board/task-list-search";
+import { FirstDayLead } from "../first-day/first-day-banner";
+import { FirstDayHero } from "../first-day/first-day-cta";
+import { useFirstDayPlacement } from "../first-day/use-first-day-placement";
+import { AgentDetail } from "../permissions/agent-detail";
+import { AgentGettingReady } from "../shell/agent-getting-ready";
 import { AgentSidebarIcon } from "../shell/agent-sidebar-status";
 import { MobileDrilledHeader } from "../shell/mobile-drilled-header";
 import { AgentMissionsList } from "./agent-missions-list";
 import { AgentMissionsMenu } from "./agent-missions-menu";
-import { agentMissionSections } from "./agent-missions-model";
+import {
+  type AgentMissionsMenuSection,
+  agentMissionCount,
+  agentMissionSections,
+  agentMissionsMenuSections,
+  liveMissionCount,
+} from "./agent-missions-model";
+import { AgentMissionsMoveDialogs } from "./agent-missions-move";
 import type { AgentHomeConversation } from "./agents-home-model";
+import { useAgentMissionsSettings } from "./use-agent-missions-settings";
+import { useDrillInMissionTarget } from "./use-drill-in-mission-target";
 
 /**
- * One agent's tasks, pushed from the mobile Agents home: the drilled header
- * (back chip to the Agents home, the agent, its task count), a status
- * segmented control, and the board's sections as a phone list. Reads the same
- * one-sweep query the boards read; no fetch path of its own.
- *
- * Tapping an ACTIVE task pushes its chat as a first-class nav level
- * (`lib/mission-chat.ts`) — the same push a board card performs — so back pops
- * straight from the chat to this screen. An ARCHIVED task has no chat-screen
- * surface, so its rows keep the notification three-step (make the agent
- * current, push its board, publish the mission id): the board's surface router
- * swaps in its archive and opens the panel over it.
+ * The phone's ONE task list for an employee: every task, archived ones
+ * included, opens as the pushed chat above it, and so does a published target.
+ * A new hire with no tasks yet shows its first-day start instead.
  */
 export function AgentMissionsScreen({ agent }: { agent: Agent }) {
   const { t } = useTranslation(["shell", "dashboard"]);
   const openAgentsHome = useUIStore((s) => s.openAgentsHome);
   const agents = useAgentStore((s) => s.agents);
+  const originTagOf = useMissionOriginTag(agents);
+  const teams = useTeams();
+  const { capabilities } = useCapabilities();
+  const menuSections = agentMissionsMenuSections(
+    visibleAgentSections(capabilities, agent),
+  );
+  const [moveOpen, setMoveOpen] = useState(false);
+  const settings = useAgentMissionsSettings(agent.id);
   const [filter, setFilter] = useState<TaskListFilterId>("all");
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -41,22 +60,33 @@ export function AgentMissionsScreen({ agent }: { agent: Agent }) {
 
   const rosterPaths = useMemo(() => agents.map((a) => a.folderPath), [agents]);
   const { data: conversations } = useAllConversations(rosterPaths);
+  useDrillInMissionTarget(agent, conversations);
   const sections = useMemo(
     () => agentMissionSections(conversations, agent.folderPath),
     [conversations, agent.folderPath],
   );
-  // The subtitle counts the agent's LIVE work: the archive is filed away, and
-  // counting it would make a finished agent look busy.
-  const taskCount =
-    sections.needsYou.length + sections.running.length + sections.done.length;
+  const missionCount = agentMissionCount(sections);
+  const firstDay = useFirstDayPlacement({
+    agents: [agent],
+    pinnedAgent: agent,
+    pinnedTaskCount: missionCount,
+  });
+  // With no tasks, the hero IS the screen, and while the config still loads
+  // the screen holds rather than flash "No tasks" before the button: blank for
+  // the beat a read takes, "getting ready" for a warm-up that takes minutes.
+  const showsTasks = missionCount > 0 || !firstDay.holdsAutoOpen;
+  const warmup = useAgentWarmup(agent.folderPath);
+  const gettingReady =
+    !showsTasks && firstDay.placement.kind === "none" && warmup !== "ready";
 
   const openMission = (mission: AgentHomeConversation) => {
     openMissionChat(agent, mission.id);
   };
-  const openArchivedMission = (mission: AgentHomeConversation) => {
-    useAgentStore.getState().setCurrent(agent);
-    openAgentBoard(agent.id);
-    useUIStore.getState().setActivityPanelId(mission.id, { forceOpen: true });
+  // Settings opens in place, like any settings deep link into this list, so
+  // its back chip returns here; Routines and Files are the employee screen's.
+  const openSection = (section: AgentMissionsMenuSection) => {
+    if (section !== "settings") return openAgentSection(agent.id, section);
+    settings.openIndex();
   };
   const closeSearch = () => {
     setSearchOpen(false);
@@ -72,6 +102,17 @@ export function AgentMissionsScreen({ agent }: { agent: Agent }) {
     );
   };
 
+  if (settings.open) {
+    return (
+      <AgentDetail
+        agent={agent}
+        backLabel={agent.name}
+        initialSection={settings.section}
+        onBack={settings.close}
+      />
+    );
+  }
+
   return (
     <div
       data-testid="agent-missions-screen"
@@ -83,6 +124,7 @@ export function AgentMissionsScreen({ agent }: { agent: Agent }) {
         glyph={
           <AgentSidebarIcon
             color={agent.color}
+            diameter={20}
             running={sections.running.length > 0}
             runningLabel={t("shell:sidebar.runningCount", {
               count: sections.running.length,
@@ -90,22 +132,34 @@ export function AgentMissionsScreen({ agent }: { agent: Agent }) {
           />
         }
         title={agent.name}
-        subtitle={t("shell:agentsHome.taskCount", { count: taskCount })}
+        subtitle={t("shell:agentsHome.taskCount", {
+          count: liveMissionCount(sections),
+        })}
         trailing={
           <AgentMissionsMenu
             onSearch={() => setSearchOpen(true)}
             onArchived={revealArchived}
+            onMove={teams.length > 0 ? () => setMoveOpen(true) : undefined}
+            sections={menuSections}
+            onOpenSection={openSection}
           />
         }
         testId="agent-missions-back"
       />
-      <TaskListFilter
-        active={filter}
-        needsYouCount={sections.needsYou.length}
-        onSelect={setFilter}
-        testId="agent-missions-filter"
+      <AgentMissionsMoveDialogs
+        agent={agent}
+        open={moveOpen}
+        onOpenChange={setMoveOpen}
       />
-      {searchOpen && (
+      {showsTasks && (
+        <TaskListFilter
+          active={filter}
+          needsYouCount={sections.needsYou.length}
+          onSelect={setFilter}
+          testId="agent-missions-filter"
+        />
+      )}
+      {showsTasks && searchOpen && (
         <TaskListSearch
           query={query}
           onQuery={setQuery}
@@ -114,17 +168,26 @@ export function AgentMissionsScreen({ agent }: { agent: Agent }) {
         />
       )}
       <div className="min-h-0 flex-1 overflow-y-auto pb-6">
-        <AgentMissionsList
-          sections={sections}
-          agentColor={agent.color}
-          filter={filter}
-          query={query}
-          archivedOpen={archivedOpen}
-          archivedRef={archived}
-          onToggleArchived={() => setArchivedOpen((open) => !open)}
-          onOpen={openMission}
-          onOpenArchived={openArchivedMission}
-        />
+        {firstDay.placement.kind === "hero" && (
+          <FirstDayHero agent={firstDay.placement.agent} />
+        )}
+        {gettingReady && (
+          <AgentGettingReady agent={agent} stalled={warmup === "stalled"} />
+        )}
+        {showsTasks && <FirstDayLead placement={firstDay.placement} />}
+        {showsTasks && (
+          <AgentMissionsList
+            sections={sections}
+            agentColor={agent.color}
+            filter={filter}
+            query={query}
+            archivedOpen={archivedOpen}
+            archivedRef={archived}
+            onToggleArchived={() => setArchivedOpen((open) => !open)}
+            onOpen={openMission}
+            originTagOf={originTagOf}
+          />
+        )}
       </div>
     </div>
   );

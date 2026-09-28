@@ -6,7 +6,7 @@ import { headerLozengeClasses, headerLozengeTrack } from "./header-lozenge";
  * The way back from a DRILLED page header — a level a section opened INSIDE a
  * top-level screen, wearing the screen's own lozenge grammar:
  *
- *     (‹ 🏢 Admin) (Analytics)(Usage)(Time worked)
+ *     (‹ 🏢 Admin) (Analytics)(Activity)
  *
  * Three rules make an inner level legible, and every drilled header follows
  * them:

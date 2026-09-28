@@ -28,7 +28,7 @@ export interface MigrationReconnectState {
  *   come from the legacy desktop build (history migrated, credentials did not).
  * - `useProviderStatuses()` — is any provider already connected.
  * - a `migration_reconnect_dismissed` engine preference — the persisted "seen"
- *   flag, mirroring `useLegalAcceptance`, so it survives reinstall-in-place.
+ *   flag, so it survives reinstall-in-place.
  *
  * The flag is written on a successful reconnect (or an explicit "continue"),
  * after which `dismissed` flips true and the gate never returns.

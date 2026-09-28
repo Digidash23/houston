@@ -1,12 +1,15 @@
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { isAgentContextId } from "../../lib/agent-role-catalog";
-import { tutorialAnchor } from "../tutorial";
+import {
+  type AgentContextId,
+  isAgentContextId,
+} from "../../lib/agent-role-catalog";
 import { ChoiceStep } from "./choice-step";
 import {
   CONTEXT_SEARCH_REACH,
   contextRunsForQuery,
 } from "./context-step-model";
+import type { RoleQuestionAnswer, RoleQuestionAudience } from "./role-question";
 import type { AgentRoleState } from "./use-agent-role-state";
 
 /**
@@ -18,13 +21,19 @@ import type { AgentRoleState } from "./use-agent-role-state";
  * way it would be scanned in every language, and the filter is the way through
  * them once the catalog outgrows one screen: typing anywhere lands in it, and
  * a query nothing matches becomes the answer itself.
+ *
+ * Onboarding asks the person the same question about themselves
+ * (`audience: "self"`): only the headline changes.
  */
 export function ContextStep({
   state,
+  audience = "agent",
   onAnswered,
 }: {
   state: AgentRoleState;
-  onAnswered: () => void;
+  audience?: RoleQuestionAudience;
+  /** The answer as given, since `state` only shows it on the next render. */
+  onAnswered: (answer: RoleQuestionAnswer<AgentContextId>) => void;
 }) {
   const { t } = useTranslation("agentOnboarding");
   const runsForQuery = useCallback(
@@ -36,7 +45,11 @@ export function ContextStep({
 
   return (
     <ChoiceStep
-      headline={t("roleSetup.contextHeadline")}
+      headline={t(
+        audience === "self"
+          ? "roleSetup.selfContextHeadline"
+          : "roleSetup.contextHeadline",
+      )}
       keyboardHint={t("roleSetup.chipsKeyboardHint")}
       sections={sections}
       selectedId={state.contextId}
@@ -59,17 +72,18 @@ export function ContextStep({
           state.writeCustomContext(query);
         },
       }}
-      anchorAttrs={tutorialAnchor("createAgentBrief")}
       onSelect={(id) => {
         // The run renders catalog ids alone, so this only ever narrows.
         if (!isAgentContextId(id)) return;
         state.chooseContext(id);
-        onAnswered();
+        onAnswered({ kind: "catalog", id });
       }}
       onSelectCustom={state.chooseCustomContext}
       onCancelCustom={state.cancelCustomContext}
       onCustomChange={state.writeCustomContext}
-      onContinue={onAnswered}
+      onContinue={() =>
+        onAnswered({ kind: "custom", label: state.customContext })
+      }
     />
   );
 }

@@ -1,57 +1,41 @@
-import type { SidebarNavSection } from "@houston-ai/layout";
 import { Blocks } from "lucide-react";
 import { INTEGRATIONS_VIEW_ID } from "../integrations-view";
+import type { MenuSection } from "./menu-row";
 import type { SidebarChromeT } from "./sidebar-chrome";
 import { gatedNavRows } from "./sidebar-nav-rows";
 import { tourAnchor } from "./workspace-tour-steps.ts";
 
 /**
- * The rail's top-level destinations: ONE unlabelled run above "Your teams".
+ * The workspace's shared destinations: AI Models, then Integrations, as ONE
+ * unlabelled run.
  *
- * The Assistant, AI Models, Integrations and Skills are the things a user
- * reaches for without being asked, so they lead the rail and need no heading
- * over them. The Assistant leads because it is the one row that answers a
- * question the user has not worked out how to ask yet; it is the only row
- * gated on DISCOVERY rather than on a role, and it is absent where no
- * assistant exists. Skills follows Integrations because the two answer the
- * same question from either side — what an agent can REACH, and what an agent
- * can DO — and it rides the `showSkills` gate, since editing a skill edits
- * every agent in the space at once. "Your teams" is the rail's only labelled
- * band, drawn below by the teams model.
+ * They are what the workspace SHARES rather than where daily work happens, so
+ * they sit in the middle run of the workspace menu at the rail's foot
+ * (`sidebar-workspace-menu.tsx`) and in the phone's More menu, both built from
+ * this list, rather than on the rail above the employees. Skills are managed
+ * in each employee's own settings.
  *
- * A section the gates empty is DROPPED by the library, band and all
- * (`SidebarNavList` filters on `items.length`), so a heading can never outlive
- * the rows it names.
+ * A section the gates empty is dropped by every renderer, so a run can never
+ * outlive the rows it names.
  *
- * Four things a reader may come looking for live elsewhere, each on purpose.
- * Per-agent policy is every team's focused agent screen, discovered through
- * the team that owns the agent. Workspace management — members, roles, the
- * activity feed, time worked, the org chart — is a Settings section
- * (`openSettings("workspace")`), because administering the space is a standing
- * preference rather than a place work happens. About me is a Settings section
- * as well: what the agents know about the person is kept with their name and
- * their language. "Guide me" is one of two items behind the help control in
- * the rail's footer (`sidebar-help-menu.tsx`), because it points at no screen.
- * The Academy and Settings are the rail's FOOTER cluster
- * (`sidebar-footer.tsx`): learning to fly and the person's own chrome sit
- * under the space's contents rather than above them.
+ * What lives elsewhere, on purpose: the AI Manager is a member of the team,
+ * pinned first in the rail's list (`sidebar-manager-row.tsx`). Admin (members,
+ * roles, activity, time worked, the org chart) leads this same run in the
+ * menu, gated on `showOrganization`, because it administers the workspace
+ * these tools belong to. About me is a Settings section. The Academy and
+ * Settings are the menu's last run, the person's own.
  */
 export function buildSidebarNavItems(args: {
   t: SidebarChromeT;
   showAiModels: boolean;
-  /** The Assistant row: false only where discovery settled that none exists. */
-  showAssistant: boolean;
-  /** The Skills row: the space owner's, whose agents a skill edit reaches. */
-  showSkills: boolean;
   setViewMode: (view: string) => void;
-}): SidebarNavSection[] {
-  const { t, showAiModels, showAssistant, showSkills, setViewMode } = args;
-  const { assistant, aiModels, skills } = gatedNavRows({ t, setViewMode });
+}): MenuSection[] {
+  const { t, showAiModels, setViewMode } = args;
+  const { aiModels } = gatedNavRows({ t, setViewMode });
   return [
     {
       id: "primary",
       items: [
-        ...(showAssistant ? [assistant] : []),
         ...(showAiModels ? [aiModels] : []),
         {
           id: INTEGRATIONS_VIEW_ID,
@@ -60,7 +44,6 @@ export function buildSidebarNavItems(args: {
           onClick: () => setViewMode(INTEGRATIONS_VIEW_ID),
           dataAttrs: tourAnchor("nav-integrations"),
         },
-        ...(showSkills ? [skills] : []),
       ],
     },
   ];

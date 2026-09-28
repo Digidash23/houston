@@ -32,8 +32,8 @@ window.__HOUSTON_DEPLOY_ENV__ = currentDeployEnvironment();
 // answers after the handshake, and the boot splash renders during it on the
 // themed surface. Applying the device-local mirror here — a leaf module with no
 // app-graph imports, so it costs nothing before the lazy chunk loads — keeps a
-// dark-mode user from flashing the light surface. `loadTheme()` in ./app-tree
-// reconciles against the engine once the handshake lands.
+// dark-mode user from flashing the light surface. `loadThemePreference()` in
+// ./app-tree reconciles against the engine once the handshake lands.
 applyBootTheme();
 
 const rootEl = document.getElementById("root");
@@ -49,7 +49,15 @@ const controlPlaneUrl = env.VITE_CONTROL_PLANE_URL || "";
 // before the app graph loads.
 window.__HOUSTON_DEPLOYMENT__ = controlPlaneUrl ? "managed-cloud" : "selfhost";
 
-if (controlPlaneUrl && window.location.pathname.startsWith("/admin")) {
+if (
+  window.location.pathname === "/checkout/complete" ||
+  window.location.pathname === "/checkout/cancel"
+) {
+  const complete = window.location.pathname === "/checkout/complete";
+  void import("./checkout-return").then(({ CheckoutReturn }) =>
+    createRoot(rootEl).render(<CheckoutReturn complete={complete} />),
+  );
+} else if (controlPlaneUrl && window.location.pathname.startsWith("/admin")) {
   // Operator dashboard (served at /admin by nginx try_files): pods-per-user + GCP
   // spend. Its own GCIP (Firebase) sign-in + control-plane /admin/* calls; the
   // desktop UI never mounts here.

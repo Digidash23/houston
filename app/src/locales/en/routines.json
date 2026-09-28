@@ -77,7 +77,7 @@
   "grid": {
     "loading": "Loading…",
     "emptyTitle": "No routines yet",
-    "emptyDescription": "Create your first one and Houston will take care of the rest.",
+    "emptyDescription": "Create your first one and it runs on its own from then on.",
     "listLabel": "Routines",
     "draftTitle": "Routine being created in chat",
     "draftDiscard": "Discard",
@@ -237,7 +237,7 @@
       "error": "Needs attention"
     },
     "statusUnknown": "Verifying trigger…",
-    "statusTimeout": "Houston couldn't confirm this trigger was set up.",
+    "statusTimeout": "We couldn't confirm this trigger was set up.",
     "waitingFirstEvent": "Active. Waiting for the first event.",
     "reconnect": "Reconnect",
     "statusDisconnectedHint": "The connected account was disconnected.",

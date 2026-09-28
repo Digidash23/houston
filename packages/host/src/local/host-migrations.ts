@@ -2,7 +2,13 @@ import { existsSync, mkdirSync } from "node:fs";
 import { migrateAgentLayouts } from "../migrate/agent-layout";
 import { reseedAgentSchemas } from "../migrate/agent-schemas";
 import { migrateChatHistory } from "../migrate/chat-history";
+import {
+  isEnginePod,
+  sweepGatewayGroupNotes,
+} from "../migrate/gateway-group-notes";
+import { sweepLegacySetupDirectives } from "../migrate/legacy-setup-directive";
 import { backfillRoutineCreatedBy } from "../migrate/routine-created-by";
+import { migrateSidebarLayout } from "../migrate/sidebar-layout";
 import { severityLog } from "./host-log";
 import type { LocalHostOptions } from "./host-options";
 import type { LocalHostState } from "./host-state";
@@ -11,7 +17,15 @@ export async function runHostMigrations(
   opts: LocalHostOptions,
   state: LocalHostState,
 ) {
-  const { boot, sharedMirrorDir, sharedMirror, remoteCustomSecrets } = state;
+  const {
+    boot,
+    sharedMirrorDir,
+    sharedMirror,
+    remoteCustomSecrets,
+    store,
+    vfs,
+    paths,
+  } = state;
   const migrationsT0 = Date.now();
   // Shared storage is a disposable synchronized mirror, not a readiness
   // invariant. Start its pull after authoritative agent hydration but do
@@ -41,6 +55,20 @@ export async function runHostMigrations(
       );
     }
   }
+  if (!opts.passive) {
+    try {
+      await migrateSidebarLayout({ store, vfs, paths, log: severityLog });
+    } catch (error) {
+      severityLog("[local-host] sidebar layout migration failed", error);
+    }
+  }
+  await sweepGatewayGroupNotes({
+    enginePod: isEnginePod(opts),
+    store,
+    vfs,
+    paths,
+    log: severityLog,
+  });
   // One-time, idempotent migration of the pre-v0.4 FLAT `.houston/` layout
   // into the per-type folders the domain reads (ported from the Rust
   // engine's migrate_agent_data). Runs BEFORE the watcher so migrated files
@@ -71,6 +99,23 @@ export async function runHostMigrations(
       "[local-host] agent schema re-seed failed (continuing):",
       err,
     );
+  }
+  // Remove the retired onboarding's "send ONE real email now" section from
+  // every agent's CLAUDE.md, here where the files are local (desktop, and a
+  // pod after hydration, whose store sync uploads the result). Writes only a
+  // file that carries it, so re-boots are no-ops. Passive hosts must not
+  // mutate the tree they serve. Per-agent failures are reported inside.
+  if (!opts.passive) {
+    try {
+      sweepLegacySetupDirectives({ workspacesRoot: opts.workspacesRoot });
+    } catch (err) {
+      // No UI thread to toast on at boot; the supervisor must stay up. Log
+      // loudly so the failure shows in the app logs / bug report tail.
+      console.error(
+        "[local-host] legacy setup-section sweep failed (continuing):",
+        err,
+      );
+    }
   }
   // Managed pods: stamp the org owner as `created_by` on routines recorded
   // before gateway-fronted pods stamped acting identities. The control-plane

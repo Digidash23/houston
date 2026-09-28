@@ -1,9 +1,11 @@
+import type { MoveErrorKind } from "@houston/sdk";
 import { Button, Input, Spinner } from "@houston-ai/core";
 import { AlertTriangle, Plus } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { MoveErrorKind, TeamRef } from "../../lib/share-via-team";
+import type { TeamRef } from "../../lib/share-via-team";
 import { MAX_TEAM_NAME_LENGTH } from "../shell/create-team-model";
+import type { PickStepCopy } from "./pick-step-copy";
 
 /**
  * Presentational steps for {@link ShareViaTeamFlow}. Each renders one state of
@@ -14,6 +16,7 @@ import { MAX_TEAM_NAME_LENGTH } from "../shell/create-team-model";
 
 /** Step 1 — pick an existing team the caller owns/admins, or create one inline. */
 export function PickStep({
+  copy,
   teams,
   creating,
   createError,
@@ -22,6 +25,7 @@ export function PickStep({
   onStartCreate,
   onCreate,
 }: {
+  copy: PickStepCopy;
   teams: TeamRef[];
   creating: boolean;
   createError: string | null;
@@ -30,7 +34,6 @@ export function PickStep({
   onStartCreate: () => void;
   onCreate: (name: string) => void;
 }) {
-  const { t } = useTranslation("teams");
   const [name, setName] = useState("");
 
   const submit = (e: FormEvent) => {
@@ -42,9 +45,7 @@ export function PickStep({
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-ink-muted">
-        {t("shareViaTeam.pick.subtitle")}
-      </p>
+      <p className="text-sm text-ink-muted">{copy.subtitle}</p>
 
       {teams.length > 0 ? (
         <ul className="space-y-2">
@@ -61,7 +62,7 @@ export function PickStep({
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-ink-muted">{t("shareViaTeam.pick.empty")}</p>
+        <p className="text-sm text-ink-muted">{copy.empty}</p>
       )}
 
       {creating ? (
@@ -72,16 +73,14 @@ export function PickStep({
               value={name}
               maxLength={MAX_TEAM_NAME_LENGTH}
               onChange={(e) => setName(e.target.value)}
-              placeholder={t("shareViaTeam.pick.namePlaceholder")}
-              aria-label={t("shareViaTeam.pick.nameLabel")}
+              placeholder={copy.namePlaceholder}
+              aria-label={copy.nameLabel}
               disabled={isCreating}
               className="rounded-xl"
             />
           </div>
           <Button type="submit" disabled={!name.trim() || isCreating}>
-            {isCreating
-              ? t("shareViaTeam.pick.creating")
-              : t("shareViaTeam.pick.create")}
+            {isCreating ? copy.creating : copy.create}
           </Button>
         </form>
       ) : (
@@ -92,7 +91,7 @@ export function PickStep({
           onClick={onStartCreate}
         >
           <Plus className="size-4" />
-          {t("shareViaTeam.pick.createTrigger")}
+          {copy.createTrigger}
         </Button>
       )}
 
@@ -155,7 +154,7 @@ export function BusyStep({
   );
 }
 
-/** Move failed — retryable errors offer a retry; `unmovable_volume` does not. */
+/** Move failed: a retry is offered only when the caller says one can succeed. */
 export function MoveFailedStep({
   error,
   canRetry,

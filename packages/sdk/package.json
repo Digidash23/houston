@@ -15,6 +15,10 @@
       "types": "./src/react/index.ts",
       "import": "./src/react/index.ts"
     },
+    "./appearance": {
+      "types": "./src/modules/appearance/model.ts",
+      "import": "./src/modules/appearance/model.ts"
+    },
     "./agent-name": {
       "types": "./src/agent-name.ts",
       "import": "./src/agent-name.ts"
@@ -22,6 +26,14 @@
     "./job-description": {
       "types": "./src/job-description.ts",
       "import": "./src/job-description.ts"
+    },
+    "./first-day": {
+      "types": "./src/first-day.ts",
+      "import": "./src/first-day.ts"
+    },
+    "./mission-started-by": {
+      "types": "./src/modules/activities/started-by.ts",
+      "import": "./src/modules/activities/started-by.ts"
     },
     "./provider-catalog": {
       "types": "./src/provider-catalog.ts",
@@ -80,8 +92,10 @@
     "vitest": "3.2.6"
   },
   "dependencies": {
+    "@houston/design-tokens": "workspace:*",
     "@houston/domain": "workspace:*",
     "@houston/protocol": "workspace:*",
-    "@houston/runtime-client": "workspace:*"
+    "@houston/runtime-client": "workspace:*",
+    "@houston/wire-types": "workspace:*"
   }
 }

@@ -25,9 +25,12 @@ import type {
  */
 
 /**
- * Renaming (or creating) an agent onto a name the workspace already has. Stores
- * throw it instead of leaking the backend's raw failure (ENOTEMPTY from a
- * directory rename) so routes can answer a clean 409.
+ * Creating or renaming an agent onto a name another agent in the workspace
+ * already holds, compared by `sameAgentName` (@houston/domain): trimmed,
+ * NFC, case-insensitive, because an agent's name is its folder and macOS/Windows
+ * folders are case-insensitive. Stores throw it before touching the existing
+ * agent, and routes answer 409 with the `name_taken` code
+ * (routes/agent-name-taken.ts).
  */
 export class AgentNameConflictError extends Error {
   constructor(readonly agentName: string) {
@@ -113,10 +116,17 @@ export interface WorkspaceStore {
   listWorkspacesForUser(userId: UserId): Promise<Workspace[]>;
   /** Every agent across all workspaces (admin/operator only). */
   listAllAgents(): Promise<Agent[]>;
+  /**
+   * A NEW agent, or {@link AgentNameConflictError} when the name is taken.
+   * Never hands back an existing agent: callers write seeds into the result
+   * and roll it back on failure, which must only ever touch what they made.
+   */
   createAgent(input: {
     workspaceId: WorkspaceId;
     name: string;
   }): Promise<Agent>;
+  /** Refuses another agent's name with {@link AgentNameConflictError}; a new
+   *  spelling of the agent's own name ("mia" to "Mia") is allowed. */
   renameAgent(id: AgentId, name: string): Promise<Agent>;
   deleteAgent(id: AgentId): Promise<void>;
   /** Flip a workspace between hosting runtimes (admin-driven migration control). */

@@ -1,5 +1,6 @@
 import { FAKE_HOST_URL } from "@houston/fake-host";
 import { expect, test } from "./support/fixtures";
+import { openNavRow } from "./support/workspace-menu";
 
 test("a browser keeps the manual connection flow when the gateway supports desktop bridges", async ({
   page,
@@ -17,7 +18,7 @@ test("a browser keeps the manual connection flow when the gateway supports deskt
       managementRequests.push(request.url());
   });
   await page.goto("/");
-  await page.locator('[data-tour-target="nav-ai-hub"]').click();
+  await openNavRow(page, "ai-hub");
   await page.getByRole("button", { name: /^Connect Local model/ }).click();
   const dialog = page.getByRole("dialog");
   await expect(

@@ -1,13 +1,17 @@
 /**
- * First-run helpers: reaching the onboarding survey, and walking it.
+ * First-run state: reaching onboarding, and the account records it reads and
+ * writes on the host.
  *
- * The survey (job → industry → what you'd love to automate) stands in front of
- * the create-your-assistant flow, so every spec that drives first-run has to
- * answer it before it reaches the step it actually tests. Centralised here so
- * a fourth question is a one-line change, not a sweep across five specs.
+ * First-run onboarding runs INSIDE the workspace shell, as the AI Manager's
+ * scripted conversation (connect your AI → the survey → build the team).
+ * Walking that conversation lives in `manager-onboarding.ts` and
+ * `manager-team.ts`; this module owns only the host state around it.
  */
 import { FAKE_HOST_URL } from "@houston/fake-host";
 import { type APIRequestContext, expect, type Page } from "@playwright/test";
+
+/** The account preference the survey record lives under. */
+export const SURVEY_PREF_KEY = "houston_onboarding_survey";
 
 /**
  * Write one ACCOUNT preference straight onto the host (`null` clears it) — the
@@ -24,8 +28,69 @@ export async function setAccountPreference(
   });
 }
 
+/** One ACCOUNT preference as the host holds it, or null when unset. */
+export async function readAccountPreference(
+  request: APIRequestContext,
+  key: string,
+): Promise<string | null> {
+  const response = await request.get(`${FAKE_HOST_URL}/v1/preferences/${key}`);
+  const body = (await response.json()) as { value: string | null };
+  return body.value;
+}
+
+/** The survey record's answers, as the host holds them. */
+export interface StoredSurvey {
+  segment: string | null;
+  role: string | null;
+  roleOther: string | null;
+  industry: string | null;
+  industryOther: string | null;
+  /** Absent from a record written before the question existed. */
+  companySize?: string | null;
+  automationGoal: string | null;
+  goalSkipped: boolean;
+}
+
+/** The survey record the host holds, or null before the first answer. */
+export async function readSurveyRecord(
+  request: APIRequestContext,
+): Promise<StoredSurvey | null> {
+  const raw = await readAccountPreference(request, SURVEY_PREF_KEY);
+  return raw === null ? null : (JSON.parse(raw) as StoredSurvey);
+}
+
 /**
- * Empty the host's agents so the next `goto("/")` boots into the survey (v3
+ * Store a finished survey on the account (every question answered, already
+ * synced), so a surface that opens on the survey's answers opens on
+ * `industry` and `role`, and no completion prompt is owed.
+ */
+export async function seedAnsweredSurvey(
+  request: APIRequestContext,
+  industry: string,
+  role = "operations_manager",
+): Promise<void> {
+  await setAccountPreference(
+    request,
+    SURVEY_PREF_KEY,
+    JSON.stringify({
+      version: 2,
+      segment: null,
+      role,
+      roleOther: null,
+      industry,
+      industryOther: null,
+      companySize: "2_10",
+      automationGoal: "Stay on top of my email",
+      goalSkipped: false,
+      completionPromptDismissed: false,
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      gatewaySyncedAt: "2026-01-01T00:00:00.000Z",
+    }),
+  );
+}
+
+/**
+ * Empty the host's agents so the next `goto("/")` starts a first run (v3
  * first-run = zero agents). The durable onboarding preferences need no clearing
  * here: the page fixture resets the whole fake host before every test, and each
  * test gets a fresh browser context (so the localStorage mirrors go too).
@@ -42,9 +107,25 @@ export async function resetToFirstRun(
 }
 
 /**
- * The pre-survey answer as the shipped build stored it: a user who answered the
- * job question before industry + goal existed. Lifting this is what the
- * completion prompt exists for.
+ * Boot into the AI Manager's onboarding conversation. Reduced motion shows
+ * each of the manager's messages whole instead of typing it out word by word,
+ * so every step is on screen as soon as the conversation reaches it. The
+ * emulation outlives a reload.
+ */
+export async function openManagerOnboarding(page: Page): Promise<void> {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  // The first wait after a cold boot matches the visual suite's other
+  // boot-dependent waits: CI boots near the 10s default.
+  await expect(page.getByTestId("manager-onboarding")).toBeVisible({
+    timeout: 15_000,
+  });
+}
+
+/**
+ * The pre-survey answer as an early build stored it: a user who answered the
+ * department question before the survey existed. It answers the role, so
+ * lifting it owes the completion prompt the industry and the goal.
  */
 export function legacySegmentPreference(segment = "operations"): string {
   return JSON.stringify({
@@ -67,43 +148,4 @@ export async function seedLegacySegmentMirror(
     // Signed-out harness → the hook's uid-scoped key falls back to "local".
     localStorage.setItem("houston.onboarding-segment.local", value);
   }, legacySegmentPreference(segment));
-}
-
-/** Labels unique to ONE question, so a click can never hit the other grid
- *  ("Legal" and "Something else" appear in both). */
-const JOB_ANSWER = "Operations";
-const INDUSTRY_ANSWER = "Manufacturing";
-
-/** Answer the job question (step 1 of the first-run survey). */
-export async function answerJobStep(page: Page): Promise<void> {
-  await expect(
-    page.getByRole("heading", { name: "What best describes your work?" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: JOB_ANSWER }).click();
-  await page.getByRole("button", { name: "Continue" }).click();
-}
-
-/** Answer the industry question (step 2). */
-export async function answerIndustryStep(page: Page): Promise<void> {
-  await page.getByRole("button", { name: INDUSTRY_ANSWER }).click();
-  await page.getByRole("button", { name: "Continue" }).click();
-}
-
-/** Answer the automation-goal question (step 3). It has no skip of its own:
- *  the only way past it is a valid answer, or the global escape hatch. */
-export async function answerGoalStep(
-  page: Page,
-  goal = "Triage my inbox every morning.",
-): Promise<void> {
-  await page
-    .getByRole("textbox", { name: "What would you love to automate?" })
-    .fill(goal);
-  await page.getByRole("button", { name: "Continue" }).click();
-}
-
-/** Walk the whole first-run survey, landing on the create-your-assistant flow. */
-export async function completeSurvey(page: Page): Promise<void> {
-  await answerJobStep(page);
-  await answerIndustryStep(page);
-  await answerGoalStep(page);
 }

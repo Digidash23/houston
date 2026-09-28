@@ -1,5 +1,5 @@
 /**
- * Which reading the Skills library list owes the user for the rows it holds,
+ * Which reading the Skills list owes the user for the rows it holds,
  * kept pure so the decision is node-testable and the strip stays a renderer.
  *
  * The three are genuinely different states, not one blank: a workspace with no

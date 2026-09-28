@@ -9,7 +9,7 @@ import type {
  * The two whole-skill acts that exist only inside ONE AI Employee's Skills
  * section: stop this employee loading a workspace skill, and — where the
  * employee keeps its own copy of one — drop that copy and follow the workspace
- * version again. The library scope has neither: it stands on no employee.
+ * version again.
  *
  * It also answers the question those acts hang off — which copy of the skill
  * the editor below writes to — because the same three inputs decide both.
@@ -49,26 +49,26 @@ export interface ScopedSkillAct {
 }
 
 export interface ScopedSkillActions {
-  /** Stop this employee loading the workspace skill. Undefined in the library
-   *  scope, and for a skill that lives on this employee alone. */
+  /** Stop this employee loading the workspace skill. Undefined for a skill
+   *  that lives on this employee alone. */
   disable?: ScopedSkillAct;
   /** Drop this employee's shadowing copy. Undefined unless it has one. */
   revert?: ScopedSkillAct;
   /** What the editor below is really editing, or null where the question does
-   *  not arise (the library, or a skill this employee alone has). */
+   *  not arise (a skill this employee alone has). */
   notice: ScopedSkillNotice | null;
 }
 
 export function scopedSkillActions(args: {
   row: ManagedSkillRow;
-  scopedAgent: Agent | null;
+  scopedAgent: Agent;
   shared: SharedDialogActions | undefined;
   /** The open row IS the store's copy — a workspace skill this employee loads
    *  unchanged, rather than one it has shadowed. */
   isShared: boolean;
 }): ScopedSkillActions {
   const { row, scopedAgent, shared, isShared } = args;
-  if (scopedAgent === null || shared === undefined) return { notice: null };
+  if (shared === undefined) return { notice: null };
   const override = isScopedOverride(row, scopedAgent);
   if (!(isShared || override)) return { notice: null };
   const asShared = row as SharedSkillRow;

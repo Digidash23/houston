@@ -1,7 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { canonicalProviderId } from "@houston/domain";
+import {
+  canonicalProviderId,
+  loadActivities,
+  missionConversationKey,
+} from "@houston/domain";
 import type { HoustonEvent } from "@houston/protocol";
-import { actingSubFromHeader } from "../auth/acting";
+import { actingDelegatorFromHeader, actingSubFromHeader } from "../auth/acting";
 import type { EventHub } from "../events/hub";
 import type { WorkspacePaths } from "../paths";
 import type { CredentialVault, WorkspaceStore } from "../ports";
@@ -10,6 +14,10 @@ import { DEFAULT_PATHS } from "./agent-authz";
 import { bearer, header, json, readJson } from "./http";
 import { CONVERSATION_ID_HEADER } from "./learnings-sandbox";
 import { liveTurns } from "./live-turn";
+import {
+  DELEGATED_ROUTINE_REFUSAL,
+  isRoutinePause,
+} from "./mission-delegation-refusals";
 import { defineRoute } from "./registry";
 import { createRoutineChecked, updateRoutineChecked } from "./routine-write";
 
@@ -112,6 +120,23 @@ export async function handleSandboxRoutines(
   const turn = claimedConversationId
     ? liveTurns.get(claim.agentId, claimedConversationId)
     : undefined;
+  const body = await readJson(req);
+  if (turn) {
+    const delegated = deps.gatewayFronted
+      ? Boolean(actingDelegatorFromHeader(turn.actingAs))
+      : (await loadActivities(deps.vfs, root)).items.some(
+          (item) =>
+            missionConversationKey(item) === turn.conversationId &&
+            Boolean(item.origin_session_key),
+        );
+    if (delegated && !isRoutinePause(body)) {
+      json(res, 409, {
+        code: "mission_depth",
+        error: DELEGATED_ROUTINE_REFUSAL,
+      });
+      return true;
+    }
+  }
   const createdBy = deps.gatewayFronted
     ? (actingSubFromHeader(turn?.actingAs) ?? deps.ownerSub)
     : ws.ownerUserId;
@@ -120,7 +145,6 @@ export async function handleSandboxRoutines(
   const emit = (event: HoustonEvent) =>
     deps.events?.emit(ws.ownerUserId, event);
 
-  const body = await readJson(req);
   // `id` selects update-in-place; it is never a routine field itself.
   const { id, ...fields } = body;
   const creating = typeof id !== "string" || id === "";

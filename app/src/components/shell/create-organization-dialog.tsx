@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useCreateTeam } from "../../hooks/queries/use-orgs";
 import { stayOpen } from "../../lib/dialog-stay-open";
 import { openHome } from "../../lib/home-nav";
+import { openAdmin } from "../../lib/open-admin";
 import { orgSlugFromWorkspaceId } from "../../lib/space-id";
 import { useAgentStore } from "../../stores/agents";
 import { useUIStore } from "../../stores/ui";
@@ -35,7 +36,6 @@ export function CreateOrganizationDialog({ open, onOpenChange }: Props) {
   const setCurrentWorkspace = useWorkspaceStore((s) => s.setCurrent);
   const loadAgents = useAgentStore((s) => s.loadAgents);
   const addToast = useUIStore((s) => s.addToast);
-  const openSettings = useUIStore((s) => s.openSettings);
   const [name, setName] = useState("");
 
   // Start every open with a clean field; reset on close so a reopen after a
@@ -76,25 +76,21 @@ export function CreateOrganizationDialog({ open, onOpenChange }: Props) {
       // old space and the reload above just dropped), the view would stay put
       // and the whole create reads as a silent failure. Land them on home —
       // the same place the shell sends a blocked view — so the switch is
-      // visible. The new space's teams may not have resolved yet, in which
-      // case home IS the Agents home and the boot rule moves them on to the
-      // first team's Mission Control the moment it lands; that composition is
-      // deliberate. The toast's Invite action then takes them on to Workspace
-      // management from home.
+      // visible. Home is the new space's first employee once its roster and
+      // sidebar layout have settled; until then the Agents home stands and the
+      // desktop boot rule opens that employee. The toast's Invite action then
+      // opens Admin.
       openHome();
     }
-    // Point the user at the next step: the Admin dashboard's People card, now
-    // guaranteed visible because the active space is the fresh organization.
-    // The switch (setCurrent) already happened above, so `showOrganization`
-    // has resolved true and Settings' Workspace management section draws the
-    // dashboard by the time they click.
+    // Point the user at the Admin dashboard after the new space is active.
+    // The switch (setCurrent) happens before the action can navigate.
     addToast({
       title: t("teams:createTeam.successTitle", { name: org.name }),
       description: t("teams:createTeam.successBody"),
       variant: "success",
       action: {
         label: t("teams:createTeam.successAction"),
-        onClick: () => openSettings("workspace"),
+        onClick: () => openAdmin(),
       },
     });
   };

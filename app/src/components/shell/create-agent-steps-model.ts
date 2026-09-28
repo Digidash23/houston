@@ -11,9 +11,8 @@ import type { CopyWizardStep } from "../copy-agent/copy-agent-wizard-model";
  * steps. A team is one form, answered in place.
  *
  * Every screen the run does not need is skipped rather than shown empty: a
- * caller who may create only one of the two never meets the opening choice, a
- * user with nothing to copy never meets the hire/copy choice, and the in-app
- * tutorial meets neither because it teaches ONE path.
+ * caller who may create only one of the two never meets the opening choice,
+ * and a user with nothing to copy never meets the hire/copy choice.
  */
 export type CreateFlowStep =
   | "add"
@@ -73,8 +72,8 @@ export type GuidedCreateAgentStep = (typeof GUIDED_CREATE_AGENT_STEPS)[number];
 /**
  * Which door a caller opened the sheet by. `"choose"` is the rail's "+", which
  * knows only that the user wants to add something; the other two are the
- * callers that already know (a team's "New AI Employee", the Teams home's
- * "+"), and they land on that path's own first screen.
+ * callers that already know (the list's "New AI Employee" and "New group"),
+ * and they land on that path's own first screen.
  */
 export type CreateFlowDoor = "choose" | "agent" | "team";
 
@@ -84,8 +83,6 @@ export interface CreateFlowGates {
   canCreateTeam: boolean;
   /** The user owns at least one agent whose content they may copy. */
   canCopy: boolean;
-  /** The in-app tutorial is coaching the user through this very flow. */
-  tutorialActive: boolean;
 }
 
 /** The screens THIS run has, and the one it stands on when it opens. */
@@ -99,9 +96,9 @@ export interface CreateFlowShape {
 }
 
 /** Whether the sheet asks which way to get an agent. Worth a screen only to a
- *  user who HAS one to copy, and never while the tutorial runs. */
+ *  user who HAS one to copy. */
 export function offersChoiceStep(gates: CreateFlowGates): boolean {
-  return gates.canCopy && !gates.tutorialActive;
+  return gates.canCopy;
 }
 
 /**
@@ -119,10 +116,7 @@ export function createFlowShape(
 ): CreateFlowShape {
   const offersChoice = offersChoiceStep(gates);
   const offersAdd =
-    door === "choose" &&
-    gates.canCreateAgent &&
-    gates.canCreateTeam &&
-    !gates.tutorialActive;
+    door === "choose" && gates.canCreateAgent && gates.canCreateTeam;
   if (offersAdd) return { offersAdd, offersChoice, first: "add" };
   const agentFirst: CreateFlowStep = offersChoice ? "choose" : "context";
   const preferred: readonly CreateFlowStep[] =

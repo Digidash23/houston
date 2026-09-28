@@ -1,9 +1,12 @@
-import type { DraggableAttributes } from "@dnd-kit/core";
-import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
+import type {
+  DraggableAttributes,
+  DraggableSyntheticListeners,
+} from "@dnd-kit/core";
 import { cn } from "@houston-ai/core";
 import type { KeyboardEvent, ReactNode } from "react";
 import { sidebarRowType } from "./sidebar-geometry";
 import { sidebarRowButtonClasses as c, sidebarRowState } from "./sidebar-paint";
+import { SidebarRowCaret } from "./sidebar-row-caret";
 
 /** Where the row sits in the ladder, which is the whole of its indent. */
 export type SidebarRowDepth = "block" | "child";
@@ -14,56 +17,21 @@ export interface SidebarRowDisclosure {
   contentId?: string;
 }
 
-/**
- * The disclosure mark: a small SOLID triangle sitting immediately after the
- * label, pointing right when the row is folded and rotating a quarter turn to
- * point down when it opens.
- *
- * Drawn here, in five numbers, rather than pulled from an icon set: no set
- * ships this shape at this weight (an outline chevron is a different mark — it
- * reads as "there is more over there", where a filled triangle reads as "this
- * thing is closed"), and a whole dependency for one path would be absurd.
- *
- * The path is centred on the 16-unit box in BOTH axes (x 5.5-10.5, y 4.5-11.5),
- * which is what lets a plain 90-degree rotation about the box centre keep the
- * mark optically still while it turns.
- */
-export function SidebarRowCaret({
-  expanded,
-  className,
-}: {
-  expanded: boolean;
-  /** Extra classes for hosts wearing the mark outside the rail (the shared
-   *  size/ink/rotation grammar stays; only the surface-specific ink varies). */
-  className?: string;
-}) {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      aria-hidden="true"
-      focusable="false"
-      className={cn(c.caret, expanded && "rotate-90", className)}
-    >
-      <path d="M5.5 4.5 L10.5 8 L5.5 11.5 Z" />
-    </svg>
-  );
-}
+/** `row` is every line of the rail; `person` is an AI Employee (see
+ *  `sidebarPersonRow`): a portrait-sized avatar and a second line. */
+export type SidebarRowAnatomy = "row" | "person";
 
 export interface SidebarRowButtonProps {
   label: string;
-  /** The leading node in the shared 20px box: a Lucide glyph, or an avatar. */
+  /** Default `row`. */
+  anatomy?: SidebarRowAnatomy;
+  /** A person row's second line, under the label. */
+  subtitle?: ReactNode;
+  /** The leading node: a glyph in the shared 20px box, or a person row's
+   *  portrait. */
   icon?: ReactNode;
   /** Default `child`. `block` heads a block and sits one step to the left. */
   depth?: SidebarRowDepth;
-  /**
-   * This row NAMES the list rather than pointing at anything ("Your teams").
-   * One type step down (12px) and never carries a block head's weight — a band
-   * that shouts is the fastest way to make a rail look like a settings form.
-   */
-  band?: boolean;
-  /** Quieter resting label, for a row that names things rather than opening
-   *  one (the section band, the trailing "new" row). */
-  muted?: boolean;
   /**
    * Selected. Paints the pill AND says so, via `aria-current="page"` — a fill
    * with no announced counterpart is a state only sighted users can read.
@@ -78,7 +46,7 @@ export interface SidebarRowButtonProps {
   /** Right-aligned INSIDE the button: counts, badges, status dots. */
   trailing?: ReactNode;
   /**
-   * Right-aligned OUTSIDE the button: a "..." menu trigger, a "+". A sibling
+   * Right-aligned OUTSIDE the button: a "..." menu trigger. A sibling
    * and not a child because a button may not nest inside a button.
    */
   affordance?: ReactNode;
@@ -89,7 +57,7 @@ export interface SidebarRowButtonProps {
    */
   draggable?: boolean;
   dragAttributes?: DraggableAttributes;
-  dragListeners?: SyntheticListenerMap;
+  dragListeners?: DraggableSyntheticListeners;
   /** DOM attributes on the row ROOT: test ids, tour anchors. */
   dataAttrs?: Record<string, string>;
   /** Native title, for a label whose full text is worth hovering for. */
@@ -99,14 +67,15 @@ export interface SidebarRowButtonProps {
 /**
  * THE sidebar row.
  *
- * Every interactive line in the rail is one of these: the top-level
- * destinations, the "Your teams" band, each team's header, each team's
- * destination rows, each agent, and the "New agent" row that closes the list.
- * One component, so they cannot drift.
+ * Every interactive line in the rail's list is one of these: each group's
+ * header and each person. One component, so they cannot drift.
  *
- * The anatomy it owns, left to right: a fixed-height box (28px, and no state
- * may change it), a 20px glyph column, a truncating label, an optional trailing
- * slot inside the button, and an optional affordance beside it. Plus exactly
+ * The anatomy it owns, left to right: a fixed-height box (28px, or 64px for a
+ * person row, and no state may change it), a 20px glyph column (40px for a
+ * person's portrait), a truncating label, an optional trailing
+ * slot inside the button, and an optional affordance beside it. A person row
+ * is laid out like a message list: the name, then `subtitle` (up to two
+ * lines) with the trailing badge at its end. Plus exactly
  * two behaviours, which are the only two a rail row ever has:
  *
  * - **activate** — `onActivate`, and when `active` the pill plus
@@ -114,19 +83,17 @@ export interface SidebarRowButtonProps {
  * - **disclose** — `disclosure`, which adds the rotating triangle after the
  *   label, `aria-expanded` and `aria-controls`.
  *
- * A row can be BOTH: a collapsed team block discloses its contents and is
- * simultaneously the active row, standing in for the destination row it is
- * hiding.
+ * A folder row uses disclosure without selecting a destination.
  *
  * What it deliberately does NOT own: the icon-only collapsed rail, which is a
  * different anatomy with flyouts rather than a narrower version of this one.
  */
 export function SidebarRowButton({
   label,
+  anatomy = "row",
+  subtitle,
   icon,
   depth = "child",
-  band,
-  muted,
   active,
   disclosure,
   onActivate,
@@ -139,10 +106,12 @@ export function SidebarRowButton({
   dataAttrs,
   title,
 }: SidebarRowButtonProps) {
+  const person = anatomy === "person";
   return (
     <div
       className={cn(
         c.root,
+        person && [c.personHeight, c.personFill],
         active ? sidebarRowState.active : sidebarRowState.hover,
       )}
       {...(dataAttrs ?? {})}
@@ -157,25 +126,51 @@ export function SidebarRowButton({
         onKeyDown={onKeyDown}
         className={cn(
           c.button,
-          band ? sidebarRowType.band : sidebarRowType.item,
-          depth === "block" ? c.depthBlock : c.depthChild,
-          active
-            ? "text-ink"
-            : muted
-              ? "text-ink-muted"
-              : sidebarRowState.restText,
+          person && c.personHeight,
+          sidebarRowType.item,
+          person
+            ? depth === "block"
+              ? c.personPadBlock
+              : c.personPadChild
+            : depth === "block"
+              ? c.depthBlock
+              : c.depthChild,
+          active ? "text-ink" : sidebarRowState.restText,
           (draggable || dragListeners) && c.draggable,
         )}
         {...dragAttributes}
         {...dragListeners}
       >
-        {icon !== undefined && <span className={c.icon}>{icon}</span>}
-        <span className={c.labelGroup}>
-          <span className={c.label}>{label}</span>
-          {disclosure && <SidebarRowCaret expanded={disclosure.expanded} />}
-        </span>
-        <span className={c.spacer} />
-        {trailing && <span className={c.trailing}>{trailing}</span>}
+        {icon !== undefined && (
+          <span className={person ? c.personIcon : c.icon}>{icon}</span>
+        )}
+        {person ? (
+          // A message-list row: the name, then the latest line with its badge
+          // at the end.
+          <span
+            data-person-text=""
+            className={cn(c.personText, active && c.personTextBare)}
+          >
+            <span className={c.personLine}>
+              <span className={c.personName}>{label}</span>
+            </span>
+            {(subtitle || trailing) && (
+              <span className={c.personLine}>
+                <span className={c.personRole}>{subtitle}</span>
+                {trailing && <span className={c.personBadge}>{trailing}</span>}
+              </span>
+            )}
+          </span>
+        ) : (
+          <>
+            <span className={c.labelGroup}>
+              <span className={c.label}>{label}</span>
+              {disclosure && <SidebarRowCaret expanded={disclosure.expanded} />}
+            </span>
+            <span className={c.spacer} />
+            {trailing && <span className={c.trailing}>{trailing}</span>}
+          </>
+        )}
       </button>
       {affordance}
     </div>

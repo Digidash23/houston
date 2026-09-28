@@ -1,5 +1,6 @@
 import { isSetupChatMode } from "../../lib/integration-chat-setup.ts";
 import { ARCHIVED_STATUS } from "../../lib/mission-selection.ts";
+import type { TeamSectionId } from "../../lib/team-sections.ts";
 import {
   type TaskListFilterId,
   type TaskListSectionId,
@@ -29,7 +30,7 @@ export interface AgentMissionSections {
  * Section one agent's swept rows, newest movement first in every section.
  * The status→section mapping is the board's own (`missionColumnIdForStatus`),
  * so a mission always sits in the same section here as the column it occupies
- * on the board this screen pushes into.
+ * on the desktop board.
  */
 export function agentMissionSections(
   conversations: readonly AgentHomeConversation[] | undefined,
@@ -64,10 +65,8 @@ export function agentMissionSections(
 }
 
 /**
- * The bands the body draws, and what the shared segmented control narrows them
- * to, are the phone task list's own rules ({@link taskListSectionsFor}): one
- * grammar for an agent's list and a team's, so a task never sits in a
- * different band depending on which screen found it.
+ * The bands the body draws, and what the segmented control narrows them to
+ * ({@link taskListSectionsFor}).
  */
 export interface MissionListSection {
   id: TaskListSectionId;
@@ -104,4 +103,42 @@ export function missionListSections(
     const missions = searchMissions(sections[SECTION_KEY[id]], query);
     return missions.length === 0 ? [] : [{ id, missions }];
   });
+}
+
+/** Every mission the agent holds, the archive included. */
+export function agentMissionCount(sections: AgentMissionSections): number {
+  return (
+    sections.needsYou.length +
+    sections.running.length +
+    sections.done.length +
+    sections.archived.length
+  );
+}
+
+/**
+ * The agent's LIVE work, which the header counts: the archive is filed away,
+ * and counting it would make a finished agent look busy.
+ */
+export function liveMissionCount(sections: AgentMissionSections): number {
+  return agentMissionCount(sections) - sections.archived.length;
+}
+
+/** An employee section the task list's ⋯ menu opens. */
+export type AgentMissionsMenuSection = Exclude<
+  TeamSectionId,
+  "mission-control"
+>;
+
+/**
+ * The sections the phone task list's ⋯ menu offers: every one the employee's
+ * screen has beyond Tasks, which this list already is. The phone reaches the
+ * rest of the employee's screen only through here.
+ */
+export function agentMissionsMenuSections(
+  sections: readonly TeamSectionId[],
+): AgentMissionsMenuSection[] {
+  return sections.filter(
+    (section): section is AgentMissionsMenuSection =>
+      section !== "mission-control",
+  );
 }

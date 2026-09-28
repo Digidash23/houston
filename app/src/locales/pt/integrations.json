@@ -11,7 +11,7 @@
     "button": "Entrar no Houston",
     "failed": "Não foi possível iniciar a sessão. Tente de novo."
   },
-  "reconnectNotice": "Melhoramos a forma como os aplicativos se conectam para deixá-la mais segura. Reconecte seus aplicativos uma única vez; o Houston não guarda mais nenhuma chave de longa duração.",
+  "reconnectNotice": "Melhoramos a forma como os aplicativos se conectam para deixá-la mais segura. Reconecte seus aplicativos uma única vez; não guardamos mais nenhuma chave de longa duração.",
   "reconnectDismiss": "Entendi",
   "connected": {
     "disconnect": {
@@ -116,7 +116,7 @@
       "title": "Editar detalhes",
       "description": "Altere como esta integração aparece. Sua conexão continua igual.",
       "website": "Site (opcional)",
-      "websiteHelp": "Use o site do app, começando com https://. Houston usa esse endereço para o ícone.",
+      "websiteHelp": "Use o site do app, começando com https://. Esse endereço é usado para o ícone.",
       "save": "Salvar alterações",
       "saving": "Salvando..."
     },
@@ -155,7 +155,7 @@
         "api": "Reconhecemos um serviço de API.",
         "mcp": "Reconhecemos um servidor MCP.",
         "unknown": "Não conseguimos reconhecer este endereço. Confira a URL ou deixe o seu funcionário de IA te ajudar no chat.",
-        "mcpOauth": "Este servidor faz login com a própria conta (OAuth) e o Houston ainda não consegue se conectar a ele. Uma chave de API não vai funcionar aqui.",
+        "mcpOauth": "Este servidor faz login com a própria conta (OAuth), o que ainda não é compatível. Uma chave de API não vai funcionar aqui.",
         "mcpOauthOk": "Este servidor MCP usa o próprio login. Depois de adicioná-lo, você vai fazer login no seu navegador."
       },
       "nameLabel": "Nome",

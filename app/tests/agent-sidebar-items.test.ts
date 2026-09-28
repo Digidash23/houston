@@ -7,21 +7,36 @@ const source = readFileSync(
   "utf8",
 );
 
-describe("buildAgentSidebarItems needs-you signal", () => {
-  it("builds the signal from the summary count and localized label", () => {
+describe("buildAgentSidebarItems", () => {
+  it("builds the needs-you count from the summary and localized label", () => {
     assert.match(source, /summary\.needsYouCount > 0/);
-    assert.match(source, /needsYouLabel\(summary\.needsYouCount\)/);
+    assert.match(source, /label=\{needsYouLabel\(summary\.needsYouCount\)\}/);
   });
 
-  it("always renders the signal in the row's plain trailing slot", () => {
-    assert.match(source, /needsYou\n\s+\? \{\n\s+trailing:/);
-    assert.match(source, /count=\{needsYou\.count\}/);
+  it("lays the row out like a message list: line, then count", () => {
+    assert.match(source, /subtitle: <AgentRowLineText line=\{line\} \/>/);
+    assert.doesNotMatch(source, /meta:/);
+    assert.match(source, /trailing: \(\s*<NeedsYouChip/);
   });
 
-  it("gives every row the '...' menu in the affordance slot, after the signal", () => {
-    // The menu is the settings page's actions re-anchored on the rail; it sits
-    // OUTSIDE the button (the affordance slot), so the needs-you count stays
-    // inside the row and reads before it: [name] (7) ...
-    assert.match(source, /affordance: <AgentRowMenu agent=\{agent\} \/>/);
+  it("marks an employee whose first day is ahead as New, in the count's place", () => {
+    assert.match(
+      source,
+      /line\.kind === "firstDay"\s*\? \{ trailing: <NewAgentChip label=\{newLabel\} \/> \}/,
+    );
+  });
+
+  it("keeps the row one target: its actions live in the agent's Settings", () => {
+    assert.doesNotMatch(source, /affordance:/);
+  });
+
+  it("builds its second line from in-hand data, never a job description", () => {
+    // Reading every CLAUDE.md woke every hosted employee's pod on app open.
+    // What the line says is pinned by agent-row-line.test.ts.
+    assert.match(
+      source,
+      /agentRowLine\(agent, summary, invitesFirstDay\(agent\)\)/,
+    );
+    assert.doesNotMatch(source, /instructions|CLAUDE\.md|readFile/);
   });
 });

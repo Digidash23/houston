@@ -158,6 +158,8 @@ test("pi registers every allowlisted custom tool with the host + sandbox gates o
         "suggest_actions",
         "save_routine",
         "save_learning",
+        "list_agents",
+        "read_agent",
         "run_code",
         "integration_search",
         "integration_execute",
@@ -246,6 +248,8 @@ test("pi registers the assistant family for the coordinator", async () => {
   // deployment, whatever code execution the deployment offers.
   expect(open.tools).not.toContain("bash");
   expect(open.customTools).not.toContain("bash");
+  expect(open.tools).not.toContain("list_agents");
+  expect(open.customTools).not.toContain("read_agent");
 });
 
 /**

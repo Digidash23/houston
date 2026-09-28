@@ -1,79 +1,62 @@
 import { deepStrictEqual, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
+import { missionStartedBy } from "@houston/sdk/mission-started-by";
 import { AGENT_SETUP_AGENT_MODE } from "../src/lib/agent-setup-mode.ts";
-import { missionCardTags } from "../src/lib/mission-card.ts";
+import {
+  type MissionOriginLabels,
+  missionCardTags,
+  missionOriginLabel,
+} from "../src/lib/mission-card.ts";
+
+const labels: MissionOriginLabels = {
+  routine: "Routine",
+  setup: "Set up",
+  houston: "Started by Houston",
+  employee: "Started by AI Employee",
+  employeeNamed: (name) => `Started by ${name}`,
+};
+
+describe("missionOriginLabel", () => {
+  it("leaves the person's own mission untagged", () => {
+    strictEqual(missionOriginLabel({ kind: "person" }, labels), undefined);
+  });
+
+  it("names each origin in its own words", () => {
+    strictEqual(missionOriginLabel({ kind: "routine" }, labels), "Routine");
+    strictEqual(missionOriginLabel({ kind: "setup" }, labels), "Set up");
+    strictEqual(
+      missionOriginLabel({ kind: "houston" }, labels),
+      "Started by Houston",
+    );
+  });
+
+  it("names the employee when the roster knows it, else the generic label", () => {
+    const employee = { kind: "employee", agentId: "writer" } as const;
+    strictEqual(
+      missionOriginLabel(employee, labels, "Marisol"),
+      "Started by Marisol",
+    );
+    strictEqual(missionOriginLabel(employee, labels), "Started by AI Employee");
+  });
+
+  it("reads the SDK's decision for every seeded row the boards show", () => {
+    const tagOf = (row: Parameters<typeof missionStartedBy>[0]) =>
+      missionOriginLabel(missionStartedBy(row), labels);
+    strictEqual(tagOf({ started_by: "houston" }), "Started by Houston");
+    strictEqual(tagOf({ routine_id: "r1" }), "Routine");
+    strictEqual(tagOf({ agent: AGENT_SETUP_AGENT_MODE }), "Set up");
+    // A row older than `started_by` keeps today's label: never relabeled.
+    strictEqual(
+      tagOf({ origin_session_key: "conv-parent" }),
+      "Started by AI Employee",
+    );
+    strictEqual(tagOf({}), undefined);
+  });
+});
 
 describe("missionCardTags", () => {
-  it("tags a routine-born mission with the routine label", () => {
-    deepStrictEqual(
-      missionCardTags({
-        routineId: "routine-id",
-        routineLabel: "Routine",
-      }),
-      ["Routine"],
-    );
-  });
-
-  it("keeps normal missions untagged", () => {
-    strictEqual(missionCardTags({ routineLabel: "Routine" }), undefined);
-  });
-
-  it("tags an agent-started mission (PRODUCT-1244)", () => {
-    deepStrictEqual(
-      missionCardTags({
-        routineLabel: "Routine",
-        originSessionKey: "conv-parent",
-        agentStartedLabel: "Started by AI Employee",
-      }),
-      ["Started by AI Employee"],
-    );
-  });
-
-  it("tags the agent's self-setup mission", () => {
-    deepStrictEqual(
-      missionCardTags({
-        routineLabel: "Routine",
-        agentMode: AGENT_SETUP_AGENT_MODE,
-        setupLabel: "Set up",
-      }),
-      ["Set up"],
-    );
-  });
-
-  it("leaves other agent modes untagged", () => {
-    strictEqual(
-      missionCardTags({
-        routineLabel: "Routine",
-        agentMode: "houston:routine-setup",
-        setupLabel: "Set up",
-      }),
-      undefined,
-    );
-  });
-
-  it("the setup tag outranks the agent-started tag", () => {
-    // The setup mission is Houston's own, not one the agent chose to start.
-    deepStrictEqual(
-      missionCardTags({
-        routineLabel: "Routine",
-        agentMode: AGENT_SETUP_AGENT_MODE,
-        setupLabel: "Set up",
-        originSessionKey: "conv-parent",
-        agentStartedLabel: "Started by AI Employee",
-      }),
-      ["Set up"],
-    );
-  });
-
-  it("routine tags outrank the agent-started tag", () => {
-    deepStrictEqual(
-      missionCardTags({
-        routineId: "routine-id",
-        routineLabel: "Routine",
-        originSessionKey: "conv-parent",
-        agentStartedLabel: "Started by AI Employee",
-      }),
-      ["Routine"],
-    );
+  it("wears the origin tag alone, or none", () => {
+    deepStrictEqual(missionCardTags("Routine"), ["Routine"]);
+    strictEqual(missionCardTags(undefined), undefined);
   });
 });

@@ -12,6 +12,10 @@
 export interface ChoiceKeyScope {
   /** A person pressed it. The app also dispatches keys at itself. */
   trusted: boolean;
+  /** The question is rendered at all. A kept-alive screen, or a step waiting
+   *  behind the AI Manager's typing, stays mounted while hidden, and a key
+   *  typed on the screen in use must never land in its filter. */
+  onScreen: boolean;
   focusWithin: boolean;
   /** Open layers that are NOT wrapping the question, so they own keys first. */
   layersAbove: number;
@@ -24,7 +28,12 @@ export interface ChoiceKeyScope {
  * that key for its own filter leaves the modal open over an inert page.
  */
 export function choiceOwnsKey(scope: ChoiceKeyScope): boolean {
-  return scope.trusted && scope.focusWithin && scope.layersAbove === 0;
+  return (
+    scope.trusted &&
+    scope.onScreen &&
+    scope.focusWithin &&
+    scope.layersAbove === 0
+  );
 }
 
 /** Where focus and the key came from, relative to the question's own element. */
@@ -44,15 +53,24 @@ export function focusWithinStep(reading: ChoiceFocusReading): boolean {
   return reading.focusNowhere || reading.focusInStep || reading.targetInStep;
 }
 
+/** Where one open layer sits relative to the question. */
+export interface LayerReading {
+  containsStep: boolean;
+  /** The layer comes earlier in the document than the question. */
+  beforeStep: boolean;
+}
+
 /**
  * The sheet the question is asked in is an open layer that CONTAINS it, and it
- * is not above anything. A popover the question itself opened is portalled
- * elsewhere, so it does not contain the question and it does own Escape first.
+ * is not above anything. Layers are portalled in the order they open, so one
+ * that comes earlier in the document is beneath the question: the dialog a
+ * card sits in, when the question is a popover that card opened. A layer
+ * that comes later (a popover the question itself opened, a confirm asked
+ * over it) is above it and owns Escape first.
  */
-export function countLayersAbove(
-  layers: readonly { containsStep: boolean }[],
-): number {
-  return layers.filter((layer) => !layer.containsStep).length;
+export function countLayersAbove(layers: readonly LayerReading[]): number {
+  return layers.filter((layer) => !layer.containsStep && !layer.beforeStep)
+    .length;
 }
 
 /**
@@ -75,15 +93,28 @@ export function readChoiceKeyScope(
   step: HTMLElement | null,
   event: { target: EventTarget | null; isTrusted: boolean },
 ): ChoiceKeyScope {
-  if (!step) return { trusted: false, focusWithin: false, layersAbove: 0 };
+  if (!step)
+    return {
+      trusted: false,
+      onScreen: false,
+      focusWithin: false,
+      layersAbove: 0,
+    };
   const active = document.activeElement;
   const layers = Array.from(
     document.querySelectorAll<HTMLElement>(OPEN_LAYER_SELECTOR),
   )
     .filter((layer) => isOpenLayerRole(layer.getAttribute("role") ?? ""))
-    .map((layer) => ({ containsStep: layer.contains(step) }));
+    .map((layer) => ({
+      containsStep: layer.contains(step),
+      beforeStep: Boolean(
+        layer.compareDocumentPosition(step) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+    }));
   return {
     trusted: event.isTrusted,
+    // A `display: none` subtree (`hidden`) has no boxes at all.
+    onScreen: step.getClientRects().length > 0,
     focusWithin: focusWithinStep({
       focusNowhere: active === null || active === document.body,
       focusInStep: active instanceof Node && step.contains(active),
