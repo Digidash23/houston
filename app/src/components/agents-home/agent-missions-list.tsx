@@ -51,6 +51,7 @@ export function AgentMissionsList({
   archivedRef,
   onToggleArchived,
   onOpen,
+  originTagOf,
 }: {
   sections: AgentMissionSections;
   /** The owning agent's stored colour id, worn by every row's avatar. */
@@ -62,6 +63,8 @@ export function AgentMissionsList({
   onToggleArchived: () => void;
   /** Every row, archived ones included, opens as the pushed chat. */
   onOpen: (mission: AgentHomeConversation) => void;
+  /** Who started a task, in words (`useMissionOriginTag`). */
+  originTagOf: (mission: AgentHomeConversation) => string | undefined;
 }) {
   const { t } = useTranslation(["shell", "dashboard"]);
   const groups = missionListSections(sections, filter, query);
@@ -72,6 +75,7 @@ export function AgentMissionsList({
       key={mission.id}
       mission={mission}
       status={status}
+      originTag={originTagOf(mission)}
       color={agentColor}
       onOpen={onOpen}
     />

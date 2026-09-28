@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { actingSubFromHeader } from "./acting";
+import { actingSubFromHeader, actingViaFromHeader } from "./acting";
 
 const payload = (obj: unknown) =>
   Buffer.from(JSON.stringify(obj)).toString("base64url");
@@ -36,4 +36,17 @@ test("anything malformed reads as no acting identity, never a throw", () => {
   expect(
     actingSubFromHeader(`acting-v1.${payload({ sub: 42 })}.sig`),
   ).toBeUndefined();
+});
+
+test("reads the gateway's via claim only beside a sub", () => {
+  const via = (claims: unknown) =>
+    actingViaFromHeader(`acting-v1.${payload(claims)}.sig`);
+  expect(via({ sub: "u1", via: "assistant" })).toBe("assistant");
+  expect(via({ sub: "u1" })).toBeUndefined();
+  expect(via({ via: "assistant" })).toBeUndefined();
+  expect(via({ sub: "", via: "assistant" })).toBeUndefined();
+  expect(via({ sub: "u1", via: "" })).toBeUndefined();
+  expect(via({ sub: "u1", via: 1 })).toBeUndefined();
+  expect(actingViaFromHeader(undefined)).toBeUndefined();
+  expect(actingViaFromHeader("garbage")).toBeUndefined();
 });

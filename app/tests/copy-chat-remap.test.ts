@@ -72,12 +72,14 @@ describe("remapChatArchive", () => {
         session_key: "routine-r9",
         routine_id: "r9",
       },
-      // Started by the agent from A's chat: the parent link follows.
+      // Started by the agent from A's chat: the parent link follows, and
+      // who started it (PRODUCT-1928) travels with the copy.
       {
         id: "c3",
         title: "C",
         status: "done",
         origin_session_key: "activity-a1",
+        started_by: "employee",
       },
     ];
     const zip = zipSync({
@@ -115,6 +117,7 @@ describe("remapChatArchive", () => {
     ok(!("routine_run_id" in (rows[0] as object)));
     // The routine link on a run's task follows the re-minted id.
     strictEqual(rows[1]?.routine_id, "q9");
+    strictEqual(rows[2]?.started_by, "employee");
     const moved = JSON.parse(
       strFromU8(
         out[".houston/runtime/conversations/activity-n1.json"] as Uint8Array,

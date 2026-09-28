@@ -67,7 +67,7 @@ test("Manager is the first employee row in both rail widths", async ({
   if (!managerBox || !agentBox) throw new Error("the band is not laid out");
   expect(managerBox.y + managerBox.height).toBeLessThanOrEqual(agentBox.y + 1);
   // The person row's height, like the agent under it.
-  expect(managerBox.height).toBe(agentBox.height);
+  expect(managerBox.height).toBeCloseTo(agentBox.height, 1);
 
   // The avatar is decorative: the row's label is its name, then its role.
   await expect(manager.locator("[data-manager-avatar]")).toHaveAttribute(

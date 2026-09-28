@@ -1,7 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { sliceCoverage } from "./all-conversations-coverage";
 import { sliceFreshness } from "./all-conversations-freshness";
-import { tauriConversations } from "./tauri";
+import { tauriConversations } from "./conversations-facade";
 
 /**
  * Re-read ONE agent's slice of every cached cross-agent board.

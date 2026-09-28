@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { json, readJson } from "./http";
+import { inboundMissionStarter } from "./mission-starter";
 import { MISSION_ID_HEADER } from "./missions-calling-agent";
 import { applyMissionStatus } from "./missions-manage";
 import {
@@ -100,6 +101,9 @@ export async function startInbound(
         : { agent: bodyAgent }),
     },
     res,
-    missionId,
+    {
+      ...(missionId ? { missionId } : {}),
+      startedBy: inboundMissionStarter(ctx.deps, req, ctx.callingAgent),
+    },
   );
 }

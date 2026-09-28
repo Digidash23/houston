@@ -218,7 +218,7 @@
       "ui/routines (library)",
       "ui/store (library)"
     ],
-    "fileCount": 153
+    "fileCount": 152
   },
   "core-button-group": {
     "surfaces": [
@@ -428,7 +428,7 @@
       "ui/review (library)",
       "ui/store (library)"
     ],
-    "fileCount": 26
+    "fileCount": 25
   },
   "core-input-group": {
     "surfaces": [
@@ -480,10 +480,11 @@
       "AI Models",
       "Routines",
       "Settings",
+      "app/src/components",
       "ui/chat (library)",
       "ui/store (library)"
     ],
-    "fileCount": 6
+    "fileCount": 7
   },
   "core-separator": {
     "surfaces": [
@@ -512,7 +513,7 @@
       "ui/agent (library)",
       "ui/store (library)"
     ],
-    "fileCount": 20
+    "fileCount": 21
   },
   "core-spinner": {
     "surfaces": [
@@ -533,7 +534,7 @@
       "app/src/components",
       "ui/store (library)"
     ],
-    "fileCount": 47
+    "fileCount": 46
   },
   "core-status-badge": {
     "surfaces": [
@@ -549,9 +550,10 @@
       "Import & export",
       "Integrations",
       "Settings",
+      "app/src/components",
       "ui/routines (library)"
     ],
-    "fileCount": 7
+    "fileCount": 8
   },
   "core-tabs": {
     "surfaces": [

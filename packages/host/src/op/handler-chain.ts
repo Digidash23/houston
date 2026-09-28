@@ -1,5 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { ActivityContributor, HoustonEvent } from "@houston/protocol";
+import type {
+  ActivityContributor,
+  HoustonEvent,
+  MissionStarter,
+} from "@houston/protocol";
 import type { Agent, Workspace } from "../domain/types";
 import type { CustomIntegrationManager } from "../integrations/custom/manager";
 import type { WorkspacePaths } from "../paths";
@@ -25,6 +29,7 @@ export interface AgentOpChainDeps {
   emit: (event: HoustonEvent) => void;
   actingSub?: string;
   actingAuthor?: ActivityContributor;
+  startedBy?: MissionStarter;
   triggersEnabled: boolean;
   /** Wired for custom-integration ops only (a per-op manager over the
    *  hydrated definitions file + the gateway's secret store). */
@@ -62,9 +67,12 @@ const OP_HANDLERS: Record<OpGroup, OpHandler> = {
       req,
       res,
       deps.emit,
-      deps.actingSub,
-      deps.actingAuthor,
-      deps.triggersEnabled,
+      {
+        createdBy: deps.actingSub,
+        author: deps.actingAuthor,
+        triggersEnabled: deps.triggersEnabled,
+        ...(deps.startedBy ? { startedBy: deps.startedBy } : {}),
+      },
     ),
   "agent-file": (deps, method, rest, req, res) =>
     handleAgentFile(

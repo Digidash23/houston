@@ -612,7 +612,52 @@ test("the started row records WHO asked and how deep it sits", async () => {
     origin_session_key: "conv-parent",
     origin_agent: agent.id,
     origin_depth: 1,
+    started_by: "employee",
   });
+});
+
+test("a start from the desktop's AI Manager is stamped as Houston's", async () => {
+  // The desktop coordinator is the dot-named `.assistant` no user can create,
+  // so it is installed here the way the local store would hold it. It keeps no
+  // board of its own: every start it makes names an employee's.
+  const employee = await store.createAgent({
+    workspaceId: ws.id,
+    name: "Dobby",
+  });
+  const coordinator: Agent = {
+    id: `${ws.id}/.assistant`,
+    workspaceId: ws.id,
+    name: ".assistant",
+    createdAt: Date.now(),
+  };
+  const real = store;
+  const delegate = Object.create(real) as MemoryWorkspaceStore;
+  delegate.getAgent = async (id) =>
+    id === coordinator.id ? coordinator : real.getAgent(id);
+  store = delegate;
+  agent = coordinator;
+  root = paths.agentRoot(ws, agent);
+  await saveActivities(vfs, root, [PARENT]);
+  missionFanout.forget(agent.id);
+  try {
+    const r = await call(
+      "POST",
+      "/sandbox/missions/start",
+      { agent: "Dobby", title: "t", prompt: "p" },
+      { conversationId: "conv-parent" },
+    );
+    expect(r.status).toBe(201);
+    const board = JSON.parse(
+      (await vfs.readText(docKey(paths.agentRoot(ws, employee), "activity"))) ??
+        "[]",
+    ) as Activity[];
+    expect(board[0]).toMatchObject({
+      origin_agent: coordinator.id,
+      started_by: "houston",
+    });
+  } finally {
+    missionFanout.forget(agent.id);
+  }
 });
 
 test("the caller's own budget refuses a flood spread across boards", async () => {

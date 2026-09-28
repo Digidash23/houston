@@ -11,8 +11,9 @@ import {
   foldSweep,
   sliceFreshness,
 } from "../../lib/all-conversations-freshness";
+import type { RawConversation } from "../../lib/conversations-facade";
 import { queryKeys } from "../../lib/query-keys";
-import { type RawConversation, tauriChat } from "../../lib/tauri";
+import { tauriChat } from "../../lib/tauri";
 import { useAgentStore } from "../../stores/agents";
 import {
   recoverFromSweep,

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
+import type { RawConversation } from "../../lib/conversations-facade";
 import { sweepSettled } from "../../lib/sweep-settled";
-import type { RawConversation } from "../../lib/tauri";
 import { useAgentStore } from "../../stores/agents";
 import { useAllConversations } from "./use-conversations";
 

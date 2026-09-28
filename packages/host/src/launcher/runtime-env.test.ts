@@ -19,7 +19,7 @@ test("the host's own gateway credential never reaches a spawned runtime", () => 
   // (that is where the credential belongs) and the runtime it spawns for an
   // ordinary agent is told nothing about it.
   const gateway = resolveAssistantGateway({ env: {}, self: SELF });
-  expect(gateway).toEqual(SELF);
+  expect(gateway).toEqual({ ...SELF, loopback: true });
 
   const env = runtimeSpawnEnv({
     transcriptDualWrite: false,

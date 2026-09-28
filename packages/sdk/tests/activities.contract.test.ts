@@ -67,6 +67,7 @@ describe("activities VM", () => {
           updatedAt: ISO,
           // No explicit session_key on the wire → the board's activity-<id>.
           sessionKey: "activity-act-1",
+          startedBy: { kind: "person" },
         },
         {
           id: "act-2",
@@ -75,6 +76,7 @@ describe("activities VM", () => {
           status: "done",
           updatedAt: ISO,
           sessionKey: "activity-act-2",
+          startedBy: { kind: "person" },
         },
       ],
     } satisfies ActivitiesViewModel);
@@ -155,6 +157,21 @@ describe("activities VM", () => {
     expect(vm()?.items.map((a) => a.title)).toContain(
       "Filed by another client",
     );
+  });
+
+  it("reads who started a mission off the row the host stamped (PRODUCT-1928)", async () => {
+    // The fake host takes the stamp off a seeding POST; the real host stamps it
+    // from the verified caller.
+    const res = await fetch(`${host.url}/agents/${SEED_AGENT_ID}/activities`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Weekly report", started_by: "houston" }),
+    });
+    expect(res.ok).toBe(true);
+    await h.sdk.activities.refresh(SEED_AGENT_ID);
+    await until(() => vm()?.items.length === 3, "stamped mission loaded");
+    const item = vm()?.items.find((a) => a.title === "Weekly report");
+    expect(item?.startedBy).toEqual({ kind: "houston" });
   });
 });
 

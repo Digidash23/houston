@@ -16,6 +16,7 @@
     "routine": "Routine",
     "agentStarted": "Started by AI Employee",
     "startedByAgent": "Started by {{name}}",
+    "houstonStarted": "Started by Houston",
     "setup": "Set up"
   },
   "panel": {

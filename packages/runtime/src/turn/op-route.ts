@@ -1,20 +1,21 @@
 import { join } from "node:path";
-import type { CustomIntegrationManager } from "@houston/host/src/integrations/custom/manager";
+import { ACTING_VIA_ASSISTANT } from "@houston/host/src/auth/acting";
 import { dispatchAgentOp } from "@houston/host/src/op/dispatch";
 import { archiveTouchesRuntime } from "@houston/host/src/routes/migration-import";
 import { PrefixedVfs } from "@houston/host/src/vfs";
 import type { HoustonEvent } from "@houston/protocol";
 import type { OpResult } from "./op-apply";
 import { isCustomIntegrationOpRoute } from "./op-route-allowlist";
+import {
+  CUSTOM_DEFS_FILE,
+  type CustomContext,
+  customIntegrationContext,
+} from "./op-route-custom";
 import { agentRouteScope, engineAgentId } from "./op-scope";
 import type { OpRequest } from "./parse-op-request";
 import type { TurnFilesystem } from "./turn-filesystem";
-import { poolIdentity } from "./turn-store";
 
 type RouteOp = OpRequest & { op: Extract<OpRequest["op"], { kind: "route" }> };
-
-/** The store-root definitions file custom-integration ops read and write. */
-const CUSTOM_DEFS_FILE = "custom-integrations.json";
 
 const decline = (include: OpResult["include"]): OpResult => ({
   status: 503,
@@ -124,6 +125,11 @@ async function runRouteOp(
             user_id: op.actingAs.userId,
             ...(op.actingAs.name ? { name: op.actingAs.name } : {}),
           },
+          // The AI Manager's asleep-agent write: the same stamp an awake pod
+          // derives from the acting token's `via` claim.
+          ...(op.actingAs.via === ACTING_VIA_ASSISTANT
+            ? { startedBy: "houston" as const }
+            : {}),
         }
       : {}),
     triggersEnabled: op.triggersEnabled,
@@ -172,63 +178,4 @@ async function runRouteOp(
     }
   }
   return out;
-}
-
-interface CustomContext {
-  manager: CustomIntegrationManager;
-  changed: () => boolean;
-  dispose: () => Promise<void>;
-}
-
-async function customIntegrationContext(
-  op: RouteOp,
-  filesystem: TurnFilesystem,
-  fetchImpl?: typeof fetch,
-): Promise<CustomContext> {
-  // Materialize the store-root definitions file into the lazy overlay (and
-  // its manifest) BEFORE the raw-fs store reads it: an unmaterialized file
-  // would read as "no definitions" and a later write would CAS-create over
-  // the real one.
-  await filesystem.vfs.readBytes(CUSTOM_DEFS_FILE);
-  // Imported lazily: the embedded executor engine is heavy, and only the
-  // rare custom-integration op needs it — worker startup must not pay it.
-  const [
-    { CustomExecutorHost },
-    { CustomIntegrationManager },
-    { RemoteCustomSecretStore },
-    { FileCustomIntegrationStore },
-  ] = await Promise.all([
-    import("@houston/host/src/integrations/custom/executor-host"),
-    import("@houston/host/src/integrations/custom/manager"),
-    import("@houston/host/src/integrations/custom/secrets"),
-    import("@houston/host/src/integrations/custom/store"),
-  ]);
-  const { org, agent } = poolIdentity(op.gcsPrefix);
-  const store = new FileCustomIntegrationStore(
-    join(filesystem.storeRoot, CUSTOM_DEFS_FILE),
-  );
-  const secrets = new RemoteCustomSecretStore({
-    baseUrl: new URL(op.claim.heartbeatUrl).origin,
-    orgSlug: org,
-    agentSlug: agent,
-    podToken: op.hostToken,
-    ...(fetchImpl ? { fetchImpl } : {}),
-  });
-  const executor = new CustomExecutorHost(secrets, () => store.list());
-  let changed = false;
-  const manager = new CustomIntegrationManager(
-    store,
-    secrets,
-    executor,
-    () => {
-      changed = true;
-    },
-    // No OAuth options: sign-in never runs here (see the module doc).
-    {},
-  );
-  return {
-    manager,
-    changed: () => changed,
-    dispose: () => executor.reset(),
-  };
 }

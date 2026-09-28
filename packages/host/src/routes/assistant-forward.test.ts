@@ -1,6 +1,16 @@
-import type { ServerResponse } from "node:http";
+import {
+  createServer,
+  type IncomingHttpHeaders,
+  type Server,
+  type ServerResponse,
+} from "node:http";
+import type { AddressInfo } from "node:net";
 import { describe, expect, test } from "vitest";
 import { ACTING_AS_HEADER } from "../auth/acting";
+import {
+  ASSISTANT_CALL_HEADER,
+  assistantCallHeaders,
+} from "../auth/assistant-call";
 import type { AssistantUpstreamRequest } from "./assistant-dispatch";
 import {
   type AssistantGateway,
@@ -55,11 +65,14 @@ function recordingFetch(attempts: Attempt[]): typeof fetch {
   }) as unknown as typeof fetch;
 }
 
-async function forward(request: AssistantUpstreamRequest) {
+async function forward(
+  request: AssistantUpstreamRequest,
+  through: AssistantGateway = gateway,
+) {
   const attempts: Attempt[] = [];
   const { res, captured } = fakeRes();
   await forwardAssistantCall(
-    gateway,
+    through,
     request,
     {
       operation: "readAgentFile",
@@ -132,3 +145,72 @@ test("an upstream name-taken refusal reaches the manager with its status and sen
     code: "gateway_error",
   });
 });
+
+describe("the manager proof (PRODUCT-1928)", () => {
+  const request: AssistantUpstreamRequest = {
+    method: "POST",
+    path: "/agents/A/activities",
+    query: {},
+    body: { title: "t" },
+  };
+
+  test("a loopback call to this host carries it", async () => {
+    const { attempts } = await forward(request, {
+      url: "http://127.0.0.1:4318",
+      token: "boot",
+      loopback: true,
+    });
+    expect(attempts[0]?.headers[ASSISTANT_CALL_HEADER]).toBe(
+      assistantCallHeaders()[ASSISTANT_CALL_HEADER],
+    );
+  });
+
+  test("a configured gateway never receives it", async () => {
+    const { attempts } = await forward(request);
+    expect(attempts).toHaveLength(1);
+    expect(attempts[0]?.headers).not.toHaveProperty(ASSISTANT_CALL_HEADER);
+  });
+
+  test("a loopback call never follows a redirect off the host", async () => {
+    const reached: IncomingHttpHeaders[] = [];
+    const elsewhere = await listen((req, res) => {
+      reached.push(req.headers);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end("{}");
+    });
+    const self = await listen((_req, res) => {
+      res.writeHead(302, { Location: `${elsewhere.url}/stolen` });
+      res.end();
+    });
+    try {
+      const { res, captured } = fakeRes();
+      await forwardAssistantCall(
+        { url: self.url, token: "boot", loopback: true },
+        request,
+        { operation: "createActivity", actingAs: undefined, fetchImpl: fetch },
+        res,
+      );
+      expect(reached).toEqual([]);
+      expect(captured.status).toBe(502);
+      expect(captured.body).toContain("gateway_error");
+    } finally {
+      await Promise.all([self.close(), elsewhere.close()]);
+    }
+  });
+});
+
+/** A real HTTP server on an ephemeral loopback port. */
+async function listen(
+  handler: Parameters<typeof createServer>[1] & {},
+): Promise<{ url: string; close: () => Promise<void> }> {
+  const server: Server = createServer(handler);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  return {
+    url: `http://127.0.0.1:${port}`,
+    close: () =>
+      new Promise<void>((resolve, reject) =>
+        server.close((err) => (err ? reject(err) : resolve())),
+      ),
+  };
+}

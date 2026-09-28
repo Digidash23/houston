@@ -33,9 +33,9 @@ function KanbanListSpecimen() {
 
         <SpecimenSection
           title="States"
-          note="A row is one line until a search snippet makes it two. The title is never highlighted — a match in the title is already visible; the snippet exists for the match that is not, and it shows the matched span in the body so the user sees why the mission surfaced."
+          note="A row is one line until a search snippet makes it two. A mission the user did not start by typing wears the board card's tag pill at the end of its title line, capped so a long tag truncates before the title does. The title is never highlighted — a match in the title is already visible; the snippet exists for the match that is not, and it shows the matched span in the body so the user sees why the mission surfaced."
         >
-          <SpecimenRow label="Row: plain / with a snippet / selected">
+          <SpecimenRow label="Row: plain / tagged / with a snippet / selected (tagged)">
             <Rows />
           </SpecimenRow>
           <SpecimenRow label="Empty">
@@ -79,6 +79,7 @@ function KanbanListSpecimen() {
           classes={[
             "bg-card",
             "bg-hover",
+            "bg-chip",
             "border-line",
             "text-ink",
             "text-ink-muted",
