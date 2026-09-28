@@ -73,17 +73,6 @@ for (const width of ["desktop", "phone"] as const) {
     await expect(
       dialog.getByRole("button", { name: "Get my first month for $10" }),
     ).toBeVisible({ timeout: 15_000 });
-    if (width === "desktop") {
-      // The astronaut is painted beside the copy; shoot it decoded, not blank.
-      const image = dialog.locator("img");
-      await expect
-        .poll(() =>
-          image.evaluate(
-            (img: HTMLImageElement) => img.complete && img.naturalWidth > 0,
-          ),
-        )
-        .toBe(true);
-    }
     await page.mouse.move(0, 0);
     await pinTheme(page, "light");
 

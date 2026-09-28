@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 114
+version: 115
 
 components:
   - id: agent-delegation-settings
@@ -2099,18 +2099,19 @@ components:
   - id: personal-plan-dialogs
     title: Personal plan dialogs
     purpose: Ask a Free person to resume routines, choose one to keep, or review the launch plans.
-    anatomy: [title, explanation, routine-list, telemetry, astronaut-image, free-plus-teams-panels, offer, primary-action, secondary-action]
-    states: [resume, keep, announcement, offer, no-offer, countdown, loading, empty]
+    anatomy: [title, explanation, routine-list, free-plus-teams-panels, thank-you-gift, primary-action, secondary-action]
+    states: [resume, keep, announcement, offer, no-offer, loading, empty]
     variants: [phone, desktop]
     behavior: >-
       The plan summary gates resume before keep before the announcement.
       Dismissing the announcement by any close path persists across devices
       through the SDK. The offer starts Plus checkout; without it, the primary
-      action opens Billing. The countdown and prices come from the plan summary.
+      action opens Billing. Prices and dates come from the plan summary. Only
+      a real choice closes a dialog: the synthetic Escape a screen change sends
+      is ignored.
     a11y: >-
       Focus-managed dialogs with labeled actions and visible routine names.
-      Announcement countdown is decorative because the localized launch date is
-      in the title; the struck price has a spoken replacement.
+      The struck price has a spoken replacement.
     since: 102
   - id: personal-billing-screen
     title: Personal billing screen

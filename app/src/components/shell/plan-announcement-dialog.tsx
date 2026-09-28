@@ -13,8 +13,6 @@ import {
 } from "@houston-ai/core";
 import { type CSSProperties, useState } from "react";
 import { useTranslation } from "react-i18next";
-import astroJpg from "../../assets/space/astro-960.jpg";
-import astroWebp from "../../assets/space/astro-960.webp";
 import { useDismissPlanAnnouncement } from "../../hooks/queries/use-plan";
 import { usePlusCheckout } from "../../hooks/queries/use-plus-checkout";
 import { useUIStore } from "../../stores/ui";
@@ -31,7 +29,6 @@ const briefingStyle = {
   "--briefing-space-16": space["16"],
   "--briefing-space-32": space["32"],
   "--briefing-duration": duration.fast,
-  "--briefing-ambient": duration.ambient,
   "--briefing-easing": `cubic-bezier(${easing.entrance.join(", ")})`,
 } as CSSProperties;
 
@@ -75,22 +72,7 @@ export function PlanAnnouncementDialog({
         className="plan-briefing-frame h-dvh overflow-hidden bg-dialog p-0 text-ink motion-reduce:animate-none sm:max-w-[min(var(--briefing-width),calc(100%-var(--briefing-space-32)))] md:h-auto md:max-h-[calc(100dvh-var(--briefing-space-32))]"
       >
         <div className="plan-briefing-stage relative flex min-h-0">
-          <picture className="plan-briefing-image pointer-events-none absolute inset-y-0 left-0 hidden w-1/2 md:block">
-            <source type="image/webp" srcSet={astroWebp} />
-            <img
-              src={astroJpg}
-              alt=""
-              width={960}
-              height={1440}
-              decoding="async"
-              className="plan-briefing-drift h-full w-full object-cover"
-            />
-          </picture>
-          <div
-            aria-hidden="true"
-            className="plan-briefing-scrim pointer-events-none absolute inset-0 hidden md:block"
-          />
-          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto md:ml-auto md:w-2/3 md:flex-none px-5 pb-[calc(env(safe-area-inset-bottom)+var(--briefing-space-32))] pt-[calc(env(safe-area-inset-top)+var(--briefing-space-32))] md:px-8 md:pb-8 md:pt-8">
+          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-5 pb-[calc(env(safe-area-inset-bottom)+var(--briefing-space-32))] pt-[calc(env(safe-area-inset-top)+var(--briefing-space-32))] md:px-8 md:pb-8 md:pt-8">
             <div className="plan-briefing-rise plan-briefing-stage-2 space-y-4 pb-8 pt-4 md:pb-10 md:pt-6">
               <DialogTitle className="pr-8 text-balance text-3xl font-medium leading-tight tracking-tight md:text-4xl">
                 {view.starts
