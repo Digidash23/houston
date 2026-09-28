@@ -81,6 +81,7 @@ export const OPERATION_POLICY_FLOOR: Readonly<Record<string, OperationPolicy>> =
   connectSlack: { group: "channels", confirm: false, hidden: true, route: "POST /v1/channels/slack/connect", rawResponse: true },
   createActivity: { group: "missions", confirm: false, hidden: false, route: "POST /agents/{agentId}/activities", rawResponse: true },
   createAgent: { group: "agents", confirm: true, hidden: false, route: "POST /agents", rawResponse: true },
+  createMigratedAgent: { group: "agents", confirm: false, hidden: true, route: null, rawResponse: null },
   createApiKey: { group: "api-keys", confirm: true, hidden: true, route: "POST /v1/keys", rawResponse: true },
   createCheckout: { group: "billing", confirm: true, hidden: false, route: "POST /v1/org/billing/checkout", rawResponse: true },
   createFolder: { group: "files", confirm: false, hidden: false, route: "POST /agents/{agentPath}/files/folder", rawResponse: true },
