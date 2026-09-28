@@ -5,28 +5,41 @@ import {
   FormDialog,
   Input,
 } from "@houston-ai/core";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AGENT_NAME_MAX_LENGTH } from "../../lib/agent-name";
+import { AGENT_NAME_MAX_LENGTH, agentNameIssue } from "../../lib/agent-name";
 import type { Agent } from "../../lib/types";
+import { useEmployeeNameIssueCopy } from "../employee-card/use-employee-name";
 import { AGENT_COLOR_LABEL_KEYS } from "../shell/agent-sidebar-color-menu";
 import { ColorSwatch } from "../shell/team-identity-swatch";
 import type { AgentIdentityPatch } from "./use-agent-identity-save";
 
 export function AgentIdentityDialog({
   agent,
+  otherNames,
   open,
   onOpenChange,
   onSave,
 }: {
   agent: Agent;
+  /** Every other agent's name in the workspace: the live duplicate check. */
+  otherNames: readonly string[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (patch: AgentIdentityPatch) => void;
 }) {
   const { t } = useTranslation(["teams", "shell", "common"]);
+  const issueCopy = useEmployeeNameIssueCopy();
+  const errorId = useId();
   const [name, setName] = useState(agent.name);
   const [colorId, setColorId] = useState(() => agentColorId(agent.color));
+  // Checked live, like every other name field, and only once the name moves:
+  // an unchanged name is never sent, and the agent's own name is passed so an
+  // employee already called Houston can take a new spelling of it.
+  const issueText =
+    name.trim() === agent.name
+      ? null
+      : issueCopy(agentNameIssue(name, [...otherNames], agent.name), name);
 
   // Saves what MOVED, so an untouched field is never written back over a
   // change someone else made meanwhile. The recipe closes on the resolve.
@@ -55,17 +68,26 @@ export function AgentIdentityDialog({
       primary={{
         label: t("common:actions.save"),
         onClick: save,
-        disabled: !name.trim(),
+        disabled: !name.trim() || issueText !== null,
       }}
       labels={{ cancel: t("common:actions.cancel") }}
     >
-      <Input
-        autoFocus
-        value={name}
-        maxLength={AGENT_NAME_MAX_LENGTH}
-        aria-label={t("teams:agentSettings.manage.identity")}
-        onChange={(event) => setName(event.target.value)}
-      />
+      <div className="grid gap-1.5">
+        <Input
+          autoFocus
+          value={name}
+          maxLength={AGENT_NAME_MAX_LENGTH}
+          aria-label={t("teams:agentSettings.manage.identity")}
+          aria-invalid={issueText !== null}
+          aria-describedby={issueText ? errorId : undefined}
+          onChange={(event) => setName(event.target.value)}
+        />
+        {issueText && (
+          <p id={errorId} role="alert" className="text-xs text-danger">
+            {issueText}
+          </p>
+        )}
+      </div>
       <fieldset
         aria-label={t("shell:sidebar.changeColor")}
         className="flex flex-wrap gap-2"

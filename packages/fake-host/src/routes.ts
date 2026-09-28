@@ -14,8 +14,8 @@
  * → `done`) when the message lands. See translate.ts `streamTurn`.
  */
 
-import { NAME_TAKEN } from "@houston/protocol";
 import type { ProviderId } from "@houston/runtime-client";
+import { nameTaken, reservedNameRefusal } from "./agent-name-refusals";
 import { json, noContent } from "./http";
 import {
   handleActivities,
@@ -46,16 +46,6 @@ function stringRecord(value: unknown): Record<string, string> | undefined {
     : undefined;
 }
 
-/** The real host's refusal for another agent's name (routes/agent-name-taken.ts). */
-const nameTaken = (name: string) =>
-  json(
-    {
-      error: `an agent named "${name}" already exists in this workspace`,
-      code: NAME_TAKEN,
-    },
-    409,
-  );
-
 function makeTitle(text: string): string {
   return (
     text.replace(/\s+/g, " ").trim().split(" ").slice(0, 6).join(" ") ||
@@ -79,6 +69,10 @@ export function handleAgents(
     if (method === "POST") {
       // Trimmed like the real host's `validateAgentName` before it is stored.
       const name = String(body?.name ?? "Agent").trim();
+      const reserved = reservedNameRefusal(name, {
+        migration: body?.migration,
+      });
+      if (reserved) return reserved;
       const created = state.createAgent(
         name,
         typeof body?.claudeMd === "string" ? body.claudeMd : undefined,
@@ -95,6 +89,8 @@ export function handleAgents(
   if (rest.length === 1) {
     if (method === "PATCH") {
       const name = String(body?.name ?? "").trim();
+      const reserved = reservedNameRefusal(name, { renamingId: id });
+      if (reserved) return reserved;
       const renamed = state.renameAgent(id, name);
       if (renamed === "not_found")
         return json({ error: { message: "agent not found" } }, 404);

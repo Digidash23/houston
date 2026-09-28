@@ -75,8 +75,8 @@ describe("sidebar review wiring", () => {
       /kind: "failed",\s*message: t\("agentOnboarding:roleSetup\.createFailed"\)/,
     );
     assert.match(
-      source("lib/tauri.ts"),
-      /call<CreateAgentResult>\(\s*"create_agent"/,
+      source("lib/agents-facade.ts"),
+      /engineCall<CreateAgentResult>\(\s*"create_agent"/,
     );
   });
 

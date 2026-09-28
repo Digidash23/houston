@@ -138,4 +138,23 @@ describe("committing a name typed on a roster card", () => {
       issue: "taken",
     });
   });
+
+  it("refuses the AI Manager's name for a hire that does not hold it", () => {
+    deepStrictEqual(rosterNameCommit(" houston ", member, ["Pax"]), {
+      kind: "issue",
+      issue: "reserved",
+    });
+    deepStrictEqual(rosterNameCommit("Houston", only(joined()), []), {
+      kind: "issue",
+      issue: "reserved",
+    });
+  });
+
+  it("lets a hired employee already called Houston keep its name", () => {
+    const houston = only(hired("Houston"));
+    deepStrictEqual(rosterNameCommit("HOUSTON", houston, ["Houston"]), {
+      kind: "name",
+      name: "HOUSTON",
+    });
+  });
 });

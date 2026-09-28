@@ -1,4 +1,5 @@
 import type { AgentMoveStart, AgentMoveStatus } from "@houston/engine-adapter";
+import { isMoveRefusedBeforeStart, type MoveRefusalCode } from "@houston/sdk";
 import type { PendingAgentMove } from "./pending-move";
 import { MOVE_POLL_TIMEOUT_MS, shareErrorCode } from "./share-via-team.ts";
 
@@ -29,6 +30,9 @@ export type ResumeOutcome =
   | { outcome: "inProgress" }
   /** The re-POST was rejected (roles/target changed, gateway down). Keep. */
   | { outcome: "rejected"; code?: string }
+  /** Refused before anything started (`name_taken`): no lock is held, so the
+   *  record is void. Clear it; re-sending can only be refused again. */
+  | { outcome: "refused"; code: MoveRefusalCode }
   /** Still `moving` when the budget ran out. Keep the record. */
   | { outcome: "timeout"; moveId?: string };
 
@@ -83,6 +87,7 @@ export async function resumePendingMove(
     options.onMoveAccepted?.(start.moveId);
   } catch (err) {
     const code = shareErrorCode(err);
+    if (isMoveRefusedBeforeStart(code)) return { outcome: "refused", code };
     return code === "move_in_progress"
       ? { outcome: "inProgress" }
       : { outcome: "rejected", code };

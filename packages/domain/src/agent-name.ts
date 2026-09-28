@@ -52,6 +52,38 @@ export function sameAgentName(a: string, b: string): boolean {
   return agentNameKey(a) === agentNameKey(b);
 }
 
+/**
+ * The {@link agentNameKey} of the AI Manager's own display name. The manager
+ * is Houston, so an AI Employee under that name would make "ask Houston"
+ * ambiguous; variants that only contain it ("Houston Sales") stay free.
+ */
+export const RESERVED_AGENT_NAME_KEY = "houston";
+
+/** Whether `name` is the AI Manager's own name, in any letter case, padding or
+ *  Unicode composition (see {@link agentNameKey}). */
+export function isReservedAgentName(name: string): boolean {
+  return agentNameKey(name) === RESERVED_AGENT_NAME_KEY;
+}
+
+/**
+ * Whether naming an agent `name` would newly take the reserved name. An agent
+ * that already holds it (`currentName`, on a rename) keeps it under any
+ * spelling, so re-saving an existing "Houston" is never refused; a create has
+ * no current name.
+ */
+export function takesReservedAgentName(
+  name: string,
+  currentName?: string,
+): boolean {
+  if (!isReservedAgentName(name)) return false;
+  return currentName === undefined || !sameAgentName(name, currentName);
+}
+
+/** The host's English error-body copy for a reserved name. The AI Manager
+ *  reads it as its tool error, so it says what to do next. */
+export const RESERVED_AGENT_NAME_MESSAGE =
+  "Houston is the AI Manager's own name, so an AI Employee can't use it. Ask the user for another name.";
+
 /** The host's English error-body copy for a rejected name. */
 export function invalidAgentNameMessage(
   reason: InvalidAgentNameReason,

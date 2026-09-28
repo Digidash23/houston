@@ -1,4 +1,4 @@
-import { NAME_TAKEN } from "@houston/protocol/file-refusal";
+import { NAME_RESERVED, NAME_TAKEN } from "@houston/protocol/file-refusal";
 import { refusalCode, refusalStatus } from "../refusal-code";
 
 /**
@@ -17,4 +17,16 @@ export function isAgentNameTaken(error: unknown): boolean {
   if (!(error instanceof Error) || refusalStatus(error) !== 409) return false;
   const code = refusalCode(error);
   return code === null || code === NAME_TAKEN;
+}
+
+/**
+ * Whether a failed agent create, install or rename was refused because the
+ * name is the AI Manager's own ("Houston") and the agent did not already hold
+ * it. Surfaces pre-check the same rule (`takesReservedAgentName`), so this
+ * answers the refusal a stale local name leads to: a rename whose loaded list
+ * still shows the agent's previous name. Keyed on the protocol's
+ * `name_reserved` code alone, whatever status carries it.
+ */
+export function isAgentNameReserved(error: unknown): boolean {
+  return error instanceof Error && refusalCode(error) === NAME_RESERVED;
 }

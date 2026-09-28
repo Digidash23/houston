@@ -32,7 +32,10 @@ A refused file operation carries a `FileOpCode` (`src/domain/file-refusal.ts`):
 when the workspace itself cannot be written. Agent create (`POST /agents`),
 portable install (`POST /v1/portable/install`) and rename
 (`PATCH /agents/:id`) answer `409 { error, code: "name_taken" }` when the name
-is already another agent's. `ATOMIC_TMP_SUFFIX`
+is already another agent's, and `400 { error, code: "name_reserved" }` when it
+is the AI Manager's own name ("Houston", any letter case) and the agent does
+not already hold it. A create sent with `migration: true` (the desktop-to-cloud
+move) keeps a reserved name. `ATOMIC_TMP_SUFFIX`
 (`src/scratch.ts`) is the one name every Houston process gives a half-written
 file, so the store sync and the Files listing skip exactly those.
 

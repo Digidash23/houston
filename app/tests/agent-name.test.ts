@@ -39,11 +39,33 @@ describe("agentNameIssue", () => {
   it("flags a duplicate typed in another Unicode form (NFD vs NFC), like the host", () => {
     strictEqual(agentNameIssue("Jose\u0301", ["Jos\u00e9"]), "taken");
   });
+
+  it("flags the AI Manager's own name as reserved, in any spelling", () => {
+    strictEqual(agentNameIssue("Houston", existing), "reserved");
+    strictEqual(agentNameIssue("  HOUSTON ", existing), "reserved");
+    // Reserved wins over taken: another agent holding it changes nothing.
+    strictEqual(agentNameIssue("houston", ["Houston"]), "reserved");
+  });
+
+  it("leaves names that only contain Houston free", () => {
+    strictEqual(agentNameIssue("Houston Sales", existing), null);
+    strictEqual(agentNameIssue("Houston 2", existing), null);
+  });
+
+  it("lets an agent already called Houston keep any spelling of its name", () => {
+    strictEqual(agentNameIssue("houston", existing, "Houston"), null);
+    strictEqual(agentNameIssue("Houston", existing, "Mia"), "reserved");
+  });
 });
 
 describe("uniqueAgentName", () => {
   it("keeps a free name, tidied", () => {
     strictEqual(uniqueAgentName("  Ava ", ["Pax"]), "Ava");
+  });
+
+  it("never hands a new employee the AI Manager's name", () => {
+    strictEqual(uniqueAgentName("Houston", []), "Houston 2");
+    strictEqual(uniqueAgentName(" houston ", ["Houston 2"]), "houston 3");
   });
 
   it("numbers a taken name past every variant already held", () => {

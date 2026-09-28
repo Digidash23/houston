@@ -11,6 +11,7 @@ Confirmation means the app asks the user and mints a receipt for that exact call
 | --- | --- | --- | --- | --- |
 | `applyAgentColor` | GET | unconfirmed: read-only HTTP GET | client-side branching; its only request is the list refetch, so use updateAgentColor to write a color. | agentId: resolved:agents; color: free text |
 | `createAgent` | POST | confirmed: host approval required | visible | name: free text; color: enum; seed: free text |
+| `createMigratedAgent` | unroutable | unconfirmed: withheld from dispatch | it keeps a desktop agent's name even when that name is Houston, which the AI Manager may never give an employee; createAgent is the create to dispatch. | name: free text; color: enum; seed: free text |
 | `deleteAgent` | DELETE | confirmed: host approval required | visible | id: resolved:agents |
 | `generateAgentInstructions` | unroutable | unconfirmed: withheld from dispatch | a one-shot generation turn on a runtime, not an app operation; an assistant writes the instructions itself and saves them with writeAgentFile. | description: free text; opts: free text |
 | `getAgentDelegation` | GET | unconfirmed: read-only HTTP GET | visible | agentId: resolved:agents |

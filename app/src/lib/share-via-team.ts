@@ -1,4 +1,10 @@
 import type { AgentMoveStatus, OrgSummary } from "@houston/engine-adapter";
+import {
+  canRetryMoveError,
+  classifyMoveError,
+  isMoveRefusalCode,
+  type MoveErrorKind,
+} from "@houston/sdk";
 import { engineErrorCode } from "./engine-error-code.ts";
 
 /**
@@ -17,19 +23,6 @@ import { engineErrorCode } from "./engine-error-code.ts";
  * only transition that produces the `invite` step is a completed switch, which
  * is itself only reachable from a `done` move poll.
  */
-
-/**
- * Move failure taxonomy, mapped from the C8 move error codes (both the
- * `POST /move` rejection body and the poll `{status:"failed", error}`), plus the
- * client-synthesized `timeout`. `unmovable_volume` is terminal for this team (no
- * retry — contact support); the rest allow a bounded retry of the move.
- */
-export type MoveErrorKind =
-  | "unsupported_move"
-  | "unmovable_volume"
-  | "needs_upgrade"
-  | "timeout"
-  | "unknown";
 
 /**
  * {@link engineErrorCode}, plus the ENGLISH SENTENCE as a last resort — the
@@ -51,23 +44,26 @@ export function shareErrorCode(err: unknown): string | undefined {
 }
 
 /**
- * The C8 rejection codes the share flow renders INLINE (a `MoveFailedStep` or an
- * `InviteBadge`), which are expected, user-actionable business states — NOT
- * Houston bugs: the three move rejections plus the invite `already_member`.
- * `call()` silences these (no red bug toast, no Sentry) so the inline surface is
- * the only one; every other failure keeps the generic toast + report.
+ * True for a gateway error the share flow renders INLINE (a `MoveFailedStep` or
+ * an `InviteBadge`): an expected, user-actionable business state, NOT a Houston
+ * bug. That is every C8 move refusal the SDK classifies (`isMoveRefusalCode`)
+ * plus the invite `already_member`. `call()` silences these (no red bug toast,
+ * no Sentry) so the inline surface is the only one; every other failure keeps
+ * the generic toast + report.
  */
-const EXPECTED_SHARE_CODES = new Set([
-  "unsupported_move",
-  "unmovable_volume",
-  "needs_upgrade",
-  "already_member",
-]);
-
-/** True for a gateway error the share flow explains inline (see above). */
 export function isExpectedShareError(err: unknown): boolean {
   const code = shareErrorCode(err);
-  return code !== undefined && EXPECTED_SHARE_CODES.has(code);
+  return isMoveRefusalCode(code) || code === "already_member";
+}
+
+/**
+ * What a move wire keeps out of Sentry: every expected share state, plus
+ * `move_in_progress`, the normal answer when a live move already owns the agent.
+ */
+export function isExpectedMoveAnswer(err: unknown): boolean {
+  return (
+    isExpectedShareError(err) || shareErrorCode(err) === "move_in_progress"
+  );
 }
 
 /**
@@ -173,20 +169,6 @@ export function startMove(
   return { step: "moving", team: s.team, moveId };
 }
 
-/** Map a C8 move error code (rejection or poll `error`) to its kind. */
-export function classifyMoveError(
-  code: string | null | undefined,
-): MoveErrorKind {
-  switch (code) {
-    case "unsupported_move":
-    case "unmovable_volume":
-    case "needs_upgrade":
-      return code;
-    default:
-      return "unknown";
-  }
-}
-
 /** The move POST was rejected before a ticket existed (403/409). */
 export function moveRejected(
   s: ShareViaTeamState,
@@ -220,9 +202,9 @@ export function applyMovePoll(
   }
 }
 
-/** Retry a failed move (keeps the team; forbidden for `unmovable_volume`). */
+/** Retry a failed move (keeps the team) when a retry can succeed. */
 export function canRetryMove(s: ShareViaTeamState): boolean {
-  return s.step === "moveFailed" && s.error !== "unmovable_volume";
+  return s.step === "moveFailed" && canRetryMoveError(s.error);
 }
 
 /**

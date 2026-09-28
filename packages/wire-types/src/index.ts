@@ -7,6 +7,7 @@
  * re-exports them so `app/src` sees one surface.
  */
 
+export * from "./agents";
 export * from "./channels";
 export * from "./channels-refusals";
 export * from "./delegation";

@@ -18,6 +18,7 @@ import { CloudPaths } from "../paths";
 import type { WorkspaceStore } from "../ports";
 import type { Vfs } from "../vfs";
 import { seedOrRollBack } from "./agent-create-rollback";
+import { refuseReservedAgentName } from "./agent-name-reserved";
 import { answerAgentNameTaken } from "./agent-name-taken";
 import { writeAgentSeeds } from "./agent-seed";
 import { json, readJson } from "./http";
@@ -99,6 +100,7 @@ async function handlePortableAccount(
     json(res, 400, { error: invalidAgentNameMessage(nameCheck.reason) });
     return true;
   }
+  if (refuseReservedAgentName(deps, res, nameCheck.name)) return true;
   let pkg: PortablePackage;
   try {
     pkg = unpackAgent(new Uint8Array(Buffer.from(body.archive, "base64")));

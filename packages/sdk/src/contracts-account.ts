@@ -159,6 +159,14 @@ export {
   SpacesHttpError,
   type SpacesModule,
 } from "./modules/spaces";
+export {
+  canRetryMoveError,
+  classifyMoveError,
+  isMoveRefusalCode,
+  isMoveRefusedBeforeStart,
+  type MoveErrorKind,
+  type MoveRefusalCode,
+} from "./modules/spaces/move-refusals";
 // ===== Teams module contract ===========================================
 // `AgentAccess`/`AgentAssignment` are the agents module's; a team assignment
 // carries the same value, so they are exported once, under Agents.

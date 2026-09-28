@@ -343,6 +343,7 @@
       "unsupported_move": "Este funcionário de IA não pode ser movido para essa equipe.",
       "unmovable_volume": "O armazenamento deste funcionário de IA ainda não pode ser movido automaticamente. Fale com o suporte.",
       "needs_upgrade": "Esta equipe precisa de um upgrade antes de você mover funcionários de IA para ela.",
+      "name_taken": "Não dá para mover este funcionário de IA para lá porque essa equipe já tem um funcionário de IA com esse nome. Renomeie primeiro e tente de novo.",
       "unknown": "Algo deu errado durante a mudança.",
       "timeout": "A mudança está demorando mais que o esperado. Ela ainda pode terminar em segundo plano. Você pode tentar de novo ou fechar.",
       "retry": "Tentar de novo",
@@ -371,7 +372,8 @@
   },
   "moveResume": {
     "done": "{{agent}} terminou de ser movido para {{team}}.",
-    "failed": "{{agent}} não conseguiu terminar de ser movido para {{team}}. Vamos tentar de novo na próxima vez que o app abrir."
+    "failed": "{{agent}} não conseguiu terminar de ser movido para {{team}}. Vamos tentar de novo na próxima vez que o app abrir.",
+    "nameTaken": "Não dá para mover {{agent}} para {{team}} porque essa equipe já tem um funcionário de IA com esse nome. Renomeie primeiro e tente de novo."
   },
   "moveTeam": {
     "title": "Mover {{team}} para outro espaço",
@@ -399,6 +401,8 @@
     "moveFailedFirst_one": "Não foi possível mover o funcionário de IA.",
     "moveFailedFirst_other": "Nenhum dos {{count}} funcionários de IA foi movido. O primeiro não pôde ser movido.",
     "moveFailedNext": "{{moved}} de {{total}} funcionários de IA foram movidos. O próximo não pôde ser movido.",
+    "moveFailedNameTaken": "Não dá para mover {{name}} para lá porque essa equipe já tem um funcionário de IA com esse nome. Renomeie primeiro e tente de novo.",
+    "moveFailedNextNameTaken": "{{moved}} de {{total}} funcionários de IA foram movidos. Não dá para mover {{name}} para lá porque essa equipe já tem um funcionário de IA com esse nome. Renomeie primeiro e tente de novo.",
     "postscriptFailed_one": "O funcionário de IA foi movido, mas a configuração não terminou.",
     "postscriptFailed_other": "Todos os {{count}} funcionários de IA foram movidos, mas a configuração não terminou.",
     "postscriptFailedEmpty": "O grupo não pôde terminar de se mover.",
@@ -407,7 +411,8 @@
   },
   "moveTeamResume": {
     "done": "{{team}} terminou de ser movido para o novo espaço.",
-    "failed": "{{team}} não conseguiu terminar de ser movido. Vamos tentar de novo na próxima vez que o app abrir."
+    "failed": "{{team}} não conseguiu terminar de ser movido. Vamos tentar de novo na próxima vez que o app abrir.",
+    "nameTaken": "{{team}} não conseguiu terminar de ser movido porque a nova equipe já tem um funcionário de IA com o mesmo nome de um dos que estão sendo movidos. Renomeie esse funcionário de IA primeiro e tente de novo."
   },
   "billing": {
     "unavailable": "Não foi possível carregar a cobrança desta equipe.",

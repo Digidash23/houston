@@ -3,16 +3,18 @@ import { type AgentNameIssue, agentNameIssue } from "../../lib/agent-name.ts";
 
 /**
  * What stops an employee card's name from being hired under: blank (every AI
- * Employee needs a name), or anything the host would refuse.
+ * Employee needs a name), or anything the host would refuse. `currentName` is
+ * the name a hired employee already holds (see `agentNameIssue`).
  */
 export type EmployeeNameIssue = AgentNameIssue | "required";
 
 export function employeeNameIssue(
   name: string,
   takenNames: readonly string[],
+  currentName?: string,
 ): EmployeeNameIssue | null {
   if (name.trim() === "") return "required";
-  return agentNameIssue(name, [...takenNames]);
+  return agentNameIssue(name, [...takenNames], currentName);
 }
 
 /**

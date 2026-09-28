@@ -14,6 +14,10 @@ export interface PendingTeamMove {
   agentIds: string[];
   movedAgentIds: string[];
   postscriptStage?: TeamMoveStage;
+  /** The agent the gateway refused on a name the team already holds (C8
+   *  `name_taken`). A parked move waits for the person: the boot resume leaves
+   *  it alone, and the dialog's retry records the move afresh without it. */
+  refusedAgentId?: string;
   startedAt: number;
 }
 
@@ -38,6 +42,8 @@ function valid(value: unknown): value is PendingTeamMove {
     move.movedAgentIds.every((id) => typeof id === "string") &&
     move.movedAgentIds.every((id) => move.agentIds?.includes(id)) &&
     typeof move.startedAt === "number" &&
+    (move.refusedAgentId === undefined ||
+      typeof move.refusedAgentId === "string") &&
     (move.postscriptStage === undefined ||
       ["createTarget", "cleanupSource", "switching"].includes(
         move.postscriptStage,
@@ -102,6 +108,26 @@ export function updatePendingTeamMove(
     item.sourceTeam.id === sourceTeamId ? { ...item, ...patch } : item,
   );
   storage.setItem(STORAGE_KEY, JSON.stringify(moves));
+}
+
+/**
+ * A team move whose agent was refused on a taken name. Nothing started for that
+ * agent, so when no agent has moved yet the whole record is void and the person
+ * starts over after renaming; otherwise the record is parked on the agent so the
+ * dialog can finish the move into the same folder once it is renamed.
+ */
+export function parkRefusedTeamMove(
+  sourceTeamId: string,
+  agentId: string,
+  storage: StorageLike | null = defaultStorage(),
+): void {
+  const pending = readPendingTeamMoves(storage).find(
+    (item) => item.sourceTeam.id === sourceTeamId,
+  );
+  if (!pending) return;
+  if (pending.movedAgentIds.length === 0)
+    clearPendingTeamMove(sourceTeamId, storage);
+  else recordPendingTeamMove({ ...pending, refusedAgentId: agentId }, storage);
 }
 
 const claims = new Set<string>();

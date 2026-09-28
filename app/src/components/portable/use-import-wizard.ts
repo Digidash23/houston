@@ -13,11 +13,12 @@
 import { AGENT_COLORS } from "@houston-ai/core";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AGENT_NAME_MAX_LENGTH, agentNameIssue } from "../../lib/agent-name";
+import { agentNameIssue } from "../../lib/agent-name";
 import { genericErrorDescription } from "../../lib/error-report";
 import { useAgentStore } from "../../stores/agents";
 import { useUIStore } from "../../stores/ui";
 import { useWorkspaceStore } from "../../stores/workspaces";
+import { useEmployeeNameIssueCopy } from "../employee-card/use-employee-name";
 import { useImportInstallAction } from "./use-import-install-action";
 import { useImportPackage } from "./use-import-package";
 import { useImportProviderModel } from "./use-import-provider-model";
@@ -84,21 +85,23 @@ export function useImportWizard() {
     reset();
   }, [reset, setOpen]);
 
-  // Same pre-submit rule as the create dialog (HOU-1166): reject bad shapes and
-  // duplicates with friendly copy before the install round-trip.
-  const nameProblem = useCallback((): string | null => {
-    if (!name.trim()) return t("import.errors.nameRequired");
-    const issue = agentNameIssue(
+  // Same pre-submit rule as the create dialog (HOU-1166), shown live under the
+  // name field: the package's own name arrives pre-filled, so one the host
+  // would refuse (the AI Manager's "Houston", a duplicate) says so before the
+  // person moves on, and Next stays off until it changes.
+  const issueCopy = useEmployeeNameIssueCopy();
+  const nameIssueText = issueCopy(
+    agentNameIssue(
       name,
       existingAgents.map((a) => a.name),
-    );
-    if (!issue) return null;
-    if (issue === "taken")
-      return t("agents:toasts.nameConflict", { name: name.trim() });
-    if (issue === "tooLong")
-      return t("agents:nameErrors.tooLong", { max: AGENT_NAME_MAX_LENGTH });
-    return t("agents:nameErrors.invalidChars");
-  }, [existingAgents, name, t]);
+    ),
+    name,
+  );
+  const nameProblem = useCallback(
+    (): string | null =>
+      name.trim() ? nameIssueText : t("import.errors.nameRequired"),
+    [name, nameIssueText, t],
+  );
 
   const { installing, install } = useImportInstallAction({
     packageId: uploaded?.packageId ?? null,
@@ -115,7 +118,7 @@ export function useImportWizard() {
     currentStep === "upload"
       ? !!uploaded && pkg.wantScan !== null && !pkg.scanning
       : currentStep === "name"
-        ? name.trim().length > 0
+        ? name.trim().length > 0 && nameIssueText === null
         : true;
 
   return {
@@ -130,6 +133,7 @@ export function useImportWizard() {
     goNext: () => setStepIndex((i) => i + 1),
     name,
     setName,
+    nameIssueText,
     color,
     setColor,
     installing,

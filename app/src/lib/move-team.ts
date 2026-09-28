@@ -1,12 +1,7 @@
+import { canRetryMoveError, type MoveErrorKind } from "@houston/sdk";
 import type { TeamRef } from "./share-via-team";
 
 export type TeamMoveStage = "createTarget" | "cleanupSource" | "switching";
-export type TeamMoveFailureKind =
-  | "unsupported_move"
-  | "unmovable_volume"
-  | "needs_upgrade"
-  | "timeout"
-  | "unknown";
 
 export interface TeamMoveSource {
   id: string;
@@ -25,7 +20,10 @@ export type TeamMoveState =
       step: "moveFailed";
       target: TeamRef;
       index: number;
-      error: TeamMoveFailureKind;
+      error: MoveErrorKind;
+      /** Reopened from a move parked on a taken name: the person may have
+       *  renamed the agent since, so its retry shows. */
+      parked?: true;
     }
   | { step: TeamMoveStage; target: TeamRef }
   | { step: "postscriptFailed"; target: TeamRef; stage: TeamMoveStage }
@@ -65,7 +63,7 @@ export function agentMoveDone(
 
 export function teamAgentMoveFailed(
   state: TeamMoveState,
-  error: TeamMoveFailureKind,
+  error: MoveErrorKind,
 ): TeamMoveState {
   if (state.step !== "movingAgents") return state;
   return {
@@ -76,12 +74,34 @@ export function teamAgentMoveFailed(
   };
 }
 
+/** Whether the failed move's retry can succeed. */
+export function canRetryTeamMove(
+  state: Extract<TeamMoveState, { step: "moveFailed" }>,
+): boolean {
+  return state.parked === true || canRetryMoveError(state.error);
+}
+
 export function teamMoveFailureCopy(
   moved: number,
   total: number,
+  error?: MoveErrorKind,
+  name = "",
 ):
   | { key: "moveFailedFirst"; count: number }
-  | { key: "moveFailedNext"; moved: number; total: number } {
+  | { key: "moveFailedNext"; moved: number; total: number }
+  | { key: "moveFailedNameTaken"; name: string }
+  | {
+      key: "moveFailedNextNameTaken";
+      moved: number;
+      total: number;
+      name: string;
+    } {
+  // A taken name is the one failure the person fixes themselves: name the
+  // agent, so they know which one to rename.
+  if (error === "name_taken")
+    return moved <= 0
+      ? { key: "moveFailedNameTaken", name }
+      : { key: "moveFailedNextNameTaken", moved, total, name };
   return moved <= 0
     ? { key: "moveFailedFirst", count: total }
     : { key: "moveFailedNext", moved, total };

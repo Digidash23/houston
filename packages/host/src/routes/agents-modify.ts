@@ -2,6 +2,7 @@ import { invalidAgentNameMessage, validateAgentName } from "@houston/domain";
 import { channelFor, noChannel } from "./agent-authz";
 import { clearAgentColor, moveAgentColor } from "./agent-color";
 import { pruneAgentDelegation } from "./agent-delegation-store";
+import { refuseReservedAgentName } from "./agent-name-reserved";
 import { answerAgentNameTaken } from "./agent-name-taken";
 import { rewriteOriginAgent } from "./agent-origin-rename";
 import {
@@ -44,6 +45,7 @@ defineRoute({
         error: invalidAgentNameMessage(renameCheck.reason),
       });
     const name = renameCheck.name;
+    if (refuseReservedAgentName(deps, res, name, authz.agent.name)) return;
     let result: Awaited<ReturnType<typeof renameWithDelegation>>;
     try {
       result = await renameWithDelegation({

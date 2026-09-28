@@ -112,6 +112,26 @@ describe("team move failure copy", () => {
     });
   });
 
+  it("names the agent whose name the team already holds", () => {
+    deepStrictEqual(teamMoveFailureCopy(0, 3, "name_taken", "Nova"), {
+      key: "moveFailedNameTaken",
+      name: "Nova",
+    });
+    deepStrictEqual(teamMoveFailureCopy(2, 5, "name_taken", "Nova"), {
+      key: "moveFailedNextNameTaken",
+      moved: 2,
+      total: 5,
+      name: "Nova",
+    });
+  });
+
+  it("keeps the generic copy for every other failure", () => {
+    deepStrictEqual(teamMoveFailureCopy(0, 1, "unknown", "Nova"), {
+      key: "moveFailedFirst",
+      count: 1,
+    });
+  });
+
   it("treats a negative index as no progress rather than as a count", () => {
     deepStrictEqual(teamMoveFailureCopy(-1, 3), {
       key: "moveFailedFirst",

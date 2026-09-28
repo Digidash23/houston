@@ -5,7 +5,10 @@ import { type FakeHost, startFakeHost } from "./server";
  * The fake host refuses another agent's name the way the real host does
  * (packages/host/src/routes/agent-name-taken.ts): 409 `name_taken`, compared
  * trimmed and case-insensitively, for a create and for a rename, while a new
- * spelling of an agent's own name stays a rename.
+ * spelling of an agent's own name stays a rename. It refuses the AI Manager's
+ * own name the same way too (routes/agent-name-reserved.ts): 400
+ * `name_reserved`, except for the desktop-to-cloud move and an agent that
+ * already holds the name.
  */
 
 const JSON_HEADERS = { "content-type": "application/json" };
@@ -65,4 +68,34 @@ it("answers 404 for an unknown agent before checking the name", async () => {
 
   const rename = await send("PATCH", "/agents/agent-missing", { name: "Mia" });
   expect(rename.status).toBe(404);
+});
+
+it("refuses the AI Manager's name for a new or renamed agent, like the desktop host", async () => {
+  const create = await send("POST", "/agents", { name: " houston " });
+  expect(create.status).toBe(400);
+  expect(await create.json()).toMatchObject({ code: "name_reserved" });
+
+  const created = await send("POST", "/agents", { name: "Zoe" });
+  expect(created.status).toBe(200);
+  const zoe = (await created.json()) as { id: string };
+  const rename = await send("PATCH", `/agents/${zoe.id}`, { name: "HOUSTON" });
+  expect(rename.status).toBe(400);
+  expect(await rename.json()).toMatchObject({ code: "name_reserved" });
+
+  expect(
+    (await send("POST", "/agents", { name: "Houston Sales" })).status,
+  ).toBe(200);
+});
+
+it("keeps a Houston employee the desktop-to-cloud move brings, and lets it re-save its name", async () => {
+  const moved = await send("POST", "/agents", {
+    name: "Houston",
+    migration: true,
+  });
+  expect(moved.status).toBe(200);
+  const { id } = (await moved.json()) as { id: string };
+
+  const resave = await send("PATCH", `/agents/${id}`, { name: "houston" });
+  expect(resave.status).toBe(200);
+  expect(await resave.json()).toMatchObject({ name: "houston" });
 });

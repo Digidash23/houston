@@ -142,7 +142,8 @@ export function rosterRevert(
  * The name a rename on the card settles to: what was typed, tidied. A blank
  * name (every AI Employee needs one), a name another AI Employee holds, or one
  * the host would refuse comes back as its issue. `takenNames` may include the
- * member's own name; it is never a clash.
+ * member's own name; it is never a clash, and a hired employee that already
+ * holds the AI Manager's name keeps it.
  */
 export function rosterNameCommit(
   typed: string,
@@ -152,7 +153,10 @@ export function rosterNameCommit(
   | { kind: "name"; name: string }
   | { kind: "issue"; issue: EmployeeNameIssue } {
   const others = takenNames.filter((name) => !sameAgentName(name, member.name));
-  const issue = employeeNameIssue(typed, others);
+  // Only a hired employee holds a name on the host; a draft's name is still
+  // being asked for, so the AI Manager's own name is refused for it.
+  const held = member.status.kind === "hired" ? member.saved.name : undefined;
+  const issue = employeeNameIssue(typed, others, held);
   return issue
     ? { kind: "issue", issue }
     : { kind: "name", name: typed.trim() };

@@ -1,8 +1,14 @@
 import { deepStrictEqual, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
+import {
+  canRetryTeamMove,
+  teamAgentMoveFailed,
+  teamMoveFailureCopy,
+} from "../src/lib/move-team.ts";
 import type { PendingTeamMove } from "../src/lib/pending-team-move.ts";
 import {
   drivePendingTeamMove,
+  resumableAtBoot,
   resumedTeamMove,
   teamMoveAgentsSettled,
 } from "../src/lib/team-move-resume.ts";
@@ -119,5 +125,60 @@ describe("team move resume", () => {
       },
     });
     deepStrictEqual(result, { outcome: "failed", agentId: "a" });
+  });
+
+  it("stops on a name the team already holds, voiding only that agent's ticket", async () => {
+    const events: string[] = [];
+    const result = await drivePendingTeamMove(PENDING, {
+      readAgentMove: () => undefined,
+      recordAgentMove: (move) => void events.push(`record:${move.agentId}`),
+      updateAgentMoveId: () => {},
+      clearAgentMove: (id) => void events.push(`clear:${id}`),
+      markAgentMoved: (id) => void events.push(`moved:${id}`),
+      resumeAgentMove: async () => ({ outcome: "refused", code: "name_taken" }),
+      runPostscript: async () => {
+        throw new Error("folder setup must wait");
+      },
+    });
+    deepStrictEqual(result, { outcome: "refused", agentId: "a" });
+    deepStrictEqual(events, ["record:a", "clear:a"]);
+  });
+
+  it("leaves a move parked on a taken name to the dialog, never the boot", () => {
+    strictEqual(resumableAtBoot(PENDING), true);
+    strictEqual(resumableAtBoot({ ...PENDING, refusedAgentId: "b" }), false);
+  });
+
+  it("reopens a parked move naming the agent to rename, with its retry", () => {
+    const { source, state } = resumedTeamMove(
+      { ...PENDING, movedAgentIds: ["a"], refusedAgentId: "b" },
+      {
+        id: "old",
+        workspaceId: "default",
+        name: "Design",
+        agents: [{ id: "b", name: "Bee" }],
+      },
+    );
+    if (state.step !== "moveFailed") throw new Error(state.step);
+    deepStrictEqual(
+      teamMoveFailureCopy(
+        state.index,
+        source.agents.length,
+        state.error,
+        source.agents[state.index]?.name,
+      ),
+      { key: "moveFailedNextNameTaken", moved: 1, total: 2, name: "Bee" },
+    );
+    // The person may have renamed it since: the retry stays offered.
+    strictEqual(canRetryTeamMove(state), true);
+  });
+
+  it("offers no retry on the live refusal, before any rename", () => {
+    const live = teamAgentMoveFailed(
+      { step: "movingAgents", target: { slug: "s", name: "Acme" }, index: 1 },
+      "name_taken",
+    );
+    if (live.step !== "moveFailed") throw new Error(live.step);
+    strictEqual(canRetryTeamMove(live), false);
   });
 });

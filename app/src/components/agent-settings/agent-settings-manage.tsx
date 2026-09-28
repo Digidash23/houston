@@ -113,6 +113,9 @@ export function AgentSettingsManage({ agent }: { agent: Agent }) {
 
       <AgentIdentityDialog
         agent={agent}
+        otherNames={agents
+          .filter((other) => other.id !== agent.id)
+          .map((other) => other.name)}
         open={identityOpen}
         onOpenChange={setIdentityOpen}
         onSave={saveIdentityHandled}

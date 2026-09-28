@@ -6,6 +6,7 @@ import { showErrorToast } from "../lib/error-toast";
 import i18n from "../lib/i18n";
 import { resumePendingMove } from "../lib/move-resume";
 import type { TeamMoveStage, TeamMoveState } from "../lib/move-team";
+import { moveWire } from "../lib/move-wire";
 import {
   clearPendingMove,
   readPendingMoves,
@@ -16,13 +17,13 @@ import {
   claimTeamMove,
   clearPendingTeamMove,
   type PendingTeamMove,
+  parkRefusedTeamMove,
   readPendingTeamMoves,
   releaseTeamMove,
   updatePendingTeamMove,
 } from "../lib/pending-team-move";
-import { tauriOrg } from "../lib/tauri";
 import { teamMovePostscriptWire } from "../lib/team-move-postscript-wire";
-import { drivePendingTeamMove } from "../lib/team-move-resume";
+import { drivePendingTeamMove, resumableAtBoot } from "../lib/team-move-resume";
 import { runTeamMovePostscript } from "../lib/team-move-stage";
 import { useUIStore } from "../stores/ui";
 
@@ -31,7 +32,10 @@ export function useTeamMoveResume(enabled: boolean): void {
   const ran = useRef(false);
   useEffect(() => {
     if (!enabled || !newEngineActive() || ran.current) return;
-    const pendingTeams = readPendingTeamMoves(undefined, reportPendingMove);
+    const pendingTeams = readPendingTeamMoves(
+      undefined,
+      reportPendingMove,
+    ).filter(resumableAtBoot);
     if (pendingTeams.length === 0) return;
     ran.current = true;
     let cancelled = false;
@@ -58,16 +62,7 @@ export function useTeamMoveResume(enabled: boolean): void {
                   ],
                 }),
               resumeAgentMove: (move, options) =>
-                resumePendingMove(
-                  move,
-                  {
-                    moveAgent: (id, to) =>
-                      tauriOrg.moveAgent(id, to, { toast: false }),
-                    moveStatus: (id, moveId) =>
-                      tauriOrg.moveStatus(id, moveId, { toast: false }),
-                  },
-                  options,
-                ),
+                resumePendingMove(move, moveWire, options),
               runPostscript: () =>
                 driveTeamMovePostscript(pending, () => {}, {
                   suppressToasts: () => true,
@@ -79,6 +74,14 @@ export function useTeamMoveResume(enabled: boolean): void {
                   team: pending.sourceTeam.name,
                 }),
                 variant: "success",
+              });
+            } else if (result.outcome === "refused") {
+              parkRefusedTeamMove(pending.sourceTeam.id, result.agentId);
+              useUIStore.getState().addToast({
+                title: t("moveTeamResume.nameTaken", {
+                  team: pending.sourceTeam.name,
+                }),
+                variant: "info",
               });
             } else {
               useUIStore.getState().addToast({

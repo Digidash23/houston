@@ -7,6 +7,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { useTeamMoveFlow } from "../../hooks/use-team-move-flow";
 import {
+  canRetryTeamMove,
   finishTeamMove,
   isTeamMoveDismissable,
   type TeamMoveSource,
@@ -42,7 +43,12 @@ export function TeamMoveFlow({
   // there, so the copy must not imply the rest are already in the new team.
   const moveFailure =
     state.step === "moveFailed"
-      ? teamMoveFailureCopy(state.index, movingSource.agents.length)
+      ? teamMoveFailureCopy(
+          state.index,
+          movingSource.agents.length,
+          state.error,
+          movingSource.agents[state.index]?.name ?? source.name,
+        )
       : null;
   const create = async (name: string) => {
     try {
@@ -132,12 +138,9 @@ export function TeamMoveFlow({
             body={
               moveFailure.key === "moveFailedFirst"
                 ? t("moveTeam.moveFailedFirst", { count: moveFailure.count })
-                : t("moveTeam.moveFailedNext", {
-                    moved: moveFailure.moved,
-                    total: moveFailure.total,
-                  })
+                : t(`moveTeam.${moveFailure.key}`, moveFailure)
             }
-            onRetry={flow.moveAgents}
+            onRetry={canRetryTeamMove(state) ? flow.moveAgents : undefined}
             onClose={() => onOpenChange(false)}
           />
         )}

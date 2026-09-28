@@ -8,6 +8,7 @@ import type { Agent } from "../domain/types";
 import { DEFAULT_PATHS } from "./agent-authz";
 import { agentColorOrNull, storeAgentColor } from "./agent-color";
 import { seedOrRollBack } from "./agent-create-rollback";
+import { refuseReservedAgentName } from "./agent-name-reserved";
 import { answerAgentNameTaken } from "./agent-name-taken";
 import { asSeedRecord, writeAgentSeeds } from "./agent-seed";
 import { agentPayload } from "./agents-payload";
@@ -58,6 +59,14 @@ defineRoute({
       return json(res, 400, {
         error: invalidAgentNameMessage(nameCheck.reason),
       });
+    // `migration: true` is the desktop-to-cloud move re-creating an agent the
+    // person already had, which keeps its name even when it is the reserved
+    // one; the taken check below still applies.
+    if (
+      body.migration !== true &&
+      refuseReservedAgentName(deps, res, nameCheck.name)
+    )
+      return;
     // Optional create-time content: CLAUDE.md instructions + a flat seed-file
     // map (skills, seeded .houston data, working files). Builtin templates and
     // portable installs supply these; the Rust engine wrote them on install, so

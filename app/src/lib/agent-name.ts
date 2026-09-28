@@ -1,6 +1,8 @@
 import {
   AGENT_NAME_MAX_LENGTH,
+  isReservedAgentName,
   sameAgentName,
+  takesReservedAgentName,
   validateAgentName,
 } from "@houston/sdk/agent-name";
 
@@ -12,28 +14,33 @@ export { AGENT_NAME_MAX_LENGTH };
  * blank name means (the employee card's `employeeNameIssue` makes it
  * "required", the copy wizard disables its submit).
  */
-export type AgentNameIssue = "invalidChars" | "tooLong" | "taken";
+export type AgentNameIssue = "invalidChars" | "tooLong" | "reserved" | "taken";
 
 /**
  * Validate a name BEFORE it goes to the host: shape via the shared SDK rule,
- * duplicates against the already-loaded agent list, compared exactly as the
- * host's store refuses them (`sameAgentName`).
+ * the AI Manager's own name (`takesReservedAgentName`), and duplicates
+ * against the already-loaded agent list, compared exactly as the host's store
+ * refuses them (`sameAgentName`). `currentName` is the agent's name before a
+ * rename, so an employee that already holds the reserved name keeps it.
  */
 export function agentNameIssue(
   raw: string,
   existingNames: string[],
+  currentName?: string,
 ): AgentNameIssue | null {
   const v = validateAgentName(raw);
   if (!v.ok) {
     if (v.reason === "empty") return null;
     return v.reason === "too_long" ? "tooLong" : "invalidChars";
   }
+  if (takesReservedAgentName(v.name, currentName)) return "reserved";
   return existingNames.some((n) => sameAgentName(n, v.name)) ? "taken" : null;
 }
 
 /**
- * `base`, or the first of "base 2", "base 3"... nobody holds yet. Compared the
- * way the host compares names (`sameAgentName`), and a numbered
+ * `base`, or the first of "base 2", "base 3"... nobody holds yet and that is
+ * not the AI Manager's own name. Compared the way the host compares names
+ * (`sameAgentName`), and a numbered
  * variant shortens `base` to leave room for its suffix within
  * {@link AGENT_NAME_MAX_LENGTH}, so the variant is one the create accepts.
  */
@@ -43,6 +50,7 @@ export function uniqueAgentName(
 ): string {
   const clean = base.trim();
   const free = (candidate: string) =>
+    !isReservedAgentName(candidate) &&
     !taken.some((name) => sameAgentName(name, candidate));
   if (free(clean)) return clean;
   const numbered = (suffix: number) => {

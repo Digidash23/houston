@@ -17,14 +17,10 @@
 
 import type {
   AddCustomIntegrationInput,
-  AgentAssignment,
-  AgentInitialConfig,
   CredentialScope,
   CustomEndpoint,
   EditableProfileUpdate,
   ProviderStatus as EngineProviderStatus,
-  FirstDayStartInput,
-  FirstDayStartResult,
   MessageApproval,
   MessageMention,
   ProviderAuthState,
@@ -35,12 +31,10 @@ import type {
 import type { IntegrationProviderId } from "@houston/protocol";
 import {
   type DismissInteractionOutcome,
-  isAgentNameTaken,
   plusCheckoutRefusal,
 } from "@houston/sdk";
 import { shouldUseClaudeDesktopLogin } from "../components/shell/provider-login-url";
 import { actingUser } from "./acting-user";
-import { isFirstDayNotPendingError } from "./agent-first-day-model";
 import {
   isAgentGoneError,
   isStaleRosterReadError,
@@ -48,7 +42,6 @@ import {
 } from "./agent-gone";
 import {
   blockWriteWhileWarming,
-  blockWriteWhileWarmingById,
   isAgentPathCreating,
   type WarmingWriteOptions,
 } from "./agent-warming-guard";
@@ -102,13 +95,7 @@ import {
   isToolkitNoAuthError,
   isToolkitOauthUnavailableError,
 } from "./toolkit-connect-refusals";
-import type {
-  Agent,
-  FileEntry,
-  SkillDetail,
-  SkillSummary,
-  Workspace,
-} from "./types";
+import type { FileEntry, SkillDetail, SkillSummary, Workspace } from "./types";
 
 export { withAttachmentPaths } from "./attachment-message";
 
@@ -414,108 +401,7 @@ export const tauriWorkspaces = {
 };
 
 // ─── Agents ───────────────────────────────────────────────────────────
-
-export interface CreateAgentResult {
-  agent: Agent;
-}
-
-/** Engine wire agent → app Agent. Exported for flows that receive an agent
- *  record outside the tauriAgents wrappers (the import wizard, HOU-710). */
-export function toAgent(a: import("@houston/engine-adapter").Agent): Agent {
-  return {
-    id: a.id,
-    name: a.name,
-    folderPath: a.folderPath,
-    localDir: a.localDir,
-    configId: a.configId,
-    color: a.color,
-    createdAt: a.createdAt,
-    lastOpenedAt: a.lastOpenedAt,
-    assigned: a.assigned,
-    assignedUserIds: a.assignedUserIds,
-    access: a.access,
-    assignments: a.assignments,
-  };
-}
-
-export const tauriAgents = {
-  list: (workspaceId: string) =>
-    call<Agent[]>("list_agents", async () =>
-      (await getEngine().listAgents(workspaceId)).map(toAgent),
-    ),
-  create: (
-    workspaceId: string,
-    name: string,
-    configId: string,
-    color?: string,
-    claudeMd?: string,
-    installedPath?: string,
-    seeds?: Record<string, string>,
-    existingPath?: string,
-    config?: AgentInitialConfig,
-  ) =>
-    call<CreateAgentResult>(
-      "create_agent",
-      async () => {
-        const r = await getEngine().createAgent(workspaceId, {
-          name,
-          configId,
-          color,
-          claudeMd,
-          installedPath,
-          seeds,
-          existingPath,
-          config,
-        });
-        return {
-          agent: toAgent(r.agent),
-        };
-      },
-      undefined,
-      // A 409 (name already taken) renders as friendly inline copy in the
-      // create dialog — the generic red bug toast would double-surface it.
-      { silence: isAgentNameTaken },
-    ),
-  delete: (workspaceId: string, id: string) =>
-    call<void>("delete_agent", () => getEngine().deleteAgent(workspaceId, id)),
-  startFirstDay: (agentPath: string, input: FirstDayStartInput) =>
-    call<FirstDayStartResult>(
-      "start_first_day",
-      () => getEngine().startFirstDay(agentPath, input),
-      { agentId: agentPath },
-      { silence: isFirstDayNotPendingError },
-    ),
-  rename: (workspaceId: string, id: string, newName: string) => {
-    // A rename dispatches into the agent's engine — held while it warms up.
-    blockWriteWhileWarmingById(id);
-    return call<Agent>(
-      "rename_agent",
-      async () =>
-        toAgent(await getEngine().renameAgent(workspaceId, id, newName)),
-      undefined,
-      { silence: isAgentNameTaken },
-    );
-  },
-  updateColor: (workspaceId: string, id: string, color: string) =>
-    call<Agent>("update_agent_color", async () =>
-      toAgent(await getEngine().updateAgent(workspaceId, id, { color })),
-    ),
-  /** Agent configs installed on disk (bundled + user-authored), merged with the
-   *  built-in templates by the agent loader to populate the create-agent gallery. */
-  listInstalledConfigs: () =>
-    call<Array<{ config: unknown; path: string }>>(
-      "list_installed_configs",
-      () => getEngine().listInstalledConfigs(),
-    ),
-  /** Multiplayer: set which org members may use this agent, and at what access
-   *  level. Pass the `AgentAssignment[]` (`{userId, access}`) roster from the
-   *  Share dialog — every row states its own access, so nothing can demote a
-   *  manager by omission. Empty = everyone. */
-  setAssignments: (agentSlugOrId: string, assignments: AgentAssignment[]) =>
-    call<void>("set_agent_assignments", () =>
-      getEngine().setAgentAssignments(agentSlugOrId, assignments),
-    ),
-};
+// Agent CRUD (`tauriAgents`, `toAgent`) lives in `./agents-facade`.
 
 /**
  * Teams v2: an agent's allowed-toolkit ceiling. `get` reads the agent + org

@@ -1,9 +1,10 @@
 import type { StoreApi } from "zustand";
 import { createAgentLoadOrder } from "../lib/agent-load-order";
 import { selectLoadedAgent } from "../lib/agent-selection";
+import { tauriAgents } from "../lib/agents-facade";
 import { getEngine, isEngineReady } from "../lib/engine";
 import { logAndReportError } from "../lib/error-report";
-import { tauriAgents, tauriPreferences } from "../lib/tauri";
+import { tauriPreferences } from "../lib/tauri";
 import type { Agent } from "../lib/types";
 import type { AgentState } from "./agents/state";
 
