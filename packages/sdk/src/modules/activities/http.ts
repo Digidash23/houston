@@ -11,7 +11,8 @@
  * Errors never get swallowed: a non-2xx throws an {@link ActivitiesHttpError}
  * carrying the HTTP `status`, which `CommandRegistry.dispatch` surfaces as an
  * `ok: false` result. A `401` additionally fires {@link onUnauthorized} so a
- * lapsed session token becomes a visible `tokenExpired` signal.
+ * lapsed session token becomes a visible `tokenExpired` signal. Create and
+ * update first re-issue a busy or waking refusal (`./busy-retry.ts`).
  *
  * Assistant catalog: the `@assistant` blocks below are the single source of
  * truth for the board operations they sit on. The board's other two
@@ -28,6 +29,7 @@ import {
   type ScopeContext,
   SdkHttpError,
 } from "../http";
+import { retryWriteWhileRefused } from "./busy-retry";
 import type { ActivitiesWrites } from "./types";
 
 /** A failed `/activities` request. `status` is the upstream HTTP status. */
@@ -80,10 +82,11 @@ export async function createActivity(
   agentId: string,
   input: NewActivity,
 ): Promise<Activity> {
-  const res = await httpRequest(
-    scope,
-    `/agents/${encodeURIComponent(agentId)}/activities`,
-    { method: "POST", body: JSON.stringify(input) },
+  const res = await retryWriteWhileRefused(scope.ports.clock, () =>
+    httpRequest(scope, `/agents/${encodeURIComponent(agentId)}/activities`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   );
   return (await res.json()) as Activity;
 }
@@ -105,10 +108,12 @@ export async function updateActivity(
   id: string,
   updates: ActivityUpdate,
 ): Promise<Activity> {
-  const res = await httpRequest(
-    scope,
-    `/agents/${encodeURIComponent(agentId)}/activities/${encodeURIComponent(id)}`,
-    { method: "PATCH", body: JSON.stringify(updates) },
+  const res = await retryWriteWhileRefused(scope.ports.clock, () =>
+    httpRequest(
+      scope,
+      `/agents/${encodeURIComponent(agentId)}/activities/${encodeURIComponent(id)}`,
+      { method: "PATCH", body: JSON.stringify(updates) },
+    ),
   );
   return (await res.json()) as Activity;
 }

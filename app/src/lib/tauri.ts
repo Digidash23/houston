@@ -1114,9 +1114,10 @@ export const tauriActivity = {
       { toast: false, silence: isAgentGoneError },
     ),
   /**
-   * `createWithId` for ONE rung of a retry ladder: the log tail records the
-   * attempt, nothing else surfaces. The caller hands the final error to
-   * `surfaceEngineError` (`create-mission-now.ts`, PRODUCT-1736).
+   * `createWithId` with the engine-call surface deferred: the log tail records
+   * the call, nothing else surfaces. The caller hands the error (the SDK's
+   * last refusal after its busy/waking retries) to `surfaceEngineError`
+   * (`mission-row-landing.ts`, PRODUCT-1736).
    */
   createWithIdAttempt: (agentPath: string, input: EngineNewActivity) =>
     call(

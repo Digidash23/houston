@@ -1,6 +1,6 @@
 /**
  * The board-row half of an optimistic mission create (`create-mission-now.ts`):
- * one id-honoring POST, re-issued while the agent's pod is still waking.
+ * one id-honoring POST (the SDK re-issues it while the agent is busy or waking).
  */
 
 import { isAgentGoneError } from "./agent-gone";
@@ -10,14 +10,11 @@ import type {
 } from "./create-mission";
 import type { MissionIdentity } from "./create-mission-now";
 import { getEngine } from "./engine";
-import { isEngineWakingError } from "./engine-waking-error";
 import { showErrorToast } from "./error-toast";
 import i18n from "./i18n";
-import { logger } from "./logger";
 import { missionRowInput } from "./mission-row";
 import { healStaleRosterFromError } from "./roster-heal";
 import { surfaceEngineError, tauriActivity } from "./tauri";
-import { MISSION_ROW_WAKING_RETRY_MS, retryWhileWaking } from "./waking-retry";
 
 /**
  * Land the board row through the host's single id-honoring POST. Resolves the
@@ -33,23 +30,13 @@ export async function landMissionRow(
 ): Promise<string | null> {
   const input = missionRowInput(mission, opts);
   try {
-    // The POST rides the gateway's wake hold; when that hold gives up on a
-    // stalled control plane it answers the waking 503, and the pod answers a
-    // little later (PRODUCT-1736). Re-issue along the SDK send's ladder
-    // rather than dropping the card. Attempts run with the engine-call
-    // surface deferred (`createWithIdAttempt`): one ladder is one failure,
-    // reported once below, never once per rung.
-    const created = await retryWhileWaking(
-      () => tauriActivity.createWithIdAttempt(agent.folderPath, input),
-      MISSION_ROW_WAKING_RETRY_MS,
-      {
-        isWaking: isEngineWakingError,
-        sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-        onRetry: (err, delayMs) =>
-          logger.warn(
-            `[create-mission-now] board row refused while the agent wakes; retrying in ${delayMs}ms: ${err}`,
-          ),
-      },
+    // The SDK owns the retry: a busy or waking refusal is re-issued inside
+    // `activities.writes.create` (`packages/sdk/.../activities/busy-retry.ts`),
+    // so only its FINAL error reaches here, reported once below. A second
+    // ladder here would stack on the SDK's (PRODUCT-1736).
+    const created = await tauriActivity.createWithIdAttempt(
+      agent.folderPath,
+      input,
     );
     if (created.id !== mission.conversationId) {
       await getEngine().updateActivity(agent.folderPath, created.id, {

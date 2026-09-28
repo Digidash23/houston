@@ -1,13 +1,10 @@
 import { deepStrictEqual, rejects, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
-import {
-  MISSION_ROW_WAKING_RETRY_MS,
-  retryWhileWaking,
-} from "../src/lib/waking-retry.ts";
+import { retryWhileWaking } from "../src/lib/waking-retry.ts";
 
-// PRODUCT-1736: a board-row write refused with the waking 503 (the gateway's
-// wake hold gave up on a stalled control plane) is re-issued along a short
-// ladder instead of dropping the card; every other refusal surfaces at once.
+// PRODUCT-1736: a write refused with the waking 503 (the gateway's wake hold
+// gave up on a stalled control plane) is re-issued along a short ladder
+// instead of being dropped; every other refusal surfaces at once.
 
 class Waking extends Error {}
 
@@ -122,11 +119,5 @@ describe("retryWhileWaking", () => {
       Waking,
     );
     deepStrictEqual(h.slept, []);
-  });
-
-  it("ships a short ladder: three pauses under a minute in total", () => {
-    strictEqual(MISSION_ROW_WAKING_RETRY_MS.length, 3);
-    const total = MISSION_ROW_WAKING_RETRY_MS.reduce((a, b) => a + b, 0);
-    strictEqual(total <= 60_000, true);
   });
 });

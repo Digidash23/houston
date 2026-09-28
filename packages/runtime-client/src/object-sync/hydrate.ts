@@ -18,6 +18,8 @@ export { DEFAULT_EXCLUDES, excluded } from "./hydrate-excludes";
 export interface HydrateManifestEntry {
   hash: string;
   generation?: string;
+  /** Observed bytes of a three-way-merged doc; trusted only if sha256 = hash. */
+  mergeBase?: string;
 }
 
 /** Relative path to the hydrated bytes and their optional remote generation. */

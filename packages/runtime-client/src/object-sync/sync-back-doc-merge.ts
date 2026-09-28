@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readFile, rm, stat, writeFile } from "node:fs/promises";
 import { atomicTempPath } from "@houston/protocol";
+import { ACTIVITY_DOC, mergeActivityArrays } from "./activity-merge";
 import { fileSha256 } from "./file-hash";
 import type { ObjectStore } from "./object-store";
 
@@ -12,6 +13,32 @@ function isPath(relativePath: string, documentPath: string): boolean {
   return (
     relativePath === documentPath || relativePath.endsWith(`/${documentPath}`)
   );
+}
+
+/** Documents sync-back merges on a generation conflict instead of overwriting. */
+export function isMergedDocument(relativePath: string): boolean {
+  return (
+    arrayIdentity(relativePath) !== undefined ||
+    isPath(relativePath, ACTIVITY_DOC) ||
+    relativePath === CUSTOM_DEFINITIONS
+  );
+}
+
+/** Documents whose hydrated bytes are kept as the base of a three-way merge. */
+export function keepsMergeBase(relativePath: string): boolean {
+  return isPath(relativePath, ACTIVITY_DOC);
+}
+
+function parseBase(baseBody: string | undefined): unknown[] | undefined {
+  if (baseBody === undefined) return undefined;
+  try {
+    const base = JSON.parse(baseBody) as unknown;
+    return Array.isArray(base) ? base : undefined;
+  } catch {
+    // An unparseable base only costs the three-way precision: the two-way
+    // merge still keeps every card either side holds.
+    return undefined;
+  }
 }
 
 function arrayIdentity(relativePath: string): string | undefined {
@@ -59,16 +86,27 @@ function mergeArrayDocument(
   ];
 }
 
-/** Merge local document entries into a refreshed remote document. */
+/**
+ * Merge local document entries into a refreshed remote document. `baseBody`
+ * (the bytes this writer started from) makes the activity merge three-way.
+ */
 export function mergeDocumentBodies(
   relativePath: string,
   localBody: string,
   remoteBody: string,
+  baseBody?: string,
 ): string | undefined {
+  if (!isMergedDocument(relativePath)) return undefined;
   const field = arrayIdentity(relativePath);
-  if (!field && relativePath !== CUSTOM_DEFINITIONS) return undefined;
   const remote = JSON.parse(remoteBody) as unknown;
   const local = JSON.parse(localBody) as unknown;
+  if (isPath(relativePath, ACTIVITY_DOC)) {
+    if (!Array.isArray(remote) || !Array.isArray(local)) {
+      throw new Error(`${relativePath} is not an array`);
+    }
+    const merged = mergeActivityArrays(remote, local, parseBase(baseBody));
+    return `${JSON.stringify(merged, null, 2)}\n`;
+  }
   if (field) {
     const merged = mergeArrayDocument(remote, local, field, relativePath);
     return `${JSON.stringify(merged, null, 2)}\n`;
@@ -97,13 +135,10 @@ export async function mergeSyncBackDocument(opts: {
   abs: string;
   key: string;
   relativePath: string;
+  /** Hydrated bytes of this document, when the sync layer kept them. */
+  base?: string;
 }): Promise<string | undefined> {
-  if (
-    !arrayIdentity(opts.relativePath) &&
-    opts.relativePath !== CUSTOM_DEFINITIONS
-  ) {
-    return undefined;
-  }
+  if (!isMergedDocument(opts.relativePath)) return undefined;
   const localBody = await readFile(opts.abs, "utf8");
   const remoteTemp = atomicTempPath(opts.abs, `${randomUUID()}.remote`);
   try {
@@ -113,6 +148,7 @@ export async function mergeSyncBackDocument(opts: {
       opts.relativePath,
       localBody,
       remoteBody,
+      opts.base,
     );
     if (merged === undefined) return undefined;
     await writeFile(opts.abs, merged);

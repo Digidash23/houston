@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
 import type { TurnServerDeps } from "./server-types";
-import { publishTurnRunsDoc } from "./turn-activity-doc";
 import type { TurnFilesystem } from "./turn-filesystem";
+import { publishTurnRunsDoc } from "./turn-runs-doc";
 import type { TurnRequest } from "./types";
 
 test("the runs doc publishes NORMALIZED items, matching the standing projector", async () => {
