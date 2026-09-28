@@ -3,10 +3,11 @@
  *
  * The cloud-only desktop build finds the OLD local install's data
  * (`~/.houston`, written by the legacy desktop app) and offers to move every
- * legacy agent into the user's cloud account. This module owns the plan
- * (target names, collision renames, resume), the chunking of an agent's
- * manifest into upload-sized batches, and the per-agent progress state types.
- * I/O lives in `cloud-migration-transport.ts` / `stores/cloud-migration.ts`.
+ * legacy agent into the user's cloud account. This module owns the wizard's
+ * types and the chunking of an agent's manifest into upload-sized batches;
+ * the plan (target names, collision renames, resume) lives in
+ * `cloud-migration-plan.ts`. I/O lives in `cloud-migration-transport.ts` /
+ * `stores/cloud-migration.ts`.
  *
  * Kept dependency-free so `node --test` can exercise it directly
  * (see `app/tests/cloud-migration.test.ts`).
@@ -58,13 +59,6 @@ export interface SourceAgent {
   color?: string;
 }
 
-/** A cloud agent that already exists, with its import marker (when probed). */
-export interface ExistingCloudAgent {
-  name: string;
-  /** The `migration/status` marker's source, `null`/absent when never imported. */
-  importedSource?: { workspace: string; agent: string } | null;
-}
-
 export interface MigrationTask {
   sourceId: string;
   workspace: string;
@@ -76,67 +70,6 @@ export interface MigrationTask {
   manifest: SourceAgentManifest;
   /** The legacy overlay color to seed on the created cloud agent (if any). */
   color?: string;
-}
-
-const normalize = (name: string) => name.trim().toLowerCase();
-
-/**
- * Plan the migration: one task per legacy agent, flattened across workspaces.
- *
- * Target name = the agent's own name. On a collision — an existing cloud agent
- * or another task already claiming it — fall back to `"<Agent> (<Workspace>)"`,
- * then `"<Agent> (<Workspace>) 2"`, `… 3`, and so on. Case-insensitive so we
- * never create a cloud agent whose name differs only by case.
- *
- * Resume: a source agent whose `{workspace, agent}` matches an existing cloud
- * agent's import marker is `alreadyDone` — its target is that agent, and its
- * name never counts as a NEW collision (it IS the previous migration).
- */
-export function buildMigrationPlan(
-  sourceAgents: SourceAgent[],
-  existing: ExistingCloudAgent[],
-): MigrationTask[] {
-  const taken = new Set(existing.map((a) => normalize(a.name)));
-  const tasks: MigrationTask[] = [];
-  for (const src of sourceAgents) {
-    const done = existing.find(
-      (a) =>
-        a.importedSource &&
-        a.importedSource.workspace === src.workspaceId &&
-        a.importedSource.agent === src.name,
-    );
-    if (done) {
-      tasks.push({
-        sourceId: src.id,
-        workspace: src.workspaceId,
-        agent: src.name,
-        targetName: done.name,
-        alreadyDone: true,
-        manifest: src.manifest,
-        color: src.color,
-      });
-      continue;
-    }
-    let targetName = src.name;
-    if (taken.has(normalize(targetName))) {
-      const base = `${src.name} (${src.workspaceId})`;
-      targetName = base;
-      for (let n = 2; taken.has(normalize(targetName)); n++) {
-        targetName = `${base} ${n}`;
-      }
-    }
-    taken.add(normalize(targetName));
-    tasks.push({
-      sourceId: src.id,
-      workspace: src.workspaceId,
-      agent: src.name,
-      targetName,
-      alreadyDone: false,
-      manifest: src.manifest,
-      color: src.color,
-    });
-  }
-  return tasks;
 }
 
 /**
@@ -180,23 +113,6 @@ export function chunkPaths(
     current.bytes += entry.size;
   }
   return chunks;
-}
-
-/**
- * Could this existing cloud agent be a previous run's output? Every possible
- * target name starts with a source agent's own name (exact, or
- * `"<Agent> (<Workspace>)…"`), so the resume probe only wakes those pods —
- * probing an unrelated sleeping agent would stall planning on its cold start.
- */
-export function isPlausibleMigrationTarget(
-  name: string,
-  sourceAgents: Pick<SourceAgent, "name">[],
-): boolean {
-  const n = normalize(name);
-  return sourceAgents.some((s) => {
-    const base = normalize(s.name);
-    return n === base || n.startsWith(`${base} (`);
-  });
 }
 
 /** Union of every source agent's connected toolkit slugs plus the legacy

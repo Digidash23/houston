@@ -30,7 +30,7 @@ export interface CreatedEmployee {
 export interface CreateEmployeeInput {
   workspaceId: string;
   /** Checked beforehand with `agentNameIssue`; the host still refuses a
-   *  duplicate that raced in, as an `isAgentNameConflictError`. */
+   *  duplicate that raced in, as an `isAgentNameTaken` refusal. */
   name: string;
   color: string | undefined;
   brief: AgentRoleContext;

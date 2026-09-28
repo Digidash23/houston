@@ -14,7 +14,12 @@
  */
 export type FileOpCode = "name_taken" | "read_only";
 
-/** The destination name is already in use — refusing beats overwriting. */
+/**
+ * The destination name is already in use — refusing beats overwriting. The
+ * agent routes answer it too: an agent create, install or rename onto another
+ * agent's name (`packages/host/src/routes/agent-name-taken.ts`), classified by
+ * `isAgentNameTaken` in `@houston/sdk`.
+ */
 export const NAME_TAKEN: FileOpCode = "name_taken";
 
 /**

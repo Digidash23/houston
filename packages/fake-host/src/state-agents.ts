@@ -3,6 +3,7 @@
  * writers plus raw agent-file read/write, all over the shared {@link state}.
  */
 
+import { sameAgentName } from "@houston/domain/agent-name";
 import {
   CONFIG_SEED_KEY,
   keepHostOwnedConfig,
@@ -53,6 +54,13 @@ export function listAgents(): CpAgent[] {
     return role ? { ...agent, role } : agent;
   });
 }
+/** Whether an agent other than `exceptId` holds `name` the way the real
+ *  host's store compares it (`sameAgentName`). */
+function agentNameTaken(name: string, exceptId?: string): boolean {
+  return state.agents.some(
+    (agent) => agent.id !== exceptId && sameAgentName(agent.name, name),
+  );
+}
 /** `claudeMd` is the job description the create request carries (the real host
  *  writes it to `CLAUDE.md` before the agent ever runs), so a surface that
  *  reads the file back sees what creation put there. */
@@ -60,7 +68,8 @@ export function createAgent(
   name: string,
   claudeMd?: string,
   seeds?: Record<string, string>,
-): CpAgent {
+): CpAgent | "name_taken" {
+  if (agentNameTaken(name)) return "name_taken";
   const agent: CpAgent = {
     id: `agent-${++state.agentSeq}`,
     workspaceId: SEED_WORKSPACE_ID,
@@ -77,9 +86,15 @@ export function createAgent(
   emitDomain("AgentsChanged");
   return agent;
 }
-export function renameAgent(id: string, name: string): CpAgent | null {
+/** Resolves the agent BEFORE the name, like the real host's authz does: an
+ *  unknown id is `not_found` whatever name it asks for. */
+export function renameAgent(
+  id: string,
+  name: string,
+): CpAgent | "not_found" | "name_taken" {
   const agent = state.agents.find((a) => a.id === id);
-  if (!agent) return null;
+  if (!agent) return "not_found";
+  if (agentNameTaken(name, id)) return "name_taken";
   agent.name = name;
   emitDomain("AgentsChanged");
   return agent;

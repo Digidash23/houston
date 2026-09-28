@@ -93,3 +93,20 @@ test("a chat the assistant may not change is a named state, not a gateway error"
     message: sentence,
   });
 });
+
+test("a createAgent onto a taken name reads as the host's own sentence", async () => {
+  // What `assistant-forward.ts` relays for the host's 409 `name_taken`: the
+  // upstream body, verbatim, as the error text.
+  const upstream = JSON.stringify({
+    error: 'an agent named "Mia" already exists in this workspace',
+    code: "name_taken",
+  });
+  const error = await refusal(409, { error: upstream, code: "gateway_error" });
+
+  expect(error).toMatchObject({ code: "gateway_error", status: 409 });
+  expect(assistantErrorResult("createAgent", error).content[0]).toMatchObject({
+    text: expect.stringContaining(
+      'an agent named \\"Mia\\" already exists in this workspace',
+    ),
+  });
+});

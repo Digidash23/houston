@@ -35,6 +35,7 @@ import type {
 import type { IntegrationProviderId } from "@houston/protocol";
 import {
   type DismissInteractionOutcome,
+  isAgentNameTaken,
   plusCheckoutRefusal,
 } from "@houston/sdk";
 import { shouldUseClaudeDesktopLogin } from "../components/shell/provider-login-url";
@@ -45,7 +46,6 @@ import {
   isStaleRosterReadError,
   partitionStaleRosterReads,
 } from "./agent-gone";
-import { isAgentNameConflictError } from "./agent-name-conflict";
 import {
   blockWriteWhileWarming,
   blockWriteWhileWarmingById,
@@ -474,7 +474,7 @@ export const tauriAgents = {
       undefined,
       // A 409 (name already taken) renders as friendly inline copy in the
       // create dialog — the generic red bug toast would double-surface it.
-      { silence: isAgentNameConflictError },
+      { silence: isAgentNameTaken },
     ),
   delete: (workspaceId: string, id: string) =>
     call<void>("delete_agent", () => getEngine().deleteAgent(workspaceId, id)),
@@ -493,7 +493,7 @@ export const tauriAgents = {
       async () =>
         toAgent(await getEngine().renameAgent(workspaceId, id, newName)),
       undefined,
-      { silence: isAgentNameConflictError },
+      { silence: isAgentNameTaken },
     );
   },
   updateColor: (workspaceId: string, id: string, color: string) =>

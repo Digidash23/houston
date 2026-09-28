@@ -1,3 +1,5 @@
+import { refusalCode, refusalStatus } from "../refusal-code";
+
 /**
  * The C19 refusals a Plus checkout answers for a state the person is in, not a
  * failure: the plan is already Plus, the account is being deleted, or the plan
@@ -22,23 +24,10 @@ export function plusCheckoutRefusal(
   error: unknown,
 ): PlusCheckoutRefusal | null {
   if (!(error instanceof Error)) return null;
-  const { status, body } = error as { status?: unknown; body?: unknown };
-  if (typeof status !== "number") return null;
-  const code = refusalCode(body === undefined ? error.message : body);
+  const status = refusalStatus(error);
+  if (status === null) return null;
+  const code = refusalCode(error);
   if (code === null || !Object.hasOwn(CHECKOUT_REFUSALS, code)) return null;
   const refusal = code as PlusCheckoutRefusal;
   return CHECKOUT_REFUSALS[refusal] === status ? refusal : null;
-}
-
-function refusalCode(body: unknown): string | null {
-  if (typeof body === "string") {
-    try {
-      return refusalCode(JSON.parse(body));
-    } catch {
-      return null;
-    }
-  }
-  if (typeof body !== "object" || body === null) return null;
-  const code = (body as { code?: unknown }).code;
-  return typeof code === "string" ? code : null;
 }

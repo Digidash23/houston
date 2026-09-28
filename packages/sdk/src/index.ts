@@ -18,11 +18,13 @@
 export {
   AGENT_NAME_MAX_LENGTH,
   type AgentNameValidation,
+  agentNameKey,
   composeJobDescription,
   type InvalidAgentNameReason,
   type JobDescriptionFields,
   type ParsedJobDescription,
   parseJobDescription,
+  sameAgentName,
   validateAgentName,
 } from "@houston/domain";
 // ===== Kernel =========================================================

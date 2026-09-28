@@ -61,7 +61,9 @@ export async function listAgents(scope: HttpScope): Promise<WireAgent[]> {
  * `JSON.stringify` drops the undefined optionals, so a plain create posts just
  * `{ name }` and a seeded one posts the fields it was given, in this order.
  *
- * @param name What to call the new agent, in the user's own words.
+ * @param name What to call the new agent, in the user's own words. Each
+ *   agent's name is its own: a name another agent already has, in any letter
+ *   case, is refused as taken, so tell the user and ask for another.
  * @param color One of the app's ten palette colours: charcoal, forest,
  *   teal, navy, purple, rose, crimson, orange, golden or umber.
  * @param seed Optional starting files for the new agent. Omit it for a
@@ -98,7 +100,8 @@ export async function createAgent(
  *
  * @param id The agent this acts on, by the id listAgents returns. An
  *   agent's name is not its id, so read the id from listAgents first.
- * @param name The new name, in the user's own words.
+ * @param name The new name, in the user's own words. Another agent's name,
+ *   in any letter case, is refused as taken.
  * @assistant group:agents
  * @assistant confirm: outward. Everyone in the space sees the agent under its new name, and on a desktop its files move with it.
  */

@@ -74,7 +74,7 @@ describe("agents VM", () => {
     const res = await fetch(`${host.url}/agents`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "Nova" }),
+      body: JSON.stringify({ name: "Orion" }),
     });
     expect(res.ok).toBe(true);
 
@@ -82,7 +82,7 @@ describe("agents VM", () => {
       () => agentsVm()?.items.length === 2,
       "AgentsChanged refetch grew the list to 2",
     );
-    expect(agentsVm()?.items.map((a) => a.name)).toContain("Nova");
+    expect(agentsVm()?.items.map((a) => a.name)).toContain("Orion");
   });
 
   it("refetches after a facade create so the snapshot reflects the server", async () => {

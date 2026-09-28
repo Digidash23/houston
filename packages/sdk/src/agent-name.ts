@@ -9,6 +9,8 @@
 export {
   AGENT_NAME_MAX_LENGTH,
   type AgentNameValidation,
+  agentNameKey,
   type InvalidAgentNameReason,
+  sameAgentName,
   validateAgentName,
 } from "@houston/domain/agent-name";

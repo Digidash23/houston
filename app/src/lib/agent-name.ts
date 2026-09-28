@@ -1,5 +1,6 @@
 import {
   AGENT_NAME_MAX_LENGTH,
+  sameAgentName,
   validateAgentName,
 } from "@houston/sdk/agent-name";
 
@@ -15,8 +16,8 @@ export type AgentNameIssue = "invalidChars" | "tooLong" | "taken";
 
 /**
  * Validate a name BEFORE it goes to the host: shape via the shared SDK rule,
- * duplicates against the already-loaded agent list. Case-insensitive because
- * agent folders land on case-insensitive filesystems (macOS, Windows).
+ * duplicates against the already-loaded agent list, compared exactly as the
+ * host's store refuses them (`sameAgentName`).
  */
 export function agentNameIssue(
   raw: string,
@@ -27,20 +28,12 @@ export function agentNameIssue(
     if (v.reason === "empty") return null;
     return v.reason === "too_long" ? "tooLong" : "invalidChars";
   }
-  const lower = v.name.toLowerCase();
-  return existingNames.some((n) => n.trim().toLowerCase() === lower)
-    ? "taken"
-    : null;
-}
-
-/** Whether two names are the same to the host: trimmed, case-insensitive. */
-export function sameAgentName(a: string, b: string): boolean {
-  return a.trim().toLowerCase() === b.trim().toLowerCase();
+  return existingNames.some((n) => sameAgentName(n, v.name)) ? "taken" : null;
 }
 
 /**
  * `base`, or the first of "base 2", "base 3"... nobody holds yet. Compared the
- * way the host compares names (trimmed, case-insensitive), and a numbered
+ * way the host compares names (`sameAgentName`), and a numbered
  * variant shortens `base` to leave room for its suffix within
  * {@link AGENT_NAME_MAX_LENGTH}, so the variant is one the create accepts.
  */
