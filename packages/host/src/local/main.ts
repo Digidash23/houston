@@ -210,13 +210,16 @@ const host = buildLocalHost({
   routineSchedulerMode,
   // The control plane's fire scheduler delivers scheduled instants (with the
   // creator's minted acting identity) only in the managed-cloud topology; the
-  // pod-store env is its marker. Self-host sets HOUSTON_MANAGED_CLOUD with no
-  // control plane, so it must NOT get the backstop grace this enables — its
-  // local cron is the only scheduler.
+  // pod-store env is its marker. Self-host has no control plane and must NOT
+  // get the backstop grace this enables — its local cron is the only scheduler.
   externalRoutineFires: !!managedStore?.podGateway,
   // Managed pods sit behind the gateway (it enforces the pod token and mints
   // x-houston-acting-as); relay that header to the runtime so integration
-  // calls act as the driving user. Desktop/self-host stay direct → false.
+  // calls act as the driving user. Only the `engine-pod` image target sets
+  // HOUSTON_MANAGED_CLOUD; the `selfhost` target (FROM host-base) and desktop
+  // never do, so they stay direct → false. The reserved-name refusal
+  // (`routes/agent-name-reserved.ts`) relies on that: it is skipped when
+  // gateway-fronted, so a self-host that set the env would lose it.
   gatewayFronted: process.env.HOUSTON_MANAGED_CLOUD === "1",
   // The org owner's canonical user id, stamped into managed pods by the
   // control plane. Backfills `created_by` on pre-rollout routines at boot and

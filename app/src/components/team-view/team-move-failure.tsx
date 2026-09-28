@@ -2,13 +2,14 @@ import { Button } from "@houston-ai/core";
 import { AlertTriangle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+/** A failed team move; with no `onRetry`, a retry cannot help and none shows. */
 export function TeamMoveFailure({
   body,
   onRetry,
   onClose,
 }: {
   body: string;
-  onRetry: () => void;
+  onRetry?: () => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation("teams");
@@ -22,7 +23,9 @@ export function TeamMoveFailure({
         <Button variant="outline" onClick={onClose}>
           {t("moveTeam.close")}
         </Button>
-        <Button onClick={onRetry}>{t("moveTeam.retry")}</Button>
+        {onRetry ? (
+          <Button onClick={onRetry}>{t("moveTeam.retry")}</Button>
+        ) : null}
       </div>
     </div>
   );

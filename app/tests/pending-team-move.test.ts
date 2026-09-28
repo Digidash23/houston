@@ -4,6 +4,7 @@ import {
   claimTeamMove,
   clearPendingTeamMove,
   type PendingTeamMove,
+  parkRefusedTeamMove,
   readPendingTeamMoves,
   recordPendingTeamMove,
   releaseTeamMove,
@@ -98,5 +99,19 @@ describe("pending team moves", () => {
     updatePendingTeamMove("design", { movedAgentIds: ["a"] }, target);
     updatePendingTeamMove("design", { movedAgentIds: ["a", "b"] }, target);
     deepStrictEqual(readPendingTeamMoves(target)[0].movedAgentIds, ["a", "b"]);
+  });
+  it("drops a move refused on a taken name before any agent moved", () => {
+    const target = storage();
+    recordPendingTeamMove(MOVE, target);
+    parkRefusedTeamMove("design", "a", target);
+    deepStrictEqual(readPendingTeamMoves(target), []);
+  });
+  it("parks a half-done move on the refused agent so a rename can finish it", () => {
+    const target = storage();
+    recordPendingTeamMove({ ...MOVE, movedAgentIds: ["a"] }, target);
+    parkRefusedTeamMove("design", "b", target);
+    deepStrictEqual(readPendingTeamMoves(target), [
+      { ...MOVE, movedAgentIds: ["a"], refusedAgentId: "b" },
+    ]);
   });
 });

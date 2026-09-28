@@ -6,7 +6,27 @@
  */
 
 import { agentNameKey } from "@houston/sdk/agent-name";
+import type { CreateAgent } from "@houston/wire-types";
 import type { MigrationTask, SourceAgent } from "./cloud-migration";
+
+/** The cloud agents are created as ordinary personal assistants. */
+const MIGRATED_AGENT_CONFIG_ID = "personal-assistant";
+
+/**
+ * The cloud create a task's agent moves in with. `migration: true` keeps its
+ * desktop name even when it is the AI Manager's "Houston", which a new
+ * employee may not take. The legacy overlay color rides along: the adapter's
+ * create routes `color` into the overlay keyed by the NEW agent id, and
+ * undefined falls back to the default color, so this is the only seed point.
+ */
+export function migratedAgentCreate(task: MigrationTask): CreateAgent {
+  return {
+    name: task.targetName,
+    configId: MIGRATED_AGENT_CONFIG_ID,
+    color: task.color,
+    migration: true,
+  };
+}
 
 /** A cloud agent that already exists, with its import marker (when probed). */
 export interface ExistingCloudAgent {
@@ -22,7 +42,9 @@ export interface ExistingCloudAgent {
  * or another task already claiming it — fall back to `"<Agent> (<Workspace>)"`,
  * then `"<Agent> (<Workspace>) 2"`, `… 3`, and so on. Names compare by the
  * host's own key (`agentNameKey`), so the plan never targets a name the
- * host's store would refuse as taken.
+ * host's store would refuse as taken. A source named "Houston" keeps its name:
+ * the move creates with `migration: true`, which the AI Manager's reserved
+ * name does not refuse.
  *
  * Resume: a source agent whose `{workspace, agent}` matches an existing cloud
  * agent's import marker is `alreadyDone` — its target is that agent, and its

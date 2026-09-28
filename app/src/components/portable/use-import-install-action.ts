@@ -7,11 +7,11 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toAgent } from "../../lib/agents-facade";
 import { genericErrorDescription } from "../../lib/error-report";
 import { showExpectedStateToast } from "../../lib/error-toast";
 import type { KickoffPin } from "../../lib/kickoff-pin";
 import { openAgentBoard } from "../../lib/open-agent";
-import { toAgent } from "../../lib/tauri";
 import { useAgentStore } from "../../stores/agents";
 import { useUIStore } from "../../stores/ui";
 import { installImportedAgent } from "./import-install";

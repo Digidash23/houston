@@ -11,6 +11,7 @@ import { useAgentStore } from "../../stores/agents";
 import { useUIStore } from "../../stores/ui";
 import { suggestCopyName } from "../agent-actions/copy-agent-model";
 import { useCopyAgent } from "../agent-actions/use-copy-agent";
+import { useEmployeeNameIssueCopy } from "../employee-card/use-employee-name";
 import {
   type CopyWizardStep,
   copyWizardSteps,
@@ -34,6 +35,9 @@ export function useCopyAgentWizard(args: {
   const { capabilities } = useCapabilities();
   const addToast = useUIStore((s) => s.addToast);
   const copyAgent = useCopyAgent();
+  const issueCopy = useEmployeeNameIssueCopy({
+    taken: (trimmed) => t("copyAgent.nameTaken", { name: trimmed }),
+  });
 
   const [source, setSource] = useState<Agent | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -55,14 +59,7 @@ export function useCopyAgentWizard(args: {
   const step: CopyWizardStep = steps[stepIndex] ?? "source";
   const existingNames = agents.map((agent) => agent.name);
   const nameIssue = agentNameIssue(name, existingNames);
-  const nameIssueMessage =
-    nameIssue === "taken"
-      ? t("copyAgent.nameTaken", { name: name.trim() })
-      : nameIssue === "tooLong"
-        ? t("nameErrors.tooLong", { max: AGENT_NAME_MAX_LENGTH })
-        : nameIssue === "invalidChars"
-          ? t("nameErrors.invalidChars")
-          : null;
+  const nameIssueMessage = issueCopy(nameIssue, name);
 
   const pick = async (agent: Agent) => {
     setLoadingId(agent.id);

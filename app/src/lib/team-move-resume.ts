@@ -31,7 +31,10 @@ export function resumedTeamMove(
           step: "moveFailed",
           target,
           index: pending.movedAgentIds.length,
-          error: "unknown",
+          // A move parked on a taken name reopens naming the agent to rename.
+          ...(pending.refusedAgentId === undefined
+            ? { error: "unknown" }
+            : { error: "name_taken", parked: true }),
         };
   return { source, state };
 }
@@ -51,7 +54,14 @@ export interface TeamMoveDriverWire {
 
 export type TeamMoveDriverOutcome =
   | { outcome: "done" }
-  | { outcome: "failed"; agentId: string };
+  | { outcome: "failed"; agentId: string }
+  /** The agent's move was refused on a taken name; its ticket is voided. */
+  | { outcome: "refused"; agentId: string };
+
+/** A move parked on a taken name waits for a rename, so boot never re-sends it. */
+export function resumableAtBoot(pending: PendingTeamMove): boolean {
+  return pending.refusedAgentId === undefined;
+}
 
 export async function drivePendingTeamMove(
   pending: PendingTeamMove,
@@ -73,6 +83,10 @@ export async function drivePendingTeamMove(
     const result = await wire.resumeAgentMove(agentMove, {
       onMoveAccepted: (moveId) => wire.updateAgentMoveId(agentId, moveId),
     });
+    if (result.outcome === "refused") {
+      wire.clearAgentMove(agentId);
+      return { outcome: "refused", agentId };
+    }
     if (result.outcome !== "done") return { outcome: "failed", agentId };
     wire.clearAgentMove(agentId);
     wire.markAgentMoved(agentId);

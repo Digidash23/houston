@@ -13,7 +13,7 @@
  * `ok: false` result. A `401` additionally fires {@link onUnauthorized} so a
  * lapsed session token becomes a visible `tokenExpired` signal.
  *
- * Assistant catalog: these four functions are its single source of truth for
+ * Assistant catalog: these functions are its single source of truth for
  * the `/agents` routes, so each carries its own `@assistant` block and the
  * generator reads the route straight off the call it makes here.
  */
@@ -63,7 +63,10 @@ export async function listAgents(scope: HttpScope): Promise<WireAgent[]> {
  *
  * @param name What to call the new agent, in the user's own words. Each
  *   agent's name is its own: a name another agent already has, in any letter
- *   case, is refused as taken, so tell the user and ask for another.
+ *   case, is refused as taken, so tell the user and ask for another. Your own
+ *   name is reserved for you, so no agent can take it (names that only
+ *   contain it are fine): tell the user the name is yours and suggest
+ *   another.
  * @param color One of the app's ten palette colours: charcoal, forest,
  *   teal, navy, purple, rose, crimson, orange, golden or umber.
  * @param seed Optional starting files for the new agent. Omit it for a
@@ -96,12 +99,48 @@ export async function createAgent(
 }
 
 /**
+ * Re-creates an agent the person already had on their desktop, during the
+ * move to the cloud. The same `POST /agents` as {@link createAgent} plus
+ * `migration: true`, which keeps the agent's name even when it is the AI
+ * Manager's reserved one; a name another agent holds is still refused.
+ *
+ * @assistant group:agents
+ * @assistant hidden: it keeps a desktop agent's name even when that name is Houston, which the AI Manager may never give an employee; createAgent is the create to dispatch.
+ * @assistant hands: unreachable the move runs from the desktop app's move-to-cloud screen, which the person starts themselves.
+ * @assistant unroutable: the migration flag is a constant this create always sends, not a parameter a route can map.
+ * @assistant unschematized: the seed's seeds map is an open record of file path to contents.
+ */
+export async function createMigratedAgent(
+  scope: HttpScope,
+  name: string,
+  color?: AgentColorId,
+  seed?: {
+    claudeMd?: string;
+    seeds?: Record<string, string>;
+  },
+): Promise<WireAgent> {
+  const res = await httpRequest(scope, "/agents", {
+    method: "POST",
+    body: JSON.stringify({
+      name,
+      color,
+      claudeMd: seed?.claudeMd,
+      seeds: seed?.seeds,
+      migration: true,
+    }),
+  });
+  return (await res.json()) as WireAgent;
+}
+
+/**
  * Renames an agent.
  *
  * @param id The agent this acts on, by the id listAgents returns. An
  *   agent's name is not its id, so read the id from listAgents first.
  * @param name The new name, in the user's own words. Another agent's name,
- *   in any letter case, is refused as taken.
+ *   in any letter case, is refused as taken. Your own name is reserved for
+ *   you, so an agent cannot be renamed to it: tell the user the name is yours
+ *   and suggest another.
  * @assistant group:agents
  * @assistant confirm: outward. Everyone in the space sees the agent under its new name, and on a desktop its files move with it.
  */
@@ -145,8 +184,8 @@ export function createAgentsHttp(scope: HttpScope): AgentsHttp {
     list: () => listAgents(scope),
     // The initial config becomes the config document among the seeds, so the
     // wire stays the create every host and gateway already honors.
-    create: ({ name, color, claudeMd, seeds, config }) =>
-      createAgent(scope, name, color, {
+    create: ({ name, color, claudeMd, seeds, config, migration }) =>
+      (migration ? createMigratedAgent : createAgent)(scope, name, color, {
         claudeMd,
         seeds: withInitialConfigSeed(seeds, config),
       }),

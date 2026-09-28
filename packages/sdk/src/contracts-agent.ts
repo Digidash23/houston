@@ -36,6 +36,7 @@ export {
   type AgentsViewModel,
   type AgentsWrites,
   type InstalledConfig,
+  isAgentNameReserved,
   isAgentNameTaken,
   type WireAgent,
 } from "./modules/agents";

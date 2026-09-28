@@ -1,5 +1,5 @@
 import { HoustonClient } from "@houston/engine-adapter/client";
-import { isAgentNameTaken } from "@houston/sdk";
+import { isAgentNameReserved, isAgentNameTaken } from "@houston/sdk";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import {
   createWireCapture,
@@ -146,6 +146,84 @@ test("a 409 naming another code is not a taken name", async () => {
     .createAgent("w", { name: "Ada" })
     .catch((err: unknown) => err);
   expect(calls).toHaveLength(1);
+  expect(isAgentNameTaken(refusal)).toBe(false);
+});
+
+test("the desktop-to-cloud move's create posts migration: true after the seeds", async () => {
+  stubFetch(
+    json(200, { id: "a1", workspaceId: "w", name: "Houston", createdAt: 0 }),
+  );
+  // `color` rides along as `migratedAgentCreate` always sends it: it lands in
+  // the adapter's overlay under the new id, never on the wire.
+  const r = await client().createAgent("w", {
+    name: "Houston",
+    configId: "migrated",
+    color: "#123456",
+    claudeMd: "# hi",
+    seeds: { "a.md": "x" },
+    migration: true,
+  });
+  expect(calls).toHaveLength(1);
+  const [post] = calls;
+  expect(post.method).toBe("POST");
+  expect(post.url).toBe(`${BASE}/agents`);
+  expect(post.body).toBe(
+    JSON.stringify({
+      name: "Houston",
+      claudeMd: "# hi",
+      seeds: { "a.md": "x" },
+      migration: true,
+    }),
+  );
+  expect(post.headers.get("Content-Type")).toBe("application/json");
+  expect(post.headers.get("Authorization")).toBe("Bearer t");
+  expect(r.agent.id).toBe("a1");
+  expect(r.agent.color).toBe("#123456");
+});
+
+test("an ordinary create never sends the migration flag", async () => {
+  stubFetch(
+    json(200, { id: "a1", workspaceId: "w", name: "Ada", createdAt: 0 }),
+  );
+  await client().createAgent("w", {
+    name: "Ada",
+    configId: "blank",
+    migration: false,
+  });
+  expect(calls[0].body).toBe(JSON.stringify({ name: "Ada" }));
+});
+
+test.each([
+  {
+    label: "create",
+    write: () => client().createAgent("w", { name: "Houston" }),
+    method: "POST",
+    url: `${BASE}/agents`,
+  },
+  {
+    label: "rename",
+    write: () => client().renameAgent("w", "a1", "Houston"),
+    method: "PATCH",
+    url: `${BASE}/agents/a1`,
+  },
+])("a $label refused as name_reserved reaches the surface as the reserved name", async ({
+  write,
+  method,
+  url,
+}) => {
+  stubFetch(
+    json(400, {
+      error: "Houston is taken by the manager",
+      code: "name_reserved",
+    }),
+  );
+  const refusal = await write().catch((err: unknown) => err);
+  // One byte-identical request, never retried: the name is the user's to change.
+  expect(calls).toHaveLength(1);
+  expect(calls[0].method).toBe(method);
+  expect(calls[0].url).toBe(url);
+  expect(calls[0].body).toBe(JSON.stringify({ name: "Houston" }));
+  expect(isAgentNameReserved(refusal)).toBe(true);
   expect(isAgentNameTaken(refusal)).toBe(false);
 });
 

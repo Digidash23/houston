@@ -21,10 +21,13 @@ export {
   agentNameKey,
   composeJobDescription,
   type InvalidAgentNameReason,
+  isReservedAgentName,
   type JobDescriptionFields,
   type ParsedJobDescription,
   parseJobDescription,
+  RESERVED_AGENT_NAME_KEY,
   sameAgentName,
+  takesReservedAgentName,
   validateAgentName,
 } from "@houston/domain";
 // ===== Kernel =========================================================

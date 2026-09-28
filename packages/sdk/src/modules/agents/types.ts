@@ -101,6 +101,12 @@ export interface AgentCreateInput {
    * create itself (`withInitialConfigSeed`).
    */
   config?: AgentInitialConfig;
+  /**
+   * The desktop-to-cloud move re-creating an agent the person already had:
+   * the create keeps its name even when it is the AI Manager's reserved one
+   * (a name another agent holds is still refused).
+   */
+  migration?: boolean;
 }
 
 /**

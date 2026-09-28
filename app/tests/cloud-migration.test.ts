@@ -12,6 +12,7 @@ import {
 import {
   buildMigrationPlan,
   isPlausibleMigrationTarget,
+  migratedAgentCreate,
 } from "../src/lib/cloud-migration-plan.ts";
 import { initialProgress } from "../src/lib/cloud-migration-progress.ts";
 
@@ -34,6 +35,19 @@ test("keeps plain names when nothing collides", () => {
   const plan = buildMigrationPlan([agent("Work", "Sales")], []);
   assert.equal(plan[0].targetName, "Sales");
   assert.equal(plan[0].alreadyDone, false);
+});
+
+test("an employee named Houston moves in under its own name", () => {
+  // The AI Manager's name is reserved only for NEW employees; the move
+  // re-creates the person's own agent with `migration: true`.
+  const plan = buildMigrationPlan([agent("Work", "Houston")], []);
+  assert.equal(plan[0].targetName, "Houston");
+  assert.deepEqual(migratedAgentCreate({ ...plan[0], color: "teal" }), {
+    name: "Houston",
+    configId: "personal-assistant",
+    color: "teal",
+    migration: true,
+  });
 });
 
 test("flattening two workspaces with the same agent name renames the second", () => {

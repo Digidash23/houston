@@ -1,4 +1,4 @@
-import { tauriAgents } from "../lib/tauri";
+import { tauriAgents } from "../lib/agents-facade";
 import type { AgentConfig, AgentDefinition } from "../lib/types";
 import { builtinConfigs } from "./builtin";
 

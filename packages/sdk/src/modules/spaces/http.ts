@@ -133,7 +133,10 @@ export async function declineOrgInvite(
  *
  * Move an agent into a team space; returns the `moveId` to poll with
  * `getMoveStatus`. Never degrades — 403 `unsupported_move` / 409
- * `unmovable_volume` / 403 `needs_upgrade` throw so the caller surfaces them.
+ * `unmovable_volume` / 403 `needs_upgrade` throw so the caller surfaces them,
+ * and so does 409 `name_taken` when the destination space already has an agent
+ * with the same name: nothing starts, and the move can only succeed once one of
+ * the two is renamed (`classifyMoveError` in `./move-refusals`).
  * @param agentSlugOrId The agent this acts on, by the id or slug listAgents
  *   returns. Read it from listAgents rather than writing the name the user
  *   says.

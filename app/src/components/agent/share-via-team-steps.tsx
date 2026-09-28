@@ -1,8 +1,9 @@
+import type { MoveErrorKind } from "@houston/sdk";
 import { Button, Input, Spinner } from "@houston-ai/core";
 import { AlertTriangle, Plus } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { MoveErrorKind, TeamRef } from "../../lib/share-via-team";
+import type { TeamRef } from "../../lib/share-via-team";
 import { MAX_TEAM_NAME_LENGTH } from "../shell/create-team-model";
 import type { PickStepCopy } from "./pick-step-copy";
 
@@ -153,7 +154,7 @@ export function BusyStep({
   );
 }
 
-/** Move failed — retryable errors offer a retry; `unmovable_volume` does not. */
+/** Move failed: a retry is offered only when the caller says one can succeed. */
 export function MoveFailedStep({
   error,
   canRetry,

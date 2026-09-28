@@ -1,8 +1,8 @@
 import type { AgentInitialConfig } from "@houston/engine-adapter";
 import { create } from "zustand";
+import { tauriAgents } from "../lib/agents-facade";
 import { analytics } from "../lib/analytics";
 import { prepareAgentDraftForget } from "../lib/forget-agent-drafts";
-import { tauriAgents } from "../lib/tauri";
 import type { Agent } from "../lib/types";
 import { useAgentProvisioningStore } from "./agent-provisioning";
 import type { AgentState } from "./agents/state";

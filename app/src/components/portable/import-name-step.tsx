@@ -19,6 +19,7 @@ const IDENTITY_FORM_ID = "import-agent-identity";
 
 export function ImportNameStep({
   name,
+  nameError,
   onNameChange,
   color,
   onColorChange,
@@ -28,6 +29,8 @@ export function ImportNameStep({
   onAdvance,
 }: {
   name: string;
+  /** Why the typed (or pre-filled) name cannot be used, or null. */
+  nameError: string | null;
   onNameChange: (value: string) => void;
   color: string;
   onColorChange: (value: string) => void;
@@ -43,7 +46,8 @@ export function ImportNameStep({
         formId={IDENTITY_FORM_ID}
         name={name}
         color={color}
-        error={null}
+        error={nameError}
+        nameInvalid={nameError !== null}
         onNameChange={onNameChange}
         onColorChange={onColorChange}
         onSubmit={(e) => {

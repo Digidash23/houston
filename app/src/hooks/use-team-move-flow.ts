@@ -12,14 +12,15 @@ import {
   teamAgentMoveFailed,
   teamPostscriptFailed,
 } from "../lib/move-team";
+import { moveWire } from "../lib/move-wire";
 import {
   claimTeamMove,
+  parkRefusedTeamMove,
   readPendingTeamMoves,
   recordPendingTeamMove,
   updatePendingTeamMove,
 } from "../lib/pending-team-move";
-import { classifyMoveError } from "../lib/share-via-team";
-import { moveTeamAgent } from "../lib/team-agent-move";
+import { moveTeamAgent, teamAgentMoveError } from "../lib/team-agent-move";
 import {
   beginPostscriptRetry,
   releaseOwnedTeamMove,
@@ -49,12 +50,12 @@ export function useTeamMoveFlow(source: TeamMoveSource, open: boolean) {
   useEffect(() => {
     if (!open) {
       releaseOwnedTeamMove(source.id, ownsClaim);
-      if (
-        !readPendingTeamMoves(undefined, reportPendingMove).some(
-          (item) => item.sourceTeam.id === source.id,
-        )
-      )
-        setState(initialTeamMoveState());
+      // A move parked on a taken name reopens resumed (with a retry for after
+      // the rename), never on the retry-less face it closed on.
+      const pending = readPendingTeamMoves(undefined, reportPendingMove).find(
+        (item) => item.sourceTeam.id === source.id,
+      );
+      if (!pending || pending.refusedAgentId) setState(initialTeamMoveState());
     }
   }, [open, source.id]);
 
@@ -113,25 +114,17 @@ export function useTeamMoveFlow(source: TeamMoveSource, open: boolean) {
       setState({ step: "movingAgents", target, index });
       let result: Awaited<ReturnType<typeof moveTeamAgent>>;
       try {
-        result = await moveTeamAgent(agent, target);
+        result = await moveTeamAgent(agent, target, moveWire);
       } catch (error) {
         showErrorToast("move_team_agent", String(error), error);
         setState((current) => teamAgentMoveFailed(current, "unknown"));
         return;
       }
       if (result.outcome !== "done") {
-        setState((current) =>
-          teamAgentMoveFailed(
-            current,
-            classifyMoveError(
-              "code" in result
-                ? result.code
-                : "error" in result
-                  ? result.error
-                  : result.outcome,
-            ),
-          ),
-        );
+        if (result.outcome === "refused")
+          parkRefusedTeamMove(source.id, agent.id);
+        const error = teamAgentMoveError(result);
+        setState((current) => teamAgentMoveFailed(current, error));
         return;
       }
       updatePendingTeamMove(source.id, {

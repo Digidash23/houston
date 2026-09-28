@@ -3,7 +3,10 @@ import {
   AGENT_NAME_MAX_LENGTH,
   agentNameKey,
   invalidAgentNameMessage,
+  isReservedAgentName,
+  RESERVED_AGENT_NAME_KEY,
   sameAgentName,
+  takesReservedAgentName,
   validateAgentName,
 } from "./agent-name";
 
@@ -78,5 +81,32 @@ describe("sameAgentName", () => {
 
   it("keys on the trimmed, composed, lowercased spelling", () => {
     expect(agentNameKey("  Jose\u0301 ")).toBe("jos\u00e9");
+  });
+});
+
+describe("the AI Manager's reserved name", () => {
+  it("is Houston under the one name key", () => {
+    expect(RESERVED_AGENT_NAME_KEY).toBe(agentNameKey("Houston"));
+  });
+
+  it("matches every spelling that lands on the same key", () => {
+    for (const name of ["Houston", "houston", "  HOUSTON ", "HoUsToN"])
+      expect(isReservedAgentName(name)).toBe(true);
+  });
+
+  it("leaves names that only contain it free", () => {
+    for (const name of ["Houston Sales", "Houston 2", "My Houston", "Houst"])
+      expect(isReservedAgentName(name)).toBe(false);
+  });
+
+  it("refuses a create under it", () => {
+    expect(takesReservedAgentName("houston")).toBe(true);
+    expect(takesReservedAgentName("Houston Sales")).toBe(false);
+  });
+
+  it("refuses a rename onto it, but never an employee that already holds it", () => {
+    expect(takesReservedAgentName("Houston", "Mia")).toBe(true);
+    expect(takesReservedAgentName("Houston", "Houston")).toBe(false);
+    expect(takesReservedAgentName(" HOUSTON ", "houston")).toBe(false);
   });
 });

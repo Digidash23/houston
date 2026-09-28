@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { getEngine, newEngineActive } from "../lib/engine";
 import { logAndReportError } from "../lib/error-report";
 import { resumePendingMove } from "../lib/move-resume";
+import { moveWire } from "../lib/move-wire";
 import {
   claimMove,
   clearPendingMove,
@@ -13,8 +14,6 @@ import {
 } from "../lib/pending-move";
 import { readPendingTeamMoves } from "../lib/pending-team-move";
 import { queryKeys } from "../lib/query-keys";
-import { isExpectedShareError, shareErrorCode } from "../lib/share-via-team";
-import { tauriOrg } from "../lib/tauri";
 import { useAgentStore } from "../stores/agents";
 import { useUIStore } from "../stores/ui";
 import { useWorkspaceStore } from "../stores/workspaces";
@@ -69,30 +68,11 @@ export function useMoveResume(enabled: boolean): void {
           continue;
         if (!claimMove(pending.agentId)) continue; // a dialog is driving it
         try {
-          // `toast: false` on both wire calls: transient poll blips are
-          // retried (a red toast per blip would spam boot), and a terminal
-          // failure gets ONE `moveResume.failed` toast below. Unexpected
-          // errors are still logged + captured to Sentry; only the expected
-          // C8 business states (incl. `move_in_progress`, a normal resume
-          // answer when a fresh move owns the agent) skip capture too.
-          const result = await resumePendingMove(
-            pending,
-            {
-              moveStatus: (agentId, moveId) =>
-                tauriOrg.moveStatus(agentId, moveId, { toast: false }),
-              moveAgent: (agentId, toSlug) =>
-                tauriOrg.moveAgent(agentId, toSlug, {
-                  toast: false,
-                  silence: (err) =>
-                    isExpectedShareError(err) ||
-                    shareErrorCode(err) === "move_in_progress",
-                }),
-            },
-            {
-              onMoveAccepted: (moveId) =>
-                updatePendingMoveId(pending.agentId, moveId),
-            },
-          );
+          // A terminal failure gets ONE toast below (see `moveWire`).
+          const result = await resumePendingMove(pending, moveWire, {
+            onMoveAccepted: (moveId) =>
+              updatePendingMoveId(pending.agentId, moveId),
+          });
           if (result.outcome === "done") {
             clearPendingMove(pending.agentId);
             addToast({
@@ -114,6 +94,17 @@ export function useMoveResume(enabled: boolean): void {
                 .getState()
                 .loadAgents(current.id, { silent: true });
             }
+          } else if (result.outcome === "refused") {
+            // Refused before anything started: nothing to finish, and
+            // re-sending can only be refused again until a rename.
+            clearPendingMove(pending.agentId);
+            addToast({
+              title: t("moveResume.nameTaken", {
+                agent: pending.agentName,
+                team: pending.teamName,
+              }),
+              variant: "info",
+            });
           } else if (result.outcome === "inProgress") {
             // A live move already owns the agent (another window or a fresh
             // dialog is driving it) — leave the record; its driver settles it.

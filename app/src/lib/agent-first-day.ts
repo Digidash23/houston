@@ -19,12 +19,12 @@ import type { FirstDayStartResult } from "@houston/engine-adapter";
 import type { Config } from "../data/config";
 import { registerSetupGreeting } from "../hooks/use-setup-greeting";
 import { useUIStore } from "../stores/ui";
+import { tauriAgents } from "./agents-facade";
 import { analytics } from "./analytics";
 import { publishCreatedMission } from "./created-mission-handoff";
 import i18n from "./i18n";
 import { queryClient } from "./query-client";
 import { queryKeys } from "./query-keys";
-import { tauriAgents } from "./tauri";
 
 // The pure half lives apart so it loads without the engine client.
 export { isFirstDayPending } from "./agent-first-day-model";

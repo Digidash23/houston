@@ -51,7 +51,8 @@
   },
   "nameErrors": {
     "invalidChars": "AI Employee names can't contain slashes or special characters",
-    "tooLong": "AI Employee names can be at most {{max}} characters"
+    "tooLong": "AI Employee names can be at most {{max}} characters",
+    "reserved": "Houston is your AI Manager's name. Pick another one."
   },
   "instructions": {
     "specific": "Specific instructions",

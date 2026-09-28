@@ -51,7 +51,8 @@
   },
   "nameErrors": {
     "invalidChars": "El nombre del empleado de IA no puede contener barras ni caracteres especiales",
-    "tooLong": "El nombre del empleado de IA puede tener máximo {{max}} caracteres"
+    "tooLong": "El nombre del empleado de IA puede tener máximo {{max}} caracteres",
+    "reserved": "Houston es el nombre de tu AI Manager. Elige otro."
   },
   "instructions": {
     "specific": "Instrucciones específicas",

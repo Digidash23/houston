@@ -110,3 +110,21 @@ test("a createAgent onto a taken name reads as the host's own sentence", async (
     ),
   });
 });
+
+test("a createAgent named Houston reads as the host's reserved-name sentence", async () => {
+  // The host's 400 `name_reserved`, relayed by `assistant-forward.ts` as the
+  // upstream body: the sentence tells the manager what to do next.
+  const upstream = JSON.stringify({
+    error:
+      "Houston is the AI Manager's own name, so an AI Employee can't use it. Ask the user for another name.",
+    code: "name_reserved",
+  });
+  const error = await refusal(400, { error: upstream, code: "gateway_error" });
+
+  expect(error).toMatchObject({ code: "gateway_error", status: 400 });
+  expect(assistantErrorResult("createAgent", error).content[0]).toMatchObject({
+    text: expect.stringContaining(
+      "Houston is the AI Manager's own name, so an AI Employee can't use it. Ask the user for another name.",
+    ),
+  });
+});

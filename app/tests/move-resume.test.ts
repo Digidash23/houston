@@ -147,6 +147,21 @@ describe("resumePendingMove", () => {
     });
   });
 
+  it("yields refused, never rejected, when the team already holds the name", async () => {
+    // C8: `409 name_taken` is answered before anything starts, so no lock is
+    // held and a re-POST can only be refused again: the record is void.
+    const w = wire({
+      statuses: { "op-old": [{ status: "failed" }] },
+      moveAgent: async () => {
+        throw { status: 409, body: { error: "taken", code: "name_taken" } };
+      },
+    });
+    deepStrictEqual(await resumePendingMove(PENDING, w, instant), {
+      outcome: "refused",
+      code: "name_taken",
+    });
+  });
+
   it("yields rejected when even the first status read throws", async () => {
     const w = wire({ statuses: {} });
     w.moveStatus = async () => {
