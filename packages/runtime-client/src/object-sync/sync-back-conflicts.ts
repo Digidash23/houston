@@ -26,6 +26,8 @@ export interface UploadChangeResult {
   vanished?: boolean;
   /** Merge rounds a merged document needed after its first 412. */
   mergeAttempts?: number;
+  /** Board card ids the landed merge removed from the remote it merged into. */
+  removedCards?: string[];
 }
 
 function initialWriteOptions(

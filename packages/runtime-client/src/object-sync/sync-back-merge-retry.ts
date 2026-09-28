@@ -1,15 +1,16 @@
 import { createHash, randomUUID } from "node:crypto";
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { atomicTempPath } from "@houston/protocol";
 import type { HydrateManifestEntry } from "./hydrate";
-import type { ObjectMetadata } from "./object-manifest";
-import {
-  ObjectNotFoundError,
-  type ObjectStore,
-  StoreConflictError,
-} from "./object-store";
-import { mergeDocumentBodies } from "./sync-back-doc-merge";
+import { type ObjectStore, StoreConflictError } from "./object-store";
+import { mergeDocumentBodies, removedCardIds } from "./sync-back-doc-merge";
 import { trustedBase, withMergeBase } from "./sync-back-merge-base";
+import {
+  type RefreshManifest,
+  readRemoteDocument,
+} from "./sync-back-remote-read";
+
+export type { RefreshManifest } from "./sync-back-remote-read";
 
 /** Refresh+merge+upload rounds a merged document gets after its first 412. */
 export const MERGE_UPLOAD_ATTEMPTS = 6;
@@ -24,54 +25,6 @@ export type ConflictBackoff = (retry: number) => number;
 export const jitteredConflictBackoff: ConflictBackoff = (retry) =>
   Math.round(Math.min(800, 50 * 2 ** (retry - 1)) * (0.5 + Math.random()));
 
-/** Lazily fetched remote generations; `fresh` re-lists instead of reusing. */
-export type RefreshManifest = (
-  fresh?: boolean,
-) => Promise<Map<string, ObjectMetadata>> | undefined;
-
-/** The remote document now: absent (`body` undefined, create-only) or read. */
-interface RemoteDocument {
-  body?: string;
-  generation: string;
-}
-
-const CREATE_ONLY: RemoteDocument = { generation: "0" };
-
-/**
- * One read of the remote document with the generation to guard the upload
- * on. A versioned read pairs body and generation atomically; otherwise the
- * listing names it and the upload precondition catches a race in between.
- * Undefined: no generation to guard on, so no safe write.
- */
-async function readRemoteDocument(
-  store: ObjectStore,
-  key: string,
-  temp: string,
-  refresh: RefreshManifest,
-  fresh: boolean,
-): Promise<RemoteDocument | undefined> {
-  try {
-    let generation: string | undefined;
-    if (store.downloadVersioned) {
-      generation = (await store.downloadVersioned(key, temp)).generation;
-    } else {
-      const listing = await refresh(fresh);
-      if (!listing) return undefined;
-      const current = listing.get(key);
-      if (!current) return CREATE_ONLY;
-      generation = current.generation;
-      await store.download(key, temp);
-    }
-    if (generation === undefined) return undefined;
-    return { body: await readFile(temp, "utf8"), generation };
-  } catch (error) {
-    if (error instanceof ObjectNotFoundError) return CREATE_ONLY;
-    throw error;
-  } finally {
-    await rm(temp, { force: true });
-  }
-}
-
 /** Outcome of the merge loop; `attempts` counts merge rounds run. */
 export interface MergedUploadResult {
   entry?: HydrateManifestEntry;
@@ -79,6 +32,8 @@ export interface MergedUploadResult {
   conflict?: string;
   vanished?: boolean;
   attempts: number;
+  /** Board card ids the remote held that the landed merge does not. */
+  removedCards?: string[];
 }
 
 /**
@@ -147,6 +102,10 @@ export async function uploadMergedDocument(opts: {
         ifGenerationMatch: remote.generation,
       });
       const hash = createHash("sha256").update(merged).digest("hex");
+      const removed =
+        remote.body === undefined
+          ? []
+          : removedCardIds(opts.relativePath, remote.body, merged);
       return {
         entry: await withMergeBase(opts.abs, opts.relativePath, {
           hash,
@@ -154,6 +113,7 @@ export async function uploadMergedDocument(opts: {
         }),
         uploaded: true,
         attempts,
+        ...(removed.length > 0 ? { removedCards: removed } : {}),
       };
     } catch (error) {
       if (sourceVanished(error))

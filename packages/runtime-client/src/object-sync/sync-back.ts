@@ -27,8 +27,9 @@ export interface SyncResult {
    */
   conflicts: { key: string; reason: string }[];
   /** Merged documents that lost a first race, with the merge rounds each
-   *  took (landed or not: a conflict entry names the ones that never did). */
-  merges: { key: string; attempts: number }[];
+   *  took (landed or not: a conflict entry names the ones that never did)
+   *  and the board cards a landed merge removed from the remote. */
+  merges: { key: string; attempts: number; removedCards?: string[] }[];
   /** Changed paths rejected by the caller's write scope. */
   outOfScope: number;
   /** Bytes the next hydration must materialize, excluding local-only paths. */
@@ -138,7 +139,11 @@ export async function syncBack(
       ...(opts.conflictBackoff ? { backoff: opts.conflictBackoff } : {}),
     });
     if (result.mergeAttempts)
-      merges.push({ key: rel, attempts: result.mergeAttempts });
+      merges.push({
+        key: rel,
+        attempts: result.mergeAttempts,
+        ...(result.removedCards ? { removedCards: result.removedCards } : {}),
+      });
     // Second half of the vanish window: the file outlived the hash above but
     // was unlinked before the upload re-read it. Same reconciliation as the
     // walk-stage skip: out of the next manifest, delete pass settles the store.

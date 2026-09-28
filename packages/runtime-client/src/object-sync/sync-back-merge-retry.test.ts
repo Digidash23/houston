@@ -147,3 +147,20 @@ test("each round merges the turn's own bytes: a card deleted between rounds stay
   expect(result.merges).toEqual([{ key: DOC, attempts: 2 }]);
   expect(remote()).toEqual([titled]);
 });
+
+test("a landed merge names the board cards it removed from the remote", async () => {
+  const gone: Card = { id: "gone", title: "Old mission", status: "done" };
+  const { store, remote } = racingStore([mine, gone], 1, addSibling);
+  // The turn deleted `gone`; the merge keeps that delete over the remote.
+  const tree = await turnTree([mine, gone], [titled]);
+
+  const result = await syncBack(store, "", tree.root, tree.manifest, {
+    generations: true,
+    conflictBackoff: () => 0,
+  });
+
+  expect(result.merges).toEqual([
+    { key: DOC, attempts: 1, removedCards: ["gone"] },
+  ]);
+  expect(remote().map((card) => card.id)).toEqual(["mine", "sibling-1"]);
+});

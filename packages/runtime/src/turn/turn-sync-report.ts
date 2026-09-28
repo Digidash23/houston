@@ -5,8 +5,9 @@ export interface TurnSyncReport {
   /** Keys left un-landed: generation conflicts that outlived every merge
    *  round, and files over the store's per-object cap. */
   incomplete?: { conflicts: string[]; skipped: string[] };
-  /** Merged documents that lost a first race, with the rounds each took. */
-  merges?: { key: string; attempts: number }[];
+  /** Merged documents that lost a first race, with the rounds each took and
+   *  the board card ids a landed merge removed (a drop is visible here). */
+  merges?: { key: string; attempts: number; removedCards?: string[] }[];
   /** The agent's board (`activity.json`): landed this pass or not. */
   board: { landed: boolean; mergeAttempts?: number };
 }
@@ -17,7 +18,11 @@ export function turnSyncReport(
     uploaded: readonly string[];
     conflicts: readonly { key: string }[];
     skipped: readonly { key: string }[];
-    merges: readonly { key: string; attempts: number }[];
+    merges: readonly {
+      key: string;
+      attempts: number;
+      removedCards?: string[];
+    }[];
   },
   workspaceRel: string,
 ): TurnSyncReport {

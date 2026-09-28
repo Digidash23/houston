@@ -1,5 +1,6 @@
 import {
   type ObjectStore,
+  type SyncResult,
   syncBack,
 } from "@houston/runtime-client/object-sync";
 import type { TurnFilesystem } from "./turn-filesystem";
@@ -18,7 +19,7 @@ export async function syncTurnFilesystem(opts: {
   outOfScope: number;
   skipped: { key: string; reason: string }[];
   conflicts: { key: string; reason: string }[];
-  merges: { key: string; attempts: number }[];
+  merges: SyncResult["merges"];
 }> {
   const result = await syncBack(
     opts.store,

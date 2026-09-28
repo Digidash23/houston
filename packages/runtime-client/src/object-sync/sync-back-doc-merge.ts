@@ -123,3 +123,28 @@ export function mergeDocumentBodies(
   };
   return `${JSON.stringify(merged, null, 2)}\n`;
 }
+
+function cardIds(body: string): string[] {
+  try {
+    const doc = JSON.parse(body) as unknown;
+    return Array.isArray(doc)
+      ? doc.map((card) => identity(card, "id")).filter((id) => id !== undefined)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Board card ids `remoteBody` holds that `mergedBody` does not: what a merge
+ * removed from the board it landed over. Empty for every other document.
+ */
+export function removedCardIds(
+  relativePath: string,
+  remoteBody: string,
+  mergedBody: string,
+): string[] {
+  if (!isPath(relativePath, ACTIVITY_DOC)) return [];
+  const kept = new Set(cardIds(mergedBody));
+  return cardIds(remoteBody).filter((id) => !kept.has(id));
+}
