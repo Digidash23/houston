@@ -7,6 +7,7 @@ import {
   type WriteOptions,
 } from "./object-store";
 import { mergeSyncBackDocument } from "./sync-back-doc-merge";
+import { trustedBase, withMergeBase } from "./sync-back-merge-base";
 
 /** Lazily fetched remote generations shared across one sync pass. */
 export type RefreshManifest = () =>
@@ -64,7 +65,10 @@ export async function uploadChangedObject(opts: {
       initialWriteOptions(opts.generationAware, opts.previous),
     );
     return {
-      entry: { hash: opts.hash, generation: result?.generation },
+      entry: await withMergeBase(opts.abs, opts.relativePath, {
+        hash: opts.hash,
+        generation: result?.generation,
+      }),
       uploaded: true,
     };
   } catch (error) {
@@ -100,15 +104,16 @@ export async function uploadChangedObject(opts: {
         abs: opts.abs,
         key: opts.key,
         relativePath: opts.relativePath,
+        base: trustedBase(opts.previous),
       });
       const result = await opts.store.upload(opts.abs, opts.key, {
         ifGenerationMatch: retryGeneration,
       });
       return {
-        entry: {
+        entry: await withMergeBase(opts.abs, opts.relativePath, {
           hash: mergedHash ?? opts.hash,
           generation: result?.generation,
-        },
+        }),
         uploaded: true,
       };
     } catch (retryError) {

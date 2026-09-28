@@ -1,8 +1,9 @@
-import { rm, stat } from "node:fs/promises";
+import { readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { fileSha256 } from "./file-hash";
 import type { HydrateManifest } from "./hydrate";
 import { ObjectNotFoundError, type ObjectStore } from "./object-store";
+import { keepsMergeBase } from "./sync-back-doc-merge";
 
 export interface HydrateEntry {
   generation?: string;
@@ -47,6 +48,9 @@ export async function downloadHydrationEntries(opts: {
         opts.manifest.set(rel, {
           hash: await fileSha256(dest, size),
           generation,
+          ...(keepsMergeBase(rel)
+            ? { mergeBase: await readFile(dest, "utf8") }
+            : {}),
         });
       } catch (error) {
         if (!opts.signal.aborted && error instanceof ObjectNotFoundError) {

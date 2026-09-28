@@ -1,10 +1,7 @@
 import { StoreFencedError } from "@houston/runtime-client/object-sync";
 import type { ClaimHeartbeat } from "./claim-heartbeat";
 import type { TurnServerDeps } from "./server-types";
-import {
-  publishTurnActivityDoc,
-  publishTurnRunsDoc,
-} from "./turn-activity-doc";
+import { activityDocStale, publishTurnActivityDoc } from "./turn-activity-doc";
 import { changedEventTypes } from "./turn-changed-events";
 import {
   syncTurnFilesystem,
@@ -12,6 +9,7 @@ import {
   turnActivityKey,
   turnRoutineRunsKey,
 } from "./turn-filesystem";
+import { publishTurnRunsDoc } from "./turn-runs-doc";
 import type { TurnSandboxViews } from "./turn-sandbox";
 import type { TurnOutcome } from "./turn-session";
 import type { ResolvedTurnStore } from "./turn-store";
@@ -145,15 +143,20 @@ export async function finishTurnDurability(
   );
   const activityPublished =
     opts.turn.claim && activityChanged
-      ? await publishTurnActivityDoc(opts.deps, opts.turn, opts.filesystem)
+      ? await publishTurnActivityDoc(
+          opts.deps,
+          opts.turn,
+          opts.filesystem,
+          opts.resolved,
+        )
       : null;
   if (activityPublished && "error" in activityPublished) {
     outcome = appendError(
       outcome,
       `board doc publish failed: ${activityPublished.error}`,
     );
-    without("ActivityChanged");
   }
+  if (activityDocStale(activityPublished)) without("ActivityChanged");
   const runsChanged = uploaded.includes(
     turnRoutineRunsKey(opts.filesystem.workspaceRel),
   );
