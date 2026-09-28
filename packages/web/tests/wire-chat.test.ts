@@ -236,7 +236,35 @@ test("startSession posts the turn to the agent's own sandbox, carrying its per-t
     displayText: undefined,
     mentions: undefined,
     approvals: undefined,
+    missionTitle: undefined,
   });
+});
+
+test("a new mission's first send asks the runtime to title the card after the reply", async () => {
+  stubEngine({ ok: true });
+
+  await client().startSession(AGENT, {
+    // A fresh conversation: SK still has the previous spec's turn open.
+    sessionKey: "activity-new-mission",
+    prompt: "Write the weekly sales report",
+    provider: "openai",
+    model: "gpt-6-astra",
+    missionTitle: {
+      fallback: "Write the weekly sales report",
+      text: "Write the weekly sales report",
+    },
+  });
+
+  const send = await vi.waitUntil(() =>
+    calls.find((c) => c.method === "POST" && c.url.endsWith("/messages")),
+  );
+  const body = JSON.parse(send.body ?? "{}") as Record<string, unknown>;
+  expect(body.missionTitle).toEqual({
+    fallback: "Write the weekly sales report",
+    text: "Write the weekly sales report",
+  });
+  // No separate title request rides beside the send.
+  expect(calls.some((c) => c.url.endsWith("/title"))).toBe(false);
 });
 
 // ---- the ids the paths splice ----

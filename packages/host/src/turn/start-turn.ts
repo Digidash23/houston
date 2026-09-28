@@ -1,5 +1,8 @@
 import type { ServerResponse } from "node:http";
-import type { ChatMessage } from "@houston/protocol";
+import type {
+  ChatMessage,
+  MissionTitleRequest as MissionTitle,
+} from "@houston/protocol";
 import { readEventStream } from "@houston/runtime-client";
 import type { Agent, Workspace } from "../domain/types";
 import { isApiKeyCredential, type TurnPin } from "../ports";
@@ -38,6 +41,7 @@ export async function dispatchTurn(
   pin?: TurnPin,
   displayText?: string,
   mentions?: ChatMessage["mentions"],
+  missionTitle?: MissionTitle,
 ): Promise<TurnStart> {
   const prefix = prefixFor(ws, agent);
   // Resolve the provider (+ effort) for this turn BEFORE claiming the quota/relay
@@ -95,6 +99,9 @@ export async function dispatchTurn(
               // The @mention sidecar — omitted when the message named nobody,
               // so a single-player turn's body is byte-identical to today.
               ...(mentions?.length ? { mentions } : {}),
+              // A new mission's first send: the runtime titles the card after
+              // the reply, before sync-back. Omitted on every other turn.
+              ...(missionTitle ? { missionTitle } : {}),
               gcsPrefix: prefix,
               credential: cred
                 ? {
@@ -155,6 +162,7 @@ export async function startTurn(
   res: ServerResponse,
   displayText?: string,
   mentions?: ChatMessage["mentions"],
+  missionTitle?: MissionTitle,
 ): Promise<void> {
   const outcome = await dispatchTurn(
     deps,
@@ -166,6 +174,7 @@ export async function startTurn(
     undefined,
     displayText,
     mentions,
+    missionTitle,
   );
   if (outcome.status === "quota")
     return json(res, 429, { error: outcome.message });

@@ -23,6 +23,7 @@ import type {
   ProviderStatus as EngineProviderStatus,
   MessageApproval,
   MessageMention,
+  MissionTitle,
   ProviderAuthState,
   ProviderHealth,
   ProviderUsage,
@@ -518,6 +519,11 @@ export const tauriChat = {
        * the field before the runtime sees the turn (see SessionStartRequest).
        */
       approvals?: MessageApproval[];
+      /**
+       * A new mission's first message: the runtime titles the card after this
+       * turn's reply (see SessionStartRequest). Omitted on every other send.
+       */
+      missionTitle?: MissionTitle;
     },
   ) =>
     call<string>("send_message", async () => {
@@ -547,6 +553,7 @@ export const tauriChat = {
         // Which approval cards this message answers. Absence and an empty list
         // are the same answer, so never put `[]` on the wire.
         approvals: opts?.approvals?.length ? opts.approvals : undefined,
+        missionTitle: opts?.missionTitle,
       });
       return res.sessionKey;
     }),

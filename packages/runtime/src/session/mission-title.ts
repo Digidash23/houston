@@ -5,12 +5,12 @@
  * the title is written only while the card still shows that fallback, so a
  * rename the user made in the meantime always wins.
  */
-export interface MissionTitleRequest {
-  /** The truncated title the card was created with. */
-  fallback: string;
-  /** The user's words to title (never a hidden skill prompt). */
-  text: string;
-}
+export {
+  type MissionTitleRequest,
+  parseMissionTitle,
+} from "@houston/protocol";
+
+import type { MissionTitleRequest } from "@houston/protocol";
 
 /** Produce a raw title for an excerpt, on the turn's own provider/model. */
 export type MissionTitleRunner = (
@@ -22,18 +22,6 @@ export type MissionTitleRunner = (
 export const MISSION_TITLE_TIMEOUT_MS = 10_000;
 
 const EXCERPT_MAX = 2400;
-
-/** Normalize an untrusted wire value; anything malformed means "no title". */
-export function parseMissionTitle(
-  value: unknown,
-): MissionTitleRequest | undefined {
-  if (!value || typeof value !== "object") return undefined;
-  const { fallback, text } = value as Record<string, unknown>;
-  if (typeof fallback !== "string" || typeof text !== "string")
-    return undefined;
-  if (!fallback.trim() || !text.trim()) return undefined;
-  return { fallback, text };
-}
 
 /** A model reply trimmed to a card title: 6 words, 64 chars, no quotes. */
 export function cleanMissionTitle(value: string | undefined): string | null {

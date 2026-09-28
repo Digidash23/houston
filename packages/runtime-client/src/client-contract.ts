@@ -80,5 +80,12 @@ export interface SendOptions {
    * an empty list. (Kept inline — this package stays zero-dep, like `mode`.)
    */
   approvals?: { requestId: string; decision: "approve" | "deny" }[];
+  /**
+   * A new mission's first message: title its card after the reply, in the
+   * runtime that ran the turn. `fallback` = the card's creation title (written
+   * over only while still shown), `text` = the user's words. (Kept inline —
+   * this package stays zero-dep.)
+   */
+  missionTitle?: { fallback: string; text: string };
   signal?: AbortSignal;
 }
