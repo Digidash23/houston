@@ -3,6 +3,12 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v115 - 2026-09-28
+
+The launch announcement is copy and plans only: the astronaut panel is gone
+and the dialog narrows to its content column (`announcement-dialog-width`
+48rem), on phone and desktop.
+
 ## v114 - 2026-09-28
 
 The archived missions list (`mission-card`'s `archived-list-row`) wears the
