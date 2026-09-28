@@ -1125,7 +1125,12 @@ export const tauriActivity = {
   createWithIdAttempt: (agentPath: string, input: EngineNewActivity) =>
     call(
       "create_activity",
-      () => getEngine().createActivity(agentPath, input),
+      // The optimistic row rides out a pod wake on the SDK's mission-row
+      // ladder (PRODUCT-1736).
+      () =>
+        getEngine().createActivity(agentPath, input, {
+          retryWhileWaking: true,
+        }),
       undefined,
       { surface: false },
     ),

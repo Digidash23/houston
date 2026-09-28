@@ -1,4 +1,5 @@
 import { missionConversationId } from "@houston/domain";
+import type { CreateActivityOptions } from "@houston/sdk";
 import type {
   Activity,
   ActivityUpdate,
@@ -33,13 +34,14 @@ export function ActivitiesMixin<TBase extends BaseCtor>(Base: TBase) {
     async createActivity(
       agentPath: string,
       input: NewActivity,
+      opts?: CreateActivityOptions,
     ): Promise<Activity> {
       // SDK delegates the wire write (byte-identical POST
       // /agents/:id/activities, no refetch); web keeps its own write-through
       // echo. Standalone (no host) stays localStorage-backed.
       const activity = this.ctx.cp
         ? await viaSdk(`${controlPlane.agentPath(agentPath)}/activities`, () =>
-            this.ctx.sdk.activities.writes.create(agentPath, input),
+            this.ctx.sdk.activities.writes.create(agentPath, input, opts),
           )
         : activities.createActivity(agentPath, input);
       emitLocalEcho("ActivityChanged", { agentPath });

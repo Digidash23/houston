@@ -87,7 +87,11 @@ export interface CreatedActivity {
  */
 export interface ActivitiesWrites {
   /** `POST /agents/:id/activities`; returns the created wire activity. */
-  create(agentId: string, input: NewActivity): Promise<Activity>;
+  create(
+    agentId: string,
+    input: NewActivity,
+    opts?: CreateActivityOptions,
+  ): Promise<Activity>;
   /**
    * `PATCH …/:id` with the caller's own {@link ActivityUpdate}; returns the
    * updated wire activity. The general form the two narrow writes below are
@@ -106,6 +110,17 @@ export interface ActivitiesWrites {
   rename(agentId: string, id: string, title: string): Promise<Activity>;
   /** `DELETE …/:id`. */
   delete(agentId: string, id: string): Promise<void>;
+}
+
+/** How a board-card create rides out an agent that is not there yet. */
+export interface CreateActivityOptions {
+  /**
+   * Re-issue an id-bearing create the pod refuses as waking, along the
+   * mission-row ladder (`busy-retry.ts`). The optimistic mission row sets it:
+   * its turn is already on screen and the card must not be lost to a wake
+   * that ran long. Every other create surfaces a waking refusal at once.
+   */
+  retryWhileWaking?: boolean;
 }
 
 /** The typed facade for board/missions reads + writes. */

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { SdkConfig, SdkPorts } from "../../ports";
 import { HoustonSdk } from "../../sdk";
 import { memoryKv } from "../../test-ports";
-import { WRITE_RETRY_BUDGET_MS } from "./busy-retry";
+import { WAKING_CREATE_RETRY_MS, WRITE_RETRY_BUDGET_MS } from "./busy-retry";
 
 const BASE = "http://127.0.0.1:4317";
 const AGENT = "ag_1";
@@ -67,17 +67,81 @@ describe("board-card writes retry a busy or waking refusal", () => {
     sdk.dispose();
   });
 
-  it("update retries the gateway's plain-text busy body and a waking 503", async () => {
+  it("update retries the gateway's plain-text busy body", async () => {
     const { sdk, pauses, attempts } = makeSdk([
       refusal(503, "agent busy; retry in a moment\n", "2"),
-      refusal(503, WAKING),
       card,
     ]);
     const updated = await sdk.activities.writes.setStatus(AGENT, "m1", "done");
     expect(updated).toMatchObject({ id: "m1" });
-    expect(attempts()).toBe(3);
-    // No Retry-After on the waking refusal: the 2 s default.
-    expect(pauses).toEqual([2_000, 2_000]);
+    expect(attempts()).toBe(2);
+    expect(pauses).toEqual([2_000]);
+    sdk.dispose();
+  });
+
+  it("a waking refusal on an update surfaces at once, as before the SDK retried", async () => {
+    const { sdk, pauses, attempts } = makeSdk([refusal(503, WAKING), card]);
+    await expect(
+      sdk.activities.writes.update(AGENT, "m1", { title: "x" }),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(attempts()).toBe(1);
+    expect(pauses).toEqual([]);
+    sdk.dispose();
+  });
+
+  it("a waking refusal on a create without the opt-in surfaces at once", async () => {
+    const { sdk, pauses, attempts } = makeSdk([refusal(503, WAKING), card]);
+    await expect(
+      sdk.activities.writes.create(AGENT, { id: "m1", title: "T" }),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(attempts()).toBe(1);
+    expect(pauses).toEqual([]);
+    sdk.dispose();
+  });
+
+  it("the optimistic mission row walks the app's old waking ladder, ignoring Retry-After", async () => {
+    const { sdk, pauses, attempts } = makeSdk([
+      refusal(503, WAKING, "2"),
+      refusal(502, JSON.stringify({ error: "engine proxy failed" })),
+      refusal(503, WAKING),
+      card,
+    ]);
+    const created = await sdk.activities.writes.create(
+      AGENT,
+      { id: "m1", title: "T" },
+      { retryWhileWaking: true },
+    );
+    expect(created).toMatchObject({ id: "m1" });
+    expect(attempts()).toBe(4);
+    expect(pauses).toEqual([...WAKING_CREATE_RETRY_MS]);
+    expect(pauses).toEqual([5_000, 15_000, 30_000]);
+    sdk.dispose();
+  });
+
+  it("an exhausted waking ladder surfaces the last refusal after four attempts", async () => {
+    const { sdk, pauses, attempts } = makeSdk([refusal(503, WAKING)]);
+    await expect(
+      sdk.activities.writes.create(
+        AGENT,
+        { id: "m1", title: "T" },
+        { retryWhileWaking: true },
+      ),
+    ).rejects.toMatchObject({ name: "ActivitiesHttpError", status: 503 });
+    expect(attempts()).toBe(4);
+    expect(pauses).toEqual([5_000, 15_000, 30_000]);
+    sdk.dispose();
+  });
+
+  it("an id-less create never re-issues a waking refusal, even when asked", async () => {
+    const { sdk, attempts } = makeSdk([refusal(503, WAKING), card]);
+    await expect(
+      sdk.activities.writes.create(
+        AGENT,
+        { title: "T" },
+        { retryWhileWaking: true },
+      ),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(attempts()).toBe(1);
     sdk.dispose();
   });
 

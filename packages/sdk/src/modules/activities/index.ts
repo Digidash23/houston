@@ -43,6 +43,7 @@ export {
   type ActivitiesWrites,
   type ActivityItem,
   activitiesScope,
+  type CreateActivityOptions,
   type CreatedActivity,
 } from "./types";
 
