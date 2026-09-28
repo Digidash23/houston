@@ -19,6 +19,18 @@ export function isMergedDocument(relativePath: string): boolean {
   );
 }
 
+/**
+ * Documents the standing store sync merges once on a generation conflict (its
+ * behavior before the worker's merge rounds): never the board, which a
+ * standing pod re-uploads over the refreshed generation.
+ */
+export function mergesOnceOnConflict(relativePath: string): boolean {
+  return (
+    arrayIdentity(relativePath) !== undefined ||
+    relativePath === CUSTOM_DEFINITIONS
+  );
+}
+
 /** Documents whose hydrated bytes are kept as the base of a three-way merge. */
 export function keepsMergeBase(relativePath: string): boolean {
   return isPath(relativePath, ACTIVITY_DOC);

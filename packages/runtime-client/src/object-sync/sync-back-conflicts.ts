@@ -13,6 +13,7 @@ import {
   sourceVanished,
   uploadMergedDocument,
 } from "./sync-back-merge-retry";
+import { retryAtRefreshedGeneration } from "./sync-back-single-retry";
 
 export type { RefreshManifest } from "./sync-back-merge-retry";
 
@@ -28,6 +29,8 @@ export interface UploadChangeResult {
   mergeAttempts?: number;
   /** Board card ids the landed merge removed from the remote it merged into. */
   removedCards?: string[];
+  /** Why a side would not parse, so the local bytes overwrote the remote. */
+  unmergeable?: string;
 }
 
 function initialWriteOptions(
@@ -42,9 +45,10 @@ function initialWriteOptions(
 }
 
 /**
- * Upload once. On a generation conflict a merged document re-merges against
- * the latest remote for a bounded number of rounds; any other file retries
- * once at the refreshed generation (last writer wins).
+ * Upload once. On a generation conflict a worker store (`workerMerge`) lands a
+ * merged document through bounded merge rounds; everything else, and every
+ * file of the standing store sync, retries once at the refreshed generation
+ * (`sync-back-single-retry.ts`).
  */
 export async function uploadChangedObject(opts: {
   store: ObjectStore;
@@ -55,6 +59,8 @@ export async function uploadChangedObject(opts: {
   previous?: HydrateManifestEntry;
   generationAware: boolean;
   refresh: RefreshManifest;
+  /** The per-turn worker's merge rounds and board merge base. */
+  workerMerge?: boolean;
   backoff?: ConflictBackoff;
 }): Promise<UploadChangeResult> {
   try {
@@ -63,11 +69,11 @@ export async function uploadChangedObject(opts: {
       opts.key,
       initialWriteOptions(opts.generationAware, opts.previous),
     );
+    const entry = { hash: opts.hash, generation: result?.generation };
     return {
-      entry: await withMergeBase(opts.abs, opts.relativePath, {
-        hash: opts.hash,
-        generation: result?.generation,
-      }),
+      entry: opts.workerMerge
+        ? await withMergeBase(opts.abs, opts.relativePath, entry)
+        : entry,
       uploaded: true,
     };
   } catch (error) {
@@ -80,48 +86,14 @@ export async function uploadChangedObject(opts: {
     }
     if (sourceVanished(error)) return { uploaded: false, vanished: true };
     if (!(error instanceof StoreConflictError)) throw error;
-    if (isMergedDocument(opts.relativePath)) {
+    if (opts.workerMerge && isMergedDocument(opts.relativePath)) {
       const { attempts, ...merged } = await uploadMergedDocument({
         ...opts,
         conflict: error.message,
       });
       return { ...merged, mergeAttempts: attempts };
     }
-    return overwriteAtRefreshedGeneration(opts, error.message);
-  }
-}
-
-async function overwriteAtRefreshedGeneration(
-  opts: Parameters<typeof uploadChangedObject>[0],
-  conflict: string,
-): Promise<UploadChangeResult> {
-  const refreshed = await opts.refresh();
-  const current = refreshed?.get(opts.key);
-  const retryGeneration = current ? current.generation : "0";
-  if (!refreshed || retryGeneration === undefined) {
-    return { entry: opts.previous, uploaded: false, conflict };
-  }
-  try {
-    const result = await opts.store.upload(opts.abs, opts.key, {
-      ifGenerationMatch: retryGeneration,
-    });
-    return {
-      entry: await withMergeBase(opts.abs, opts.relativePath, {
-        hash: opts.hash,
-        generation: result?.generation,
-      }),
-      uploaded: true,
-    };
-  } catch (retryError) {
-    if (sourceVanished(retryError)) return { uploaded: false, vanished: true };
-    if (!(retryError instanceof StoreConflictError)) throw retryError;
-    return {
-      entry: opts.previous
-        ? { ...opts.previous, generation: retryGeneration }
-        : undefined,
-      uploaded: false,
-      conflict: retryError.message,
-    };
+    return retryAtRefreshedGeneration(opts, error.message);
   }
 }
 

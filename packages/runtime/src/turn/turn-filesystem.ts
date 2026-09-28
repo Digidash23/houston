@@ -144,6 +144,7 @@ export async function startTurnFilesystem(opts: {
     const started = await startHydrate(opts.store, opts.prefix, storeRoot, {
       ...(maxBytes !== undefined ? { maxBytes } : {}),
       excludes,
+      keepMergeBase: true,
       ...(opts.filter ? { filter: opts.filter } : {}),
       priority: (rel) =>
         turnHydrationPriorityIncludes(

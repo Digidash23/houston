@@ -103,3 +103,29 @@ test("the done frame names the board cards a sync-back merge removed", () => {
     { key: board, attempts: 1, removedCards: ["card-9"] },
   ]);
 });
+
+test("the done frame says when a board would not merge and the turn's bytes overwrote it", () => {
+  const board = "workspaces/W/A/.houston/activity/activity.json";
+  const merge = {
+    key: board,
+    attempts: 1,
+    unmergeable: "Unexpected token '﻿', \"﻿[]\" is not valid JSON",
+  };
+  const sync = turnSyncReport(
+    { uploaded: [board], conflicts: [], skipped: [], merges: [merge] },
+    "workspaces/W/A",
+  );
+  const frame = turnTerminalFrame(
+    {},
+    "t1",
+    0,
+    undefined,
+    undefined,
+    [],
+    undefined,
+    undefined,
+    { sync },
+  ) as unknown as { data: Record<string, unknown> };
+  expect(frame.data.syncMerges).toEqual([merge]);
+  expect(frame.data.syncIncomplete).toBeUndefined();
+});

@@ -5,54 +5,10 @@ import { DEFAULT_EXCLUDES, excluded, type HydrateManifest } from "./hydrate";
 import type { ObjectMetadata } from "./object-manifest";
 import type { ObjectStore } from "./object-store";
 import { deleteOwnedObject, uploadChangedObject } from "./sync-back-conflicts";
-import type { ConflictBackoff } from "./sync-back-merge-retry";
+import type { SyncBackOptions, SyncResult } from "./sync-back-types";
 import { walkFiles } from "./sync-back-walk";
 
-export interface SyncResult {
-  uploaded: string[];
-  deleted: string[];
-  manifest: HydrateManifest;
-  /**
-   * Files the store REJECTED as over its per-object cap (typed 413). They stay
-   * local-only: recorded in the manifest at their current hash so the pass
-   * completes and the upload is re-attempted only when the file changes —
-   * never as an every-tick retry of a deterministic verdict.
-   */
-  skipped: { key: string; reason: string }[];
-  /**
-   * Per-object generation conflicts (typed 412) that survived one refreshed
-   * retry. The pass continues past them; a FENCE rejection (409) aborts it
-   * instead — that pod is no longer the writer, and every further write would
-   * be garbage.
-   */
-  conflicts: { key: string; reason: string }[];
-  /** Merged documents that lost a first race, with the merge rounds each
-   *  took (landed or not: a conflict entry names the ones that never did)
-   *  and the board cards a landed merge removed from the remote. */
-  merges: { key: string; attempts: number; removedCards?: string[] }[];
-  /** Changed paths rejected by the caller's write scope. */
-  outOfScope: number;
-  /** Bytes the next hydration must materialize, excluding local-only paths. */
-  totalBytes: number;
-}
-
-/** Caller policy for exclusions, generations, and permitted write paths. */
-export interface SyncBackOptions {
-  excludes?: string[];
-  generations?: boolean;
-  /** Limit writes and deletes while still detecting skipped changes. */
-  include?: (relativePath: string) => boolean;
-  /**
-   * Skip the delete pass entirely when any upload was skipped or conflicted.
-   * A rename/move uploads the new key and deletes the old one; if the upload
-   * is refused (over the store's cap, a conflict) the delete would destroy
-   * the ONLY durable copy. One-shot callers (a pool op) set this; the
-   * standing daemon retries on its next tick and keeps the default.
-   */
-  holdDeletesOnFailure?: boolean;
-  /** Delay between merge rounds of a contended document (tests pass 0). */
-  conflictBackoff?: ConflictBackoff;
-}
+export type { SyncBackOptions, SyncMerge, SyncResult } from "./sync-back-types";
 
 /** Upload changes and conditionally remove objects owned by the prior hydrate. */
 export async function syncBack(
@@ -136,6 +92,7 @@ export async function syncBack(
       previous,
       generationAware,
       refresh,
+      ...(opts.workerMerge ? { workerMerge: true } : {}),
       ...(opts.conflictBackoff ? { backoff: opts.conflictBackoff } : {}),
     });
     if (result.mergeAttempts)
@@ -143,6 +100,7 @@ export async function syncBack(
         key: rel,
         attempts: result.mergeAttempts,
         ...(result.removedCards ? { removedCards: result.removedCards } : {}),
+        ...(result.unmergeable ? { unmergeable: result.unmergeable } : {}),
       });
     // Second half of the vanish window: the file outlived the hash above but
     // was unlinked before the upload re-read it. Same reconciliation as the

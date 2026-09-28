@@ -7,6 +7,7 @@ export type {
   HydrateOptions,
   StartedHydration,
   SyncBackOptions,
+  SyncMerge,
   SyncResult,
 } from "./hydrate";
 export {

@@ -89,6 +89,7 @@ test("a board contended on every round but the last lands with every card and th
 
   const result = await syncBack(store, "", tree.root, tree.manifest, {
     generations: true,
+    workerMerge: true,
     conflictBackoff: () => 0,
   });
 
@@ -117,6 +118,7 @@ test("a board still contended after every round is a recorded conflict, never an
 
   const result = await syncBack(store, "", tree.root, tree.manifest, {
     generations: true,
+    workerMerge: true,
     conflictBackoff: () => 0,
   });
 
@@ -141,6 +143,7 @@ test("each round merges the turn's own bytes: a card deleted between rounds stay
 
   const result = await syncBack(store, "", tree.root, tree.manifest, {
     generations: true,
+    workerMerge: true,
     conflictBackoff: () => 0,
   });
 
@@ -156,6 +159,7 @@ test("a landed merge names the board cards it removed from the remote", async ()
 
   const result = await syncBack(store, "", tree.root, tree.manifest, {
     generations: true,
+    workerMerge: true,
     conflictBackoff: () => 0,
   });
 

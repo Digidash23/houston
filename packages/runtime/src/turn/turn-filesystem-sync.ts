@@ -31,6 +31,9 @@ export async function syncTurnFilesystem(opts: {
       // The temp tree disappears after one pool turn. If a replacement write
       // fails, keep the durable source object instead of completing its delete.
       holdDeletesOnFailure: opts.claimed,
+      // Concurrent turns and the gateway's own card writes share one board:
+      // merge it over bounded rounds (the standing daemon never sets this).
+      workerMerge: true,
       ...(opts.claimed
         ? {
             include: claimedTurnIncludes(

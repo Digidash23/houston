@@ -28,6 +28,8 @@ export async function downloadHydrationEntries(opts: {
   maxBytes: number;
   concurrency: number;
   state: HydrateDownloadState;
+  /** Keep the board's bytes as its merge base (worker stores only). */
+  keepMergeBase?: boolean;
   signal: AbortSignal;
   limitError: (observedBytes: number) => Error;
 }): Promise<void> {
@@ -56,7 +58,7 @@ export async function downloadHydrationEntries(opts: {
         opts.manifest.set(rel, {
           hash: await fileSha256(dest, size),
           generation,
-          ...(keepsMergeBase(rel)
+          ...(opts.keepMergeBase && keepsMergeBase(rel)
             ? { mergeBase: await readFile(dest, "utf8") }
             : {}),
         });

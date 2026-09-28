@@ -164,6 +164,7 @@ export async function executeOp(
           // listing still told us whether the store mints generations, so a
           // first create stays create-only (CAS "0") instead of blind.
           generations: filesystem.generationAware,
+          workerMerge: true,
         },
       );
       const landed = synced.uploaded.length + synced.deleted.length > 0;

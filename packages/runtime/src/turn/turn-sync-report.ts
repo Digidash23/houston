@@ -1,3 +1,4 @@
+import type { SyncMerge } from "@houston/runtime-client/object-sync";
 import { turnActivityKey } from "./turn-filesystem-scope";
 
 /** What a turn's sync-back could not land, for the terminal frame. */
@@ -7,7 +8,7 @@ export interface TurnSyncReport {
   incomplete?: { conflicts: string[]; skipped: string[] };
   /** Merged documents that lost a first race, with the rounds each took and
    *  the board card ids a landed merge removed (a drop is visible here). */
-  merges?: { key: string; attempts: number; removedCards?: string[] }[];
+  merges?: SyncMerge[];
   /** The agent's board (`activity.json`): landed this pass or not. */
   board: { landed: boolean; mergeAttempts?: number };
 }
@@ -18,11 +19,7 @@ export function turnSyncReport(
     uploaded: readonly string[];
     conflicts: readonly { key: string }[];
     skipped: readonly { key: string }[];
-    merges: readonly {
-      key: string;
-      attempts: number;
-      removedCards?: string[];
-    }[];
+    merges: readonly SyncMerge[];
   },
   workspaceRel: string,
 ): TurnSyncReport {

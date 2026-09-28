@@ -1,10 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { atomicTempPath } from "@houston/protocol";
 import type { HydrateManifestEntry } from "./hydrate";
 import { type ObjectStore, StoreConflictError } from "./object-store";
-import { mergeDocumentBodies, removedCardIds } from "./sync-back-doc-merge";
+import { removedCardIds } from "./sync-back-doc-merge";
 import { trustedBase, withMergeBase } from "./sync-back-merge-base";
+import { mergeOrOverwrite, writeAtomically } from "./sync-back-merge-write";
 import {
   type RefreshManifest,
   readRemoteDocument,
@@ -34,6 +35,8 @@ export interface MergedUploadResult {
   attempts: number;
   /** Board card ids the remote held that the landed merge does not. */
   removedCards?: string[];
+  /** A side would not parse: the local bytes overwrote the remote. */
+  unmergeable?: string;
 }
 
 /**
@@ -66,6 +69,7 @@ export async function uploadMergedDocument(opts: {
   // may only upload them over exactly that generation.
   let generation = opts.previous?.generation;
   let attempts = 0;
+  let unmergeable: string | undefined;
   while (attempts < MERGE_UPLOAD_ATTEMPTS) {
     attempts += 1;
     if (attempts > 1) await sleep(backoff(attempts - 1));
@@ -78,11 +82,9 @@ export async function uploadMergedDocument(opts: {
       attempts > 1,
     );
     if (!remote) break;
-    const merged =
-      remote.body === undefined
-        ? local
-        : (mergeDocumentBodies(opts.relativePath, local, remote.body, base) ??
-          local);
+    const outcome = mergeOrOverwrite(opts.relativePath, local, remote, base);
+    const merged = outcome.body;
+    unmergeable = outcome.unmergeable;
     if (merged !== onDisk) {
       // A standing daemon's agent may rewrite the file while a round waits:
       // leave its bytes for the next pass rather than overwrite them.
@@ -93,7 +95,7 @@ export async function uploadMergedDocument(opts: {
         conflict = `${opts.relativePath} changed locally during its merge`;
         break;
       }
-      await writeFile(opts.abs, merged);
+      await writeAtomically(opts.abs, merged);
       onDisk = merged;
     }
     generation = remote.generation;
@@ -114,6 +116,7 @@ export async function uploadMergedDocument(opts: {
         uploaded: true,
         attempts,
         ...(removed.length > 0 ? { removedCards: removed } : {}),
+        ...(unmergeable ? { unmergeable } : {}),
       };
     } catch (error) {
       if (sourceVanished(error))
@@ -127,6 +130,7 @@ export async function uploadMergedDocument(opts: {
     uploaded: false,
     conflict,
     attempts,
+    ...(unmergeable ? { unmergeable } : {}),
   };
 }
 
