@@ -125,7 +125,10 @@ test("titles the card in the hydrated tree after the reply", async () => {
   const dirs = await directories([card("m1", FALLBACK)]);
   const order: string[] = [];
   const { run } = turn(dirs, order);
-  expect(await run).toEqual({ pendingInteraction: undefined });
+  expect(await run).toEqual({
+    pendingInteraction: undefined,
+    missionTitle: { outcome: "written", ms: expect.any(Number) },
+  });
   expect(order).toEqual(["reply", `title:${TEXT}`]);
   expect(await cardTitle(dirs, "m1")).toBe("Weekly sales report");
 });
@@ -133,7 +136,7 @@ test("titles the card in the hydrated tree after the reply", async () => {
 test("a card the user renamed keeps its name", async () => {
   const dirs = await directories([card("m1", "My own name")]);
   const { run } = turn(dirs, []);
-  await run;
+  expect((await run).missionTitle?.outcome).toBe("renamed");
   expect(await cardTitle(dirs, "m1")).toBe("My own name");
 });
 
@@ -168,6 +171,7 @@ test("a title failure keeps the fallback and never fails the turn", async () => 
     },
   );
   expect(outcome.error).toBeUndefined();
+  expect(outcome.missionTitle?.outcome).toBe("error");
   expect(await cardTitle(dirs, "m1")).toBe(FALLBACK);
   expect(error).toHaveBeenCalled();
 });
@@ -191,7 +195,7 @@ test("writeMissionTitleInTree finds the card by its conversation", async () => {
       "T",
       FALLBACK,
     ),
-  ).toBe(true);
+  ).toBe("written");
   expect(await cardTitle(dirs, "m1")).toBe(FALLBACK);
   expect(await cardTitle(dirs, "m2")).toBe("T");
 });
@@ -243,7 +247,7 @@ test("a card hydration missed is titled from the fresh stored board", async () =
       FALLBACK,
       readRemote,
     ),
-  ).toBe(true);
+  ).toBe("written");
   expect(readRemote).toHaveBeenCalledOnce();
   // Local = the fresh stored doc with only that card retitled.
   expect(await cardTitle(dirs, "m1")).toBe("Weekly sales report");
@@ -261,7 +265,7 @@ test("a stored card the user renamed keeps its name", async () => {
       FALLBACK,
       readRemote,
     ),
-  ).toBe(false);
+  ).toBe("renamed");
 });
 
 test("a card found nowhere warns with its conversation", async () => {
@@ -275,7 +279,7 @@ test("a card found nowhere warns with its conversation", async () => {
       FALLBACK,
       async () => null,
     ),
-  ).toBe(false);
+  ).toBe("card_missing");
   expect(
     warn.mock.calls.some((c) => String(c[0]).includes("activity-m1")),
   ).toBe(true);

@@ -1,6 +1,15 @@
 import type { WireFrame } from "@houston/runtime-client";
+import type { TurnDurabilityResult } from "./turn-durability";
 import type { TurnSetupError } from "./turn-layout";
+import type { MissionTitleReport } from "./turn-mission-title-outcome";
 import type { TurnOutcome } from "./turn-session";
+import type { TurnSyncReport } from "./turn-sync-report";
+
+/** Per-turn diagnostics that ride the terminal frame beside `changed`. */
+export interface TurnTerminalDiagnostics {
+  missionTitle?: MissionTitleReport;
+  sync?: TurnSyncReport;
+}
 
 /**
  * Build the durable terminal frame after sync-back completes. `changed` lists
@@ -30,8 +39,10 @@ export function turnTerminalFrame(
   changed: readonly string[] = [],
   timings?: Record<string, number>,
   hydration?: { hydratedObjects: number; skippedObjects: number },
+  extra: TurnTerminalDiagnostics = {},
 ): WireFrame {
   const timingsMs = timingDeltas(timings);
+  const { missionTitle, sync } = extra;
   const fields = {
     ...(timingsMs ? { timingsMs } : {}),
     ...(changed.length > 0 ? { changed } : {}),
@@ -39,6 +50,9 @@ export function turnTerminalFrame(
     ...(transcriptSkipped ? { transcriptSkipped } : {}),
     ...(activityDocSkipped ? { activityDocSkipped } : {}),
     ...hydration,
+    ...(missionTitle ? { missionTitle } : {}),
+    ...(sync?.incomplete ? { syncIncomplete: sync.incomplete } : {}),
+    ...(sync?.merges ? { syncMerges: sync.merges } : {}),
   };
   const diagnostic = Object.keys(fields).length > 0 ? fields : undefined;
   if (outcome.error) {
@@ -60,6 +74,30 @@ export function turnTerminalFrame(
       ? { pendingInteraction: outcome.pendingInteraction }
       : {}),
   } as unknown as WireFrame;
+}
+
+/** The terminal frame of a turn whose durability pass ran. */
+export function durableTerminalFrame(
+  durable: TurnDurabilityResult,
+  turnId: string,
+  timings: Record<string, number>,
+  hydration: { hydratedObjects: number; skippedObjects: number },
+  missionTitle?: MissionTitleReport,
+): WireFrame {
+  return turnTerminalFrame(
+    durable.outcome,
+    turnId,
+    durable.poolWritesOutOfScope,
+    durable.transcriptSkipped,
+    durable.activityDocSkipped,
+    durable.changed,
+    timings,
+    hydration,
+    {
+      ...(missionTitle ? { missionTitle } : {}),
+      ...(durable.sync ? { sync: durable.sync } : {}),
+    },
+  );
 }
 
 /** Build the internal typed error frame for pre-provider setup failures. */
