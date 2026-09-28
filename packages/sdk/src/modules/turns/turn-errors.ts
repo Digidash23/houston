@@ -3,6 +3,7 @@ import {
   type MessageLimitRefusal,
   parseMessageLimitRefusal,
 } from "@houston/wire-types";
+import { isWakingAnswer } from "../waking-answer";
 
 /**
  * The C19 `message_limit` refusal behind any failed call, or null. Every
@@ -124,17 +125,7 @@ export function isTurnRunningRejection(e: unknown): boolean {
 export function isEngineWakingRejection(e: unknown): boolean {
   if (!(e instanceof EngineError)) return false;
   const reason = engineVerdictMessage(e);
-  if (reason === undefined) return false;
-  if (e.status === 503) {
-    return (
-      reason === "engine unavailable" ||
-      reason === "the agent's runtime is still starting, try again shortly" ||
-      // A host draining (roll, eviction, app quit): the send belongs to the
-      // replacement pod (PRODUCT-1777).
-      reason === "the host is shutting down; retry shortly"
-    );
-  }
-  return e.status === 502 && reason === "engine proxy failed";
+  return reason !== undefined && isWakingAnswer(e.status, reason);
 }
 
 export function isAmbiguousSendFailure(e: unknown): boolean {
