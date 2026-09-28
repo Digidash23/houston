@@ -235,6 +235,14 @@
     "classification": "sdk"
   },
   {
+    "pattern": "/v1/agents/{slug}/delegation",
+    "methods": [
+      "GET",
+      "PUT"
+    ],
+    "classification": "sdk"
+  },
+  {
     "pattern": "/v1/agents/{slug}/missions",
     "methods": [
       "GET",
