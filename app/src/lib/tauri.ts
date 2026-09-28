@@ -1139,6 +1139,12 @@ export const tauriActivity = {
     activityId: string,
     update: activityData.ActivityUpdate,
   ) => activityData.update(agentPath, activityId, update).then(() => undefined),
+  /** The SDK's client mission-title pass (`mission-title.ts`); never rejects. */
+  titleFromClient: (
+    agentPath: string,
+    activityId: string,
+    title: MissionTitle | undefined,
+  ) => getEngine().titleMissionFromClient(agentPath, activityId, title),
   delete: (agentPath: string, activityId: string) =>
     activityData.remove(agentPath, activityId),
   bulkUpdate: (

@@ -201,6 +201,13 @@ export interface Capabilities {
    * forwards integration calls with the pushed session. Absent → legacy probe.
    */
   integrationSessionSink?: boolean;
+  /**
+   * The server titles a new mission from the send's `missionTitle` field after
+   * its first turn. Absent/false = the client asks `POST /agents/:id/title`
+   * and PATCHes the card itself. Only a deployment that runs turns in per-turn
+   * workers advertises it; the open host (desktop, self-host) never does.
+   */
+  missionTitleOnSend?: boolean;
 }
 
 // ---------- Org / roles (multiplayer) ----------

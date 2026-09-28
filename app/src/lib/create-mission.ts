@@ -17,7 +17,11 @@ import {
   type MissionPromptOptions,
   missionPrompt,
 } from "./mission-prompt";
-import { fallbackMissionTitle } from "./mission-title";
+import {
+  fallbackMissionTitle,
+  missionTitlePlan,
+  titleLandedMission,
+} from "./mission-title";
 import { tauriActivity, tauriChat } from "./tauri";
 
 /** Build a session key for a given activity id. */
@@ -140,6 +144,9 @@ export async function createMission(
 
   try {
     const prompt = await missionPrompt(opts, conversationId, text);
+    const titlePlan = missionTitlePlan(
+      opts.title ? undefined : { fallback: title, text: titleText },
+    );
 
     await tauriChat.send(agent.folderPath, prompt, sessionKey, {
       // Empty pins dropped: a turn naming a provider and an empty model is a
@@ -148,10 +155,8 @@ export async function createMission(
       modeOverride: opts.modeOverride,
       mentions: opts.mentions,
       displayText: hiddenPromptDisplayText(text, hasHiddenPrompt(opts)),
-      // The runtime titles the card after this first turn's reply.
-      missionTitle: opts.title
-        ? undefined
-        : { fallback: title, text: titleText },
+      // Set only where the server titles the card after this first reply.
+      missionTitle: titlePlan.send,
     });
 
     analytics.track("mission_created", {
@@ -159,6 +164,9 @@ export async function createMission(
       provider: opts.providerOverride,
       model: opts.modelOverride,
     });
+
+    // Everywhere else the client titles the landed card itself.
+    titleLandedMission(agent.folderPath, conversationId, titlePlan);
   } catch (e) {
     try {
       await tauriActivity.delete(agent.folderPath, conversationId);

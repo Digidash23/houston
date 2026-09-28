@@ -469,6 +469,10 @@ test("the documented profile asymmetries are exactly the intended ones", async (
       customIntegrationOAuth: true,
     });
     expect(cc).toEqual(CLOUD_CAPABILITIES);
+    // The per-turn gateway alone titles a mission from the send; a served open
+    // host never claims it (the client keeps its own title call).
+    expect(lc.missionTitleOnSend).toBeUndefined();
+    expect(cc.missionTitleOnSend).toBeUndefined();
     expect(CLOUD_CAPABILITIES.integrations).toEqual(
       LOCAL_CAPABILITIES.integrations,
     );

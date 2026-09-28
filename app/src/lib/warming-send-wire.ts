@@ -11,7 +11,11 @@ import type {
 } from "./agent-provisioning/entry";
 import { hiddenPromptDisplayText } from "./hidden-prompt-display-text";
 import { logger } from "./logger";
-import { fallbackMissionTitle } from "./mission-title";
+import {
+  fallbackMissionTitle,
+  missionTitlePlan,
+  titleLandedMission,
+} from "./mission-title";
 import { healStaleRosterFromError } from "./roster-heal";
 import { tauriActivity, tauriChat, tauriProvider } from "./tauri";
 import {
@@ -106,6 +110,13 @@ export async function wireWarmingSend(
   const suppress = getConversationFeed(entry.agentPath, send.sessionKey).some(
     (f) => f.feed_type === "user_message",
   );
+  // The title this mission skipped at queue time (HOU-713). The card was
+  // created with the same fallback (create-mission-warming.ts).
+  const titlePlan = missionTitlePlan(
+    send.titleText
+      ? { fallback: fallbackMissionTitle(send.titleText), text: send.titleText }
+      : undefined,
+  );
   try {
     await tauriChat.send(entry.agentPath, wire.prompt, send.sessionKey, {
       providerOverride: pin.provider,
@@ -117,16 +128,11 @@ export async function wireWarmingSend(
       // A prompt from either hidden source (built now, or resolved at queue
       // time) means the bubble must show the user's words instead.
       displayText: hiddenPromptDisplayText(send.text, wire.source !== "text"),
-      // The title this mission skipped at queue time (HOU-713): the runtime
-      // titles the card after this first turn's reply. The card was created
-      // with the same fallback (create-mission-warming.ts).
-      missionTitle: send.titleText
-        ? {
-            fallback: fallbackMissionTitle(send.titleText),
-            text: send.titleText,
-          }
-        : undefined,
+      // Set only where the server titles the card after this first reply.
+      missionTitle: titlePlan.send,
     });
+    // Everywhere else the client titles the card, once its row has landed.
+    if (rowId) titleLandedMission(entry.agentPath, rowId, titlePlan);
   } catch (e) {
     if (abortsFlushAsAgentGone(e)) return "abort";
     // tauriChat.send already toasted the real reason; keep flushing the

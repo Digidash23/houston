@@ -125,4 +125,11 @@ export interface Capabilities {
    * management affordances the UI shows. Absent in single-player mode.
    */
   role?: OrgRole;
+  /**
+   * The server titles a new mission from the send's `missionTitle` field after
+   * its first turn. Absent/false = the client asks `POST /agents/:id/title`
+   * and PATCHes the card itself. Only a deployment that runs turns in per-turn
+   * workers advertises it; the open host (desktop, self-host) never does.
+   */
+  missionTitleOnSend?: boolean;
 }
