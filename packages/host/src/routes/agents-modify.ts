@@ -1,8 +1,8 @@
 import { invalidAgentNameMessage, validateAgentName } from "@houston/domain";
 import type { Agent } from "../domain/types";
-import { AgentNameConflictError } from "../ports";
 import { channelFor, noChannel } from "./agent-authz";
 import { clearAgentColor, moveAgentColor } from "./agent-color";
+import { answerAgentNameTaken } from "./agent-name-taken";
 import { forgetAgentState } from "./agent-state-cleanup";
 import { agentPayload } from "./agents-payload";
 import { json, readJson } from "./http";
@@ -60,8 +60,7 @@ defineRoute({
             )
           : await doRename();
     } catch (err) {
-      if (err instanceof AgentNameConflictError)
-        return json(res, 409, { error: err.message });
+      if (answerAgentNameTaken(res, err)) return;
       throw err;
     }
     // The old id is free the moment the directory moves, so nothing this

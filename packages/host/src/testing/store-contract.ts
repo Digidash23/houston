@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { WorkspaceStore } from "../ports";
+import { runAgentNameContract } from "./store-name-contract";
 
 /**
  * The WorkspaceStore CONTRACT, run verbatim against every adapter — the
@@ -144,6 +145,7 @@ export function runWorkspaceStoreContract(
       ]);
     });
   });
+  runAgentNameContract(name, make);
 }
 
 /**

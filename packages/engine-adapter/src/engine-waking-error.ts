@@ -64,8 +64,8 @@
 // answers the same `engine unavailable` pair with the latch as detail
 // (PRODUCT-1804), so nothing here reads the detail.
 //
-// Four client stacks reach the host, minting different error shapes (same
-// split as `agent-name-conflict.ts`, plus the runtime client):
+// Four client stacks reach the host, minting different error shapes (the
+// split `@houston/sdk`'s refusal readers also handle, plus the runtime client):
 //
 //  - `HoustonEngineError` (legacy adapter): message is
 //    `"<reason> (engine error <status>)"`, reason verbatim — prefix-matched.

@@ -35,6 +35,15 @@ describe("suggestCopyName", () => {
     );
   });
 
+  it("matches taken names as the host does, whatever the Unicode form", () => {
+    // "José copy" held in composed form (NFC) is the same folder as the
+    // decomposed (NFD) candidate, so the suggestion must skip past it.
+    strictEqual(
+      suggestCopyName("Jose\u0301", ["jos\u00e9 copy"], "copy", MAX),
+      "Jose\u0301 copy 2",
+    );
+  });
+
   it("trims the base name so the suffix always fits the length cap", () => {
     const name = "A".repeat(MAX);
     const suggested = suggestCopyName(name, [name], "copy", MAX);

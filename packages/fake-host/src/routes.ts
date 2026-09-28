@@ -14,6 +14,7 @@
  * → `done`) when the message lands. See translate.ts `streamTurn`.
  */
 
+import { NAME_TAKEN } from "@houston/protocol";
 import type { ProviderId } from "@houston/runtime-client";
 import { json, noContent } from "./http";
 import {
@@ -45,6 +46,16 @@ function stringRecord(value: unknown): Record<string, string> | undefined {
     : undefined;
 }
 
+/** The real host's refusal for another agent's name (routes/agent-name-taken.ts). */
+const nameTaken = (name: string) =>
+  json(
+    {
+      error: `an agent named "${name}" already exists in this workspace`,
+      code: NAME_TAKEN,
+    },
+    409,
+  );
+
 function makeTitle(text: string): string {
   return (
     text.replace(/\s+/g, " ").trim().split(" ").slice(0, 6).join(" ") ||
@@ -65,14 +76,16 @@ export function handleAgents(
   // /agents
   if (rest.length === 0) {
     if (method === "GET") return json(state.listAgents());
-    if (method === "POST")
-      return json(
-        state.createAgent(
-          String(body?.name ?? "Agent"),
-          typeof body?.claudeMd === "string" ? body.claudeMd : undefined,
-          stringRecord(body?.seeds),
-        ),
+    if (method === "POST") {
+      // Trimmed like the real host's `validateAgentName` before it is stored.
+      const name = String(body?.name ?? "Agent").trim();
+      const created = state.createAgent(
+        name,
+        typeof body?.claudeMd === "string" ? body.claudeMd : undefined,
+        stringRecord(body?.seeds),
       );
+      return created === "name_taken" ? nameTaken(name) : json(created);
+    }
     return noContent(405);
   }
 
@@ -81,10 +94,11 @@ export function handleAgents(
   // /agents/:id
   if (rest.length === 1) {
     if (method === "PATCH") {
-      const renamed = state.renameAgent(id, String(body?.name ?? ""));
-      return renamed
-        ? json(renamed)
-        : json({ error: { message: "agent not found" } }, 404);
+      const name = String(body?.name ?? "").trim();
+      const renamed = state.renameAgent(id, name);
+      if (renamed === "not_found")
+        return json({ error: { message: "agent not found" } }, 404);
+      return renamed === "name_taken" ? nameTaken(name) : json(renamed);
     }
     if (method === "DELETE")
       return state.deleteAgent(id) ? noContent() : json({ error: {} }, 404);

@@ -1,9 +1,9 @@
+import { isAgentNameTaken } from "@houston/sdk";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useAgentActions } from "../../../hooks/use-agent-actions";
 import { useKickoffPinResolver } from "../../../hooks/use-kickoff-pin-resolver";
 import { useSidebarLayout } from "../../../hooks/use-sidebar-layout";
-import { isAgentNameConflictError } from "../../../lib/agent-name-conflict";
 import {
   type AgentRoleContext,
   withAgentRoleContext,
@@ -75,7 +75,7 @@ export function useTeamHiring(workspaceId: string): TeamHiring {
         });
         return { kind: "hired", id: created.id, name: created.name };
       } catch (err) {
-        if (isAgentNameConflictError(err)) {
+        if (isAgentNameTaken(err)) {
           return { kind: "failed", reason: "nameTaken" };
         }
         // The create call reports its own failures; this catches the ones

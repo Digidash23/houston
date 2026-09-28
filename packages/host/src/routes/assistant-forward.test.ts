@@ -107,3 +107,28 @@ describe("a request whose address does not survive URL parsing is refused", () =
     expect(captured.status).toBe(200);
   });
 });
+
+test("an upstream name-taken refusal reaches the manager with its status and sentence", async () => {
+  const upstreamBody = JSON.stringify({
+    error: 'an agent named "Mia" already exists in this workspace',
+    code: "name_taken",
+  });
+  const { res, captured } = fakeRes();
+  await forwardAssistantCall(
+    gateway,
+    { method: "POST", path: "/agents", query: {}, body: { name: "mia" } },
+    {
+      operation: "createAgent",
+      actingAs: undefined,
+      fetchImpl: (async () =>
+        new Response(upstreamBody, { status: 409 })) as unknown as typeof fetch,
+    },
+    res,
+  );
+
+  expect(captured.status).toBe(409);
+  expect(JSON.parse(captured.body)).toEqual({
+    error: upstreamBody,
+    code: "gateway_error",
+  });
+});

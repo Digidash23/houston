@@ -3,7 +3,6 @@ import { describe, it } from "node:test";
 import {
   AGENT_NAME_MAX_LENGTH,
   agentNameIssue,
-  sameAgentName,
   uniqueAgentName,
 } from "../src/lib/agent-name.ts";
 
@@ -36,12 +35,9 @@ describe("agentNameIssue", () => {
     strictEqual(agentNameIssue("bookkeeper", existing), "taken");
     strictEqual(agentNameIssue("  BOOKKEEPER  ", existing), "taken");
   });
-});
 
-describe("sameAgentName", () => {
-  it("compares trimmed and case-insensitive, like the host", () => {
-    strictEqual(sameAgentName(" Ava ", "ava"), true);
-    strictEqual(sameAgentName("Ava", "Ava 2"), false);
+  it("flags a duplicate typed in another Unicode form (NFD vs NFC), like the host", () => {
+    strictEqual(agentNameIssue("Jose\u0301", ["Jos\u00e9"]), "taken");
   });
 });
 

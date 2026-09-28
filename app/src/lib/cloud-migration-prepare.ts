@@ -8,13 +8,15 @@
  */
 
 import {
-  buildMigrationPlan,
   collectIntegrations,
-  type ExistingCloudAgent,
-  isPlausibleMigrationTarget,
   type MigrationTask,
   type SourceAgent,
 } from "./cloud-migration";
+import {
+  buildMigrationPlan,
+  type ExistingCloudAgent,
+  isPlausibleMigrationTarget,
+} from "./cloud-migration-plan";
 import {
   agentMigrationStatus,
   fetchSourceScan,

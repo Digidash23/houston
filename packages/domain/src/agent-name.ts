@@ -36,6 +36,22 @@ export function validateAgentName(raw: string): AgentNameValidation {
   return { ok: true, name };
 }
 
+/**
+ * The identity two agent names share when they would land on the same folder:
+ * trimmed like {@link validateAgentName}, NFC-composed (APFS treats composed
+ * and decomposed spellings as one name) and lowercased (macOS and Windows
+ * folders are case-insensitive). Every uniqueness check compares this key, so
+ * the host's refusal and a surface's pre-check can never disagree.
+ */
+export function agentNameKey(name: string): string {
+  return name.trim().normalize("NFC").toLowerCase();
+}
+
+/** Whether two agent names claim the same folder (see {@link agentNameKey}). */
+export function sameAgentName(a: string, b: string): boolean {
+  return agentNameKey(a) === agentNameKey(b);
+}
+
 /** The host's English error-body copy for a rejected name. */
 export function invalidAgentNameMessage(
   reason: InvalidAgentNameReason,

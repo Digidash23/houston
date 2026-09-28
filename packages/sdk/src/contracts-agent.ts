@@ -36,6 +36,7 @@ export {
   type AgentsViewModel,
   type AgentsWrites,
   type InstalledConfig,
+  isAgentNameTaken,
   type WireAgent,
 } from "./modules/agents";
 // ===== Files module contract ===========================================

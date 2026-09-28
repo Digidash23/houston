@@ -10,6 +10,7 @@
  */
 
 import type { PortableInstalledAgent } from "@houston/engine-adapter";
+import { isAgentNameTaken } from "@houston/sdk";
 import type { KickoffPin } from "../../lib/kickoff-pin";
 import type { InstallImportedAgentArgs } from "./import-install-request";
 
@@ -29,6 +30,9 @@ export interface ImportInstallRun {
   reveal: (installed: PortableInstalledAgent) => void;
   /** The typed name cannot be used; nothing was sent. */
   reportNameProblem: (problem: string) => void;
+  /** The host refused the name as another agent's: one raced in after the
+   *  pre-check, or the loaded list was behind. An expected state, not a bug. */
+  reportNameTaken: () => void;
   /** The round-trip failed; the sheet stays so the user can try again. */
   reportFailure: (err: unknown) => void;
   /** The press is in flight — the button's pending label. */
@@ -48,7 +52,8 @@ export async function runImportInstall(run: ImportInstallRun): Promise<void> {
     const installed = await run.install(run.args, kickoffPin);
     run.reveal(installed);
   } catch (err) {
-    run.reportFailure(err);
+    if (isAgentNameTaken(err)) run.reportNameTaken();
+    else run.reportFailure(err);
   } finally {
     run.setInstalling(false);
   }

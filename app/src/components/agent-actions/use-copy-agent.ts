@@ -1,6 +1,6 @@
 import type { PortableExportSelection } from "@houston/engine-adapter";
+import { isAgentNameTaken } from "@houston/sdk";
 import { useTranslation } from "react-i18next";
-import { isAgentNameConflictError } from "../../lib/agent-name-conflict";
 import { isAgentWarmingError } from "../../lib/agent-warming-guard";
 import { analytics } from "../../lib/analytics";
 import { chatCopyComplete, copyAgentChats } from "../../lib/copy-agent-chats";
@@ -150,7 +150,7 @@ export function useCopyAgent(): (args: {
       return true;
     } catch (err) {
       // The 409 race: a sibling took the name after the dialog's live check.
-      if (isAgentNameConflictError(err)) {
+      if (isAgentNameTaken(err)) {
         showExpectedStateToast(
           t("toasts.nameConflict", { name: name.trim() }),
           t("toasts.nameConflictDescription"),

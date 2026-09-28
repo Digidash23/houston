@@ -2,6 +2,7 @@ import type {
   PortableExportSelection,
   PortableInventoryPreview,
 } from "@houston/engine-adapter";
+import { agentNameKey } from "@houston/sdk/agent-name";
 
 /**
  * The pure rules behind "Copy agent": what a copy carries and what name it is
@@ -28,8 +29,8 @@ export function fullPortableSelection(
 
 /**
  * The first free "<name> <copyWord>" / "<name> <copyWord> N" against the
- * workspace's names. Case-insensitive because agent folders land on
- * case-insensitive filesystems (the same rule `agentNameIssue` applies), and
+ * workspace's names, compared by the host's own key (`agentNameKey`: the
+ * rule `agentNameIssue` applies too), and
  * capped at `maxLength` by trimming the BASE name — the suffix is what keeps
  * candidates distinct, so it must survive whole.
  *
@@ -43,7 +44,7 @@ export function suggestCopyName(
   copyWord: string,
   maxLength: number,
 ): string {
-  const taken = new Set(existingNames.map((n) => n.trim().toLowerCase()));
+  const taken = new Set(existingNames.map(agentNameKey));
   const candidate = (n: number): string => {
     const suffix = n === 1 ? ` ${copyWord}` : ` ${copyWord} ${n}`;
     const base = name.slice(0, Math.max(1, maxLength - suffix.length)).trim();
@@ -51,7 +52,7 @@ export function suggestCopyName(
   };
   for (let n = 1; n <= 99; n++) {
     const next = candidate(n);
-    if (!taken.has(next.toLowerCase())) return next;
+    if (!taken.has(agentNameKey(next))) return next;
   }
   return candidate(1);
 }

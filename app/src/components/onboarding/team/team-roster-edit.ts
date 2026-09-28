@@ -1,5 +1,5 @@
 // `.ts` extensions so the node test runner can load this module on its own.
-import { sameAgentName } from "../../../lib/agent-name.ts";
+import { sameAgentName } from "@houston/sdk/agent-name";
 import type { AgentRoleContext } from "../../../lib/agent-role-context.ts";
 import {
   briefWithAnswer,

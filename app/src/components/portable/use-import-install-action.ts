@@ -8,6 +8,7 @@
 import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { genericErrorDescription } from "../../lib/error-report";
+import { showExpectedStateToast } from "../../lib/error-toast";
 import type { KickoffPin } from "../../lib/kickoff-pin";
 import { openAgentBoard } from "../../lib/open-agent";
 import { toAgent } from "../../lib/tauri";
@@ -41,7 +42,7 @@ export function useImportInstallAction({
   resolveKickoffPin,
   onInstalled,
 }: ImportInstallInput) {
-  const { t } = useTranslation("portable");
+  const { t } = useTranslation(["portable", "agents"]);
   const addToast = useUIStore((s) => s.addToast);
   const adoptAgent = useAgentStore((s) => s.adopt);
   const [installing, setInstalling] = useState(false);
@@ -88,6 +89,11 @@ export function useImportInstallAction({
           },
           reportNameProblem: (problem) =>
             addToast({ variant: "error", title: problem }),
+          reportNameTaken: () =>
+            showExpectedStateToast(
+              t("agents:toasts.nameConflict", { name: name.trim() }),
+              t("agents:toasts.nameConflictDescription"),
+            ),
           reportFailure: (err) =>
             addToast({
               variant: "error",

@@ -1,16 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  buildMigrationPlan,
   chunkPaths,
   collectIntegrations,
   doneScreenOutcome,
   hasReconnectAppsStep,
-  isPlausibleMigrationTarget,
   MAX_CHUNK_RAW_BYTES,
   type SourceAgent,
   type SourceManifestEntry,
 } from "../src/lib/cloud-migration.ts";
+import {
+  buildMigrationPlan,
+  isPlausibleMigrationTarget,
+} from "../src/lib/cloud-migration-plan.ts";
 import { initialProgress } from "../src/lib/cloud-migration-progress.ts";
 
 function agent(
@@ -90,6 +92,20 @@ test("collisions are case-insensitive", () => {
     [{ name: "sales" }],
   );
   assert.equal(plan[0].targetName, "Sales (Work)");
+});
+
+test("collisions compare names as the host does, whatever the Unicode form", () => {
+  // Same "José", decomposed (NFD) on one side and composed (NFC) on the other:
+  // the host's store refuses it as taken, so the plan must rename it too.
+  const plan = buildMigrationPlan(
+    [agent("Work", "Jose\u0301")],
+    [{ name: "jos\u00e9" }],
+  );
+  assert.equal(plan[0].targetName, "Jose\u0301 (Work)");
+  assert.equal(
+    isPlausibleMigrationTarget("jos\u00e9 (Work)", [{ name: "Jose\u0301" }]),
+    true,
+  );
 });
 
 test("exhausted workspace suffix falls back to numbered names", () => {

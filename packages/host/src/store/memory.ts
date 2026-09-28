@@ -1,4 +1,4 @@
-import { validateAgentName } from "@houston/domain";
+import { sameAgentName, validateAgentName } from "@houston/domain";
 import type {
   Agent,
   AgentId,
@@ -88,16 +88,36 @@ export class MemoryWorkspaceStore implements WorkspaceStore {
     return [...this.agents.values()];
   }
 
+  /** Whether an agent in `workspaceId` other than `except` already holds
+   *  `name` as the disk store compares it (see `sameAgentName`). */
+  private nameTaken(
+    workspaceId: WorkspaceId,
+    name: string,
+    except?: AgentId,
+  ): boolean {
+    for (const other of this.agents.values()) {
+      if (
+        other.workspaceId === workspaceId &&
+        other.id !== except &&
+        sameAgentName(other.name, name)
+      )
+        return true;
+    }
+    return false;
+  }
+
   async createAgent(input: {
     workspaceId: WorkspaceId;
     name: string;
   }): Promise<Agent> {
     const v = validateAgentName(input.name);
     if (!v.ok) throw new InvalidAgentNameError(input.name, v.reason);
+    if (this.nameTaken(input.workspaceId, v.name))
+      throw new AgentNameConflictError(v.name);
     const agent: Agent = {
       id: this.id("agent"),
       workspaceId: input.workspaceId,
-      name: input.name,
+      name: v.name,
       createdAt: Date.now(),
     };
     this.agents.set(agent.id, agent);
@@ -109,14 +129,12 @@ export class MemoryWorkspaceStore implements WorkspaceStore {
     if (!agent) throw new Error(`renameAgent: unknown agent ${id}`);
     const v = validateAgentName(name);
     if (!v.ok) throw new InvalidAgentNameError(name, v.reason);
-    if (name === agent.name) return agent;
+    if (v.name === agent.name) return agent;
     // Same contract as the disk store: a sibling already holding the name is a
     // typed conflict, never a raw backend failure (#172).
-    for (const other of this.agents.values()) {
-      if (other.workspaceId === agent.workspaceId && other.name === name)
-        throw new AgentNameConflictError(name);
-    }
-    const next: Agent = { ...agent, name };
+    if (this.nameTaken(agent.workspaceId, v.name, id))
+      throw new AgentNameConflictError(v.name);
+    const next: Agent = { ...agent, name: v.name };
     this.agents.set(id, next);
     return next;
   }

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   AGENT_NAME_MAX_LENGTH,
+  agentNameKey,
   invalidAgentNameMessage,
+  sameAgentName,
   validateAgentName,
 } from "./agent-name";
 
@@ -57,5 +59,24 @@ describe("validateAgentName", () => {
       String(AGENT_NAME_MAX_LENGTH),
     );
     expect(invalidAgentNameMessage("invalid")).toMatch(/slashes/);
+  });
+});
+
+describe("sameAgentName", () => {
+  it("treats names that land on one folder as the same name", () => {
+    expect(sameAgentName("Mia", "Mia")).toBe(true);
+    expect(sameAgentName("Mia", "mia")).toBe(true);
+    expect(sameAgentName("  MIA ", "mia")).toBe(true);
+    // Composed and decomposed é are one name on APFS.
+    expect(sameAgentName("Jos\u00e9", "Jose\u0301")).toBe(true);
+  });
+
+  it("keeps genuinely different names apart", () => {
+    expect(sameAgentName("Mia", "Mia 2")).toBe(false);
+    expect(sameAgentName("Mia", "Mía")).toBe(false);
+  });
+
+  it("keys on the trimmed, composed, lowercased spelling", () => {
+    expect(agentNameKey("  Jose\u0301 ")).toBe("jos\u00e9");
   });
 });

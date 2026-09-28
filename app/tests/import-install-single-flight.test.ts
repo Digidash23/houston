@@ -1,6 +1,7 @@
 import { deepStrictEqual, ok, rejects, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
 import type { PortableInstalledAgent } from "@houston/engine-adapter";
+import { HoustonEngineError } from "@houston/engine-adapter/client/errors";
 import {
   type ImportInstallRun,
   runImportInstall,
@@ -106,6 +107,7 @@ function pressHarness(
     },
     reveal: () => steps.push("reveal"),
     reportNameProblem: (problem) => steps.push(`nameProblem:${problem}`),
+    reportNameTaken: () => steps.push("nameTaken"),
     reportFailure: () => steps.push("failure"),
     setInstalling: (installing) => steps.push(`installing:${installing}`),
     ...over,
@@ -176,6 +178,25 @@ describe("the import wizard's install action", () => {
 
     strictEqual(harness.installs.length, 0);
     deepStrictEqual(harness.steps, ["nameProblem:That name is already taken"]);
+  });
+
+  it("tells the user the name is taken when the host refuses it as another agent's", async () => {
+    const harness = pressHarness(() =>
+      Promise.reject(
+        new HoustonEngineError(409, {
+          error: 'an agent named "Scout" already exists in this workspace',
+          code: "name_taken",
+        }),
+      ),
+    );
+
+    await harness.press();
+
+    deepStrictEqual(harness.steps, [
+      "installing:true",
+      "nameTaken",
+      "installing:false",
+    ]);
   });
 
   it("does nothing until the sheet knows the package and the workspace", async () => {

@@ -1,7 +1,7 @@
+import { isAgentNameTaken } from "@houston/sdk";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useKickoffPinResolver } from "../../hooks/use-kickoff-pin-resolver";
-import { isAgentNameConflictError } from "../../lib/agent-name-conflict";
 import type { AgentRoleContext } from "../../lib/agent-role-context";
 import {
   type CreatedEmployee,
@@ -64,7 +64,7 @@ export function useCreateBlankAgent({
         });
       } catch (err) {
         onError(
-          isAgentNameConflictError(err)
+          isAgentNameTaken(err)
             ? {
                 kind: "nameConflict",
                 message: t("agents:toasts.nameConflict", { name: trimmed }),

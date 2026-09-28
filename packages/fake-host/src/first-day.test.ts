@@ -18,12 +18,17 @@ afterEach(async () => {
   await host.stop();
 });
 
+// The fake host's state outlives each test, and a name belongs to one agent,
+// so every hire takes its own.
+let hires = 0;
+
 async function hire(): Promise<string> {
+  hires += 1;
   const res = await fetch(`${host.url}/agents`, {
     method: "POST",
     headers: JSON_HEADERS,
     body: JSON.stringify({
-      name: "Aurora",
+      name: `Aurora ${hires}`,
       claudeMd: "---\nindustry: Finance\nrole: Financial analyst\n---\n",
       seeds: {
         [CONFIG]: JSON.stringify({ firstDay: "pending", arrival: "created" }),

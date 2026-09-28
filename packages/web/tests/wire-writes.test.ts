@@ -1,4 +1,5 @@
 import { HoustonClient } from "@houston/engine-adapter/client";
+import { isAgentNameTaken } from "@houston/sdk";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import {
   createWireCapture,
@@ -109,6 +110,43 @@ test("deleteAgent delegates a byte-identical single DELETE /agents/:id", async (
 test("a failed agent create propagates — never swallowed", async () => {
   stubFetch(json(500, { error: "boom" }));
   await expect(client().createAgent("w", { name: "Ada" })).rejects.toThrow();
+});
+
+test.each([
+  ["the host's 409 name_taken", { error: "taken", code: "name_taken" }],
+  ["a code-less 409", { error: "an agent with this name already exists" }],
+])("a create refused with %s reaches the surface as a taken name", async (_label, body) => {
+  stubFetch(json(409, body));
+  const refusal = await client()
+    .createAgent("w", { name: "Ada" })
+    .catch((err: unknown) => err);
+  // One byte-identical POST, never retried: a taken name is the user's to fix.
+  expect(calls).toHaveLength(1);
+  expect(calls[0].method).toBe("POST");
+  expect(calls[0].url).toBe(`${BASE}/agents`);
+  expect(calls[0].body).toBe(JSON.stringify({ name: "Ada" }));
+  expect(isAgentNameTaken(refusal)).toBe(true);
+});
+
+test("a rename refused as name_taken reaches the surface as a taken name", async () => {
+  stubFetch(json(409, { error: "taken", code: "name_taken" }));
+  const refusal = await client()
+    .renameAgent("w", "a1", "Neo")
+    .catch((err: unknown) => err);
+  expect(calls).toHaveLength(1);
+  expect(calls[0].method).toBe("PATCH");
+  expect(calls[0].url).toBe(`${BASE}/agents/a1`);
+  expect(calls[0].body).toBe(JSON.stringify({ name: "Neo" }));
+  expect(isAgentNameTaken(refusal)).toBe(true);
+});
+
+test("a 409 naming another code is not a taken name", async () => {
+  stubFetch(json(409, { error: "busy", code: "turn_running" }));
+  const refusal = await client()
+    .createAgent("w", { name: "Ada" })
+    .catch((err: unknown) => err);
+  expect(calls).toHaveLength(1);
+  expect(isAgentNameTaken(refusal)).toBe(false);
 });
 
 // ---- activities ----

@@ -12,11 +12,13 @@ import {
 } from "@houston/domain";
 import type { PortableSelection } from "@houston/protocol";
 import { ACTING_AS_HEADER, actingSubFromHeader } from "../auth/acting";
-import type { UserId } from "../domain/types";
+import type { Agent, UserId } from "../domain/types";
 import type { WorkspacePaths } from "../paths";
 import { CloudPaths } from "../paths";
 import type { WorkspaceStore } from "../ports";
 import type { Vfs } from "../vfs";
+import { seedOrRollBack } from "./agent-create-rollback";
+import { answerAgentNameTaken } from "./agent-name-taken";
 import { writeAgentSeeds } from "./agent-seed";
 import { json, readJson } from "./http";
 import { defineRouteFamily } from "./registry";
@@ -115,12 +117,18 @@ async function handlePortableAccount(
   pkg = identity.pkg;
 
   const ws = await deps.store.getOrCreatePersonalWorkspace(userId);
-  const agent = await deps.store.createAgent({
-    workspaceId: ws.id,
-    name: nameCheck.name,
-  });
+  let agent: Agent;
+  try {
+    agent = await deps.store.createAgent({
+      workspaceId: ws.id,
+      name: nameCheck.name,
+    });
+  } catch (err) {
+    if (answerAgentNameTaken(res, err)) return true;
+    throw err;
+  }
   const root = paths.agentRoot(ws, agent);
-  await seedSchemas(deps.vfs, root);
+  const vfs = deps.vfs;
   // WHO installed the agent, recorded as `created_by` on seeded routines
   // (packs strip the exporter's identity; an authorless routine is not
   // fireable by the control-plane planner). Same actor policy as the routine
@@ -129,9 +137,13 @@ async function handlePortableAccount(
   const routineCreatedBy = deps.gatewayFronted
     ? (actingSubFromHeader(req.headers[ACTING_AS_HEADER]) ?? deps.ownerSub)
     : userId;
-  // The SAME serialization the browser adapter sends through create-with-seeds
-  // on hosted cloud — one layout, wherever the install lands.
-  await writeAgentSeeds(deps.vfs, root, packageSeed(pkg), routineCreatedBy);
+  await seedOrRollBack({ store: deps.store, vfs }, agent, root, async () => {
+    await seedSchemas(vfs, root);
+    // The SAME serialization the browser adapter sends through
+    // create-with-seeds on hosted cloud — one layout, wherever the install
+    // lands.
+    await writeAgentSeeds(vfs, root, packageSeed(pkg), routineCreatedBy);
+  });
 
   json(res, 201, {
     agent,

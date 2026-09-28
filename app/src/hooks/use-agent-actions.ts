@@ -1,6 +1,6 @@
+import { isAgentNameTaken } from "@houston/sdk";
 import type { TFunction } from "i18next";
 import { AGENT_NAME_MAX_LENGTH, agentNameIssue } from "../lib/agent-name";
-import { isAgentNameConflictError } from "../lib/agent-name-conflict";
 import { showExpectedStateToast } from "../lib/error-toast";
 import { renameAgentWithFollowUp } from "../lib/rename-agent-follow-up";
 import { useAgentStore } from "../stores/agents";
@@ -66,7 +66,7 @@ export function useAgentActions(args: {
         remapAgentId,
       });
     } catch (err) {
-      if (isAgentNameConflictError(err)) {
+      if (isAgentNameTaken(err)) {
         showExpectedStateToast(
           t("agents:toasts.nameConflict", { name: newName }),
           t("agents:toasts.nameConflictDescription"),
