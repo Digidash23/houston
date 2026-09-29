@@ -40,10 +40,12 @@ export function conversationTurnRoot(
  * it the prompt cache. Mode 0700 like the mkdtemp it replaces: the root holds
  * the turn's credential.
  *
- * With a tool shell (`shared`, default `config.toolShell`) the root is 0770
+ * With a tool shell (`shared`, default `config.toolShell`) the root is 1770
  * instead: model commands run as the tool user, a member of the group the
  * deployment's temp dir hands down (setgid), and must reach the workspace.
- * The credential files inside keep their own 0600.
+ * Sticky, so the tool user can rename or delete only what it owns here: it
+ * cannot move this user's `home` or credential store aside and plant its
+ * own. The credential files inside keep their own 0600.
  */
 export async function createTurnRoot(
   id: TurnRootIdentity,
@@ -67,11 +69,11 @@ export async function createTurnRoot(
 }
 
 /**
- * chmod to 0770 whatever the umask, keeping the setgid bit the directory
- * inherited: chmod(2) clears it unless it is in the new mode, and without it
- * files created inside would lose the tool user's group.
+ * chmod to sticky 0770 whatever the umask, keeping the setgid bit the
+ * directory inherited: chmod(2) clears it unless it is in the new mode, and
+ * without it files created inside would lose the tool user's group.
  */
 async function openToGroup(dir: string): Promise<void> {
   const { mode } = await stat(dir);
-  await chmod(dir, (mode & 0o7000) | 0o770);
+  await chmod(dir, (mode & 0o2000) | 0o1770);
 }

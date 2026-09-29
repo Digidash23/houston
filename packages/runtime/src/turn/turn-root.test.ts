@@ -60,9 +60,10 @@ test("a runtime without a tool shell keeps the root private", async () => {
 });
 
 // Model commands run as the tool user, a member of the root's group only.
-test("with a tool shell the root is open to its group, whatever the umask", async () => {
+// Sticky: it may not rename this user's entries (home, credential store).
+test("with a tool shell the root is sticky and open to its group, whatever the umask", async () => {
   const root = await createTurnRoot(conversation(), freshBase(), true);
-  expect(statSync(root).mode & 0o777).toBe(0o770);
+  expect(statSync(root).mode & 0o7777).toBe(0o1770);
 });
 
 test.skipIf(process.platform !== "linux")(
@@ -71,7 +72,7 @@ test.skipIf(process.platform !== "linux")(
     const base = freshBase();
     chmodSync(base, 0o2770);
     const root = await createTurnRoot(conversation(), base, true);
-    expect(statSync(root).mode & 0o7777).toBe(0o2770);
+    expect(statSync(root).mode & 0o7777).toBe(0o3770);
   },
 );
 
@@ -81,7 +82,7 @@ test("a shared fallback root is open to its group too", async () => {
   vi.spyOn(console, "info").mockImplementation(() => undefined);
   const root = await createTurnRoot(conversation(), base, true);
   expect(root).not.toBe(conversationTurnRoot(conversation(), base));
-  expect(statSync(root).mode & 0o777).toBe(0o770);
+  expect(statSync(root).mode & 0o7777).toBe(0o1770);
 });
 
 test("an existing conversation root is never reused: the turn falls back to a fresh root and says why", async () => {
