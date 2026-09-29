@@ -10,8 +10,17 @@ import { loadJson, saveJson, type TextStore } from "./store";
  */
 export type Preferences = Record<string, string | null>;
 
+/**
+ * The top-level key segment every preferences doc lives under. The local
+ * profile roots its FsVfs at the workspaces directory itself, so there this
+ * segment is a real folder beside the workspaces: anything that enumerates
+ * workspaces from disk must skip it, or each doc's folder reads as an agent
+ * `ws/<workspaceId>`.
+ */
+export const PREFERENCES_NAMESPACE = "ws";
+
 export const prefDocKey = (workspaceId: string) =>
-  `ws/${workspaceId}/preferences.json`;
+  `${PREFERENCES_NAMESPACE}/${workspaceId}/preferences.json`;
 
 export async function loadPreferences(
   store: TextStore,

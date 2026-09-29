@@ -1,11 +1,4 @@
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  renameSync,
-  rmSync,
-  statSync,
-} from "node:fs";
+import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { sameAgentName, validateAgentName } from "@houston/domain";
 import type {
@@ -21,11 +14,20 @@ import {
   InvalidAgentNameError,
   type WorkspaceStore,
 } from "../ports";
+import {
+  isDir,
+  isWorkspaceDirName,
+  listDirs,
+  listWorkspaceDirs,
+} from "./local-dirs";
 
 /**
  * The local profile's WorkspaceStore — the desktop tree on disk is the source
  * of truth, not a database. Workspaces are the immediate subdirs of
- * `<root>` (`~/.houston/workspaces`); agents are the subdirs of each.
+ * `<root>` (`~/.houston/workspaces`); agents are the subdirs of each. The
+ * preferences namespace (`ws/<wsId>/preferences.json`, the same root through
+ * FsVfs) is never a workspace: listing it seeded a phantom agent `ws/<wsId>`
+ * that a standing pod's eager spawn then booted a runtime into.
  *
  * Ids ARE the on-disk path: a workspace id is its folder name, an agent id is
  * `<Workspace>/<Agent>` — so the id flows unchanged through LocalPaths, the
@@ -40,21 +42,6 @@ export class LocalWorkspaceStore implements WorkspaceStore {
     private readonly defaultWorkspace = "Personal",
   ) {
     mkdirSync(root, { recursive: true });
-  }
-
-  private isDir(p: string): boolean {
-    try {
-      return statSync(p).isDirectory();
-    } catch {
-      return false;
-    }
-  }
-
-  private listDirs(p: string): string[] {
-    if (!existsSync(p)) return [];
-    return readdirSync(p)
-      .filter((name) => !name.startsWith(".") && this.isDir(join(p, name)))
-      .sort();
   }
 
   private toWorkspace(name: string): Workspace {
@@ -79,14 +66,16 @@ export class LocalWorkspaceStore implements WorkspaceStore {
   }
 
   async getOrCreatePersonalWorkspace(_userId: UserId): Promise<Workspace> {
-    const existing = this.listDirs(this.root);
+    const existing = listWorkspaceDirs(this.root);
     const name = existing[0] ?? this.defaultWorkspace;
     mkdirSync(join(this.root, name), { recursive: true });
     return this.toWorkspace(name);
   }
 
   async getWorkspace(id: WorkspaceId): Promise<Workspace | null> {
-    return this.isDir(join(this.root, id)) ? this.toWorkspace(id) : null;
+    return isWorkspaceDirName(id) && isDir(join(this.root, id))
+      ? this.toWorkspace(id)
+      : null;
   }
 
   async getAgent(id: AgentId): Promise<Agent | null> {
@@ -96,19 +85,21 @@ export class LocalWorkspaceStore implements WorkspaceStore {
     const agentName = id.slice(slash + 1);
     // Reject traversal: an agent id is exactly <Workspace>/<Agent>.
     if (!agentName || agentName.includes("/") || id.includes("..")) return null;
-    return this.isDir(join(this.root, wsName, agentName))
+    return isWorkspaceDirName(wsName) &&
+      isDir(join(this.root, wsName, agentName))
       ? this.toAgent(wsName, agentName)
       : null;
   }
 
   async listAgents(workspaceId: WorkspaceId): Promise<Agent[]> {
-    return this.listDirs(join(this.root, workspaceId)).map((name) =>
+    if (!isWorkspaceDirName(workspaceId)) return [];
+    return listDirs(join(this.root, workspaceId)).map((name) =>
       this.toAgent(workspaceId, name),
     );
   }
 
   async listWorkspaces(): Promise<Workspace[]> {
-    return this.listDirs(this.root).map((name) => this.toWorkspace(name));
+    return listWorkspaceDirs(this.root).map((name) => this.toWorkspace(name));
   }
 
   async listWorkspacesForUser(_userId: UserId): Promise<Workspace[]> {
@@ -117,8 +108,8 @@ export class LocalWorkspaceStore implements WorkspaceStore {
 
   async listAllAgents(): Promise<Agent[]> {
     const out: Agent[] = [];
-    for (const ws of this.listDirs(this.root)) {
-      for (const a of this.listDirs(join(this.root, ws)))
+    for (const ws of listWorkspaceDirs(this.root)) {
+      for (const a of listDirs(join(this.root, ws)))
         out.push(this.toAgent(ws, a));
     }
     return out;
@@ -132,7 +123,7 @@ export class LocalWorkspaceStore implements WorkspaceStore {
     name: string,
     except?: string,
   ): boolean {
-    return this.listDirs(join(this.root, workspaceId)).some(
+    return listDirs(join(this.root, workspaceId)).some(
       (existing) => existing !== except && sameAgentName(existing, name),
     );
   }
