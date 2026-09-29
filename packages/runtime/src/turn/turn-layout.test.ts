@@ -126,3 +126,112 @@ test.each([
     code: "layout_unexpected",
   } satisfies Partial<TurnSetupError>);
 });
+
+// The staging store of load-test agent 456dfb1fd310de07: the agent carries no
+// marker (only schemas and a runtime tree), beside two preferences-namespace
+// folders a standing host booted runtimes into.
+const BENCH = [
+  "workspaces/Personal/bench-increments-20260921-077/.houston/activity/activity.schema.json",
+  "workspaces/Personal/bench-increments-20260921-077/.houston/routines/routines.schema.json",
+  "workspaces/Personal/bench-increments-20260921-077/.houston/runtime/runtime.log",
+  "workspaces/Personal/bench-increments-20260921-077/.houston/runtime/models-store.json",
+];
+const PREFS_NAMESPACE = [
+  "workspaces/ws/Personal/preferences.json",
+  "workspaces/ws/Personal/.houston/runtime/runtime.log",
+  "workspaces/ws/Personal/.houston/runtime/models-store.json",
+  "workspaces/ws/ws/preferences.json",
+  "workspaces/ws/ws/.houston/runtime/runtime.log",
+  "workspaces/ws/ws/.houston/runtime/models-store.json",
+];
+const BENCH_REL = "workspaces/Personal/bench-increments-20260921-077";
+
+test("an unmarked agent beside the preferences namespace resolves", async () => {
+  const storeRoot = await root();
+  await seedFiles(storeRoot, [...PREFS_NAMESPACE, ...BENCH]);
+
+  await expect(
+    resolveTurnLayout(storeRoot, { allowEmpty: false }),
+  ).resolves.toMatchObject({
+    kind: "standing",
+    workspaceRel: BENCH_REL,
+    dataRel: `${BENCH_REL}/.houston/runtime`,
+  });
+});
+
+test("the listing resolves the unmarked agent from the skeleton alone", async () => {
+  const storeRoot = await root();
+
+  await expect(
+    resolveListedLayout(storeRoot, [...PREFS_NAMESPACE, ...BENCH], {
+      allowEmpty: false,
+    }),
+  ).resolves.toMatchObject({ workspaceRel: BENCH_REL });
+});
+
+test("a preferences-namespace folder is never an agent, markers or not", async () => {
+  const storeRoot = await root();
+  const markedPrefs = [
+    "workspaces/ws/Personal/CLAUDE.md",
+    "workspaces/ws/Personal/.houston/config/config.json",
+  ];
+
+  await expect(
+    resolveListedLayout(storeRoot, [...markedPrefs, ...PRIME], {
+      allowEmpty: false,
+    }),
+  ).resolves.toMatchObject({ workspaceRel: "workspaces/Personal/prime" });
+});
+
+test("a store holding only the preferences namespace has no agent", async () => {
+  const storeRoot = await root();
+  await seedFiles(storeRoot, PREFS_NAMESPACE);
+
+  await expect(
+    resolveTurnLayout(storeRoot, { allowEmpty: false }),
+  ).rejects.toMatchObject({
+    code: "layout_unexpected",
+  } satisfies Partial<TurnSetupError>);
+});
+
+test("two unmarked agents outside the namespace are still ambiguous", async () => {
+  const storeRoot = await root();
+  await seedFiles(storeRoot, [
+    ...PREFS_NAMESPACE,
+    ...BENCH,
+    "workspaces/Personal/other/.houston/runtime/runtime.log",
+  ]);
+
+  await expect(resolveTurnLayout(storeRoot)).rejects.toMatchObject({
+    code: "layout_unexpected",
+  } satisfies Partial<TurnSetupError>);
+});
+
+test.each([
+  "data",
+  "workspace",
+])("the namespace beside a per-turn %s tree resolves per-turn", async (present) => {
+  const storeRoot = await root();
+  await seedFiles(storeRoot, [...PREFS_NAMESPACE, `${present}/x.json`]);
+
+  await expect(
+    resolveTurnLayout(storeRoot, { allowEmpty: false }),
+  ).resolves.toMatchObject({ kind: "cloudrun", dataRel: "data" });
+});
+
+test("a store holding only the namespace is an empty store", async () => {
+  const storeRoot = await root();
+  await seedFiles(storeRoot, PREFS_NAMESPACE);
+
+  await expect(resolveTurnLayout(storeRoot)).resolves.toMatchObject({
+    kind: "cloudrun",
+    workspaceRel: "workspace",
+  });
+  const claimedRoot = await root();
+  await expect(
+    resolveListedLayout(claimedRoot, PREFS_NAMESPACE, { allowEmpty: false }),
+  ).rejects.toMatchObject({
+    code: "layout_unexpected",
+    message: "hydrated store is empty; a claimed turn needs an existing agent",
+  });
+});
