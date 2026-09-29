@@ -4,6 +4,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveClaudeCliBinary } from "../auth/anthropic-cli-binary";
 import { buildClaudeEnv } from "../backends/claude/claude-env";
+import { preloadTurnModules } from "./turn-module-preload";
 
 /** Replaceable filesystem seams for the worker binary probe. */
 export interface ClaudeWorkerProbeDeps {
@@ -18,6 +19,7 @@ export interface ClaudeWorkerBootDeps {
   profile: ClaudeWorkerProfile;
   root: string;
   probe?: () => string;
+  preload?: () => Promise<void>;
   warm?: (root: string, binary: string) => Promise<void>;
   report: (error: unknown) => void;
 }
@@ -40,15 +42,15 @@ export function probeClaudeWorkerBinary(
 }
 
 /**
- * Start a pool worker's Claude probe and warmup without blocking boot. Both
- * pooled profiles warm: a single-use worker pays the binary page-in before its
- * one turn, and a multi-turn worker pays it once for every turn it will ever
- * serve — the first Anthropic turn on a fresh worker otherwise carries ~1-2 s
- * of cold binary load. The server profile is the per-agent pod, whose host
- * owns its own runtime lifecycle and never boots through this path.
+ * Start a pool worker's turn-module preload and Claude binary warmup without
+ * blocking boot. Both pooled profiles warm: a single-use worker pays the cold
+ * work before its one turn, and a multi-turn worker pays it once for every turn
+ * it will serve. The server profile is the per-agent pod, whose host owns its
+ * own runtime lifecycle and never boots through this path.
  */
 export function startClaudeWorkerBoot(deps: ClaudeWorkerBootDeps): void {
   if (deps.profile === "server") return;
+  void (deps.preload ?? preloadTurnModules)().catch(deps.report);
   const probe = deps.probe ?? probeClaudeWorkerBinary;
   let binary: string;
   try {

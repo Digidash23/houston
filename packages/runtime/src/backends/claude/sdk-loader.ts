@@ -20,21 +20,29 @@ export type ClaudeSdkLoadResult =
   | { ok: true; sdk: ClaudeSdk }
   | { ok: false; error: unknown };
 
-/** Start the optional SDK import without leaving an early rejection unhandled. */
+let processSdkLoad: Promise<ClaudeSdkLoadResult> | undefined;
+
+/** Share one optional SDK import per process, retrying after a failed preload. */
 export function preloadClaudeSdk(
   sdk?: ClaudeSdk,
 ): Promise<ClaudeSdkLoadResult> {
   if (sdk) return Promise.resolve({ ok: true, sdk });
-  return import("@anthropic-ai/claude-agent-sdk").then(
+  if (processSdkLoad) return processSdkLoad;
+  const load = import("@anthropic-ai/claude-agent-sdk").then(
     (loaded) => ({
-      ok: true,
+      ok: true as const,
       sdk: {
         query: loaded.query as ClaudeQuery,
         createSdkMcpServer: loaded.createSdkMcpServer,
       },
     }),
-    (error: unknown) => ({ ok: false, error }),
+    (error: unknown) => {
+      if (processSdkLoad === load) processSdkLoad = undefined;
+      return { ok: false as const, error };
+    },
   );
+  processSdkLoad = load;
+  return load;
 }
 
 /** Recover the loaded SDK or raise its original import failure. */

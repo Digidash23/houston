@@ -8,7 +8,11 @@ import {
   anthropicCredentialStorageDir,
   assertAnthropicScopeCredential,
 } from "./scope-guard";
-import { ClaudeBackendUnavailableError } from "./sdk-loader";
+import {
+  ClaudeBackendUnavailableError,
+  loadedClaudeSdk,
+  preloadClaudeSdk,
+} from "./sdk-loader";
 import type { ClaudeQuery } from "./session";
 import { createStreamTranslator } from "./translate";
 
@@ -63,8 +67,7 @@ export async function oneShotWithClaude(
   let query = p.query;
   if (!query) {
     try {
-      const sdk = await import("@anthropic-ai/claude-agent-sdk");
-      query = sdk.query as ClaudeQuery;
+      query = (await loadedClaudeSdk(preloadClaudeSdk())).query;
     } catch (err) {
       throw new ClaudeBackendUnavailableError(err);
     }
