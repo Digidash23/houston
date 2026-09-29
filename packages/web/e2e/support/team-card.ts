@@ -46,12 +46,13 @@ export async function openNewWorkspaceTeamCard(
 ): Promise<Locator> {
   await seedAnsweredSurvey(request, TEAM_CARD_INDUSTRY.toLowerCase());
   await page.goto("/");
-  // The account row: at the rail's foot, or heading the phone's More card.
+  // Where workspaces are created: the account row at the rail's foot, or
+  // the workspace switcher heading the phone's More card.
   const switcher =
     device === "desktop"
       ? workspaceMenuTrigger(page)
-      : (await openMoreMenu(page, "click")).locator(
-          '[data-testid="more-account"] button[aria-haspopup="menu"]',
+      : (await openMoreMenu(page, "click")).getByTestId(
+          "more-workspace-switcher",
         );
   await switcher.click();
   await page.getByRole("menuitem", { name: "Create workspace" }).click();

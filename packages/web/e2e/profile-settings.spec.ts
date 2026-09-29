@@ -2,14 +2,14 @@ import { FAKE_HOST_URL } from "@houston/fake-host";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
 import { AUTH_WEB_URL, E2E_VIEWER, signInAsViewer } from "./support/identity";
-import { openSettings } from "./support/settings-nav";
-import { openNavRow } from "./support/workspace-menu";
+import { openAccountScreen } from "./support/settings-nav";
+import { openAccountMenu } from "./support/workspace-menu";
 
 /**
  * A user names themselves, and Houston believes them everywhere.
  *
- * Settings > Profile writes the caller's own display name and picture through
- * the gateway's `PUT /v1/me/profile`. The point of the feature is NOT the form:
+ * Profile (the account menu's screen) writes the caller's own display name and
+ * picture through the gateway's `PUT /v1/me/profile`. The point of the feature is NOT the form:
  * it is that the saved identity is the one every multiplayer surface renders,
  * so this spec proves the write reaches the host and then lands on a surface
  * that is not the editor itself.
@@ -17,8 +17,8 @@ import { openNavRow } from "./support/workspace-menu";
  * WHY THIS SPEC SIGNS IN. `useMyEditableProfile` is gated on
  * `isIdentityConfigured() && a live session`, and the self-face it repaints
  * (`useMyProfile` -> `GET /v1/org/profiles` for `useSession().uid`) needs a real
- * uid. The default e2e server bakes no Firebase key, so the section cannot even
- * render there. Like chat-senders.spec.ts, this runs on the identity-ON server
+ * uid. The default e2e server bakes no Firebase key, so the screen cannot even
+ * be offered there. Like chat-senders.spec.ts, this runs on the identity-ON server
  * and signs in as {@link E2E_VIEWER}.
  *
  * The fake host models the whole contract (`routes-me.ts`): a `PUT` stores the
@@ -68,26 +68,27 @@ async function armSpace(request: APIRequestContext): Promise<void> {
   });
 }
 
-/** Sign in, then walk the real sidebar into Settings > Profile. */
-async function openProfileSettings(page: Page): Promise<void> {
+/** Sign in, then walk the real account menu into Profile. */
+async function openProfile(page: Page): Promise<void> {
   await signInAsViewer(page);
-  await openNavRow(page, "settings");
-  await page.getByRole("button", { name: "Profile" }).click();
+  await openAccountScreen(page, "Profile");
   await expect(page.getByTestId("profile-name-input")).toBeVisible();
 }
 
-/** The Settings index's identity header: a self-face OUTSIDE the editor,
- *  painted from the org profile the save reflected into. It replaced the rail's
- *  avatar menu, which was a second door onto this very page. */
-const identityName = (page: Page) =>
-  page.getByTestId("settings-identity").getByText(NEW_NAME, { exact: true });
+/** The account menu's header: a self-name OUTSIDE the editor, painted from the
+ *  org profile the save reflected into. Opens the menu, asserts, closes it. */
+async function expectAccountMenuNamed(page: Page, name: string): Promise<void> {
+  const menu = await openAccountMenu(page);
+  await expect(menu.getByText(name, { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+}
 
 test("a display name the user picks becomes the name Houston shows them", async ({
   page,
   request,
 }) => {
   await armSpace(request);
-  await openProfileSettings(page);
+  await openProfile(page);
 
   // The field opens on the EFFECTIVE name, inherited from the Google account:
   // nothing is user-set yet, so there is nothing to remove either.
@@ -98,18 +99,16 @@ test("a display name the user picks becomes the name Houston shows them", async 
   await field.fill(NEW_NAME);
   await page.getByTestId("profile-name-save").click();
 
-  // The save lands on a surface that is NOT the form: one level up, the
-  // Settings index's identity header is painted by `useMyProfile` ->
-  // `GET /v1/org/profiles`, which only knows the new name because the write
-  // reached the host and the mutation invalidated the profile caches.
-  await openSettings(page);
-  await expect(identityName(page)).toBeVisible();
+  // The save lands on a surface that is NOT the form: the account menu's
+  // header is painted by `useMyProfile` -> `GET /v1/org/profiles`, which only
+  // knows the new name because the write reached the host and the mutation
+  // invalidated the profile caches.
+  await expectAccountMenuNamed(page, NEW_NAME);
 
   // A full reload re-reads everything from the host, so this proves the name
   // was persisted rather than held in the client cache.
   await page.reload();
-  await openSettings(page);
-  await expect(identityName(page)).toBeVisible();
+  await expectAccountMenuNamed(page, NEW_NAME);
 });
 
 test("a picture the user uploads replaces their initials, and removing it falls back", async ({
@@ -117,7 +116,7 @@ test("a picture the user uploads replaces their initials, and removing it falls 
   request,
 }) => {
   await armSpace(request);
-  await openProfileSettings(page);
+  await openProfile(page);
 
   // No picture anywhere yet: the preview is initials, not an image.
   const avatar = page.getByTestId("profile-avatar");

@@ -25,10 +25,11 @@ test("opens the AI hub, browses providers and models via modals", async ({
 }) => {
   await page.goto("/");
 
-  // The workspace menu carries the destination. Opening it lands on the hub.
+  // The rail's "Connect your AI" row carries the destination. Opening it
+  // lands on the hub.
   await openNavRow(page, "ai-hub");
 
-  // Scoped to the header nav: the sidebar row shares the "AI Models" name.
+  // Scoped to the header nav, where the hub names its own lozenges.
   const headerNav = page.getByRole("navigation", {
     name: "AI providers and models",
   });
@@ -127,7 +128,7 @@ function connectedRow(page: Page): { body: Locator; root: Locator } {
   return { body, root: body.locator("xpath=../..") };
 }
 
-/** Open the AI models hub from the workspace menu. */
+/** Open the AI models hub from the rail's connect row. */
 async function openHub(page: Page): Promise<void> {
   await page.goto("/");
   await openNavRow(page, "ai-hub");

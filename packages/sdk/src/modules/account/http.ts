@@ -53,7 +53,7 @@ export interface AccountHttp {
  * values the product renders, plus `custom` saying which of them the user set
  * by hand rather than inheriting from Google. A gateway that predates the route
  * answers 404 like any other failure — the caller degrades that to "no profile
- * to edit" (the Settings profile section then never renders) so a pre-feature
+ * to edit" (the account menu then offers no Profile) so a pre-feature
  * host stays byte-identical.
  * @assistant group:settings
  */

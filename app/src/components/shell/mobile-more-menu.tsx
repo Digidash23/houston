@@ -1,45 +1,45 @@
 import { Sheet, SheetContent, SheetTitle } from "@houston-ai/core";
-import { SidebarProfileMenu } from "@houston-ai/layout";
-import { Settings } from "lucide-react";
+import { SidebarWorkspaceSwitcher } from "@houston-ai/layout";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSurfaceGates } from "../../hooks/use-surface-gates";
 import { openAdmin } from "../../lib/open-admin";
-import { ACADEMY_VIEW_ID, SETTINGS_VIEW_ID } from "../../lib/top-level-views";
+import { ACADEMY_VIEW_ID } from "../../lib/top-level-views";
 import { useUIStore } from "../../stores/ui";
-import type { MenuRow } from "./menu-row";
-import { mobileMoreItems } from "./mobile-more-items";
-import { MobileMoreBand, MobileMoreRowButton } from "./mobile-more-row";
+import { ConnectGroup } from "./connect-group";
+import { MobileAccountRow, MobileMoreRowButton } from "./mobile-more-row";
+import { useAccountMenu } from "./sidebar-account-menu";
 import { SidebarDialogs } from "./sidebar-dialogs";
-import { academyNavRow, adminNavRow } from "./sidebar-nav-rows";
-import { useSidebarNavItems } from "./use-sidebar-nav-items";
+import { academyNavRow, adminNavRow, settingsNavRow } from "./sidebar-nav-rows";
 import { useSidebarNavigation } from "./use-sidebar-navigation";
-import {
-  useAccountFace,
-  useWorkspaceCreate,
-  WorkspaceSwitchItems,
-} from "./workspace-account";
-import { tourAnchor } from "./workspace-tour-steps";
+import { useWorkspaceCreate, WorkspaceSwitchItems } from "./workspace-account";
+import { useWorkspaceSwitcherFace } from "./workspace-switcher-face";
 
 /**
- * The phone's "More": a floating card raised by the nav bar, headed by the
- * account row (the same person-over-workspace row as the desktop rail's foot,
- * whose menu switches or creates a workspace) and holding the long tail of
- * destinations.
+ * The phone's "More": a floating card raised by the nav bar, holding the
+ * desktop rail's foot. It is headed by the workspace switcher (whose menu,
+ * headed by who is signed in, switches or creates a workspace: the rail keeps
+ * the same choices in its account row's menu) and holds the rest of the
+ * rail's destinations.
  *
  * A card and not a full bottom sheet, because it is a MENU: it answers "where
  * else can I go" and then gets out of the way, so it hovers over the bar that
  * raised it rather than taking the screen. It is a Radix dialog under the
  * restyle, so it isolates the app on its own while open.
  *
- * The destinations are the RAIL's (`useSidebarNavItems`), so the phone can
- * never drift from the desktop on what exists, what a gate hides, or which
- * element a tour anchor names. They navigate with `nav: "reset"`: reaching a
- * destination from the menu is a tab-level move, not a level pushed onto the
- * tree the user was in.
+ * The destinations are the RAIL's, built by the same components and row
+ * builders (`connect-group.tsx`, `sidebar-account-menu.tsx`,
+ * `sidebar-nav-rows.tsx`), so the phone can never drift from the desktop on
+ * what exists, what a gate hides, or which element a tour anchor names. They
+ * navigate with `nav: "reset"`: reaching a destination from the menu is a
+ * tab-level move, not a level pushed onto the tree the user was in.
  *
- * The runs follow the desktop menu's: Admin (behind the org gate) leads the
- * workspace's tools, and the Academy and Settings close the list.
+ * Under the switcher: the connect group (apps, then AI behind
+ * `showAiModels`), as at the rail's foot; then the account row opening the
+ * person's menu, Admin behind the org gate, the Academy and Settings, which
+ * the rail keeps inside its account menu and the card has the room to show
+ * as rows. Every row is the card's own 48px row (`sheet`), its content on one
+ * 16px left edge at one 16px type size.
  */
 export function MobileMoreMenu() {
   const { t } = useTranslation(["shell", "common", "teams"]);
@@ -50,13 +50,9 @@ export function MobileMoreMenu() {
   const setViewMode = useUIStore((s) => s.setViewMode);
   const close = useCallback(() => setOpen(false), [setOpen]);
   const [createWsOpen, setCreateWsOpen] = useState(false);
-  const face = useAccountFace();
+  const face = useWorkspaceSwitcherFace();
   const create = useWorkspaceCreate(() => setCreateWsOpen(true));
 
-  const { navSections } = useSidebarNavItems(t, close, { nav: "reset" });
-  const groups = mobileMoreItems(navSections);
-  // The SAME Academy row the rail draws (`sidebar-nav-rows.tsx`), so the two
-  // breakpoints cannot drift.
   const academy = academyNavRow({
     label: t("shell:sidebar.academy"),
     onOpen: () => {
@@ -68,17 +64,14 @@ export function MobileMoreMenu() {
     label: t("shell:sidebar.admin"),
     onOpen: () => openAdmin({ nav: "reset" }),
   });
-  const settings: MenuRow = {
-    id: SETTINGS_VIEW_ID,
+  const settings = settingsNavRow({
     label: t("shell:sidebar.settings"),
-    icon: <Settings className="h-4 w-4" />,
-    dataAttrs: tourAnchor("nav-settings"),
-    onClick: () => {
-      // Settings opens on its INDEX, never a leftover section.
+    onOpen: () => {
       openSettings(null, { nav: "reset" });
       close();
     },
-  };
+  });
+  const account = useAccountMenu({ nav: "reset", onNavigate: close });
   const { switchWorkspace } = useSidebarNavigation({
     closeMobileMenu: close,
   });
@@ -96,13 +89,13 @@ export function MobileMoreMenu() {
           <SheetTitle className="sr-only">
             {t("shell:moreMenu.title")}
           </SheetTitle>
-          <div className="pt-1">
-            <SidebarProfileMenu
-              avatar={face.avatar}
+          {/* Every row is a sheet row: one 16px left edge, one 16px type
+              size, 48px tall, whichever component draws it. */}
+          <div className="pt-2">
+            <SidebarWorkspaceSwitcher
               title={face.title}
-              subtitle={face.subtitle}
-              side="bottom"
-              dataAttrs={{ "data-testid": "more-account" }}
+              header={face.header}
+              dataAttrs={{ "data-testid": "more-workspace-switcher" }}
             >
               <WorkspaceSwitchItems
                 onSwitch={switchWorkspace}
@@ -113,19 +106,24 @@ export function MobileMoreMenu() {
                   create.onCreate();
                 }}
               />
-            </SidebarProfileMenu>
+            </SidebarWorkspaceSwitcher>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto pb-2">
-            {showOrganization && <MobileMoreRowButton row={admin} />}
-            {groups.map((group) => (
-              <div key={group.id}>
-                {group.label && <MobileMoreBand label={group.label} />}
-                {group.items.map((row) => (
-                  <MobileMoreRowButton key={row.id} row={row} />
-                ))}
-              </div>
-            ))}
+            <div className="pb-2">
+              <ConnectGroup
+                collapsed={false}
+                surface="sheet"
+                nav="reset"
+                onNavigate={close}
+              />
+            </div>
             <div className="border-line border-t">
+              <MobileAccountRow
+                label={account.label}
+                avatar={account.avatar}
+                menu={account.menu}
+              />
+              {showOrganization && <MobileMoreRowButton row={admin} />}
               <MobileMoreRowButton row={academy} />
               <MobileMoreRowButton row={settings} />
             </div>

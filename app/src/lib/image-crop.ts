@@ -9,7 +9,7 @@
  * This module owns the two primitives every avatar path in the app shares:
  * {@link centerSquareCrop} (the geometry) and {@link decodeImage} (the
  * `createImageBitmap`-then-`<img>` decode ladder). `lib/avatar-image.ts` reuses
- * both for the Settings > Profile picture, which needs a size-capped data URI
+ * both for the Profile picture, which needs a size-capped data URI
  * instead of a blob — one crop, one decoder, two encoders.
  *
  * No new npm dependency: the crop runs on a plain `<canvas>`. The geometry is

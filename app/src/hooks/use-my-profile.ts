@@ -10,8 +10,8 @@ export type { MyProfile } from "./queries/user-profiles-map";
 
 /**
  * The signed-in caller's ONE resolved identity — the single source every
- * self-face reads (sidebar user menu, account row, Mission Control's person
- * filter). Merges the caller's `profiles` row over their identity-session
+ * self-face reads (the rail's account menu and workspace menu headers,
+ * Mission Control's person filter). Merges the caller's `profiles` row over their identity-session
  * metadata (display name + provider photo) via {@link resolveMyProfile}.
  * The Supabase `profiles` store retired with Supabase
  * auth, so {@link useUserProfiles} is a stub returning an empty map today (the

@@ -5,6 +5,7 @@ import { seedSidebarLayout } from "./support/sidebar-layout";
 import { litRows, navRow, rail, screen, teamTab } from "./support/team-nav";
 import {
   openWorkspaceMenu,
+  railDestination,
   workspaceMenuTrigger,
 } from "./support/workspace-menu";
 
@@ -15,9 +16,10 @@ import {
  * files-first board data (`.houston/activity/activity.json`) flows through.
  *
  * It is also where the rail's shape is pinned: Search and "+" on its top line,
- * the AI Employees and nothing else under it, and the account row at its foot,
- * whose menu holds AI Models, Integrations, the Academy and Settings. Desktop
- * opens the first employee once the roster and layout resolve.
+ * the AI Employees under it closed by the "Add new AI Employee" shortcut, and
+ * at its foot the connect rows (Integrations, AI Models) over the account
+ * row, whose menu holds the Academy and Settings. Desktop opens the first
+ * employee once the roster and layout resolve.
  */
 test("boots past every gate onto the first employee's Tasks", async ({
   page,
@@ -36,11 +38,21 @@ test("boots past every gate onto the first employee's Tasks", async ({
   await expect(newAgentButton(page)).toBeVisible();
   await expect(sidebar.getByText("Workspace", { exact: true })).toHaveCount(0);
   await expect(workspaceMenuTrigger(page)).toBeVisible();
-  // The destinations that belong to nobody live in the account row's menu.
-  await openWorkspaceMenu(page);
-  await expect(navRow(page, "ai-hub")).toBeVisible();
-  await expect(navRow(page, "integrations")).toBeVisible();
+  await expect(sidebar.getByTestId("rail-add-employee")).toBeVisible();
+  // The connect rows sit on the rail's foot, each named by its label alone
+  // (its logos are decorative); the rest lives in the account row's menu.
+  await expect(railDestination(page, "nav-integrations")).toHaveAccessibleName(
+    "Connect your apps",
+  );
+  await expect(railDestination(page, "nav-ai-hub")).toHaveAccessibleName(
+    "Connect your AI",
+  );
+  const menu = await openWorkspaceMenu(page);
+  await expect(navRow(page, "academy")).toBeVisible();
   await expect(navRow(page, "settings")).toBeVisible();
+  for (const id of ["ai-hub", "integrations"]) {
+    await expect(menu.locator(`[data-tour-target='nav-${id}']`)).toHaveCount(0);
+  }
   await page.keyboard.press("Escape");
 
   // The group header only folds; its first member is selected at boot.

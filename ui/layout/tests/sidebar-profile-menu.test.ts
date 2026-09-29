@@ -45,21 +45,28 @@ describe("SidebarProfileMenu", () => {
     assert.match(markup, /aria-haspopup="menu"/);
   });
 
-  it("carries no chevron and no letter tile", () => {
+  it("ends on an up-down chevron saying it opens a menu, and no letter tile", () => {
     const markup = render(false, "Acme");
-    assert.ok(!markup.includes("lucide-chevron"));
+    assert.equal(markup.match(/lucide-chevrons-up-down/g)?.length, 1);
+    // After the name and the workspace, at the row's end.
+    assert.ok(markup.indexOf(">Acme<") < markup.indexOf("lucide-chevrons"));
+    assert.match(
+      markup,
+      /data-sidebar-profile-chevron=""[^>]*aria-hidden="true"|aria-hidden="true"[^>]*data-sidebar-profile-chevron=""/,
+    );
     assert.ok(!markup.includes("rounded-md border"));
   });
 
   it("draws the name alone when there is no second line", () => {
     const markup = render(false);
-    assert.ok(!markup.includes("text-ink-muted"));
+    assert.ok(!markup.includes("line-clamp-2"));
   });
 
   it("shrinks to the collapsed rail's portrait, named by its label", () => {
     const markup = render(true, "Acme");
     assert.match(markup, /aria-label="Julian Arango"/);
     assert.match(markup, /data-diameter="24"/);
+    assert.ok(!markup.includes("lucide-chevrons"), "the portrait alone");
   });
 
   it("keeps its items closed until opened", () => {

@@ -3,6 +3,25 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v116 - 2026-09-28
+
+The rail keeps its team of message-list rows and gains a foot.
+`manager-avatar` is a disc, round like every employee avatar, inside a thin
+halo of the primary Button's material: the one mark no employee wears.
+`sidebar-add-row` is new: "Add new AI Employee", a 40px shortcut closing the
+list on the person row's columns (a bare Plus, no disc), opening the create
+sheet straight on the AI Employee path; the top line's "+" keeps the choice
+of an employee or a group. `sidebar-connect-group` is new: "Connect your
+apps" (Integrations) and "Connect your AI" (the AI Models hub) at the rail's
+foot under a hairline, each led by its three logos as stacked app-icon
+tiles. `sidebar-account-menu` closes the rail under them, an up-down chevron
+at its end; its menu is headed by the person's name and email and holds the
+workspaces, Profile and About me (screens of their own), Admin, the Academy,
+Settings and Sign out. Settings carries no identity header and no Profile or
+About me row. `sidebar-workspace-switcher` is new: the head of the phone's
+More card, which then lists the connect group, the account row, Admin, the
+Academy and Settings.
+
 ## v115 - 2026-09-28
 
 The launch announcement is copy and plans only: the astronaut panel is gone

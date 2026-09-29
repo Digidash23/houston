@@ -2,10 +2,12 @@
  * Full-window destinations share one view registry. The employee screen has
  * one view id; its selected employee and section live in store state. Folder
  * headers have no view id because they only change SidebarLayout disclosure.
- * Admin is a gated screen in the rail footer. A stale view falls back to AI
- * Employees home.
+ * Admin is a gated screen in the rail footer; Profile and About me are the
+ * account menu's screens. A stale view falls back to AI Employees home.
  */
+
 import { ACADEMY_VIEW_ID } from "../components/academy/id.ts";
+import { ABOUT_ME_VIEW_ID, PROFILE_VIEW_ID } from "../components/account/id.ts";
 import { AGENTS_HOME_VIEW_ID } from "../components/agents-home/id.ts";
 import { ASSISTANT_VIEW_ID } from "../components/assistant/id.ts";
 import { INTEGRATIONS_VIEW_ID } from "../components/integrations-view/id.ts";
@@ -13,12 +15,14 @@ import { ADMIN_VIEW_ID } from "../components/organization/id.ts";
 import { AGENT_VIEW_ID, type TeamSectionId } from "./teams-model.ts";
 
 export {
+  ABOUT_ME_VIEW_ID,
   ACADEMY_VIEW_ID,
   ADMIN_VIEW_ID,
   AGENT_VIEW_ID,
   AGENTS_HOME_VIEW_ID,
   ASSISTANT_VIEW_ID,
   INTEGRATIONS_VIEW_ID,
+  PROFILE_VIEW_ID,
 };
 
 export const SETTINGS_VIEW_ID = "settings";
@@ -32,6 +36,8 @@ export type TopLevelViewId =
   | typeof AI_HUB_VIEW_ID
   | typeof INTEGRATIONS_VIEW_ID
   | typeof ADMIN_VIEW_ID
+  | typeof PROFILE_VIEW_ID
+  | typeof ABOUT_ME_VIEW_ID
   | typeof AGENT_VIEW_ID;
 
 export const TOP_LEVEL_VIEWS = new Set<TopLevelViewId>([
@@ -42,6 +48,8 @@ export const TOP_LEVEL_VIEWS = new Set<TopLevelViewId>([
   AI_HUB_VIEW_ID,
   INTEGRATIONS_VIEW_ID,
   ADMIN_VIEW_ID,
+  PROFILE_VIEW_ID,
+  ABOUT_ME_VIEW_ID,
   AGENT_VIEW_ID,
 ]);
 

@@ -23,6 +23,9 @@ describe("deadViewStep", () => {
     // Ungated: no gate can take the Academy away, so the guard must never
     // send a user home off it.
     assert.equal(deadViewStep({ ...base, viewMode: "academy" }), "keep");
+    // The account menu's screens are ungated too.
+    assert.equal(deadViewStep({ ...base, viewMode: "profile" }), "keep");
+    assert.equal(deadViewStep({ ...base, viewMode: "about-me" }), "keep");
   });
 
   it("sends a view no screen answers to home", () => {
@@ -30,7 +33,6 @@ describe("deadViewStep", () => {
     // Retired ids an older install may still have pinned. These are stale
     // `viewMode`s that must land the user home rather than on a blank card.
     assert.equal(deadViewStep({ ...base, viewMode: "inbox" }), "go-home");
-    assert.equal(deadViewStep({ ...base, viewMode: "about-me" }), "go-home");
     assert.equal(deadViewStep({ ...base, viewMode: "agent-store" }), "go-home");
     assert.equal(
       deadViewStep({ ...base, viewMode: "organization" }),

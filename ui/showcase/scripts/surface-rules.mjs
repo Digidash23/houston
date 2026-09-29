@@ -2,10 +2,10 @@
  * Where a file lives → what the user calls that place.
  *
  * The navigation labels are the product's own words: they come from
- * `app/src/locales/en/shell.json` → `sidebar` (Houston, AI Models,
- * Integrations, Your AI Employees, Academy, Settings), built by
- * `app/src/components/shell/sidebar-nav-sections.tsx` and drawn by
- * `app/src/components/shell/sidebar-chrome.tsx`.
+ * `app/src/locales/en/shell.json` → `sidebar` (Houston, Connect your apps,
+ * Connect your AI, Academy, Settings), built by
+ * `app/src/components/shell/connect-group.tsx` and
+ * `app/src/components/shell/sidebar-nav-rows.tsx`.
  *
  * The remaining per-area labels below (Activity, Chat, Routines, Skills,
  * Integrations, Files, Archived, Permissions, Agent Settings) are HISTORICAL
@@ -131,6 +131,9 @@ export const SURFACE_RULES = {
   "app/src/components/provider-switch-dialog": "AI Models",
   "app/src/components/organization/": "Organization",
   "app/src/components/settings/": "Settings",
+  // Profile and About me: the person's own screens, opened from the account
+  // menu ("Your account" on the phone's More card).
+  "app/src/components/account/": "Your account",
   "app/src/components/dictation-setup-dialog": "Settings",
   "app/src/components/onboarding/": "Onboarding",
   "app/src/components/auth/": "Sign in",

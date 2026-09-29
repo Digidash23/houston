@@ -1,8 +1,6 @@
 {
   "title": "Settings",
   "nav": {
-    "profile": "Profile",
-    "aboutMe": "About me",
     "apiKeys": "API keys",
     "language": "Language",
     "shortcuts": "Keyboard shortcuts",
@@ -15,9 +13,6 @@
     "emptyTitle": "No workspace available",
     "emptyBody": "We couldn't find a workspace for your account. Try again or restart the app.",
     "retry": "Try again"
-  },
-  "account": {
-    "signOut": "Sign out"
   },
   "profile": {
     "title": "Profile",
@@ -153,8 +148,6 @@
       "general": "General"
     },
     "rows": {
-      "profile": "Your name and picture",
-      "aboutMe": "What your AI Employees know about you before they start",
       "apiKeys": "Let other apps and AI assistants start tasks with your AI Employees",
       "shortcuts": "Run Houston without the mouse",
       "reportBug": "Something broke, or you have an idea? Tell us",

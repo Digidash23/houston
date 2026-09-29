@@ -1,5 +1,5 @@
 import { deepStrictEqual, ok, strictEqual } from "node:assert";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -603,11 +603,11 @@ describe("employee depth", () => {
     ok(source("sidebar-tree-row.tsx").includes("grouped={inGroup}"));
   });
 
-  it("closes the list on its rows alone: creating is the host's top-line verb", () => {
+  it("holds rows alone: the add shortcut is the host's, drawn by the rail after the list", () => {
     for (const file of ["sidebar-grouped-list.tsx", "sidebar-flat-list.tsx"]) {
       const src = source(file);
       strictEqual(/onAdd|addItem|SidebarAddRow/.test(src), false, file);
     }
-    strictEqual(existsSync(join(SRC, "sidebar-add-row.tsx")), false);
+    ok(source("sidebar.tsx").includes("{listFooter && ("));
   });
 });

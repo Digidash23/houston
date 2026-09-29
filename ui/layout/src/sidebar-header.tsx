@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import {
   sidebarWindowControlsHeight,
   sidebarWindowControlsWidth,
-} from "./sidebar-geometry";
+} from "./sidebar-frame";
 import { SidebarCollapseToggle } from "./sidebar-rail-chrome";
 
 /**

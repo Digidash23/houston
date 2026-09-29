@@ -74,9 +74,14 @@ export const APP_SIDEBAR_PROPS: readonly SpecimenProp[] = [
     note: "A FULL-WIDTH notice under the top line and above the list (e.g. the pending-invite inbox), spanning the rail like every row below it.",
   },
   {
+    name: "listFooter",
+    type: "ReactNode",
+    note: 'Closes the list inside its scroll box, right after the last row, in both rail states: typically `SidebarAddRow`, the "Add new AI Employee" shortcut.',
+  },
+  {
     name: "footer",
     type: "ReactNode",
-    note: "Bottom slot, typically the account (`SidebarProfileMenu`); `shrink-0`, so a short window squeezes the list instead.",
+    note: "Bottom slot, typically the connect rows (`SidebarConnectGroup`) over the account (`SidebarProfileMenu`); `shrink-0`, so a short window squeezes the list instead.",
   },
   {
     name: "labels",

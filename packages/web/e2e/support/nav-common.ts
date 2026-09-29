@@ -17,16 +17,17 @@ export function rail(page: Page): Locator {
   return page.locator("[data-tour-target='agents']");
 }
 
-/** The top-level rail rows, by the tour anchor the shell stamps on each. */
-export type NavRowId = "integrations" | "ai-hub" | "settings";
+/** The rail's destinations, by the tour anchor the shell stamps on each. */
+export type NavRowId = "integrations" | "ai-hub" | "academy" | "settings";
 
 /**
- * One destination row — AI Models, Integrations, Settings — by its tour
- * anchor. The rows live in the workspace menu at the rail's foot (the phone's
- * More card), so a spec opens that first (`workspace-menu.ts`
- * `openDestination`, or `openNavRow` below). The AI Manager is the rail's
- * pinned first row instead, addressed by its test id (`settings-nav.ts`
- * `assistantRow`).
+ * One destination — Integrations, AI Models, the Academy, Settings — by its
+ * tour anchor. On the desktop the connect rows sit on the rail's foot and
+ * the Academy and Settings in its account menu; on the phone they live in
+ * the More card, so a spec opens what holds them first (`workspace-menu.ts`
+ * `openDestination`, or `openNavRow`). The AI
+ * Manager is the rail's pinned first row instead, addressed by its test id
+ * (`settings-nav.ts` `assistantRow`).
  *
  * Every board belongs to an employee, so a spec that wants the desktop landing
  * board asks for

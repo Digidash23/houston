@@ -172,7 +172,7 @@ for (const theme of THEMES) {
     await navItem(page, "more").click();
     await expect(moreMenu(page)).toBeVisible();
     await expect(
-      moreMenu(page).getByRole("button", { name: "Integrations" }),
+      moreMenu(page).getByRole("button", { name: "Connect your apps" }),
     ).toBeVisible();
     await page.mouse.move(0, 0);
     await pinTheme(page, theme);

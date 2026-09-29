@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 115
+version: 116
 
 components:
   - id: agent-delegation-settings
@@ -83,15 +83,20 @@ components:
       The mark of Houston, the AI Manager, wherever the Manager appears as a
       member of the team: the rail's pinned row, the phone's pinned Agents
       row and the phone chat header.
-    anatomy: [squircle, cta-fill, cta-rim, helmet]
+    anatomy: [disc, cta-fill, cta-rim, helmet, halo]
     states: [resting]
     variants: [rail-expanded, rail-collapsed, phone-list, phone-header]
     behavior: >-
-      The agent avatar's helmet on a squircle of the filled primary Button's
-      own material: a true superellipse (an SVG path, never a border radius)
-      filled with the Button's resting `cta` fill, a 1px `cta-rim` inside its
-      edge, and the helmet in the Button's `cta-text` label colour, at the
-      agent avatar's 65% ratio on whole pixels at every size. Flat, like the
+      The agent avatar's helmet on a disc of the filled primary Button's own
+      material, round like every employee avatar beside it: the Button's
+      resting `cta` fill, a 1px `cta-rim` inside its edge, and the helmet in
+      the Button's `cta-text` label colour, at the agent avatar's 65% ratio on
+      whole pixels at every size. Around it, the one mark no employee wears:
+      a thin halo in the `cta` fill with empty air between it and the disc
+      (at 24px a 1px line 1.5px clear, 29px across; the line grows with the
+      disc in half-pixel steps, the air stays one and a half lines), drawn
+      outside the disc's box, so the disc keeps the employee avatars'
+      diameter and column and nothing covers the helmet. Flat, like the
       Button. Every colour is the Button's own token, so the mark switches
       with the theme and the palette exactly as the Button does. It takes the
       diameter of the slot it renders in, so the collapsed rail shrinks it
@@ -1328,7 +1333,8 @@ components:
       while it is reachable: an employee's person row with the Manager's
       avatar, its name Houston and its role, Your AI Manager, as the second
       line, never draggable and never a drop target, and the first avatar on
-      the collapsed rail. On the icon
+      the collapsed rail. The list closes on the sidebar-add-row shortcut. On
+      the icon
       rail the verbs stack under the expand toggle. The phone has no rail:
       its roster and its create control live on the AI Employees list.
     a11y: >-
@@ -1338,29 +1344,93 @@ components:
 
   - id: sidebar-account-menu
     title: Sidebar account menu
-    purpose: The rail's foot, and the one menu for everything that is not an AI Employee.
-    anatomy: [person-row-trigger, portrait, name-line, workspace-line, workspace-run,
-      tools-run, personal-run]
+    purpose: The rail's last row, and the one menu for everything that is not an AI Employee or a connection.
+    anatomy: [person-row-trigger, portrait, name-line, workspace-line, chevron, identity-header,
+      workspace-run, personal-run, destinations-run, sign-out]
     states: [resting, hover, menu-open, icon-rail, signed-out]
     variants: [expanded, icon-rail]
     behavior: >-
-      The trigger is a person row like an employee's: the signed-in person's
+      The trigger is a person row like an employee's, under the connect rows
+      (sidebar-connect-group) at the rail's foot: the signed-in person's
       round portrait (photo, else initials), their name, and the workspace
       they are in on the line under it, so the rail always says where the
-      person is. Without an identity (single-player desktop) the workspace
-      takes the name line beside a plain person glyph. It opens upward (to the
-      right from the icon rail) on three runs: every workspace, the current
-      one checked, then create (a new organization where Spaces are served, a
-      workspace elsewhere); Admin behind the organization gate, then AI Models
-      behind its gate, then Integrations; the Academy, then Settings on its
-      index. There is no Skills row and no help control. The phone's More card
-      is headed by the same account row, its menu opening downward on the
-      workspace run, and lists the other runs as rows from the same builders.
+      person is, and an up-down chevron at its end saying it opens a menu
+      (muted at rest, full ink on hover or open; the icon rail keeps the
+      portrait alone). Without an identity (single-player desktop) the
+      workspace takes the name line beside a plain person glyph. It opens
+      upward (to the right from the icon rail), headed by the person's name
+      and email, on
+      four runs: every workspace, the current one checked, then create (a new
+      organization where Spaces are served, a workspace elsewhere); Profile
+      (where the deployment serves it) and About me, each a screen of its
+      own; Admin behind the organization gate, the Academy, then Settings on
+      its index; and Sign out. Without an identity there is no header, no
+      Profile and no Sign out. There is no Skills row and no help control.
     a11y: >-
       The trigger is one menu button named by the person and workspace lines
       (the icon rail names it by tooltip); every item is a menu item with a
       visible label.
     since: 111
+
+  - id: sidebar-connect-group
+    title: Sidebar connect group
+    purpose: The rail's invitation to plug Houston into a person's apps and AI models.
+    anatomy: [connect-row, logo-cluster, label]
+    states: [resting, hover, selected, icon-rail]
+    variants: [rail, icon-rail, sheet]
+    behavior: >-
+      Two plain rows at the rail's foot, set off from the team above by a
+      hairline and sitting over the account row: "Connect your apps"
+      (Integrations), then "Connect your AI" (the AI Models hub) behind its
+      gate. Each 36px row is led by its first three logos as stacked app-icon
+      tiles (opaque, a hairline edge, no shadow, the first on top), then its
+      label at the rail's 13px, and nothing after it. Painted only under the
+      pointer or while its destination is open. The icon rail keeps each logo cluster alone, named
+      by a tooltip. On the phone's More card the same rows are the card's own
+      48px rows.
+    a11y: >-
+      Each row is one button named by its label; the logos are decorative. The open destination carries aria-current. Nothing is
+      hover-gated.
+    since: 116
+
+  - id: sidebar-add-row
+    title: Sidebar add row
+    purpose: The shortcut closing the rail's list, for adding one more AI Employee.
+    anatomy: [row, plus-glyph, label]
+    states: [resting, hover, focus, icon-rail, nothing-to-create]
+    variants: [expanded, icon-rail]
+    behavior: >-
+      Drawn inside the list's scroll box right after its last row, outside
+      every folder, for a caller who may create an AI Employee; it opens the
+      create sheet straight on the AI Employee path (the top line's "+" keeps
+      the choice of an employee or a group). A 40px row, shorter than a
+      person, on the person row's columns: a bare 16px Plus with no disc,
+      centred on the portraits above it, and "Add new AI Employee" on the
+      names' left edge at the rail's 13px. The Plus and the label are muted at
+      rest and full ink on hover or keyboard focus, with the rail's full-width
+      pill and no hairline. On the icon rail it is the Plus alone in the
+      avatars' column, named by a tooltip.
+    a11y: >-
+      One button named by its visible label; on the icon rail by its
+      aria-label and a tooltip on the right. The Plus is decorative.
+    since: 116
+
+  - id: sidebar-workspace-switcher
+    title: Sidebar workspace switcher
+    purpose: The head of the phone's More card, naming the workspace and switching it.
+    anatomy: [card-row, workspace-name, chevron, identity-header, workspace-run]
+    states: [resting, menu-open]
+    variants: []
+    behavior: >-
+      The card's own 48px row: the workspace's name at 16px and an up-down
+      chevron, no mark. It opens downward on the workspaces, the current one
+      checked, then create, headed by the person's name and email. The
+      desktop rail names the workspace on its account row
+      (sidebar-account-menu) instead.
+    a11y: >-
+      One menu button named by the workspace; every item is a menu item with
+      a visible label.
+    since: 116
 
   - id: team-identity-picker
     title: Group identity picker
@@ -1502,17 +1572,24 @@ components:
     purpose: >-
       The phone's long tail behind the nav bar's More item: every destination
       the desktop rail lists, as a floating card rising from the bar.
-    anatomy: [card, account-row, destination-row, row-glyph]
+    anatomy: [card, workspace-switcher, connect-group, account-row, account-menu,
+      destination-row, row-glyph]
     states: [closed, open]
     variants: []
     behavior: >-
       A floating rounded card anchored just above the nav bar, dismissed by
-      scrim tap or swipe, never a full-height sheet. Its header is the account
-      row (sidebar-account-menu), whose menu opens downward on the workspaces
-      and create; below it the desktop menu's destinations in its own order,
-      one row each: Admin when the org gate admits the caller, AI Models behind
-      its gate and Integrations, then Academy and Settings. There is no help
-      group and no Skills row.
+      scrim tap or swipe, never a full-height sheet. It holds the desktop
+      rail's foot, every row the card's own: at least 48px, its content on
+      one 16px left edge, its words 16px, whichever component draws it. Its
+      header is the workspace switcher (sidebar-workspace-switcher), whose
+      menu opens downward on the workspaces and create, headed by who is
+      signed in. Below it the rail's connect group (sidebar-connect-group),
+      the same component with the same labels and logos. Then the
+      account menu's destinations as rows, in its order: the account row
+      (the portrait and "Your account", opening the person's menu with
+      Profile, About me and Sign out), Admin when the org gate admits the
+      caller, the Academy and Settings. There is no help group and no Skills
+      row.
       One list, the rail's own, so a destination cannot exist on the desktop and
       be unreachable on the phone. Picking a destination closes the card and
       RESETS the navigation trail to that screen, with the bar's More item
@@ -1521,8 +1598,9 @@ components:
       the More item.
     a11y: >-
       A modal dialog named "More"; every row is a real button at least 44px
-      tall named by its destination, the mention badge announces its count,
-      and dismissal is reachable by the hardware back and the scrim.
+      tall named by its destination, the account row a menu button, the
+      mention badge announces its count, and dismissal is reachable by the
+      hardware back and the scrim.
     since: 75
 
   - id: agents-home

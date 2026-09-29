@@ -1,10 +1,14 @@
 import {
+  ABOUT_ME_VIEW_ID,
   AGENT_VIEW_ID,
   AGENTS_HOME_VIEW_ID,
   AI_HUB_VIEW_ID,
+  PROFILE_VIEW_ID,
   SETTINGS_VIEW_ID,
 } from "../../lib/top-level-views";
 import { ACADEMY_VIEW_ID, AcademyView } from "../academy";
+import { AboutMeView } from "../account/about-me-view";
+import { ProfileView } from "../account/profile-view";
 import { AgentsHomeView } from "../agents-home/agents-home-view";
 import { AiHubView } from "../ai-hub/ai-hub-view";
 import { ASSISTANT_VIEW_ID, AssistantView } from "../assistant";
@@ -21,6 +25,8 @@ import { adminViewEnabled } from "./top-level-screen-plan";
  *
  * The Academy is ungated: learning the product exists in every deployment.
  * Settings carries personal setup sections (`lib/settings-sections.ts`).
+ * Profile and About me are the account menu's screens; the menu offers
+ * Profile only where the deployment serves it.
  *
  * Each employee's policy is reached through their own screen. Admin owns the
  * space's administration and follows the organization gate: it stays mounted
@@ -45,6 +51,8 @@ export function topLevelScreenViews(gates: {
     { id: ACADEMY_VIEW_ID, enabled: true, content: <AcademyView /> },
     { id: AI_HUB_VIEW_ID, enabled: gates.showAiModels, content: <AiHubView /> },
     { id: SETTINGS_VIEW_ID, enabled: true, content: <SettingsView /> },
+    { id: PROFILE_VIEW_ID, enabled: true, content: <ProfileView /> },
+    { id: ABOUT_ME_VIEW_ID, enabled: true, content: <AboutMeView /> },
     {
       id: INTEGRATIONS_VIEW_ID,
       enabled: true,

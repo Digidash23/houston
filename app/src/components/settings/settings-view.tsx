@@ -14,7 +14,6 @@ import { workspaceGateState } from "../../lib/workspace-switch";
 import { useUIStore } from "../../stores/ui";
 import { useWorkspaceStore } from "../../stores/workspaces";
 import { useMigrationAvailable } from "./sections/migration";
-import { useProfileAvailable } from "./sections/profile";
 import { SettingsIndex } from "./settings-index";
 import { SettingsSectionBody } from "./settings-section-body";
 
@@ -37,7 +36,6 @@ export function SettingsView() {
   const workspacesLoading = useWorkspaceStore((s) => s.loading);
   const workspaceLoadError = useWorkspaceStore((s) => s.loadError);
   const loadWorkspaces = useWorkspaceStore((s) => s.loadWorkspaces);
-  const profileAvailable = useProfileAvailable();
   const migrationAvailable = useMigrationAvailable();
   // The open section lives in the UI store, not in local state: every surface
   // that navigates here goes through `openSettings`, so a deep link lands even
@@ -62,7 +60,7 @@ export function SettingsView() {
   });
 
   // One `tab_opened` per Settings surface actually reached, keyed like every
-  // other view switch (`settings` for the index, `settings:profile` for a
+  // other view switch (`settings` for the index, `settings:plan` for a
   // section) so a single tab_name breakdown covers both depths. Settings owns
   // this event outright — the shell's generic viewMode effect skips `settings`,
   // so a deep link can no longer double-count — and a loading or error frame
@@ -117,7 +115,6 @@ export function SettingsView() {
       <div className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
         <SettingsIndex
           migrationAvailable={migrationAvailable}
-          profileAvailable={profileAvailable}
           onSelect={setActive}
         />
       </div>

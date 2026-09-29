@@ -10,16 +10,16 @@ import { useTranslation } from "react-i18next";
 import {
   useMyEditableProfile,
   useSetMyProfile,
-} from "../../../hooks/queries/use-my-editable-profile";
+} from "../../hooks/queries/use-my-editable-profile";
 import {
   type AvatarImageError,
   AvatarImageFailure,
   fileToAvatarDataUrl,
   isAvatarImageFile,
-} from "../../../lib/avatar-image";
-import { genericErrorDescription } from "../../../lib/error-report";
-import { useUIStore } from "../../../stores/ui";
-import { SettingsControlRow } from "../settings-row";
+} from "../../lib/avatar-image";
+import { genericErrorDescription } from "../../lib/error-report";
+import { useUIStore } from "../../stores/ui";
+import { SettingsControlRow } from "../settings/settings-row";
 
 /**
  * One localized string per client-side rejection. Kept as a literal map (not a
@@ -47,7 +47,7 @@ function pictureInitials(name: string): string {
 }
 
 /**
- * Settings > Profile > Picture: the preview, an always-visible "Change picture"
+ * Profile > Picture: the preview, an always-visible "Change picture"
  * button driving a hidden file input, and — only when the current picture is the
  * user's OWN upload — a "Remove picture" button that clears back to their Google
  * photo. The image is squared and shrunk in the browser before it ever reaches
@@ -55,7 +55,7 @@ function pictureInitials(name: string): string {
  * its honest reason, and the SAVE itself surfaces through `call()` in
  * `lib/tauri.ts`, so nothing here adds a second failure toast.
  *
- * `displayName` is the EFFECTIVE name the section already resolved (the gateway
+ * `displayName` is the EFFECTIVE name the Profile screen already resolved (the gateway
  * value, else the identity session's), passed in rather than re-derived so the
  * initials here can never disagree with the name in the field below them.
  */

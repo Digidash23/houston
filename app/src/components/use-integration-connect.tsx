@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import {
   useIntegrationConnections,
-  useIntegrationStatus,
   useIntegrationToolkits,
 } from "../hooks/queries";
 import { analytics } from "../lib/analytics";
@@ -19,6 +18,7 @@ import {
   INTEGRATION_PROVIDER,
   useConnectFlow,
 } from "./integrations";
+import { useIntegrationProviderReady } from "./integrations/use-toolkit-catalog";
 
 /**
  * The reactive connect logic behind BOTH in-chat connect surfaces — the inline
@@ -75,9 +75,7 @@ export function useIntegrationConnect({
   view: ConnectCardView;
   startConnect: () => Promise<void>;
 } {
-  const status = useIntegrationStatus();
-  const ready = !!status.data?.find((p) => p.provider === INTEGRATION_PROVIDER)
-    ?.ready;
+  const ready = useIntegrationProviderReady();
   const connections = useIntegrationConnections(INTEGRATION_PROVIDER, ready);
   const catalog = useIntegrationToolkits(INTEGRATION_PROVIDER, ready);
 

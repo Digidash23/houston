@@ -1,5 +1,13 @@
-import { HoustonAvatar, resolveAgentColor } from "@houston-ai/core";
-import type { SidebarGroupView, SidebarItem } from "@houston-ai/layout";
+import {
+  HoustonAvatar,
+  ManagerAvatar,
+  resolveAgentColor,
+} from "@houston-ai/core";
+import {
+  type SidebarGroupView,
+  type SidebarItem,
+  useSidebarAvatarDiameter,
+} from "@houston-ai/layout";
 import { Users } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -56,6 +64,19 @@ export function UnreadDot() {
     </span>
   );
 }
+
+/** The AI Manager's avatar, at the rail slot's diameter. */
+function ManagerIcon() {
+  return <ManagerAvatar size={useSidebarAvatarDiameter()} />;
+}
+
+/** Houston, pinned ahead of every group and employee. */
+export const managerItem: SidebarItem = {
+  id: "houston",
+  name: "Houston",
+  subtitle: "Your AI Manager",
+  icon: <ManagerIcon />,
+};
 
 /** Four agents a Houston user would actually have, with live-looking signals. */
 export const agentItems: SidebarItem[] = [

@@ -70,10 +70,14 @@ test("Manager is the first employee row in both rail widths", async ({
   expect(managerBox.height).toBeCloseTo(agentBox.height, 1);
 
   // The avatar is decorative: the row's label is its name, then its role.
+  // Round like the employees' avatars, it wears the one mark theirs do not:
+  // the halo around it.
   await expect(manager.locator("[data-manager-avatar]")).toHaveAttribute(
     "aria-hidden",
     "true",
   );
+  await expect(manager.locator("[data-manager-halo]")).toHaveCount(1);
+  await expect(band.locator("[data-manager-halo]")).toHaveCount(1);
   const row = manager.getByRole("button", { name: /^Houston/ });
   await expect(row).toContainText("Your AI Manager");
   await row.click();

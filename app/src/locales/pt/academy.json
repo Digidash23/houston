@@ -71,15 +71,15 @@
           "cta": "Próximo"
         },
         "aiModels": {
-          "body": "Em Modelos de IA você conecta sua IA ou troca por outra.",
+          "body": "Em Conecte sua IA você escolhe a IA com que sua equipe trabalha, ou troca por outra.",
           "cta": "Próximo"
         },
         "integrations": {
-          "body": "Integrações conecta os apps que você já usa, como Gmail ou Slack, para seus funcionários de IA trabalharem neles.",
+          "body": "Conecte seus apps liga os apps que você já usa, como Gmail ou Slack, para seus funcionários de IA trabalharem neles.",
           "cta": "Próximo"
         },
         "academy": {
-          "body": "E esta é a Academia. Volte quando quiser para aprender mais e subir de nível.",
+          "body": "E a Academia fica neste menu. Volte quando quiser para aprender mais e subir de nível.",
           "cta": "Pronto"
         }
       }

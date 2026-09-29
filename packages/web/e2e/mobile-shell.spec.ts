@@ -38,9 +38,14 @@ test("the More menu carries the rail's destinations and closes on navigation", a
   await navItem(page, "more").click();
   const menu = moreMenu(page);
   await expect(menu).toBeVisible();
-  // The rail's own rows, by the rail's own anchors — one destination list for
-  // both breakpoints.
-  for (const anchor of ["nav-integrations", "nav-ai-hub", "nav-settings"]) {
+  // The rail's own connect rows, Academy and Settings, by the rail's own
+  // anchors — one destination list for both breakpoints.
+  for (const anchor of [
+    "nav-integrations",
+    "nav-ai-hub",
+    "nav-academy",
+    "nav-settings",
+  ]) {
     await expect(moreRow(page, anchor)).toHaveCount(1);
   }
 
