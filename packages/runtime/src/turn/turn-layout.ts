@@ -1,6 +1,7 @@
 import type { Dirent } from "node:fs";
 import { mkdir, readdir } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
+import { PREFERENCES_NAMESPACE } from "@houston/domain";
 import { realAgents } from "./turn-layout-agents";
 
 /** Stable internal codes for failures before provider execution. */
@@ -45,9 +46,15 @@ async function readDirectories(path: string): Promise<Dirent[]> {
 const storeRelative = (storeRoot: string, path: string) =>
   relative(storeRoot, path).split(sep).join("/");
 
+/** Every `workspaces/<ws>/<agent>` folder outside the preferences namespace.
+ *  `workspaces/ws/` holds preferences docs, never agents, but a standing host
+ *  once booted runtimes into it (`ws/<wsId>/.houston/runtime/`), so staging
+ *  stores still carry agent-shaped trees there, with or without markers. */
 async function standingAgents(storeRoot: string): Promise<string[]> {
   const workspacesRoot = join(storeRoot, "workspaces");
-  const workspaces = await readDirectories(workspacesRoot);
+  const workspaces = (await readDirectories(workspacesRoot)).filter(
+    (workspace) => workspace.name !== PREFERENCES_NAMESPACE,
+  );
   const agents = await Promise.all(
     workspaces.map(async (workspace) =>
       (await readDirectories(join(workspacesRoot, workspace.name))).map(
@@ -65,12 +72,12 @@ async function standingAgents(storeRoot: string): Promise<string[]> {
  * so zero hydrated objects there means the hydrate missed (a blank prefix)
  * and running would seed a second layout beside the real one.
  *
- * The dispatch names the agent's store prefix, never its folder, so when
- * several `workspaces/<ws>/<agent>` folders exist the one carrying an agent's
- * files wins: a standing host wrote folders that are not agents there (its
- * preferences doc at `workspaces/ws/<wsId>/`, then a runtime it booted into
- * that folder). Only two REAL agents are ambiguous. `listed` is the store
- * listing, keys relative to `storeRoot`.
+ * The dispatch names the agent's store prefix, never its folder. The
+ * preferences namespace (`workspaces/ws/`) is never a candidate. A single
+ * remaining folder is the agent even without markers (a load-test agent may
+ * hold only schemas and a runtime tree); among several, the ones carrying an
+ * agent's files win, and only two REAL agents are ambiguous. `listed` is the
+ * store listing, keys relative to `storeRoot`.
  */
 export async function resolveTurnLayout(
   storeRoot: string,
