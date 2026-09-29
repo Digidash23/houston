@@ -128,13 +128,13 @@ export async function executeReadyTurn(input: {
               input.timings,
               input.startup,
             );
-            // The card may postdate hydration: its title re-reads the board
-            // from the store sync-back writes (turn-mission-title-remote.ts).
+            // The card may postdate hydration: its title rebases the tree's
+            // board onto a fresh store read (turn-mission-title-remote.ts).
             if (request.missionTitle)
               request.readRemoteActivity = remoteActivityReader(
                 input.resolved.store,
                 input.resolved.prefix,
-                input.filesystem.workspaceRel,
+                input.filesystem,
               );
             return input.deps.runTurn
               ? input.deps.runTurn(directories, request)

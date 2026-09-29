@@ -1,3 +1,4 @@
+export { mergeActivityArrays } from "./activity-merge";
 export { fileSha256 } from "./file-hash";
 export type { HttpObjectStoreOptions } from "./http-store";
 export { HttpObjectStore } from "./http-store";
@@ -52,3 +53,4 @@ export type {
 export { probeSharedMirror, syncSharedMirror } from "./shared-mirror";
 export type { SharedMirrorFileState } from "./shared-mirror-files";
 export { mergeDocumentBodies } from "./sync-back-doc-merge";
+export { trustedBase } from "./sync-back-merge-base";

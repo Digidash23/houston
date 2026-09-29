@@ -18,8 +18,11 @@ import { oneShotText } from "../session/one-shot";
 import { TITLE_PROMPT } from "../session/title-prompt";
 import { turnAuthStore } from "./turn-backend";
 import { fsTextStore } from "./turn-fs-store";
-import type { MissionTitleReport } from "./turn-mission-title-outcome";
-import type { RemoteActivityReader } from "./turn-mission-title-remote";
+import type { InTreeMissionTitle } from "./turn-mission-title-outcome";
+import type {
+  RemoteActivityReader,
+  StoredBoard,
+} from "./turn-mission-title-remote";
 import type { TurnDirectories } from "./turn-session-types";
 
 /**
@@ -66,10 +69,12 @@ export function turnTitleRunner(input: {
  * created with — a rename the user made meanwhile wins.
  *
  * The card is created concurrently with the send, so the tree hydrated at
- * dispatch often predates it. Then the doc is re-read fresh from the store and
- * the local file becomes THAT doc with the one card retitled: sync-back's
- * conflict merge then starts from the remote's fields, never from the stale
- * hydrated copy. A card found nowhere is reported, never silently dropped.
+ * dispatch often predates it. Then the board is re-read fresh from the store,
+ * the turn's own board edits are merged onto it, and the tree's board becomes
+ * THAT with the one card retitled, descended from the read (`adopt`): the
+ * upload lands at the read's generation, and a write that beats it merges
+ * three-way against the read, never by comparing clocks. A card found nowhere
+ * is reported, never silently dropped.
  */
 export async function writeMissionTitleInTree(
   workspaceDir: string,
@@ -82,8 +87,10 @@ export async function writeMissionTitleInTree(
   const { items: local } = await loadActivities(store, workspaceDir);
   let items = local;
   let current = items.find((a) => addressesMission(a, conversationId));
+  let stored: StoredBoard | null = null;
   if (!current && readRemote) {
-    items = (await readRemote()) ?? [];
+    stored = await readRemote();
+    items = stored?.items ?? [];
     current = items.find((a) => addressesMission(a, conversationId));
   }
   if (!current) {
@@ -99,6 +106,7 @@ export async function writeMissionTitleInTree(
     new Date().toISOString(),
   );
   await saveActivities(store, workspaceDir, upsertById(items, next));
+  stored?.adopt();
   return "written";
 }
 
@@ -115,7 +123,7 @@ export function startTurnMissionTitle(input: {
   workspaceDir: string;
   readRemote?: RemoteActivityReader;
   timeoutMs?: number;
-}): () => Promise<MissionTitleReport> {
+}): () => Promise<InTreeMissionTitle> {
   const started = performance.now();
   const pending = runMissionTitle(
     input.conversationId,
@@ -123,7 +131,7 @@ export function startTurnMissionTitle(input: {
     input.run,
     input.timeoutMs,
   );
-  const report = (outcome: MissionTitleReport["outcome"]) => ({
+  const report = (outcome: InTreeMissionTitle["outcome"]) => ({
     outcome,
     ms: Math.round(performance.now() - started),
   });
@@ -131,15 +139,22 @@ export function startTurnMissionTitle(input: {
     const result = await pending;
     if ("miss" in result) return report(result.miss);
     try {
-      return report(
-        await writeMissionTitleInTree(
-          input.workspaceDir,
-          input.conversationId,
-          result.title,
-          input.request.fallback,
-          input.readRemote,
-        ),
+      const outcome = await writeMissionTitleInTree(
+        input.workspaceDir,
+        input.conversationId,
+        result.title,
+        input.request.fallback,
+        input.readRemote,
       );
+      if (outcome !== "written") return report(outcome);
+      return {
+        ...report(outcome),
+        written: {
+          conversationId: input.conversationId,
+          title: result.title,
+          fallback: input.request.fallback,
+        },
+      };
     } catch (err) {
       console.error(
         `[mission-title] card write failed for ${input.conversationId}; keeping the fallback:`,
