@@ -139,7 +139,20 @@
       "teamNotConnected": "Este equipo no tiene una cuenta de {{provider}} conectada.",
       "creatorNeedsReconnect": "Quien creó la rutina tiene que volver a conectar {{provider}}.",
       "teamNeedsReconnect": "Hay que volver a conectar {{provider}}.",
-      "outOfCredits": "La cuenta de {{provider}} se quedó sin créditos."
+      "outOfCredits": "La cuenta de {{provider}} se quedó sin créditos.",
+      "modelUnavailable": "La cuenta de {{provider}} no puede usar el modelo de esta rutina."
+    },
+    "autoPause": {
+      "chip": "En pausa",
+      "title_one": "En pausa después de {{count}} ejecución fallida",
+      "title_other": "En pausa después de {{count}} ejecuciones fallidas seguidas",
+      "connectCreator": "Quien creó la rutina no tiene una cuenta de {{provider}} conectada. Conéctala y luego reanuda la rutina.",
+      "connectTeam": "Este equipo no tiene una cuenta de {{provider}} conectada. Conéctala y luego reanuda la rutina.",
+      "reconnectCreator": "Quien creó la rutina tiene que volver a conectar {{provider}}. Cuando lo haga, reanuda la rutina.",
+      "reconnectTeam": "Hay que volver a conectar {{provider}}. Cuando esté listo, reanuda la rutina.",
+      "addCredits": "La cuenta de {{provider}} se quedó sin créditos. Agrega créditos o cambia de plan y luego reanuda la rutina.",
+      "changeModel": "La cuenta de {{provider}} no puede usar el modelo de esta rutina. Elige otro modelo abajo y luego reanuda la rutina.",
+      "resume": "Reanudar"
     }
   },
   "row": {

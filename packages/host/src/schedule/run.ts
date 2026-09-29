@@ -11,6 +11,7 @@ import type { Agent, Workspace } from "../domain/types";
 import type { EventHub } from "../events/hub";
 import type { WorkspacePaths } from "../paths";
 import type { Vfs } from "../vfs";
+import { pauseFailingRoutines } from "./auto-pause";
 import { routineRunFailureSummary } from "./run-failure";
 import { withRunsFile } from "./runs-lock";
 import type { RoutineFirer } from "./scheduler";
@@ -123,6 +124,8 @@ export async function fireRoutineRun(
       type: "RoutineRunsChanged",
       agentPath: agent.id,
     });
+    if (failure)
+      await pauseFailingRoutines(deps, ws, agent, root, [routine.id]);
     throw err;
   }
   return { runId, conversationId: run.session_key };

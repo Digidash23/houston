@@ -1,0 +1,39 @@
+import type { RoutineRunFailureCode } from "@houston/protocol";
+import { expect, test } from "vitest";
+import { routinePauseNotice } from "./auto-pause";
+
+const at = "2026-09-29T11:00:00.000Z";
+const paused = (reason: RoutineRunFailureCode) => ({
+  enabled: false,
+  auto_paused: { reason, provider: "anthropic", failures: 10, at },
+});
+
+test("every pause reason maps to one fix, naming whose account when it matters", () => {
+  const cases: [RoutineRunFailureCode, string, string | undefined][] = [
+    ["creator_not_connected", "connect_account", "creator"],
+    ["team_not_connected", "connect_account", "team"],
+    ["creator_needs_reconnect", "reconnect_account", "creator"],
+    ["team_needs_reconnect", "reconnect_account", "team"],
+    ["out_of_credits", "add_credits", undefined],
+    ["model_unavailable", "change_model", undefined],
+  ];
+  for (const [reason, remedy, account] of cases) {
+    const notice = routinePauseNotice(paused(reason));
+    expect(notice).toMatchObject({
+      remedy,
+      provider: "anthropic",
+      failures: 10,
+      pausedAt: at,
+    });
+    expect(notice?.account).toBe(account);
+  }
+});
+
+test("a running routine, a hand pause, or a resumed routine carries no notice", () => {
+  expect(routinePauseNotice({ enabled: true })).toBeNull();
+  expect(routinePauseNotice({ enabled: false })).toBeNull();
+  // A stale reason on an enabled routine never reads as paused.
+  expect(
+    routinePauseNotice({ ...paused("out_of_credits"), enabled: true }),
+  ).toBeNull();
+});

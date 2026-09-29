@@ -48,6 +48,12 @@ import {
   type WebhookKeyReveal,
 } from "./types";
 
+export {
+  type RoutinePauseAccount,
+  type RoutinePauseNotice,
+  type RoutinePauseRemedy,
+  routinePauseNotice,
+} from "./auto-pause";
 export { RoutinesHttpError } from "./http";
 export type {
   NewRoutine,

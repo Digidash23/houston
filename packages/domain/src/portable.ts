@@ -6,6 +6,10 @@ import {
   type Routine,
 } from "@houston/protocol";
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
+import {
+  stripLearningProvenance,
+  stripLocalRoutineKeys,
+} from "./portable-strip";
 import { normalizeRoutines } from "./routines";
 
 /**
@@ -39,22 +43,6 @@ const ROUTINES = "routines.json";
 const LEARNINGS = "learnings.json";
 const skillPath = (slug: string) => `skills/${slug}/SKILL.md`;
 
-/**
- * A learning without its provenance. Provenance is ORG-LOCAL: `taught_by` names
- * a person in the exporter's workspace and the mission it came from is a
- * conversation the importer never had — neither means anything, nor is ours to
- * publish, on the other side. Same rule routines follow for `created_by` /
- * `setup_activity_id`; the learning itself travels. Applied on BOTH legs, so a
- * pack hand-built or produced by another build can never install a person from
- * the exporter's org or a mission id that resolves to something unrelated here.
- */
-const stripLearningProvenance = ({
-  taught_by: _person,
-  mission_id: _mission,
-  mission_title: _missionTitle,
-  ...learning
-}: Learning): Learning => learning;
-
 /** Build the `.houstonagent` bytes. Caller supplies content already filtered by selection. */
 export function packAgent(
   content: PortableContent,
@@ -86,10 +74,9 @@ export function packAgent(
     // A setup chat is machine-local (its activity id means nothing on the
     // importer's side) and `created_by` is the exporter's account identity
     // (who a fired routine acts as — never valid on another account, and not
-    // ours to publish), so shared routines carry neither.
-    const shareable = content.routines.map(
-      ({ setup_activity_id: _local, created_by: _owner, ...r }) => r,
-    );
+    // ours to publish), so shared routines carry neither; nor an auto-pause
+    // reason, which names the exporter's own account.
+    const shareable = content.routines.map(stripLocalRoutineKeys);
     files[ROUTINES] = strToU8(JSON.stringify(shareable, null, 2));
   }
   if (content.learnings.length) {
@@ -152,7 +139,7 @@ export function unpackAgent(bytes: Uint8Array): PortablePackage {
     routines: normalizeRoutines(
       parseArray<Routine>(routinesRaw),
       ROUTINES,
-    ).items.map(({ setup_activity_id: _local, created_by: _owner, ...r }) => r),
+    ).items.map(stripLocalRoutineKeys),
     learnings: parseArray<Learning>(learningsRaw)
       .filter((l) => isRecord(l) && typeof l.id === "string")
       .map(stripLearningProvenance),

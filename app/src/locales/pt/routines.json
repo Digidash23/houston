@@ -139,7 +139,20 @@
       "teamNotConnected": "Esta equipe não tem uma conta {{provider}} conectada.",
       "creatorNeedsReconnect": "Quem criou a rotina precisa reconectar o {{provider}}.",
       "teamNeedsReconnect": "É preciso reconectar o {{provider}}.",
-      "outOfCredits": "A conta {{provider}} está sem créditos."
+      "outOfCredits": "A conta {{provider}} está sem créditos.",
+      "modelUnavailable": "A conta {{provider}} não pode usar o modelo desta rotina."
+    },
+    "autoPause": {
+      "chip": "Pausada",
+      "title_one": "Pausada depois de {{count}} execução com falha",
+      "title_other": "Pausada depois de {{count}} execuções seguidas com falha",
+      "connectCreator": "Quem criou a rotina não tem uma conta {{provider}} conectada. Conecte a conta e depois retome a rotina.",
+      "connectTeam": "Esta equipe não tem uma conta {{provider}} conectada. Conecte a conta e depois retome a rotina.",
+      "reconnectCreator": "Quem criou a rotina precisa reconectar o {{provider}}. Depois disso, retome a rotina.",
+      "reconnectTeam": "É preciso reconectar o {{provider}}. Depois disso, retome a rotina.",
+      "addCredits": "A conta {{provider}} está sem créditos. Adicione créditos ou mude de plano e depois retome a rotina.",
+      "changeModel": "A conta {{provider}} não pode usar o modelo desta rotina. Escolha outro modelo abaixo e depois retome a rotina.",
+      "resume": "Retomar"
     }
   },
   "row": {

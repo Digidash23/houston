@@ -98,7 +98,8 @@ export interface RoutineRunFailure {
     | "team_not_connected"
     | "creator_needs_reconnect"
     | "team_needs_reconnect"
-    | "out_of_credits";
+    | "out_of_credits"
+    | "model_unavailable";
   /** Provider id, e.g. `"anthropic"`. */
   provider: string;
 }

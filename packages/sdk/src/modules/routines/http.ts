@@ -77,7 +77,10 @@ export async function createRoutine(
  * @param id The routine to change, by the id listRoutines returns.
  * @param updates Only the fields that change; anything omitted is left as
  *   it was. `schedule` and `trigger` are the two wake mechanisms: setting one
- *   replaces the other.
+ *   replaces the other. `enabled: true` resumes a paused routine, including one
+ *   the engine paused itself after repeated account or model failures
+ *   (`auto_paused`); fix what `auto_paused.reason` names first, or the next
+ *   runs fail the same way.
  * @assistant group:routines
  * @assistant confirm: money. A schedule edit retargets recurring spend, changing how often the agent runs and is billed from then on.
  * @assistant unschematized: a trigger binding carries the outside app's own event config, whose shape belongs to that app.
