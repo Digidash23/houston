@@ -9,7 +9,8 @@ import {
   renderReplayPreamble,
   replayCharBudget,
 } from "../session/replay-transcript";
-import { resolveTurnClaudeResume } from "./turn-backend";
+import { resolveTurnClaudeResume, turnClaudeLayout } from "./turn-backend";
+import { seedTurnClaudeFlags } from "./turn-claude-flags";
 import { readTurnHarness, writeTurnHarness } from "./turn-harness-state";
 import {
   finishTurnSessionStartup,
@@ -90,6 +91,18 @@ export async function openTurnBackendSession(input: {
           replayCharBudget(model.contextWindow),
         ))
       : null;
+  // The CLI blocks its first start on a flag fetch unless its config dir
+  // already holds the flags: hand it the acting member's stored copy.
+  if (harness === "claude")
+    seedTurnClaudeFlags({
+      dataDir: directories.dataDir,
+      configDir: turnClaudeLayout(
+        directories.turnRoot,
+        directories.dataDir,
+        conversationId,
+      ).configDir,
+      userId: turn.author?.userId,
+    });
   const session = await backend.createSession({
     conversationId,
     model,

@@ -1,8 +1,8 @@
 import { normalizeTurnMode, parseMentions } from "@houston/protocol";
 import { parsePrefetchedObjects } from "@houston/runtime-client/object-sync";
-import type { ServedCredential } from "../auth/auth-file";
 import { parseMissionTitle } from "../session/mission-title";
 import { assertRoutineEventBounds } from "./parse-routine-events";
+import { parseTurnCredential } from "./parse-turn-credential";
 import type { TurnGrant, TurnGrantScope, TurnRequest } from "./types";
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -100,29 +100,7 @@ export function parseTurnRequest(body: unknown): TurnRequest {
   ) {
     throw new Error("invalid 'gcsPrefix'");
   }
-  let credential: ServedCredential | null = null;
-  if (b.credential != null) {
-    const c = b.credential as Record<string, unknown>;
-    if (
-      typeof c.provider !== "string" ||
-      typeof c.access !== "string" ||
-      typeof c.expires !== "number"
-    ) {
-      throw new Error("invalid 'credential'");
-    }
-    credential = {
-      provider: c.provider,
-      access: c.access,
-      expires: c.expires,
-      accountId: typeof c.accountId === "string" ? c.accountId : null,
-      kind: c.kind === "api_key" ? "api_key" : "oauth",
-      // Copilot Enterprise routes to a per-tenant API host; dropping it here
-      // would silently turn an enterprise credential into a github.com one.
-      ...(typeof c.enterpriseUrl === "string" && c.enterpriseUrl
-        ? { enterpriseUrl: c.enterpriseUrl }
-        : {}),
-    };
-  }
+  const credential = parseTurnCredential(b.credential);
   if (b.turnId !== undefined && (!nonEmpty(b.turnId) || !ID.test(b.turnId))) {
     throw new Error("invalid 'turnId'");
   }

@@ -1,6 +1,7 @@
 import type { ChatMessage, TurnMode } from "@houston/protocol";
 import type { PrefetchedObjects } from "@houston/runtime-client/object-sync";
 import type { ServedCredential } from "../auth/auth-file";
+import type { ClaudeSubscriptionType } from "../auth/claude-plan";
 import type { MissionTitleRequest } from "../session/mission-title";
 
 /**
@@ -19,6 +20,12 @@ export interface TurnGrant {
   scopes: TurnGrantScope[];
 }
 
+/** The served credential, plus the plan a pool dispatch names beside it. */
+export type TurnCredential = ServedCredential & {
+  /** A Claude login's plan (auth/claude-plan.ts). Never written to auth.json. */
+  subscriptionType?: ClaudeSubscriptionType;
+};
+
 /**
  * The self-contained turn request the control plane sends. Everything a turn
  * needs rides in: identity (for the GCS prefix), the user's text, and the
@@ -35,7 +42,7 @@ export interface TurnRequest {
   /** Object-storage prefix that IS this agent ("ws/<workspaceId>/<agentId>"). */
   gcsPrefix: string;
   /** null = workspace not connected yet (the turn fails with a clear error). */
-  credential: ServedCredential | null;
+  credential: TurnCredential | null;
   /**
    * The provider this turn is PINNED to — the conversation's picked provider,
    * forwarded by the dispatcher. When present it is the provider the turn runs

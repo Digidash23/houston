@@ -56,6 +56,8 @@ export interface ReadOptions {
 export interface WriteOptions {
   /** `0` means create-only. */
   ifGenerationMatch?: string;
+  /** Abandons the write and its retries (HTTP stores; local stores finish). */
+  signal?: AbortSignal;
 }
 
 /** Metadata captured atomically with an object download. */

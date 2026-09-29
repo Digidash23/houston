@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { HydrateListedObject } from "@houston/runtime-client/object-sync";
+import { CLAUDE_FLAGS_DIR, claudeFlagsFileName } from "./claude-flags-path";
 
 function runtimeIndex(segments: string[]): number {
   if (segments[0] === "data") return 1;
@@ -11,6 +12,36 @@ function runtimeIndex(segments: string[]): number {
   )
     return 5;
   return -1;
+}
+
+/** A runtime `claude-flags/` object is admitted only as the member's own file. */
+function ownFlagsFile(
+  segments: string[],
+  runtimeAt: number,
+  ownFlags: string | null,
+): boolean {
+  return (
+    segments.length === runtimeAt + 2 && segments[runtimeAt + 1] === ownFlags
+  );
+}
+
+/**
+ * Every object except other members' Claude flag caches: the whole-tree
+ * hydrate an unclaimed turn does still never lands another member's cache.
+ */
+export function ownClaudeFlagsOnly(
+  actingUserId?: string,
+): (rel: string) => boolean {
+  const ownFlags = actingUserId ? claudeFlagsFileName(actingUserId) : null;
+  return (rel) => {
+    const segments = rel.split("/");
+    const runtimeAt = runtimeIndex(segments);
+    return (
+      runtimeAt === -1 ||
+      segments[runtimeAt] !== CLAUDE_FLAGS_DIR ||
+      ownFlagsFile(segments, runtimeAt, ownFlags)
+    );
+  };
 }
 
 function mappedClaudeTranscript(
@@ -46,8 +77,9 @@ function mappedClaudeTranscript(
 
 /**
  * Hot-set admission for one conversation: its canonical conversation,
- * harness markers, the two newest Pi tails, and the Claude transcript named by
- * sessions.json. Other conversations and older session files stay remote.
+ * harness markers, the two newest Pi tails, the Claude transcript named by
+ * sessions.json, and the acting member's Claude flag cache. Other
+ * conversations, older session files, and other members' caches stay remote.
  * Matches both layouts: `workspaces/<ws>/<agent>/.houston/runtime/…` and
  * the per-turn `data/…`.
  *
@@ -56,12 +88,14 @@ function mappedClaudeTranscript(
  */
 export function ownConversationOnly(
   conversationId: string,
+  actingUserId?: string,
 ): (
   rel: string,
   listing: readonly HydrateListedObject[],
   hydratedRoot: string,
 ) => boolean {
   const file = `${encodeURIComponent(conversationId)}.json`;
+  const ownFlags = actingUserId ? claudeFlagsFileName(actingUserId) : null;
   let claudeSelection: { file: string | null } | undefined;
   return (rel, listing, hydratedRoot) => {
     const segments = rel.split("/");
@@ -69,6 +103,9 @@ export function ownConversationOnly(
     if (runtimeAt === -1) return true;
     const kind = segments[runtimeAt];
     const own = segments[runtimeAt + 1];
+    // Another member's flag cache is theirs alone: never on this turn's disk.
+    if (kind === CLAUDE_FLAGS_DIR)
+      return ownFlagsFile(segments, runtimeAt, ownFlags);
     if (kind === "conversations" && segments.length === runtimeAt + 2) {
       return own === file;
     }

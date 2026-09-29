@@ -4,12 +4,13 @@ import { runWithConversationScope } from "../session/bus";
 import type { startClaimHeartbeat } from "./claim-heartbeat";
 import { localModelContextForTurn } from "./local-model-context";
 import type { TurnServerDeps } from "./server-types";
+import { persistTurnClaudeFlags } from "./turn-claude-flags";
 import { finishTurnDurability } from "./turn-durability";
 import type { TurnFilesystem } from "./turn-filesystem";
 import type { createTurnLog } from "./turn-log";
 import { landedMissionTitle } from "./turn-mission-title-outcome";
 import { remoteActivityReader } from "./turn-mission-title-remote";
-import { turnSessionRequest } from "./turn-request";
+import { turnSessionRequest, unconnectedTurnOutcome } from "./turn-request";
 import {
   prepareRoutineTurn,
   RoutineTurnError,
@@ -78,19 +79,7 @@ export async function executeReadyTurn(input: {
 
   let outcome: TurnOutcome;
   if (!input.turn.credential) {
-    input.emit({
-      type: "user",
-      data: {
-        content: input.turn.text,
-        ts: Date.now(),
-        nonce: input.turn.nonce,
-        mentions: input.turn.mentions,
-      },
-      turnId: input.turnId,
-    });
-    outcome = {
-      error: "No provider connected. Connect your subscription first.",
-    };
+    outcome = unconnectedTurnOutcome(input.turn, input.turnId, input.emit);
   } else {
     try {
       outcome = await runWithConversationScope(input.scope, () =>
@@ -171,16 +160,27 @@ export async function executeReadyTurn(input: {
   }
 
   input.timings.t_run_done = performance.now();
-  const durable = await finishTurnDurability({
-    deps: input.deps,
-    turn: { ...input.turn, turnId: input.turnId },
-    filesystem: input.filesystem,
-    resolved: input.resolved,
-    heartbeat: input.heartbeat,
-    outcome,
-    transcript: input.transcript,
-    ...(input.sandbox ? { views: input.sandbox.views() } : {}),
-  });
+  const [durable] = await Promise.all([
+    finishTurnDurability({
+      deps: input.deps,
+      turn: { ...input.turn, turnId: input.turnId },
+      filesystem: input.filesystem,
+      resolved: input.resolved,
+      heartbeat: input.heartbeat,
+      outcome,
+      transcript: input.transcript,
+      ...(input.sandbox ? { views: input.sandbox.views() } : {}),
+    }),
+    // Before the terminal frame: the claim authorizing this upload ends there.
+    persistTurnClaudeFlags({
+      store: input.resolved.store,
+      prefix: input.resolved.prefix,
+      filesystem: input.filesystem,
+      root: input.root,
+      conversationId: input.turn.conversationId,
+      userId: input.turn.actingAs?.userId,
+    }),
+  ]);
   input.timings.t_durable = performance.now();
   input.emit(
     durableTerminalFrame(

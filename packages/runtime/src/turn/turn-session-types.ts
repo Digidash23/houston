@@ -4,6 +4,7 @@ import type {
   PendingInteraction,
   WireFrame,
 } from "@houston/runtime-client";
+import type { ClaudePlanBinding } from "../auth/claude-plan";
 import type { MessageAuthor } from "../session/attribution";
 import type { MissionTitleRequest } from "../session/mission-title";
 import type { SandboxFetch } from "../session/tools/sandbox-fetch";
@@ -45,6 +46,8 @@ export interface TurnSessionRequest {
   /** Fresh read of the stored board doc, for a card hydration missed. */
   readRemoteActivity?: RemoteActivityReader;
   author?: MessageAuthor;
+  /** The plan the gateway served with this turn's Claude token, bound to it. */
+  claudePlan?: ClaudePlanBinding;
   context?: ProvidedContext;
   /** Non-secret capability scopes copied from the parsed turn grant. */
   grant?: { scopes: TurnGrantScope[] };

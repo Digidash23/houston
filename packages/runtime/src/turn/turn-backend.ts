@@ -10,6 +10,7 @@ import {
 import type { BridgedPiTool } from "../backends/claude/custom-tools";
 import type { ClaudeLayout } from "../backends/claude/paths";
 import { readAnthropicToken } from "../backends/claude/read-token";
+import { withServedPlan } from "../backends/claude/served-plan";
 import { createSessionsStore } from "../backends/claude/sessions-store";
 import { createPiBackend, type PiBackendDeps } from "../backends/pi/backend";
 import type { HarnessBackend } from "../backends/types";
@@ -124,7 +125,11 @@ export function createTurnBackend(
   if (provider === "anthropic") {
     const backend = createClaudeBackend({
       workspaceDir,
-      readToken: () => readAnthropicToken(turnAuthStore(dataDir)),
+      readToken: () =>
+        withServedPlan(
+          readAnthropicToken(turnAuthStore(dataDir)),
+          deps.turn.claudePlan,
+        ),
       toolSelection: deps.toolSelection,
       systemPrompt: deps.systemPrompt,
       fileGuard: deps.fileGuard,

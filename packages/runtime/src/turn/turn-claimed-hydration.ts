@@ -1,6 +1,6 @@
 import type { ObjectStore } from "@houston/runtime-client/object-sync";
 import { startTurnFilesystem } from "./turn-filesystem";
-import { ownConversationOnly } from "./turn-hot-set";
+import { ownClaudeFlagsOnly, ownConversationOnly } from "./turn-hot-set";
 import type { TurnRequest } from "./types";
 
 /**
@@ -17,7 +17,7 @@ export function startTurnRequestFilesystem(input: {
   store: ObjectStore;
   prefix: string;
   root: string;
-  turn: Pick<TurnRequest, "claim" | "conversationId">;
+  turn: Pick<TurnRequest, "claim" | "conversationId" | "actingAs">;
   maxBytes?: number;
   timings: Record<string, number>;
 }) {
@@ -30,10 +30,13 @@ export function startTurnRequestFilesystem(input: {
     ...(input.maxBytes !== undefined ? { maxBytes: input.maxBytes } : {}),
     ...(claimed
       ? {
-          filter: ownConversationOnly(input.turn.conversationId),
+          filter: ownConversationOnly(
+            input.turn.conversationId,
+            input.turn.actingAs?.userId,
+          ),
           excludes: CLAIMED_TURN_EXCLUDES,
         }
-      : {}),
+      : { filter: ownClaudeFlagsOnly(input.turn.actingAs?.userId) }),
     timings: input.timings,
   });
 }

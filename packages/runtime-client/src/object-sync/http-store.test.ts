@@ -104,6 +104,39 @@ test("download forwards cancellation to the HTTP request", async () => {
   expect(requestSignal).toBe(controller.signal);
 });
 
+test("upload forwards cancellation to the HTTP request and its retries", async () => {
+  let requests = 0;
+  const store = new HttpObjectStore({
+    baseUrl: "https://store.test",
+    token: "pod-token",
+    retryDelaysMs: [0, 0],
+    fetchImpl: async (_input, init) => {
+      requests += 1;
+      // Like fetch: an already-aborted signal rejects at once.
+      init?.signal?.throwIfAborted();
+      await new Promise<void>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          "abort",
+          () => reject(init.signal?.reason),
+          { once: true },
+        );
+      });
+      throw new Error("unreachable");
+    },
+  });
+  const source = join(mkdtempSync(join(tmpdir(), "http-abort-")), "up.json");
+  writeFileSync(source, "{}");
+  const controller = new AbortController();
+
+  const uploading = store.upload(source, "file.json", {
+    signal: controller.signal,
+  });
+  controller.abort(new Error("stop upload"));
+
+  await expect(uploading).rejects.toThrow("stop upload");
+  expect(requests).toBe(1);
+});
+
 test("PUTs shared objects with the pod agent binding", async () => {
   const dir = mkdtempSync(join(tmpdir(), "http-shared-object-store-"));
   const source = join(dir, "SKILL.md");

@@ -18,18 +18,19 @@ export async function uploadFile(
   srcFile: string,
   headers: Record<string, string>,
   retryable: boolean,
+  signal?: AbortSignal,
 ): Promise<Response> {
   const { size } = await stat(srcFile);
   if (size < STREAM_UPLOAD_THRESHOLD_BYTES) {
     return fetchRequest(
       url,
-      { method: "PUT", headers, body: await readFile(srcFile) },
+      { method: "PUT", headers, body: await readFile(srcFile), signal },
       { retryable },
     );
   }
   return fetchRequest(
     url,
-    { method: "PUT", headers, duplex: "half" } as RequestInit,
+    { method: "PUT", headers, duplex: "half", signal } as RequestInit,
     {
       body: () => Readable.toWeb(createReadStream(srcFile)) as ReadableStream,
       retryable,
