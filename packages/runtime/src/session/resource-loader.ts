@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, realpathSync } from "node:fs";
-import { join, sep } from "node:path";
+import { join } from "node:path";
 import { DefaultResourceLoader } from "@earendil-works/pi-coding-agent";
 import { renderJobDescriptionForPrompt } from "@houston/domain";
 import type { TurnMode } from "@houston/protocol";
@@ -8,6 +8,7 @@ import { buildAssistantRulesSection } from "./assistant-rules-context";
 import { makeCompactionGuard } from "./compaction-guard";
 import { buildLearningsSection } from "./learnings-context";
 import { withModeOverlay } from "./mode-overlays";
+import { agentSkillsOverride } from "./prompt-skills";
 import { loadSkillsManifest } from "./skills-manifest";
 import type { CodeExecutionMode } from "./tool-selection-types";
 import {
@@ -100,35 +101,12 @@ export function buildAgentLoader(opts: {
     // within the model's window — see compaction-guard.ts (HOU-709).
     extensionFactories: [makeCompactionGuard()],
     additionalSkillPaths,
-    skillsOverride: sharedSkillsDir
-      ? ({ skills, diagnostics }) => {
-          const isShared = (baseDir: string) =>
-            isWithin(realpathSync(baseDir), sharedSkillsDir);
-          const localNames = new Set(
-            skills
-              .filter((skill) => !isShared(skill.baseDir))
-              .map((skill) => skill.name),
-          );
-          return {
-            skills: skills.filter(
-              (skill) =>
-                !isShared(skill.baseDir) ||
-                (enabledSharedSkills.has(skill.name) &&
-                  !localNames.has(skill.name)),
-            ),
-            diagnostics,
-          };
-        }
-      : undefined,
+    skillsOverride: agentSkillsOverride(sharedSkillsDir, enabledSharedSkills),
     agentsFilesOverride: () => ({
       agentsFiles: loadWorkspaceContextFile(opts.cwd),
     }),
     systemPrompt: opts.systemPrompt,
   });
-}
-
-function isWithin(path: string, root: string): boolean {
-  return path === root || path.startsWith(root + sep);
 }
 
 /**

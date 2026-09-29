@@ -10,6 +10,7 @@ import { config } from "../../config";
 import { buildAssistantRulesSection } from "../../session/assistant-rules-context";
 import { buildLearningsSection } from "../../session/learnings-context";
 import { withModeOverlay } from "../../session/mode-overlays";
+import { sortSkillsForPrompt } from "../../session/prompt-skills";
 import {
   buildWorkspaceContextSection,
   type ProvidedContext,
@@ -74,7 +75,8 @@ export function buildSystemPrompt(
  * there are none. Reuses pi's own loader + formatter so both backends surface
  * the IDENTICAL section from the IDENTICAL directory (`HOUSTON_SKILLS_DIR`
  * override, else `<cwd>/.agents/skills` — mirroring `makeAgentLoader`), with
- * the same rules: a skill with no `description:` is dropped, and every entry
+ * the same rules: a skill with no `description:` is dropped, entries follow
+ * the same name order (session/prompt-skills.ts), and every entry
  * carries the absolute SKILL.md `<location>` for the Read tool. Skill paths sit
  * inside the workspace, so the Gate #1 clamp lets the model read them. Plan
  * mode keeps the section — Read stays available there.
@@ -83,7 +85,7 @@ function buildSkillsSection(cwd: string): string {
   const dir = config.skillsDirOverride || join(cwd, ".agents", "skills");
   if (!existsSync(dir)) return "";
   const { skills } = loadSkillsFromDir({ dir, source: "path" });
-  return formatSkillsForPrompt(skills);
+  return formatSkillsForPrompt(sortSkillsForPrompt(skills));
 }
 
 /**
