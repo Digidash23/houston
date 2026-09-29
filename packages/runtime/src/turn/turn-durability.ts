@@ -3,12 +3,8 @@ import type { ClaimHeartbeat } from "./claim-heartbeat";
 import type { TurnServerDeps } from "./server-types";
 import { activityDocStale, publishTurnActivityDoc } from "./turn-activity-doc";
 import { changedEventTypes } from "./turn-changed-events";
-import {
-  syncTurnFilesystem,
-  type TurnFilesystem,
-  turnRoutineRunsKey,
-} from "./turn-filesystem";
-import { publishTurnRunsDoc } from "./turn-runs-doc";
+import { syncTurnFilesystem, type TurnFilesystem } from "./turn-filesystem";
+import { publishLandedRoutineDocs } from "./turn-routines-doc";
 import type { TurnSandboxViews } from "./turn-sandbox";
 import type { TurnOutcome } from "./turn-session";
 import type { ResolvedTurnStore } from "./turn-store";
@@ -158,24 +154,15 @@ export async function finishTurnDurability(
     );
   }
   if (activityDocStale(activityPublished)) without("ActivityChanged");
-  const runsChanged = uploaded.includes(
-    turnRoutineRunsKey(opts.filesystem.workspaceRel),
-  );
-  const runsPublished =
-    opts.turn.claim && opts.turn.routine && runsChanged
-      ? await publishTurnRunsDoc(opts.deps, opts.turn, opts.filesystem)
-      : null;
-  if (runsPublished && "error" in runsPublished) {
-    outcome = appendError(
-      outcome,
-      `runs doc publish failed: ${runsPublished.error}`,
-    );
-  }
-  // The runs doc is projected for routine fires only; any other turn that
-  // touched it has no doc to point other tabs at.
-  if (runsChanged && (!runsPublished || "error" in runsPublished)) {
-    without("RoutineRunsChanged");
-  }
+  const routineDocs = await publishLandedRoutineDocs({
+    deps: opts.deps,
+    turn: opts.turn,
+    filesystem: opts.filesystem,
+    source: opts.resolved,
+    landed: [...uploaded, ...opts.filesystem.immediateWrites],
+  });
+  for (const error of routineDocs.errors) outcome = appendError(outcome, error);
+  for (const type of routineDocs.stale) without(type);
   // The claim may have been adopted while sync/publish were in flight (the
   // heartbeat loop learns it asynchronously). A last checkpoint keeps a stale
   // worker from ever announcing a clean done.
