@@ -1,6 +1,6 @@
 import { closeSync, openSync, readdirSync, readSync } from "node:fs";
 import { join } from "node:path";
-import type { Api, Model } from "@earendil-works/pi-ai";
+import type { Api, Model, Transport } from "@earendil-works/pi-ai";
 import {
   type CreateAgentSessionOptions,
   createAgentSession,
@@ -16,6 +16,7 @@ import type {
   HarnessSession,
 } from "../types";
 import { PiSession } from "./session";
+import { piTransportSettings } from "./transport-settings";
 
 /**
  * Everything the pi backend needs. The SAME factory serves both call sites: the
@@ -37,6 +38,12 @@ export interface PiBackendDeps {
    * describe the same capabilities — the Claude branch already takes one.
    */
   systemPrompt?: string;
+  /**
+   * The provider transport pi uses (`turn/turn-pi-transport.ts`). Absent =
+   * pi's own setting, `auto`: the long-lived server reuses pi's cached Codex
+   * WebSocket across a conversation's turns.
+   */
+  transport?: Transport;
 }
 
 /**
@@ -170,6 +177,7 @@ export function createPiBackend(deps: PiBackendDeps): HarnessBackend {
           opts.fresh === true,
         ),
         resourceLoader: loader,
+        ...piTransportSettings(deps.workspaceDir, deps.dataDir, deps.transport),
         tools: toolNamesForMode(opts.mode, deps.tools),
         customTools: deps.customTools,
       });

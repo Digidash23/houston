@@ -1,3 +1,4 @@
+import type { Transport } from "@earendil-works/pi-ai";
 import {
   type AgentSessionEvent,
   createAgentSession,
@@ -7,6 +8,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { PiThinkingLevel } from "../ai/effort";
 import { isManagedBridgeModel } from "../ai/openai-compatible-model";
+import { piTransportSettings } from "../backends/pi/transport-settings";
 
 export interface OneShotOptions {
   cwd: string;
@@ -19,6 +21,8 @@ export interface OneShotOptions {
   thinkingLevel?: PiThinkingLevel;
   /** Aborts the in-flight prompt (a caller's time cap). */
   signal?: AbortSignal;
+  /** pi's provider transport. Omit for pi's own setting (`auto`). */
+  transport?: Transport;
 }
 
 /**
@@ -48,6 +52,7 @@ export async function oneShotText(opts: OneShotOptions): Promise<string> {
     modelRuntime: opts.modelRuntime,
     sessionManager: SessionManager.inMemory(opts.cwd),
     resourceLoader: loader,
+    ...piTransportSettings(opts.cwd, opts.cwd, opts.transport),
     tools: [],
     ...(opts.thinkingLevel ? { thinkingLevel: opts.thinkingLevel } : {}),
   });

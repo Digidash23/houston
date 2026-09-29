@@ -18,15 +18,18 @@ const piTools = vi.fn<(names: string[]) => void>();
 const claudeTools = vi.fn<(names: string[]) => void>();
 
 const piPrompt = vi.fn<(prompt: string | undefined) => void>();
+const piTransport = vi.fn<(transport: string | undefined) => void>();
 const claudePrompt = vi.fn<(prompt: string | undefined) => void>();
 
 vi.mock("../backends/pi/backend", () => ({
   createPiBackend: (deps: {
     customTools: { name: string }[];
     systemPrompt?: string;
+    transport?: string;
   }) => {
     piTools(deps.customTools.map((tool) => tool.name));
     piPrompt(deps.systemPrompt);
+    piTransport(deps.transport);
     return { id: "pi", createSession: () => Promise.reject(new Error("stub")) };
   },
 }));
@@ -85,4 +88,14 @@ test("a granted run_code reaches BOTH the pi and the Claude tool list", async ()
   // pi branch used to fall back to the PROCESS's prompt instead.
   expect(piPrompt.mock.calls[0]?.[0]).toBe("system");
   expect(claudePrompt.mock.calls[0]?.[0]).toBe("system");
+});
+
+test("a pooled turn pins pi to SSE: the Codex WebSocket is never reused here", async () => {
+  // turn/turn-pi-transport.ts: a single-use (or cross-conversation) worker
+  // cannot reuse pi's per-session socket, so `auto` only costs a handshake and
+  // a wait for the socket to die before pi's own SSE fallback.
+  const { createTurnBackend } = await import("./turn-backend");
+  piTransport.mockClear();
+  createTurnBackend("openai-codex", deps());
+  expect(piTransport.mock.calls).toEqual([["sse"]]);
 });
