@@ -14,6 +14,7 @@ import {
 import { expect, test } from "vitest";
 import { createSessionsStore } from "../backends/claude/sessions-store";
 import { resumeSessionManager } from "../backends/pi/backend";
+import { startTurnRequestFilesystem } from "./turn-claimed-hydration";
 import {
   claimedTurnIncludes,
   prepareTurnFilesystem,
@@ -139,6 +140,62 @@ test("a claimed turn's filter leaves other conversations' history out of the hyd
     "workspaces/Personal/Bob/.houston/runtime/sessions/c1/s.jsonl",
     "workspaces/Personal/Bob/.houston/runtime/settings.json",
   ]);
+});
+
+test("a claimed turn neither hydrates nor deletes the shared Claude login", async () => {
+  const storeRoot = mkdtempSync(join(tmpdir(), "login-exclude-store-"));
+  const prefix = "ws/w1/agent-1";
+  const prefixRoot = join(storeRoot, prefix);
+  const loginFiles = [
+    "claude-login/.claude.json",
+    "claude-login/projects/workspace/session.jsonl",
+    "claude-login/policies/managed.json",
+  ];
+  for (const rel of loginFiles) {
+    const file = join(prefixRoot, ...rel.split("/"));
+    mkdirSync(join(file, ".."), { recursive: true });
+    writeFileSync(file, rel);
+  }
+  const runtime = join(prefixRoot, "workspaces/Personal/Bob/.houston/runtime");
+  mkdirSync(runtime, { recursive: true });
+  writeFileSync(join(runtime, "settings.json"), "{}");
+
+  const store = new LocalDirStore(storeRoot);
+  const preparation = await startTurnRequestFilesystem({
+    store,
+    prefix,
+    root: mkdtempSync(join(tmpdir(), "login-exclude-root-")),
+    turn: {
+      claim: {
+        id: "claim-1",
+        token: "token-1",
+        bootId: "boot-1",
+        heartbeatUrl: "https://heartbeat.test",
+      },
+      conversationId: "c1",
+    },
+    timings: {},
+  });
+  const fs = await preparation.hydrated;
+
+  expect([...fs.manifest.keys()]).not.toEqual(
+    expect.arrayContaining(loginFiles),
+  );
+  for (const rel of loginFiles) {
+    expect(existsSync(join(fs.storeRoot, ...rel.split("/")))).toBe(false);
+  }
+
+  const synced = await syncTurnFilesystem({
+    store,
+    prefix,
+    filesystem: fs,
+    conversationId: "c1",
+    claimed: true,
+  });
+  expect(synced.deleted).toEqual([]);
+  expect(await store.list(prefix)).toEqual(
+    expect.arrayContaining(loginFiles.map((rel) => `${prefix}/${rel}`)),
+  );
 });
 
 test("a claimed turn hydrates live session tails and leaves skips untouched", async () => {
