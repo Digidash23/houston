@@ -20,6 +20,7 @@ export async function syncTurnFilesystem(opts: {
   skipped: { key: string; reason: string }[];
   conflicts: { key: string; reason: string }[];
   merges: SyncResult["merges"];
+  manifest: SyncResult["manifest"];
 }> {
   const result = await syncBack(
     opts.store,
@@ -62,5 +63,6 @@ export async function syncTurnFilesystem(opts: {
     skipped: result.skipped,
     conflicts: result.conflicts,
     merges: result.merges,
+    manifest: result.manifest,
   };
 }

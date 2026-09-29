@@ -25,12 +25,17 @@ function frame(key: string, status: number, body = "", generation?: string) {
   return Buffer.concat([length, header, Buffer.from(body)]);
 }
 
-function fakeStore(batchRoute: boolean, batchReads = true) {
+function fakeStore(
+  batchRoute: boolean,
+  batchReads = true,
+  extra: Record<string, string> = {},
+) {
   const objects: Record<string, string> = {
     "CLAUDE.md": "instructions",
     ".houston/learnings.md": "notes",
     "gone.md": "deleted after listing",
     "big.bin": "large object",
+    ...extra,
   };
   const calls: string[] = [];
   const fetchImpl: typeof fetch = async (input, init) => {
@@ -129,4 +134,18 @@ test("a store that did not opt into batch reads never asks the batch route", asy
   expect(calls.filter((call) => call.startsWith("GET /objects/")).length).toBe(
     4,
   );
+});
+
+test("a batched worker hydration keeps the board's bytes as its merge base", async () => {
+  // The per-turn worker's store batches, so this is the board's real path.
+  const board = "workspaces/W/A/.houston/activity/activity.json";
+  const body = '[{"id":"a","title":"A","status":"running"}]';
+  const { store, calls } = fakeStore(true, true, { [board]: body });
+  const dest = mkdtempSync(join(tmpdir(), "houston-batch-"));
+
+  const manifest = await hydrate(store, "", dest, { keepMergeBase: true });
+
+  expect(calls).toContain("POST /batch");
+  expect(manifest.get(board)?.mergeBase).toBe(body);
+  expect(manifest.get("CLAUDE.md")?.mergeBase).toBeUndefined();
 });

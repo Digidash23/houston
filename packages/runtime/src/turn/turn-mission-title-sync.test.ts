@@ -114,7 +114,18 @@ async function titledTurn(races: number) {
     "turn-1",
     {},
     { hydratedObjects: 1, skippedObjects: 0 },
-    landedMissionTitle({ outcome: "written", ms: 40 }, durable.sync),
+    landedMissionTitle(
+      {
+        outcome: "written",
+        ms: 40,
+        written: {
+          conversationId: "activity-mine",
+          title: titled.title,
+          fallback: "New mission",
+        },
+      },
+      durable.sync,
+    ),
   ) as unknown as { type: string; data: Record<string, unknown> };
   const stored = JSON.parse(
     await readFile(join(storeRoot, PREFIX, ...boardRel.split("/")), "utf8"),
