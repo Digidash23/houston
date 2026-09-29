@@ -1,4 +1,5 @@
 import { expect, test } from "vitest";
+import { parseTurnRequest } from "./parse-turn-request";
 import { turnSessionRequest } from "./turn-request";
 import type { TurnRequest } from "./types";
 
@@ -50,6 +51,26 @@ test("no pin and no credential leaves the provider unattributed", () => {
     turnSessionRequest({ ...base, credential: null }, "t1", emit, signal)
       .provider,
   ).toBe("");
+});
+
+/**
+ * The gateway always sends both context fields, empty when the org has none
+ * (what the standing pod's send path gets). An empty string is still provided
+ * context: it must never fall back to the file mode, whose section names
+ * absolute paths under the turn root.
+ */
+test("empty gateway context is provided context, never the file fallback", () => {
+  const turn = turnSessionRequest(
+    parseTurnRequest({ ...base, workspaceContext: "", userContext: "" }),
+    "t1",
+    emit,
+    signal,
+  );
+  expect(turn.context).toEqual({ workspace: "", user: "" });
+});
+
+test("a turn with neither context field keeps the file fallback", () => {
+  expect(turnSessionRequest(base, "t1", emit, signal).context).toBeUndefined();
 });
 
 test("only grant scopes and the sandbox closure reach the pi request", () => {

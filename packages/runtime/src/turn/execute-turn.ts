@@ -1,6 +1,5 @@
-import { mkdir, mkdtemp } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { WireFrame } from "@houston/runtime-client";
 import { openSSE } from "../transport/sse";
@@ -19,6 +18,7 @@ import { TurnSetupError } from "./turn-layout";
 import { createTurnLog } from "./turn-log";
 import { setActiveTurnTimings } from "./turn-network-marks";
 import { turnSessionRequest } from "./turn-request";
+import { createTurnRoot } from "./turn-root";
 import type { makeTurnSandboxFetch } from "./turn-sandbox";
 import { createTurnSandbox } from "./turn-sandbox-startup";
 import {
@@ -49,7 +49,7 @@ export async function executeTurn(
   res: ServerResponse,
   timings: Record<string, number>,
 ): Promise<void> {
-  const root = await mkdtemp(join(tmpdir(), "houston-turn-"));
+  const root = await createTurnRoot(turn);
   await Promise.all([
     mkdir(join(root, "home"), { recursive: true }),
     mkdir(join(root, "claude-credstore"), { recursive: true }),
