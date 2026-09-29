@@ -1,6 +1,7 @@
 import {
   HttpObjectStore,
   type ObjectStore,
+  PrefetchedObjectStore,
 } from "@houston/runtime-client/object-sync";
 import type { TurnRequest } from "./types";
 
@@ -50,7 +51,7 @@ export function poolIdentity(gcsPrefix: string): {
 export function resolveTurnStore(
   turn: Pick<
     TurnRequest,
-    "gcsPrefix" | "claim" | "hostToken" | "conversationId"
+    "gcsPrefix" | "claim" | "hostToken" | "conversationId" | "prefetch"
   >,
   fallback: ObjectStore,
   config: TurnStoreConfig = {},
@@ -62,17 +63,23 @@ export function resolveTurnStore(
   }
   const { org, agent } = poolIdentity(turn.gcsPrefix);
   const root = poolStoreUrl.replace(/\/+$/, "");
+  const http = new HttpObjectStore({
+    baseUrl: `${root}/v1/pod/store/${encodeURIComponent(org)}/${encodeURIComponent(agent)}`,
+    token: turn.hostToken,
+    claim: {
+      token: turn.claim.token,
+      bootId: turn.claim.bootId,
+      conversationId: turn.conversationId,
+    },
+    // The single-use worker hydrates cold on every turn, so it takes the
+    // batched read; standing pods' stores never set this.
+    batchReads: true,
+    ...(config.fetchImpl ? { fetchImpl: config.fetchImpl } : {}),
+  });
   return {
-    store: new HttpObjectStore({
-      baseUrl: `${root}/v1/pod/store/${encodeURIComponent(org)}/${encodeURIComponent(agent)}`,
-      token: turn.hostToken,
-      claim: {
-        token: turn.claim.token,
-        bootId: turn.claim.bootId,
-        conversationId: turn.conversationId,
-      },
-      ...(config.fetchImpl ? { fetchImpl: config.fetchImpl } : {}),
-    }),
+    store: turn.prefetch
+      ? new PrefetchedObjectStore(http, turn.prefetch)
+      : http,
     prefix: "",
   };
 }

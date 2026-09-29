@@ -1,70 +1,14 @@
-import type { Dirent } from "node:fs";
-import { readdir, stat } from "node:fs/promises";
-import { join, posix, relative, sep } from "node:path";
+import { stat } from "node:fs/promises";
+import { join, posix } from "node:path";
 import { fileSha256 } from "./file-hash";
 import { DEFAULT_EXCLUDES, excluded, type HydrateManifest } from "./hydrate";
 import type { ObjectMetadata } from "./object-manifest";
 import type { ObjectStore } from "./object-store";
 import { deleteOwnedObject, uploadChangedObject } from "./sync-back-conflicts";
+import type { SyncBackOptions, SyncResult } from "./sync-back-types";
+import { walkFiles } from "./sync-back-walk";
 
-export interface SyncResult {
-  uploaded: string[];
-  deleted: string[];
-  manifest: HydrateManifest;
-  /**
-   * Files the store REJECTED as over its per-object cap (typed 413). They stay
-   * local-only: recorded in the manifest at their current hash so the pass
-   * completes and the upload is re-attempted only when the file changes —
-   * never as an every-tick retry of a deterministic verdict.
-   */
-  skipped: { key: string; reason: string }[];
-  /**
-   * Per-object generation conflicts (typed 412) that survived one refreshed
-   * retry. The pass continues past them; a FENCE rejection (409) aborts it
-   * instead — that pod is no longer the writer, and every further write would
-   * be garbage.
-   */
-  conflicts: { key: string; reason: string }[];
-  /** Changed paths rejected by the caller's write scope. */
-  outOfScope: number;
-  /** Bytes the next hydration must materialize, excluding local-only paths. */
-  totalBytes: number;
-}
-
-/** Caller policy for exclusions, generations, and permitted write paths. */
-export interface SyncBackOptions {
-  excludes?: string[];
-  generations?: boolean;
-  /** Limit writes and deletes while still detecting skipped changes. */
-  include?: (relativePath: string) => boolean;
-  /**
-   * Skip the delete pass entirely when any upload was skipped or conflicted.
-   * A rename/move uploads the new key and deletes the old one; if the upload
-   * is refused (over the store's cap, a conflict) the delete would destroy
-   * the ONLY durable copy. One-shot callers (a pool op) set this; the
-   * standing daemon retries on its next tick and keeps the default.
-   */
-  holdDeletesOnFailure?: boolean;
-}
-
-async function walkFiles(dir: string, base: string): Promise<string[]> {
-  const out: string[] = [];
-  let entries: Dirent[];
-  try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code;
-    if (code === "ENOENT" || code === "ENOTDIR") return [];
-    throw err;
-  }
-  for (const entry of entries) {
-    const abs = join(dir, entry.name);
-    if (entry.isSymbolicLink()) continue;
-    if (entry.isDirectory()) out.push(...(await walkFiles(abs, base)));
-    else out.push(relative(base, abs).split(sep).join("/"));
-  }
-  return out;
-}
+export type { SyncBackOptions, SyncMerge, SyncResult } from "./sync-back-types";
 
 /** Upload changes and conditionally remove objects owned by the prior hydrate. */
 export async function syncBack(
@@ -89,11 +33,13 @@ export async function syncBack(
   const uploaded: string[] = [];
   const skipped: SyncResult["skipped"] = [];
   const conflicts: SyncResult["conflicts"] = [];
+  const merges: SyncResult["merges"] = [];
   const nextManifest: HydrateManifest = new Map();
   let outOfScope = 0;
   let refreshed: Promise<Map<string, ObjectMetadata>> | undefined;
-  const refresh = () => {
+  const refresh = (fresh = false) => {
     if (!store.manifest) return undefined;
+    if (fresh) refreshed = undefined;
     refreshed ??= store
       .manifest(prefix)
       .then(
@@ -146,7 +92,16 @@ export async function syncBack(
       previous,
       generationAware,
       refresh,
+      ...(opts.workerMerge ? { workerMerge: true } : {}),
+      ...(opts.conflictBackoff ? { backoff: opts.conflictBackoff } : {}),
     });
+    if (result.mergeAttempts)
+      merges.push({
+        key: rel,
+        attempts: result.mergeAttempts,
+        ...(result.removedCards ? { removedCards: result.removedCards } : {}),
+        ...(result.unmergeable ? { unmergeable: result.unmergeable } : {}),
+      });
     // Second half of the vanish window: the file outlived the hash above but
     // was unlinked before the upload re-read it. Same reconciliation as the
     // walk-stage skip: out of the next manifest, delete pass settles the store.
@@ -193,6 +148,7 @@ export async function syncBack(
     deleted,
     skipped,
     conflicts,
+    merges,
     outOfScope,
     manifest: nextManifest,
     totalBytes,

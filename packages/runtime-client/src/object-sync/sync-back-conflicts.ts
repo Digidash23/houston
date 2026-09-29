@@ -1,19 +1,23 @@
 import type { HydrateManifestEntry } from "./hydrate";
-import type { ObjectMetadata } from "./object-manifest";
 import {
   type ObjectStore,
   ObjectTooLargeError,
   StoreConflictError,
   type WriteOptions,
 } from "./object-store";
-import { mergeSyncBackDocument } from "./sync-back-doc-merge";
+import { isMergedDocument } from "./sync-back-doc-merge";
+import { withMergeBase } from "./sync-back-merge-base";
+import {
+  type ConflictBackoff,
+  type RefreshManifest,
+  sourceVanished,
+  uploadMergedDocument,
+} from "./sync-back-merge-retry";
+import { retryAtRefreshedGeneration } from "./sync-back-single-retry";
 
-/** Lazily fetched remote generations shared across one sync pass. */
-export type RefreshManifest = () =>
-  | Promise<Map<string, ObjectMetadata>>
-  | undefined;
+export type { RefreshManifest } from "./sync-back-merge-retry";
 
-/** Result of one upload plus its optional generation retry. */
+/** Result of one upload plus its conflict retries. */
 export interface UploadChangeResult {
   entry?: HydrateManifestEntry;
   uploaded: boolean;
@@ -21,18 +25,12 @@ export interface UploadChangeResult {
   conflict?: string;
   /** The source file was unlinked between the sync scan and the upload read. */
   vanished?: boolean;
-}
-
-/**
- * The agent keeps writing while an upload reads its source, so the file can be
- * unlinked between the scan's hash and the upload's stat/read (runtime session
- * files churn constantly). On the streaming path the errno arrives wrapped as
- * the fetch error's cause.
- */
-function sourceVanished(error: unknown): boolean {
-  if ((error as NodeJS.ErrnoException).code === "ENOENT") return true;
-  const cause = (error as { cause?: unknown }).cause;
-  return (cause as NodeJS.ErrnoException | undefined)?.code === "ENOENT";
+  /** Merge rounds a merged document needed after its first 412. */
+  mergeAttempts?: number;
+  /** Board card ids the landed merge removed from the remote it merged into. */
+  removedCards?: string[];
+  /** Why a side would not parse, so the local bytes overwrote the remote. */
+  unmergeable?: string;
 }
 
 function initialWriteOptions(
@@ -46,7 +44,12 @@ function initialWriteOptions(
   return previous ? undefined : { ifGenerationMatch: "0" };
 }
 
-/** Upload once, refreshing and retrying one generation conflict. */
+/**
+ * Upload once. On a generation conflict a worker store (`workerMerge`) lands a
+ * merged document through bounded merge rounds; everything else, and every
+ * file of the standing store sync, retries once at the refreshed generation
+ * (`sync-back-single-retry.ts`).
+ */
 export async function uploadChangedObject(opts: {
   store: ObjectStore;
   abs: string;
@@ -56,6 +59,9 @@ export async function uploadChangedObject(opts: {
   previous?: HydrateManifestEntry;
   generationAware: boolean;
   refresh: RefreshManifest;
+  /** The per-turn worker's merge rounds and board merge base. */
+  workerMerge?: boolean;
+  backoff?: ConflictBackoff;
 }): Promise<UploadChangeResult> {
   try {
     const result = await opts.store.upload(
@@ -63,8 +69,11 @@ export async function uploadChangedObject(opts: {
       opts.key,
       initialWriteOptions(opts.generationAware, opts.previous),
     );
+    const entry = { hash: opts.hash, generation: result?.generation };
     return {
-      entry: { hash: opts.hash, generation: result?.generation },
+      entry: opts.workerMerge
+        ? await withMergeBase(opts.abs, opts.relativePath, entry)
+        : entry,
       uploaded: true,
     };
   } catch (error) {
@@ -77,52 +86,14 @@ export async function uploadChangedObject(opts: {
     }
     if (sourceVanished(error)) return { uploaded: false, vanished: true };
     if (!(error instanceof StoreConflictError)) throw error;
-    const refreshed = await opts.refresh();
-    if (!refreshed) {
-      return {
-        entry: opts.previous,
-        uploaded: false,
+    if (opts.workerMerge && isMergedDocument(opts.relativePath)) {
+      const { attempts, ...merged } = await uploadMergedDocument({
+        ...opts,
         conflict: error.message,
-      };
-    }
-    const current = refreshed.get(opts.key);
-    const retryGeneration = current ? current.generation : "0";
-    if (retryGeneration === undefined) {
-      return {
-        entry: opts.previous,
-        uploaded: false,
-        conflict: error.message,
-      };
-    }
-    try {
-      const mergedHash = await mergeSyncBackDocument({
-        store: opts.store,
-        abs: opts.abs,
-        key: opts.key,
-        relativePath: opts.relativePath,
       });
-      const result = await opts.store.upload(opts.abs, opts.key, {
-        ifGenerationMatch: retryGeneration,
-      });
-      return {
-        entry: {
-          hash: mergedHash ?? opts.hash,
-          generation: result?.generation,
-        },
-        uploaded: true,
-      };
-    } catch (retryError) {
-      if (sourceVanished(retryError))
-        return { uploaded: false, vanished: true };
-      if (!(retryError instanceof StoreConflictError)) throw retryError;
-      return {
-        entry: opts.previous
-          ? { ...opts.previous, generation: retryGeneration }
-          : undefined,
-        uploaded: false,
-        conflict: retryError.message,
-      };
+      return { ...merged, mergeAttempts: attempts };
     }
+    return retryAtRefreshedGeneration(opts, error.message);
   }
 }
 

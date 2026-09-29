@@ -1,8 +1,10 @@
-import { rm, stat } from "node:fs/promises";
+import { readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { fileSha256 } from "./file-hash";
 import type { HydrateManifest } from "./hydrate";
+import { hydrateBatched } from "./hydrate-batch";
 import { ObjectNotFoundError, type ObjectStore } from "./object-store";
+import { keepsMergeBase } from "./sync-back-doc-merge";
 
 export interface HydrateEntry {
   generation?: string;
@@ -26,13 +28,22 @@ export async function downloadHydrationEntries(opts: {
   maxBytes: number;
   concurrency: number;
   state: HydrateDownloadState;
+  /** Keep the board's bytes as its merge base (worker stores only). */
+  keepMergeBase?: boolean;
   signal: AbortSignal;
   limitError: (observedBytes: number) => Error;
 }): Promise<void> {
+  // A store that batches reads lands most of the batch in a few round trips;
+  // only what it will not inline (large objects) goes one by one below.
+  const batched = opts.store.downloadMany?.bind(opts.store);
+  const entries =
+    batched && opts.entries.length > 1
+      ? await hydrateBatched({ ...opts, downloadMany: batched })
+      : opts.entries;
   let next = 0;
   const worker = async () => {
     while (!opts.state.failed && opts.state.total <= opts.maxBytes) {
-      const entry = opts.entries[next++];
+      const entry = entries[next++];
       if (!entry) return;
       const { generation, key, rel } = entry;
       try {
@@ -47,6 +58,9 @@ export async function downloadHydrationEntries(opts: {
         opts.manifest.set(rel, {
           hash: await fileSha256(dest, size),
           generation,
+          ...(opts.keepMergeBase && keepsMergeBase(rel)
+            ? { mergeBase: await readFile(dest, "utf8") }
+            : {}),
         });
       } catch (error) {
         if (!opts.signal.aborted && error instanceof ObjectNotFoundError) {
@@ -59,10 +73,7 @@ export async function downloadHydrationEntries(opts: {
     }
   };
   await Promise.all(
-    Array.from(
-      { length: Math.min(opts.concurrency, opts.entries.length) },
-      worker,
-    ),
+    Array.from({ length: Math.min(opts.concurrency, entries.length) }, worker),
   );
   if (opts.state.failed) throw opts.state.firstError;
 }

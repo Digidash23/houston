@@ -1,39 +1,34 @@
-import { getEngine } from "./engine";
-import { logger } from "./logger";
-import {
-  cleanGeneratedTitle,
-  fallbackMissionTitle,
-} from "./mission-title-text";
+import type { Capabilities, MissionTitle } from "@houston/engine-adapter";
+import { type MissionTitlePlan, planMissionTitle } from "@houston/sdk";
+import { queryClient } from "./query-client";
+import { queryKeys } from "./query-keys";
+import { tauriActivity } from "./tauri";
 
 export { fallbackMissionTitle } from "./mission-title-text";
 
-export interface RefreshMissionTitleOptions {
-  agentPath: string;
-  activityId: string;
-  text: string;
+/**
+ * Decide once, per new mission, who titles its card (the SDK's
+ * `planMissionTitle`) against the capability snapshot the app already holds.
+ * A snapshot not loaded yet keeps the client title flow every deployment
+ * serves.
+ */
+export function missionTitlePlan(
+  title: MissionTitle | undefined,
+): MissionTitlePlan {
+  const capabilities = queryClient.getQueryData<Capabilities>(
+    queryKeys.capabilities(),
+  );
+  return planMissionTitle(capabilities ?? null, title);
 }
 
 /**
- * Replace a mission's truncated fallback title with the engine's summary. The
- * title turn runs on the agent's own runtime, which routes it to the provider
- * the conversation is already on — the caller has no say in the model.
+ * The card's row has landed: run the plan's client title pass (a no-op when
+ * the server titles from the send). Never rejects, so it runs detached.
  */
-export async function refreshMissionTitle({
-  agentPath,
-  activityId,
-  text,
-}: RefreshMissionTitleOptions): Promise<void> {
-  const fallback = fallbackMissionTitle(text);
-  try {
-    const summary = await getEngine().summarizeActivity(text, { agentPath });
-    const title = cleanGeneratedTitle(summary.title) ?? fallback;
-    if (title === fallback) return;
-    await getEngine().updateActivity(agentPath, activityId, { title });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.warn(
-      `[mission-title] keeping fallback title for ${activityId}`,
-      message,
-    );
-  }
+export function titleLandedMission(
+  agentPath: string,
+  activityId: string,
+  plan: MissionTitlePlan,
+): void {
+  void tauriActivity.titleFromClient(agentPath, activityId, plan.client);
 }

@@ -201,6 +201,13 @@ export interface Capabilities {
    * forwards integration calls with the pushed session. Absent → legacy probe.
    */
   integrationSessionSink?: boolean;
+  /**
+   * The server titles a new mission from the send's `missionTitle` field after
+   * its first turn. Absent/false = the client asks `POST /agents/:id/title`
+   * and PATCHes the card itself. Only a deployment that runs turns in per-turn
+   * workers advertises it; the open host (desktop, self-host) never does.
+   */
+  missionTitleOnSend?: boolean;
 }
 
 // ---------- Org / roles (multiplayer) ----------
@@ -1242,6 +1249,20 @@ export interface SessionStartRequest {
    * Omitted when the message answers no card; never an empty list.
    */
   approvals?: MessageApproval[];
+  /**
+   * A new mission's FIRST message only: title the mission's card after this
+   * turn's reply, in the same runtime that ran it (no second request, no second
+   * sandbox). `fallback` is the title the card was created with (the runtime
+   * writes the AI title only while the card still shows it, so a rename wins);
+   * `text` is the user's own words to title. Omitted on every other send.
+   */
+  missionTitle?: MissionTitle;
+}
+
+/** See {@link SessionStartRequest.missionTitle}. */
+export interface MissionTitle {
+  fallback: string;
+  text: string;
 }
 
 export interface SessionStartResponse {

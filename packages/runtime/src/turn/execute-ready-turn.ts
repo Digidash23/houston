@@ -7,6 +7,8 @@ import type { TurnServerDeps } from "./server-types";
 import { finishTurnDurability } from "./turn-durability";
 import type { TurnFilesystem } from "./turn-filesystem";
 import type { createTurnLog } from "./turn-log";
+import { landedMissionTitle } from "./turn-mission-title-outcome";
+import { remoteActivityReader } from "./turn-mission-title-remote";
 import { turnSessionRequest } from "./turn-request";
 import {
   prepareRoutineTurn,
@@ -17,7 +19,7 @@ import type { makeTurnSandboxFetch } from "./turn-sandbox";
 import { runTurn, type TurnOutcome } from "./turn-session";
 import type { TurnSessionStartupTask } from "./turn-session-startup";
 import type { resolveTurnStore } from "./turn-store";
-import { turnTerminalFrame } from "./turn-terminal";
+import { durableTerminalFrame } from "./turn-terminal";
 import type { createTurnTranscript } from "./turn-transcript";
 import type { TurnRequest } from "./types";
 
@@ -126,6 +128,14 @@ export async function executeReadyTurn(input: {
               input.timings,
               input.startup,
             );
+            // The card may postdate hydration: its title re-reads the board
+            // from the store sync-back writes (turn-mission-title-remote.ts).
+            if (request.missionTitle)
+              request.readRemoteActivity = remoteActivityReader(
+                input.resolved.store,
+                input.resolved.prefix,
+                input.filesystem.workspaceRel,
+              );
             return input.deps.runTurn
               ? input.deps.runTurn(directories, request)
               : runTurn(directories, request, input.deps.turnSessionDeps);
@@ -173,18 +183,17 @@ export async function executeReadyTurn(input: {
   });
   input.timings.t_durable = performance.now();
   input.emit(
-    turnTerminalFrame(
-      durable.outcome,
+    durableTerminalFrame(
+      durable,
       input.turnId,
-      durable.poolWritesOutOfScope,
-      durable.transcriptSkipped,
-      durable.activityDocSkipped,
-      durable.changed,
       input.timings,
       {
         hydratedObjects: input.filesystem.manifest.size,
         skippedObjects: input.filesystem.skippedObjects,
       },
+      input.turn.missionTitle
+        ? landedMissionTitle(outcome.missionTitle, durable.sync)
+        : undefined,
     ),
   );
   await input.turnLog?.flush();

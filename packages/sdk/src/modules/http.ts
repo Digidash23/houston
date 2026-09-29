@@ -17,6 +17,7 @@
  * operation silently disappears from what the assistant can do.
  */
 
+import { retryAfterMsOf } from "@houston/wire-types";
 import type { SdkPorts } from "../ports";
 
 /** Everything {@link httpRequest} needs that is constant for one module. */
@@ -39,6 +40,13 @@ export interface HttpScope {
  * bundle and mangles class names, and surfaces branch on `err.name`.
  */
 export class SdkHttpError extends Error {
+  /**
+   * The refusal's `Retry-After`, in milliseconds, when it carried a readable
+   * one. Stamped by {@link httpRequest} after the module's `fail` builds the
+   * error, so no subclass constructor has to thread it.
+   */
+  retryAfterMs: number | undefined = undefined;
+
   constructor(
     message: string,
     readonly status: number,
@@ -100,7 +108,10 @@ export async function httpRequest(
   if (!res.ok) {
     if (res.status === 401) scope.onUnauthorized();
     const body = await res.text().catch(() => "");
-    throw scope.fail(body, res.status);
+    const err = scope.fail(body, res.status);
+    if (err instanceof SdkHttpError)
+      err.retryAfterMs = retryAfterMsOf(res.headers);
+    throw err;
   }
   return res;
 }

@@ -139,31 +139,6 @@ test("truncateConversation posts the turn it cuts at", async () => {
   expectGatewayHeaders(post);
 });
 
-test("summarizeActivity titles the excerpt on the agent's own runtime", async () => {
-  stubEngine({ title: "Trip to Lisbon" });
-
-  const titled = await client().summarizeActivity("plan a trip to Lisbon", {
-    agentPath: AGENT,
-  });
-
-  const post = onlyCall();
-  expect(post.method).toBe("POST");
-  expect(post.url).toBe(`${BASE}/agents/${AGENT}/title`);
-  expect(post.body).toBe(JSON.stringify({ text: "plan a trip to Lisbon" }));
-  expectGatewayHeaders(post);
-  expect(titled).toEqual({ title: "Trip to Lisbon", description: "" });
-});
-
-test("a title the engine cannot produce falls back to truncation, never blocking the send", async () => {
-  stubRouted(() => json(503, { error: "engine waking" }));
-
-  const titled = await client().summarizeActivity("plan a trip", {
-    agentPath: AGENT,
-  });
-
-  expect(titled).toEqual({ title: "plan a trip", description: "" });
-});
-
 // ---- the reads and the send ----
 
 test("loadChatHistory reads the tail window, then attaches the observer stream", async () => {
@@ -236,7 +211,35 @@ test("startSession posts the turn to the agent's own sandbox, carrying its per-t
     displayText: undefined,
     mentions: undefined,
     approvals: undefined,
+    missionTitle: undefined,
   });
+});
+
+test("a new mission's first send asks the runtime to title the card after the reply", async () => {
+  stubEngine({ ok: true });
+
+  await client().startSession(AGENT, {
+    // A fresh conversation: SK still has the previous spec's turn open.
+    sessionKey: "activity-new-mission",
+    prompt: "Write the weekly sales report",
+    provider: "openai",
+    model: "gpt-6-astra",
+    missionTitle: {
+      fallback: "Write the weekly sales report",
+      text: "Write the weekly sales report",
+    },
+  });
+
+  const send = await vi.waitUntil(() =>
+    calls.find((c) => c.method === "POST" && c.url.endsWith("/messages")),
+  );
+  const body = JSON.parse(send.body ?? "{}") as Record<string, unknown>;
+  expect(body.missionTitle).toEqual({
+    fallback: "Write the weekly sales report",
+    text: "Write the weekly sales report",
+  });
+  // No separate title request rides beside the send.
+  expect(calls.some((c) => c.url.endsWith("/title"))).toBe(false);
 });
 
 // ---- the ids the paths splice ----

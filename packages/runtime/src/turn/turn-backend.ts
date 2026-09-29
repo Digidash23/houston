@@ -35,7 +35,7 @@ type TurnTool = PiBackendDeps["customTools"][number];
  * login the user has replaced, the dead entry is dropped instead of being
  * skipped on every future read.
  */
-function turnAuthStore(dataDir: string): {
+export function turnAuthStore(dataDir: string): {
   get: (provider: string) => ReturnType<typeof readAuthFile>[string];
   remove: (provider: string) => void;
 } {

@@ -1,5 +1,6 @@
 import type { SequencedFrame, WireFrame } from "@houston/runtime-client";
 import type { TurnServerDeps } from "./server-types";
+import { markTurnOnce } from "./turn-network-marks";
 import { poolIdentity } from "./turn-store";
 import type { TurnRequest } from "./types";
 
@@ -107,6 +108,11 @@ export class TurnLog {
     )}/${encodeURIComponent(this.opts.agent)}/${encodeURIComponent(
       this.opts.conversationId,
     )}`;
+    // The first text reaches the user through this POST; its queue wait and
+    // round trip are the worker's half of the delivery time.
+    const carriesText = frames.some((sequenced) => sequenced.type === "text");
+    markTurnOnce("t_turnlog_first_post_start");
+    if (carriesText) markTurnOnce("t_turnlog_text_post_start");
     try {
       const response = await this.fetchImpl(url, {
         method: "POST",
@@ -121,6 +127,8 @@ export class TurnLog {
         ),
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
+      markTurnOnce("t_turnlog_first_post_done");
+      if (carriesText) markTurnOnce("t_turnlog_text_post_done");
       if (response.ok) return;
       if (response.status === 404) {
         this.disabled = true;

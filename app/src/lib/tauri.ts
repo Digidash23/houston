@@ -23,6 +23,7 @@ import type {
   ProviderStatus as EngineProviderStatus,
   MessageApproval,
   MessageMention,
+  MissionTitle,
   ProviderAuthState,
   ProviderHealth,
   ProviderUsage,
@@ -518,6 +519,11 @@ export const tauriChat = {
        * the field before the runtime sees the turn (see SessionStartRequest).
        */
       approvals?: MessageApproval[];
+      /**
+       * A new mission's first message: the runtime titles the card after this
+       * turn's reply (see SessionStartRequest). Omitted on every other send.
+       */
+      missionTitle?: MissionTitle;
     },
   ) =>
     call<string>("send_message", async () => {
@@ -547,6 +553,7 @@ export const tauriChat = {
         // Which approval cards this message answers. Absence and an empty list
         // are the same answer, so never put `[]` on the wire.
         approvals: opts?.approvals?.length ? opts.approvals : undefined,
+        missionTitle: opts?.missionTitle,
       });
       return res.sessionKey;
     }),
@@ -603,10 +610,6 @@ export const tauriChat = {
   loadOlderHistory: (agentPath: string, sessionKey: string) =>
     call<{ hasOlder: boolean }>("load_older_chat_history", () =>
       getEngine().loadOlderChatHistory(agentPath, sessionKey),
-    ),
-  summarize: (message: string) =>
-    call<{ title: string; description: string }>("summarize_activity", () =>
-      getEngine().summarizeActivity(message),
     ),
 };
 
@@ -1114,14 +1117,20 @@ export const tauriActivity = {
       { toast: false, silence: isAgentGoneError },
     ),
   /**
-   * `createWithId` for ONE rung of a retry ladder: the log tail records the
-   * attempt, nothing else surfaces. The caller hands the final error to
-   * `surfaceEngineError` (`create-mission-now.ts`, PRODUCT-1736).
+   * `createWithId` with the engine-call surface deferred: the log tail records
+   * the call, nothing else surfaces. The caller hands the error (the SDK's
+   * last refusal after its busy/waking retries) to `surfaceEngineError`
+   * (`mission-row-landing.ts`, PRODUCT-1736).
    */
   createWithIdAttempt: (agentPath: string, input: EngineNewActivity) =>
     call(
       "create_activity",
-      () => getEngine().createActivity(agentPath, input),
+      // The optimistic row rides out a pod wake on the SDK's mission-row
+      // ladder (PRODUCT-1736).
+      () =>
+        getEngine().createActivity(agentPath, input, {
+          retryWhileWaking: true,
+        }),
       undefined,
       { surface: false },
     ),
@@ -1130,6 +1139,12 @@ export const tauriActivity = {
     activityId: string,
     update: activityData.ActivityUpdate,
   ) => activityData.update(agentPath, activityId, update).then(() => undefined),
+  /** The SDK's client mission-title pass (`mission-title.ts`); never rejects. */
+  titleFromClient: (
+    agentPath: string,
+    activityId: string,
+    title: MissionTitle | undefined,
+  ) => getEngine().titleMissionFromClient(agentPath, activityId, title),
   delete: (agentPath: string, activityId: string) =>
     activityData.remove(agentPath, activityId),
   bulkUpdate: (

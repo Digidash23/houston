@@ -91,9 +91,9 @@ export function AgentsMixin<TBase extends BaseCtor>(Base: TBase) {
      * @assistant hidden: a one-shot generation turn on a runtime, not an app operation; an assistant writes the instructions itself and saves them with writeAgentFile.
      *
      * Create-with-AI: one one-shot generation turn on the runtime — the selected
-     * agent's sandbox in cloud / desktop-new-engine mode (same path as
-     * summarizeActivity), the single runtime locally. The dialog's brain picker
-     * sends legacy provider/model ids; migrate them to pi ids first. No engine
+     * agent's sandbox in cloud / desktop-new-engine mode, the single runtime
+     * locally. The dialog's brain picker sends legacy provider/model ids;
+     * migrate them to pi ids first. No engine
      * reachable (cloud with no agent open yet) throws — the assist step shows the
      * real reason instead of silently producing an empty agent (HOU-660).
      */

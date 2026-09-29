@@ -1,5 +1,7 @@
 import { normalizeTurnMode, parseMentions } from "@houston/protocol";
+import { parsePrefetchedObjects } from "@houston/runtime-client/object-sync";
 import type { ServedCredential } from "../auth/auth-file";
+import { parseMissionTitle } from "../session/mission-title";
 import { assertRoutineEventBounds } from "./parse-routine-events";
 import type { TurnGrant, TurnGrantScope, TurnRequest } from "./types";
 
@@ -243,6 +245,7 @@ export function parseTurnRequest(body: unknown): TurnRequest {
     // Same "never trust the wire" posture: junk entries are dropped and an
     // empty list becomes nothing, so a bad sidecar never costs the user a turn.
     mentions: parseMentions(b.mentions),
+    missionTitle: parseMissionTitle(b.missionTitle),
     turnId: typeof b.turnId === "string" ? b.turnId : undefined,
     hostToken: typeof b.hostToken === "string" ? b.hostToken : undefined,
     actingAs,
@@ -259,5 +262,8 @@ export function parseTurnRequest(body: unknown): TurnRequest {
     routine,
     claim,
     grant,
+    ...(claim && b.prefetch !== undefined
+      ? { prefetch: parsePrefetchedObjects(b.prefetch) }
+      : {}),
   };
 }

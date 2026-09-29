@@ -11,7 +11,8 @@
  * Errors never get swallowed: a non-2xx throws an {@link ActivitiesHttpError}
  * carrying the HTTP `status`, which `CommandRegistry.dispatch` surfaces as an
  * `ok: false` result. A `401` additionally fires {@link onUnauthorized} so a
- * lapsed session token becomes a visible `tokenExpired` signal.
+ * lapsed session token becomes a visible `tokenExpired` signal. Create and
+ * update first re-issue a busy or waking refusal (`./busy-retry.ts`).
  *
  * Assistant catalog: the `@assistant` blocks below are the single source of
  * truth for the board operations they sit on. The board's other two
@@ -28,7 +29,8 @@ import {
   type ScopeContext,
   SdkHttpError,
 } from "../http";
-import type { ActivitiesWrites } from "./types";
+import { retryWriteWhileRefused, WAKING_CREATE_RETRY_MS } from "./busy-retry";
+import type { ActivitiesWrites, CreateActivityOptions } from "./types";
 
 /** A failed `/activities` request. `status` is the upstream HTTP status. */
 export class ActivitiesHttpError extends SdkHttpError {
@@ -40,7 +42,11 @@ export class ActivitiesHttpError extends SdkHttpError {
 /** The activities operations the module (and mission search) need. */
 export interface ActivitiesHttp {
   list(agentId: string): Promise<Activity[]>;
-  create(agentId: string, input: NewActivity): Promise<Activity>;
+  create(
+    agentId: string,
+    input: NewActivity,
+    opts?: CreateActivityOptions,
+  ): Promise<Activity>;
   update(
     agentId: string,
     id: string,
@@ -79,11 +85,22 @@ export async function createActivity(
   scope: HttpScope,
   agentId: string,
   input: NewActivity,
+  opts?: CreateActivityOptions,
 ): Promise<Activity> {
-  const res = await httpRequest(
-    scope,
-    `/agents/${encodeURIComponent(agentId)}/activities`,
-    { method: "POST", body: JSON.stringify(input) },
+  const res = await retryWriteWhileRefused(
+    scope.ports.clock,
+    () =>
+      httpRequest(scope, `/agents/${encodeURIComponent(agentId)}/activities`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    {
+      // Only an id-bearing create is safe to re-issue after a waking answer.
+      wakingLadderMs:
+        opts?.retryWhileWaking && input.id !== undefined
+          ? WAKING_CREATE_RETRY_MS
+          : [],
+    },
   );
   return (await res.json()) as Activity;
 }
@@ -105,10 +122,12 @@ export async function updateActivity(
   id: string,
   updates: ActivityUpdate,
 ): Promise<Activity> {
-  const res = await httpRequest(
-    scope,
-    `/agents/${encodeURIComponent(agentId)}/activities/${encodeURIComponent(id)}`,
-    { method: "PATCH", body: JSON.stringify(updates) },
+  const res = await retryWriteWhileRefused(scope.ports.clock, () =>
+    httpRequest(
+      scope,
+      `/agents/${encodeURIComponent(agentId)}/activities/${encodeURIComponent(id)}`,
+      { method: "PATCH", body: JSON.stringify(updates) },
+    ),
   );
   return (await res.json()) as Activity;
 }
@@ -139,7 +158,8 @@ export function createActivitiesHttp(ctx: ScopeContext): ActivitiesHttp {
 
   return {
     list: (agentId) => listActivities(scope, agentId),
-    create: (agentId, input) => createActivity(scope, agentId, input),
+    create: (agentId, input, opts) =>
+      createActivity(scope, agentId, input, opts),
     update: (agentId, id, update) => updateActivity(scope, agentId, id, update),
     remove: (agentId, id) => deleteActivity(scope, agentId, id),
   };
@@ -153,7 +173,7 @@ export function createActivitiesHttp(ctx: ScopeContext): ActivitiesHttp {
  */
 export function createActivitiesWrites(http: ActivitiesHttp): ActivitiesWrites {
   return {
-    create: (agentId, input) => http.create(agentId, input),
+    create: (agentId, input, opts) => http.create(agentId, input, opts),
     update: (agentId, id, updates) => http.update(agentId, id, updates),
     setStatus: (agentId, id, status) => http.update(agentId, id, { status }),
     rename: (agentId, id, title) => http.update(agentId, id, { title }),

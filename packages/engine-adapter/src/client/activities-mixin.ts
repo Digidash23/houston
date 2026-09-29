@@ -1,10 +1,15 @@
 import { missionConversationId } from "@houston/domain";
+import {
+  type CreateActivityOptions,
+  titleMissionFromClient,
+} from "@houston/sdk";
 import type {
   Activity,
   ActivityUpdate,
   AllConversationsResult,
   ConversationEntry,
   FailedAgentRead,
+  MissionTitle,
   NewActivity,
 } from "@houston/wire-types";
 import * as activities from "../activities";
@@ -33,13 +38,14 @@ export function ActivitiesMixin<TBase extends BaseCtor>(Base: TBase) {
     async createActivity(
       agentPath: string,
       input: NewActivity,
+      opts?: CreateActivityOptions,
     ): Promise<Activity> {
       // SDK delegates the wire write (byte-identical POST
       // /agents/:id/activities, no refetch); web keeps its own write-through
       // echo. Standalone (no host) stays localStorage-backed.
       const activity = this.ctx.cp
         ? await viaSdk(`${controlPlane.agentPath(agentPath)}/activities`, () =>
-            this.ctx.sdk.activities.writes.create(agentPath, input),
+            this.ctx.sdk.activities.writes.create(agentPath, input, opts),
           )
         : activities.createActivity(agentPath, input);
       emitLocalEcho("ActivityChanged", { agentPath });
@@ -61,6 +67,32 @@ export function ActivitiesMixin<TBase extends BaseCtor>(Base: TBase) {
         : activities.updateActivity(agentPath, id, updates);
       emitLocalEcho("ActivityChanged", { agentPath });
       return activity;
+    }
+    /**
+     * @assistant hidden: it spends a model turn retitling a mission the app just created; the title a person ends up with is theirs to set.
+     *
+     * The client half of the SDK's `planMissionTitle`: once a new mission's
+     * card row has landed, title it from the runtime's answer (`POST
+     * /agents/:id/title`, then the PATCH). A no-op when the plan left the
+     * title to the server (`title` undefined). Never throws.
+     */
+    async titleMissionFromClient(
+      agentPath: string,
+      activityId: string,
+      title: MissionTitle | undefined,
+    ): Promise<void> {
+      if (!title) return;
+      // Cloud titles on the agent's own runtime; standalone names its single
+      // runtime with the empty id.
+      const scope = this.ctx.cp ? agentPath : "";
+      await titleMissionFromClient(title, {
+        suggestTitle: (text) =>
+          this.ctx.sdk.conversations.suggestTitle(scope, text),
+        rename: (next) =>
+          this.updateActivity(agentPath, activityId, { title: next }),
+        warn: (message, detail) =>
+          console.warn(`${message} for ${activityId}`, detail),
+      });
     }
     async deleteActivity(agentPath: string, id: string): Promise<void> {
       // SDK delegates the wire write (byte-identical DELETE

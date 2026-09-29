@@ -17,6 +17,7 @@ import {
 import { ownConversationOnly } from "./turn-hot-set";
 import { TurnSetupError } from "./turn-layout";
 import { createTurnLog } from "./turn-log";
+import { setActiveTurnTimings } from "./turn-network-marks";
 import { turnSessionRequest } from "./turn-request";
 import type { makeTurnSandboxFetch } from "./turn-sandbox";
 import { createTurnSandbox } from "./turn-sandbox-startup";
@@ -31,6 +32,16 @@ import { createTurnTranscript } from "./turn-transcript";
 import type { TurnRequest } from "./types";
 
 /** Execute one admitted turn inside an isolated, disposable filesystem root. */
+/**
+ * Store objects a claimed turn never reads. A turn logs to stderr, never to
+ * the per-agent pod's runtime.log (often the largest object an agent has),
+ * and nothing reads the Claude CLI's rotated .claude.json backups.
+ */
+const CLAIMED_TURN_EXCLUDES = [
+  "workspaces/*/*/.houston/runtime/runtime.log",
+  "claude-login/backups/",
+];
+
 export async function executeTurn(
   deps: TurnServerDeps,
   turn: TurnRequest,
@@ -44,6 +55,7 @@ export async function executeTurn(
     mkdir(join(root, "claude-credstore"), { recursive: true }),
   ]);
   timings.t_tmpdir = performance.now();
+  setActiveTurnTimings(timings);
   const scope = `${turn.workspaceId}/${turn.agentId}`;
   const abort = new AbortController();
   // A CLAIMED turn's lifetime is the claim, not the HTTP connection: the
@@ -89,7 +101,10 @@ export async function executeTurn(
       // reads them. An unclaimed (legacy per-workspace) runtime keeps the
       // full tree.
       ...(turn.claim
-        ? { filter: ownConversationOnly(turn.conversationId) }
+        ? {
+            filter: ownConversationOnly(turn.conversationId),
+            excludes: CLAIMED_TURN_EXCLUDES,
+          }
         : {}),
       timings,
     });

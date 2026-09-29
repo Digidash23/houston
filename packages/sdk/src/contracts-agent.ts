@@ -17,8 +17,16 @@ export {
   type ActivitiesWrites,
   type ActivityItem,
   activitiesScope,
+  type CreateActivityOptions,
   type CreatedActivity,
 } from "./modules/activities";
+export {
+  type ClientMissionTitleOps,
+  cleanGeneratedTitle,
+  type MissionTitlePlan,
+  planMissionTitle,
+  titleMissionFromClient,
+} from "./modules/activities/mission-title";
 export {
   type MissionStartedBy,
   type MissionStartFacts,

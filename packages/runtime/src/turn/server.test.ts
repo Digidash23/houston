@@ -3,6 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { gzipSync } from "node:zlib";
 import {
   LocalDirStore,
   type ObjectStore,
@@ -213,6 +214,21 @@ test("a sync failure surfaces as the turn's error — never a quiet done", async
   } finally {
     s2.close();
   }
+});
+
+test("a gzip-encoded turn body is accepted", async () => {
+  seed("workspace/notes.txt", "hello-gzip");
+  const res = await fetch(`${base}/turn`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "content-encoding": "gzip",
+      "x-internal-token": "turn-secret",
+    },
+    body: gzipSync(JSON.stringify(turnBody())),
+  });
+  expect(res.status).toBe(200);
+  expect(await res.text()).toContain("saw:hello-gzip");
 });
 
 test("a routine's model/effort pin reaches the pi turn", async () => {

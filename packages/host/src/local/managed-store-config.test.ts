@@ -56,6 +56,21 @@ test("threads the lease response's generation capability into both sync configs"
   expect(config?.sharedMirror.generations).toBe(true);
 });
 
+test("a standing pod's stores hydrate one object at a time, never batched", async () => {
+  stubManagedStoreEnv();
+  vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+    Response.json({ token: "9", generations: true }),
+  );
+
+  const config = await managedStoreConfig("pod-token", "/data", async (m) => {
+    throw new Error(m);
+  });
+
+  // Batch reads are the per-turn worker's opt-in (runtime turn-store.ts).
+  expect(config?.storeSync.store.downloadMany).toBeUndefined();
+  expect(config?.sharedMirror.store.downloadMany).toBeUndefined();
+});
+
 test("an old gateway without the capability field leaves generations undefined", async () => {
   stubManagedStoreEnv();
   vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(

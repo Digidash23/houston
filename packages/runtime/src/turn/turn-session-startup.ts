@@ -3,6 +3,7 @@ import { preloadClaudeSdk } from "../backends/claude/sdk-loader";
 import type { HarnessBackend } from "../backends/types";
 import { config } from "../config";
 import { fileToolGuardOptions } from "../session/coordinator-policy";
+import type { MissionTitleRunner } from "../session/mission-title";
 import { systemPromptFor } from "../session/resource-loader";
 import { turnCodeExecutionMode } from "../session/tool-selection";
 import { makeRunCodeTool } from "../session/tools/run-code";
@@ -16,6 +17,8 @@ import { buildTurnToolSelection, turnCodeExecution } from "./turn-toolset";
 
 export interface RunTurnDeps {
   claudeSdk?: ClaudeBackendDeps["sdk"];
+  /** Test seam: replaces the turn's own title runner (turn-mission-title.ts). */
+  titleRunner?: MissionTitleRunner;
   createBackend?: (provider: string, deps: TurnBackendDeps) => HarnessBackend;
   createModelRuntime?: typeof createTurnModelRuntime;
 }
@@ -23,6 +26,10 @@ export interface RunTurnDeps {
 export interface TurnSessionStartup {
   backend: HarnessBackend;
   model: Awaited<ReturnType<typeof createTurnModelRuntime>>["model"];
+  /** The turn's own model runtime (per-request auth), reused by its title. */
+  modelRuntime: Awaited<
+    ReturnType<typeof createTurnModelRuntime>
+  >["modelRuntime"];
 }
 
 export type TurnSessionStartupTask = Promise<
@@ -106,7 +113,7 @@ async function prepareTurnSession(
     claudeSdkLoad: sdkLoad,
   });
   if (turn.timings) turn.timings.t_backend_created = performance.now();
-  return { backend, model };
+  return { backend, model, modelRuntime };
 }
 
 export async function finishTurnSessionStartup(

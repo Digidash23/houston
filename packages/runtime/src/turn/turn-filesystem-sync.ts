@@ -1,5 +1,6 @@
 import {
   type ObjectStore,
+  type SyncResult,
   syncBack,
 } from "@houston/runtime-client/object-sync";
 import type { TurnFilesystem } from "./turn-filesystem";
@@ -18,6 +19,7 @@ export async function syncTurnFilesystem(opts: {
   outOfScope: number;
   skipped: { key: string; reason: string }[];
   conflicts: { key: string; reason: string }[];
+  merges: SyncResult["merges"];
 }> {
   const result = await syncBack(
     opts.store,
@@ -29,6 +31,9 @@ export async function syncTurnFilesystem(opts: {
       // The temp tree disappears after one pool turn. If a replacement write
       // fails, keep the durable source object instead of completing its delete.
       holdDeletesOnFailure: opts.claimed,
+      // Concurrent turns and the gateway's own card writes share one board:
+      // merge it over bounded rounds (the standing daemon never sets this).
+      workerMerge: true,
       ...(opts.claimed
         ? {
             include: claimedTurnIncludes(
@@ -56,5 +61,6 @@ export async function syncTurnFilesystem(opts: {
     outOfScope: result.outOfScope,
     skipped: result.skipped,
     conflicts: result.conflicts,
+    merges: result.merges,
   };
 }

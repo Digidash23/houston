@@ -18,38 +18,16 @@ export { DEFAULT_EXCLUDES, excluded } from "./hydrate-excludes";
 export interface HydrateManifestEntry {
   hash: string;
   generation?: string;
+  /** Observed bytes of a three-way-merged doc; trusted only if sha256 = hash. */
+  mergeBase?: string;
 }
 
 /** Relative path to the hydrated bytes and their optional remote generation. */
 export type HydrateManifest = Map<string, HydrateManifestEntry>;
 
-export interface HydrateOptions {
-  /** Reject prefixes whose total size exceeds this (default 512 MiB). */
-  maxBytes?: number;
-  excludes?: string[];
-  /**
-   * Concurrent downloads (default 16). Hydration gates the managed pod's
-   * readiness, and one store round-trip per object (~80 ms through the pod
-   * store) dominates cold wake time when it runs sequentially: a routine
-   * 133-object workspace measured 10.5 s sequential vs 0.4 s at 16.
-   */
-  concurrency?: number;
-  /** Admit objects after priorities land using the listing and hydrated root. */
-  filter?: (
-    rel: string,
-    listing: readonly HydrateListedObject[],
-    hydratedRoot: string,
-  ) => boolean;
-  /** Every non-excluded path before `filter` (the store's view of the tree) and
-   *  whether the listing carried generations (the CAS capability, which a
-   *  filtered manifest can no longer answer on its own). */
-  onListed?: (listing: {
-    rels: string[];
-    generationAware: boolean;
-  }) => void | Promise<void>;
-  /** Download these candidates before filtering the non-priority objects. */
-  priority?: (rel: string) => boolean;
-}
+import type { HydrateOptions } from "./hydrate-options";
+
+export type { HydrateOptions };
 
 /** Store-listing fields available to a caller's hot-set selector. */
 export interface HydrateListedObject {
@@ -154,6 +132,7 @@ export async function startHydrate(
       maxBytes,
       concurrency,
       state,
+      keepMergeBase: opts.keepMergeBase === true,
       signal: controller.signal,
       limitError: (observedBytes) =>
         new HydrateLimitError(maxBytes, observedBytes),
@@ -194,5 +173,5 @@ export async function hydrate(
   return started.manifest;
 }
 
-export type { SyncBackOptions, SyncResult } from "./sync-back";
+export type { SyncBackOptions, SyncMerge, SyncResult } from "./sync-back";
 export { syncBack } from "./sync-back";

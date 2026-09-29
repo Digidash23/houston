@@ -835,3 +835,45 @@ test("the settle report ends the turn: a later write is out of turn", async () =
   expect(late.status).toBe(400);
   expect(late.body).toMatchObject({ code: "not_in_turn" });
 });
+
+test("the after-turn title lands only while the card shows its fallback", async () => {
+  await saveActivities(vfs, root, [
+    {
+      id: "m-1",
+      title: "Write the weekly...",
+      description: "",
+      status: "needs_you",
+    },
+    { id: "m-2", title: "Renamed by me", description: "", status: "needs_you" },
+  ]);
+  const before = events.length;
+  // No live turn: the title arrives after the turn's settle report.
+  const titled = await call("POST", "/sandbox/missions/title", {
+    conversation_id: "activity-m-1",
+    title: "Weekly sales summary",
+    fallback: "Write the weekly...",
+  });
+  expect(titled.body).toEqual({ ok: true });
+  expect((await onDisk()).find((a) => a.id === "m-1")?.title).toBe(
+    "Weekly sales summary",
+  );
+  expect(events.slice(before)).toEqual([
+    { type: "ActivityChanged", agentPath: agent.id },
+  ]);
+
+  // A user rename wins: the card no longer shows the fallback.
+  const renamed = await call("POST", "/sandbox/missions/title", {
+    conversation_id: "activity-m-2",
+    title: "Weekly sales summary",
+    fallback: "Write the weekly...",
+  });
+  expect(renamed.body).toEqual({ ok: false });
+  expect((await onDisk()).find((a) => a.id === "m-2")?.title).toBe(
+    "Renamed by me",
+  );
+
+  const bad = await call("POST", "/sandbox/missions/title", {
+    conversation_id: "activity-m-1",
+  });
+  expect(bad.status).toBe(400);
+});

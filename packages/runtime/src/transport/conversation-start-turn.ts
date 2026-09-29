@@ -9,6 +9,7 @@ import {
 } from "../session/conversation-command-gate";
 import { runConversationCommand } from "../session/conversation-command-run";
 import { isDraining } from "../session/drain";
+import { parseMissionTitle } from "../session/mission-title";
 import { json, type RouteContext, readJson } from "./http-helpers";
 import {
   acceptAdmission,
@@ -64,6 +65,7 @@ export async function handleStartTurn(ctx: RouteContext, id: string) {
     userContext,
     displayText,
     mentions,
+    missionTitle,
   } = body;
   if (!text || typeof text !== "string") {
     json(ctx.res, 400, { error: "missing 'text'" });
@@ -192,6 +194,9 @@ export async function handleStartTurn(ctx: RouteContext, id: string) {
         // published: junk entries are dropped and an empty list becomes nothing.
         parseMentions(mentions),
         turnId,
+        // A new mission's first send: title its card after the reply, in this
+        // same runtime (session/mission-title.ts). Malformed = no title.
+        { missionTitle: parseMissionTitle(missionTitle) },
       ),
     ),
   );

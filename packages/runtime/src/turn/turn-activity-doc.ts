@@ -1,17 +1,11 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-import {
-  normalizeActivities,
-  normalizeRoutineRuns,
-  parseJsonDoc,
-} from "@houston/domain";
 import { fetchWithRetry } from "@houston/runtime-client/object-sync";
 import type { TurnServerDeps } from "./server-types";
 import {
-  type TurnFilesystem,
-  turnActivityKey,
-  turnRoutineRunsKey,
-} from "./turn-filesystem";
+  type ActivityDocSource,
+  readLocalActivityDoc,
+  readStoredActivityDoc,
+} from "./turn-activity-source";
+import type { TurnFilesystem } from "./turn-filesystem";
 import { poolIdentity } from "./turn-store";
 import type { TurnRequest } from "./types";
 
@@ -21,6 +15,8 @@ const REQUEST_TIMEOUT_MS = 5_000;
 export type ActivityDocPublishResult =
   | { ok: true }
   | { disabled: true; reason: "route_absent" }
+  /** Lost the revision race and could not re-read the object to redo it. */
+  | { skipped: "stale_after_conflict" }
   | { error: string };
 
 export interface ActivityDocOptions {
@@ -127,9 +123,15 @@ async function acceptPut(
   return { ok: true };
 }
 
+/**
+ * PUT `doc` at the current revision. On a 409 another writer (the gateway's
+ * own board writes) projected first: with `reload`, the doc is re-derived from
+ * the durable object and PUT at the winner's revision, never the stale copy.
+ */
 export async function publish(
   opts: ActivityDocOptions,
   doc: unknown,
+  reload?: () => Promise<unknown>,
 ): Promise<ActivityDocPublishResult> {
   const seeded = await request(opts);
   let revision: number;
@@ -147,26 +149,28 @@ export async function publish(
   if (response.status !== 409) return acceptPut(response);
   const current = await responseRevision(response);
   if (current === undefined) return statusError("PUT", response);
-  return acceptPut(await putAtRevision(opts, doc, current));
+  const latest = reload ? await reload() : doc;
+  if (latest === undefined) return { skipped: "stale_after_conflict" };
+  return acceptPut(await putAtRevision(opts, latest, current));
 }
+
+/** Failed, or skipped with another writer's doc standing: no refetch promise. */
+export const activityDocStale = (result: ActivityDocPublishResult | null) =>
+  result !== null && ("error" in result || "skipped" in result);
 
 /** Project one successfully uploaded claimed-turn activity file into the DB doc. */
 export async function publishTurnActivityDoc(
   deps: TurnServerDeps,
   turn: TurnRequest & { turnId: string },
   filesystem: TurnFilesystem,
+  source: ActivityDocSource,
 ): Promise<ActivityDocPublishResult | null> {
   const baseUrl = deps.poolStoreUrl ?? process.env.HOUSTON_POOL_STORE_URL;
   if (turn.shadow || !baseUrl || !turn.claim || !turn.hostToken) return null;
   try {
-    const key = turnActivityKey(filesystem.workspaceRel);
-    const raw = await readFile(
-      join(filesystem.workspaceDir, ".houston", "activity", "activity.json"),
-      "utf8",
-    );
-    // Same tolerant parse as every other doc reader (BOM strip + salvage), so
-    // the pooled path publishes exactly what the standing projector would.
-    const doc = normalizeActivities(parseJsonDoc(raw, key), key).items;
+    // The sync-back merge rewrote the local file to exactly the bytes it
+    // uploaded, so this is what landed in the object, not the turn's own copy.
+    const doc = await readLocalActivityDoc(filesystem);
     const { org, agent } = poolIdentity(turn.gcsPrefix);
     return await publish(
       {
@@ -183,52 +187,7 @@ export async function publishTurnActivityDoc(
           : {}),
       },
       doc,
-    );
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) };
-  }
-}
-
-/**
- * Project a routine turn's uploaded runs file into the routine_runs DB doc —
- * NORMALIZED, mirroring the standing DocShadowProjector, so the doc's shape
- * never depends on which execution path wrote it last.
- */
-export async function publishTurnRunsDoc(
-  deps: TurnServerDeps,
-  turn: TurnRequest & { turnId: string },
-  filesystem: TurnFilesystem,
-): Promise<ActivityDocPublishResult | null> {
-  const baseUrl = deps.poolStoreUrl ?? process.env.HOUSTON_POOL_STORE_URL;
-  if (turn.shadow || !baseUrl || !turn.claim || !turn.hostToken) return null;
-  try {
-    const runsKey = turnRoutineRunsKey(filesystem.workspaceRel);
-    const raw = await readFile(
-      join(
-        filesystem.workspaceDir,
-        ".houston",
-        "routine_runs",
-        "routine_runs.json",
-      ),
-      "utf8",
-    );
-    const doc = normalizeRoutineRuns(parseJsonDoc(raw, runsKey), runsKey).items;
-    const { org, agent } = poolIdentity(turn.gcsPrefix);
-    return await publish(
-      {
-        family: "routine_runs",
-        baseUrl,
-        org,
-        agent,
-        conversationId: turn.conversationId,
-        hostToken: turn.hostToken,
-        claim: { token: turn.claim.token, bootId: turn.claim.bootId },
-        fetchImpl: deps.fetchImpl ?? fetch,
-        ...(deps.activityDocRetryDelaysMs
-          ? { retryDelaysMs: deps.activityDocRetryDelaysMs }
-          : {}),
-      },
-      doc,
+      () => readStoredActivityDoc(source, filesystem),
     );
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) };

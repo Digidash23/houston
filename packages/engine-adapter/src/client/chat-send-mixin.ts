@@ -99,6 +99,9 @@ export function ChatSendMixin<TBase extends BaseCtor>(Base: TBase) {
           // passengers: only the HOST reads them (routes/agents.ts), and it
           // drops them before the runtime sees the turn.
           approvals: req.approvals,
+          // A new mission's first message: the runtime titles the card after
+          // the reply (no separate title request).
+          missionTitle: req.missionTitle,
         },
       ).finally(() => {
         // The turn settled (or failed): release anything queued behind it.

@@ -49,3 +49,11 @@ describe("capability profiles: agentDelegation", () => {
     expect(MANAGED_CLOUD_CAPABILITIES.agentDelegation).toBe(true);
   });
 });
+
+describe("capability profiles: missionTitleOnSend", () => {
+  test("no open-host profile advertises it, so desktop and self-host keep the client title call", () => {
+    expect(LOCAL_CAPABILITIES.missionTitleOnSend).toBeUndefined();
+    expect(CLOUD_CAPABILITIES.missionTitleOnSend).toBeUndefined();
+    expect(MANAGED_CLOUD_CAPABILITIES.missionTitleOnSend).toBeUndefined();
+  });
+});

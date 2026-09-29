@@ -400,7 +400,7 @@
     {
       "rule": "proxy-drift",
       "key": "proxy POST /agents/{}/conversations/{}/title",
-      "reason": "the stored-conversation titler has no caller: every surface titles the composer's first message before the chat exists, which is the /agents/{}/title twin conversations.suggestTitle binds"
+      "reason": "the stored-conversation titler has no caller: a new mission is titled by the runtime after its first turn (the send's missionTitle), and clients that predate it call the /agents/{}/title twin conversations.suggestTitle binds"
     },
     {
       "rule": "proxy-drift",

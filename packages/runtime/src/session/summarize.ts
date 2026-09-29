@@ -9,15 +9,10 @@ import { config } from "../config";
 import { getHistory, renameConversation } from "../store/conversations";
 import { conversations } from "./conversation-cache";
 import { oneShotText } from "./one-shot";
+import { TITLE_PROMPT } from "./title-prompt";
 
 const errMessage = (err: unknown): string =>
   err instanceof Error ? err.message : String(err);
-
-const TITLE_PROMPT = [
-  "You generate conversation titles.",
-  "Reply with ONLY a title of 3 to 6 plain words for the conversation excerpt the user sends.",
-  "No quotes, no trailing punctuation, no explanations.",
-].join(" ");
 
 /** First turns of the transcript, trimmed to a prompt-sized excerpt. */
 export function buildExcerpt(messages: ChatMessage[]): string {
@@ -37,6 +32,7 @@ export async function generateTitle(opts: {
   model: unknown;
   modelRuntime: ModelRuntime;
   excerpt: string;
+  signal?: AbortSignal;
 }): Promise<string> {
   const text = await oneShotText({
     cwd: opts.cwd,
@@ -44,6 +40,7 @@ export async function generateTitle(opts: {
     modelRuntime: opts.modelRuntime,
     systemPrompt: TITLE_PROMPT,
     prompt: opts.excerpt,
+    ...(opts.signal ? { signal: opts.signal } : {}),
   });
   return text.trim().split("\n")[0]?.trim().slice(0, 80) ?? "";
 }
@@ -102,18 +99,20 @@ export function titlePlan(
 function titleRunners(
   model?: unknown,
   claudeModelId?: string,
+  signal?: AbortSignal,
 ): {
   claude: TitleRunner;
   pi: TitleRunner;
 } {
   return {
-    claude: (excerpt) => claudeTitle(excerpt, claudeModelId),
+    claude: (excerpt) => claudeTitle(excerpt, claudeModelId, signal),
     pi: (excerpt) =>
       generateTitle({
         cwd: config.workspaceDir,
         model: model ?? resolveModel(),
         modelRuntime,
         excerpt,
+        ...(signal ? { signal } : {}),
       }),
   };
 }
@@ -124,7 +123,11 @@ function titleRunners(
  * (the caller truncates) rather than reroute an anthropic title onto pi's client
  * — that reroute is precisely what the compliance gate forbids.
  */
-async function claudeTitle(excerpt: string, modelId?: string): Promise<string> {
+async function claudeTitle(
+  excerpt: string,
+  modelId?: string,
+  signal?: AbortSignal,
+): Promise<string> {
   try {
     return await titleWithClaude({
       excerpt,
@@ -135,6 +138,7 @@ async function claudeTitle(excerpt: string, modelId?: string): Promise<string> {
       // here can never recover onto the team credential (HOU-976).
       dataDir: config.dataDir,
       modelId: modelId ?? resolveModel().id,
+      ...(signal ? { signal } : {}),
     });
   } catch (err) {
     if (err instanceof ClaudeBackendUnavailableError) {
@@ -149,9 +153,10 @@ async function claudeTitle(excerpt: string, modelId?: string): Promise<string> {
 
 /**
  * Title an arbitrary excerpt (the composer's first message), independent of any
- * stored conversation. Powers the adapter's `summarizeActivity(message)` —
- * which has the message text but no conversation id — so a board mission gets a
- * real LLM title instead of a client-side truncation. Returns "" for empty
+ * stored conversation. Powers `POST /title` for shipped clients that predate the
+ * send's `missionTitle` field — they have the message text but no conversation
+ * id — so a board mission gets a real LLM title instead of a client-side
+ * truncation. Returns "" for empty
  * input or when the model emits nothing (the caller falls back to truncation).
  *
  * The model is resolved LAZILY (only once we know there is text to title), so
@@ -166,6 +171,28 @@ export async function titleFromText(
   const excerpt = text.trim().slice(0, 2400);
   if (!excerpt) return "";
   return dispatchTitle(activeProvider(), excerpt, titleRunners(model));
+}
+
+/**
+ * Title an excerpt on ONE turn's own resolved model (its provider, model id and,
+ * through the caller's acting context, its credential) — never the agent-wide
+ * active provider. Same compliance gate as every title: anthropic runs through
+ * the Claude Agent SDK, everything else through pi's one-shot.
+ */
+export function titleWithTurnModel(
+  excerpt: string,
+  model: { provider: string; id: string },
+  signal?: AbortSignal,
+): Promise<string> {
+  return dispatchTitle(
+    model.provider,
+    excerpt,
+    titleRunners(
+      model,
+      model.provider === "anthropic" ? model.id : undefined,
+      signal,
+    ),
+  );
 }
 
 /**

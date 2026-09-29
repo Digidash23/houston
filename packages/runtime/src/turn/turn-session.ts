@@ -19,6 +19,7 @@ import {
   appendUserMessageAt,
   loadConversation,
 } from "../store/conversation-file";
+import { startTurnMissionTitle, turnTitleRunner } from "./turn-mission-title";
 import { openTurnBackendSession } from "./turn-session-backend";
 import { handleTurnSessionFailure } from "./turn-session-failure";
 import type { RunTurnDeps } from "./turn-session-startup";
@@ -114,13 +115,14 @@ export async function runTurn(
    */
   const usedTokens = newUsedTokenCapture();
   try {
-    const { replay, session } = await openTurnBackendSession({
-      directories,
-      turn,
-      deps,
-      canonicalMessages,
-      usedTokens,
-    });
+    const { replay, session, model, modelRuntime } =
+      await openTurnBackendSession({
+        directories,
+        turn,
+        deps,
+        canonicalMessages,
+        usedTokens,
+      });
 
     // Snapshot the hydrated workspace so the turn's created/modified files can
     // be surfaced as a `file_changes` frame. The per-turn root is exclusive to
@@ -159,6 +161,7 @@ export async function runTurn(
     try {
       // The used-token capture spans the prompt so the streamed error path
       // (pi/wire.ts) reads THIS turn's seeded token when it reports.
+      if (turn.timings) turn.timings.t_prompt_start = performance.now();
       await runWithInteractionCapture(interaction, () =>
         runWithUsedTokenCapture(usedTokens, () =>
           session.prompt(
@@ -171,7 +174,29 @@ export async function runTurn(
       unsub();
       unsubMessageStart?.();
     }
-    return finishSuccessfulTurn({
+    // A new mission's title starts the moment the reply is complete (never on
+    // a failed or cancelled turn), overlapping the finishing work below.
+    const finishTitle =
+      turn.missionTitle && !providerError && !signal?.aborted
+        ? startTurnMissionTitle({
+            conversationId,
+            request: turn.missionTitle,
+            run:
+              deps.titleRunner ??
+              turnTitleRunner({
+                provider,
+                model,
+                modelRuntime,
+                directories,
+                claudeQuery: deps.claudeSdk?.query,
+              }),
+            workspaceDir,
+            ...(turn.readRemoteActivity
+              ? { readRemote: turn.readRemoteActivity }
+              : {}),
+          })
+        : null;
+    const outcome = finishSuccessfulTurn({
       beforeFiles,
       providerError,
       workspaceDir,
@@ -186,6 +211,8 @@ export async function runTurn(
       turnId,
       emit,
     });
+    const missionTitle = await finishTitle?.();
+    return missionTitle ? { ...outcome, missionTitle } : outcome;
   } catch (error) {
     return handleTurnSessionFailure({
       error,

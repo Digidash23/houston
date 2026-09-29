@@ -1,20 +1,18 @@
 import { StoreFencedError } from "@houston/runtime-client/object-sync";
 import type { ClaimHeartbeat } from "./claim-heartbeat";
 import type { TurnServerDeps } from "./server-types";
-import {
-  publishTurnActivityDoc,
-  publishTurnRunsDoc,
-} from "./turn-activity-doc";
+import { activityDocStale, publishTurnActivityDoc } from "./turn-activity-doc";
 import { changedEventTypes } from "./turn-changed-events";
 import {
   syncTurnFilesystem,
   type TurnFilesystem,
-  turnActivityKey,
   turnRoutineRunsKey,
 } from "./turn-filesystem";
+import { publishTurnRunsDoc } from "./turn-runs-doc";
 import type { TurnSandboxViews } from "./turn-sandbox";
 import type { TurnOutcome } from "./turn-session";
 import type { ResolvedTurnStore } from "./turn-store";
+import { type TurnSyncReport, turnSyncReport } from "./turn-sync-report";
 import type {
   TranscriptPublishResult,
   TurnTranscript,
@@ -43,7 +41,21 @@ export interface TurnDurabilityResult {
   transcriptSkipped?: "route_absent";
   /** Set when the activity doc route is absent on an older deployment. */
   activityDocSkipped?: "route_absent";
+  /** What sync-back landed; absent when it never completed a pass. */
+  sync?: TurnSyncReport;
 }
+
+/** A fenced worker no longer owns the conversation: nothing it did is done. */
+const claimFenced = (
+  poolWritesOutOfScope = 0,
+  changed: TurnDurabilityResult["changed"] = [],
+  sync?: TurnSyncReport,
+): TurnDurabilityResult => ({
+  outcome: { error: "claim_fenced" },
+  poolWritesOutOfScope,
+  changed,
+  ...(sync ? { sync } : {}),
+});
 
 function appendError(outcome: TurnOutcome, error: string): TurnOutcome {
   return { error: outcome.error ? `${outcome.error}; ${error}` : error };
@@ -55,15 +67,12 @@ export async function finishTurnDurability(
 ): Promise<TurnDurabilityResult> {
   await opts.heartbeat?.checkpoint();
   if (opts.heartbeat?.fenced) {
-    return {
-      outcome: { error: "claim_fenced" },
-      poolWritesOutOfScope: 0,
-      changed: [],
-    };
+    return claimFenced();
   }
 
   let poolWritesOutOfScope: number;
   let uploaded: string[];
+  let sync: TurnSyncReport;
   let changed: TurnDurabilityResult["changed"];
   try {
     // Failed provider work may still have durable tool writes. Only a fence
@@ -77,8 +86,9 @@ export async function finishTurnDurability(
     });
     poolWritesOutOfScope = synced.outOfScope;
     uploaded = synced.uploaded;
+    sync = turnSyncReport(synced, opts.filesystem.workspaceRel);
     changed = changedEventTypes(opts.filesystem, [
-      ...uploaded,
+      ...synced.uploaded,
       ...synced.deleted,
       ...opts.filesystem.immediateWrites,
     ]);
@@ -86,11 +96,7 @@ export async function finishTurnDurability(
     // A fenced object write means the claim was adopted mid-sync: report it
     // as exactly that, not as a generic sync failure.
     if (error instanceof StoreFencedError) {
-      return {
-        outcome: { error: "claim_fenced" },
-        poolWritesOutOfScope: 0,
-        changed: [],
-      };
+      return claimFenced();
     }
     const message = error instanceof Error ? error.message : String(error);
     const failure = opts.outcome.error
@@ -115,11 +121,7 @@ export async function finishTurnDurability(
     };
   }
   if (published && "fenced" in published) {
-    return {
-      outcome: { error: "claim_fenced" },
-      poolWritesOutOfScope,
-      changed,
-    };
+    return claimFenced(poolWritesOutOfScope, changed, sync);
   }
   // An event is a promise that the refetch can be served asleep: a family
   // whose projection failed is left out (the read would fall to the pod).
@@ -140,20 +142,22 @@ export async function finishTurnDurability(
   );
   if (viewFailures.length > 0) without("CustomIntegrationsChanged");
 
-  const activityChanged = uploaded.includes(
-    turnActivityKey(opts.filesystem.workspaceRel),
-  );
   const activityPublished =
-    opts.turn.claim && activityChanged
-      ? await publishTurnActivityDoc(opts.deps, opts.turn, opts.filesystem)
+    opts.turn.claim && sync.board.landed
+      ? await publishTurnActivityDoc(
+          opts.deps,
+          opts.turn,
+          opts.filesystem,
+          opts.resolved,
+        )
       : null;
   if (activityPublished && "error" in activityPublished) {
     outcome = appendError(
       outcome,
       `board doc publish failed: ${activityPublished.error}`,
     );
-    without("ActivityChanged");
   }
+  if (activityDocStale(activityPublished)) without("ActivityChanged");
   const runsChanged = uploaded.includes(
     turnRoutineRunsKey(opts.filesystem.workspaceRel),
   );
@@ -177,16 +181,13 @@ export async function finishTurnDurability(
   // worker from ever announcing a clean done.
   await opts.heartbeat?.checkpoint();
   if (opts.heartbeat?.fenced) {
-    return {
-      outcome: { error: "claim_fenced" },
-      poolWritesOutOfScope,
-      changed,
-    };
+    return claimFenced(poolWritesOutOfScope, changed, sync);
   }
   return {
     outcome,
     poolWritesOutOfScope,
     changed,
+    sync,
     ...(published && "disabled" in published
       ? { transcriptSkipped: published.reason }
       : {}),

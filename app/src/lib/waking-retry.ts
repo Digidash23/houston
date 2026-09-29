@@ -7,8 +7,9 @@
  * asked to wake the pod stalled (a replica restarting under a roll, or wedged
  * behind its own dependencies), and the pod answers seconds to minutes later.
  * The SDK's turn send already walks a delay ladder on exactly this refusal
- * (`turn-stream.ts` resendWhileWaking); this is the same ladder for the
- * board-row write the mission flow fires next to the send, so a card is not
+ * (`turn-stream.ts` resendWhileWaking) and the SDK's board-card writes their
+ * own (`activities/busy-retry.ts`); this is the same ladder for the custom
+ * integration sign-in mint (`custom-oauth-start.ts`), so a sign-in is not
  * lost to a wake that merely ran long. Any other refusal, an exhausted ladder,
  * or a pod that never answers surfaces the LAST error to the caller, which
  * owns the one report.
@@ -24,16 +25,6 @@ export interface WakingRetryDeps {
   /** Observability hook: fires before each pause, with the refusal it follows. */
   onRetry?: (err: unknown, delayMs: number) => void;
 }
-
-/**
- * Pauses before the second, third and fourth attempt. Each attempt itself
- * rides the gateway's own wake hold, so the ladder is deliberately short: it
- * bridges the gap between one hold giving up and the pod answering, it does
- * not replace the hold.
- */
-export const MISSION_ROW_WAKING_RETRY_MS: readonly number[] = [
-  5_000, 15_000, 30_000,
-];
 
 export async function retryWhileWaking<T>(
   attempt: () => Promise<T>,

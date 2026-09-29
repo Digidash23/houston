@@ -43,6 +43,8 @@ export interface ClaudeOneShotParams {
   modelId?: string;
   /** Injected for tests; production lazily imports the optional SDK. */
   query?: ClaudeQuery;
+  /** Aborts the SDK query and its subprocess (a caller's time cap). */
+  signal?: AbortSignal;
 }
 
 export async function oneShotWithClaude(
@@ -84,6 +86,7 @@ export async function oneShotWithClaude(
     includePartialMessages: true,
     permissionMode: "default",
     ...(p.modelId ? { model: toSdkModel(p.modelId) } : {}),
+    ...(p.signal ? { abortController: abortControllerFor(p.signal) } : {}),
   };
 
   let text = "";
@@ -94,4 +97,13 @@ export async function oneShotWithClaude(
     }
   }
   return text;
+}
+
+/** The SDK takes an AbortController, not a signal: bridge the caller's. */
+function abortControllerFor(signal: AbortSignal): AbortController {
+  const controller = new AbortController();
+  if (signal.aborted) controller.abort();
+  else
+    signal.addEventListener("abort", () => controller.abort(), { once: true });
+  return controller;
 }

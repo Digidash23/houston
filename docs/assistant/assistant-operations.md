@@ -92,7 +92,7 @@ Confirmation means the app asks the user and mints a receipt for that exact call
 | `triggerTypes` | GET | unconfirmed: read-only HTTP GET | visible | toolkit: open: Toolkits belong to the integration provider, so read the slug from integrationToolkits. |
 | `updateAgentCustomIntegrationDetails` | PATCH | unconfirmed: Corrects the name and website on the card; the connection itself, its address and its credential are untouched. | visible | agentSlugOrId: resolved:agents; slug: open: The directory lists the app's own things, so read a self-added app's slug from customIntegrations.; details: free text |
 | `updateCustomIntegrationDetails` | PATCH | unconfirmed: Corrects the name and website on the card; the connection itself, its address and its credential are untouched. | visible | slug: open: The directory lists the app's own things, so read a self-added app's slug from customIntegrations.; details: free text |
-| `createActivity` | POST | unconfirmed: Creates a board draft without starting work or spending model tokens. | visible | agentId: resolved:agents; input: free text |
+| `createActivity` | POST | unconfirmed: Creates a board draft without starting work or spending model tokens. | visible | agentId: resolved:agents; input: free text; opts: free text |
 | `deleteActivity` | DELETE | confirmed: host approval required | visible | agentId: resolved:agents; id: resolved:activities |
 | `listActivities` | GET | unconfirmed: read-only HTTP GET | visible | agentId: resolved:agents |
 | `missions.search` | unroutable | unconfirmed: no callable route | visible | query: free text; agentId: resolved:agents |

@@ -7,6 +7,7 @@ export type {
   HydrateOptions,
   StartedHydration,
   SyncBackOptions,
+  SyncMerge,
   SyncResult,
 } from "./hydrate";
 export {
@@ -35,6 +36,11 @@ export {
   StoreConflictError,
   StoreFencedError,
 } from "./object-store";
+export type { PrefetchedObjects } from "./prefetched-store";
+export {
+  PrefetchedObjectStore,
+  parsePrefetchedObjects,
+} from "./prefetched-store";
 export { fetchWithRetry } from "./retry";
 export type {
   SharedMirrorFamily,

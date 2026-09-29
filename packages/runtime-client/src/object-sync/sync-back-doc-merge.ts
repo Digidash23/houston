@@ -1,8 +1,4 @@
-import { randomUUID } from "node:crypto";
-import { readFile, rm, stat, writeFile } from "node:fs/promises";
-import { atomicTempPath } from "@houston/protocol";
-import { fileSha256 } from "./file-hash";
-import type { ObjectStore } from "./object-store";
+import { ACTIVITY_DOC, mergeActivityArrays } from "./activity-merge";
 
 const ROUTINES_DOC = ".houston/routines/routines.json";
 const LEARNINGS_DOC = ".houston/learnings/learnings.json";
@@ -12,6 +8,44 @@ function isPath(relativePath: string, documentPath: string): boolean {
   return (
     relativePath === documentPath || relativePath.endsWith(`/${documentPath}`)
   );
+}
+
+/** Documents sync-back merges on a generation conflict instead of overwriting. */
+export function isMergedDocument(relativePath: string): boolean {
+  return (
+    arrayIdentity(relativePath) !== undefined ||
+    isPath(relativePath, ACTIVITY_DOC) ||
+    relativePath === CUSTOM_DEFINITIONS
+  );
+}
+
+/**
+ * Documents the standing store sync merges once on a generation conflict (its
+ * behavior before the worker's merge rounds): never the board, which a
+ * standing pod re-uploads over the refreshed generation.
+ */
+export function mergesOnceOnConflict(relativePath: string): boolean {
+  return (
+    arrayIdentity(relativePath) !== undefined ||
+    relativePath === CUSTOM_DEFINITIONS
+  );
+}
+
+/** Documents whose hydrated bytes are kept as the base of a three-way merge. */
+export function keepsMergeBase(relativePath: string): boolean {
+  return isPath(relativePath, ACTIVITY_DOC);
+}
+
+function parseBase(baseBody: string | undefined): unknown[] | undefined {
+  if (baseBody === undefined) return undefined;
+  try {
+    const base = JSON.parse(baseBody) as unknown;
+    return Array.isArray(base) ? base : undefined;
+  } catch {
+    // An unparseable base only costs the three-way precision: the two-way
+    // merge still keeps every card either side holds.
+    return undefined;
+  }
 }
 
 function arrayIdentity(relativePath: string): string | undefined {
@@ -59,16 +93,27 @@ function mergeArrayDocument(
   ];
 }
 
-/** Merge local document entries into a refreshed remote document. */
+/**
+ * Merge local document entries into a refreshed remote document. `baseBody`
+ * (the bytes this writer started from) makes the activity merge three-way.
+ */
 export function mergeDocumentBodies(
   relativePath: string,
   localBody: string,
   remoteBody: string,
+  baseBody?: string,
 ): string | undefined {
+  if (!isMergedDocument(relativePath)) return undefined;
   const field = arrayIdentity(relativePath);
-  if (!field && relativePath !== CUSTOM_DEFINITIONS) return undefined;
   const remote = JSON.parse(remoteBody) as unknown;
   const local = JSON.parse(localBody) as unknown;
+  if (isPath(relativePath, ACTIVITY_DOC)) {
+    if (!Array.isArray(remote) || !Array.isArray(local)) {
+      throw new Error(`${relativePath} is not an array`);
+    }
+    const merged = mergeActivityArrays(remote, local, parseBase(baseBody));
+    return `${JSON.stringify(merged, null, 2)}\n`;
+  }
   if (field) {
     const merged = mergeArrayDocument(remote, local, field, relativePath);
     return `${JSON.stringify(merged, null, 2)}\n`;
@@ -91,34 +136,27 @@ export function mergeDocumentBodies(
   return `${JSON.stringify(merged, null, 2)}\n`;
 }
 
-/** Merge a conflict-sensitive document and replace its local copy. */
-export async function mergeSyncBackDocument(opts: {
-  store: ObjectStore;
-  abs: string;
-  key: string;
-  relativePath: string;
-}): Promise<string | undefined> {
-  if (
-    !arrayIdentity(opts.relativePath) &&
-    opts.relativePath !== CUSTOM_DEFINITIONS
-  ) {
-    return undefined;
-  }
-  const localBody = await readFile(opts.abs, "utf8");
-  const remoteTemp = atomicTempPath(opts.abs, `${randomUUID()}.remote`);
+function cardIds(body: string): string[] {
   try {
-    await opts.store.download(opts.key, remoteTemp);
-    const remoteBody = await readFile(remoteTemp, "utf8");
-    const merged = mergeDocumentBodies(
-      opts.relativePath,
-      localBody,
-      remoteBody,
-    );
-    if (merged === undefined) return undefined;
-    await writeFile(opts.abs, merged);
-    const { size } = await stat(opts.abs);
-    return fileSha256(opts.abs, size);
-  } finally {
-    await rm(remoteTemp, { force: true });
+    const doc = JSON.parse(body) as unknown;
+    return Array.isArray(doc)
+      ? doc.map((card) => identity(card, "id")).filter((id) => id !== undefined)
+      : [];
+  } catch {
+    return [];
   }
+}
+
+/**
+ * Board card ids `remoteBody` holds that `mergedBody` does not: what a merge
+ * removed from the board it landed over. Empty for every other document.
+ */
+export function removedCardIds(
+  relativePath: string,
+  remoteBody: string,
+  mergedBody: string,
+): string[] {
+  if (!isPath(relativePath, ACTIVITY_DOC)) return [];
+  const kept = new Set(cardIds(mergedBody));
+  return cardIds(remoteBody).filter((id) => !kept.has(id));
 }

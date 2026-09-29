@@ -5,8 +5,11 @@ import type {
   WireFrame,
 } from "@houston/runtime-client";
 import type { MessageAuthor } from "../session/attribution";
+import type { MissionTitleRequest } from "../session/mission-title";
 import type { SandboxFetch } from "../session/tools/sandbox-fetch";
 import type { ProvidedContext } from "../session/workspace-context";
+import type { MissionTitleReport } from "./turn-mission-title-outcome";
+import type { RemoteActivityReader } from "./turn-mission-title-remote";
 import type { TurnSessionStartupTask } from "./turn-session-startup";
 import type { TurnGrantScope } from "./types";
 
@@ -14,6 +17,8 @@ export interface TurnOutcome {
   error?: string;
   /** Interaction the model ended the turn waiting on, if any. */
   pendingInteraction?: PendingInteraction;
+  /** A new mission's after-turn title, as written in the tree (pre-sync). */
+  missionTitle?: MissionTitleReport;
 }
 
 /** Per-turn model/effort pin. Absent means inherit the agent setting. */
@@ -35,6 +40,10 @@ export interface TurnSessionRequest {
   turnId: string;
   displayText?: string;
   mentions?: ChatMessage["mentions"];
+  /** A new mission's first send: title its card after the reply. */
+  missionTitle?: MissionTitleRequest;
+  /** Fresh read of the stored board doc, for a card hydration missed. */
+  readRemoteActivity?: RemoteActivityReader;
   author?: MessageAuthor;
   context?: ProvidedContext;
   /** Non-secret capability scopes copied from the parsed turn grant. */
