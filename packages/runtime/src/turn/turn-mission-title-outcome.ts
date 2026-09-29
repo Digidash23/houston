@@ -27,6 +27,9 @@ export type MissionTitleOutcome =
   | "skipped"
   /** Titled in the tree, but the title never landed with the board. */
   | "sync_lost"
+  /** The board landed, but the pass could not read back the bytes that did
+   *  (the file changed during its upload), so the title is unconfirmed. */
+  | "unverified"
   | MissionTitleMiss;
 
 /** The terminal frame's `missionTitle` diagnostic. */
@@ -71,15 +74,15 @@ export function landedMissionTitle(
   };
 }
 
-/** What the landed card says. Bytes the pass could not verify (none, or
- *  unreadable) leave the landing as the only evidence. */
+/** What the landed card says. A landing with no bytes to read back is not
+ *  evidence of the title: other bytes than the hashed ones may have landed. */
 function landedOutcome(
   written: MissionTitleWrite | undefined,
   body: string | undefined,
 ): MissionTitleOutcome {
-  if (!written || body === undefined) return "written";
+  if (!written || body === undefined) return "unverified";
   const cards = landedCards(body);
-  if (!cards) return "written";
+  if (!cards) return "unverified";
   const card = cards.find((a) => addressesMission(a, written.conversationId));
   if (!card) return "card_missing";
   if (card.title === written.title) return "written";
@@ -95,7 +98,7 @@ function landedCards(body: string): Activity[] | undefined {
     // Only this worker's own JSON lands here; a throw must not cost the turn
     // its terminal frame.
     console.error(
-      "[mission-title] landed board unreadable; trusting the landing:",
+      "[mission-title] landed board unreadable; the title is unverified:",
       err instanceof Error ? err.message : String(err),
     );
     return undefined;

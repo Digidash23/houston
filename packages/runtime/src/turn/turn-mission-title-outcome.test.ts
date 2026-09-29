@@ -29,13 +29,20 @@ test("a landed card is read back against the title it was written with", () => {
   expect(landedMissionTitle(inTree, landed("[]")).outcome).toBe("card_missing");
 });
 
-test("an unlanded board loses the title; unverifiable bytes trust the landing", () => {
+test("an unlanded board loses the title; a landing it cannot read back is unverified", () => {
   expect(landedMissionTitle(inTree, { board: { landed: false } }).outcome).toBe(
     "sync_lost",
   );
-  expect(landedMissionTitle(inTree, landed()).outcome).toBe("written");
+  expect(landedMissionTitle(inTree, landed())).toEqual({
+    outcome: "unverified",
+    ms: 40,
+  });
+  const { written: _, ...unclaimed } = inTree;
+  expect(landedMissionTitle(unclaimed, landed(board("Plan"))).outcome).toBe(
+    "unverified",
+  );
   const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
-  expect(landedMissionTitle(inTree, landed("{")).outcome).toBe("written");
+  expect(landedMissionTitle(inTree, landed("{")).outcome).toBe("unverified");
   expect(error).toHaveBeenCalledOnce();
   error.mockRestore();
 });

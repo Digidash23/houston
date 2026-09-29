@@ -56,6 +56,7 @@ function gatewayStore(root: string) {
     generations.set(key, (generations.get(key) ?? 1) + 1);
   const boardUploads: ("landed" | "412")[] = [];
   let afterRead: (() => Promise<void>) | undefined;
+  let duringUpload: ((source: string) => Promise<void>) | undefined;
   const read = async (key: string) => {
     const hook = key === BOARD_KEY ? afterRead : undefined;
     afterRead = undefined;
@@ -91,6 +92,9 @@ function gatewayStore(root: string) {
         (match === "0" ? existsSync(path(key)) : match !== generation(key));
       if (key === BOARD_KEY) boardUploads.push(stale ? "412" : "landed");
       if (stale) throw new StoreConflictError(key, `412 at ${key}`);
+      const hook = key === BOARD_KEY ? duringUpload : undefined;
+      if (hook) duringUpload = undefined;
+      await hook?.(source);
       await inner.upload(source, key);
       bump(key);
       return { generation: generation(key) };
@@ -110,7 +114,20 @@ function gatewayStore(root: string) {
   const armAfterNextBoardRead = (hook: () => Promise<void>) => {
     afterRead = hook;
   };
-  return { store, write, cards, boardUploads, armAfterNextBoardRead };
+  /** The source file changing between sync-back's hash and its upload. */
+  const armDuringNextBoardUpload = (
+    hook: (source: string) => Promise<void>,
+  ) => {
+    duringUpload = hook;
+  };
+  return {
+    store,
+    write,
+    cards,
+    boardUploads,
+    armAfterNextBoardRead,
+    armDuringNextBoardUpload,
+  };
 }
 
 async function seed(root: string, rel: string, content: string) {
@@ -126,6 +143,7 @@ async function seed(root: string, rel: string, content: string) {
 async function titledTurn(opts: {
   afterTitleRead?: (gateway: ReturnType<typeof gatewayStore>) => Promise<void>;
   ownEdit?: (cards: Card[]) => Card[];
+  duringBoardUpload?: (source: string) => Promise<void>;
 }) {
   const storeRoot = await mkdtemp(join(tmpdir(), "title-rebase-"));
   await seed(storeRoot, `${PREFIX}/workspaces/W/A/CLAUDE.md`, "# A\n");
@@ -142,6 +160,8 @@ async function titledTurn(opts: {
   const { afterTitleRead } = opts;
   if (afterTitleRead)
     gateway.armAfterNextBoardRead(() => afterTitleRead(gateway));
+  if (opts.duringBoardUpload)
+    gateway.armDuringNextBoardUpload(opts.duringBoardUpload);
   const ownEdit = opts.ownEdit;
   const deps = {
     store: gateway.store,
@@ -288,4 +308,23 @@ test("the turn's own board edits survive the title's adoption of the stored boar
   expect(card("made")?.title).toBe("Made by the turn");
   expect(card("mine")?.title).toBe(TITLE);
   expect(boardUploads).toEqual(["landed"]);
+});
+
+test("a board rewritten while it uploads cannot vouch for the title", async () => {
+  const { frame, card } = await titledTurn({
+    duringBoardUpload: async (source) => {
+      const cards = JSON.parse(await readFile(source, "utf8")) as Card[];
+      const changed = cards.map((c) =>
+        c.id === "mine" ? { ...c, title: "Changed mid-upload" } : c,
+      );
+      await writeFile(source, JSON.stringify(changed));
+    },
+  });
+
+  // Other bytes landed than the pass hashed, so it cannot read them back.
+  expect(card("mine")?.title).toBe("Changed mid-upload");
+  expect(frame.data.missionTitle).toEqual({
+    outcome: "unverified",
+    ms: expect.any(Number),
+  });
 });
