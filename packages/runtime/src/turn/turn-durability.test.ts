@@ -72,11 +72,37 @@ async function claimedTurn(docPutStatus: number) {
   };
 }
 
-test("a durable turn names the conversation and board as changed", async () => {
-  const { deps, turn, filesystem, resolved } = await claimedTurn(200);
+/** A routines.json the turn wrote straight to the store (a CAS write). */
+async function routinesWrite(
+  filesystem: Awaited<ReturnType<typeof claimedTurn>>["filesystem"],
+) {
+  await seed(
+    filesystem.workspaceDir,
+    ".houston/routines/routines.json",
+    JSON.stringify([
+      {
+        id: "r1",
+        name: "Minutely",
+        prompt: "check",
+        schedule: "* * * * *",
+        enabled: false,
+        auto_paused: {
+          reason: "model_unavailable",
+          provider: "openai-codex",
+          failures: 10,
+          at: "2026-09-29T22:00:00.000Z",
+        },
+      },
+    ]),
+  );
   filesystem.immediateWrites.add(
     `${workspaceRel}/.houston/routines/routines.json`,
   );
+}
+
+test("a durable turn names the conversation and board as changed", async () => {
+  const { deps, turn, filesystem, resolved } = await claimedTurn(200);
+  await routinesWrite(filesystem);
   filesystem.immediateWrites.add("custom-integrations.json");
   const result = await finishTurnDurability({
     deps,
@@ -141,4 +167,52 @@ test("turn tool mutations publish the custom definition view", async () => {
   expect(result.changed).toEqual(
     expect.arrayContaining(["CustomIntegrationsChanged"]),
   );
+});
+
+test("a routines write republishes the routines doc the asleep Routines tab reads", async () => {
+  const { deps, turn, filesystem, resolved, requests } = await claimedTurn(200);
+  await routinesWrite(filesystem);
+  const result = await finishTurnDurability({
+    deps,
+    turn,
+    filesystem,
+    resolved,
+    heartbeat: null,
+    outcome: {},
+    transcript: null,
+  });
+
+  const puts = requests.filter(
+    (request) => request.method === "PUT" && /\/routines$/.test(request.url),
+  );
+  expect(puts).toHaveLength(1);
+  expect(puts[0]?.url).toBe(
+    "https://store.example/v1/pod/docs/w1/agent-1/routines",
+  );
+  // NORMALIZED like the standing projector, the engine's pause kept.
+  expect(JSON.parse(puts[0]?.body ?? "{}").doc).toEqual([
+    expect.objectContaining({
+      id: "r1",
+      enabled: false,
+      chat_mode: "shared",
+      auto_paused: expect.objectContaining({ reason: "model_unavailable" }),
+    }),
+  ]);
+  expect(result.changed).toContain("RoutinesChanged");
+});
+
+test("a routines doc that did not land is not announced", async () => {
+  const { deps, turn, filesystem, resolved } = await claimedTurn(400);
+  await routinesWrite(filesystem);
+  const result = await finishTurnDurability({
+    deps,
+    turn,
+    filesystem,
+    resolved,
+    heartbeat: null,
+    outcome: {},
+    transcript: null,
+  });
+  expect(result.outcome.error).toMatch(/routines doc publish failed/);
+  expect(result.changed).not.toContain("RoutinesChanged");
 });
