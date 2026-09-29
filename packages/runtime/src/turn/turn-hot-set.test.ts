@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { HydrateListedObject } from "@houston/runtime-client/object-sync";
 import { expect, test } from "vitest";
+import { claudeFlagsFileName } from "./claude-flags-path";
 import { ownConversationOnly } from "./turn-hot-set";
 
 const standing = "workspaces/Personal/Bob/.houston/runtime";
@@ -115,4 +116,29 @@ test("Claude selection fails open without a usable present pointer", () => {
     expect(admit(second, listing, root)).toBe(true);
     expect(admit(cache, listing, root)).toBe(false);
   }
+});
+
+test("hydrates the acting member's flag cache and no other member's", () => {
+  const root = rootWithSessions();
+  const alice = claudeFlagsFileName("user-alice");
+  const bob = claudeFlagsFileName("user-bob");
+  const paths = [
+    `${standing}/claude-flags/${alice}`,
+    `${standing}/claude-flags/${bob}`,
+    `data/claude-flags/${alice}`,
+    `data/claude-flags/${bob}`,
+    `${standing}/claude-flags/nested/${alice}`,
+  ];
+  const listing = listed(...paths);
+  const asAlice = ownConversationOnly("c1", "user-alice");
+  expect(paths.map((path) => asAlice(path, listing, root))).toEqual([
+    true,
+    false,
+    true,
+    false,
+    false,
+  ]);
+  // No acting member: nobody's cache.
+  const anonymous = ownConversationOnly("c1");
+  for (const path of paths) expect(anonymous(path, listing, root)).toBe(false);
 });

@@ -189,6 +189,7 @@ export async function runTurn(
                 modelRuntime,
                 directories,
                 claudeQuery: deps.claudeSdk?.query,
+                claudePlan: turn.claudePlan,
               }),
             workspaceDir,
             ...(turn.readRemoteActivity

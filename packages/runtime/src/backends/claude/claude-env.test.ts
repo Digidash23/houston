@@ -58,3 +58,46 @@ test("the shell fence rides CLAUDE_CODE_SHELL_PREFIX, and only the fence does", 
     else process.env.CLAUDE_CODE_SHELL_PREFIX = savedPrefix;
   }
 });
+
+test("a personal plan rides beside the OAuth token", () => {
+  for (const plan of ["pro", "max"] as const) {
+    const env = buildClaudeEnv(
+      { kind: "oauth-token", value: "sk-ant-oat01-x", subscriptionType: plan },
+      { configDir: "/config" },
+    );
+    expect(env.CLAUDE_CODE_OAUTH_TOKEN).toBe("sk-ant-oat01-x");
+    expect(env.CLAUDE_CODE_SUBSCRIPTION_TYPE).toBe(plan);
+  }
+});
+
+test("an organization plan or an unknown one leaves the CLI to fetch its policy", () => {
+  for (const plan of ["team", "enterprise", undefined] as const) {
+    const env = buildClaudeEnv(
+      { kind: "oauth-token", value: "sk-ant-oat01-x", subscriptionType: plan },
+      { configDir: "/config" },
+    );
+    expect(env.CLAUDE_CODE_SUBSCRIPTION_TYPE).toBeUndefined();
+  }
+  expect(
+    buildClaudeEnv(
+      { kind: "api-key", value: "sk-ant-api03-x" },
+      { configDir: "/config" },
+    ).CLAUDE_CODE_SUBSCRIPTION_TYPE,
+  ).toBeUndefined();
+});
+
+test("an ambient plan never reaches the subprocess", () => {
+  const saved = process.env.CLAUDE_CODE_SUBSCRIPTION_TYPE;
+  process.env.CLAUDE_CODE_SUBSCRIPTION_TYPE = "max";
+  try {
+    expect(
+      buildClaudeEnv(
+        { kind: "oauth-token", value: "sk-ant-oat01-x" },
+        { configDir: "/config" },
+      ).CLAUDE_CODE_SUBSCRIPTION_TYPE,
+    ).toBeUndefined();
+  } finally {
+    if (saved === undefined) delete process.env.CLAUDE_CODE_SUBSCRIPTION_TYPE;
+    else process.env.CLAUDE_CODE_SUBSCRIPTION_TYPE = saved;
+  }
+});

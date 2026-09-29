@@ -12,6 +12,7 @@ import {
   isPersonalScope,
   TEAM_CREDENTIAL_SCOPE,
 } from "../session/acting-context";
+import type { ClaudeSubscriptionType } from "./claude-plan";
 
 /**
  * Pure auth.json file logic (no config import — tests drive it with explicit
@@ -140,6 +141,12 @@ export type ServedCredential = {
    * `/providers` row instead (auth/served-scope.ts).
    */
   scope?: "personal" | "team";
+  /**
+   * A Claude subscription login's plan, resolved by the gateway from this
+   * access token's profile (auth/claude-plan.ts). Pooled turns only; never
+   * written into auth.json.
+   */
+  subscriptionType?: ClaudeSubscriptionType;
 };
 
 /** The auth.json contents at `path`, or {} when absent/corrupt. */

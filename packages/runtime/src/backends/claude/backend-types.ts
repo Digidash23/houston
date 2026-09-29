@@ -1,3 +1,4 @@
+import type { ClaudeSubscriptionType } from "../../auth/claude-plan";
 import type { ToolSelection } from "../../session/tool-selection";
 import type { AssistantToolOptions } from "../../session/tools/assistant";
 import type { WorkspaceGuardOptions } from "../../session/tools/fs-guard";
@@ -6,9 +7,18 @@ import type { BridgedPiTool } from "./custom-tools";
 import type { ClaudeLayout } from "./paths";
 import type { ClaudeSdk, ClaudeSdkLoadResult } from "./sdk-loader";
 
-/** A resolved Anthropic credential for one SDK subprocess environment. */
+/**
+ * A resolved Anthropic credential for one SDK subprocess environment. An
+ * OAuth token may carry the plan the gateway served with it
+ * (`./served-plan`); a token read from anywhere else never does.
+ */
 export type ClaudeToken =
-  | { kind: "oauth-token"; value: string; accessDigest?: string }
+  | {
+      kind: "oauth-token";
+      value: string;
+      accessDigest?: string;
+      subscriptionType?: ClaudeSubscriptionType;
+    }
   | { kind: "api-key"; value: string; accessDigest?: string };
 
 /** Everything the Claude backend needs to open a session. */

@@ -1,7 +1,8 @@
 import type { WireFrame } from "@houston/runtime-client";
+import { claudePlanBinding } from "../auth/claude-plan";
 import type { TurnSessionRequest } from "./turn-session";
 import type { TurnSessionStartupTask } from "./turn-session-startup";
-import type { TurnSandboxHandle } from "./turn-session-types";
+import type { TurnOutcome, TurnSandboxHandle } from "./turn-session-types";
 import type { TurnRequest } from "./types";
 
 /** Project the accepted envelope onto the provider-agnostic turn session. */
@@ -14,6 +15,7 @@ export function turnSessionRequest(
   timings?: Record<string, number>,
   startup?: TurnSessionStartupTask,
 ): TurnSessionRequest {
+  const claudePlan = claudePlanBinding(turn.credential);
   return {
     conversationId: turn.conversationId,
     text: turn.text,
@@ -33,6 +35,7 @@ export function turnSessionRequest(
     mentions: turn.mentions,
     ...(turn.missionTitle ? { missionTitle: turn.missionTitle } : {}),
     author: turn.actingAs,
+    ...(claudePlan ? { claudePlan } : {}),
     ...(turn.grant ? { grant: { scopes: turn.grant.scopes } } : {}),
     ...(sandbox ? { sandbox } : {}),
     ...(timings ? { timings } : {}),
@@ -48,4 +51,26 @@ export function turnSessionRequest(
         }
       : {}),
   };
+}
+
+/**
+ * A turn with no credential: echo the user's message, then fail with the
+ * reconnect instruction (the workspace is not connected yet).
+ */
+export function unconnectedTurnOutcome(
+  turn: TurnRequest,
+  turnId: string,
+  emit: (frame: WireFrame) => void,
+): TurnOutcome {
+  emit({
+    type: "user",
+    data: {
+      content: turn.text,
+      ts: Date.now(),
+      nonce: turn.nonce,
+      mentions: turn.mentions,
+    },
+    turnId,
+  });
+  return { error: "No provider connected. Connect your subscription first." };
 }

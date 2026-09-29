@@ -17,7 +17,7 @@ export function startTurnRequestFilesystem(input: {
   store: ObjectStore;
   prefix: string;
   root: string;
-  turn: Pick<TurnRequest, "claim" | "conversationId">;
+  turn: Pick<TurnRequest, "claim" | "conversationId" | "actingAs">;
   maxBytes?: number;
   timings: Record<string, number>;
 }) {
@@ -30,7 +30,10 @@ export function startTurnRequestFilesystem(input: {
     ...(input.maxBytes !== undefined ? { maxBytes: input.maxBytes } : {}),
     ...(claimed
       ? {
-          filter: ownConversationOnly(input.turn.conversationId),
+          filter: ownConversationOnly(
+            input.turn.conversationId,
+            input.turn.actingAs?.userId,
+          ),
           excludes: CLAIMED_TURN_EXCLUDES,
         }
       : {}),

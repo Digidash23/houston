@@ -6,7 +6,9 @@ import {
   saveActivities,
   upsertById,
 } from "@houston/domain";
+import type { ClaudePlanBinding } from "../auth/claude-plan";
 import { readAnthropicToken } from "../backends/claude/read-token";
+import { withServedPlan } from "../backends/claude/served-plan";
 import type { ClaudeQuery } from "../backends/claude/session";
 import { titleWithClaude } from "../backends/claude/title";
 import {
@@ -37,6 +39,7 @@ export function turnTitleRunner(input: {
   modelRuntime: ModelRuntime;
   directories: TurnDirectories;
   claudeQuery?: ClaudeQuery;
+  claudePlan?: ClaudePlanBinding;
 }): MissionTitleRunner {
   const { workspaceDir, dataDir } = input.directories;
   if (input.provider === "anthropic")
@@ -45,7 +48,11 @@ export function turnTitleRunner(input: {
         excerpt,
         titlePrompt: TITLE_PROMPT,
         workspaceDir,
-        readToken: () => readAnthropicToken(turnAuthStore(dataDir)),
+        readToken: () =>
+          withServedPlan(
+            readAnthropicToken(turnAuthStore(dataDir)),
+            input.claudePlan,
+          ),
         dataDir,
         modelId: input.model.id,
         signal,
