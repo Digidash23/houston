@@ -1,8 +1,6 @@
-import type { Dirent } from "node:fs";
 import { mkdir, readdir } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
-import { PREFERENCES_NAMESPACE } from "@houston/domain";
-import { realAgents } from "./turn-layout-agents";
+import { realAgents, standingTree } from "./turn-layout-agents";
 
 /** Stable internal codes for failures before provider execution. */
 export type TurnSetupCode =
@@ -31,39 +29,8 @@ export interface TurnLayout {
   dataRel: string;
 }
 
-const directories = (entries: Dirent[]) =>
-  entries.filter((entry) => entry.isDirectory() && !entry.name.startsWith("."));
-
-async function readDirectories(path: string): Promise<Dirent[]> {
-  try {
-    return directories(await readdir(path, { withFileTypes: true }));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw error;
-  }
-}
-
 const storeRelative = (storeRoot: string, path: string) =>
   relative(storeRoot, path).split(sep).join("/");
-
-/** Every `workspaces/<ws>/<agent>` folder outside the preferences namespace.
- *  `workspaces/ws/` holds preferences docs, never agents, but a standing host
- *  once booted runtimes into it (`ws/<wsId>/.houston/runtime/`), so staging
- *  stores still carry agent-shaped trees there, with or without markers. */
-async function standingAgents(storeRoot: string): Promise<string[]> {
-  const workspacesRoot = join(storeRoot, "workspaces");
-  const workspaces = (await readDirectories(workspacesRoot)).filter(
-    (workspace) => workspace.name !== PREFERENCES_NAMESPACE,
-  );
-  const agents = await Promise.all(
-    workspaces.map(async (workspace) =>
-      (await readDirectories(join(workspacesRoot, workspace.name))).map(
-        (agent) => join(workspacesRoot, workspace.name, agent.name),
-      ),
-    ),
-  );
-  return agents.flat();
-}
 
 /**
  * Resolve the hydrated agent tree into the directories pi consumes. An EMPTY
@@ -73,26 +40,31 @@ async function standingAgents(storeRoot: string): Promise<string[]> {
  * and running would seed a second layout beside the real one.
  *
  * The dispatch names the agent's store prefix, never its folder. The
- * preferences namespace (`workspaces/ws/`) is never a candidate. A single
- * remaining folder is the agent even without markers (a load-test agent may
- * hold only schemas and a runtime tree); among several, the ones carrying an
- * agent's files win, and only two REAL agents are ambiguous. `listed` is the
- * store listing, keys relative to `storeRoot`.
+ * preferences namespace (`workspaces/ws/`) counts as absent: alone it makes
+ * no `workspaces/` folder (the tree is then per-turn or empty), and it is
+ * never an agent candidate. A single remaining folder is the agent even
+ * without markers (a load-test agent may hold only schemas and a runtime
+ * tree); among several, the ones carrying an agent's files win, and only two
+ * REAL agents are ambiguous. `listed` is the store listing, keys relative to
+ * `storeRoot`.
  */
 export async function resolveTurnLayout(
   storeRoot: string,
   opts: { allowEmpty?: boolean; listed?: readonly string[] } = {},
 ): Promise<TurnLayout> {
-  const rootEntries = await readdir(storeRoot, { withFileTypes: true });
+  const standing = await standingTree(storeRoot);
+  const rootEntries = (
+    await readdir(storeRoot, { withFileTypes: true })
+  ).filter((entry) => standing.present || entry.name !== "workspaces");
   const rootDirectories = new Set(
     rootEntries
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name),
   );
-  const hasWorkspaces = rootDirectories.has("workspaces");
+  const hasWorkspaces = standing.present;
   const hasData = rootDirectories.has("data");
   const hasWorkspace = rootDirectories.has("workspace");
-  const candidates = hasWorkspaces ? await standingAgents(storeRoot) : [];
+  const candidates = standing.candidates;
   const agents =
     candidates.length > 1
       ? await realAgents(storeRoot, candidates, opts.listed ?? [])

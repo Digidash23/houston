@@ -206,3 +206,32 @@ test("two unmarked agents outside the namespace are still ambiguous", async () =
     code: "layout_unexpected",
   } satisfies Partial<TurnSetupError>);
 });
+
+test.each([
+  "data",
+  "workspace",
+])("the namespace beside a per-turn %s tree resolves per-turn", async (present) => {
+  const storeRoot = await root();
+  await seedFiles(storeRoot, [...PREFS_NAMESPACE, `${present}/x.json`]);
+
+  await expect(
+    resolveTurnLayout(storeRoot, { allowEmpty: false }),
+  ).resolves.toMatchObject({ kind: "cloudrun", dataRel: "data" });
+});
+
+test("a store holding only the namespace is an empty store", async () => {
+  const storeRoot = await root();
+  await seedFiles(storeRoot, PREFS_NAMESPACE);
+
+  await expect(resolveTurnLayout(storeRoot)).resolves.toMatchObject({
+    kind: "cloudrun",
+    workspaceRel: "workspace",
+  });
+  const claimedRoot = await root();
+  await expect(
+    resolveListedLayout(claimedRoot, PREFS_NAMESPACE, { allowEmpty: false }),
+  ).rejects.toMatchObject({
+    code: "layout_unexpected",
+    message: "hydrated store is empty; a claimed turn needs an existing agent",
+  });
+});
