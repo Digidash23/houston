@@ -63,6 +63,8 @@ export function RoutineRunsDialog({
         return t("details.failure.teamNeedsReconnect", { provider });
       case "out_of_credits":
         return t("details.failure.outOfCredits", { provider });
+      case "model_unavailable":
+        return t("details.failure.modelUnavailable", { provider });
     }
   };
 

@@ -25,6 +25,7 @@ export * from "./provider-choice";
 export * from "./provider-model";
 export * from "./provider-model-display";
 export * from "./reactivity";
+export * from "./routine-auto-pause";
 export * from "./routine-pin";
 export * from "./routines";
 export * from "./scan";

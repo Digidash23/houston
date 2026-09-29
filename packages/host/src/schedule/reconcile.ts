@@ -13,6 +13,7 @@ import type { Agent, Workspace } from "../domain/types";
 import type { EventHub } from "../events/hub";
 import { conversationKey, type WorkspacePaths } from "../paths";
 import type { Vfs } from "../vfs";
+import { pauseFailingRoutines } from "./auto-pause";
 import {
   providerErrorSummary,
   routineRunFailure,
@@ -244,6 +245,7 @@ export async function reconcileAgentRuns(
   // when its row is still `running` — a row a concurrent cancel flipped
   // terminal stays exactly as the user left it, and the queue keeps a
   // mid-flight fire/cancel write from being clobbered by this save.
+  const failedOn: string[] = [];
   const applied = await withRunsFile(root, async () => {
     const fresh = await loadRoutineRuns(deps.vfs, root);
     let nextRuns = fresh.items;
@@ -255,6 +257,7 @@ export async function reconcileAgentRuns(
         nextRuns,
         u.patch ? { ...current, ...u.patch } : u.run,
       );
+      if (!u.patch && u.run.failure) failedOn.push(u.run.routine_id);
       count++;
     }
     if (count > 0) await saveRoutineRuns(deps.vfs, root, nextRuns);
@@ -272,4 +275,5 @@ export async function reconcileAgentRuns(
       agentPath: agent.id,
     });
   }
+  await pauseFailingRoutines(deps, ws, agent, root, failedOn);
 }

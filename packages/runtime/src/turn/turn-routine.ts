@@ -1,5 +1,3 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import {
   completeRoutineRun,
   createRoutineRun,
@@ -16,8 +14,9 @@ import {
   saveRoutineRuns,
   upsertById,
 } from "@houston/domain";
-import type { Routine, RoutineRun } from "@houston/protocol";
+import type { Routine, RoutineRun, RoutineRunFailure } from "@houston/protocol";
 import { fsTextStore } from "./turn-fs-store";
+import { lastAssistantReply, routineRunError } from "./turn-routine-reply";
 import type { TurnRequest } from "./types";
 
 /**
@@ -114,39 +113,37 @@ export async function prepareRoutineTurn(
  * Terminal bookkeeping, written into the hydrated tree BEFORE sync-back: the
  * run row leaves "running" (silent/surfaced from the reply, error otherwise),
  * and a surfaced run upserts its board activity — the same rows the pod's
- * reconcile would have produced.
+ * reconcile would have produced. A reply that carries a typed provider error
+ * is an error run with the same typed `failure` reconcile stamps; `failure`
+ * comes from the caller when the turn never reached a provider at all.
+ * Resolves to the terminal row, or null when a cancel owned the row.
  */
 export async function settleRoutineTurn(opts: {
   workspaceDir: string;
   phase: RoutinePhase;
   conversationId: string;
   turnError?: string;
+  failure?: RoutineRunFailure;
   nowIso: string;
   newId: () => string;
-}): Promise<void> {
+}): Promise<RoutineRun | null> {
   const store = fsTextStore();
   const { items: runs } = await loadRoutineRuns(store, opts.workspaceDir);
   const row = runs.find((r) => r.id === opts.phase.run.id);
   // Missing or already-terminal row: a cancel raced the turn — keep what the
   // canceller wrote.
-  if (row?.status !== "running") return;
-  let done: RoutineRun;
-  if (opts.turnError) {
-    done = {
-      ...row,
-      status: "error",
-      summary: opts.turnError,
-      completed_at: opts.nowIso,
-    };
-  } else {
-    const reply = await lastAssistantText(
-      opts.workspaceDir,
-      opts.conversationId,
-    );
-    done = completeRoutineRun(row, opts.phase.routine, reply, opts.nowIso);
-  }
+  if (row?.status !== "running") return null;
+  // The pooled run's id IS its turn id (prepareRoutineTurn).
+  const reply = await lastAssistantReply(
+    opts.workspaceDir,
+    opts.conversationId,
+    row.id,
+  );
+  const done =
+    routineRunError(row, reply, opts) ??
+    completeRoutineRun(row, opts.phase.routine, reply.content, opts.nowIso);
   await saveRoutineRuns(store, opts.workspaceDir, upsertById(runs, done));
-  if (done.status !== "surfaced") return;
+  if (done.status !== "surfaced") return done;
   const { items: activities } = await loadActivities(store, opts.workspaceDir);
   const existing = activities.find(
     (a) => a.session_key === opts.phase.run.session_key,
@@ -163,32 +160,5 @@ export async function settleRoutineTurn(opts: {
     opts.workspaceDir,
     upsertById(activities, activity),
   );
-}
-
-/** The last assistant message the runtime persisted for the conversation. */
-async function lastAssistantText(
-  workspaceDir: string,
-  conversationId: string,
-): Promise<string> {
-  const path = join(
-    workspaceDir,
-    ".houston",
-    "runtime",
-    "conversations",
-    `${encodeURIComponent(conversationId)}.json`,
-  );
-  try {
-    const parsed = JSON.parse(await readFile(path, "utf8")) as {
-      messages?: { role?: string; content?: string }[];
-    };
-    for (let i = (parsed.messages ?? []).length - 1; i >= 0; i--) {
-      const message = parsed.messages?.[i];
-      if (message?.role === "assistant") return message.content ?? "";
-    }
-  } catch {
-    // A missing or unreadable conversation classifies as surfaced-with-empty
-    // summary rather than failing the settle: the turn's own outcome already
-    // told the user what happened.
-  }
-  return "";
+  return done;
 }

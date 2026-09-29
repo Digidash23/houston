@@ -139,7 +139,20 @@
       "teamNotConnected": "This team has no {{provider}} account connected.",
       "creatorNeedsReconnect": "{{provider}} needs to be reconnected by the routine's creator.",
       "teamNeedsReconnect": "{{provider}} needs to be reconnected.",
-      "outOfCredits": "The {{provider}} account is out of credits."
+      "outOfCredits": "The {{provider}} account is out of credits.",
+      "modelUnavailable": "The {{provider}} account can't use the model this routine runs on."
+    },
+    "autoPause": {
+      "chip": "Paused",
+      "title_one": "Paused after {{count}} failed run",
+      "title_other": "Paused after {{count}} failed runs in a row",
+      "connectCreator": "The routine's creator has no {{provider}} account connected. Connect it, then resume the routine.",
+      "connectTeam": "This team has no {{provider}} account connected. Connect it, then resume the routine.",
+      "reconnectCreator": "The routine's creator needs to reconnect {{provider}}. Once that's done, resume the routine.",
+      "reconnectTeam": "{{provider}} needs to be reconnected. Once that's done, resume the routine.",
+      "addCredits": "The {{provider}} account is out of credits. Add credits or change plan, then resume the routine.",
+      "changeModel": "The {{provider}} account can't use this routine's model. Pick a model the account can run, then resume the routine.",
+      "resume": "Resume"
     }
   },
   "row": {

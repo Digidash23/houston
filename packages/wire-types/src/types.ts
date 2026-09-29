@@ -8,7 +8,12 @@
  * the same PR or the app compiles against a contract nothing serves.
  */
 
-import type { AgentInitialConfig, SkillWorkflow } from "@houston/protocol";
+import type {
+  AgentInitialConfig,
+  RoutineAutoPause,
+  RoutineRunFailure,
+  SkillWorkflow,
+} from "@houston/protocol";
 import type { Agent } from "./agents";
 
 export type {
@@ -21,6 +26,9 @@ export type {
   FirstDayRefusalCode,
   FirstDayStartInput,
   FirstDayStartResult,
+  RoutineAutoPause,
+  RoutineRunFailure,
+  RoutineRunFailureCode,
   SkillWorkflow,
   SkillWorkflowStep,
 } from "@houston/protocol";
@@ -771,6 +779,12 @@ export interface Routine {
    * in single-player mode. Surfaced so the UI can attribute automations.
    */
   created_by?: string;
+  /**
+   * Set when the engine paused this routine itself (`enabled` false) after its
+   * latest runs kept failing on the same account or model problem. Resuming
+   * (`enabled: true`) clears it; an update never writes it.
+   */
+  auto_paused?: RoutineAutoPause;
   created_at: string;
   updated_at: string;
 }
@@ -842,6 +856,9 @@ export interface RoutineRun {
   /** Human-readable reset hint while the provider CLI is sleeping on a
    *  usage-limit window. Only meaningful when status is `running`. */
   paused_until?: string;
+  /** Typed reason an `error` run failed on the account or model it needed.
+   *  Absent for every other failure, whose story is in `summary`. */
+  failure?: RoutineRunFailure;
 }
 
 export interface RoutineRunUpdate {

@@ -1,9 +1,8 @@
-import type {
-  ProviderError,
-  RoutineRunFailure,
-  RoutineRunFailureCode,
-} from "@houston/protocol";
+import type { ProviderError, RoutineRunFailure } from "@houston/protocol";
 import { sentenceProviderName } from "../providers";
+
+// The classification is pure and shared with the pooled worker's settle.
+export { routineRunFailure } from "@houston/domain";
 
 /**
  * Why a routine run failed, in the terms the person reading its history can
@@ -16,35 +15,6 @@ import { sentenceProviderName } from "../providers";
  * an honest English sentence for the surfaces (and the run history) that show
  * it verbatim, matching the existing run-row copy.
  */
-
-/**
- * Whose credential ran the failed turn. A turn with no acting identity has
- * exactly one credential and it is the creator's own (desktop, self-host, a
- * personal space), so absence reads as personal — never as "the team's".
- */
-function isTeamCredential(err: ProviderError): boolean {
-  return err.credential?.scope === "team";
-}
-
-/** The typed failure for a turn's provider error, or undefined when the error
- *  is not a credential-level wall (a network blip, a provider outage). */
-export function routineRunFailure(
-  err: ProviderError,
-): RoutineRunFailure | undefined {
-  if (err.kind === "quota_exhausted")
-    return { code: "out_of_credits", provider: err.provider };
-  if (err.kind !== "unauthenticated") return undefined;
-  const team = isTeamCredential(err);
-  const code: RoutineRunFailureCode =
-    err.cause === "no_credentials"
-      ? team
-        ? "team_not_connected"
-        : "creator_not_connected"
-      : team
-        ? "team_needs_reconnect"
-        : "creator_needs_reconnect";
-  return { code, provider: err.provider };
-}
 
 /** The run-row sentence for a typed failure. */
 export function routineRunFailureSummary(failure: RoutineRunFailure): string {
@@ -60,6 +30,8 @@ export function routineRunFailureSummary(failure: RoutineRunFailure): string {
       return `${name} needs to be reconnected for this team.`;
     case "out_of_credits":
       return `The ${name} account is out of credits.`;
+    case "model_unavailable":
+      return `The ${name} account can't use the model this routine runs on.`;
   }
 }
 

@@ -17,6 +17,7 @@ import { useRoutineLabels } from "../../hooks/use-routine-labels";
 import { genericErrorDescription } from "../../lib/error-report";
 import type { Agent } from "../../lib/types";
 import { useUIStore } from "../../stores/ui";
+import { RoutineAutoPauseBanner } from "./routine-auto-pause-banner";
 import { RoutineRunsDialog } from "./routine-runs-dialog";
 import { RoutineScreenHeader } from "./routine-screen-header";
 import { RoutineScreenSections } from "./routine-screen-sections";
@@ -104,6 +105,11 @@ export function RoutineScreen({
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-10 md:px-8">
+        <RoutineAutoPauseBanner
+          routine={routine}
+          onResume={() => save({ enabled: true })}
+          resuming={updateRoutine.isPending}
+        />
         <RoutineScreenSections
           agent={agent}
           routine={routine}

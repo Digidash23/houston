@@ -11,11 +11,8 @@ import type { createTurnLog } from "./turn-log";
 import { landedMissionTitle } from "./turn-mission-title-outcome";
 import { remoteActivityReader } from "./turn-mission-title-remote";
 import { turnSessionRequest, unconnectedTurnOutcome } from "./turn-request";
-import {
-  prepareRoutineTurn,
-  RoutineTurnError,
-  settleRoutineTurn,
-} from "./turn-routine";
+import { prepareRoutineTurn, RoutineTurnError } from "./turn-routine";
+import { finishRoutineTurn } from "./turn-routine-finish";
 import type { makeTurnSandboxFetch } from "./turn-sandbox";
 import { runTurn, type TurnOutcome } from "./turn-session";
 import type { TurnSessionStartupTask } from "./turn-session-startup";
@@ -139,24 +136,22 @@ export async function executeReadyTurn(input: {
   }
 
   if (routinePhase) {
-    try {
-      await settleRoutineTurn({
-        workspaceDir: input.filesystem.workspaceDir,
-        phase: routinePhase,
-        conversationId: input.turn.conversationId,
-        ...(outcome.error ? { turnError: outcome.error } : {}),
-        nowIso: new Date().toISOString(),
-        newId: () => crypto.randomUUID(),
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+    const failed = await finishRoutineTurn({
+      store: input.resolved.store,
+      prefix: input.resolved.prefix,
+      filesystem: input.filesystem,
+      phase: routinePhase,
+      conversationId: input.turn.conversationId,
+      ...(outcome.error ? { turnError: outcome.error } : {}),
+      ...(!input.turn.credential && effectiveTurn.provider
+        ? { unconnectedProvider: effectiveTurn.provider }
+        : {}),
+    });
+    if (failed)
       outcome = {
         ...outcome,
-        error: outcome.error
-          ? `${outcome.error}; routine settle failed: ${message}`
-          : `routine settle failed: ${message}`,
+        error: outcome.error ? `${outcome.error}; ${failed}` : failed,
       };
-    }
   }
 
   input.timings.t_run_done = performance.now();

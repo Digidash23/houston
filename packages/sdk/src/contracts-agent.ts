@@ -124,12 +124,16 @@ export {
 export {
   type NewRoutine,
   type Routine,
+  type RoutinePauseAccount,
+  type RoutinePauseNotice,
+  type RoutinePauseRemedy,
   type RoutineRun,
   RoutinesCommand,
   type RoutinesCommandType,
   RoutinesHttpError,
   type RoutinesModule,
   type RoutineUpdate,
+  routinePauseNotice,
   type WebhookKeyReveal,
 } from "./modules/routines";
 // ===== Skills module contract ==========================================

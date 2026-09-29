@@ -1,5 +1,13 @@
 // Routines + routine runs. snake_case mirrors the on-disk .houston schemas.
 
+import type { RoutineAutoPause, RoutineRunFailure } from "./routine-failure";
+
+export type {
+  RoutineAutoPause,
+  RoutineRunFailure,
+  RoutineRunFailureCode,
+} from "./routine-failure";
+
 /** Whether a routine's runs share one chat ("shared", default) or each run gets its own ("per_run"). */
 export type RoutineChatMode = "shared" | "per_run";
 
@@ -85,6 +93,13 @@ export interface Routine {
    * in single-player mode. Surfaced so the UI can attribute automations.
    */
   created_by?: string;
+  /**
+   * Set when the engine paused this routine by itself (`enabled` is false)
+   * because its latest runs kept failing on a wall only a person can clear.
+   * Server-owned: an update never writes it, and resuming (`enabled: true`)
+   * removes it. Absent on every routine a person paused or never paused.
+   */
+  auto_paused?: RoutineAutoPause;
   created_at: string;
   updated_at: string;
 }
@@ -139,29 +154,6 @@ export type RoutineRunStatus =
   | "surfaced"
   | "error"
   | "cancelled";
-
-/**
- * Why a routine run failed at the credential level (PRODUCT-1475). A routine
- * fires on its CREATOR's credential scope, so the person reading the run's
- * history may have their own account connected and still see it fail — the run
- * has to name whose account is the problem, and what the remedy is.
- *
- * `creator_*` = the routine creator's own account; `team_*` = the space's
- * single shared account. `out_of_credits` is a VALID credential with no quota
- * left, which reconnecting would not fix.
- */
-export type RoutineRunFailureCode =
-  | "creator_not_connected"
-  | "team_not_connected"
-  | "creator_needs_reconnect"
-  | "team_needs_reconnect"
-  | "out_of_credits";
-
-export interface RoutineRunFailure {
-  code: RoutineRunFailureCode;
-  /** The provider id the run needed (e.g. "anthropic"). */
-  provider: string;
-}
 
 export interface RoutineRun {
   id: string;

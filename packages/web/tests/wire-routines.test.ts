@@ -1,4 +1,5 @@
 import { HoustonClient } from "@houston/engine-adapter/client";
+import { routinePauseNotice } from "@houston/sdk";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { createWireCapture, json, ORG } from "./support/wire-capture";
 
@@ -150,6 +151,36 @@ test("updateRoutine PATCHes only the fields the caller changed", async () => {
   expect(calls[0].method).toBe("PATCH");
   expect(calls[0].url).toBe(`${BASE}/agents/a1/routines/r1`);
   expect(calls[0].body).toBe(JSON.stringify({ schedule: "0 10 * * *" }));
+});
+
+test("an engine auto-pause reaches the SDK notice, and resuming is a plain enabled PATCH", async () => {
+  const paused = {
+    ...routine,
+    enabled: false,
+    auto_paused: {
+      reason: "creator_needs_reconnect" as const,
+      provider: "anthropic",
+      failures: 10,
+      at: "2026-09-29T11:00:00.000Z",
+    },
+  };
+  stubFetch(json(200, { items: [paused] }), json(200, routine));
+
+  const [row] = await client().listRoutines("a1");
+  expect(row?.auto_paused).toEqual(paused.auto_paused);
+  expect(row && routinePauseNotice(row)).toEqual({
+    remedy: "reconnect_account",
+    account: "creator",
+    provider: "anthropic",
+    failures: 10,
+    pausedAt: "2026-09-29T11:00:00.000Z",
+  });
+
+  await client().updateRoutine("a1", "r1", { enabled: true });
+  expect(calls).toHaveLength(2);
+  expect(calls[1].method).toBe("PATCH");
+  expect(calls[1].url).toBe(`${BASE}/agents/a1/routines/r1`);
+  expect(calls[1].body).toBe(JSON.stringify({ enabled: true }));
 });
 
 test("deleteRoutine sends a bodiless DELETE", async () => {
