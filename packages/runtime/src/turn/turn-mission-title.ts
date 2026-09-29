@@ -25,6 +25,7 @@ import type {
   RemoteActivityReader,
   StoredBoard,
 } from "./turn-mission-title-remote";
+import { POOLED_TURN_TRANSPORT } from "./turn-pi-transport";
 import type { TurnDirectories } from "./turn-session-types";
 
 /**
@@ -66,6 +67,7 @@ export function turnTitleRunner(input: {
       systemPrompt: TITLE_PROMPT,
       prompt: excerpt,
       signal,
+      transport: POOLED_TURN_TRANSPORT,
     });
 }
 

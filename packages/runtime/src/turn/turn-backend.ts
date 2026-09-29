@@ -20,6 +20,7 @@ import { makeClampedFileTools } from "../session/tools/clamped-fs";
 import type { WorkspaceGuardOptions } from "../session/tools/fs-guard";
 import { makePlanReadyTool } from "../session/tools/plan-ready";
 import { makeScrubbedBashTool } from "../session/tools/scrubbed-bash";
+import { POOLED_TURN_TRANSPORT } from "./turn-pi-transport";
 import type { TurnDirectories, TurnSessionRequest } from "./turn-session";
 import { buildTurnHostTools } from "./turn-toolset";
 
@@ -169,6 +170,7 @@ export function createTurnBackend(
     // The SAME prompt the Claude branch gets: the capability sentence follows
     // the turn's granted tools, not the provider it landed on.
     systemPrompt: deps.systemPrompt,
+    transport: POOLED_TURN_TRANSPORT,
     tools: deps.toolSelection.toolNames,
     customTools: [
       ...makeClampedFileTools(workspaceDir, deps.fileGuard ?? {}),
