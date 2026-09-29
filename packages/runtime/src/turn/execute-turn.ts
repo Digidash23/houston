@@ -26,8 +26,8 @@ import {
   startTurnSession,
   type TurnSessionStartupTask,
 } from "./turn-session-startup";
+import { answerTurnSetupFailure } from "./turn-setup-failure";
 import { poolIdentity, resolveTurnStore } from "./turn-store";
-import { turnSetupErrorFrame } from "./turn-terminal";
 import { createTurnTranscript } from "./turn-transcript";
 import type { TurnRequest } from "./types";
 
@@ -196,9 +196,7 @@ export async function executeTurn(
       });
   } catch (error) {
     if (!(error instanceof TurnSetupError)) throw error;
-    const sse = openSSE(res);
-    closeSse = sse.close;
-    sse.send(turnSetupErrorFrame(error, turnId));
+    closeSse = await answerTurnSetupFailure({ deps, turn, turnId, error, res });
   } finally {
     await cleanupTurn({
       root,

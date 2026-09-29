@@ -1,14 +1,8 @@
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  renameSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { atomicTempPath } from "@houston/protocol";
+import { listAgentDirs } from "../store/local-dirs";
 import { sessionGroupsForAgent } from "./linkage";
 import {
   importedHistoryNote,
@@ -212,30 +206,11 @@ export function migrateAgentChatHistory(
 // Whole-tree migration.
 // ---------------------------------------------------------------------------
 
-/** Every agent dir under the tree: `<root>/<Workspace>/<Agent>`. Dot-dirs and
- * non-directories are skipped, mirroring LocalWorkspaceStore. Shared with the
- * flat-layout migration (agent-layout.ts). */
+/** Every agent dir under the tree: `<root>/<Workspace>/<Agent>`, exactly the
+ * agents LocalWorkspaceStore lists (dot-dirs and the preferences namespace
+ * skipped). Shared with the flat-layout migration (agent-layout.ts). */
 export function agentRoots(workspacesRoot: string): string[] {
-  if (!existsSync(workspacesRoot)) return [];
-  const out: string[] = [];
-  const isDir = (p: string) => {
-    try {
-      return statSync(p).isDirectory();
-    } catch {
-      return false;
-    }
-  };
-  for (const ws of readdirSync(workspacesRoot)) {
-    if (ws.startsWith(".")) continue;
-    const wsDir = join(workspacesRoot, ws);
-    if (!isDir(wsDir)) continue;
-    for (const agent of readdirSync(wsDir)) {
-      if (agent.startsWith(".")) continue;
-      const agentDir = join(wsDir, agent);
-      if (isDir(agentDir)) out.push(agentDir);
-    }
-  }
-  return out;
+  return listAgentDirs(workspacesRoot);
 }
 
 /**

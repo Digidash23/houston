@@ -1,6 +1,7 @@
 import type { Dirent } from "node:fs";
 import { mkdir, readdir } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
+import { realAgents } from "./turn-layout-agents";
 
 /** Stable internal codes for failures before provider execution. */
 export type TurnSetupCode =
@@ -63,10 +64,17 @@ async function standingAgents(storeRoot: string): Promise<string[]> {
  * runtime; a claimed pool turn targets a standing agent that already exists,
  * so zero hydrated objects there means the hydrate missed (a blank prefix)
  * and running would seed a second layout beside the real one.
+ *
+ * The dispatch names the agent's store prefix, never its folder, so when
+ * several `workspaces/<ws>/<agent>` folders exist the one carrying an agent's
+ * files wins: a standing host wrote folders that are not agents there (its
+ * preferences doc at `workspaces/ws/<wsId>/`, then a runtime it booted into
+ * that folder). Only two REAL agents are ambiguous. `listed` is the store
+ * listing, keys relative to `storeRoot`.
  */
 export async function resolveTurnLayout(
   storeRoot: string,
-  opts: { allowEmpty?: boolean } = {},
+  opts: { allowEmpty?: boolean; listed?: readonly string[] } = {},
 ): Promise<TurnLayout> {
   const rootEntries = await readdir(storeRoot, { withFileTypes: true });
   const rootDirectories = new Set(
@@ -77,12 +85,22 @@ export async function resolveTurnLayout(
   const hasWorkspaces = rootDirectories.has("workspaces");
   const hasData = rootDirectories.has("data");
   const hasWorkspace = rootDirectories.has("workspace");
-  const agents = hasWorkspaces ? await standingAgents(storeRoot) : [];
+  const candidates = hasWorkspaces ? await standingAgents(storeRoot) : [];
+  const agents =
+    candidates.length > 1
+      ? await realAgents(storeRoot, candidates, opts.listed ?? [])
+      : candidates;
 
   if ((hasWorkspaces && hasData) || agents.length > 1) {
     throw new TurnSetupError(
       "layout_unexpected",
       "hydrated store contains more than one agent layout",
+    );
+  }
+  if (candidates.length > 1 && agents.length === 0) {
+    throw new TurnSetupError(
+      "layout_unexpected",
+      `hydrated store has ${candidates.length} agent folders and none carries an agent's files`,
     );
   }
   if (agents.length === 1) {
@@ -130,7 +148,10 @@ export async function resolveTurnLayout(
  * layout, `data` / `workspace` for the per-turn one. Deeper directories
  * appear as objects materialize.
  */
-export async function layoutSkeleton(storeRoot: string, rels: string[]) {
+export async function layoutSkeleton(
+  storeRoot: string,
+  rels: readonly string[],
+) {
   const dirs = new Set<string>();
   for (const rel of rels) {
     const segments = rel.split("/");
@@ -142,4 +163,14 @@ export async function layoutSkeleton(storeRoot: string, rels: string[]) {
       mkdir(join(storeRoot, ...dir.split("/")), { recursive: true }),
     ),
   );
+}
+
+/** Lay out a store listing's skeleton, then resolve the layout against it. */
+export async function resolveListedLayout(
+  storeRoot: string,
+  listed: readonly string[],
+  opts: { allowEmpty?: boolean },
+): Promise<TurnLayout> {
+  await layoutSkeleton(storeRoot, listed);
+  return resolveTurnLayout(storeRoot, { ...opts, listed });
 }

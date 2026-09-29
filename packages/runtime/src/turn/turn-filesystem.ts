@@ -11,8 +11,7 @@ import {
 } from "@houston/runtime-client/object-sync";
 import { turnHydrationError } from "./turn-hydration-error";
 import {
-  layoutSkeleton,
-  resolveTurnLayout,
+  resolveListedLayout,
   type TurnLayout,
   TurnSetupError,
 } from "./turn-layout";
@@ -117,8 +116,7 @@ export async function startTurnFilesystem(opts: {
       maxObjectBytes: MAX_UPLOAD_BYTES,
       maxBytes: maxBytes ?? TURN_HYDRATE_MAX_BYTES,
     });
-    await layoutSkeleton(storeRoot, vfs.remoteKeys);
-    const layout = await resolveTurnLayout(storeRoot, {
+    const layout = await resolveListedLayout(storeRoot, vfs.remoteKeys, {
       allowEmpty: !opts.claimed,
     });
     if (opts.timings) opts.timings.t_layout = performance.now();
@@ -154,8 +152,7 @@ export async function startTurnFilesystem(opts: {
         ),
       onListed: async (listing) => {
         if (opts.timings) opts.timings.t_listing = performance.now();
-        await layoutSkeleton(storeRoot, listing.rels);
-        layout = await resolveTurnLayout(storeRoot, {
+        layout = await resolveListedLayout(storeRoot, listing.rels, {
           allowEmpty: !opts.claimed,
         });
         if (opts.timings) opts.timings.t_layout = performance.now();

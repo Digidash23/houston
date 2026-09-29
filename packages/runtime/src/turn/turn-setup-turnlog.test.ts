@@ -1,0 +1,123 @@
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import type { Server } from "node:http";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { LocalDirStore } from "@houston/runtime-client/object-sync";
+import { afterEach, expect, test, vi } from "vitest";
+import { createTurnServer } from "./server";
+import type { TurnRunner } from "./turn-session";
+
+const servers: Server[] = [];
+afterEach(() => {
+  for (const server of servers.splice(0)) server.close();
+});
+
+const PRIME = [
+  "workspaces/Personal/prime/CLAUDE.md",
+  "workspaces/Personal/prime/.houston/activity/activity.json",
+];
+// What a standing pod wrote at `workspaces/ws/Personal/` on staging.
+const STRAY = [
+  "workspaces/ws/Personal/preferences.json",
+  "workspaces/ws/Personal/.houston/runtime/models-store.json",
+  "workspaces/ws/Personal/.houston/runtime/bin/claude-shell-fence",
+];
+
+interface TurnlogPost {
+  url: string;
+  body: { seq: number; frame: Record<string, unknown> }[];
+}
+
+async function claimedTurn(rels: string[], runTurn: TurnRunner) {
+  const storeRoot = await mkdtemp(join(tmpdir(), "turn-setup-turnlog-"));
+  for (const rel of rels) {
+    const path = join(storeRoot, "ws", "o1", "a1", ...rel.split("/"));
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, "x");
+  }
+  const turnlog: TurnlogPost[] = [];
+  const fetchImpl = (async (
+    input: string | URL | Request,
+    init?: RequestInit,
+  ) => {
+    const url = String(input);
+    if (url.includes("/v1/pod/turnlog/")) {
+      turnlog.push({
+        url,
+        body: JSON.parse(String(init?.body)) as TurnlogPost["body"],
+      });
+    }
+    return new Response(null, { status: 204 });
+  }) as typeof fetch;
+  const server = createTurnServer({
+    store: new LocalDirStore(storeRoot),
+    token: "",
+    runTurn,
+    turnLogUrl: "https://gateway.test",
+    fetchImpl,
+  });
+  servers.push(server);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("no address");
+  const response = await fetch(`http://127.0.0.1:${address.port}/turn`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      workspaceId: "o1",
+      agentId: "a1",
+      conversationId: "c1",
+      text: "hello",
+      gcsPrefix: "ws/o1/a1",
+      credential: {
+        provider: "openai-codex",
+        access: "token",
+        expires: Date.now() + 60_000,
+      },
+      hostToken: "host-token",
+      turnlogSeqStart: 7,
+      claim: {
+        id: "claim-1",
+        bootId: "boot-1",
+        token: "claim-token",
+        heartbeatUrl: "https://gateway.test/v1/pool/claims/heartbeat",
+      },
+    }),
+  });
+  const frames = (await response.text())
+    .split("\n")
+    .filter((line) => line.startsWith("data: "))
+    .map((line) => JSON.parse(line.slice(6)) as Record<string, unknown>);
+  return { frames, turnlog };
+}
+
+test("a stray non-agent folder in the store does not fail the turn", async () => {
+  const runTurn = vi.fn<TurnRunner>(async () => ({}));
+  const { frames } = await claimedTurn([...PRIME, ...STRAY], runTurn);
+
+  expect(frames.find((frame) => frame.type === "error")).toBeUndefined();
+  expect(runTurn).toHaveBeenCalledTimes(1);
+  expect(runTurn.mock.calls[0]?.[0].workspaceDir).toMatch(
+    /workspaces[/\\]Personal[/\\]prime$/,
+  );
+});
+
+test("a setup failure posts a terminal error frame to the turnlog first", async () => {
+  const runTurn = vi.fn<TurnRunner>();
+  const { frames, turnlog } = await claimedTurn(
+    [...PRIME, "workspaces/Personal/other/CLAUDE.md"],
+    runTurn,
+  );
+
+  const expected = {
+    type: "error",
+    seq: 7,
+    data: { message: "layout_unexpected", code: "layout_unexpected" },
+  };
+  expect(runTurn).not.toHaveBeenCalled();
+  expect(frames.at(-1)).toMatchObject(expected);
+  expect(turnlog).toHaveLength(1);
+  expect(turnlog[0]?.url).toBe("https://gateway.test/v1/pod/turnlog/o1/a1/c1");
+  expect(turnlog[0]?.body).toHaveLength(1);
+  expect(turnlog[0]?.body[0]).toMatchObject({ seq: 7, frame: expected });
+});
