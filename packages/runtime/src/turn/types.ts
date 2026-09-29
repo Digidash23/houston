@@ -83,7 +83,12 @@ export interface TurnRequest {
   missionTitle?: MissionTitleRequest;
   /** Gateway-minted identity reused across a retried dispatch. */
   turnId?: string;
-  /** Per-claim gateway token. Secret material, never log this value. */
+  /**
+   * Per-claim gateway token. Secret material, never log this value. On pooled
+   * turns the gateway sends a turn-scoped bearer that expires with the turn's
+   * claim, never the agent's standing host token; the worker keeps it in
+   * memory only (pool-leaks.test.ts: never on disk, never in a child's env).
+   */
   hostToken?: string;
   /** Signed gateway authority; human attribution cannot authorize inference. */
   actingToken?: string;

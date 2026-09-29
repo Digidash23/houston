@@ -1,3 +1,13 @@
+import {
+  chmodSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { describe, expect, test } from "vitest";
 import {
@@ -133,6 +143,83 @@ describe("the memory fence", () => {
       expect(unfenced.content[0]).toMatchObject({
         text: expect.stringMatching(/^unlimited\b/),
       });
+    },
+  );
+});
+
+describe("the tool shell", () => {
+  // pi reads the session id/file off the context for its PI_* env vars.
+  const ctx = {
+    sessionManager: {
+      getSessionId: () => "test-session",
+      getSessionFile: () => undefined,
+    },
+  } as unknown as ExtensionContext;
+
+  // A real wrapper stands in for the deployment's (which drops to the tool
+  // user): the command only counts as wrapped if its output came through it.
+  test.skipIf(process.platform === "win32")(
+    "a configured tool shell runs the command, with the fence and scrubbed env",
+    async () => {
+      const dir = mkdtempSync(join(tmpdir(), "tool-shell-"));
+      try {
+        const marker = join(dir, "ran");
+        const wrapper = join(dir, "tool-shell");
+        writeFileSync(
+          wrapper,
+          `#!/bin/bash\n[ "$1" = "-c" ] || exit 64\nprintf '%s' "$2" > '${marker}'\necho via-tool-shell\nexec /bin/bash -c "$2"\n`,
+        );
+        chmodSync(wrapper, 0o755);
+        process.env.HOUSTON_TOOL_SHELL_TEST_SECRET = "must-not-leak";
+        const tool = makeScrubbedBashTool(dir, {
+          memoryCapBytes: 768 * 1024 * 1024,
+          toolShell: wrapper,
+        });
+        const out = await tool.execute(
+          "call-1",
+          { command: 'echo "secret=[$HOUSTON_TOOL_SHELL_TEST_SECRET]"' },
+          new AbortController().signal,
+          undefined,
+          ctx,
+        );
+
+        expect(out.content[0]).toMatchObject({
+          text: expect.stringMatching(/^via-tool-shell\nsecret=\[\]\n/),
+        });
+        // One argument after -c: the memory prefix, then the model's command.
+        expect(readFileSync(marker, "utf8")).toBe(
+          'ulimit -d 786432 2>/dev/null\necho "secret=[$HOUSTON_TOOL_SHELL_TEST_SECRET]"',
+        );
+      } finally {
+        delete process.env.HOUSTON_TOOL_SHELL_TEST_SECRET;
+        rmSync(dir, { recursive: true });
+      }
+    },
+  );
+
+  test.skipIf(process.platform === "win32")(
+    "no tool shell runs the command in plain bash, as before",
+    async () => {
+      const dir = mkdtempSync(join(tmpdir(), "tool-shell-"));
+      try {
+        const tool = makeScrubbedBashTool(dir, {
+          memoryCapBytes: null,
+          toolShell: null,
+        });
+        const out = await tool.execute(
+          "call-2",
+          { command: "echo plain" },
+          new AbortController().signal,
+          undefined,
+          ctx,
+        );
+        expect(out.content[0]).toMatchObject({
+          text: expect.stringMatching(/^plain\b/),
+        });
+        expect(existsSync(join(dir, "ran"))).toBe(false);
+      } finally {
+        rmSync(dir, { recursive: true });
+      }
     },
   );
 });

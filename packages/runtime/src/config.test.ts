@@ -41,6 +41,7 @@ const OWNED = [
   "HOUSTON_CODE_EXECUTION",
   "HOUSTON_CODE_SANDBOX_URL",
   "HOUSTON_POOL_SINGLE_USE",
+  "HOUSTON_TOOL_SHELL",
 ] as const;
 
 const prior = new Map(OWNED.map((key) => [key, process.env[key]]));
@@ -222,4 +223,22 @@ test("the gateway relay stays the default run_code target", async () => {
     HOUSTON_CODE_EXECUTION: "remote",
   });
   expect(config.codeRunTarget).toBe("gateway");
+});
+
+test("no tool shell means model commands run as this process's user", async () => {
+  expect((await loadConfig({})).toolShell).toBeNull();
+  expect((await loadConfig({ HOUSTON_TOOL_SHELL: "  " })).toolShell).toBeNull();
+});
+
+test("an absolute tool shell is taken as given, trimmed", async () => {
+  const config = await loadConfig({
+    HOUSTON_TOOL_SHELL: " /opt/worker/tool-shell\n",
+  });
+  expect(config.toolShell).toBe("/opt/worker/tool-shell");
+});
+
+test("a relative tool shell refuses to boot rather than resolve in the workspace", async () => {
+  await expect(
+    loadConfig({ HOUSTON_TOOL_SHELL: "bin/tool-shell" }),
+  ).rejects.toThrow(/HOUSTON_TOOL_SHELL must be an absolute path/);
 });

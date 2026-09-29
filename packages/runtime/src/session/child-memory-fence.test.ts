@@ -1,14 +1,9 @@
-import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, describe, expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import {
   bashMemoryFencePrefix,
   CGROUP_MEMORY_LIMIT_FILES,
   CHILD_MEMORY_CAP_FLOOR_BYTES,
   childMemoryCapBytes,
-  claudeShellFenceScript,
-  ensureClaudeShellFence,
   parseCgroupMemoryLimit,
   readCgroupMemoryLimit,
 } from "./child-memory-fence";
@@ -90,34 +85,5 @@ describe("the fence shell lines", () => {
     expect(bashMemoryFencePrefix(768 * MiB)).toBe(
       "ulimit -d 786432 2>/dev/null",
     );
-  });
-
-  test("the Claude wrapper re-enters bash with the command it was handed", () => {
-    const script = claudeShellFenceScript(768 * MiB);
-    expect(script.startsWith("#!/bin/bash\n")).toBe(true);
-    expect(script).toContain("ulimit -d 786432 2>/dev/null\n");
-    expect(script).toContain('exec "$BASH" -c "$1"\n');
-  });
-});
-
-describe("ensureClaudeShellFence", () => {
-  const dirs: string[] = [];
-  afterEach(() => {
-    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true });
-  });
-
-  test("writes an executable wrapper and rewrites it for a new cap", () => {
-    const root = mkdtempSync(join(tmpdir(), "fence-"));
-    dirs.push(root);
-    const dir = join(root, "bin");
-
-    const path = ensureClaudeShellFence(dir, 768 * MiB);
-    expect(path).toBe(join(dir, "claude-shell-fence"));
-    expect(readFileSync(path, "utf8")).toBe(claudeShellFenceScript(768 * MiB));
-    if (process.platform !== "win32")
-      expect(statSync(path).mode & 0o111).toBe(0o111);
-
-    expect(ensureClaudeShellFence(dir, 512 * MiB)).toBe(path);
-    expect(readFileSync(path, "utf8")).toBe(claudeShellFenceScript(512 * MiB));
   });
 });

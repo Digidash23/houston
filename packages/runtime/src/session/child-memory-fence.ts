@@ -1,5 +1,4 @@
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { config } from "../config";
 
 /**
@@ -111,39 +110,7 @@ export function bashMemoryFencePrefix(capBytes: number): string {
   return `ulimit -d ${Math.floor(capBytes / 1024)} 2>/dev/null`;
 }
 
-/**
- * The wrapper the Claude CLI runs its Bash tool through when
- * `CLAUDE_CODE_SHELL_PREFIX` names it: the CLI appends the whole command as
- * ONE argument (verified against Claude Code 2.1), so `$1` is the command and
- * the wrapper re-enters bash under the cap. `$BASH` is the interpreter running
- * this script (always set inside a bash script), the same one the CLI chose.
- */
-export function claudeShellFenceScript(capBytes: number): string {
-  return [
-    "#!/bin/bash",
-    "# Written by the Houston runtime (session/child-memory-fence.ts).",
-    "# Runs the Claude CLI's shell commands under a per-process memory cap.",
-    bashMemoryFencePrefix(capBytes),
-    'exec "$BASH" -c "$1"',
-    "",
-  ].join("\n");
-}
-
-/**
- * Write the wrapper for `capBytes` under `dir` and return its absolute path.
- * Rewritten on every call (cheap, and a cap change must never leave a stale
- * script behind); mode 0755 so the CLI's shell can execute it.
- */
-export function ensureClaudeShellFence(dir: string, capBytes: number): string {
-  mkdirSync(dir, { recursive: true });
-  const path = join(dir, "claude-shell-fence");
-  writeFileSync(path, claudeShellFenceScript(capBytes), "utf8");
-  chmodSync(path, 0o755);
-  return path;
-}
-
 let resolvedCap: number | null | undefined;
-let resolvedFencePath: string | null | undefined;
 
 /**
  * This runtime's cap for model-spawned processes, decided once per process
@@ -157,19 +124,4 @@ export function resolveChildMemoryCap(): number | null {
       config.engineMemoryReserveBytes,
     );
   return resolvedCap;
-}
-
-/**
- * The absolute path of the Claude CLI shell wrapper for this runtime's cap,
- * written into the runtime's data dir on first use. Null when there is no cap.
- */
-export function claudeShellFencePath(): string | null {
-  if (resolvedFencePath === undefined) {
-    const cap = resolveChildMemoryCap();
-    resolvedFencePath =
-      cap === null
-        ? null
-        : ensureClaudeShellFence(join(config.dataDir, "bin"), cap);
-  }
-  return resolvedFencePath;
 }
