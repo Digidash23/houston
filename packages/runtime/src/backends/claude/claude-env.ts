@@ -1,6 +1,6 @@
 import { isAbsolute } from "node:path";
 import { isPersonalClaudePlan } from "../../auth/claude-plan";
-import { claudeShellFencePath } from "../../session/child-memory-fence";
+import { claudeShellFencePath } from "../../session/claude-shell-fence";
 import type { ClaudeToken } from "./backend-types";
 
 /**

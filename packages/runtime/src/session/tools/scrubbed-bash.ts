@@ -1,4 +1,5 @@
 import { createBashToolDefinition } from "@earendil-works/pi-coding-agent";
+import { config } from "../../config";
 import {
   bashMemoryFencePrefix,
   resolveChildMemoryCap,
@@ -103,17 +104,25 @@ export function bashMemoryFenceOptions(capBytes: number | null): {
  * server (desktop, self-host, standing pods) and the single-use pool worker
  * alike; a shell that can read the host credential is the same hole on all of
  * them.
+ *
+ * With a tool shell (`config.toolShell`; `toolShell` overrides it, null =
+ * none) pi spawns that wrapper as `<toolShell> -c <prefix+command>` instead
+ * of bash, so the command runs as the deployment's unprivileged tool user.
+ * The scrubbed env and the memory prefix still apply inside it.
  */
 export function makeScrubbedBashTool(
   cwd: string,
-  opts: { memoryCapBytes?: number | null } = {},
+  opts: { memoryCapBytes?: number | null; toolShell?: string | null } = {},
 ) {
   const cap =
     opts.memoryCapBytes === undefined
       ? resolveChildMemoryCap()
       : opts.memoryCapBytes;
+  const toolShell =
+    opts.toolShell === undefined ? config.toolShell : opts.toolShell;
   return createBashToolDefinition(cwd, {
     ...bashMemoryFenceOptions(cap),
+    ...(toolShell === null ? {} : { shellPath: toolShell }),
     spawnHook: (context) => ({ ...context, env: scrubbedBashEnv() }),
   });
 }

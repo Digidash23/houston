@@ -40,6 +40,11 @@ let workerRegistration: WorkerRegistration | null = null;
 
 async function start(): Promise<Server> {
   if (config.mode === "turn") {
+    // Model commands run as the tool user (config.toolShell), which shares
+    // only the group of the turn tree. Group-writable by default lets it edit
+    // the files this process hydrates and lets this process sync back what it
+    // writes; files written with an explicit private mode (credentials) keep it.
+    if (config.toolShell !== null) process.umask(0o002);
     const { AdmissionLimiter, turnConcurrency } = await import(
       "./turn/admission"
     );

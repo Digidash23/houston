@@ -37,9 +37,12 @@ export async function executeTurn(
   timings: Record<string, number>,
 ): Promise<void> {
   const root = await createTurnRoot(turn);
+  // Explicit modes, not the umask's: under a tool shell the umask is 002 and
+  // the root is group-shared, and the Claude CLI's shell runs as THIS user
+  // with HOME here, sourcing its dotfiles, so the tool user must not write it.
   await Promise.all([
-    mkdir(join(root, "home"), { recursive: true }),
-    mkdir(join(root, "claude-credstore"), { recursive: true }),
+    mkdir(join(root, "home"), { recursive: true, mode: 0o755 }),
+    mkdir(join(root, "claude-credstore"), { recursive: true, mode: 0o700 }),
   ]);
   timings.t_tmpdir = performance.now();
   setActiveTurnTimings(timings);

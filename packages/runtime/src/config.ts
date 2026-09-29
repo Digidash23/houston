@@ -7,6 +7,7 @@ import {
 } from "@houston/domain/assistant-role";
 import { DEFAULT_MODEL } from "@houston/domain/provider-default-models";
 import { CODEX_DEFAULT_MODEL } from "./ai/codex-offered";
+import { parseToolShell } from "./tool-shell-config";
 
 const env = process.env;
 
@@ -262,6 +263,13 @@ export const config = {
    */
   runCodeMaxConcurrent: Number(env.HOUSTON_RUN_CODE_MAX_CONCURRENT || 2),
   runCodePerMinute: Number(env.HOUSTON_RUN_CODE_PER_MINUTE || 10),
+  /**
+   * The wrapper every model-directed shell command runs through
+   * (`HOUSTON_TOOL_SHELL`, see tool-shell-config.ts), so it runs as a user
+   * that cannot read this process's memory or environ, or signal it. Null =
+   * commands run as this process's own user.
+   */
+  toolShell: parseToolShell(env.HOUSTON_TOOL_SHELL),
 
   /**
    * How long a turn's model request may go with NO activity — no wire event,
