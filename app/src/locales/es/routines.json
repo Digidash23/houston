@@ -151,7 +151,7 @@
       "reconnectCreator": "Quien creó la rutina tiene que volver a conectar {{provider}}. Cuando lo haga, reanuda la rutina.",
       "reconnectTeam": "Hay que volver a conectar {{provider}}. Cuando esté listo, reanuda la rutina.",
       "addCredits": "La cuenta de {{provider}} se quedó sin créditos. Agrega créditos o cambia de plan y luego reanuda la rutina.",
-      "changeModel": "La cuenta de {{provider}} no puede usar el modelo de esta rutina. Elige otro modelo abajo y luego reanuda la rutina.",
+      "changeModel": "La cuenta de {{provider}} no puede usar el modelo de esta rutina. Elige un modelo que la cuenta pueda usar y luego reanuda la rutina.",
       "resume": "Reanudar"
     }
   },

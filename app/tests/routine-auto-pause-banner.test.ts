@@ -82,7 +82,9 @@ describe("RoutineAutoPauseBanner", () => {
     ok(text(render(paused("team_not_connected"))).includes("This team has no"));
     ok(text(render(paused("creator_needs_reconnect"))).includes("reconnect"));
     ok(
-      text(render(paused("model_unavailable"))).includes("Pick another model"),
+      text(render(paused("model_unavailable"))).includes(
+        "Pick a model the account can run",
+      ),
     );
   });
 });

@@ -291,3 +291,45 @@ test("a turn that never reached a provider settles with the caller's failure", a
     failure: { code: "creator_not_connected", provider: "openai" },
   });
 });
+
+test("an earlier turn's provider error is never read as this run's failure", async () => {
+  const phase = await preparedPhase();
+  await store.writeText(
+    join(
+      workspaceDir,
+      ".houston",
+      "runtime",
+      "conversations",
+      "routine-daily-check.json",
+    ),
+    JSON.stringify({
+      id: "routine-daily-check",
+      messages: [
+        {
+          role: "assistant",
+          content: "",
+          ts: 2,
+          turnId: "turn-0",
+          providerError: {
+            kind: "quota_exhausted",
+            provider: "openai",
+            model: null,
+            scope: "paid_plan",
+            resets_at: null,
+            message: "Insufficient balance",
+          },
+        },
+      ],
+    }),
+  );
+  const done = await settleRoutineTurn({
+    workspaceDir,
+    phase,
+    conversationId: "routine-daily-check",
+    turnError: "worker crashed",
+    nowIso: NOW,
+    newId: () => "act-1",
+  });
+  expect(done).toMatchObject({ status: "error", summary: "worker crashed" });
+  expect(done?.failure).toBeUndefined();
+});

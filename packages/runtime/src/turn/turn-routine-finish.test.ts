@@ -117,6 +117,7 @@ async function seed(earlierFailures: number) {
           role: "assistant",
           content: "",
           ts: 1,
+          turnId: "turn-1",
           providerError: {
             kind: "unauthenticated",
             provider: "anthropic",
@@ -166,4 +167,40 @@ test("a failure short of the streak leaves the routines doc alone", async () => 
   expect(uploads).toEqual([]);
   const [saved] = JSON.parse(remote.get(ROUTINES_KEY) ?? "[]") as Routine[];
   expect(saved?.enabled).toBe(true);
+});
+
+test("the pause is rebased on the store's routines, never the stale tree copy", async () => {
+  const phase = await seed(ROUTINE_AUTO_PAUSE_AFTER - 1);
+  // While the turn ran, someone renamed r1 and added r2 in the store.
+  const other = { ...routine, id: "r2", name: "Weekly" };
+  remote.set(
+    ROUTINES_KEY,
+    JSON.stringify([{ ...routine, name: "Renamed" }, other]),
+  );
+  await finishRoutineTurn({
+    store,
+    prefix: "",
+    filesystem: filesystem(),
+    phase,
+    conversationId: "routine-r1",
+  });
+  const saved = JSON.parse(remote.get(ROUTINES_KEY) ?? "[]") as Routine[];
+  expect(saved.map((r) => [r.id, r.name, r.enabled])).toEqual([
+    ["r1", "Renamed", false],
+    ["r2", "Weekly", true],
+  ]);
+});
+
+test("a routine deleted from the store while the turn ran is not paused back", async () => {
+  const phase = await seed(ROUTINE_AUTO_PAUSE_AFTER - 1);
+  remote.set(ROUTINES_KEY, JSON.stringify([]));
+  await finishRoutineTurn({
+    store,
+    prefix: "",
+    filesystem: filesystem(),
+    phase,
+    conversationId: "routine-r1",
+  });
+  expect(uploads).toEqual([]);
+  expect(remote.get(ROUTINES_KEY)).toBe("[]");
 });

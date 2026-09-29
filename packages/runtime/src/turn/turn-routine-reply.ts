@@ -21,18 +21,22 @@ export interface RoutineReply {
 interface StoredMessage {
   role?: string;
   content?: string;
+  turnId?: string;
   providerError?: ProviderError;
 }
 
 /**
- * The last assistant message the runtime persisted for the conversation. Every
- * settled pooled turn appends one: a failed turn's is empty and carries its
- * typed providerError, which is what classifies the run (reconcile reads the
- * same message on a standing pod).
+ * The assistant message this run's turn persisted. A failed turn's is empty
+ * and carries its typed providerError, which is what classifies the run
+ * (reconcile reads the same message on a standing pod). A shared routine chat
+ * holds earlier runs' replies: a latest message stamped with another turn is
+ * not this run's answer, and reusing its providerError would count an old
+ * failure again. Messages from before turn stamps are read as before.
  */
 export async function lastAssistantReply(
   workspaceDir: string,
   conversationId: string,
+  turnId: string,
 ): Promise<RoutineReply> {
   const path = join(
     workspaceDir,
@@ -49,6 +53,7 @@ export async function lastAssistantReply(
     for (let i = messages.length - 1; i >= 0; i--) {
       const message = messages[i];
       if (message?.role !== "assistant") continue;
+      if (message.turnId !== undefined && message.turnId !== turnId) break;
       return {
         content: message.content ?? "",
         ...(message.providerError

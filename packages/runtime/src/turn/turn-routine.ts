@@ -133,9 +133,11 @@ export async function settleRoutineTurn(opts: {
   // Missing or already-terminal row: a cancel raced the turn — keep what the
   // canceller wrote.
   if (row?.status !== "running") return null;
+  // The pooled run's id IS its turn id (prepareRoutineTurn).
   const reply = await lastAssistantReply(
     opts.workspaceDir,
     opts.conversationId,
+    row.id,
   );
   const done =
     routineRunError(row, reply, opts) ??

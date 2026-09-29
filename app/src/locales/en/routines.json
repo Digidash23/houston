@@ -151,7 +151,7 @@
       "reconnectCreator": "The routine's creator needs to reconnect {{provider}}. Once that's done, resume the routine.",
       "reconnectTeam": "{{provider}} needs to be reconnected. Once that's done, resume the routine.",
       "addCredits": "The {{provider}} account is out of credits. Add credits or change plan, then resume the routine.",
-      "changeModel": "The {{provider}} account can't use this routine's model. Pick another model below, then resume the routine.",
+      "changeModel": "The {{provider}} account can't use this routine's model. Pick a model the account can run, then resume the routine.",
       "resume": "Resume"
     }
   },
