@@ -12,6 +12,7 @@ export async function uploadHttpObject(input: {
   headers: Record<string, string>;
   retryable: boolean;
   capture: (response: Response) => void;
+  signal?: AbortSignal;
 }): Promise<WriteResult | undefined> {
   const response = await uploadFile(
     input.fetchRequest,
@@ -19,6 +20,7 @@ export async function uploadHttpObject(input: {
     input.srcFile,
     input.headers,
     input.retryable,
+    input.signal,
   );
   input.capture(response);
   if (!response.ok) {

@@ -24,6 +24,13 @@ const warn = (what: string) => (reason: string) =>
   console.warn(`[claude-flags] ${what}: ${reason}`);
 
 /**
+ * The upload rides beside sync-back and the turn's terminal frame waits for
+ * both, so it gets a deadline sync-back does not: a stalled store costs the
+ * cache, never the finished turn.
+ */
+const UPLOAD_DEADLINE_MS = 5_000;
+
+/**
  * Hand the member's stored cache to the conversation's Claude config dir
  * before the CLI starts. Best-effort: without it the CLI fetches its flags
  * itself, as it always did.
@@ -60,6 +67,7 @@ export async function persistTurnClaudeFlags(input: {
   root: string;
   conversationId: string;
   userId: string | undefined;
+  deadlineMs?: number;
 }): Promise<void> {
   if (!input.userId) return;
   const { dataDir, dataRel } = input.filesystem;
@@ -81,10 +89,23 @@ export async function persistTurnClaudeFlags(input: {
     // Staged outside the hydrated tree, so sync-back never sees it.
     const staged = join(input.root, `claude-flags-${name}`);
     writeClaudeFlagCacheFile(staged, fresh);
-    await input.store.upload(
-      staged,
-      input.prefix ? posix.join(input.prefix, rel) : rel,
+    const deadline = AbortSignal.timeout(
+      input.deadlineMs ?? UPLOAD_DEADLINE_MS,
     );
+    // The signal cancels an HTTP upload; the race also bounds a store that
+    // cannot be cancelled.
+    await Promise.race([
+      input.store.upload(
+        staged,
+        input.prefix ? posix.join(input.prefix, rel) : rel,
+        { signal: deadline },
+      ),
+      new Promise<never>((_resolve, reject) =>
+        deadline.addEventListener("abort", () => reject(deadline.reason), {
+          once: true,
+        }),
+      ),
+    ]);
   } catch (error) {
     warn("could not store the flag cache")(
       error instanceof Error ? error.message : String(error),

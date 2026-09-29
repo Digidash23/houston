@@ -120,6 +120,7 @@ export class HttpObjectStore implements ObjectStore {
       headers,
       retryable,
       capture: (response) => this.captureFence(response),
+      ...(opts?.signal ? { signal: opts.signal } : {}),
     });
   }
 

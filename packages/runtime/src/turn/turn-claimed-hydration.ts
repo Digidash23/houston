@@ -1,6 +1,6 @@
 import type { ObjectStore } from "@houston/runtime-client/object-sync";
 import { startTurnFilesystem } from "./turn-filesystem";
-import { ownConversationOnly } from "./turn-hot-set";
+import { ownClaudeFlagsOnly, ownConversationOnly } from "./turn-hot-set";
 import type { TurnRequest } from "./types";
 
 /**
@@ -36,7 +36,7 @@ export function startTurnRequestFilesystem(input: {
           ),
           excludes: CLAIMED_TURN_EXCLUDES,
         }
-      : {}),
+      : { filter: ownClaudeFlagsOnly(input.turn.actingAs?.userId) }),
     timings: input.timings,
   });
 }

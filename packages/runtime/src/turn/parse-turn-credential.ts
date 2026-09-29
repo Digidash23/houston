@@ -1,8 +1,8 @@
-import type { ServedCredential } from "../auth/auth-file";
 import { parseClaudeSubscriptionType } from "../auth/claude-plan";
+import type { TurnCredential } from "./types";
 
 /** The turn envelope's served credential; null/absent = not connected. */
-export function parseTurnCredential(value: unknown): ServedCredential | null {
+export function parseTurnCredential(value: unknown): TurnCredential | null {
   if (value == null) return null;
   const c = value as Record<string, unknown>;
   if (

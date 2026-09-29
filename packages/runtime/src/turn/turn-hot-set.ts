@@ -14,6 +14,36 @@ function runtimeIndex(segments: string[]): number {
   return -1;
 }
 
+/** A runtime `claude-flags/` object is admitted only as the member's own file. */
+function ownFlagsFile(
+  segments: string[],
+  runtimeAt: number,
+  ownFlags: string | null,
+): boolean {
+  return (
+    segments.length === runtimeAt + 2 && segments[runtimeAt + 1] === ownFlags
+  );
+}
+
+/**
+ * Every object except other members' Claude flag caches: the whole-tree
+ * hydrate an unclaimed turn does still never lands another member's cache.
+ */
+export function ownClaudeFlagsOnly(
+  actingUserId?: string,
+): (rel: string) => boolean {
+  const ownFlags = actingUserId ? claudeFlagsFileName(actingUserId) : null;
+  return (rel) => {
+    const segments = rel.split("/");
+    const runtimeAt = runtimeIndex(segments);
+    return (
+      runtimeAt === -1 ||
+      segments[runtimeAt] !== CLAUDE_FLAGS_DIR ||
+      ownFlagsFile(segments, runtimeAt, ownFlags)
+    );
+  };
+}
+
 function mappedClaudeTranscript(
   hydratedRoot: string,
   sessionsRel: string,
@@ -75,7 +105,7 @@ export function ownConversationOnly(
     const own = segments[runtimeAt + 1];
     // Another member's flag cache is theirs alone: never on this turn's disk.
     if (kind === CLAUDE_FLAGS_DIR)
-      return segments.length === runtimeAt + 2 && own === ownFlags;
+      return ownFlagsFile(segments, runtimeAt, ownFlags);
     if (kind === "conversations" && segments.length === runtimeAt + 2) {
       return own === file;
     }

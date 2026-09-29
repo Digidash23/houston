@@ -173,3 +173,34 @@ test("a refused upload is reported and never fails the turn", async () => {
     expect.stringContaining("could not store the flag cache"),
   );
 });
+
+test("a stalled upload gives up at its deadline, reported", async () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const turn = turnRoot();
+  mkdirSync(turn.configDir, { recursive: true });
+  writeFileSync(
+    join(turn.configDir, CLAUDE_GLOBAL_CONFIG),
+    JSON.stringify(aliceFlags),
+  );
+  let signal: AbortSignal | undefined;
+  // A store that never answers and ignores cancellation.
+  const store = {
+    upload: (_src: string, _key: string, opts?: { signal?: AbortSignal }) => {
+      signal = opts?.signal;
+      return new Promise(() => {});
+    },
+  } as unknown as ObjectStore;
+  await persistTurnClaudeFlags({
+    store,
+    prefix: "",
+    filesystem: { dataDir: turn.dataDir, dataRel },
+    root: turn.root,
+    conversationId: "c1",
+    userId: "user-alice",
+    deadlineMs: 20,
+  });
+  expect(signal?.aborted).toBe(true);
+  expect(warn).toHaveBeenCalledWith(
+    expect.stringContaining("could not store the flag cache"),
+  );
+});

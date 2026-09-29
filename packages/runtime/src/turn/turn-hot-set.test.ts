@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { HydrateListedObject } from "@houston/runtime-client/object-sync";
 import { expect, test } from "vitest";
 import { claudeFlagsFileName } from "./claude-flags-path";
-import { ownConversationOnly } from "./turn-hot-set";
+import { ownClaudeFlagsOnly, ownConversationOnly } from "./turn-hot-set";
 
 const standing = "workspaces/Personal/Bob/.houston/runtime";
 const session = `${standing}/sessions/c1`;
@@ -141,4 +141,17 @@ test("hydrates the acting member's flag cache and no other member's", () => {
   // No acting member: nobody's cache.
   const anonymous = ownConversationOnly("c1");
   for (const path of paths) expect(anonymous(path, listing, root)).toBe(false);
+});
+
+test("an unclaimed turn's whole-tree hydrate still skips other members' caches", () => {
+  const alice = claudeFlagsFileName("user-alice");
+  const bob = claudeFlagsFileName("user-bob");
+  const asAlice = ownClaudeFlagsOnly("user-alice");
+  expect(asAlice(`${standing}/claude-flags/${alice}`)).toBe(true);
+  expect(asAlice(`${standing}/claude-flags/${bob}`)).toBe(false);
+  expect(asAlice(`data/claude-flags/${bob}`)).toBe(false);
+  // Everything else still hydrates, other conversations included.
+  expect(asAlice(`${standing}/conversations/c2.json`)).toBe(true);
+  expect(asAlice("workspaces/Personal/Bob/notes.md")).toBe(true);
+  expect(ownClaudeFlagsOnly()(`${standing}/claude-flags/${alice}`)).toBe(false);
 });

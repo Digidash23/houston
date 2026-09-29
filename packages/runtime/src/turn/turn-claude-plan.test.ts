@@ -4,14 +4,11 @@ import { join } from "node:path";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { beforeEach, expect, test, vi } from "vitest";
-import {
-  applyServedCredential,
-  type ServedCredential,
-} from "../auth/auth-file";
+import { applyServedCredential } from "../auth/auth-file";
 import type { ClaudeSubscriptionType } from "../auth/claude-plan";
 import { createTurnBackend } from "./turn-backend";
 import { turnSessionRequest } from "./turn-request";
-import type { TurnRequest } from "./types";
+import type { TurnCredential, TurnRequest } from "./types";
 
 const { built } = vi.hoisted(() => ({
   built: [] as { baseOptions: Options }[],
@@ -28,9 +25,7 @@ beforeEach(() => {
   built.length = 0;
 });
 
-const served = (
-  subscriptionType?: ClaudeSubscriptionType,
-): ServedCredential => ({
+const served = (subscriptionType?: ClaudeSubscriptionType): TurnCredential => ({
   provider: "anthropic",
   kind: "oauth",
   access: "sk-ant-oat01-served",
@@ -41,8 +36,8 @@ const served = (
 
 /** The CLI env of a Claude turn whose auth.json holds `onDisk`. */
 async function turnEnv(
-  credential: ServedCredential,
-  onDisk: ServedCredential = credential,
+  credential: TurnCredential,
+  onDisk: TurnCredential = credential,
 ): Promise<Record<string, string | undefined>> {
   const turnRoot = mkdtempSync(join(tmpdir(), "turn-claude-plan-"));
   const workspaceDir = join(turnRoot, "store", "workspace");
