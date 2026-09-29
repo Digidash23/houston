@@ -4,6 +4,7 @@ import { resolveClaudeExecutable } from "./binary-path";
 import { buildClaudeEnv } from "./claude-env";
 import { toSdkModel } from "./model";
 import { claudeLoginConfigDir } from "./paths";
+import { CLAUDE_QUERY_DEFAULTS } from "./query-defaults";
 import {
   anthropicCredentialStorageDir,
   assertAnthropicScopeCredential,
@@ -83,11 +84,9 @@ export async function oneShotWithClaude(
       credentialStorageDir: anthropicCredentialStorageDir(p.dataDir),
     }),
     ...(pathToClaudeCodeExecutable ? { pathToClaudeCodeExecutable } : {}),
-    settingSources: [],
+    ...CLAUDE_QUERY_DEFAULTS,
     allowedTools: [],
     systemPrompt: p.systemPrompt,
-    includePartialMessages: true,
-    permissionMode: "default",
     ...(p.modelId ? { model: toSdkModel(p.modelId) } : {}),
     ...(p.signal ? { abortController: abortControllerFor(p.signal) } : {}),
   };

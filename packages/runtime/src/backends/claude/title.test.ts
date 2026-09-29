@@ -117,3 +117,19 @@ test("a one-shot on the team scope with no token still runs (unchanged)", async 
   });
   expect(env().CLAUDE_CONFIG_DIR).toBe(claudeLoginConfigDir());
 });
+
+test("a one-shot names its session, so the CLI never spends a second request titling it", async () => {
+  let title: string | undefined;
+  const query: ClaudeQuery = ({ options }) => {
+    title = options.title;
+    return (async function* () {})();
+  };
+  await titleWithClaude({
+    excerpt: "hello",
+    titlePrompt: "title it",
+    workspaceDir: "/ws",
+    readToken: () => undefined,
+    query,
+  });
+  expect(title).toEqual(expect.stringMatching(/\S/));
+});
