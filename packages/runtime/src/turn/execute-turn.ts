@@ -8,13 +8,10 @@ import { startClaimHeartbeat } from "./claim-heartbeat";
 import { executeReadyTurn } from "./execute-ready-turn";
 import { executeShadowTurn } from "./execute-shadow-turn";
 import type { TurnServerDeps } from "./server-types";
+import { startTurnRequestFilesystem } from "./turn-claimed-hydration";
 import { cleanupTurn } from "./turn-cleanup";
 import { writeTurnCredential } from "./turn-credential";
-import {
-  startTurnFilesystem,
-  type TurnFilesystemPreparation,
-} from "./turn-filesystem";
-import { ownConversationOnly } from "./turn-hot-set";
+import type { TurnFilesystemPreparation } from "./turn-filesystem";
 import { TurnSetupError } from "./turn-layout";
 import { createTurnLog } from "./turn-log";
 import { setActiveTurnTimings } from "./turn-network-marks";
@@ -32,16 +29,6 @@ import { createTurnTranscript } from "./turn-transcript";
 import type { TurnRequest } from "./types";
 
 /** Execute one admitted turn inside an isolated, disposable filesystem root. */
-/**
- * Store objects a claimed turn never reads. A turn logs to stderr, never to
- * the per-agent pod's runtime.log (often the largest object an agent has),
- * and nothing reads the Claude CLI's rotated .claude.json backups.
- */
-const CLAIMED_TURN_EXCLUDES = [
-  "workspaces/*/*/.houston/runtime/runtime.log",
-  "claude-login/backups/",
-];
-
 export async function executeTurn(
   deps: TurnServerDeps,
   turn: TurnRequest,
@@ -88,23 +75,13 @@ export async function executeTurn(
               : {}),
           })
         : null;
-    preparation = await startTurnFilesystem({
+    preparation = await startTurnRequestFilesystem({
       store: resolved.store,
       prefix: resolved.prefix,
       root,
-      claimed: Boolean(turn.claim),
+      turn,
       ...(deps.maxHydrateBytes !== undefined
         ? { maxBytes: deps.maxHydrateBytes }
-        : {}),
-      // A pool turn hydrates its own conversation's history only: the other
-      // conversations are the bulk of a busy agent and nothing in a turn
-      // reads them. An unclaimed (legacy per-workspace) runtime keeps the
-      // full tree.
-      ...(turn.claim
-        ? {
-            filter: ownConversationOnly(turn.conversationId),
-            excludes: CLAIMED_TURN_EXCLUDES,
-          }
         : {}),
       timings,
     });

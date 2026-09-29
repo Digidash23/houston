@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import type { CustomIntegrationManager } from "@houston/host/src/integrations/custom/manager";
 import type { CustomIntegrationProvider } from "@houston/host/src/integrations/custom/provider";
+import { preloadCustomIntegrationModules } from "./custom-integration-loader";
 import type { TurnFilesystem } from "./turn-filesystem";
 
 const CUSTOM_DEFS_FILE = "custom-integrations.json";
@@ -28,13 +29,7 @@ export async function createTurnCustomContext(opts: {
     { CustomIntegrationProvider },
     { RemoteCustomSecretStore },
     { FileCustomIntegrationStore },
-  ] = await Promise.all([
-    import("@houston/host/src/integrations/custom/executor-host"),
-    import("@houston/host/src/integrations/custom/manager"),
-    import("@houston/host/src/integrations/custom/provider"),
-    import("@houston/host/src/integrations/custom/secrets"),
-    import("@houston/host/src/integrations/custom/store"),
-  ]);
+  ] = await preloadCustomIntegrationModules();
   const store = new FileCustomIntegrationStore(
     join(opts.filesystem.storeRoot, CUSTOM_DEFS_FILE),
   );

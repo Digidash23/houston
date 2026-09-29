@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import type { CustomIntegrationManager } from "@houston/host/src/integrations/custom/manager";
+import { preloadCustomIntegrationModules } from "./custom-integration-loader";
 import type { OpRequest } from "./parse-op-request";
 import type { TurnFilesystem } from "./turn-filesystem";
 import { poolIdentity } from "./turn-store";
@@ -34,14 +35,10 @@ export async function customIntegrationContext(
   const [
     { CustomExecutorHost },
     { CustomIntegrationManager },
+    ,
     { RemoteCustomSecretStore },
     { FileCustomIntegrationStore },
-  ] = await Promise.all([
-    import("@houston/host/src/integrations/custom/executor-host"),
-    import("@houston/host/src/integrations/custom/manager"),
-    import("@houston/host/src/integrations/custom/secrets"),
-    import("@houston/host/src/integrations/custom/store"),
-  ]);
+  ] = await preloadCustomIntegrationModules();
   const { org, agent } = poolIdentity(op.gcsPrefix);
   const store = new FileCustomIntegrationStore(
     join(filesystem.storeRoot, CUSTOM_DEFS_FILE),

@@ -9,6 +9,7 @@ import { resolveClaudeExecutable } from "./binary-path";
 import { buildClaudeEnv } from "./claude-env";
 import { buildHoustonMcpServer, HOUSTON_MCP_SERVER_NAME } from "./custom-tools";
 import { toSdkModel } from "./model";
+import { CLAUDE_QUERY_DEFAULTS } from "./query-defaults";
 import { assertAnthropicScopeCredential } from "./scope-guard";
 import {
   ClaudeBackendUnavailableError,
@@ -136,7 +137,7 @@ export function createClaudeBackend(deps: ClaudeBackendDeps): HarnessBackend {
         cwd: deps.workspaceDir,
         env: initialAuth.env,
         ...(pathToClaudeCodeExecutable ? { pathToClaudeCodeExecutable } : {}),
-        settingSources: [],
+        ...CLAUDE_QUERY_DEFAULTS,
         tools: policy.tools,
         disallowedTools: policy.disallowedTools,
         // Expose Houston's custom tools (ask_user + gated integration tools) via
@@ -159,8 +160,6 @@ export function createClaudeBackend(deps: ClaudeBackendDeps): HarnessBackend {
           opts.mode,
           opts.context,
         ),
-        includePartialMessages: true,
-        permissionMode: "default",
       };
 
       const sessionsStore = createSessionsStore({

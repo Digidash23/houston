@@ -4,11 +4,16 @@ import { resolveClaudeExecutable } from "./binary-path";
 import { buildClaudeEnv } from "./claude-env";
 import { toSdkModel } from "./model";
 import { claudeLoginConfigDir } from "./paths";
+import { CLAUDE_QUERY_DEFAULTS } from "./query-defaults";
 import {
   anthropicCredentialStorageDir,
   assertAnthropicScopeCredential,
 } from "./scope-guard";
-import { ClaudeBackendUnavailableError } from "./sdk-loader";
+import {
+  ClaudeBackendUnavailableError,
+  loadedClaudeSdk,
+  preloadClaudeSdk,
+} from "./sdk-loader";
 import type { ClaudeQuery } from "./session";
 import { createStreamTranslator } from "./translate";
 
@@ -63,8 +68,7 @@ export async function oneShotWithClaude(
   let query = p.query;
   if (!query) {
     try {
-      const sdk = await import("@anthropic-ai/claude-agent-sdk");
-      query = sdk.query as ClaudeQuery;
+      query = (await loadedClaudeSdk(preloadClaudeSdk())).query;
     } catch (err) {
       throw new ClaudeBackendUnavailableError(err);
     }
@@ -80,11 +84,9 @@ export async function oneShotWithClaude(
       credentialStorageDir: anthropicCredentialStorageDir(p.dataDir),
     }),
     ...(pathToClaudeCodeExecutable ? { pathToClaudeCodeExecutable } : {}),
-    settingSources: [],
+    ...CLAUDE_QUERY_DEFAULTS,
     allowedTools: [],
     systemPrompt: p.systemPrompt,
-    includePartialMessages: true,
-    permissionMode: "default",
     ...(p.modelId ? { model: toSdkModel(p.modelId) } : {}),
     ...(p.signal ? { abortController: abortControllerFor(p.signal) } : {}),
   };

@@ -241,6 +241,15 @@ test("the team scope still pins the shared login dir with no token (unchanged)",
   expect(built[0]?.baseOptions.env?.CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined();
 });
 
+test("every session names itself, so the CLI never spends a request titling it", async () => {
+  // Without an SDK `title` the CLI fires a Haiku generate_session_title call on
+  // the user's plan for every new conversation, inside the turn's startup.
+  // Houston titles conversations itself and never reads the CLI's title.
+  const backend = createClaudeBackend(backendDeps(() => oauth));
+  await backend.createSession({ conversationId: "c1", model: MODEL });
+  expect(built[0]?.baseOptions.title).toEqual(expect.stringMatching(/\S/));
+});
+
 test("the session's refreshAuth re-reads the CURRENT token — a rotation between turns reaches the next spawn (PRODUCT-1355)", async () => {
   // The live incident: the serve path updates auth.json every turn, but the
   // session's env was baked at build. refreshAuth must read THROUGH to the
