@@ -24,9 +24,9 @@ function readOutcome(userId: string): "done" | "skipped" | null {
 /**
  * The "Continue migration" section shows only when a re-run makes sense: a
  * hosted desktop build, legacy data still on THIS machine, and this machine's
- * migration not already completed ("done"). Mirrors `useProfileAvailable` — a
- * hook the settings view calls to gate the row. The detect query shares its key
- * with the wizard gate's, so React Query dedupes the filesystem scan. Identity
+ * migration not already completed ("done"). A hook the settings view calls to
+ * gate the row. The detect query shares its key with the wizard gate's, so
+ * React Query dedupes the filesystem scan. Identity
  * (Firebase) has no client-writable user metadata, so the completed state is the
  * per-machine localStorage outcome (the retired Supabase `user_metadata` flag).
  */

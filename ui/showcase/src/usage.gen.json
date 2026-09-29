@@ -3,7 +3,7 @@
     "surfaces": [
       "App shell"
     ],
-    "fileCount": 1
+    "fileCount": 2
   },
   "agents-files-browser": {
     "surfaces": [
@@ -15,13 +15,19 @@
     "surfaces": [
       "App shell"
     ],
-    "fileCount": 2
+    "fileCount": 1
   },
   "agents-sidebar-row-button": {
     "surfaces": [
       "ui/layout (internal)"
     ],
     "fileCount": 1
+  },
+  "agents-sidebar-workspace-switcher": {
+    "surfaces": [
+      "App shell"
+    ],
+    "fileCount": 2
   },
   "agents-split-view": {
     "surfaces": [
@@ -63,7 +69,6 @@
     "surfaces": [
       "Activity",
       "App shell",
-      "Settings",
       "ui/board (internal)"
     ],
     "fileCount": 6
@@ -168,8 +173,8 @@
       "App shell",
       "Organization",
       "Permissions",
-      "Settings",
       "Store website",
+      "Your account",
       "ui/board (library)",
       "ui/store (library)"
     ],
@@ -210,6 +215,7 @@
       "Web app",
       "Your AI Employees",
       "Your Agents",
+      "Your account",
       "app/src/components",
       "ui/agent (library)",
       "ui/board (library)",
@@ -218,7 +224,7 @@
       "ui/routines (library)",
       "ui/store (library)"
     ],
-    "fileCount": 152
+    "fileCount": 151
   },
   "core-button-group": {
     "surfaces": [
@@ -336,7 +342,7 @@
       "ui/routines (library)",
       "ui/store (library)"
     ],
-    "fileCount": 30
+    "fileCount": 33
   },
   "core-empty": {
     "surfaces": [
@@ -424,6 +430,7 @@
       "Store website",
       "Store website (admin)",
       "Your Agents",
+      "Your account",
       "app/src/components",
       "ui/review (library)",
       "ui/store (library)"
@@ -531,6 +538,7 @@
       "Store website",
       "Store website (admin)",
       "Your Agents",
+      "Your account",
       "app/src/components",
       "ui/store (library)"
     ],
@@ -588,7 +596,7 @@
       "ui/layout (library)",
       "ui/routines (library)"
     ],
-    "fileCount": 14
+    "fileCount": 15
   },
   "core-verified-badge": {
     "surfaces": [

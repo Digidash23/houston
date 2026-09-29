@@ -1,8 +1,9 @@
 import { AppSidebar, type SidebarRootEntry } from "@houston-ai/layout";
 import { useState } from "react";
 
-import { BlockRollup, RailActions, RailFoot } from "./app-sidebar-stage";
-import { agentGroups, agentItems, TeamIcon } from "./sample";
+import { RailFoot } from "./app-sidebar-foot";
+import { AddEmployee, BlockRollup, RailActions } from "./app-sidebar-stage";
+import { agentGroups, agentItems, managerItem, TeamIcon } from "./sample";
 
 export interface LiveSidebarProps {
   /** Pass `groups` and the drag-and-drop grouped layout replaces the flat list. */
@@ -11,7 +12,9 @@ export interface LiveSidebarProps {
   teams?: boolean;
   /** Start as the 56px icon rail. The toggle stays live either way. */
   startCollapsed?: boolean;
-  /** The full shell chrome: the top line's verbs and the account foot. */
+  /** The full shell chrome: the top line's verbs and the foot (the connect
+   *  rows, the account). Houston pinned first and the shortcut closing the
+   *  list are always drawn: they are the list's own. */
   chrome?: boolean;
   /** Reserve a top row for host window controls. */
   windowControlsInset?: boolean;
@@ -56,6 +59,7 @@ export function LiveSidebar({
       collapsed={collapsed}
       onToggleCollapsed={() => setCollapsed((on) => !on)}
       headerActions={chrome ? <RailActions collapsed={collapsed} /> : undefined}
+      pinnedItems={[managerItem]}
       items={agentItems}
       order={order}
       groups={
@@ -100,6 +104,7 @@ export function LiveSidebar({
         );
         return true;
       }}
+      listFooter={<AddEmployee collapsed={collapsed} />}
       footer={chrome ? <RailFoot collapsed={collapsed} /> : undefined}
     />
   );

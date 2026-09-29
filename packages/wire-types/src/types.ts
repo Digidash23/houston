@@ -275,7 +275,7 @@ export interface EditableProfileCustom {
  * value. Either can be absent — a user with no Google picture and no upload
  * resolves to a bare `{ custom: … }`, so a consumer falls back to initials
  * rather than render an empty face. Degrades to `null` on a gateway that
- * predates the route (404), which hides the Settings profile section entirely.
+ * predates the route (404), which hides the account menu's Profile entirely.
  */
 export interface EditableProfile {
   displayName?: string;

@@ -75,7 +75,7 @@ test("is first in Agents and absent from More", async ({ page }) => {
   // The More menu keeps its destinations and no longer lists the Manager.
   const menu = await openMoreMenu(page);
   await expect(
-    menu.getByRole("button", { name: "Integrations" }),
+    menu.getByRole("button", { name: "Connect your apps" }),
   ).toBeVisible();
   await expect(
     menu.getByRole("button", { name: /Houston|AI Manager/ }),

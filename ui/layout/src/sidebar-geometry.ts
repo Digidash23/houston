@@ -120,6 +120,26 @@ export const sidebarCollapsedItem = {
 } as const;
 
 /**
+ * The add row closing the list: a shortcut, not a member, so it is shorter
+ * than a person row (40px, the portrait's own height) while keeping the
+ * person row's columns: its Plus centred in the portrait column, its label
+ * on the names' left edge.
+ */
+export const sidebarAddRow = {
+  height: "h-10",
+} as const;
+
+/**
+ * The add row's empty seat: the portrait slot of whichever rail it is on,
+ * holding a bare Plus, so the glyph centres on the avatars above it. The Plus
+ * is the 16px standard glyph in both.
+ */
+export const sidebarSeat = {
+  expanded: { diameter: sidebarPersonRow.avatarDiameter, glyph: 16 },
+  collapsed: { diameter: sidebarCollapsedItem.avatarDiameter, glyph: 16 },
+} as const;
+
+/**
  * A row has TWO horizontal gaps and they want opposite things, which is why
  * there is no single `gap` on the row. One `gap` would set both at once:
  * tightening the icon side drags the trailing side in with it, and the badge
@@ -166,10 +186,3 @@ export const sidebarRowEndMargin = "mr-2";
 export const sidebarRowType = {
   item: "text-[13px] leading-5 font-weight-510",
 } as const;
-
-/** The 40px top row and 84px host window controls zone reserve space for
- *  native controls while keeping the icon rail centred below them. */
-export const sidebarWindowControlsHeight = "h-10";
-export const sidebarWindowControlsWidth = "w-[84px]";
-export const sidebarCollapsedWidth = "w-[56px]";
-export const sidebarExpandedWidth = "w-[272px]";

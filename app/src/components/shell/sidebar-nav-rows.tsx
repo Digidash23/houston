@@ -1,57 +1,46 @@
-import { Boxes, Building2, GraduationCap } from "lucide-react";
+import { Building2, GraduationCap, Settings } from "lucide-react";
 import {
   ACADEMY_VIEW_ID,
   ADMIN_VIEW_ID,
-  AI_HUB_VIEW_ID,
+  SETTINGS_VIEW_ID,
 } from "../../lib/top-level-views";
 import type { MenuRow } from "./menu-row";
-import type { SidebarChromeT } from "./sidebar-chrome";
 import { tourAnchor } from "./workspace-tour-steps.ts";
 
-/** The rail's GATED rows, keyed by the gate each one rides. */
-export interface GatedNavRows {
-  /** `showAiModels` — the AI Models hub, leading the shared run. */
-  aiModels: MenuRow;
-}
+/**
+ * The destinations BOTH breakpoints draw beside the account: items in the
+ * rail's account menu (`sidebar-workspace-menu.tsx`), rows in the phone's More
+ * card (`mobile-more-menu.tsx`). One builder per destination, so the two can never
+ * disagree on the label, the glyph, the destination or the anchor. Callers
+ * resolve the label (they hold `t` over different namespace sets) and say how
+ * the destination opens.
+ */
 
 /**
- * The rows a gate can take away, built apart from the runs that compose them
- * (`sidebar-nav-sections.tsx`).
- *
- * AI Models carries its tour anchor, so keeping it here leaves the
- * composition file free to state the information architecture and nothing
- * else. The UNGATED rows stay inline
- * there: a row every deployment has is part of the IA, not a variable in it.
+ * The Admin destination. Callers show it only behind the organization gate
+ * (`showOrganization`).
  */
-export function gatedNavRows(args: {
-  t: SidebarChromeT;
-  setViewMode: (view: string) => void;
-}): GatedNavRows {
-  const { t, setViewMode } = args;
+export function adminNavRow(args: {
+  /** `shell:sidebar.admin`. */
+  label: string;
+  onOpen: () => void;
+}): MenuRow {
   return {
-    aiModels: {
-      id: AI_HUB_VIEW_ID,
-      label: t("shell:sidebar.aiModels"),
-      icon: <Boxes className="h-4 w-4" />,
-      onClick: () => setViewMode(AI_HUB_VIEW_ID),
-      dataAttrs: tourAnchor("nav-ai-hub"),
-    },
+    id: ADMIN_VIEW_ID,
+    label: args.label,
+    icon: <Building2 className="h-4 w-4" />,
+    onClick: args.onOpen,
+    dataAttrs: { "data-testid": "rail-admin" },
   };
 }
 
 /**
- * The Academy row, built here because BOTH breakpoints draw it: the workspace
- * menu's last run, right above Settings (`sidebar-workspace-menu.tsx`), and
- * the tail of the phone's More menu (`mobile-more-menu.tsx`). One row, one
- * label, one destination, whichever menu renders it.
- *
- * It is ungated on purpose, like Settings beside it: every deployment ships
- * the Academy, and learning to fly is nobody's admin territory. The Houston
- * tour lesson ends on it, so it carries the `nav-academy` anchor on both.
+ * The Academy destination. Ungated on purpose, like Settings: every
+ * deployment ships the Academy, and learning to fly is nobody's admin
+ * territory.
  */
 export function academyNavRow(args: {
-  /** `shell:sidebar.academy`, resolved by the caller: the two clusters that
-   *  draw this row hold `t` over different namespace sets. */
+  /** `shell:sidebar.academy`. */
   label: string;
   onOpen: () => void;
 }): MenuRow {
@@ -65,20 +54,19 @@ export function academyNavRow(args: {
 }
 
 /**
- * The Admin row, built once for both breakpoints: the head of the workspace
- * run in the rail's menu and in the phone's More card. Callers show it only
- * behind the organization gate (`showOrganization`).
+ * The Settings destination, opened on its INDEX by the caller, never on a
+ * leftover section. Report bug is a section inside it.
  */
-export function adminNavRow(args: {
-  /** `shell:sidebar.admin`, resolved by the caller. */
+export function settingsNavRow(args: {
+  /** `shell:sidebar.settings`. */
   label: string;
   onOpen: () => void;
 }): MenuRow {
   return {
-    id: ADMIN_VIEW_ID,
+    id: SETTINGS_VIEW_ID,
     label: args.label,
-    icon: <Building2 className="h-4 w-4" />,
+    icon: <Settings className="h-4 w-4" />,
     onClick: args.onOpen,
-    dataAttrs: { "data-testid": "rail-admin" },
+    dataAttrs: tourAnchor("nav-settings"),
   };
 }

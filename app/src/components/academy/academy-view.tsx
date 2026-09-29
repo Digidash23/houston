@@ -20,7 +20,7 @@ import { useAcademyOpened } from "./use-academy-opened";
 /**
  * Houston Academy: learning the product as a climb rather than a manual.
  *
- * A TOP-LEVEL view for everyone, under About me. It is ungated on purpose:
+ * A TOP-LEVEL view for everyone, in the rail's account menu. It is ungated on purpose:
  * learning the product is not a preference and belongs to nobody's admin
  * territory, so it is a row of its own and owns the whole window, with no back
  * bar because there is no level above it.

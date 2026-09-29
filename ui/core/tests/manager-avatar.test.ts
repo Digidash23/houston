@@ -4,23 +4,16 @@ import { describe, it } from "node:test";
 import { createElement, Fragment } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { avatarHelmetSize } from "../src/components/houston-avatar.tsx";
-import { ManagerAvatar } from "../src/components/manager-avatar.tsx";
+import {
+  ManagerAvatar,
+  managerAvatarSizeWithin,
+} from "../src/components/manager-avatar.tsx";
 
 const render = (size: number, className?: string) =>
   renderToStaticMarkup(createElement(ManagerAvatar, { size, className }));
 
 const idsOf = (html: string) =>
   [...html.matchAll(/ id="([^"]+)"/g)].map((m) => m[1]);
-
-/** The vertices of the avatar's shape, in its 100-unit viewBox. */
-function shapePoints(html: string): [number, number][] {
-  const d = html.match(/<clipPath[^>]*><path d="([^"]+)"/)?.[1];
-  assert.ok(d, "the shape is drawn as a path");
-  return [...d.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((m) => [
-    Number(m[1]),
-    Number(m[2]),
-  ]);
-}
 
 /** The primary Button's paint, as canvas.css §4 declares it. */
 function buttonPaint(): { fill: string; rim: string; label: string } {
@@ -55,21 +48,41 @@ describe("ManagerAvatar", () => {
     }
   });
 
-  it("draws a true superellipse, not a circle or a rounded square", () => {
-    const points = shapePoints(render(32));
-    assert.ok(points.length >= 64, `${points.length} vertices`);
-    for (const [x, y] of points) {
-      const nx = Math.abs(x - 50) / 50;
-      const ny = Math.abs(y - 50) / 50;
-      // |x|^5 + |y|^5 = 1, within the path's two-decimal rounding.
-      assert.ok(Math.abs(nx ** 5 + ny ** 5 - 1) < 0.01, `${x},${y}`);
-    }
-    // Its 45-degree corner sits well outside a circle's (0.707) and inside a
-    // square's (1).
-    const corner = Math.max(
-      ...points.map(([x, y]) => Math.min(x - 50, y - 50) / 50),
+  it("is a disc filling its box, round like every employee avatar", () => {
+    const html = render(32);
+    const disc = '<circle cx="50" cy="50" r="50"';
+    // The clip, the fill and the rim are all the same full-box circle.
+    assert.equal(html.split(disc).length - 1, 3);
+    assert.match(html, /<clipPath[^>]*><circle cx="50" cy="50" r="50"/);
+  });
+
+  it("wears a thin halo outside the disc, drawn past its box", () => {
+    const html = render(24);
+    assert.match(html, /overflow="visible"/);
+    const halo = html.match(
+      /<circle cx="50" cy="50" r="([\d.]+)" fill="none" stroke-width="([\d.]+)" style="stroke:var\(--ht-cta\)" data-manager-halo=""/,
     );
-    assert.ok(corner > 0.8 && corner < 0.9, `corner at ${corner}`);
+    assert.ok(halo, "the halo");
+    const px = (units: number) => (Number(units) * 24) / 100;
+    // At 24px: 1.5px of air, then a 1px line, 29px across in all.
+    assert.equal(Number(px(Number(halo[2])).toFixed(2)), 1);
+    const inner = px(Number(halo[1]) - Number(halo[2]) / 2);
+    assert.equal(Number((inner - 12).toFixed(2)), 1.5);
+    const outer = px(Number(halo[1]) + Number(halo[2]) / 2) * 2;
+    assert.equal(Number(outer.toFixed(2)), 29);
+    // At the rail row's 40px the line steps to 1.5px, 2.25px clear.
+    const big = render(40).match(
+      /r="([\d.]+)" fill="none" stroke-width="([\d.]+)"/,
+    );
+    assert.ok(big);
+    const px40 = (units: number) => (Number(units) * 40) / 100;
+    assert.equal(Number(px40(Number(big[2])).toFixed(2)), 1.5);
+    assert.equal(
+      Number((px40(Number(big[1]) - Number(big[2]) / 2) - 20).toFixed(2)),
+      2.25,
+    );
+    // Drawn before the disc, so it can never cover the helmet.
+    assert.ok(html.indexOf("data-manager-halo") < html.indexOf("<g transform"));
   });
 
   it("wears the primary Button's own fill, rim and label tokens", () => {
@@ -94,13 +107,11 @@ describe("ManagerAvatar", () => {
       assert.doesNotMatch(html, /#[0-9a-f]{3,8}\b|rgba?\(/i);
       assert.doesNotMatch(html, /<filter|Gradient|mask=/, `${size}px`);
     }
-    for (const file of ["manager-avatar.tsx", "manager-avatar-geometry.ts"]) {
-      const source = readFileSync(
-        new URL(`../src/components/${file}`, import.meta.url),
-        "utf8",
-      );
-      assert.doesNotMatch(source, /#[0-9a-f]{3,8}\b|rgba?\(/i, file);
-    }
+    const source = readFileSync(
+      new URL("../src/components/manager-avatar.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.doesNotMatch(source, /#[0-9a-f]{3,8}\b|rgba?\(/i);
   });
 
   it("keeps the rim one pixel inside the edge at every size", () => {
@@ -150,5 +161,26 @@ describe("ManagerAvatar", () => {
         assert.ok(html.includes(`url(#${id})`), id);
       }
     }
+  });
+});
+
+describe("managerAvatarSizeWithin", () => {
+  /** The halo's outer reach in pixels, read off the rendered markup. */
+  const extent = (size: number) => {
+    const halo = render(size).match(
+      /r="([\d.]+)" fill="none" stroke-width="([\d.]+)"/,
+    );
+    assert.ok(halo);
+    return ((Number(halo[1]) + Number(halo[2]) / 2) * 2 * size) / 100;
+  };
+
+  it("picks the largest disc whose halo still fits the slot", () => {
+    for (const slot of [24, 29, 52, 56]) {
+      const size = managerAvatarSizeWithin(slot);
+      assert.ok(extent(size) <= slot + 0.01, `${slot}px slot`);
+      assert.ok(extent(size + 1) > slot, `${slot}px: one more overflows`);
+    }
+    // A 52px phone slot, the employees' own avatar diameter, holds a 42px disc.
+    assert.equal(managerAvatarSizeWithin(52), 42);
   });
 });

@@ -12,12 +12,15 @@ import { screen } from "../support/team-nav";
  * The phone's More menu: the card the nav bar raises for everything outside the
  * AI Employees tree.
  *
- * It is headed by the same account row as the desktop rail's foot, and its
- * destinations ARE the desktop menu's (`useSidebarNavItems`), so this spec
- * guards the things that could drift — the list the seeded single-player
- * deployment actually offers, and the rail's tour anchors resolving to these
- * rows — plus the rule that picking one closes the menu instead of leaving it
- * floating over the screen it opened.
+ * It holds the desktop rail's foot: a workspace switcher heading it (the
+ * choices the rail's account menu offers), the same connect group
+ * (`ConnectGroup`), then the account menu's destinations as rows (the
+ * account, Admin, the Academy, Settings), built by the same builders, so
+ * this spec guards the things that
+ * could drift — the list the seeded single-player deployment actually offers,
+ * and the rail's tour anchors resolving to these controls — plus the rule that
+ * picking one closes the menu instead of leaving it floating over the screen
+ * it opened.
  */
 
 test("More opens the card and closes again without navigating", async ({
@@ -27,7 +30,7 @@ test("More opens the card and closes again without navigating", async ({
 
   const menu = await openMoreMenu(page);
   await expect(
-    menu.getByRole("button", { name: "Integrations" }),
+    menu.getByRole("button", { name: "Connect your apps" }),
   ).toBeVisible();
 
   await page.keyboard.press("Escape");
@@ -43,19 +46,24 @@ test("the menu lists what this deployment offers, with the rail's anchors", asyn
   await page.goto("/");
   const menu = await openMoreMenu(page);
 
-  for (const label of ["Integrations", "AI Models"]) {
+  for (const label of ["Connect your apps", "Connect your AI"]) {
     await expect(
       menu.getByRole("button", { name: label, exact: true }),
-      `"${label}" should be a row of the More menu`,
+      `"${label}" should be a row of the More menu's connect group`,
     ).toBeVisible();
   }
 
   // The single-player seed is below the org gate, so Admin has no row.
   await expect(menu.getByTestId("rail-admin")).toHaveCount(0);
 
-  // The rows carry the RAIL's own attributes, so one anchor names the same
-  // destination on both breakpoints.
-  for (const anchor of ["nav-integrations", "nav-ai-hub", "nav-settings"]) {
+  // The connect rows and the other rows carry the RAIL's own attributes, so
+  // one anchor names the same destination on both breakpoints.
+  for (const anchor of [
+    "nav-integrations",
+    "nav-ai-hub",
+    "nav-academy",
+    "nav-settings",
+  ]) {
     await expect(
       moreRow(page, anchor),
       `the menu should carry the "${anchor}" anchor`,
@@ -96,6 +104,45 @@ test("Admin appears in More only for an admitted caller", async ({
   ).toBeVisible();
 });
 
+test("the account's destinations follow the connect rows, in the rail's order", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const menu = await openMoreMenu(page);
+  const ys: number[] = [];
+  for (const row of [
+    moreRow(page, "nav-ai-hub"),
+    menu.getByTestId("more-account"),
+    moreRow(page, "nav-academy"),
+    moreRow(page, "nav-settings"),
+  ]) {
+    const box = await row.boundingBox();
+    if (!box) throw new Error("the card is not laid out");
+    ys.push(box.y);
+  }
+  expect(ys).toEqual([...ys].sort((a, b) => a - b));
+
+  // The account row opens the person's menu. The single-player seed has no
+  // identity, so it holds About me alone: no header, no Sign out.
+  await menu.getByTestId("more-account").tap();
+  const account = page.getByRole("menu");
+  await expect(
+    account.getByRole("menuitem", { name: "About me", exact: true }),
+  ).toBeVisible();
+  await expect(account.getByRole("menuitem", { name: "Sign out" })).toHaveCount(
+    0,
+  );
+
+  // About me is a screen of its own: the card steps aside and the screen
+  // takes the glass, headed by its own title.
+  await account.getByRole("menuitem", { name: "About me", exact: true }).tap();
+  await expect(moreMenu(page)).toBeHidden();
+  await expect(screen(page)).toHaveAttribute("data-screen", "about-me");
+  await expect(
+    screen(page).getByRole("heading", { name: "About me", level: 1 }),
+  ).toBeVisible();
+});
+
 test("the Settings row opens the settings index", async ({ page }) => {
   await page.goto("/");
   await openMoreMenu(page);
@@ -110,7 +157,7 @@ test("the Settings row opens the settings index", async ({ page }) => {
   await expect(screen(page).getByText("General")).toBeVisible();
 });
 
-test("a destination row lands on its screen and closes the menu", async ({
+test("a connect row lands on its screen and closes the menu", async ({
   page,
 }) => {
   await page.goto("/");
@@ -125,23 +172,22 @@ test("a destination row lands on its screen and closes the menu", async ({
   await expect(navItem(page, "more")).toHaveAttribute("aria-current", "page");
 });
 
-test("the account row heads the card and switches workspace from its menu", async ({
+test("the workspace switcher heads the card and switches workspace from its menu", async ({
   page,
 }) => {
   await page.goto("/");
   const menu = await openMoreMenu(page);
-  const account = menu.locator(
-    '[data-testid="more-account"] button[aria-haspopup="menu"]',
-  );
-  await expect(account).toBeVisible();
+  const switcher = menu.getByTestId("more-workspace-switcher");
+  await expect(switcher).toHaveAttribute("aria-haspopup", "menu");
+  await expect(switcher).toBeVisible();
   // It heads the card: nothing in the card sits above it.
-  const accountBox = await account.boundingBox();
-  const firstRow = await moreRow(page, "nav-ai-hub").boundingBox();
-  if (!accountBox || !firstRow) throw new Error("the card is not laid out");
-  expect(accountBox.y + accountBox.height).toBeLessThanOrEqual(firstRow.y);
+  const switcherBox = await switcher.boundingBox();
+  const firstRow = await moreRow(page, "nav-integrations").boundingBox();
+  if (!switcherBox || !firstRow) throw new Error("the card is not laid out");
+  expect(switcherBox.y + switcherBox.height).toBeLessThanOrEqual(firstRow.y);
 
   // Its menu is the workspace run: the current one checked, then create.
-  await account.tap();
+  await switcher.tap();
   await expect(
     page.getByRole("menuitemcheckbox", { checked: true }),
   ).toHaveCount(1);

@@ -3,17 +3,16 @@ import { Plus } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useCapabilities } from "../../hooks/use-capabilities";
-import { useMyProfile } from "../../hooks/use-my-profile";
 import { hasSpaces } from "../../lib/org-roles";
 import { useWorkspaceStore } from "../../stores/workspaces";
 import { CreateOrganizationDialog } from "./create-organization-dialog";
-import { SidebarProfileAvatar } from "./sidebar-profile-avatar";
 
 /**
- * The account row and its workspace run, shared by the desktop rail's foot
+ * The workspace menu's rows, shared by the rail's account row at its foot
  * (`sidebar-workspace-menu.tsx`) and the head of the phone's More card
- * (`mobile-more-menu.tsx`), so the two breakpoints show the same person, the
- * same workspace line and the same switch-or-create choices.
+ * (`mobile-more-menu.tsx`), so the two breakpoints offer the same
+ * switch-or-create choices. The switcher's own face is
+ * `workspace-switcher-face.tsx`.
  */
 
 /**
@@ -41,33 +40,6 @@ export function MenuItemRow(props: {
       <span className="min-w-0 flex-1 truncate">{props.label}</span>
     </DropdownMenuItem>
   );
-}
-
-/**
- * Who is signed in and where, as the account row draws it: the person's
- * portrait and name over the workspace they are in. Single-player desktop has
- * no identity, so there the workspace takes the name line alone, beside a
- * plain person glyph.
- */
-export function useAccountFace(): {
-  avatar: ReactNode;
-  title: string;
-  subtitle: string | undefined;
-} {
-  const { t } = useTranslation("shell");
-  const profile = useMyProfile();
-  const current = useWorkspaceStore((s) => s.current);
-  const workspaceName = current?.name ?? t("sidebar.selectWorkspace");
-  return {
-    avatar: (
-      <SidebarProfileAvatar
-        name={profile?.name ?? null}
-        avatarUrl={profile?.avatarUrl ?? null}
-      />
-    ),
-    title: profile?.name ?? workspaceName,
-    subtitle: profile ? workspaceName : undefined,
-  };
 }
 
 /**

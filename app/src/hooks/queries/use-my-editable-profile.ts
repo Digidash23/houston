@@ -28,7 +28,7 @@ export const MY_EDITABLE_PROFILE_KEY = "my-editable-profile";
  * yourself is not a team feature; every signed-in user gets it. It only needs a
  * configured identity backend and a live session. Off-gateway, or on a gateway
  * predating the route (which 404s), the read degrades to `null` and the caller
- * hides the profile section rather than offering an editor that cannot save.
+ * hides the Profile screen rather than offering an editor that cannot save.
  * A failure never toasts and is never captured (see `tauriProfile.get`): it is
  * indistinguishable from "this host has no such feature" by design.
  *

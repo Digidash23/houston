@@ -1,24 +1,14 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { ASSISTANT_COMPOSER } from "./composer";
 import { screen } from "./team-nav";
-import { openDestination, openDestinations } from "./workspace-menu";
+import {
+  openAccountMenu,
+  openDestination,
+  openDestinations,
+} from "./workspace-menu";
 
-/** Settings sections and the rail's Assistant and Admin screens. */
-
-/**
- * The Settings index's About me row. What the agents know about the PERSON is
- * a standing preference, so it is a section of Settings rather than a rail
- * destination, and it is reached the way a user reads it: by name, on the
- * index (`settings:nav.aboutMe` = "About me").
- *
- * Anchored on the row's TITLE rather than its whole accessible name: every
- * settings row reads its description out too (`settings:index.rows.aboutMe`),
- * so the name is the title plus that sentence, and an exact match would pin
- * copy this helper has no business owning.
- */
-export function aboutMeRow(page: Page): Locator {
-  return screen(page).getByRole("button", { name: /^About me/ });
-}
+/** Settings sections, the account menu's screens, and the rail's Assistant
+ *  and Admin screens. */
 
 /**
  * The rail's AI Manager row, pinned first in the employees band. Gated on
@@ -44,11 +34,12 @@ export async function openAssistant(page: Page): Promise<void> {
 }
 
 /**
- * The gated Admin row of the workspace menu (the phone's More card), OPENED
- * first so a spec asserting its absence reads the gate, not a closed menu.
+ * The gated Admin item of the rail's account menu (a row of the phone's More
+ * card), OPENED first so a spec asserting its absence reads the gate, not a
+ * closed menu.
  */
 export async function adminRow(page: Page): Promise<Locator> {
-  const menu = await openDestinations(page);
+  const menu = await openDestinations(page, "rail-admin");
   return menu.getByTestId("rail-admin");
 }
 
@@ -61,9 +52,9 @@ export function adminHeading(page: Page): Locator {
 }
 
 /**
- * Open Admin through the workspace menu or the phone More card. A first visit
- * lands on the Org chart, which the identity lozenge stands for; Admin is kept
- * alive, so a later visit comes back on the section it was left on.
+ * Open Admin through the rail's account menu or the phone More card. A first
+ * visit lands on the Org chart, which the identity lozenge stands for; Admin
+ * is kept alive, so a later visit comes back on the section it was left on.
  */
 export async function openAdmin(page: Page): Promise<void> {
   await (await adminRow(page)).click();
@@ -71,17 +62,37 @@ export async function openAdmin(page: Page): Promise<void> {
   await expect(adminHeading(page)).toBeVisible();
 }
 
+/** The account menu's screens: the item each one wears and its view id. */
+const ACCOUNT_SCREENS = {
+  Profile: "profile",
+  "About me": "about-me",
+} as const;
+
 /**
- * Open About me: the standing context every agent loads about the PERSON, a
- * section of Settings. Two steps, because it IS two levels — the index, then
- * the drill-in, whose own `<h2>` proves it landed.
+ * Open one of the account menu's screens the way a user reaches it: the
+ * account row at the rail's foot (the "Your account" row of the phone's More
+ * card), then the item by name. They are top-level screens with no level
+ * above, so the screen's id and its own `<h1>` prove it landed. Profile is
+ * offered only with a signed-in identity whose profile the deployment serves.
  */
-export async function openAboutMe(page: Page): Promise<void> {
-  await openSettings(page);
-  await aboutMeRow(page).click();
+export async function openAccountScreen(
+  page: Page,
+  name: keyof typeof ACCOUNT_SCREENS,
+): Promise<void> {
+  const menu = await openAccountMenu(page);
+  await menu.getByRole("menuitem", { name, exact: true }).click();
+  await expect(screen(page)).toHaveAttribute(
+    "data-screen",
+    ACCOUNT_SCREENS[name],
+  );
   await expect(
-    screen(page).getByRole("heading", { name: "About me", level: 2 }),
+    screen(page).getByRole("heading", { name, level: 1 }),
   ).toBeVisible();
+}
+
+/** Open About me: the standing context every agent loads about the PERSON. */
+export async function openAboutMe(page: Page): Promise<void> {
+  await openAccountScreen(page, "About me");
 }
 
 /**
@@ -198,8 +209,8 @@ export async function openCompanyContext(page: Page): Promise<Locator> {
 }
 
 /**
- * Open the Settings index and wait for it to be on screen, through the
- * workspace menu (the phone's More card), by its `nav-settings` anchor.
+ * Open the Settings index and wait for it to be on screen, through the rail's
+ * account menu (the phone's More card), by its `nav-settings` anchor.
  *
  * The wait is what makes a "this row is absent" assertion meaningful: without it
  * the absence could just be the index not painted yet.

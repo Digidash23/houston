@@ -5,10 +5,23 @@ export {
 } from "./resizable";
 export type { SidebarItem, SidebarLabels, SidebarProps } from "./sidebar";
 export { AppSidebar } from "./sidebar";
+export type { SidebarAddRowProps } from "./sidebar-add-row";
+export { SidebarAddRow } from "./sidebar-add-row";
 export {
   SidebarAvatarDiameter,
   useSidebarAvatarDiameter,
 } from "./sidebar-avatar-diameter";
+export type {
+  SidebarConnectGroupProps,
+  SidebarConnectRow,
+} from "./sidebar-connect-group";
+export { SidebarConnectGroup } from "./sidebar-connect-group";
+export type { SidebarConnectLogo } from "./sidebar-connect-logos";
+export {
+  SIDEBAR_CONNECT_LOGO_MAX,
+  SidebarConnectLogoMark,
+  SidebarConnectLogos,
+} from "./sidebar-connect-logos";
 export { SidebarDragOverlay } from "./sidebar-drag-overlay";
 export type { SidebarFlatListProps } from "./sidebar-flat-list";
 export { SidebarFlatList } from "./sidebar-flat-list";
@@ -19,6 +32,7 @@ export {
   sidebarPersonRow,
   sidebarRailInset,
   sidebarRingClearance,
+  sidebarSeat,
 } from "./sidebar-geometry";
 export {
   matchesSidebarGroupGlyph,
@@ -66,6 +80,8 @@ export type {
   SidebarBaseRowContext,
   SidebarRowContext,
 } from "./sidebar-row-context";
+export type { SidebarSurface } from "./sidebar-surface";
+export { sidebarSheetRowClasses } from "./sidebar-surface";
 export type { SidebarArrangement, SidebarTreeRow } from "./sidebar-tree";
 export {
   arrangementFromRows,
@@ -73,6 +89,8 @@ export {
   projectSidebarDrop,
   treeRowKey,
 } from "./sidebar-tree";
+export type { SidebarWorkspaceSwitcherProps } from "./sidebar-workspace-switcher";
+export { SidebarWorkspaceSwitcher } from "./sidebar-workspace-switcher";
 export type { SplitViewProps } from "./split-view";
 export { SplitView } from "./split-view";
 export type { TabBarProps } from "./tab-bar";

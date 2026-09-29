@@ -4,22 +4,24 @@
  * A caller names one of these and builds its selector with `tourSelector`,
  * never a hand-written string, so a typo is a compile error instead of a
  * spotlight that silently finds nothing. Every name here is rendered by a real
- * element: `sidebar-nav-sections.tsx` and `sidebar-nav-rows.tsx` (the
- * workspace menu's destinations, the Academy included, which the
- * phone's More menu draws too), `sidebar-workspace-menu.tsx`
- * (`workspaceMenu`, the trigger at the rail's foot),
- * `sidebar-workspace-menu-items.tsx` and `mobile-more-menu.tsx`
- * (`nav-settings`), `sidebar-header-actions.tsx` (`newAgent`, the rail's "+"),
- * `@houston-ai/layout`'s sidebar (`agents`),
- * `workspace-shell.tsx` (`main`), `new-mission-button.tsx` (`newMission` on
- * desktop), `agents-home-list.tsx` (`newAgent` again, the phone's own create
- * control), and `mobile-nav-bar.tsx` (`newMission` again — the round compose
- * beside the pill is the phone's only one; `mobileMenu`, the More button the
- * phone's long tail of destinations is reached through; and
- * `mobileAgentsTab`, the item that opens the Agents home), and the task chat
- * on either screen: `shell-panel-card.tsx` (`taskChat`, the desktop detail
- * panel) and `mission-chat-screen.tsx` (`taskChat` again, the phone's pushed
- * chat).
+ * element, at most one on screen at a time:
+ *
+ * - The rail (desktop): `@houston-ai/layout`'s sidebar (`agents`, the list);
+ *   `sidebar-header-actions.tsx` (`newAgent`, the top line's "+");
+ *   `connect-group.tsx` (`nav-integrations` and `nav-ai-hub`, the connect
+ *   rows at the foot); `sidebar-workspace-menu.tsx` (`workspaceMenu`, the
+ *   account row closing the rail, whose menu holds `nav-academy` and
+ *   `nav-settings`, built by `sidebar-nav-rows.tsx`).
+ * - The phone's More card, `mobile-more-menu.tsx`: the same connect group
+ *   and the same Academy and Settings, as rows.
+ * - The phone's own controls: `agents-home-header.tsx` (`newAgent`, the AI
+ *   Employees list's create button) and `mobile-nav-bar.tsx` (`newMission`,
+ *   the round compose beside the pill; `mobileMenu`, the More button; and
+ *   `mobileAgentsTab`, the item that opens the Agents home).
+ * - Either screen: `workspace-shell.tsx` (`main`), `new-mission-button.tsx`
+ *   (`newMission` on desktop), and the task chat, `shell-panel-card.tsx`
+ *   (`taskChat`, the desktop detail panel) and `mission-chat-screen.tsx`
+ *   (`taskChat`, the phone's pushed chat).
  *
  * The vocabulary is shared: the Academy's lessons spotlight these anchors
  * (`components/academy/lessons/registry.ts`) and the e2e specs address the

@@ -14,16 +14,7 @@ describe("SETTINGS_SECTION_IDS", () => {
   it("is the exact section set: the standing setup, nothing else", () => {
     deepStrictEqual(
       [...SETTINGS_SECTION_IDS],
-      [
-        "profile",
-        "plan",
-        "aboutMe",
-        "apiKeys",
-        "channels",
-        "shortcuts",
-        "reportBug",
-        "migration",
-      ],
+      ["plan", "apiKeys", "channels", "shortcuts", "reportBug", "migration"],
     );
   });
 });
@@ -67,7 +58,7 @@ describe("settingsSectionAvailable", () => {
     strictEqual(settingsSectionAvailable("plan", { plan: false }), false);
     strictEqual(settingsSectionAvailable("plan", {}), false);
     strictEqual(settingsSectionAvailable("plan", undefined), false);
-    strictEqual(settingsSectionAvailable("profile", undefined), true);
+    strictEqual(settingsSectionAvailable("channels", undefined), true);
   });
 });
 
@@ -85,9 +76,7 @@ describe("settingsLandingSection", () => {
 
 describe("parseSettingsSection", () => {
   it("passes a valid section id through", () => {
-    strictEqual(parseSettingsSection("profile"), "profile");
     strictEqual(parseSettingsSection("plan"), "plan");
-    strictEqual(parseSettingsSection("aboutMe"), "aboutMe");
     strictEqual(parseSettingsSection("apiKeys"), "apiKeys");
     strictEqual(parseSettingsSection("channels"), "channels");
     strictEqual(parseSettingsSection("reportBug"), "reportBug");
@@ -104,9 +93,7 @@ describe("parseSettingsSection", () => {
     // Admin is a top-level screen, Time worked has no screen, and agent
     // policy a team's focused agent screen. The company
     // half of the standing context opens from Admin's header: a stale pin on any of
-    // them must fall back rather than land. The `about-me` VIEW id an older
-    // install may have pinned is not a section id either: the section is
-    // `aboutMe`.
+    // them must fall back rather than land.
     strictEqual(parseSettingsSection("timeWorked"), null);
     strictEqual(parseSettingsSection("organization"), null);
     strictEqual(parseSettingsSection("workspace"), null);
@@ -119,6 +106,10 @@ describe("parseSettingsSection", () => {
     strictEqual(parseSettingsSection("workspaceContext"), null);
     strictEqual(parseSettingsSection("userContext"), null);
     strictEqual(parseSettingsSection("about-me"), null);
+    // Profile and About me are the account menu's own screens, so neither
+    // their view ids nor their retired section ids open Settings.
+    strictEqual(parseSettingsSection("profile"), null);
+    strictEqual(parseSettingsSection("aboutMe"), null);
   });
 
   it("maps null to null", () => {

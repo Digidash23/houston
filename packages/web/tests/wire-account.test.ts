@@ -67,7 +67,7 @@ describe("the delegated profile read", () => {
     expectGatewayHeaders(calls[0]);
   });
 
-  test("a 404 still hides the Settings profile section", async () => {
+  test("a 404 still hides the account menu's Profile", async () => {
     stubFetch(() => json(404, { error: "not found" }));
 
     await expect(client().getMyProfile()).resolves.toBeNull();

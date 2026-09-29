@@ -13,12 +13,12 @@
 
 surface: web
 enforced: true
-inventoryVersion: 115
+inventoryVersion: 116
 
 components:
   manager-avatar:
     status: implemented
-    ref: "@houston-ai/core ManagerAvatar (manager-avatar.tsx with manager-avatar-geometry.ts, over HoustonHelmet), mounted by app/src/components/shell/sidebar-manager-row.tsx, app/src/components/agents-home/manager-home-row.tsx and app/src/components/assistant/assistant-phone-header.tsx"
+    ref: "@houston-ai/core ManagerAvatar (manager-avatar.tsx, over HoustonHelmet), mounted by app/src/components/shell/sidebar-manager-row.tsx, app/src/components/agents-home/manager-home-row.tsx and app/src/components/assistant/assistant-phone-header.tsx"
   agent-delegation-settings:
     status: implemented
     ref: app/src/components/agent-settings/agent-delegation-section.tsx
@@ -256,7 +256,16 @@ components:
     ref: "@houston-ai/layout AppSidebar (SidebarGroupedList renders root employees, folder headers and folder members as one flat @dnd-kit sortable tree, SidebarTreeRowView per row, the dragged row drawn as a ghost at its landing slot and depth; SidebarRowButton gives root employees and folder headers one left edge and indents only folder members), composed in app/src/components/shell/team-sidebar-lists.tsx"
   sidebar-account-menu:
     status: implemented
-    ref: "@houston-ai/layout SidebarProfileMenu, filled by app/src/components/shell/sidebar-workspace-menu.tsx and sidebar-workspace-menu-items.tsx from the rows sidebar-nav-sections.tsx builds; the phone's More card is mobile-more-menu.tsx"
+    ref: "@houston-ai/layout SidebarProfileMenu, last in app/src/components/shell/sidebar-footer.tsx, filled by sidebar-workspace-menu.tsx with workspace-account.tsx's WorkspaceSwitchItems, the parts of sidebar-account-menu.tsx's useAccountMenu, and the Admin, Academy and Settings rows sidebar-nav-rows.tsx builds"
+  sidebar-connect-group:
+    status: implemented
+    ref: "@houston-ai/layout SidebarConnectGroup with SidebarConnectLogos / SidebarConnectLogoMark, mounted by app/src/components/shell/connect-group.tsx (logos from use-connect-group-logos.tsx over connect-group-logos.ts) in sidebar-footer.tsx and mobile-more-menu.tsx"
+  sidebar-add-row:
+    status: implemented
+    ref: "@houston-ai/layout SidebarAddRow in AppSidebar's listFooter, mounted by app/src/components/shell/sidebar-rail.tsx on the rail model's onAddAgent (sidebar.tsx)"
+  sidebar-workspace-switcher:
+    status: implemented
+    ref: "@houston-ai/layout SidebarWorkspaceSwitcher heading app/src/components/shell/mobile-more-menu.tsx, its title and menu header from workspace-switcher-face.tsx, filled by workspace-account.tsx's WorkspaceSwitchItems"
   team-identity-picker:
     status: implemented
     ref: "app/src/components/shell/team-identity-popover.tsx inside team-identity-name-row.tsx, used by create-team-step.tsx and edit-team-identity-dialog.tsx; the folder menu opens the editor and sidebar.setGroupIdentity saves the glyph and color"
@@ -274,7 +283,7 @@ components:
     ref: "app/src/components/shell/mobile-nav-bar.tsx binding @houston-ai/core FloatingNavBar (items + NeedsYouChip badge over the agent activity rollup), rules in app/src/lib/mobile-tabs.ts with the tap side in app/src/lib/open-mobile-tab.ts (nav-stack reset mode); the new-task control runs lib/new-mission.ts startNewMission over lib/new-mission-scope.ts and carries the guided setup's newMission tour anchor (onboarding/in-app-mobile-targets.ts)"
   mobile-more-menu:
     status: implemented
-    ref: "app/src/components/shell/mobile-more-menu.tsx (@houston-ai/core Sheet restyled as a floating card, ui store mobileMoreOpen) over mobile-more-items.ts, with sidebar-nav-sections.tsx destinations followed by Academy, gated Admin, and Settings"
+    ref: "app/src/components/shell/mobile-more-menu.tsx (@houston-ai/core Sheet restyled as a floating card, ui store mobileMoreOpen), headed by the workspace switcher, with the connect-group.tsx rows followed by the account row (mobile-more-row.tsx over sidebar-account-menu.tsx), gated Admin, the Academy and Settings (sidebar-nav-rows.tsx), every row wearing sidebarSheetRowClasses"
   agents-home:
     status: implemented
     ref: "app/src/components/agents-home/ (AgentsHomeView switching AgentsHomeList / AgentMissionsScreen on the ui store's agentsHomeAgentId nav level), the pinned row of Houston, the AI Manager, in manager-home-row.tsx, agent rows in agent-home-row.tsx over agent-avatar-stack.tsx (@houston-ai/core HoustonAvatar) + NeedsYouChip, the title block in agents-home-header.tsx (New group via the ui store's openCreateFlow('team'), the group selector agents-home-team-filter.tsx over the ui store's agentsHomeTeamId, and shell/team-folder-menu.tsx for the picked group), all over the pure agentHomeRows + agentRowsForTeam in agents-home-model.ts; tab root wiring in app/src/lib/open-mobile-tab.ts and the phone boot landing in use-workspace-view-guards.ts"

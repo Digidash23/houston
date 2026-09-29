@@ -2,7 +2,11 @@ import { FAKE_HOST_URL } from "@houston/fake-host";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
 import { screen } from "./support/team-nav";
-import { openNavRow, openWorkspaceMenu } from "./support/workspace-menu";
+import {
+  openNavRow,
+  openWorkspaceMenu,
+  railDestination,
+} from "./support/workspace-menu";
 
 /**
  * The integrations permissioning information architecture (the IA end-state).
@@ -65,18 +69,18 @@ test("Teams member: no Admin dashboard, but the Integrations nav opens the perso
   await page.goto("/");
 
   // The Integrations row IS present for a member (unconditional), and it
-  // opens the personal catalog — never the org policy question. Asserted in
-  // the same open menu as the Admin absence, so that absence is the gate and
-  // not an unpainted menu. AI Models and Settings are there too, the rows
-  // every caller gets.
-  const menu = await openWorkspaceMenu(page);
-  const integrationsNav = menu.locator('[data-tour-target="nav-integrations"]');
+  // opens the personal catalog — never the org policy question. It sits on
+  // the rail's foot beside the AI row, the rows every caller gets.
+  const integrationsNav = railDestination(page, "nav-integrations");
   await expect(integrationsNav).toBeVisible();
-  await expect(menu.locator('[data-tour-target="nav-ai-hub"]')).toBeVisible();
-  await expect(menu.locator('[data-tour-target="nav-settings"]')).toBeVisible();
+  await expect(railDestination(page, "nav-ai-hub")).toBeVisible();
 
-  // A plain member has no Admin row.
+  // A plain member has no Admin item. Asserted in the same open menu as
+  // Settings, so that absence is the gate and not an unpainted menu.
+  const menu = await openWorkspaceMenu(page);
+  await expect(menu.locator('[data-tour-target="nav-settings"]')).toBeVisible();
   await expect(menu.getByTestId("rail-admin")).toHaveCount(0);
+  await page.keyboard.press("Escape");
 
   // The Integrations row opens the catalog directly, and its identity
   // lozenge carries the screen's h1.

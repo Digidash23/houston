@@ -498,7 +498,9 @@ test("advances from a question to a connect step in one sequence", async ({
   await expect(
     page.getByText("I need access to your Gmail to send the trip itinerary."),
   ).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Connect" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Connect", exact: true }),
+  ).toHaveCount(0);
 
   // Answer the question (Enter commits the free-text draft) -> advance to the
   // connect step (2 of 2). The app NAME is the identity line, the reason is the
@@ -519,7 +521,9 @@ test("advances from a question to a connect step in one sequence", async ({
   await expect(
     connectCard.getByText("Connect Gmail", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Connect" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Connect", exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByText("Who should I send the itinerary to?"),
   ).toHaveCount(0);
@@ -599,7 +603,9 @@ test("advances from a question to a signin step in a three-step sequence", async
   ).toHaveCount(0);
   // The connect step hasn't been reached, and the signin card holds the
   // composer's slot (no follow-up input while a step is pending).
-  await expect(page.getByRole("button", { name: "Connect" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Connect", exact: true }),
+  ).toHaveCount(0);
   await expect(page.getByPlaceholder(FOLLOW_UP_PLACEHOLDER)).toHaveCount(0);
 });
 
@@ -670,7 +676,9 @@ test("shows a lone connect step for a connect-only sequence", async ({
   await expect(
     page.getByText("I need access to your Gmail to send the trip itinerary."),
   ).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole("button", { name: "Connect" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Connect", exact: true }),
+  ).toBeVisible();
   await expect(page.getByText(/\d+ of \d+/)).toHaveCount(0);
   await expect(page.getByPlaceholder(FOLLOW_UP_PLACEHOLDER)).toHaveCount(0);
 });
@@ -765,7 +773,9 @@ test("skips a lone connect step and tells the agent the user declined", async ({
   await expect(
     page.getByText("I need access to your Gmail to send the trip itinerary."),
   ).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Connect" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Connect", exact: true }),
+  ).toHaveCount(0);
   await expect(page.getByPlaceholder(FOLLOW_UP_PLACEHOLDER)).toBeVisible();
 });
 
@@ -870,7 +880,9 @@ test("skipping the connect step of a mixed sequence keeps the answers and record
     .filter({ hasText: "john@example.com" });
   await expect(composed).toHaveCount(1, { timeout: 15_000 });
   await expect(composed).toContainText("Skipped connecting Gmail.");
-  await expect(page.getByRole("button", { name: "Connect" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Connect", exact: true }),
+  ).toHaveCount(0);
 });
 
 /**
@@ -934,7 +946,7 @@ test("reconsiders a skipped connect step: Back offers Connect again and reports 
   await expect(
     page.getByText("I need Slack access to post the trip summary."),
   ).toBeVisible();
-  const connect = page.getByRole("button", { name: "Connect" });
+  const connect = page.getByRole("button", { name: "Connect", exact: true });
   await expect(connect).toBeVisible();
   // The decline affordance travels WITH the Connect CTA: "Skip" is offered on
   // a revisited/reconsidered step too, never a dead end with only Connect.

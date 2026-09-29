@@ -1,5 +1,5 @@
 /**
- * The helper behind Settings > Profile > "Change picture": turn whatever image
+ * The helper behind Profile > "Change picture": turn whatever image
  * the user picked into the small square data URI the gateway stores. The
  * gateway accepts `data:image/(png|jpeg|webp);base64,` up to 150000 chars, so
  * a 12 MB phone photo is never rejected here, it is shrunk until it fits.

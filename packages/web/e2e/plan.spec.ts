@@ -47,7 +47,7 @@ test("without the plan capability there is no Billing row", async ({
   await page.goto("/");
   await openSettings(page);
   await expect(
-    page.getByRole("button", { name: /^About me/ }).first(),
+    page.getByRole("button", { name: /^Keyboard shortcuts/ }).first(),
   ).toBeVisible();
   await expect(billingRow(page)).toHaveCount(0);
 });

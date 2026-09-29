@@ -58,10 +58,11 @@ export const ACADEMY_LESSONS: Record<string, LessonSpec> = {
     id: HOUSTON_TOUR_LESSON_ID,
     chapterId: GETTING_STARTED_CHAPTER_ID,
     experience: 25,
-    // Every stop only has to be seen, so each waits on the user's Next. The
-    // four destinations past the board live behind the workspace menu at the
-    // rail's foot (the More menu on the phone), so both screens light the
-    // menu's trigger for them.
+    // Every stop only has to be seen, so each waits on the user's Next. On
+    // the desktop AI Models and Integrations are lit directly (the connect
+    // rows at the rail's foot), and the Academy through the account row whose
+    // menu holds it. The phone reaches all three through its More menu, so
+    // its button is lit for each.
     steps: [
       {
         kind: "spotlight",
@@ -87,13 +88,13 @@ export const ACADEMY_LESSONS: Record<string, LessonSpec> = {
       {
         kind: "spotlight",
         id: "aiModels",
-        target: onEitherScreen("workspaceMenu", "mobileMenu"),
+        target: onEitherScreen("nav-ai-hub", "mobileMenu"),
         advanceOn: { type: "acknowledged" },
       },
       {
         kind: "spotlight",
         id: "integrations",
-        target: onEitherScreen("workspaceMenu", "mobileMenu"),
+        target: onEitherScreen("nav-integrations", "mobileMenu"),
         advanceOn: { type: "acknowledged" },
       },
       {

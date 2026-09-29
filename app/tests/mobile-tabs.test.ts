@@ -26,6 +26,8 @@ describe("activeMobileTab", () => {
       "ai-hub",
       "organization",
       "settings",
+      "profile",
+      "about-me",
     ])
       assert.equal(activeMobileTab(at(view)), "more");
   });

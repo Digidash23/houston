@@ -71,15 +71,15 @@
           "cta": "Next"
         },
         "aiModels": {
-          "body": "AI Models is where you connect your AI, or switch to another one.",
+          "body": "Connect your AI is where you pick the AI your team runs on, or switch to another one.",
           "cta": "Next"
         },
         "integrations": {
-          "body": "Integrations connect the apps you already use, like Gmail or Slack, so your AI Employees can work in them.",
+          "body": "Connect your apps links the apps you already use, like Gmail or Slack, so your AI Employees can work in them.",
           "cta": "Next"
         },
         "academy": {
-          "body": "And this is the Academy. Come back any time to learn more and level up.",
+          "body": "And the Academy lives in this menu. Come back any time to learn more and level up.",
           "cta": "Done"
         }
       }

@@ -3,16 +3,18 @@ import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
 import { AUTH_WEB_URL, E2E_VIEWER, signInAsViewer } from "./support/identity";
 import {
-  aboutMeRow,
   adminHeading,
   assistantRow,
+  openAccountScreen,
   openAdmin,
   openSettings,
 } from "./support/settings-nav";
 import { navRow, screen } from "./support/team-nav";
 import {
+  openAccountMenu,
   openNavRow,
   openWorkspaceMenu,
+  railDestination,
   workspaceMenuTrigger,
 } from "./support/workspace-menu";
 
@@ -22,10 +24,11 @@ import {
  * Six things must hold, and each of them broke a real user path when it
  * didn't:
  *
- * 1. the rail carries the AI Employees and nothing else, the AI Manager pinned
- *    first; everything else is the workspace menu at its foot — Admin (behind
- *    the org gate), AI Models, Integrations, then Academy and Settings — with
- *    no Skills row and no help control;
+ * 1. the rail is the team, the AI Manager pinned first and the "Add new AI
+ *    Employee" shortcut closing it, with no heading over it; its foot holds
+ *    the connect rows (Integrations, AI Models) and the account row, whose
+ *    menu holds the workspaces, Admin behind the org gate, the Academy and
+ *    Settings, with no Skills row and no help control;
  * 2. two retired destinations hold no rail row: agent policy is reached
  *    through each employee's own screen, and **Time worked** has no screen
  *    of its own. Each is asserted absent from the rail by name, so a
@@ -34,15 +37,15 @@ import {
  *    sees, plus Danger. The Context editors live in their own surfaces, so
  *    Settings carries no "Help" / "Context" / "Support" / "Workspace" /
  *    "Team" heading;
- * 4. Admin is a top-level screen opened from the workspace menu, so its header strip
- *    carries no way back;
+ * 4. Admin is a top-level screen opened from the account menu, so its header
+ *    strip carries no way back;
  * 5. the rail's Settings entry ALWAYS lands on the index, including from inside
  *    a section — otherwise it is a dead click, since the view is already
  *    `settings`;
- * 6. Settings is the app's ONE identity control: the index opens on the
- *    signed-in person and carries the only Sign out in the product, so the rail
- *    keeps no avatar menu (edit profile / account settings / send feedback /
- *    sign out) as a second door onto the same page.
+ * 6. the person has ONE door: the rail's account row names them over their
+ *    workspace, and its menu is headed by them and holds Profile, About me
+ *    and Sign out, the first two opening a screen of their own; Settings
+ *    carries no identity header, no Sign out, and no Profile or About me row.
  */
 
 /**
@@ -76,7 +79,7 @@ function railButton(page: Page, name: string): Locator {
     .getByRole("button", { name, exact: true });
 }
 
-/** An item of the open workspace menu, by the name it wears. */
+/** An item of an open rail menu, by the name it wears. */
 function menuItem(menu: Locator, name: string): Locator {
   return menu.getByRole("menuitem", { name, exact: true });
 }
@@ -89,20 +92,27 @@ test("the sidebar carries only the IA's top-level entries", async ({
   await page.goto("/");
 
   // The rail is the team: the AI Manager leads it, addressed by its test id,
-  // and no heading or destination row stands above the employees.
+  // no heading stands above the employees, and the "Add new AI Employee"
+  // shortcut closes them.
   const sidebar = page.locator("[data-tour-target='sidebar']");
   await expect(assistantRow(page)).toBeVisible();
   await expect(sidebar.getByText("Your AI Employees")).toHaveCount(0);
   await expect(sidebar.getByText("Workspace", { exact: true })).toHaveCount(0);
+  await expect(sidebar.getByTestId("rail-add-employee")).toBeVisible();
 
-  // Everything else is the workspace menu: Admin, AI Models, Integrations,
-  // then the Academy and Settings.
-  const menu = await openWorkspaceMenu(page);
-  await expect(menu.getByTestId("rail-admin")).toBeVisible();
-  for (const id of ["ai-hub", "integrations", "settings"] as const) {
+  // The connect rows sit on the rail's foot; everything else is the account
+  // row's menu: Admin, the Academy and Settings.
+  for (const id of ["ai-hub", "integrations"] as const) {
     await expect(navRow(page, id)).toBeVisible();
   }
-  await expect(menuItem(menu, "Academy")).toBeVisible();
+  const menu = await openWorkspaceMenu(page);
+  await expect(menu.getByTestId("rail-admin")).toBeVisible();
+  for (const id of ["academy", "settings"] as const) {
+    await expect(menu.locator(`[data-tour-target='nav-${id}']`)).toBeVisible();
+  }
+  for (const id of ["ai-hub", "integrations"] as const) {
+    await expect(menu.locator(`[data-tour-target='nav-${id}']`)).toHaveCount(0);
+  }
 
   // The rows this IA deleted, asserted by the names they used to wear, in the
   // menu and on the rail alike. An owner on a compute-metering gateway is the
@@ -111,7 +121,6 @@ test("the sidebar carries only the IA's top-level entries", async ({
     "Skills",
     "Permissions",
     "Time worked",
-    "About me",
     "Help",
     "Report a problem",
   ]) {
@@ -128,14 +137,14 @@ test("the sidebar carries only the IA's top-level entries", async ({
   await page.goto("/");
   await expect(workspaceMenuTrigger(page)).toBeVisible();
 
-  // Ungated rows are untouched: the Academy is everyone's, Settings is
-  // everyone's chrome, and the AI Manager rides discovery rather than a role,
-  // so a plain member keeps it. Admin rides the org gate, so it is absent, and
-  // the positive signals in the same open menu make that the gate rather than
-  // an unpainted menu.
+  // Ungated controls are untouched: Integrations, the Academy and Settings
+  // are everyone's chrome, and the AI Manager rides discovery rather than a
+  // role, so a plain member keeps it. Admin rides the org gate, so it is
+  // absent, and the positive signals in the same open menu make that the
+  // gate rather than an unpainted menu.
   await expect(assistantRow(page)).toBeVisible();
+  await expect(railDestination(page, "nav-integrations")).toBeVisible();
   const memberMenu = await openWorkspaceMenu(page);
-  await expect(navRow(page, "integrations")).toBeVisible();
   await expect(navRow(page, "settings")).toBeVisible();
   await expect(menuItem(memberMenu, "Academy")).toBeVisible();
   await expect(memberMenu.getByTestId("rail-admin")).toHaveCount(0);
@@ -148,9 +157,12 @@ test("the sidebar carries only the IA's top-level entries", async ({
   ).toBeVisible();
 
   // Settings keeps no Skills door either: skills live in each employee's own
-  // settings.
+  // settings. The index is painted (its Keyboard shortcuts row stands) before
+  // the absence is read.
   await openSettings(page);
-  await expect(aboutMeRow(page)).toBeVisible();
+  await expect(
+    screen(page).getByRole("button", { name: /^Keyboard shortcuts/ }),
+  ).toBeVisible();
   await expect(
     screen(page).getByRole("button", { name: /^Skills/ }),
   ).toHaveCount(0);
@@ -186,49 +198,68 @@ test("Settings holds only settings, under one heading", async ({
   // The help-shaped rows survived the fold: they sit in General now.
   await expect(main.getByText("Keyboard shortcuts")).toBeVisible();
   await expect(main.getByText("Report bug")).toBeVisible();
-  // About me is one of them: a standing preference about the person, so the
-  // index lists it beside their name and their language.
-  await expect(aboutMeRow(page)).toBeVisible();
-
-  // This server bakes no identity key, so there is no session and therefore no
-  // person to name. The header draws nothing rather than an empty face — the
-  // same condition the rail's avatar menu used before it was removed.
-  await expect(page.getByTestId("settings-identity")).toHaveCount(0);
+  // The person is the account menu's: Settings lists neither Profile nor
+  // About me (a row reads its title first, then its description).
+  for (const gone of [/^Profile/, /^About me/]) {
+    await expect(screen(page).getByRole("button", { name: gone })).toHaveCount(
+      0,
+    );
+  }
 });
 
-test.describe("Settings is the app's one identity control", () => {
-  // The header needs a real session, which the default server cannot mint: it
+test.describe("the signed-in person, from the rail's account menu only", () => {
+  // The person needs a real session, which the default server cannot mint: it
   // bakes no Firebase key. Same server and sign-in the profile spec uses.
   test.use({ baseURL: AUTH_WEB_URL });
 
-  test("the index opens on the signed-in person, with the only way out", async ({
+  test("the account menu names the person, holds Sign out and opens their screens", async ({
     page,
     request,
   }) => {
     await armOwner(request);
     await signInAsViewer(page);
+
+    // Settings carries none of the person, even signed in: no name, no email,
+    // no Sign out, no Profile or About me row.
     await openSettings(page);
+    const main = screen(page);
+    await expect(
+      main.getByText(E2E_VIEWER.displayName, { exact: true }),
+    ).toHaveCount(0);
+    await expect(main.getByText(E2E_VIEWER.email, { exact: true })).toHaveCount(
+      0,
+    );
+    await expect(main.getByRole("button", { name: "Sign out" })).toHaveCount(0);
+    for (const gone of [/^Profile/, /^About me/]) {
+      await expect(main.getByRole("button", { name: gone })).toHaveCount(0);
+    }
 
-    const identity = page.getByTestId("settings-identity");
-    await expect(
-      identity.getByText(E2E_VIEWER.displayName, { exact: true }),
-    ).toBeVisible();
-    await expect(
-      identity.getByText(E2E_VIEWER.email, { exact: true }),
-    ).toBeVisible();
-    await expect(
-      identity.getByRole("button", { name: "Sign out", exact: true }),
-    ).toBeVisible();
-
-    // And it is the ONLY way out: the rail's account row names the person over
-    // their workspace, but signing out lives here alone.
+    // The rail's account row names the person over their workspace; its
+    // menu is headed by the person with their email and holds what the
+    // account needs, Sign out last.
     const sidebar = page.locator("[data-tour-target='sidebar']");
     await expect(
       workspaceMenuTrigger(page).getByText(E2E_VIEWER.displayName),
     ).toBeVisible();
+    const account = await openAccountMenu(page);
+    await expect(
+      account.getByText(E2E_VIEWER.displayName, { exact: true }),
+    ).toBeVisible();
+    await expect(
+      account.getByText(E2E_VIEWER.email, { exact: true }),
+    ).toBeVisible();
+    for (const item of ["Profile", "About me", "Sign out"]) {
+      await expect(menuItem(account, item)).toBeVisible();
+    }
+    await page.keyboard.press("Escape");
     await expect(sidebar.getByRole("button", { name: "Sign out" })).toHaveCount(
       0,
     );
+
+    // Profile and About me are screens of their own.
+    await openAccountScreen(page, "Profile");
+    await expect(page.getByTestId("profile-name-input")).toBeVisible();
+    await openAccountScreen(page, "About me");
   });
 });
 

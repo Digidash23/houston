@@ -17,7 +17,7 @@ function AppSidebarSpecimen() {
     <TooltipProvider>
       <SpecimenPage
         title="AppSidebar"
-        intro="The rail the whole product hangs off: a top line for the host's verbs, every AI Employee the user has, and a foot for the account."
+        intro="The rail the whole product hangs off: a top line for the host's verbs, every AI Employee the user has (Houston pinned first, the “Add new AI Employee” shortcut closing the list), and a foot for the connect rows and the account."
       >
         <SpecimenSection
           title="Variants"
@@ -134,7 +134,11 @@ function AppSidebarSpecimen() {
  * reads them to build the "Used in" map, so they are the exported names
  * exactly as a consumer imports them.
  */
-export const sources: string[] = ["AppSidebar"];
+export const sources: string[] = [
+  "AppSidebar",
+  "SidebarAddRow",
+  "SidebarConnectGroup",
+];
 
 export const specimen: Specimen = {
   id: "agents-app-sidebar",

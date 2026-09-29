@@ -1980,7 +1980,7 @@ export const tauriOrg = {
  */
 export const tauriProfile = {
   /** Background read: it degrades to null off-gateway and on a gateway that
-   *  predates the route, which HIDES the Settings profile section entirely. A
+   *  predates the route, which HIDES the account menu's Profile entirely. A
    *  failure there is indistinguishable from "the host has no such feature",
    *  so it must neither red-toast nor page Sentry. */
   get: () =>

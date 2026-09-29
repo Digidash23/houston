@@ -3,9 +3,9 @@ import { SidebarFlatList } from "./sidebar-flat-list";
 import {
   sidebarCollapsedWidth,
   sidebarExpandedWidth,
-  sidebarRailInset,
   sidebarWindowControlsWidth,
-} from "./sidebar-geometry";
+} from "./sidebar-frame";
+import { sidebarRailInset } from "./sidebar-geometry";
 import { SidebarGroupedList } from "./sidebar-grouped-list";
 import { SidebarHeader } from "./sidebar-header";
 import { DEFAULT_SIDEBAR_LABELS } from "./sidebar-labels";
@@ -22,8 +22,9 @@ export type { SidebarItem, SidebarProps } from "./sidebar-props";
  * full-width notice under it, the list of people, and the host's footer.
  *
  * The list is the rail's only content: pinned rows first, outside the scroll
- * box so scrolling never takes them away, then the grouped (or flat) list.
- * Everything that is not a person lives in the host's footer.
+ * box so scrolling never takes them away, then the grouped (or flat) list,
+ * closed by the host's `listFooter` (the add shortcut). Everything that is
+ * not a person lives in the host's footer.
  */
 export function AppSidebar({
   headerActions,
@@ -36,6 +37,7 @@ export function AppSidebar({
   order,
   onActivateGroup,
   onArrange,
+  listFooter,
   footer,
   labels,
   collapsed = false,
@@ -106,6 +108,11 @@ export function AppSidebar({
                 collapsed={collapsed}
                 ctx={baseRowCtx}
               />
+            )}
+            {listFooter && (
+              <div data-sidebar-list-footer="" className="pb-2">
+                {listFooter}
+              </div>
             )}
           </ScrollArea>
         </div>

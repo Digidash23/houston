@@ -48,7 +48,6 @@ const AREAS = [
     "customize-step",
     "naming-step",
     "role-step",
-    "sidebar-create-button",
   ].map((name) => `components/shell/${name}.tsx`),
 ];
 

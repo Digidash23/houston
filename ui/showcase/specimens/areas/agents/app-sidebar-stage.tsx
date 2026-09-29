@@ -1,23 +1,21 @@
 import {
   Avatar,
   AvatarFallback,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@houston-ai/core";
 import {
   AppSidebar,
-  SidebarProfileMenu,
+  SidebarAddRow,
   sidebarHeaderControlClasses,
   useSidebarAvatarDiameter,
 } from "@houston-ai/layout";
-import { Check, Plus, Search, Settings, Sparkles } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 
-import { Viewport, workspaces } from "./sample";
+import { Viewport } from "./sample";
 
 /**
  * The scenery around the rail in the `AppSidebar` specimen: the pane it sits
@@ -110,43 +108,14 @@ export function Portrait({ initials }: { initials: string }) {
   );
 }
 
-/** The foot the desktop shell fills: an update notice, then the account. */
-export function RailFoot({ collapsed }: { collapsed: boolean }) {
-  const [workspaceId, setWorkspaceId] = useState("personal");
-  const current =
-    workspaces.find((one) => one.id === workspaceId) ?? workspaces[0];
+/** The shortcut closing the list (`listFooter`), in both rail states. */
+export function AddEmployee({ collapsed }: { collapsed: boolean }) {
   return (
-    <div className="flex flex-col">
-      <div className="flex items-center gap-2 px-3 py-2.5 text-ink-muted text-xs">
-        <Sparkles className="size-3.5 shrink-0" />
-        {!collapsed && "Update ready, restart to install"}
-      </div>
-      <SidebarProfileMenu
-        avatar={<Portrait initials="JA" />}
-        title="Julian Arango"
-        subtitle={current.name}
-        collapsed={collapsed}
-      >
-        {workspaces.map((one) => (
-          <DropdownMenuItem
-            key={one.id}
-            onSelect={() => setWorkspaceId(one.id)}
-          >
-            {one.id === workspaceId ? (
-              <Check className="size-4" />
-            ) : (
-              <span className="size-4" />
-            )}
-            {one.name}
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem>
-          <Settings className="size-4" />
-          Settings
-        </DropdownMenuItem>
-      </SidebarProfileMenu>
-    </div>
+    <SidebarAddRow
+      label="Add new AI Employee"
+      onClick={() => {}}
+      collapsed={collapsed}
+    />
   );
 }
 

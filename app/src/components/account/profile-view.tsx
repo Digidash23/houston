@@ -4,29 +4,15 @@ import { useTranslation } from "react-i18next";
 import {
   useMyEditableProfile,
   useSetMyProfile,
-} from "../../../hooks/queries/use-my-editable-profile";
-import { useMyProfile } from "../../../hooks/use-my-profile";
-import { useSession } from "../../../hooks/use-session";
-import { isIdentityConfigured } from "../../../lib/identity";
-import { useUIStore } from "../../../stores/ui";
-import { SettingsCard } from "../settings-row";
+} from "../../hooks/queries/use-my-editable-profile";
+import { useMyProfile } from "../../hooks/use-my-profile";
+import { useUIStore } from "../../stores/ui";
+import { SettingsCard } from "../settings/settings-row";
+import { AccountPage } from "./account-page";
 import { ProfilePhotoRow } from "./profile-photo";
 
 /** The gateway's own ceiling: `PUT /v1/me/profile` answers 400 above it. */
 const NAME_MAX_CHARS = 60;
-
-/**
- * Whether Settings shows the Profile section at all. Gated by DATA, never by a
- * flag: the section appears only once the profile READ succeeded, so a host
- * that 404s the route (`data === null`) or a read that failed hides an editor
- * that could not save anyway. Mirrors {@link useMigrationAvailable} in shape:
- * a hook the settings view calls to gate one row of the index.
- */
-export function useProfileAvailable(): boolean {
-  const { data: session } = useSession();
-  const { data } = useMyEditableProfile();
-  return isIdentityConfigured() && !!session && data != null;
-}
 
 /** The inline validation key for a trimmed name, or `null` when it is fine. */
 function nameErrorKey(trimmed: string): "nameEmpty" | "nameTooLong" | null {
@@ -108,31 +94,28 @@ function ProfileNameForm({ savedName }: { savedName: string }) {
 }
 
 /**
- * Settings > Profile: the name and picture every multiplayer surface renders
- * for this user — chat sender rows, face stacks, mentions, the team roster. One
- * card, two hairline-divided rows.
+ * Profile: the name and picture every multiplayer surface renders for this
+ * user: chat sender rows, face stacks, mentions, the team roster. One card, two
+ * hairline-divided rows. The account menu offers it only once the profile read
+ * succeeded (`useProfileAvailable`), so the card is there by the time anyone
+ * lands here.
  */
-export function ProfileSection() {
+export function ProfileView() {
   const { t } = useTranslation("settings");
   const { data: profile } = useMyEditableProfile();
   const me = useMyProfile();
-
-  if (!profile) return null;
-
   // The gateway's effective name, falling back to the resolved self-identity
   // for a user whose provider gave no name and who has not set one yet.
-  const savedName = profile.displayName ?? me?.name ?? "";
+  const savedName = profile?.displayName ?? me?.name ?? "";
 
   return (
-    <section>
-      <h2 className="mb-1 text-lg font-semibold text-ink text-balance">
-        {t("profile.title")}
-      </h2>
-      <p className="mb-6 text-sm text-ink-muted">{t("profile.subtitle")}</p>
-      <SettingsCard>
-        <ProfilePhotoRow displayName={savedName} />
-        <ProfileNameForm key={savedName} savedName={savedName} />
-      </SettingsCard>
-    </section>
+    <AccountPage title={t("profile.title")} subtitle={t("profile.subtitle")}>
+      {profile && (
+        <SettingsCard>
+          <ProfilePhotoRow displayName={savedName} />
+          <ProfileNameForm key={savedName} savedName={savedName} />
+        </SettingsCard>
+      )}
+    </AccountPage>
   );
 }

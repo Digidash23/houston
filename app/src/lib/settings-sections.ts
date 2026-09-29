@@ -6,18 +6,16 @@
  * component module.
  *
  * Settings holds the standing setup a person adjusts rather than the places
- * work happens: their profile, their plan, what their agents know about them,
- * their keys, their channels, their shortcuts, a bug report, and their
- * migration. Every section reads the current workspace, so the whole screen
- * sits behind one workspace gate.
+ * work happens: their plan, their keys, their channels, their shortcuts, a bug
+ * report, and their migration. Every section reads the current workspace, so
+ * the whole screen sits behind one workspace gate.
  *
  * Skills are NOT here: an AI Employee's Skills section lives in that
- * employee's settings.
+ * employee's settings. Neither is the person: their Profile and About me are
+ * the account menu's own screens (`components/account/`).
  */
 export const SETTINGS_SECTION_IDS = [
-  "profile",
   "plan",
-  "aboutMe",
   "apiKeys",
   "channels",
   "shortcuts",

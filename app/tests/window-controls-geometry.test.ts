@@ -4,7 +4,7 @@ import { it } from "node:test";
 import {
   sidebarWindowControlsHeight,
   sidebarWindowControlsWidth,
-} from "../../ui/layout/src/sidebar-geometry";
+} from "../../ui/layout/src/sidebar-frame";
 
 it("keeps the native lights inside the reserved controls zone", () => {
   const config = JSON.parse(

@@ -1,25 +1,15 @@
 import type { ReactNode } from "react";
 
 /**
- * One destination in a menu. The workspace menu at the rail's foot and the
- * phone's More menu list the same rows, built once
- * (`sidebar-nav-sections.tsx`, `sidebar-nav-rows.tsx`). Dependency-free, so
- * the pure models that shape the menus run under `node --test`.
+ * One destination the rail's account menu and the phone's More card both
+ * draw: an item in the menu, a row in the card. Built once
+ * (`sidebar-nav-rows.tsx`).
  */
 export interface MenuRow {
   id: string;
   label: string;
   icon: ReactNode;
   onClick: () => void;
-  trailing?: ReactNode;
-  /** DOM attributes (tour anchors, test ids) on the rendered item. */
+  /** DOM attributes (tour anchors, test ids) on the rendered control. */
   dataAttrs?: Record<string, string>;
-}
-
-/** One run of rows under an optional label. */
-export interface MenuSection {
-  /** Stable React key. Never rendered. */
-  id: string;
-  label?: string;
-  items: MenuRow[];
 }

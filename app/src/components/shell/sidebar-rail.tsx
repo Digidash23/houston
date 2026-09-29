@@ -4,7 +4,7 @@ import type {
   SidebarItem,
   SidebarRootEntry,
 } from "@houston-ai/layout";
-import { AppSidebar } from "@houston-ai/layout";
+import { AppSidebar, SidebarAddRow } from "@houston-ai/layout";
 import type { ReactNode } from "react";
 import { SidebarInviteInbox } from "./pending-invites";
 import { buildSidebarLabels, type SidebarChromeT } from "./sidebar-chrome";
@@ -34,7 +34,8 @@ export interface SidebarRailModel {
   /** Opens the create sheet on a new folder; the rail withholds it until the
    *  layout read succeeds. */
   onNewTeam: () => void;
-  /** Absent when this caller may not create agents. */
+  /** Absent when this caller may not create agents: neither the top line's
+   *  create menu offers it nor the list's add shortcut is drawn. */
   onAddAgent: (() => void) | undefined;
 }
 
@@ -47,8 +48,9 @@ export interface SidebarRailModel {
  * and create (`sidebar-header-actions.tsx`). The body is the team and nothing
  * else: the AI Manager pinned first, then the folders and employees in the
  * person's own order, with no heading over them because they are the whole
- * rail. The foot is the workspace menu (`sidebar-footer.tsx`), the one door to
- * everything that is not an employee.
+ * rail, closed by the "Add new AI Employee" shortcut for a caller who may
+ * create one. The foot (`sidebar-footer.tsx`) holds the connect rows and the
+ * person's own row, the door to everything else.
  *
  * Pending invitations keep their own full-width band right under the top line:
  * they are an action waiting on the person, not a place in a menu.
@@ -91,6 +93,16 @@ export function SidebarRail({
       selectedId={model.selectedAgentId}
       onSelect={model.onSelectAgent}
       labels={buildSidebarLabels(t)}
+      listFooter={
+        model.onAddAgent && (
+          <SidebarAddRow
+            label={t("shell:sidebar.addEmployee")}
+            onClick={model.onAddAgent}
+            collapsed={collapsed}
+            dataAttrs={{ "data-testid": "rail-add-employee" }}
+          />
+        )
+      }
       footer={
         <SidebarFooter
           collapsed={collapsed}

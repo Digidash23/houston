@@ -1,8 +1,6 @@
 {
   "title": "Configuración",
   "nav": {
-    "profile": "Perfil",
-    "aboutMe": "Sobre mí",
     "apiKeys": "Claves de API",
     "language": "Idioma",
     "shortcuts": "Atajos de teclado",
@@ -15,9 +13,6 @@
     "emptyTitle": "No hay ningún espacio disponible",
     "emptyBody": "No encontramos un espacio para tu cuenta. Inténtalo de nuevo o reinicia la aplicación.",
     "retry": "Reintentar"
-  },
-  "account": {
-    "signOut": "Cerrar sesión"
   },
   "profile": {
     "title": "Perfil",
@@ -153,8 +148,6 @@
       "general": "General"
     },
     "rows": {
-      "profile": "Tu nombre y tu foto",
-      "aboutMe": "Lo que tus empleados de IA saben de ti antes de empezar",
       "apiKeys": "Permite que otras apps y asistentes de IA inicien tareas con tus empleados de IA",
       "shortcuts": "Usa Houston sin el mouse",
       "reportBug": "¿Algo falló o tienes una idea? Cuéntanos",

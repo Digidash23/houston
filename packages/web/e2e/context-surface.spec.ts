@@ -9,8 +9,8 @@ import { screen } from "./support/team-nav";
  * homes it has, one per OWNER of the words.
  *
  *  - **About me** — what the agents know about the PERSON. They set it once
- *    about themselves, so it is a SECTION of Settings, beside their name and
- *    their language. It is ungated: it exists in every deployment, including a
+ *    about themselves, so it is one of the account menu's screens, beside
+ *    their Profile. It is ungated: it exists in every deployment, including a
  *    solo desktop install.
  *  - **Company context** — what the agents know about the COMPANY. It is
  *    shared by everyone in the space, so it is the space owner's: a pill in
@@ -37,9 +37,7 @@ async function seedEmptyContext(page: Page) {
   });
 }
 
-test("About me is a Settings section, drilled from the index", async ({
-  page,
-}) => {
+test("About me is the account menu's own screen", async ({ page }) => {
   // No capabilities armed: a plain single-player install, which is exactly
   // where this half has to exist — it is the whole of the product's standing
   // context there.
@@ -57,14 +55,10 @@ test("About me is a Settings section, drilled from the index", async ({
   // company — is the invitation.
   await expect(screen(page).getByText(/I'm Juan/)).toBeVisible();
 
-  // A section sits one level below the index, so it wears that level's back
-  // bar and returns there.
-  const back = screen(page).getByRole("button", { name: "Settings" });
-  await expect(back).toBeVisible();
-  await back.click();
+  // A top-level screen with no level above: no back bar to Settings.
   await expect(
-    screen(page).getByRole("heading", { name: "Settings", exact: true }),
-  ).toBeVisible();
+    screen(page).getByRole("button", { name: "Settings" }),
+  ).toHaveCount(0);
 });
 
 test("Company context opens from the Admin header, editing the workspace's half", async ({

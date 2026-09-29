@@ -24,7 +24,7 @@ test("ungrouped agents lead the sidebar without a team header", async ({
   );
 });
 
-test("the list closes on its rows: creating is the top line's +", async ({
+test("the list closes on one Add new AI Employee shortcut, outside every folder", async ({
   page,
 }) => {
   await seedSidebarLayout(page.request, {
@@ -40,9 +40,22 @@ test("the list closes on its rows: creating is the top line's +", async ({
   await page.goto("/");
   const rail = page.locator("[data-tour-target='agents']");
   await expect(rail.locator("[data-sidebar-group='last']")).toBeVisible();
-  // No create row in the list, root or member; the rail's one create control
-  // is the "+" on its top line.
-  await expect(rail.locator("[data-sidebar-add-row]")).toHaveCount(0);
+  // ONE shortcut closes the list, after the last folder and outside every
+  // one of them; the "+" on the top line keeps the tour's newAgent anchor.
+  const addRow = rail.getByTestId("rail-add-employee");
+  await expect(addRow).toHaveCount(1);
+  await expect(addRow).toContainText("Add new AI Employee");
+  await expect(
+    rail.locator("[data-sidebar-group] [data-testid='rail-add-employee']"),
+  ).toHaveCount(0);
+  const lastGroupBox = await rail
+    .locator("[data-sidebar-group='last']")
+    .boundingBox();
+  const addRowBox = await addRow.boundingBox();
+  if (!lastGroupBox || !addRowBox) throw new Error("the rail is not laid out");
+  expect(addRowBox.y).toBeGreaterThanOrEqual(
+    lastGroupBox.y + lastGroupBox.height - 1,
+  );
   await expect(
     page.locator("[data-tour-target='sidebar'] [data-tour-target='newAgent']"),
   ).toBeVisible();
@@ -157,4 +170,25 @@ test("folder menu launches Move to another space when spaces are available", asy
     .click();
   await page.getByRole("menuitem", { name: "Move to another space" }).click();
   await expect(page.getByRole("dialog", { name: /Move Design/ })).toBeVisible();
+});
+
+test("the list's shortcut opens the create sheet on a new AI Employee", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .locator("[data-tour-target='agents']")
+    .getByTestId("rail-add-employee")
+    .click();
+  // Straight onto the employee path: no choice between an employee and a
+  // group, which is the top line's "+".
+  await expect(page.getByRole("menuitem", { name: "New group" })).toHaveCount(
+    0,
+  );
+  await expect(
+    page
+      .getByRole("button", { name: "Hire a new AI Employee" })
+      .or(page.getByRole("radio", { name: "Finance", exact: true }))
+      .first(),
+  ).toBeVisible();
 });

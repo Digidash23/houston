@@ -1,19 +1,35 @@
 import { strict as assert } from "node:assert";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const read = (rel: string) =>
   readFileSync(new URL(rel, import.meta.url), "utf8");
-const SECTIONS = read("../src/components/shell/sidebar-nav-sections.tsx");
 const ROWS = read("../src/components/shell/sidebar-nav-rows.tsx");
-const NAV = `${SECTIONS}\n${ROWS}`;
+const GROUP = read("../src/components/shell/connect-group.tsx");
 const FOOTER = read("../src/components/shell/sidebar-footer.tsx");
+const ACCOUNT_MENU = read("../src/components/shell/sidebar-account-menu.tsx");
 const MENU = read("../src/components/shell/sidebar-workspace-menu.tsx");
-const ITEMS = read("../src/components/shell/sidebar-workspace-menu-items.tsx");
 const ACCOUNT = read("../src/components/shell/workspace-account.tsx");
+const FACE = read("../src/components/shell/workspace-switcher-face.tsx");
 const RAIL = read("../src/components/shell/sidebar-rail.tsx");
 const SHELL = read("../src/components/shell/workspace-shell.tsx");
 const MORE_MENU = read("../src/components/shell/mobile-more-menu.tsx");
+const MORE_ROW = read("../src/components/shell/mobile-more-row.tsx");
+
+/** Where `needle` sits in `source`, asserting it is there at all. */
+function at(source: string, needle: string): number {
+  const index = source.indexOf(needle);
+  assert.ok(index >= 0, `renders ${needle}`);
+  return index;
+}
+
+function inOrder(source: string, needles: string[]) {
+  const order = needles.map((needle) => at(source, needle));
+  assert.deepEqual(
+    order,
+    [...order].sort((a, b) => a - b),
+  );
+}
 
 it("makes the shell card gap a drag region only for the native Mac window", () => {
   assert.match(
@@ -22,51 +38,120 @@ it("makes the shell card gap a drag region only for the native Mac window", () =
   );
 });
 
-describe("the rail's foot", () => {
-  it("is the update notice, then the workspace menu, and nothing else", () => {
-    assert.ok(FOOTER.includes("<UpdateChecker collapsed={props.collapsed} />"));
-    assert.ok(
-      FOOTER.indexOf("<UpdateChecker") <
-        FOOTER.indexOf("<SidebarWorkspaceMenu"),
-    );
-    // Identity lives in the Settings index: no second door onto that page.
-    assert.ok(!FOOTER.includes("UserMenu"));
+describe("the rail, top to bottom", () => {
+  it("is search and create, invites, the list, its shortcut, the foot", () => {
+    inOrder(RAIL, [
+      "headerActions={",
+      "headerBelow={",
+      "listFooter={",
+      "footer={",
+    ]);
+    // No heading over the team: it is the whole rail.
+    assert.ok(!RAIL.includes("listHeading"));
+    assert.ok(!RAIL.includes("topNav"));
   });
 
-  it("leaves the rail's body to the team: no destinations above it", () => {
-    assert.ok(!RAIL.includes("navSections"));
-    assert.ok(!RAIL.includes("sectionLabel"));
-    assert.ok(RAIL.includes("headerActions={"));
+  it("ends on the update notice, the connect rows, then the account row", () => {
+    inOrder(FOOTER, [
+      "<UpdateChecker collapsed={props.collapsed} />",
+      "<ConnectGroup",
+      "<SidebarWorkspaceMenu",
+    ]);
   });
 });
 
 describe("the account row", () => {
-  it("is the person over their workspace, on both breakpoints", () => {
-    assert.ok(ACCOUNT.includes("title: profile?.name ?? workspaceName"));
-    assert.ok(
-      ACCOUNT.includes("subtitle: profile ? workspaceName : undefined"),
-    );
-    for (const host of [MENU, MORE_MENU]) {
-      assert.ok(host.includes("useAccountFace()"));
-    }
-    // The tour anchor is the rail's alone: the phone's More button already
-    // stands for the menu, and two anchors would race the spotlight.
+  it("is the person over their workspace, like an employee row", () => {
+    assert.ok(MENU.includes("<SidebarProfileMenu"));
+    assert.ok(MENU.includes("title={profile?.name ?? workspaceName}"));
+    assert.ok(MENU.includes("subtitle={profile ? workspaceName : undefined}"));
     assert.ok(MENU.includes('dataAttrs={tourAnchor("workspaceMenu")}'));
-    assert.ok(
-      MORE_MENU.includes('dataAttrs={{ "data-testid": "more-account" }}'),
-    );
-    // The phone's trigger heads its card, so its menu opens downward.
-    assert.ok(MORE_MENU.includes('side="bottom"'));
   });
 
-  it("marks the current workspace with a leading check, no letter tiles", () => {
+  it("opens one menu: who, workspaces, the person, destinations, Sign out", () => {
+    inOrder(MENU, [
+      "{account.header}",
+      "<WorkspaceSwitchItems",
+      "{account.personal}",
+      "{destinations.map((row) => (",
+      "{account.signOut}",
+    ]);
+    inOrder(MENU, ["adminNavRow({", "academyNavRow({", "settingsNavRow({"]);
+    assert.ok(MENU.includes("...(showOrganization"));
+  });
+
+  it("opens Settings on its INDEX and Admin through openAdmin", () => {
+    assert.ok(MENU.includes("onOpen: () => openSettings(null)"));
+    assert.ok(MENU.includes("onOpen: () => openAdmin()"));
+  });
+});
+
+describe("the account menu", () => {
+  it("is headed by the person's name and email", () => {
+    assert.ok(ACCOUNT_MENU.includes("<DropdownMenuLabel"));
+    assert.match(
+      ACCOUNT_MENU,
+      /<SignedInHeader\s+name=\{profile\.name\}\s+email=\{session\?\.email \?\? ""\}/,
+    );
+    assert.ok(FACE.includes("export function SignedInHeader("));
+  });
+
+  it("holds Profile, About me and Sign out, nothing else", () => {
+    inOrder(ACCOUNT_MENU, [
+      "open(PROFILE_VIEW_ID)",
+      "open(ABOUT_ME_VIEW_ID)",
+      'label={t("accountMenu.signOut")}',
+    ]);
+    assert.equal(ACCOUNT_MENU.match(/<MenuItemRow/g)?.length, 3);
+    // Profile only where the deployment serves it; Sign out only with an
+    // identity to sign out of.
+    assert.ok(ACCOUNT_MENU.includes("{profileAvailable && ("));
+    assert.ok(
+      ACCOUNT_MENU.includes('logAndReportError("account-sign-out", e)'),
+    );
+  });
+
+  it("opens Profile and About me as screens of their own, not Settings", () => {
+    // The ONLY door onto them: Settings lists neither, so the menu lands on
+    // their own top-level views, pushed on the desktop and reset on the phone.
+    assert.ok(ACCOUNT_MENU.includes("setViewMode(view, { nav: opts.nav });"));
+    assert.ok(!ACCOUNT_MENU.includes("openSettings"));
+  });
+
+  it("is the same menu on both breakpoints", () => {
+    assert.ok(MENU.includes("useAccountMenu({ onNavigate: closeMobileMenu })"));
+    assert.ok(
+      MORE_MENU.includes('useAccountMenu({ nav: "reset", onNavigate: close })'),
+    );
+    assert.ok(MORE_ROW.includes("export function MobileAccountRow("));
+  });
+});
+
+describe("the workspace switcher", () => {
+  it("heads the phone's card: the workspace's name alone, no letter tile", () => {
+    assert.ok(
+      FACE.includes(
+        'const title = current?.name ?? t("sidebar.selectWorkspace");',
+      ),
+    );
+    assert.ok(!FACE.includes("WorkspaceMark"));
+    assert.ok(MORE_MENU.includes("useWorkspaceSwitcherFace()"));
+    assert.ok(MORE_MENU.includes("<SidebarWorkspaceSwitcher"));
+    assert.ok(MORE_MENU.includes("header={face.header}"));
+    // The rail names the workspace on its account row instead.
+    assert.ok(!MENU.includes("SidebarWorkspaceSwitcher"));
+    assert.ok(
+      MORE_MENU.includes(
+        'dataAttrs={{ "data-testid": "more-workspace-switcher" }}',
+      ),
+    );
+  });
+
+  it("marks the current workspace with a leading check, no letter tiles in the list", () => {
     assert.ok(!ACCOUNT.includes("WorkspaceMark"));
-    // A checkbox item: the check is drawn AND announced as the current one.
     assert.ok(ACCOUNT.includes("<DropdownMenuCheckboxItem"));
     assert.ok(ACCOUNT.includes("checked={workspace.id === currentId}"));
-    for (const host of [ITEMS, MORE_MENU]) {
-      assert.ok(host.includes("<WorkspaceSwitchItems"));
-    }
+    assert.ok(MORE_MENU.includes("<WorkspaceSwitchItems"));
   });
 
   it("creates an organization where Spaces are served, a workspace elsewhere", () => {
@@ -93,59 +178,98 @@ describe("the account row", () => {
   });
 });
 
-describe("the workspace menu", () => {
-  it("lists workspaces, then the shared tools, then the person's own run", () => {
-    const order = [
-      "<WorkspaceSwitchItems",
-      "props.tools.map(",
-      "label={props.academy.label}",
-      "label={props.settingsLabel}",
-    ].map((needle) => ITEMS.indexOf(needle));
-    assert.ok(
-      order.every((at) => at >= 0),
-      "every run is rendered",
-    );
-    assert.deepEqual(
-      order,
-      [...order].sort((a, b) => a - b),
-    );
+describe("the connect group", () => {
+  it("opens Integrations and AI Models under the rail's own anchors", () => {
+    assert.ok(GROUP.includes('dataAttrs: tourAnchor("nav-integrations")'));
+    assert.ok(GROUP.includes('dataAttrs: tourAnchor("nav-ai-hub")'));
+    assert.ok(GROUP.includes("onClick: () => open(INTEGRATIONS_VIEW_ID)"));
+    assert.ok(GROUP.includes("onClick: () => open(AI_HUB_VIEW_ID)"));
   });
 
-  it("builds its rows from the same builders as the phone's More card", () => {
-    for (const host of [MENU, MORE_MENU]) {
-      assert.ok(host.includes("useSidebarNavItems(t, "));
-      assert.ok(host.includes("academyNavRow("));
-      assert.ok(host.includes("adminNavRow({"));
+  it("leads each row with its label, no glyph: the logos say what it is", () => {
+    assert.equal(GROUP.includes("icon:"), false);
+  });
+
+  it("gates the AI row on showAiModels, and only it", () => {
+    assert.ok(
+      GROUP.includes(
+        "return showAiModels ? <AppsAndAi {...props} /> : <AppsOnly {...props} />;",
+      ),
+    );
+    assert.equal(GROUP.match(/showAiModels \?/g)?.length, 1);
+    assert.ok(GROUP.includes("rows={[useAppsRow(props)]}"));
+    assert.ok(GROUP.includes("rows={[apps, ai]}"), "apps first");
+  });
+});
+
+describe("the phone's More card", () => {
+  it("tells the rail's story: switcher, connect rows, account, Admin, Academy, Settings", () => {
+    inOrder(MORE_MENU, [
+      "<SidebarWorkspaceSwitcher",
+      "<ConnectGroup",
+      "<MobileAccountRow",
+      "{showOrganization && <MobileMoreRowButton row={admin} />}",
+      "<MobileMoreRowButton row={academy} />",
+      "<MobileMoreRowButton row={settings} />",
+    ]);
+    assert.ok(MORE_MENU.includes('nav="reset"'));
+    assert.ok(MORE_MENU.includes('openSettings(null, { nav: "reset" })'));
+  });
+
+  it("draws every row as a sheet row: one left edge, one type size", () => {
+    // The switcher is a sheet row by construction, the connect rows take the
+    // library's sheet surface, and the card's own rows wear the same class
+    // string.
+    assert.equal(MORE_MENU.match(/surface="sheet"/g)?.length, 1);
+    assert.match(MORE_MENU, /<ConnectGroup[^>]*surface="sheet"/);
+    assert.ok(!MORE_MENU.includes("px-2"), "no rail inset re-padded");
+    assert.equal(
+      MORE_ROW.match(/className=\{sidebarSheetRowClasses\}/g)?.length,
+      2,
+    );
+    assert.ok(!MORE_ROW.includes("min-h-12"), "no copy of the sheet row");
+    assert.ok(GROUP.includes("surface={props.surface}"));
+  });
+});
+
+describe("tour anchors", () => {
+  const shell = new URL("../src/components/shell/", import.meta.url);
+  const sources = readdirSync(shell)
+    .filter((name) => /\.tsx?$/.test(name))
+    .map((name) => read(`../src/components/shell/${name}`));
+
+  it("each rail destination anchor has exactly one producer", () => {
+    for (const target of [
+      "workspaceMenu",
+      "nav-integrations",
+      "nav-ai-hub",
+      "nav-academy",
+      "nav-settings",
+    ]) {
+      const producers = sources.filter((source) =>
+        source.includes(`tourAnchor("${target}")`),
+      );
+      assert.equal(producers.length, 1, target);
     }
-  });
-
-  it("opens Settings on its INDEX, and carries no help control", () => {
-    assert.ok(MENU.includes("onOpenSettings={() => openSettings(null)}"));
-    assert.ok(ITEMS.includes('dataAttrs={tourAnchor("nav-settings")}'));
-    // Report bug is a section inside Settings; the menu holds no help item.
-    assert.ok(!MENU.includes("reportProblem"));
-    assert.ok(!ITEMS.includes("reportProblem"));
-  });
-
-  it("leads the workspace run with Admin, behind the org gate, on both breakpoints", () => {
-    assert.ok(MENU.includes("...(showOrganization"));
-    assert.ok(
-      MENU.indexOf("adminNavRow({") < MENU.indexOf("...navSections.flatMap("),
-      "Admin comes before the shared tools",
-    );
-    assert.ok(
-      MORE_MENU.indexOf(
-        "{showOrganization && <MobileMoreRowButton row={admin} />}",
-      ) < MORE_MENU.indexOf("{groups.map("),
-      "and on the phone too",
-    );
+    assert.ok(ROWS.includes('dataAttrs: tourAnchor("nav-academy")'));
+    assert.ok(ROWS.includes('dataAttrs: tourAnchor("nav-settings")'));
     assert.ok(ROWS.includes('dataAttrs: { "data-testid": "rail-admin" }'));
   });
 });
 
-describe("Settings is no destination", () => {
-  it("is in no nav section at all", () => {
-    assert.ok(!NAV.includes("SETTINGS_VIEW_ID"));
-    assert.ok(!NAV.includes('tourAnchor("nav-settings")'));
+describe("destinations the IA deleted", () => {
+  const VIEWS = read("../src/lib/top-level-views.ts");
+  const SETTINGS_SECTIONS = read("../src/lib/settings-sections.ts");
+
+  it("stay deleted: no Inbox or Skills screen", () => {
+    assert.ok(!VIEWS.includes("INBOX_VIEW_ID"), "no Inbox screen");
+    assert.ok(!VIEWS.includes("SKILLS_VIEW_ID"), "no Skills screen");
+  });
+
+  it("keep the person, Admin and Skills out of Settings", () => {
+    assert.ok(!SETTINGS_SECTIONS.includes('"profile"'));
+    assert.ok(!SETTINGS_SECTIONS.includes('"aboutMe"'));
+    assert.ok(!SETTINGS_SECTIONS.includes('"workspace"'));
+    assert.ok(!SETTINGS_SECTIONS.includes('"skills"'));
   });
 });

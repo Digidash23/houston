@@ -10,7 +10,7 @@ import {
  * Company context: the standing knowledge every agent in this workspace starts
  * a turn with. It is admin-owned org-wide copy, so it opens from the Admin
  * header, in every space and over whichever section is showing; the per-user
- * half of the same context lives with the user (Settings > About me).
+ * half of the same context lives with the user (the account menu's About me).
  *
  * Only the pill rides {@link PageHeaderTools}, whose subtree remounts when the
  * strip crosses its threshold. The sheet's root and content sit above it, so

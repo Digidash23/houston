@@ -7,7 +7,7 @@ export function MeProfileMixin<TBase extends BaseCtor>(Base: TBase) {
   class MeProfile extends Base {
     // ---- the caller's own display profile (name + photo) — hosted gateway only ----
     // Off-cloud (`this.ctx.cp === null`) there is no account to edit, so the
-    // read degrades to null and the Settings profile section stays hidden — a
+    // read degrades to null and the account menu offers no Profile — a
     // cosmetic read, exactly like `getOrgProfiles`. A gateway that predates
     // `/v1/me/profile` reads the same way: the SDK throws every non-2xx, and
     // the 404 is swallowed HERE so a pre-feature host renders byte-identically.

@@ -100,6 +100,14 @@ describe("the pinned Manager row", () => {
 });
 
 describe("the phone roster's Manager row", () => {
+  it("fits the avatar's halo inside the employees' avatar diameter", () => {
+    assert.ok(
+      HOME_ROW.includes(
+        "<ManagerAvatar size={managerAvatarSizeWithin(FRONT_DIAMETER)} />",
+      ),
+    );
+  });
+
   it("exists only while the Manager is reachable, like the rail's", () => {
     assert.ok(HOME_ROW.includes("const reachable = useManagerReachable()"));
     assert.ok(HOME_ROW.includes("if (!reachable) return null;"));

@@ -72,6 +72,12 @@ export interface SidebarProps {
    * no drag and no keyboard move.
    */
   onArrange?: (arrangement: SidebarArrangement) => boolean;
+  /**
+   * The shortcut that closes the list (`SidebarAddRow`), drawn inside the
+   * scroll box right after the last row, in both rail states. It scrolls with
+   * the rows it closes.
+   */
+  listFooter?: ReactNode;
   footer?: ReactNode;
   labels?: SidebarLabels;
   /** Icon-only rail: hide all text labels, reveal them via hover/focus flyouts. */

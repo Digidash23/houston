@@ -1,12 +1,10 @@
 import { channelUnavailableReason } from "@houston/engine-adapter";
 import {
   Bug,
-  CircleUserRound,
   CloudUpload,
   CreditCard,
   Keyboard,
   MessagesSquare,
-  UserRound,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChannels } from "../../hooks/queries/use-channels";
@@ -18,7 +16,6 @@ import {
 } from "../../lib/settings-sections";
 import { useUIStore } from "../../stores/ui";
 import { PageContainer, PageHero } from "../shell/page-shell";
-import { SettingsIdentityHeader } from "./identity-header";
 import { AppearanceSection } from "./sections/appearance";
 import { DangerSection } from "./sections/danger";
 import { DeleteAccountSection } from "./sections/delete-account";
@@ -28,7 +25,6 @@ import { SettingsCard, SettingsRow } from "./settings-row";
 
 interface SettingsIndexProps {
   migrationAvailable: boolean;
-  profileAvailable: boolean;
   onSelect: (id: SettingsSectionId) => void;
 }
 
@@ -36,20 +32,17 @@ interface SettingsIndexProps {
  * The settings landing page: the standing setup a person adjusts, about their
  * own app and preferences.
  *
- * The page holds ONE general group (identity, About me, plan, channels,
- * appearance, language, notifications, and the shortcut, bug-report and
- * migration rows), plus Danger. Admin is its own screen; an AI Employee's
- * Skills live in that employee's settings.
- *
- * The page OPENS on the signed-in person: identity is the header, and
- * everything below it is a preference.
+ * The page holds ONE general group (plan, channels, appearance, language,
+ * notifications, and the shortcut, bug-report and migration rows), plus
+ * Danger. Admin is its own screen; an AI Employee's Skills live in that
+ * employee's settings. The person themselves (who is signed in, Sign out,
+ * their Profile and About me) is the account menu's, not a row here.
  *
  * Simple settings are resolved inline as control rows; the heavier ones
  * (shortcuts, bug report) are navigable rows that drill into their own screen.
  */
 export function SettingsIndex({
   migrationAvailable,
-  profileAvailable,
   onSelect,
 }: SettingsIndexProps) {
   const { t } = useTranslation("settings");
@@ -82,26 +75,7 @@ export function SettingsIndex({
       />
 
       <div className="space-y-8">
-        <SettingsIdentityHeader />
-
         <SettingsCard title={t("settings:index.groups.general")}>
-          {profileAvailable && (
-            <SettingsRow
-              icon={CircleUserRound}
-              title={t("settings:nav.profile")}
-              description={t("settings:index.rows.profile")}
-              onClick={() => onSelect("profile")}
-            />
-          )}
-          {/* What every agent reads about the person before it starts a turn:
-              a standing preference they set once about themselves, so it sits
-              with their name and their language rather than in the rail. */}
-          <SettingsRow
-            icon={UserRound}
-            title={t("settings:nav.aboutMe")}
-            description={t("settings:index.rows.aboutMe")}
-            onClick={() => onSelect("aboutMe")}
-          />
           {settingsSectionAvailable("plan", capabilities) && (
             <SettingsRow
               icon={CreditCard}

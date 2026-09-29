@@ -1,6 +1,10 @@
 import { strictEqual } from "node:assert";
 import { describe, it } from "node:test";
 import { ACADEMY_VIEW_ID } from "../src/components/academy/id.ts";
+import {
+  ABOUT_ME_VIEW_ID,
+  PROFILE_VIEW_ID,
+} from "../src/components/account/id.ts";
 import { AGENTS_HOME_VIEW_ID } from "../src/components/agents-home/id.ts";
 import { ASSISTANT_VIEW_ID } from "../src/components/assistant/id.ts";
 import { INTEGRATIONS_VIEW_ID } from "../src/components/integrations-view/id.ts";
@@ -36,6 +40,10 @@ describe("isTopLevelView", () => {
       INTEGRATIONS_VIEW_ID,
       // Admin, the workspace menu's gated dashboard.
       ADMIN_VIEW_ID,
+      // The account menu's screens: the person's name and picture, and what
+      // every AI Employee knows about them.
+      PROFILE_VIEW_ID,
+      ABOUT_ME_VIEW_ID,
       // One screen for every team: which team is open is store state, not an id.
       AGENT_VIEW_ID,
     ]) {
@@ -43,28 +51,27 @@ describe("isTopLevelView", () => {
     }
   });
 
-  it("is exactly those eight, and no settings section doubles as one", () => {
+  it("is exactly those ten, and no settings section doubles as one", () => {
     // A Settings section is reached THROUGH `settings`, so no section id may
     // also resolve as a top-level view. Checking the live section list (rather
     // than retired string literals) keeps this failing if a future section is
     // wired up as a top-level view by mistake, and still covers the
     // stale-persisted-`viewMode` case that motivated it.
-    strictEqual(TOP_LEVEL_VIEWS.size, 8);
+    strictEqual(TOP_LEVEL_VIEWS.size, 10);
     for (const section of SETTINGS_SECTION_IDS) {
       strictEqual(isTopLevelView(section), false, section);
     }
     // Retired `viewMode` values an older install may still have pinned: the
     // global usage page, the Permissions screen (agent policy is a team's
     // focused agent screen), the standalone Time worked screen, the Inbox,
-    // About me (a Settings section), the phone's groups tree (groups are
-    // managed from the AI Employees list), and the workspace Skills screen
-    // (skills live in each employee's settings).
+    // the phone's groups tree (groups are managed from the AI Employees
+    // list), and the workspace Skills screen (skills live in each employee's
+    // settings).
     for (const retired of [
       "usage",
       "permissions",
       "time-worked",
       "inbox",
-      "about-me",
       "agent-store",
       "organization",
       "teams-home",
@@ -267,6 +274,10 @@ describe("blockedTopLevelView", () => {
     // than a caps flag, so this one never blocks it.
     for (const id of [
       ACADEMY_VIEW_ID,
+      // The account menu's screens: the menu itself offers Profile only where
+      // the deployment serves it, so no caps gate stands behind either view.
+      PROFILE_VIEW_ID,
+      ABOUT_ME_VIEW_ID,
       // The phone's landing screen: a gate that could strand a user off it
       // would strand them off the app.
       AGENTS_HOME_VIEW_ID,

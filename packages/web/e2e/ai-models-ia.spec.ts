@@ -6,6 +6,7 @@ import { openAgentSettings } from "./support/team-nav";
 import {
   openNavRow,
   openWorkspaceMenu,
+  railDestination,
   workspaceMenuTrigger,
 } from "./support/workspace-menu";
 
@@ -91,7 +92,7 @@ test("Teams owner: the AI hub has AI Providers and AI Models lozenges", async ({
   await page.goto("/");
   await openNavRow(page, "ai-hub");
 
-  // Scoped to the header nav: the sidebar row shares the "AI Models" name.
+  // Scoped to the header nav, where the hub names its own lozenges.
   const headerNav = page.getByRole("navigation", {
     name: "AI providers and models",
   });
@@ -131,12 +132,11 @@ test("Teams member: the AI Models nav is there, and no usage screen is", async (
   await page.goto("/");
   await settlesShell(page);
 
-  const menu = await openWorkspaceMenu(page);
-  await expect(menu.locator('[data-tour-target="nav-ai-hub"]')).toBeVisible();
-  await expect(menu.locator('[data-tour-target="nav-usage"]')).toHaveCount(0);
-  await expect(
-    menu.locator('[data-tour-target="nav-integrations"]'),
-  ).toBeVisible();
+  await expect(railDestination(page, "nav-ai-hub")).toBeVisible();
+  await expect(railDestination(page, "nav-integrations")).toBeVisible();
+  // Asserted with the account menu open too, so no usage door hides there.
+  await openWorkspaceMenu(page);
+  await expect(page.locator('[data-tour-target="nav-usage"]')).toHaveCount(0);
   await page.keyboard.press("Escape");
 });
 

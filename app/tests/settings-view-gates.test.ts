@@ -70,35 +70,51 @@ describe("settings-view source", () => {
 });
 
 /**
- * About me is a Settings section: a standing preference about the person, kept
- * with their name and their language rather than in the rail.
+ * The person is the account menu's, not Settings': who is signed in, Sign
+ * out, Profile and About me are reached only through the avatar in the rail's
+ * foot (the phone's "Your account" row), so the Settings index carries none of
+ * them and no section can open them.
  */
-describe("the About me section", () => {
-  const src = read("../src/components/settings/sections/about-me.tsx");
+describe("Settings without the person", () => {
+  const index = read("../src/components/settings/settings-index.tsx");
+  const body = read("../src/components/settings/settings-section-body.tsx");
+
+  it("draws no identity header and no Sign out", () => {
+    ok(!index.includes("SettingsIdentityHeader"), "no identity header");
+    ok(!index.includes("signOut"), "no way out from Settings");
+  });
+
+  it("lists neither Profile nor About me", () => {
+    ok(!index.includes("profileAvailable"), "no Profile gate to read");
+    ok(!index.includes('onSelect("profile")'), "no Profile row");
+    ok(!index.includes('onSelect("aboutMe")'), "no About me row");
+    ok(!body.includes("ProfileView"), "no Profile branch");
+    ok(!body.includes("AboutMeView"), "no About me branch");
+  });
+});
+
+/**
+ * About me is the account menu's screen: a standing fact about the person,
+ * drawn on the account pages' shared frame.
+ */
+describe("the About me screen", () => {
+  const src = read("../src/components/account/about-me-view.tsx");
 
   it("reuses the ONE standing-prose editor over the `user` slot", () => {
     // The stored file does not move with the surface: this reads and writes
     // the same workspace-context slot the agents' prompt is built from.
     ok(src.includes('useContextSlot("user")'), "the user slot");
     ok(src.includes("<ContextEditorBox"), "the shared editor, not a new one");
-    ok(src.includes('t("context:aboutMe.title")'), "the copy it already owned");
+    ok(src.includes('t("aboutMe.title")'), "the copy it already owned");
   });
 
-  it("draws the COMPACT card, because the section column scrolls", () => {
-    // A `fill` card claims the height its parents grant, and the Settings
-    // section body grants none: it is a reading column inside the back bar's
-    // own scroller, so a pinned card would collapse to nothing.
+  it("draws the COMPACT card, because the page column scrolls", () => {
+    // A `fill` card claims the height its parents grant, and the account
+    // page grants none: it is a reading column inside its own scroller, so a
+    // pinned card would collapse to nothing.
     ok(src.includes("layout={{ rows: 14 }}"), "rows mode");
     ok(!src.includes('layout="fill"'), "never the pinned page layout");
-    ok(!src.includes("BackBarScreen"), "the section frame owns the back bar");
-  });
-
-  it("is mounted by the section body and listed on the index", () => {
-    const body = read("../src/components/settings/settings-section-body.tsx");
-    ok(body.includes('active === "aboutMe" && <AboutMeSection />'));
-    const index = read("../src/components/settings/settings-index.tsx");
-    ok(index.includes('onClick={() => onSelect("aboutMe")}'), "a row opens it");
-    ok(index.includes('t("settings:nav.aboutMe")'), "named in Settings");
+    ok(src.includes("<AccountPage"), "the account pages' frame");
   });
 });
 

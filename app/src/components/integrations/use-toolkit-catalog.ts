@@ -7,17 +7,25 @@ import {
 import { INTEGRATION_PROVIDER } from "./model";
 
 /**
+ * Whether the integration provider is READY (the Houston session push has
+ * landed). The single home for the readiness predicate the provider's reads
+ * gate on, so a still-warming gateway or an unset provider never fires a
+ * failing call from a surface the person did not open.
+ */
+export function useIntegrationProviderReady(): boolean {
+  const status = useIntegrationStatus();
+  return !!status.data?.find((p) => p.provider === INTEGRATION_PROVIDER)?.ready;
+}
+
+/**
  * The integration provider's toolkit catalog, gated on the provider being
- * READY (the Houston session push has landed). The single home for the
- * readiness predicate every read-only display surface used to repeat inline:
- * the catalog is fetched only once the status query reports the provider
- * `ready`, so a still-warming gateway never fires a failing toolkits call.
+ * ready (`useIntegrationProviderReady`).
  */
 export function useReadyToolkitCatalog() {
-  const status = useIntegrationStatus();
-  const ready = !!status.data?.find((p) => p.provider === INTEGRATION_PROVIDER)
-    ?.ready;
-  return useIntegrationToolkits(INTEGRATION_PROVIDER, ready);
+  return useIntegrationToolkits(
+    INTEGRATION_PROVIDER,
+    useIntegrationProviderReady(),
+  );
 }
 
 /**

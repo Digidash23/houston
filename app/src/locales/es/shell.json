@@ -2,12 +2,15 @@
   "sidebar": {
     "academy": "Academia",
     "admin": "Administración",
+    "account": "Tu cuenta",
     "addAgent": "Nuevo empleado de IA",
-    "aiModels": "Modelos de IA",
+    "addEmployee": "Agregar nuevo empleado de IA",
     "assistant": "Houston",
     "assistantRole": "Tu AI Manager",
     "changeColor": "Cambiar color",
     "collapse": "Contraer barra lateral",
+    "connectAi": "Conecta tu IA",
+    "connectApps": "Conecta tus apps",
     "color": "Color",
     "colorLabels": {
       "charcoal": "Carbón",
@@ -35,7 +38,6 @@
       "keyboardLeftGroup": "Sacaste %name% de %group% al nivel principal."
     },
     "expand": "Expandir barra lateral",
-    "integrations": "Integraciones",
     "needsYouCount_one": "{{count}} asunto necesita tu atención",
     "needsYouCount_other": "{{count}} asuntos necesitan tu atención",
     "newMission": "Nueva tarea",
@@ -397,6 +399,11 @@
     "firstDay": "Empieza su primer día",
     "working": "Trabajando…",
     "newAgent": "Nuevo"
+  },
+  "accountMenu": {
+    "profile": "Perfil",
+    "aboutMe": "Sobre mí",
+    "signOut": "Cerrar sesión"
   },
   "missionChat": {
     "back": "Atrás"

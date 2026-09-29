@@ -48,8 +48,8 @@ e2e/
                     # locate a composer by
     copy-agent.ts   # the copy-an-agent door on both breakpoints, plus the
                     # content the seeded agent is given so every screen has some
-    create-agent.ts # the rail's "New AI Employee" row and the guided brief
-                    # behind it (the Agents home has a control of the same name)
+    create-agent.ts # the rail's "+" and the guided brief behind it (the
+                    # Agents home has a "New AI Employee" control)
     fixtures.ts     # the `test`/`expect` used by specs (resets the host per test)
     global-setup.ts # warms the vite dev server once before the suite (see CI below)
     identity.ts     # sign the harness in as a known user (see Signed-in specs below)
@@ -74,7 +74,8 @@ e2e/
                     # `test:e2e` / `test:visual` entry point
     seed.ts         # localStorage + window.__HOUSTON_CP__ primed before any app script
     settings-nav.ts # the rail's anchorless rows (Admin + its sections and
-                    # Analytics lenses) and Settings + its sections (About me)
+                    # Analytics lenses), Settings, and the account menu's
+                    # screens (Profile, About me)
     sidebar-create.ts # the rail band's ONE "+" and the create sheet behind it
     sidebar-layout.ts # the sidebar's stored order + grouping, arranged by
                     # writing it to the HOST before the app boots
@@ -209,9 +210,9 @@ inbox and can force a per-invite `needs_upgrade` / `already_member` /
 (`team-invites.spec.ts`).
 
 The personal rail reads `SidebarLayout` groups. Its "+" offers New AI Employee
-and New group, and one New AI Employee row closes the root list outside every
-folder; `sidebar-teams.spec.ts` checks folder actions and row placement, and
-`sidebar-dnd.spec.ts` checks stored order and cross-group drops. Team spaces
+and New group, and one "Add new AI Employee" row closes the root list outside
+every folder; `sidebar-teams.spec.ts` checks folder actions and row placement,
+and `sidebar-dnd.spec.ts` checks stored order and cross-group drops. Team spaces
 remain separate from these personal groups.
 
 The seeded catalog (`SEED_TOOLKIT_SLUGS`, exported for specs) holds 15 A-Z apps,
