@@ -1,4 +1,4 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { readEmbeddedCatalog } from "@houston/host/src/assistant/catalog-source";
 import { expect, test, vi } from "vitest";
 import {
@@ -12,7 +12,7 @@ import type { SandboxFetch } from "./sandbox-fetch";
 const loadedCatalog = readEmbeddedCatalog();
 if (!loadedCatalog) throw new Error("missing catalog");
 const catalog = loadedCatalog;
-const ctx = {} as ExtensionContext;
+const ctx = {} as ExtensionToolContext;
 
 function setup(payload: unknown, status = 200) {
   const call = vi.fn<SandboxFetch>(async () =>

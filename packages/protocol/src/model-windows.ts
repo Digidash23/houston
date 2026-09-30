@@ -42,13 +42,6 @@ interface WindowOverride {
  * Per-model window overrides, keyed by pi-ai provider id then model id. Present
  * ONLY where Houston's real window differs from pi-ai's raw registry value:
  *
- * - `anthropic` — pi reports 1,000,000 for the flagships, but standard (Pro,
- *   non-credit) plans get 200k; the 1M window is credit/plan-gated, so the
- *   estimate starts at 200k and snaps to 1M once observed usage proves it.
- *   `claude-opus-5` follows the rest of the Opus line (same subscription
- *   gating). `claude-fable-5`, `claude-fable-5-1` and `claude-sonnet-5` are
- *   intentionally omitted (no evidence any is plan-gated — pi's flat 1M
- *   stands for all three).
  * - `openai-codex` — Codex's `/status` reports a 95%-EFFECTIVE window (the
  *   number the user sees), so each row's default is 95% of pi's window for it:
  *   every served row (the gpt-6 line, the gpt-5.6 line and gpt-5.5) sits at
@@ -59,6 +52,10 @@ interface WindowOverride {
  *   the variant loses nothing, while a served row WITHOUT the ceiling pins the
  *   bar at 100% and compacts at 258k on a chat the provider would carry on.
  *
+ * `anthropic` carries no row: its lineup (Sonnet 5.5, Opus 5.5, Fable 5.1)
+ * runs a native 1M window on every plan, Pro included, with no `[1m]` variant
+ * and no usage credits, so pi's flat 1M stands.
+ *
  * Every row here names a model the domain catalog still lists
  * (`@houston/domain` `VALID_MODELS`); a model the catalog drops is a row no
  * turn can reach, and a stale ceiling is worse than none.
@@ -66,12 +63,6 @@ interface WindowOverride {
 export const MODEL_WINDOW_OVERRIDES: Readonly<
   Record<string, Readonly<Record<string, WindowOverride>>>
 > = {
-  anthropic: {
-    "claude-sonnet-4-6": { default: 200_000, max: 1_000_000 },
-    "claude-opus-4-7": { default: 200_000, max: 1_000_000 },
-    "claude-opus-4-8": { default: 200_000, max: 1_000_000 },
-    "claude-opus-5": { default: 200_000, max: 1_000_000 },
-  },
   "openai-codex": {
     "gpt-6-astra": { default: 258_400, max: 950_000 },
     "gpt-6-luna": { default: 258_400, max: 950_000 },

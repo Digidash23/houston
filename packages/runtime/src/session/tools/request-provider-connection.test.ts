@@ -1,4 +1,4 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { isInteractionStep, parsePendingInteraction } from "@houston/protocol";
 import { expect, test } from "vitest";
 import {
@@ -19,7 +19,7 @@ const execute = (provider: string, reason?: string) =>
     { provider, reason },
     undefined,
     undefined,
-    {} as ExtensionContext,
+    {} as ExtensionToolContext,
   );
 
 test("accepts curated and additional catalog providers without connected credentials", async () => {

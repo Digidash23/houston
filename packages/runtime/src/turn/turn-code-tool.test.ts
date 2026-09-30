@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import type {
-  ExtensionContext,
+  ExtensionToolContext,
   ModelRuntime,
 } from "@earendil-works/pi-coding-agent";
 import { afterEach, expect, test, vi } from "vitest";
@@ -227,7 +227,7 @@ test("the run_code budget belongs to the WORKER, not to one turn", async () => {
       { language: "bash", code: "echo hi" },
       undefined,
       undefined,
-      {} as unknown as ExtensionContext,
+      {} as unknown as ExtensionToolContext,
     );
   const inFlight = run(first, "r1");
   await new Promise((r) => setTimeout(r, 10));

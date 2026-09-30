@@ -1,6 +1,7 @@
 /**
- * pi's REAL model catalog per provider (captured from `getModels(...)`), the set
- * a stored model id is checked against before a migration keeps it.
+ * The models Houston runs per provider — pi's catalog (captured from
+ * `getModels(...)`), narrowed where a row must not run — the set a stored model
+ * id is checked against before a migration keeps it.
  *
  * Providers with finite catalogs are enumerated: `getModel` returns undefined
  * for an unlisted id on these, so a stored model MUST be checked against this
@@ -16,42 +17,22 @@
 import type { ProviderId } from "./provider-ids";
 
 export const VALID_MODELS: Partial<Record<ProviderId, ReadonlySet<string>>> = {
+  // The Claude lineup Houston offers (`ANTHROPIC_LINEUP` in
+  // model-aliases.ts, one model per family), a SUBSET of pi's catalog. pi still
+  // lists older Claude rows, and each one resolves to its own family's lineup
+  // model instead of running as itself.
   anthropic: new Set([
-    "claude-3-5-haiku-20241022",
-    "claude-3-5-haiku-latest",
-    "claude-3-5-sonnet-20240620",
-    "claude-3-5-sonnet-20241022",
-    "claude-3-7-sonnet-20250219",
-    "claude-3-haiku-20240307",
-    "claude-3-opus-20240229",
-    "claude-3-sonnet-20240229",
-    "claude-fable-5",
     "claude-fable-5-1",
-    "claude-haiku-4-5",
-    "claude-haiku-4-5-20251001",
-    "claude-opus-4-0",
-    "claude-opus-4-1",
-    "claude-opus-4-1-20250805",
-    "claude-opus-4-20250514",
-    "claude-opus-4-5",
-    "claude-opus-4-5-20251101",
-    "claude-opus-4-6",
-    "claude-opus-4-7",
-    "claude-opus-4-8",
-    "claude-opus-5",
-    "claude-sonnet-4-0",
-    "claude-sonnet-4-20250514",
-    "claude-sonnet-4-5",
-    "claude-sonnet-4-5-20250929",
-    "claude-sonnet-4-6",
-    "claude-sonnet-5",
+    "claude-opus-5-5",
+    "claude-sonnet-5-5",
   ]),
   // pi's Codex catalog MINUS the rows OpenAI refuses a ChatGPT subscription:
   // gpt-5.3-codex-spark answers `400 not supported when using Codex with a
   // ChatGPT account` (probed live against the responses endpoint —
   // packages/runtime/src/ai/codex-offered.ts holds the method and the
   // verdicts). Keeping it "valid" is what let a stored id survive migration
-  // into a turn that could only fail.
+  // into a turn that could only fail. gpt-6.1-sol is out too: pi ships it, but
+  // no probe has a verdict for it yet.
   "openai-codex": new Set([
     "gpt-5.5",
     "gpt-5.6-luna",

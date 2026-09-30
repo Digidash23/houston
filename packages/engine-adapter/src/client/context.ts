@@ -1,3 +1,4 @@
+import { DEFAULT_MODEL } from "@houston/domain/provider-default-models";
 import type { HoustonEngineClient } from "@houston/runtime-client";
 // The barrel, not the `cp/*` submodules: the web test suite mocks
 // `../control-plane` wholesale — see the note in `endpoint.ts`.
@@ -79,6 +80,6 @@ export class AdapterContext extends EngineEndpoint {
     } catch {
       /* engine unreachable / no agent selected / not authed → defaults below */
     }
-    return { provider: "anthropic", model: "claude-sonnet-4-6" };
+    return { provider: "anthropic", model: DEFAULT_MODEL.anthropic ?? "" };
   }
 }

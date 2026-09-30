@@ -1,5 +1,5 @@
 diff --git a/dist/api/google-shared.js b/dist/api/google-shared.js
-index 478c2c3..5c3c652 100644
+index 478c2c387b3a9c781c04a2268677c62a26093d42..5c3c6527a81fa0619fbf41ecb917b4034c9c70db 100644
 --- a/dist/api/google-shared.js
 +++ b/dist/api/google-shared.js
 @@ -404,8 +404,10 @@ export function mapStopReason(reason) {
@@ -16,13 +16,13 @@ index 478c2c3..5c3c652 100644
      }
  }
 diff --git a/dist/utils/retry.js b/dist/utils/retry.js
-index 6538c63..a800b8a 100644
+index 38781fbb440d41ad5f53bc216c27422c2be01074..e7f891d4f7d22f23967dad74c215979d99f49cab 100644
 --- a/dist/utils/retry.js
 +++ b/dist/utils/retry.js
-@@ -76,6 +76,14 @@ const RETRYABLE_PROVIDER_ERROR_PATTERN = buildProviderErrorPattern([
-     "please retry your request",
-     // gRPC based providers (e.g. NVIDIA NIM)
-     "ResourceExhausted",
+@@ -83,6 +83,14 @@ const RETRYABLE_PROVIDER_ERROR_PATTERN = buildProviderErrorPattern([
+     // failures can arrive mid-stream without an HTTP 503 in the message.
+     "subscription_sharing_usage_unavailable",
+     "subscription_sharing_user_unavailable",
 +    // Gemini finish reasons for a generation the MODEL itself broke (an
 +    // unparseable tool call, a garbled response). Surfaced as `Provider stopped
 +    // with: <REASON>` with no HTTP status; transient and server-side, Google's

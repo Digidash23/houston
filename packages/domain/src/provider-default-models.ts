@@ -18,7 +18,7 @@
 import type { ProviderId } from "./provider-ids";
 
 export const DEFAULT_MODEL: Partial<Record<ProviderId, string>> = {
-  anthropic: "claude-sonnet-5",
+  anthropic: "claude-sonnet-5-5",
   // Codex's cheapest gpt-6 tier, and the id a pin naming `openai-codex` with NO
   // model lands on. It has to be a row the ChatGPT subscription serves: a
   // default the Codex backend refuses kills every such pin on its first turn.
@@ -34,7 +34,10 @@ export const DEFAULT_MODEL: Partial<Record<ProviderId, string>> = {
   // unlike native Anthropic.
   "github-copilot": "gpt-5-mini",
   opencode: "claude-sonnet-4-6",
-  "opencode-go": "glm-5.1",
+  // The GLM row that holds glm-5.1's tier (same price, same plan) — pi 0.99.1
+  // dropped glm-5.1, and a default the catalog no longer carries fails every
+  // provider-only pin on its first turn.
+  "opencode-go": "glm-5.2",
   openrouter: "anthropic/claude-sonnet-4.6",
   deepseek: "deepseek-flash",
   // 3.8 Flash (GA 2026-09-02): 1M context, 64K output, and cheaper than 3.5

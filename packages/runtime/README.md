@@ -50,7 +50,7 @@ loopback and no `HOUSTON_HEADLESS` mode. Codex stays device-code. See
 | `HOUSTON_WORKSPACE_DIR` | `cwd` | Directory the agent operates in |
 | `HOUSTON_DATA_DIR` | `~/.houston-ts/data` | `auth.json` + conversation JSONL |
 | `HOUSTON_HOST` / `HOUSTON_PORT` | `127.0.0.1` / `4317` | Bind address |
-| `HOUSTON_MODEL` | `claude-sonnet-4-6` | Anthropic model id (optional; built-in default) |
+| `HOUSTON_MODEL` | `claude-sonnet-5-5` | Anthropic model id (optional; built-in default) |
 | `HOUSTON_RUNTIME_TOKEN` | _(unset)_ | Bearer token; unset = open (local dev) |
 | `HOUSTON_CORS_ORIGIN` | `*` | Allowed CORS origin for the webapp |
 | `HOUSTON_SKILLS_DIR` | `<workspace>/.agents/skills` | SKILL.md skills dir (Agent Skills standard); absent dir = no skills |
