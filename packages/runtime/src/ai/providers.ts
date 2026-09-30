@@ -624,6 +624,21 @@ export function safeModelIds(provider: ProviderId): string[] {
   return piModelIds(provider);
 }
 
+/**
+ * The model a SAVED (unpinned) turn on this provider runs — the same ladder
+ * `safeGetModel` applies: a retired Claude id runs its family's lineup model,
+ * and an id the provider does not offer falls back to the provider default.
+ * The status row reports this, so no choice list ever offers a model a pinned
+ * turn would refuse.
+ */
+function savedModelRuns(id: ProviderId): string {
+  const modelId = lineupModelId(id, modelFor(id));
+  const offered = safeModelIds(id);
+  return offered.length > 0 && !offered.includes(modelId)
+    ? providerDefaultModel(id)
+    : modelId;
+}
+
 /** One /providers status row for a provider id. `configured` reports the
  *  status-surface truth (`providerUsable`): the frontend maps it straight to
  *  authenticated/unauthenticated for the AI Models page and the chat model
@@ -645,9 +660,7 @@ function providerRow(id: ProviderId, name: string, active: ProviderId | null) {
     name,
     configured: providerUsable(id),
     isActive: id === active,
-    // What a turn on this provider runs, so a retired saved Claude id reports
-    // its lineup model rather than a model no turn will run on.
-    activeModel: lineupModelId(id, modelFor(id)),
+    activeModel: savedModelRuns(id),
     models: safeModelIds(id),
     ...(servedScope ? { credentialScope: servedScope } : {}),
     health: providerHealth(id),

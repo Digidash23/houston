@@ -95,6 +95,20 @@ test("curated providers keep their configured defaults (no regression)", () => {
   expect(providers.providerDefaultModel("opencode")).toBe("claude-sonnet-4-6");
 });
 
+test("an agent saved on an unoffered Claude id reports the default it runs", () => {
+  // Haiku has no lineup model: a saved turn falls back to the provider default,
+  // so the status row (and every choice list built from it) must name that
+  // default, never a model a pinned turn would refuse.
+  providers.setSettings({
+    activeProvider: "anthropic",
+    model: "claude-haiku-4-5",
+  });
+  const m = providers.resolveModel(null, "anthropic") as { id?: string };
+  expect(m.id).toBe("claude-sonnet-5-5");
+  const row = providers.listProviders().find((p) => p.id === "anthropic");
+  expect(row?.activeModel).toBe("claude-sonnet-5-5");
+});
+
 test("an agent saved on a retired Claude id runs and reports its family's lineup model", () => {
   // settings.json written before the Claude lineup moved still says Opus 4.8;
   // the turn must run Opus 5.5 (never the Sonnet default), and the status row
