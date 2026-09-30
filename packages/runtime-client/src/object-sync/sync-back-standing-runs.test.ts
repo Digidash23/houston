@@ -1,10 +1,11 @@
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { ATOMIC_TMP_SUFFIX } from "@houston/protocol";
 import { expect, test } from "vitest";
 import type { ObjectMetadata } from "./object-manifest";
 import { type ObjectStore, StoreConflictError } from "./object-store";
-import { syncBack } from "./sync-back";
+import { type LocalWriteLock, syncBack } from "./sync-back";
 
 /**
  * The standing store sync (a pod's daemon, no `workerMerge`) on the run
@@ -26,6 +27,8 @@ async function standing(opts: {
   remote: string;
   /** The host's own write landing while the daemon reads the remote. */
   duringRead?: string;
+  /** The host's queue, given the synced file's path. */
+  lock?: (abs: string) => LocalWriteLock;
 }) {
   const root = await mkdtemp(join(tmpdir(), "standing-runs-"));
   const abs = join(root, ...RUNS.split("/"));
@@ -53,8 +56,10 @@ async function standing(opts: {
   const previous = { hash: "before", generation: "6" };
   const result = await syncBack(store, "", root, new Map([[RUNS, previous]]), {
     generations: true,
+    ...(opts.lock ? { localWriteLock: opts.lock(abs) } : {}),
   });
   return {
+    abs,
     result,
     previous,
     preconditions,
@@ -164,4 +169,23 @@ test("a host fire spanning the daemon's merge keeps both its row and the sandbox
 
   expect(remote().map(({ id }) => id)).toEqual(["fired", "pod", "sandbox"]);
   expect(JSON.parse(await readFile(abs, "utf8"))).toEqual(remote());
+});
+
+test("the daemon holds the host's queue only to compare and swap in a staged merge", async () => {
+  const staged: string[][] = [];
+  const sync = await standing({
+    local: JSON.stringify([run("pod", 2)]),
+    remote: JSON.stringify([run("sandbox", 1)]),
+    lock: (abs) => async (_relativePath, write) => {
+      staged.push(await readdir(dirname(abs)));
+      return write();
+    },
+  });
+  expect(staged).toHaveLength(1);
+  // Beside the remote read's temp, the merge is already written in its own.
+  const replacements = (staged[0] ?? []).filter(
+    (name) => name.endsWith(ATOMIC_TMP_SUFFIX) && !name.includes(".remote."),
+  );
+  expect(replacements).toHaveLength(1);
+  expect(await readdir(dirname(sync.abs))).toEqual(["routine_runs.json"]);
 });

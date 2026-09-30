@@ -9,7 +9,7 @@ import {
   mergesOnceOnConflict,
 } from "./sync-back-doc-merge";
 import { type RefreshManifest, sourceVanished } from "./sync-back-merge-retry";
-import { writeAtomically } from "./sync-back-merge-write";
+import { stageReplacement } from "./sync-back-merge-write";
 import type { LocalWriteLock } from "./sync-back-types";
 
 /**
@@ -100,13 +100,18 @@ async function mergeSyncBackDocument(opts: {
       remoteBody,
     );
     if (merged === undefined) return undefined;
-    const lock = opts.localWriteLock ?? unlocked;
-    const replaced = await lock(opts.relativePath, async () => {
-      if ((await readFile(opts.abs, "utf8")) !== localBody) return false;
-      await writeAtomically(opts.abs, merged);
-      return true;
-    });
-    if (!replaced) return CHANGED_LOCALLY;
+    const staged = await stageReplacement(opts.abs, merged);
+    try {
+      const lock = opts.localWriteLock ?? unlocked;
+      const replaced = await lock(opts.relativePath, async () => {
+        if ((await readFile(opts.abs, "utf8")) !== localBody) return false;
+        await staged.commit();
+        return true;
+      });
+      if (!replaced) return CHANGED_LOCALLY;
+    } finally {
+      await staged.discard();
+    }
     const { size } = await stat(opts.abs);
     return fileSha256(opts.abs, size);
   } finally {

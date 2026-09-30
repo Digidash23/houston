@@ -46,12 +46,18 @@ function instant(row: Row, field: "started_at" | "completed_at"): number {
  * One run both sides hold. A run only moves forward (running, then one
  * terminal state), so the further copy wins: terminal over running, then a
  * cancel (the host never lets a finishing turn flip a stopped run back), then
- * the later `completed_at`. A tie goes to the remote.
+ * the later `completed_at`. A tie goes to the remote, and two running copies
+ * keep the remote's fields plus a restart either side recorded.
  */
 function pickRun(local: Row, remote: Row): Row {
   const [mine, theirs] = [progress(local), progress(remote)];
   if (mine !== theirs) return mine > theirs ? local : remote;
-  if (mine < PROGRESS.surfaced) return remote;
+  if (mine < PROGRESS.surfaced) {
+    // `resumed` only ever turns on (the engine restarted mid-run): keep it.
+    return local.resumed === true && remote.resumed !== true
+      ? { ...remote, resumed: true }
+      : remote;
+  }
   const localCancelled = local.status === "cancelled";
   if (localCancelled !== (remote.status === "cancelled")) {
     return localCancelled ? local : remote;

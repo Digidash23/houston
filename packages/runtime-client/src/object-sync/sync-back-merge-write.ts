@@ -44,12 +44,29 @@ export function mergeOrOverwrite(
  * the store sync never uploads.
  */
 export async function writeAtomically(abs: string, body: string) {
+  const staged = await stageReplacement(abs, body);
+  try {
+    await staged.commit();
+  } finally {
+    await staged.discard();
+  }
+}
+
+/**
+ * `body` written beside `abs`, for `commit` to rename over it: a caller that
+ * must compare before replacing holds its lock for the rename alone. Always
+ * `discard` after (a no-op once committed).
+ */
+export async function stageReplacement(abs: string, body: string) {
   const temp = atomicTempPath(abs, randomUUID());
   try {
     await writeFile(temp, body);
-    await rename(temp, abs);
   } catch (error) {
     await rm(temp, { force: true });
     throw error;
   }
+  return {
+    commit: () => rename(temp, abs),
+    discard: () => rm(temp, { force: true }),
+  };
 }

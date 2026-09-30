@@ -70,9 +70,13 @@ describe("routine run history merge", () => {
     expect(merge([finished], [stopped])).toEqual([stopped]);
   });
 
-  test("two running copies keep the remote's", () => {
+  test("two running copies keep the remote's, and a restart either recorded", () => {
     const resumed = running("a", 1, { resumed: true });
     expect(merge([resumed], [running("a", 1)])).toEqual([resumed]);
+    const paused = running("a", 1, { paused_until: "3pm" });
+    expect(merge([paused], [resumed])).toEqual([
+      running("a", 1, { paused_until: "3pm", resumed: true }),
+    ]);
   });
 
   test("the per-routine cap drops the oldest after the union", () => {
