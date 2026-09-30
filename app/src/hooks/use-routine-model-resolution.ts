@@ -2,7 +2,7 @@
  * The provider + model a routine will actually RUN ON (PRODUCT-1475).
  *
  * A routine is either PINNED (it carries its own provider/model, which the fire
- * path honors verbatim) or it follows the agent — and "follows the agent" was
+ * path runs through `routineFirePin`) or it follows the agent — and "follows the agent" was
  * all the editor ever said, which told the user nothing about which AI account
  * was about to be billed or whether it even worked. So this resolves the pair
  * either way, reusing the two derivations that already own the answer rather
@@ -29,8 +29,7 @@ import {
   modelSelectorDecision,
   resolvePersonalModelPin,
 } from "../lib/model-selector-lock";
-import { toDisplayProviderIdOrNull } from "../lib/provider-overrides";
-import { normalizeLegacyModel } from "../lib/providers";
+import { routinePinnedPair } from "../lib/routine-pinned-pair";
 import type { Agent } from "../lib/types";
 import { useAgentConfig, useAgentModelChoice } from "./queries";
 import { useCapabilities } from "./use-capabilities";
@@ -75,15 +74,9 @@ export function useRoutineModelResolution(
   const allowedModels = personal ? (choiceInfo?.allowedModels ?? null) : null;
   const { data: config } = useAgentConfig(agent.folderPath);
 
-  // routines.json stores pi's CANONICAL id (the host canonicalizes every pin
-  // it fires — `routinePin`), while the picker, the label chain and the health
-  // probe are all keyed by the display id.
-  const pinnedProvider = toDisplayProviderIdOrNull(routine.provider) ?? "";
-  // The model the fire path runs, not the raw stored id: `routinePin` maps a
-  // legacy or retired id (a Claude Opus 4.8 pin fires on Opus 5.5) through
-  // the same ladder.
-  const pinnedModel =
-    normalizeLegacyModel(routine.model, routine.provider) ?? "";
+  // The pair the fire path runs, not the raw stored ids (./routine-pinned-pair).
+  const { provider: pinnedProvider, model: pinnedModel } =
+    routinePinnedPair(routine);
   const followsAgent = !pinnedProvider || !pinnedModel;
   const choice = personal ? choiceInfo?.choice : null;
 
