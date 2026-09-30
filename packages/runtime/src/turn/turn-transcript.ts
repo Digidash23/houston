@@ -5,6 +5,7 @@ import type { TurnServerDeps } from "./server-types";
 import type { TurnFilesystem } from "./turn-filesystem";
 import { poolIdentity } from "./turn-store";
 import { putTranscriptRow } from "./turn-transcript-http";
+import { turnRow } from "./turn-transcript-row";
 import type { TurnRequest } from "./types";
 
 export type TranscriptPublishResult =
@@ -110,15 +111,10 @@ class HttpTurnTranscript implements TurnTranscript {
     const userIndex = this.userIndex(conversation.messages);
     if (userIndex < 0) return { error: "turn user message is missing" };
 
-    // The LAST of this turn's assistant records: a turn that compacted before
-    // its prompt holds the claimed summary marker first and its own reply or
-    // failure card after it, and the remote keeps one assistant row per turn.
-    const assistant = conversation.messages
-      .slice(userIndex + 1)
-      .findLast(
-        (message) =>
-          message.role === "assistant" && message.turnId === this.opts.turnId,
-      );
+    const assistant = turnRow(
+      conversation.messages.slice(userIndex + 1),
+      this.opts.turnId,
+    );
     return assistant
       ? this.put({
           kind: "assistant",

@@ -153,3 +153,33 @@ test("a history without turn ids keeps the legacy trailing-reply settle", async 
   };
   expect(final.result).toBe("Legacy reply");
 });
+
+test("a mixed history keeps the legacy settle for our own id-less turn", async () => {
+  // Older turns ran on a worker that stamps ids; ours ran on one that does
+  // not (version skew, a rollback). Our pair is what concludes the turn.
+  const { s, items } = state();
+  const settled = await presettle(
+    s,
+    [
+      ...earlier,
+      { role: "user", content: PROMPT, ts: 3 },
+      { role: "assistant", content: "Id-less reply", ts: 4 },
+    ],
+    [],
+  );
+  expect(settled).toBe(true);
+  const final = items.find((i) => i.feed_type === "final_result")?.data as {
+    result: string;
+  };
+  expect(final.result).toBe("Id-less reply");
+});
+
+test("an id-less turn never settles on a pending summary marker either", async () => {
+  const { s } = state();
+  const settled = await presettle(
+    s,
+    [...earlier, { role: "user", content: PROMPT, ts: 3 }, pendingMarker],
+    [],
+  );
+  expect(settled).toBe(false);
+});

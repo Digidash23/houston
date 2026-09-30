@@ -35,13 +35,13 @@ export function turnReply(
  * The one message that PROVES the turn is over, or null (inconclusive).
  *
  * - With a `turnId`: the record that concludes that turn.
- * - Without one, on a history that carries turn ids: the trailing message
- *   proves nothing, since a native compaction writes its summary marker
- *   mid-turn, before the reply exists. The id is derived from our own user
- *   row (the newest, which the `guard` must accept as ours), and only a
- *   later record under it concludes the turn.
- * - On a legacy history with no turn ids at all: the trailing message must be
- *   an assistant reply the `guard` accepts as ours.
+ * - Without one, the newest user row (which the `guard` must accept as ours)
+ *   decides. Stamped with an id: only a later record under that id concludes
+ *   the turn, and the trailing message proves nothing, since a native
+ *   compaction writes its summary marker mid-turn, before the reply exists.
+ *   Not stamped (a legacy worker, which a mixed history can still hold after
+ *   a version skew or rollback): the trailing message must be an assistant
+ *   reply, and never a summary marker.
  */
 export function conclusiveReply(
   messages: readonly ChatMessage[],
@@ -50,13 +50,13 @@ export function conclusiveReply(
 ): ChatMessage | null {
   if (turnId) return turnReply(messages, turnId) ?? null;
   const all = [...messages];
-  if (all.some((m) => m.turnId !== undefined)) {
-    if (!guard(all)) return null;
-    let at = all.length - 1;
-    while (at >= 0 && all[at]?.role !== "user") at--;
-    const own = all[at]?.turnId;
-    return own ? (turnReply(all.slice(at + 1), own) ?? null) : null;
-  }
+  if (!guard(all)) return null;
+  let at = all.length - 1;
+  while (at >= 0 && all[at]?.role !== "user") at--;
+  const own = all[at]?.turnId;
+  if (own) return turnReply(all.slice(at + 1), own) ?? null;
   const last = all[all.length - 1];
-  return last?.role === "assistant" && guard(all) ? last : null;
+  return last?.role === "assistant" && last.compaction?.trigger !== "native"
+    ? last
+    : null;
 }

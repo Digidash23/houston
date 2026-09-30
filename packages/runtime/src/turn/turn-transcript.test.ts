@@ -246,7 +246,7 @@ test("claimed turn publishes its persisted user and assistant before done", asyn
   expect(raw).not.toContain('"type":"error"');
 });
 
-test("a compacted turn publishes its own final record, never the summary marker", async () => {
+test("a compacted turn publishes its own final record, with the boundary the marker holds", async () => {
   const objects = seedStandingLayout();
   const requests: TranscriptRequest[] = [];
   let failure: ChatMessage | undefined;
@@ -288,8 +288,18 @@ test("a compacted turn publishes its own final record, never the summary marker"
   });
 
   expect(failure?.providerError?.kind).toBe("rate_limited");
+  // The claim moved the compaction boundary onto the summary marker; the one
+  // remote row carries it on the turn's final record, so web history keeps the
+  // divider and the context reset a desktop reload draws.
+  expect(failure?.compaction).toBeUndefined();
   expect(requests[1]?.url).toContain("/turns/turn.7/assistant");
-  expect(requests[1]?.body).toEqual({ message: failure, ts: failure?.ts });
+  expect(requests[1]?.body).toEqual({
+    message: {
+      ...failure,
+      compaction: { trigger: "proactive", pre_tokens: 180_000 },
+    },
+    ts: failure?.ts,
+  });
 });
 
 test("a transcript 404 disables publication for the turn without failing it", async () => {
