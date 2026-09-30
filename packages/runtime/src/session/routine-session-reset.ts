@@ -2,17 +2,16 @@ import type { TurnMode } from "@houston/protocol";
 import { effectiveModelWindow } from "@houston/protocol/model-windows";
 import type { ResolvedModel } from "../backends/types";
 import { config } from "../config";
-import { getHistory } from "../store/conversations";
+import { getLiveMessages } from "../store/conversations";
 import { serverBackendFor } from "./conversation-backends";
 import type { Conversation } from "./conversation-record";
 import { clearNativeSessionState } from "./native-session-state";
 import type { ReplayPreamble } from "./replay-transcript";
+import { isRoutineConversation, planRoutineContext } from "./routine-context";
 import {
-  isRoutineConversation,
-  planRoutineContext,
-  ROUTINE_HISTORY_TAIL,
-} from "./routine-context";
-import { renderRoutineReplay, routineReplayCharBudget } from "./routine-replay";
+  renderRoutineReplay,
+  routineReplayTokenBudget,
+} from "./routine-replay";
 
 /** A routine run that starts on a fresh session, and what it carries in. */
 export interface RoutineSessionReset {
@@ -29,8 +28,9 @@ export interface RoutineSessionReset {
  * the rebuild lands on the resolved model's backend in the turn's mode, so
  * both switches then no-op. Returns null (and touches nothing) otherwise.
  *
- * Reads only the chat's tail (`ROUTINE_HISTORY_TAIL`), so a routine whose
- * transcript has rotated into archive segments costs one live-file read.
+ * Reads only the chat's live transcript file, the same view a pooled worker
+ * decides from, so a routine whose history rotated into archive segments
+ * costs one bounded read.
  */
 export async function resetRoutineSessionIfNeeded(
   conv: Conversation,
@@ -42,8 +42,7 @@ export async function resetRoutineSessionIfNeeded(
 ): Promise<RoutineSessionReset | null> {
   // Checked before the history read: every other turn skips parsing the file.
   if (!isRoutineConversation(conversationId)) return null;
-  const messages =
-    getHistory(conversationId, { limit: ROUTINE_HISTORY_TAIL })?.messages ?? [];
+  const messages = getLiveMessages(conversationId);
   const window = effectiveModelWindow(
     model.provider,
     model.id,
@@ -82,7 +81,7 @@ export async function resetRoutineSessionIfNeeded(
       messages,
       turnId,
       prompt,
-      routineReplayCharBudget(plan.reset ? plan.windowTokens : window),
+      routineReplayTokenBudget(plan.reset ? plan.windowTokens : window),
     ),
   };
 }

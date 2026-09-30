@@ -122,6 +122,32 @@ test("a provider that reports no usage is measured by the transcript itself", ()
   });
 });
 
+test("thousands of short runs without usage are measured over the whole chat", () => {
+  // A local endpoint that reports no usage: 3,000 short messages of ~200
+  // characters. The newest 400 alone read as ~20k tokens, under a 64k
+  // window's 32k line; the chat as the resumed session holds it is ~150k.
+  const messages: ChatMessage[] = [];
+  for (let n = 0; n < 1_500; n++)
+    messages.push(
+      ...run(`r${n}`, { content: "x ".repeat(100) }, "y ".repeat(100)),
+    );
+  messages.push(current());
+  expect(planRoutineContext(ROUTINE, messages, "now", 64_000)).toMatchObject({
+    reset: true,
+  });
+});
+
+test("CJK runs without usage are not undercounted at four characters a token", () => {
+  const messages = [
+    ...run("r1", { content: "請求書の確認が完了しました。".repeat(700) }),
+    current(),
+  ];
+  // ~9.8k characters: 2.5k tokens at 4 chars a token, ~9.8k as CJK really is.
+  expect(planRoutineContext(ROUTINE, messages, "now", 16_384)).toMatchObject({
+    reset: true,
+  });
+});
+
 test("the walk stops at the last compaction: older fills no longer apply", () => {
   const messages = [
     ...run("r1", used(190_000)),

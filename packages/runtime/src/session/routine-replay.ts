@@ -4,7 +4,8 @@ import {
   renderReplayPreamble,
   replayCharBudget,
 } from "./replay-transcript";
-import { CHARS_PER_TOKEN, isRoutineConversation } from "./routine-context";
+import { isRoutineConversation } from "./routine-context";
+import { estimateTokens } from "./token-estimate";
 
 /**
  * The transcript a routine chat carries into a fresh session, and the one rule
@@ -26,13 +27,16 @@ const REPLAY_FRACTION = 0.15;
  */
 const REPLAY_CEILING_TOKENS = 24_000;
 
-/** The character budget of a routine chat's replay into a `windowTokens` model. */
-export function routineReplayCharBudget(windowTokens: number): number {
-  const tokens = Math.min(
-    Math.floor(windowTokens * REPLAY_FRACTION),
-    REPLAY_CEILING_TOKENS,
+/**
+ * The token budget of a routine chat's replay into a `windowTokens` model. At
+ * most 30% of the carry line (routine-context.ts), so a fresh run starts well
+ * below it and the next run does not reset again.
+ */
+export function routineReplayTokenBudget(windowTokens: number): number {
+  return Math.max(
+    0,
+    Math.min(Math.floor(windowTokens * REPLAY_FRACTION), REPLAY_CEILING_TOKENS),
   );
-  return Math.max(0, tokens) * CHARS_PER_TOKEN;
 }
 
 /**
@@ -45,7 +49,7 @@ export function renderRoutineReplay(
   messages: ReadonlyArray<ChatMessage>,
   currentTurnId: string,
   currentPrompt: string,
-  charBudget: number,
+  tokenBudget: number,
 ): ReplayPreamble | null {
   const prompt = currentPrompt.trim();
   const collapsed = messages.map((m) =>
@@ -58,7 +62,15 @@ export function renderRoutineReplay(
         }
       : m,
   );
-  return renderReplayPreamble(collapsed, currentTurnId, charBudget, "routine");
+  // Counted in conservatively estimated tokens, not characters: a CJK or
+  // log-heavy chat holds far more tokens per character than prose.
+  return renderReplayPreamble(
+    collapsed,
+    currentTurnId,
+    tokenBudget,
+    "routine",
+    estimateTokens,
+  );
 }
 
 /** What a rebuilt session of one conversation needs to carry its history in. */
@@ -86,7 +98,7 @@ export function replayForConversation(
       input.messages,
       input.currentTurnId,
       input.currentPrompt,
-      routineReplayCharBudget(input.windowTokens),
+      routineReplayTokenBudget(input.windowTokens),
     );
   return renderReplayPreamble(
     input.messages,

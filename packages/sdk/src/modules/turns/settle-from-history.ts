@@ -30,8 +30,8 @@ export const TURN_DIED_MESSAGE = "The turn ended unexpectedly";
 
 /**
  * Settle a turn whose terminal frame was lost. With a known `turnId` the
- * settle is exact: adopt the assistant message persisted FOR THIS TURN
- * (text/usage/providerError); no such message means the turn died before
+ * settle is exact: adopt the assistant message that concludes THIS TURN
+ * (text/usage/providerError, see `turnReply`); no such message means the turn died before
  * persisting a reply — an error surface with the server's own dead-turn
  * copy, NEVER an empty "completed" render.
  *
@@ -50,9 +50,7 @@ export function settleFromHistory(
   onAdoptTurnId?: (turnId: string) => void,
 ): void {
   if (messages && turnId) {
-    const reply = messages.find(
-      (m) => m.role === "assistant" && m.turnId === turnId,
-    );
+    const reply = turnReply(messages, turnId);
     if (reply) {
       adoptReply(s, reply, onAdoptTurnId);
       return;
@@ -72,6 +70,26 @@ export function settleFromHistory(
   // the streamed accumulation is all there is.
   if (s.text) finishOk(s);
   else finishErr(s, TURN_DIED_MESSAGE);
+}
+
+/**
+ * The record that CONCLUDES a turn: the LAST assistant message persisted under
+ * its id. A turn can persist more than one. A compaction before its prompt
+ * claims the summary marker it wrote (so the divider sits where the context
+ * restarted), and the turn's own reply or failure card follows it; an adopted
+ * re-run of a turn appends its pair behind the dead attempt's. Adopting the
+ * first settled a rate-limited turn as a clean success with the summary as its
+ * answer. A plain loop: the SDK targets ES2022, without `findLast`.
+ */
+function turnReply(
+  messages: readonly ChatMessage[],
+  turnId: string,
+): ChatMessage | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m?.role === "assistant" && m.turnId === turnId) return m;
+  }
+  return undefined;
 }
 
 function adoptReply(
@@ -190,12 +208,7 @@ function conclusiveReply(
   turnId: string | undefined,
   guard: (messages: ChatMessage[]) => boolean,
 ): ChatMessage | null {
-  if (turnId) {
-    return (
-      messages.find((m) => m.role === "assistant" && m.turnId === turnId) ??
-      null
-    );
-  }
+  if (turnId) return turnReply(messages, turnId) ?? null;
   const last = messages[messages.length - 1];
   if (last?.role === "assistant" && guard(messages)) return last;
   return null;

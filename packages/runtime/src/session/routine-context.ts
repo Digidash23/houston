@@ -1,5 +1,6 @@
 import { recordConversationKind } from "@houston/domain";
 import type { ChatMessage } from "@houston/runtime-client";
+import { estimateTokens } from "./token-estimate";
 
 /**
  * THE ROUTINE CONTEXT BUDGET: what keeps a shared routine chat from outgrowing
@@ -35,18 +36,6 @@ const CARRY_FRACTION = 0.5;
  * quota for nothing.
  */
 const CARRY_CEILING_TOKENS = 100_000;
-
-/**
- * How much of a routine chat's tail the plan and the replay read. Far more
- * than either uses (a measured run is usually the newest reply, and the replay
- * keeps at most ~96k characters), and it keeps the read on the live file: a
- * long-lived routine's archived segments (conversation-archive.ts) are never
- * parsed for it.
- */
-export const ROUTINE_HISTORY_TAIL = 400;
-
-/** ~4 characters per token, the estimate every replay budget here uses. */
-export const CHARS_PER_TOKEN = 4;
 
 /** Whether this conversation is a routine's chat (shared or per-run). */
 export function isRoutineConversation(conversationId: string): boolean {
@@ -107,7 +96,12 @@ export function planRoutineContext(
  * context restarted (a compaction or a `/clear`). The newest turn that
  * reported usage is the measurement: its request size plus its own reply,
  * which the next request carries too. Anything newer than it (a failed run, a
- * provider that reports no usage) is added as a character estimate.
+ * provider that reports no usage) is added as a conservative estimate.
+ *
+ * Both deployments hand this the chat's LIVE transcript file, never its
+ * archived segments, so they decide alike. That loses nothing: rotation keeps
+ * a ~2 MiB tail live, so a chat whose context restarted before the tail is
+ * estimated far past any carry line from the tail alone.
  */
 function readCarry(
   messages: ReadonlyArray<ChatMessage>,
@@ -116,7 +110,7 @@ function readCarry(
   let overflowed = false;
   let namedWindow: number | null = null;
   let sawAssistant = false;
-  let chars = 0;
+  let estimated = 0;
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
     if (m.contextCleared) break;
@@ -132,26 +126,25 @@ function readCarry(
       m.role === "assistant" ? (m.usage?.context_tokens ?? 0) : 0;
     if (measured > 0) {
       const own = measured + (m.usage?.output_tokens ?? 0);
-      return { tokens: own + tokensOf(chars), overflowed, namedWindow };
+      return { tokens: own + estimated, overflowed, namedWindow };
     }
-    chars += messageChars(m);
+    estimated += messageTokens(m);
     if (m.compaction) break;
   }
   return {
-    tokens: chars > 0 ? tokensOf(chars) : null,
+    tokens: estimated > 0 ? estimated : null,
     overflowed,
     namedWindow,
   };
 }
 
-const tokensOf = (chars: number) => Math.ceil(chars / CHARS_PER_TOKEN);
-
-/** What a message puts back into the next request, in characters. */
-function messageChars(m: ChatMessage): number {
-  let chars = m.content.length;
+/** What a message puts back into the next request, in (estimated) tokens. */
+function messageTokens(m: ChatMessage): number {
+  let tokens = estimateTokens(m.content);
   for (const tool of m.tools ?? []) {
-    chars += tool.name.length + (tool.result?.length ?? 0);
-    if (tool.input !== undefined) chars += JSON.stringify(tool.input).length;
+    tokens += estimateTokens(tool.name) + estimateTokens(tool.result ?? "");
+    if (tool.input !== undefined)
+      tokens += estimateTokens(JSON.stringify(tool.input));
   }
-  return chars;
+  return tokens;
 }

@@ -1,7 +1,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { WireEvent } from "@houston/runtime-client";
+import type { ChatMessage, WireEvent } from "@houston/runtime-client";
 import { beforeEach, expect, test, vi } from "vitest";
 import type {
   CreateSessionOptions,
@@ -18,18 +18,20 @@ process.env.HOUSTON_DATA_DIR = mkdtempSync(join(tmpdir(), "houston-rreset-"));
 process.env.HOUSTON_WORKSPACE_DIR = process.env.HOUSTON_DATA_DIR;
 
 const store = vi.hoisted(() => ({
-  windows: [] as unknown[],
+  historyReads: 0,
+  liveReads: [] as string[],
 }));
 vi.mock("../store/conversations", async (importOriginal) => {
   const real = await importOriginal<typeof import("../store/conversations")>();
   return {
     ...real,
-    getHistory: (id: string, window?: unknown) => {
-      store.windows.push(window);
-      return real.getHistory(
-        id,
-        window as Parameters<typeof real.getHistory>[1],
-      );
+    getHistory: (...args: Parameters<typeof real.getHistory>) => {
+      store.historyReads++;
+      return real.getHistory(...args);
+    },
+    getLiveMessages: (id: string) => {
+      store.liveReads.push(id);
+      return real.getLiveMessages(id);
     },
   };
 });
@@ -39,6 +41,11 @@ const { resetRoutineSessionIfNeeded } = await import("./routine-session-reset");
 const { appendAssistantMessage, appendUserMessage } = await import(
   "../store/conversations"
 );
+const { saveConversation } = await import("../store/conversation-file");
+const { resetPooledRoutineContext } = await import(
+  "../turn/turn-routine-context"
+);
+const { config } = await import("../config");
 type Conversation = import("./conversation-record").Conversation;
 
 const MODEL: ResolvedModel = {
@@ -101,14 +108,38 @@ function seed(id: string, fill: number): void {
 beforeEach(() => {
   vi.spyOn(console, "info").mockImplementation(() => {});
   built.length = 0;
-  store.windows.length = 0;
+  store.historyReads = 0;
+  store.liveReads.length = 0;
 });
 
-test("only the chat's tail is read, and ordinary chats are not read at all", async () => {
-  seed("routine-tail", 10_000);
+/** Write a whole routine chat in one save (thousands of appends would each rewrite it). */
+function saveChat(id: string, messages: ChatMessage[]): void {
+  saveConversation(join(config.dataDir, "conversations"), {
+    id,
+    title: "Routine",
+    createdAt: 1,
+    updatedAt: 1,
+    messages,
+  });
+}
+
+/** `runs` usage-less runs of two `chars`-character messages each. */
+function usageless(runs: number, chars: number): ChatMessage[] {
+  const out: ChatMessage[] = [];
+  for (let n = 0; n < runs; n++)
+    out.push(
+      { role: "user", content: "y".repeat(chars), ts: n, turnId: `r${n}` },
+      { role: "assistant", content: "x".repeat(chars), ts: n, turnId: `r${n}` },
+    );
+  out.push({ role: "user", content: "Run it.", ts: runs, turnId: "now" });
+  return out;
+}
+
+test("the live file is read, never the archive, and ordinary chats not at all", async () => {
+  seed("routine-live", 10_000);
   await resetRoutineSessionIfNeeded(
     conv(),
-    "routine-tail",
+    "routine-live",
     "now",
     "Run it.",
     MODEL,
@@ -122,7 +153,47 @@ test("only the chat's tail is read, and ordinary chats are not read at all", asy
     MODEL,
     "auto",
   );
-  expect(store.windows).toEqual([{ limit: 400 }]);
+  expect(store.liveReads).toEqual(["routine-live"]);
+  expect(store.historyReads).toBe(0);
+});
+
+test("many short usage-less runs reset on the standing server exactly as on a pooled worker", async () => {
+  const messages = usageless(1_500, 200);
+  saveChat("routine-usageless", messages);
+
+  const standing = await resetRoutineSessionIfNeeded(
+    conv(),
+    "routine-usageless",
+    "now",
+    "Run it.",
+    { ...MODEL, contextWindow: 64_000 },
+    "auto",
+  );
+  const pooled = resetPooledRoutineContext({
+    dataDir: mkdtempSync(join(tmpdir(), "houston-rreset-pool-")),
+    conversationId: "routine-usageless",
+    messages,
+    turnId: "now",
+    windowTokens: 64_000,
+  });
+  expect(standing).not.toBeNull();
+  expect(pooled).not.toBeNull();
+  expect(standing?.preTokens).toBe(pooled?.compaction.pre_tokens);
+});
+
+test("a usage-less chat rotated into archive segments still resets from its live tail", async () => {
+  // ~9.6 MB of usage-less runs: the save rotates all but a ~2 MiB tail out.
+  saveChat("routine-rotated", usageless(1_200, 4_000));
+  const reset = await resetRoutineSessionIfNeeded(
+    conv(),
+    "routine-rotated",
+    "now",
+    "Run it.",
+    MODEL,
+    "auto",
+  );
+  expect(reset).not.toBeNull();
+  expect(store.historyReads).toBe(0);
 });
 
 test("a rebuild that fails keeps the record, and its next turn retries it", async () => {
