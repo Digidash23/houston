@@ -15,15 +15,19 @@ import { orgSlugFromWorkspaceId } from "./space-id.ts";
  * The org slug perf spans are tagged with: the same slug the gateway's per-org
  * switches key on (`GW_POOL_SERVE_ORGS`). Only a deployment that serves spaces
  * has orgs, so desktop and self-host answer null, and so does a hosted
- * personal space until its memberships have been read.
+ * personal space until its capabilities and memberships have been read.
+ *
+ * A team workspace id needs no capability read: only a spaces host lists
+ * `org:` ids (`space-id.ts`), and a space switch drops the capabilities query
+ * until it refetches, which would leave the first sends in a team untagged.
  */
 export function perfSpanOrgSlug(
   capabilities: Capabilities | null,
   workspaceId: string | undefined,
   orgs: OrgsList | undefined,
 ): string | null {
-  if (!hasSpaces(capabilities)) return null;
   const team = workspaceId ? orgSlugFromWorkspaceId(workspaceId) : null;
+  if (!team && !hasSpaces(capabilities)) return null;
   return activeSpaceOrgSlug(team, orgs);
 }
 

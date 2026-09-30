@@ -67,12 +67,26 @@ describe("perfSpanOrgSlug", () => {
     );
   });
 
-  it("is null on self-host and while capabilities load", () => {
+  it("is null on self-host", () => {
     strictEqual(
       perfSpanOrgSlug(SELF_HOST, PERSONAL_WORKSPACE_ID, MEMBERSHIPS),
       null,
     );
-    strictEqual(perfSpanOrgSlug(null, "org:5f2b225f316c6079", undefined), null);
+  });
+
+  it("keeps a team space's slug while capabilities refetch after a switch", () => {
+    // Only a spaces host lists `org:` workspaces, so the id alone is enough.
+    strictEqual(
+      perfSpanOrgSlug(null, "org:5f2b225f316c6079", undefined),
+      "5f2b225f316c6079",
+    );
+  });
+
+  it("is null in the personal space until capabilities say spaces exist", () => {
+    strictEqual(
+      perfSpanOrgSlug(null, PERSONAL_WORKSPACE_ID, MEMBERSHIPS),
+      null,
+    );
   });
 });
 

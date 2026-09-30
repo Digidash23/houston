@@ -93,8 +93,10 @@ export class PerfSpans {
 
   /**
    * The hosted org slug of the active space, or null where there is none. A
-   * send reads it when it is made, so a space switch before the reply does not
-   * move the turn to another org.
+   * send reads it when it is made. A reply keeps the tag only if the slug is
+   * still the same: after a space switch or a sign-in as someone else, the
+   * event stream follows the new space, so the output that completes the mark
+   * is not the reply to that send.
    */
   setOrgSlug(slug: string | null): void {
     this.orgSlug = slug;
@@ -111,11 +113,12 @@ export class PerfSpans {
     this.pendingSend = null;
     const at = this.take(send?.at ?? null);
     if (send && at !== null) {
-      this.observe("send_to_first_response", this.now() - at, send.orgSlug);
+      const orgSlug = send.orgSlug === this.orgSlug ? send.orgSlug : null;
+      this.observe("send_to_first_response", this.now() - at, orgSlug);
       this.observeOnce(
         "app_to_first_response",
         this.now() - this.t0Ms,
-        send.orgSlug,
+        orgSlug,
       );
     }
   }

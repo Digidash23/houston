@@ -138,17 +138,45 @@ describe("PerfSpans", () => {
 });
 
 describe("PerfSpans org slug", () => {
-  it("tags the send-paired spans with the org the user sent in", async () => {
+  it("tags the send-paired spans with the org the user sent in", () => {
     const { spans, mirroredOrgs, tick } = harness();
     spans.setOrgSlug("5f2b225f316c6079");
     spans.messageSent();
-    spans.setOrgSlug("383369a239383fee"); // a space switch before the reply
     tick(700);
     spans.firstAssistantOutput();
     deepStrictEqual(mirroredOrgs, [
       { span: "send_to_first_response", orgSlug: "5f2b225f316c6079" },
       { span: "app_to_first_response", orgSlug: "5f2b225f316c6079" },
     ]);
+  });
+
+  it("leaves a reply untagged when the space changed after the send", () => {
+    // The event stream now follows the other space: whatever output completes
+    // the mark came from there, so neither org can claim the span.
+    const { spans, mirroredOrgs, tick } = harness();
+    spans.setOrgSlug("5f2b225f316c6079");
+    spans.messageSent();
+    spans.setOrgSlug("383369a239383fee");
+    tick(700);
+    spans.firstAssistantOutput();
+    deepStrictEqual(
+      mirroredOrgs.map((m) => m.orgSlug),
+      [null, null],
+    );
+  });
+
+  it("never hands one account's org to the next account's reply", () => {
+    const { spans, mirroredOrgs, tick } = harness();
+    spans.setOrgSlug("5f2b225f316c6079");
+    spans.messageSent();
+    spans.setOrgSlug(null); // signed out
+    spans.setOrgSlug("383369a239383fee"); // another account signed in
+    tick(700);
+    spans.firstAssistantOutput();
+    deepStrictEqual(
+      mirroredOrgs.map((m) => m.orgSlug),
+      [null, null],
+    );
   });
 
   it("never ships the org slug to the gateway ingest", async () => {
