@@ -1,17 +1,17 @@
 import { join } from "node:path";
+import { effectiveModelWindow } from "@houston/protocol/model-windows";
 import type { ChatMessage } from "@houston/runtime-client";
 import { DEFAULT_REASONING_EFFORT, toThinkingLevel } from "../ai/effort";
 import { logTurnTarget } from "../ai/turn-diagnostic";
 import { readAuthFile } from "../auth/auth-file";
 import type { newUsedTokenCapture } from "../auth/used-token";
 import { hasUnreadablePiSessionTail } from "../backends/pi/backend";
-import {
-  renderReplayPreamble,
-  replayCharBudget,
-} from "../session/replay-transcript";
+import { replayCharBudget } from "../session/replay-transcript";
+import { replayForConversation } from "../session/routine-replay";
 import { resolveTurnClaudeResume, turnClaudeLayout } from "./turn-backend";
 import { seedTurnClaudeFlags } from "./turn-claude-flags";
 import { readTurnHarness, writeTurnHarness } from "./turn-harness-state";
+import { resetPooledRoutineContext } from "./turn-routine-context";
 import {
   finishTurnSessionStartup,
   type RunTurnDeps,
@@ -57,6 +57,21 @@ export async function openTurnBackendSession(input: {
     pin?.effort ??
     (diagnostic.reasoning === true ? DEFAULT_REASONING_EFFORT : undefined);
   const thinkingLevel = toThinkingLevel(effort);
+  // The routine context budget, before anything reads or writes the session
+  // dir it may delete (turn-routine-context.ts).
+  const catalogWindow = effectiveModelWindow(
+    provider,
+    model.id,
+    model.contextWindow,
+    0,
+  );
+  const routineReset = resetPooledRoutineContext({
+    dataDir: directories.dataDir,
+    conversationId,
+    messages: input.canonicalMessages,
+    turnId,
+    windowTokens: catalogWindow,
+  });
   const harness = backend.id === "anthropic" ? "claude" : "pi";
   const priorHarness = readTurnHarness(directories.dataDir, conversationId);
   const switchedHarness =
@@ -67,29 +82,32 @@ export async function openTurnBackendSession(input: {
     hasUnreadablePiSessionTail(
       join(directories.dataDir, "sessions", conversationId),
     );
-  const freshSession = switchedHarness || unreadablePiResume;
+  const freshSession =
+    switchedHarness || unreadablePiResume || routineReset !== null;
   writeTurnHarness(directories.dataDir, conversationId, harness);
   const claudeResume =
     harness === "claude" && !switchedHarness
       ? resolveTurnClaudeResume(directories, conversationId)
       : undefined;
+  // A routine chat's replay is bounded by the routine budget; every other
+  // chat keeps the budget it always had here (routine-replay.ts).
+  const replayOf = () =>
+    replayForConversation({
+      conversationId,
+      messages: input.canonicalMessages,
+      currentTurnId: turnId,
+      currentPrompt: turn.text,
+      windowTokens: routineReset?.windowTokens ?? catalogWindow,
+      charBudget: replayCharBudget(model.contextWindow),
+    });
   const replay =
     input.canonicalMessages.length > 0 &&
     (freshSession || (harness === "claude" && !claudeResume))
-      ? renderReplayPreamble(
-          input.canonicalMessages,
-          turnId,
-          replayCharBudget(model.contextWindow),
-        )
+      ? replayOf()
       : null;
   const retryReplay =
     harness === "claude" && input.canonicalMessages.length > 0
-      ? (replay ??
-        renderReplayPreamble(
-          input.canonicalMessages,
-          turnId,
-          replayCharBudget(model.contextWindow),
-        ))
+      ? (replay ?? replayOf())
       : null;
   // The CLI blocks its first start on a flag fetch unless its config dir
   // already holds the flags: hand it the acting member's stored copy.
@@ -113,5 +131,11 @@ export async function openTurnBackendSession(input: {
     ...(retryReplay?.text ? { freshRetryPromptPrefix: retryReplay.text } : {}),
   });
   if (turn.timings) turn.timings.t_backend_session = performance.now();
-  return { replay, session, model, modelRuntime };
+  return {
+    replay,
+    session,
+    model,
+    modelRuntime,
+    compaction: routineReset?.compaction,
+  };
 }

@@ -11,15 +11,30 @@ export function appendAssistantMessageAt(
   const conv = loadConversation(dir, id);
   if (!conv) return;
   if (meta.contextCleared) delete conv.claudeCompaction;
-  const marker = meta.compaction
-    ? conv.messages.findLast(
-        (message) => message.compaction && !message.turnId && message.content,
-      )
-    : undefined;
+  // Only a summary marker written for THIS compaction is claimed: it is the
+  // newest message (the backend appends it just before the turn's reply). An
+  // older unclaimed one (a compaction whose next reply carried no marker) must
+  // not move a later boundary back onto it.
+  const newest = conv.messages.at(-1);
+  const marker =
+    meta.compaction && newest?.compaction && !newest.turnId && newest.content
+      ? newest
+      : undefined;
   if (marker) {
     marker.compaction = meta.compaction;
     marker.turnId = meta.turnId;
-    if (!content) {
+    // Only a command's bare marker (`/compact`) folds into the summary. A turn
+    // carrying anything of its own (a failure card, a stop, usage, tools, a
+    // question) keeps its own message, or a reader would never see it.
+    const bare =
+      !content &&
+      !meta.providerError &&
+      !meta.stopped &&
+      !meta.usage &&
+      !meta.tools?.length &&
+      !meta.pendingInteraction &&
+      !meta.fileChanges;
+    if (bare) {
       conv.updatedAt = Date.now();
       saveConversation(dir, conv);
       return { conversation: conv, message: marker };

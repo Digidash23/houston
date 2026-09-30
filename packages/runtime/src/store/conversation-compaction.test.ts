@@ -43,6 +43,51 @@ test("the command's marker updates the summary marker without an empty duplicate
     }),
   ]);
 });
+test("a turn that fails after compacting keeps its own error beside the summary", () => {
+  const { store } = setup();
+  store.appendAssistantMessage("c", "", {
+    compaction: { trigger: "proactive", pre_tokens: 180_000 },
+    providerError: {
+      kind: "rate_limited",
+      provider: "anthropic",
+      model: "claude-opus-5",
+      retry_after_seconds: 30,
+      message: "429",
+    },
+    turnId: "t2",
+  });
+  const messages = store.getHistory("c")?.messages ?? [];
+  expect(messages.at(-2)).toMatchObject({
+    content: "The real summary",
+    compaction: { trigger: "proactive" },
+  });
+  expect(messages.at(-1)).toMatchObject({
+    providerError: { kind: "rate_limited" },
+    turnId: "t2",
+  });
+});
+test("a later compaction never claims an older, already-passed summary", () => {
+  const { store } = setup();
+  // The summary was followed by a reply that carried no marker of its own.
+  store.appendUserMessage("c", "Next", { turnId: "t2" });
+  store.appendAssistantMessage("c", "Reply", { turnId: "t2" });
+  store.appendUserMessage("c", "Again", { turnId: "t3" });
+  store.appendAssistantMessage("c", "Fresh reply", {
+    compaction: { trigger: "proactive", pre_tokens: 150_000 },
+    turnId: "t3",
+  });
+  const messages = store.getHistory("c")?.messages ?? [];
+  expect(messages.find((m) => m.content === "The real summary")).toMatchObject({
+    compaction: { trigger: "native" },
+  });
+  expect(messages.find((m) => m.content === "The real summary")?.turnId).toBe(
+    undefined,
+  );
+  expect(messages.at(-1)).toMatchObject({
+    content: "Fresh reply",
+    compaction: { trigger: "proactive", pre_tokens: 150_000 },
+  });
+});
 test("clear and truncation invalidate an unconsumed checkpoint", () => {
   const { store, checkpoints } = setup();
   store.appendAssistantMessage("c", "", { contextCleared: true });

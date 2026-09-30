@@ -1,11 +1,8 @@
-import { rmSync } from "node:fs";
-import { join } from "node:path";
 import type { TurnMode } from "@houston/protocol";
-import { cleanupClaudeConversation } from "../backends/claude/cleanup";
 import { config } from "../config";
-import { conversationCompactions } from "../store/conversation-compaction";
 import { publish } from "./bus";
 import { conversations } from "./conversation-cache";
+import { clearNativeSessionState } from "./native-session-state";
 
 /**
  * Everything a caller can do to a conversation from OUTSIDE its running turn:
@@ -77,11 +74,7 @@ export const STOPPED_BY_USER = "Stopped by user";
  * Drop a conversation's live session (aborting any in-flight turn) and, when
  * requested, its on-disk session history. Used by DELETE /conversations/:id.
  *
- * Two backends store history in two places, so deletion clears both: pi's
- * per-conversation transcript dir (`<dataDir>/sessions/<id>`), and the Claude
- * Agent SDK backend's `sessions.json` mapping + transcript JSONL + its armed
- * compaction checkpoint. The Claude cleanups are called unconditionally — they
- * are no-ops for a conversation that never ran on the anthropic backend — so a
+ * Both backends' stored history goes with it (native-session-state.ts), so a
  * deleted anthropic chat leaves no SDK state behind without chat.ts needing to
  * know which provider the conversation used.
  */
@@ -95,18 +88,5 @@ export async function disposeConversation(
     await conv.session.abort();
     conv.session.dispose();
   }
-  if (opts?.deleteSessions) {
-    // FIRST, before anything that can fail: the Claude backend's compaction
-    // checkpoint is session state too - it arms the next prompt with a summary
-    // of the very history being deleted here, and while it is armed the backend
-    // will not resume a session either. Dropping it last would let a failed
-    // teardown leave a conversation that answers from a summary of turns the
-    // user just cleared.
-    conversationCompactions.clear(id);
-    rmSync(join(config.dataDir, "sessions", id), {
-      recursive: true,
-      force: true,
-    });
-    cleanupClaudeConversation(config.dataDir, id);
-  }
+  if (opts?.deleteSessions) clearNativeSessionState(config.dataDir, id);
 }

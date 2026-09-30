@@ -59,6 +59,28 @@ const RESET_HEADER =
   "context, do not reintroduce yourself, and do not treat this as a new " +
   "conversation.]";
 
+/**
+ * The routine variant (routine-context.ts): a routine run whose chat outgrew
+ * its budget starts on a fresh session, and this transcript is all it keeps of
+ * the runs before it. It says what the transcript is FOR, so the run uses it
+ * to avoid repeating the work and reports of earlier runs.
+ */
+const ROUTINE_HEADER =
+  "[This automation has run before in this chat. To keep within your context " +
+  "window, this run starts fresh: the transcript below is the most recent part " +
+  "of the chat, kept as your memory of what earlier runs found, did and " +
+  "reported. Use it to avoid repeating work or reports, then do this run's " +
+  "work as instructed after the transcript.]";
+
+const HEADERS = {
+  switch: HEADER,
+  reset: RESET_HEADER,
+  routine: ROUTINE_HEADER,
+};
+
+/** Why a session is being rebuilt, which sets the preamble's framing. */
+export type ReplayReason = keyof typeof HEADERS;
+
 const TRUNCATION_NOTE =
   "(Earlier messages were omitted to fit your context window; the transcript below is the most recent part of the conversation.)";
 
@@ -86,15 +108,17 @@ function renderMessage(m: ChatMessage): string | null {
  * excludes THIS turn's already-recorded user message — it is delivered as the
  * actual prompt, so replaying it too would double it. The newest messages are
  * kept whole and older ones dropped first when the transcript exceeds
- * `charBudget`.
+ * `budget`, counted in characters unless `cost` says otherwise (a routine
+ * replay counts tokens, token-estimate.ts).
  */
 export function renderReplayPreamble(
   messages: ReadonlyArray<ChatMessage>,
   currentTurnId: string,
-  charBudget: number,
-  reason: "switch" | "reset" = "switch",
+  budget: number,
+  reason: ReplayReason = "switch",
+  cost: ReplayCost = (text) => text.length,
 ): ReplayPreamble | null {
-  if (charBudget <= 0) return null;
+  if (budget <= 0) return null;
   const lines: string[] = [];
   for (const m of messagesVisibleToTheModel(messages)) {
     if (m.role === "user" && m.turnId === currentTurnId) continue;
@@ -111,20 +135,21 @@ export function renderReplayPreamble(
   let clipped = false;
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i];
-    if (used + line.length > charBudget) {
+    const lineCost = cost(line);
+    if (used + lineCost > budget) {
       if (kept.length === 0) {
-        kept.unshift(`…${line.slice(line.length - charBudget)}`);
+        kept.unshift(`…${clipTail(line, budget, cost)}`);
         clipped = true;
       }
       break;
     }
     kept.unshift(line);
-    used += line.length + 1;
+    used += lineCost + 1;
   }
   const truncated = clipped || kept.length < lines.length;
   return {
     text: [
-      reason === "reset" ? RESET_HEADER : HEADER,
+      HEADERS[reason],
       ...(truncated ? [TRUNCATION_NOTE] : []),
       "",
       kept.join("\n\n"),
@@ -134,6 +159,21 @@ export function renderReplayPreamble(
     ].join("\n"),
     truncated,
   };
+}
+
+/** What a replay budget counts: characters by default. */
+export type ReplayCost = (text: string) => number;
+
+/** The longest tail of `line` whose cost fits `budget` (cost grows with length). */
+function clipTail(line: string, budget: number, cost: ReplayCost): string {
+  let lo = 0;
+  let hi = line.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (cost(line.slice(mid)) <= budget) hi = mid;
+    else lo = mid + 1;
+  }
+  return line.slice(lo);
 }
 
 /**
