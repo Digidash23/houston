@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { ChatMessage } from "@houston/runtime-client";
 import { LocalDirStore } from "@houston/runtime-client/object-sync";
 import { afterEach, expect, test } from "vitest";
+import { createCompactionCheckpoints } from "../store/conversation-compaction";
 import {
   appendAssistantMessageAt,
   appendUserMessageAt,
@@ -243,6 +244,62 @@ test("claimed turn publishes its persisted user and assistant before done", asyn
   });
   expect(raw).toContain('"type":"done"');
   expect(raw).not.toContain('"type":"error"');
+});
+
+test("a compacted turn publishes its own final record, with the boundary the marker holds", async () => {
+  const objects = seedStandingLayout();
+  const requests: TranscriptRequest[] = [];
+  let failure: ChatMessage | undefined;
+  const runTurn: TurnRunner = async (filesystem, turn) => {
+    const conversationsDir = join(filesystem.dataDir, "conversations");
+    appendUserMessageAt(conversationsDir, turn.conversationId, turn.text, {
+      turnId: turn.turnId,
+    });
+    // The compaction before the prompt writes its summary marker; the turn's
+    // own record claims it (turnId) and follows it — here, a failure card.
+    createCompactionCheckpoints(conversationsDir).save(
+      turn.conversationId,
+      "Summary of the chat so far",
+    );
+    failure = appendAssistantMessageAt(
+      conversationsDir,
+      turn.conversationId,
+      "",
+      {
+        turnId: turn.turnId,
+        compaction: { trigger: "proactive", pre_tokens: 180_000 },
+        providerError: {
+          kind: "rate_limited",
+          provider: "anthropic",
+          model: "claude-opus-5",
+          retry_after_seconds: 30,
+          message: "429",
+        },
+      },
+    )?.message;
+    return {};
+  };
+
+  await runClaimedTurn({
+    runTurn,
+    poolStoreUrl: "https://pool.example/",
+    fetchImpl: poolFetch(objects, requests),
+    heartbeatIntervalMs: 60_000,
+  });
+
+  expect(failure?.providerError?.kind).toBe("rate_limited");
+  // The claim moved the compaction boundary onto the summary marker; the one
+  // remote row carries it on the turn's final record, so web history keeps the
+  // divider and the context reset a desktop reload draws.
+  expect(failure?.compaction).toBeUndefined();
+  expect(requests[1]?.url).toContain("/turns/turn.7/assistant");
+  expect(requests[1]?.body).toEqual({
+    message: {
+      ...failure,
+      compaction: { trigger: "proactive", pre_tokens: 180_000 },
+    },
+    ts: failure?.ts,
+  });
 });
 
 test("a transcript 404 disables publication for the turn without failing it", async () => {
