@@ -59,6 +59,28 @@ const RESET_HEADER =
   "context, do not reintroduce yourself, and do not treat this as a new " +
   "conversation.]";
 
+/**
+ * The routine variant (routine-context.ts): a routine run whose chat outgrew
+ * its budget starts on a fresh session, and this transcript is all it keeps of
+ * the runs before it. It says what the transcript is FOR, so the run uses it
+ * to avoid repeating the work and reports of earlier runs.
+ */
+const ROUTINE_HEADER =
+  "[This automation has run before in this chat. To keep within your context " +
+  "window, this run starts fresh: the transcript below is the most recent part " +
+  "of the chat, kept as your memory of what earlier runs found, did and " +
+  "reported. Use it to avoid repeating work or reports, then do this run's " +
+  "work as instructed after the transcript.]";
+
+const HEADERS = {
+  switch: HEADER,
+  reset: RESET_HEADER,
+  routine: ROUTINE_HEADER,
+};
+
+/** Why a session is being rebuilt, which sets the preamble's framing. */
+export type ReplayReason = keyof typeof HEADERS;
+
 const TRUNCATION_NOTE =
   "(Earlier messages were omitted to fit your context window; the transcript below is the most recent part of the conversation.)";
 
@@ -92,7 +114,7 @@ export function renderReplayPreamble(
   messages: ReadonlyArray<ChatMessage>,
   currentTurnId: string,
   charBudget: number,
-  reason: "switch" | "reset" = "switch",
+  reason: ReplayReason = "switch",
 ): ReplayPreamble | null {
   if (charBudget <= 0) return null;
   const lines: string[] = [];
@@ -124,7 +146,7 @@ export function renderReplayPreamble(
   const truncated = clipped || kept.length < lines.length;
   return {
     text: [
-      reason === "reset" ? RESET_HEADER : HEADER,
+      HEADERS[reason],
       ...(truncated ? [TRUNCATION_NOTE] : []),
       "",
       kept.join("\n\n"),

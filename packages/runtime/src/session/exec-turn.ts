@@ -72,7 +72,8 @@ import {
 } from "./interaction";
 import { reportMissionSettle } from "./mission-settle";
 import { switchNeedsCompaction } from "./provider-switch";
-import { renderReplayPreamble, replayCharBudget } from "./replay-transcript";
+import { replayForConversation } from "./routine-replay";
+import { resetRoutineSessionIfNeeded } from "./routine-session-reset";
 import { createStallWatchdog, isAbortEcho } from "./stall-watchdog";
 import {
   clearInflightMarker,
@@ -394,6 +395,19 @@ export async function execTurn(
     const mode = liveMode.current;
     const providerChanged = model.provider !== conv.provider;
     const modelChanged = model.id !== conv.model;
+    // ROUTINE CONTEXT BUDGET: a routine chat whose previous run ended past its
+    // carry line (or overflowed) starts THIS run on a fresh session carrying a
+    // bounded transcript of recent runs, instead of resuming a session that no
+    // longer fits (routine-context.ts). Runs before the switches below: the
+    // fresh session is already on the right backend and mode, so they no-op.
+    const routineReset = await resetRoutineSessionIfNeeded(
+      conv,
+      id,
+      turnId,
+      text,
+      model,
+      mode,
+    );
     // COMPLIANCE GATE: when this turn's model crosses a BACKEND boundary
     // (openai/pi → anthropic/Claude SDK, or the reverse), REBUILD the session on
     // the correct backend rather than `setModel` a foreign model into the live
@@ -422,8 +436,23 @@ export async function execTurn(
     // the same turn replays anyway, and a still-set marker would replay a
     // second copy on the turn after.
     const sessionWasReset = consumeSessionReplay(id);
-    replayedHistory = rebuilt || sessionWasReset;
-    if (rebuilt) {
+    replayedHistory = rebuilt || sessionWasReset || routineReset !== null;
+    // The window every replay below is sized against — the same effective
+    // rule as the context bar (model-windows.ts).
+    const replayWindow = effectiveModelWindow(
+      model.provider,
+      model.id,
+      model.contextWindow,
+      0,
+    );
+    if (routineReset) {
+      // The reset IS this conversation's compaction: same boundary frame and
+      // persisted marker as autocompact, so the routine's chat draws the
+      // divider and the next run's budget measures from here.
+      replayPrefix = routineReset.replay?.text ?? "";
+      compaction = { trigger: "proactive", pre_tokens: routineReset.preTokens };
+      publish(id, { type: "context_compacted", data: compaction, turnId });
+    } else if (rebuilt) {
       // Cross-backend rebuild: the new backend cannot read the old backend's
       // session store, so the fresh session carries the conversation over via a
       // transcript replay from Houston's canonical store — clamped to the new
@@ -431,18 +460,13 @@ export async function execTurn(
       // so the divider stays honest). Announce the boundary either way so the
       // chat draws a divider + resets its window estimate; persisted on the
       // assistant message below for reload.
-      const replay = renderReplayPreamble(
-        getHistory(id)?.messages ?? [],
-        turnId,
-        replayCharBudget(
-          effectiveModelWindow(
-            model.provider,
-            model.id,
-            model.contextWindow,
-            0,
-          ),
-        ),
-      );
+      const replay = replayForConversation({
+        conversationId: id,
+        messages: getHistory(id)?.messages ?? [],
+        currentTurnId: turnId,
+        currentPrompt: text,
+        windowTokens: replayWindow,
+      });
       replayPrefix = replay?.text ?? "";
       providerSwitch = {
         provider: model.provider,
@@ -459,19 +483,14 @@ export async function execTurn(
       // into the fresh session. No provider_switched frame — the provider did
       // not change, so the chat draws no divider; the "reset" header keeps the
       // preamble from claiming a model switch that never happened.
-      const replay = renderReplayPreamble(
-        getHistory(id)?.messages ?? [],
-        turnId,
-        replayCharBudget(
-          effectiveModelWindow(
-            model.provider,
-            model.id,
-            model.contextWindow,
-            0,
-          ),
-        ),
-        "reset",
-      );
+      const replay = replayForConversation({
+        conversationId: id,
+        messages: getHistory(id)?.messages ?? [],
+        currentTurnId: turnId,
+        currentPrompt: text,
+        windowTokens: replayWindow,
+        reason: "reset",
+      });
       replayPrefix = replay?.text ?? "";
     } else if (providerChanged || modelChanged) {
       // The leaving provider's last context fill, captured BEFORE the switch so
@@ -524,10 +543,11 @@ export async function execTurn(
     // reseed BEFORE this turn so long chats keep working — a guarantee every
     // surface inherits, owned here because the runtime holds the ground truth
     // (live fill + the active model's window). Skipped when a provider switch
-    // above already summarized (nothing left to compact) — the fill is read
+    // above already summarized or a routine reset just started the session
+    // fresh (nothing left to compact) — the fill is read
     // from the SETTLED session, so a rebuilt/fresh session reads low and
     // never re-compacts.
-    if (!providerSwitch?.summarized) {
+    if (!providerSwitch?.summarized && !compaction) {
       const fill = conv.session.getContextUsage()?.tokens ?? null;
       // Divide by Houston's EFFECTIVE window (default, snapping up to the ceiling
       // once observed fill proves the larger plan/credit-gated window is active),

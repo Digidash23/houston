@@ -1,4 +1,5 @@
 import type {
+  ChatMessage,
   ProviderError,
   TokenUsage,
   ToolCallRecord,
@@ -24,6 +25,7 @@ export function handleTurnSessionFailure(input: {
   assistantText: string;
   tools: ToolCallRecord[];
   usage: TokenUsage | null;
+  compaction?: ChatMessage["compaction"];
   conversationsDir: string;
   conversationId: string;
   turnId: string;
@@ -45,7 +47,12 @@ export function handleTurnSessionFailure(input: {
         input.conversationsDir,
         input.conversationId,
         input.assistantText,
-        { tools: input.tools, usage: input.usage, turnId: input.turnId },
+        {
+          tools: input.tools,
+          usage: input.usage,
+          compaction: input.compaction,
+          turnId: input.turnId,
+        },
       );
     return {};
   }
@@ -83,6 +90,7 @@ export function handleTurnSessionFailure(input: {
         {
           tools: input.tools,
           usage: input.usage,
+          compaction: input.compaction,
           providerError: thrown,
           turnId: input.turnId,
         },
@@ -99,6 +107,7 @@ export function handleTurnSessionFailure(input: {
       {
         tools: input.tools,
         usage: input.usage,
+        compaction: input.compaction,
         providerError: input.providerError,
         turnId: input.turnId,
       },
