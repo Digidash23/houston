@@ -23,14 +23,19 @@ import { tauriOrg } from "../../lib/tauri";
  * The caller's spaces + pending invites (`GET /v1/orgs`). Degrades to an empty
  * result off-spaces (the wire swallows the 404), so a non-spaces host yields an
  * empty team list and the flow simply offers none. `enabled` gates the fetch so
- * it never fires on a host without the surface.
+ * it never fires on a host without the surface. A passive observer that no
+ * screen shows (the perf spans' org tag) opts out of focus refetches.
  */
-export function useOrgs(enabled: boolean) {
+export function useOrgs(
+  enabled: boolean,
+  options?: { refetchOnWindowFocus?: boolean },
+) {
   return useQuery<OrgsList>({
     queryKey: queryKeys.orgs(),
     queryFn: () => tauriOrg.listOrgs(),
     enabled,
     staleTime: 30_000,
+    refetchOnWindowFocus: options?.refetchOnWindowFocus ?? true,
   });
 }
 

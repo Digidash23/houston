@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import type { Capabilities, OrgsList } from "@houston/engine-adapter";
 import {
   perfSpanEventProps,
+  perfSpanNeedsMemberships,
   perfSpanOrgSlug,
 } from "../src/lib/perf-span-mirror.ts";
 import { PERSONAL_WORKSPACE_ID } from "../src/lib/space-id.ts";
@@ -74,19 +75,42 @@ describe("perfSpanOrgSlug", () => {
     );
   });
 
-  it("keeps a team space's slug while capabilities refetch after a switch", () => {
-    // Only a spaces host lists `org:` workspaces, so the id alone is enough.
+  it("is null off the gateway even for a local workspace named like a team", () => {
     strictEqual(
-      perfSpanOrgSlug(null, "org:5f2b225f316c6079", undefined),
-      "5f2b225f316c6079",
+      perfSpanOrgSlug(DESKTOP, "org:5f2b225f316c6079", undefined),
+      null,
+    );
+    strictEqual(
+      perfSpanOrgSlug(SELF_HOST, "org:5f2b225f316c6079", undefined),
+      null,
     );
   });
 
-  it("is null in the personal space until capabilities say spaces exist", () => {
+  it("is null until capabilities say spaces exist", () => {
+    strictEqual(perfSpanOrgSlug(null, "org:5f2b225f316c6079", undefined), null);
     strictEqual(
       perfSpanOrgSlug(null, PERSONAL_WORKSPACE_ID, MEMBERSHIPS),
       null,
     );
+  });
+});
+
+describe("perfSpanNeedsMemberships", () => {
+  it("reads memberships only for a settled hosted personal space", () => {
+    strictEqual(perfSpanNeedsMemberships(GATEWAY, PERSONAL_WORKSPACE_ID), true);
+  });
+
+  it("skips the read in a team space, before the space settles, and off the gateway", () => {
+    strictEqual(
+      perfSpanNeedsMemberships(GATEWAY, "org:5f2b225f316c6079"),
+      false,
+    );
+    strictEqual(perfSpanNeedsMemberships(GATEWAY, undefined), false);
+    strictEqual(
+      perfSpanNeedsMemberships(DESKTOP, PERSONAL_WORKSPACE_ID),
+      false,
+    );
+    strictEqual(perfSpanNeedsMemberships(null, PERSONAL_WORKSPACE_ID), false);
   });
 });
 

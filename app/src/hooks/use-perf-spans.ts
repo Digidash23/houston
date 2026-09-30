@@ -2,7 +2,11 @@ import { useEffect, useRef } from "react";
 import { analytics } from "../lib/analytics";
 import { bakedUrl } from "../lib/baked-url";
 import { osLaunchT0Ms } from "../lib/os-bridge";
-import { perfSpanEventProps, perfSpanOrgSlug } from "../lib/perf-span-mirror";
+import {
+  perfSpanEventProps,
+  perfSpanNeedsMemberships,
+  perfSpanOrgSlug,
+} from "../lib/perf-span-mirror";
 import {
   type PerfSpanObservation,
   type PerfSpanTransport,
@@ -12,7 +16,6 @@ import { currentPlatformOs } from "../lib/platform";
 import { useWorkspaceStore } from "../stores/workspaces";
 import { useOrgs } from "./queries/use-spaces";
 import { useCapabilities } from "./use-capabilities";
-import { usePersonalSpace } from "./use-personal-space";
 import { useSession } from "./use-session";
 import { useSpanOrgSync } from "./use-span-org-sync";
 
@@ -102,13 +105,17 @@ export function usePerfSpans(): void {
 }
 
 /**
- * Keeps the spans' org slug on the active space. Only a hosted personal space
- * needs the memberships list to name its org; it shares the `useOrgs` query
- * the sidebar's invite inbox already keeps warm.
+ * Keeps the spans' org slug on the active space. Only a settled hosted
+ * personal space reads the memberships list to name its org, through the
+ * `useOrgs` query the sidebar's invite inbox shares, and without focus
+ * refetches of its own (the personal org never changes under a session).
  */
 function usePerfSpanOrgSlug(): void {
   const { capabilities } = useCapabilities();
   const workspaceId = useWorkspaceStore((s) => s.current?.id);
-  const { data: orgs } = useOrgs(usePersonalSpace());
+  const { data: orgs } = useOrgs(
+    perfSpanNeedsMemberships(capabilities, workspaceId),
+    { refetchOnWindowFocus: false },
+  );
   useSpanOrgSync(perfSpanOrgSlug(capabilities, workspaceId, orgs), perfSpans);
 }
