@@ -1,9 +1,9 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { expect, test } from "vitest";
 import { makeAgentDirectoryTools } from "./agent-directory";
 import type { SandboxFetch } from "./sandbox-fetch";
 
-const NOOP = {} as ExtensionContext;
+const NOOP = {} as ExtensionToolContext;
 
 function transport(status: number, body: unknown) {
   const paths: string[] = [];

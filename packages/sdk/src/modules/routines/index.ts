@@ -54,6 +54,7 @@ export {
   type RoutinePauseRemedy,
   routinePauseNotice,
 } from "./auto-pause";
+export { type RoutinePin, routineFirePin } from "./fire-pin";
 export { RoutinesHttpError } from "./http";
 export type {
   NewRoutine,

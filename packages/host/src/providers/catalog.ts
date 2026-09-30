@@ -50,10 +50,10 @@ export const PROVIDERS: readonly HostProvider[] = [
     auth: "apiKey",
     cloud: true,
     models: [
-      "glm-5.1",
-      "kimi-k2.6",
+      "glm-5.2",
+      "kimi-k2.7-code",
       "minimax-m3",
-      "qwen3.7-max",
+      "qwen3.8-max",
       "deepseek-v4-pro",
     ],
     defaultModel: DEFAULT_MODEL["opencode-go"],

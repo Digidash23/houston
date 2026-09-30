@@ -18,6 +18,11 @@ import {
 import { servedScopeFor } from "../auth/served-scope";
 import { authStorage, providerConnected } from "../auth/storage";
 import { config } from "../config";
+import {
+  ANTHROPIC_PROVIDER_ID,
+  anthropicOfferedModelIds,
+  lineupModelId,
+} from "./anthropic-lineup";
 import { AZURE_OPENAI, withAzureBaseUrl } from "./azure-openai";
 import { CODEX_PROVIDER_ID, codexOfferedModelIds } from "./codex-offered";
 import { endpointReachableCached } from "./endpoint-reachability";
@@ -460,9 +465,12 @@ export function setSettings(input: {
  */
 export function safeGetModel(
   provider: string,
-  modelId: string,
+  requestedId: string,
   pinned: boolean,
 ) {
+  // A retired Claude id runs on its own family's lineup model, pinned or saved
+  // alike (./anthropic-lineup): it is the SAME choice, not a stale one.
+  const modelId = lineupModelId(provider, requestedId);
   // MiniMax token/coding plan: pi-ai's minimax catalog has no `[1m]` variant, so
   // hand-build it (same provider/endpoint/auth) before consulting pi's getModel —
   // otherwise a saved id falls back to the pay-as-you-go SKU and a pinned id throws.
@@ -611,7 +619,24 @@ export function safeModelIds(provider: ProviderId): string[] {
   // (./codex-offered.ts carries the probe and its verdicts).
   if (provider === CODEX_PROVIDER_ID)
     return codexOfferedModelIds(piModelIds(provider));
+  if (provider === ANTHROPIC_PROVIDER_ID)
+    return anthropicOfferedModelIds(piModelIds(provider));
   return piModelIds(provider);
+}
+
+/**
+ * The model a SAVED (unpinned) turn on this provider runs — the same ladder
+ * `safeGetModel` applies: a retired Claude id runs its family's lineup model,
+ * and an id the provider does not offer falls back to the provider default.
+ * The status row reports this, so no choice list ever offers a model a pinned
+ * turn would refuse.
+ */
+function savedModelRuns(id: ProviderId): string {
+  const modelId = lineupModelId(id, modelFor(id));
+  const offered = safeModelIds(id);
+  return offered.length > 0 && !offered.includes(modelId)
+    ? providerDefaultModel(id)
+    : modelId;
 }
 
 /** One /providers status row for a provider id. `configured` reports the
@@ -635,7 +660,7 @@ function providerRow(id: ProviderId, name: string, active: ProviderId | null) {
     name,
     configured: providerUsable(id),
     isActive: id === active,
-    activeModel: modelFor(id),
+    activeModel: savedModelRuns(id),
     models: safeModelIds(id),
     ...(servedScope ? { credentialScope: servedScope } : {}),
     health: providerHealth(id),

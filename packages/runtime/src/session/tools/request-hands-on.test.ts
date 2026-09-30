@@ -1,4 +1,4 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { isInteractionStep, parsePendingInteraction } from "@houston/protocol";
 import { expect, test } from "vitest";
 import {
@@ -24,7 +24,7 @@ const run = (
     { surface, reason },
     undefined,
     undefined,
-    {} as ExtensionContext,
+    {} as ExtensionToolContext,
   );
 const execute = (surface: string, reason?: string) =>
   run(tool, surface, reason);

@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { describe, expect, test } from "vitest";
 import {
   bashMemoryFenceOptions,
@@ -115,7 +115,7 @@ describe("the memory fence", () => {
           getSessionId: () => "test-session",
           getSessionFile: () => undefined,
         },
-      } as unknown as ExtensionContext;
+      } as unknown as ExtensionToolContext;
       const fenced = makeScrubbedBashTool(process.cwd(), {
         memoryCapBytes: 768 * 1024 * 1024,
       });
@@ -154,7 +154,7 @@ describe("the tool shell", () => {
       getSessionId: () => "test-session",
       getSessionFile: () => undefined,
     },
-  } as unknown as ExtensionContext;
+  } as unknown as ExtensionToolContext;
 
   // A real wrapper stands in for the deployment's (which drops to the tool
   // user): the command only counts as wrapped if its output came through it.
