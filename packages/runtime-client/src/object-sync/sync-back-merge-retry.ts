@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { atomicTempPath } from "@houston/protocol";
 import type { HydrateManifestEntry } from "./hydrate";
 import { type ObjectStore, StoreConflictError } from "./object-store";
-import { removedCardIds } from "./sync-back-doc-merge";
+import { mergeUploadRounds, removedCardIds } from "./sync-back-doc-merge";
 import { trustedBase, withMergeBase } from "./sync-back-merge-base";
 import { mergeOrOverwrite, writeAtomically } from "./sync-back-merge-write";
 import {
@@ -11,10 +11,8 @@ import {
   readRemoteDocument,
 } from "./sync-back-remote-read";
 
+export { MERGE_UPLOAD_ATTEMPTS } from "./sync-back-doc-merge";
 export type { RefreshManifest } from "./sync-back-remote-read";
-
-/** Refresh+merge+upload rounds a merged document gets after its first 412. */
-export const MERGE_UPLOAD_ATTEMPTS = 6;
 
 /** Delay before merge round `retry` (1-based: the round after the first). */
 export type ConflictBackoff = (retry: number) => number;
@@ -40,8 +38,8 @@ export interface MergedUploadResult {
 }
 
 /**
- * Land a merged document (the board, routines, learnings, custom
- * integrations) after its first upload lost a generation race. Every round
+ * Land a merged document (the board, routines, run history, learnings,
+ * custom integrations) after its first upload lost a generation race. Every round
  * re-reads the remote and merges the turn's ORIGINAL bytes into it from
  * scratch, never an earlier round's output: a card another writer deleted
  * between rounds stays deleted, and a two-way merge never pins an entry at a
@@ -70,7 +68,8 @@ export async function uploadMergedDocument(opts: {
   let generation = opts.previous?.generation;
   let attempts = 0;
   let unmergeable: string | undefined;
-  while (attempts < MERGE_UPLOAD_ATTEMPTS) {
+  const rounds = mergeUploadRounds(opts.relativePath);
+  while (attempts < rounds) {
     attempts += 1;
     if (attempts > 1) await sleep(backoff(attempts - 1));
     const temp = atomicTempPath(opts.abs, `${randomUUID()}.remote`);

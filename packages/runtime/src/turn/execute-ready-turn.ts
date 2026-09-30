@@ -135,8 +135,9 @@ export async function executeReadyTurn(input: {
     }
   }
 
+  let afterSync: Awaited<ReturnType<typeof finishRoutineTurn>>["afterSync"];
   if (routinePhase) {
-    const failed = await finishRoutineTurn({
+    const finished = await finishRoutineTurn({
       store: input.resolved.store,
       prefix: input.resolved.prefix,
       filesystem: input.filesystem,
@@ -147,11 +148,13 @@ export async function executeReadyTurn(input: {
         ? { unconnectedProvider: effectiveTurn.provider }
         : {}),
     });
+    const failed = finished.error;
     if (failed)
       outcome = {
         ...outcome,
         error: outcome.error ? `${outcome.error}; ${failed}` : failed,
       };
+    afterSync = finished.afterSync;
   }
 
   input.timings.t_run_done = performance.now();
@@ -165,6 +168,7 @@ export async function executeReadyTurn(input: {
       outcome,
       transcript: input.transcript,
       ...(input.sandbox ? { views: input.sandbox.views() } : {}),
+      ...(afterSync ? { afterSync } : {}),
     }),
     // Before the terminal frame: the claim authorizing this upload ends there.
     persistTurnClaudeFlags({

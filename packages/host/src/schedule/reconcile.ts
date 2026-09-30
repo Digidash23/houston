@@ -3,6 +3,7 @@ import {
   loadActivities,
   loadRoutineRuns,
   loadRoutines,
+  ROUTINE_RUN_TIMEOUT_MS,
   routineActivity,
   saveActivities,
   saveRoutineRuns,
@@ -20,9 +21,6 @@ import {
   routineRunFailureSummary,
 } from "./run-failure";
 import { withRunsFile } from "./runs-lock";
-
-/** A run still 'running' after this long with no agent reply is declared timed-out. */
-const RUN_TIMEOUT_MS = 15 * 60 * 1000;
 
 interface StoredConversation {
   messages: ChatMessage[];
@@ -150,7 +148,7 @@ export async function reconcileAgentRuns(
       : Date.parse(run.started_at);
     const timedOut =
       (!reply || resumedReply !== null) &&
-      nowMs - clockStartMs > RUN_TIMEOUT_MS;
+      nowMs - clockStartMs > ROUTINE_RUN_TIMEOUT_MS;
     if (!reply && !timedOut) continue; // turn still in flight
     if (resumedReply && !timedOut) {
       // Stays `running`, and deliberately takes NO completion lock: the

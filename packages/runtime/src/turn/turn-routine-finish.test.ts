@@ -18,10 +18,10 @@ import type { TurnFilesystem } from "./turn-filesystem";
 import { finishRoutineTurn } from "./turn-routine-finish";
 
 /**
- * The pooled worker's auto-pause: the settle that completes a streak writes
- * the paused routine through the generation-guarded routines doc upload (the
- * write the store projects `enabled` from); anything short of a streak leaves
- * the routines doc untouched.
+ * The pooled worker's auto-pause: the settle that completes a streak hands
+ * back a pause that writes the paused routine through the generation-guarded
+ * routines doc upload (the write the store projects `enabled` from); anything
+ * short of a streak leaves the routines doc untouched.
  */
 
 const WS_REL = "workspaces/Personal/Bob";
@@ -132,16 +132,22 @@ async function seed(earlierFailures: number) {
   return { routine, run, text: "", provider: null };
 }
 
-test("the settle completing a streak uploads the paused routine", async () => {
-  const phase = await seed(ROUTINE_AUTO_PAUSE_AFTER - 1);
-  const failed = await finishRoutineTurn({
+/** Settle, then run the pause the caller defers until after sync-back. */
+async function finish(phase: Awaited<ReturnType<typeof seed>>) {
+  const finished = await finishRoutineTurn({
     store,
     prefix: "",
     filesystem: filesystem(),
     phase,
     conversationId: "routine-r1",
   });
-  expect(failed).toBeUndefined();
+  expect(finished.error).toBeUndefined();
+  return finished.afterSync?.([docKey(WS_REL, "routine_runs")]);
+}
+
+test("the settle completing a streak uploads the paused routine", async () => {
+  const phase = await seed(ROUTINE_AUTO_PAUSE_AFTER - 1);
+  expect(await finish(phase)).toBeUndefined();
   expect(uploads).toEqual([ROUTINES_KEY]);
   const [saved] = JSON.parse(remote.get(ROUTINES_KEY) ?? "[]") as Routine[];
   expect(saved).toMatchObject({
@@ -156,14 +162,7 @@ test("the settle completing a streak uploads the paused routine", async () => {
 
 test("a failure short of the streak leaves the routines doc alone", async () => {
   const phase = await seed(ROUTINE_AUTO_PAUSE_AFTER - 2);
-  const failed = await finishRoutineTurn({
-    store,
-    prefix: "",
-    filesystem: filesystem(),
-    phase,
-    conversationId: "routine-r1",
-  });
-  expect(failed).toBeUndefined();
+  expect(await finish(phase)).toBeUndefined();
   expect(uploads).toEqual([]);
   const [saved] = JSON.parse(remote.get(ROUTINES_KEY) ?? "[]") as Routine[];
   expect(saved?.enabled).toBe(true);
@@ -177,13 +176,7 @@ test("the pause is rebased on the store's routines, never the stale tree copy", 
     ROUTINES_KEY,
     JSON.stringify([{ ...routine, name: "Renamed" }, other]),
   );
-  await finishRoutineTurn({
-    store,
-    prefix: "",
-    filesystem: filesystem(),
-    phase,
-    conversationId: "routine-r1",
-  });
+  await finish(phase);
   const saved = JSON.parse(remote.get(ROUTINES_KEY) ?? "[]") as Routine[];
   expect(saved.map((r) => [r.id, r.name, r.enabled])).toEqual([
     ["r1", "Renamed", false],
@@ -194,13 +187,7 @@ test("the pause is rebased on the store's routines, never the stale tree copy", 
 test("a routine deleted from the store while the turn ran is not paused back", async () => {
   const phase = await seed(ROUTINE_AUTO_PAUSE_AFTER - 1);
   remote.set(ROUTINES_KEY, JSON.stringify([]));
-  await finishRoutineTurn({
-    store,
-    prefix: "",
-    filesystem: filesystem(),
-    phase,
-    conversationId: "routine-r1",
-  });
+  await finish(phase);
   expect(uploads).toEqual([]);
   expect(remote.get(ROUTINES_KEY)).toBe("[]");
 });

@@ -7,6 +7,10 @@ import { type ObjectStore, StoreConflictError } from "./object-store";
 import { syncBack } from "./sync-back";
 import { MERGE_UPLOAD_ATTEMPTS } from "./sync-back-merge-retry";
 
+test("the board keeps six merge rounds", () => {
+  expect(MERGE_UPLOAD_ATTEMPTS).toBe(6);
+});
+
 const DOC = "workspaces/Personal/Bob/.houston/activity/activity.json";
 type Card = { id: string; title: string; status: string };
 

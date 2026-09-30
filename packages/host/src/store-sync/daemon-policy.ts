@@ -1,5 +1,6 @@
 import {
   type HydrateManifest,
+  type LocalWriteLock,
   type ObjectStore,
   type SyncResult,
   syncBack,
@@ -51,6 +52,8 @@ export interface StoreSyncOptions {
   generations?: boolean;
   /** One delay per retry of the shutdown flush; override to speed up tests. */
   finalSyncRetryDelaysMs?: number[];
+  /** The host's hold on its own writers of a document a merge rewrites. */
+  localWriteLock?: LocalWriteLock;
   log: (msg: string, err?: unknown) => void;
 }
 
@@ -62,6 +65,7 @@ export function runSyncBack(
   return syncBack(opts.store, "", opts.rootDir, manifest, {
     excludes,
     generations: opts.generations,
+    ...(opts.localWriteLock ? { localWriteLock: opts.localWriteLock } : {}),
   });
 }
 

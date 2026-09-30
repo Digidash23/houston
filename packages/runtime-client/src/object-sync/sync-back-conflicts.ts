@@ -14,6 +14,7 @@ import {
   uploadMergedDocument,
 } from "./sync-back-merge-retry";
 import { retryAtRefreshedGeneration } from "./sync-back-single-retry";
+import type { LocalWriteLock } from "./sync-back-types";
 
 export type { RefreshManifest } from "./sync-back-merge-retry";
 
@@ -62,6 +63,7 @@ export async function uploadChangedObject(opts: {
   /** The per-turn worker's merge rounds and board merge base. */
   workerMerge?: boolean;
   backoff?: ConflictBackoff;
+  localWriteLock?: LocalWriteLock;
 }): Promise<UploadChangeResult> {
   try {
     const result = await opts.store.upload(

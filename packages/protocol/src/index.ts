@@ -20,6 +20,7 @@ export {
 export * from "./domain/mission-starter";
 export * from "./domain/portable";
 export * from "./domain/routine";
+export * from "./domain/routine-runs";
 export * from "./domain/sidebar-layout";
 export * from "./domain/sidebar-layout-normalize";
 export * from "./domain/sidebar-layout-parse";

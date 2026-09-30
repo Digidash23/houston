@@ -90,6 +90,57 @@ test("an in-flight run is a typed routine_busy failure", async () => {
   ).rejects.toMatchObject({ code: "routine_busy" });
 });
 
+async function seedRuns(runs: unknown[]): Promise<void> {
+  await store.writeText(
+    docKey(workspaceDir, "routine_runs"),
+    JSON.stringify(runs),
+  );
+}
+
+const minutesBefore = (minutes: number) =>
+  new Date(Date.parse(NOW) - minutes * 60_000).toISOString();
+
+const seededRun = (id: string, status: string, startedMinutesAgo: number) => ({
+  id,
+  routine_id: "daily-check",
+  status,
+  session_key: "routine-daily-check",
+  started_at: minutesBefore(startedMinutesAgo),
+});
+
+test("a running row inside the run timeout still blocks the routine", async () => {
+  await seedRoutines([routineFixture]);
+  await seedRuns([seededRun("fresh", "running", 14)]);
+  await expect(
+    prepareRoutineTurn(workspaceDir, routineTurn(), "turn-1", NOW),
+  ).rejects.toMatchObject({ code: "routine_busy" });
+});
+
+test("a running row past the run timeout no longer blocks, and stays as it is", async () => {
+  await seedRoutines([routineFixture]);
+  // A settle that failed in another sandbox: nothing settles it while the
+  // agent sleeps, so it must not refuse every later fire.
+  await seedRuns([seededRun("stranded", "running", 16)]);
+  await prepareRoutineTurn(workspaceDir, routineTurn(), "turn-1", NOW);
+  const runs = await runsFile();
+  expect(runs.map((r) => [r.id, r.status])).toEqual([
+    ["turn-1", "running"],
+    ["stranded", "running"],
+  ]);
+});
+
+test("a settled row never blocks, however fresh", async () => {
+  await seedRoutines([routineFixture]);
+  await seedRuns([seededRun("done", "surfaced", 0)]);
+  const phase = await prepareRoutineTurn(
+    workspaceDir,
+    routineTurn(),
+    "turn-1",
+    NOW,
+  );
+  expect(phase.run.id).toBe("turn-1");
+});
+
 test("a conversation not matching the routine's is refused as busy", async () => {
   await seedRoutines([routineFixture]);
   await expect(

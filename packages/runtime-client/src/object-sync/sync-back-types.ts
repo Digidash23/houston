@@ -39,6 +39,16 @@ export interface SyncResult {
   totalBytes: number;
 }
 
+/**
+ * Serialize a merge's rewrite of a local document with that document's own
+ * writers. Without it a writer's load→save that spans the rewrite saves over
+ * the merged rows (or the rewrite drops the save).
+ */
+export type LocalWriteLock = <T>(
+  relativePath: string,
+  write: () => Promise<T>,
+) => Promise<T>;
+
 /** Caller policy for exclusions, generations, and permitted write paths. */
 export interface SyncBackOptions {
   excludes?: string[];
@@ -62,4 +72,6 @@ export interface SyncBackOptions {
   workerMerge?: boolean;
   /** Delay between merge rounds of a contended document (tests pass 0). */
   conflictBackoff?: ConflictBackoff;
+  /** The standing daemon's hold on the host's writers of a merged document. */
+  localWriteLock?: LocalWriteLock;
 }
