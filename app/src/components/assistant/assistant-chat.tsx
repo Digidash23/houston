@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useOpenAgentHref } from "../../hooks/use-open-agent-file";
 import { useOpenConversationFeed } from "../../hooks/use-open-conversation-feed";
+import { useStartedMissionSummary } from "../../hooks/use-started-mission-summary";
 import { useVisualViewportInset } from "../../hooks/use-visual-viewport-inset";
 import { modelAcceptsImages } from "../../lib/providers";
 import {
@@ -20,6 +21,7 @@ import { useQueuedMessageLabels } from "../use-queued-message-labels";
 import { assistantAgent } from "./assistant-agent";
 import { AssistantEmptyState } from "./assistant-empty-state";
 import { AssistantPhoneHeader } from "./assistant-phone-header";
+import { useOnboardingChatCards } from "./onboarding/use-onboarding-chat-cards";
 import { useAssistantSend } from "./use-assistant-send";
 import { useContextCommandMenu } from "./use-context-command-menu";
 
@@ -62,6 +64,16 @@ export function AssistantChat({ handle }: { handle: AssistantHandle }) {
     selectedSessionKey: sessionKey,
     onSelectSession: noop,
   });
+  const renderStartedMissions = useStartedMissionSummary();
+  const renderTurnSummary = useCallback(
+    (summary: Parameters<NonNullable<typeof panel.renderTurnSummary>>[0]) => (
+      <>
+        {panel.renderTurnSummary?.(summary)}
+        {renderStartedMissions(summary)}
+      </>
+    ),
+    [panel.renderTurnSummary, renderStartedMissions],
+  );
   const attachmentValidation = useAttachmentRejectionDialog({
     modelAcceptsImages: modelAcceptsImages(
       panel.effectiveProvider,
@@ -69,6 +81,18 @@ export function AssistantChat({ handle }: { handle: AssistantHandle }) {
     ),
   });
   const { send, sendQueue } = useAssistantSend(agent, sessionKey, panel);
+  const running = send.effectiveLoading[sessionKey] === true;
+  const { sendAuthored } = sendQueue;
+  const onboardingCards = useOnboardingChatCards({
+    mapFeedItems: panel.mapFeedItems,
+    renderSystemMessage: panel.renderSystemMessage,
+    sendAuthored: useCallback(
+      (text: string, context: string, grants: ["createAgent"]) =>
+        sendAuthored(sessionKey, text, context, grants),
+      [sendAuthored, sessionKey],
+    ),
+    running,
+  });
 
   // The composer "+" menu gains the two conversation commands. They travel as
   // ordinary messages (the runtime reads them at the turn route), so the menu
@@ -77,7 +101,7 @@ export function AssistantChat({ handle }: { handle: AssistantHandle }) {
     base: panel.attachMenu,
     sessionKey,
     sendMessage: sendQueue.handleSendMessage,
-    running: send.effectiveLoading[sessionKey] === true,
+    running,
   });
 
   const { feedItems, hasOlderMessages, onLoadOlderMessages } =
@@ -159,15 +183,15 @@ export function AssistantChat({ handle }: { handle: AssistantHandle }) {
         senderNameClass={panel.senderNameClass}
         {...panel.mentionProps}
         dictation={panel.dictation}
-        renderSystemMessage={panel.renderSystemMessage}
+        renderSystemMessage={onboardingCards.renderSystemMessage}
         conversationMap={panel.conversationMap}
-        mapFeedItems={panel.mapFeedItems}
+        mapFeedItems={onboardingCards.mapFeedItems}
         afterMessages={panel.afterMessages}
         isSpecialTool={panel.isSpecialTool}
         renderToolResult={panel.renderToolResult}
         processLabels={panel.processLabels}
         getThinkingMessage={panel.getThinkingMessage}
-        renderTurnSummary={panel.renderTurnSummary}
+        renderTurnSummary={renderTurnSummary}
       />
       {panel.pickerDialog}
       {attachmentValidation.dialog}

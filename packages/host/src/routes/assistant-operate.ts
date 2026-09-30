@@ -1,10 +1,12 @@
 import type { ServerResponse } from "node:http";
 import { findVisibleOperation } from "../assistant/catalog";
+import { grantCovers } from "../assistant/grant-shape";
 import { confirmationSummary } from "../assistant/summary";
 import { approved } from "./assistant-approval-gate";
 import { assistantDeploymentRoute } from "./assistant-deployment-route";
 import { dispatchAssistantOperation } from "./assistant-dispatch";
 import { forwardAssistantCall } from "./assistant-forward";
+import { refusedForAnotherActor, settleGrant } from "./assistant-grant-gate";
 import type {
   AssistantCallInput,
   AssistantOperationCtx,
@@ -17,10 +19,11 @@ import {
 import { resolvedParams } from "./assistant-operation-params";
 import { refusedProtectedChat } from "./assistant-protected-chat";
 import { json } from "./http";
+import { liveTurns } from "./live-turn";
 
 /**
  * The two decisions `/sandbox/assistant/*` makes once the caller is known to be
- * the assistant: raise an approval card's request, and perform an operation.
+ * the assistant: issue a receipt or card, and perform an operation.
  *
  * The confirmation lock lives HERE rather than in the runtime because the host
  * is the process that holds the credential. A runtime that skipped its own gate
@@ -30,11 +33,10 @@ import { json } from "./http";
  */
 
 /**
- * `POST /sandbox/assistant/pending` — raise ONE approval card's request.
+ * `POST /sandbox/assistant/pending` — issue one exact-call receipt or card.
  *
- * Returns the id the card carries and the sentence the card shows, both minted
- * here so the wording the person reads and the bytes their yes authorizes are
- * decided in the same place and cannot drift apart.
+ * A matching, constrained user-message grant returns a pre-approved receipt.
+ * Otherwise the card's id and wording come from the same resolved arguments.
  */
 export async function handleAssistantPending(
   ctx: AssistantOperationCtx,
@@ -76,6 +78,32 @@ export async function handleAssistantPending(
       error: "an approval needs a conversation for the answer to arrive in",
       code: "missing_conversation",
     });
+    return;
+  }
+  const grant = grantCovers(operation, params)
+    ? ctx.approvals.grants.spend({
+        agentId: ctx.agentId,
+        conversationId: ctx.conversationId,
+        operation,
+        actor: liveTurns.get(ctx.agentId, ctx.conversationId)?.actingAs,
+      })
+    : undefined;
+  if (grant) {
+    const request = ctx.approvals.issue({
+      operation,
+      params,
+      agentId: ctx.agentId,
+      conversationId: ctx.conversationId,
+      summary: "",
+    });
+    ctx.approvals.decide({
+      requestId: request.requestId,
+      agentId: ctx.agentId,
+      conversationId: ctx.conversationId,
+      decision: "approve",
+    });
+    ctx.approvals.grants.hold(request.requestId, grant);
+    json(res, 200, { preApproved: true, requestId: request.requestId });
     return;
   }
   const summary = confirmationSummary(op, params);
@@ -134,6 +162,7 @@ export async function handleAssistantCall(
   }
   // The receipt is keyed by the RESOLVED arguments, which is what the card was
   // issued for: the user approved an operation on one agent, not on a spelling.
+  if (refusedForAnotherActor(ctx, input, res)) return;
   if (op.confirm && !approved(ctx, input, params, res)) return;
   const request = assistantDeploymentRoute(dispatch.request, ctx);
   if (!request) {
@@ -144,7 +173,7 @@ export async function handleAssistantCall(
     return;
   }
 
-  await forwardAssistantCall(
+  const outcome = await forwardAssistantCall(
     input.gateway,
     request,
     {
@@ -154,4 +183,5 @@ export async function handleAssistantCall(
     },
     res,
   );
+  if (op.confirm) settleGrant(ctx, input, outcome);
 }

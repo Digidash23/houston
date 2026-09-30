@@ -55,6 +55,12 @@ function upstreamUrl(
  * `actingAs` is the caller's already-verified acting identity, relayed so the
  * gateway authorizes the real person rather than the pod.
  */
+/**
+ * What became of a forwarded call: done, refused by the app (a 4xx: nothing
+ * happened), or unknown (lost, unreadable or a 5xx: it may have happened).
+ */
+export type ForwardOutcome = "performed" | "refused" | "unknown";
+
 export async function forwardAssistantCall(
   gateway: AssistantGateway,
   request: AssistantUpstreamRequest,
@@ -64,7 +70,7 @@ export async function forwardAssistantCall(
     fetchImpl: typeof fetch;
   },
   res: ServerResponse,
-): Promise<void> {
+): Promise<ForwardOutcome> {
   const { operation, actingAs, fetchImpl } = context;
   const target = upstreamUrl(gateway, request);
   if (target === null) {
@@ -75,7 +81,7 @@ export async function forwardAssistantCall(
       error: `those values do not address "${operation}"`,
       code: "gateway_address",
     });
-    return;
+    return "refused";
   }
   let upstream: Response;
   try {
@@ -104,7 +110,7 @@ export async function forwardAssistantCall(
       error: `could not reach the app to perform "${operation}"`,
       code: "gateway_unreachable",
     });
-    return;
+    return "unknown";
   }
 
   const text = await upstream.text();
@@ -119,7 +125,9 @@ export async function forwardAssistantCall(
       error: text.slice(0, 300) || `gateway returned ${upstream.status}`,
       code: "gateway_error",
     });
-    return;
+    // A 4xx is the app refusing the call; a 5xx may come after the work was
+    // done (a timeout in front of it), so it proves nothing.
+    return upstream.status < 500 ? "refused" : "unknown";
   }
   // Relay the gateway's own JSON verbatim (an empty body stays empty — the
   // caller reads that as "no payload"). A 2xx that is NOT JSON means something
@@ -135,11 +143,12 @@ export async function forwardAssistantCall(
         error: `the app answered something unreadable for "${operation}"`,
         code: "gateway_error",
       });
-      return;
+      return "unknown";
     }
   }
   res.writeHead(upstream.status, {
     "Content-Type": "application/json; charset=utf-8",
   });
   res.end(text);
+  return "performed";
 }

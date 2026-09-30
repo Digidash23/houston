@@ -124,6 +124,7 @@ export async function wireWarmingSend(
       effortOverride: pin.effort,
       modeOverride: send.mode,
       mentions: send.mentions,
+      grants: send.grants,
       suppressUserBubble: suppress,
       // A prompt from either hidden source (built now, or resolved at queue
       // time) means the bubble must show the user's words instead.

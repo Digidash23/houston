@@ -6,8 +6,10 @@
  * their corresponding tool_result items.
  */
 
+import { attachToolResult } from "./feed-tool-result";
 import type {
   FeedItem,
+  HostCard,
   MessageAuthor,
   MessageMention,
   ProviderError,
@@ -17,7 +19,11 @@ import type {
 export interface ToolEntry {
   name: string;
   input?: unknown;
-  result?: { content: string; is_error: boolean };
+  result?: {
+    content: string;
+    is_error: boolean;
+    mission?: { id: string; title: string; agent: string };
+  };
 }
 
 export interface FileChangeEntry {
@@ -80,6 +86,8 @@ export interface ChatMessage {
    * English default.
    */
   notice?: SystemNoticeKind;
+  /** Set on `from: "system"` rows the host draws itself. */
+  hostCard?: HostCard;
   /**
    * The wire id of the turn a `from: "user"` message started (PRODUCT-1217).
    * The edit-and-resend affordance anchors on it; absent on a still-optimistic
@@ -251,40 +259,7 @@ export function feedItemsToMessages(items: FeedItem[]): ChatMessage[] {
       }
 
       case "tool_result": {
-        // Find the most recent unmatched tool_call — it might be in the
-        // current message OR in an already-flushed one (thinking blocks
-        // can cause flushes between tool_call and tool_result).
-        let matched = false;
-        const active = getCur();
-        if (active && active.from === "assistant") {
-          for (let j = active.tools.length - 1; j >= 0; j--) {
-            if (!active.tools[j].result) {
-              active.tools[j].result = {
-                content: item.data.content,
-                is_error: item.data.is_error,
-              };
-              matched = true;
-              break;
-            }
-          }
-        }
-        if (!matched) {
-          // Search flushed messages backwards
-          for (let m = messages.length - 1; m >= 0 && !matched; m--) {
-            const msg = messages[m];
-            if (msg.from !== "assistant") continue;
-            for (let j = msg.tools.length - 1; j >= 0; j--) {
-              if (!msg.tools[j].result) {
-                msg.tools[j].result = {
-                  content: item.data.content,
-                  is_error: item.data.is_error,
-                };
-                matched = true;
-                break;
-              }
-            }
-          }
-        }
+        attachToolResult(item, messages, getCur());
         break;
       }
 
@@ -332,6 +307,20 @@ export function feedItemsToMessages(items: FeedItem[]): ChatMessage[] {
           providerError: item.data,
           tools: [],
           fileChanges: [],
+        });
+        break;
+      }
+
+      case "host_card": {
+        flush();
+        messages.push({
+          key: keyFor("host-card", item),
+          from: "system",
+          content: "",
+          isStreaming: false,
+          tools: [],
+          fileChanges: [],
+          hostCard: item.data,
         });
         break;
       }

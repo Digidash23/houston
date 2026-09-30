@@ -21,6 +21,7 @@ type SyncTool = {
   input?: unknown;
   isError?: boolean;
   content?: string;
+  mission?: { id: string; title: string; agent: string };
 };
 
 /**
@@ -284,7 +285,12 @@ export class TurnSink {
       if (t.isError === undefined) break;
       push(s, {
         feed_type: "tool_result",
-        data: { content: t.content ?? "", is_error: t.isError },
+        data: {
+          name: t.name,
+          content: t.content ?? "",
+          is_error: t.isError,
+          ...(t.mission ? { mission: t.mission } : {}),
+        },
         toolIndex: s.toolResultsSeen,
       });
       s.toolResultsSeen++;
@@ -301,7 +307,12 @@ export class TurnSink {
       if (t.isError !== undefined) {
         push(s, {
           feed_type: "tool_result",
-          data: { content: t.content ?? "", is_error: t.isError },
+          data: {
+            name: t.name,
+            content: t.content ?? "",
+            is_error: t.isError,
+            ...(t.mission ? { mission: t.mission } : {}),
+          },
           toolIndex: s.toolResultsSeen,
         });
         s.toolResultsSeen++;

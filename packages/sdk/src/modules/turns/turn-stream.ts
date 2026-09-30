@@ -1,4 +1,8 @@
-import { isAutoContinue, type MessageApproval } from "@houston/protocol";
+import {
+  type GrantableOperation,
+  isAutoContinue,
+  type MessageApproval,
+} from "@houston/protocol";
 import type { HoustonEngineClient } from "@houston/runtime-client";
 import { streamEventsResumable } from "@houston/runtime-client";
 import type { FeedOutput } from "./feed-output";
@@ -108,6 +112,7 @@ export interface StreamTurnOptions {
    * passenger like `approvals`, set only on a new mission's first send.
    */
   missionTitle?: { fallback: string; text: string };
+  grants?: GrantableOperation[];
 }
 
 /**
@@ -263,14 +268,16 @@ export async function streamTurn(
     }
     after = prior.lastSeq;
     try {
-      await engine.sendMessage(sessionKey, prompt, {
+      const sendOptions = {
         nonce,
         ...opts.pin,
         displayText: opts.displayText,
         mentions,
         approvals: opts.approvals,
         missionTitle: opts.missionTitle,
-      });
+        grants: opts.grants,
+      };
+      await engine.sendMessage(sessionKey, prompt, sendOptions);
     } catch (e) {
       registry.endSend(key);
       // The resend was rejected before it reached the engine — fail its
@@ -357,15 +364,16 @@ export async function streamTurn(
     streaming.catch(() => {});
     if (!sent) {
       try {
-        const send = () =>
-          engine.sendMessage(sessionKey, prompt, {
-            nonce,
-            ...opts.pin,
-            displayText: opts.displayText,
-            mentions,
-            approvals: opts.approvals,
-            missionTitle: opts.missionTitle,
-          });
+        const sendOptions = {
+          nonce,
+          ...opts.pin,
+          displayText: opts.displayText,
+          mentions,
+          approvals: opts.approvals,
+          missionTitle: opts.missionTitle,
+          grants: opts.grants,
+        };
+        const send = () => engine.sendMessage(sessionKey, prompt, sendOptions);
         try {
           await send();
         } catch (refusal) {

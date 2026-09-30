@@ -100,7 +100,7 @@ for (const width of [1280, 375]) {
     await basicTeamOption(page).click();
     const first = teamCardNameField(page, "Executive assistant");
     await expect(first).toBeVisible();
-    const last = teamCardNameField(page, "Finance manager");
+    const last = teamCardNameField(page, "Production supervisor");
     // Nothing spills sideways: the page and the dialog hold the team's width.
     expect(
       await page.evaluate(
@@ -129,7 +129,7 @@ for (const width of [1280, 375]) {
       }
       expect(firstBox?.y).toBe(lastBox?.y);
       expect(lastBox?.x).toBeGreaterThan(firstBox?.x ?? 0);
-      for (const role of ["Executive assistant", "Operations manager"]) {
+      for (const role of ["Executive assistant", "Production planner"]) {
         const row = page.getByRole("button", { name: `Change role: ${role}` });
         expect(
           await row.evaluate((node) => node.scrollWidth <= node.clientWidth),
@@ -140,7 +140,7 @@ for (const width of [1280, 375]) {
       expect(lastBox?.x).toBe(firstBox?.x);
       expect(lastBox?.y).toBeGreaterThan(firstBox?.y ?? 0);
       await expect(first).toHaveValue("Executive assistant");
-      await expect(last).toHaveValue("Finance manager");
+      await expect(last).toHaveValue("Production supervisor");
       await last.fill("Felix");
       await first.fill("");
       await last.scrollIntoViewIfNeeded();

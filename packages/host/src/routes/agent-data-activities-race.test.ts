@@ -1,8 +1,14 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Readable } from "node:stream";
-import { docKey, type TextStore } from "@houston/domain";
-import type { Activity } from "@houston/protocol";
-import { expect, test } from "vitest";
+import {
+  AGENT_SETUP_AGENT_MODE,
+  docKey,
+  loadConfig,
+  saveConfig,
+  type TextStore,
+} from "@houston/domain";
+import type { Activity, HoustonEvent } from "@houston/protocol";
+import { afterEach, expect, test, vi } from "vitest";
 import { handleActivitiesData } from "./agent-data-activities";
 
 /**
@@ -15,6 +21,71 @@ import { handleActivitiesData } from "./agent-data-activities";
 
 const ROOT = "ws/agent";
 const KEY = docKey(ROOT, "activity");
+
+afterEach(() => vi.restoreAllMocks());
+
+test("a user-created mission retires a pending first day", async () => {
+  const store = slowStore();
+  const events: HoustonEvent[] = [];
+  await saveConfig(store, ROOT, { firstDay: "pending", model: "sonnet" });
+  const result = await post(store, { title: "Start working" }, (event) =>
+    events.push(event),
+  );
+  expect(result.status).toBe(201);
+  expect((await loadConfig(store, ROOT)).config).toMatchObject({
+    firstDay: "started",
+    model: "sonnet",
+  });
+  expect(events).toContainEqual({
+    type: "ConfigChanged",
+    agentPath: "agent-1",
+  });
+});
+
+test.each([
+  "started",
+  undefined,
+] as const)("a user-created mission leaves firstDay %s untouched", async (firstDay) => {
+  const store = slowStore();
+  await saveConfig(store, ROOT, firstDay ? { firstDay } : { model: "sonnet" });
+  const write = vi.spyOn(store, "writeText");
+  expect((await post(store, { title: "Start working" })).status).toBe(201);
+  expect(write).not.toHaveBeenCalledWith(
+    docKey(ROOT, "config"),
+    expect.anything(),
+  );
+});
+
+test("a failed config write does not fail a user-created mission", async () => {
+  const store = slowStore();
+  await saveConfig(store, ROOT, { firstDay: "pending" });
+  const write = store.writeText.bind(store);
+  vi.spyOn(store, "writeText").mockImplementation((key, content) =>
+    key === docKey(ROOT, "config")
+      ? Promise.reject(new Error("config unavailable"))
+      : write(key, content),
+  );
+  const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+  const result = await post(store, { title: "Start working" });
+  expect(result.status).toBe(201);
+  expect(storedItems(store)).toHaveLength(1);
+  expect((await loadConfig(store, ROOT)).config.firstDay).toBe("pending");
+  expect(logged).toHaveBeenCalledWith(
+    expect.stringContaining("retiring pending start failed"),
+    expect.any(Error),
+  );
+});
+
+test("a setup task does not retire its own pending first day", async () => {
+  const store = slowStore();
+  await saveConfig(store, ROOT, { firstDay: "pending" });
+  const result = await post(store, {
+    title: "Getting set up",
+    agent: AGENT_SETUP_AGENT_MODE,
+  });
+  expect(result.status).toBe(201);
+  expect((await loadConfig(store, ROOT)).config.firstDay).toBe("pending");
+});
 
 /** In-memory TextStore that snapshots the value at read START and only
  * returns it after yielding to the event loop — the remote-store shape
@@ -60,7 +131,11 @@ function response(): ServerResponse & { status: number; body: unknown } {
   return res as unknown as ServerResponse & { status: number; body: unknown };
 }
 
-function post(store: TextStore, body: Record<string, unknown>) {
+function post(
+  store: TextStore,
+  body: Record<string, unknown>,
+  emit?: (event: HoustonEvent) => void,
+) {
   const res = response();
   return handleActivitiesData(
     store,
@@ -70,6 +145,7 @@ function post(store: TextStore, body: Record<string, unknown>) {
     null,
     request(body),
     res,
+    emit,
   ).then(() => res);
 }
 

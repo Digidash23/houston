@@ -14,6 +14,7 @@
  */
 
 import type { ActivityStatus, MessageMention } from "@houston/engine-adapter";
+import type { GrantableOperation } from "@houston/protocol";
 import { queryKeys } from "../query-keys.ts";
 
 /**
@@ -81,6 +82,8 @@ export interface PendingWarmingSend {
   /** Teammates this message @mentions (HOU-944). Plain JSON, so it survives
    *  the localStorage mirror and a relaunch mid-warm-up alongside the text. */
   mentions?: MessageMention[];
+  /** User-authorized operations carried through a deferred send. */
+  grants?: GrantableOperation[];
   /** Epoch ms the message was queued — orders the optimistic board rows. */
   queuedAt?: number;
   /**

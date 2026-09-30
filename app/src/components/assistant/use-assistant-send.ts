@@ -45,6 +45,10 @@ export function useAssistantSend(
     resolveSendPin: pin.resolveSendPin,
     sendMessageNow: send.sendMessageNow,
   });
-  useManagerHandoff(sessionKey, sendQueue.sendAuthored);
+  useManagerHandoff(
+    sessionKey,
+    sendQueue.sendAuthored,
+    send.effectiveLoading[sessionKey] === true,
+  );
   return { send, sendQueue };
 }

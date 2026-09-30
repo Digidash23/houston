@@ -69,6 +69,7 @@ export type WireEvent =
           input?: unknown;
           isError?: boolean;
           content?: string;
+          mission?: { id: string; title: string; agent: string };
         }[];
       };
     }
@@ -115,6 +116,7 @@ export type WireEvent =
          * pre-field servers and from tools that produced no text.
          */
         content?: string;
+        mission?: { id: string; title: string; agent: string };
       };
     }
   | { type: "usage"; data: TokenUsage }

@@ -43,7 +43,12 @@ export function applyTurnFrame(
     case "tool_end":
       push(s, {
         feed_type: "tool_result",
-        data: { content: ev.data.content ?? "", is_error: ev.data.isError },
+        data: {
+          name: ev.data.name,
+          content: ev.data.content ?? "",
+          is_error: ev.data.isError,
+          ...(ev.data.mission ? { mission: ev.data.mission } : {}),
+        },
         toolIndex: s.toolResultsSeen,
       });
       s.toolResultsSeen++;

@@ -1,15 +1,14 @@
-import { clipToolResult, type WireEvent } from "@houston/runtime-client";
+import type { WireEvent } from "@houston/runtime-client";
 import {
   type AssistantContentBlock,
   type EventLike,
   parseDeltaJson,
   type ToolBlock,
-  toolResultText,
   toolStartFrame,
-  type UserContentBlock,
   unverifiedToolStart,
   warnDroppedToolBlock,
 } from "./translate-support";
+import { translateToolResults } from "./translate-tool-results";
 
 /** The per-turn content-block state behind a translator's stream handling. */
 export interface ContentBlockTracker {
@@ -24,7 +23,7 @@ export interface ContentBlockTracker {
    */
   onAssistantMessage(content: unknown): WireEvent[];
   /** A user message's `tool_result` blocks → tool_end for this turn's tools. */
-  onUserMessage(content: unknown): WireEvent[];
+  onUserMessage(content: unknown, toolUseResult?: unknown): WireEvent[];
   /** The turn's result: settles every tool_start still waiting (loud). */
   onTurnEnd(): WireEvent[];
 }
@@ -149,36 +148,16 @@ export function createContentBlockTracker(): ContentBlockTracker {
     return out;
   }
 
-  function onUserMessage(content: unknown): WireEvent[] {
-    if (!Array.isArray(content)) return [];
-    const out: WireEvent[] = [];
-    for (const block of content as UserContentBlock[]) {
-      if (block?.type !== "tool_result") continue;
-      // Only surface results for tools we started THIS turn; an unknown id is a
-      // replayed/foreign result (e.g. resume history) and must not emit tool_end.
-      const name = block.tool_use_id && toolNameById.get(block.tool_use_id);
-      if (!name) continue;
-      // A result for a call still awaiting the SDK's verdict: settle it first so
-      // the tool_end has its tool_start.
-      const waiting =
-        block.tool_use_id && awaitingSdkInput.get(block.tool_use_id);
-      if (waiting) {
-        awaitingSdkInput.delete(waiting.id);
-        out.push(unverifiedToolStart(waiting));
-      }
-      // Carry the result's text (clipped) so the mission log can show what
-      // the tool returned — same contract as the pi backend (HOU-717).
-      const content = toolResultText(block.content);
-      out.push({
-        type: "tool_end",
-        data: {
-          name,
-          isError: !!block.is_error,
-          ...(content ? { content: clipToolResult(content) } : {}),
-        },
-      });
-    }
-    return out;
+  function onUserMessage(
+    content: unknown,
+    toolUseResult?: unknown,
+  ): WireEvent[] {
+    return translateToolResults(
+      content,
+      toolUseResult,
+      toolNameById,
+      awaitingSdkInput,
+    );
   }
 
   function onTurnEnd(): WireEvent[] {

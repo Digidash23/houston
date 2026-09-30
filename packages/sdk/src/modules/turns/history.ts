@@ -166,7 +166,12 @@ export function historyToFeed(
       });
       out.push({
         feed_type: "tool_result",
-        data: { content: t.result ?? "", is_error: !!t.isError },
+        data: {
+          name: t.name,
+          content: t.result ?? "",
+          is_error: !!t.isError,
+          ...(t.mission ? { mission: t.mission } : {}),
+        },
         ts,
         ...turn,
         ...index,

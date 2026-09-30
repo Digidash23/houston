@@ -3,6 +3,29 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v119 - 2026-09-30
+
+First run closes on two cards in the AI Manager's chat. The team card lists the
+team, each AI Employee a row that opens them, then what the manager does as
+chips. The goal card replaces the manager's words for the turn that starts the
+person's goal: three steps that tick as it works, then Open for the employee on
+it, or the manager's one sentence and Try again. Chat draws both as host card
+rows. The connect step's cards show at once, before the first provider probe
+answers.
+
+## v118 - 2026-09-28
+
+The AI Employee hire question shows the person's name, a palette color dot and
+role. Their instructions open from a visible disclosure and show the body as
+formatted text.
+
+## v117 - 2026-09-28
+
+The AI Manager's final reply shows one started mission card per successful
+handoff. Each card names the AI Employee and mission and opens that mission's
+chat. When the employee has left the team, the card keeps its title and explains
+why Open is disabled.
+
 ## v116 - 2026-09-28
 
 The rail keeps its team of message-list rows and gains a foot.

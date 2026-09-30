@@ -13,9 +13,10 @@ export interface AgentConfig {
   effort?: string;
   /**
    * `"pending"`: hired, first day not run yet; the only state that offers
-   * the user the button that starts it. `"started"`: its first day ran.
-   * Absent: the employee predates the field. Host-owned: only the host's
-   * first-day start moves it to `"started"`, and no config write changes it.
+   * the user the button that starts it. `"started"`: its first day started,
+   * or a mission started on its board. Absent: the employee predates the field.
+   * Host-owned: the first-day start or any board mission start moves it to
+   * `"started"`; config writes preserve it.
    */
   firstDay?: AgentFirstDay;
   /** Recorded with a pending first day, for the analytics its start reports. */

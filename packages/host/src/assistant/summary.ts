@@ -1,5 +1,6 @@
 import type { ApprovalArg } from "@houston/protocol/approval";
 import type { AssistantOperation } from "./catalog";
+import { hireSummary } from "./hire-summary";
 
 /**
  * What an approval card is ABOUT, authored HERE from the catalog and the exact
@@ -19,15 +20,27 @@ import type { AssistantOperation } from "./catalog";
  * host's English rendering of the same structure, for text-only surfaces and
  * for any shell that has no wording of its own.
  *
- * Arguments are shown IN FULL. A value the user cannot see is a value they did
- * not approve, so nothing is quietly shortened: a long or multi-line value is
- * marked `long` and moves out of the sentence into its own scrollable block,
- * and the only case that is not shown whole ({@link VALUE_LIMIT}) carries the
- * exact number of characters it left out, so the card can say so in words.
+ * Arguments are shown IN FULL, as labeled facts rather than JSON. A value the
+ * user cannot see is a value they did not approve, and two different calls
+ * never read the same: nested arguments become facts named by their path, a
+ * long or multi-line value moves out of the sentence into its own block, and
+ * the only case not shown whole ({@link VALUE_LIMIT}, or a list longer than
+ * {@link LIST_LIMIT} items, which reads as one block) carries the exact
+ * number of characters it left out. Hire instructions remain whole.
  */
 
-/** The longest single value shown whole. Past it the card says what it hid. */
+/** Limit for general values; hire instructions remain whole. */
 const VALUE_LIMIT = 2000;
+
+/** The most list items shown as facts of their own. */
+const LIST_LIMIT = 20;
+
+/** What each kind of empty value reads as: no value, an empty list and an
+ *  empty group are different calls, so they never read the same. */
+const NOTHING = "none";
+const EMPTY_LIST = "empty list";
+const EMPTY_GROUP = "empty";
+const PLACEHOLDERS = new Set([NOTHING, EMPTY_LIST, EMPTY_GROUP]);
 
 /** The longest value that still reads inside a sentence. */
 const INLINE_LIMIT = 80;
@@ -36,16 +49,29 @@ const INLINE_LIMIT = 80;
 function humanize(key: string): string {
   return key
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/[_-]+/g, " ")
+    .replace(/[._-]+/g, " ")
     .trim()
     .toLowerCase();
 }
 
-/** One value as text: strings verbatim, everything else as its JSON. */
+/** One value as text. A string that reads as the empty placeholder, or as
+ *  an already quoted one, is quoted (escaped), so it never reads like
+ *  another value. */
 function asText(value: unknown): string {
-  return value === null || typeof value !== "object"
-    ? String(value)
-    : JSON.stringify(value, null, 2);
+  if (value === null) return NOTHING;
+  if (
+    typeof value === "string" &&
+    (PLACEHOLDERS.has(value.trim()) || /^\s*".*"\s*$/s.test(value))
+  )
+    return JSON.stringify(value);
+  return String(value);
+}
+
+/** A nested key in a fact's path. A key holding the path's own separators
+ *  (a dot, the space before a list position) or a quote is quoted, so two
+ *  different nestings never share a name. */
+function pathKey(key: string): string {
+  return /[.\s"]/.test(key) ? JSON.stringify(key) : key;
 }
 
 /** The catalog's description, guaranteed to end a sentence. */
@@ -68,7 +94,7 @@ export interface ConfirmationSummary {
 }
 
 /**
- * The arguments of one exact call, as a card must show them.
+ * The readable facts of one exact call, as a card must show them.
  *
  * Derived from the SAME params the approval key is computed over
  * (`approvals.ts` issues both together), so the card and the receipt can never
@@ -77,12 +103,10 @@ export interface ConfirmationSummary {
  */
 export function approvalArgs(params: Record<string, unknown>): ApprovalArg[] {
   const args: ApprovalArg[] = [];
-  for (const [name, value] of Object.entries(params)) {
-    if (value === undefined) continue;
-    const text = asText(value);
+  const push = (name: string, text: string): void => {
     const long = text.length > INLINE_LIMIT || text.includes("\n");
     args.push(
-      text.length <= VALUE_LIMIT
+      text.length <= VALUE_LIMIT || name === "seed.claudeMd"
         ? { name, value: text, long }
         : {
             name,
@@ -91,8 +115,38 @@ export function approvalArgs(params: Record<string, unknown>): ApprovalArg[] {
             truncated: text.length - VALUE_LIMIT,
           },
     );
-  }
+  };
+  const add = (name: string, value: unknown): void => {
+    if (value === undefined) return;
+    if (Array.isArray(value)) {
+      if (value.length === 0) push(name, EMPTY_LIST);
+      else if (value.length > LIST_LIMIT) push(name, listBlock(value));
+      else
+        for (const [index, item] of value.entries())
+          add(`${name} ${index + 1}`, item);
+      return;
+    }
+    if (value !== null && typeof value === "object") {
+      const entries = Object.entries(value);
+      if (entries.length === 0) push(name, EMPTY_GROUP);
+      for (const [key, child] of entries) add(`${name}.${pathKey(key)}`, child);
+      return;
+    }
+    push(name, asText(value));
+  };
+  for (const [name, value] of Object.entries(params)) add(name, value);
   return args;
+}
+
+/** A list too long for a fact per item: one item per line. */
+function listBlock(items: readonly unknown[]): string {
+  return items
+    .map((item) =>
+      item !== null && typeof item === "object"
+        ? JSON.stringify(item)
+        : asText(item),
+    )
+    .join("\n");
 }
 
 /** The host's own English rendering of one argument's block. */
@@ -118,6 +172,7 @@ export function confirmationSummary(
   params: Record<string, unknown>,
 ): ConfirmationSummary {
   const args = approvalArgs(params);
+  if (op.name === "createAgent") return hireSummary(args);
   const sentence = asSentence(op.description);
   if (args.length === 0) return { title: sentence, args };
 

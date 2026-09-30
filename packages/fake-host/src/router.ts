@@ -17,6 +17,7 @@ import {
   killRunningTurns,
   turnBoundary,
 } from "./chat-controls";
+import { type ScriptedToolCall, setNextToolCalls } from "./chat-tools";
 import { ASSISTANT_AGENT_ID, SEED_AGENT_ID } from "./config";
 import { CORS, json } from "./http";
 import { handleAgents } from "./routes";
@@ -109,6 +110,15 @@ export async function handle(req: Request): Promise<Response> {
   if (path === "/__test__/chat-reply" && method === "POST") {
     const body = await parseBody(req);
     setNextReplyText(typeof body?.text === "string" ? body.text : null);
+    return json({ ok: true });
+  }
+  // Arm the NEXT scripted turn to make these tool calls before it replies:
+  // `{ calls: [{ name, args, content?, isError?, mission? }] }`. One-shot.
+  if (path === "/__test__/chat-tools" && method === "POST") {
+    const body = await parseBody(req);
+    setNextToolCalls(
+      Array.isArray(body?.calls) ? (body.calls as ScriptedToolCall[]) : [],
+    );
     return json({ ok: true });
   }
   // Arm the NEXT scripted turn to end on a pending interaction: its `done`

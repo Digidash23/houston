@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
+  AGENT_SETUP_AGENT_MODE,
   applyActivityUpdate,
   createActivity,
   loadActivities,
@@ -17,6 +18,7 @@ import type {
 } from "@houston/protocol";
 import { activityUpdateSchema } from "@houston/protocol";
 import { hostOwnedApprovalCards } from "./activity-approval-cards";
+import { retirePendingFirstDay } from "./agent-first-day-retire";
 import { withDocLock } from "./doc-lock";
 import { json, methodNotAllowed, readJson } from "./http";
 
@@ -131,6 +133,8 @@ export async function handleActivitiesData(
     // may have moved on (a status the agent settled, contributors it gained)
     // and the caller must read what is really on the board.
     if (landed.created) fireChange();
+    if (landed.activity.agent !== AGENT_SETUP_AGENT_MODE)
+      await retirePendingFirstDay({ vfs: store, root, agentId, emit });
     json(res, 201, served(landed.activity));
     return;
   }

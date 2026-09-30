@@ -39,7 +39,7 @@ export const INDUSTRY_QUESTION = "What industry do you work in?";
 export const ROLE_QUESTION = "What's your role?";
 export const COMPANY_SIZE_QUESTION = "How big is your company?";
 export const GOAL_QUESTION =
-  "Which task would you love to hand off to an AI Employee?";
+  "What's a repetitive task in your job that you'd love to hire somebody for?";
 
 /** The whole scripted conversation. */
 export function managerOnboarding(page: Page): Locator {

@@ -100,19 +100,31 @@ describe("surveyAnswered", () => {
 });
 
 describe("surveyAbout", () => {
-  it("tells the role and the company size the person gave", () => {
+  it("tells the industry, role and company size the person gave", () => {
     deepStrictEqual(
-      surveyAbout(record({ role: "founder", companySize: "2_10" })),
-      { role: "founder", companySize: "2_10" },
+      surveyAbout(
+        record({
+          industry: "accounting",
+          role: "founder",
+          companySize: "2_10",
+        }),
+      ),
+      { industry: "accounting", role: "founder", companySize: "2_10" },
     );
     deepStrictEqual(
       surveyAbout(record({ role: "something_else", roleOther: "Groomer" })),
-      { role: "Groomer", companySize: null },
+      { industry: null, role: "Groomer", companySize: null },
+    );
+    deepStrictEqual(
+      surveyAbout(
+        record({ industry: "something_else", industryOther: "Pet care" }),
+      ),
+      { industry: "Pet care", role: null, companySize: null },
     );
   });
 
   it("says nothing it does not know: skips, bare something else, no record", () => {
-    const nothing = { role: null, companySize: null };
+    const nothing = { industry: null, role: null, companySize: null };
     deepStrictEqual(
       surveyAbout(record({ role: "skipped", companySize: "skipped" })),
       nothing,

@@ -161,6 +161,49 @@ test("loadChatHistory reads the tail window, then attaches the observer stream",
   );
 });
 
+test("loadChatHistory carries a persisted mission receipt into the chat feed", async () => {
+  const mission = { id: "m1", title: "Research", agent: "Ada" };
+  stubEngine({
+    id: SK,
+    title: "t",
+    messages: [
+      {
+        role: "assistant",
+        content: "Ada is on it",
+        ts: 1,
+        tools: [
+          {
+            name: "start_mission",
+            input: { agent: "Ada" },
+            result: "started",
+            isError: false,
+            mission,
+          },
+        ],
+      },
+    ],
+  });
+
+  const feed = await client().loadChatHistory(AGENT, SK);
+  const read = calls.find((call) => call.url.includes("/messages?"));
+  expect(read?.method).toBe("GET");
+  expect(read?.url).toBe(
+    `${BASE}/agents/${AGENT}/conversations/${SK}/messages?limit=${CHAT_OPEN_WINDOW}`,
+  );
+  expect(read?.headers.get("x-houston-org")).toBe(ORG);
+  expect(feed).toContainEqual(
+    expect.objectContaining({
+      feed_type: "tool_result",
+      data: {
+        name: "start_mission",
+        content: "started",
+        is_error: false,
+        mission,
+      },
+    }),
+  );
+});
+
 test("a chat-open read still rides the transient-retry ladder a pod handoff needs", async () => {
   // The SDK's client is built over the SAME read retry every control-plane call
   // gets (`createEngineSdk` composes `transientRetryFetch`). Without it, a

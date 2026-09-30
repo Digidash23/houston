@@ -40,3 +40,21 @@ test("a manual compaction carries its trigger to the feed", () => {
     },
   ]);
 });
+
+test("a live tool result carries the structured started mission receipt", () => {
+  const mission = { id: "m1", title: "Research", agent: "Ada" };
+  expect(
+    fold([
+      {
+        type: "tool_end",
+        data: { name: "start_mission", isError: false, mission },
+      },
+    ]),
+  ).toEqual([
+    {
+      feed_type: "tool_result",
+      data: { name: "start_mission", content: "", is_error: false, mission },
+      toolIndex: 0,
+    },
+  ]);
+});

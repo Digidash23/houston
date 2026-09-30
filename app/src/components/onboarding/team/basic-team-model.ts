@@ -1,7 +1,12 @@
 // `.ts` extensions so the node test runner can load this module on its own.
 
-import type { AgentRoleId } from "../../../lib/agent-role-catalog.ts";
+import {
+  type AgentContextId,
+  type AgentRoleId,
+  rolesForContext,
+} from "../../../lib/agent-role-catalog.ts";
 import type { AgentRoleContext } from "../../../lib/agent-role-context.ts";
+import { isLeadershipRoleId } from "../../../lib/leadership-roles.ts";
 import {
   briefWithAnswer,
   type JobBriefField,
@@ -11,15 +16,30 @@ import { basicTeamNameIssues } from "./basic-team-names.ts";
 import type { RosterMember } from "./team-roster-model.ts";
 
 /**
- * The starter team: the three jobs almost every small business hands off
- * first, before the person adds or lets go of any. All three are shared roles (`AGENT_COMMON_ROLES`), so they read right
- * in any industry the person named.
+ * Shared jobs used when the person's industry has fewer than two catalog jobs.
  */
 export const BASIC_TEAM_ROLES = [
   "executive_assistant",
   "operations_manager",
   "finance_manager",
 ] as const satisfies readonly AgentRoleId[];
+
+export function basicTeamRoleIds(
+  contextId: AgentContextId | null,
+): AgentRoleId[] {
+  const selected: AgentRoleId[] = ["executive_assistant"];
+  const add = (id: AgentRoleId) => {
+    if (
+      !isLeadershipRoleId(id) &&
+      !selected.includes(id) &&
+      selected.length < 3
+    )
+      selected.push(id);
+  };
+  for (const id of rolesForContext(contextId).own) add(id);
+  for (const id of BASIC_TEAM_ROLES.slice(1)) add(id);
+  return selected;
+}
 
 export interface BasicTeamDraft {
   /** The card's identity in the team: kept when the person gives it another
@@ -59,8 +79,11 @@ export function draftFor(
 
 export function basicTeamDefaults(
   roleLabel: (id: AgentRoleId) => string,
+  contextId: AgentContextId | null = null,
 ): BasicTeamDraft[] {
-  return BASIC_TEAM_ROLES.map((roleId) => draftFor(roleId, roleLabel(roleId)));
+  return basicTeamRoleIds(contextId).map((roleId) =>
+    draftFor(roleId, roleLabel(roleId)),
+  );
 }
 
 /** The brief a draft is hired with: its job, in its own industry or the
@@ -100,9 +123,7 @@ export function basicTeamAnswered(
 
 /**
  * The color each draft wears: the one the person picked, else its default.
- * Every draft deals its default whether or not it was picked over, so a
- * default depends only on its place in the team and never on a pick made on
- * another card. Defaults stay distinct; two picks may match, by choice.
+ * Defaults are dealt by place and pinned when a card is added or recolored.
  */
 export function basicTeamColors(
   drafts: readonly BasicTeamDraft[],

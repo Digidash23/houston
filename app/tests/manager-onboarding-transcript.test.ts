@@ -1,6 +1,7 @@
 import { deepStrictEqual, ok, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
 import { decodeInteractionAnswersMessage } from "../../ui/chat/src/interaction-answers-message.ts";
+import { decodeTeamCard } from "../src/lib/manager-onboarding/onboarding-card-markers.ts";
 import { firstRunScript } from "../src/lib/manager-onboarding/script.ts";
 import type { ScriptLine } from "../src/lib/manager-onboarding/script-types.ts";
 import {
@@ -59,8 +60,12 @@ function finishedFirstRun(
   }).lines;
 }
 
-/** The body the model reads, with the receipt card's marker set aside. */
+/** The body the model reads, with the card's marker set aside. */
 const flat = (content: string) => content.split("\n\n").slice(1).join("\n\n");
+
+/** A manager message as the chat shows it: a card or its words. */
+const said = (content: string) =>
+  decodeTeamCard(content) ? `card> ${flat(content)}` : content;
 
 describe("onboardingTranscript", () => {
   it("writes every line in the order shown: the manager's as assistant messages, each answer as the person's", () => {
@@ -79,7 +84,7 @@ describe("onboardingTranscript", () => {
     );
     deepStrictEqual(
       transcript.messages.map((m) =>
-        m.role === "assistant" ? m.content : `user> ${flat(m.content)}`,
+        m.role === "assistant" ? said(m.content) : `user> ${flat(m.content)}`,
       ),
       [
         "say:hello(Ana)",
@@ -95,10 +100,7 @@ describe("onboardingTranscript", () => {
         "user> ask:goal: said:Answer my emails",
         "say:teamIntro",
         "user> ask:teamBasic: said:Avery, Jordan and Riley",
-        "say:closingReady",
-        "say:closingEmployees",
-        "say:closingManager",
-        "say:closingGoal",
+        "card> say:closingTeam",
       ],
     );
   });
@@ -118,7 +120,7 @@ describe("onboardingTranscript", () => {
       messages
         .slice(11, 14)
         .map((m) =>
-          m.role === "assistant" ? m.content : `user> ${flat(m.content)}`,
+          m.role === "assistant" ? said(m.content) : `user> ${flat(m.content)}`,
         ),
       [
         "say:teamIntro",
@@ -128,15 +130,16 @@ describe("onboardingTranscript", () => {
     );
   });
 
-  it("ends on the offer to start the goal: the answer to it is never imported", () => {
+  it("ends on the team card, which carries what the manager can do here", () => {
     const { messages } = onboardingTranscript(
       "first_run",
       finishedFirstRun(),
       copy,
     );
-    deepStrictEqual(messages.at(-1), {
-      role: "assistant",
-      content: "say:closingGoal",
+    const last = messages.at(-1);
+    strictEqual(last?.role, "assistant");
+    deepStrictEqual(decodeTeamCard(last?.content ?? ""), {
+      reach: { invite: false, connect: true },
     });
   });
 

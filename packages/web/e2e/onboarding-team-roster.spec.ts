@@ -5,6 +5,7 @@ import {
   afterHire,
   finishOnboarding,
   hireStarterTeam,
+  holdClosingSave,
   roster,
   STARTER_ROLES,
   starterTeam,
@@ -28,7 +29,7 @@ test("renamed cards hire under the names given", async ({ page, request }) => {
   await reachTeamStep(page);
 
   const names = ["Olivia", "Felix", "Nora"];
-  await hireStarterTeam(page, names);
+  await hireStarterTeam(page, names, "click", STARTER_ROLES);
   await finishOnboarding(page);
   for (const name of names) await expect(agentRow(page, name)).toBeVisible();
 });
@@ -38,13 +39,16 @@ test("a reload after the team is hired resumes on it, and That's my team closes"
   request,
 }) => {
   // Hiring flips the zero-agent first-run signal; the pending onboarding stage
-  // is what holds the person on the team step until they finish it.
+  // is what holds the person on the team step until they finish it. The
+  // closing's save is held so the reload lands before onboarding finishes.
   await resetToFirstRun(request);
   await openManagerOnboarding(page);
   await reachTeamStep(page);
-  await hireStarterTeam(page, null);
+  const release = await holdClosingSave(page);
+  await hireStarterTeam(page, null, "click", STARTER_ROLES);
 
   await page.reload();
+  await release();
   await expect(
     managerOnboarding(page).getByText(
       "You already have 3 AI Employees on your team. Let's pick up where you left off.",
@@ -100,8 +104,12 @@ test("a hire that failed says so on its card, and Retry lands it", async ({
   await step.getByRole("button", { name: /^Try hiring .+ again$/ }).click();
   // Everyone has joined: the same press now only finishes the team.
   await step.getByRole("button", { name: "Hire my team" }).click();
+  // The closing is one card, handed straight to the real chat: read it
+  // wherever the conversation is on screen.
   await expect(
-    managerOnboarding(page).getByText("Your team is ready!", { exact: true }),
+    managerOnboarding(page)
+      .or(page.getByTestId("assistant-chat"))
+      .getByText("Your team is ready!", { exact: true }),
   ).toBeVisible({ timeout: 15_000 });
   await finishOnboarding(page);
 });

@@ -88,6 +88,33 @@ test("thinking + tools accumulate for the running turn and reset on the next (HO
   expect("tools" in s).toBe(false);
 });
 
+test("a late attach sees a started mission receipt in the running snapshot", () => {
+  const mission = { id: "mission-1", title: "Follow up", agent: "Ada" };
+  let snapshot = reduceSnapshot(EMPTY_SNAPSHOT, {
+    type: "user",
+    data: { content: "Begin", ts: 1 },
+    seq: 1,
+  });
+  snapshot = reduceSnapshot(snapshot, {
+    type: "tool_start",
+    data: { name: "start_mission", args: {} },
+    seq: 2,
+  });
+  snapshot = reduceSnapshot(snapshot, {
+    type: "tool_end",
+    data: { name: "start_mission", isError: false, mission },
+    seq: 3,
+  });
+  snapshot = reduceSnapshot(snapshot, {
+    type: "text",
+    data: "Ada is on it.",
+    seq: 4,
+  });
+  expect(snapshot.tools).toEqual([
+    { name: "start_mission", input: {}, isError: false, mission },
+  ]);
+});
+
 test("an unsequenced event keeps the previous watermark", () => {
   const s = reduceSnapshot(
     { running: true, partial: "x", seq: 7 },

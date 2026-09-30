@@ -4,6 +4,27 @@ import { describe, expect, it } from "vitest";
 import { historyToFeed } from "./history";
 
 describe("historyToFeed", () => {
+  it("replays structured mission receipts from persisted tool calls", () => {
+    const mission = { id: "m1", title: "Research", agent: "Ada" };
+    const feed = historyToFeed([
+      {
+        role: "assistant",
+        content: "Ada is on it",
+        ts: 1,
+        tools: [
+          { name: "start_mission", result: "text", isError: false, mission },
+        ],
+      },
+    ]);
+    expect(
+      feed.find((frame) => frame.feed_type === "tool_result")?.data,
+    ).toEqual({
+      name: "start_mission",
+      content: "text",
+      is_error: false,
+      mission,
+    });
+  });
   it("folds a user + assistant turn into user_message, assistant_text, final_result", () => {
     const messages: ChatMessage[] = [
       { role: "user", content: "hi", ts: 1 },
@@ -218,7 +239,7 @@ describe("historyToFeed", () => {
     });
     expect(feed).toContainEqual({
       feed_type: "tool_result",
-      data: { content: "", is_error: true },
+      data: { name: "shell", content: "", is_error: true },
       ts: 2,
     });
   });
@@ -284,7 +305,7 @@ describe("historyToFeed", () => {
     // The persisted output preview replays as the tool's result.
     expect(feed[toolIdx + 1]).toEqual({
       feed_type: "tool_result",
-      data: { content: "file-a\nfile-b", is_error: false },
+      data: { name: "bash", content: "file-a\nfile-b", is_error: false },
       ts: 2,
     });
   });

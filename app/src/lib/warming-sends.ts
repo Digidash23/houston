@@ -15,6 +15,7 @@
  */
 
 import { pushPendingUserMessage } from "@houston/engine-adapter";
+import { isAutoContinue } from "@houston/protocol";
 import { getConversationFeed } from "../hooks/use-conversation-vm";
 import { actingUser } from "./acting-user";
 import type {
@@ -64,7 +65,7 @@ export function buildWarmingSend(
   // A row-only entry carries no user message — nothing to render. Neither does
   // a Houston-started conversation (empty `text`, the whole message hidden in
   // the prompt): an empty bubble is not a message.
-  if (!args.rowOnly && args.text.length > 0) {
+  if (!args.rowOnly && args.text.length > 0 && !isAutoContinue(args.text)) {
     // Stamp the sender (HOU-943): the real send at flush suppresses its own
     // bubble, so this push is the row's ONLY chance to be attributed — without
     // it a warmed-up agent's first message stays nameless in a shared thread.
@@ -93,7 +94,8 @@ export function buildWarmingSend(
 export function restoreWarmingBubbles(entry: ProvisioningEntry): void {
   const author = actingUser();
   for (const send of entry.pendingSends ?? []) {
-    if (send.rowOnly || send.text.length === 0) continue;
+    if (send.rowOnly || send.text.length === 0 || isAutoContinue(send.text))
+      continue;
     if (getConversationFeed(entry.agentPath, send.sessionKey).length === 0) {
       pushPendingUserMessage(
         entry.agentPath,

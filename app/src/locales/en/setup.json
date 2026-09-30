@@ -64,7 +64,7 @@
   },
   "onboardingSurvey": {
     "goal": {
-      "title": "Which task would you love to hand off to an AI Employee?"
+      "title": "What's a repetitive task in your job that you'd love to hire somebody for?"
     },
     "completion": {
       "notNow": "Not now"

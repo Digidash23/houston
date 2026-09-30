@@ -34,6 +34,32 @@ const CATALOG: AssistantCatalog = {
   sourceHash: "fixture",
   operations: [
     {
+      name: "createAgent",
+      group: "agents",
+      description: "Creates an agent.",
+      confirm: true,
+      hidden: false,
+      params: [
+        { name: "name", required: true, schema: { type: "string" } },
+        { name: "color", required: false, schema: { type: "string" } },
+        { name: "seed", required: false, schema: { type: "object" } },
+      ],
+      returns: { type: "object" },
+      route: {
+        method: "POST",
+        path: "/agents",
+        pathParams: [],
+        query: {},
+        body: null,
+        bodyFields: {
+          name: "name",
+          color: "color",
+          claudeMd: "seed.claudeMd",
+          seeds: "seed.seeds",
+        },
+      },
+    },
+    {
       name: "listOrgs",
       group: "org",
       description: "The spaces the caller belongs to.",
@@ -1232,6 +1258,115 @@ test("a pending request returns an id and the wording the card will show", async
   expect(approvals.hasPending(ASSISTANT_AGENT, "conv-1")).toBe(true);
 });
 
+test("one constrained hire spends a grant and its receipt in the call gate", async () => {
+  const approvals = new ApprovalStore();
+  approvals.grants.issue({
+    agentId: ASSISTANT_AGENT,
+    conversationId: "conv-1",
+    operation: "createAgent",
+    actor: "u1",
+    requiresActor: false,
+  });
+  const params = { name: "Writer", color: "teal", seed: { claudeMd: "Write" } };
+  const pending = await call(
+    { operation: "createAgent", params },
+    { approvals, path: ASSISTANT_PENDING_PATH },
+  );
+  expect(pending.body).toMatchObject({ preApproved: true });
+  const requestId = (pending.body as { requestId: string }).requestId;
+  // Pre-approved: no card is put in front of the person.
+  expect(
+    approvals.pending(requestId, ASSISTANT_AGENT, "conv-1"),
+  ).toBeUndefined();
+  const { calls, impl } = fetchStub(() => ({ body: { ok: true } }));
+  const body = { operation: "createAgent", params, requestId };
+  expect((await call(body, { approvals, fetchImpl: impl })).status).toBe(200);
+  expect((await call(body, { approvals, fetchImpl: impl })).status).toBe(403);
+  expect(calls).toHaveLength(1);
+  const second = await call(
+    { operation: "createAgent", params: { name: "Researcher" } },
+    { approvals, path: ASSISTANT_PENDING_PATH },
+  );
+  expect(second.body).not.toHaveProperty("preApproved");
+  const secondId = (second.body as { requestId: string }).requestId;
+  expect(approvals.pending(secondId, ASSISTANT_AGENT, "conv-1")).toBeDefined();
+});
+
+test("a hire grant leaves other conversations, operations, and file seeds on cards", async () => {
+  const approvals = new ApprovalStore();
+  approvals.grants.issue({
+    agentId: ASSISTANT_AGENT,
+    conversationId: "conv-1",
+    operation: "createAgent",
+    actor: "u1",
+    requiresActor: false,
+  });
+  const otherConversation = await call(
+    { operation: "createAgent", params: { name: "Writer" } },
+    { approvals, conversationId: "conv-2", path: ASSISTANT_PENDING_PATH },
+  );
+  expect(otherConversation.body).not.toHaveProperty("preApproved");
+  const otherOperation = await call(
+    { operation: "deleteRoutine", params: { agentPath: "Work/Ada", id: "r1" } },
+    { approvals, path: ASSISTANT_PENDING_PATH },
+  );
+  expect(otherOperation.body).not.toHaveProperty("preApproved");
+  const extraFiles = await call(
+    {
+      operation: "createAgent",
+      params: {
+        name: "Writer",
+        seed: { claudeMd: "Write", seeds: { "note.md": "x" } },
+      },
+    },
+    { approvals, path: ASSISTANT_PENDING_PATH },
+  );
+  expect(extraFiles.body).not.toHaveProperty("preApproved");
+  const covered = await call(
+    { operation: "createAgent", params: { name: "Writer" } },
+    { approvals, path: ASSISTANT_PENDING_PATH },
+  );
+  expect(covered.body).toMatchObject({ preApproved: true });
+});
+
+test("an expired hire grant raises a card", async () => {
+  let now = 100;
+  const approvals = new ApprovalStore(() => now);
+  approvals.grants.issue({
+    agentId: ASSISTANT_AGENT,
+    conversationId: "conv-1",
+    operation: "createAgent",
+    actor: "u1",
+    requiresActor: false,
+  });
+  now += 10 * 60_000;
+  const pending = await call(
+    { operation: "createAgent", params: { name: "Writer" } },
+    { approvals, path: ASSISTANT_PENDING_PATH },
+  );
+  expect(pending.body).not.toHaveProperty("preApproved");
+  expect(approvals.hasPending(ASSISTANT_AGENT, "conv-1")).toBe(true);
+});
+
+test("a grant from another person's hosted turn raises a card", async () => {
+  const approvals = new ApprovalStore();
+  approvals.grants.issue({
+    agentId: ASSISTANT_AGENT,
+    conversationId: "conv-1",
+    operation: "createAgent",
+    actor: "person-a-token",
+    requiresActor: true,
+  });
+  liveTurns.start(ASSISTANT_AGENT, "conv-1", "execute", {
+    actingAs: "person-b-token",
+  });
+  const pending = await call(
+    { operation: "createAgent", params: { name: "Writer" } },
+    { approvals, path: ASSISTANT_PENDING_PATH },
+  );
+  expect(pending.body).not.toHaveProperty("preApproved");
+});
+
 test("an operation that needs no approval cannot raise a card", async () => {
   const out = await call(
     { operation: "listOrgs", params: {} },
@@ -1839,4 +1974,124 @@ test("reading a protected chat is never refused", async () => {
   );
   expect(out.status).toBe(200);
   expect(calls).toHaveLength(1);
+});
+
+test("a pre-approved hire the app refused leaves its grant for the retry", async () => {
+  const approvals = new ApprovalStore();
+  approvals.grants.issue({
+    agentId: ASSISTANT_AGENT,
+    conversationId: "conv-1",
+    operation: "createAgent",
+    actor: "u1",
+    requiresActor: false,
+  });
+  const hire = async (name: string, status: number) => {
+    const params = { name };
+    const pending = await call(
+      { operation: "createAgent", params },
+      { approvals, path: ASSISTANT_PENDING_PATH },
+    );
+    expect(pending.body).toMatchObject({ preApproved: true });
+    const requestId = (pending.body as { requestId: string }).requestId;
+    const { impl } = fetchStub(() => ({
+      status,
+      body: status === 200 ? { ok: true } : { error: "name taken" },
+    }));
+    return call(
+      { operation: "createAgent", params, requestId },
+      { approvals, fetchImpl: impl },
+    );
+  };
+  expect((await hire("Marketing Manager", 409)).status).toBe(409);
+  expect((await hire("Growth Marketer", 200)).status).toBe(200);
+  const third = await call(
+    { operation: "createAgent", params: { name: "Designer" } },
+    { approvals, path: ASSISTANT_PENDING_PATH },
+  );
+  expect(third.body).not.toHaveProperty("preApproved");
+});
+
+test("only the pre-approved call itself can hand its grant back", async () => {
+  const approvals = new ApprovalStore();
+  approvals.grants.issue({
+    agentId: ASSISTANT_AGENT,
+    conversationId: "conv-1",
+    operation: "createAgent",
+    actor: "u1",
+    requiresActor: false,
+  });
+  const pending = await call(
+    { operation: "createAgent", params: { name: "A" } },
+    { approvals, path: ASSISTANT_PENDING_PATH },
+  );
+  const requestId = (pending.body as { requestId: string }).requestId;
+  // A read the app refuses, presenting the hire's request id.
+  const { impl } = fetchStub(() => ({ status: 404, body: { error: "no" } }));
+  await call(
+    { operation: "listOrgs", params: {}, requestId },
+    { approvals, fetchImpl: impl },
+  );
+  const next = await call(
+    { operation: "createAgent", params: { name: "B" } },
+    { approvals, path: ASSISTANT_PENDING_PATH },
+  );
+  expect(next.body).not.toHaveProperty("preApproved");
+});
+
+test("a hire the app may have performed never hands its grant back", async () => {
+  const approvals = new ApprovalStore();
+  approvals.grants.issue({
+    agentId: ASSISTANT_AGENT,
+    conversationId: "conv-1",
+    operation: "createAgent",
+    actor: "u1",
+    requiresActor: false,
+  });
+  const params = { name: "A" };
+  const pending = await call(
+    { operation: "createAgent", params },
+    { approvals, path: ASSISTANT_PENDING_PATH },
+  );
+  const requestId = (pending.body as { requestId: string }).requestId;
+  const { impl } = fetchStub(() => ({
+    status: 504,
+    body: { error: "timeout" },
+  }));
+  await call(
+    { operation: "createAgent", params, requestId },
+    { approvals, fetchImpl: impl },
+  );
+  const next = await call(
+    { operation: "createAgent", params: { name: "B" } },
+    { approvals, path: ASSISTANT_PENDING_PATH },
+  );
+  expect(next.body).not.toHaveProperty("preApproved");
+});
+
+test("a pre-approved hire acts only as the person whose grant approved it", async () => {
+  const approvals = new ApprovalStore();
+  approvals.grants.issue({
+    agentId: ASSISTANT_AGENT,
+    conversationId: "conv-1",
+    operation: "createAgent",
+    actor: "person-a-token",
+    requiresActor: true,
+  });
+  liveTurns.start(ASSISTANT_AGENT, "conv-1", "execute", {
+    actingAs: "person-a-token",
+  });
+  const params = { name: "Writer" };
+  const pending = await call(
+    { operation: "createAgent", params },
+    { approvals, path: ASSISTANT_PENDING_PATH },
+  );
+  expect(pending.body).toMatchObject({ preApproved: true });
+  const requestId = (pending.body as { requestId: string }).requestId;
+  const { calls, impl } = fetchStub(() => ({ body: { ok: true } }));
+  const other = await call(
+    { operation: "createAgent", params, requestId },
+    { approvals, fetchImpl: impl, actingAs: "person-b-token" },
+  );
+  expect(other.status).toBe(403);
+  expect(calls).toHaveLength(0);
 });

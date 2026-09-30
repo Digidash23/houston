@@ -195,3 +195,48 @@ test("an answered message keeps every field but the receipts", () => {
   });
   expect(result.body.toString()).not.toContain(request.requestId);
 });
+
+test("a grant the turn left unspent does not pre-approve the person's next message", () => {
+  const store = new ApprovalStore();
+  prepare(store, {
+    text: "start my goal",
+    nonce: "g",
+    grants: ["createAgent"],
+  });
+  prepare(store, { text: "now hire me a designer", nonce: "n2" });
+  expect(
+    store.grants.spend({ agentId, conversationId, operation: "createAgent" }),
+  ).toBeUndefined();
+});
+
+test("a grant stays spendable within the turn its message started", () => {
+  const store = new ApprovalStore();
+  prepare(store, {
+    text: "start my goal",
+    nonce: "g",
+    grants: ["createAgent"],
+  });
+  expect(
+    store.grants.spend({ agentId, conversationId, operation: "createAgent" }),
+  ).toBeDefined();
+});
+
+test("an approved answer the turn left unspent is retired by the person's next message", () => {
+  const store = new ApprovalStore();
+  const request = issue(store);
+  prepare(store, {
+    text: "yes",
+    nonce: "a",
+    approvals: [{ requestId: request.requestId, decision: "approve" }],
+  });
+  prepare(store, { text: "actually no, don't do that", nonce: "b" });
+  expect(
+    store.consume({
+      agentId,
+      conversationId,
+      requestId: request.requestId,
+      operation: "deleteAgent",
+      params: { id: "target" },
+    }),
+  ).toBe("none");
+});

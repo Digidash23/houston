@@ -50,7 +50,11 @@ function jsonDelta(index: number, partial_json: string): SDKMessage {
 function blockStop(index: number): SDKMessage {
   return streamEvent({ type: "content_block_stop", index });
 }
-function toolResult(id: string, isError: boolean): SDKMessage {
+function toolResult(
+  id: string,
+  isError: boolean,
+  toolUseResult?: unknown,
+): SDKMessage {
   return {
     type: "user",
     message: {
@@ -58,8 +62,29 @@ function toolResult(id: string, isError: boolean): SDKMessage {
       content: [{ type: "tool_result", tool_use_id: id, is_error: isError }],
     },
     parent_tool_use_id: null,
+    tool_use_result: toolUseResult,
   } as unknown as SDKMessage;
 }
+
+test("a structured MCP mission receipt reaches tool_end without reading result text", () => {
+  const mission = { id: "m1", title: "Research", agent: "Ada" };
+  const receipt = { structuredContent: { mission } };
+  const { events } = collect([
+    toolStart(0, "t1", "mcp__houston__start_mission"),
+    blockStop(0),
+    toolResult("t1", false, receipt),
+  ]);
+  expect(events.at(-1)).toEqual({
+    type: "tool_end",
+    data: { name: "mcp__houston__start_mission", isError: false, mission },
+  });
+  const failed = collect([
+    toolStart(0, "t2", "mcp__houston__start_mission"),
+    blockStop(0),
+    toolResult("t2", true, receipt),
+  ]);
+  expect(failed.events.at(-1)).not.toHaveProperty("data.mission");
+});
 function result(
   usage: unknown,
   over: Record<string, unknown> = {},

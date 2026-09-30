@@ -48,9 +48,8 @@ describe("closingManagerVariant", () => {
         { invite: true, connect: false },
         { invite: false, connect: true },
         { invite: false, connect: false },
-        undefined,
       ].map(closingManagerVariant),
-      ["all", "invite", "connect", "core", "core"],
+      ["all", "invite", "connect", "core"],
     );
   });
 });

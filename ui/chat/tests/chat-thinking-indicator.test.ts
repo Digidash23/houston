@@ -70,3 +70,31 @@ describe("shouldShowThinkingIndicator (HOU-471)", () => {
     equal(shouldShowThinkingIndicator([process(false)], "submitted"), true);
   });
 });
+
+describe("a host card that shows its own progress", () => {
+  const card = (ownsProgress?: boolean): ChatDisplayItem => ({
+    kind: "message",
+    sourceIndex: 0,
+    message: {
+      key: "host-card-c1",
+      from: "system",
+      content: "",
+      isStreaming: false,
+      tools: [],
+      fileChanges: [],
+      hostCard: {
+        kind: "goal",
+        payload: null,
+        ...(ownsProgress ? { ownsProgress } : {}),
+      },
+    },
+  });
+
+  it("stands in for the thinking line while it trails the turn", () => {
+    equal(shouldShowThinkingIndicator([card(true)], "submitted"), false);
+  });
+
+  it("leaves the thinking line to a card that does not", () => {
+    equal(shouldShowThinkingIndicator([card()], "submitted"), true);
+  });
+});

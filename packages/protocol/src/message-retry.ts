@@ -1,5 +1,10 @@
+import { z } from "zod";
 import { normalizeTurnMode, parseMentions } from "./conversation";
 import { parseMessageApprovals } from "./domain/approval";
+
+export const GrantableOperationSchema = z.enum(["createAgent"]);
+export const MessageGrantsSchema = z.array(GrantableOperationSchema);
+export type GrantableOperation = z.infer<typeof GrantableOperationSchema>;
 
 export const MESSAGE_ADMISSIONS_DIRECTORY = "message-admissions";
 
@@ -52,7 +57,7 @@ export function messageRetryContent(
   actor: string,
 ): string {
   const string = (value: unknown) => (typeof value === "string" ? value : null);
-  return JSON.stringify([
+  const content = [
     body.text,
     string(body.displayText),
     string(body.provider),
@@ -62,5 +67,7 @@ export function messageRetryContent(
     parseMentions(body.mentions) ?? null,
     actor,
     parseMessageApprovals(body.approvals),
-  ]);
+  ];
+  if (body.grants !== undefined) content.push(body.grants);
+  return JSON.stringify(content);
 }

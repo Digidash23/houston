@@ -10,6 +10,7 @@
 
 import type {
   AgentInitialConfig,
+  GrantableOperation,
   RoutineAutoPause,
   RoutineRunFailure,
   SkillWorkflow,
@@ -26,6 +27,7 @@ export type {
   FirstDayRefusalCode,
   FirstDayStartInput,
   FirstDayStartResult,
+  GrantableOperation,
   RoutineAutoPause,
   RoutineRunFailure,
   RoutineRunFailureCode,
@@ -1274,6 +1276,8 @@ export interface SessionStartRequest {
    * `text` is the user's own words to title. Omitted on every other send.
    */
   missionTitle?: MissionTitle;
+  /** One-use approvals proposed by the person sending this message. */
+  grants?: GrantableOperation[];
 }
 
 /** See {@link SessionStartRequest.missionTitle}. */

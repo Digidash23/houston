@@ -1,9 +1,22 @@
 import { AGENT_COLORS, type AgentColorId } from "@houston-ai/core";
 
+export const AGENT_COLOR_SPREAD = [
+  "navy",
+  "rose",
+  "golden",
+  "forest",
+  "purple",
+  "orange",
+  "teal",
+  "crimson",
+  "umber",
+  "charcoal",
+] as const satisfies readonly AgentColorId[];
+
 /**
  * The color a new AI Employee gets when nobody picked one: the first palette
  * color no teammate wears yet, so a fresh hire stands apart in the rail. Once
- * every color is taken, the least worn one (earliest in wheel order on a tie).
+ * every color is taken, the least worn one (earliest in spread order on a tie).
  */
 export function nextFreeAgentColor(
   takenColors: readonly (string | undefined)[],
@@ -16,9 +29,9 @@ export function nextFreeAgentColor(
     );
     if (entry) worn.set(entry.id, (worn.get(entry.id) ?? 0) + 1);
   }
-  let best = AGENT_COLORS[0].id;
+  let best: AgentColorId = AGENT_COLOR_SPREAD[0];
   let bestCount = Number.POSITIVE_INFINITY;
-  for (const { id } of AGENT_COLORS) {
+  for (const id of AGENT_COLOR_SPREAD) {
     const count = worn.get(id) ?? 0;
     if (count < bestCount) {
       best = id;

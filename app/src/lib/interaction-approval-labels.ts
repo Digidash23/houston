@@ -45,6 +45,25 @@ export interface ApprovalCardCopy {
   sentence: (operation: string) => string | undefined;
   /** The parameter named the way a person would say it. */
   argumentName: (operation: string, param: string) => string;
+  hire: (name: string) => string;
+  instructionsLabel: string;
+}
+
+function hireInstructions(source: string): { role?: string; body: string } {
+  const frontmatter = source.match(
+    /^---\s*\r?\n([\s\S]*?)\r?\n---\s*(?:\r?\n|$)/,
+  );
+  if (!frontmatter) return { body: source.trim() };
+  const role = frontmatter[1]
+    ?.split(/\r?\n/)
+    .find((line) => /^role\s*:/i.test(line))
+    ?.replace(/^role\s*:\s*/i, "")
+    .trim()
+    .replace(/^['"]|['"]$/g, "");
+  return {
+    ...(role ? { role } : {}),
+    body: source.slice(frontmatter[0].length).trim(),
+  };
 }
 
 /** A value the host sent, structurally sound. Anything else is not rendered as
@@ -98,6 +117,34 @@ export function localizeApprovalQuestion(
     return { ...step, question: `${step.question} ${copy.closing}`, options };
 
   const args = (step.approval?.args ?? []).filter(isArg);
+  if (operation === "createAgent") {
+    const name = args.find((arg) => arg.name === "name")?.value;
+    const color = args.find((arg) => arg.name === "color")?.value;
+    const source = args.find((arg) => arg.name === "seed.claudeMd")?.value;
+    if (name) {
+      const { detail: _english, approval: _approval, ...rest } = step;
+      const instructions = source ? hireInstructions(source) : undefined;
+      return {
+        ...rest,
+        question: copy.hire(name),
+        ...(color || instructions?.role || instructions?.body
+          ? {
+              hire: {
+                ...(color ? { color } : {}),
+                ...(instructions?.role ? { role: instructions.role } : {}),
+                ...(instructions?.body
+                  ? {
+                      instructions: instructions.body,
+                      instructionsLabel: copy.instructionsLabel,
+                    }
+                  : {}),
+              },
+            }
+          : {}),
+        options,
+      };
+    }
+  }
   const named = (arg: ApprovalArg) => copy.argumentName(operation, arg.name);
   const inline = args
     .filter((arg) => !arg.long)

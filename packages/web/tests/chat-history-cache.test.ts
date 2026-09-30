@@ -7,8 +7,10 @@ import {
   setConversationCacheIdentity,
 } from "@houston/engine-adapter/conversation-cache";
 import { conversationStore } from "@houston/engine-adapter/vm";
-import { conversationScope } from "@houston/sdk";
+import { conversationScope, historyToFeed } from "@houston/sdk";
+import { feedItemsToMessages, startedMissions } from "@houston-ai/chat";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { computeTurnEndSummary } from "../../../ui/chat/src/turn-tools";
 
 /**
  * loadChatHistory × the local conversation cache (HOU-712): opening a cloud
@@ -159,6 +161,65 @@ test("a successful open refreshes the cache and reseeds the VM", async () => {
     const record = await store.backend.get(key);
     expect(record?.frames.length).toBe(4);
   });
+});
+
+test("a cached Manager reply gains its persisted mission receipt on open", async () => {
+  const agentPath = "Personal/Assistant";
+  const sessionKey = `assistant-${convSeq++}`;
+  const client = cloudClient();
+  const mission = {
+    id: "mission-1",
+    title: "Collect documents",
+    agent: "Document Collector",
+  };
+  const messages = [
+    { role: "assistant", content: "Let's get it started!" },
+    { role: "user", content: "<!--houston:auto_continue-->Begin the handoff" },
+    {
+      role: "assistant",
+      content:
+        "First, I'll hire the right person. Done! Now you can see what they're doing.",
+      tools: [
+        {
+          name: "mcp__houston__houston_describe",
+          result: "{}",
+          isError: false,
+        },
+        { name: "mcp__houston__houston_call", result: "{}", isError: false },
+        {
+          name: "mcp__houston__start_mission",
+          result: "Started",
+          isError: false,
+          mission,
+        },
+        { name: "mcp__houston__suggest_actions", result: "{}", isError: false },
+      ],
+    },
+  ];
+  const serverFeed = historyToFeed(messages);
+  const cachedFeed = serverFeed.map((frame) =>
+    frame.feed_type === "tool_result" && "mission" in frame.data
+      ? { ...frame, data: { content: frame.data.content, is_error: false } }
+      : frame,
+  );
+  await store.backend.set(
+    `${GW}|user-1|${encodeURIComponent(agentPath)}|${encodeURIComponent(sessionKey)}`,
+    { frames: cachedFeed, updatedAt: 1 },
+  );
+  globalThis.fetch = vi.fn(async (input: unknown) =>
+    String(input).includes("/messages")
+      ? json(200, { id: sessionKey, title: "Assistant", messages })
+      : new Response("", { status: 200 }),
+  ) as unknown as typeof fetch;
+
+  await client.loadChatHistory(agentPath, sessionKey);
+  const renderedMessages = feedItemsToMessages(
+    vmFeed(agentPath, sessionKey) as typeof serverFeed,
+  );
+  const summary = computeTurnEndSummary(renderedMessages, "ready").get(
+    renderedMessages.length - 1,
+  );
+  expect(summary && startedMissions(summary)).toEqual([mission]);
 });
 
 test("a bulk scan read leaves the cache untouched", async () => {

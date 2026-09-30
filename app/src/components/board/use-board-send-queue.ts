@@ -97,14 +97,19 @@ export function useBoardSendQueue({
 
   // A message Houston writes for the person (their `text` as the bubble, over
   // a hidden `context` the model reads), on the same settled pin as a typed
-  // send.
+  // send, carrying any approval the person already gave for it.
   const sendAuthored = useCallback(
-    async (sessionKey: string, text: string, context: string) => {
+    async (
+      sessionKey: string,
+      text: string,
+      context: string,
+      grants?: SendOverrides["grants"],
+    ) => {
       await sendMessageNow(
         sessionKey,
         text,
         [],
-        await settledOverrides(),
+        { ...(await settledOverrides()), grants, sentForPerson: true },
         context,
       );
     },

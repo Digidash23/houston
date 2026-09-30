@@ -94,7 +94,11 @@ export function TeamBasicView({
                 <RosterEmployeeCard
                   member={joined}
                   takenNames={takenNames}
-                  onEdit={(patch) => onEdit(joined.key, patch)}
+                  onEdit={(patch) => {
+                    if (patch.color !== undefined)
+                      team.recolor(index, patch.color);
+                    else onEdit(joined.key, patch);
+                  }}
                   onRetry={() => onRetry(joined.key)}
                 />
               ) : (

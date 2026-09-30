@@ -51,7 +51,11 @@ export function useManagerTeam({
   // none. `start` is read once, as the step opens.
   const industryState = useAgentRoleState(true, start);
   const industry = industryState.contextLabel.trim();
-  const basic = useBasicTeam({ industry, roster });
+  const basic = useBasicTeam({
+    industry,
+    contextId: industryState.contextId,
+    roster,
+  });
   const finishState = teamFinishState(roster.members, earlierHires.length);
   const closing = useRef<TeamClosingAnswer | null>(null);
   const finish = useTeamFinish(finishState, roster.retrySaves, () =>

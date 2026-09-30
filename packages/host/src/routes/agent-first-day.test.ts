@@ -91,6 +91,21 @@ test("two starts at once make ONE setup task (C7)", async () => {
   expect(await host.setupTasks()).toHaveLength(1);
 });
 
+test("the setup task leaves firstDay pending until its first turn starts", async () => {
+  const id = await host.hire(PENDING);
+  let release = () => {};
+  host.channel.gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const starting = host.start(id);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(await host.setupTasks()).toHaveLength(1);
+  expect(await host.firstDay()).toBe("pending");
+  release();
+  expect((await starting).status).toBe(201);
+  expect(await host.firstDay()).toBe("started");
+});
+
 test("a failed first turn keeps the first day pending and leaves no card (C8)", async () => {
   const id = await host.hire(PENDING);
   host.channel.failWith = "runtime unavailable";

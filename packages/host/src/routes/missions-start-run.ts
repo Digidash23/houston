@@ -9,6 +9,7 @@ import {
 } from "@houston/domain";
 import { type MissionStarter, normalizeTurnMode } from "@houston/protocol";
 import { assistantRuntimeRole } from "../launcher/assistant-role";
+import { retirePendingFirstDay } from "./agent-first-day-retire";
 import { withDocLock } from "./doc-lock";
 import { json } from "./http";
 import {
@@ -153,6 +154,12 @@ export async function startMission(
     });
     return null;
   }
+  await retirePendingFirstDay({
+    vfs: target.vfs,
+    root: target.root,
+    agentId: target.agent.id,
+    emit: (event) => target.deps.events?.emit(target.ws.ownerUserId, event),
+  });
   const body: MissionStartResponse = {
     id,
     title: input.title,

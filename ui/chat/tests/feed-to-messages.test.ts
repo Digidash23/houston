@@ -359,3 +359,45 @@ describe("context boundaries", () => {
     strictEqual("notice" in (messages[1] ?? {}), false);
   });
 });
+
+describe("host cards", () => {
+  it("become their own system row, carrying the card, between the turns around them", () => {
+    const card = { kind: "goal", payload: { goal: "x" }, ownsProgress: true };
+    const messages = feedItemsToMessages([
+      { feed_type: "assistant_text", data: "Before", id: "a1" },
+      { feed_type: "host_card", data: card, id: "c1" },
+      { feed_type: "assistant_text", data: "After", id: "a2" },
+    ]);
+    deepStrictEqual(
+      messages.map((m) => [m.from, m.content]),
+      [
+        ["assistant", "Before"],
+        ["system", ""],
+        ["assistant", "After"],
+      ],
+    );
+    strictEqual(messages[1].key, "host-card-c1");
+    deepStrictEqual(messages[1].hostCard, card);
+  });
+});
+
+describe("a tool result after a teammate's message lands mid-turn", () => {
+  it("still finds the call it answers", () => {
+    const messages = feedItemsToMessages([
+      { feed_type: "user_message", data: "Research this", id: "u1" },
+      {
+        feed_type: "tool_call",
+        data: { name: "web_search", input: { q: "x" } },
+        id: "c1",
+      },
+      { feed_type: "user_message", data: "Also check y", id: "u2" },
+      {
+        feed_type: "tool_result",
+        data: { name: "web_search", content: "found", is_error: false },
+        id: "r1",
+      },
+    ]);
+    const call = messages.flatMap((m) => m.tools)[0];
+    deepStrictEqual(call?.result, { content: "found", is_error: false });
+  });
+});

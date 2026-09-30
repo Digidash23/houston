@@ -1,7 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { docKey, saveActivities } from "@houston/domain";
+import {
+  docKey,
+  loadConfig,
+  saveActivities,
+  saveConfig,
+} from "@houston/domain";
 import type { Activity, HoustonEvent } from "@houston/protocol";
-import { beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { ACTING_AS_HEADER } from "../auth/acting";
 import { assistantCallHeaders } from "../auth/assistant-call";
 import type { Agent, Workspace } from "../domain/types";
@@ -241,6 +246,72 @@ beforeEach(async () => {
   ws = await store.getOrCreatePersonalWorkspace("alice");
   agent = await store.createAgent({ workspaceId: ws.id, name: "Dobby" });
   root = paths.agentRoot(ws, agent);
+});
+
+afterEach(() => vi.restoreAllMocks());
+
+test("an agent-started mission retires the target's pending first day", async () => {
+  await saveConfig(vfs, root, { firstDay: "pending", model: "sonnet" });
+  const result = await call("POST", "missions/start", {
+    title: "Begin the work",
+    prompt: "Start now.",
+    origin: ORIGIN,
+  });
+  expect(result.status).toBe(201);
+  expect((await loadConfig(vfs, root)).config).toMatchObject({
+    firstDay: "started",
+    model: "sonnet",
+  });
+  expect(events).toContainEqual({
+    type: "ConfigChanged",
+    agentPath: agent.id,
+  });
+});
+
+test.each([
+  "started",
+  undefined,
+] as const)("an agent-started mission leaves firstDay %s untouched", async (firstDay) => {
+  await saveConfig(vfs, root, firstDay ? { firstDay } : { model: "sonnet" });
+  const write = vi.spyOn(vfs, "writeText");
+  const result = await call("POST", "missions/start", {
+    title: "Begin the work",
+    prompt: "Start now.",
+    origin: ORIGIN,
+  });
+  expect(result.status).toBe(201);
+  expect(write).not.toHaveBeenCalledWith(
+    docKey(root, "config"),
+    expect.anything(),
+  );
+  expect(events).not.toContainEqual({
+    type: "ConfigChanged",
+    agentPath: agent.id,
+  });
+});
+
+test("a failed config write does not fail an agent-started mission", async () => {
+  await saveConfig(vfs, root, { firstDay: "pending" });
+  const write = vfs.writeText.bind(vfs);
+  vi.spyOn(vfs, "writeText").mockImplementation((key, content) =>
+    key === docKey(root, "config")
+      ? Promise.reject(new Error("config unavailable"))
+      : write(key, content),
+  );
+  const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+  const result = await call("POST", "missions/start", {
+    title: "Begin the work",
+    prompt: "Start now.",
+    origin: ORIGIN,
+  });
+  expect(result.status).toBe(201);
+  expect(await board()).toHaveLength(1);
+  expect(fired).toHaveLength(1);
+  expect((await loadConfig(vfs, root)).config.firstDay).toBe("pending");
+  expect(logged).toHaveBeenCalledWith(
+    expect.stringContaining("retiring pending start failed"),
+    expect.any(Error),
+  );
 });
 
 test("a start from another pod lands on this agent's board and fires its turn", async () => {

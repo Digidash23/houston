@@ -1,10 +1,8 @@
 import {
   loadActivities,
-  loadConfig,
   missionConversationKey,
   removeById,
   saveActivities,
-  saveConfig,
   upsertById,
   withDocLock,
 } from "@houston/domain";
@@ -13,7 +11,7 @@ import type {
   AgentConfig,
   FirstDayStartResult,
 } from "@houston/protocol";
-import { withConfigLock } from "./agent-config-write";
+import { recordFirstDayStarted } from "./agent-first-day-retire";
 import type { FirstDayStartDeps } from "./agent-first-day-start";
 
 /**
@@ -45,13 +43,14 @@ export async function dropTask(deps: RecordDeps, id: string) {
   activityChanged(deps);
 }
 
-/** Record the start: the one write that moves `firstDay` to `"started"`. */
+/** Record the setup task's first turn after it starts. */
 export async function recordStarted(deps: RecordDeps): Promise<void> {
-  await withConfigLock(deps.root, async () => {
-    const { config } = await loadConfig(deps.vfs, deps.root);
-    await saveConfig(deps.vfs, deps.root, { ...config, firstDay: "started" });
+  await recordFirstDayStarted({
+    vfs: deps.vfs,
+    root: deps.root,
+    agentId: deps.agent.id,
+    emit: deps.emit,
   });
-  deps.emit?.({ type: "ConfigChanged", agentPath: deps.agent.id });
 }
 
 export function resultFor(

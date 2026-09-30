@@ -8,6 +8,7 @@ import {
 } from "./interaction-card-parts";
 import type { QuestionStep, StepChrome } from "./interaction-card-props";
 import { InteractionDetail } from "./interaction-detail";
+import { HireApprovalDetails } from "./interaction-hire-details";
 import { InteractionModal, InteractionModalTitle } from "./interaction-modal";
 
 /** The already-translated copy a question step renders, resolved by the card. */
@@ -61,6 +62,7 @@ export function InteractionQuestionStep({
   // so it must be read before the answer is picked.
   const body = (
     <div className="flex flex-col gap-2.5">
+      {step.hire ? <HireApprovalDetails hire={step.hire} /> : null}
       {step.detail ? <InteractionDetail detail={step.detail} /> : null}
       <QuestionStepBody
         disabled={disabled}

@@ -308,6 +308,7 @@ export async function execTurn(
           t.isError = wire.data.isError;
           // Already clipped at the backend — persist for reload replay.
           if (wire.data.content) t.result = wire.data.content;
+          if (wire.data.mission) t.mission = wire.data.mission;
         }
       } else if (wire.type === "provider_error") {
         // Our OWN abort (the watchdog's, or the user's Stop), echoed back by

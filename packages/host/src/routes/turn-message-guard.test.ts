@@ -1,3 +1,4 @@
+import { encodeAutoContinue } from "@houston/protocol";
 import { messageAdmissionFileName } from "@houston/protocol/message-admission-file";
 import { expect, test, vi } from "vitest";
 import { ApprovalStore } from "../assistant/approvals";
@@ -75,6 +76,102 @@ test("a message already accepted by the runtime is admitted as a duplicate", asy
   const replay = await guard(body, { approvals });
   expect(first.kind === "admitted" && first.duplicate).toBe(false);
   expect(replay.kind === "admitted" && replay.duplicate).toBe(true);
+});
+
+test("a coordinator message grants one hire and strips the grant before forwarding", async () => {
+  const approvals = new ApprovalStore();
+  const result = await guard(
+    { text: "hire someone", nonce: "grant-1", grants: ["createAgent"] },
+    { approvals },
+  );
+  expect(result.kind).toBe("admitted");
+  if (result.kind !== "admitted") return;
+  expect(result.body.toString()).not.toContain("grants");
+  expect(
+    approvals.grants.spend({
+      agentId,
+      conversationId,
+      operation: "createAgent",
+    }),
+  ).toBeDefined();
+  expect(
+    approvals.grants.spend({
+      agentId,
+      conversationId,
+      operation: "createAgent",
+    }),
+  ).toBeUndefined();
+});
+
+test("a hidden coordinator kickoff grants one hire and keeps the hidden marker", async () => {
+  const approvals = new ApprovalStore();
+  const text = encodeAutoContinue("Start the goal.");
+  const result = await guard(
+    { text, nonce: "hidden-grant", grants: ["createAgent"] },
+    { approvals },
+  );
+  if (result.kind !== "admitted") throw new Error(result.code);
+  expect(JSON.parse(result.body.toString()).text).toBe(text);
+  expect(result.body.toString()).not.toContain("grants");
+  expect(
+    approvals.grants.spend({
+      agentId,
+      conversationId,
+      operation: "createAgent",
+    }),
+  ).toBeDefined();
+  expect(
+    approvals.grants.spend({
+      agentId,
+      conversationId,
+      operation: "createAgent",
+    }),
+  ).toBeUndefined();
+});
+
+test("a rejected send revokes its unused grant", async () => {
+  const approvals = new ApprovalStore();
+  const result = await guard(
+    { text: "hire", nonce: "rejected", grants: ["createAgent"] },
+    { approvals },
+  );
+  if (result.kind !== "admitted") throw new Error(result.code);
+  result.release?.();
+  expect(
+    approvals.grants.spend({
+      agentId,
+      conversationId,
+      operation: "createAgent",
+    }),
+  ).toBeUndefined();
+});
+
+test("a message without grants mints no hire authority", async () => {
+  const approvals = new ApprovalStore();
+  await guard({ text: "hello", nonce: "ordinary" }, { approvals });
+  expect(
+    approvals.grants.spend({
+      agentId,
+      conversationId,
+      operation: "createAgent",
+    }),
+  ).toBeUndefined();
+});
+
+test.each([
+  ["unknown value", agentId, ["deleteAgent"], "invalid_grants"],
+  ["other agent", "Personal/Writer", ["createAgent"], "grants_not_allowed"],
+] as const)("%s grant is refused with 400", async (_label, agent, grants, code) => {
+  const result = await guardTurnMessage({
+    approvals: new ApprovalStore(),
+    vfs: new MemoryVfs(),
+    dataRoot,
+    agentId: agent,
+    conversationId,
+    actor: "user-a",
+    body: Buffer.from(JSON.stringify({ text: "hi", nonce: "n", grants })),
+  });
+  expect(result).toEqual({ kind: "refused", status: 400, code });
 });
 
 test.each([

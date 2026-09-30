@@ -87,5 +87,7 @@ export interface SendOptions {
    * this package stays zero-dep.)
    */
   missionTitle?: { fallback: string; text: string };
+  /** User-authorized operations for this single message; the host validates and consumes them. */
+  grants?: "createAgent"[];
   signal?: AbortSignal;
 }

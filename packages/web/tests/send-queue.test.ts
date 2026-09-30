@@ -87,6 +87,22 @@ describe("maybeQueueSend", () => {
     expect(dispatched).toHaveLength(1);
     expect(dispatched[0]?.autoResume).toBe(true);
   });
+
+  it("holds a hidden goal kickoff invisibly with its hire grant", () => {
+    setRunning(true);
+    const prompt = "<!--houston:auto_continue-->\n\nStart the goal.";
+    expect(
+      maybeQueueSend(
+        AGENT,
+        req(key, prompt, { grants: ["createAgent"] }),
+        dispatch,
+      ),
+    ).toBe(true);
+    expect(queuedOf(key) ?? []).toEqual([]);
+    setRunning(false);
+    expect(dispatched[0]?.prompt).toBe(prompt);
+    expect(dispatched[0]?.grants).toEqual(["createAgent"]);
+  });
 });
 
 describe("settle watcher", () => {

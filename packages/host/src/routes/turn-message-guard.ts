@@ -33,7 +33,12 @@ export type TurnMessageGuard =
 
 /** Each definitive refusal answers the client in the terms it can act on. */
 function statusFor(code: ApprovalMessageRefusal["code"]): 400 | 409 | 503 {
-  if (code === "invalid_nonce") return 400;
+  if (
+    code === "invalid_nonce" ||
+    code === "grants_not_allowed" ||
+    code === "invalid_grants"
+  )
+    return 400;
   return code === "nonce_conflict" ? 409 : 503;
 }
 
@@ -44,6 +49,7 @@ export async function guardTurnMessage(input: {
   agentId: AgentId;
   conversationId: string;
   actor: string;
+  grantActor?: string;
   body: Buffer;
 }): Promise<TurnMessageGuard> {
   // ONE parse for both readers: the durable admission lookup and the receipt
@@ -61,6 +67,7 @@ export async function guardTurnMessage(input: {
       agentId: input.agentId,
       conversationId: input.conversationId,
       actor: input.actor,
+      grantActor: input.grantActor,
       body: input.body,
       parsed,
       durableReceipt,

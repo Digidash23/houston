@@ -1,7 +1,7 @@
 // `.ts` extensions so the node test runner can import this module directly.
+import type { AgentColorId } from "@houston-ai/core";
 import type { SupportedLocale } from "../locale.ts";
 import type { OnboardingCompanySize } from "../onboarding-company-size.ts";
-import type { ManagerReach } from "./script-types.ts";
 
 /** One AI Employee as the manager is told about it. */
 export interface HandoffEmployee {
@@ -13,6 +13,7 @@ export interface HandoffEmployee {
 /** What the person told the survey about themselves; null where they did
  *  not say. */
 export interface HandoffAbout {
+  industry: string | null;
   /** Their role as they read it: a position or job label, or their words. */
   role: string | null;
   companySize: OnboardingCompanySize | null;
@@ -23,9 +24,9 @@ export interface HandoffInput {
   goal: string;
   about: HandoffAbout;
   team: readonly HandoffEmployee[];
+  freeColor: AgentColorId;
   /** The app's language, which the manager replies in. */
   locale: SupportedLocale;
-  reach: ManagerReach;
 }
 
 const LANGUAGE: Record<SupportedLocale, string> = {
@@ -44,8 +45,13 @@ const COMPANY_SIZE: Record<OnboardingCompanySize, string> = {
 };
 
 /** The person as the survey knows them, or null when it knows nothing. */
-function aboutSection({ role, companySize }: HandoffAbout): string | null {
+function aboutSection({
+  industry,
+  role,
+  companySize,
+}: HandoffAbout): string | null {
   const facts = [
+    ...(industry === null ? [] : [`- Industry: ${industry}`]),
     ...(role === null ? [] : [`- Role: ${role}`]),
     ...(companySize === null
       ? []
@@ -58,43 +64,60 @@ function rosterLine({ name, role }: HandoffEmployee): string {
   return role ? `- ${name} (${role})` : `- ${name}`;
 }
 
+/** How the manager behaves while the goal card shows its work. */
+const WORK_SILENTLY =
+  "Work silently: the app shows the person each step as a card, so write no messages while you work and none after the mission starts. No narration, chatter or questions. Do not ask for confirmation. If hiring or starting the mission fails and you cannot fix it, say so plainly in one sentence and stop. Never quote a raw error or mention files, JSON, or configuration to the person.";
+
 /**
- * The instruction behind "Yes, let's do it": the first real turn of the AI
+ * The instruction behind the goal: the first real turn of the AI
  * Manager's conversation, sent right after the onboarding transcript it
- * reads as history. The person's bubble shows only their answer; this is
- * what the manager reads under it.
+ * reads as history. The kickoff is hidden from the transcript, and the chat
+ * draws the turn as the goal card.
  *
- * It asks only for what every first run can do (a mission, a hire) plus a
- * tool connection where the deployment serves one, so the manager is never
- * sent after something this deployment cannot do.
+ * It asks only for what every first run can do: a mission and a hire.
  */
 export function handoffPrompt({
   goal,
   about,
   team,
+  freeColor,
   locale,
-  reach,
 }: HandoffInput): string {
   const roster =
     team.length > 0
       ? team.map(rosterLine).join("\n")
       : "- None yet: they have not hired anyone.";
-  const essential = reach.connect
-    ? " (for example, a tool that has to be connected for the work)"
-    : "";
   const person = aboutSection(about);
   return [
-    `[Written by the app, not typed by the person: they just finished onboarding with you, and said yes when you offered to get their automation goal started.]`,
+    `[Written by the app, not typed by the person: they just finished onboarding with you. They asked for this goal, and hiring one new AI Employee for it is already approved by them.]`,
     `Their goal, in their own words: "${goal}"`,
     ...(person === null ? [] : [person]),
     `Their AI Employees:\n${roster}`,
     [
       "Get the goal started now:",
-      "1. Pick the AI Employee best suited to it and start the work as a mission on that AI Employee's board, with a complete brief built from the goal.",
-      "2. If none of them fits, hire a new AI Employee for it (a clear name and a one-line role; the app asks the person to approve the hire), then start the mission on the new AI Employee's board.",
-      "3. Tell the person, in plain, non-technical language, what you did: who is working on it and where they can follow the work.",
+      "1. If an AI Employee already on their team clearly fits the goal, use that employee.",
+      `2. Otherwise, hire one tailor-made AI Employee with createAgent using only name (a clear human job title), color "${freeColor}", and seed.claudeMd (a one-line role and full working instructions written specifically for this goal and the person's industry, role and company size above). The hire is already approved.`,
+      "3. Start the mission on that employee's board with start_mission. Give the mission a complete brief built from the goal.",
     ].join("\n"),
-    `Ask the person something only when it is essential and you cannot go on without it${essential}. Otherwise, act without asking.`,
+    WORK_SILENTLY,
+    `Reply in ${LANGUAGE[locale]}.`,
+  ].join("\n\n");
+}
+
+/**
+ * The instruction behind the goal card's Try again: the goal did not get
+ * started, and the person asks for it again. The manager reads the earlier
+ * attempt in its history, so it reuses an employee it already hired.
+ */
+export function goalRetryPrompt({
+  goal,
+  locale,
+}: Pick<HandoffInput, "goal" | "locale">): string {
+  return [
+    "[Written by the app, not typed by the person: getting their goal started did not finish, and they pressed Try again. Hiring one new AI Employee for it is still approved by them.]",
+    `Their goal, in their own words: "${goal}"`,
+    "Get it started again: use the AI Employee you already hired for it, or one on their team that clearly fits; otherwise hire one tailor-made AI Employee with createAgent, as before. Then start the mission on that employee's board with start_mission, with a complete brief built from the goal.",
+    WORK_SILENTLY,
     `Reply in ${LANGUAGE[locale]}.`,
   ].join("\n\n");
 }

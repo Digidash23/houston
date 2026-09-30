@@ -1,3 +1,4 @@
+import { isAutoContinue } from "@houston/protocol";
 import type { ChatMessage } from "@houston/runtime-client";
 import {
   type ConversationVM,
@@ -23,15 +24,8 @@ import { conversationStore, conversationVm } from "./vm";
  * requests (attachments already saved, prompt final); `queuedPreview` carries
  * the user's words + attachment names for the composer's queued-bubble UI.
  *
- * Flushing has three triggers, because a settle has two shapes and one
- * failure mode: the dispatched turn's own settle (the `.finally` in
- * `chat-send-mixin`); for a turn settled by anything else, the settle watcher
- * armed at queue time (see settle-watcher.ts; HOU-718's reconnect
- * auto-continue was the canonical victim of its absence); and the queue
- * watchdog (queue-watchdog.ts), the ground-truth history probe that flushes a
- * queue whose settle-watcher trigger silently died — a fatal or exhausted
- * observer stream left the stale `running` flag unhealed and the queued
- * resume sat forever (HOU-849).
+ * Flushing follows the dispatched turn, a settle watcher, or a history probe
+ * when an observer stream dies with a stale running flag.
  *
  * `autoResume` sends (Houston resuming after a provider reconnect — not
  * user-typed) get special handling: one resume per conversation at a time —
@@ -64,7 +58,9 @@ function publishQueued(agentPath: string, sessionKey: string): void {
     // transcript filters its bubble too), and surfacing it as a queued row
     // read as a stuck send when a stale hold made it wait (HOU-849). The
     // reconnected card's "continuing where you left off" is its only surface.
-    entries.filter((e) => !e.req.autoResume).map((e) => e.vm),
+    entries
+      .filter((e) => !e.req.autoResume && !isAutoContinue(e.req.prompt))
+      .map((e) => e.vm),
   );
 }
 

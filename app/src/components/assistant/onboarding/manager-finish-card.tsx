@@ -3,7 +3,7 @@ import { CARD_PRIMARY_ACTION_CLASS, CardActions } from "./card-actions";
 
 /**
  * The conversation's last step, under the manager's thanks: one primary
- * button that hands the view over, the way the goal handoff's buttons sit.
+ * button that hands the view over.
  * While `saving`, it holds a spinner and takes no second press.
  */
 export function ManagerFinishCard({

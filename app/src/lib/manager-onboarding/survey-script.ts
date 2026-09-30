@@ -53,17 +53,25 @@ export function surveyAnswer(
 
 /**
  * What the goal handoff tells the manager about the person, from the survey:
- * the role as its receipt holds it and the company size, each null where
+ * the industry and role as their receipts hold them and the company size, each null where
  * there is nothing to say (unanswered, skipped, or "Something else" with no
  * words on this device).
  */
 export function surveyAbout(record: OnboardingSurveyPreference | null): {
+  industry: string | null;
   role: string | null;
   companySize: OnboardingCompanySize | null;
 } {
   const role = surveyAnswer(record, "role");
+  const industry = surveyAnswer(record, "industry");
   const size = record?.companySize ?? null;
   return {
+    industry:
+      industry === null ||
+      industry === SURVEY_SKIPPED ||
+      industry === "something_else"
+        ? null
+        : industry,
     role:
       role === null || role === SURVEY_SKIPPED || role === "something_else"
         ? null

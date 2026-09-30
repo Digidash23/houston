@@ -5,6 +5,8 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { TSchema } from "typebox";
 import { loggedToolCall } from "../../session/tool-call-log";
+import { reportsNotDone } from "../../session/tools/assistant-result";
+import { startedMissionFromDetails } from "../../session/tools/start-mission-receipt";
 import { toZodShape } from "./schema-to-zod";
 
 /**
@@ -53,7 +55,7 @@ export function adaptTool(tool: BridgedPiTool): SdkMcpToolDefinition {
       const result = await loggedToolCall(tool.name, () =>
         tool.execute(`mcp-${tool.name}`, args, signal, undefined, NOOP_CTX),
       );
-      return toCallToolResult(result);
+      return toCallToolResult(result, tool.name);
     },
   };
 }
@@ -79,8 +81,13 @@ interface McpTextContent {
  * bridged tool returns text; a non-text block (never produced today) is coerced
  * to a JSON string rather than dropped.
  */
-function toCallToolResult(result: AgentToolResult<unknown>): {
+function toCallToolResult(
+  result: AgentToolResult<unknown>,
+  toolName: string,
+): {
   content: McpTextContent[];
+  isError?: true;
+  structuredContent?: { mission: { id: string; title: string; agent: string } };
 } {
   const content = result.content.map(
     (c): McpTextContent =>
@@ -88,5 +95,12 @@ function toCallToolResult(result: AgentToolResult<unknown>): {
         ? { type: "text", text: c.text }
         : { type: "text", text: JSON.stringify(c) },
   );
+  const details = result.details;
+  if (reportsNotDone(details)) return { content, isError: true };
+  const mission =
+    toolName === "start_mission"
+      ? startedMissionFromDetails(details)
+      : undefined;
+  if (mission) return { content, structuredContent: { mission } };
   return { content };
 }

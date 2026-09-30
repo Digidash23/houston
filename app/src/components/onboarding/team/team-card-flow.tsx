@@ -53,7 +53,11 @@ export function TeamCardFlow({
     onHired: () => nav.go({ kind: "hired" }),
   });
   const industry = hire.team.contextLabel.trim();
-  const basic = useBasicTeam({ industry, roster });
+  const basic = useBasicTeam({
+    industry,
+    contextId: hire.team.contextId,
+    roster,
+  });
   const finishState = teamFinishState(roster.members);
   const finish = useTeamFinish(finishState, roster.retrySaves, onDone);
   const hiredCount = roster.members.length;

@@ -5,6 +5,8 @@ import {
   type WireEvent,
 } from "@houston/runtime-client";
 import { logProviderRetry } from "../../ai/provider-error-log";
+import { reportsNotDone } from "../../session/tools/assistant-result";
+import { startedMissionFromDetails } from "../../session/tools/start-mission-receipt";
 import { classifyTurnFailure, type TurnHints } from "./turn-failure";
 
 /**
@@ -185,12 +187,19 @@ export function toWire(
       // holds a bounded preview (HOU-717). Image blocks have no text and
       // are skipped; a text-less result omits the field.
       const content = toolResultText(e.result);
+      const details = (e.result as { details?: unknown } | null | undefined)
+        ?.details;
+      const mission =
+        e.toolName === "start_mission" && !e.isError
+          ? startedMissionFromDetails(details)
+          : undefined;
       return {
         type: "tool_end",
         data: {
           name: e.toolName,
-          isError: !!e.isError,
+          isError: !!e.isError || reportsNotDone(details),
           ...(content ? { content: clipToolResult(content) } : {}),
+          ...(mission ? { mission } : {}),
         },
       };
     }

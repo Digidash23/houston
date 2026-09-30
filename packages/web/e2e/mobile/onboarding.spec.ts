@@ -18,6 +18,7 @@ import {
   finishOnboarding,
   HIRE_ONE_MORE,
   hireStarterTeam,
+  holdClosingSave,
   roster,
   STARTER_ROLES,
   starterTeam,
@@ -127,9 +128,9 @@ test("first run completes on a phone: connect, survey, first hire, the app", asy
   await expectLatestLinesClearOfStep(page);
 
   // The starter team, renamed and hired in one tap.
-  await hireStarterTeam(page, ["Avery", "Felix", "Nora"], "tap");
+  await hireStarterTeam(page, ["Avery", "Felix", "Nora"], "tap", STARTER_ROLES);
   await expectNoHorizontalOverflow(page);
-  await finishOnboarding(page, "tap");
+  await finishOnboarding(page);
 
   // The real chat's back chevron leaves for the Agents home, with the hires.
   await page.getByTestId("assistant-back").tap();
@@ -183,8 +184,11 @@ test("a reload mid-onboarding resumes on the step the user left", async ({
   // holds the person on the team step across a reload.
   await connectAi(page, "tap");
   await answerSurvey(page, "tap");
-  await hireStarterTeam(page, null, "tap");
+  // Held so the reload lands on the closing, before onboarding finishes.
+  const release = await holdClosingSave(page);
+  await hireStarterTeam(page, null, "tap", STARTER_ROLES);
   await page.reload();
+  await release();
   await expect(teamNext(page)).toBeVisible();
   await expect(roster(page).locator('li[data-status="hired"]')).toHaveCount(3);
   await expect(navBar(page)).toHaveCount(0);
