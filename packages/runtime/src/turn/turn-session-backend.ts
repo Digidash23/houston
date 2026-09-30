@@ -12,7 +12,10 @@ import { estimateTokens } from "../session/token-estimate";
 import { resolveTurnClaudeResume, turnClaudeLayout } from "./turn-backend";
 import { seedTurnClaudeFlags } from "./turn-claude-flags";
 import { readTurnHarness, writeTurnHarness } from "./turn-harness-state";
-import { resetPooledRoutineContext } from "./turn-routine-context";
+import {
+  resetPooledRoutineContext,
+  routineReplayHistory,
+} from "./turn-routine-context";
 import {
   finishTurnSessionStartup,
   type RunTurnDeps,
@@ -89,26 +92,31 @@ export async function openTurnBackendSession(input: {
     harness === "claude" && !switchedHarness
       ? resolveTurnClaudeResume(directories, conversationId)
       : undefined;
-  // A routine chat's replay is bounded by the routine budget; every other
-  // chat keeps the budget it always had here (routine-replay.ts).
+  // A routine chat replays the same archive-aware tail the standing server
+  // reads, bounded by the routine budget; every other chat keeps its hydrated
+  // live file and the budget it always had here (routine-replay.ts).
+  const history = routineReplayHistory(
+    directories.dataDir,
+    conversationId,
+    turnId,
+    input.canonicalMessages,
+  );
   const replayOf = () =>
     replayForConversation({
       conversationId,
-      messages: input.canonicalMessages,
+      messages: history,
       currentTurnId: turnId,
       currentPrompt: turn.text,
       windowTokens: routineReset?.windowTokens ?? catalogWindow,
       charBudget: replayCharBudget(model.contextWindow),
     });
   const replay =
-    input.canonicalMessages.length > 0 &&
+    history.length > 0 &&
     (freshSession || (harness === "claude" && !claudeResume))
       ? replayOf()
       : null;
   const retryReplay =
-    harness === "claude" && input.canonicalMessages.length > 0
-      ? (replay ?? replayOf())
-      : null;
+    harness === "claude" && history.length > 0 ? (replay ?? replayOf()) : null;
   // The CLI blocks its first start on a flag fetch unless its config dir
   // already holds the flags: hand it the acting member's stored copy.
   if (harness === "claude")

@@ -6,6 +6,8 @@ import {
   isRoutineConversation,
   planRoutineContext,
 } from "../session/routine-context";
+import { ROUTINE_REPLAY_TAIL } from "../session/routine-replay";
+import { getHistoryAt } from "../store/conversation-file";
 import {
   readRoutineTranscriptAt,
   writeRoutineCarryAt,
@@ -61,6 +63,29 @@ export function resetPooledRoutineContext(input: {
     compaction: { trigger: "proactive", pre_tokens: plan.carriedTokens },
     windowTokens: plan.windowTokens,
   };
+}
+
+/**
+ * What a pooled session rebuild replays from. A routine chat reads the same
+ * archive-aware tail as the standing server (`ROUTINE_REPLAY_TAIL` messages,
+ * after this run's own user row was appended): a rotation can leave only the
+ * newest run live, and the reports before it are the memory the replay keeps.
+ * Every other chat keeps its hydrated live file (`canonical`). Only history
+ * before this run counts, so an empty result means nothing to carry.
+ */
+export function routineReplayHistory(
+  dataDir: string,
+  conversationId: string,
+  turnId: string,
+  canonical: ChatMessage[],
+): ChatMessage[] {
+  if (!isRoutineConversation(conversationId)) return canonical;
+  const window = getHistoryAt(join(dataDir, "conversations"), conversationId, {
+    limit: ROUTINE_REPLAY_TAIL,
+  });
+  return (window?.messages ?? []).filter(
+    (m) => !(m.role === "user" && m.turnId === turnId),
+  );
 }
 
 /**

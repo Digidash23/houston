@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { routineRunPreamble } from "@houston/domain";
-import type { WireFrame } from "@houston/runtime-client";
+import type { ChatMessage, WireFrame } from "@houston/runtime-client";
 import { beforeEach, expect, test, vi } from "vitest";
 import { writeAuthFile } from "../auth/auth-file";
 import { simulatedClaudeApi } from "../backends/claude/simulated-api.test-support";
@@ -18,7 +18,9 @@ import {
   appendAssistantMessageAt,
   appendUserMessageAt,
   loadConversation,
+  saveConversation,
 } from "../store/conversation-file";
+import { writeRoutineCarryAt } from "../store/routine-carry";
 import { createTurnBackend, turnClaudeLayout } from "./turn-backend";
 import { runTurn, type TurnDirectories } from "./turn-session";
 
@@ -195,6 +197,67 @@ test("a pooled Claude routine run past its window starts fresh, fits and drops t
   expect(api.calls.at(-1)?.resume).toBe("sim-1");
   expect(api.calls.at(-1)?.prompt).toBe(PROMPT);
   expect(lastAssistant(dirs.dataDir)?.compaction).toBeUndefined();
+});
+
+test("a pooled reset after a rotation replays the latest reports from the archive, like the standing server", async () => {
+  target.model = {
+    ...target.model,
+    provider: "anthropic",
+    id: "claude-opus-5",
+  };
+  const dirs = await directories();
+  const api = simulatedClaudeApi({
+    windowTokens: WINDOW,
+    systemTokens: 12_000,
+    runGrowthTokens: 6_000,
+  });
+  const conversationsDir = join(dirs.dataDir, "conversations");
+  // Five short reports, then a run whose tool output alone outgrows the live
+  // file: saving it rotates the five reports into an archive segment and
+  // leaves only that last run live.
+  const messages: ChatMessage[] = [];
+  for (let n = 0; n < 5; n++)
+    messages.push(
+      { role: "user", content: PROMPT, ts: n, turnId: `r${n}` },
+      {
+        role: "assistant",
+        content: `Report r${n}: INV-${n} is overdue.`,
+        ts: n,
+        turnId: `r${n}`,
+      },
+    );
+  messages.push(
+    { role: "user", content: PROMPT, ts: 5, turnId: "r5" },
+    {
+      role: "assistant",
+      content: "Report r5: nothing new.",
+      ts: 5,
+      turnId: "r5",
+      tools: [{ name: "Read", result: "row;".repeat(2_300_000) }],
+    },
+  );
+  saveConversation(conversationsDir, {
+    id: ID,
+    title: "Routine",
+    createdAt: 1,
+    updatedAt: 1,
+    messages,
+  });
+  expect(loadConversation(conversationsDir, ID)?.messages).toHaveLength(2);
+  writeRoutineCarryAt(conversationsDir, ID, {
+    turnId: "r5",
+    tokens: 152_000,
+    overflowed: false,
+    namedWindow: null,
+  });
+
+  await fire(dirs, "after-rotation", { claudeSdk: claudeSdk(api) });
+
+  const call = api.calls.at(-1);
+  expect(call?.resume).toBeUndefined();
+  expect(call?.prompt).toContain("This automation has run before");
+  expect(call?.prompt).toContain("Report r5: nothing new.");
+  expect(call?.prompt).toContain("Report r3: INV-3 is overdue.");
 });
 
 test("a pooled Claude routine run inside its budget resumes as before", async () => {
