@@ -1,4 +1,5 @@
 import type { OrgsList } from "@houston/engine-adapter";
+import { activeSpaceOrgSlug } from "@houston/sdk";
 import { orgSlugFromWorkspaceId } from "./space-id.ts";
 
 /**
@@ -64,6 +65,5 @@ export function connectOrgSlug(
   orgs: OrgsList | undefined,
 ): string | null {
   const team = workspaceId ? orgSlugFromWorkspaceId(workspaceId) : null;
-  if (team) return team;
-  return orgs?.orgs.find((o) => o.kind === "personal")?.slug ?? null;
+  return activeSpaceOrgSlug(team, orgs);
 }

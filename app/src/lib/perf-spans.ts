@@ -3,7 +3,9 @@
  * app open → board cards painted, card click → chat painted, message send →
  * first agent output, app open → first output of the session — and ships them
  * to the gateway's `/v1/client-metrics` ingest (Prometheus histograms behind
- * grafana.gethouston.ai) plus a PostHog mirror for per-user drill-down.
+ * grafana.gethouston.ai) plus a PostHog mirror for per-user drill-down. Only
+ * the mirror carries the hosted org slug: the Prometheus histograms stay
+ * without org labels.
  *
  * Pure module: no React, no Tauri, no fetch of its own until `configure()`
  * injects the transport. All clocks are epoch ms (performance.timeOrigin as
@@ -29,8 +31,12 @@ export interface PerfSpanTransport {
    * shipped, and the queue is dropped instead of growing forever.
    */
   send?(spans: PerfSpanObservation[]): Promise<void>;
-  /** Per-span mirror (PostHog). Fire-and-forget. */
-  mirror?(span: PerfSpanName, ms: number): void;
+  /**
+   * Per-span mirror (PostHog). Fire-and-forget. `orgSlug` is the hosted org
+   * the user sent in, on the spans a send pairs; null on every other span and
+   * wherever no org is set (desktop, self-host).
+   */
+  mirror?(span: PerfSpanName, ms: number, orgSlug: string | null): void;
 }
 
 /** Marks older than this are stale (user wandered off) — never completed. */
@@ -41,7 +47,8 @@ export class PerfSpans {
   private t0Ms: number;
   private readonly onceDone = new Set<PerfSpanName>();
   private pendingChatOpenAt: number | null = null;
-  private pendingSendAt: number | null = null;
+  private pendingSend: { at: number; orgSlug: string | null } | null = null;
+  private orgSlug: string | null = null;
   private queue: PerfSpanObservation[] = [];
   private transport: PerfSpanTransport | null = null;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -84,18 +91,32 @@ export class PerfSpans {
     if (at !== null) this.observe("card_click_to_chat", this.now() - at);
   }
 
+  /**
+   * The hosted org slug of the active space, or null where there is none. A
+   * send reads it when it is made, so a space switch before the reply does not
+   * move the turn to another org.
+   */
+  setOrgSlug(slug: string | null): void {
+    this.orgSlug = slug;
+  }
+
   /** The user sent a message. Overwrites an unanswered previous send. */
   messageSent(): void {
-    this.pendingSendAt = this.now();
+    this.pendingSend = { at: this.now(), orgSlug: this.orgSlug };
   }
 
   /** First agent output (first streamed word) became visible. */
   firstAssistantOutput(): void {
-    const at = this.take(this.pendingSendAt);
-    this.pendingSendAt = null;
-    if (at !== null) {
-      this.observe("send_to_first_response", this.now() - at);
-      this.observeOnce("app_to_first_response", this.now() - this.t0Ms);
+    const send = this.pendingSend;
+    this.pendingSend = null;
+    const at = this.take(send?.at ?? null);
+    if (send && at !== null) {
+      this.observe("send_to_first_response", this.now() - at, send.orgSlug);
+      this.observeOnce(
+        "app_to_first_response",
+        this.now() - this.t0Ms,
+        send.orgSlug,
+      );
     }
   }
 
@@ -125,16 +146,24 @@ export class PerfSpans {
     return this.now() - at <= PENDING_TTL_MS ? at : null;
   }
 
-  private observeOnce(span: PerfSpanName, ms: number): void {
+  private observeOnce(
+    span: PerfSpanName,
+    ms: number,
+    orgSlug: string | null = null,
+  ): void {
     if (this.onceDone.has(span)) return;
     this.onceDone.add(span);
-    this.observe(span, ms);
+    this.observe(span, ms, orgSlug);
   }
 
-  private observe(span: PerfSpanName, ms: number): void {
+  private observe(
+    span: PerfSpanName,
+    ms: number,
+    orgSlug: string | null = null,
+  ): void {
     if (!Number.isFinite(ms) || ms < 0) return;
     this.queue.push({ span, ms: Math.round(ms) });
-    this.transport?.mirror?.(span, Math.round(ms));
+    this.transport?.mirror?.(span, Math.round(ms), orgSlug);
     this.scheduleFlush();
   }
 

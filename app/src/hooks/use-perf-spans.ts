@@ -2,12 +2,17 @@ import { useEffect, useRef } from "react";
 import { analytics } from "../lib/analytics";
 import { bakedUrl } from "../lib/baked-url";
 import { osLaunchT0Ms } from "../lib/os-bridge";
+import { perfSpanEventProps, perfSpanOrgSlug } from "../lib/perf-span-mirror";
 import {
   type PerfSpanObservation,
   type PerfSpanTransport,
   perfSpans,
 } from "../lib/perf-spans";
 import { currentPlatformOs } from "../lib/platform";
+import { useWorkspaceStore } from "../stores/workspaces";
+import { useOrgs } from "./queries/use-spaces";
+import { useCapabilities } from "./use-capabilities";
+import { usePersonalSpace } from "./use-personal-space";
 import { useSession } from "./use-session";
 
 /**
@@ -35,6 +40,7 @@ const APP_VERSION =
  * app-level subscribers.
  */
 export function usePerfSpans(): void {
+  usePerfSpanOrgSlug();
   const { data: session } = useSession();
   const tokenRef = useRef<string | null>(null);
   tokenRef.current = session?.idToken ?? null;
@@ -44,8 +50,8 @@ export function usePerfSpans(): void {
       if (t0 !== null) perfSpans.setLaunchT0(t0);
     });
     const transport: PerfSpanTransport = {
-      mirror(span, ms) {
-        analytics.track("perf_span", { span, duration_ms: ms });
+      mirror(span, ms, orgSlug) {
+        analytics.track("perf_span", perfSpanEventProps(span, ms, orgSlug));
       },
     };
     const ingest = CLIENT_METRICS_URL;
@@ -92,4 +98,19 @@ export function usePerfSpans(): void {
   useEffect(() => {
     if (token) void perfSpans.flush();
   }, [token]);
+}
+
+/**
+ * Keeps the spans' org slug on the active space. Only a hosted personal space
+ * needs the memberships list to name its org; it shares the `useOrgs` query
+ * the sidebar's invite inbox already keeps warm.
+ */
+function usePerfSpanOrgSlug(): void {
+  const { capabilities } = useCapabilities();
+  const workspaceId = useWorkspaceStore((s) => s.current?.id);
+  const { data: orgs } = useOrgs(usePersonalSpace());
+  const orgSlug = perfSpanOrgSlug(capabilities, workspaceId, orgs);
+  useEffect(() => {
+    perfSpans.setOrgSlug(orgSlug);
+  }, [orgSlug]);
 }

@@ -79,8 +79,10 @@ export type AnalyticsProperty =
   | "lesson"
   // Org membership role (org_member_added / org_role_changed)
   | "role"
-  // Client UX timing (perf_span)
+  // Client UX timing (perf_span). `org_slug` is the hosted org a measured send
+  // ran in, the key the gateway's per-org switches use; absent off the gateway.
   | "span"
+  | "org_slug"
   | "duration_ms";
 
 export const ALLOWED_PROPS = new Set<AnalyticsProperty>([
@@ -126,5 +128,6 @@ export const ALLOWED_PROPS = new Set<AnalyticsProperty>([
   "lesson",
   "role",
   "span",
+  "org_slug",
   "duration_ms",
 ]);
