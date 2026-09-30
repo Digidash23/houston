@@ -102,10 +102,21 @@ describe("routine run history merge", () => {
     ]);
   });
 
-  test("a copy with a status no writer produces never beats a real one", () => {
-    const typo = running("a", 1, { status: "runnning" });
-    expect(merge([running("a", 1)], [typo])).toEqual([running("a", 1)]);
-    expect(merge([typo], [running("a", 1)])).toEqual([running("a", 1)]);
+  test("a status this build does not know is terminal, never reverted to running", () => {
+    // A newer build's settled run, merged by an older image's running copy.
+    const future = settled("a", 1, "skipped", 2);
+    expect(merge([future], [running("a", 1)])).toEqual([future]);
+    expect(merge([running("a", 1)], [future])).toEqual([future]);
+    // Against a known terminal copy it is one more settle: the later wins.
+    const error = settled("a", 1, "error", 3);
+    expect(merge([future], [error])).toEqual([error]);
+    expect(merge([error], [future])).toEqual([error]);
+  });
+
+  test("a copy with no status never beats a real one", () => {
+    const { status: _dropped, ...bare } = running("a", 1);
+    expect(merge([running("a", 1)], [bare])).toEqual([running("a", 1)]);
+    expect(merge([bare], [running("a", 1)])).toEqual([running("a", 1)]);
   });
 
   test("entries that are not runs survive once, after the runs", () => {

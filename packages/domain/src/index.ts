@@ -27,6 +27,7 @@ export * from "./provider-model-display";
 export * from "./reactivity";
 export * from "./routine-auto-pause";
 export * from "./routine-pin";
+export * from "./routine-run-in-flight";
 export * from "./routines";
 export * from "./scan";
 export * from "./schedule";

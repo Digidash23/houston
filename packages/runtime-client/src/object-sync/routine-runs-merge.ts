@@ -18,20 +18,18 @@ function isRow(value: unknown): value is Row {
   );
 }
 
-/** How far a run has moved: a status no writer produces ranks below all. */
-const PROGRESS = {
-  running: 1,
-  silent: 2,
-  surfaced: 2,
-  error: 2,
-  cancelled: 2,
-} satisfies Record<RoutineRunStatus, number>;
+/**
+ * How far a run has moved. `running` is the one status a run leaves, so any
+ * other status is terminal, including one this build does not know: an older
+ * image must never turn a newer build's settled run back into `running`. A
+ * row with no status at all is malformed and ranks below both.
+ */
+const PROGRESS = { malformed: 0, running: 1, settled: 2 } as const;
+const RUNNING: RoutineRunStatus = "running";
 
 function progress(row: Row): number {
-  const status = row.status;
-  return typeof status === "string" && Object.hasOwn(PROGRESS, status)
-    ? PROGRESS[status as RoutineRunStatus]
-    : 0;
+  if (typeof row.status !== "string") return PROGRESS.malformed;
+  return row.status === RUNNING ? PROGRESS.running : PROGRESS.settled;
 }
 
 // A row with no readable start sorts oldest: every writer stamps started_at,
@@ -52,7 +50,7 @@ function instant(row: Row, field: "started_at" | "completed_at"): number {
 function pickRun(local: Row, remote: Row): Row {
   const [mine, theirs] = [progress(local), progress(remote)];
   if (mine !== theirs) return mine > theirs ? local : remote;
-  if (mine < PROGRESS.surfaced) {
+  if (mine < PROGRESS.settled) {
     // `resumed` only ever turns on (the engine restarted mid-run): keep it.
     return local.resumed === true && remote.resumed !== true
       ? { ...remote, resumed: true }

@@ -1,6 +1,7 @@
 import {
   completeRoutineRun,
   createRoutineRun,
+  holdsRoutineBusy,
   loadActivities,
   loadRoutineRuns,
   loadRoutines,
@@ -86,7 +87,12 @@ export async function prepareRoutineTurn(
     );
   }
   const { items: runs } = await loadRoutineRuns(store, workspaceDir);
-  if (runs.some((r) => r.routine_id === routine.id && r.status === "running")) {
+  const nowMs = Date.parse(nowIso);
+  // An abandoned `running` row stops blocking but stays as it is: settling
+  // it is reconcile's job, on the pod that ran it.
+  if (
+    runs.some((r) => r.routine_id === routine.id && holdsRoutineBusy(r, nowMs))
+  ) {
     throw new RoutineTurnError(
       "routine_busy",
       `"${routine.name}" is already running`,
