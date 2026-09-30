@@ -3,13 +3,14 @@ import { readFile, rm, stat } from "node:fs/promises";
 import { atomicTempPath } from "@houston/protocol";
 import { fileSha256 } from "./file-hash";
 import type { HydrateManifestEntry } from "./hydrate";
-import { type ObjectStore, StoreConflictError } from "./object-store";
 import {
-  mergeDocumentBodies,
-  mergesOnceOnConflict,
-} from "./sync-back-doc-merge";
+  ObjectNotFoundError,
+  type ObjectStore,
+  StoreConflictError,
+} from "./object-store";
+import { mergesOnceOnConflict } from "./sync-back-doc-merge";
 import { type RefreshManifest, sourceVanished } from "./sync-back-merge-retry";
-import { stageReplacement } from "./sync-back-merge-write";
+import { mergeOrOverwrite, stageReplacement } from "./sync-back-merge-write";
 import type { LocalWriteLock } from "./sync-back-types";
 
 /**
@@ -46,7 +47,7 @@ export async function retryAtRefreshedGeneration(
     return { entry: opts.previous, uploaded: false, conflict };
   }
   try {
-    const mergedHash = await mergeSyncBackDocument(opts);
+    const mergedHash = await mergeSyncBackDocument(opts, retryGeneration);
     if (mergedHash === CHANGED_LOCALLY) {
       const conflict = `${opts.relativePath} changed locally during its merge`;
       return { entry: opts.previous, uploaded: false, conflict };
@@ -80,26 +81,39 @@ const unlocked: LocalWriteLock = (_relativePath, write) => write();
  * pod's host rewrote it while the remote was read: the merge would drop that
  * write (a run the host just fired), so it waits for the next pass. The
  * compare and the replace hold the host's lock on the file when given one.
+ * A remote that is gone, or a side that will not parse, has nothing to merge:
+ * the local bytes upload as they are, never throwing out of the whole pass
+ * (every later file would stay un-synced, pass after pass).
  */
-async function mergeSyncBackDocument(opts: {
-  store: ObjectStore;
-  abs: string;
-  key: string;
-  relativePath: string;
-  localWriteLock?: LocalWriteLock;
-}): Promise<string | typeof CHANGED_LOCALLY | undefined> {
+async function mergeSyncBackDocument(
+  opts: {
+    store: ObjectStore;
+    abs: string;
+    key: string;
+    relativePath: string;
+    localWriteLock?: LocalWriteLock;
+  },
+  generation: string,
+): Promise<string | typeof CHANGED_LOCALLY | undefined> {
   if (!mergesOnceOnConflict(opts.relativePath)) return undefined;
   const localBody = await readFile(opts.abs, "utf8");
   const remoteTemp = atomicTempPath(opts.abs, `${randomUUID()}.remote`);
   try {
-    await opts.store.download(opts.key, remoteTemp);
-    const remoteBody = await readFile(remoteTemp, "utf8");
-    const merged = mergeDocumentBodies(
+    try {
+      await opts.store.download(opts.key, remoteTemp);
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) return undefined;
+      throw error;
+    }
+    const remote = { body: await readFile(remoteTemp, "utf8"), generation };
+    const outcome = mergeOrOverwrite(
       opts.relativePath,
       localBody,
-      remoteBody,
+      remote,
+      undefined,
     );
-    if (merged === undefined) return undefined;
+    if (outcome.unmergeable) return undefined;
+    const merged = outcome.body;
     const staged = await stageReplacement(opts.abs, merged);
     try {
       const lock = opts.localWriteLock ?? unlocked;
