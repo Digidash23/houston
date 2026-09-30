@@ -1,4 +1,5 @@
 import type { RoutineRun } from "@houston/protocol";
+import { RESUME_MAX_AGE_MS } from "./turn-resume-age";
 
 /**
  * How long a routine run may stay `running` before it counts as abandoned.
@@ -16,11 +17,17 @@ export const ROUTINE_RUN_TIMEOUT_MS = 15 * 60 * 1000;
  * clock. Nothing settles either while the agent sleeps, so past the timeout
  * the row stops blocking; its status is left for reconcile. A row with no
  * readable start can never be shown to be fresh, so it never blocks.
+ *
+ * A `resumed` run restarted mid-run, and reconcile restarts its clock at the
+ * interruption, which the row does not carry. An engine resumes only a turn
+ * younger than RESUME_MAX_AGE_MS, so that is the latest the clock restarts.
  */
 export function holdsRoutineBusy(run: RoutineRun, nowMs: number): boolean {
   if (run.status !== "running") return false;
   const startedMs = Date.parse(run.started_at);
-  return (
-    Number.isFinite(startedMs) && nowMs - startedMs < ROUTINE_RUN_TIMEOUT_MS
-  );
+  if (!Number.isFinite(startedMs)) return false;
+  const window = run.resumed
+    ? RESUME_MAX_AGE_MS + ROUTINE_RUN_TIMEOUT_MS
+    : ROUTINE_RUN_TIMEOUT_MS;
+  return nowMs - startedMs < window;
 }

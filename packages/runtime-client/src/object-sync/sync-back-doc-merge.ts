@@ -1,5 +1,9 @@
 import { ACTIVITY_DOC, mergeActivityArrays } from "./activity-merge";
-import { mergeRoutineRunArrays, ROUTINE_RUNS_DOC } from "./routine-runs-merge";
+import {
+  mergeRoutineRunArrays,
+  ROUTINE_RUNS_DOC,
+  ROUTINE_RUNS_MERGE_ROUNDS,
+} from "./routine-runs-merge";
 
 const ROUTINES_DOC = ".houston/routines/routines.json";
 const LEARNINGS_DOC = ".houston/learnings/learnings.json";
@@ -19,6 +23,16 @@ export function isMergedDocument(relativePath: string): boolean {
     isPath(relativePath, ROUTINE_RUNS_DOC) ||
     relativePath === CUSTOM_DEFINITIONS
   );
+}
+
+/** Refresh+merge+upload rounds a merged document gets after its first 412. */
+export const MERGE_UPLOAD_ATTEMPTS = 6;
+
+/** The merge rounds `relativePath` gets: its own budget, else the default. */
+export function mergeUploadRounds(relativePath: string): number {
+  return isPath(relativePath, ROUTINE_RUNS_DOC)
+    ? ROUTINE_RUNS_MERGE_ROUNDS
+    : MERGE_UPLOAD_ATTEMPTS;
 }
 
 /**

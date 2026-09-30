@@ -4,6 +4,14 @@ import { pruneRoutineRuns, type RoutineRunStatus } from "@houston/protocol";
 /** The run history; every overlapping routine run of an agent rewrites it. */
 export const ROUTINE_RUNS_DOC = ".houston/routine_runs/routine_runs.json";
 
+/**
+ * Merge rounds the run history gets after its first 412, above the default:
+ * writers racing in lockstep land one per round, and ten overlapping runs of
+ * one agent finishing together need nine. Only routine turns write it, and
+ * no person waits on a routine turn's done frame.
+ */
+export const ROUTINE_RUNS_MERGE_ROUNDS = 10;
+
 type Row = Record<string, unknown> & { id: string; routine_id: string };
 
 function isRecord(value: unknown): value is Record<string, unknown> {

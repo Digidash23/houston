@@ -7,6 +7,10 @@ import { type ObjectStore, StoreConflictError } from "./object-store";
 import { syncBack } from "./sync-back";
 import { MERGE_UPLOAD_ATTEMPTS } from "./sync-back-merge-retry";
 
+test("the board keeps six merge rounds", () => {
+  expect(MERGE_UPLOAD_ATTEMPTS).toBe(6);
+});
+
 const DOC = "workspaces/Personal/Bob/.houston/activity/activity.json";
 type Card = { id: string; title: string; status: string };
 
@@ -79,7 +83,7 @@ const addSibling: RaceStep = (remote, upload) => [
 ];
 
 test("a board contended on every round but the last lands with every card and the title", async () => {
-  const raced = MERGE_UPLOAD_ATTEMPTS; // the first upload + all but the last merge round lose
+  const raced = MERGE_UPLOAD_ATTEMPTS; // the first upload + 5 merge rounds lose
   const { store, remote, preconditions } = racingStore(
     [mine],
     raced,

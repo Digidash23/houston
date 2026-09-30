@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { expect, test } from "vitest";
 import { type ObjectStore, StoreConflictError } from "./object-store";
+import { ROUTINE_RUNS_MERGE_ROUNDS } from "./routine-runs-merge";
 import { syncBack } from "./sync-back";
 
 /**
@@ -66,7 +67,11 @@ function versionedStore(initial: Row[]) {
     },
     delete: async () => undefined,
   };
-  return { store, remote: () => JSON.parse(remote) as Row[] };
+  return {
+    store,
+    remote: () => JSON.parse(remote) as Row[],
+    generation: () => String(generation),
+  };
 }
 
 /** One sandbox: the hydrated history at generation 1 plus this run's row. */
@@ -135,4 +140,58 @@ test("ten runs finishing in lockstep all land their row", async () => {
   expect(remote().map((row) => row.id)).toEqual(
     Array.from({ length: 11 }, (_, i) => `run-${10 - i}`),
   );
+});
+
+/** Another writer lands a row right before each of our first `raced` uploads. */
+function racedStore(raced: number) {
+  const { store, remote, generation } = versionedStore([run(0)]);
+  let uploads = 0;
+  const upload = store.upload.bind(store);
+  const racing: ObjectStore = {
+    ...store,
+    upload: async (source, key, options) => {
+      uploads += 1;
+      if (uploads <= raced) {
+        const other = await mkdtemp(join(tmpdir(), "runs-other-"));
+        const file = join(other, "runs.json");
+        await writeFile(file, body([run(40 + uploads), ...remote()]));
+        await upload(file, key, { ifGenerationMatch: generation() });
+      }
+      return upload(source, key, options);
+    },
+  };
+  return { store: racing, remote };
+}
+
+async function contendedSync(raced: number) {
+  const { store, remote } = racedStore(raced);
+  const tree = await sandbox([run(0)], run(1));
+  const result = await syncBack(store, "", tree.root, tree.manifest, {
+    generations: true,
+    workerMerge: true,
+    conflictBackoff: () => 0,
+  });
+  return { result, remote };
+}
+
+test("the run history gets ten merge rounds: it lands after nine lost ones", async () => {
+  expect(ROUTINE_RUNS_MERGE_ROUNDS).toBe(10);
+  // The first upload and every round but the last lose.
+  const { result, remote } = await contendedSync(ROUTINE_RUNS_MERGE_ROUNDS);
+
+  expect(result.conflicts).toEqual([]);
+  expect(result.merges).toEqual([
+    { key: RUNS, attempts: ROUTINE_RUNS_MERGE_ROUNDS },
+  ]);
+  expect(remote().map((row) => row.id)).toContain("run-1");
+});
+
+test("a run history still contended after ten rounds is a recorded conflict", async () => {
+  const { result } = await contendedSync(ROUTINE_RUNS_MERGE_ROUNDS + 1);
+
+  expect(result.uploaded).toEqual([]);
+  expect(result.conflicts.map((c) => c.key)).toEqual([RUNS]);
+  expect(result.merges).toEqual([
+    { key: RUNS, attempts: ROUTINE_RUNS_MERGE_ROUNDS },
+  ]);
 });

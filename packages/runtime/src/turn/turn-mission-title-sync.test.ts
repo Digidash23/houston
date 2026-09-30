@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
   LocalDirStore,
-  MERGE_UPLOAD_ATTEMPTS,
   type ObjectStore,
   StoreConflictError,
 } from "@houston/runtime-client/object-sync";
@@ -156,13 +155,12 @@ test("a title that loses the board race to a burst still lands, and the frame sa
 });
 
 test("a board that never lands reports the title as sync_lost with the key", async () => {
-  // The first upload and every merge round lose.
-  const { frame, stored } = await titledTurn(MERGE_UPLOAD_ATTEMPTS + 1);
+  const { frame, stored } = await titledTurn(7);
 
   expect(frame.data.missionTitle).toEqual({
     outcome: "sync_lost",
     ms: 40,
-    mergeAttempts: MERGE_UPLOAD_ATTEMPTS,
+    mergeAttempts: 6,
   });
   expect(frame.data.changed ?? []).not.toContain("ActivityChanged");
   expect(frame.data.syncIncomplete).toEqual({

@@ -4,6 +4,7 @@ import {
   holdsRoutineBusy,
   ROUTINE_RUN_TIMEOUT_MS,
 } from "./routine-run-in-flight";
+import { RESUME_MAX_AGE_MS } from "./turn-resume-age";
 
 const START = Date.parse("2026-09-30T10:00:00.000Z");
 const run = (status: RoutineRun["status"], startedAt = new Date(START)) =>
@@ -34,4 +35,16 @@ test("a settled run never holds its routine", () => {
 test("a running row with no readable start never holds its routine", () => {
   const legacy = { ...run("running"), started_at: "" };
   expect(holdsRoutineBusy(legacy, START)).toBe(false);
+});
+
+test("a resumed run holds its routine until the latest restart's timeout", () => {
+  // Reconcile's clock restarts at the interruption, which can come as late
+  // as RESUME_MAX_AGE_MS into the run.
+  const resumed = { ...run("running"), resumed: true } as RoutineRun;
+  expect(holdsRoutineBusy(resumed, START + ROUTINE_RUN_TIMEOUT_MS + 1)).toBe(
+    true,
+  );
+  const last = START + RESUME_MAX_AGE_MS + ROUTINE_RUN_TIMEOUT_MS;
+  expect(holdsRoutineBusy(resumed, last - 1)).toBe(true);
+  expect(holdsRoutineBusy(resumed, last)).toBe(false);
 });
