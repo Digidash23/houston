@@ -21,6 +21,7 @@ import {
   loadConversation,
 } from "../store/conversation-file";
 import { startTurnMissionTitle, turnTitleRunner } from "./turn-mission-title";
+import { recordPooledRoutineCarry } from "./turn-routine-context";
 import { openTurnBackendSession } from "./turn-session-backend";
 import { handleTurnSessionFailure } from "./turn-session-failure";
 import type { RunTurnDeps } from "./turn-session-startup";
@@ -118,6 +119,7 @@ export async function runTurn(
   // Set when a routine run starts fresh (turn-routine-context.ts): announced
   // before the prompt and persisted on the reply, like the standing server's.
   let compaction: ChatMessage["compaction"];
+  let routineResetBase: number | undefined;
   try {
     const opened = await openTurnBackendSession({
       directories,
@@ -128,6 +130,7 @@ export async function runTurn(
     });
     const { replay, session, model, modelRuntime } = opened;
     compaction = opened.compaction;
+    routineResetBase = opened.routineResetBase;
     if (compaction) emit({ type: "context_compacted", data: compaction });
 
     // Snapshot the hydrated workspace so the turn's created/modified files can
@@ -238,6 +241,15 @@ export async function runTurn(
       text,
       usedTokens,
       emit,
+    });
+  } finally {
+    // A routine run records what it left its session holding, before the
+    // caller's sync-back ships the conversation file (turn-routine-context.ts).
+    recordPooledRoutineCarry({
+      dataDir,
+      conversationId,
+      turnId,
+      resetBaseTokens: routineResetBase,
     });
   }
 }

@@ -178,6 +178,18 @@ test("a pooled Claude routine run past its window starts fresh, fits and drops t
   // and no later worker hydrates it again.
   expect(existsSync(oldTranscript)).toBe(false);
 
+  // The run recorded what it left the fresh session holding, for the next
+  // fire's budget, whatever a rotation archives in between.
+  const recorded = loadConversation(
+    join(dirs.dataDir, "conversations"),
+    ID,
+  )?.routineCarry;
+  expect(recorded).toMatchObject({
+    turnId: "reset-run",
+    tokens: (call?.requestTokens ?? 0) + 20,
+    overflowed: false,
+  });
+
   // The next fire resumes the fresh session, with nothing replayed.
   await fire(dirs, "next-run", { claudeSdk: claudeSdk(api) });
   expect(api.calls.at(-1)?.resume).toBe("sim-1");

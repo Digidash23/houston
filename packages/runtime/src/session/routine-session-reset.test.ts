@@ -19,6 +19,7 @@ process.env.HOUSTON_WORKSPACE_DIR = process.env.HOUSTON_DATA_DIR;
 
 const store = vi.hoisted(() => ({
   historyReads: 0,
+  historyWindows: [] as unknown[],
   liveReads: [] as string[],
 }));
 vi.mock("../store/conversations", async (importOriginal) => {
@@ -27,11 +28,12 @@ vi.mock("../store/conversations", async (importOriginal) => {
     ...real,
     getHistory: (...args: Parameters<typeof real.getHistory>) => {
       store.historyReads++;
+      store.historyWindows.push(args[1]);
       return real.getHistory(...args);
     },
-    getLiveMessages: (id: string) => {
+    getRoutineTranscript: (id: string) => {
       store.liveReads.push(id);
-      return real.getLiveMessages(id);
+      return real.getRoutineTranscript(id);
     },
   };
 });
@@ -109,6 +111,7 @@ beforeEach(() => {
   vi.spyOn(console, "info").mockImplementation(() => {});
   built.length = 0;
   store.historyReads = 0;
+  store.historyWindows.length = 0;
   store.liveReads.length = 0;
 });
 
@@ -170,9 +173,8 @@ test("many short usage-less runs reset on the standing server exactly as on a po
     "auto",
   );
   const pooled = resetPooledRoutineContext({
-    dataDir: mkdtempSync(join(tmpdir(), "houston-rreset-pool-")),
+    dataDir: config.dataDir,
     conversationId: "routine-usageless",
-    messages,
     turnId: "now",
     windowTokens: 64_000,
   });
@@ -181,7 +183,7 @@ test("many short usage-less runs reset on the standing server exactly as on a po
   expect(standing?.preTokens).toBe(pooled?.compaction.pre_tokens);
 });
 
-test("a usage-less chat rotated into archive segments still resets from its live tail", async () => {
+test("a usage-less rotated chat resets from its live tail; only the replay reads back, a window", async () => {
   // ~9.6 MB of usage-less runs: the save rotates all but a ~2 MiB tail out.
   saveChat("routine-rotated", usageless(1_200, 4_000));
   const reset = await resetRoutineSessionIfNeeded(
@@ -193,7 +195,7 @@ test("a usage-less chat rotated into archive segments still resets from its live
     "auto",
   );
   expect(reset).not.toBeNull();
-  expect(store.historyReads).toBe(0);
+  expect(store.historyWindows).toEqual([{ limit: 200 }]);
 });
 
 test("a rebuild that fails keeps the record, and its next turn retries it", async () => {

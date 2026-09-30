@@ -8,6 +8,7 @@ import type { newUsedTokenCapture } from "../auth/used-token";
 import { hasUnreadablePiSessionTail } from "../backends/pi/backend";
 import { replayCharBudget } from "../session/replay-transcript";
 import { replayForConversation } from "../session/routine-replay";
+import { estimateTokens } from "../session/token-estimate";
 import { resolveTurnClaudeResume, turnClaudeLayout } from "./turn-backend";
 import { seedTurnClaudeFlags } from "./turn-claude-flags";
 import { readTurnHarness, writeTurnHarness } from "./turn-harness-state";
@@ -68,7 +69,6 @@ export async function openTurnBackendSession(input: {
   const routineReset = resetPooledRoutineContext({
     dataDir: directories.dataDir,
     conversationId,
-    messages: input.canonicalMessages,
     turnId,
     windowTokens: catalogWindow,
   });
@@ -137,5 +137,10 @@ export async function openTurnBackendSession(input: {
     model,
     modelRuntime,
     compaction: routineReset?.compaction,
+    // What the reset's replay put in the fresh session, for the run's
+    // recorded carry (turn-routine-context.ts).
+    routineResetBase: routineReset
+      ? estimateTokens(replay?.text ?? "")
+      : undefined,
   };
 }

@@ -11,7 +11,6 @@ import { atomicTempPath } from "@houston/protocol";
 import type { ChatMessage } from "@houston/runtime-client";
 import {
   ARCHIVE_TRIGGER_BYTES,
-  type ArchiveIndex,
   archiveOlderMessages,
   totalMessageCount,
 } from "./conversation-archive";
@@ -22,6 +21,7 @@ import {
   readParsedFile,
   stampParsedFile,
 } from "./conversation-parse-cache";
+import type { StoredConversation } from "./stored-conversation";
 
 export { appendAssistantMessageAt } from "./conversation-append-assistant";
 export type {
@@ -34,6 +34,11 @@ export {
   listConversationsAt,
   loadFullConversation,
 } from "./conversation-queries";
+export type {
+  CompactionCheckpoint,
+  RoutineCarryRecord,
+  StoredConversation,
+} from "./stored-conversation";
 
 /**
  * Pure, dir-parameterized conversation file logic: one JSON file per
@@ -41,44 +46,6 @@ export {
  * config.dataDir (store/conversations.ts); the per-turn cloud runtime binds it
  * to a hydrated tmpdir per request. Same atomic-write, same shapes.
  */
-
-export type StoredConversation = {
-  id: string;
-  title: string;
-  createdAt: number;
-  updatedAt: number;
-  messages: ChatMessage[];
-  /**
-   * Set when the backend-native session state was deliberately reset while the
-   * transcript kept messages (a truncation's edit-and-resend, PRODUCT-1217):
-   * the next turn must carry the kept transcript into its fresh session as a
-   * replay preamble (HOU-951). One-shot — exec-turn consumes it. Durable here
-   * (not in-memory) so a runtime restart between the reset and the next turn
-   * cannot lose the carried context.
-   */
-  needsSessionReplay?: true;
-  /**
-   * The durable half of a Claude `/compact`: the summary the NEXT prompt opens
-   * its fresh session with, written BEFORE the resume mapping is dropped and
-   * removed only once that prompt succeeds (`conversation-compaction.ts`). On
-   * disk so a restart, an eviction or a mode switch between the two cannot lose
-   * the compacted history.
-   */
-  claudeCompaction?: CompactionCheckpoint;
-  /**
-   * Present once older messages were rotated into segment files beside this
-   * one (`conversation-archive.ts`): `messages` is then only the recent tail,
-   * and this records what the segments hold. Absent on every conversation
-   * that never outgrew the live-file budget — byte-identical to before.
-   */
-  archived?: ArchiveIndex;
-};
-
-/** A compaction summary waiting to be carried into the next prompt. */
-export interface CompactionCheckpoint {
-  summary: string;
-  createdAt: number;
-}
 
 const fileFor = (dir: string, id: string) =>
   join(dir, `${encodeURIComponent(id)}.json`);

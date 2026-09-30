@@ -1,5 +1,6 @@
 import type { ChatMessage, ProviderError } from "@houston/runtime-client";
 import { expect, test } from "vitest";
+import { carryAfterRun } from "./routine-carry";
 import {
   isRoutineConversation,
   planRoutineContext,
@@ -57,14 +58,18 @@ test("the carry line is half the window, capped at 100k tokens", () => {
 
 test("a routine chat under its carry line keeps its session", () => {
   const messages = [...run("r1", used(99_000, 500)), current()];
-  expect(planRoutineContext(ROUTINE, messages, "now", 200_000)).toEqual({
+  expect(
+    planRoutineContext(ROUTINE, { messages, rotated: false }, "now", 200_000),
+  ).toEqual({
     reset: false,
   });
 });
 
 test("a routine chat at its carry line resets, measured with the last reply", () => {
   const messages = [...run("r1", used(99_600, 400)), current()];
-  expect(planRoutineContext(ROUTINE, messages, "now", 200_000)).toEqual({
+  expect(
+    planRoutineContext(ROUTINE, { messages, rotated: false }, "now", 200_000),
+  ).toEqual({
     reset: true,
     carriedTokens: 100_000,
     windowTokens: 200_000,
@@ -73,7 +78,9 @@ test("a routine chat at its carry line resets, measured with the last reply", ()
 
 test("an ordinary chat never resets, however full", () => {
   const messages = [...run("r1", used(190_000)), current()];
-  expect(planRoutineContext("chat-1", messages, "now", 200_000)).toEqual({
+  expect(
+    planRoutineContext("chat-1", { messages, rotated: false }, "now", 200_000),
+  ).toEqual({
     reset: false,
   });
 });
@@ -84,7 +91,12 @@ test("a run that overflowed resets the next one, sized by the window it named", 
     ...run("r2", { content: "", providerError: overflow(128_000) }),
     current(),
   ];
-  const plan = planRoutineContext(ROUTINE, messages, "now", 1_000_000);
+  const plan = planRoutineContext(
+    ROUTINE,
+    { messages, rotated: false },
+    "now",
+    1_000_000,
+  );
   expect(plan).toMatchObject({ reset: true, windowTokens: 128_000 });
 });
 
@@ -103,7 +115,12 @@ test("runs newer than the last measurement are added as an estimate", () => {
     }),
     current(),
   ];
-  const plan = planRoutineContext(ROUTINE, messages, "now", 200_000);
+  const plan = planRoutineContext(
+    ROUTINE,
+    { messages, rotated: false },
+    "now",
+    200_000,
+  );
   expect(plan).toMatchObject({ reset: true });
   expect(plan.reset && plan.carriedTokens).toBeGreaterThan(100_000);
 });
@@ -114,10 +131,14 @@ test("a provider that reports no usage is measured by the transcript itself", ()
     ...run("r2", { content: "y".repeat(80_000) }),
     current(),
   ];
-  expect(planRoutineContext(ROUTINE, messages, "now", 64_000)).toMatchObject({
+  expect(
+    planRoutineContext(ROUTINE, { messages, rotated: false }, "now", 64_000),
+  ).toMatchObject({
     reset: true,
   });
-  expect(planRoutineContext(ROUTINE, messages, "now", 1_000_000)).toEqual({
+  expect(
+    planRoutineContext(ROUTINE, { messages, rotated: false }, "now", 1_000_000),
+  ).toEqual({
     reset: false,
   });
 });
@@ -132,7 +153,9 @@ test("thousands of short runs without usage are measured over the whole chat", (
       ...run(`r${n}`, { content: "x ".repeat(100) }, "y ".repeat(100)),
     );
   messages.push(current());
-  expect(planRoutineContext(ROUTINE, messages, "now", 64_000)).toMatchObject({
+  expect(
+    planRoutineContext(ROUTINE, { messages, rotated: false }, "now", 64_000),
+  ).toMatchObject({
     reset: true,
   });
 });
@@ -143,7 +166,9 @@ test("CJK runs without usage are not undercounted at four characters a token", (
     current(),
   ];
   // ~9.8k characters: 2.5k tokens at 4 chars a token, ~9.8k as CJK really is.
-  expect(planRoutineContext(ROUTINE, messages, "now", 16_384)).toMatchObject({
+  expect(
+    planRoutineContext(ROUTINE, { messages, rotated: false }, "now", 16_384),
+  ).toMatchObject({
     reset: true,
   });
 });
@@ -158,7 +183,9 @@ test("the walk stops at the last compaction: older fills no longer apply", () =>
     }),
     current(),
   ];
-  expect(planRoutineContext(ROUTINE, messages, "now", 200_000)).toEqual({
+  expect(
+    planRoutineContext(ROUTINE, { messages, rotated: false }, "now", 200_000),
+  ).toEqual({
     reset: false,
   });
 });
@@ -169,7 +196,120 @@ test("the walk stops at a /clear: the cleared turns are not in context", () => {
     { role: "assistant", content: "", ts: 2, contextCleared: true },
     current(),
   ];
-  expect(planRoutineContext(ROUTINE, messages, "now", 200_000)).toEqual({
+  expect(
+    planRoutineContext(ROUTINE, { messages, rotated: false }, "now", 200_000),
+  ).toEqual({
     reset: false,
+  });
+});
+
+const record = (turnId: string, tokens: number | null, overflowed = false) => ({
+  turnId,
+  tokens,
+  overflowed,
+  namedWindow: null,
+});
+
+test("the recorded carry of the newest run decides, even with nothing else live", () => {
+  // Rotation archived the whole previous run: only this run's row is live.
+  const plan = planRoutineContext(
+    ROUTINE,
+    { messages: [current()], carry: record("r9", 150_000), rotated: true },
+    "now",
+    200_000,
+  );
+  expect(plan).toEqual({
+    reset: true,
+    carriedTokens: 150_000,
+    windowTokens: 200_000,
+  });
+});
+
+test("a recorded overflow of the newest run resets even with nothing else live", () => {
+  const plan = planRoutineContext(
+    ROUTINE,
+    { messages: [current()], carry: record("r9", 20_000, true), rotated: true },
+    "now",
+    200_000,
+  );
+  expect(plan).toMatchObject({ reset: true });
+});
+
+test("runs newer than the recorded one are estimated on top of it", () => {
+  const plan = planRoutineContext(
+    ROUTINE,
+    {
+      messages: [
+        ...run("r9", {}),
+        ...run("r10", { content: "z ".repeat(40_000) }),
+        current(),
+      ],
+      carry: record("r9", 85_000),
+      rotated: false,
+    },
+    "now",
+    200_000,
+  );
+  expect(plan).toMatchObject({ reset: true });
+});
+
+test("a rotated chat with no record and nothing measured live resets", () => {
+  expect(
+    planRoutineContext(
+      ROUTINE,
+      { messages: [current()], rotated: true },
+      "now",
+      200_000,
+    ),
+  ).toEqual({ reset: true, carriedTokens: null, windowTokens: 200_000 });
+});
+
+test("a run that reported usage leaves exactly that carry behind", () => {
+  const messages = [...run("r1", used(40_000, 1_000))];
+  expect(carryAfterRun({ messages, rotated: false }, "r1")).toEqual({
+    turnId: "r1",
+    tokens: 41_000,
+    overflowed: false,
+    namedWindow: null,
+  });
+});
+
+test("a usage-less run adds its own estimate to the carry before it", () => {
+  const messages = [
+    ...run("r1", {}),
+    ...run("r2", { content: "a ".repeat(4_000) }),
+  ];
+  const after = carryAfterRun(
+    { messages, carry: record("r1", 30_000), rotated: false },
+    "r2",
+  );
+  expect(after.tokens).toBeGreaterThan(32_000);
+  expect(after.tokens).toBeLessThan(33_000);
+});
+
+test("a usage-less run that reset counts its replay, not the old carry", () => {
+  const messages = [
+    ...run("r1", {}),
+    ...run("r2", {
+      content: "ok",
+      compaction: { trigger: "proactive", pre_tokens: 150_000 },
+    }),
+  ];
+  const after = carryAfterRun(
+    { messages, carry: record("r1", 150_000), rotated: false },
+    "r2",
+    6_000,
+  );
+  expect(after.tokens).toBeGreaterThan(6_000);
+  expect(after.tokens).toBeLessThan(6_100);
+});
+
+test("an overflowed run is recorded as overflowed with the window it named", () => {
+  const messages = [
+    ...run("r1", { content: "", providerError: overflow(128_000) }),
+  ];
+  expect(carryAfterRun({ messages, rotated: false }, "r1")).toMatchObject({
+    overflowed: true,
+    namedWindow: 128_000,
   });
 });

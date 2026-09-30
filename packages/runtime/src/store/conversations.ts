@@ -2,7 +2,6 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { ConversationImportRequest } from "@houston/protocol";
 import type {
-  ChatMessage,
   ConversationHistory,
   ConversationSummary,
 } from "@houston/runtime-client";
@@ -15,8 +14,8 @@ import {
   getHistoryAt,
   type HistoryWindow,
   listConversationsAt,
-  loadConversation,
   loadFullConversation,
+  type RoutineCarryRecord,
   renameConversationMutationAt,
   type UserMessageMeta,
 } from "./conversation-file";
@@ -26,6 +25,7 @@ import {
   stampSessionReplayAt,
   truncateConversationMutationAt,
 } from "./conversation-truncate";
+import { readRoutineTranscriptAt, writeRoutineCarryAt } from "./routine-carry";
 import { snapshotMessage, type TranscriptShadow } from "./transcript-shadow";
 import { SandboxTranscriptShadowTransport } from "./transcript-shadow-http";
 import { TranscriptShadowQueue } from "./transcript-shadow-queue";
@@ -178,15 +178,13 @@ export function getHistory(
   return store.getHistory(id, window);
 }
 
-/**
- * The live transcript file's messages, never its archived segments: what a
- * routine's context budget reads (session/routine-context.ts), the same view a
- * pooled worker hydrates. Rotation keeps a ~2 MiB tail live, so the read is
- * bounded however long the routine has run.
- */
-export function getLiveMessages(id: string): ChatMessage[] {
-  return loadConversation(dir, id)?.messages ?? [];
-}
+/** The routine budget's view of a chat (store/routine-carry.ts). */
+export const getRoutineTranscript = (id: string) =>
+  readRoutineTranscriptAt(dir, id);
+
+/** Record the context a finished routine run left its session holding. */
+export const setRoutineCarry = (id: string, carry: RoutineCarryRecord) =>
+  writeRoutineCarryAt(dir, id, carry);
 
 export function listConversations(): ConversationSummary[] {
   return store.listConversations();
