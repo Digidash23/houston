@@ -2,7 +2,7 @@
  * The provider + model a routine will actually RUN ON (PRODUCT-1475).
  *
  * A routine is either PINNED (it carries its own provider/model, which the fire
- * path honors verbatim) or it follows the agent — and "follows the agent" was
+ * path runs through `routineFirePin`) or it follows the agent — and "follows the agent" was
  * all the editor ever said, which told the user nothing about which AI account
  * was about to be billed or whether it even worked. So this resolves the pair
  * either way, reusing the two derivations that already own the answer rather
@@ -29,7 +29,7 @@ import {
   modelSelectorDecision,
   resolvePersonalModelPin,
 } from "../lib/model-selector-lock";
-import { toDisplayProviderIdOrNull } from "../lib/provider-overrides";
+import { routinePinnedPair } from "../lib/routine-pinned-pair";
 import type { Agent } from "../lib/types";
 import { useAgentConfig, useAgentModelChoice } from "./queries";
 import { useCapabilities } from "./use-capabilities";
@@ -74,12 +74,12 @@ export function useRoutineModelResolution(
   const allowedModels = personal ? (choiceInfo?.allowedModels ?? null) : null;
   const { data: config } = useAgentConfig(agent.folderPath);
 
-  // routines.json stores pi's CANONICAL id (the host canonicalizes every pin
-  // it fires — `routinePin`), while the picker, the label chain and the health
-  // probe are all keyed by the display id.
-  const pinnedProvider = toDisplayProviderIdOrNull(routine.provider) ?? "";
-  const pinnedModel = routine.model ?? "";
-  const followsAgent = !pinnedProvider || !pinnedModel;
+  // The pair the fire path runs, not the raw stored ids (./routine-pinned-pair).
+  const { provider: pinnedProvider, model: pinnedModel } =
+    routinePinnedPair(routine);
+  // A provider pin fires on that provider even when its model is unnamed, so
+  // only a routine with no provider pin follows the agent.
+  const followsAgent = !pinnedProvider;
   const choice = personal ? choiceInfo?.choice : null;
 
   return useMemo(() => {

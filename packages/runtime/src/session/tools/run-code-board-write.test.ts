@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { expect, test } from "vitest";
 import { makeRunCodeTool } from "./run-code";
 import { RunCodeLimiter } from "./run-code-limiter";
@@ -39,7 +39,7 @@ test("run_code refuses a declared board input artifact and preserves the board",
     { language: "python", code: "x", input_files: [boardPath] },
     undefined,
     undefined,
-    {} as unknown as ExtensionContext,
+    {} as unknown as ExtensionToolContext,
   );
 
   expect(await readFile(join(ws, boardPath), "utf8")).toBe("original board");
@@ -81,7 +81,7 @@ test("run_code refuses a declared routines input artifact and preserves the rout
     { language: "python", code: "x", input_files: [path] },
     undefined,
     undefined,
-    {} as unknown as ExtensionContext,
+    {} as unknown as ExtensionToolContext,
   );
 
   expect(await readFile(join(ws, path), "utf8")).toBe("original routines");

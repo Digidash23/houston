@@ -17,7 +17,9 @@ export interface RoutinePin {
  * rejects it with a visible reason instead of running on a provider the user
  * never chose.
  */
-export function routinePin(routine: Routine): RoutinePin {
+export function routinePin(
+  routine: Pick<Routine, "provider" | "model">,
+): RoutinePin {
   const rawProvider = routine.provider ?? null;
   const rawModel = routine.model ?? null;
   if (!rawProvider) return { provider: null, model: rawModel };

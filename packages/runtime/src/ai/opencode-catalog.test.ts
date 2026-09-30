@@ -23,19 +23,25 @@ test("pi ships a real, non-empty catalog for both OpenCode gateways", () => {
   }
 });
 
-test("a stored OpenCode pin on a dropped free-tier id still resolves to a runnable model", () => {
-  // pi 0.85.1 shipped opencode's `mimo-v2.5-free`; 0.87.1 replaced it with
-  // `mimo-v2.6-flash-free` (same free tier: zero cost, text+image, 200k
-  // window). A pin stored while the old id was curated reaches the fire path
-  // as-is, so the read-time map is what keeps it running.
-  const pinned = canonicalModelId("opencode", "mimo-v2.5-free");
-  expect(pinned).toBe("mimo-v2.6-flash-free");
-  const model = safeGetModel("opencode", pinned ?? "", true) as {
-    id?: string;
-    provider?: string;
-  };
-  expect(model.id).toBe("mimo-v2.6-flash-free");
-  expect(model.provider).toBe("opencode");
+test("a stored OpenCode pin on a row pi dropped still resolves to a runnable model", () => {
+  // Each stored id was curated (or the default) while pi shipped it: pi 0.87.1
+  // dropped opencode's `mimo-v2.5-free`, pi 0.99.1 the three OpenCode Go rows.
+  for (const [provider, stale, successor] of [
+    ["opencode", "mimo-v2.5-free", "mimo-v2.6-flash-free"],
+    ["opencode-go", "glm-5.1", "glm-5.2"],
+    ["opencode-go", "kimi-k2.6", "kimi-k2.7-code"],
+    ["opencode-go", "qwen3.7-max", "qwen3.8-max"],
+  ] as const) {
+    expect(piModelIds(provider), stale).not.toContain(stale);
+    const pinned = canonicalModelId(provider, stale);
+    expect(pinned, stale).toBe(successor);
+    const model = safeGetModel(provider, pinned ?? "", true) as {
+      id?: string;
+      provider?: string;
+    };
+    expect(model.id, stale).toBe(successor);
+    expect(model.provider, stale).toBe(provider);
+  }
 });
 
 test("an OpenCode id pi never listed is still pinnable — the gateway answers for it", () => {

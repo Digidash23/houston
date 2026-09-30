@@ -38,10 +38,12 @@ export const MODEL_DISPLAY: Partial<
   anthropic: {
     "claude-fable-5-1": "Fable 5.1",
     "claude-fable-5": "Fable 5",
+    "claude-opus-5-5": "Opus 5.5",
     "claude-opus-5": "Opus 5",
     "claude-opus-4-8": "Opus 4.8",
     "claude-opus-4-7": "Opus 4.7",
     "claude-opus-4-6": "Opus 4.6",
+    "claude-sonnet-5-5": "Sonnet 5.5",
     "claude-sonnet-5": "Sonnet 5",
     "claude-sonnet-4-6": "Sonnet 4.6",
     "claude-haiku-4-5": "Haiku 4.5",
@@ -74,10 +76,10 @@ export const MODEL_DISPLAY: Partial<
     "nemotron-3-ultra-free": "Nemotron 3 Ultra (Free)",
   },
   "opencode-go": {
-    "glm-5.1": "GLM-5.1",
-    "kimi-k2.6": "Kimi K2.6",
+    "glm-5.2": "GLM-5.2",
+    "kimi-k2.7-code": "Kimi K2.7 Code",
     "minimax-m3": "MiniMax M3",
-    "qwen3.7-max": "Qwen3.7 Max",
+    "qwen3.8-max": "Qwen3.8 Max",
     "deepseek-v4-pro": "DeepSeek V4 Pro",
   },
   openrouter: {

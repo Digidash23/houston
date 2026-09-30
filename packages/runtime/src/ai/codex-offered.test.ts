@@ -11,7 +11,7 @@ import { providerDefaultModel, safeGetModel, safeModelIds } from "./providers";
 
 /**
  * The rows OpenAI's Codex backend answered 200 for on 2026-09-23 (see
- * codex-offered.ts for the full method) and that pi 0.87.1 ships. pi's catalog
+ * codex-offered.ts for the full method) that pi 0.99.1 ships. pi's catalog
  * also carries gpt-5.3-codex-spark, which that same probe refused.
  */
 const SERVED = [
@@ -24,11 +24,18 @@ const SERVED = [
   "gpt-5.5",
 ];
 const REFUSED = ["gpt-5.3-codex-spark"];
+/** pi 0.99.1 rows the 2026-09-23 probe predates. */
+const UNPROBED = ["gpt-6.1-sol"];
 
 test("the Codex offer is pi's catalog minus the rows the subscription refuses", () => {
   const offered = safeModelIds(CODEX_PROVIDER_ID);
   for (const id of SERVED) expect(offered).toContain(id);
   for (const id of REFUSED) expect(offered).not.toContain(id);
+  // pi ships them, but no probe has shown the subscription runs them.
+  for (const id of UNPROBED) {
+    expect(piModelIds(CODEX_PROVIDER_ID)).toContain(id);
+    expect(offered).not.toContain(id);
+  }
   // Derived from pi, never hand-listed: a pi bump that adds a row surfaces it.
   expect(offered).toEqual(codexOfferedModelIds(piModelIds(CODEX_PROVIDER_ID)));
 });

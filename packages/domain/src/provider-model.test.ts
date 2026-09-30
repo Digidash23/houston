@@ -24,33 +24,13 @@ const VALID_PROVIDERS = [
 // mirrored here so the tests assert the OUTPUT is a model pi actually offers —
 // independent of the table the implementation happens to use.
 const PI_MODELS: Record<string, Set<string>> = {
+  // The Claude lineup Houston runs (pi's catalog narrowed to one model per
+  // family): a migration that lands anywhere else stores a model no picker
+  // offers.
   anthropic: new Set([
-    "claude-3-5-haiku-20241022",
-    "claude-3-5-haiku-latest",
-    "claude-3-5-sonnet-20240620",
-    "claude-3-5-sonnet-20241022",
-    "claude-3-7-sonnet-20250219",
-    "claude-3-haiku-20240307",
-    "claude-3-opus-20240229",
-    "claude-3-sonnet-20240229",
-    "claude-haiku-4-5",
-    "claude-haiku-4-5-20251001",
-    "claude-opus-4-0",
-    "claude-opus-4-1",
-    "claude-opus-4-1-20250805",
-    "claude-opus-4-20250514",
-    "claude-opus-4-5",
-    "claude-opus-4-5-20251101",
-    "claude-opus-4-6",
-    "claude-opus-4-7",
-    "claude-opus-4-8",
-    "claude-opus-5",
-    "claude-sonnet-4-0",
-    "claude-sonnet-4-20250514",
-    "claude-sonnet-4-5",
-    "claude-sonnet-4-5-20250929",
-    "claude-sonnet-4-6",
-    "claude-sonnet-5",
+    "claude-fable-5-1",
+    "claude-opus-5-5",
+    "claude-sonnet-5-5",
   ]),
   // pi's Codex catalog MINUS the rows OpenAI refuses a ChatGPT subscription
   // (gpt-5.3-codex-spark — probed live, see the runtime's ai/codex-offered.ts):
@@ -92,10 +72,11 @@ test("the real legacy desktop inputs map to valid pi ids with no diagnostic", ()
   expect(codex.diagnostics).toEqual([]);
   assertValid(codex, "openai/gpt-5.5");
 
-  // {"provider":"anthropic","model":"claude-opus-4-8"} — both already valid.
+  // {"provider":"anthropic","model":"claude-opus-4-8"} — Opus 4.8 left the
+  // Claude lineup, so it lands on the lineup's Opus: never a Sonnet downgrade.
   const claude = migrateProviderModel("anthropic", "claude-opus-4-8");
   expect(claude.provider).toBe("anthropic");
-  expect(claude.model).toBe("claude-opus-4-8");
+  expect(claude.model).toBe("claude-opus-5-5");
   expect(claude.diagnostics).toEqual([]);
   assertValid(claude, "anthropic/claude-opus-4-8");
 });
@@ -115,23 +96,57 @@ test("the GPT-5.6 family and GPT-6 Astra are valid Codex — a lagging table dro
   }
 });
 
-test("bare tier aliases resolve to the pi id at the SAME tier (no upgrade)", () => {
+test("bare tier aliases resolve to their family's lineup model", () => {
   const opus = migrateProviderModel("anthropic", "opus");
-  expect(opus.model).toBe("claude-opus-5");
+  expect(opus.model).toBe("claude-opus-5-5");
   expect(opus.diagnostics).toEqual([]);
   assertValid(opus, "anthropic/opus");
 
-  // Sonnet's bare alias IS the provider's current default (model-aliases.ts):
-  // "sonnet" and "no model" must resolve to the same thing.
+  // Sonnet's lineup model IS the provider's default: "sonnet" and "no model"
+  // must resolve to the same thing.
   const sonnet = migrateProviderModel("anthropic", "sonnet");
   expect(sonnet.model).toBe(DEFAULT_MODEL.anthropic);
   expect(sonnet.diagnostics).toEqual([]);
   assertValid(sonnet, "anthropic/sonnet");
 
-  const haiku = migrateProviderModel("anthropic", "haiku");
-  expect(haiku.model).toBe("claude-haiku-4-5");
-  expect(haiku.diagnostics).toEqual([]);
-  assertValid(haiku, "anthropic/haiku");
+  const fable = migrateProviderModel("anthropic", "fable");
+  expect(fable.model).toBe("claude-fable-5-1");
+  expect(fable.diagnostics).toEqual([]);
+  assertValid(fable, "anthropic/fable");
+});
+
+test("every retired Claude id stays in its own family", () => {
+  const cases: Record<string, string> = {
+    "claude-opus-5": "claude-opus-5-5",
+    "claude-opus-4-8": "claude-opus-5-5",
+    "claude-opus-4-7": "claude-opus-5-5",
+    "claude-opus-4-6": "claude-opus-5-5",
+    "claude-opus-4-5-20251101": "claude-opus-5-5",
+    "claude-3-opus-20240229": "claude-opus-5-5",
+    "claude-opus-latest": "claude-opus-5-5",
+    "claude-sonnet-5": "claude-sonnet-5-5",
+    "claude-sonnet-4-6": "claude-sonnet-5-5",
+    "claude-sonnet-4-5-20250929": "claude-sonnet-5-5",
+    "claude-3-7-sonnet-20250219": "claude-sonnet-5-5",
+    "claude-fable-5": "claude-fable-5-1",
+  };
+  for (const [stored, lineup] of Object.entries(cases)) {
+    const r = migrateProviderModel("anthropic", stored);
+    expect(r.model, stored).toBe(lineup);
+    expect(r.diagnostics, stored).toEqual([]);
+    assertValid(r, `anthropic/${stored}`);
+  }
+});
+
+test("a Haiku id has no lineup model and falls to the default, said out loud", () => {
+  // Haiku was never in the picker and nothing maps it into another family, so
+  // it takes the ordinary unknown-model path: the default, with a diagnostic.
+  for (const stored of ["haiku", "claude-haiku-4-5"]) {
+    const r = migrateProviderModel("anthropic", stored);
+    expect(r.model, stored).toBe(DEFAULT_MODEL.anthropic);
+    expect(r.diagnostics, stored).toHaveLength(1);
+    assertValid(r, `anthropic/${stored}`);
+  }
 });
 
 test("CLI-era codex model ids map to the closest current tier", () => {
@@ -146,6 +161,12 @@ test("CLI-era codex model ids map to the closest current tier", () => {
   expect(mini.model).toBe("gpt-6-luna");
   expect(mini.diagnostics).toEqual([]);
   assertValid(mini, "codex/gpt-5-mini");
+
+  // A small-tier row an older picker offered and pi no longer ships.
+  const dropped = migrateProviderModel("openai-codex", "gpt-5.4-mini");
+  expect(dropped.model).toBe("gpt-6-luna");
+  expect(dropped.diagnostics).toEqual([]);
+  assertValid(dropped, "openai-codex/gpt-5.4-mini");
 });
 
 test("an already-valid pi provider+model passes through unchanged", () => {
@@ -236,6 +257,21 @@ test("an open-catalog gateway's curated rename is applied, with no diagnostic", 
     model: "mimo-v2.6-flash-free",
   });
   expect(r.diagnostics).toEqual([]);
+});
+
+test("an OpenCode Go row pi 0.99.1 dropped maps to its same-tier successor", () => {
+  for (const [stale, successor] of [
+    ["glm-5.1", "glm-5.2"],
+    ["kimi-k2.6", "kimi-k2.7-code"],
+    ["qwen3.7-max", "qwen3.8-max"],
+  ] as const) {
+    const r = migrateProviderModel("opencode-go", stale);
+    expect(r, stale).toMatchObject({
+      provider: "opencode-go",
+      model: successor,
+    });
+    expect(r.diagnostics, stale).toEqual([]);
+  }
 });
 
 test("a deepseek id the catalog renamed maps at the same tier", () => {

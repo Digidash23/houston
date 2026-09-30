@@ -1,6 +1,6 @@
 import {
   defineTool,
-  type ExtensionContext,
+  type ExtensionToolContext,
 } from "@earendil-works/pi-coding-agent";
 import { type Static, Type } from "typebox";
 import { recordCredentialRequest } from "../interaction";
@@ -50,7 +50,7 @@ export interface RequestCredentialToolOptions {
   status: (
     slug: string,
     signal: AbortSignal | undefined,
-    context: ExtensionContext,
+    context: ExtensionToolContext,
   ) => Promise<CredentialTargetStatus | null>;
 }
 
@@ -68,7 +68,7 @@ export function makeRequestCredentialTool(opts: RequestCredentialToolOptions) {
       params: CredentialParams,
       signal: AbortSignal | undefined,
       _update: unknown,
-      context: ExtensionContext,
+      context: ExtensionToolContext,
     ) {
       assertNotPlanMode("request an integration connection");
       const toolkit = params.toolkit.trim().toLowerCase();
