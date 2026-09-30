@@ -14,6 +14,7 @@ import type {
   HarnessSession,
   ResolvedModel,
 } from "../backends/types";
+import { segments } from "../store/conversation-archive";
 import {
   appendAssistantMessageAt,
   appendUserMessageAt,
@@ -141,6 +142,50 @@ async function fire(
   );
 }
 
+/**
+ * Five short reports, then a run whose tool output alone outgrows the live
+ * file: saving it rotates the five reports into an archive segment and leaves
+ * only that last run live. The last run recorded `carryTokens` of carry.
+ */
+function seedRotatedChat(dataDir: string, carryTokens: number): void {
+  const conversationsDir = join(dataDir, "conversations");
+  const messages: ChatMessage[] = [];
+  for (let n = 0; n < 5; n++)
+    messages.push(
+      { role: "user", content: PROMPT, ts: n, turnId: `r${n}` },
+      {
+        role: "assistant",
+        content: `Report r${n}: INV-${n} is overdue.`,
+        ts: n,
+        turnId: `r${n}`,
+      },
+    );
+  messages.push(
+    { role: "user", content: PROMPT, ts: 5, turnId: "r5" },
+    {
+      role: "assistant",
+      content: "Report r5: nothing new.",
+      ts: 5,
+      turnId: "r5",
+      tools: [{ name: "Read", result: "row;".repeat(2_300_000) }],
+    },
+  );
+  saveConversation(conversationsDir, {
+    id: ID,
+    title: "Routine",
+    createdAt: 1,
+    updatedAt: 1,
+    messages,
+  });
+  expect(loadConversation(conversationsDir, ID)?.messages).toHaveLength(2);
+  writeRoutineCarryAt(conversationsDir, ID, {
+    turnId: "r5",
+    tokens: carryTokens,
+    overflowed: false,
+    namedWindow: null,
+  });
+}
+
 const lastAssistant = (dataDir: string) =>
   loadConversation(join(dataDir, "conversations"), ID)
     ?.messages.filter((m) => m.role === "assistant")
@@ -211,45 +256,7 @@ test("a pooled reset after a rotation replays the latest reports from the archiv
     systemTokens: 12_000,
     runGrowthTokens: 6_000,
   });
-  const conversationsDir = join(dirs.dataDir, "conversations");
-  // Five short reports, then a run whose tool output alone outgrows the live
-  // file: saving it rotates the five reports into an archive segment and
-  // leaves only that last run live.
-  const messages: ChatMessage[] = [];
-  for (let n = 0; n < 5; n++)
-    messages.push(
-      { role: "user", content: PROMPT, ts: n, turnId: `r${n}` },
-      {
-        role: "assistant",
-        content: `Report r${n}: INV-${n} is overdue.`,
-        ts: n,
-        turnId: `r${n}`,
-      },
-    );
-  messages.push(
-    { role: "user", content: PROMPT, ts: 5, turnId: "r5" },
-    {
-      role: "assistant",
-      content: "Report r5: nothing new.",
-      ts: 5,
-      turnId: "r5",
-      tools: [{ name: "Read", result: "row;".repeat(2_300_000) }],
-    },
-  );
-  saveConversation(conversationsDir, {
-    id: ID,
-    title: "Routine",
-    createdAt: 1,
-    updatedAt: 1,
-    messages,
-  });
-  expect(loadConversation(conversationsDir, ID)?.messages).toHaveLength(2);
-  writeRoutineCarryAt(conversationsDir, ID, {
-    turnId: "r5",
-    tokens: 152_000,
-    overflowed: false,
-    namedWindow: null,
-  });
+  seedRotatedChat(dirs.dataDir, 152_000);
 
   await fire(dirs, "after-rotation", { claudeSdk: claudeSdk(api) });
 
@@ -333,4 +340,107 @@ test("a pooled pi routine run past its window opens a fresh pi session with the 
   expect(lastAssistant(dirs.dataDir)?.compaction).toMatchObject({
     trigger: "proactive",
   });
+});
+
+test("a pooled routine run below its line never reads archived history", async () => {
+  target.model = {
+    ...target.model,
+    provider: "anthropic",
+    id: "claude-opus-5",
+  };
+  const dirs = await directories();
+  const api = simulatedClaudeApi({
+    windowTokens: WINDOW,
+    systemTokens: 12_000,
+    runGrowthTokens: 6_000,
+  });
+  seedRotatedChat(dirs.dataDir, 40_000);
+  await seedClaudeSession(dirs, api, 40_000);
+  segments.clear();
+
+  await fire(dirs, "below-line", { claudeSdk: claudeSdk(api) });
+
+  // The session resumed, and nothing parsed an archive segment for a replay
+  // (or for a retry prefix a successful resume never needs).
+  expect(api.calls.at(-1)?.resume).toBe("sim-old");
+  expect(api.calls.at(-1)?.prompt).toBe(PROMPT);
+  expect(segments.size).toBe(0);
+});
+
+test("a pooled pi routine run below its line resumes without reading archived history", async () => {
+  target.model = {
+    provider: "openai-codex",
+    id: "gpt-5.5",
+    contextWindow: 272_000,
+    reasoning: false,
+  };
+  const dirs = await directories();
+  seedRotatedChat(dirs.dataDir, 40_000);
+  const sessionDir = join(dirs.dataDir, "sessions", ID);
+  await mkdir(sessionDir, { recursive: true });
+  await writeFile(
+    join(sessionDir, "2026-09-01T00-00-00-000Z_live.jsonl"),
+    `${JSON.stringify({ type: "session" })}\n`,
+  );
+  const calls: CreateSessionOptions[] = [];
+  const prompts: string[] = [];
+  segments.clear();
+
+  await fire(dirs, "pi-below-line", {
+    createBackend: (provider, input) =>
+      provider === "anthropic"
+        ? createTurnBackend(provider, input)
+        : {
+            id: "pi",
+            async createSession(options) {
+              calls.push(options);
+              return {
+                subscribe: () => () => undefined,
+                prompt: async (prompt) => {
+                  prompts.push(prompt);
+                },
+                abort: async () => undefined,
+                dispose: () => undefined,
+                setModel: async () => undefined,
+                compact: async () => undefined,
+                setThinkingLevel: () => undefined,
+                getContextUsage: () => undefined,
+              } satisfies HarnessSession;
+            },
+          },
+  });
+
+  expect(calls[0]?.fresh).toBeUndefined();
+  expect(prompts).toEqual([PROMPT]);
+  expect(segments.size).toBe(0);
+});
+
+test("a rejected Claude resume builds its fresh retry from the archive only then", async () => {
+  target.model = {
+    ...target.model,
+    provider: "anthropic",
+    id: "claude-opus-5",
+  };
+  const dirs = await directories();
+  const api = simulatedClaudeApi({
+    windowTokens: WINDOW,
+    systemTokens: 12_000,
+    runGrowthTokens: 6_000,
+  });
+  seedRotatedChat(dirs.dataDir, 40_000);
+  // The mapping names a transcript the API no longer knows: the resume is
+  // refused ("No conversation found") and the turn reruns fresh.
+  await seedClaudeSession(dirs, api, 40_000);
+  const unknown = simulatedClaudeApi({
+    windowTokens: WINDOW,
+    systemTokens: 12_000,
+    runGrowthTokens: 6_000,
+  });
+
+  await fire(dirs, "rejected-resume", { claudeSdk: claudeSdk(unknown) });
+
+  expect(unknown.calls.at(-1)?.resume).toBeUndefined();
+  expect(unknown.calls.at(-1)?.prompt).toContain(
+    "Report r3: INV-3 is overdue.",
+  );
 });

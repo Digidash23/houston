@@ -102,7 +102,7 @@ export class ClaudeSession implements HarnessSession {
         `[claude] resume for conversation ${this.deps.conversationId} ${this.retryReason}; starting a fresh session`,
       );
       outcome = await runTurnAttempt(this.attemptState(), {
-        text: `${this.deps.freshRetryPromptPrefix ?? ""}${prompt}`,
+        text: `${this.deps.freshRetryPromptPrefix?.() ?? ""}${prompt}`,
         resume: undefined,
         env: auth.env,
       });

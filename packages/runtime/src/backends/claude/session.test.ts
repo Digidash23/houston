@@ -100,7 +100,7 @@ function make(deps: {
   store?: SessionsStore;
   model?: string;
   refreshAuth?: () => { env: Record<string, string>; accessDigest?: string };
-  freshRetryPromptPrefix?: string;
+  freshRetryPromptPrefix?: () => string;
 }): ClaudeSession {
   return new ClaudeSession({
     query: deps.query,
@@ -329,7 +329,7 @@ test("a dangling-resume retry prefixes the fresh prompt with canonical history",
   const session = make({
     query,
     store: fakeStore("sess-gone"),
-    freshRetryPromptPrefix: "[canonical replay]\n",
+    freshRetryPromptPrefix: () => "[canonical replay]\n",
   });
 
   await session.prompt("current prompt");
@@ -554,7 +554,7 @@ test("a resume whose init lacks the houston server reruns fresh with the history
   const session = make({
     query,
     store,
-    freshRetryPromptPrefix: "[canonical replay]\n",
+    freshRetryPromptPrefix: () => "[canonical replay]\n",
   });
   const events: WireEvent[] = [];
   session.subscribe((e) => events.push(e));

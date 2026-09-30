@@ -135,9 +135,11 @@ export interface CreateSessionOptions {
   fresh?: boolean;
   /**
    * Canonical history to prepend only if a backend-native resume is rejected
-   * and the backend retries the current prompt as a fresh session.
+   * and the backend retries the current prompt as a fresh session. Called
+   * only then: building it can read archived transcript segments, which a
+   * resume that succeeds must never pay for.
    */
-  freshRetryPromptPrefix?: string;
+  freshRetryPromptPrefix?: () => string;
 }
 
 /** A pluggable turn-execution backend for a provider. */

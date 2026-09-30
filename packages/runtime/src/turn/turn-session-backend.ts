@@ -94,29 +94,27 @@ export async function openTurnBackendSession(input: {
       : undefined;
   // A routine chat replays the same archive-aware tail the standing server
   // reads, bounded by the routine budget; every other chat keeps its hydrated
-  // live file and the budget it always had here (routine-replay.ts).
-  const history = routineReplayHistory(
-    directories.dataDir,
-    conversationId,
-    turnId,
-    input.canonicalMessages,
-  );
+  // live file and the budget it always had here (routine-replay.ts). Built
+  // only when a session actually starts without its history: the tail can
+  // reach into archive segments, which a resumed run must never parse.
   const replayOf = () =>
     replayForConversation({
       conversationId,
-      messages: history,
+      messages: routineReplayHistory(
+        directories.dataDir,
+        conversationId,
+        turnId,
+        input.canonicalMessages,
+      ),
       currentTurnId: turnId,
       currentPrompt: turn.text,
       windowTokens: routineReset?.windowTokens ?? catalogWindow,
       charBudget: replayCharBudget(model.contextWindow),
     });
   const replay =
-    history.length > 0 &&
-    (freshSession || (harness === "claude" && !claudeResume))
-      ? replayOf()
-      : null;
-  const retryReplay =
-    harness === "claude" && history.length > 0 ? (replay ?? replayOf()) : null;
+    freshSession || (harness === "claude" && !claudeResume) ? replayOf() : null;
+  // Claude's fallback when the SDK refuses its resume: deferred until then.
+  const retryReplay = () => (replay ?? replayOf())?.text ?? "";
   // The CLI blocks its first start on a flag fetch unless its config dir
   // already holds the flags: hand it the acting member's stored copy.
   if (harness === "claude")
@@ -136,7 +134,7 @@ export async function openTurnBackendSession(input: {
     ...(turn.context ? { context: turn.context } : {}),
     ...(turn.mode ? { mode: turn.mode } : {}),
     ...(freshSession ? { fresh: true } : {}),
-    ...(retryReplay?.text ? { freshRetryPromptPrefix: retryReplay.text } : {}),
+    ...(harness === "claude" ? { freshRetryPromptPrefix: retryReplay } : {}),
   });
   if (turn.timings) turn.timings.t_backend_session = performance.now();
   return {
