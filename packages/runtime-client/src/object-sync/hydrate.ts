@@ -173,5 +173,10 @@ export async function hydrate(
   return started.manifest;
 }
 
-export type { SyncBackOptions, SyncMerge, SyncResult } from "./sync-back";
+export type {
+  LocalWriteLock,
+  SyncBackOptions,
+  SyncMerge,
+  SyncResult,
+} from "./sync-back";
 export { syncBack } from "./sync-back";

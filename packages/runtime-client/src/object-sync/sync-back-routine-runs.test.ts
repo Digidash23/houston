@@ -18,13 +18,14 @@ type Row = Record<string, unknown>;
 const body = (rows: Row[]) => `${JSON.stringify(rows, null, 2)}\n`;
 const sha = (text: string) => createHash("sha256").update(text).digest("hex");
 
+const minute = (n: number) => String(n).padStart(2, "0");
 const run = (n: number, fields: Row = {}): Row => ({
   id: `run-${n}`,
   routine_id: "r1",
   status: "surfaced",
   session_key: "routine-r1",
-  started_at: `2026-09-30T10:0${n}:00.000Z`,
-  completed_at: `2026-09-30T10:0${n}:30.000Z`,
+  started_at: `2026-09-30T10:${minute(n)}:00.000Z`,
+  completed_at: `2026-09-30T10:${minute(n)}:30.000Z`,
   ...fields,
 });
 
@@ -48,14 +49,18 @@ function versionedStore(initial: Row[]) {
       await writeFile(dest, remote);
     },
     downloadVersioned: async (_key, dest) => {
+      // A versioned read pairs the bytes with their generation.
+      const [bytes, read] = [remote, generation];
       await mkdir(dirname(dest), { recursive: true });
-      await writeFile(dest, remote);
-      return { generation: String(generation) };
+      await writeFile(dest, bytes);
+      return { generation: String(read) };
     },
     upload: async (source, key, options) => {
+      // Read first: the precondition check and the write stay one step.
+      const bytes = await readFile(source, "utf8");
       if (options?.ifGenerationMatch !== String(generation))
         throw new StoreConflictError(key, `412 at ${generation}`);
-      remote = await readFile(source, "utf8");
+      remote = bytes;
       generation += 1;
       return { generation: String(generation) };
     },
@@ -107,4 +112,27 @@ test("eight overlapping runs of one agent all keep their row", async () => {
   // The last sandbox's tree holds exactly what landed: its settle-time
   // readers (the auto-pause) see every overlapping run.
   expect(JSON.parse(await sandboxes[7].local())).toEqual(remote());
+});
+
+test("ten runs finishing in lockstep all land their row", async () => {
+  const earlier = [run(0)];
+  const { store, remote } = versionedStore(earlier);
+  const sandboxes = await Promise.all(
+    Array.from({ length: 10 }, (_, i) => sandbox(earlier, run(i + 1))),
+  );
+
+  const results = await Promise.all(
+    sandboxes.map((tree) =>
+      syncBack(store, "", tree.root, tree.manifest, {
+        generations: true,
+        workerMerge: true,
+        conflictBackoff: () => 0,
+      }),
+    ),
+  );
+
+  expect(results.flatMap((result) => result.conflicts)).toEqual([]);
+  expect(remote().map((row) => row.id)).toEqual(
+    Array.from({ length: 11 }, (_, i) => `run-${10 - i}`),
+  );
 });

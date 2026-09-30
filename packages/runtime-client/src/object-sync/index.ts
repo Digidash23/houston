@@ -6,6 +6,7 @@ export type {
   HydrateListedObject,
   HydrateManifest,
   HydrateOptions,
+  LocalWriteLock,
   StartedHydration,
   SyncBackOptions,
   SyncMerge,
@@ -55,3 +56,8 @@ export { probeSharedMirror, syncSharedMirror } from "./shared-mirror";
 export type { SharedMirrorFileState } from "./shared-mirror-files";
 export { mergeDocumentBodies } from "./sync-back-doc-merge";
 export { trustedBase } from "./sync-back-merge-base";
+export type { ConflictBackoff } from "./sync-back-merge-retry";
+export {
+  jitteredConflictBackoff,
+  MERGE_UPLOAD_ATTEMPTS,
+} from "./sync-back-merge-retry";

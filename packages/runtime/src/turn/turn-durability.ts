@@ -27,11 +27,11 @@ interface TurnDurabilityOptions {
   transcript: TurnTranscript | null;
   views?: TurnSandboxViews;
   /**
-   * Runs once the files landed, before any doc projects: a write that must
-   * read what the sync-back merged (the routine auto-pause). Resolves to an
-   * error to append to the outcome.
+   * Runs once the sync-back finished, before any doc projects, with the keys
+   * it landed: a write that must read what the sync-back merged (the routine
+   * auto-pause). Resolves to an error to append to the outcome.
    */
-  afterSync?: () => Promise<string | undefined>;
+  afterSync?: (landed: readonly string[]) => Promise<string | undefined>;
 }
 
 export interface TurnDurabilityResult {
@@ -102,7 +102,7 @@ export async function finishTurnDurability(
   const poolWritesOutOfScope = synced.outOfScope;
   const sync = turnSyncReport(synced, opts.filesystem.workspaceRel);
   let outcome = opts.outcome;
-  const afterSyncError = await opts.afterSync?.();
+  const afterSyncError = await opts.afterSync?.(synced.uploaded);
   if (afterSyncError) outcome = appendError(outcome, afterSyncError);
   let changed = changedEventTypes(opts.filesystem, [
     ...synced.uploaded,

@@ -135,7 +135,7 @@ export async function executeReadyTurn(input: {
     }
   }
 
-  let afterSync: (() => Promise<string | undefined>) | undefined;
+  let afterSync: Awaited<ReturnType<typeof finishRoutineTurn>>["afterSync"];
   if (routinePhase) {
     const finished = await finishRoutineTurn({
       store: input.resolved.store,

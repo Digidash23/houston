@@ -142,7 +142,7 @@ async function finish(phase: Awaited<ReturnType<typeof seed>>) {
     conversationId: "routine-r1",
   });
   expect(finished.error).toBeUndefined();
-  return finished.afterSync?.();
+  return finished.afterSync?.([docKey(WS_REL, "routine_runs")]);
 }
 
 test("the settle completing a streak uploads the paused routine", async () => {

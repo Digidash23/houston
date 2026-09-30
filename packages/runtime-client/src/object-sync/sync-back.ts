@@ -8,7 +8,12 @@ import { deleteOwnedObject, uploadChangedObject } from "./sync-back-conflicts";
 import type { SyncBackOptions, SyncResult } from "./sync-back-types";
 import { walkFiles } from "./sync-back-walk";
 
-export type { SyncBackOptions, SyncMerge, SyncResult } from "./sync-back-types";
+export type {
+  LocalWriteLock,
+  SyncBackOptions,
+  SyncMerge,
+  SyncResult,
+} from "./sync-back-types";
 
 /** Upload changes and conditionally remove objects owned by the prior hydrate. */
 export async function syncBack(
@@ -94,6 +99,7 @@ export async function syncBack(
       refresh,
       ...(opts.workerMerge ? { workerMerge: true } : {}),
       ...(opts.conflictBackoff ? { backoff: opts.conflictBackoff } : {}),
+      ...(opts.localWriteLock ? { localWriteLock: opts.localWriteLock } : {}),
     });
     if (result.mergeAttempts)
       merges.push({

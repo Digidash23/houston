@@ -93,3 +93,75 @@ test("a host write landing mid-merge is kept for the next pass, never clobbered"
   // The stale generation stays: the next pass conflicts and merges again.
   expect(sync.result.manifest.get(RUNS)).toEqual(sync.previous);
 });
+
+/** A generation-guarded store; `onRead` fires on the first remote read. */
+function generationStore(initial: string, onRead: () => void) {
+  let body = initial;
+  let generation = 7;
+  let reads = 0;
+  const store: ObjectStore = {
+    list: async () => [RUNS],
+    manifest: async (): Promise<ObjectMetadata[]> => [
+      { key: RUNS, size: 1, md5: "", updated: "", generation: `${generation}` },
+    ],
+    download: async (_key, dest) => {
+      await writeFile(dest, body);
+      if (++reads === 1) onRead();
+    },
+    upload: async (source, key, options) => {
+      const bytes = await readFile(source, "utf8");
+      if (options?.ifGenerationMatch !== `${generation}`)
+        throw new StoreConflictError(key, `412 at ${generation}`);
+      body = bytes;
+      generation += 1;
+      return { generation: `${generation}` };
+    },
+    delete: async () => undefined,
+  };
+  return { store, remote: () => JSON.parse(body) as { id: string }[] };
+}
+
+/** The host's per-agent runs queue, as the daemon is handed it. */
+function runsQueue() {
+  let tail = Promise.resolve();
+  return <T>(_relativePath: string, fn: () => Promise<T>): Promise<T> => {
+    const run = tail.then(fn);
+    tail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  };
+}
+
+test("a host fire spanning the daemon's merge keeps both its row and the sandbox's", async () => {
+  const root = await mkdtemp(join(tmpdir(), "standing-runs-lock-"));
+  const abs = join(root, ...RUNS.split("/"));
+  await mkdir(dirname(abs), { recursive: true });
+  await writeFile(abs, JSON.stringify([run("pod", 2)]));
+  const lock = runsQueue();
+  let fire: Promise<void> | undefined;
+  const { store, remote } = generationStore(
+    JSON.stringify([run("sandbox", 1)]),
+    () => {
+      // The host's fire: load, then save a row on top of what it loaded.
+      fire = lock(RUNS, async () => {
+        const loaded = JSON.parse(await readFile(abs, "utf8")) as unknown[];
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        await writeFile(abs, JSON.stringify([run("fired", 3), ...loaded]));
+      });
+    },
+  );
+  const sync = (manifest: Map<string, { hash: string; generation?: string }>) =>
+    syncBack(store, "", root, manifest, {
+      generations: true,
+      localWriteLock: lock,
+    });
+
+  const first = await sync(new Map([[RUNS, { hash: "b", generation: "6" }]]));
+  await fire;
+  await sync(first.manifest);
+
+  expect(remote().map(({ id }) => id)).toEqual(["fired", "pod", "sandbox"]);
+  expect(JSON.parse(await readFile(abs, "utf8"))).toEqual(remote());
+});

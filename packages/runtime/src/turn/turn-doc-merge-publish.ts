@@ -1,4 +1,8 @@
 import {
+  type ConflictBackoff,
+  jitteredConflictBackoff,
+} from "@houston/runtime-client/object-sync";
+import {
   type ActivityDocOptions,
   type ActivityDocPublishResult,
   acceptPut,
@@ -7,8 +11,12 @@ import {
   statusError,
 } from "./turn-activity-doc";
 
-/** PUTs a merged doc gets before a still-contended doc is reported. */
-export const DOC_MERGE_ROUNDS = 4;
+/**
+ * PUTs a merged doc gets before a still-contended doc is reported. Writers
+ * racing in lockstep land one per round, so this bounds the overlap served
+ * (ten runs of one agent finishing together), with jitter breaking lockstep.
+ */
+export const DOC_MERGE_ROUNDS = 10;
 
 interface CurrentDoc {
   revision: number;
@@ -54,6 +62,8 @@ async function readCurrent(
     return statusError("GET", response);
   }
   const answer = await readAnswer(response);
+  // Merging into nothing would PUT this writer's rows alone over the doc.
+  if (!answer.carriesDoc) return { error: "GET answered without a doc" };
   return { revision: answer.revision ?? 0, doc: answer.doc };
 }
 
@@ -66,10 +76,12 @@ async function readCurrent(
 export async function publishMerged(
   opts: ActivityDocOptions,
   merge: (current: unknown) => unknown,
+  backoff: ConflictBackoff = jitteredConflictBackoff,
 ): Promise<ActivityDocPublishResult> {
   let current = await readCurrent(opts);
   for (let round = 1; ; round += 1) {
     if ("error" in current) return current;
+    if (round > 1) await sleep(backoff(round - 1));
     const response = await putAtRevision(
       opts,
       merge(current.doc),
@@ -85,3 +97,6 @@ export async function publishMerged(
         : await readCurrent(opts);
   }
 }
+
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));

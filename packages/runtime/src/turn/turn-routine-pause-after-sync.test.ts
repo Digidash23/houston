@@ -13,6 +13,7 @@ import {
   fileSha256,
   ObjectNotFoundError,
   type ObjectStore,
+  ObjectTooLargeError,
   StoreConflictError,
 } from "@houston/runtime-client/object-sync";
 import { afterEach, beforeEach, expect, test } from "vitest";
@@ -36,9 +37,12 @@ const START = Date.parse("2026-09-29T11:00:00.000Z");
 
 let root: string;
 let objects: Map<string, { body: string; generation: number }>;
+/** Keys the store refuses as over its cap: the upload never lands. */
+let refused: Set<string>;
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), "pause-after-sync-"));
   objects = new Map();
+  refused = new Set();
 });
 afterEach(async () => rm(root, { recursive: true, force: true }));
 
@@ -59,6 +63,7 @@ const store: ObjectStore = {
     await writeFile(dest, object.body);
   },
   upload: async (source, key, options) => {
+    if (refused.has(key)) throw new ObjectTooLargeError(key, "413");
     const generation = objects.get(key)?.generation ?? 0;
     const expected = options?.ifGenerationMatch;
     if (expected !== undefined && expected !== String(generation))
@@ -207,4 +212,15 @@ test("without the overlapping run the streak falls short and nothing pauses", as
   );
   expect(saved?.enabled).toBe(true);
   expect(durable.changed).not.toContain("RoutinesChanged");
+});
+
+test("a run history that did not land defers the pause to the next failed run", async () => {
+  refused.add(RUNS);
+  const { saved, durable } = await finish(
+    earlier(ROUTINE_AUTO_PAUSE_AFTER - 1, 1),
+    [],
+  );
+  expect(saved?.enabled).toBe(true);
+  expect(durable.changed).not.toContain("RoutinesChanged");
+  expect(durable.sync?.incomplete?.skipped).toEqual([RUNS]);
 });

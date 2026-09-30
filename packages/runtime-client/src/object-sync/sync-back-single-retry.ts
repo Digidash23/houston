@@ -10,6 +10,7 @@ import {
 } from "./sync-back-doc-merge";
 import { type RefreshManifest, sourceVanished } from "./sync-back-merge-retry";
 import { writeAtomically } from "./sync-back-merge-write";
+import type { LocalWriteLock } from "./sync-back-types";
 
 /**
  * The standing store sync's generation-conflict retry, unchanged from before
@@ -28,6 +29,7 @@ export async function retryAtRefreshedGeneration(
     hash: string;
     previous?: HydrateManifestEntry;
     refresh: RefreshManifest;
+    localWriteLock?: LocalWriteLock;
   },
   conflict: string,
 ): Promise<{
@@ -71,16 +73,20 @@ export async function retryAtRefreshedGeneration(
 
 const CHANGED_LOCALLY = Symbol("changed locally");
 
+const unlocked: LocalWriteLock = (_relativePath, write) => write();
+
 /**
  * Merge a conflict-sensitive document and replace its local copy, unless the
  * pod's host rewrote it while the remote was read: the merge would drop that
- * write (a run the host just fired), so it waits for the next pass.
+ * write (a run the host just fired), so it waits for the next pass. The
+ * compare and the replace hold the host's lock on the file when given one.
  */
 async function mergeSyncBackDocument(opts: {
   store: ObjectStore;
   abs: string;
   key: string;
   relativePath: string;
+  localWriteLock?: LocalWriteLock;
 }): Promise<string | typeof CHANGED_LOCALLY | undefined> {
   if (!mergesOnceOnConflict(opts.relativePath)) return undefined;
   const localBody = await readFile(opts.abs, "utf8");
@@ -94,9 +100,13 @@ async function mergeSyncBackDocument(opts: {
       remoteBody,
     );
     if (merged === undefined) return undefined;
-    if ((await readFile(opts.abs, "utf8")) !== localBody)
-      return CHANGED_LOCALLY;
-    await writeAtomically(opts.abs, merged);
+    const lock = opts.localWriteLock ?? unlocked;
+    const replaced = await lock(opts.relativePath, async () => {
+      if ((await readFile(opts.abs, "utf8")) !== localBody) return false;
+      await writeAtomically(opts.abs, merged);
+      return true;
+    });
+    if (!replaced) return CHANGED_LOCALLY;
     const { size } = await stat(opts.abs);
     return fileSha256(opts.abs, size);
   } finally {

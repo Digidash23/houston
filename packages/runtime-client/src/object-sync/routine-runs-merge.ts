@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
-import { pruneRoutineRuns } from "@houston/protocol";
+import { pruneRoutineRuns, type RoutineRunStatus } from "@houston/protocol";
 
 /** The run history; every overlapping routine run of an agent rewrites it. */
 export const ROUTINE_RUNS_DOC = ".houston/routine_runs/routine_runs.json";
@@ -18,14 +18,29 @@ function isRow(value: unknown): value is Row {
   );
 }
 
+/** How far a run has moved: a status no writer produces ranks below all. */
+const PROGRESS = {
+  running: 1,
+  silent: 2,
+  surfaced: 2,
+  error: 2,
+  cancelled: 2,
+} satisfies Record<RoutineRunStatus, number>;
+
+function progress(row: Row): number {
+  const status = row.status;
+  return typeof status === "string" && Object.hasOwn(PROGRESS, status)
+    ? PROGRESS[status as RoutineRunStatus]
+    : 0;
+}
+
+// A row with no readable start sorts oldest: every writer stamps started_at,
+// so only legacy rows lack one, and the cap should drop those first.
 function instant(row: Row, field: "started_at" | "completed_at"): number {
   const value = row[field];
   const parsed = typeof value === "string" ? Date.parse(value) : Number.NaN;
   return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
 }
-
-const isTerminal = (row: Row) =>
-  typeof row.status === "string" && row.status !== "running";
 
 /**
  * One run both sides hold. A run only moves forward (running, then one
@@ -34,10 +49,9 @@ const isTerminal = (row: Row) =>
  * the later `completed_at`. A tie goes to the remote.
  */
 function pickRun(local: Row, remote: Row): Row {
-  if (isTerminal(local) !== isTerminal(remote)) {
-    return isTerminal(local) ? local : remote;
-  }
-  if (!isTerminal(local)) return remote;
+  const [mine, theirs] = [progress(local), progress(remote)];
+  if (mine !== theirs) return mine > theirs ? local : remote;
+  if (mine < PROGRESS.surfaced) return remote;
   const localCancelled = local.status === "cancelled";
   if (localCancelled !== (remote.status === "cancelled")) {
     return localCancelled ? local : remote;

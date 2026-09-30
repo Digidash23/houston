@@ -98,6 +98,12 @@ describe("routine run history merge", () => {
     ]);
   });
 
+  test("a copy with a status no writer produces never beats a real one", () => {
+    const typo = running("a", 1, { status: "runnning" });
+    expect(merge([running("a", 1)], [typo])).toEqual([running("a", 1)]);
+    expect(merge([typo], [running("a", 1)])).toEqual([running("a", 1)]);
+  });
+
   test("entries that are not runs survive once, after the runs", () => {
     const junk = { note: "no id" };
     expect(

@@ -13,8 +13,12 @@ import {
 
 export type { RefreshManifest } from "./sync-back-remote-read";
 
-/** Refresh+merge+upload rounds a merged document gets after its first 412. */
-export const MERGE_UPLOAD_ATTEMPTS = 6;
+/**
+ * Refresh+merge+upload rounds a merged document gets after its first 412.
+ * Writers racing in lockstep land one per round: ten overlapping runs of one
+ * agent finishing together need nine.
+ */
+export const MERGE_UPLOAD_ATTEMPTS = 10;
 
 /** Delay before merge round `retry` (1-based: the round after the first). */
 export type ConflictBackoff = (retry: number) => number;

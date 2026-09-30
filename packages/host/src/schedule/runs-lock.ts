@@ -12,6 +12,8 @@
  * or a runtime cold start, so a slow fire can't block a cancel.
  */
 
+import type { LocalWriteLock } from "@houston/runtime-client/object-sync";
+
 const queues = new Map<string, Promise<void>>();
 
 export function withRunsFile<T>(
@@ -29,4 +31,24 @@ export function withRunsFile<T>(
     if (queues.get(root) === tail) queues.delete(root);
   });
   return run;
+}
+
+const RUNS_FILE = "/.houston/routine_runs/routine_runs.json";
+
+/**
+ * The runs queue as the store-sync daemon holds it while a merge rewrites an
+ * agent's run history (synced paths are `<workspacesDir>/<Workspace>/<Agent>/…`,
+ * and a local agent's root IS `<Workspace>/<Agent>`). Without it a fire,
+ * cancel or reconcile whose load→save spans the rewrite would save over the
+ * merged rows. Every other path passes straight through.
+ */
+export function storeSyncRunsLock(workspacesDir: string): LocalWriteLock {
+  const prefix = `${workspacesDir}/`;
+  return (relativePath, write) =>
+    relativePath.startsWith(prefix) && relativePath.endsWith(RUNS_FILE)
+      ? withRunsFile(
+          relativePath.slice(prefix.length, -RUNS_FILE.length),
+          write,
+        )
+      : write();
 }

@@ -79,7 +79,7 @@ const addSibling: RaceStep = (remote, upload) => [
 ];
 
 test("a board contended on every round but the last lands with every card and the title", async () => {
-  const raced = MERGE_UPLOAD_ATTEMPTS; // the first upload + 5 merge rounds lose
+  const raced = MERGE_UPLOAD_ATTEMPTS; // the first upload + all but the last merge round lose
   const { store, remote, preconditions } = racingStore(
     [mine],
     raced,

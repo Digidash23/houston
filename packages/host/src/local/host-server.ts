@@ -4,6 +4,7 @@ import type { Capabilities } from "@houston/protocol";
 import { SingleUserVerifier } from "../auth/verify";
 import { LOCAL_CAPABILITIES } from "../capabilities";
 import { refreshViewsOnEvents } from "../docs/view-warm";
+import { storeSyncRunsLock } from "../schedule/runs-lock";
 import { type ControlPlaneDeps, createControlPlaneServer } from "../server";
 import { StoreSyncDaemon } from "../store-sync";
 import { FsVfs } from "../vfs";
@@ -86,6 +87,7 @@ export function createHostServer(
     ? new StoreSyncDaemon({
         ...opts.storeSync,
         rootDir: dirname(opts.workspacesRoot),
+        localWriteLock: storeSyncRunsLock(basename(opts.workspacesRoot)),
         // FsWatcher below already watches this subtree for reactivity. Avoid a
         // second, redundant inotify watch over it (HOU-1237).
         watchExcludeDirs: [opts.workspacesRoot],

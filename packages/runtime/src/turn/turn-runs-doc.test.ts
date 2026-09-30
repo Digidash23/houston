@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
 import type { TurnServerDeps } from "./server-types";
+import { docStore, type Row, row } from "./turn-doc-store.test-support";
 import type { TurnFilesystem } from "./turn-filesystem";
 import { publishTurnRunsDoc } from "./turn-runs-doc";
 import type { TurnRequest } from "./types";
@@ -12,66 +13,6 @@ import type { TurnRequest } from "./types";
  * doc the Routines tab reads while the agent sleeps. Each publisher merges
  * its rows into the doc it read (or the one a 409 names), never overwrites it.
  */
-
-type Row = { id: string; status: string; started_at: string } & Record<
-  string,
-  unknown
->;
-
-const row = (id: string, minute: number, status = "surfaced"): Row => ({
-  id,
-  routine_id: "r1",
-  status,
-  session_key: "routine-r1",
-  started_at: `2026-09-30T10:0${minute}:00.000Z`,
-  ...(status === "running"
-    ? {}
-    : { completed_at: `2026-09-30T10:0${minute}:30.000Z` }),
-});
-
-/** The pod-store doc route: revisioned CAS, a 409 names the current doc. */
-function docStore(
-  initial: Row[] | undefined,
-  opts: { bareConflict?: boolean } = {},
-) {
-  let doc = initial;
-  let revision = initial ? 1 : 0;
-  const puts: number[] = [];
-  let beforePut: (() => void) | undefined;
-  const fetchImpl = (async (_url: unknown, init?: RequestInit) => {
-    if (!init?.method || init.method === "GET") {
-      return doc === undefined
-        ? Response.json({ error: "document not found" }, { status: 404 })
-        : Response.json({ doc, revision });
-    }
-    const expected = Number(new Headers(init.headers).get("If-Match"));
-    puts.push(expected);
-    const race = beforePut;
-    beforePut = undefined;
-    race?.();
-    if (expected !== revision) {
-      return Response.json(
-        opts.bareConflict ? { revision } : { revision, doc },
-        { status: 409 },
-      );
-    }
-    doc = (JSON.parse(String(init.body)) as { doc: Row[] }).doc;
-    revision += 1;
-    return Response.json({ doc, revision });
-  }) as typeof fetch;
-  return {
-    fetchImpl,
-    puts,
-    doc: () => doc ?? [],
-    /** Another publisher lands right before our next PUT. */
-    raceNextPut: (rows: Row[]) => {
-      beforePut = () => {
-        doc = rows;
-        revision += 1;
-      };
-    },
-  };
-}
 
 async function publishRows(rows: Row[], fetchImpl: typeof fetch) {
   const workspaceDir = await mkdtemp(join(tmpdir(), "turn-runs-doc-"));
@@ -143,4 +84,18 @@ test("the first publisher creates the doc from its own rows", async () => {
   expect(result).toEqual({ ok: true });
   expect(store.puts).toEqual([0]);
   expect(ids(store.doc())).toEqual(["run-2"]);
+});
+
+test("a doc answer that names no doc is refused, never replaced by this run's rows", async () => {
+  const puts: string[] = [];
+  const fetchImpl = (async (_url: unknown, init?: RequestInit) => {
+    if (init?.method === "PUT") {
+      puts.push(String(init.body));
+      return Response.json({ revision: 2 });
+    }
+    return Response.json({ revision: 1 });
+  }) as typeof fetch;
+  const result = await publishRows([row("run-2", 2)], fetchImpl);
+  expect(result).toEqual({ error: "GET answered without a doc" });
+  expect(puts).toEqual([]);
 });

@@ -1,6 +1,6 @@
 import type { RoutineRunFailure } from "@houston/protocol";
 import type { ObjectStore } from "@houston/runtime-client/object-sync";
-import type { TurnFilesystem } from "./turn-filesystem";
+import { type TurnFilesystem, turnRoutineRunsKey } from "./turn-filesystem";
 import { type RoutinePhase, settleRoutineTurn } from "./turn-routine";
 import { autoPauseRoutineTurn } from "./turn-routine-auto-pause";
 
@@ -8,12 +8,12 @@ import { autoPauseRoutineTurn } from "./turn-routine-auto-pause";
 export interface FinishedRoutineTurn {
   error?: string;
   /**
-   * The auto-pause, for the caller to run once sync-back landed the run
-   * history. Overlapping runs of the routine settle in other sandboxes, and
+   * The auto-pause, for the caller to run after sync-back with the keys it
+   * landed. Overlapping runs of the routine settle in other sandboxes, and
    * only the merged history the sync-back leaves on disk holds their rows.
    * Resolves to an error to append to the turn's outcome.
    */
-  afterSync?: () => Promise<string | undefined>;
+  afterSync?: (landed: readonly string[]) => Promise<string | undefined>;
 }
 
 /**
@@ -54,7 +54,14 @@ export async function finishRoutineTurn(opts: {
     };
   }
   if (!settled?.failure) return {};
-  return { afterSync: () => pauseIfEarned(opts) };
+  const runsKey = turnRoutineRunsKey(opts.filesystem.workspaceRel);
+  return {
+    afterSync: async (landed) => {
+      // This run's row is not durable: the next failed run decides instead.
+      if (!landed.includes(runsKey)) return undefined;
+      return pauseIfEarned(opts);
+    },
+  };
 }
 
 async function pauseIfEarned(opts: {
