@@ -40,8 +40,8 @@ export interface MergedUploadResult {
 }
 
 /**
- * Land a merged document (the board, routines, learnings, custom
- * integrations) after its first upload lost a generation race. Every round
+ * Land a merged document (the board, routines, run history, learnings,
+ * custom integrations) after its first upload lost a generation race. Every round
  * re-reads the remote and merges the turn's ORIGINAL bytes into it from
  * scratch, never an earlier round's output: a card another writer deleted
  * between rounds stays deleted, and a two-way merge never pins an entry at a

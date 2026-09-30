@@ -26,6 +26,12 @@ interface TurnDurabilityOptions {
   /** The turn's transcript publisher (created at turn start; null = none). */
   transcript: TurnTranscript | null;
   views?: TurnSandboxViews;
+  /**
+   * Runs once the files landed, before any doc projects: a write that must
+   * read what the sync-back merged (the routine auto-pause). Resolves to an
+   * error to append to the outcome.
+   */
+  afterSync?: () => Promise<string | undefined>;
 }
 
 export interface TurnDurabilityResult {
@@ -66,28 +72,17 @@ export async function finishTurnDurability(
     return claimFenced();
   }
 
-  let poolWritesOutOfScope: number;
-  let uploaded: string[];
-  let sync: TurnSyncReport;
-  let changed: TurnDurabilityResult["changed"];
+  let synced: Awaited<ReturnType<typeof syncTurnFilesystem>>;
   try {
     // Failed provider work may still have durable tool writes. Only a fence
     // may skip sync because a fenced worker no longer owns this conversation.
-    const synced = await syncTurnFilesystem({
+    synced = await syncTurnFilesystem({
       store: opts.resolved.store,
       prefix: opts.resolved.prefix,
       filesystem: opts.filesystem,
       conversationId: opts.turn.conversationId,
       claimed: Boolean(opts.turn.claim),
     });
-    poolWritesOutOfScope = synced.outOfScope;
-    uploaded = synced.uploaded;
-    sync = turnSyncReport(synced, opts.filesystem.workspaceRel);
-    changed = changedEventTypes(opts.filesystem, [
-      ...synced.uploaded,
-      ...synced.deleted,
-      ...opts.filesystem.immediateWrites,
-    ]);
   } catch (error) {
     // A fenced object write means the claim was adopted mid-sync: report it
     // as exactly that, not as a generic sync failure.
@@ -104,10 +99,19 @@ export async function finishTurnDurability(
       changed: [],
     };
   }
+  const poolWritesOutOfScope = synced.outOfScope;
+  const sync = turnSyncReport(synced, opts.filesystem.workspaceRel);
+  let outcome = opts.outcome;
+  const afterSyncError = await opts.afterSync?.();
+  if (afterSyncError) outcome = appendError(outcome, afterSyncError);
+  let changed = changedEventTypes(opts.filesystem, [
+    ...synced.uploaded,
+    ...synced.deleted,
+    ...opts.filesystem.immediateWrites,
+  ]);
 
   // The object copy must land first. Otherwise history fallback could expose
   // transcript rows whose authoritative conversation file is still missing.
-  let outcome = opts.outcome;
   let published: TranscriptPublishResult | undefined;
   try {
     published = await opts.transcript?.publish();
@@ -159,7 +163,7 @@ export async function finishTurnDurability(
     turn: opts.turn,
     filesystem: opts.filesystem,
     source: opts.resolved,
-    landed: [...uploaded, ...opts.filesystem.immediateWrites],
+    landed: [...synced.uploaded, ...opts.filesystem.immediateWrites],
   });
   for (const error of routineDocs.errors) outcome = appendError(outcome, error);
   for (const type of routineDocs.stale) without(type);

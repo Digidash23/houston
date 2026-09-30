@@ -4,11 +4,23 @@ import type { TurnFilesystem } from "./turn-filesystem";
 import { type RoutinePhase, settleRoutineTurn } from "./turn-routine";
 import { autoPauseRoutineTurn } from "./turn-routine-auto-pause";
 
+/** A settled routine turn: an error for the outcome, and its pending pause. */
+export interface FinishedRoutineTurn {
+  error?: string;
+  /**
+   * The auto-pause, for the caller to run once sync-back landed the run
+   * history. Overlapping runs of the routine settle in other sandboxes, and
+   * only the merged history the sync-back leaves on disk holds their rows.
+   * Resolves to an error to append to the turn's outcome.
+   */
+  afterSync?: () => Promise<string | undefined>;
+}
+
 /**
- * A routine turn's terminal step: settle its run row, then pause the routine
- * when that failure completed a streak. Resolves to an error to append to the
- * turn's outcome, or undefined. A failed pause is reported that way too, never
- * swallowed: the run row already landed, and the next failed run retries it.
+ * A routine turn's terminal step: settle its run row, and when the run failed
+ * on a typed wall hand back the pause check for after the sync-back. A failed
+ * pause is reported, never swallowed: the run row already landed, and the next
+ * failed run retries it.
  */
 export async function finishRoutineTurn(opts: {
   store: ObjectStore;
@@ -19,7 +31,7 @@ export async function finishRoutineTurn(opts: {
   turnError?: string;
   /** The turn never reached a provider: nothing was connected to run it on. */
   unconnectedProvider?: string;
-}): Promise<string | undefined> {
+}): Promise<FinishedRoutineTurn> {
   // Same rule as the standing fire path (schedule/run.ts): only a named
   // provider makes the missing connection a typed failure.
   const failure: RoutineRunFailure | undefined = opts.unconnectedProvider
@@ -37,9 +49,20 @@ export async function finishRoutineTurn(opts: {
       newId: () => crypto.randomUUID(),
     });
   } catch (error) {
-    return `routine settle failed: ${error instanceof Error ? error.message : String(error)}`;
+    return {
+      error: `routine settle failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
   }
-  if (!settled?.failure) return undefined;
+  if (!settled?.failure) return {};
+  return { afterSync: () => pauseIfEarned(opts) };
+}
+
+async function pauseIfEarned(opts: {
+  store: ObjectStore;
+  prefix: string;
+  filesystem: TurnFilesystem;
+  phase: RoutinePhase;
+}): Promise<string | undefined> {
   try {
     const paused = await autoPauseRoutineTurn({
       store: opts.store,

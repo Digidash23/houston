@@ -43,6 +43,7 @@ export {
   parsePrefetchedObjects,
 } from "./prefetched-store";
 export { fetchWithRetry } from "./retry";
+export { mergeRoutineRunArrays } from "./routine-runs-merge";
 export type {
   SharedMirrorFamily,
   SharedMirrorResult,

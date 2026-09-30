@@ -1,8 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { normalizeRoutineRuns, parseJsonDoc } from "@houston/domain";
+import { mergeRoutineRunArrays } from "@houston/runtime-client/object-sync";
 import type { TurnServerDeps } from "./server-types";
-import { type ActivityDocPublishResult, publish } from "./turn-activity-doc";
+import type { ActivityDocPublishResult } from "./turn-activity-doc";
+import { publishMerged } from "./turn-doc-merge-publish";
 import { type TurnFilesystem, turnRoutineRunsKey } from "./turn-filesystem";
 import { poolIdentity } from "./turn-store";
 import type { TurnRequest } from "./types";
@@ -10,7 +12,8 @@ import type { TurnRequest } from "./types";
 /**
  * Project a routine turn's uploaded runs file into the routine_runs DB doc —
  * NORMALIZED, mirroring the standing DocShadowProjector, so the doc's shape
- * never depends on which execution path wrote it last.
+ * never depends on which execution path wrote it last. Overlapping runs of
+ * one agent all publish here, so each merges its rows into the doc by run id.
  */
 export async function publishTurnRunsDoc(
   deps: TurnServerDeps,
@@ -30,9 +33,12 @@ export async function publishTurnRunsDoc(
       ),
       "utf8",
     );
-    const doc = normalizeRoutineRuns(parseJsonDoc(raw, runsKey), runsKey).items;
+    const rows = normalizeRoutineRuns(
+      parseJsonDoc(raw, runsKey),
+      runsKey,
+    ).items;
     const { org, agent } = poolIdentity(turn.gcsPrefix);
-    return await publish(
+    return await publishMerged(
       {
         family: "routine_runs",
         baseUrl,
@@ -46,7 +52,11 @@ export async function publishTurnRunsDoc(
           ? { retryDelaysMs: deps.activityDocRetryDelaysMs }
           : {}),
       },
-      doc,
+      (current) =>
+        mergeRoutineRunArrays(
+          normalizeRoutineRuns(current, runsKey).items,
+          rows,
+        ),
     );
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) };

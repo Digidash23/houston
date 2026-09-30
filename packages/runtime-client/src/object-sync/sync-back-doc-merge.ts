@@ -1,4 +1,5 @@
 import { ACTIVITY_DOC, mergeActivityArrays } from "./activity-merge";
+import { mergeRoutineRunArrays, ROUTINE_RUNS_DOC } from "./routine-runs-merge";
 
 const ROUTINES_DOC = ".houston/routines/routines.json";
 const LEARNINGS_DOC = ".houston/learnings/learnings.json";
@@ -15,18 +16,20 @@ export function isMergedDocument(relativePath: string): boolean {
   return (
     arrayIdentity(relativePath) !== undefined ||
     isPath(relativePath, ACTIVITY_DOC) ||
+    isPath(relativePath, ROUTINE_RUNS_DOC) ||
     relativePath === CUSTOM_DEFINITIONS
   );
 }
 
 /**
- * Documents the standing store sync merges once on a generation conflict (its
- * behavior before the worker's merge rounds): never the board, which a
- * standing pod re-uploads over the refreshed generation.
+ * Documents the standing store sync merges once on a generation conflict:
+ * never the board, which a standing pod re-uploads over the refreshed
+ * generation. The run history merges so a run a sandbox landed survives.
  */
 export function mergesOnceOnConflict(relativePath: string): boolean {
   return (
     arrayIdentity(relativePath) !== undefined ||
+    isPath(relativePath, ROUTINE_RUNS_DOC) ||
     relativePath === CUSTOM_DEFINITIONS
   );
 }
@@ -113,6 +116,12 @@ export function mergeDocumentBodies(
     }
     const merged = mergeActivityArrays(remote, local, parseBase(baseBody));
     return `${JSON.stringify(merged, null, 2)}\n`;
+  }
+  if (isPath(relativePath, ROUTINE_RUNS_DOC)) {
+    if (!Array.isArray(remote) || !Array.isArray(local)) {
+      throw new Error(`${relativePath} is not an array`);
+    }
+    return `${JSON.stringify(mergeRoutineRunArrays(remote, local), null, 2)}\n`;
   }
   if (field) {
     const merged = mergeArrayDocument(remote, local, field, relativePath);

@@ -32,12 +32,12 @@ export interface ActivityDocOptions {
   retryDelaysMs?: number[];
 }
 
-const statusError = (method: string, response: Response) =>
+export const statusError = (method: string, response: Response) =>
   ({
     error: `${method} rejected (${response.status})`,
   }) as const;
 
-async function request(
+export async function request(
   opts: ActivityDocOptions,
   init?: RequestInit,
 ): Promise<Response> {
@@ -90,7 +90,7 @@ async function responseRevision(
   }
 }
 
-async function putAtRevision(
+export async function putAtRevision(
   opts: ActivityDocOptions,
   doc: unknown,
   revision: number,
@@ -105,7 +105,7 @@ async function putAtRevision(
   });
 }
 
-async function acceptPut(
+export async function acceptPut(
   response: Response,
 ): Promise<ActivityDocPublishResult> {
   if (response.status === 404 || response.status === 403) {
