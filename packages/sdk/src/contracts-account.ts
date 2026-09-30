@@ -159,6 +159,7 @@ export {
   SpacesHttpError,
   type SpacesModule,
 } from "./modules/spaces";
+export { activeSpaceOrgSlug } from "./modules/spaces/active-space";
 export {
   canRetryMoveError,
   classifyMoveError,

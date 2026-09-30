@@ -55,6 +55,7 @@ export async function createBoardConversation(
     t,
     setSessionLoading,
   } = deps;
+  const perfSend = perfSpans.sendContext();
   const visible = formatVisibleMessageText(text, files, (names) =>
     t("chat:queue.attached", { names }),
   );
@@ -98,7 +99,7 @@ export async function createBoardConversation(
     provider: providerOverride,
     model: modelOverride,
   });
-  perfSpans.messageSent();
+  perfSpans.messageSent(perfSend);
   analytics.track("chat_message_sent", {
     provider: providerOverride,
     model: modelOverride,

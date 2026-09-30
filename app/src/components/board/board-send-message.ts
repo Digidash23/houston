@@ -46,6 +46,7 @@ export async function sendBoardMessage(
   context?: string,
 ): Promise<void> {
   const { path, agentId, rawItems, setSessionLoading } = deps;
+  const perfSend = perfSpans.sendContext();
   const promptContext = joinModelContext(deps.promptContext, context);
   const activity = (rawItems ?? []).find(
     (a) => rowSessionKey(a) === sessionKey,
@@ -91,7 +92,7 @@ export async function sendBoardMessage(
         .getState()
         .setQueuedRowStatus(agentId, activity.id, "running");
     }
-    perfSpans.messageSent();
+    perfSpans.messageSent(perfSend);
     analytics.track("chat_message_sent", {
       provider: overrides.providerOverride,
       model: overrides.modelOverride,
@@ -120,7 +121,7 @@ export async function sendBoardMessage(
       },
     });
     setSessionLoading(sessionKey, true);
-    perfSpans.messageSent();
+    perfSpans.messageSent(perfSend);
     analytics.track("chat_message_sent", {
       provider: overrides.providerOverride,
       model: overrides.modelOverride,

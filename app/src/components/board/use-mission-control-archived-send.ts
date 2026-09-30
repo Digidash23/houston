@@ -40,6 +40,7 @@ export function useMissionControlArchivedSend({
       mentions?: MessageMention[],
     ) => {
       if (!activeAgent || !selectedItem) return;
+      const perfSend = perfSpans.sendContext();
       const agentPath = activeAgent.folderPath;
       const missionId = selectedItem.id;
       try {
@@ -57,7 +58,7 @@ export function useMissionControlArchivedSend({
           modeOverride: DEFAULT_TURN_MODE,
           mentions,
         });
-        perfSpans.messageSent();
+        perfSpans.messageSent(perfSend);
         analytics.track("chat_message_sent", {
           provider: pin.provider,
           model: pin.model,
