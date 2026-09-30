@@ -52,12 +52,12 @@ describe("PerfSpans", () => {
     const { spans, sent, tick } = harness();
     spans.firstAssistantOutput(); // routine/teammate output with no send — ignored
     tick(2000);
-    spans.messageSent();
+    spans.messageSent(spans.sendContext());
     tick(800);
     spans.firstAssistantOutput();
     spans.firstAssistantOutput(); // streaming continues — no re-report
     tick(100);
-    spans.messageSent();
+    spans.messageSent(spans.sendContext());
     tick(400);
     spans.firstAssistantOutput();
     await spans.flush();
@@ -141,7 +141,7 @@ describe("PerfSpans org slug", () => {
   it("tags the send-paired spans with the org the user sent in", () => {
     const { spans, mirroredOrgs, tick } = harness();
     spans.setOrgSlug("5f2b225f316c6079");
-    spans.messageSent();
+    spans.messageSent(spans.sendContext());
     tick(700);
     spans.firstAssistantOutput();
     deepStrictEqual(mirroredOrgs, [
@@ -155,7 +155,7 @@ describe("PerfSpans org slug", () => {
     // the mark came from there, so neither org can claim the span.
     const { spans, mirroredOrgs, tick } = harness();
     spans.setOrgSlug("5f2b225f316c6079");
-    spans.messageSent();
+    spans.messageSent(spans.sendContext());
     spans.setOrgSlug("383369a239383fee");
     tick(700);
     spans.firstAssistantOutput();
@@ -165,10 +165,24 @@ describe("PerfSpans org slug", () => {
     );
   });
 
+  it("keeps the org a send started in when the space switches mid-request", () => {
+    const { spans, mirroredOrgs, tick } = harness();
+    spans.setOrgSlug("5f2b225f316c6079");
+    const context = spans.sendContext(); // read before the send's first await
+    spans.setOrgSlug("383369a239383fee"); // switched while the request was out
+    spans.messageSent(context);
+    tick(700);
+    spans.firstAssistantOutput(); // output of the new space, not the reply
+    deepStrictEqual(
+      mirroredOrgs.map((m) => m.orgSlug),
+      [null, null],
+    );
+  });
+
   it("never hands one account's org to the next account's reply", () => {
     const { spans, mirroredOrgs, tick } = harness();
     spans.setOrgSlug("5f2b225f316c6079");
-    spans.messageSent();
+    spans.messageSent(spans.sendContext());
     spans.setOrgSlug(null); // signed out
     spans.setOrgSlug("383369a239383fee"); // another account signed in
     tick(700);
@@ -182,7 +196,7 @@ describe("PerfSpans org slug", () => {
   it("never ships the org slug to the gateway ingest", async () => {
     const { spans, sent, tick } = harness();
     spans.setOrgSlug("5f2b225f316c6079");
-    spans.messageSent();
+    spans.messageSent(spans.sendContext());
     tick(700);
     spans.firstAssistantOutput();
     await spans.flush();
@@ -194,7 +208,7 @@ describe("PerfSpans org slug", () => {
 
   it("mirrors no org where none is set (desktop, self-host)", () => {
     const { spans, mirroredOrgs, tick } = harness();
-    spans.messageSent();
+    spans.messageSent(spans.sendContext());
     tick(300);
     spans.firstAssistantOutput();
     deepStrictEqual(

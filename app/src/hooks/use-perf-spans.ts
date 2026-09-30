@@ -14,6 +14,7 @@ import { useOrgs } from "./queries/use-spaces";
 import { useCapabilities } from "./use-capabilities";
 import { usePersonalSpace } from "./use-personal-space";
 import { useSession } from "./use-session";
+import { useSpanOrgSync } from "./use-span-org-sync";
 
 /**
  * Where client perf spans land: the gateway's `/v1/client-metrics` ingest
@@ -109,8 +110,5 @@ function usePerfSpanOrgSlug(): void {
   const { capabilities } = useCapabilities();
   const workspaceId = useWorkspaceStore((s) => s.current?.id);
   const { data: orgs } = useOrgs(usePersonalSpace());
-  const orgSlug = perfSpanOrgSlug(capabilities, workspaceId, orgs);
-  useEffect(() => {
-    perfSpans.setOrgSlug(orgSlug);
-  }, [orgSlug]);
+  useSpanOrgSync(perfSpanOrgSlug(capabilities, workspaceId, orgs), perfSpans);
 }

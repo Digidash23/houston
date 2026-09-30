@@ -23,6 +23,11 @@ export interface PerfSpanObservation {
   ms: number;
 }
 
+/** What a send is tagged with, read before its first await. */
+export interface PerfSendContext {
+  readonly orgSlug: string | null;
+}
+
 export interface PerfSpanTransport {
   /**
    * POST a batch to the gateway; absent session → don't call configure yet.
@@ -93,18 +98,26 @@ export class PerfSpans {
 
   /**
    * The hosted org slug of the active space, or null where there is none. A
-   * send reads it when it is made. A reply keeps the tag only if the slug is
-   * still the same: after a space switch or a sign-in as someone else, the
-   * event stream follows the new space, so the output that completes the mark
-   * is not the reply to that send.
+   * reply keeps its send's tag only if the slug is still the same: after a
+   * space switch or a sign-in as someone else, the event stream follows the
+   * new space, so the output that completes the mark is not that reply.
    */
   setOrgSlug(slug: string | null): void {
     this.orgSlug = slug;
   }
 
-  /** The user sent a message. Overwrites an unanswered previous send. */
-  messageSent(): void {
-    this.pendingSend = { at: this.now(), orgSlug: this.orgSlug };
+  /** The tag for a send starting now. Read it before the send's first await. */
+  sendContext(): PerfSendContext {
+    return { orgSlug: this.orgSlug };
+  }
+
+  /**
+   * The user's send went out, tagged with the `sendContext()` read when it
+   * started, so a space switch mid-request cannot retag it. Overwrites an
+   * unanswered previous send.
+   */
+  messageSent(context: PerfSendContext): void {
+    this.pendingSend = { at: this.now(), orgSlug: context.orgSlug };
   }
 
   /** First agent output (first streamed word) became visible. */
