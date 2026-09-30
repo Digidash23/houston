@@ -8,10 +8,14 @@ import type { newUsedTokenCapture } from "../auth/used-token";
 import { hasUnreadablePiSessionTail } from "../backends/pi/backend";
 import { replayCharBudget } from "../session/replay-transcript";
 import { replayForConversation } from "../session/routine-replay";
+import { estimateTokens } from "../session/token-estimate";
 import { resolveTurnClaudeResume, turnClaudeLayout } from "./turn-backend";
 import { seedTurnClaudeFlags } from "./turn-claude-flags";
 import { readTurnHarness, writeTurnHarness } from "./turn-harness-state";
-import { resetPooledRoutineContext } from "./turn-routine-context";
+import {
+  resetPooledRoutineContext,
+  routineReplayHistory,
+} from "./turn-routine-context";
 import {
   finishTurnSessionStartup,
   type RunTurnDeps,
@@ -68,7 +72,6 @@ export async function openTurnBackendSession(input: {
   const routineReset = resetPooledRoutineContext({
     dataDir: directories.dataDir,
     conversationId,
-    messages: input.canonicalMessages,
     turnId,
     windowTokens: catalogWindow,
   });
@@ -89,26 +92,29 @@ export async function openTurnBackendSession(input: {
     harness === "claude" && !switchedHarness
       ? resolveTurnClaudeResume(directories, conversationId)
       : undefined;
-  // A routine chat's replay is bounded by the routine budget; every other
-  // chat keeps the budget it always had here (routine-replay.ts).
+  // A routine chat replays the same archive-aware tail the standing server
+  // reads, bounded by the routine budget; every other chat keeps its hydrated
+  // live file and the budget it always had here (routine-replay.ts). Built
+  // only when a session actually starts without its history: the tail can
+  // reach into archive segments, which a resumed run must never parse.
   const replayOf = () =>
     replayForConversation({
       conversationId,
-      messages: input.canonicalMessages,
+      messages: routineReplayHistory(
+        directories.dataDir,
+        conversationId,
+        turnId,
+        input.canonicalMessages,
+      ),
       currentTurnId: turnId,
       currentPrompt: turn.text,
       windowTokens: routineReset?.windowTokens ?? catalogWindow,
       charBudget: replayCharBudget(model.contextWindow),
     });
   const replay =
-    input.canonicalMessages.length > 0 &&
-    (freshSession || (harness === "claude" && !claudeResume))
-      ? replayOf()
-      : null;
-  const retryReplay =
-    harness === "claude" && input.canonicalMessages.length > 0
-      ? (replay ?? replayOf())
-      : null;
+    freshSession || (harness === "claude" && !claudeResume) ? replayOf() : null;
+  // Claude's fallback when the SDK refuses its resume: deferred until then.
+  const retryReplay = () => (replay ?? replayOf())?.text ?? "";
   // The CLI blocks its first start on a flag fetch unless its config dir
   // already holds the flags: hand it the acting member's stored copy.
   if (harness === "claude")
@@ -128,7 +134,7 @@ export async function openTurnBackendSession(input: {
     ...(turn.context ? { context: turn.context } : {}),
     ...(turn.mode ? { mode: turn.mode } : {}),
     ...(freshSession ? { fresh: true } : {}),
-    ...(retryReplay?.text ? { freshRetryPromptPrefix: retryReplay.text } : {}),
+    ...(harness === "claude" ? { freshRetryPromptPrefix: retryReplay } : {}),
   });
   if (turn.timings) turn.timings.t_backend_session = performance.now();
   return {
@@ -137,5 +143,10 @@ export async function openTurnBackendSession(input: {
     model,
     modelRuntime,
     compaction: routineReset?.compaction,
+    // What the reset's replay put in the fresh session, for the run's
+    // recorded carry (turn-routine-context.ts).
+    routineResetBase: routineReset
+      ? estimateTokens(replay?.text ?? "")
+      : undefined,
   };
 }

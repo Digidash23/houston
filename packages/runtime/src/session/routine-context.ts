@@ -1,6 +1,6 @@
 import { recordConversationKind } from "@houston/domain";
-import type { ChatMessage } from "@houston/runtime-client";
-import { estimateTokens } from "./token-estimate";
+import type { RoutineTranscript } from "../store/routine-carry";
+import { readCarry } from "./routine-carry";
 
 /**
  * THE ROUTINE CONTEXT BUDGET: what keeps a shared routine chat from outgrowing
@@ -50,16 +50,6 @@ export function routineCarryLine(windowTokens: number): number {
   );
 }
 
-/** What the chat says about the context the next run would start from. */
-interface RoutineCarry {
-  /** Measured (or, without usage, estimated) tokens; null when nothing is carried. */
-  tokens: number | null;
-  /** The newest run ended in a context overflow. */
-  overflowed: boolean;
-  /** The window that overflow named, when the provider named one. */
-  namedWindow: number | null;
-}
-
 export type RoutineContextPlan =
   | { reset: false }
   | {
@@ -73,78 +63,22 @@ export type RoutineContextPlan =
 /**
  * Decide whether THIS run of `conversationId` must start on a fresh session.
  * `windowTokens` is the active model's effective window (model-windows.ts);
- * `currentTurnId` names the run's own, already-recorded, user message.
+ * `currentTurnId` names the run's own, already-recorded, user message. The
+ * transcript is the chat's live file plus the carry its last run recorded
+ * (routine-carry.ts), identical on the standing server and a pooled worker.
  */
 export function planRoutineContext(
   conversationId: string,
-  messages: ReadonlyArray<ChatMessage>,
+  transcript: RoutineTranscript,
   currentTurnId: string,
   windowTokens: number,
 ): RoutineContextPlan {
   if (!isRoutineConversation(conversationId)) return { reset: false };
-  const carry = readCarry(messages, currentTurnId);
+  const carry = readCarry(transcript, currentTurnId);
   const window = Math.min(windowTokens, carry.namedWindow ?? windowTokens);
   const overLine =
     carry.tokens !== null && carry.tokens >= routineCarryLine(window);
-  return carry.overflowed || overLine
+  return carry.unknown || carry.overflowed || overLine
     ? { reset: true, carriedTokens: carry.tokens, windowTokens: window }
     : { reset: false };
-}
-
-/**
- * Walk the chat back from its newest message to the last point the model's
- * context restarted (a compaction or a `/clear`). The newest turn that
- * reported usage is the measurement: its request size plus its own reply,
- * which the next request carries too. Anything newer than it (a failed run, a
- * provider that reports no usage) is added as a conservative estimate.
- *
- * Both deployments hand this the chat's LIVE transcript file, never its
- * archived segments, so they decide alike. That loses nothing: rotation keeps
- * a ~2 MiB tail live, so a chat whose context restarted before the tail is
- * estimated far past any carry line from the tail alone.
- */
-function readCarry(
-  messages: ReadonlyArray<ChatMessage>,
-  currentTurnId: string,
-): RoutineCarry {
-  let overflowed = false;
-  let namedWindow: number | null = null;
-  let sawAssistant = false;
-  let estimated = 0;
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
-    if (m.contextCleared) break;
-    if (m.role === "user" && m.turnId === currentTurnId) continue;
-    if (m.role === "assistant" && !sawAssistant) {
-      sawAssistant = true;
-      if (m.providerError?.kind === "context_overflow") {
-        overflowed = true;
-        namedWindow = m.providerError.context_window_tokens;
-      }
-    }
-    const measured =
-      m.role === "assistant" ? (m.usage?.context_tokens ?? 0) : 0;
-    if (measured > 0) {
-      const own = measured + (m.usage?.output_tokens ?? 0);
-      return { tokens: own + estimated, overflowed, namedWindow };
-    }
-    estimated += messageTokens(m);
-    if (m.compaction) break;
-  }
-  return {
-    tokens: estimated > 0 ? estimated : null,
-    overflowed,
-    namedWindow,
-  };
-}
-
-/** What a message puts back into the next request, in (estimated) tokens. */
-function messageTokens(m: ChatMessage): number {
-  let tokens = estimateTokens(m.content);
-  for (const tool of m.tools ?? []) {
-    tokens += estimateTokens(tool.name) + estimateTokens(tool.result ?? "");
-    if (tool.input !== undefined)
-      tokens += estimateTokens(JSON.stringify(tool.input));
-  }
-  return tokens;
 }

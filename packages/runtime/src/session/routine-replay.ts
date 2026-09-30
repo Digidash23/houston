@@ -17,6 +17,13 @@ import { estimateTokens } from "./token-estimate";
  * reset just stepped away from.
  */
 
+/**
+ * How many of a chat's newest messages a routine reset reads for its replay:
+ * far more than the budget keeps, and a window rather than the whole history,
+ * so an archived transcript is read no further back than its last segment.
+ */
+export const ROUTINE_REPLAY_TAIL = 200;
+
 /** Share of the window a routine chat's replay may use. */
 const REPLAY_FRACTION = 0.15;
 

@@ -73,7 +73,11 @@ import {
 import { reportMissionSettle } from "./mission-settle";
 import { switchNeedsCompaction } from "./provider-switch";
 import { replayForConversation } from "./routine-replay";
-import { resetRoutineSessionIfNeeded } from "./routine-session-reset";
+import {
+  type RoutineSessionReset,
+  recordRoutineCarry,
+  resetRoutineSessionIfNeeded,
+} from "./routine-session-reset";
 import { createStallWatchdog, isAbortEcho } from "./stall-watchdog";
 import {
   clearInflightMarker,
@@ -370,6 +374,9 @@ export async function execTurn(
    * reports a revocation. Fresh per turn: the fresh instance is the reset.
    */
   const usedTokens = newUsedTokenCapture();
+  // Held outside the try so the finally records the run's carry (the replay
+  // it started from, when it reset) whichever way the turn ended.
+  let routineReset: RoutineSessionReset | null = null;
   try {
     // Resolve the model for THIS turn from current settings (a routine's
     // provider/model pin wins, else the workspace's active provider/model).
@@ -400,7 +407,7 @@ export async function execTurn(
     // bounded transcript of recent runs, instead of resuming a session that no
     // longer fits (routine-context.ts). Runs before the switches below: the
     // fresh session is already on the right backend and mode, so they no-op.
-    const routineReset = await resetRoutineSessionIfNeeded(
+    routineReset = await resetRoutineSessionIfNeeded(
       conv,
       id,
       turnId,
@@ -914,6 +921,9 @@ export async function execTurn(
     // observing this conversation.
     reportMissionSettle(id, "error", null);
   } finally {
+    // A routine run records what it left its session holding, for the next
+    // run's budget (routine-session-reset.ts). No-op for any other chat.
+    recordRoutineCarry(id, turnId, routineReset);
     conv.turnId = undefined;
     // Every in-process end of the turn — clean, failed, stopped, thrown —
     // passes here, so a marker that outlives this process is unambiguous.

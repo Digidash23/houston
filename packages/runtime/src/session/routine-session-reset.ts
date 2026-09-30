@@ -2,16 +2,23 @@ import type { TurnMode } from "@houston/protocol";
 import { effectiveModelWindow } from "@houston/protocol/model-windows";
 import type { ResolvedModel } from "../backends/types";
 import { config } from "../config";
-import { getLiveMessages } from "../store/conversations";
+import {
+  getHistory,
+  getRoutineTranscript,
+  setRoutineCarry,
+} from "../store/conversations";
 import { serverBackendFor } from "./conversation-backends";
 import type { Conversation } from "./conversation-record";
 import { clearNativeSessionState } from "./native-session-state";
 import type { ReplayPreamble } from "./replay-transcript";
+import { carryAfterRun } from "./routine-carry";
 import { isRoutineConversation, planRoutineContext } from "./routine-context";
 import {
+  ROUTINE_REPLAY_TAIL,
   renderRoutineReplay,
   routineReplayTokenBudget,
 } from "./routine-replay";
+import { estimateTokens } from "./token-estimate";
 
 /** A routine run that starts on a fresh session, and what it carries in. */
 export interface RoutineSessionReset {
@@ -19,6 +26,8 @@ export interface RoutineSessionReset {
   preTokens: number | null;
   /** The bounded transcript prepended to this run's prompt. */
   replay: ReplayPreamble | null;
+  /** What that replay puts in the fresh session, for the run's recorded carry. */
+  baseTokens: number;
 }
 
 /**
@@ -28,9 +37,9 @@ export interface RoutineSessionReset {
  * the rebuild lands on the resolved model's backend in the turn's mode, so
  * both switches then no-op. Returns null (and touches nothing) otherwise.
  *
- * Reads only the chat's live transcript file, the same view a pooled worker
- * decides from, so a routine whose history rotated into archive segments
- * costs one bounded read.
+ * Decides from the chat's live transcript file plus the carry its last run
+ * recorded (routine-carry.ts), the same view a pooled worker decides from.
+ * Only a reset reads further back, for the replay's tail.
  */
 export async function resetRoutineSessionIfNeeded(
   conv: Conversation,
@@ -42,14 +51,14 @@ export async function resetRoutineSessionIfNeeded(
 ): Promise<RoutineSessionReset | null> {
   // Checked before the history read: every other turn skips parsing the file.
   if (!isRoutineConversation(conversationId)) return null;
-  const messages = getLiveMessages(conversationId);
+  const transcript = getRoutineTranscript(conversationId);
   const window = effectiveModelWindow(
     model.provider,
     model.id,
     model.contextWindow,
     0,
   );
-  const plan = planRoutineContext(conversationId, messages, turnId, window);
+  const plan = planRoutineContext(conversationId, transcript, turnId, window);
   if (!plan.reset && !conv.sessionRebuildPending) return null;
   console.info(
     plan.reset
@@ -75,13 +84,48 @@ export async function resetRoutineSessionIfNeeded(
   conv.provider = model.provider;
   conv.model = model.id;
   conv.mode = mode;
+  // The tail may sit in an archive segment: a rotation can move the whole
+  // previous run out of the live file, and it is the run to remember.
+  const replay = renderRoutineReplay(
+    getHistory(conversationId, { limit: ROUTINE_REPLAY_TAIL })?.messages ?? [],
+    turnId,
+    prompt,
+    routineReplayTokenBudget(plan.reset ? plan.windowTokens : window),
+  );
   return {
     preTokens: plan.reset ? plan.carriedTokens : null,
-    replay: renderRoutineReplay(
-      messages,
-      turnId,
-      prompt,
-      routineReplayTokenBudget(plan.reset ? plan.windowTokens : window),
-    ),
+    replay,
+    baseTokens: estimateTokens(replay?.text ?? ""),
   };
+}
+
+/**
+ * Record what a finished run of a routine chat left its session holding
+ * (routine-carry.ts), so the next run decides from it whatever a rotation
+ * archives in between. Run for every turn of a routine chat, clean or not;
+ * never throws, since the turn itself is already over.
+ */
+export function recordRoutineCarry(
+  conversationId: string,
+  turnId: string,
+  reset: RoutineSessionReset | null,
+): void {
+  if (!isRoutineConversation(conversationId)) return;
+  try {
+    setRoutineCarry(
+      conversationId,
+      carryAfterRun(
+        getRoutineTranscript(conversationId),
+        turnId,
+        reset?.baseTokens,
+      ),
+    );
+  } catch (error) {
+    // Reported, not fatal: without the record the next run falls back to the
+    // transcript, and resets when rotation hid what it would measure.
+    console.error(
+      `[routine] ${conversationId}: could not record the run's context carry:`,
+      error,
+    );
+  }
 }

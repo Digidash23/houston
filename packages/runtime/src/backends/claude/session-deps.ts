@@ -34,8 +34,8 @@ export interface ClaudeSessionDeps {
   /** Initial SDK model string. */
   model: string;
   thinkingLevel?: ThinkingLevel;
-  /** Canonical history used only when a rejected resume must retry fresh. */
-  freshRetryPromptPrefix?: string;
+  /** Canonical history, built only when a rejected resume must retry fresh. */
+  freshRetryPromptPrefix?: () => string;
   /**
    * Re-read the stored credential and rebuild the subprocess env from it.
    * Called at the start of EVERY prompt (PRODUCT-1355): each `query()` spawns

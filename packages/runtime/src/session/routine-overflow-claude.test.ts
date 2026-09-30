@@ -58,9 +58,12 @@ const { simulatedClaudeApi } = await import(
 );
 const { toolSelection } = await import("./session-tools");
 const { config } = await import("../config");
-const { appendAssistantMessage, appendUserMessage, getHistory } = await import(
-  "../store/conversations"
-);
+const {
+  appendAssistantMessage,
+  appendUserMessage,
+  getHistory,
+  getRoutineTranscript,
+} = await import("../store/conversations");
 
 const WINDOW = 200_000;
 const PIN = {
@@ -236,4 +239,22 @@ test("an ordinary chat is left on its session, whatever its size", async () => {
 
   expect(api.calls.at(-1)?.resume).toBe("sim-old");
   expect(lastAssistant(id)?.compaction).toBeUndefined();
+});
+
+test("every routine run records the context it left its session holding", async () => {
+  const id = "routine-recorded";
+  const api = useSimulatedApi();
+  seedRoutineChat(id, 5, 40_000);
+  seedSdkSession(api, id, 40_000);
+
+  await runTurn(id, PROMPT, undefined, PIN);
+
+  const call = api.calls.at(-1);
+  const turnId = lastAssistant(id)?.turnId;
+  expect(getRoutineTranscript(id).carry).toEqual({
+    turnId,
+    tokens: (call?.requestTokens ?? 0) + 20,
+    overflowed: false,
+    namedWindow: null,
+  });
 });

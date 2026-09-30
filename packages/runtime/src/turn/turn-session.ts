@@ -1,12 +1,5 @@
 import { join } from "node:path";
-import type {
-  ChatMessage,
-  ProviderError,
-  TokenUsage,
-  ToolCallRecord,
-  WireEvent,
-  WireFrame,
-} from "@houston/runtime-client";
+import type { ChatMessage, WireFrame } from "@houston/runtime-client";
 import {
   newUsedTokenCapture,
   runWithUsedTokenCapture,
@@ -16,23 +9,22 @@ import {
   newInteractionHolder,
   runWithInteractionCapture,
 } from "../session/interaction";
-import {
-  appendUserMessageAt,
-  loadConversation,
-} from "../store/conversation-file";
-import { startTurnMissionTitle, turnTitleRunner } from "./turn-mission-title";
+import { recordPooledRoutineCarry } from "./turn-routine-context";
 import { openTurnBackendSession } from "./turn-session-backend";
 import { handleTurnSessionFailure } from "./turn-session-failure";
+import { collectTurnFrames, newTurnFrames } from "./turn-session-frames";
 import type { RunTurnDeps } from "./turn-session-startup";
 import {
   captureWorkspaceSnapshot,
   finishSuccessfulTurn,
 } from "./turn-session-success";
+import { startPooledTurnTitle } from "./turn-session-title";
 import type {
   TurnDirectories,
   TurnOutcome,
   TurnSessionRequest,
 } from "./turn-session-types";
+import { recordPooledUserTurn } from "./turn-session-user";
 
 /**
  * One pi turn against resolved hydrated directories. Unlike chat.ts (one
@@ -59,50 +51,18 @@ export async function runTurn(
   turn: TurnSessionRequest,
   deps: RunTurnDeps = {},
 ): Promise<TurnOutcome> {
-  const {
-    conversationId,
-    text,
-    provider,
-    signal,
-    nonce,
-    pin,
-    mode,
-    turnId,
-    displayText,
-    mentions,
-    author,
-  } = turn;
+  const { conversationId, text, provider, signal, pin, mode, turnId, author } =
+    turn;
   const emit = (e: WireFrame) => turn.emit({ ...e, turnId });
   const { workspaceDir, dataDir } = directories;
   const conversationsDir = join(dataDir, "conversations");
+  const { canonicalMessages, priorAuthors } = recordPooledUserTurn(
+    dataDir,
+    turn,
+    emit,
+  );
 
-  const canonicalMessages =
-    loadConversation(conversationsDir, conversationId)?.messages ?? [];
-  const priorAuthors = author
-    ? canonicalMessages
-        .filter((message) => message.role === "user")
-        .map((message) => message.author)
-    : [];
-  appendUserMessageAt(conversationsDir, conversationId, text, {
-    author,
-    turnId,
-    nonce,
-    displayText,
-    mentions,
-  });
-  emit({
-    type: "user",
-    data: { content: text, ts: Date.now(), nonce, mentions },
-  });
-
-  let assistantText = "";
-  let usage: TokenUsage | null = null;
-  const tools: ToolCallRecord[] = [];
-  // A typed provider failure for this turn. pi resolves the turn rather than
-  // throwing, so this arrives on the stream (a provider_error frame, emitted to
-  // the client like any other) and is persisted on the assistant message so the
-  // inline card survives a reload of this cloud conversation.
-  let providerError: ProviderError | undefined;
+  const frames = newTurnFrames();
   /**
    * WHICH access token this turn ran on, for the revoked-token report
    * (auth/used-token.ts, PRODUCT-1319). This path's `ModelRuntime` uses pi's
@@ -118,6 +78,7 @@ export async function runTurn(
   // Set when a routine run starts fresh (turn-routine-context.ts): announced
   // before the prompt and persisted on the reply, like the standing server's.
   let compaction: ChatMessage["compaction"];
+  let routineResetBase: number | undefined;
   try {
     const opened = await openTurnBackendSession({
       directories,
@@ -128,6 +89,7 @@ export async function runTurn(
     });
     const { replay, session, model, modelRuntime } = opened;
     compaction = opened.compaction;
+    routineResetBase = opened.routineResetBase;
     if (compaction) emit({ type: "context_compacted", data: compaction });
 
     // Snapshot the hydrated workspace so the turn's created/modified files can
@@ -138,30 +100,14 @@ export async function runTurn(
     // A fresh per-turn holder for whatever the model ends up waiting on the user
     // for (ask_user); established for the prompt's async subtree so the tool
     // records into it. Read after prompt() resolves, returned on the outcome.
-    // Created before the subscriptions, which feed its finish marks so an
-    // offer tool can tell whether the closing message is already written.
     const interaction = newInteractionHolder();
-    const unsubMessageStart = session.subscribeAssistantMessageStart?.(() =>
-      interaction.finish.noteAssistantMessageStart(),
+    const unsubscribe = collectTurnFrames(
+      session,
+      frames,
+      interaction,
+      turn.timings,
+      emit,
     );
-    const unsub = session.subscribe((wire: WireEvent) => {
-      // First provider-originated event = the honest first-token bound. Set
-      // once; the terminal frame reports it as a delta.
-      if (turn.timings && turn.timings.t_first_model_event === undefined)
-        turn.timings.t_first_model_event = performance.now();
-      if (wire.type === "text") {
-        assistantText += wire.data;
-        interaction.finish.noteAssistantText(wire.data);
-      } else if (wire.type === "usage") usage = wire.data;
-      else if (wire.type === "tool_start") tools.push({ name: wire.data.name });
-      else if (wire.type === "tool_end") {
-        const t = tools[tools.length - 1];
-        if (t) t.isError = wire.data.isError;
-      } else if (wire.type === "provider_error") {
-        providerError = wire.data;
-      }
-      emit(wire);
-    });
     const onAbort = () => void session.abort();
     signal?.addEventListener("abort", onAbort, { once: true });
     try {
@@ -177,43 +123,27 @@ export async function runTurn(
       );
     } finally {
       signal?.removeEventListener("abort", onAbort);
-      unsub();
-      unsubMessageStart?.();
+      unsubscribe();
     }
-    // A new mission's title starts the moment the reply is complete (never on
-    // a failed or cancelled turn), overlapping the finishing work below.
-    const finishTitle =
-      turn.missionTitle && !providerError && !signal?.aborted
-        ? startTurnMissionTitle({
-            conversationId,
-            request: turn.missionTitle,
-            run:
-              deps.titleRunner ??
-              turnTitleRunner({
-                provider,
-                model,
-                modelRuntime,
-                directories,
-                claudeQuery: deps.claudeSdk?.query,
-                claudePlan: turn.claudePlan,
-              }),
-            workspaceDir,
-            ...(turn.readRemoteActivity
-              ? { readRemote: turn.readRemoteActivity }
-              : {}),
-          })
-        : null;
+    const finishTitle = startPooledTurnTitle({
+      turn,
+      deps,
+      directories,
+      model,
+      modelRuntime,
+      failed: frames.providerError !== undefined,
+    });
     const outcome = finishSuccessfulTurn({
       beforeFiles,
-      providerError,
+      providerError: frames.providerError,
       workspaceDir,
       mode,
-      assistantText,
+      assistantText: frames.assistantText,
       interaction,
       conversationsDir,
       conversationId,
-      tools,
-      usage,
+      tools: frames.tools,
+      usage: frames.usage,
       compaction,
       provider,
       turnId,
@@ -225,10 +155,10 @@ export async function runTurn(
     return handleTurnSessionFailure({
       error,
       signal,
-      providerError,
-      assistantText,
-      tools,
-      usage,
+      providerError: frames.providerError,
+      assistantText: frames.assistantText,
+      tools: frames.tools,
+      usage: frames.usage,
       compaction,
       conversationsDir,
       conversationId,
@@ -238,6 +168,15 @@ export async function runTurn(
       text,
       usedTokens,
       emit,
+    });
+  } finally {
+    // A routine run records what it left its session holding, before the
+    // caller's sync-back ships the conversation file (turn-routine-context.ts).
+    recordPooledRoutineCarry({
+      dataDir,
+      conversationId,
+      turnId,
+      resetBaseTokens: routineResetBase,
     });
   }
 }
