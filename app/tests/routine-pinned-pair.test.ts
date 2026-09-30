@@ -1,23 +1,30 @@
 import { deepStrictEqual } from "node:assert";
 import { describe, it } from "node:test";
+import { DEFAULT_MODEL } from "@houston/sdk/provider-catalog";
 import { routinePinnedPair } from "../src/lib/routine-pinned-pair.ts";
 
 // The routine screen names the pin the fire path runs. A pair the screen shows
 // as pinned while the fired turn runs something else is the defect: the user
 // reads one model and is billed for another.
 describe("routinePinnedPair", () => {
-  it("names no model when the fire path drops an unmappable model pin", () => {
+  it("names the pinned provider's default when the fire path drops the model", () => {
     // Haiku has no lineup model on `anthropic`: the fired turn keeps the
-    // provider and runs the agent's own model, so the screen follows the agent.
+    // PROVIDER pin and runs that provider's model, never the agent's own —
+    // so the screen names Claude, not whatever lab the agent is on.
     deepStrictEqual(
       routinePinnedPair({ provider: "anthropic", model: "claude-haiku-4-5" }),
-      { provider: "anthropic", model: "" },
+      { provider: "anthropic", model: DEFAULT_MODEL.anthropic },
     );
     // A finite-catalog id no table maps drops the same way.
     deepStrictEqual(
       routinePinnedPair({ provider: "openai-codex", model: "gpt-4.1" }),
-      { provider: "openai", model: "" },
+      { provider: "openai", model: DEFAULT_MODEL["openai-codex"] },
     );
+    // A provider-only pin (no model stored) runs on that provider too.
+    deepStrictEqual(routinePinnedPair({ provider: "anthropic" }), {
+      provider: "anthropic",
+      model: DEFAULT_MODEL.anthropic,
+    });
   });
 
   it("names the model a retired id fires on", () => {

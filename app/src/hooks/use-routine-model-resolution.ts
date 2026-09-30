@@ -77,7 +77,9 @@ export function useRoutineModelResolution(
   // The pair the fire path runs, not the raw stored ids (./routine-pinned-pair).
   const { provider: pinnedProvider, model: pinnedModel } =
     routinePinnedPair(routine);
-  const followsAgent = !pinnedProvider || !pinnedModel;
+  // A provider pin fires on that provider even when its model is unnamed, so
+  // only a routine with no provider pin follows the agent.
+  const followsAgent = !pinnedProvider;
   const choice = personal ? choiceInfo?.choice : null;
 
   return useMemo(() => {
