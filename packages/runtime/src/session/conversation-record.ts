@@ -76,6 +76,13 @@ export type Conversation = {
    * queue behind the workdir lock, whose session is not yet executing.
    */
   pending: number;
+  /**
+   * Set while a routine reset (routine-session-reset.ts) has disposed the live
+   * session but not yet built its replacement. The next turn on this record
+   * retries the rebuild even when the routine budget no longer asks for one,
+   * so no queued turn ever prompts a disposed session.
+   */
+  sessionRebuildPending?: true;
 };
 
 /**

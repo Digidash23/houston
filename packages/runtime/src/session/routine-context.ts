@@ -36,6 +36,15 @@ const CARRY_FRACTION = 0.5;
  */
 const CARRY_CEILING_TOKENS = 100_000;
 
+/**
+ * How much of a routine chat's tail the plan and the replay read. Far more
+ * than either uses (a measured run is usually the newest reply, and the replay
+ * keeps at most ~96k characters), and it keeps the read on the live file: a
+ * long-lived routine's archived segments (conversation-archive.ts) are never
+ * parsed for it.
+ */
+export const ROUTINE_HISTORY_TAIL = 400;
+
 /** ~4 characters per token, the estimate every replay budget here uses. */
 export const CHARS_PER_TOKEN = 4;
 
