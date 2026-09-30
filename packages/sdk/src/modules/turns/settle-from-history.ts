@@ -1,5 +1,6 @@
 import { isPendingInteraction } from "@houston/protocol";
 import type { ChatMessage } from "@houston/runtime-client";
+import { conclusiveReply, turnReply } from "./conclusive-reply";
 import {
   ENGINE_RESTART_MESSAGE,
   ENGINE_RESUMED_MESSAGE,
@@ -35,11 +36,12 @@ export const TURN_DIED_MESSAGE = "The turn ended unexpectedly";
  * persisting a reply — an error surface with the server's own dead-turn
  * copy, NEVER an empty "completed" render.
  *
- * Without turn ids (legacy servers / old histories) fall back to the trailing
- * assistant message gated by `guard` — a heuristic with a known weakness:
- * turn mode matches the newest user message against the prompt, so two
- * identical prompts in a row can adopt the PREVIOUS turn's reply. When the
- * guard rejects, the streamed accumulation is all there is: settle it as
+ * Without a turn id, a history that carries ids yields one from our own user
+ * row; a legacy history falls back to the trailing assistant message gated by
+ * `guard` — a heuristic with a known weakness: turn mode matches the newest
+ * user message against the prompt, so two identical prompts in a row can
+ * adopt the PREVIOUS turn's reply (see `conclusiveReply`). When nothing
+ * concludes the turn, the streamed accumulation is all there is: settle it as
  * completed when text was streamed, else as the dead-turn error.
  */
 export function settleFromHistory(
@@ -59,37 +61,18 @@ export function settleFromHistory(
     return;
   }
   if (messages) {
-    // Legacy fallback: no turn ids anywhere — trailing reply + guard.
-    const last = messages[messages.length - 1];
-    if (last?.role === "assistant" && guard(messages)) {
-      adoptReply(s, last, onAdoptTurnId);
+    // No turn id: derived from our user row when the history carries ids,
+    // else the legacy trailing reply + guard (conclusive-reply.ts).
+    const reply = conclusiveReply(messages, undefined, guard);
+    if (reply) {
+      adoptReply(s, reply, onAdoptTurnId);
       return;
     }
   }
-  // History reload failed, or the legacy guard rejected the trailing reply:
-  // the streamed accumulation is all there is.
+  // History reload failed, or nothing in it concludes our turn: the streamed
+  // accumulation is all there is.
   if (s.text) finishOk(s);
   else finishErr(s, TURN_DIED_MESSAGE);
-}
-
-/**
- * The record that CONCLUDES a turn: the LAST assistant message persisted under
- * its id. A turn can persist more than one. A compaction before its prompt
- * claims the summary marker it wrote (so the divider sits where the context
- * restarted), and the turn's own reply or failure card follows it; an adopted
- * re-run of a turn appends its pair behind the dead attempt's. Adopting the
- * first settled a rate-limited turn as a clean success with the summary as its
- * answer. A plain loop: the SDK targets ES2022, without `findLast`.
- */
-function turnReply(
-  messages: readonly ChatMessage[],
-  turnId: string,
-): ChatMessage | undefined {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
-    if (m?.role === "assistant" && m.turnId === turnId) return m;
-  }
-  return undefined;
 }
 
 function adoptReply(
@@ -196,22 +179,6 @@ export async function presettleFromHistory(
   if (!reply) return false;
   adoptReply(s, reply, onAdoptTurnId);
   return true;
-}
-
-/**
- * The one message that PROVES the turn is over, or null (inconclusive). With a
- * turnId it must be the reply persisted FOR THIS TURN; without one (legacy) the
- * trailing message must be an assistant reply the `guard` accepts as ours.
- */
-function conclusiveReply(
-  messages: ChatMessage[],
-  turnId: string | undefined,
-  guard: (messages: ChatMessage[]) => boolean,
-): ChatMessage | null {
-  if (turnId) return turnReply(messages, turnId) ?? null;
-  const last = messages[messages.length - 1];
-  if (last?.role === "assistant" && guard(messages)) return last;
-  return null;
 }
 
 /**

@@ -110,9 +110,12 @@ class HttpTurnTranscript implements TurnTranscript {
     const userIndex = this.userIndex(conversation.messages);
     if (userIndex < 0) return { error: "turn user message is missing" };
 
+    // The LAST of this turn's assistant records: a turn that compacted before
+    // its prompt holds the claimed summary marker first and its own reply or
+    // failure card after it, and the remote keeps one assistant row per turn.
     const assistant = conversation.messages
       .slice(userIndex + 1)
-      .find(
+      .findLast(
         (message) =>
           message.role === "assistant" && message.turnId === this.opts.turnId,
       );
