@@ -34,6 +34,10 @@ _Avoid_: provider handoff (the deleted client-staged mechanism)
 The runtime's always-on decision to summarize and reseed a conversation before a turn when its context is nearly full. A guarantee owned where the ground truth lives (live token fill, active model window), never a user setting or a client flag.
 _Avoid_: compaction flag
 
+**Routine reset**:
+The runtime starting a routine run on a fresh session, carrying only a bounded transcript of the chat's recent runs, because the context the previous run ended on reached the routine's carry line (half the window, at most 100k tokens) or that run overflowed. The routine chat's form of autocompact: it needs no model call, so it cannot fail the way a summary can.
+_Avoid_: routine compaction, per-run chat (that is the `per_run` chat mode)
+
 **Queue-while-running**:
 Messages accepted while a turn is active, held by the engine adapter and flushed as one combined send when the turn settles.
 _Avoid_: message buffer

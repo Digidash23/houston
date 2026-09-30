@@ -1,4 +1,5 @@
 import type {
+  ChatMessage,
   ProviderError,
   TokenUsage,
   ToolCallRecord,
@@ -44,6 +45,7 @@ export function finishSuccessfulTurn(input: {
   conversationId: string;
   tools: ToolCallRecord[];
   usage: TokenUsage | null;
+  compaction?: ChatMessage["compaction"];
   provider: string;
   turnId: string;
   emit: (frame: WireFrame) => void;
@@ -78,6 +80,7 @@ export function finishSuccessfulTurn(input: {
     {
       tools: input.tools,
       usage: input.usage,
+      compaction: input.compaction,
       providerError: input.providerError,
       fileChanges,
       pendingInteraction: input.providerError ? undefined : pendingInteraction,

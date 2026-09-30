@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import type {
+  ChatMessage,
   ProviderError,
   TokenUsage,
   ToolCallRecord,
@@ -114,15 +115,20 @@ export async function runTurn(
    * still name the failed token.
    */
   const usedTokens = newUsedTokenCapture();
+  // Set when a routine run starts fresh (turn-routine-context.ts): announced
+  // before the prompt and persisted on the reply, like the standing server's.
+  let compaction: ChatMessage["compaction"];
   try {
-    const { replay, session, model, modelRuntime } =
-      await openTurnBackendSession({
-        directories,
-        turn,
-        deps,
-        canonicalMessages,
-        usedTokens,
-      });
+    const opened = await openTurnBackendSession({
+      directories,
+      turn,
+      deps,
+      canonicalMessages,
+      usedTokens,
+    });
+    const { replay, session, model, modelRuntime } = opened;
+    compaction = opened.compaction;
+    if (compaction) emit({ type: "context_compacted", data: compaction });
 
     // Snapshot the hydrated workspace so the turn's created/modified files can
     // be surfaced as a `file_changes` frame. The per-turn root is exclusive to
@@ -208,6 +214,7 @@ export async function runTurn(
       conversationId,
       tools,
       usage,
+      compaction,
       provider,
       turnId,
       emit,
@@ -222,6 +229,7 @@ export async function runTurn(
       assistantText,
       tools,
       usage,
+      compaction,
       conversationsDir,
       conversationId,
       turnId,
