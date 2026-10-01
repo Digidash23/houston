@@ -45,6 +45,7 @@ export interface TurnCoordinatorInput {
 }
 
 const MISSIONS = /^\/sandbox\/missions([/?]|$)/;
+const NULL_BODY = new Set([101, 103, 204, 205, 304]);
 
 const unavailable = () =>
   Response.json(
@@ -118,7 +119,11 @@ export function startTurnCoordinator(
       // still reports what it did.
       if (path.endsWith("/pending")) return unavailable();
     }
-    return new Response(body, { status: res.status, headers: res.headers });
+    // 204 and its kin carry no body, and a Response refuses one.
+    return new Response(NULL_BODY.has(res.status) ? null : body, {
+      status: res.status,
+      headers: res.headers,
+    });
   };
   return {
     route: (path, init) =>

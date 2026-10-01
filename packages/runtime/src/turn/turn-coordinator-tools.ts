@@ -2,6 +2,7 @@ import { join } from "node:path";
 import type { ProviderOption } from "@houston/domain";
 import { processAssistantCatalog } from "@houston/host/src/assistant/catalog-source";
 import { OPENAI_COMPATIBLE } from "../ai/openai-compatible-model";
+import { piProviderIds } from "../ai/pi-catalog";
 import { connectedProviderChoices } from "../ai/provider-choices";
 import type { PiBackendDeps } from "../backends/pi/backend";
 import { makeAssistantTools } from "../session/tools/assistant";
@@ -69,8 +70,16 @@ export function buildTurnCoordinatorTools(
  * live in a runtime, not in a credential row.
  */
 function missionProviders(): ProviderOption[] {
-  return connectedProviderChoices().map((option) => ({
+  const curated = connectedProviderChoices().map((option) => ({
     ...option,
     connected: option.id === OPENAI_COMPATIBLE ? option.connected : true,
   }));
+  // Every provider the engine knows, not only those this worker could run:
+  // an empty model list is the open-catalog signal, so the pin's model rides
+  // through as written for the target to judge.
+  const known = new Set(curated.map((option) => option.id));
+  const others = piProviderIds()
+    .filter((id) => !known.has(id))
+    .map((id) => ({ id, name: id, connected: true, models: [] }));
+  return [...curated, ...others];
 }

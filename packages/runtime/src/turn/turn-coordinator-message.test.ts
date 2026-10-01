@@ -78,7 +78,7 @@ const spend = (opened: Awaited<ReturnType<typeof receive>>) =>
   });
 
 test("a message retried after its approvals expired mints no grant again", async () => {
-  vi.useFakeTimers({ now: new Date("2026-10-01T12:00:00Z") });
+  vi.useFakeTimers({ now: new Date("2026-10-01T12:00:00Z"), toFake: ["Date"] });
   const { store } = bucket();
   const first = await receive(store, message());
   expect(spend(first)).toBeDefined();
@@ -89,7 +89,7 @@ test("a message retried after its approvals expired mints no grant again", async
 });
 
 test("a nonce reused for other words is refused even after a day", async () => {
-  vi.useFakeTimers({ now: new Date("2026-10-01T12:00:00Z") });
+  vi.useFakeTimers({ now: new Date("2026-10-01T12:00:00Z"), toFake: ["Date"] });
   const { store } = bucket();
   await (await receive(store, message())).save();
   vi.setSystemTime(new Date("2026-10-02T13:00:00Z"));
@@ -103,4 +103,25 @@ test("a new message still mints its grant", async () => {
   await (await receive(store, message())).save();
   const next = await receive(store, message({ nonce: "n2", turnId: "t2" }));
   expect(spend(next)).toBeDefined();
+});
+
+test("a nonce spelled like an object key is remembered like any other", async () => {
+  vi.useFakeTimers({ now: new Date("2026-10-01T12:00:00Z"), toFake: ["Date"] });
+  const { store } = bucket();
+  const first = await receive(store, message({ nonce: "__proto__" }));
+  expect(spend(first)).toBeDefined();
+  await first.save();
+  vi.setSystemTime(new Date("2026-10-01T12:30:00Z"));
+  const retried = await receive(
+    store,
+    message({ nonce: "__proto__", turnId: "t2" }),
+  );
+  expect(spend(retried)).toBeUndefined();
+});
+
+test("an empty nonce is refused, as a host refuses it", async () => {
+  const { store } = bucket();
+  await expect(receive(store, message({ nonce: "" }))).rejects.toBeInstanceOf(
+    ApprovalMessageRefusal,
+  );
 });

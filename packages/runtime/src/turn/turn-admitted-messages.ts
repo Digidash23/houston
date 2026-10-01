@@ -61,13 +61,16 @@ export class AdmittedMessages {
     this.byNonce.set(nonce, { hostFingerprint, turnId, at: this.now() });
   }
 
-  /** What the record file keeps: the week's admissions, older ones dropped. */
+  /**
+   * What the record file keeps: the week's admissions, older ones dropped.
+   * Built with `fromEntries` so every nonce is an own key, `__proto__`
+   * included (an assignment would set the prototype and lose the entry).
+   */
   toJSON(): Record<string, Admitted> {
-    const kept: Record<string, Admitted> = {};
-    for (const [nonce, entry] of this.byNonce) {
-      if (this.now() - entry.at < MESSAGE_ADMISSION_RETENTION_MS)
-        kept[nonce] = entry;
-    }
-    return kept;
+    return Object.fromEntries(
+      [...this.byNonce].filter(
+        ([, entry]) => this.now() - entry.at < MESSAGE_ADMISSION_RETENTION_MS,
+      ),
+    );
   }
 }

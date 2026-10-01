@@ -65,7 +65,10 @@ async function fakeGateway() {
       return;
     }
     if (req.method === "DELETE" && req.url === "/agents/agent-dobby") {
-      res.end(JSON.stringify({ ok: true }));
+      // The gateway's delete answers 204 with no body.
+      res.statusCode = 204;
+      res.removeHeader("content-type");
+      res.end();
       return;
     }
     res.statusCode = 404;
@@ -176,7 +179,7 @@ test("a card raised in one turn is answered and spent in the next, once", async 
     "/sandbox/assistant/call",
     post({ ...call, requestId: card.requestId }),
   );
-  expect(done?.status).toBe(200);
+  expect(done?.status).toBe(204);
   expect(gateway.seen).toContainEqual({
     method: "DELETE",
     url: "/agents/agent-dobby",

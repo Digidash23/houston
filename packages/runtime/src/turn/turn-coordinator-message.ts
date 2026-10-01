@@ -27,7 +27,8 @@ export function receiveTurnMessage(
   const body: Record<string, unknown> = {
     text: turn.text,
     mode: turn.mode,
-    ...(turn.nonce ? { nonce: turn.nonce } : {}),
+    // Presence, not truthiness: an empty nonce is the host's to refuse.
+    ...(turn.nonce !== undefined ? { nonce: turn.nonce } : {}),
     ...(turn.displayText ? { displayText: turn.displayText } : {}),
     ...(turn.provider ? { provider: turn.provider } : {}),
     ...(turn.model ? { model: turn.model } : {}),
@@ -45,7 +46,8 @@ export function receiveTurnMessage(
     ...(turn.actingToken ? { grantActor: turn.actingToken } : {}),
     body: Buffer.from(JSON.stringify(body)),
     parsed: body,
-    durableReceipt: turn.nonce ? admitted.receipt(turn.nonce) : null,
+    durableReceipt:
+      turn.nonce !== undefined ? admitted.receipt(turn.nonce) : null,
   });
   if (turn.nonce && !prepared.duplicate)
     admitted.record(

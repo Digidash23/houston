@@ -181,3 +181,25 @@ test("a provider pin is left for the host to judge, not the empty process store"
     expect.objectContaining({ provider: "openai-codex" }),
   );
 });
+
+test("a provider the worker never heard of locally can still be pinned", async () => {
+  const bodies: unknown[] = [];
+  const call: SandboxFetch = async (path, init) => {
+    if (path === "/sandbox/missions/start")
+      bodies.push(JSON.parse(String(init?.body)));
+    return Response.json({ id: "m1" });
+  };
+  const start = buildTurnCommonTools(turn({}, call), null, dataDir()).find(
+    (tool) => tool.name === "start_mission",
+  );
+  await runWithConversationId("assistant", () =>
+    start?.execute(
+      "s1",
+      { agent: "Dobby", title: "Research", prompt: "Look", provider: "groq" },
+      undefined,
+      undefined,
+      undefined as never,
+    ),
+  );
+  expect(bodies).toContainEqual(expect.objectContaining({ provider: "groq" }));
+});
