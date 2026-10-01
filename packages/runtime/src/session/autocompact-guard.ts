@@ -1,7 +1,10 @@
 import { classifyProviderError } from "../ai/provider-error";
 import { isExpectedProviderState } from "../ai/provider-error-log";
 import type { HarnessSession } from "../backends/types";
-import { compactWithFactHarvest } from "./durable-facts-harvest";
+import {
+  compactWithFactHarvest,
+  type FactHarvestTarget,
+} from "./durable-facts-harvest";
 
 /**
  * THE AUTOCOMPACT FAILURE GUARD — what keeps a conversation whose compaction
@@ -70,8 +73,28 @@ export interface AutocompactModel {
   id: string;
 }
 
+/**
+ * Where one conversation's cooldown is remembered. The long-lived runtime keeps
+ * it in process memory (the default); a pooled turn's process lives for one
+ * turn, so it hands in a store that travels with the conversation's session.
+ */
+export interface AutocompactCooldown {
+  /** When the next attempt is allowed, or undefined when none is held off. */
+  retryAfter(): number | undefined;
+  hold(until: number): void;
+}
+
 /** conversationId → the moment its next autocompact attempt is allowed. */
 const coolingUntil = new Map<string, number>();
+
+function processCooldown(conversationId: string): AutocompactCooldown {
+  return {
+    retryAfter: () => coolingUntil.get(conversationId),
+    hold: (until) => {
+      coolingUntil.set(conversationId, until);
+    },
+  };
+}
 
 /** Test seam: forget every recorded failure. */
 export function resetAutocompactCooldownsForTest(): void {
@@ -90,19 +113,24 @@ export async function runAutocompact(
   conversationId: string,
   model: AutocompactModel,
   now: number = Date.now(),
+  options: { cooldown?: AutocompactCooldown; harvest?: FactHarvestTarget } = {},
 ): Promise<boolean> {
   // Expired entries are dropped on every pass, so the map holds only the
   // conversations currently cooling down.
   for (const [id, until] of coolingUntil) {
     if (until <= now) coolingUntil.delete(id);
   }
-  if (coolingUntil.has(conversationId)) return false;
+  const cooldown = options.cooldown ?? processCooldown(conversationId);
+  const retryAfter = cooldown.retryAfter();
+  if (retryAfter !== undefined && retryAfter > now) return false;
   try {
-    await compactWithFactHarvest(session, conversationId);
+    await (options.harvest
+      ? compactWithFactHarvest(session, conversationId, options.harvest)
+      : compactWithFactHarvest(session, conversationId));
     return true;
   } catch (err) {
     const why = err instanceof Error ? err.message : String(err);
-    coolingUntil.set(conversationId, now + AUTOCOMPACT_COOLDOWN_MS);
+    cooldown.hold(now + AUTOCOMPACT_COOLDOWN_MS);
     if (isNothingToCompact(why)) {
       console.info(
         `[autocompact] ${conversationId}: nothing to compact yet; the turn proceeds uncompacted:`,

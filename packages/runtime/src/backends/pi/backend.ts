@@ -44,6 +44,8 @@ export interface PiBackendDeps {
    * WebSocket across a conversation's turns.
    */
   transport?: Transport;
+  /** Workspace-shared skills dir; absent = the process's (resource-loader.ts). */
+  sharedSkillsDir?: string;
 }
 
 /**
@@ -158,6 +160,7 @@ export function createPiBackend(deps: PiBackendDeps): HarnessBackend {
         opts.mode,
         opts.context,
         deps.systemPrompt,
+        deps.sharedSkillsDir,
       );
       await loader.reload();
       const { session } = await createAgentSession({

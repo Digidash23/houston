@@ -5,6 +5,7 @@ import type { applyOp } from "./op-apply";
 import type { TurnCredentialWriter } from "./turn-credential";
 import type { TurnRunner } from "./turn-session";
 import type { RunTurnDeps } from "./turn-session-startup";
+import type { turnSharedSkillsStore } from "./turn-shared-skills";
 
 /** Injectable dependencies and pool controls for the per-turn HTTP server. */
 export interface TurnServerDeps {
@@ -46,6 +47,8 @@ export interface TurnServerDeps {
     settled: () => void;
   };
   poolStoreUrl?: string;
+  /** Test seam: the org-shared store a turn reads its shared skills from. */
+  sharedSkillsStore?: typeof turnSharedSkillsStore;
   turnLogUrl?: string;
   fetchImpl?: typeof fetch;
   /** Test seam: how a `vm`-mode turn boots its code VM (default Gondolin). */

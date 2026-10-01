@@ -1,18 +1,14 @@
 import { join } from "node:path";
 import type { ChatMessage, WireFrame } from "@houston/runtime-client";
-import {
-  newUsedTokenCapture,
-  runWithUsedTokenCapture,
-} from "../auth/used-token";
+import { newUsedTokenCapture } from "../auth/used-token";
+import { config } from "../config";
 import { framePrompt } from "../session/attribution";
-import {
-  newInteractionHolder,
-  runWithInteractionCapture,
-} from "../session/interaction";
+import { newInteractionHolder } from "../session/interaction";
 import { recordPooledRoutineCarry } from "./turn-routine-context";
 import { openTurnBackendSession } from "./turn-session-backend";
 import { handleTurnSessionFailure } from "./turn-session-failure";
-import { collectTurnFrames, newTurnFrames } from "./turn-session-frames";
+import { newTurnFrames } from "./turn-session-frames";
+import { promptTurnSession } from "./turn-session-prompt";
 import type { RunTurnDeps } from "./turn-session-startup";
 import {
   captureWorkspaceSnapshot,
@@ -101,30 +97,16 @@ export async function runTurn(
     // for (ask_user); established for the prompt's async subtree so the tool
     // records into it. Read after prompt() resolves, returned on the outcome.
     const interaction = newInteractionHolder();
-    const unsubscribe = collectTurnFrames(
+    await promptTurnSession({
       session,
+      turn,
+      prompt: (replay?.text ?? "") + framePrompt(text, author, priorAuthors),
       frames,
       interaction,
-      turn.timings,
+      usedTokens,
+      stallTimeoutMs: deps.stallTimeoutMs ?? config.turnStallTimeoutMs,
       emit,
-    );
-    const onAbort = () => void session.abort();
-    signal?.addEventListener("abort", onAbort, { once: true });
-    try {
-      // The used-token capture spans the prompt so the streamed error path
-      // (pi/wire.ts) reads THIS turn's seeded token when it reports.
-      if (turn.timings) turn.timings.t_prompt_start = performance.now();
-      await runWithInteractionCapture(interaction, () =>
-        runWithUsedTokenCapture(usedTokens, () =>
-          session.prompt(
-            (replay?.text ?? "") + framePrompt(text, author, priorAuthors),
-          ),
-        ),
-      );
-    } finally {
-      signal?.removeEventListener("abort", onAbort);
-      unsubscribe();
-    }
+    });
     const finishTitle = startPooledTurnTitle({
       turn,
       deps,
@@ -149,6 +131,10 @@ export async function runTurn(
       turnId,
       emit,
     });
+    // The spend a standing pod folds into its ledger after the same turn
+    // (exec-turn.ts); the caller writes it to the store (turn-ledger.ts).
+    if (frames.usage)
+      outcome.spend = { provider: model.provider, usage: frames.usage };
     const missionTitle = await finishTitle?.();
     return missionTitle ? { ...outcome, missionTitle } : outcome;
   } catch (error) {

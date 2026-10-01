@@ -44,6 +44,43 @@ test("a successful compaction reports it compacted", async () => {
   expect(compactWithFactHarvest).toHaveBeenCalledWith(session, "c1");
 });
 
+test("a caller's own cooldown store holds the retry instead of process memory", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  let held: number | undefined;
+  const cooldown = {
+    retryAfter: () => held,
+    hold: (until: number) => {
+      held = until;
+    },
+  };
+  const now = 1_000_000;
+  vi.mocked(compactWithFactHarvest).mockRejectedValueOnce(
+    new Error("Summarization failed: the summarizer returned no summary"),
+  );
+
+  expect(await runAutocompact(session, "c1", claude, now, { cooldown })).toBe(
+    false,
+  );
+  expect(held).toBe(now + AUTOCOMPACT_COOLDOWN_MS);
+  // The process map never learned of it: another conversation keyed "c1"
+  // without this store (a different tenant on the same worker) still runs.
+  expect(await runAutocompact(session, "c1", claude, now + 1_000)).toBe(true);
+  // While the store holds it, the store's conversation stays held off...
+  expect(
+    await runAutocompact(session, "c1", claude, now + 60_000, { cooldown }),
+  ).toBe(false);
+  // ...and runs again once the hold expires.
+  expect(
+    await runAutocompact(
+      session,
+      "c1",
+      claude,
+      now + AUTOCOMPACT_COOLDOWN_MS + 1,
+      { cooldown },
+    ),
+  ).toBe(true);
+});
+
 test("a failed compaction resolves false instead of throwing", async () => {
   const error = vi.spyOn(console, "error").mockImplementation(() => {});
   vi.mocked(compactWithFactHarvest).mockRejectedValueOnce(
