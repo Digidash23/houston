@@ -95,24 +95,33 @@ async function handle(
   return json(res, 404, { error: "not found" });
 }
 
+/** Methods that cannot change agent state; every other one is a write. */
+const READ_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
 /** Build the frontend-facing host API server. */
 export function createControlPlaneServer(deps: ControlPlaneDeps): Server {
   // Live count of /agents/* requests, long-lived SSE streams included — the
   // /activity busy probe reads it so the gateway's idle sweep never sleeps a
   // pod with an open per-agent stream. `close` fires on both completion and a
   // severed connection (and always after `finish` on modern Node), so every
-  // increment has exactly one decrement.
+  // increment has exactly one decrement. Writes are also counted on their
+  // own: a waker that ignores open reads must still never sleep one.
   let agentRequests = 0;
+  let agentWrites = 0;
   const counted: ControlPlaneDeps = {
     ...deps,
     agentRequestCount: () => agentRequests,
+    agentWriteCount: () => agentWrites,
   };
   return createServer((req, res) => {
     const path = (req.url || "/").split("?")[0] ?? "";
     if (path === "/agents" || path.startsWith("/agents/")) {
+      const write = !READ_METHODS.has((req.method ?? "GET").toUpperCase());
       agentRequests++;
+      if (write) agentWrites++;
       res.once("close", () => {
         agentRequests--;
+        if (write) agentWrites--;
       });
     }
     // Tee the view routes' successful answers into the managed doc store so

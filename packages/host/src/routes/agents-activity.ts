@@ -60,11 +60,16 @@ async function activityStatus(
   const activeRequests = deps.agentRequestCount
     ? Math.max(0, deps.agentRequestCount() - 1)
     : 0;
+  // The probe is a GET, so it never counts among the writes. turnBusy and
+  // activeWrites let a caller that ignores open reads still see real work.
+  const activeWrites = deps.agentWriteCount ? deps.agentWriteCount() : 0;
   return {
     busy: turnBusy || runningRoutineRuns > 0 || activeRequests > 0,
     runtime,
+    turnBusy,
     runningRoutineRuns,
     activeRequests,
+    activeWrites,
   };
 }
 
