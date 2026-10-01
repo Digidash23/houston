@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fetchAnthropicUsage } from "./anthropic";
 import { fetchCodexUsage } from "./codex";
 import { fetchCopilotUsage } from "./copilot";
@@ -455,5 +455,20 @@ describe("normalization helpers", () => {
     );
     expect(epochSecondsToIso(0)).toBeNull();
     expect(epochSecondsToIso("soon")).toBeNull();
+  });
+});
+
+describe("listProviderUsage with nothing connected", () => {
+  it("answers no rows and never reaches a provider's usage API", async () => {
+    const fetcher = vi.fn(async () => {
+      throw new Error("no network call expected");
+    });
+    expect(
+      await listProviderUsage([], {
+        anthropic: fetcher,
+        "openai-codex": fetcher,
+      }),
+    ).toEqual([]);
+    expect(fetcher).not.toHaveBeenCalled();
   });
 });

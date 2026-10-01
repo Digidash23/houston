@@ -39,12 +39,14 @@ const EVENT_FAMILY: Partial<Record<HoustonEvent["type"], HoustonFamily>> = {
   LearningsChanged: "learnings",
 };
 
-type DocDeps = Pick<
+export type DocDeps = Pick<
   TurnServerDeps,
   "poolStoreUrl" | "fetchImpl" | "activityDocRetryDelaysMs"
 >;
 
-function docTarget(deps: DocDeps, turn: OpClaimTurn) {
+/** Where an op's docs go (`publish` options minus the family); null when
+ *  no pool store is configured. */
+export function docTarget(deps: DocDeps, turn: OpClaimTurn) {
   const baseUrl = deps.poolStoreUrl ?? process.env.HOUSTON_POOL_STORE_URL;
   if (!baseUrl) return null;
   const { org, agent } = poolIdentity(turn.gcsPrefix);

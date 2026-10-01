@@ -1,24 +1,17 @@
 import { mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
-import { MAX_UPLOAD_BYTES } from "@houston/host/src/turn/files-import";
-import { LazyStoreVfs } from "@houston/host/src/vfs";
-import {
-  DEFAULT_EXCLUDES,
-  type ObjectMetadata,
-  type ObjectStore,
-} from "@houston/runtime-client/object-sync";
+import type { ObjectStore } from "@houston/runtime-client/object-sync";
 import type { SeedOp } from "./op-grammar-seed";
-import {
-  AGENT_DOC_FAMILIES,
-  type OpClaimTurn,
-  publishFamilyDocs,
-} from "./op-republish";
+import type { DocDeps, OpClaimTurn } from "./op-republish";
 import { classifySeedListing, listPrefix } from "./op-seed-listing";
+import {
+  publishSeedDocs,
+  RUNTIME_VIEW_SOURCES,
+  type SeedViewSources,
+} from "./op-seed-publish";
 import { syncSeedTree, withdrawSeedTree } from "./op-seed-sync";
 import { buildSeedTree, pruneListed, type SeedTree } from "./op-seed-tree";
 import type { OpRequest } from "./parse-op-request";
-import type { TurnServerDeps } from "./server-types";
-import { TURN_HYDRATE_MAX_BYTES } from "./turn-filesystem";
 
 /** The worker's HTTP answer to `/op` for a seed. */
 export interface SeedReply {
@@ -27,10 +20,7 @@ export interface SeedReply {
 }
 
 export interface SeedOpInput {
-  deps: Pick<
-    TurnServerDeps,
-    "poolStoreUrl" | "fetchImpl" | "activityDocRetryDelaysMs"
-  >;
+  deps: DocDeps;
   op: OpRequest & { op: SeedOp };
   turn: OpClaimTurn;
   store: ObjectStore;
@@ -39,6 +29,8 @@ export interface SeedOpInput {
   root: string;
   /** Whether the claim was fenced (checked before anything is written). */
   fenced: () => Promise<boolean>;
+  /** Test seam: the provider baseline (default: this runtime's own). */
+  views?: SeedViewSources;
 }
 
 const RESTORE_PENDING = {
@@ -122,51 +114,20 @@ async function seedOnce(
     }
   }
   const wrote = synced.uploaded.length;
+  // An adopted tree that raced another writer is left to that writer's
+  // own projection: this op's listing no longer shows the store.
   if (listing.kind === "empty" || (wrote > 0 && synced.conflicts.length === 0))
-    await publishDocs(input, objects, storeRoot, tree);
+    await publishSeedDocs({
+      deps: input.deps,
+      turn: input.turn,
+      store,
+      prefix,
+      objects,
+      storeRoot,
+      tree,
+      views: input.views ?? RUNTIME_VIEW_SOURCES,
+    });
   return listing.kind === "empty"
     ? relayed(201, { id: tree.id, adopted: false })
     : relayed(200, { id: listing.id, adopted: true, completed: wrote });
-}
-
-/**
- * The five family docs, read through the listing plus what this op wrote:
- * an adopted tree's existing files project as they are in the store.
- */
-async function publishDocs(
-  input: SeedOpInput,
-  objects: ObjectMetadata[],
-  storeRoot: string,
-  tree: SeedTree,
-): Promise<void> {
-  const vfs = new LazyStoreVfs({
-    store: input.store,
-    prefix: input.prefix,
-    root: storeRoot,
-    objects,
-    manifest: new Map(),
-    excludes: DEFAULT_EXCLUDES,
-    maxObjectBytes: MAX_UPLOAD_BYTES,
-    maxBytes: TURN_HYDRATE_MAX_BYTES,
-  });
-  const run = () =>
-    publishFamilyDocs(
-      input.deps,
-      input.turn,
-      vfs,
-      tree.workspaceRel,
-      AGENT_DOC_FAMILIES,
-    );
-  let failures = await run();
-  if (failures.length > 0) {
-    // One more round: a blip on the doc PUT is the common case.
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    failures = await run();
-  }
-  if (failures.length > 0) {
-    // The files ARE durable; asleep reads lag until the next projection.
-    console.error(
-      `[op] seed projection failed after a durable sync: ${failures.join("; ")} prefix=${input.prefix}`,
-    );
-  }
 }

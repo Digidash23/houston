@@ -1,8 +1,8 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FAMILIES, schemaKey } from "@houston/domain";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import type { SeedOp } from "./op-grammar-seed";
 import { executeSeedOp } from "./op-seed";
 import {
@@ -15,11 +15,23 @@ import type { OpRequest } from "./parse-op-request";
 
 const AGENT_OPS = "agent-ops";
 
+/** The runtime's provider baseline, stubbed: the real one reads the
+ *  machine's own config dir. */
+const BASELINE = [{ id: "anthropic", configured: false }];
+const cleanViews = (
+  dataDir = mkdtempSync(join(tmpdir(), "op-seed-data-")),
+) => ({
+  providers: () => BASELINE,
+  providerUsage: async () => [],
+  dataDir,
+});
+
 async function runSeed(
   op: Omit<SeedOp, "kind">,
   fake = generationStore(),
   docs = docRoute(),
   actingAs?: OpRequest["actingAs"],
+  views = cleanViews(),
 ) {
   const request = seedRequest(op, actingAs);
   const reply = await executeSeedOp({
@@ -30,9 +42,24 @@ async function runSeed(
     prefix: PREFIX,
     root: mkdtempSync(join(tmpdir(), "op-seed-root-")),
     fenced: async () => false,
+    views,
   });
   return { reply, fake, docs };
 }
+
+const FAMILY_DOCS = [
+  "activity",
+  "config",
+  "learnings",
+  "routine_runs",
+  "routines",
+];
+const familyDocs = (puts: { family: string; doc: unknown }[]) =>
+  Object.fromEntries(
+    puts
+      .filter((put) => FAMILY_DOCS.includes(put.family))
+      .map((put) => [put.family, put.doc]),
+  );
 
 /** The relayed answer inside the worker's `{ok, status, body}` envelope. */
 function answer(reply: { status: number; body: unknown }) {
@@ -56,9 +83,7 @@ test("an empty prefix is seeded create-only as the pod creates an agent, and its
   expect(fake.uploads.length).toBeGreaterThan(0);
   for (const upload of fake.uploads)
     expect(upload.ifGenerationMatch, upload.key).toBe("0");
-  expect(
-    Object.fromEntries(docs.puts.map((put) => [put.family, put.doc])),
-  ).toEqual({
+  expect(familyDocs(docs.puts)).toEqual({
     activity: [],
     routines: [],
     routine_runs: [],
@@ -206,9 +231,7 @@ test("an adopted tree with a payload gets only the files it lacks, create-only",
   for (const upload of fake.uploads) expect(upload.ifGenerationMatch).toBe("0");
   expect(fake.read(`${agent}/CLAUDE.md`)).toBe("# edited since\n");
   expect(fake.read(firstSchema)).toBe('{"kept":true}');
-  expect(docs.puts.map((put) => put.family).sort()).toEqual(
-    ["activity", "config", "learnings", "routine_runs", "routines"].sort(),
-  );
+  expect(Object.keys(familyDocs(docs.puts)).sort()).toEqual(FAMILY_DOCS);
 });
 
 test("a complete adopted tree with a payload writes nothing and publishes nothing", async () => {
@@ -257,4 +280,50 @@ test("a fenced claim writes nothing", async () => {
   });
   expect(reply).toEqual({ status: 409, body: { error: "claim_fenced" } });
   expect(await fake.keys()).toEqual([]);
+});
+
+test("a seed publishes the skills, providers and provider usage views a new pod would serve", async () => {
+  const { docs } = await runSeed({
+    name: "Ledger",
+    seeds: {
+      ".agents/skills/close/SKILL.md":
+        "---\nname: close\ndescription: Close the books\n---\nDo it.\n",
+    },
+  });
+  const views = Object.fromEntries(
+    docs.puts
+      .filter((put) => !FAMILY_DOCS.includes(put.family))
+      .map((put) => [put.family, put.doc]),
+  );
+  expect(Object.keys(views).sort()).toEqual([
+    "provider_usage",
+    "providers",
+    "skills",
+  ]);
+  expect(views.providers).toEqual(BASELINE);
+  expect(views.provider_usage).toEqual([]);
+  expect(JSON.stringify(views.skills)).toContain("Close the books");
+});
+
+test("a worker whose own config dir holds agent state publishes no provider views", async () => {
+  const dirty = mkdtempSync(join(tmpdir(), "op-seed-dirty-"));
+  writeFileSync(join(dirty, "settings.json"), "{}");
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  try {
+    const { reply, docs } = await runSeed(
+      { name: "Ledger" },
+      generationStore(),
+      docRoute(),
+      undefined,
+      cleanViews(dirty),
+    );
+    expect(answer(reply).status).toBe(201);
+    const families = docs.puts.map((put) => put.family);
+    expect(families).toContain("skills");
+    expect(families).not.toContain("providers");
+    expect(families).not.toContain("provider_usage");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("settings.json"));
+  } finally {
+    warn.mockRestore();
+  }
 });
