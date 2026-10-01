@@ -1,5 +1,6 @@
-import { deepStrictEqual, strictEqual } from "node:assert";
+import { deepStrictEqual, ok, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
+import type { FirstResponse, FirstResponseOutcome } from "@houston/sdk";
 import { type PerfSpanObservation, PerfSpans } from "../src/lib/perf-spans.ts";
 
 function harness(startMs = 100_000) {
@@ -7,14 +8,16 @@ function harness(startMs = 100_000) {
   const sent: PerfSpanObservation[][] = [];
   const mirrored: Array<{ span: string; ms: number }> = [];
   const mirroredOrgs: Array<{ span: string; orgSlug: string | null }> = [];
+  const mirroredOutcomes: Array<{ span: string; outcome?: string }> = [];
   const spans = new PerfSpans({ t0Ms: startMs, now: () => now });
   spans.configure({
     async send(batch) {
       sent.push(batch);
     },
-    mirror(span, ms, orgSlug) {
+    mirror(span, ms, tags) {
       mirrored.push({ span, ms });
-      mirroredOrgs.push({ span, orgSlug });
+      mirroredOrgs.push({ span, orgSlug: tags.orgSlug });
+      mirroredOutcomes.push({ span, outcome: tags.outcome });
     },
   });
   return {
@@ -22,8 +25,22 @@ function harness(startMs = 100_000) {
     sent,
     mirrored,
     mirroredOrgs,
+    mirroredOutcomes,
+    now: () => now,
     tick: (ms: number) => (now += ms),
   };
+}
+
+/**
+ * The first response the SDK reports for a turn sent at `sentAt` that resolved
+ * (`outcome`) at `at` — the only input the send spans pair on.
+ */
+function response(
+  sentAt: number,
+  at: number,
+  outcome: FirstResponseOutcome = "first_text",
+): FirstResponse {
+  return { outcome, sentAt, at };
 }
 
 describe("PerfSpans", () => {
@@ -48,18 +65,16 @@ describe("PerfSpans", () => {
     deepStrictEqual(sent.flat(), [{ span: "card_click_to_chat", ms: 320 }]);
   });
 
-  it("send → first output yields both send span and once-only journey span", async () => {
-    const { spans, sent, tick } = harness();
-    spans.firstAssistantOutput(); // routine/teammate output with no send — ignored
+  it("a turn's first text yields the send span and the once-only journey span", async () => {
+    const { spans, sent, tick, now } = harness();
     tick(2000);
-    spans.messageSent(spans.sendContext());
+    const first = now();
     tick(800);
-    spans.firstAssistantOutput();
-    spans.firstAssistantOutput(); // streaming continues — no re-report
+    spans.turnResponded(response(first, now()));
     tick(100);
-    spans.messageSent(spans.sendContext());
+    const second = now();
     tick(400);
-    spans.firstAssistantOutput();
+    spans.turnResponded(response(second, now()));
     await spans.flush();
     deepStrictEqual(sent.flat(), [
       { span: "send_to_first_response", ms: 800 },
@@ -137,91 +152,187 @@ describe("PerfSpans", () => {
   });
 });
 
+describe("PerfSpans first response", () => {
+  it("two concurrent conversations: each turn's span runs from its own send to its own answer", async () => {
+    const { spans, sent } = harness(0);
+    // A sent at 1s and answered at 9s; B sent at 2s and answered first, at 3s.
+    spans.turnResponded(response(2_000, 3_000));
+    spans.turnResponded(response(1_000, 9_000));
+    await spans.flush();
+    deepStrictEqual(sent.flat(), [
+      { span: "send_to_first_response", ms: 1_000 },
+      { span: "app_to_first_response", ms: 3_000 },
+      { span: "send_to_first_response", ms: 8_000 },
+    ]);
+  });
+
+  it("keeps an answer slower than a minute, in PostHog and the gateway ingest", async () => {
+    const { spans, sent, mirrored } = harness(0);
+    spans.turnResponded(response(10_000, 105_000));
+    await spans.flush();
+    deepStrictEqual(sent.flat()[0], {
+      span: "send_to_first_response",
+      ms: 95_000,
+    });
+    deepStrictEqual(mirrored[0], {
+      span: "send_to_first_response",
+      ms: 95_000,
+    });
+  });
+
+  it("counts a turn that ended without text in PostHog, with its outcome, and keeps it out of the gateway histogram", async () => {
+    const { spans, sent, mirrored, mirroredOutcomes } = harness(0);
+    spans.turnResponded(response(0, 4_000, "error"));
+    spans.turnResponded(response(0, 2_000, "cancelled"));
+    spans.turnResponded(response(0, 30_000, "no_text"));
+    spans.turnResponded(response(0, 7_000, "interrupted"));
+    await spans.flush();
+    // A failure is not a time to first text: the TTFT histogram never sees it.
+    deepStrictEqual(sent.flat(), []);
+    deepStrictEqual(mirrored, [
+      { span: "send_to_first_response", ms: 4_000 },
+      { span: "send_to_first_response", ms: 2_000 },
+      { span: "send_to_first_response", ms: 30_000 },
+      { span: "send_to_first_response", ms: 7_000 },
+    ]);
+    deepStrictEqual(
+      mirroredOutcomes.map((m) => m.outcome),
+      ["error", "cancelled", "no_text", "interrupted"],
+    );
+  });
+
+  it("records a timeout as a censored observation in both places", async () => {
+    const { spans, sent, mirroredOutcomes } = harness(0);
+    spans.turnResponded(response(0, 600_000, "timeout"));
+    await spans.flush();
+    deepStrictEqual(sent.flat(), [
+      { span: "send_to_first_response", ms: 600_000 },
+    ]);
+    deepStrictEqual(mirroredOutcomes, [
+      { span: "send_to_first_response", outcome: "timeout" },
+    ]);
+  });
+
+  it("starts app_to_first_response only from a real first text", async () => {
+    const { spans, sent } = harness(0);
+    spans.turnResponded(response(0, 1_000, "error"));
+    spans.turnResponded(response(0, 5_000, "timeout"));
+    spans.turnResponded(response(6_000, 8_000));
+    await spans.flush();
+    deepStrictEqual(
+      sent.flat().filter((s) => s.span === "app_to_first_response"),
+      [{ span: "app_to_first_response", ms: 8_000 }],
+    );
+  });
+
+  it("marks the journey span with first_text too", () => {
+    const { spans, mirroredOutcomes } = harness(0);
+    spans.turnResponded(response(0, 800));
+    deepStrictEqual(mirroredOutcomes, [
+      { span: "send_to_first_response", outcome: "first_text" },
+      { span: "app_to_first_response", outcome: "first_text" },
+    ]);
+  });
+});
+
 describe("PerfSpans org slug", () => {
-  it("tags the send-paired spans with the org the user sent in", () => {
-    const { spans, mirroredOrgs, tick } = harness();
+  it("tags a turn's spans with the org it was sent in", () => {
+    const { spans, mirroredOrgs, tick, now } = harness();
     spans.setOrgSlug("5f2b225f316c6079");
-    spans.messageSent(spans.sendContext());
+    tick(10);
+    const sentAt = now();
     tick(700);
-    spans.firstAssistantOutput();
+    spans.turnResponded(response(sentAt, now()));
     deepStrictEqual(mirroredOrgs, [
       { span: "send_to_first_response", orgSlug: "5f2b225f316c6079" },
       { span: "app_to_first_response", orgSlug: "5f2b225f316c6079" },
     ]);
   });
 
-  it("leaves a reply untagged when the space changed after the send", () => {
-    // The event stream now follows the other space: whatever output completes
-    // the mark came from there, so neither org can claim the span.
-    const { spans, mirroredOrgs, tick } = harness();
+  it("keeps the org a turn was sent in when the space switches before it answers", () => {
+    // Paired to its own turn, the reply that lands after the switch IS the
+    // reply to the send made in the old space: the old space ran it.
+    const { spans, mirroredOrgs, tick, now } = harness();
     spans.setOrgSlug("5f2b225f316c6079");
-    spans.messageSent(spans.sendContext());
+    tick(10);
+    const sentInOld = now();
+    tick(100);
+    spans.setOrgSlug(null); // capabilities refetch mid-switch
     spans.setOrgSlug("383369a239383fee");
-    tick(700);
-    spans.firstAssistantOutput();
+    tick(10);
+    const sentInNew = now();
+    tick(600);
+    spans.turnResponded(response(sentInOld, now()));
+    spans.turnResponded(response(sentInNew, now()));
+    deepStrictEqual(
+      mirroredOrgs
+        .filter((m) => m.span === "send_to_first_response")
+        .map((m) => m.orgSlug),
+      ["5f2b225f316c6079", "383369a239383fee"],
+    );
+  });
+
+  it("leaves a turn sent before the org was known untagged", () => {
+    const { spans, mirroredOrgs, tick, now } = harness();
+    const sentAt = now();
+    tick(50);
+    spans.setOrgSlug("383369a239383fee"); // memberships read after the send
+    tick(500);
+    spans.turnResponded(response(sentAt, now()));
     deepStrictEqual(
       mirroredOrgs.map((m) => m.orgSlug),
       [null, null],
     );
   });
 
-  it("keeps the org a send started in when the space switches mid-request", () => {
-    const { spans, mirroredOrgs, tick } = harness();
+  it("never hands the next account's org to an earlier account's turn", () => {
+    const { spans, mirroredOrgs, tick, now } = harness();
     spans.setOrgSlug("5f2b225f316c6079");
-    const context = spans.sendContext(); // read before the send's first await
-    spans.setOrgSlug("383369a239383fee"); // switched while the request was out
-    spans.messageSent(context);
-    tick(700);
-    spans.firstAssistantOutput(); // output of the new space, not the reply
-    deepStrictEqual(
-      mirroredOrgs.map((m) => m.orgSlug),
-      [null, null],
-    );
-  });
-
-  it("never hands one account's org to the next account's reply", () => {
-    const { spans, mirroredOrgs, tick } = harness();
-    spans.setOrgSlug("5f2b225f316c6079");
-    spans.messageSent(spans.sendContext());
+    tick(10);
+    const sentAt = now();
+    tick(10);
     spans.setOrgSlug(null); // signed out
+    tick(10);
     spans.setOrgSlug("383369a239383fee"); // another account signed in
     tick(700);
-    spans.firstAssistantOutput();
-    deepStrictEqual(
-      mirroredOrgs.map((m) => m.orgSlug),
-      [null, null],
-    );
+    spans.turnResponded(response(sentAt, now()));
+    ok(mirroredOrgs.every((m) => m.orgSlug !== "383369a239383fee"));
   });
 
-  it("never ships the org slug to the gateway ingest", async () => {
-    const { spans, sent, tick } = harness();
+  it("never ships the org slug or the outcome to the gateway ingest", async () => {
+    const { spans, sent, tick, now } = harness();
     spans.setOrgSlug("5f2b225f316c6079");
-    spans.messageSent(spans.sendContext());
+    tick(10);
+    const sentAt = now();
     tick(700);
-    spans.firstAssistantOutput();
+    spans.turnResponded(response(sentAt, now()));
     await spans.flush();
+    // The ingest decodes with DisallowUnknownFields: an extra key 400s the batch.
     deepStrictEqual(sent.flat(), [
       { span: "send_to_first_response", ms: 700 },
-      { span: "app_to_first_response", ms: 700 },
+      { span: "app_to_first_response", ms: 710 },
     ]);
   });
 
   it("mirrors no org where none is set (desktop, self-host)", () => {
-    const { spans, mirroredOrgs, tick } = harness();
-    spans.messageSent(spans.sendContext());
+    const { spans, mirroredOrgs, tick, now } = harness();
+    const sentAt = now();
     tick(300);
-    spans.firstAssistantOutput();
+    spans.turnResponded(response(sentAt, now()));
     deepStrictEqual(
       mirroredOrgs.map((m) => m.orgSlug),
       [null, null],
     );
   });
 
-  it("mirrors no org on spans no send pairs", () => {
-    const { spans, mirroredOrgs, tick } = harness();
+  it("mirrors no org and no outcome on spans no send pairs", () => {
+    const { spans, mirroredOrgs, mirroredOutcomes, tick } = harness();
     spans.setOrgSlug("5f2b225f316c6079");
     tick(5);
     spans.boardRendered();
     deepStrictEqual(mirroredOrgs, [{ span: "app_to_board", orgSlug: null }]);
+    deepStrictEqual(mirroredOutcomes, [
+      { span: "app_to_board", outcome: undefined },
+    ]);
   });
 });

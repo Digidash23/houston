@@ -24,6 +24,11 @@ export {
   type SessionStatusValue,
   type TerminalBoardStatus,
 } from "./feed-output";
+export {
+  FIRST_RESPONSE_TIMEOUT_MS,
+  type FirstResponse,
+  type FirstResponseOutcome,
+} from "./first-response";
 export { type FeedFrame, historyToFeed } from "./history";
 export { observeConversation } from "./observe-stream";
 export { TURN_DIED_MESSAGE } from "./settle-from-history";

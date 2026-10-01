@@ -25,6 +25,12 @@ export { clearConversationCache } from "./conversation-cache";
 export { conversationCacheScope } from "./conversation-cache-identity";
 // The app installs its reporting path here for failures the adapter absorbs.
 export { type AdapterErrorSink, setAdapterErrorSink } from "./error-sink";
+// Every sent turn's first response (its first visible text, or how it ended
+// without one): what the app's send-to-first-response span pairs with.
+export {
+  type FirstResponseEvent,
+  subscribeFirstResponses,
+} from "./first-responses";
 // Warming-engine send queue (HOU-693): show the message as sent while the
 // engine boots; the deferred real send suppresses its own bubble.
 export { pushPendingUserMessage } from "./turn-stream";

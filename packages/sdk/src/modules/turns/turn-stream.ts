@@ -6,6 +6,7 @@ import {
 import type { HoustonEngineClient } from "@houston/runtime-client";
 import { streamEventsResumable } from "@houston/runtime-client";
 import type { FeedOutput } from "./feed-output";
+import { FirstResponseClock } from "./first-response";
 import { randomNonce } from "./random-nonce";
 import {
   type ActiveStream,
@@ -197,6 +198,12 @@ export async function streamTurn(
   registry: StreamRegistry,
   opts: StreamTurnOptions = {},
 ): Promise<void> {
+  // The turn's first-response clock starts at dispatch and reports once: the
+  // first visible text this turn folds, or how it ended without one.
+  const firstResponse = new FirstResponseClock(
+    (response) => output.firstResponse?.(agentPath, sessionKey, response),
+    opts.tuning?.firstResponseTimeoutMs,
+  );
   // Status BEFORE the bubble: `running: false` must mean settled-or-idle, so a
   // watcher can't mistake the optimistic-push snapshot for a settled turn.
   output.sessionStatus(agentPath, sessionKey, "running");
@@ -264,6 +271,7 @@ export async function streamTurn(
         data: SEND_IN_FLIGHT_MESSAGE,
         fails_pending: true,
       });
+      firstResponse.resolve("error");
       return;
     }
     after = prior.lastSeq;
@@ -279,6 +287,9 @@ export async function streamTurn(
       };
       await engine.sendMessage(sessionKey, prompt, sendOptions);
     } catch (e) {
+      // The client tore the streams down while this send was out (the
+      // observer is gone from the registry): nobody is waiting any more.
+      if (registry.get(key) !== prior) firstResponse.dispose();
       registry.endSend(key);
       // The resend was rejected before it reached the engine — fail its
       // optimistic bubble (the observed turn keeps rendering unaffected).
@@ -303,15 +314,26 @@ export async function streamTurn(
               fails_pending: true,
             },
       );
+      firstResponse.resolve("error");
       return; // the observer keeps rendering the running turn
     }
+    if (registry.get(key) !== prior) firstResponse.dispose(); // torn down meanwhile
     sent = true;
     prior.dispose();
     registry.delete(key);
   }
 
   const ac = new AbortController();
-  const entry: ActiveStream = { kind: "turn", dispose: () => ac.abort() };
+  // `dispose` is only ever called from outside (a client teardown, or a newer
+  // turn replacing this one): stop the measurement at once, even while the
+  // send below is still out, since its later verdict reaches nobody.
+  const entry: ActiveStream = {
+    kind: "turn",
+    dispose: () => {
+      firstResponse.dispose();
+      ac.abort();
+    },
+  };
   registry.set(key, entry);
   // The turn stream now owns the key — release the handoff send lock (a no-op
   // for the fresh path, which never claimed it).
@@ -335,6 +357,7 @@ export async function streamTurn(
     // The grace before the pre-settled poll fires — a turn that finished before
     // our first sync (its frames never replayed) hangs the card without it.
     presettledPollMs: opts.tuning?.presettledPollMs ?? PRESETTLED_POLL_MS,
+    firstResponse,
   });
   if (sent) sink.sendAccepted();
 
@@ -411,6 +434,8 @@ export async function streamTurn(
   } finally {
     if (sendVerdict !== undefined) clearTimeout(sendVerdict);
     sink.dispose(); // clear any armed pre-settled poll — the stream is done
+    // A stream torn down without a settle (logout teardown) reports nothing.
+    firstResponse.dispose();
     ac.abort();
     registry.release(key, entry);
   }

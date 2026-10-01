@@ -5,7 +5,6 @@ import {
   joinModelContext,
 } from "../../lib/attachment-message";
 import { classifyFileKind } from "../../lib/file-kind";
-import { perfSpans } from "../../lib/perf-spans";
 import { showSendFailedToast } from "../../lib/send-error-toast";
 import { isTypedSend } from "../../lib/sent-for-person";
 import { tauriAttachments, tauriChat } from "../../lib/tauri";
@@ -47,7 +46,6 @@ export async function sendBoardMessage(
   context?: string,
 ): Promise<void> {
   const { path, agentId, rawItems, setSessionLoading } = deps;
-  const perfSend = perfSpans.sendContext();
   const promptContext = joinModelContext(deps.promptContext, context);
   const activity = (rawItems ?? []).find(
     (a) => rowSessionKey(a) === sessionKey,
@@ -96,7 +94,6 @@ export async function sendBoardMessage(
         .getState()
         .setQueuedRowStatus(agentId, activity.id, "running");
     }
-    perfSpans.messageSent(perfSend);
     if (isTypedSend(overrides))
       analytics.track("chat_message_sent", {
         provider: overrides.providerOverride,
@@ -127,7 +124,6 @@ export async function sendBoardMessage(
       },
     });
     setSessionLoading(sessionKey, true);
-    perfSpans.messageSent(perfSend);
     if (isTypedSend(overrides))
       analytics.track("chat_message_sent", {
         provider: overrides.providerOverride,

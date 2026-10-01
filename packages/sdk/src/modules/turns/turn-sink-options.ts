@@ -1,5 +1,6 @@
 import type { ChatMessage } from "@houston/runtime-client";
 import type { FeedOutput } from "./feed-output";
+import type { FirstResponseClock } from "./first-response";
 
 /** The turn sink's wiring contract — implementation in turn-sink.ts. */
 export interface TurnSinkOptions {
@@ -43,4 +44,10 @@ export interface TurnSinkOptions {
    * settle matches by id and never consults this.
    */
   historyGuard: (messages: ChatMessage[]) => boolean;
+  /**
+   * Turn mode only: the clock this turn's first response reports through
+   * (`first-response.ts`). Absent in observer mode, so an observed turn never
+   * answers anyone's send.
+   */
+  firstResponse?: FirstResponseClock;
 }

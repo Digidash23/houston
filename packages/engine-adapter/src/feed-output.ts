@@ -6,6 +6,7 @@ import type {
 } from "@houston/sdk";
 import { emitEvent } from "./bus";
 import { isEngineWakingError } from "./engine-waking-error";
+import { publishFirstResponse } from "./first-responses";
 import { isNetworkTransportError } from "./network-transport-error";
 import { toOldProvider } from "./synthetic";
 
@@ -68,6 +69,9 @@ export function createBusFeedOutput(
         status,
         error,
       });
+    },
+    firstResponse(agentPath, sessionKey, response) {
+      publishFirstResponse({ agentPath, sessionKey, response });
     },
     async persistBoardStatus(
       agentPath,
