@@ -1,8 +1,8 @@
 /**
- * How many turns this runtime holds right now: queued on their conversation,
- * waiting on the workdir lock, or executing. A `/clear` or `/compact` counts
- * as one too: it rides the same queue and lock and is real work on the
- * conversation.
+ * How many turns this runtime holds right now: accepted and still building
+ * their session, queued on their conversation, waiting on the workdir lock, or
+ * executing. A `/clear` or `/compact` counts as one too: it rides the same
+ * queue and lock and is real work on the conversation.
  *
  * This is the runtime's answer to "is anything running here?" (`GET /busy`,
  * the graceful-shutdown drain). It follows each turn's LIFECYCLE, never its
@@ -26,6 +26,16 @@ export function holdTurnInFlight(): () => void {
     released = true;
     inFlight--;
   };
+}
+
+/** Run `work` counted in flight until it settles, however it settles. */
+export async function withTurnInFlight<T>(work: () => Promise<T>): Promise<T> {
+  const release = holdTurnInFlight();
+  try {
+    return await work();
+  } finally {
+    release();
+  }
 }
 
 /** Turns held right now (see the module note for what counts). */

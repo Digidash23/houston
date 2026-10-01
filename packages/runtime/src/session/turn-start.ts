@@ -23,7 +23,7 @@ import {
   connectedProviderForTurn,
   pinnedProviderUnavailable,
 } from "./provider-gate";
-import { holdTurnInFlight } from "./turn-inflight-count";
+import { withTurnInFlight } from "./turn-inflight-count";
 import {
   reportPinnedProviderUnavailable,
   reportTurnStartFailure,
@@ -64,9 +64,16 @@ export async function ensureProviderForTurn(
 /**
  * Start a turn for a conversation. Turns on the same conversation are
  * serialized (ordered resume). Never rejects — failures surface as `error`
- * events on the conversation's stream.
+ * events on the conversation's stream. Counted in flight from this call (the
+ * route has already answered 202) until it settles, so `GET /busy` and the
+ * shutdown drain never read an accepted turn as idle while it is still
+ * syncing a credential or building its session, its message not yet on disk.
  */
-export async function runTurn(
+export const runTurn = (
+  ...args: Parameters<typeof runAcceptedTurn>
+): Promise<void> => withTurnInFlight(() => runAcceptedTurn(...args));
+
+async function runAcceptedTurn(
   id: string,
   text: string,
   nonce?: string,
@@ -142,10 +149,7 @@ export async function runTurn(
   // running lifetime — decremented in `finally` when it settles. Without this a
   // turn parked in the queue behind the workdir lock (turnId not yet set) could
   // have its session disposed by a concurrent conversation's eviction sweep.
-  // The same lifetime is what the runtime reports as busy (`GET /busy`, the
-  // shutdown drain): queued, waiting on the lock, or executing.
   conv.pending++;
-  const releaseInFlight = holdTurnInFlight();
   const run = conv.queue.then(() => {
     // Persist + announce the user message BEFORE taking the workdir lock, so a
     // brand-new conversation's message is durable and visible (GET /messages)
@@ -182,7 +186,6 @@ export async function runTurn(
     clean = await run;
   } finally {
     conv.pending--;
-    releaseInFlight();
   }
   // A new mission's first turn titles its card AFTER the reply is published,
   // outside the workdir lock and the conversation queue, so neither the user's

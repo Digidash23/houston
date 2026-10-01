@@ -7,7 +7,7 @@ import type { HarnessSession } from "../backends/types";
 
 /**
  * The runtime's busy count follows each turn's lifecycle: counted from the
- * moment runTurn queues it until it settles, however it ends. It is what
+ * moment runTurn accepts it until it settles, however it ends. It is what
  * `GET /busy` and the shutdown drain read, so a turn waiting on the workdir
  * lock must count, and a stopped turn must stop counting once it unwinds.
  */
@@ -18,6 +18,8 @@ process.env.HOUSTON_WORKSPACE_DIR = mkdtempSync(
 );
 
 const cache = vi.hoisted(() => new Map<string, unknown>());
+// A pending session build per conversation (absent = builds at once).
+const builds = vi.hoisted(() => new Map<string, Promise<void>>());
 vi.mock("../ai/providers", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../ai/providers")>()),
   activeEffort: () => undefined,
@@ -33,7 +35,10 @@ vi.mock("./provider-gate", () => ({
   pinnedProviderUnavailable: async () => false,
 }));
 vi.mock("./conversation-cache", () => ({
-  getConversation: async (id: string) => cache.get(id),
+  getConversation: async (id: string) => {
+    await builds.get(id);
+    return cache.get(id);
+  },
   switchBackendIfNeeded: async () => ({ rebuilt: false, preTokens: null }),
   switchModeIfNeeded: async () => ({ rebuilt: false }),
   conversations: {
@@ -142,5 +147,23 @@ test("a stopped turn stops counting once it unwinds", async () => {
   await turn;
   expect(turnsInFlight()).toBe(0);
   expect(snapshot(id).running).toBe(false);
+  cache.delete(id);
+});
+
+test("an accepted turn counts while its session is still being built", async () => {
+  const id = "count-building";
+  const conv = cachedConv(id, false);
+  const build = Promise.withResolvers<void>();
+  builds.set(id, build.promise);
+
+  // The route answered 202; nothing is queued or persisted yet.
+  const turn = runTurn(id, "go");
+  expect(turnsInFlight()).toBe(1);
+
+  build.resolve();
+  await turn;
+  expect(conv.prompts()).toBe(1);
+  expect(turnsInFlight()).toBe(0);
+  builds.delete(id);
   cache.delete(id);
 });
