@@ -1,15 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { isAssistantUnavailableError } from "../lib/assistant-availability.ts";
+import { runDiscoveryLadder } from "../lib/assistant-discovery-ladder.ts";
 import {
   type AssistantDiscovery,
   assistantDiscoveryState,
 } from "../lib/assistant-discovery-state.ts";
-import {
-  assistantDiscoveryRetryDelayMs,
-  assistantRefetchIntervalMs,
-  shouldRetryAssistantDiscovery,
-} from "../lib/assistant-retry-schedule.ts";
+import { assistantRefetchIntervalMs } from "../lib/assistant-retry-schedule.ts";
 import { newEngineActive } from "../lib/engine.ts";
 import { queryKeys } from "../lib/query-keys.ts";
 import {
@@ -46,43 +43,19 @@ export interface AssistantAccess extends AssistantDiscovery {
  * `call()` would have used. Same discipline as the cross-agent sweep
  * (`hooks/queries/all-conversations-sweep.ts`).
  */
-export async function discoverAssistant(
+export function discoverAssistant(
   signal?: AbortSignal,
 ): Promise<AssistantHandle> {
-  for (let failures = 0; ; failures += 1) {
-    // A cancelled ask stops here: its next attempt would carry whatever space
-    // is active by then and file that space's answer under this one's key.
-    signal?.throwIfAborted();
-    try {
-      return await tauriAssistant.discover({ surface: false });
-    } catch (err) {
-      if (signal?.aborted) throw err;
-      if (!shouldRetryAssistantDiscovery(failures, err)) {
-        // The same silence the single-call path used: a deployment with no
-        // assistant and a pod that is merely waking are both expected states of
-        // a healthy install, so they are logged and never reported.
-        await surfaceEngineError("get_assistant", err, undefined, {
-          silence: isAssistantUnavailableError,
-        });
-        throw err;
-      }
-      await waitUnlessAborted(
-        assistantDiscoveryRetryDelayMs(failures, err),
-        signal,
-      );
-    }
-  }
-}
-
-function waitUnlessAborted(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    const done = () => {
-      clearTimeout(timer);
-      signal?.removeEventListener("abort", done);
-      resolve();
-    };
-    const timer = setTimeout(done, ms);
-    signal?.addEventListener("abort", done, { once: true });
+  return runDiscoveryLadder({
+    ask: () => tauriAssistant.discover({ surface: false }),
+    // The same silence the single-call path used: a deployment with no
+    // assistant and a pod that is merely waking are both expected states of
+    // a healthy install, so they are logged and never reported.
+    surface: (err) =>
+      surfaceEngineError("get_assistant", err, undefined, {
+        silence: isAssistantUnavailableError,
+      }),
+    signal,
   });
 }
 

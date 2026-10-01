@@ -556,3 +556,39 @@ test("a wake still replaces a socket that died while the page slept", async () =
   expect(h.connections).toHaveLength(2);
   expect(String(errors[0])).toContain("stalled");
 });
+
+test("a wake whose settle check the page slept through gives the backlog another chance", async () => {
+  const clock = skewableClock();
+  let retryNow: (() => void) | undefined;
+  const h = await startServer((conn) => {
+    // The window flashes visible and the page goes back to sleep before the
+    // settle check runs; the heartbeats it held land after that late check.
+    setTimeout(() => {
+      retryNow?.();
+      clock.sleep(60_000);
+    }, 20);
+    setTimeout(() => conn.raw(": hb\n\n"), WAKE_SETTLE_MS + 200);
+  });
+  const ac = new AbortController();
+  const errors: unknown[] = [];
+
+  const run = streamGlobalEvents({
+    url: () => `${h.baseUrl}/v1/events`,
+    fetch,
+    signal: ac.signal,
+    sleep: instant,
+    now: clock.now,
+    wake: (fn) => {
+      retryNow = fn;
+      return () => {};
+    },
+    onError: (e) => errors.push(e),
+    onEvent: () => {},
+  });
+  await new Promise((r) => setTimeout(r, 2 * WAKE_SETTLE_MS + 500));
+  ac.abort();
+  await run;
+
+  expect(errors).toEqual([]);
+  expect(h.connections).toHaveLength(1);
+});

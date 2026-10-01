@@ -88,12 +88,17 @@ export async function streamGlobalEvents(
         onStall: giveUp,
       });
       let settle: ReturnType<typeof setTimeout> | undefined;
-      pokeAttempt = () => {
+      // A check that fired well past its delay was held by another sleep, and
+      // the bytes that sleep queued may not be read yet: wait again.
+      const settleThenJudge = () => {
         clearTimeout(settle);
+        const armedAt = now();
         settle = setTimeout(() => {
-          if (watchdog.silentMs() > WAKE_STALE_MS) giveUp();
+          if (now() - armedAt > 2 * WAKE_SETTLE_MS) settleThenJudge();
+          else if (watchdog.silentMs() > WAKE_STALE_MS) giveUp();
         }, WAKE_SETTLE_MS);
       };
+      pokeAttempt = settleThenJudge;
 
       try {
         const res = await opts.fetch(opts.url(), {
