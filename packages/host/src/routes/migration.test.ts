@@ -483,3 +483,36 @@ test("a session the vfs lists but the disk lacks (a lazy pool tree) is not synth
   expect(existsSync(join(sessions, "listed-1"))).toBe(false);
   expect(existsSync(join(sessions, "fresh-1"))).toBe(true);
 });
+
+test("a skipped transcript whose session never landed gets its session on the retry", async () => {
+  // A worker that died between uploading the transcript and its session: the
+  // store holds the transcript, no session. The retry skips the transcript
+  // and must still rebuild the session, or that chat's memory is gone.
+  const vfs = new MemoryVfs();
+  const transcript = JSON.stringify({
+    id: "half-1",
+    title: "Hello",
+    createdAt: 1,
+    updatedAt: 2,
+    messages: [
+      { role: "user", content: "hi", ts: 1 },
+      { role: "assistant", content: "hello!", ts: 2 },
+    ],
+  });
+  await vfs.writeText(
+    `${ROOT}/.houston/runtime/conversations/half-1.json`,
+    transcript,
+  );
+  const agentDir = mkdtempSync(join(tmpdir(), "migration-half-"));
+  const r = await call(
+    vfs,
+    "POST",
+    "migration/import",
+    zipOf({ ".houston/runtime/conversations/half-1.json": transcript }),
+    { agentDir },
+  );
+  expect((r.body as { skipped: number }).skipped).toBe(1);
+  expect(
+    existsSync(join(agentDir, ".houston", "runtime", "sessions", "half-1")),
+  ).toBe(true);
+});

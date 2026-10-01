@@ -138,29 +138,26 @@ export async function applyMigrationArchive(opts: {
       continue;
     }
     const key = `${opts.root}/${rel}`;
+    const transcript =
+      opts.agentDir &&
+      rel.startsWith(".houston/runtime/conversations/") &&
+      rel.endsWith(".json");
     if (!opts.overwrite && existing.has(key)) {
       result.skipped++;
+      // A retry after a crash between the transcript write and its session
+      // finds the transcript here: its session is still rebuilt (synthesis
+      // skips any session that already exists).
+      if (transcript) parseTranscript(data, transcripts);
       continue;
     }
     await opts.vfs.writeBytes(key, Buffer.from(data));
     result.written++;
     const eventType = migrationEventType(rel);
     if (eventType) events.add(eventType);
-    if (
-      opts.agentDir &&
-      rel.startsWith(".houston/runtime/conversations/") &&
-      rel.endsWith(".json")
-    ) {
-      try {
-        transcripts.push(
-          JSON.parse(Buffer.from(data).toString("utf8")) as StoredConversation,
-        );
-      } catch {
-        // The transcript file itself is imported verbatim either way; an
-        // unparseable one just gets no synthesized session.
-        result.rejected.push({ path: rel, reason: "transcript not parseable" });
-      }
-    }
+    // The transcript file itself is imported verbatim either way; an
+    // unparseable one just gets no synthesized session.
+    if (transcript && !parseTranscript(data, transcripts))
+      result.rejected.push({ path: rel, reason: "transcript not parseable" });
   }
 
   if (opts.agentDir) {
@@ -175,4 +172,18 @@ export async function applyMigrationArchive(opts: {
     }
   }
   return { result, events };
+}
+
+function parseTranscript(
+  data: Uint8Array,
+  into: StoredConversation[],
+): boolean {
+  try {
+    into.push(
+      JSON.parse(Buffer.from(data).toString("utf8")) as StoredConversation,
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }
