@@ -27,8 +27,8 @@ export async function admitCoordinatorTurn(
         agentId,
         conversationId: input.turn.conversationId,
       },
-      (store, admitted) =>
-        receiveTurnMessage(store, admitted, agentId, input.turn),
+      (store, admitted, damaged) =>
+        receiveTurnMessage(store, admitted, agentId, input.turn, damaged),
     );
     return { kind: "admitted", approvals };
   } catch (error) {

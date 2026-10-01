@@ -63,8 +63,8 @@ async function receive(
           agentId: AGENT,
           conversationId: "assistant",
         },
-        (approvals, admitted) =>
-          receiveTurnMessage(approvals, admitted, AGENT, turn),
+        (approvals, admitted, damaged) =>
+          receiveTurnMessage(approvals, admitted, AGENT, turn, damaged),
       ),
   );
 }
@@ -124,4 +124,17 @@ test("an empty nonce is refused, as a host refuses it", async () => {
   await expect(receive(store, message({ nonce: "" }))).rejects.toBeInstanceOf(
     ApprovalMessageRefusal,
   );
+});
+
+test("a damaged record admits the message but mints no grant from it", async () => {
+  const { store, objects } = bucket();
+  await (await receive(store, message())).save();
+  for (const [key, value] of objects)
+    if (key.endsWith("assistant-approvals.json"))
+      objects.set(key, { ...value, body: "{damaged" });
+  const retried = await receive(store, message({ turnId: "t2" }));
+  expect(spend(retried)).toBeUndefined();
+  // The file is whole again, so the next message is handled normally.
+  const next = await receive(store, message({ nonce: "n2", turnId: "t3" }));
+  expect(spend(next)).toBeDefined();
 });

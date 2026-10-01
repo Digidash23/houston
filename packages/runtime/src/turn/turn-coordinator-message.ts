@@ -22,8 +22,17 @@ export function receiveTurnMessage(
   approvals: ApprovalStore,
   admitted: AdmittedMessages,
   agentId: string,
-  turn: TurnRequest,
+  received: TurnRequest,
+  /**
+   * The record was unreadable, so whether this message was already admitted
+   * is unknown: it may answer no card and mint no grant (fail closed; its
+   * cards are asked again).
+   */
+  damaged = false,
 ): void {
+  const turn: TurnRequest = damaged
+    ? { ...received, approvals: undefined, grants: undefined }
+    : received;
   const body: Record<string, unknown> = {
     text: turn.text,
     mode: turn.mode,

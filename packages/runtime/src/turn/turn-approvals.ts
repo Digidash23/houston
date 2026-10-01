@@ -59,7 +59,12 @@ export function approvalsDocRel(
 
 export async function openTurnApprovals(
   input: TurnApprovalsInput,
-  receive: (approvals: ApprovalStore, admitted: AdmittedMessages) => void,
+  receive: (
+    approvals: ApprovalStore,
+    admitted: AdmittedMessages,
+    /** The record existed but could not be read: nothing it held is known. */
+    damaged: boolean,
+  ) => void,
 ): Promise<TurnApprovals> {
   const relativePath = approvalsDocRel(input.filesystem, input.conversationId);
   const local = join(input.filesystem.storeRoot, ...relativePath.split("/"));
@@ -84,7 +89,8 @@ export async function openTurnApprovals(
     relativePath,
     // Rebuilt on every attempt: a generation conflict re-reads the file.
     apply: async () => {
-      const carried = await readCarry(local);
+      const read = await readCarry(local);
+      const carried = read === DAMAGED ? null : read;
       approvals = new ApprovalStore();
       adoptApprovals(approvals, carried, scope);
       admitted = new AdmittedMessages(
@@ -92,7 +98,7 @@ export async function openTurnApprovals(
           ? carried.admitted
           : null,
       );
-      receive(approvals, admitted);
+      receive(approvals, admitted, read === DAMAGED);
       await write(approvals, admitted);
     },
   });
@@ -118,6 +124,9 @@ export async function openTurnApprovals(
 }
 
 /** The carried records, or nothing when the file is absent or unreadable. */
+/** A record file that exists but does not parse. */
+const DAMAGED = Symbol("damaged approval record");
+
 async function readCarry(path: string): Promise<unknown> {
   let text: string;
   try {
@@ -130,8 +139,8 @@ async function readCarry(path: string): Promise<unknown> {
     return JSON.parse(text);
   } catch {
     console.error(
-      "[turn-approvals] the approval record file is unreadable; every card in it is asked again",
+      "[turn-approvals] the approval record file is unreadable; its cards are asked again and this message mints no grant",
     );
-    return null;
+    return DAMAGED;
   }
 }

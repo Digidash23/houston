@@ -203,3 +203,11 @@ test("a provider the worker never heard of locally can still be pinned", async (
   );
   expect(bodies).toContainEqual(expect.objectContaining({ provider: "groq" }));
 });
+
+test("Houston's request cards do not wait for any grant scope", () => {
+  const registered = names(
+    buildTurnCommonTools(turn({ grant: { scopes: [] } }), null, dataDir()),
+  );
+  expect(registered).toContain("request_provider_connection");
+  expect(registered).toContain("request_hands_on");
+});

@@ -78,7 +78,8 @@ export function buildTurnHostTools(
   const enabled = capabilities(turn);
   const personalAssistant = turn.role === "coordinator";
   return [
-    ...(enabled.providerConnections
+    // Houston's request cards ride its own surface, whatever its grant says.
+    ...(enabled.providerConnections || turnAssistantOptions(turn)
       ? [
           makeRequestProviderConnectionTool(),
           makeRequestHandsOnTool({ personalAssistant }),
