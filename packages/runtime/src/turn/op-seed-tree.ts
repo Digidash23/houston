@@ -50,13 +50,33 @@ export async function buildSeedTree(
 }
 
 /** Delete every seeded file the store already holds: create-only means
- *  those are never uploaded, and what stays on disk is exactly what lands. */
+ *  those are never uploaded, and what stays on disk is exactly what lands.
+ *  A file whose path collides with a listed one (a listed FILE where the
+ *  seed puts a directory, or the other way round) is dropped too: both in
+ *  one prefix break every later hydrate, and the tree's own file wins. */
 export async function pruneListed(
   storeRoot: string,
   tree: SeedTree,
   listed: ReadonlySet<string>,
 ): Promise<void> {
   const local = new FsVfs(storeRoot);
-  for (const key of await local.list(tree.workspaceRel))
-    if (listed.has(key)) await local.deleteKey(key);
+  for (const key of await local.list(tree.workspaceRel)) {
+    if (listed.has(key)) {
+      await local.deleteKey(key);
+    } else if (collidesWithListed(key, listed)) {
+      console.warn(
+        `[op] seed completion skipped ${key}: the tree holds a colliding path`,
+      );
+      await local.deleteKey(key);
+    }
+  }
+}
+
+function collidesWithListed(key: string, listed: ReadonlySet<string>): boolean {
+  const parts = key.split("/");
+  for (let i = 1; i < parts.length; i++)
+    if (listed.has(parts.slice(0, i).join("/"))) return true;
+  const asDir = `${key}/`;
+  for (const other of listed) if (other.startsWith(asDir)) return true;
+  return false;
 }
