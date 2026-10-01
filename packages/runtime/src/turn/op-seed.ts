@@ -77,10 +77,26 @@ async function seedOnce(
     return relayed(409, RESTORE_PENDING);
   }
   const payload = op.op.claudeMd !== undefined || op.op.seeds !== undefined;
-  if (listing.kind === "adopt" && !payload)
-    return relayed(200, { id: listing.id, adopted: true });
-
   const storeRoot = await mkdtemp(join(input.root, "seed-"));
+  const publishDocs = (tree: SeedTree) =>
+    publishSeedDocs({
+      deps: input.deps,
+      turn: input.turn,
+      store,
+      prefix,
+      objects,
+      storeRoot,
+      tree,
+      views: input.views ?? RUNTIME_VIEW_SOURCES,
+    });
+  if (listing.kind === "adopt" && !payload) {
+    // A young agent's adopt may follow a first seed that crashed after its
+    // files landed and before its docs did: project them again.
+    if (op.op.republish)
+      await publishDocs({ id: listing.id, workspaceRel: listing.workspaceRel });
+    return relayed(200, { id: listing.id, adopted: true });
+  }
+
   const actor = op.actingAs?.userId;
   let tree: SeedTree;
   if (listing.kind === "adopt") {
@@ -116,17 +132,11 @@ async function seedOnce(
   const wrote = synced.uploaded.length;
   // An adopted tree that raced another writer is left to that writer's
   // own projection: this op's listing no longer shows the store.
-  if (listing.kind === "empty" || (wrote > 0 && synced.conflicts.length === 0))
-    await publishSeedDocs({
-      deps: input.deps,
-      turn: input.turn,
-      store,
-      prefix,
-      objects,
-      storeRoot,
-      tree,
-      views: input.views ?? RUNTIME_VIEW_SOURCES,
-    });
+  if (
+    listing.kind === "empty" ||
+    (synced.conflicts.length === 0 && (wrote > 0 || op.op.republish))
+  )
+    await publishDocs(tree);
   return listing.kind === "empty"
     ? relayed(201, { id: tree.id, adopted: false })
     : relayed(200, { id: listing.id, adopted: true, completed: wrote });

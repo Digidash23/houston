@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { mkdir } from "node:fs/promises";
+import { join, posix } from "node:path";
 import { dispatchAgentOp } from "@houston/host/src/op/dispatch";
 import { MAX_UPLOAD_BYTES } from "@houston/host/src/turn/files-import";
 import { LazyStoreVfs, PrefixedVfs } from "@houston/host/src/vfs";
@@ -113,6 +114,10 @@ async function computeViews(
   vfs: LazyStoreVfs,
 ): Promise<[string, unknown][]> {
   const out: [string, unknown][] = [];
+  // The host resolves the agent from its folder; an adopt wrote nothing.
+  await mkdir(join(input.storeRoot, ...input.tree.workspaceRel.split("/")), {
+    recursive: true,
+  });
   const skills = await dispatchAgentOp({
     workspacesRoot: join(input.storeRoot, "workspaces"),
     agentId: input.tree.id,
@@ -131,6 +136,23 @@ async function computeViews(
     // A reused worker's config dir would publish another agent's providers.
     console.warn(
       `[op] seed provider views skipped: worker data dir holds ${state.join(", ")} prefix=${input.prefix}`,
+    );
+    return out;
+  }
+  const runtime = posix.join(
+    input.prefix,
+    input.tree.workspaceRel,
+    ".houston",
+    "runtime",
+  );
+  const own = AGENT_STATE_FILES.filter((file) =>
+    input.objects.some((o) => o.key === posix.join(runtime, file)),
+  );
+  if (own.length > 0) {
+    // An adopted agent with its own provider state: the baseline would be
+    // wrong for it, and its pod keeps its own view current.
+    console.warn(
+      `[op] seed provider views skipped: the agent holds ${own.join(", ")} prefix=${input.prefix}`,
     );
     return out;
   }

@@ -327,3 +327,64 @@ test("a worker whose own config dir holds agent state publishes no provider view
     warn.mockRestore();
   }
 });
+
+test("a payload file that collides with a path the tree holds is skipped, never stacked on it", async () => {
+  const fake = generationStore();
+  const agent = "workspaces/Personal/Ledger";
+  for (const rel of schemaRels(agent)) fake.put(rel, "{}");
+  // A user FILE where the payload wants a directory, and a user DIRECTORY
+  // where the payload wants a file: either pair in one prefix breaks every
+  // hydrate (EISDIR).
+  fake.put(`${agent}/notes`, "a file\n");
+  fake.put(`${agent}/docs/a.md`, "kept\n");
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  try {
+    const { reply } = await runSeed(
+      {
+        name: "Ledger",
+        seeds: { "notes/child.md": "x\n", docs: "y\n", "fine.md": "z\n" },
+      },
+      fake,
+    );
+    expect(answer(reply).body).toMatchObject({ adopted: true, completed: 1 });
+    expect(fake.uploads.map((u) => u.key)).toEqual([
+      `${PREFIX}/${agent}/fine.md`,
+    ]);
+  } finally {
+    warn.mockRestore();
+  }
+});
+
+test("a young agent's adopt republishes what a crashed seed never projected", async () => {
+  const fake = generationStore();
+  const agent = "workspaces/Personal/Ledger";
+  for (const rel of schemaRels(agent)) fake.put(rel, "{}");
+  fake.put(`${agent}/CLAUDE.md`, "# Ledger\n");
+  const { reply, docs } = await runSeed(
+    { name: "Ledger", republish: true },
+    fake,
+  );
+  expect(answer(reply).body).toEqual({ id: "Personal/Ledger", adopted: true });
+  expect(fake.uploads).toEqual([]);
+  const families = docs.puts.map((put) => put.family).sort();
+  expect(families).toEqual(
+    [...FAMILY_DOCS, "provider_usage", "providers", "skills"].sort(),
+  );
+});
+
+test("an adopt that republishes never publishes the baseline over an agent's own provider state", async () => {
+  const fake = generationStore();
+  const agent = "workspaces/Personal/Ledger";
+  for (const rel of schemaRels(agent)) fake.put(rel, "{}");
+  fake.put(`${agent}/.houston/runtime/settings.json`, '{"activeProvider":"x"}');
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  try {
+    const { docs } = await runSeed({ name: "Ledger", republish: true }, fake);
+    const families = docs.puts.map((put) => put.family);
+    expect(families).toContain("skills");
+    expect(families).not.toContain("providers");
+    expect(families).not.toContain("provider_usage");
+  } finally {
+    warn.mockRestore();
+  }
+});

@@ -1,4 +1,5 @@
 import { expect, test } from "vitest";
+import { parseSeedOp } from "./op-grammar-seed";
 import { parseOpRequest } from "./parse-op-request";
 
 const envelope = (op: unknown) => ({
@@ -52,4 +53,20 @@ test("a seed op's payload must be a string CLAUDE.md and a safe string map", () 
   expect(() => seed({ seeds: { "../evil": "x" } })).toThrow(
     "unsafe seed path: ../evil",
   );
+});
+
+test("republish rides only as a true flag", () => {
+  expect(
+    parseSeedOp({ kind: "seed", name: "Ledger", republish: true }),
+  ).toEqual({
+    kind: "seed",
+    name: "Ledger",
+    republish: true,
+  });
+  expect(
+    parseSeedOp({ kind: "seed", name: "Ledger", republish: "yes" }),
+  ).toEqual({
+    kind: "seed",
+    name: "Ledger",
+  });
 });

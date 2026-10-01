@@ -12,6 +12,9 @@ export interface SeedOp {
   name: string;
   claudeMd?: string;
   seeds?: Record<string, string>;
+  /** The gateway's "first provisioning" flag: an adopt republishes the docs
+   *  a crashed first seed may never have projected (op-seed.ts). */
+  republish?: true;
 }
 
 export function parseSeedOp(raw: Record<string, unknown>): SeedOp {
@@ -35,5 +38,6 @@ export function parseSeedOp(raw: Record<string, unknown>): SeedOp {
     name: name.name,
     ...(typeof raw.claudeMd === "string" ? { claudeMd: raw.claudeMd } : {}),
     ...(seeds ? { seeds } : {}),
+    ...(raw.republish === true ? { republish: true as const } : {}),
   };
 }
