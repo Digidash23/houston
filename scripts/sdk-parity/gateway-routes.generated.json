@@ -762,6 +762,14 @@
     "reason": "Stripe posts subscription events here and the signature HMAC over the raw body is the trust boundary; no user session exists"
   },
   {
+    "pattern": "/internal/v1/pool/routine-turns",
+    "methods": [
+      "POST"
+    ],
+    "classification": "internal-control-plane",
+    "reason": "the control plane hands a scheduled or trigger routine fire to the gateway's pool dispatcher with the internal bearer; a fire has no user session, and people run a routine through the agent's run-now route"
+  },
+  {
     "pattern": "/setup-runtime/auth/{provider}/login",
     "methods": [
       "POST"
