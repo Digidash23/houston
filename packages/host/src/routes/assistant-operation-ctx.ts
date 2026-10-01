@@ -1,5 +1,6 @@
 import type { ApprovalStore } from "../assistant/approvals";
 import type { AssistantCatalog } from "../assistant/catalog";
+import { gatewayAgentSlug } from "../assistant/coordinator-scope";
 import type { EntityDirectory } from "../assistant/entity-directory";
 import { gatewayEntityDirectory } from "../assistant/entity-directory-gateway";
 import { localEntityDirectory } from "../assistant/entity-directory-local";
@@ -60,7 +61,7 @@ export function assistantOperationDirectory(
     ? gatewayEntityDirectory({
         gateway,
         agentId: claim.agentId,
-        gatewayAgentId: process.env.HOUSTON_AGENT_SLUG,
+        gatewayAgentId: gatewayAgentSlug(),
         actingAs,
         fetchImpl: deps.fetchImpl,
       })

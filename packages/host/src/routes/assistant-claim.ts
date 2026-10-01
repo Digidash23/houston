@@ -1,3 +1,4 @@
+import { coordinatorScope } from "../assistant/coordinator-scope";
 import type { AgentId, WorkspaceId } from "../domain/types";
 import { ASSISTANT_USER_ID_ENV } from "../launcher/assistant-role";
 import type { CredentialVault } from "../ports";
@@ -50,7 +51,9 @@ export function assistantClaim(
     // it is the second factor a fronted deployment has instead of the dot-name:
     // an ordinary agent's pod cannot answer as the coordinator even holding a
     // valid sandbox token for its own runtime.
-    if (!process.env[ASSISTANT_USER_ID_ENV]?.trim()) return null;
+    // A pool worker's Houston turn carries the same fact in its scope.
+    if (!coordinatorScope() && !process.env[ASSISTANT_USER_ID_ENV]?.trim())
+      return null;
   } else if (!isAssistantAgentId(claim.agentId)) return null;
   return { workspaceId: claim.workspaceId, agentId: claim.agentId };
 }
