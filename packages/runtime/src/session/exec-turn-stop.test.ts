@@ -49,7 +49,7 @@ vi.mock("../store/conversations", () => ({
 }));
 
 const { execTurn, recordUserTurn } = await import("./exec-turn");
-const { anyTurnRunning, isTurnRunning, subscribe } = await import("./bus");
+const { snapshot, subscribe } = await import("./bus");
 const { cancelTurn, STOPPED_BY_USER } = await import("./conversation-control");
 const { appendAssistantMessage } = await import("../store/conversations");
 
@@ -149,8 +149,7 @@ test("a Stop mid-tool publishes nothing after the stop and leaves no turn runnin
   const frames = await runTurn(id, [toolStart], tail, true);
 
   expect(afterStop(frames)).toEqual([]);
-  expect(isTurnRunning(id)).toBe(false);
-  expect(anyTurnRunning()).toBe(false);
+  expect(snapshot(id).running).toBe(false);
   // The recorded message stays complete: only the live stream is cut.
   expect(persisted(id)).toMatchObject({
     stopped: true,
@@ -172,8 +171,7 @@ test("a Stop mid-generation drops the aborted turn's usage frame and leaves no t
   );
 
   expect(afterStop(frames)).toEqual([]);
-  expect(isTurnRunning(id)).toBe(false);
-  expect(anyTurnRunning()).toBe(false);
+  expect(snapshot(id).running).toBe(false);
   expect(persisted(id)).toMatchObject({ stopped: true, usage: aborted });
 });
 
@@ -191,6 +189,5 @@ test("a turn nobody stopped still streams tool_end, usage and its file diff, the
     "done",
   ]);
   expect(frames.every((f) => f.turnId === `${id}-turn`)).toBe(true);
-  expect(isTurnRunning(id)).toBe(false);
-  expect(anyTurnRunning()).toBe(false);
+  expect(snapshot(id).running).toBe(false);
 });

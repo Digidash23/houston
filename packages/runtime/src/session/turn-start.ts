@@ -23,6 +23,7 @@ import {
   connectedProviderForTurn,
   pinnedProviderUnavailable,
 } from "./provider-gate";
+import { holdTurnInFlight } from "./turn-inflight-count";
 import {
   reportPinnedProviderUnavailable,
   reportTurnStartFailure,
@@ -141,7 +142,10 @@ export async function runTurn(
   // running lifetime — decremented in `finally` when it settles. Without this a
   // turn parked in the queue behind the workdir lock (turnId not yet set) could
   // have its session disposed by a concurrent conversation's eviction sweep.
+  // The same lifetime is what the runtime reports as busy (`GET /busy`, the
+  // shutdown drain): queued, waiting on the lock, or executing.
   conv.pending++;
+  const releaseInFlight = holdTurnInFlight();
   const run = conv.queue.then(() => {
     // Persist + announce the user message BEFORE taking the workdir lock, so a
     // brand-new conversation's message is durable and visible (GET /messages)
@@ -178,6 +182,7 @@ export async function runTurn(
     clean = await run;
   } finally {
     conv.pending--;
+    releaseInFlight();
   }
   // A new mission's first turn titles its card AFTER the reply is published,
   // outside the workdir lock and the conversation queue, so neither the user's
