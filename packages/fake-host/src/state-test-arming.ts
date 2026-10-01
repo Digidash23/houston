@@ -47,6 +47,16 @@ export interface TestArming {
    * to explain.
    */
   readOnlyWorkspaces: Set<string>;
+  /**
+   * Conversation imports stall until released, armed by
+   * `/__test__/hold-imports`. Onboarding finishes only once its conversation
+   * is written into the manager's chat, so a held import keeps a spec on the
+   * closing across a reload. Held on the server, never in the browser: a
+   * reload cancels an in-flight request cleanly, while a request the browser
+   * itself pauses outlives the reload and stalls the next page. `null` (the
+   * disarmed state) answers at once.
+   */
+  importHold: { released: Promise<void>; release: () => void } | null;
 }
 
 const disarmed = (): TestArming => ({
@@ -54,13 +64,31 @@ const disarmed = (): TestArming => ({
   failingAgentReads: new Set<string>(),
   failingAgentReadSegments: null,
   readOnlyWorkspaces: new Set<string>(),
+  importHold: null,
 });
 
 export let arming: TestArming = disarmed();
 
 /** Disarm every fault. Called by `reset()` before each test. */
 export function resetArming(): void {
+  arming.importHold?.release();
   arming = disarmed();
+}
+
+/** Hold every conversation import until released (`false` lets the held
+ *  ones through and answers the next at once). */
+export function setImportHold(hold: boolean): void {
+  if (!hold) {
+    arming.importHold?.release();
+    arming.importHold = null;
+    return;
+  }
+  if (arming.importHold) return;
+  let release = () => {};
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  arming.importHold = { released, release };
 }
 
 /** Arm (or clear, with 0) the cold-start hold on per-agent reads. */

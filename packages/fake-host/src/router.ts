@@ -167,6 +167,13 @@ export async function handle(req: Request): Promise<Response> {
     state.setAgentReadHoldMs(Number(body?.ms ?? 0));
     return json({ ms: state.arming.agentReadHoldMs });
   }
+  // Hold every conversation import until `{ hold: false }` (or the per-test
+  // reset) lets them through: keeps onboarding on its closing across a reload.
+  if (path === "/__test__/hold-imports" && method === "POST") {
+    const body = await parseBody(req);
+    state.setImportHold(body?.hold === true);
+    return json({ hold: state.arming.importHold !== null });
+  }
   // Fail every per-agent read (`GET /agents/:id/*`) for the named agents with a
   // 500, leaving the rest healthy — the half-broken fleet the cross-agent
   // sweep must survive (HOU-981). `{ segments: ["routine_runs"] }` narrows it

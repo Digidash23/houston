@@ -10,7 +10,13 @@
  * run resumed with AI Employees already hired first offers "Hire one more"
  * or "That's my team".
  */
-import { expect, type Locator, type Page, type Route } from "@playwright/test";
+import { FAKE_HOST_URL } from "@houston/fake-host";
+import {
+  type APIRequestContext,
+  expect,
+  type Locator,
+  type Page,
+} from "@playwright/test";
 import { prefilledName } from "./employee-name";
 import {
   GOAL_ANSWER,
@@ -180,22 +186,19 @@ export async function finishOnboarding(page: Page): Promise<void> {
  * Hold the closing's save: onboarding finishes only once its conversation is
  * written into the manager's chat, so a held import keeps the person inside
  * onboarding, on the closing, for as long as a spec needs (a reload there).
- * The returned release lets every held save through, including the one a
- * reloaded app retries as it boots; one from before a reload is already gone.
+ * Held by the fake host, never by the browser: a reload cancels a slow
+ * request cleanly, but a request the browser pauses outlives it and stalls the
+ * reloaded page. The returned release lets every held save through.
  */
 export async function holdClosingSave(
-  page: Page,
+  request: APIRequestContext,
 ): Promise<() => Promise<void>> {
-  const pattern = "**/conversations/*/import";
-  const held: Route[] = [];
-  await page.route(pattern, (route) => {
-    held.push(route);
+  await request.post(`${FAKE_HOST_URL}/__test__/hold-imports`, {
+    data: { hold: true },
   });
   return async () => {
-    await page.unroute(pattern);
-    for (const route of held.splice(0))
-      await route.continue().catch(() => {
-        // Its page was reloaded away: there is nothing left to let through.
-      });
+    await request.post(`${FAKE_HOST_URL}/__test__/hold-imports`, {
+      data: { hold: false },
+    });
   };
 }
