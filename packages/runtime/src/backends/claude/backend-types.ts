@@ -4,6 +4,7 @@ import type { ToolSelection } from "../../session/tool-selection";
 import type { AssistantToolOptions } from "../../session/tools/assistant";
 import type { WorkspaceGuardOptions } from "../../session/tools/fs-guard";
 import type { IntegrationToolOptions } from "../../session/tools/integrations";
+import type { CompactionCheckpoints } from "../../store/conversation-compaction";
 import type { BridgedPiTool } from "./custom-tools";
 import type { ClaudeLayout } from "./paths";
 import type { ClaudeSdk, ClaudeSdkLoadResult } from "./sdk-loader";
@@ -56,4 +57,10 @@ export interface ClaudeBackendDeps {
   sdk?: ClaudeSdk;
   /** Optional import already running during pooled-turn hydration. */
   sdkLoad?: Promise<ClaudeSdkLoadResult>;
+  /**
+   * Where a compaction arms its summary. Absent = this process's own
+   * conversations dir; a pooled turn names its hydrated tree's, or the
+   * summary would land outside the conversation it summarizes.
+   */
+  compactions?: CompactionCheckpoints;
 }

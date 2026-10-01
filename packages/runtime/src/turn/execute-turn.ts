@@ -1,4 +1,3 @@
-import { mkdir } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import type { WireFrame } from "@houston/runtime-client";
@@ -15,7 +14,7 @@ import { TurnSetupError } from "./turn-layout";
 import { createTurnLog } from "./turn-log";
 import { setActiveTurnTimings } from "./turn-network-marks";
 import { turnSessionRequest } from "./turn-request";
-import { createTurnRoot } from "./turn-root";
+import { prepareTurnRoot } from "./turn-root";
 import type { makeTurnSandboxFetch } from "./turn-sandbox";
 import { createTurnSandbox } from "./turn-sandbox-startup";
 import {
@@ -24,6 +23,11 @@ import {
   type TurnSessionStartupTask,
 } from "./turn-session-startup";
 import { answerTurnSetupFailure } from "./turn-setup-failure";
+import {
+  snapshotTurnSharedSkills,
+  turnSharedSkillsDir,
+  turnSharedSkillsStore,
+} from "./turn-shared-skills";
 import { poolIdentity, resolveTurnStore } from "./turn-store";
 import { createTurnTranscript } from "./turn-transcript";
 import type { TurnRequest } from "./types";
@@ -36,14 +40,7 @@ export async function executeTurn(
   res: ServerResponse,
   timings: Record<string, number>,
 ): Promise<void> {
-  const root = await createTurnRoot(turn);
-  // Explicit modes, not the umask's: under a tool shell the umask is 002 and
-  // the root is group-shared, and the Claude CLI's shell runs as THIS user
-  // with HOME here, sourcing its dotfiles, so the tool user must not write it.
-  await Promise.all([
-    mkdir(join(root, "home"), { recursive: true, mode: 0o755 }),
-    mkdir(join(root, "claude-credstore"), { recursive: true, mode: 0o700 }),
-  ]);
+  const root = await prepareTurnRoot(turn);
   timings.t_tmpdir = performance.now();
   setActiveTurnTimings(timings);
   const scope = `${turn.workspaceId}/${turn.agentId}`;
@@ -62,10 +59,11 @@ export async function executeTurn(
   try {
     const sandboxIdentity =
       turn.grant && turn.hostToken ? poolIdentity(turn.gcsPrefix) : undefined;
-    const resolved = resolveTurnStore(turn, deps.store, {
+    const storeConfig = {
       poolStoreUrl: deps.poolStoreUrl,
       fetchImpl: deps.fetchImpl,
-    });
+    };
+    const resolved = resolveTurnStore(turn, deps.store, storeConfig);
     heartbeat =
       turn.claim && turn.hostToken
         ? startClaimHeartbeat({
@@ -136,6 +134,13 @@ export async function executeTurn(
       await reportAbandonedTurnStartup(startup);
       throw error;
     }
+    // Needs the agent's own skills manifest, so after hydration.
+    if (!turn.shadow)
+      await snapshotTurnSharedSkills(
+        (deps.sharedSkillsStore ?? turnSharedSkillsStore)(turn, storeConfig),
+        turnSharedSkillsDir(root),
+        filesystem.workspaceDir,
+      );
 
     const sse = openSSE(res);
     closeSse = sse.close;

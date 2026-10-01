@@ -944,9 +944,12 @@
     "errorCode": null,
     "bodyKeys": [
       "activeRequests",
+      "activeWrites",
       "busy",
+      "loginPending",
       "runningRoutineRuns",
-      "runtime"
+      "runtime",
+      "turnBusy"
     ],
     "forwarded": []
   },
@@ -21096,9 +21099,12 @@
     "errorCode": null,
     "bodyKeys": [
       "activeRequests",
+      "activeWrites",
       "busy",
+      "loginPending",
       "runningRoutineRuns",
-      "runtime"
+      "runtime",
+      "turnBusy"
     ],
     "forwarded": []
   },

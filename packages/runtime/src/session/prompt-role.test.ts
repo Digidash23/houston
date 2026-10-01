@@ -31,9 +31,17 @@ test("the pi prompt carries the manager's rules for a coordinator turn only", as
     undefined,
     undefined,
     "base",
+    undefined,
     "coordinator",
   );
-  const agent = makeAgentLoader(dir, undefined, undefined, "base", null);
+  const agent = makeAgentLoader(
+    dir,
+    undefined,
+    undefined,
+    "base",
+    undefined,
+    null,
+  );
   await manager.reload();
   await agent.reload();
   expect(manager.getSystemPrompt()).toContain(MANAGER);

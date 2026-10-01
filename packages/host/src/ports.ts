@@ -289,6 +289,12 @@ export interface RuntimeChannel {
    * can otherwise sleep live work.
    */
   busy(ctx: ChannelCtx): Promise<boolean>;
+  /**
+   * Whether a provider sign-in still waits on its user in this agent's
+   * runtime. The flow lives only in that process, so the idle probe reports
+   * it. Optional: a channel without it reports none.
+   */
+  loginPending?(ctx: ChannelCtx): Promise<boolean>;
   /** Cheap runtime/channel state for diagnostics and idle-sleep callers. */
   runtimeStatus?(ctx: ChannelCtx): Promise<RuntimeState | "unknown">;
   /**

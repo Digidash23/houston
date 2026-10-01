@@ -260,6 +260,52 @@ test("a files list runs as a READ op: no sync-back, runtime tree not hydrated", 
   expect(JSON.stringify(listing)).not.toContain("c1.json");
 });
 
+test("one skill's detail runs as a READ op over the hydrated tree", async () => {
+  const { storeRoot, agentId, prefix } = await seedAgent();
+  const skillDir = join(
+    storeRoot,
+    prefix,
+    "workspaces",
+    ...agentId.split("/"),
+    ".agents",
+    "skills",
+    "weekly-digest",
+  );
+  mkdirSync(skillDir, { recursive: true });
+  writeFileSync(
+    join(skillDir, "SKILL.md"),
+    "---\nname: weekly-digest\ndescription: Sums up the week\n---\nWrite the digest.\n",
+  );
+  const base = await listen(
+    createTurnServer({
+      store: new LocalDirStore(storeRoot),
+      token: "",
+      runTurn: noopTurn,
+    }),
+  );
+  const read = (rest: string) =>
+    postOp(
+      base,
+      opBody(agentId, "http://127.0.0.1:1/hb", {
+        kind: "route",
+        method: "GET",
+        rest,
+        body: "",
+        contentType: "application/json",
+      }),
+    );
+
+  const found = await read("skills/weekly-digest");
+  expect(found.json.status).toBe(200);
+  expect(JSON.parse(found.json.body as string)).toMatchObject({
+    name: "weekly-digest",
+    description: "Sums up the week",
+  });
+  const missing = await read("skills/no-such-skill");
+  expect(missing.json.status).toBe(404);
+  expect(missing.json.body).toBe(JSON.stringify({ error: "skill not found" }));
+});
+
 test("a file download relays binary bytes base64 with its headers", async () => {
   const { storeRoot, agentId } = await seedAgent();
   const store = new LocalDirStore(storeRoot);

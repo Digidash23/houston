@@ -41,6 +41,18 @@ test("admits the turn's own conversation state, nothing of the others", () => {
   expect(ownConversationOnly("a b")(encoded, listed(encoded), root)).toBe(true);
 });
 
+test("hydrates the conversation's own markers, never another's", () => {
+  const root = rootWithSessions();
+  const admit = ownConversationOnly("c1");
+  for (const marker of ["harness.json", "autocompact.json"]) {
+    expect(admit(`${session}/${marker}`, listed(), root)).toBe(true);
+    expect(admit(`${standing}/sessions/c2/${marker}`, listed(), root)).toBe(
+      false,
+    );
+  }
+  expect(admit(`${session}/other.json`, listed(), root)).toBe(false);
+});
+
 test("everything outside conversations/sessions is admitted, in both layouts", () => {
   const root = rootWithSessions();
   const paths = [

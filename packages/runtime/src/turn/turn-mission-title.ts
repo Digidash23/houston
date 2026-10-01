@@ -18,7 +18,7 @@ import {
 } from "../session/mission-title";
 import { oneShotText } from "../session/one-shot";
 import { TITLE_PROMPT } from "../session/title-prompt";
-import { turnAuthStore } from "./turn-backend";
+import { turnAuthStore } from "./turn-auth-store";
 import { fsTextStore } from "./turn-fs-store";
 import type { InTreeMissionTitle } from "./turn-mission-title-outcome";
 import type {

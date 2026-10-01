@@ -61,12 +61,13 @@ export class HttpObjectStore implements ObjectStore {
     return (await this.manifest(prefix)).map((object) => object.key);
   }
 
-  async manifest(prefix = ""): Promise<ObjectMetadata[]> {
+  async manifest(prefix = "", opts?: ReadOptions): Promise<ObjectMetadata[]> {
     const query = prefix ? `?prefix=${encodeURIComponent(prefix)}` : "";
     return readHttpManifest(
       () =>
         this.fetch(`${this.baseUrl}/manifest${query}`, {
           headers: this.authHeaders(),
+          ...(opts?.signal ? { signal: opts.signal } : {}),
         }),
       (response) => this.captureFence(response),
       prefix,

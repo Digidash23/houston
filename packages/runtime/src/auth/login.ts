@@ -577,6 +577,19 @@ export function setCustomEndpoint(
 }
 
 /**
+ * Whether any sign-in on this runtime still waits on its user, in any scope.
+ * The host's idle probe reports it: a flow lives only in this process, so a
+ * pod slept while one is pending drops the sign-in.
+ */
+export function loginPending(): boolean {
+  for (const state of active.values()) {
+    if (state.status === "starting" || state.status === "awaiting_user")
+      return true;
+  }
+  return false;
+}
+
+/**
  * Cancel an in-flight OAuth login for real — not just the client's spinner.
  * Two teardown paths cover every flow pi runs:
  * - aborting the signal stops the device-code pollers (Codex device, Copilot);

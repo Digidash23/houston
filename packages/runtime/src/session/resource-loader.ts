@@ -134,6 +134,12 @@ export function makeAgentLoader(
    * turn actually got.
    */
   basePrompt?: string,
+  /**
+   * The workspace-shared skills directory. Absent = this process's mirror; a
+   * pooled turn passes its own org's per-turn snapshot, since one worker
+   * process serves every org.
+   */
+  sharedSkillsDir: string = config.sharedSkillsDir,
   /** The coordinator role for THIS session. Absent = the process's own; a
    *  pooled turn passes the turn's, `null` included. */
   role?: AssistantRuntimeRole | null,
@@ -152,7 +158,7 @@ export function makeAgentLoader(
   return buildAgentLoader({
     cwd,
     skillsDir: config.skillsDirOverride || join(cwd, ".agents", "skills"),
-    sharedSkillsDir: config.sharedSkillsDir,
+    sharedSkillsDir,
     systemPrompt: withModeOverlay(withRules, mode),
   });
 }

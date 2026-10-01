@@ -45,6 +45,8 @@ export interface PiBackendDeps {
    * WebSocket across a conversation's turns.
    */
   transport?: Transport;
+  /** Workspace-shared skills dir; absent = the process's (resource-loader.ts). */
+  sharedSkillsDir?: string;
   /** The coordinator role for this backend's sessions. Absent = the
    *  process's own; a pooled turn passes the turn's (`null` included). */
   role?: AssistantRuntimeRole | null;
@@ -162,6 +164,7 @@ export function createPiBackend(deps: PiBackendDeps): HarnessBackend {
         opts.mode,
         opts.context,
         deps.systemPrompt,
+        deps.sharedSkillsDir,
         deps.role,
       );
       await loader.reload();
