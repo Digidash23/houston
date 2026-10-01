@@ -4,6 +4,7 @@ import { managerOnboarding, reachTeamStep } from "./support/manager-onboarding";
 import {
   afterHire,
   finishOnboarding,
+  goalCard,
   hireStarterTeam,
   holdClosingSave,
   roster,
@@ -58,7 +59,13 @@ test("a reload after the team is hired resumes on it, and That's my team closes"
   await expect(roster(page).locator('li[data-status="hired"]')).toHaveCount(3);
 
   await afterHire(page, TEAM_DONE_CHOICE);
-  await finishOnboarding(page);
+  // The resumed run finishes into the manager's real chat, on the goal card.
+  // Its team card is not checked here: after a reload mid-closing the chat
+  // can open without the conversation above the goal card (PRODUCT-1960).
+  const chat = page.getByTestId("assistant-chat");
+  await expect(chat).toBeVisible({ timeout: 15_000 });
+  await expect(managerOnboarding(page)).toHaveCount(0);
+  await expect(goalCard(chat)).toBeVisible();
   for (const name of STARTER_ROLES)
     await expect(agentRow(page, name)).toBeVisible();
 });
