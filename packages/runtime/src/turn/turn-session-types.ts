@@ -2,6 +2,7 @@ import type { TurnMode } from "@houston/protocol";
 import type {
   ChatMessage,
   PendingInteraction,
+  TokenUsage,
   WireFrame,
 } from "@houston/runtime-client";
 import type { ClaudePlanBinding } from "../auth/claude-plan";
@@ -20,6 +21,8 @@ export interface TurnOutcome {
   pendingInteraction?: PendingInteraction;
   /** A new mission's after-turn title, as written in the tree (pre-sync). */
   missionTitle?: InTreeMissionTitle;
+  /** What the turn spent, for the agent's token ledger (turn-ledger.ts). */
+  spend?: { provider: string; usage: TokenUsage };
 }
 
 /** Per-turn model/effort pin. Absent means inherit the agent setting. */

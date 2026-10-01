@@ -25,6 +25,11 @@ export interface RuntimeFilePolicyInput {
   workspaceDir: string;
   /** The workspace-shared skills mirror, or "" where none is mounted. */
   sharedSkillsDir: string;
+  /**
+   * A pooled turn's READ-ONLY snapshot of its org's shared skills
+   * (turn/turn-shared-skills.ts): readable like the mirror, never writable.
+   */
+  sharedSkillsSnapshot?: string;
 }
 
 /** The shared (writable) roots this runtime's file tools get. */
@@ -40,5 +45,10 @@ export function fileToolGuardOptions(
   if (input.role === "coordinator") {
     return { allowedFiles: [learningsDocPath(input.workspaceDir)] };
   }
-  return { sharedRoots: sharedRootsFor(input) };
+  return {
+    sharedRoots: sharedRootsFor(input),
+    ...(input.sharedSkillsSnapshot
+      ? { readOnlyRoots: [input.sharedSkillsSnapshot] }
+      : {}),
+  };
 }

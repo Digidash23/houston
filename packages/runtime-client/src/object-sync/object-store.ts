@@ -15,6 +15,7 @@ export interface ObjectStore {
   list(prefix: string): Promise<string[]>;
   manifest?(
     prefix?: string,
+    opts?: ReadOptions,
   ): Promise<import("./object-manifest").ObjectMetadata[]>;
   download(key: string, destFile: string, opts?: ReadOptions): Promise<void>;
   /** Download one object and return metadata from the same read response. */

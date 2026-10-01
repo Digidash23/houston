@@ -4,7 +4,6 @@ import { runWithConversationScope } from "../session/bus";
 import type { startClaimHeartbeat } from "./claim-heartbeat";
 import { localModelContextForTurn } from "./local-model-context";
 import type { TurnServerDeps } from "./server-types";
-import { persistTurnClaudeFlags } from "./turn-claude-flags";
 import { finishTurnDurability } from "./turn-durability";
 import type { TurnFilesystem } from "./turn-filesystem";
 import type { createTurnLog } from "./turn-log";
@@ -16,6 +15,7 @@ import { finishRoutineTurn } from "./turn-routine-finish";
 import type { makeTurnSandboxFetch } from "./turn-sandbox";
 import { runTurn, type TurnOutcome } from "./turn-session";
 import type { TurnSessionStartupTask } from "./turn-session-startup";
+import { landTurnSideWrites } from "./turn-side-writes";
 import type { resolveTurnStore } from "./turn-store";
 import { durableTerminalFrame } from "./turn-terminal";
 import type { createTurnTranscript } from "./turn-transcript";
@@ -170,14 +170,14 @@ export async function executeReadyTurn(input: {
       ...(input.sandbox ? { views: input.sandbox.views() } : {}),
       ...(afterSync ? { afterSync } : {}),
     }),
-    // Before the terminal frame: the claim authorizing this upload ends there.
-    persistTurnClaudeFlags({
+    landTurnSideWrites({
       store: input.resolved.store,
       prefix: input.resolved.prefix,
       filesystem: input.filesystem,
       root: input.root,
       conversationId: input.turn.conversationId,
       userId: input.turn.actingAs?.userId,
+      spend: outcome.spend,
     }),
   ]);
   input.timings.t_durable = performance.now();

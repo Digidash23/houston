@@ -50,7 +50,10 @@ test("GET /busy reports aggregate in-flight turn state without auth", async () =
   try {
     let res = await fetch(`${baseUrl}/busy`);
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ busy: false });
+    await expect(res.json()).resolves.toEqual({
+      busy: false,
+      loginPending: false,
+    });
 
     publish(conversationId, {
       type: "user",
@@ -58,7 +61,10 @@ test("GET /busy reports aggregate in-flight turn state without auth", async () =
     });
     res = await fetch(`${baseUrl}/busy`);
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ busy: true });
+    await expect(res.json()).resolves.toEqual({
+      busy: true,
+      loginPending: false,
+    });
   } finally {
     evict(conversationId);
     await close(server);

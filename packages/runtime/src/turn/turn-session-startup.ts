@@ -12,6 +12,7 @@ import { turnRunCodeLimiter } from "./turn-run-code-limiter";
 import { createTurnModelRuntime } from "./turn-runtime";
 import { TURN_CODE_RUN_PATH } from "./turn-sandbox-code";
 import type { TurnDirectories, TurnSessionRequest } from "./turn-session";
+import { turnSharedSkillsDir } from "./turn-shared-skills";
 import { turnSystemPrompt } from "./turn-system-prompt";
 import { buildTurnToolSelection, turnCodeExecution } from "./turn-toolset";
 
@@ -21,6 +22,8 @@ export interface RunTurnDeps {
   titleRunner?: MissionTitleRunner;
   createBackend?: (provider: string, deps: TurnBackendDeps) => HarnessBackend;
   createModelRuntime?: typeof createTurnModelRuntime;
+  /** Test seam: the stall window, else `config.turnStallTimeoutMs`. */
+  stallTimeoutMs?: number;
 }
 
 export interface TurnSessionStartup {
@@ -108,6 +111,7 @@ async function prepareTurnSession(
       role: config.assistantRole,
       workspaceDir: directories.workspaceDir,
       sharedSkillsDir: config.sharedSkillsDir,
+      sharedSkillsSnapshot: turnSharedSkillsDir(directories.turnRoot),
     }),
     claudeSdk: deps.claudeSdk,
     claudeSdkLoad: sdkLoad,

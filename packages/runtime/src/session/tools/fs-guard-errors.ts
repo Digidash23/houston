@@ -62,3 +62,17 @@ export class RoutineWriteDeniedError extends ProtectedWriteDeniedError {
     this.name = "RoutineWriteDeniedError";
   }
 }
+
+/**
+ * A write into a READ-ONLY root: the org-shared skills a pooled turn reads
+ * from a throwaway snapshot. An edit there would vanish with the turn, so the
+ * model is told the skill is used as it is.
+ */
+export class SharedSkillReadOnlyError extends ProtectedWriteDeniedError {
+  constructor() {
+    super(
+      "Shared skills belong to the whole team and cannot be changed from this conversation. Use the skill as it is.",
+    );
+    this.name = "SharedSkillReadOnlyError";
+  }
+}

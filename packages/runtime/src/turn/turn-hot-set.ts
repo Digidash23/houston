@@ -114,7 +114,13 @@ export function ownConversationOnly(
       const sessionAt = runtimeAt + 2;
       const sessionRel = segments.slice(0, sessionAt).join("/");
       const tail = segments.slice(sessionAt);
-      if (tail.length === 1 && tail[0] === "harness.json") return true;
+      // Houston's own per-conversation markers: the harness that last ran it
+      // and a failed autocompact's cooldown (turn-autocompact.ts).
+      if (
+        tail.length === 1 &&
+        (tail[0] === "harness.json" || tail[0] === "autocompact.json")
+      )
+        return true;
       if (tail.length === 1 && tail[0]?.endsWith(".jsonl")) {
         const sessions = listing
           .map(({ rel: candidate }) => candidate)
@@ -146,8 +152,8 @@ export function ownConversationOnly(
         );
       }
       // Pi's SessionManager writes and discovers only direct `*.jsonl` files;
-      // backend.ts enforces the same resume filter, and turn-harness-state.ts
-      // is Houston's only other direct-file writer (`harness.json`).
+      // backend.ts enforces the same resume filter, and the two markers above
+      // are Houston's only other direct-file writers.
       return false;
     }
     return true;
