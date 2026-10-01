@@ -28,6 +28,31 @@ export function agentRouteScope(workspaceRel: string): OpInclude {
   return (rel) => rel.startsWith(root) && !rel.startsWith(runtime);
 }
 
+/**
+ * A migration import's scope (the agent-import claim): the agent route scope
+ * plus the runtime transcripts it unpacks, their archive segments (a long
+ * desktop conversation arrives rotated, store/conversation-archive.ts), and
+ * the pi sessions synthesized from them. Nothing else of the runtime tree.
+ */
+export function importScope(workspaceRel: string, dataRel: string): OpInclude {
+  const agent = agentRouteScope(workspaceRel);
+  const conversations = `${posix.join(dataRel, "conversations")}/`;
+  const sessions = `${posix.join(dataRel, "sessions")}/`;
+  return (rel) => {
+    if (agent(rel) || rel.startsWith(sessions)) return true;
+    if (!rel.startsWith(conversations)) return false;
+    const [name = "", segment, ...deeper] = rel
+      .slice(conversations.length)
+      .split("/");
+    if (segment === undefined) return name.endsWith(".json");
+    return (
+      deeper.length === 0 &&
+      name.endsWith(".archive") &&
+      segment.endsWith(".json")
+    );
+  };
+}
+
 /** One conversation's file + sessions. */
 export function conversationScope(dataRel: string, cid: string): OpInclude {
   const file = posix.join(

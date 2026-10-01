@@ -1,0 +1,101 @@
+import type { SyncResult } from "@houston/runtime-client/object-sync";
+import type { OpResult } from "./op-apply";
+import { repairImportedConversations } from "./op-import-repair";
+import { type OpClaimTurn, republish } from "./op-republish";
+import { opTranscriptMirror } from "./op-transcript";
+import { isMigrationImport } from "./op-tree-options";
+import type { OpRequest } from "./parse-op-request";
+import type { TurnServerDeps } from "./server-types";
+import { announcedOpEvents } from "./turn-changed-events";
+import type { TurnFilesystem } from "./turn-filesystem";
+
+/**
+ * What a sync-back that did not fully land answers instead of the handler's
+ * reply, or null when every write is durable. `context` names the op in the
+ * log line.
+ */
+export function partialSyncReply(
+  synced: SyncResult,
+  context: string,
+): Record<string, unknown> | null {
+  const landed = synced.uploaded.length + synced.deleted.length > 0;
+  const partial =
+    synced.outOfScope > 0 ||
+    synced.skipped.length > 0 ||
+    synced.conflicts.length > 0;
+  if (!partial) return null;
+  console.error(
+    `[op] not durably synced: outOfScope=${synced.outOfScope} skipped=${synced.skipped.length} conflicts=${synced.conflicts.length} landed=${landed} ${context}`,
+  );
+  // A file the store refuses (over its per-object cap) can never persist
+  // anywhere — the pod would silently fail the same way, and proxying would
+  // let it answer success for an undurable write. Tell the user; the client
+  // does not retry a 413. Checked BEFORE the nothing-landed decline: a
+  // single refused file lands nothing.
+  if (synced.skipped.length > 0) {
+    return {
+      ok: true,
+      status: 413,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: "file too large to store",
+        files: synced.skipped.map((s) => s.key),
+      }),
+      events: [],
+    };
+  }
+  // NOTHING landed: declining is safe — the gateway proxies and the pod
+  // applies the write from an unchanged tree.
+  if (!landed) return { ok: true, decline: true };
+  // Something landed and something conflicted: the write is PARTLY durable.
+  // Re-running it on the pod would duplicate the part that landed (a routine
+  // create mints a fresh id); the client must be told the result is unknown.
+  return { ok: true, ambiguous: true };
+}
+
+/**
+ * Project a durable op: republish its docs (one more round on a failure),
+ * mirror a conversation op, repair an import's conversations. Answers the
+ * events the reply may announce.
+ */
+export async function projectDurableOp(input: {
+  deps: TurnServerDeps;
+  turn: OpClaimTurn;
+  op: OpRequest;
+  filesystem: TurnFilesystem;
+  result: OpResult;
+  uploaded: readonly string[];
+  prefix: string;
+}): Promise<ReturnType<typeof announcedOpEvents>> {
+  const { deps, turn, op, filesystem, result } = input;
+  let failures = await republish(deps, turn, filesystem, result);
+  if (failures.length > 0) {
+    // One more round before accepting a lag: a blip on the doc PUT is the
+    // common case and the files are already durable.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    failures = await republish(deps, turn, filesystem, result);
+  }
+  if (op.op.kind === "conversation") {
+    failures.push(...(await opTranscriptMirror(deps, turn, op.op)));
+  }
+  if (isMigrationImport(op.op)) {
+    failures.push(
+      ...(await repairImportedConversations(
+        deps,
+        turn,
+        filesystem,
+        input.uploaded,
+      )),
+    );
+  }
+  if (failures.length > 0) {
+    // The files ARE durable; only a doc/transcript projection lagged. Never
+    // re-run (duplicates) — answer the handler's status and make the gap
+    // loud: the next op's republish or the pod's wake-time projector
+    // re-projects from the files.
+    console.error(
+      `[op] projection failed after a durable sync (asleep reads may lag until the next projection): ${failures.join("; ")} prefix=${input.prefix}`,
+    );
+  }
+  return announcedOpEvents(result.events, failures);
+}

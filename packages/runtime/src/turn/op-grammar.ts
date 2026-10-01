@@ -124,8 +124,7 @@ function parseRouteOp(raw: Record<string, unknown>): AgentOp {
     throw new Error("op.bodyBase64 is not accepted for this route");
   }
   // And the converse: a binary route must never smuggle its payload as a
-  // text body — a zip in a UTF-8 string is corrupt AND would bypass the
-  // runtime-transcript decline that keys off bodyBase64 (op-route.ts).
+  // text body — a zip in a UTF-8 string is corrupt.
   if (
     isBinaryBodyOpRoute(decoded) &&
     typeof raw.body === "string" &&

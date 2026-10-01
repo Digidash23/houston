@@ -5,34 +5,17 @@ import { join } from "node:path";
 import { syncBack } from "@houston/runtime-client/object-sync";
 import { startClaimHeartbeat } from "./claim-heartbeat";
 import { applyOp } from "./op-apply";
+import { partialSyncReply, projectDurableOp } from "./op-durability";
 import { WorkerOpDeclinedError } from "./op-provider-guard";
-import { republish } from "./op-republish";
 import { executeSeedOp } from "./op-seed";
-import { opTranscriptMirror } from "./op-transcript";
+import { opClaimId, opTreeOptions } from "./op-tree-options";
 import { parseOpRequest } from "./parse-op-request";
 import type { TurnServerDeps } from "./server-types";
-import { announcedOpEvents } from "./turn-changed-events";
+import type { announcedOpEvents } from "./turn-changed-events";
 import { prepareTurnFilesystem } from "./turn-filesystem";
 import { resolveTurnStore } from "./turn-store";
 
-/** Reserved claim key for agent-level writes (gateway + pod-store agree). */
-export const AGENT_OPS_CLAIM_ID = "agent-ops";
-
-/** Route ops never see the AGENT's runtime tree (`workspaces/<ws>/<agent>/
- *  .houston/runtime/`) — exactly that depth, so a user project carrying its
- *  own `.houston/runtime` directory is listed like any other file. */
-const ROUTE_OP_EXCLUDES = ["workspaces/*/*/.houston/runtime/"];
-/** A settings op reads/writes the runtime dir's small files only: skip the
- *  bulk (history, user files); the small .houston docs keep the layout real.
- *  A model-picker click must not pay a big agent's hydrate. */
-const SETTINGS_OP_EXCLUDES = [
-  "workspaces/*/*/.houston/runtime/conversations/",
-  "workspaces/*/*/.houston/runtime/sessions/",
-  "workspaces/*/*/files/",
-  "workspaces/*/*/uploads/",
-];
-/** A credential op needs nothing but the agent directory to exist. */
-const CREDENTIAL_OP_EXCLUDES = SETTINGS_OP_EXCLUDES;
+export { AGENT_IMPORT_CLAIM_ID, AGENT_OPS_CLAIM_ID } from "./op-tree-options";
 
 function json(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -61,11 +44,7 @@ export async function executeOp(
   }
   const root = await mkdtemp(join(tmpdir(), "houston-op-"));
   const abort = new AbortController();
-  const turnLike = {
-    ...op,
-    conversationId:
-      op.op.kind === "conversation" ? op.op.conversationId : AGENT_OPS_CLAIM_ID,
-  };
+  const turnLike = { ...op, conversationId: opClaimId(op.op) };
   const heartbeat = startClaimHeartbeat({
     claim: op.claim,
     hostToken: op.hostToken,
@@ -105,23 +84,7 @@ export async function executeOp(
       ...(deps.maxHydrateBytes !== undefined
         ? { maxBytes: deps.maxHydrateBytes }
         : {}),
-      // Agent-level routes (files, docs, skills) and conversation ops run
-      // over a LAZY tree: the store's listing, objects downloaded on first
-      // read — a Files listing or a one-file read costs one round-trip, not
-      // the agent's size, and a rename fetches its one conversation. The
-      // runtime tree (conversations, sessions) is never listed for routes.
-      // A settings op needs the runtime dir minus those two. A credential
-      // op touches no file at all (the gateway's store is the only write)
-      // — it still hydrates the layout so the agent-exists check holds.
-      ...(op.op.kind === "route"
-        ? { excludes: ROUTE_OP_EXCLUDES, lazy: true }
-        : op.op.kind === "conversation"
-          ? { lazy: true }
-          : op.op.kind === "settings"
-            ? { excludes: SETTINGS_OP_EXCLUDES }
-            : op.op.kind === "credential"
-              ? { excludes: CREDENTIAL_OP_EXCLUDES }
-              : {}),
+      ...opTreeOptions(op.op),
     });
     const result = await (deps.runOp ?? applyOp)(
       op,
@@ -168,62 +131,21 @@ export async function executeOp(
           workerMerge: true,
         },
       );
-      const landed = synced.uploaded.length + synced.deleted.length > 0;
-      const partial =
-        synced.outOfScope > 0 ||
-        synced.skipped.length > 0 ||
-        synced.conflicts.length > 0;
-      if (partial) {
-        console.error(
-          `[op] not durably synced: outOfScope=${synced.outOfScope} skipped=${synced.skipped.length} conflicts=${synced.conflicts.length} landed=${landed} prefix=${resolved.prefix} kind=${op.op.kind}`,
-        );
-        // A file the store refuses (over its per-object cap) can never
-        // persist anywhere — the pod would silently fail the same way, and
-        // proxying would let it answer success for an undurable write.
-        // Tell the user; the client does not retry a 413. Checked BEFORE
-        // the nothing-landed decline: a single refused file lands nothing.
-        if (synced.skipped.length > 0) {
-          return json(res, 200, {
-            ok: true,
-            status: 413,
-            contentType: "application/json",
-            body: JSON.stringify({
-              error: "file too large to store",
-              files: synced.skipped.map((s) => s.key),
-            }),
-            events: [],
-          });
-        }
-        // NOTHING landed: declining is safe — the gateway proxies and the
-        // pod applies the write from an unchanged tree.
-        if (!landed) return json(res, 200, { ok: true, decline: true });
-        // Something landed and something conflicted: the write is PARTLY
-        // durable. Re-running it on the pod would duplicate the part that
-        // landed (a routine create mints a fresh id); the client must be
-        // told the result is unknown instead.
-        return json(res, 200, { ok: true, ambiguous: true });
-      }
+      const partial = partialSyncReply(
+        synced,
+        `prefix=${resolved.prefix} kind=${op.op.kind}`,
+      );
+      if (partial) return json(res, 200, partial);
       if (result.status < 300) {
-        let failures = await republish(deps, turnLike, filesystem, result);
-        if (failures.length > 0) {
-          // One more round before accepting a lag: a blip on the doc PUT is
-          // the common case and the files are already durable.
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          failures = await republish(deps, turnLike, filesystem, result);
-        }
-        if (op.op.kind === "conversation") {
-          failures.push(...(await opTranscriptMirror(deps, turnLike, op.op)));
-        }
-        if (failures.length > 0) {
-          // The files ARE durable; only a doc/transcript projection lagged.
-          // Never re-run (duplicates) — answer the handler's status and make
-          // the gap loud: the next op's republish or the pod's wake-time
-          // projector re-projects from the files.
-          console.error(
-            `[op] projection failed after a durable sync (asleep reads may lag until the next projection): ${failures.join("; ")} prefix=${resolved.prefix}`,
-          );
-        }
-        announce = announcedOpEvents(result.events, failures);
+        announce = await projectDurableOp({
+          deps,
+          turn: turnLike,
+          op,
+          filesystem,
+          result,
+          uploaded: synced.uploaded,
+          prefix: resolved.prefix,
+        });
       }
     }
     json(res, 200, {

@@ -1,7 +1,6 @@
 import { join } from "node:path";
 import { ACTING_VIA_ASSISTANT } from "@houston/host/src/auth/acting";
 import { dispatchAgentOp } from "@houston/host/src/op/dispatch";
-import { archiveTouchesRuntime } from "@houston/host/src/routes/migration-import";
 import { PrefixedVfs } from "@houston/host/src/vfs";
 import type { HoustonEvent } from "@houston/protocol";
 import type { OpResult } from "./op-apply";
@@ -11,7 +10,7 @@ import {
   type CustomContext,
   customIntegrationContext,
 } from "./op-route-custom";
-import { agentRouteScope, engineAgentId } from "./op-scope";
+import { agentRouteScope, engineAgentId, importScope } from "./op-scope";
 import type { OpRequest } from "./parse-op-request";
 import type { TurnFilesystem } from "./turn-filesystem";
 
@@ -25,6 +24,14 @@ const decline = (include: OpResult["include"]): OpResult => ({
   include,
   decline: true,
 });
+
+/** What a route op may write: the agent's tree, and for a migration import
+ *  also the runtime transcripts and sessions it unpacks. */
+function routeScope(filesystem: TurnFilesystem, decoded: string) {
+  return decoded === "migration/import"
+    ? importScope(filesystem.workspaceRel, filesystem.dataRel)
+    : agentRouteScope(filesystem.workspaceRel);
+}
 
 /** An add whose auth mode is the browser sign-in (pod-only capability). */
 function oauthAddBody(body: string | undefined): boolean {
@@ -47,21 +54,11 @@ export async function applyRouteOp(
   filesystem: TurnFilesystem,
   fetchImpl?: typeof fetch,
 ): Promise<OpResult> {
-  const include = agentRouteScope(filesystem.workspaceRel);
   const { method, rest } = op.op;
   // parseOpRequest already proved the rest decodes (and validated the
   // decoded form against the allowlist).
   const decoded = decodeURIComponent(rest);
-
-  // Desktop→cloud migration: an archive that carries runtime transcripts
-  // needs the pod (agentDir-anchored session synthesis + the transcript
-  // authority's projector). File/core-only chunks — and every status /
-  // complete / export call — run here.
-  if (decoded === "migration/import" && op.op.bodyBase64) {
-    if (archiveTouchesRuntime(Buffer.from(op.op.bodyBase64, "base64"))) {
-      return decline(include);
-    }
-  }
+  const include = routeScope(filesystem, decoded);
   // Adding an OAuth-auth integration mints a capability answer only the pod
   // can honor (its callback + pending state) — decline before any write.
   if (
@@ -95,7 +92,7 @@ async function runRouteOp(
   custom: CustomContext | null,
 ): Promise<OpResult> {
   const agentId = engineAgentId(filesystem);
-  const include = agentRouteScope(filesystem.workspaceRel);
+  const include = routeScope(filesystem, decoded);
   // The handlers address the agent under `workspaces/`; the turn's vfs
   // is rooted one level up (lazy or real, the same seam).
   const vfs = new PrefixedVfs(filesystem.vfs, "workspaces");
@@ -108,6 +105,11 @@ async function runRouteOp(
       vfs,
       request,
       ...(op.agentName ? { agentName: op.agentName } : {}),
+      // A migration import synthesizes each transcript's pi session against
+      // the on-disk agent dir, the same artifacts the pod writes.
+      ...(decoded === "migration/import"
+        ? { agentDir: filesystem.workspaceDir }
+        : {}),
       ...(custom ? { customIntegrations: custom.manager } : {}),
     });
   const result = await dispatch({
