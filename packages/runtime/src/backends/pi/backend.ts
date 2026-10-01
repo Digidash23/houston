@@ -7,6 +7,7 @@ import {
   type ModelRuntime,
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
+import type { AssistantRuntimeRole } from "@houston/domain/assistant-role";
 import { isManagedBridgeModel } from "../../ai/openai-compatible-model";
 import { makeAgentLoader } from "../../session/resource-loader";
 import { toolNamesForMode } from "../../session/tool-selection";
@@ -44,6 +45,9 @@ export interface PiBackendDeps {
    * WebSocket across a conversation's turns.
    */
   transport?: Transport;
+  /** The coordinator role for this backend's sessions. Absent = the
+   *  process's own; a pooled turn passes the turn's (`null` included). */
+  role?: AssistantRuntimeRole | null;
 }
 
 /**
@@ -158,6 +162,7 @@ export function createPiBackend(deps: PiBackendDeps): HarnessBackend {
         opts.mode,
         opts.context,
         deps.systemPrompt,
+        deps.role,
       );
       await loader.reload();
       const { session } = await createAgentSession({

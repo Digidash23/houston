@@ -159,6 +159,7 @@ export function createClaudeBackend(deps: ClaudeBackendDeps): HarnessBackend {
           deps.systemPrompt,
           opts.mode,
           opts.context,
+          deps.role,
         ),
       };
 

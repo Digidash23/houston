@@ -105,7 +105,7 @@ async function prepareTurnSession(
     // so the shared skills mirror it must never rewrite is not a writable root
     // for it on any provider.
     fileGuard: fileToolGuardOptions({
-      role: config.assistantRole,
+      role: turn.role ?? null,
       workspaceDir: directories.workspaceDir,
       sharedSkillsDir: config.sharedSkillsDir,
     }),

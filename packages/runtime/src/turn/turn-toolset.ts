@@ -1,6 +1,4 @@
 import type { PiBackendDeps } from "../backends/pi/backend";
-import { assistantOptions } from "../session/assistant-family";
-import { personalAssistant } from "../session/runtime-role";
 import {
   buildToolSelection,
   type CodeExecutionMode,
@@ -16,6 +14,10 @@ import { makeSaveLearningTool } from "../session/tools/save-learning";
 import { makeSaveRoutineTool } from "../session/tools/save-routine";
 import { makeSuggestActionsTool } from "../session/tools/suggest-actions";
 import { makeSuggestReusableTool } from "../session/tools/suggest-reusable";
+import {
+  buildTurnCoordinatorTools,
+  turnAssistantOptions,
+} from "./turn-coordinator-tools";
 import type { TurnSessionRequest } from "./turn-session";
 
 function capabilities(turn: TurnSessionRequest) {
@@ -52,13 +54,19 @@ export function buildTurnToolSelection(
   codeExecution: CodeExecutionMode,
 ): ToolSelection {
   const enabled = capabilities(turn);
+  // The clamp follows the ROLE alone, so a coordinator turn that somehow came
+  // without a facade still gets the coordinator's narrow surface, not an
+  // ordinary agent's shell. The family needs the facade as well.
+  const coordinator = turnAssistantOptions(turn) !== undefined;
   return buildToolSelection({
     codeExecution: turnCodeExecution(turn, codeExecution),
     integrations: enabled.integrations,
     providerConnections: enabled.providerConnections,
     saveRoutine: enabled.agentWrites,
     saveLearning: enabled.agentWrites,
-    missions: false,
+    missions: coordinator,
+    assistant: coordinator,
+    personalAssistant: turn.role === "coordinator",
   });
 }
 
@@ -68,6 +76,8 @@ export function buildTurnHostTools(
 ): PiBackendDeps["customTools"] {
   if (!turn.sandbox) return [];
   const enabled = capabilities(turn);
+  const personalAssistant = turn.role === "coordinator";
+  const assistantOptions = turnAssistantOptions(turn);
   return [
     ...(enabled.providerConnections
       ? [
@@ -79,13 +89,10 @@ export function buildTurnHostTools(
       ? [
           ...makeIntegrationTools({ call: turn.sandbox.call }),
           // The secure key-entry surface is `credentialTools`' call on every
-          // backend; the assistant family's catalog is process-level but its
-          // transport is not, so it is rebound to THIS turn's sandbox.
+          // backend, over THIS turn's sandbox.
           ...credentialTools({
             personalAssistant,
-            ...(assistantOptions
-              ? { assistant: { ...assistantOptions, call: turn.sandbox.call } }
-              : {}),
+            ...(assistantOptions ? { assistant: assistantOptions } : {}),
             integrations: { call: turn.sandbox.call },
           }),
         ]
@@ -109,6 +116,7 @@ export function buildTurnHostTools(
 export function buildTurnCommonTools(
   turn: TurnSessionRequest,
   codeSandbox: PiBackendDeps["customTools"][number] | null,
+  dataDir: string,
 ): PiBackendDeps["customTools"] {
   return [
     makeAskUserTool(),
@@ -117,5 +125,6 @@ export function buildTurnCommonTools(
     makeSuggestActionsTool(),
     ...(codeSandbox ? [codeSandbox] : []),
     ...buildTurnHostTools(turn),
+    ...buildTurnCoordinatorTools(turn, dataDir),
   ];
 }

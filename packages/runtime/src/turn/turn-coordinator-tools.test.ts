@@ -1,0 +1,146 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { expect, test } from "vitest";
+import { runWithConversationId } from "../session/conversation-context";
+import { COORDINATOR_TOOL_NAMES } from "../session/tool-selection-coordinator";
+import type { SandboxFetch } from "../session/tools/sandbox-fetch";
+import { appendUserMessageAt } from "../store/conversation-file";
+import type { TurnSessionRequest } from "./turn-session";
+import { buildTurnCommonTools, buildTurnToolSelection } from "./turn-toolset";
+
+/**
+ * A pool worker serves whatever turn arrives, so the AI Manager's surface is
+ * decided by the TURN (the gateway marks it), never by the worker's process:
+ * one worker builds the coordinator's tools for Houston's turn and an
+ * ordinary agent's tools for the next.
+ */
+
+const okCall: SandboxFetch = async () => Response.json({});
+
+function turn(
+  overrides: Partial<TurnSessionRequest> = {},
+  call: SandboxFetch = okCall,
+): TurnSessionRequest {
+  return {
+    conversationId: "assistant",
+    text: "hello",
+    provider: "openai-codex",
+    emit: () => undefined,
+    signal: undefined,
+    turnId: "t1",
+    role: "coordinator",
+    grant: { scopes: ["integrations", "agent-writes"] },
+    sandbox: { call },
+    ...overrides,
+  };
+}
+
+const dataDir = () => mkdtempSync(join(tmpdir(), "coordinator-turn-"));
+const names = (tools: { name: string }[]) => tools.map((tool) => tool.name);
+
+test("a coordinator turn's allowlist is the coordinator surface", () => {
+  const selected = buildTurnToolSelection(turn(), "local").toolNames;
+  expect(selected).toEqual(
+    expect.arrayContaining([
+      "houston_capabilities",
+      "houston_describe",
+      "houston_call",
+      "houston_recall",
+      "start_mission",
+      "list_missions",
+      "read_mission",
+      "update_mission_status",
+      "save_learning",
+      "request_hands_on",
+    ]),
+  );
+  for (const name of selected) expect(COORDINATOR_TOOL_NAMES).toContain(name);
+  for (const name of ["bash", "run_code", "edit", "save_routine"]) {
+    expect(selected).not.toContain(name);
+  }
+});
+
+test("the same worker builds an ordinary turn's surface for an ordinary turn", () => {
+  const selected = buildTurnToolSelection(
+    turn({ role: undefined }),
+    "local",
+  ).toolNames;
+  expect(selected).toContain("bash");
+  expect(selected).not.toContain("houston_call");
+  expect(selected).not.toContain("start_mission");
+});
+
+test("a coordinator turn with no facade keeps the clamp and gets no family", () => {
+  const bare = turn({ grant: undefined, sandbox: undefined });
+  const selected = buildTurnToolSelection(bare, "local").toolNames;
+  for (const name of selected) expect(COORDINATOR_TOOL_NAMES).toContain(name);
+  expect(selected).not.toContain("houston_call");
+  expect(selected).not.toContain("bash");
+  expect(buildTurnCommonTools(bare, null, dataDir())).not.toContainEqual(
+    expect.objectContaining({ name: "houston_call" }),
+  );
+});
+
+test("every coordinator tool the allowlist names is registered", () => {
+  const coordinator = turn();
+  const selected = buildTurnToolSelection(coordinator, "local").toolNames;
+  const registered = names(buildTurnCommonTools(coordinator, null, dataDir()));
+  for (const name of selected.filter((n) => n !== "read" && n !== "write")) {
+    expect(registered).toContain(name);
+  }
+});
+
+test("houston_call and the mission tools ride THIS turn's facade", async () => {
+  const paths: string[] = [];
+  const call: SandboxFetch = async (path) => {
+    paths.push(path);
+    return Response.json({ items: [] });
+  };
+  const tools = buildTurnCommonTools(turn({}, call), null, dataDir());
+  const houstonCall = tools.find((tool) => tool.name === "houston_call");
+  const list = tools.find((tool) => tool.name === "list_missions");
+  await runWithConversationId("assistant", async () => {
+    await houstonCall?.execute(
+      "c1",
+      { operation: "listAgents", params: {} },
+      undefined,
+      undefined,
+      undefined as never,
+    );
+    await list?.execute(
+      "c2",
+      { agent: "Writer" },
+      undefined,
+      undefined,
+      undefined as never,
+    );
+  });
+  expect(paths).toContain("/sandbox/assistant/call");
+  expect(paths.some((path) => path.startsWith("/sandbox/missions"))).toBe(true);
+});
+
+test("houston_recall searches this turn's own transcript", async () => {
+  const dir = dataDir();
+  appendUserMessageAt(
+    join(dir, "conversations"),
+    "assistant",
+    "my dentist is Dr. Okafor",
+  );
+  const recall = buildTurnCommonTools(turn(), null, dir).find(
+    (tool) => tool.name === "houston_recall",
+  );
+  const result = await runWithConversationId("assistant", () =>
+    recall?.execute(
+      "r1",
+      { query: "Okafor" },
+      undefined,
+      undefined,
+      undefined as never,
+    ),
+  );
+  const text = result?.content
+    .map((part) => (part.type === "text" ? part.text : ""))
+    .join("");
+  expect(text).toContain("Okafor");
+});

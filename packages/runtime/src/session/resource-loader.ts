@@ -2,6 +2,7 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { DefaultResourceLoader } from "@earendil-works/pi-coding-agent";
 import { renderJobDescriptionForPrompt } from "@houston/domain";
+import type { AssistantRuntimeRole } from "@houston/domain/assistant-role";
 import type { TurnMode } from "@houston/protocol";
 import { config } from "../config";
 import { buildAssistantRulesSection } from "./assistant-rules-context";
@@ -133,17 +134,20 @@ export function makeAgentLoader(
    * turn actually got.
    */
   basePrompt?: string,
+  /** The coordinator role for THIS session. Absent = the process's own; a
+   *  pooled turn passes the turn's, `null` included. */
+  role?: AssistantRuntimeRole | null,
 ) {
   // Workspace and user context precede saved memory, operating rules, and
   // the turn mode overlay. Agent instructions load through agentsFilesOverride.
   const section = buildWorkspaceContextSection(cwd, provided);
   const base = basePrompt || config.systemPrompt || SYSTEM_PROMPT;
   const withContext = section ? `${base}\n\n${section}` : base;
-  const learnings = buildLearningsSection(cwd);
+  const learnings = buildLearningsSection(cwd, role);
   const withLearnings = learnings
     ? `${withContext}\n\n${learnings}`
     : withContext;
-  const rules = buildAssistantRulesSection();
+  const rules = buildAssistantRulesSection(role);
   const withRules = rules ? `${withLearnings}\n\n${rules}` : withLearnings;
   return buildAgentLoader({
     cwd,

@@ -114,7 +114,11 @@ export function createTurnBackend(
   deps: TurnBackendDeps,
 ): HarnessBackend {
   const { workspaceDir, dataDir, turnRoot } = deps.directories;
-  const commonTools = buildTurnCommonTools(deps.turn, deps.codeSandbox);
+  const commonTools = buildTurnCommonTools(
+    deps.turn,
+    deps.codeSandbox,
+    dataDir,
+  );
   if (provider === "anthropic") {
     const backend = createClaudeBackend({
       workspaceDir,
@@ -126,6 +130,8 @@ export function createTurnBackend(
       toolSelection: deps.toolSelection,
       systemPrompt: deps.systemPrompt,
       fileGuard: deps.fileGuard,
+      personalAssistant: deps.turn.role === "coordinator",
+      role: deps.turn.role ?? null,
       layout: turnClaudeLayout(turnRoot, dataDir, deps.turn.conversationId),
       // SAFETY: these are the same pi ToolDefinition objects the MCP bridge
       // accepts; only their heterogeneous schema generics need widening.
@@ -163,6 +169,7 @@ export function createTurnBackend(
     // the turn's granted tools, not the provider it landed on.
     systemPrompt: deps.systemPrompt,
     transport: POOLED_TURN_TRANSPORT,
+    role: deps.turn.role ?? null,
     tools: deps.toolSelection.toolNames,
     customTools: [
       ...makeClampedFileTools(workspaceDir, deps.fileGuard ?? {}),

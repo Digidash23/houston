@@ -5,6 +5,7 @@ import {
   loadSkillsFromDir,
 } from "@earendil-works/pi-coding-agent";
 import { renderJobDescriptionForPrompt } from "@houston/domain";
+import type { AssistantRuntimeRole } from "@houston/domain/assistant-role";
 import type { TurnMode } from "@houston/protocol";
 import { config } from "../../config";
 import { buildAssistantRulesSection } from "../../session/assistant-rules-context";
@@ -38,6 +39,8 @@ export function buildSystemPrompt(
   systemPrompt: string,
   mode?: TurnMode,
   provided?: ProvidedContext,
+  /** Absent = the process's own role; a pooled turn passes the turn's. */
+  role?: AssistantRuntimeRole | null,
 ): string {
   const context = loadWorkspaceContextFile(cwd);
   const base = context ? `${systemPrompt}\n\n${context}` : systemPrompt;
@@ -49,13 +52,13 @@ export function buildSystemPrompt(
   // The personal assistant's saved MEMORY next, exactly where the pi backend
   // puts it (session/resource-loader.ts). Null for every other agent — the
   // coordinator-role gate lives inside buildLearningsSection.
-  const learnings = buildLearningsSection(cwd);
+  const learnings = buildLearningsSection(cwd, role);
   const withLearnings = learnings
     ? `${withContext}\n\n${learnings}`
     : withContext;
   // The assistant's OPERATING RULES immediately after its memory, same order as
   // the pi backend. Null for every other agent (the same role gate).
-  const rules = buildAssistantRulesSection();
+  const rules = buildAssistantRulesSection(role);
   const withRules = rules ? `${withLearnings}\n\n${rules}` : withLearnings;
   // Skills index (HOU-894): the SAME <available_skills> section pi appends for
   // every other provider — name + description + the SKILL.md path to Read. The
