@@ -5,6 +5,7 @@ import {
   type SlackAuthorization,
 } from "../../lib/channel-handoff";
 import { queryKeys } from "../../lib/query-keys";
+import { refetchAfterWrite } from "../../lib/refetch-after-write";
 import { tauriChannels } from "../../lib/tauri";
 import { useWorkspaceStore } from "../../stores/workspaces";
 import { inChannelWorkspace } from "../channel-workspace-scope";
@@ -45,7 +46,7 @@ export function useChannelActions() {
   const spaceId = useWorkspaceStore((s) => s.current?.id);
   const invalidateHere = () => {
     if (useWorkspaceStore.getState().current?.id === spaceId) {
-      return qc.invalidateQueries({ queryKey: queryKeys.channels(spaceId) });
+      return refetchAfterWrite(qc, queryKeys.channels(spaceId));
     }
   };
   const connect = useMutation({
