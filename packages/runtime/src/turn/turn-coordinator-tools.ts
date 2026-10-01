@@ -1,7 +1,6 @@
 import { join } from "node:path";
 import type { ProviderOption } from "@houston/domain";
 import { processAssistantCatalog } from "@houston/host/src/assistant/catalog-source";
-import { OPENAI_COMPATIBLE } from "../ai/openai-compatible-model";
 import { piProviderIds } from "../ai/pi-catalog";
 import { connectedProviderChoices } from "../ai/provider-choices";
 import type { PiBackendDeps } from "../backends/pi/backend";
@@ -65,14 +64,13 @@ export function buildTurnCoordinatorTools(
  * The providers a mission may pin, by catalog. A worker's own credential
  * store holds nothing (the turn's credential lives in the turn's data dir),
  * so whether one is connected is for the agent the mission lands on to judge,
- * against its own credentials, exactly as when Houston runs on its pod. The
- * OpenAI-compatible endpoint keeps the runtime's own answer: its settings
- * live in a runtime, not in a credential row.
+ * against its own credentials and endpoint settings, exactly as when Houston
+ * runs on its pod.
  */
 function missionProviders(): ProviderOption[] {
   const curated = connectedProviderChoices().map((option) => ({
     ...option,
-    connected: option.id === OPENAI_COMPATIBLE ? option.connected : true,
+    connected: true,
   }));
   // Every provider the engine knows, not only those this worker could run:
   // an empty model list is the open-catalog signal, so the pin's model rides

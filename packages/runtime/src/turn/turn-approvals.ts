@@ -39,15 +39,21 @@ export interface TurnApprovalsInput {
   conversationId: string;
 }
 
-/** Where one conversation's records live, under the agent's runtime data. */
+/**
+ * Where one conversation's records live: in that conversation's own runtime
+ * session directory, the only place a claimed turn may write besides its
+ * transcript (cloud pod-store `claimIDFromKey`). Not a `.jsonl`, so neither
+ * harness mistakes it for a session file.
+ */
 export function approvalsDocRel(
   filesystem: Pick<TurnFilesystem, "dataRel">,
   conversationId: string,
 ): string {
   return posix.join(
     filesystem.dataRel,
-    "assistant-approvals",
-    `${encodeURIComponent(conversationId)}.json`,
+    "sessions",
+    conversationId,
+    "assistant-approvals.json",
   );
 }
 
@@ -90,16 +96,24 @@ export async function openTurnApprovals(
       await write(approvals, admitted);
     },
   });
+  // One save at a time: each reads, writes and uploads the same local file,
+  // and an overlapping one could upload another's stale bytes.
+  let saving: Promise<void> = Promise.resolve();
+  const saveOnce = () =>
+    mutateTurnDocument({
+      ...input,
+      relativePath,
+      apply: () => write(approvals, admitted),
+    });
   return {
     get approvals() {
       return approvals;
     },
-    save: () =>
-      mutateTurnDocument({
-        ...input,
-        relativePath,
-        apply: () => write(approvals, admitted),
-      }),
+    save: () => {
+      const next = saving.then(saveOnce, saveOnce);
+      saving = next.catch(() => undefined);
+      return next;
+    },
   };
 }
 
