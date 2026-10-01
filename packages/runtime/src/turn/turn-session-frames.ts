@@ -30,8 +30,10 @@ export function newTurnFrames(): TurnFrames {
 /**
  * Accumulate `session`'s wire stream into `frames` and forward every frame
  * through `emit`. The interaction holder's finish marks are fed too, so an
- * offer tool can tell whether the closing message is already written. Returns
- * the unsubscribe for both subscriptions.
+ * offer tool can tell whether the closing message is already written. Every
+ * event passes `admit` first (the stall guard, turn-stall-guard.ts), which
+ * drops the echo of an abort the turn issued itself. Returns the unsubscribe
+ * for both subscriptions.
  */
 export function collectTurnFrames(
   session: HarnessSession,
@@ -39,11 +41,13 @@ export function collectTurnFrames(
   interaction: ReturnType<typeof newInteractionHolder>,
   timings: TurnSessionRequest["timings"],
   emit: (frame: WireFrame) => void,
+  admit: (wire: WireEvent) => boolean = () => true,
 ): () => void {
   const unsubMessageStart = session.subscribeAssistantMessageStart?.(() =>
     interaction.finish.noteAssistantMessageStart(),
   );
   const unsub = session.subscribe((wire: WireEvent) => {
+    if (!admit(wire)) return;
     // First provider-originated event = the honest first-token bound. Set
     // once; the terminal frame reports it as a delta.
     if (timings && timings.t_first_model_event === undefined)

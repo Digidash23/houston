@@ -15,6 +15,7 @@ vi.mock("../backends/pi/backend", () => ({
   createPiBackend: () => ({
     createSession: async () => ({
       subscribe: () => () => {},
+      getContextUsage: () => undefined,
       abort: () => {},
       prompt: async () => {
         // The DOMException a caller's AbortSignal raises when the cancel
