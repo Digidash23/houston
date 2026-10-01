@@ -1,5 +1,6 @@
-import type { QueryClient } from "@tanstack/react-query";
+import type { Query, QueryClient } from "@tanstack/react-query";
 import { cancelAllConnectFlows } from "../stores/connect-flow.ts";
+import { isSettledAssistantAddress } from "./assistant-address-cache.ts";
 import { queryKeys } from "./query-keys.ts";
 
 /**
@@ -39,8 +40,22 @@ export function isSpaceInvariantQueryKey(key: readonly unknown[]): boolean {
 }
 
 /**
+ * Whether the event stream's catch-up sweep must leave this query alone: the
+ * space-invariant keys above, and an assistant address already in hand. No
+ * server event is about either, so a gap in the stream cannot have hidden a
+ * change to them, and re-asking for the address holds the gateway on the
+ * assistant's pod, which wakes it on every reconnect.
+ */
+export function heldOutOfCatchUpSweep(query: Query): boolean {
+  return (
+    isSpaceInvariantQueryKey(query.queryKey) || isSettledAssistantAddress(query)
+  );
+}
+
+/**
  * Drop the query cache on a real active-space change (C8 §Active space), EXCEPT
- * the user-scoped, space-invariant keys above.
+ * the user-scoped, space-invariant keys above and each space's settled
+ * assistant address, whose key names its space (`assistant-address-cache.ts`).
  *
  * Tenant query keys are NOT org-scoped: the active space is only an
  * `x-houston-org` request header, so team A and team B collide on the same key.
@@ -70,6 +85,8 @@ export function resetCacheForSpaceChange(
   if (!orgChanged) return;
   cancelAllConnectFlows();
   queryClient.removeQueries({
-    predicate: (query) => !isSpaceInvariantQueryKey(query.queryKey),
+    predicate: (query) =>
+      !isSpaceInvariantQueryKey(query.queryKey) &&
+      !isSettledAssistantAddress(query),
   });
 }

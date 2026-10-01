@@ -37,9 +37,8 @@ function json(status: number, body: unknown = {}): Response {
 }
 
 /**
- * Route `/v1/workspaces` through a queue of responses; every OTHER request
- * (the provider probe `listWorkspaces` makes to label the synthetic personal
- * row) fails harmlessly, which the adapter already treats as "use defaults".
+ * Route `/v1/workspaces` through a queue of responses. Any other request fails
+ * loudly: the space list reads nothing else.
  */
 function stubWorkspaceReads(...responses: Response[]) {
   const calls: string[] = [];
