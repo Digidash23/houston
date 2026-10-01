@@ -11,6 +11,7 @@ import {
 } from "../session/interaction";
 import { recordPooledRoutineCarry } from "./turn-routine-context";
 import { openTurnBackendSession } from "./turn-session-backend";
+import { runInTurnContext } from "./turn-session-context";
 import { handleTurnSessionFailure } from "./turn-session-failure";
 import { collectTurnFrames, newTurnFrames } from "./turn-session-frames";
 import type { RunTurnDeps } from "./turn-session-startup";
@@ -114,12 +115,16 @@ export async function runTurn(
       // The used-token capture spans the prompt so the streamed error path
       // (pi/wire.ts) reads THIS turn's seeded token when it reports.
       if (turn.timings) turn.timings.t_prompt_start = performance.now();
-      await runWithInteractionCapture(interaction, () =>
-        runWithUsedTokenCapture(usedTokens, () =>
-          session.prompt(
-            (replay?.text ?? "") + framePrompt(text, author, priorAuthors),
+      await runInTurnContext(
+        { conversationId, mode: mode ?? "execute", model },
+        () =>
+          runWithInteractionCapture(interaction, () =>
+            runWithUsedTokenCapture(usedTokens, () =>
+              session.prompt(
+                (replay?.text ?? "") + framePrompt(text, author, priorAuthors),
+              ),
+            ),
           ),
-        ),
       );
     } finally {
       signal?.removeEventListener("abort", onAbort);

@@ -6,6 +6,7 @@ import {
 } from "@houston/host/src/assistant/approval-carry";
 import { ApprovalStore } from "@houston/host/src/assistant/approvals";
 import type { ObjectStore } from "@houston/runtime-client/object-sync";
+import { AdmittedMessages } from "./turn-admitted-messages";
 import { mutateTurnDocument } from "./turn-doc-cas";
 import type { TurnFilesystem } from "./turn-filesystem";
 
@@ -52,7 +53,7 @@ export function approvalsDocRel(
 
 export async function openTurnApprovals(
   input: TurnApprovalsInput,
-  receive: (approvals: ApprovalStore) => void,
+  receive: (approvals: ApprovalStore, admitted: AdmittedMessages) => void,
 ): Promise<TurnApprovals> {
   const relativePath = approvalsDocRel(input.filesystem, input.conversationId);
   const local = join(input.filesystem.storeRoot, ...relativePath.split("/"));
@@ -60,25 +61,33 @@ export async function openTurnApprovals(
     agentId: input.agentId,
     conversationId: input.conversationId,
   };
-  const write = async (store: ApprovalStore) => {
+  const write = async (store: ApprovalStore, admitted: AdmittedMessages) => {
     await mkdir(dirname(local), { recursive: true });
     await writeFile(
       local,
-      JSON.stringify(
-        carryApprovals(store, input.agentId, input.conversationId),
-      ),
+      JSON.stringify({
+        ...carryApprovals(store, input.agentId, input.conversationId),
+        admitted,
+      }),
     );
   };
   let approvals = new ApprovalStore();
+  let admitted = new AdmittedMessages(null);
   await mutateTurnDocument({
     ...input,
     relativePath,
     // Rebuilt on every attempt: a generation conflict re-reads the file.
     apply: async () => {
+      const carried = await readCarry(local);
       approvals = new ApprovalStore();
-      adoptApprovals(approvals, await readCarry(local), scope);
-      receive(approvals);
-      await write(approvals);
+      adoptApprovals(approvals, carried, scope);
+      admitted = new AdmittedMessages(
+        typeof carried === "object" && carried !== null && "admitted" in carried
+          ? carried.admitted
+          : null,
+      );
+      receive(approvals, admitted);
+      await write(approvals, admitted);
     },
   });
   return {
@@ -89,7 +98,7 @@ export async function openTurnApprovals(
       mutateTurnDocument({
         ...input,
         relativePath,
-        apply: () => write(approvals),
+        apply: () => write(approvals, admitted),
       }),
   };
 }
