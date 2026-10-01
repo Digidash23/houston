@@ -1,7 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { MAX_UPLOAD_BYTES } from "@houston/host/src/turn/files-import";
-import { FsVfs, LazyStoreVfs, type Vfs } from "@houston/host/src/vfs";
+import { FsVfs, type Vfs } from "@houston/host/src/vfs";
 import {
   DEFAULT_EXCLUDES,
   type HydrateManifest,
@@ -9,6 +8,7 @@ import {
   type ObjectStore,
   startHydrate,
 } from "@houston/runtime-client/object-sync";
+import { startLazyTurnFilesystem } from "./turn-filesystem-lazy";
 import { turnHydrationError } from "./turn-hydration-error";
 import {
   resolveListedLayout,
@@ -79,6 +79,8 @@ export async function prepareTurnFilesystem(opts: {
    * read through the vfs port; a turn's tools read the real filesystem.
    */
   lazy?: boolean;
+  /** Lazy only: keep just these listed keys (see turn-filesystem-lazy.ts). */
+  admit?: (relativePath: string) => boolean;
 }): Promise<TurnFilesystem> {
   return (await startTurnFilesystem(opts)).hydrated;
 }
@@ -93,6 +95,7 @@ export async function startTurnFilesystem(opts: {
   excludes?: string[];
   filter?: HydrateOptions["filter"];
   lazy?: boolean;
+  admit?: (relativePath: string) => boolean;
   timings?: Record<string, number>;
 }): Promise<TurnFilesystemPreparation> {
   const storeRoot = join(opts.root, "store");
@@ -103,33 +106,19 @@ export async function startTurnFilesystem(opts: {
   const maxBytes =
     opts.maxBytes ?? (opts.claimed ? TURN_HYDRATE_MAX_BYTES : undefined);
   if (opts.lazy && opts.store.manifest) {
-    const objects = await opts.store.manifest(opts.prefix);
+    const listed = await opts.store.manifest(opts.prefix);
     if (opts.timings) opts.timings.t_listing = performance.now();
-    const manifest: HydrateManifest = new Map();
-    const vfs = new LazyStoreVfs({
+    const filesystem = await startLazyTurnFilesystem({
       store: opts.store,
+      listed,
       prefix: opts.prefix,
-      root: storeRoot,
-      objects,
-      manifest,
-      excludes,
-      maxObjectBytes: MAX_UPLOAD_BYTES,
-      maxBytes: maxBytes ?? TURN_HYDRATE_MAX_BYTES,
-    });
-    const layout = await resolveListedLayout(storeRoot, vfs.remoteKeys, {
-      allowEmpty: !opts.claimed,
-    });
-    if (opts.timings) opts.timings.t_layout = performance.now();
-    const filesystem: TurnFilesystem = {
-      ...layout,
       storeRoot,
-      manifest,
-      vfs,
-      listedObjects: objects.length,
-      skippedObjects: 0,
-      generationAware: vfs.generationAware,
-      immediateWrites: new Set<string>(),
-    };
+      claimed: opts.claimed,
+      excludes,
+      maxBytes: maxBytes ?? TURN_HYDRATE_MAX_BYTES,
+      ...(opts.admit ? { admit: opts.admit } : {}),
+      ...(opts.timings ? { timings: opts.timings } : {}),
+    });
     return {
       filesystem,
       hydrated: Promise.resolve(filesystem),
