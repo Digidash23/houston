@@ -55,6 +55,7 @@ export class TurnSink {
     this.s = newTurnState(o.agentPath, o.sessionKey, o.output, {
       provider: o.provider,
       prompt: o.prompt,
+      firstResponse: o.firstResponse,
     });
   }
 

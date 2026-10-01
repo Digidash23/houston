@@ -15,6 +15,7 @@
  */
 
 import type { PendingInteraction } from "@houston/runtime-client";
+import type { FirstResponse } from "./first-response";
 
 export type { PendingInteraction } from "@houston/runtime-client";
 
@@ -84,6 +85,17 @@ export interface FeedOutput {
    * conversation without waiting for a history reload. Optional and additive.
    */
   stampUserTurn?(agentPath: string, sessionKey: string, turnId: string): void;
+  /**
+   * The first response of a turn THIS client sent (see `first-response.ts`):
+   * its first visible text, or how it ended without one. Exactly once per sent
+   * turn, never for an observed one, and nothing for a stream torn down by the
+   * client. Optional and additive.
+   */
+  firstResponse?(
+    agentPath: string,
+    sessionKey: string,
+    response: FirstResponse,
+  ): void;
 }
 
 /**
@@ -129,5 +141,14 @@ export class MultiplexFeedOutput implements FeedOutput {
   stampUserTurn(agentPath: string, sessionKey: string, turnId: string): void {
     for (const o of this.outputs)
       o.stampUserTurn?.(agentPath, sessionKey, turnId);
+  }
+
+  firstResponse(
+    agentPath: string,
+    sessionKey: string,
+    response: FirstResponse,
+  ): void {
+    for (const o of this.outputs)
+      o.firstResponse?.(agentPath, sessionKey, response);
   }
 }

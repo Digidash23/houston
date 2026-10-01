@@ -1,3 +1,4 @@
+import { subscribeFirstResponses } from "@houston/engine-adapter";
 import { useEffect, useRef } from "react";
 import { analytics } from "../lib/analytics";
 import { bakedUrl } from "../lib/baked-url";
@@ -54,8 +55,8 @@ export function usePerfSpans(): void {
       if (t0 !== null) perfSpans.setLaunchT0(t0);
     });
     const transport: PerfSpanTransport = {
-      mirror(span, ms, orgSlug) {
-        analytics.track("perf_span", perfSpanEventProps(span, ms, orgSlug));
+      mirror(span, ms, tags) {
+        analytics.track("perf_span", perfSpanEventProps(span, ms, tags));
       },
     };
     const ingest = CLIENT_METRICS_URL;
@@ -88,11 +89,19 @@ export function usePerfSpans(): void {
       };
     }
     perfSpans.configure(transport);
+    // Every turn the client sends reports its first response (paired to that
+    // turn by the SDK), whichever surface sent it.
+    const offResponses = subscribeFirstResponses(({ response }) =>
+      perfSpans.turnResponded(response),
+    );
     const onHide = () => {
       if (document.visibilityState === "hidden") void perfSpans.flush();
     };
     document.addEventListener("visibilitychange", onHide);
-    return () => document.removeEventListener("visibilitychange", onHide);
+    return () => {
+      offResponses();
+      document.removeEventListener("visibilitychange", onHide);
+    };
   }, []);
 
   // Session arrived after early spans were measured (the common cold-start

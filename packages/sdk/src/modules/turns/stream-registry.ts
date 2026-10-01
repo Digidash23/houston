@@ -24,6 +24,11 @@ export interface StreamTuning {
    * not now" (see {@link SEND_WAKE_RETRY_DELAYS_MS}). Tests shrink them.
    */
   sendWakeRetryDelaysMs?: readonly number[];
+  /**
+   * How long a sent turn may go without a first response before it reports
+   * `timeout` (see `FIRST_RESPONSE_TIMEOUT_MS`). Tests shrink it.
+   */
+  firstResponseTimeoutMs?: number;
 }
 
 /**

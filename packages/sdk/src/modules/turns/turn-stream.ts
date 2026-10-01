@@ -6,6 +6,7 @@ import {
 import type { HoustonEngineClient } from "@houston/runtime-client";
 import { streamEventsResumable } from "@houston/runtime-client";
 import type { FeedOutput } from "./feed-output";
+import { FirstResponseClock } from "./first-response";
 import { randomNonce } from "./random-nonce";
 import {
   type ActiveStream,
@@ -197,6 +198,12 @@ export async function streamTurn(
   registry: StreamRegistry,
   opts: StreamTurnOptions = {},
 ): Promise<void> {
+  // The turn's first-response clock starts at dispatch and reports once: the
+  // first visible text this turn folds, or how it ended without one.
+  const firstResponse = new FirstResponseClock(
+    (response) => output.firstResponse?.(agentPath, sessionKey, response),
+    opts.tuning?.firstResponseTimeoutMs,
+  );
   // Status BEFORE the bubble: `running: false` must mean settled-or-idle, so a
   // watcher can't mistake the optimistic-push snapshot for a settled turn.
   output.sessionStatus(agentPath, sessionKey, "running");
@@ -264,6 +271,7 @@ export async function streamTurn(
         data: SEND_IN_FLIGHT_MESSAGE,
         fails_pending: true,
       });
+      firstResponse.resolve("error");
       return;
     }
     after = prior.lastSeq;
@@ -303,6 +311,7 @@ export async function streamTurn(
               fails_pending: true,
             },
       );
+      firstResponse.resolve("error");
       return; // the observer keeps rendering the running turn
     }
     sent = true;
@@ -335,6 +344,7 @@ export async function streamTurn(
     // The grace before the pre-settled poll fires — a turn that finished before
     // our first sync (its frames never replayed) hangs the card without it.
     presettledPollMs: opts.tuning?.presettledPollMs ?? PRESETTLED_POLL_MS,
+    firstResponse,
   });
   if (sent) sink.sendAccepted();
 
@@ -411,6 +421,8 @@ export async function streamTurn(
   } finally {
     if (sendVerdict !== undefined) clearTimeout(sendVerdict);
     sink.dispose(); // clear any armed pre-settled poll — the stream is done
+    // A stream torn down without a settle (logout teardown) reports nothing.
+    firstResponse.dispose();
     ac.abort();
     registry.release(key, entry);
   }

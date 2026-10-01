@@ -5,7 +5,6 @@ import { buildAttachmentPrompt } from "../../lib/attachment-message";
 import { createMission } from "../../lib/create-mission";
 import { classifyFileKind } from "../../lib/file-kind";
 import { maybeShowFirstMissionPrompt } from "../../lib/notification-nudge";
-import { perfSpans } from "../../lib/perf-spans";
 import { queryKeys } from "../../lib/query-keys";
 import { formatVisibleMessageText } from "../../lib/queued-chat";
 import { tauriAttachments } from "../../lib/tauri";
@@ -55,7 +54,6 @@ export async function createBoardConversation(
     t,
     setSessionLoading,
   } = deps;
-  const perfSend = perfSpans.sendContext();
   const visible = formatVisibleMessageText(text, files, (names) =>
     t("chat:queue.attached", { names }),
   );
@@ -99,7 +97,6 @@ export async function createBoardConversation(
     provider: providerOverride,
     model: modelOverride,
   });
-  perfSpans.messageSent(perfSend);
   analytics.track("chat_message_sent", {
     provider: providerOverride,
     model: modelOverride,

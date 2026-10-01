@@ -5,6 +5,10 @@ import type {
 } from "@houston/runtime-client";
 import type { MessageLimitRefusal } from "@houston/wire-types";
 import type { FeedOutput, TerminalBoardStatus } from "./feed-output";
+import {
+  type FirstResponseClock,
+  isVisibleAssistantText,
+} from "./first-response";
 import type { EngineNoticeKind } from "./turn-errors";
 import { isNotConnectedError, isStoppedByUser } from "./turn-errors";
 
@@ -72,13 +76,23 @@ export interface TurnState {
    * verdict window's independent evidence does.
    */
   delivered: boolean;
+  /**
+   * Turn mode only: the clock this turn's first response reports through (see
+   * `first-response.ts`). Fed by {@link push} (the first visible text) and by
+   * every settle below (how a turn with no text ended). Absent for an observer.
+   */
+  firstResponse?: FirstResponseClock;
 }
 
 export function newTurnState(
   agentPath: string,
   sessionKey: string,
   output: FeedOutput,
-  send?: { provider?: string; prompt?: string },
+  send?: {
+    provider?: string;
+    prompt?: string;
+    firstResponse?: FirstResponseClock;
+  },
 ): TurnState {
   return {
     agentPath,
@@ -96,18 +110,22 @@ export function newTurnState(
     terminal: null,
     pendingInteraction: null,
     delivered: false,
+    firstResponse: send?.firstResponse,
   };
 }
 
 /** Emit one FeedItem for this turn's session — the sink and settles share it.
  *  Stamps the turn's id (once adopted) so the VM fold dedupes re-delivered
  *  content by identity (HOU-1214); an item never carries its own. */
-export const push = (s: TurnState, item: object): void =>
+export const push = (s: TurnState, item: object): void => {
   s.output.pushFeedItem(
     s.agentPath,
     s.sessionKey,
     s.turnId === undefined ? item : { ...item, turnId: s.turnId },
   );
+  if (isVisibleAssistantText(item))
+    s.firstResponse?.resolve("first_text", s.turnId);
+};
 
 const invisibleFinal = (s: TurnState) =>
   push(s, {
@@ -137,6 +155,7 @@ export function finishOk(s: TurnState): void {
     feed_type: "final_result",
     data: { result: s.text, cost_usd: null, duration_ms: null, usage: s.usage },
   });
+  s.firstResponse?.resolve("no_text", s.turnId);
   s.output.sessionStatus(s.agentPath, s.sessionKey, "completed");
   s.terminal = "needs_you";
 }
@@ -187,6 +206,14 @@ export function finishErr(
     ...(notice ? { notice } : {}),
     ...(failsSend ? { fails_pending: true } : {}),
   });
+  s.firstResponse?.resolve(
+    isStoppedByUser(msg)
+      ? "cancelled"
+      : notice === "engine_restart"
+        ? "interrupted"
+        : "error",
+    s.turnId,
+  );
   if (isStoppedByUser(msg)) {
     invisibleFinal(s);
     s.output.sessionStatus(s.agentPath, s.sessionKey, "error");
@@ -225,6 +252,7 @@ export function finishResumed(s: TurnState, msg: string): void {
   if (s.thinking) push(s, { feed_type: "thinking", data: s.thinking });
   if (s.text) push(s, { feed_type: "assistant_text", data: s.text });
   push(s, { feed_type: "system_message", data: msg, notice: "engine_resumed" });
+  s.firstResponse?.resolve("interrupted", s.turnId);
   invisibleFinal(s);
   s.output.sessionStatus(s.agentPath, s.sessionKey, "completed");
 }
@@ -261,6 +289,7 @@ export function settleProviderErrorCard(
   });
   if (s.settled) return;
   s.settled = true;
+  s.firstResponse?.resolve("error", s.turnId);
   invisibleFinal(s);
   s.output.sessionStatus(s.agentPath, s.sessionKey, "error");
   s.terminal = "needs_you";
