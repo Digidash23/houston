@@ -516,3 +516,36 @@ test("a skipped transcript whose session never landed gets its session on the re
     existsSync(join(agentDir, ".houston", "runtime", "sessions", "half-1")),
   ).toBe(true);
 });
+
+test("a skipped transcript's rebuilt session follows the stored transcript, not the archive's copy", async () => {
+  const vfs = new MemoryVfs();
+  const conv = (answer: string) =>
+    JSON.stringify({
+      id: "diff-1",
+      title: "Hello",
+      createdAt: 1,
+      updatedAt: 2,
+      messages: [
+        { role: "user", content: "hi", ts: 1 },
+        { role: "assistant", content: answer, ts: 2 },
+      ],
+    });
+  await vfs.writeText(
+    `${ROOT}/.houston/runtime/conversations/diff-1.json`,
+    conv("stored answer"),
+  );
+  const agentDir = mkdtempSync(join(tmpdir(), "migration-diff-"));
+  await call(
+    vfs,
+    "POST",
+    "migration/import",
+    zipOf({
+      ".houston/runtime/conversations/diff-1.json": conv("archive answer"),
+    }),
+    { agentDir },
+  );
+  const dir = join(agentDir, ".houston", "runtime", "sessions", "diff-1");
+  const jsonl = readFileSync(join(dir, readdirSync(dir)[0] ?? ""), "utf8");
+  expect(jsonl).toContain("stored answer");
+  expect(jsonl).not.toContain("archive answer");
+});

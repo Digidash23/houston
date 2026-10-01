@@ -145,9 +145,13 @@ export async function applyMigrationArchive(opts: {
     if (!opts.overwrite && existing.has(key)) {
       result.skipped++;
       // A retry after a crash between the transcript write and its session
-      // finds the transcript here: its session is still rebuilt (synthesis
-      // skips any session that already exists).
-      if (transcript) parseTranscript(data, transcripts);
+      // finds the transcript here: its session is still rebuilt from the
+      // transcript the store KEEPS (the chat and the model's memory must
+      // agree), and synthesis skips any session that already exists.
+      if (transcript) {
+        const kept = await opts.vfs.readText(key);
+        if (kept !== null) parseTranscript(Buffer.from(kept), transcripts);
+      }
       continue;
     }
     await opts.vfs.writeBytes(key, Buffer.from(data));
