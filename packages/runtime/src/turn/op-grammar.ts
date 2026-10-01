@@ -1,7 +1,5 @@
-import {
-  type ManagedBridgeEndpoint,
-  ManagedBridgeEndpointSchema,
-} from "@houston/protocol";
+import { ID, str } from "./op-grammar-fields";
+import { parseSettingsOp, type SettingsOp } from "./op-grammar-settings";
 import {
   isBinaryBodyOpRoute,
   isOpRoute,
@@ -29,31 +27,7 @@ export type AgentOp =
       contentType?: string;
     }
   | { kind: "title"; text: string }
-  | {
-      kind: "settings";
-      action: "put";
-      input: { activeProvider?: string; model?: string; effort?: string };
-    }
-  | {
-      kind: "settings";
-      action: "claim";
-      provider: string;
-      connectedProviders: string[];
-    }
-  | {
-      kind: "settings";
-      action: "endpoint";
-      input: {
-        bridge?: ManagedBridgeEndpoint;
-        baseUrl: string;
-        model: string;
-        name?: string;
-        contextWindow?: number;
-        reasoning?: boolean;
-        shared?: boolean;
-        apiKey?: string;
-      };
-    }
+  | SettingsOp
   | {
       kind: "credential";
       action: "api-key";
@@ -69,15 +43,7 @@ export type AgentOp =
       title?: string;
     };
 
-export const ID = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$/;
-
-export function str(v: unknown, field: string): string {
-  if (typeof v !== "string" || !v.length) throw new Error(`invalid '${field}'`);
-  return v;
-}
-
-const strings = (v: unknown): string[] =>
-  Array.isArray(v) ? v.filter((s): s is string => typeof s === "string") : [];
+export { ID, str } from "./op-grammar-fields";
 
 export function parseAgentOp(raw: Record<string, unknown>): AgentOp {
   switch (raw.kind) {
@@ -180,51 +146,4 @@ function parseRouteOp(raw: Record<string, unknown>): AgentOp {
       ? { contentType: raw.contentType }
       : {}),
   };
-}
-
-function parseSettingsOp(raw: Record<string, unknown>): AgentOp {
-  if (raw.action === "put") {
-    const input = (raw.input ?? {}) as Record<string, unknown>;
-    const pick = (k: string) =>
-      typeof input[k] === "string" && (input[k] as string).length <= 200
-        ? { [k]: input[k] as string }
-        : {};
-    return {
-      kind: "settings",
-      action: "put",
-      input: { ...pick("activeProvider"), ...pick("model"), ...pick("effort") },
-    };
-  }
-  if (raw.action === "claim") {
-    return {
-      kind: "settings",
-      action: "claim",
-      provider: str(raw.provider, "op.provider"),
-      connectedProviders: strings(raw.connectedProviders),
-    };
-  }
-  if (raw.action === "endpoint") {
-    const input = (raw.input ?? {}) as Record<string, unknown>;
-    return {
-      kind: "settings",
-      action: "endpoint",
-      input: {
-        ...(input.bridge !== undefined
-          ? { bridge: ManagedBridgeEndpointSchema.parse(input.bridge) }
-          : {}),
-        baseUrl: str(input.baseUrl, "op.input.baseUrl"),
-        model: str(input.model, "op.input.model"),
-        ...(typeof input.name === "string" ? { name: input.name } : {}),
-        ...(typeof input.contextWindow === "number"
-          ? { contextWindow: input.contextWindow }
-          : {}),
-        ...(typeof input.reasoning === "boolean"
-          ? { reasoning: input.reasoning }
-          : {}),
-        ...(input.shared === true ? { shared: true } : {}),
-        ...(typeof input.apiKey === "string" ? { apiKey: input.apiKey } : {}),
-      },
-    };
-  }
-  throw new Error("invalid 'op.action'");
 }

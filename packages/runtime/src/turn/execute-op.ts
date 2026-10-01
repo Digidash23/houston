@@ -2,26 +2,17 @@ import { mkdtemp, rm } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  docKey,
-  type HoustonFamily,
-  normalizeActivities,
-  normalizeLearnings,
-  normalizeRoutineRuns,
-  normalizeRoutines,
-} from "@houston/domain";
-import type { HoustonEvent } from "@houston/protocol";
 import { syncBack } from "@houston/runtime-client/object-sync";
 import { startClaimHeartbeat } from "./claim-heartbeat";
-import { applyOp, type OpResult } from "./op-apply";
+import { applyOp } from "./op-apply";
 import { WorkerOpDeclinedError } from "./op-provider-guard";
+import { republish } from "./op-republish";
 import { opTranscriptMirror } from "./op-transcript";
 import { parseOpRequest } from "./parse-op-request";
 import type { TurnServerDeps } from "./server-types";
-import { publish } from "./turn-activity-doc";
 import { announcedOpEvents } from "./turn-changed-events";
-import { prepareTurnFilesystem, type TurnFilesystem } from "./turn-filesystem";
-import { poolIdentity, resolveTurnStore } from "./turn-store";
+import { prepareTurnFilesystem } from "./turn-filesystem";
+import { resolveTurnStore } from "./turn-store";
 
 /** Reserved claim key for agent-level writes (gateway + pod-store agree). */
 export const AGENT_OPS_CLAIM_ID = "agent-ops";
@@ -41,14 +32,6 @@ const SETTINGS_OP_EXCLUDES = [
 ];
 /** A credential op needs nothing but the agent directory to exist. */
 const CREDENTIAL_OP_EXCLUDES = SETTINGS_OP_EXCLUDES;
-
-const EVENT_FAMILY: Partial<Record<HoustonEvent["type"], HoustonFamily>> = {
-  ActivityChanged: "activity",
-  RoutinesChanged: "routines",
-  RoutineRunsChanged: "routine_runs",
-  ConfigChanged: "config",
-  LearningsChanged: "learnings",
-};
 
 function json(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -252,112 +235,5 @@ export async function executeOp(
     } finally {
       await rm(root, { recursive: true, force: true });
     }
-  }
-}
-
-/** Re-project every family the op changed, plus the skills view. */
-async function republish(
-  deps: TurnServerDeps,
-  turn: {
-    gcsPrefix: string;
-    hostToken: string;
-    claim: { token: string; bootId: string };
-    conversationId: string;
-  },
-  filesystem: TurnFilesystem,
-  result: OpResult,
-): Promise<string[]> {
-  const diagnostics: string[] = [];
-  const baseUrl = deps.poolStoreUrl ?? process.env.HOUSTON_POOL_STORE_URL;
-  if (!baseUrl) return diagnostics;
-  const { org, agent } = poolIdentity(turn.gcsPrefix);
-  const common = {
-    baseUrl,
-    org,
-    agent,
-    conversationId: turn.conversationId,
-    hostToken: turn.hostToken,
-    claim: turn.claim,
-    fetchImpl: deps.fetchImpl ?? fetch,
-  };
-  const families = new Set<HoustonFamily>();
-  let skills = false;
-  for (const event of result.events) {
-    const family = EVENT_FAMILY[event.type];
-    if (family) families.add(family);
-    if (event.type === "SkillsChanged") skills = true;
-  }
-  for (const family of families) {
-    const key = docKey(filesystem.workspaceRel, family);
-    let doc: unknown;
-    // Through the vfs: on a lazy tree the handler may have emitted the
-    // event without the family file being on disk yet — a raw read would
-    // project an EMPTY doc over real data. A read that THROWS (store blip,
-    // refused size) is a diagnostic; an absent or unparsable file projects
-    // the empty doc, as the pod's own projector does.
-    let raw: string | null;
-    try {
-      raw = await filesystem.vfs.readText(key);
-    } catch (error) {
-      diagnostics.push(
-        `${family}: read failed, not projected: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      continue;
-    }
-    try {
-      doc =
-        raw === null
-          ? family === "config"
-            ? {}
-            : []
-          : normalizeFamily(family, JSON.parse(raw), key);
-    } catch {
-      doc = family === "config" ? {} : [];
-    }
-    const outcome = await publish({ ...common, family }, doc);
-    if ("error" in outcome) diagnostics.push(`${family}: ${outcome.error}`);
-  }
-  if (skills && result.skillsView !== undefined) {
-    const outcome = await publish(
-      { ...common, family: "skills" },
-      result.skillsView,
-    );
-    if ("error" in outcome) diagnostics.push(`skills: ${outcome.error}`);
-  }
-  if (result.customDefinitionsView !== undefined) {
-    // The definitions list is a view doc (docs/view-capture.ts family), so
-    // the gateway's asleep reads show the mutation immediately.
-    const outcome = await publish(
-      { ...common, family: "custom_definitions" },
-      result.customDefinitionsView,
-    );
-    if ("error" in outcome)
-      diagnostics.push(`custom_definitions: ${outcome.error}`);
-  }
-  return diagnostics;
-}
-
-function normalizeFamily(
-  family: HoustonFamily,
-  parsed: unknown,
-  key: string,
-): unknown {
-  switch (family) {
-    case "activity":
-      return normalizeActivities(parsed, key).items;
-    case "routines":
-      return normalizeRoutines(parsed, key).items;
-    case "routine_runs":
-      return normalizeRoutineRuns(parsed, key).items;
-    case "learnings":
-      return normalizeLearnings(parsed, key).items;
-    case "config":
-      return parsed !== null &&
-        typeof parsed === "object" &&
-        !Array.isArray(parsed)
-        ? parsed
-        : {};
-    default:
-      return parsed;
   }
 }
