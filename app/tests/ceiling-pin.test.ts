@@ -25,6 +25,7 @@ const resolver = (connected: string[]): CeilingResolver => ({
   offers: (provider, model) => catalog[provider]?.includes(model) ?? false,
   providerFor: (model) =>
     Object.keys(catalog).find((p) => catalog[p]?.includes(model)) ?? null,
+  runsAs: () => null,
   connected,
 });
 

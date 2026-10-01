@@ -18,9 +18,12 @@ export type { AgentAccess, AgentAssignment };
  * unrestricted, `[]` = none) and is the WHOLE effective allowlist — policy is
  * per agent only. `access` is the caller's effective access. `allowedModels` is
  * the manager-set AI-model ceiling: which models a member may pick for this
- * agent (`null` = every model allowed, `[]` = none). Each member's own pick
- * lives in {@link AgentModelChoiceInfo}, and the gateway clamps that pick to
- * this ceiling on every turn.
+ * agent (`null` = every model allowed, `[]` = none). A listed model id is
+ * allowed on every provider; a retired id also allows the model its provider's
+ * catalog row runs it as (`runsAs`), on that provider only, so `claude-opus-5`
+ * allows `claude-opus-5-5` on anthropic. Each member's own pick lives in
+ * {@link AgentModelChoiceInfo}, and the gateway clamps that pick to this
+ * ceiling on every turn.
  */
 export interface AgentSettings {
   allowedToolkits: string[] | null;

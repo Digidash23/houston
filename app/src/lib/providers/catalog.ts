@@ -7,6 +7,7 @@ import {
   REGIONAL_SUFFIX,
 } from "../provider-overrides/pi-catalog-filters.ts";
 import { buildProvider, defaultModelFor } from "./build-provider.ts";
+import { indexRunsAs } from "./runs-as.ts";
 import type { ProviderInfo } from "./types.ts";
 
 /**
@@ -100,6 +101,7 @@ export function hydrateProviderCatalog(catalog: ProviderCatalog): void {
   // `deriveCatalogFailure` -> `useQueryErrorToast`). A console line here would
   // be a second, unreported account of the same event.
   if (catalog.length === 0) return;
+  indexRunsAs(catalog);
   const built = buildCatalog(catalog);
   PROVIDERS.length = 0;
   PROVIDERS.push(...built);

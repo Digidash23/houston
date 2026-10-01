@@ -1,10 +1,7 @@
-import { deepStrictEqual, strictEqual } from "node:assert";
+import { deepStrictEqual } from "node:assert";
 import { describe, it } from "node:test";
 import type { Capabilities, OrgRole } from "@houston/engine-adapter";
-import { encodeModelPickerId } from "../src/lib/chat-model-picker-ids.ts";
 import {
-  hiddenModelCount,
-  isModelAllowed,
   modelSelectorDecision,
   resolvePersonalModelPin,
 } from "../src/lib/model-selector-lock.ts";
@@ -101,23 +98,15 @@ describe("modelSelectorDecision", () => {
   });
 });
 
-describe("isModelAllowed", () => {
-  it("treats null / undefined ceiling as no ceiling (all models allowed)", () => {
-    strictEqual(isModelAllowed(null, "gpt-6-astra"), true);
-    strictEqual(isModelAllowed(undefined, "gpt-6-astra"), true);
-  });
-
-  it("gates on membership when a ceiling is set", () => {
-    strictEqual(isModelAllowed(["gpt-6-astra", "claude"], "gpt-6-astra"), true);
-    strictEqual(isModelAllowed(["gpt-6-astra"], "claude"), false);
-    strictEqual(isModelAllowed([], "gpt-6-astra"), false);
-  });
-});
-
 describe("resolvePersonalModelPin", () => {
   const fallback = { provider: "anthropic", model: "claude", effort: "high" };
   /** A resolver that knows nothing: no catalog, nothing connected. */
-  const blind = { offers: () => false, providerFor: () => null, connected: [] };
+  const blind = {
+    offers: () => false,
+    providerFor: () => null,
+    runsAs: () => null,
+    connected: [],
+  };
 
   it("uses the user's stored choice when present", () => {
     deepStrictEqual(
@@ -140,6 +129,7 @@ describe("resolvePersonalModelPin", () => {
       offers: (provider: string, model: string) =>
         provider === "anthropic" && model === "claude-opus-5",
       providerFor: () => "anthropic",
+      runsAs: () => null,
       connected: ["anthropic"],
     };
     deepStrictEqual(
@@ -227,6 +217,7 @@ describe("resolvePersonalModelPin", () => {
           offers: (provider, model) =>
             provider === "anthropic" && model === "claude-opus-5",
           providerFor: () => "openrouter",
+          runsAs: () => null,
           connected: ["anthropic"],
         },
       ),
@@ -272,51 +263,5 @@ describe("resolvePersonalModelPin", () => {
       ),
       { provider: "openai", model: "gpt-6-astra", effort: "low" },
     );
-  });
-});
-
-describe("hiddenModelCount", () => {
-  // Picker rows carry an opaque `provider::model` id; the fixture builds them
-  // from (provider, model) pairs the same way the container does.
-  const rows = (...pairs: [string, string][]) =>
-    pairs.map(([provider, model]) => ({
-      id: encodeModelPickerId(provider, model),
-    }));
-
-  const universe = rows(
-    ["anthropic", "claude"],
-    ["openai", "gpt-6-astra"],
-    ["google", "gemini"],
-  );
-
-  it("hides nothing when there is no ceiling", () => {
-    strictEqual(hiddenModelCount(universe, null), 0);
-  });
-
-  it("hides nothing when the ceiling allows every model", () => {
-    strictEqual(
-      hiddenModelCount(universe, ["claude", "gpt-6-astra", "gemini"]),
-      0,
-    );
-  });
-
-  it("counts exactly the models the ceiling turns off", () => {
-    strictEqual(hiddenModelCount(universe, ["claude"]), 2);
-    strictEqual(hiddenModelCount(universe, ["claude", "gpt-6-astra"]), 1);
-  });
-
-  it("counts a model offered by two providers once", () => {
-    // Same bare model id from two providers is one hidden model, not two.
-    const dupes = rows(
-      ["openrouter", "gpt-6-astra"],
-      ["openai", "gpt-6-astra"],
-      ["anthropic", "claude"],
-    );
-    strictEqual(hiddenModelCount(dupes, ["claude"]), 1);
-  });
-
-  it("hides nothing for an empty universe", () => {
-    strictEqual(hiddenModelCount([], ["claude"]), 0);
-    strictEqual(hiddenModelCount([], null), 0);
   });
 });

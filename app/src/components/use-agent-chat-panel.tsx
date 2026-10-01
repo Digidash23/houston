@@ -86,6 +86,7 @@ import {
   encodeAutoContinueMessage,
   filterAutoContinueFeedItems,
 } from "../lib/auto-continue-message";
+import { isModelAllowed } from "../lib/ceiling-match";
 import { agentTierFromConfig } from "../lib/chat-agent-tier";
 import { coherentPinModel, resolveChatModelPin } from "../lib/chat-model-pin";
 import { shouldShowConnectAiEmptyState } from "../lib/composer-connect-ai";
@@ -105,7 +106,6 @@ import { skillDisplayTitle } from "../lib/humanize-skill-name";
 import { providerForModel, providerOffersModel } from "../lib/model-labels";
 import { isModelNotAllowedError } from "../lib/model-not-allowed";
 import {
-  isModelAllowed,
   type ModelPin,
   modelSelectorDecision,
   resolvePersonalModelPin,
@@ -130,6 +130,7 @@ import {
   type ProviderHandoffMode,
 } from "../lib/provider-switch";
 import {
+  catalogRunsAs,
   type EffortLevel,
   getContextWindowConfig,
   normalizeLegacyModel,
@@ -727,6 +728,7 @@ export function useAgentChatPanel({
     () => ({
       offers: providerOffersModel,
       providerFor: providerForModel,
+      runsAs: catalogRunsAs,
       connected: authedProviders,
     }),
     [authedProviders],
@@ -1089,7 +1091,10 @@ export function useAgentChatPanel({
   // including provider-switch consent, and can never write agent config.
   const selectModel = useCallback(
     (prov: string, mod: string) => {
-      if (modelDecision.personal && !isModelAllowed(allowedModels, mod)) {
+      if (
+        modelDecision.personal &&
+        !isModelAllowed(allowedModels, prov, mod, catalogRunsAs)
+      ) {
         showExpectedStateToast(
           t("chat:errors.modelNotAllowed"),
           t("chat:errors.modelNotAllowedBody"),
@@ -1131,7 +1136,14 @@ export function useAgentChatPanel({
         // the ceiling the same way a model pick is: an EMPTY ceiling ("no model
         // allowed") leaves the fallback outside it, and the gateway would answer
         // `model_not_allowed` (PRODUCT-1734).
-        if (!isModelAllowed(allowedModels, personalDefaultPin.model)) {
+        if (
+          !isModelAllowed(
+            allowedModels,
+            personalDefaultPin.provider,
+            personalDefaultPin.model,
+            catalogRunsAs,
+          )
+        ) {
           showExpectedStateToast(
             t("chat:errors.modelNotAllowed"),
             t("chat:errors.modelNotAllowedBody"),
