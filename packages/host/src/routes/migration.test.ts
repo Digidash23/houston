@@ -448,3 +448,38 @@ test("import with sessions=0 writes the transcript but rebuilds no pi session", 
     ),
   ).toContain('"needsSessionReplay":true');
 });
+
+test("a session the vfs lists but the disk lacks (a lazy pool tree) is not synthesized again", async () => {
+  // The worker's lazy tree: the store lists the session, nothing on disk.
+  const vfs = new MemoryVfs();
+  await vfs.writeText(
+    `${ROOT}/.houston/runtime/sessions/listed-1/s.jsonl`,
+    "{}",
+  );
+  const agentDir = mkdtempSync(join(tmpdir(), "migration-lazy-"));
+  const transcript = (id: string) =>
+    JSON.stringify({
+      id,
+      title: "Hello",
+      createdAt: 1,
+      updatedAt: 2,
+      messages: [
+        { role: "user", content: "hi", ts: 1 },
+        { role: "assistant", content: "hello!", ts: 2 },
+      ],
+    });
+  const r = await call(
+    vfs,
+    "POST",
+    "migration/import",
+    zipOf({
+      ".houston/runtime/conversations/listed-1.json": transcript("listed-1"),
+      ".houston/runtime/conversations/fresh-1.json": transcript("fresh-1"),
+    }),
+    { agentDir },
+  );
+  expect((r.body as { written: number }).written).toBe(2);
+  const sessions = join(agentDir, ".houston", "runtime", "sessions");
+  expect(existsSync(join(sessions, "listed-1"))).toBe(false);
+  expect(existsSync(join(sessions, "fresh-1"))).toBe(true);
+});

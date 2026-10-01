@@ -77,6 +77,9 @@ export async function dispatchAgentOp(opts: {
   /** The gateway's display name for the agent (auth/agent-name-header.ts):
    *  the handlers print it, the folder id stays. */
   agentName?: string;
+  /** The agent's on-disk directory: a migration import synthesizes each
+   *  imported transcript's pi session against it, as the pod does. */
+  agentDir?: string;
 }): Promise<AgentOpResponse> {
   const store = new LocalWorkspaceStore(opts.workspacesRoot);
   const found = await store.getAgent(opts.agentId);
@@ -138,6 +141,7 @@ export async function dispatchAgentOp(opts: {
           ? { startedBy: opts.request.startedBy }
           : {}),
         triggersEnabled: opts.request.triggersEnabled,
+        ...(opts.agentDir ? { agentDir: opts.agentDir } : {}),
         ...(opts.customIntegrations
           ? { customIntegrations: opts.customIntegrations }
           : {}),

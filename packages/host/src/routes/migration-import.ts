@@ -84,11 +84,14 @@ function migrationEventType(rel: string): AgentFileChangeEvent["type"] | null {
 function synthesizeSessionFromTranscript(
   agentDir: string,
   conv: StoredConversation,
+  listedSessions: ReadonlySet<string>,
 ): void {
   // The id names the session dir on disk — refuse anything path-like.
   if (!conv.id || /[/\\]/.test(conv.id) || conv.id.includes("..")) return;
   const sessionDir = join(agentDir, ".houston", "runtime", "sessions", conv.id);
-  if (existsSync(sessionDir)) return; // idempotent resume
+  // Idempotent resume. The listing sees a session a lazy tree (a pool
+  // worker) holds only in the store; on a real tree it adds nothing.
+  if (listedSessions.has(conv.id) || existsSync(sessionDir)) return;
   const pairs = conv.messages.filter(
     (m) => (m.role === "user" || m.role === "assistant") && m.content,
   );
@@ -188,8 +191,14 @@ export async function applyMigrationArchive(opts: {
   }
 
   if (opts.agentDir) {
+    const sessionsRoot = `${opts.root}/.houston/runtime/sessions/`;
+    const listedSessions = new Set(
+      [...existing]
+        .filter((key) => key.startsWith(sessionsRoot))
+        .map((key) => key.slice(sessionsRoot.length).split("/")[0] ?? ""),
+    );
     for (const conv of transcripts) {
-      synthesizeSessionFromTranscript(opts.agentDir, conv);
+      synthesizeSessionFromTranscript(opts.agentDir, conv, listedSessions);
     }
   }
   return { result, events };
