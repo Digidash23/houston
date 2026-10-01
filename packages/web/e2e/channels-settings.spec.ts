@@ -21,7 +21,7 @@ interface ChannelCall {
 async function mockChannels(
   page: Page,
   configured = true,
-  firstListHoldMs = 0,
+  holdFirstListUntilRedeemed = false,
 ) {
   const calls: ChannelCall[] = [];
   const connections = [
@@ -35,6 +35,10 @@ async function mockChannels(
   ];
   let bound: (typeof connections)[number] | null = null;
   let listed = false;
+  let redeemed = () => {};
+  const redemption = new Promise<void>((resolve) => {
+    redeemed = resolve;
+  });
   await page.route("**/v1/channels**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -58,7 +62,9 @@ async function mockChannels(
         };
         connections.push(bound);
       }
-      return route.fulfill({ json: { connection: bound } });
+      await route.fulfill({ json: { connection: bound } });
+      redeemed();
+      return;
     }
     if (path.endsWith("/slack/link")) {
       return route.fulfill({
@@ -68,15 +74,16 @@ async function mockChannels(
         },
       });
     }
-    // The list is answered NOW; holding the first answer back models a read
-    // the server served before a write the browser saw land first.
+    // The list is answered NOW; holding the first answer until the ticket is
+    // redeemed models a read the server served before a write the browser saw
+    // land first.
     const json = structuredClone({
       providers: [{ id: "slack", name: "Slack", configured }],
       connections,
     });
-    if (!listed && firstListHoldMs > 0)
-      await new Promise((resolve) => setTimeout(resolve, firstListHoldMs));
+    const hold = holdFirstListUntilRedeemed && !listed;
     listed = true;
+    if (hold) await redemption;
     return route.fulfill({ json });
   });
   return calls;
@@ -184,7 +191,7 @@ test("a ticket redeemed during the first list read still shows its connection", 
 }) => {
   // The first list read was answered before the redemption and arrives after
   // it: the redemption must trigger a read of its own, not ride the stale one.
-  await mockChannels(page, true, 1_500);
+  await mockChannels(page, true, true);
   await signInAsViewer(page);
   await page.goto(`${AUTH_WEB_URL}/?settings=channels&slack=${TICKET}`);
   await expect(page.getByText("Ada · Personal", { exact: true })).toBeVisible();
