@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TokenUsage } from "@houston/runtime-client";
@@ -195,4 +195,35 @@ test("a scratch dir that cannot be made never fails the turn", async () => {
       scratchDir: join(root, "missing", "dir"),
     }),
   ).resolves.toBeUndefined();
+});
+
+test("a read the store releases after the deadline never turns into a write", async () => {
+  const upload = vi.fn(async () => undefined);
+  const store: ObjectStore = {
+    list: async () => [],
+    download: async () => undefined,
+    // A store that ignores cancellation and answers late.
+    downloadVersioned: () =>
+      new Promise((resolve) =>
+        setTimeout(() => resolve({ generation: "3" }), 60),
+      ),
+    upload,
+    delete: async () => undefined,
+  };
+  const scratchDir = scratch();
+
+  await recordPooledTokenSpend({
+    store,
+    prefix: "",
+    dataRel: DATA_REL,
+    provider: "google",
+    usage: usage(1_000, 50),
+    scratchDir,
+    deadlineMs: 10,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 120));
+
+  expect(upload).not.toHaveBeenCalled();
+  // Its working copy went once the late read was done with it.
+  expect(readdirSync(scratchDir)).toEqual([]);
 });

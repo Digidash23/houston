@@ -49,12 +49,15 @@ export async function recordPooledTokenSpend(input: {
   // costs the ledger entry, never the finished turn. The signal cancels HTTP
   // reads and writes; the race also bounds a store that cannot be cancelled.
   const deadline = AbortSignal.timeout(input.deadlineMs ?? LEDGER_DEADLINE_MS);
-  let work: string | undefined;
   try {
-    work = await mkdtemp(join(input.scratchDir, "ledger-"));
-    const scratch = work;
+    const work = await mkdtemp(join(input.scratchDir, "ledger-"));
+    const fold = foldInto(input, key, work, deadline);
+    // The scratch copy goes when the fold itself is done, even one that
+    // outlives the deadline below, never from under it.
+    const cleanup = () => removeScratch(work);
+    void fold.then(cleanup, cleanup);
     await Promise.race([
-      foldInto(input, key, scratch, deadline),
+      fold,
       new Promise<never>((_resolve, reject) =>
         deadline.addEventListener("abort", () => reject(deadline.reason), {
           once: true,
@@ -65,8 +68,6 @@ export async function recordPooledTokenSpend(input: {
     console.warn(
       `[usage-ledger] pooled turn spend for ${input.provider} not recorded (${key}): ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}`,
     );
-  } finally {
-    if (work) await removeScratch(work);
   }
 }
 
@@ -80,6 +81,8 @@ async function foldInto(
   const local = join(work, LEDGER_FILE);
   for (let attempt = 1; ; attempt++) {
     const generation = await readLedger(input.store, key, local, signal);
+    // A read a store released after the deadline must not turn into a write.
+    signal.throwIfAborted();
     recordTokenSpend(input.provider, input.usage, work);
     try {
       await input.store.upload(local, key, {

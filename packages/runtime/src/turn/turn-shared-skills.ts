@@ -81,9 +81,10 @@ export async function snapshotTurnSharedSkills(
   deadlineMs: number = SNAPSHOT_DEADLINE_MS,
 ): Promise<void> {
   if (!store?.manifest) return;
-  // One stop for every reader: the deadline (a stalled store must not hold
-  // the prompt back) and the first failure. Readers are drained before this
-  // returns, so none is left writing into a root the turn then removes.
+  // One stop for every read: the deadline (a stalled store must not hold the
+  // prompt back) and the first failure. HTTP reads cancel on it at once, or
+  // after at most one retry pause; readers are drained before this returns,
+  // so none is left writing into a root the turn then removes.
   const stop = new AbortController();
   const timer = setTimeout(
     () => stop.abort(new Error(`shared skills took over ${deadlineMs} ms`)),
@@ -94,7 +95,7 @@ export async function snapshotTurnSharedSkills(
     if (enabled.size === 0) return;
     const root = resolve(dest);
     const listed: ObjectMetadata[] = await Promise.race([
-      store.manifest(SKILLS_PREFIX),
+      store.manifest(SKILLS_PREFIX, { signal: stop.signal }),
       new Promise<never>((_resolve, reject) =>
         stop.signal.addEventListener(
           "abort",
