@@ -70,24 +70,30 @@ function only(): Call {
 }
 
 describe("the delegated workspace list", () => {
-  test("issues one GET /v1/workspaces", async () => {
-    // The provider probe that labels the synthetic personal row answers a 404:
-    // a definitive status, so it fails harmlessly WITHOUT climbing the
-    // transient-retry ladder the way an unstubbed route's throw does.
+  test("is one GET /v1/workspaces and nothing else", async () => {
+    // The space list is polled while the app is open (the live-spaces
+    // refresh), so it must never read through an agent: a per-agent read
+    // keeps that agent's pod awake for as long as the window stays open.
     stubFetch((path) =>
       path === "/v1/workspaces" ? json(200, [{ id: "ws" }]) : json(404, {}),
     );
 
-    await client().listWorkspaces();
+    const spaces = await client().listWorkspaces();
 
-    // The list read is the only request on the wire for the workspace list.
-    const list = calls.filter((c) => c.url === `${BASE}/v1/workspaces`);
-    expect(list).toHaveLength(1);
-    expect(list[0].method).toBe("GET");
-    expect(list[0].body).toBeNull();
-    expect(list[0].headers.get("Content-Type")).toBe("application/json");
-    expect(list[0].headers.get("Authorization")).toBe("Bearer t");
-    expect(list[0].headers.get("x-houston-org")).toBe(ORG);
+    expect(spaces.map((w) => w.id)).toEqual(["default"]);
+    const call = only();
+    expect(call.url).toBe(`${BASE}/v1/workspaces`);
+    expect(call.method).toBe("GET");
+    expect(call.body).toBeNull();
+  });
+
+  test("the personal row carries no provider label", async () => {
+    stubFetch(() => json(200, []));
+
+    const [personal] = await client().listWorkspaces();
+
+    expect(personal).not.toHaveProperty("provider");
+    expect(personal).not.toHaveProperty("model");
   });
 });
 

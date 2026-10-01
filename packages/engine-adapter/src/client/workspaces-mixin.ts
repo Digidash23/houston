@@ -24,8 +24,7 @@ export function WorkspacesMixin<TBase extends BaseCtor>(Base: TBase) {
   class Workspaces extends Base {
     #sidebarLayout: SidebarLayoutStore | undefined;
     async listWorkspaces(): Promise<Workspace[]> {
-      const { provider, model } = await this.ctx.activeOld();
-      const personal = syntheticWorkspace(provider, model);
+      const personal = syntheticWorkspace();
       // C8 §Workspaces bridge: the host returns one row per membership — a
       // personal row plus one `org:<slug>` row per team. The synthetic
       // personal row REPLACES the served one (its "default" id is load-bearing
@@ -62,11 +61,7 @@ export function WorkspacesMixin<TBase extends BaseCtor>(Base: TBase) {
       }
     }
     async createWorkspace(req: { name?: string }): Promise<Workspace> {
-      const { provider, model } = await this.ctx.activeOld();
-      return {
-        ...syntheticWorkspace(provider, model),
-        name: req?.name || "Personal",
-      };
+      return { ...syntheticWorkspace(), name: req?.name || "Personal" };
     }
     // Delete a team space (PRODUCT-1410). Only an `org:<slug>` row is
     // deletable, and only through the gateway: the personal workspace is the
@@ -99,12 +94,10 @@ export function WorkspacesMixin<TBase extends BaseCtor>(Base: TBase) {
       await viaSdk(prefPath("locale"), () =>
         this.ctx.sdk.preferences.set("locale", locale),
       );
-      const { provider, model } = await this.ctx.activeOld();
-      return { ...syntheticWorkspace(provider, model), locale };
+      return { ...syntheticWorkspace(), locale };
     }
     async setWorkspaceProvider(): Promise<Workspace> {
-      const { provider, model } = await this.ctx.activeOld();
-      return syntheticWorkspace(provider, model);
+      return syntheticWorkspace();
     }
     // The host or gateway stores each person's sidebar folders.
     private sidebarLayoutStore(): SidebarLayoutStore {
