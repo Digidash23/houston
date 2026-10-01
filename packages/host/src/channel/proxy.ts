@@ -384,7 +384,9 @@ export class ProxyChannel implements RuntimeChannel {
       });
       if (!res.ok) return true;
       const body = (await res.json()) as { loginPending?: unknown };
-      return body.loginPending === true;
+      // Absent = a runtime older than the field: it reports no sign-in. Any
+      // present value but a literal false reads as pending.
+      return body.loginPending !== undefined && body.loginPending !== false;
     } catch {
       return true;
     }

@@ -73,3 +73,10 @@ test("an unreachable running runtime counts as a pending sign-in", async () => {
   vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("unreachable"));
   await expect(channelWith("running").loginPending(ctx)).resolves.toBe(true);
 });
+
+test("a present but mistyped answer counts as a pending sign-in", async () => {
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    Response.json({ busy: false, loginPending: "true" }),
+  );
+  await expect(channelWith("running").loginPending(ctx)).resolves.toBe(true);
+});
