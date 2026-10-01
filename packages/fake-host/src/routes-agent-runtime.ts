@@ -135,6 +135,11 @@ export function handleConversations(
         },
         400,
       );
+    const hold = state.arming.importHold;
+    if (hold)
+      return hold.released.then(() =>
+        json({ ok: true, imported: state.importHistory(id, cid, request) }),
+      );
     return json({ ok: true, imported: state.importHistory(id, cid, request) });
   }
   if (action === "dismiss-interaction" && method === "POST") {

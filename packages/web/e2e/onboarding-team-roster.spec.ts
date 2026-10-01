@@ -44,7 +44,7 @@ test("a reload after the team is hired resumes on it, and That's my team closes"
   await resetToFirstRun(request);
   await openManagerOnboarding(page);
   await reachTeamStep(page);
-  const release = await holdClosingSave(page);
+  const release = await holdClosingSave(request);
   await hireStarterTeam(page, null, "click", STARTER_ROLES);
 
   await page.reload();
