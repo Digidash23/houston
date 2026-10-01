@@ -1,3 +1,4 @@
+import { forgetAssistantAddresses } from "../lib/assistant-address-cache";
 import { setActiveOrg } from "../lib/engine";
 import { queryClient } from "../lib/query-client";
 import { resetCacheForSpaceChange } from "../lib/space-cache";
@@ -23,6 +24,12 @@ export function applyRefreshPlan(
 ): void {
   if (plan.kind === "unchanged") return;
   set({ workspaces: plan.workspaces, current: plan.current });
+  // A space that left the list (removed from the team, team deleted) gets its
+  // assistant asked for again if it ever comes back.
+  forgetAssistantAddresses(
+    queryClient,
+    plan.workspaces.map((w) => w.id),
+  );
   if (plan.kind === "reselect" && plan.current) {
     tauriPreferences.set("last_workspace_id", plan.current.id);
     const orgChanged = setActiveOrg(orgSlugFromWorkspaceId(plan.current.id));

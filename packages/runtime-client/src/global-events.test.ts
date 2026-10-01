@@ -2,6 +2,7 @@ import { createServer, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, expect, test } from "vitest";
 import { streamGlobalEvents } from "./global-events";
+import { WAKE_SETTLE_MS } from "./global-events-contract";
 
 /**
  * The global-events loop against a REAL local SSE server: each test scripts the
@@ -425,5 +426,169 @@ test("wake leaves a healthy connection alone", async () => {
     },
   });
 
+  expect(h.connections).toHaveLength(1);
+});
+
+/**
+ * A hidden page does not run on the wall clock. A backgrounded desktop window
+ * or browser tab is woken once every minute or more, and at each wake its
+ * timers can run BEFORE the heartbeat bytes the network queued meanwhile. A
+ * watchdog that reads that wall-clock gap as silence tears down a healthy
+ * stream at every wake, and every reconnect makes the app re-read everything
+ * it shows. Staging logged exactly that: one client's stream lived 60 s, sat
+ * closed for 60 s, and reopened, all day.
+ */
+
+/** A clock that runs `rate` times faster than real time: every watchdog tick
+ *  then lands long after the one before it, as in a page the OS keeps asleep. */
+function sleepingPageClock(rate: number): () => number {
+  const start = Date.now();
+  return () => start + (Date.now() - start) * rate;
+}
+
+test("a heartbeating stream survives a page whose timers only run after long sleeps", async () => {
+  const h = await startServer((conn) => {
+    const beat = setInterval(() => conn.raw(": hb\n\n"), 10);
+    conn.res.on("close", () => clearInterval(beat));
+  });
+  const ac = new AbortController();
+  const errors: unknown[] = [];
+  let connects = 0;
+
+  const run = streamGlobalEvents({
+    url: () => `${h.baseUrl}/v1/events`,
+    fetch,
+    signal: ac.signal,
+    sleep: instant,
+    idleTimeoutMs: 60,
+    now: sleepingPageClock(1000),
+    onConnect: () => connects++,
+    onError: (e) => errors.push(e),
+    onEvent: () => {},
+  });
+  await new Promise((r) => setTimeout(r, 300));
+  ac.abort();
+  await run;
+
+  expect(errors).toEqual([]);
+  expect(connects).toBe(1);
+});
+
+/** A clock the test can push forward, as if the page had slept that long. */
+function skewableClock() {
+  let skew = 0;
+  return {
+    now: () => Date.now() + skew,
+    sleep: (ms: number) => {
+      skew += ms;
+    },
+  };
+}
+
+test("a wake gives a just-woken page time to read the heartbeats it slept through", async () => {
+  const clock = skewableClock();
+  let retryNow: (() => void) | undefined;
+  const h = await startServer((conn) => {
+    // The page reads `: connected`, sleeps 30 s with nothing read, then the
+    // window becomes visible: the wake arrives before the bytes queued
+    // meanwhile.
+    setTimeout(() => {
+      clock.sleep(30_000);
+      retryNow?.();
+      conn.raw(": hb\n\n");
+    }, 20);
+  });
+  const ac = new AbortController();
+  const errors: unknown[] = [];
+
+  const run = streamGlobalEvents({
+    url: () => `${h.baseUrl}/v1/events`,
+    fetch,
+    signal: ac.signal,
+    sleep: instant,
+    now: clock.now,
+    wake: (fn) => {
+      retryNow = fn;
+      return () => {};
+    },
+    onError: (e) => errors.push(e),
+    onEvent: () => {},
+  });
+  await new Promise((r) => setTimeout(r, WAKE_SETTLE_MS + 300));
+  ac.abort();
+  await run;
+
+  expect(errors).toEqual([]);
+  expect(h.connections).toHaveLength(1);
+});
+
+test("a wake still replaces a socket that died while the page slept", async () => {
+  const clock = skewableClock();
+  let retryNow: (() => void) | undefined;
+  const h = await startServer((conn, i) => {
+    if (i > 0) {
+      conn.send({ type: "AgentsChanged" });
+      return;
+    }
+    // Nothing ever arrives on this socket after `: connected`.
+    setTimeout(() => {
+      clock.sleep(30_000);
+      retryNow?.();
+    }, 20);
+  });
+  const ac = new AbortController();
+  const errors: unknown[] = [];
+
+  await streamGlobalEvents({
+    url: () => `${h.baseUrl}/v1/events`,
+    fetch,
+    signal: ac.signal,
+    sleep: instant,
+    now: clock.now,
+    wake: (fn) => {
+      retryNow = fn;
+      return () => {};
+    },
+    onError: (e) => errors.push(e),
+    onEvent: () => ac.abort(),
+  });
+
+  expect(h.connections).toHaveLength(2);
+  expect(String(errors[0])).toContain("stalled");
+});
+
+test("a wake whose settle check the page slept through gives the backlog another chance", async () => {
+  const clock = skewableClock();
+  let retryNow: (() => void) | undefined;
+  const h = await startServer((conn) => {
+    // The window flashes visible and the page goes back to sleep before the
+    // settle check runs; the heartbeats it held land after that late check.
+    setTimeout(() => {
+      retryNow?.();
+      clock.sleep(60_000);
+    }, 20);
+    setTimeout(() => conn.raw(": hb\n\n"), WAKE_SETTLE_MS + 200);
+  });
+  const ac = new AbortController();
+  const errors: unknown[] = [];
+
+  const run = streamGlobalEvents({
+    url: () => `${h.baseUrl}/v1/events`,
+    fetch,
+    signal: ac.signal,
+    sleep: instant,
+    now: clock.now,
+    wake: (fn) => {
+      retryNow = fn;
+      return () => {};
+    },
+    onError: (e) => errors.push(e),
+    onEvent: () => {},
+  });
+  await new Promise((r) => setTimeout(r, 2 * WAKE_SETTLE_MS + 500));
+  ac.abort();
+  await run;
+
+  expect(errors).toEqual([]);
   expect(h.connections).toHaveLength(1);
 });
