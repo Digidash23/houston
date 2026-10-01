@@ -1,6 +1,9 @@
 import type { SyncResult } from "@houston/runtime-client/object-sync";
 import type { OpResult } from "./op-apply";
-import { repairImportedConversations } from "./op-import-repair";
+import {
+  archiveConversationKeys,
+  repairImportedConversations,
+} from "./op-import-repair";
 import { type OpClaimTurn, republish } from "./op-republish";
 import { opTranscriptMirror } from "./op-transcript";
 import { isMigrationImport } from "./op-tree-options";
@@ -79,13 +82,15 @@ export async function projectDurableOp(input: {
     failures.push(...(await opTranscriptMirror(deps, turn, op.op)));
   }
   if (isMigrationImport(op.op)) {
+    const carried =
+      op.op.kind === "route"
+        ? archiveConversationKeys(op.op.bodyBase64, filesystem.workspaceRel)
+        : [];
     failures.push(
-      ...(await repairImportedConversations(
-        deps,
-        turn,
-        filesystem,
-        input.uploaded,
-      )),
+      ...(await repairImportedConversations(deps, turn, filesystem, [
+        ...input.uploaded,
+        ...carried,
+      ])),
     );
   }
   if (failures.length > 0) {

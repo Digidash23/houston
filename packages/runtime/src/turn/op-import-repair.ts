@@ -1,5 +1,7 @@
 import { join, posix } from "node:path";
+import { safeSeedKey } from "@houston/host/src/routes/agent-seed";
 import { fetchWithRetry } from "@houston/runtime-client/object-sync";
+import { unzipSync } from "fflate";
 import { loadFullConversation } from "../store/conversation-file";
 import type { OpClaimTurn } from "./op-republish";
 import type { TurnServerDeps } from "./server-types";
@@ -7,12 +9,15 @@ import type { TurnFilesystem } from "./turn-filesystem";
 import { poolIdentity } from "./turn-store";
 
 /**
- * After an import's files are durable, repair every conversation it wrote
- * into the transcript store with its FULL document (archived segments
- * folded in), the body the pod's transcript shadow sends on a repair. The
- * gateway serves an asleep agent's conversations from that store, which
- * otherwise learns of imported chats only when a pod next projects them.
- * Answers the diagnostics; a 404 (route absent) is not one.
+ * After an import's files are durable, repair every conversation the chunk
+ * carries into the transcript store with its FULL document (archived
+ * segments folded in), the body the pod's transcript shadow sends on a
+ * repair. The gateway serves an asleep agent's conversations from that
+ * store, which otherwise learns of imported chats only when a pod next
+ * projects them. A chat the import skipped (already in the store) is
+ * repaired too: a retry after a crash between the sync and the repair finds
+ * its file already there. Answers the diagnostics; a 404 (route absent) is
+ * not one.
  */
 export async function repairImportedConversations(
   deps: Pick<TurnServerDeps, "poolStoreUrl" | "fetchImpl">,
@@ -102,4 +107,31 @@ function importedConversations(
     }
   }
   return out;
+}
+
+/**
+ * Store-relative keys of the runtime conversation files an import archive
+ * carries, normalized exactly as the import loop normalizes entry names
+ * (safeSeedKey). Names only: the filter refuses every entry, so nothing
+ * inflates. A malformed zip carries none (the import route owns its error).
+ */
+export function archiveConversationKeys(
+  bodyBase64: string | undefined,
+  workspaceRel: string,
+): string[] {
+  if (!bodyBase64) return [];
+  const keys: string[] = [];
+  try {
+    unzipSync(new Uint8Array(Buffer.from(bodyBase64, "base64")), {
+      filter: (file) => {
+        const rel = safeSeedKey(file.name);
+        if (rel?.startsWith(".houston/runtime/conversations/"))
+          keys.push(posix.join(workspaceRel, rel));
+        return false;
+      },
+    });
+  } catch {
+    return [];
+  }
+  return keys;
 }

@@ -174,10 +174,16 @@ test("skip-existing sees a conversation and a session that exist only in the sto
   expect(sessionKeys(await pool.keys(), "c7")).toEqual([
     `${RUNTIME}/sessions/c7/s.jsonl`,
   ]);
-  const repaired = pool.transcripts.map((t) => t.path);
+  // The skipped chat is repaired too: a retry after a crash between the sync
+  // and the repair finds its file already there, and would otherwise leave
+  // it out of the transcript store for good.
+  const repaired = pool.transcripts.map((t) => t.path).sort();
   expect(repaired).toEqual([
     "/v1/pod/transcripts/acme/bob/conversations/c7/repair",
+    "/v1/pod/transcripts/acme/bob/conversations/old/repair",
   ]);
+  const old = pool.transcripts.find((t) => t.path.endsWith("/old/repair"));
+  expect(JSON.parse(old?.body ?? "{}").title).toBe("Kept");
 });
 
 test("sessions=0 imports the transcript and synthesizes no session", async () => {
