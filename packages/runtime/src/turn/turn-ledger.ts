@@ -13,6 +13,8 @@ const LEDGER_FILE = "token-usage.json";
 
 /** Concurrent turns of one agent that may land between a read and a write. */
 const MAX_ATTEMPTS = 4;
+/** The whole fold, every attempt included. */
+const LEDGER_DEADLINE_MS = 5_000;
 
 /**
  * Fold one pooled turn's spend into the agent's stored token ledger, the same
@@ -39,32 +41,67 @@ export async function recordPooledTokenSpend(input: {
   usage: TokenUsage;
   /** Where the ledger's working copy is written; outside the synced tree. */
   scratchDir: string;
+  deadlineMs?: number;
 }): Promise<void> {
   const rel = posix.join(input.dataRel, LEDGER_FILE);
   const key = input.prefix ? posix.join(input.prefix, rel) : rel;
-  const work = await mkdtemp(join(input.scratchDir, "ledger-"));
-  const local = join(work, LEDGER_FILE);
+  // The terminal frame waits on this, and the claim with it: a stalled store
+  // costs the ledger entry, never the finished turn. The signal cancels HTTP
+  // reads and writes; the race also bounds a store that cannot be cancelled.
+  const deadline = AbortSignal.timeout(input.deadlineMs ?? LEDGER_DEADLINE_MS);
+  let work: string | undefined;
   try {
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      const generation = await readLedger(input.store, key, local);
-      recordTokenSpend(input.provider, input.usage, work);
-      try {
-        await input.store.upload(local, key, {
-          ...(generation !== null ? { ifGenerationMatch: generation } : {}),
-        });
-        return;
-      } catch (error) {
-        if (error instanceof StoreConflictError && attempt < MAX_ATTEMPTS)
-          continue;
-        throw error;
-      }
-    }
+    work = await mkdtemp(join(input.scratchDir, "ledger-"));
+    const scratch = work;
+    await Promise.race([
+      foldInto(input, key, scratch, deadline),
+      new Promise<never>((_resolve, reject) =>
+        deadline.addEventListener("abort", () => reject(deadline.reason), {
+          once: true,
+        }),
+      ),
+    ]);
   } catch (error) {
     console.warn(
       `[usage-ledger] pooled turn spend for ${input.provider} not recorded (${key}): ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}`,
     );
   } finally {
+    if (work) await removeScratch(work);
+  }
+}
+
+/** The generation-guarded read, fold, write, retried while another turn wins. */
+async function foldInto(
+  input: { store: ObjectStore; provider: string; usage: TokenUsage },
+  key: string,
+  work: string,
+  signal: AbortSignal,
+): Promise<void> {
+  const local = join(work, LEDGER_FILE);
+  for (let attempt = 1; ; attempt++) {
+    const generation = await readLedger(input.store, key, local, signal);
+    recordTokenSpend(input.provider, input.usage, work);
+    try {
+      await input.store.upload(local, key, {
+        signal,
+        ...(generation !== null ? { ifGenerationMatch: generation } : {}),
+      });
+      return;
+    } catch (error) {
+      if (!(error instanceof StoreConflictError) || attempt >= MAX_ATTEMPTS)
+        throw error;
+    }
+  }
+}
+
+async function removeScratch(work: string): Promise<void> {
+  try {
     await rm(work, { recursive: true, force: true });
+  } catch (error) {
+    // The turn root holding it is removed with the turn anyway.
+    console.warn(
+      `[usage-ledger] could not remove ${work}: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }
 
@@ -77,14 +114,17 @@ async function readLedger(
   store: ObjectStore,
   key: string,
   local: string,
+  signal: AbortSignal,
 ): Promise<string | null> {
   await rm(local, { force: true });
   try {
     if (!store.downloadVersioned) {
-      await store.download(key, local);
+      await store.download(key, local, { signal });
       return null;
     }
-    return (await store.downloadVersioned(key, local)).generation ?? null;
+    return (
+      (await store.downloadVersioned(key, local, { signal })).generation ?? null
+    );
   } catch (error) {
     if (!(error instanceof ObjectNotFoundError)) throw error;
     // A failed read can leave an empty file behind: the fold starts fresh.

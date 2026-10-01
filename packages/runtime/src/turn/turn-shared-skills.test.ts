@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -174,4 +180,50 @@ test("an unclaimed turn has no shared store to read", () => {
       { poolStoreUrl: "https://gateway.test" },
     ),
   ).toBeNull();
+});
+
+test("a failed download stops the rest before the turn goes on", async () => {
+  const { store } = sharedStore({
+    "skills/invoices/SKILL.md": "x",
+    "skills/invoices/a.md": "a",
+    "skills/invoices/b.md": "b",
+  });
+  let inFlight = 0;
+  store.download = async (key, dest, opts) => {
+    inFlight++;
+    try {
+      // Every read is under way before the first one fails.
+      const failing = key.endsWith("SKILL.md");
+      await new Promise((resolve) => setTimeout(resolve, failing ? 5 : 30));
+      if (failing) throw new Error("GET failed (500)");
+      if (opts?.signal?.aborted) throw new Error("aborted");
+      writeFileSync(dest, "late");
+    } finally {
+      inFlight--;
+    }
+  };
+
+  const dest = snapshotDir();
+  await snapshotTurnSharedSkills(store, dest, workspaceEnabling("invoices"));
+
+  // Nothing is left writing into a root the turn is about to remove, and no
+  // half-fetched skill is offered.
+  expect(inFlight).toBe(0);
+  expect(readdirSync(dest)).toEqual([]);
+});
+
+test("a stalled shared store gives up and the turn runs without the skills", async () => {
+  const { store } = sharedStore({});
+  store.manifest = () => new Promise(() => undefined);
+  const started = Date.now();
+
+  await snapshotTurnSharedSkills(
+    store,
+    snapshotDir(),
+    workspaceEnabling("invoices"),
+    50,
+  );
+
+  expect(Date.now() - started).toBeLessThan(2_000);
+  expect(console.error).toHaveBeenCalled();
 });

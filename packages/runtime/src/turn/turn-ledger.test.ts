@@ -159,3 +159,40 @@ test("a fenced claim records nothing and never fails the turn", async () => {
   // A fenced worker's turn belongs to whoever adopted it: one try, no retry.
   expect(upload).toHaveBeenCalledTimes(1);
 });
+
+test("a stalled store costs the ledger entry, never the finished turn", async () => {
+  const store: ObjectStore = {
+    list: async () => [],
+    download: () => new Promise(() => undefined),
+    downloadVersioned: () => new Promise(() => undefined),
+    upload: async () => undefined,
+    delete: async () => undefined,
+  };
+  const started = Date.now();
+
+  await recordPooledTokenSpend({
+    store,
+    prefix: "",
+    dataRel: DATA_REL,
+    provider: "google",
+    usage: usage(1_000, 50),
+    scratchDir: scratch(),
+    deadlineMs: 50,
+  });
+
+  expect(Date.now() - started).toBeLessThan(2_000);
+});
+
+test("a scratch dir that cannot be made never fails the turn", async () => {
+  const root = mkdtempSync(join(tmpdir(), "ledger-noscratch-"));
+  await expect(
+    recordPooledTokenSpend({
+      store: new LocalDirStore(root),
+      prefix: "",
+      dataRel: DATA_REL,
+      provider: "google",
+      usage: usage(1_000, 50),
+      scratchDir: join(root, "missing", "dir"),
+    }),
+  ).resolves.toBeUndefined();
+});

@@ -1,7 +1,8 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, readdir, rm } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import {
   HttpObjectStore,
+  type ObjectMetadata,
   type ObjectStore,
 } from "@houston/runtime-client/object-sync";
 import { loadSkillsManifest } from "../session/skills-manifest";
@@ -31,6 +32,8 @@ import type { TurnRequest } from "./types";
 const SKILLS_PREFIX = "skills/";
 /** Parallel reads per turn: a large skill folder must not open a request per file at once. */
 const DOWNLOADS_AT_ONCE = 8;
+/** How long the snapshot may hold the prompt back before the turn runs without it. */
+const SNAPSHOT_DEADLINE_MS = 15_000;
 
 /** Where a pooled turn's shared skills snapshot lives: beside, never in, the synced tree. */
 export function turnSharedSkillsDir(turnRoot: string): string {
@@ -75,29 +78,84 @@ export async function snapshotTurnSharedSkills(
   store: ObjectStore | null,
   dest: string,
   workspaceDir: string,
+  deadlineMs: number = SNAPSHOT_DEADLINE_MS,
 ): Promise<void> {
   if (!store?.manifest) return;
+  // One stop for every reader: the deadline (a stalled store must not hold
+  // the prompt back) and the first failure. Readers are drained before this
+  // returns, so none is left writing into a root the turn then removes.
+  const stop = new AbortController();
+  const timer = setTimeout(
+    () => stop.abort(new Error(`shared skills took over ${deadlineMs} ms`)),
+    deadlineMs,
+  );
   try {
     const enabled = new Set(loadSkillsManifest(workspaceDir).enabled);
     if (enabled.size === 0) return;
     const root = resolve(dest);
-    const queue = (await store.manifest(SKILLS_PREFIX)).filter((object) => {
+    const listed: ObjectMetadata[] = await Promise.race([
+      store.manifest(SKILLS_PREFIX),
+      new Promise<never>((_resolve, reject) =>
+        stop.signal.addEventListener(
+          "abort",
+          () => reject(stop.signal.reason),
+          {
+            once: true,
+          },
+        ),
+      ),
+    ]);
+    const queue = listed.filter((object) => {
       const skill = skillOf(object.key);
       return skill !== null && enabled.has(skill);
     });
-    const worker = async () => {
+    const reader = async () => {
       for (let next = queue.shift(); next; next = queue.shift()) {
+        stop.signal.throwIfAborted();
         const rel = next.key.slice(SKILLS_PREFIX.length).split("/");
         const file = resolve(root, ...rel);
         if (!file.startsWith(`${root}${sep}`)) continue;
         await mkdir(dirname(file), { recursive: true, mode: 0o755 });
-        await store.download(next.key, file);
+        await store.download(next.key, file, { signal: stop.signal });
       }
     };
-    await Promise.all(Array.from({ length: DOWNLOADS_AT_ONCE }, worker));
+    const readers = await Promise.allSettled(
+      Array.from({ length: DOWNLOADS_AT_ONCE }, () =>
+        reader().catch((error: unknown) => {
+          stop.abort(error);
+          throw error;
+        }),
+      ),
+    );
+    const failed = readers.find((result) => result.status === "rejected");
+    if (failed) throw stop.signal.reason ?? failed.reason;
   } catch (error) {
     console.error(
       "[shared-skills] the turn runs without its org's shared skills:",
+      error instanceof Error ? error.message : String(error),
+    );
+    await clearSnapshot(dest);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Half a skill folder is worse than none: the loader would offer a skill whose
+ * reference files never arrived. The directory itself stays, since the file
+ * guard was built on it.
+ */
+async function clearSnapshot(dest: string): Promise<void> {
+  try {
+    const left = await readdir(dest);
+    await Promise.all(
+      left.map((entry) =>
+        rm(join(dest, entry), { recursive: true, force: true }),
+      ),
+    );
+  } catch (error) {
+    console.error(
+      "[shared-skills] could not clear a partial snapshot:",
       error instanceof Error ? error.message : String(error),
     );
   }
