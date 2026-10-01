@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { loginPending } from "../auth/login";
 import { primeAnthropicCredential } from "../backends/claude/credential-status";
 import { config } from "../config";
 import {
@@ -36,8 +37,12 @@ async function handle(ctx: RouteContext) {
   }
   if (ctx.method === "GET" && ctx.path === "/busy") {
     // A draining runtime reads busy until it exits: the host's activity
-    // probe must never call a pod idle while a turn is still finishing.
-    json(ctx.res, 200, { busy: anyTurnRunning() || isDraining() });
+    // probe must never call a pod idle while a turn is still finishing. A
+    // sign-in waiting on its user is reported apart: it is not a turn.
+    json(ctx.res, 200, {
+      busy: anyTurnRunning() || isDraining(),
+      loginPending: loginPending(),
+    });
     return;
   }
   if (ctx.method === "GET" && ctx.path === "/version") {

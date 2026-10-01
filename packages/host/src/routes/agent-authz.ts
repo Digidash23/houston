@@ -87,6 +87,12 @@ export interface AgentRouteDeps {
    */
   agentRequestCount?: () => number;
   /**
+   * The writes among those held requests (any method but GET, HEAD and
+   * OPTIONS). The cloud waker can sleep a pod on turns and writes alone, so
+   * an open chat stream does not pin it; a write in flight still must.
+   */
+  agentWriteCount?: () => number;
+  /**
    * Custom-integration manager (mirrors ControlPlaneDeps.customIntegrations) —
    * the dispatch-surface user routes (`/agents/:id/integrations/custom/*`)
    * serve off it (HOU-823: the hosted gateway proxies only this per-agent
