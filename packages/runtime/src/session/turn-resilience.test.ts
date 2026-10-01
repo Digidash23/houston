@@ -329,10 +329,6 @@ test("a turn both stalled AND stopped settles as a user stop, never a synthesize
   state.model = OPENAI;
   const session = new StallSession();
   const conv = convWith(session);
-  // The user hit Stop on THIS turn: cancelTurn stamps the marker before aborting.
-  // Its abort resolves the stalled prompt() the same way the watchdog's does, so
-  // both signals land on the one turn — a user Stop must win over the watchdog.
-  (conv as { stoppedTurnId?: string }).stoppedTurnId = "turn-stop";
   // Seed the conversation file so execTurn's assistant-message persist lands
   // (appendAssistantMessage no-ops on a conversation that was never created).
   appendUserMessage("conv-stall-stop", "hi", { turnId: "turn-stop" });
@@ -345,6 +341,11 @@ test("a turn both stalled AND stopped settles as a user stop, never a synthesize
   });
 
   await vi.advanceTimersByTimeAsync(0);
+  // The user hit Stop on THIS turn mid-prompt: cancelTurn stamps the marker
+  // before aborting. Its abort resolves the stalled prompt() the same way the
+  // watchdog's does, so both signals land on the one turn — a user Stop must
+  // win over the watchdog.
+  (conv as { stoppedTurnId?: string }).stoppedTurnId = "turn-stop";
   // Cross the stall window: the watchdog fires (stalled) on a turn the user also
   // stopped. The synthesized provider_internal must be suppressed.
   await vi.advanceTimersByTimeAsync(STALL_MS);
@@ -367,7 +368,6 @@ test("a user-stopped turn whose abort echoes back as an unclassifiable provider 
   state.model = OPENAI;
   const session = new StallEchoSession();
   const conv = convWith(session);
-  (conv as { stoppedTurnId?: string }).stoppedTurnId = "turn-stop-echo";
   appendUserMessage("conv-stop-echo", "hi", { turnId: "turn-stop-echo" });
 
   const events: WireEvent[] = [];
@@ -378,8 +378,9 @@ test("a user-stopped turn whose abort echoes back as an unclassifiable provider 
   });
 
   await vi.advanceTimersByTimeAsync(0);
-  // cancelTurn's abort resolves the pending prompt() the same way; pi echoes
-  // the AbortError as an errored turn first.
+  // cancelTurn marks the turn, then its abort resolves the pending prompt()
+  // the same way; pi echoes the AbortError as an errored turn first.
+  (conv as { stoppedTurnId?: string }).stoppedTurnId = "turn-stop-echo";
   await session.abort();
   await done;
   unsub();

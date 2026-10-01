@@ -88,6 +88,7 @@ import {
 import { runWithTurnMode, type TurnModeRef } from "./turn-mode-context";
 import { runWithTurnModel } from "./turn-model-context";
 import { buildTurnResumeInfo } from "./turn-resume-info";
+import { settleStoppedBeforePrompt } from "./turn-stopped-before-prompt";
 import type { ProvidedContext } from "./workspace-context";
 
 /** A turn that ended on a clean `done`, and the model its reply came from. */
@@ -382,7 +383,19 @@ export async function execTurn(
   // Held outside the try so the finally records the run's carry (the replay
   // it started from, when it reset) whichever way the turn ended.
   let routineReset: RoutineSessionReset | null = null;
+  // A Stop before the model call ends the turn there (checked once the
+  // workdir lock is held, and again with no await left before prompt()).
+  const stoppedBeforePrompt = (): boolean => {
+    if (conv.stoppedTurnId !== turnId) return false;
+    settleStoppedBeforePrompt(id, turnId, {
+      replayedHistory,
+      providerSwitch,
+      compaction,
+    });
+    return true;
+  };
   try {
+    if (stoppedBeforePrompt()) return null;
     // Resolve the model for THIS turn from current settings (a routine's
     // provider/model pin wins, else the workspace's active provider/model).
     // Re-resolved every turn so a mid-conversation provider/model switch —
@@ -591,6 +604,7 @@ export async function execTurn(
         }
       }
     }
+    if (stoppedBeforePrompt()) return null;
     // Effort: the routine's pin wins, else the agent's saved setting; if neither
     // is set and the model can reason, default to medium so a reasoning model
     // (e.g. an OpenCode toggle model) actually thinks — pi only enables reasoning
