@@ -287,6 +287,9 @@ export async function streamTurn(
       };
       await engine.sendMessage(sessionKey, prompt, sendOptions);
     } catch (e) {
+      // The client tore the streams down while this send was out (the
+      // observer is gone from the registry): nobody is waiting any more.
+      if (registry.get(key) !== prior) firstResponse.dispose();
       registry.endSend(key);
       // The resend was rejected before it reached the engine — fail its
       // optimistic bubble (the observed turn keeps rendering unaffected).
@@ -314,13 +317,23 @@ export async function streamTurn(
       firstResponse.resolve("error");
       return; // the observer keeps rendering the running turn
     }
+    if (registry.get(key) !== prior) firstResponse.dispose(); // torn down meanwhile
     sent = true;
     prior.dispose();
     registry.delete(key);
   }
 
   const ac = new AbortController();
-  const entry: ActiveStream = { kind: "turn", dispose: () => ac.abort() };
+  // `dispose` is only ever called from outside (a client teardown, or a newer
+  // turn replacing this one): stop the measurement at once, even while the
+  // send below is still out, since its later verdict reaches nobody.
+  const entry: ActiveStream = {
+    kind: "turn",
+    dispose: () => {
+      firstResponse.dispose();
+      ac.abort();
+    },
+  };
   registry.set(key, entry);
   // The turn stream now owns the key — release the handoff send lock (a no-op
   // for the fresh path, which never claimed it).

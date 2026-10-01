@@ -7,7 +7,9 @@
  * Pairing is by construction: the clock belongs to ONE streamTurn call and is
  * only ever fed by that turn's own folded frames, so another conversation's
  * output, or another writer's turn in the same conversation, can never answer
- * it. There is no cut-off for a slow answer below {@link
+ * it. "Own" is the sink's turn identity (`turn-identity.ts`), so the clock
+ * shares its one accepted race: a running sync adopted after an accepted send
+ * whose echo never arrived. There is no cut-off for a slow answer below {@link
  * FIRST_RESPONSE_TIMEOUT_MS}; past it the turn reports `timeout` (censored)
  * rather than vanishing.
  */

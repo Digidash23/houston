@@ -33,7 +33,12 @@ const hang: Handler = (opts) =>
  */
 function fakeEngine(
   handlers: Record<string, Handler>,
-  opts: { sendError?: unknown; history?: ChatMessage[] } = {},
+  opts: {
+    sendError?: unknown;
+    history?: ChatMessage[];
+    /** Hold every send until this settles (a slow POST). */
+    sendHeld?: Promise<void>;
+  } = {},
 ) {
   const nonces: Record<string, string | undefined> = {};
   const engine = {
@@ -42,6 +47,7 @@ function fakeEngine(
     },
     async sendMessage(id: string, _text: string, o?: { nonce?: string }) {
       nonces[id] = o?.nonce;
+      await opts.sendHeld;
       if (opts.sendError !== undefined) throw opts.sendError;
     },
     async getHistory() {
@@ -424,4 +430,66 @@ test("a turn the engine restarted under, with no text yet, reports interrupted",
   const { reports, output } = recorder();
   await streamTurn(engine, "Ag", "a", "hi", output, registry, { tuning: fast });
   expect(reports.map((r) => r.outcome)).toEqual(["interrupted"]);
+});
+
+const refused = () =>
+  new EngineError(409, JSON.stringify({ error: "Another message is running" }));
+
+test("a teardown while the send is still in flight reports nothing, even when the send fails later", async () => {
+  const post = gate();
+  const { engine } = fakeEngine(
+    { a: hang },
+    { sendHeld: post.opened, sendError: refused() },
+  );
+  const { reports, output } = recorder();
+  const turn = streamTurn(engine, "Ag", "a", "hi", output, registry, {
+    tuning: { ...fast, firstResponseTimeoutMs: 30 },
+  });
+  await new Promise((r) => setTimeout(r, 5));
+  registry.disposeAll(); // sign-out while the POST is out
+  await new Promise((r) => setTimeout(r, 50)); // past the deadline too
+  post.open();
+  await turn;
+  expect(reports).toEqual([]);
+});
+
+test("a teardown during an observer handoff's send reports nothing", async () => {
+  const post = gate();
+  const { engine } = fakeEngine(
+    {
+      a: async (o) => {
+        o.onEvent(sync(true, "A teammate's turn"));
+        await hang(o);
+      },
+    },
+    { sendHeld: post.opened, sendError: refused() },
+  );
+  const { reports, output } = recorder();
+  observeConversation(engine, "Ag", "a", output, 0, registry, fast);
+  await new Promise((r) => setTimeout(r, 5));
+  const turn = streamTurn(engine, "Ag", "a", "hi", output, registry, {
+    tuning: fast,
+  });
+  await new Promise((r) => setTimeout(r, 5));
+  registry.disposeAll();
+  post.open();
+  await turn;
+  expect(reports).toEqual([]);
+});
+
+test("an observer handoff whose send the engine refuses reports error", async () => {
+  const { engine } = fakeEngine(
+    {
+      a: async (o) => {
+        o.onEvent(sync(true, "A teammate's turn"));
+        await hang(o);
+      },
+    },
+    { sendError: refused() },
+  );
+  const { reports, output } = recorder();
+  observeConversation(engine, "Ag", "a", output, 0, registry, fast);
+  await new Promise((r) => setTimeout(r, 5));
+  await streamTurn(engine, "Ag", "a", "hi", output, registry, { tuning: fast });
+  expect(reports.map((r) => r.outcome)).toEqual(["error"]);
 });
