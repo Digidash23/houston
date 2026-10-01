@@ -1,4 +1,5 @@
 import { ID, str } from "./op-grammar-fields";
+import { parseSeedOp, type SeedOp } from "./op-grammar-seed";
 import { parseSettingsOp, type SettingsOp } from "./op-grammar-settings";
 import {
   isBinaryBodyOpRoute,
@@ -41,7 +42,8 @@ export type AgentOp =
       action: "rename" | "delete";
       conversationId: string;
       title?: string;
-    };
+    }
+  | SeedOp;
 
 export { ID, str } from "./op-grammar-fields";
 
@@ -81,6 +83,8 @@ export function parseAgentOp(raw: Record<string, unknown>): AgentOp {
         ...(typeof raw.title === "string" ? { title: raw.title } : {}),
       };
     }
+    case "seed":
+      return parseSeedOp(raw);
     default:
       throw new Error("invalid 'op.kind'");
   }

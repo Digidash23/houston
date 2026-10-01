@@ -7,6 +7,7 @@ import { startClaimHeartbeat } from "./claim-heartbeat";
 import { applyOp } from "./op-apply";
 import { WorkerOpDeclinedError } from "./op-provider-guard";
 import { republish } from "./op-republish";
+import { executeSeedOp } from "./op-seed";
 import { opTranscriptMirror } from "./op-transcript";
 import { parseOpRequest } from "./parse-op-request";
 import type { TurnServerDeps } from "./server-types";
@@ -79,6 +80,23 @@ export async function executeOp(
       poolStoreUrl: deps.poolStoreUrl,
       fetchImpl: deps.fetchImpl,
     });
+    if (op.op.kind === "seed") {
+      // Decided from the listing before any tree exists: never through the
+      // claimed hydrate, which refuses the empty prefix a new agent has.
+      const reply = await executeSeedOp({
+        deps,
+        op: { ...op, op: op.op },
+        turn: turnLike,
+        store: resolved.store,
+        prefix: resolved.prefix,
+        root,
+        fenced: async () => {
+          await heartbeat.checkpoint();
+          return heartbeat.fenced;
+        },
+      });
+      return json(res, reply.status, reply.body);
+    }
     const filesystem = await prepareTurnFilesystem({
       store: resolved.store,
       prefix: resolved.prefix,
