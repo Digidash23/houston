@@ -5,6 +5,7 @@ import type {
   HoustonEvent,
   MissionStarter,
 } from "@houston/protocol";
+import { withDisplayName } from "../auth/agent-name-header";
 import type { CustomIntegrationManager } from "../integrations/custom/manager";
 import { LocalPaths } from "../paths";
 import { LocalWorkspaceStore } from "../store/local";
@@ -73,9 +74,13 @@ export async function dispatchAgentOp(opts: {
    *  directory. A lazy store-backed vfs lets an op run over a manifest-only
    *  tree that downloads objects on first read. */
   vfs?: Vfs;
+  /** The gateway's display name for the agent (auth/agent-name-header.ts):
+   *  the handlers print it, the folder id stays. */
+  agentName?: string;
 }): Promise<AgentOpResponse> {
   const store = new LocalWorkspaceStore(opts.workspacesRoot);
-  const agent = await store.getAgent(opts.agentId);
+  const found = await store.getAgent(opts.agentId);
+  const agent = found && withDisplayName(found, opts.agentName);
   const workspace = agent ? await store.getWorkspace(agent.workspaceId) : null;
   if (!agent || !workspace) {
     return {

@@ -107,6 +107,7 @@ async function runRouteOp(
       agentId,
       vfs,
       request,
+      ...(op.agentName ? { agentName: op.agentName } : {}),
       ...(custom ? { customIntegrations: custom.manager } : {}),
     });
   const result = await dispatch({

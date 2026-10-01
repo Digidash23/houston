@@ -1,4 +1,5 @@
 import { ACTING_VIA_ASSISTANT } from "@houston/host/src/auth/acting";
+import { validDisplayName } from "@houston/host/src/auth/agent-name-header";
 import type { ServedCredential } from "../auth/auth-file";
 import { type AgentOp, ID, parseAgentOp, str } from "./op-grammar";
 import type { TurnRequest } from "./types";
@@ -25,6 +26,9 @@ export type OpActingAs = NonNullable<TurnRequest["actingAs"]> & {
 export interface OpRequest {
   workspaceId: string;
   agentId: string;
+  /** The gateway registry's display name. The folder never follows a cloud
+   *  rename, so handlers print this; an invalid value is simply absent. */
+  agentName?: string;
   gcsPrefix: string;
   hostToken: string;
   claim: NonNullable<TurnRequest["claim"]>;
@@ -84,9 +88,11 @@ export function parseOpRequest(body: unknown): OpRequest {
   }
   const raw = b.op as Record<string, unknown> | undefined;
   if (!raw || typeof raw !== "object") throw new Error("invalid 'op'");
+  const agentName = validDisplayName(b.agentName);
   return {
     workspaceId: str(b.workspaceId, "workspaceId"),
     agentId,
+    ...(agentName ? { agentName } : {}),
     gcsPrefix,
     hostToken,
     ...(typeof b.actingToken === "string" && b.actingToken
