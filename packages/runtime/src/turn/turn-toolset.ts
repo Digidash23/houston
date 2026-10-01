@@ -60,7 +60,7 @@ export function buildTurnToolSelection(
   const coordinator = turnAssistantOptions(turn) !== undefined;
   return buildToolSelection({
     codeExecution: turnCodeExecution(turn, codeExecution),
-    integrations: enabled.integrations,
+    integrations: enabled.integrations && turn.role !== "coordinator",
     providerConnections: enabled.providerConnections,
     saveRoutine: enabled.agentWrites,
     saveLearning: enabled.agentWrites,
@@ -77,7 +77,6 @@ export function buildTurnHostTools(
   if (!turn.sandbox) return [];
   const enabled = capabilities(turn);
   const personalAssistant = turn.role === "coordinator";
-  const assistantOptions = turnAssistantOptions(turn);
   return [
     ...(enabled.providerConnections
       ? [
@@ -85,14 +84,15 @@ export function buildTurnHostTools(
           makeRequestHandsOnTool({ personalAssistant }),
         ]
       : []),
-    ...(enabled.integrations
+    // Houston never runs an integration; its own card and key-entry tool
+    // come with the rest of its surface (turn-coordinator-tools.ts).
+    ...(enabled.integrations && !personalAssistant
       ? [
           ...makeIntegrationTools({ call: turn.sandbox.call }),
           // The secure key-entry surface is `credentialTools`' call on every
           // backend, over THIS turn's sandbox.
           ...credentialTools({
-            personalAssistant,
-            ...(assistantOptions ? { assistant: assistantOptions } : {}),
+            personalAssistant: false,
             integrations: { call: turn.sandbox.call },
           }),
         ]

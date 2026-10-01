@@ -3,6 +3,8 @@ import { processAssistantCatalog } from "@houston/host/src/assistant/catalog-sou
 import type { PiBackendDeps } from "../backends/pi/backend";
 import { makeAssistantTools } from "../session/tools/assistant";
 import type { AssistantToolOptions } from "../session/tools/assistant-call";
+import { makeCoordinatorCredentialTool } from "../session/tools/coordinator-credential";
+import { makeRequestConnectionTool } from "../session/tools/integrations";
 import { makeMissionTools } from "../session/tools/missions";
 import { makeReadMissionTool } from "../session/tools/read-mission";
 import { getHistoryAt } from "../store/conversation-file";
@@ -30,7 +32,9 @@ export function turnAssistantOptions(
 
 /**
  * `dataDir` is the turn's own: houston_recall searches the transcript this
- * turn hydrated, not the process's (empty) store.
+ * turn hydrated, not the process's (empty) store. The connection card and the
+ * key-entry tool are here rather than behind the `integrations` scope: Houston
+ * never runs an integration, so the gateway does not grant it one.
  */
 export function buildTurnCoordinatorTools(
   turn: TurnSessionRequest,
@@ -43,5 +47,7 @@ export function buildTurnCoordinatorTools(
     ...makeAssistantTools(assistant, (id) => getHistoryAt(conversations, id)),
     ...makeMissionTools({ call: assistant.call, personalAssistant: true }),
     makeReadMissionTool({ call: assistant.call, personalAssistant: true }),
+    makeRequestConnectionTool(),
+    makeCoordinatorCredentialTool(assistant),
   ];
 }

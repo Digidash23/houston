@@ -30,7 +30,8 @@ function turn(
     signal: undefined,
     turnId: "t1",
     role: "coordinator",
-    grant: { scopes: ["integrations", "agent-writes"] },
+    // What the gateway grants Houston's turn: no integrations, no code-run.
+    grant: { scopes: ["agent-writes"] },
     sandbox: { call },
     ...overrides,
   };
@@ -53,10 +54,18 @@ test("a coordinator turn's allowlist is the coordinator surface", () => {
       "update_mission_status",
       "save_learning",
       "request_hands_on",
+      "request_connection",
+      "request_credential",
     ]),
   );
   for (const name of selected) expect(COORDINATOR_TOOL_NAMES).toContain(name);
-  for (const name of ["bash", "run_code", "edit", "save_routine"]) {
+  for (const name of [
+    "bash",
+    "run_code",
+    "edit",
+    "save_routine",
+    "integration_execute",
+  ]) {
     expect(selected).not.toContain(name);
   }
 });
