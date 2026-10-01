@@ -3,6 +3,13 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v120 - 2026-10-01
+
+The plan offer is the beta tester gift: a first month of Plus at a lower price,
+with no deadline and no dates. The announcement's gift panel and Billing's gift
+line thank beta testers for it, and the composer's usage hint names it beside
+the checkout action.
+
 ## v119 - 2026-09-30
 
 First run closes on two cards in the AI Manager's chat. The team card lists the

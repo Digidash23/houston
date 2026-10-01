@@ -312,7 +312,7 @@ set a 390×844 viewport per test):
 | Chat markdown | light + dark | `chat-markdown.visual.spec.ts` |
 | First-run language gate | one (the pre-app screens pin `data-theme="light"` themselves) | `onboarding.visual.spec.ts` |
 | First-run onboarding in the manager's chat: the Connect your AI step, the first survey question | light + dark each | `onboarding.visual.spec.ts` |
-| Billing (Free with the early offer) + the launch announcement, desktop + phone | light (the announcement pins its own dark frame) | `plan.visual.spec.ts` |
+| Billing (Free with the beta tester gift) + the launch announcement, desktop + phone | light (the announcement pins its own dark frame) | `plan.visual.spec.ts` |
 
 Theme is pinned by setting `data-theme` on `<html>` before the app mounts
 (`visual/support.ts` `pinTheme`) — NOT the `houston.pref.theme` preference: the

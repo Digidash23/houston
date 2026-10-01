@@ -6,7 +6,6 @@ import {
   FREE_ROUTINES,
   freePlan,
   installPlanClock,
-  LIMITS_START_AT,
   planCallCount,
   stubOpener,
 } from "./support/plan";
@@ -37,7 +36,7 @@ test("the launch announcement ignores the app's own Escape; the user's closes it
 }) => {
   await stubOpener(page, false);
   await armPlan({
-    summary: freePlan({ announcement: true, limitsStartAt: LIMITS_START_AT }),
+    summary: freePlan({ announcement: true }),
   });
   await page.goto("/");
 

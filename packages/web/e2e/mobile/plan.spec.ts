@@ -8,7 +8,6 @@ import {
   billingScreen,
   freePlan,
   installPlanClock,
-  LIMITS_START_AT,
   planCallCount,
   stubOpener,
 } from "../support/plan";
@@ -35,7 +34,7 @@ async function expectNoOverflow(page: Page): Promise<void> {
   ).toBeLessThanOrEqual(0);
 }
 
-test("Billing on Free fits the phone: usage, offer and checkout", async ({
+test("Billing on Free fits the phone: usage, beta tester gift and checkout", async ({
   page,
 }) => {
   await stubOpener(page, false);
@@ -49,6 +48,12 @@ test("Billing on Free fits the phone: usage, offer and checkout", async ({
   const billing = billingScreen(page);
   await expect(billing.getByText("25% of your weekly usage")).toBeVisible();
   await expect(billing.getByText("Launch discount")).toBeVisible();
+  await expect(
+    billing.getByText(
+      "Beta tester gift: your first month for $10, then $15 per month",
+    ),
+  ).toBeVisible();
+  await expect(billing).not.toContainText(/offer ends|October 1|Oct 1/i);
   const upgrade = billing.getByRole("button", { name: "Get Plus for $10" });
   await expect(upgrade).toBeVisible();
   await expectNoOverflow(page);
@@ -63,15 +68,22 @@ test("the launch announcement fills the phone and dismisses once", async ({
   page,
 }) => {
   await armPlan({
-    summary: freePlan({ announcement: true, limitsStartAt: LIMITS_START_AT }),
+    summary: freePlan({ announcement: true }),
   });
   await page.goto("/");
 
   const dialog = announcementDialog(page);
   await expect(dialog).toBeVisible();
   await expect(
+    dialog.getByRole("heading", { name: "Houston has officially launched" }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByText("A thank-you gift for our beta testers"),
+  ).toBeVisible();
+  await expect(
     dialog.getByRole("button", { name: "Get my first month for $10" }),
   ).toBeVisible();
+  await expect(dialog).not.toContainText(/upgrade before|October 1/i);
   await expectNoOverflow(page);
   await expect(page.locator("body")).not.toContainText(/unlimited/i);
 

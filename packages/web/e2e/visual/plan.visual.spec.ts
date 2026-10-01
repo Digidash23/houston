@@ -1,12 +1,11 @@
 /**
  * Visual-regression baselines for the C19 personal plan: the Billing screen of
- * a Free person with the launch discount and the early offer, and the one-time
+ * a Free person with the launch discount and the beta tester gift, and the one-time
  * launch announcement, each at desktop and phone width.
  *
  * Deterministic by construction: the page clock starts at `PLAN_NOW` and every
- * instant on screen comes from the fixture (`support/plan.ts`), formatted in
- * the launch zone; the Free usage stays under 100%, so no local reset time is
- * drawn. The announcement pins its own dark theme; Billing is shot light.
+ * instant on screen comes from the fixture (`support/plan.ts`); the Free usage
+ * stays under 100%, so no local reset time is drawn. The announcement pins its own dark theme; Billing is shot light.
  */
 import type { Page } from "@playwright/test";
 import { expect, test } from "../support/fixtures";
@@ -18,7 +17,6 @@ import {
   billingScreen,
   freePlan,
   installPlanClock,
-  LIMITS_START_AT,
 } from "../support/plan";
 import { openSettings } from "../support/settings-nav";
 import { pinTheme } from "./support";
@@ -50,7 +48,9 @@ async function openBillingAt(page: Page, width: Width): Promise<void> {
 }
 
 for (const width of ["desktop", "phone"] as const) {
-  test(`billing, Free with the early offer — ${width}`, async ({ page }) => {
+  test(`billing, Free with the beta tester gift — ${width}`, async ({
+    page,
+  }) => {
     await armPlan({ summary: freePlan() });
     await boot(page, width);
     await openBillingAt(page, width);
@@ -64,7 +64,7 @@ for (const width of ["desktop", "phone"] as const) {
 
   test(`launch announcement — ${width}`, async ({ page }) => {
     await armPlan({
-      summary: freePlan({ announcement: true, limitsStartAt: LIMITS_START_AT }),
+      summary: freePlan({ announcement: true }),
     });
     await boot(page, width);
     const dialog = announcementDialog(page);

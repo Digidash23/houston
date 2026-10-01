@@ -13,7 +13,7 @@
 
 surface: web
 enforced: true
-inventoryVersion: 119
+inventoryVersion: 120
 
 components:
   manager-avatar:
@@ -342,4 +342,4 @@ components:
   personal-billing-screen:
     status: partial
     ref: "app/src/components/settings/sections/plan.tsx"
-    notes: Settings content shared by desktop and web; includes preview usage, early offer, and launch price states.
+    notes: Settings content shared by desktop and web; includes preview usage, beta tester gift, and launch price states.

@@ -59,27 +59,19 @@ test("announcement view routes the offer to checkout and the plain plan to Billi
     plus: {
       ...free.plus,
       price: { ...free.plus.price, compareAt: 2000 },
-      offer: {
-        amount: 1000,
-        currency: "USD",
-        coversFrom: "2026-10-01T12:00:00Z",
-        coversUntil: "2026-11-01T12:00:00Z",
-        endsAt: "2026-10-01T12:00:00Z",
-      },
+      offer: { amount: 1000, currency: "USD" },
     },
   };
-  const withOffer = planAnnouncementView(launch, "en-US", BEFORE_LAUNCH);
+  const withOffer = planAnnouncementView(launch, "en-US");
   assert.equal(withOffer.action, "checkout");
   assert.equal(withOffer.starts, "October 1");
   assert.equal(withOffer.free, "$0");
   assert.equal(withOffer.plus.compareAt, "$20");
   assert.equal(withOffer.plus.current, "$15");
-  assert.equal(withOffer.offer?.amount, "$10");
-  assert.equal(withOffer.offer?.until, "November 1");
+  assert.deepEqual(withOffer.offer, { amount: "$10" });
   const withoutOffer = planAnnouncementView(
     { ...launch, plus: { ...launch.plus, offer: undefined } },
     "en-US",
-    BEFORE_LAUNCH,
   );
   assert.equal(withoutOffer.action, "plans");
   assert.equal(withoutOffer.offer, null);
@@ -215,24 +207,15 @@ test("launch prices and offer amounts use the summary without changing the real 
     plus: {
       ...free.plus,
       price: { ...free.plus.price, compareAt: 2000 },
-      offer: {
-        amount: 1000,
-        currency: "USD",
-        coversFrom: "2026-10-01T00:00:00Z",
-        coversUntil: "2026-11-01T00:00:00Z",
-        endsAt: "2026-10-01T00:00:00Z",
-      },
+      offer: { amount: 1000, currency: "USD" },
     },
   };
   assert.deepEqual(planPriceAmounts(launch, "en-US"), {
     current: "$15",
     compareAt: "$20",
   });
-  assert.equal(planOffer(launch, "en-US", BEFORE_LAUNCH)?.amount, "$10");
-  assert.equal(
-    planOffer({ ...launch, plan: "plus" }, "en-US", BEFORE_LAUNCH),
-    null,
-  );
+  assert.equal(planOffer(launch, "en-US")?.amount, "$10");
+  assert.equal(planOffer({ ...launch, plan: "plus" }, "en-US"), null);
 });
 
 test("preview hints remain hints at 100 percent and announcement waits for routine dialogs", () => {
@@ -257,39 +240,42 @@ test("preview hints remain hints at 100 percent and announcement waits for routi
   assert.equal(planComposerMode(free), "limit");
 });
 
-test("offer copy inputs are available to card, popup, and preview hint only before launch", () => {
-  const before: PlanSummary = {
+test("the beta tester gift reaches card, popup, and hint while the summary carries it", () => {
+  const gifted: PlanSummary = {
     ...free,
     usage: { percent: 90, used: 36, limit: 40 },
     announcement: true,
-    limitsStartAt: "2026-10-01T07:00:00Z",
-    plus: {
-      ...free.plus,
-      offer: {
-        amount: 1000,
-        currency: "USD",
-        coversFrom: "2026-10-01T07:00:00Z",
-        coversUntil: "2026-11-01T07:00:00Z",
-        endsAt: "2026-10-01T07:00:00Z",
-      },
-    },
+    plus: { ...free.plus, offer: { amount: 1000, currency: "USD" } },
   };
-  assert.equal(planOffer(before, "en-US", BEFORE_LAUNCH)?.amount, "$10");
-  assert.equal(planOffer(before, "en-US", AFTER_LAUNCH), null);
-  assert.equal(planComposerMode(before, BEFORE_LAUNCH), "previewHint");
-  assert.equal(
-    planLaunchRefreshDelay(before, BEFORE_LAUNCH),
-    Date.parse("2026-10-01T07:00:00Z") - BEFORE_LAUNCH + 250,
-  );
-  assert.equal(planDialog(before, true, true), "announcement");
-  const after: PlanSummary = {
-    ...before,
+  assert.equal(planOffer(gifted, "en-US")?.amount, "$10");
+  assert.equal(planComposerMode(gifted), "hint");
+  assert.equal(planLaunchRefreshDelay(gifted, AFTER_LAUNCH), false);
+  assert.equal(planDialog(gifted, true, true), "announcement");
+  const ineligible: PlanSummary = {
+    ...gifted,
     usage: free.usage,
-    limitsStartAt: undefined,
-    plus: { ...before.plus, offer: undefined },
+    plus: { ...gifted.plus, offer: undefined },
     announcement: false,
   };
-  assert.equal(planOffer(after, "en-US"), null);
-  assert.equal(planComposerMode(after), "limit");
-  assert.equal(planDialog(after, true, true), null);
+  assert.equal(planOffer(ineligible, "en-US"), null);
+  assert.equal(planComposerMode(ineligible), "limit");
+  assert.equal(planDialog(ineligible, true, true), null);
+});
+
+test("offer copy carries no deadline or launch dates", () => {
+  for (const language of ["en", "es", "pt"]) {
+    const json = JSON.parse(
+      readFileSync(
+        new URL(`../src/locales/${language}/plan.json`, import.meta.url),
+        "utf8",
+      ),
+    ) as Record<string, string>;
+    for (const key of [
+      "offerLead",
+      "offerHint",
+      "announcementGiftBody",
+    ] as const)
+      assert.doesNotMatch(json[key] ?? "", /\{\{(date|from|until)\}\}/);
+    assert.equal(json.offerEnds, undefined);
+  }
 });
