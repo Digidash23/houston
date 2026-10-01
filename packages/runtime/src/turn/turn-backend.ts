@@ -15,14 +15,12 @@ import { createSessionsStore } from "../backends/claude/sessions-store";
 import { createPiBackend, type PiBackendDeps } from "../backends/pi/backend";
 import type { HarnessBackend } from "../backends/types";
 import type { ToolSelection } from "../session/tool-selection";
-import { makeAskUserTool } from "../session/tools/ask-user";
 import { makeClampedFileTools } from "../session/tools/clamped-fs";
 import type { WorkspaceGuardOptions } from "../session/tools/fs-guard";
-import { makePlanReadyTool } from "../session/tools/plan-ready";
 import { makeScrubbedBashTool } from "../session/tools/scrubbed-bash";
 import { POOLED_TURN_TRANSPORT } from "./turn-pi-transport";
 import type { TurnDirectories, TurnSessionRequest } from "./turn-session";
-import { buildTurnHostTools } from "./turn-toolset";
+import { buildTurnCommonTools } from "./turn-toolset";
 
 type TurnTool = PiBackendDeps["customTools"][number];
 
@@ -116,13 +114,7 @@ export function createTurnBackend(
   deps: TurnBackendDeps,
 ): HarnessBackend {
   const { workspaceDir, dataDir, turnRoot } = deps.directories;
-  const hostTools = buildTurnHostTools(deps.turn);
-  const commonTools = [
-    makeAskUserTool(),
-    makePlanReadyTool(),
-    ...(deps.codeSandbox ? [deps.codeSandbox] : []),
-    ...hostTools,
-  ];
+  const commonTools = buildTurnCommonTools(deps.turn, deps.codeSandbox);
   if (provider === "anthropic") {
     const backend = createClaudeBackend({
       workspaceDir,
