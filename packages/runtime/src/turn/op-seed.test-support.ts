@@ -73,18 +73,26 @@ export interface DocPut {
   headers: Headers;
 }
 
-/** The pod-store doc route: every GET is a 404, every PUT answers `status`. */
-export function docRoute(status = 200) {
+/** The pod-store doc route: a GET finds only the `existing` families, every
+ *  PUT answers `status`; `"throw"` makes every PUT a network failure. */
+export function docRoute(
+  status: number | "throw" = 200,
+  existing: string[] = [],
+) {
   const puts: DocPut[] = [];
   const fetchImpl = (async (url: unknown, init?: RequestInit) => {
+    const family = String(url).split("/").pop() ?? "";
     if (!init?.method || init.method === "GET")
-      return Response.json({ error: "document not found" }, { status: 404 });
+      return existing.includes(family)
+        ? Response.json({ doc: [], revision: 3 }, { status: 200 })
+        : Response.json({ error: "document not found" }, { status: 404 });
+    if (status === "throw") throw new TypeError("fetch failed");
     puts.push({
       family: String(url).split("/").pop() ?? "",
       doc: (JSON.parse(String(init.body)) as { doc: unknown }).doc,
       headers: new Headers(init.headers),
     });
-    return Response.json({ revision: 1 }, { status });
+    return Response.json({ revision: 1 }, { status: status });
   }) as typeof fetch;
   return {
     puts,

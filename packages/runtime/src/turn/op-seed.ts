@@ -78,8 +78,9 @@ async function seedOnce(
   }
   const payload = op.op.claudeMd !== undefined || op.op.seeds !== undefined;
   const storeRoot = await mkdtemp(join(input.root, "seed-"));
-  const publishDocs = (tree: SeedTree) =>
+  const publishDocs = (tree: SeedTree, adopted = false) =>
     publishSeedDocs({
+      adopted,
       deps: input.deps,
       turn: input.turn,
       store,
@@ -93,7 +94,10 @@ async function seedOnce(
     // A young agent's adopt may follow a first seed that crashed after its
     // files landed and before its docs did: project them again.
     if (op.op.republish)
-      await publishDocs({ id: listing.id, workspaceRel: listing.workspaceRel });
+      await publishDocs(
+        { id: listing.id, workspaceRel: listing.workspaceRel },
+        true,
+      );
     return relayed(200, { id: listing.id, adopted: true });
   }
 
@@ -136,7 +140,7 @@ async function seedOnce(
     listing.kind === "empty" ||
     (synced.conflicts.length === 0 && (wrote > 0 || op.op.republish))
   )
-    await publishDocs(tree);
+    await publishDocs(tree, listing.kind === "adopt");
   return listing.kind === "empty"
     ? relayed(201, { id: tree.id, adopted: false })
     : relayed(200, { id: listing.id, adopted: true, completed: wrote });

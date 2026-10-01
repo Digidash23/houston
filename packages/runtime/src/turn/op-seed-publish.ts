@@ -12,6 +12,7 @@ import {
 import { listProviders } from "../ai/providers";
 import { listProviderUsage } from "../ai/usage";
 import { config } from "../config";
+import { publishIfAbsent } from "./op-doc-create";
 import {
   AGENT_DOC_FAMILIES,
   type DocDeps,
@@ -59,7 +60,13 @@ export interface SeedPublishInput {
   storeRoot: string;
   tree: SeedTree;
   views: SeedViewSources;
+  /** An adopted tree, not a fresh seed: its pod may have captured its own
+   *  provider views, which the baseline must never replace. */
+  adopted?: boolean;
 }
+
+/** Views a pod captures from live state; an adopt only fills them in. */
+const PROVIDER_VIEWS = new Set(["providers", "provider_usage"]);
 
 /**
  * Everything the gateway serves a sleeping agent from, so the app's first
@@ -80,27 +87,44 @@ export async function publishSeedDocs(input: SeedPublishInput): Promise<void> {
     maxObjectBytes: MAX_UPLOAD_BYTES,
     maxBytes: TURN_HYDRATE_MAX_BYTES,
   });
-  const views = await computeViews(input, vfs);
+  let views: [string, unknown][] = [];
+  const failures: string[] = [];
+  try {
+    views = await computeViews(input, vfs);
+  } catch (error) {
+    failures.push(`views: ${String(error)}`);
+  }
   const round = async () => {
-    const failures = await publishFamilyDocs(
-      input.deps,
-      input.turn,
-      vfs,
-      input.tree.workspaceRel,
-      AGENT_DOC_FAMILIES,
-    );
-    for (const [family, doc] of views) {
-      const outcome = await publish({ ...target, family }, doc);
-      if ("error" in outcome) failures.push(`${family}: ${outcome.error}`);
+    // The files are durable: a throw here (a network failure) is a lag to
+    // log, never a failed seed.
+    try {
+      const out = await publishFamilyDocs(
+        input.deps,
+        input.turn,
+        vfs,
+        input.tree.workspaceRel,
+        AGENT_DOC_FAMILIES,
+      );
+      for (const [family, doc] of views) {
+        const opts = { ...target, family };
+        const outcome =
+          input.adopted && PROVIDER_VIEWS.has(family)
+            ? await publishIfAbsent(opts, doc)
+            : await publish(opts, doc);
+        if ("error" in outcome) out.push(`${family}: ${outcome.error}`);
+      }
+      return out;
+    } catch (error) {
+      return [`publish: ${String(error)}`];
     }
-    return failures;
   };
-  let failures = await round();
-  if (failures.length > 0) {
+  let lag = await round();
+  if (lag.length > 0) {
     // One more round: a blip on the doc PUT is the common case.
     await new Promise((resolve) => setTimeout(resolve, 500));
-    failures = await round();
+    lag = await round();
   }
+  failures.push(...lag);
   if (failures.length > 0) {
     // The files ARE durable; asleep reads lag until the next projection.
     console.error(

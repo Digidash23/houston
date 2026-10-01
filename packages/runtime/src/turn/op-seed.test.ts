@@ -388,3 +388,40 @@ test("an adopt that republishes never publishes the baseline over an agent's own
     warn.mockRestore();
   }
 });
+
+test("an adopt keeps an agent's existing provider views and fills only missing ones", async () => {
+  const fake = generationStore();
+  const agent = "workspaces/Personal/Ledger";
+  for (const rel of schemaRels(agent)) fake.put(rel, "{}");
+  const docs = docRoute(200, ["providers"]);
+  const { reply } = await runSeed(
+    { name: "Ledger", republish: true },
+    fake,
+    docs,
+  );
+  expect(answer(reply).body).toEqual({ id: "Personal/Ledger", adopted: true });
+  const families = docs.puts.map((put) => put.family);
+  expect(families).not.toContain("providers");
+  expect(families).toContain("provider_usage");
+  expect(families).toContain("skills");
+});
+
+test("a projection that throws after a durable seed is logged, never a failed seed", async () => {
+  const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  try {
+    const { reply, fake } = await runSeed(
+      { name: "Ledger" },
+      generationStore(),
+      docRoute("throw"),
+    );
+    expect(answer(reply)).toMatchObject({ status: 201 });
+    expect(await fake.keys()).toEqual(
+      expect.arrayContaining(schemaRels("workspaces/Personal/Ledger")),
+    );
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining("seed projection failed"),
+    );
+  } finally {
+    error.mockRestore();
+  }
+});
