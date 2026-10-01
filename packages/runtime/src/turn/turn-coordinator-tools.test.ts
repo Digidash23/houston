@@ -153,3 +153,31 @@ test("houston_recall searches this turn's own transcript", async () => {
     .join("");
   expect(text).toContain("Okafor");
 });
+
+test("a provider pin is left for the host to judge, not the empty process store", async () => {
+  const bodies: unknown[] = [];
+  const call: SandboxFetch = async (path, init) => {
+    if (path === "/sandbox/missions/start")
+      bodies.push(JSON.parse(String(init?.body)));
+    return Response.json({ id: "m1" });
+  };
+  const tools = buildTurnCommonTools(turn({}, call), null, dataDir());
+  const start = tools.find((tool) => tool.name === "start_mission");
+  await runWithConversationId("assistant", () =>
+    start?.execute(
+      "s1",
+      {
+        agent: "Dobby",
+        title: "Research",
+        prompt: "Look into it",
+        provider: "openai-codex",
+      },
+      undefined,
+      undefined,
+      undefined as never,
+    ),
+  );
+  expect(bodies).toContainEqual(
+    expect.objectContaining({ provider: "openai-codex" }),
+  );
+});

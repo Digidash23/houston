@@ -1,5 +1,8 @@
 import { join } from "node:path";
+import type { ProviderOption } from "@houston/domain";
 import { processAssistantCatalog } from "@houston/host/src/assistant/catalog-source";
+import { OPENAI_COMPATIBLE } from "../ai/openai-compatible-model";
+import { connectedProviderChoices } from "../ai/provider-choices";
 import type { PiBackendDeps } from "../backends/pi/backend";
 import { makeAssistantTools } from "../session/tools/assistant";
 import type { AssistantToolOptions } from "../session/tools/assistant-call";
@@ -45,9 +48,29 @@ export function buildTurnCoordinatorTools(
   const conversations = join(dataDir, "conversations");
   return [
     ...makeAssistantTools(assistant, (id) => getHistoryAt(conversations, id)),
-    ...makeMissionTools({ call: assistant.call, personalAssistant: true }),
+    ...makeMissionTools({
+      call: assistant.call,
+      personalAssistant: true,
+      providers: missionProviders(),
+      resolveProviders: missionProviders,
+    }),
     makeReadMissionTool({ call: assistant.call, personalAssistant: true }),
     makeRequestConnectionTool(),
     makeCoordinatorCredentialTool(assistant),
   ];
+}
+
+/**
+ * The providers a mission may pin, by catalog. A worker's own credential
+ * store holds nothing (the turn's credential lives in the turn's data dir),
+ * so whether one is connected is for the agent the mission lands on to judge,
+ * against its own credentials, exactly as when Houston runs on its pod. The
+ * OpenAI-compatible endpoint keeps the runtime's own answer: its settings
+ * live in a runtime, not in a credential row.
+ */
+function missionProviders(): ProviderOption[] {
+  return connectedProviderChoices().map((option) => ({
+    ...option,
+    connected: option.id === OPENAI_COMPATIBLE ? option.connected : true,
+  }));
 }

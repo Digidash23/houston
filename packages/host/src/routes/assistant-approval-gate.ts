@@ -36,3 +36,26 @@ export function approved(
   });
   return false;
 }
+
+/** Whether the spent receipt is durable, answering the refusal when not. */
+export async function persisted(
+  ctx: AssistantOperationCtx,
+  res: ServerResponse,
+): Promise<boolean> {
+  if (!ctx.persistApprovals) return true;
+  try {
+    await ctx.persistApprovals();
+    return true;
+  } catch (error) {
+    console.error(
+      "[assistant] the spent approval could not be recorded",
+      error,
+    );
+    json(res, 503, {
+      error:
+        "the approval could not be recorded, so nothing was done: ask the user to approve again",
+      code: "approval_unavailable",
+    });
+    return false;
+  }
+}

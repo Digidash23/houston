@@ -140,6 +140,9 @@ export async function handleSandboxAssistant(
     // listing, and both handlers resolve against the SAME set.
     agents: directory.agents,
     directory,
+    ...(deps.persistApprovals
+      ? { persistApprovals: deps.persistApprovals }
+      : {}),
   };
 
   if (!isCall) {

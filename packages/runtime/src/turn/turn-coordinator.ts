@@ -1,14 +1,12 @@
-import { join } from "node:path";
 import { substituteApprovals } from "@houston/host/src/assistant/approval-presentation";
 import { runAsCoordinator } from "@houston/host/src/assistant/coordinator-scope";
 import { liveTurns } from "@houston/host/src/routes/live-turn";
-import { LocalWorkspaceStore } from "@houston/host/src/store/local";
-import { PrefixedVfs } from "@houston/host/src/vfs";
 import type { WireFrame } from "@houston/runtime-client";
 import type { ObjectStore } from "@houston/runtime-client/object-sync";
 import { engineAgentId } from "./op-scope";
-import { openTurnApprovals, type TurnApprovals } from "./turn-approvals";
-import { receiveTurnMessage } from "./turn-coordinator-message";
+import type { TurnApprovals } from "./turn-approvals";
+import { admitCoordinatorTurn } from "./turn-coordinator-open";
+import { coordinatorRoutes } from "./turn-coordinator-routes";
 import {
   type CoordinatorServer,
   listenCoordinator,
@@ -28,6 +26,8 @@ export interface TurnCoordinatorSession {
   route(path: string, init?: RequestInit): Promise<Response> | null;
   /** The frame as the host would show it: cards from their records. */
   present(frame: WireFrame): WireFrame;
+  /** Why the person's message may not start this turn, or null. */
+  admission(): Promise<string | null>;
   dispose(): Promise<void>;
 }
 
@@ -50,7 +50,7 @@ const unavailable = () =>
   Response.json(
     {
       error:
-        "Houston's approvals could not be read, so nothing that needs one can run this turn",
+        "Houston's approvals could not be read, so nothing it does for the user can run this turn",
       code: "approvals_unavailable",
     },
     { status: 503 },
@@ -73,57 +73,27 @@ export function startTurnCoordinator(
     actingUser: input.ownerId,
   });
   let opened: TurnApprovals | undefined;
-  const ready = runAsCoordinator(scope, () =>
-    openTurnApprovals(
-      {
-        store: input.store,
-        prefix: input.prefix,
-        filesystem,
-        agentId,
-        conversationId,
-      },
-      (approvals) => receiveTurnMessage(approvals, agentId, turn),
-    ),
-  ).then(
-    (approvals) => {
-      opened = approvals;
-      return approvals;
-    },
-    (error: unknown) => {
-      const detail =
-        error instanceof Error ? `${error.name}: ${error.message}` : "error";
-      console.error(`[turn-coordinator] approvals unavailable (${detail})`);
-      return null;
-    },
-  );
-  const missionStore = new LocalWorkspaceStore(
-    join(filesystem.storeRoot, "workspaces"),
-  );
-  const vfs = new PrefixedVfs(filesystem.vfs, "workspaces");
+  const admitted = runAsCoordinator(scope, () =>
+    admitCoordinatorTurn(input, agentId),
+  ).then((admission) => {
+    if (admission.kind === "admitted") opened = admission.approvals;
+    return admission;
+  });
   let server: Promise<CoordinatorServer> | undefined;
   const listen = () => {
-    server ??= listenCoordinator({
-      scope,
-      claim: { workspaceId, agentId },
-      assistant: async () => {
-        const approvals = await ready;
-        if (!approvals) throw new Error("approvals unavailable");
-        return {
-          store: missionStore,
-          vfs,
-          approvals: approvals.approvals,
-          // Behind the gateway the whole catalogued surface is served.
-          unservedOperations: () => new Set<string>(),
-          ...(input.fetchImpl ? { fetchImpl: input.fetchImpl } : {}),
-        };
-      },
-      missions: { store: missionStore, vfs, channels: {} },
-    });
+    server ??= listenCoordinator(
+      coordinatorRoutes(input, scope, { workspaceId, agentId }, async () => {
+        if (!opened) throw new Error("approvals unavailable");
+        return opened;
+      }),
+    );
     return server;
   };
   const forward = async (path: string, init?: RequestInit) => {
-    const assistant = path.startsWith("/sandbox/assistant/");
-    if (assistant && !(await ready)) return unavailable();
+    // A message the host would have refused starts nothing: no operation and
+    // no mission, whatever route the call names.
+    if ((await admitted).kind !== "admitted" || !opened) return unavailable();
+    const records = opened;
     const { origin, token } = await listen();
     const headers = new Headers(init?.headers);
     headers.set("authorization", `Bearer ${token}`);
@@ -133,11 +103,13 @@ export function startTurnCoordinator(
       ...(init?.body !== undefined ? { body: init.body } : {}),
       ...(init?.signal ? { signal: init.signal } : {}),
     });
-    if (!assistant) return res;
+    if (!path.startsWith("/sandbox/assistant/")) return res;
     const body = await res.arrayBuffer();
     try {
-      // A card raised, answered or spent is durable before the tool hears.
-      await (await ready)?.save();
+      // A card raised or answered is durable before the tool hears of it. A
+      // spent receipt already was, before its operation left (the host's
+      // `persistApprovals` seam).
+      await records.save();
     } catch (error) {
       const detail =
         error instanceof Error ? `${error.name}: ${error.message}` : "error";
@@ -164,9 +136,13 @@ export function startTurnCoordinator(
             conversationId,
           ) as WireFrame)
         : frame,
+    admission: async () => {
+      const admission = await admitted;
+      return admission.kind === "refused" ? admission.code : null;
+    },
     async dispose() {
       liveTurns.end(agentId, conversationId);
-      await ready;
+      await admitted;
       if (server) await (await server).close();
     },
   };

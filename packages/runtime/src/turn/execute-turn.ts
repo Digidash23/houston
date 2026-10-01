@@ -130,6 +130,8 @@ export async function executeTurn(
     try {
       await preparation.hydrated;
       timings.t_hydrated = performance.now();
+      const refused = await turnSandbox?.admission();
+      if (refused) throw new TurnSetupError("message_refused", refused);
     } catch (error) {
       await reportAbandonedTurnStartup(startup);
       throw error;

@@ -30,15 +30,19 @@ interface Seen {
   method: string;
   url: string;
   auth: string | undefined;
+  body?: string;
 }
 
 async function fakeGateway() {
   const seen: Seen[] = [];
-  const server = createServer((req, res) => {
+  const server = createServer(async (req, res) => {
+    let body = "";
+    for await (const chunk of req) body += String(chunk);
     seen.push({
       method: req.method ?? "",
       url: req.url ?? "",
       auth: req.headers.authorization,
+      ...(body ? { body } : {}),
     });
     res.setHeader("content-type", "application/json");
     if (req.method === "GET" && req.url === "/agents") {
@@ -51,6 +55,13 @@ async function fakeGateway() {
     }
     if (req.method === "GET" && req.url === "/agents/agent-dobby/missions") {
       res.end(JSON.stringify({ items: [] }));
+      return;
+    }
+    if (
+      req.method === "POST" &&
+      req.url === "/agents/agent-dobby/missions/start"
+    ) {
+      res.end(JSON.stringify({ id: "m1" }));
       return;
     }
     if (req.method === "DELETE" && req.url === "/agents/agent-dobby") {
@@ -261,5 +272,71 @@ test("an approval card leaves the turn rendered from its record", async () => {
   expect(shown).toContain('"approval":{"operation":"deleteAgent"');
   expect(shown).not.toContain("model words");
   expect(shown).not.toContain('"requestId":"forged"');
+  await houston.dispose();
+});
+
+test("a message reusing a nonce for other words refuses the turn and every route", async () => {
+  const gateway = await fakeGateway();
+  const { store } = bucket();
+  const first = await session(store, gateway.url);
+  expect(await first.admission()).toBeNull();
+  await first.dispose();
+  const reused = await session(store, gateway.url, { text: "something else" });
+  expect(await reused.admission()).toBe("nonce_conflict");
+  const call = await reused.route(
+    "/sandbox/assistant/call",
+    post({ operation: "listAgents", params: {} }),
+  );
+  const missions = await reused.route("/sandbox/missions?agent=Dobby", {
+    method: "GET",
+    headers: { "x-houston-conversation-id": "assistant" },
+  });
+  expect(call?.status).toBe(503);
+  expect(missions?.status).toBe(503);
+  expect(gateway.seen.some((r) => r.url.includes("/missions"))).toBe(false);
+  await reused.dispose();
+});
+
+test("a spent approval is durable before the operation leaves", async () => {
+  const gateway = await fakeGateway();
+  const store = bucket();
+  const call = { operation: "deleteAgent", params: { id: "Dobby" } };
+  const first = await session(store.store, gateway.url);
+  const pending = await first.route("/sandbox/assistant/pending", post(call));
+  const card = (await pending?.json()) as { requestId: string };
+  await first.dispose();
+  const answered = await session(store.store, gateway.url, {
+    nonce: "n2",
+    approvals: [{ requestId: card.requestId, decision: "approve" }],
+  });
+  expect(await answered.admission()).toBeNull();
+  store.failWrites();
+  const res = await answered.route(
+    "/sandbox/assistant/call",
+    post({ ...call, requestId: card.requestId }),
+  );
+  expect(res?.status).not.toBe(200);
+  expect(gateway.seen.some((r) => r.method === "DELETE")).toBe(false);
+  await answered.dispose();
+});
+
+test("a pinned provider travels to the agent that judges it", async () => {
+  const gateway = await fakeGateway();
+  const houston = await session(bucket().store, gateway.url);
+  const res = await houston.route(
+    "/sandbox/missions/start",
+    post({
+      agent: "Dobby",
+      title: "Research",
+      prompt: "Look",
+      provider: "openai-codex",
+    }),
+  );
+  expect(res?.status).toBe(200);
+  const start = gateway.seen.find(
+    (r) => r.url === "/agents/agent-dobby/missions/start",
+  );
+  expect(start?.auth).toBe(`Bearer ${TOKEN}`);
+  expect(JSON.parse(start?.body ?? "{}").provider).toBe("openai-codex");
   await houston.dispose();
 });

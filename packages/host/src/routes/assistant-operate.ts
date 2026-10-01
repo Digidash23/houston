@@ -2,7 +2,7 @@ import type { ServerResponse } from "node:http";
 import { findVisibleOperation } from "../assistant/catalog";
 import { grantCovers } from "../assistant/grant-shape";
 import { confirmationSummary } from "../assistant/summary";
-import { approved } from "./assistant-approval-gate";
+import { approved, persisted } from "./assistant-approval-gate";
 import { assistantDeploymentRoute } from "./assistant-deployment-route";
 import { dispatchAssistantOperation } from "./assistant-dispatch";
 import { forwardAssistantCall } from "./assistant-forward";
@@ -164,6 +164,9 @@ export async function handleAssistantCall(
   // issued for: the user approved an operation on one agent, not on a spelling.
   if (refusedForAnotherActor(ctx, input, res)) return;
   if (op.confirm && !approved(ctx, input, params, res)) return;
+  // A receipt spent here is recorded as spent before the operation leaves, or
+  // the operation does not leave: a replayed receipt must never run twice.
+  if (op.confirm && !(await persisted(ctx, res))) return;
   const request = assistantDeploymentRoute(dispatch.request, ctx);
   if (!request) {
     json(res, 400, {

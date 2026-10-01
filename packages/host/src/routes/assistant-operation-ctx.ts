@@ -38,6 +38,8 @@ export interface AssistantOperationCtx {
    *  operation's parameters name (`assistant/entity-resolution.ts`). */
   agents(): Promise<readonly ReachableAgent[]>;
   directory: EntityDirectory;
+  /** See `AssistantSandboxDeps.persistApprovals`. */
+  persistApprovals?: () => Promise<void>;
 }
 
 export interface AssistantCallInput {

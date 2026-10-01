@@ -10,6 +10,7 @@ import {
 /** A generation-checked bucket, shared by every "worker" in a test. */
 export function bucket() {
   const objects = new Map<string, { body: string; generation: number }>();
+  let failing = false;
   const store: ObjectStore = {
     list: async () => [...objects.keys()],
     manifest: async (): Promise<ObjectMetadata[]> =>
@@ -27,6 +28,7 @@ export function bucket() {
       await writeFile(dest, object.body);
     },
     upload: async (src, key, options) => {
+      if (failing) throw new Error("store unavailable");
       const current = objects.get(key);
       const want = options?.ifGenerationMatch;
       if (want !== undefined && want !== String(current?.generation ?? 0))
@@ -39,5 +41,12 @@ export function bucket() {
       objects.delete(key);
     },
   };
-  return { store, objects };
+  return {
+    store,
+    objects,
+    /** Every later write fails, as a store outage would. */
+    failWrites: () => {
+      failing = true;
+    },
+  };
 }

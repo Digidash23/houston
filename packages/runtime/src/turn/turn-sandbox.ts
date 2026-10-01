@@ -80,6 +80,8 @@ export function makeTurnSandboxFetch(deps: TurnSandboxDeps): {
   warmCode: () => void;
   /** A frame as the user is shown it (Houston's approval cards). */
   present: (frame: WireFrame) => WireFrame;
+  /** Why the person's message may not start this turn, or null. */
+  admission: () => Promise<string | null>;
 } {
   const fetchImpl = deps.fetchImpl ?? fetch;
   const views: TurnSandboxViews = {};
@@ -191,5 +193,6 @@ export function makeTurnSandboxFetch(deps: TurnSandboxDeps): {
     views: () => ({ ...views }),
     warmCode: () => codeVm?.warm(),
     present: (frame) => deps.coordinator?.present(frame) ?? frame,
+    admission: async () => (await deps.coordinator?.admission()) ?? null,
   };
 }
