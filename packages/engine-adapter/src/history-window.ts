@@ -41,7 +41,7 @@ export interface SeedFrame {
  * What to do with a WINDOWED server fold arriving over the current VM feed.
  *
  * - `replace`: the fold is newer or richer — reseed the feed from it.
- * - `stamp`: the fold matches the feed exactly — keep the feed (reseeding
+ * - `stamp`: the fold matches the feed's frame content — keep the feed (reseeding
  *   would churn every entry id and force a full remount) but record the
  *   server window so load-older knows where the loaded feed starts.
  * - `skip`: the feed holds something the fold lacks (an unconfirmed
@@ -75,9 +75,10 @@ export function decideServerSeed(
   const incU = lastUserIndex(incoming);
   if (curU === -1 || incU === -1) {
     // No turn anchor on one side (a window sliced mid-turn, odd folds):
-    // fall back to richer-wins.
+    // compare frame counts and content.
     if (incoming.length > current.length) return "replace";
-    if (incoming.length === current.length) return "stamp";
+    if (incoming.length === current.length)
+      return sameContent(current, incoming) ? "stamp" : "replace";
     return currentHasWindow ? "skip" : "replace";
   }
 
@@ -98,10 +99,22 @@ export function decideServerSeed(
   const incAfter = incoming.length - 1 - incU;
   if (incAfter > curAfter) return "replace"; // fold has settled content the feed lacks
   if (incAfter < curAfter) return "skip"; // feed has settled content the fold missed
-  // Identical latest turn; only the OLDER region can differ.
-  if (incoming.length === current.length) return "stamp";
+  // Matching turn shape can still carry changed server content.
+  if (incoming.length === current.length)
+    return sameContent(current, incoming) ? "stamp" : "replace";
   if (incoming.length > current.length) return "replace";
   return currentHasWindow ? "skip" : "replace";
+}
+
+function sameContent(
+  current: readonly SeedFrame[],
+  incoming: readonly SeedFrame[],
+): boolean {
+  return current.every(
+    (frame, index) =>
+      frame.feed_type === incoming[index]?.feed_type &&
+      JSON.stringify(frame.data) === JSON.stringify(incoming[index]?.data),
+  );
 }
 
 function lastUserIndex(frames: readonly SeedFrame[]): number {

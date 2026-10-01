@@ -304,6 +304,36 @@ test("a non-confirm operation is untouched by the gate", async () => {
   expect(holder.pending).toBeUndefined();
 });
 
+test("a host preapproval performs the operation in the same tool call without a card", async () => {
+  const calls: HostCall[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    calls.push({
+      url,
+      headers: (init?.headers ?? {}) as Record<string, string>,
+      body: init?.body
+        ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+        : undefined,
+    });
+    return Response.json(
+      url.endsWith("/pending")
+        ? { preApproved: true, requestId: "grant-receipt" }
+        : { hired: true },
+    );
+  }) as typeof fetch;
+  const { result, holder } = await call("conv-grant", {
+    operation: "deleteAgent",
+    params: { id: "Personal/Dobby" },
+  });
+  expect(result.details).toEqual({ ok: true, operation: "deleteAgent" });
+  expect(paths(calls)).toEqual([
+    "/sandbox/assistant/pending",
+    "/sandbox/assistant/call",
+  ]);
+  expect(calls[1]?.body?.requestId).toBe("grant-receipt");
+  expect(holder.pending).toBeUndefined();
+});
+
 /**
  * A6: the Mode pill can move to Plan WHILE the turn runs. The session's toolset
  * is already built, so the live mode is what has to stop the next mutation.

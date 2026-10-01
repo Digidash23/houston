@@ -1,12 +1,14 @@
 import { useEffect } from "react";
+import { analytics } from "../../lib/analytics";
+import { logAndReportError } from "../../lib/error-report";
+import { sendManagerHandoff } from "../../lib/manager-onboarding/send-handoff";
 import { useManagerHandoffStore } from "../../stores/manager-handoff";
 
 /**
- * Sends the message onboarding left for the manager (the person's "Yes,
- * let's do it" over the instruction to start their goal) as this chat's
- * first turn, through the chat's own send, so it runs on the model the
- * composer shows and lands as the next message under the imported
- * onboarding, with the manager's reply streaming after it.
+ * Sends the kickoff onboarding left for the manager as this chat's first
+ * turn, through the chat's own send, so it runs on the model the composer
+ * shows and lands as the next message under the imported onboarding, drawn
+ * as the goal card.
  */
 export function useManagerHandoff(
   sessionKey: string,
@@ -14,14 +16,22 @@ export function useManagerHandoff(
     sessionKey: string,
     text: string,
     context: string,
+    grants: ["createAgent"],
   ) => Promise<void>,
+  /** A turn is running: the kickoff waits for it to end. */
+  busy: boolean,
 ): void {
   useEffect(() => {
-    const handoff = useManagerHandoffStore.getState().take();
-    if (handoff === null) return;
-    sendAuthored(sessionKey, handoff.text, handoff.context).catch(() => {
-      // The send surfaced its own failure (the send-failed toast and its
-      // report), as a typed message's would.
-    });
-  }, [sessionKey, sendAuthored]);
+    void sendManagerHandoff(
+      () => useManagerHandoffStore.getState().take(),
+      (handoff) => useManagerHandoffStore.getState().handOff(handoff),
+      sessionKey,
+      (key, handoff) =>
+        sendAuthored(key, handoff.text, handoff.context, handoff.grants),
+      () => analytics.track("onboarding_goal_handoff"),
+      busy,
+    ).catch((error: unknown) =>
+      logAndReportError("onboarding_goal_handoff_send", error),
+    );
+  }, [sessionKey, sendAuthored, busy]);
 }

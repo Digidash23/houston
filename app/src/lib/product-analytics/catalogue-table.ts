@@ -75,9 +75,8 @@ const CATALOGUE = {
     props: [],
   },
   onboarding_goal_handoff: {
-    definition:
-      "The user answered the offer to start on their automation goal as onboarding ended.",
-    props: ["choice"],
+    definition: "The user's onboarding goal was sent to the AI Manager.",
+    props: [],
   },
   ai_provider_connected: {
     definition: "An AI provider was connected during onboarding.",

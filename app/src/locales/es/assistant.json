@@ -32,17 +32,42 @@
       "teamResume_one": "Ya tienes 1 empleado de IA en tu equipo. Sigamos donde lo dejaste.",
       "teamResume_other": "Ya tienes {{count}} empleados de IA en tu equipo. Sigamos donde lo dejaste.",
       "closingReady": "¡Tu equipo está listo!",
-      "closingEmployees": "Abre cualquiera de tus empleados de IA para que empiece su primer día de trabajo.",
+      "closingEmployees": "Abre cualquiera de tus empleados de IA para darle trabajo directamente.",
       "closingManager": {
         "all": "Recuerda que soy tu AI Manager y estoy aquí para ayudarte. Les asigno misiones a tus empleados de IA, contrato nuevos cuando los necesitas, invito a tus compañeros de equipo y conecto las herramientas que necesitan.",
         "invite": "Recuerda que soy tu AI Manager y estoy aquí para ayudarte. Les asigno misiones a tus empleados de IA, contrato nuevos cuando los necesitas e invito a tus compañeros de equipo.",
         "connect": "Recuerda que soy tu AI Manager y estoy aquí para ayudarte. Les asigno misiones a tus empleados de IA, contrato nuevos cuando los necesitas y conecto las herramientas que necesitan.",
         "core": "Recuerda que soy tu AI Manager y estoy aquí para ayudarte. Les asigno misiones a tus empleados de IA y contrato nuevos cuando los necesitas."
       },
-      "closingGoal": "Te encantaría delegar: “{{goal}}”. ¿Quieres que ponga a un empleado de IA a cargo?",
       "closingAsk": "¿Qué tarea harías normalmente por tu cuenta? Cuéntamela y me encargo de que se haga.",
       "profileIntro": "¡Hola de nuevo! Un par de preguntas rápidas para adaptar todo a tu forma de trabajar.",
       "profileThanks": "Gracias, eso me ayuda mucho."
+    },
+    "teamCard": {
+      "open": "Abrir",
+      "managerTitle": "Y yo estoy aquí para ayudarte",
+      "abilities": {
+        "missions": "Reparto misiones",
+        "hire": "Contrato nuevos empleados de IA",
+        "invite": "Invito a tu equipo",
+        "connect": "Conecto tus herramientas"
+      }
+    },
+    "goalCard": {
+      "title": "Poniendo en marcha tu objetivo",
+      "goal": "“{{goal}}”",
+      "find": "Buscando a la persona adecuada",
+      "hiring": "Contratando: {{name}}",
+      "hired": "Contratado: {{name}}",
+      "picked": "Elegido: {{name}}",
+      "assign": "Asignar la tarea",
+      "assigning": "Asignando la tarea",
+      "assigned": "Tarea asignada",
+      "work": "Ponerse a trabajar",
+      "working": "{{name}} ya está en ello",
+      "open": "Abrir {{name}}",
+      "tip": "También puedes abrir cualquier empleado de IA para darle trabajo tú mismo.",
+      "failed": "No pude ponerlo en marcha."
     },
     "questions": {
       "companySize": "¿Qué tan grande es tu empresa?"
@@ -72,10 +97,6 @@
     "roster": {
       "joining": "Uniéndose",
       "hired": "Listo"
-    },
-    "handoff": {
-      "yes": "Sí, hagámoslo",
-      "notNow": "Ahora no"
     },
     "finish": {
       "profileAction": "Continuar"

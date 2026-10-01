@@ -3,7 +3,7 @@ import type { AgentConfig } from "@houston/protocol";
 /**
  * The config rules that keep an AI Employee's first day one-way: born pending
  * with the agent (its create's seeds carry the config document), then moved
- * to started only by the host's start. Import-free, so the e2e fake host can
+ * to started by the host when a mission starts. Import-free, so the e2e fake host can
  * load it the way the real host does.
  */
 
@@ -12,7 +12,7 @@ import type { AgentConfig } from "@houston/protocol";
 export const CONFIG_SEED_KEY = ".houston/config/config.json";
 
 /** The config fields the host owns once the agent exists: written with the
- *  create, then only by the host's first-day start. */
+ *  create, then only by the host's mission start paths. */
 const HOST_OWNED_CONFIG_FIELDS = ["firstDay", "arrival"] as const;
 
 /**

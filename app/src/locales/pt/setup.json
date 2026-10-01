@@ -64,7 +64,7 @@
   },
   "onboardingSurvey": {
     "goal": {
-      "title": "Que tarefa você adoraria passar para um funcionário de IA?"
+      "title": "Qual tarefa repetitiva do seu trabalho você adoraria contratar alguém para fazer?"
     },
     "completion": {
       "notNow": "Agora não"

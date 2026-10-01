@@ -31,6 +31,7 @@ export function operationInventory(catalog: AssistantCatalog): string[] {
     "## Operation policies and parameter resolution",
     "",
     "Confirmation means the app asks the user and mints a receipt for that exact call before it happens. A parameter reads as `enum` (its schema carries every value), `resolved:<list>` (the app matches an id or the exact name against that live list and refuses with the values that exist), `open:<reason>` (it names something no live list covers, and where to read it instead), or `free text`.",
+    "A person's message can grant one `createAgent` call with the constrained name, color and `seed.claudeMd` shape; the grant expires after ten minutes and is consumed once.",
     "",
     "| Operation | Method | Confirmation | Hidden reason | Parameters |",
     "| --- | --- | --- | --- | --- |",

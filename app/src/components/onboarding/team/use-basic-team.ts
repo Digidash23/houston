@@ -1,12 +1,16 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { AgentRoleId } from "../../../lib/agent-role-catalog";
+import type {
+  AgentContextId,
+  AgentRoleId,
+} from "../../../lib/agent-role-catalog";
 import { createAgentRoleContext } from "../../../lib/agent-role-context";
 import type { JobBriefField } from "../../context/job-brief-model";
 import { visibleNameIssue } from "../../employee-card/employee-name-validation";
 import { useEmployeeNameIssueCopy } from "../../employee-card/use-employee-name";
 import {
   basicTeamAdd,
+  basicTeamRecolor,
   basicTeamRemovable,
   basicTeamRemove,
 } from "./basic-team-edit";
@@ -25,8 +29,7 @@ import { basicTeamNameIssues, basicTeamNames } from "./basic-team-names";
 import type { RosterMember } from "./team-roster-model";
 import type { TeamRoster } from "./use-team-roster";
 
-/** A starter as its card shows it: still a draft, or a member of the roster
- *  with its status. Either one can be renamed, rebriefed and recolored. */
+/** A starter as its card shows it, before or after joining the roster. */
 export interface BasicTeamRow {
   /** The card's identity in the team (`BasicTeamDraft.key`). */
   key: string;
@@ -68,27 +71,30 @@ export interface BasicTeam {
   submit: () => BasicTeamSubmit;
 }
 
-/**
- * The starter team: three badges the person may rename, rebrief, recolor, add
- * to and let go of in place before hiring, hired together into `industry` (or the one a card was given) through
- * the card's roster, side by side with anyone already hired one by one. Each
- * name arrives as its job (`basicTeamNames`), so the team hires as it stands;
- * a name cleared to blank is flagged once the person presses "Hire my team".
- */
+/** The starter team's editable cards, hiring through the shared roster. */
 export function useBasicTeam({
   industry,
+  contextId,
   roster,
 }: {
   /** The industry as the person reads it: every member's brief context. */
   industry: string;
+  contextId: AgentContextId | null;
   roster: TeamRoster;
 }): BasicTeam {
   const { t } = useTranslation("agentOnboarding");
   const issueCopy = useEmployeeNameIssueCopy();
   const [attempted, setAttempted] = useState(false);
-  const roleLabel = (id: AgentRoleId) =>
-    t(`agentOnboarding:roleSetup.roles.${id}`);
-  const [held, setDrafts] = useState(() => basicTeamDefaults(roleLabel));
+  const roleLabel = useCallback(
+    (id: AgentRoleId) => t(`agentOnboarding:roleSetup.roles.${id}`),
+    [t],
+  );
+  const [held, setDrafts] = useState(() =>
+    basicTeamDefaults(roleLabel, contextId),
+  );
+  useEffect(() => {
+    setDrafts(basicTeamDefaults(roleLabel, contextId));
+  }, [contextId, roleLabel]);
   // A starter let go from the roster (its create failed) is a draft again,
   // with the name and color it had.
   const settle = (list: readonly BasicTeamDraft[]) =>
@@ -163,7 +169,17 @@ export function useBasicTeam({
       setDrafts((current) =>
         basicTeamAnswered(current, index, industry, field, answer),
       ),
-    recolor: (index, color) => update(index, { color }),
+    recolor: (index, color) => {
+      const shownColors = rows.map((row) => row.color);
+      const changed = basicTeamRecolor(drafts, index, color, shownColors);
+      setDrafts(changed);
+      for (const [at, row] of rows.entries()) {
+        if (row.joined && changed[at].color !== row.color)
+          roster.edit(row.joined.key, {
+            color: changed[at].color ?? undefined,
+          });
+      }
+    },
     add: () =>
       setDrafts((current) =>
         basicTeamAdd(current, roleLabel, colors, roster.nextColor),

@@ -788,6 +788,29 @@ test("the wire pin rides sendMessage so the turn runs on the conversation's own 
   });
 });
 
+test("a person's grant reaches the engine send options", async () => {
+  const { engine, sendOpts } = fakeEngine([
+    (options) => {
+      options.onEvent(sync(false, "", 0));
+      options.onEvent({ type: "done", data: null, seq: 1 });
+    },
+  ]);
+  const { output } = makeOutput();
+  await streamTurn(
+    engine,
+    "Houston/Bo",
+    "hire-chat",
+    "hire",
+    output,
+    registry,
+    {
+      tuning: fast,
+      grants: ["createAgent"],
+    },
+  );
+  expect(sendOpts[0]?.grants).toEqual(["createAgent"]);
+});
+
 test("the wire pin also rides the observer-handoff send", async () => {
   const { engine, afters, sendOpts } = fakeEngine([
     (o) => {

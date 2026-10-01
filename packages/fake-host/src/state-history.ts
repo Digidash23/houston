@@ -142,6 +142,7 @@ export function appendAssistantMessage(
   replyText: string,
   turnId: string,
   pendingInteraction: ChatMessage["pendingInteraction"] | null = null,
+  tools: NonNullable<ChatMessage["tools"]> = [],
 ): void {
   const key = `${agentId}:${conversationId}`;
   const list = state.histories.get(key) ?? [];
@@ -152,6 +153,7 @@ export function appendAssistantMessage(
     usage: SEED_USAGE,
     turnId,
     ...(pendingInteraction ? { pendingInteraction } : {}),
+    ...(tools.length > 0 ? { tools } : {}),
   });
   state.histories.set(key, list);
   emitDomain("ConversationsChanged", agentId);

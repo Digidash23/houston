@@ -50,11 +50,11 @@ test("the basic team hires the three starters and closes the dialog", async ({
   // A name cleared to blank says so on that card and takes the person to it,
   // which shows the examples instead: led by the job when the field has room
   // for it whole, the examples alone when it does not, never cut short.
-  const cleared = teamCardNameField(page, "Operations manager");
+  const cleared = teamCardNameField(page, "Production planner");
   await cleared.fill("");
   await expect(cleared).toHaveAttribute(
     "placeholder",
-    /^e\.g\. (Ava|Operations manager, Assistant 3, Jerry)$/,
+    /^e\.g\. (Ava|Production planner, Assistant 3, Jerry)$/,
   );
   await page.getByRole("button", { name: "Hire my team" }).click();
   await expect(page.getByText("Add a name to continue")).toHaveCount(1);
@@ -65,7 +65,7 @@ test("the basic team hires the three starters and closes the dialog", async ({
   await page.getByRole("button", { name: "Hire my team" }).click();
 
   await expect(dialog).toBeHidden();
-  for (const name of ["Ava", "Otto", "Finance manager"]) {
+  for (const name of ["Ava", "Otto", "Production supervisor"]) {
     await expect(agentRow(page, name)).toBeVisible();
   }
   // Their first day waits for the person: the employee's board offers it.
@@ -116,8 +116,8 @@ test("a basic team card takes a new job and industry, and hires with them", asyn
 
   for (const [role, name] of [
     ["Researcher", "Ava"],
-    ["Operations manager", "Otto"],
-    ["Finance manager", "Felix"],
+    ["Production planner", "Otto"],
+    ["Production supervisor", "Felix"],
   ] as const) {
     await teamCardNameField(page, role).fill(name);
   }
@@ -179,8 +179,8 @@ test("a hire made one by one stays on the team when the basic team joins", async
   await basicTeamOption(page).click();
   for (const [role, name] of [
     ["Executive assistant", "Ava"],
-    ["Operations manager", "Otto"],
-    ["Finance manager", "Felix"],
+    ["Production planner", "Otto"],
+    ["Production supervisor", "Felix"],
   ] as const) {
     await teamCardNameField(page, role).fill(name);
   }

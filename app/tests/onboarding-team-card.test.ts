@@ -2,6 +2,7 @@ import { deepStrictEqual, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
 import {
   basicTeamAdd,
+  basicTeamRecolor,
   basicTeamRemovable,
   basicTeamRemove,
 } from "../src/components/onboarding/team/basic-team-edit.ts";
@@ -10,6 +11,7 @@ import {
   type BasicTeamDraft,
   basicTeamColors,
   basicTeamDefaults,
+  basicTeamRoleIds,
   basicTeamSubmit,
   hasBasicTeamWork,
 } from "../src/components/onboarding/team/basic-team-model.ts";
@@ -31,6 +33,10 @@ import {
   teamFunnelStep,
   teamViewKey,
 } from "../src/components/onboarding/team/team-view-model.ts";
+import {
+  AGENT_CONTEXT_IDS,
+  rolesForContext,
+} from "../src/lib/agent-role-catalog.ts";
 import { AGENT_COMMON_ROLES } from "../src/lib/agent-role-catalog-data.ts";
 import { AGENT_ROLE_PART_MAX_LENGTH } from "../src/lib/agent-role-context.ts";
 import { nextFreeAgentColor } from "../src/lib/next-agent-color.ts";
@@ -123,7 +129,7 @@ describe("basic team", () => {
   const named = (names: readonly string[]): BasicTeamDraft[] =>
     defaults().map((draft, at) => ({ ...draft, name: names[at] ?? "" }));
 
-  it("is the three shared roles, each named for its job", () => {
+  it("uses the shared fallback for an unknown or custom industry", () => {
     deepStrictEqual(
       [...BASIC_TEAM_ROLES],
       ["executive_assistant", "operations_manager", "finance_manager"],
@@ -140,6 +146,24 @@ describe("basic team", () => {
       "Operations manager",
       "Finance manager",
     ]);
+  });
+
+  it("leads with the first two jobs the industry's role question offers", () => {
+    deepStrictEqual(basicTeamRoleIds("real_estate"), [
+      "executive_assistant",
+      "listing_agent",
+      "buyer_agent",
+    ]);
+    deepStrictEqual(
+      basicTeamDefaults(label, "real_estate").map((draft) => draft.roleId),
+      basicTeamRoleIds("real_estate"),
+    );
+    for (const id of AGENT_CONTEXT_IDS) {
+      const chosen = basicTeamRoleIds(id);
+      deepStrictEqual(chosen.slice(1), rolesForContext(id).own.slice(0, 2));
+      strictEqual(new Set(chosen).size, 3);
+    }
+    deepStrictEqual(basicTeamRoleIds(null), [...BASIC_TEAM_ROLES]);
   });
 
   it("hires an untouched team as it stands", () => {
@@ -329,25 +353,50 @@ describe("basic team colors", () => {
     strictEqual(new Set(colors).size, 3);
   });
 
-  it("never changes another card when one card picks its color", () => {
+  it("swaps two cards when one picks a color already worn", () => {
     const drafts = defaults();
     const before = basicTeamColors(drafts, deal);
-    // The first card takes the second card's default, then the third's.
-    for (const picked of [before[1], before[2]]) {
-      drafts[0] = { ...drafts[0], color: picked };
-      const after = basicTeamColors(drafts, deal);
-      strictEqual(after[0], picked);
-      deepStrictEqual(after.slice(1), before.slice(1));
-    }
+    const swapped = basicTeamRecolor(drafts, 0, before[1], before);
+    deepStrictEqual(basicTeamColors(swapped, deal), [
+      before[1],
+      before[0],
+      before[2],
+    ]);
+    const again = basicTeamRecolor(
+      swapped,
+      0,
+      before[2],
+      basicTeamColors(swapped, deal),
+    );
+    deepStrictEqual(basicTeamColors(again, deal), [
+      before[2],
+      before[0],
+      before[1],
+    ]);
   });
 
-  it("lets two cards wear the same color when the person picks it", () => {
-    const drafts = defaults();
-    drafts[2] = { ...drafts[2], color: "navy" };
-    drafts[1] = { ...drafts[1], color: "navy" };
-    const colors = basicTeamColors(drafts, deal);
-    strictEqual(colors[1], "navy");
-    strictEqual(colors[2], "navy");
+  it("keeps the other cards' colors when the picked color is free", () => {
+    const before = basicTeamColors(defaults(), deal);
+    const recolored = basicTeamRecolor(defaults(), 1, "charcoal", before);
+    deepStrictEqual(basicTeamColors(recolored, deal), [
+      before[0],
+      "charcoal",
+      before[2],
+    ]);
+  });
+
+  it("swaps a draft with a teammate already on the roster", () => {
+    const before = basicTeamColors(defaults(), deal);
+    const drafts = defaults().map((draft, at) =>
+      at === 1 ? { ...draft, rosterKey: "hire-1" } : draft,
+    );
+    const swapped = basicTeamRecolor(drafts, 0, before[1], before);
+    strictEqual(swapped[1].rosterKey, "hire-1");
+    deepStrictEqual(basicTeamColors(swapped, deal), [
+      before[1],
+      before[0],
+      before[2],
+    ]);
   });
 });
 

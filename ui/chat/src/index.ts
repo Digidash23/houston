@@ -240,6 +240,10 @@ export {
 export type { ChatActionBrand, ChatProcessLabels } from "./chat-process-block";
 export type { ChatSidebarProps } from "./chat-sidebar";
 export { ChatSidebar } from "./chat-sidebar";
+export {
+  ChatStartedMissionCard,
+  startedMissions,
+} from "./chat-started-mission-card";
 export type { ChatStatusLineProps } from "./chat-status-line";
 export { ChatStatusLine } from "./chat-status-line";
 export type {
@@ -390,6 +394,7 @@ export type { TurnEndSummary } from "./turn-tools";
 export type {
   AuthFailureCause,
   FeedItem,
+  HostCard,
   MentionPerson,
   MessageAuthor,
   MessageMention,

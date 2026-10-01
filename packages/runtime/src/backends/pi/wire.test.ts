@@ -344,6 +344,26 @@ test("toWire omits tool_end content for a text-less or malformed result", () => 
   });
 });
 
+test("toWire carries a successful start_mission receipt without parsing its text", () => {
+  const ev = {
+    type: "tool_execution_end",
+    toolCallId: "t1",
+    toolName: "start_mission",
+    result: {
+      content: [{ type: "text", text: "An unrelated reply" }],
+      details: { ok: true, id: "m1", title: "Research", agent: "Ada" },
+    },
+    isError: false,
+  } as unknown as AgentSessionEvent;
+  expect(toWire(ev)).toMatchObject({
+    type: "tool_end",
+    data: { mission: { id: "m1", title: "Research", agent: "Ada" } },
+  });
+  expect(
+    toWire({ ...ev, isError: true } as AgentSessionEvent),
+  ).not.toHaveProperty("data.mission");
+});
+
 // --- createWireTranslator: block-boundary separators (HOU-857) ---------------
 
 /** A `message_update` session event carrying the given assistant-message event. */
@@ -654,4 +674,24 @@ test("translator forgets a retry attempt's text once the turn ends or a new prom
   });
   vi.restoreAllMocks();
   resetCodexRefusalMemory();
+});
+
+test("toWire marks an operation the tool reports as not done as an error", () => {
+  const ended = (details: unknown) =>
+    toWire({
+      type: "tool_execution_end",
+      toolCallId: "t1",
+      toolName: "houston_call",
+      result: {
+        content: [{ type: "text", text: "ERROR gateway_error: name taken" }],
+        details,
+      },
+      isError: false,
+    } as unknown as AgentSessionEvent);
+  expect(ended({ ok: false, operation: "createAgent" })).toMatchObject({
+    data: { isError: true },
+  });
+  expect(ended({ ok: true, operation: "createAgent" })).toMatchObject({
+    data: { isError: false },
+  });
 });

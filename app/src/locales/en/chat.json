@@ -414,7 +414,15 @@
   "copyMessage": {
     "copy": "Copy message"
   },
+  "startedMission": {
+    "heading": "{{name}} is on it",
+    "open": "Open",
+    "openMission": "Open {{title}}",
+    "unavailable": "No longer on your team"
+  },
   "approvalCard": {
+    "hire": "Hire {{name}}?",
+    "instructionsLabel": "See their instructions",
     "approve": "Yes, go ahead",
     "decline": "No, don't do it",
     "closing": "I can't undo this for you. Should I go ahead?",

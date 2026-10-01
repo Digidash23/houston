@@ -34,6 +34,13 @@ export type ChatInteractionStep =
        *  sit in the question line: shown under it in its own scrollable
        *  monospaced block (`interaction-detail.tsx`). */
       detail?: string;
+      /** Presentational facts for a proposed AI Employee hire. */
+      hire?: {
+        color?: string;
+        role?: string;
+        instructions?: string;
+        instructionsLabel?: string;
+      };
       options?: ChatInteractionOption[];
       /** Hide the free-text escape row so the option rows are the ONLY way to
        *  answer. Meaningful only when `options` are present — a free-text-only

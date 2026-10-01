@@ -38,6 +38,8 @@ function copyFor(locale: string): ApprovalCardCopy {
       bundle.argumentsByOperation[operation]?.[param] ??
       bundle.arguments[param] ??
       param,
+    hire: (name) => fill(card.hire, { name }),
+    instructionsLabel: card.instructionsLabel,
   };
 }
 
@@ -154,4 +156,79 @@ test("only the two answers survive: no other approval id becomes a button", () =
     step.options?.map((option) => option.label),
     [copyFor("en").approve, "Something else"],
   );
+});
+
+for (const locale of LOCALES) {
+  test(`${locale} shows a hire as a person with role, color and readable instructions`, () => {
+    const copy = copyFor(locale);
+    const step = localizeApprovalQuestion(
+      approvalStep({
+        approval: {
+          operation: "createAgent",
+          args: [
+            { name: "name", value: "Document Collector", long: false },
+            { name: "color", value: "forest", long: false },
+            {
+              name: "seed.claudeMd",
+              value:
+                "---\nindustry: Accounting\nrole: Client document collection specialist\n---\n\nYou chase and track documents.\n\n- Follow up with clients",
+              long: true,
+            },
+          ],
+        },
+      }),
+      copy,
+    );
+    strictEqual(step.question, copy.hire("Document Collector"));
+    deepStrictEqual(step.hire, {
+      color: "forest",
+      role: "Client document collection specialist",
+      instructions:
+        "You chase and track documents.\n\n- Follow up with clients",
+      instructionsLabel: copy.instructionsLabel,
+    });
+    strictEqual(step.detail, undefined);
+    ok(!JSON.stringify(step).includes("industry: Accounting"));
+  });
+}
+
+test("a hire without role omits that line and keeps the full instructions", () => {
+  const step = localizeApprovalQuestion(
+    approvalStep({
+      approval: {
+        operation: "createAgent",
+        args: [
+          { name: "name", value: "Researcher", long: false },
+          {
+            name: "seed.claudeMd",
+            value: "# Research\nFind sources.",
+            long: true,
+          },
+        ],
+      },
+    }),
+    copyFor("en"),
+  );
+  deepStrictEqual(step.hire, {
+    instructions: "# Research\nFind sources.",
+    instructionsLabel: copyFor("en").instructionsLabel,
+  });
+});
+
+test("nested confirmation facts read as labeled text", () => {
+  const step = localizeApprovalQuestion(
+    approvalStep({
+      approval: {
+        operation: "updateActivity",
+        args: [
+          { name: "patch.title", value: "Collect receipts", long: false },
+          { name: "patch.notes", value: "Follow up\n- On Friday", long: true },
+        ],
+      },
+    }),
+    copyFor("en"),
+  );
+  ok(step.question.includes("Collect receipts"));
+  ok(step.detail?.includes("Follow up\n- On Friday"));
+  ok(!`${step.question}${step.detail}`.includes("{"));
 });

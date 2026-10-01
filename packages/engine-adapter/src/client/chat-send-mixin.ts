@@ -102,6 +102,7 @@ export function ChatSendMixin<TBase extends BaseCtor>(Base: TBase) {
           // A new mission's first message: the runtime titles the card after
           // the reply (no separate title request).
           missionTitle: req.missionTitle,
+          grants: req.grants,
         },
       ).finally(() => {
         // The turn settled (or failed): release anything queued behind it.

@@ -48,6 +48,29 @@ function pinColors(
   );
 }
 
+/** A picked swatch trades places with the card already wearing it. */
+export function basicTeamRecolor(
+  drafts: readonly BasicTeamDraft[],
+  index: number,
+  color: string,
+  shownColors: readonly string[],
+): BasicTeamDraft[] {
+  if (drafts[index] === undefined) return [...drafts];
+  const previous = shownColors[index];
+  const other = shownColors.findIndex(
+    (shown, at) => at !== index && shown === color,
+  );
+  return drafts.map((draft, at) => ({
+    ...draft,
+    color:
+      at === index
+        ? color
+        : at === other
+          ? (previous ?? draft.color)
+          : (shownColors[at] ?? draft.color),
+  }));
+}
+
 /** Whether the card at `index` may be let go: a draft not yet hired, while
  *  another card would still stand. */
 export function basicTeamRemovable(

@@ -1,3 +1,4 @@
+import type { GrantableOperation } from "@houston/protocol";
 import type { KanbanItem, NewPanelOpener } from "@houston-ai/board";
 import type { FeedItem, MessageMention } from "@houston-ai/chat";
 import type { ReactNode } from "react";
@@ -37,6 +38,10 @@ export interface SendOverrides {
    *  setting: it comes from the submit, not the toolbar. Absent on an
    *  agent-initiated send (retry, auto-resume, routine). */
   mentions?: MessageMention[];
+  grants?: GrantableOperation[];
+  /** Houston wrote this message for the person rather than them typing it
+   *  (`lib/sent-for-person.ts`). */
+  sentForPerson?: true;
 }
 
 /**

@@ -94,6 +94,7 @@ export function createTurnOperations(
         author: input.author,
         // Multiplayer: the teammates the message @mentions chip that bubble.
         mentions: input.mentions,
+        grants: input.grants,
       },
     );
   };

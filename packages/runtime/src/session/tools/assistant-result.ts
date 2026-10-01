@@ -145,3 +145,18 @@ export function assistantTextResult(
     details: { ok: true, operation },
   };
 }
+
+/**
+ * A tool result whose details say the work was NOT done (`ok: false`): an
+ * operation refused, awaiting approval, or failed. Such a tool answers with a
+ * result rather than throwing (so the model reads a named code), which the
+ * agent loop reports as a success; the backends mark it an error on the wire
+ * from this, so every surface sees the call did not happen.
+ */
+export function reportsNotDone(details: unknown): boolean {
+  return (
+    typeof details === "object" &&
+    details !== null &&
+    (details as { ok?: unknown }).ok === false
+  );
+}

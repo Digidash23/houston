@@ -62,7 +62,7 @@ export function parseMessageApprovals(value: unknown): MessageApproval[] {
  * sentence authored in the host can only ever be authored in one language, and
  * a person cannot approve what they cannot read.
  *
- * `value` is the argument verbatim, already text (objects as their JSON). It is
+ * `value` is the argument as labeled text, including object fields. It is
  * never abbreviated silently: past the host's limit it is cut and `truncated`
  * carries how many characters were left out, so the surface can say so in
  * words. `long` is the host's judgement that the value cannot sit inside a

@@ -45,6 +45,7 @@ export interface WarmingSendInput {
   /** Teammates this message @mentions (HOU-944) — chipped on the local bubble
    *  now, shipped with the deferred send at flush. */
   mentions?: MessageMention[];
+  grants?: PendingWarmingSend["grants"];
   /** Set = run the async AI title pass on this text once the flush lands. */
   titleText?: string;
   /** Row-only entry: no bubble now, no wire send at flush (HOU-713). */
@@ -64,6 +65,7 @@ export function warmingSendRecord(input: WarmingSendInput): PendingWarmingSend {
     effort: input.effort,
     mode: input.mode,
     mentions: input.mentions,
+    grants: input.grants,
     queuedAt: Date.now(),
     titleText: input.titleText,
     rowOnly: input.rowOnly,

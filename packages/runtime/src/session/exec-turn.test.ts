@@ -423,6 +423,32 @@ test("the turn's thinking and tool inputs are persisted on the assistant message
   ]);
 });
 
+test("a started mission receipt reaches the persisted assistant tool record", async () => {
+  const id = "exec-mission-receipt";
+  const mission = { id: "m1", title: "Research", agent: "Ada" };
+  const conv = fakeConv((emit) => {
+    emit({
+      type: "tool_start",
+      data: { name: "start_mission", args: { agent: "Ada" } },
+    });
+    emit({
+      type: "tool_end",
+      data: { name: "start_mission", isError: false, mission },
+    });
+    emit({ type: "text", data: "Ada is on it" });
+  });
+  await execTurn(conv, id, "turn-1", "start it", {
+    author: undefined,
+    priorAuthors: [],
+  });
+  const call = vi
+    .mocked(appendAssistantMessage)
+    .mock.calls.find((entry) => entry[0] === id);
+  expect(call?.[2]).toMatchObject({
+    tools: [{ name: "start_mission", mission }],
+  });
+});
+
 /** The providerError persisted on `id`'s assistant message, or undefined. */
 function persistedProviderError(id: string): unknown {
   const call = vi

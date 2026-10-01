@@ -1,14 +1,26 @@
 import { ChatPanel, type FeedItem } from "@houston-ai/chat";
 import { type ReactNode, useEffect, useRef } from "react";
 import { useVisualViewportInset } from "../../../hooks/use-visual-viewport-inset";
+import {
+  onboardingCard,
+  teamCardItem,
+} from "../../../lib/manager-onboarding/onboarding-feed";
 import type { ScriptLine } from "../../../lib/manager-onboarding/script";
 import { AssistantPhoneHeader } from "../assistant-phone-header";
 import { ManagerReceipt } from "./manager-receipt";
+import { OnboardingTeamCard } from "./onboarding-team-card";
 import type { ScriptCopy } from "./use-script-copy";
 import { useScriptedReveal } from "./use-scripted-reveal";
 
 const SESSION_KEY = "manager-onboarding";
 const noSend = async () => {};
+
+type ManagerLine = Extract<ScriptLine, { kind: "manager" }>;
+
+/** The closing is the team card: it lands whole instead of being typed. */
+function isCard(line: ManagerLine): boolean {
+  return line.id === "closingTeam";
+}
 
 /**
  * The scripted onboarding conversation, rendered by the SAME chat the real
@@ -25,6 +37,9 @@ const noSend = async () => {};
  * latest line in view as the step comes, grows and goes, and the chat area is
  * a size container, so a step caps itself against the room the chat has left
  * (the phone keyboard's share taken out) rather than against the screen.
+ *
+ * The closing lands as the team card the real chat keeps, whole rather than
+ * typed, and only shown: the real chat, which opens the team, takes over.
  *
  * An answer is the person's send: each one landing (and each taken back to
  * change) brings the latest line into view, even for a person who scrolled up
@@ -49,7 +64,9 @@ export function ManagerChat({
    *  answer. May be called more than once. */
   onSaid?: () => void;
 }) {
-  const reveal = useScriptedReveal(lines, copy.manager);
+  const reveal = useScriptedReveal(lines, (line) =>
+    isCard(line) ? "" : copy.manager(line),
+  );
   const saidRef = useRef(onSaid);
   saidRef.current = onSaid;
   const awaitingSaid = onSaid !== undefined;
@@ -60,22 +77,34 @@ export function ManagerChat({
   const keyboardInset = useVisualViewportInset(rootRef);
   const byKey = new Map(lines.map((line) => [`user-${line.key}`, line]));
   const answers = lines.filter((line) => line.kind === "receipt").length;
+  const said = (line: ManagerLine): FeedItem =>
+    isCard(line)
+      ? teamCardItem(line.key, { reach: line.reach ?? null })
+      : { feed_type: "assistant_text", id: line.key, data: copy.manager(line) };
 
   const feed: FeedItem[] = reveal.shown.map((line) =>
     line.kind === "manager"
-      ? { feed_type: "assistant_text", id: line.key, data: copy.manager(line) }
+      ? said(line)
       : {
           feed_type: "user_message",
           id: line.key,
           data: copy.receipt(line).answer,
         },
   );
-  if (reveal.typing)
-    feed.push({
-      feed_type: "assistant_text_streaming",
-      id: reveal.typing.key,
-      data: reveal.typing.text,
-    });
+  const typing = reveal.typing;
+  const typed = typing
+    ? lines.find((line) => line.key === typing.key)
+    : undefined;
+  if (typing && typed?.kind === "manager")
+    feed.push(
+      isCard(typed)
+        ? said(typed)
+        : {
+            feed_type: "assistant_text_streaming",
+            id: typing.key,
+            data: typing.text,
+          },
+    );
 
   return (
     <div
@@ -110,6 +139,14 @@ export function ManagerChat({
                 }
               />
             );
+          }}
+          renderSystemMessage={(message) => {
+            const card = message.hostCard
+              ? onboardingCard(message.hostCard)
+              : null;
+            return card?.kind === "team" ? (
+              <OnboardingTeamCard reach={card.team.reach} />
+            ) : undefined;
           }}
           composerOverrideMode="replace"
           composerOverride={

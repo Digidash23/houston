@@ -28,8 +28,7 @@ export type AnalyticsEventName =
   // Onboarding
   | "onboarding_started"
   | "onboarding_completed"
-  // The closing's offer to start on the person's automation goal was
-  // answered: `choice` is "accepted" or "declined".
+  // The person's onboarding goal was sent as the Manager's first real turn.
   | "onboarding_goal_handoff"
   // The survey's four questions (industry, role, company size, automation
   // goal), each viewed / selected / continued (the one-tap company size has

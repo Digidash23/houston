@@ -283,6 +283,7 @@ export interface ToolCallRecord {
    */
   result?: string;
   isError?: boolean;
+  mission?: { id: string; title: string; agent: string };
 }
 
 /**

@@ -93,6 +93,38 @@ test("identical content stamps without reseeding (no id churn)", () => {
   ).toBe("stamp");
 });
 
+test("different server content replaces a same-length cached fold", () => {
+  const mission = {
+    id: "m1",
+    title: "Collect documents",
+    agent: "Document Collector",
+  };
+  const before = [
+    user("Onboarding complete"),
+    { feed_type: "tool_result", data: { content: "Started", is_error: false } },
+    reply("Done! Now you can see what they're doing."),
+  ];
+  const after = [
+    before[0],
+    {
+      feed_type: "tool_result",
+      data: { content: "Started", is_error: false, mission },
+    },
+    before[2],
+  ];
+  expect(decideServerSeed(before, after, false)).toBe("replace");
+  expect(
+    decideServerSeed(
+      [user("same"), reply("draft")],
+      [user("same"), reply("final")],
+      false,
+    ),
+  ).toBe("replace");
+  expect(decideServerSeed([reply("draft")], [reply("final")], false)).toBe(
+    "replace",
+  );
+});
+
 test("an UNSTAMPED longer cache paint is replaced by the authoritative window", () => {
   // The cache painted more older content than the tail window covers, but the
   // feed has no server indices — replace so load-older arms correctly.

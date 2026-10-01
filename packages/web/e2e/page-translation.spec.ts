@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
 import { connectAiStep, reachTeamStep } from "./support/manager-onboarding";
-import { hireStarterTeam } from "./support/manager-team";
+import { hireStarterTeam, STARTER_ROLES } from "./support/manager-team";
 import { openManagerOnboarding, resetToFirstRun } from "./support/onboarding";
 import { missionCard } from "./support/team-nav";
 
@@ -87,7 +87,7 @@ test("a translated first run survives the manager's onboarding conversation", as
 
   await translateLikeChrome(page);
   await reachTeamStep(page);
-  await hireStarterTeam(page, null);
+  await hireStarterTeam(page, null, "click", STARTER_ROLES);
 
   await expect(page.getByText("App crashed")).toHaveCount(0);
   expect(crashes).toEqual([]);

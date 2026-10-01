@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useProviderStatuses } from "../../hooks/use-provider-statuses";
 import { queryKeys } from "../../lib/query-keys";
 import {
   ManagerStepBody,
@@ -16,6 +17,7 @@ import {
   resolveConnectAiView,
 } from "./connect-ai/featured-subscriptions";
 import { FeaturedView } from "./connect-ai/featured-view";
+import { useOptimisticConnections } from "./connect-ai/use-optimistic-connections";
 
 /**
  * The AI Manager's "Connect your AI" step, in the frame every onboarding step
@@ -31,11 +33,20 @@ import { FeaturedView } from "./connect-ai/featured-view";
  * provider statuses and moves on the moment one provider is confirmed
  * connected. The connect signal only refreshes those statuses so the move
  * happens without waiting for the next poll.
+ *
+ * It shows at once, before the first probe answers (a new account's AI home
+ * can take seconds to start): its cards offer Connect right away, and a press
+ * waits for the probe (`useOptimisticConnections`).
  */
 export function ConnectAiCard() {
   const { t } = useTranslation("setup");
   const queryClient = useQueryClient();
-  const { providers, connections, catalog } = useProviderBrowserData();
+  const { providers, connections: probed, catalog } = useProviderBrowserData();
+  const scan = useProviderStatuses();
+  const connections = useOptimisticConnections(
+    probed,
+    !scan.isLoading && !scan.isError,
+  );
   const featured = useMemo(() => featuredProviders(providers), [providers]);
   const [requestedView, setRequestedView] = useState<ConnectAiView>("featured");
   // The first render focuses nothing; after a swap, the new view focuses the
@@ -53,7 +64,7 @@ export function ConnectAiCard() {
     });
   }, [queryClient]);
 
-  useProviderAutoSelect(connections, providers, refreshStatuses, false);
+  useProviderAutoSelect(probed, providers, refreshStatuses, false);
 
   return (
     <>
@@ -82,7 +93,7 @@ export function ConnectAiCard() {
         </ManagerStepBody>
       </ManagerStepFrame>
       <ProviderConnectionDialogs
-        {...connections.dialogProps}
+        {...probed.dialogProps}
         // The local provider's model is typed in its dialog and never reaches
         // the status snapshot, so its connect refreshes the statuses here.
         onLocalConnected={refreshStatuses}

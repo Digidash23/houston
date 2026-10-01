@@ -182,6 +182,44 @@ const chevron = (c: HTMLElement, label: string): Element | null =>
   c.querySelector(`[aria-label="${label}"]`);
 
 describe("ChatInteractionCard mounted", () => {
+  it("shows the hire role and palette dot while instructions stay closed until opened", () => {
+    const card = mount({
+      steps: [
+        {
+          kind: "question",
+          id: "hire",
+          question: "Hire Document Collector?",
+          hire: {
+            color: "forest",
+            role: "Client document collection specialist",
+            instructions: "You chase documents.\n\n- Follow up",
+            instructionsLabel: "See their instructions",
+          },
+          options: [
+            { kind: "approval", id: "approve", label: "Yes, go ahead" },
+            { kind: "approval", id: "decline", label: "No, don't do it" },
+          ],
+        },
+      ],
+    });
+    const details = card.container.querySelector("details");
+    assert.ok(details);
+    assert.equal(details.open, false);
+    assert.equal(
+      card.container.querySelector("summary")?.textContent,
+      "See their instructions",
+    );
+    assert.ok(
+      card.container.textContent?.includes(
+        "Client document collection specialist",
+      ),
+    );
+    assert.ok(card.container.querySelector('[style*="--ht-agent-forest"]'));
+    click(card.container.querySelector("summary"));
+    assert.equal(details.open, true);
+    assert.ok(details.textContent?.includes("You chase documents."));
+    card.unmount();
+  });
   it("reports the draft, the committed answer and every pager move", () => {
     const seen: StepperState[] = [];
     const card = mount({ onStateChange: (s) => seen.push(s) });

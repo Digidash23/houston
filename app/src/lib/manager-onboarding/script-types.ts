@@ -18,7 +18,8 @@ export type TeamQuestion =
 export type ReceiptQuestion = "connectAi" | SurveyQuestion | TeamQuestion;
 
 /** Every message the manager says during onboarding. Each is fixed, authored
- *  copy: nothing in onboarding is generated. */
+ *  copy: nothing in onboarding is generated. `closingTeam` is the one the
+ *  chat draws as a card, the team card. */
 export type ManagerLineId =
   | "hello"
   | "introManager"
@@ -28,10 +29,7 @@ export type ManagerLineId =
   | "surveyIntro"
   | "teamIntro"
   | "teamResume"
-  | "closingReady"
-  | "closingEmployees"
-  | "closingManager"
-  | "closingGoal"
+  | "closingTeam"
   | "closingAsk"
   | "profileIntro"
   | "profileThanks";
@@ -63,11 +61,9 @@ export type ScriptLine =
       name?: string;
       /** How many AI Employees a `teamResume` line counts. */
       count?: number;
-      /** What a `closingManager` line says the manager can do. */
+      /** What a `closingTeam` card says the manager can do; absent where no
+       *  manager is served. */
       reach?: ManagerReach;
-      /** The person's automation goal, in their words, a `closingGoal`
-       *  line offers to start. */
-      goal?: string;
     }
   | {
       kind: "receipt";
@@ -89,8 +85,6 @@ export type ScriptPrompt =
   | { kind: "survey"; question: SurveyQuestion }
   | { kind: "team" }
   | { kind: "finish" }
-  /** Start on the person's automation goal now, or not. */
-  | { kind: "handoff"; goal: string }
   /** Nothing left to answer: onboarding ends once all is said, and the real
    *  chat takes over where a manager is served. */
   | { kind: "openChat" };

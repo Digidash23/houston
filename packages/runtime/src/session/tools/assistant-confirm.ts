@@ -12,12 +12,13 @@ import { CONVERSATION_ID_HEADER } from "./save-learning";
 /**
  * The gate `houston_call` runs every `confirm: true` operation through.
  *
- * NOTHING here decides an approval. The runtime asks the HOST to raise one
- * (`POST /sandbox/assistant/pending`), shows the user the card the host worded,
- * and hands the model back the host's `requestId` to present on its next call.
- * The host — the process holding the credential — is what matches that id
- * against the receipt the user's own reply minted, so a runtime that skipped
- * this gate entirely still performs nothing.
+ * NOTHING here decides an approval. The runtime asks the HOST for one
+ * (`POST /sandbox/assistant/pending`). A live user-message grant returns a
+ * receipt immediately; otherwise the host raises a card and the runtime hands
+ * the model its `requestId` for the next call.
+ * The host — the process holding the credential — matches that id against the
+ * receipt from the user's answer or grant, so a runtime that skipped this gate
+ * entirely still performs nothing.
  *
  * The wording comes back from the host with the request, so the sentence the
  * person read and the bytes their yes authorizes are decided in one place and
@@ -49,39 +50,40 @@ export function declinedMessage(name: string): string {
 interface PendingReply {
   requestId: string;
   summary: string;
+  preApproved?: true;
   /** The verbatim arguments the host could not fit in the sentence. */
   detail?: string;
 }
 
 function readPendingReply(payload: unknown): PendingReply | null {
   if (typeof payload !== "object" || payload === null) return null;
-  const { requestId, summary, detail } = payload as {
+  const { requestId, summary, detail, preApproved } = payload as {
     requestId?: unknown;
     summary?: unknown;
     detail?: unknown;
+    preApproved?: unknown;
   };
   if (typeof requestId !== "string" || requestId === "") return null;
   return {
     requestId,
+    ...(preApproved === true ? { preApproved: true as const } : {}),
     summary: typeof summary === "string" ? summary : "",
     ...(typeof detail === "string" && detail ? { detail } : {}),
   };
 }
 
 /**
- * Ask the host to raise one approval card and tell the model to wait.
- *
- * Always a refusal: the FIRST answer to a destructive call is never "done". The
- * card carries the host's `requestId`, so a second card for a different call is
- * a second card even when the two read alike, and one click grants exactly one
- * thing.
+ * Ask the host for one receipt or approval card. A pre-approved answer carries
+ * an exact-call receipt; the other answer records the question and waits.
  */
 export async function requestConfirmation(
   op: AssistantOperation,
   params: Record<string, unknown>,
   call: SandboxFetch,
   signal?: AbortSignal,
-): Promise<AssistantOperationResult> {
+): Promise<
+  AssistantOperationResult | { preApproved: true; requestId: string }
+> {
   const conversationId = currentConversationId();
   // No conversation (a routine's unattended turn, or a direct call outside a
   // turn) means there is nowhere for an answer to arrive, so nothing can ever
@@ -109,9 +111,18 @@ export async function requestConfirmation(
       message: `The app could not be reached to ask the user about that: ${err instanceof Error ? err.message : String(err)}`,
     });
   }
-  const pending = res.ok
-    ? readPendingReply(await res.json().catch(() => null))
-    : null;
+  let pending: PendingReply | null = null;
+  if (res.ok) {
+    try {
+      pending = readPendingReply(await res.json());
+    } catch (err) {
+      return assistantErrorResult(op.name, {
+        code: "transport_error",
+        status: res.status,
+        message: `The app answered the approval request with unreadable data: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+  }
   if (!pending) {
     return assistantErrorResult(op.name, {
       code: "gateway_error",
@@ -119,6 +130,8 @@ export async function requestConfirmation(
       message: `The app could not put that in front of the user for approval (HTTP ${res.status}), so it has not been done. Tell them plainly and ask what they would like instead.`,
     });
   }
+  if (pending.preApproved)
+    return { preApproved: true, requestId: pending.requestId };
 
   recordConfirmation({
     question: pending.summary,

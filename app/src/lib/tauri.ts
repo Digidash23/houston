@@ -29,7 +29,10 @@ import type {
   ProviderUsage,
   SkillsManifest,
 } from "@houston/engine-adapter";
-import type { IntegrationProviderId } from "@houston/protocol";
+import type {
+  GrantableOperation,
+  IntegrationProviderId,
+} from "@houston/protocol";
 import {
   type DismissInteractionOutcome,
   plusCheckoutRefusal,
@@ -524,6 +527,8 @@ export const tauriChat = {
        * turn's reply (see SessionStartRequest). Omitted on every other send.
        */
       missionTitle?: MissionTitle;
+      /** Operations the person approved for this message alone. */
+      grants?: GrantableOperation[];
     },
   ) =>
     call<string>("send_message", async () => {
@@ -554,6 +559,7 @@ export const tauriChat = {
         // are the same answer, so never put `[]` on the wire.
         approvals: opts?.approvals?.length ? opts.approvals : undefined,
         missionTitle: opts?.missionTitle,
+        grants: opts?.grants?.length ? opts.grants : undefined,
       });
       return res.sessionKey;
     }),

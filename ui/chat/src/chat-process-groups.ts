@@ -150,7 +150,8 @@ export function getChatDisplayItems(
  * during the gap before the agent's first output. Once an active process block
  * is on screen it ALREADY surfaces "Thinking..." or the current step, so the
  * standalone line would duplicate it. Show the indicator only while a turn is
- * `submitted` AND no active process block is trailing.
+ * `submitted` AND no active process block, nor a host card that shows its own
+ * progress, is trailing.
  */
 export function shouldShowThinkingIndicator(
   items: ChatDisplayItem[],
@@ -158,5 +159,7 @@ export function shouldShowThinkingIndicator(
 ): boolean {
   if (status !== "submitted") return false;
   const last = items[items.length - 1];
+  if (last?.kind === "message" && last.message.hostCard?.ownsProgress)
+    return false;
   return !(last?.kind === "process" && last.isActive);
 }

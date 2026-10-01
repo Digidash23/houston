@@ -64,7 +64,7 @@
   },
   "onboardingSurvey": {
     "goal": {
-      "title": "¿Qué tarea te encantaría delegar a un empleado de IA?"
+      "title": "¿Para qué tarea repetitiva de tu trabajo te encantaría contratar a alguien?"
     },
     "completion": {
       "notNow": "Ahora no"

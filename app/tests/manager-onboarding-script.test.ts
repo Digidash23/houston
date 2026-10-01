@@ -272,12 +272,11 @@ describe("firstRunScript: the team", () => {
     const script = firstRunScript({ ...team, team: starterTeamHired() });
     const shown = tags(script);
     const intro = shown.indexOf("m:teamIntro");
-    deepStrictEqual(shown.slice(intro - 1, intro + 4), [
+    deepStrictEqual(shown.slice(intro - 1, intro + 3), [
       "r:goal",
       "m:teamIntro",
       "r:teamBasic",
-      "m:closingReady",
-      "m:closingEmployees",
+      "m:closingTeam",
     ]);
     strictEqual(changeableAnswer(script.lines), null);
   });
@@ -340,35 +339,25 @@ describe("firstRunScript: the closing", () => {
   };
   const closingManager = (script: Script) =>
     script.lines.find(
-      (line) => line.kind === "manager" && line.id === "closingManager",
+      (line) => line.kind === "manager" && line.id === "closingTeam",
     );
 
-  it("a finished team closes one message at a time, then offers to start on the goal", () => {
+  it("a finished team closes on the team card and leaves the goal to the real chat", () => {
     const script = firstRunScript(team);
-    deepStrictEqual(tags(script).slice(-7), [
+    deepStrictEqual(tags(script).slice(-4), [
       "r:goal",
       "m:teamIntro",
       "r:teamBasic",
-      "m:closingReady",
-      "m:closingEmployees",
-      "m:closingManager",
-      "m:closingGoal",
+      "m:closingTeam",
     ]);
-    deepStrictEqual(script.prompt, {
-      kind: "handoff",
-      goal: "Answer my emails",
-    });
-    const offer = script.lines.at(-1);
-    strictEqual(offer?.kind === "manager" && offer.goal, "Answer my emails");
+    deepStrictEqual(script.prompt, { kind: "openChat" });
   });
 
-  it("where no manager is served, it says the team is ready and ends, offering nothing", () => {
+  it("where no manager is served, the team card promises nothing of the manager", () => {
     const script = firstRunScript({ ...team, reach: null });
-    deepStrictEqual(tags(script).slice(-2), [
-      "m:closingReady",
-      "m:closingEmployees",
-    ]);
-    strictEqual(closingManager(script), undefined);
+    deepStrictEqual(tags(script).slice(-1), ["m:closingTeam"]);
+    const card = closingManager(script);
+    strictEqual(card?.kind === "manager" && card.reach, undefined);
     deepStrictEqual(script.prompt, { kind: "openChat" });
   });
 
@@ -377,10 +366,7 @@ describe("firstRunScript: the closing", () => {
       ...team,
       survey: record({ ...answered, automationGoal: null, goalSkipped: true }),
     });
-    deepStrictEqual(tags(script).slice(-2), [
-      "m:closingManager",
-      "m:closingAsk",
-    ]);
+    deepStrictEqual(tags(script).slice(-2), ["m:closingTeam", "m:closingAsk"]);
     deepStrictEqual(script.prompt, { kind: "openChat" });
   });
 

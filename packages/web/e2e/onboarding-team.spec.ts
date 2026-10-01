@@ -24,8 +24,7 @@ import { agentRow, openAgentScreen, screen } from "./support/team-nav";
  * "Hire one more" adds a card, a draft's Remove lets it go, and "Hire my
  * team" hires everyone as they stand (or renamed first,
  * onboarding-team-roster.spec.ts). The manager waits for every hire to land,
- * then closes, and "Not now" shows the real chat
- * (onboarding-handoff.spec.ts covers "Yes"). Every hire lands with its first
+ * then starts the person's goal in the real chat. Every hire lands with its first
  * day PENDING: nobody starts working until the person presses
  * "Start <name>'s first day".
  */
@@ -42,7 +41,7 @@ test("the team step opens on the starter team, hired in one press", async ({
   await expect(managerOnboarding(page).getByRole("radio")).toHaveCount(0);
   await expect(starterTeam(page)).toBeVisible();
 
-  await hireStarterTeam(page, null);
+  await hireStarterTeam(page, null, "click", STARTER_ROLES);
   // The hire is for good: nothing before it changes any more.
   await expect(changeAnswer(page)).toHaveCount(0);
   await finishOnboarding(page);

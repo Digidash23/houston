@@ -6,6 +6,8 @@
 
 import {
   type ConversationImportRequest,
+  type GrantableOperation,
+  MessageGrantsSchema,
   parseConversationImportRequest,
   parseMentions,
 } from "@houston/protocol";
@@ -49,6 +51,7 @@ export interface TurnSendInput {
    * text inside `text`. Omitted when the message mentions nobody.
    */
   mentions?: FeedMention[];
+  grants?: GrantableOperation[];
 }
 
 /**
@@ -125,6 +128,8 @@ export function asSendInput(payload: unknown): TurnSendInput {
     mode: mode(p.mode),
     author: author(p.author),
     mentions: mentions(p.mentions),
+    grants:
+      p.grants === undefined ? undefined : MessageGrantsSchema.parse(p.grants),
   };
 }
 

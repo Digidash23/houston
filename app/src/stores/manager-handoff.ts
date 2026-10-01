@@ -1,13 +1,14 @@
 import { create } from "zustand";
 
 /**
- * A first message for the AI Manager's real chat, sent on the person's
- * behalf the moment that chat opens: the answer they gave (`text`, their
- * bubble) over the instruction the manager reads with it (`context`).
+ * The kickoff of the AI Manager's real chat, sent on the person's behalf the
+ * moment that chat opens: `text` is what the chat shows for it (the goal
+ * card), `context` the instructions only the model reads.
  */
 export interface ManagerHandoff {
   text: string;
   context: string;
+  grants: ["createAgent"];
 }
 
 interface ManagerHandoffState {
@@ -20,7 +21,7 @@ interface ManagerHandoffState {
 
 /**
  * The seam between the onboarding conversation, which ends on the person's
- * "Yes, let's do it", and the real chat, which sends it: the chat only mounts
+ * goal, and the real chat, which sends it: the chat only mounts
  * once onboarding has handed the view over, so the message waits here for it.
  */
 export const useManagerHandoffStore = create<ManagerHandoffState>(

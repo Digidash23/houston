@@ -21,6 +21,7 @@ export const admitTurnMessage: TurnSeam = async (ctx) => {
     agentId: ctx.agent.id,
     conversationId: ctx.turnConversationId,
     actor: ctx.actor,
+    grantActor: ctx.actingAs,
     body: await ctx.body.read(),
   });
   if (guard.kind === "refused") {

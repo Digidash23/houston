@@ -9,6 +9,7 @@ import {
   type IssueApprovalInput,
 } from "./approval-record";
 import { authorizesApprovalCall, inApprovalScope } from "./approval-scope";
+import { GrantStore } from "./grants";
 import { ApprovalMessageGuard } from "./message-guard";
 import { approvalArgs } from "./summary";
 
@@ -19,8 +20,9 @@ import { approvalArgs } from "./summary";
  * The rule: THE MODEL CANNOT MINT AN APPROVAL. The host issues a `requestId`
  * when it raises an approval card; the only thing that turns that id into a
  * usable receipt is the USER's own next message arriving on the host's
- * conversation-message route (`assistant/receipts.ts`), which no runtime
- * can author. The runtime's `houston_call` then presents the id back, and the
+ * conversation-message route (`assistant/receipts.ts`), or a constrained,
+ * one-use grant carried by that user's message. The runtime's `houston_call`
+ * then presents the id back, and the
  * host — not the runtime — decides whether it may proceed.
  *
  * Every field of a record is a way for an approval to authorize the wrong thing,
@@ -55,9 +57,11 @@ export {
 export class ApprovalStore {
   private readonly byId = new Map<string, ApprovalRequest>();
   readonly messages: ApprovalMessageGuard;
+  readonly grants: GrantStore;
 
   constructor(private readonly now: () => number = Date.now) {
     this.messages = new ApprovalMessageGuard(now);
+    this.grants = new GrantStore(now);
   }
 
   /** Raise one approval card's request. The id is what the card carries back. */
@@ -155,6 +159,7 @@ export class ApprovalStore {
   /** Forget one conversation's requests (it was deleted), or all of them. */
   clear(agentId?: string, conversationId?: string): void {
     this.messages.clear(agentId, conversationId);
+    this.grants.clear(agentId, conversationId);
     if (agentId === undefined) return void this.byId.clear();
     for (const [id, request] of this.byId) {
       if (inApprovalScope(request, agentId, conversationId))
@@ -162,7 +167,11 @@ export class ApprovalStore {
     }
   }
 
-  /** True while any card is still in front of someone in this conversation. */
+  /**
+   * True while this conversation holds any request: a card still in front of
+   * someone, or an answer (a receipt) not yet spent, which the person's next
+   * message retires unless it arrived with that message.
+   */
   hasPending(agentId: string, conversationId: string): boolean {
     this.prune();
     for (const request of this.byId.values()) {

@@ -128,12 +128,20 @@ export function useScriptCopy() {
           return t("assistant:onboarding.say.teamResume", {
             count: line.count ?? 0,
           });
-        case "closingManager":
-          return t(
-            `assistant:onboarding.say.closingManager.${closingManagerVariant(line.reach)}`,
-          );
-        case "closingGoal":
-          return t("assistant:onboarding.say.closingGoal", { goal: line.goal });
+        // The chat draws this line as the team card: these are the words
+        // the manager reads it as, one paragraph per thing the card says.
+        case "closingTeam":
+          return [
+            t("assistant:onboarding.say.closingReady"),
+            t("assistant:onboarding.say.closingEmployees"),
+            ...(line.reach
+              ? [
+                  t(
+                    `assistant:onboarding.say.closingManager.${closingManagerVariant(line.reach)}`,
+                  ),
+                ]
+              : []),
+          ].join("\n\n");
         default:
           return t(`assistant:onboarding.say.${line.id}`);
       }

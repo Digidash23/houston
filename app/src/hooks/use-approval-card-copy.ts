@@ -77,7 +77,18 @@ export function useApprovalCardCopy(): ApprovalCardCopy {
         isOperation(operation) ? bundle.operations[operation] : undefined,
       argumentName: (operation, param) =>
         override(operation, param) ??
-        (isArgument(param) ? bundle.arguments[param] : humanize(param)),
+        (isArgument(param)
+          ? bundle.arguments[param]
+          : param.includes(".")
+            ? param
+                .split(".")
+                .map((part) =>
+                  isArgument(part) ? bundle.arguments[part] : humanize(part),
+                )
+                .join(" ")
+            : humanize(param)),
+      hire: (name) => t("approvalCard.hire", { name }),
+      instructionsLabel: t("approvalCard.instructionsLabel"),
     };
   }, [t, language]);
 }

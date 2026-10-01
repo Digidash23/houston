@@ -7,6 +7,7 @@ import {
 import { classifyFileKind } from "../../lib/file-kind";
 import { perfSpans } from "../../lib/perf-spans";
 import { showSendFailedToast } from "../../lib/send-error-toast";
+import { isTypedSend } from "../../lib/sent-for-person";
 import { tauriAttachments, tauriChat } from "../../lib/tauri";
 import { useAgentProvisioningStore } from "../../stores/agent-provisioning";
 import type { SendOverrides } from "./board-source";
@@ -63,11 +64,13 @@ export async function sendBoardMessage(
       agentPath: path,
       sessionKey,
       text,
-      // A builder also runs for a bare context send: the flush then
-      // persists the clean `text` as the bubble (displayText), exactly
-      // like the attachment case.
+      // A context-only prompt is known before warm-up and survives a reload.
+      prompt:
+        files.length === 0 && promptContext
+          ? buildAttachmentPrompt(text, files, [], promptContext)
+          : undefined,
       buildPrompt:
-        files.length > 0 || promptContext
+        files.length > 0
           ? async () => {
               const saved =
                 files.length > 0
@@ -80,6 +83,7 @@ export async function sendBoardMessage(
       model: overrides.modelOverride,
       mode: overrides.modeOverride,
       mentions: overrides.mentions,
+      grants: overrides.grants,
     });
   if (queuedWarm) {
     // The parked message narrates itself: the trailing user bubble keeps
@@ -93,10 +97,11 @@ export async function sendBoardMessage(
         .setQueuedRowStatus(agentId, activity.id, "running");
     }
     perfSpans.messageSent(perfSend);
-    analytics.track("chat_message_sent", {
-      provider: overrides.providerOverride,
-      model: overrides.modelOverride,
-    });
+    if (isTypedSend(overrides))
+      analytics.track("chat_message_sent", {
+        provider: overrides.providerOverride,
+        model: overrides.modelOverride,
+      });
     for (const f of files)
       analytics.track("file_attached", { file_kind: classifyFileKind(f) });
     return;
@@ -109,6 +114,7 @@ export async function sendBoardMessage(
       modelOverride: overrides.modelOverride,
       modeOverride: overrides.modeOverride,
       mentions: overrides.mentions,
+      grants: overrides.grants,
       // A context-prefixed prompt with no attachment marker would render
       // raw — persist the user's words as the bubble instead. (With
       // attachments the marker already carries them.)
@@ -122,10 +128,11 @@ export async function sendBoardMessage(
     });
     setSessionLoading(sessionKey, true);
     perfSpans.messageSent(perfSend);
-    analytics.track("chat_message_sent", {
-      provider: overrides.providerOverride,
-      model: overrides.modelOverride,
-    });
+    if (isTypedSend(overrides))
+      analytics.track("chat_message_sent", {
+        provider: overrides.providerOverride,
+        model: overrides.modelOverride,
+      });
     for (const f of files)
       analytics.track("file_attached", { file_kind: classifyFileKind(f) });
   } catch (err) {

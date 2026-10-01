@@ -5,11 +5,11 @@ import { findVisibleOperation } from "@houston/host/src/assistant/catalog";
 import { type Static, Type } from "typebox";
 import { currentActingContext } from "../acting-context";
 import { currentConversationId } from "../conversation-context";
-import { currentTurnMode } from "../turn-mode-context";
 import { approvalCode, errorFromResponse } from "./assistant-call-errors";
 import { refusedUnavailableHere } from "./assistant-callable";
 import { declinedMessage, requestConfirmation } from "./assistant-confirm";
 import { checkCallParams } from "./assistant-params";
+import { refusedInPlanMode } from "./assistant-plan-gate";
 import {
   type AssistantOperationResult,
   assistantErrorResult,
@@ -29,8 +29,7 @@ import { CONVERSATION_ID_HEADER } from "./save-learning";
  * a sandbox token alone can never reach an unrouted or unapproved operation.
  *
  * `confirm: true` operations go through `assistant-confirm.ts` first, which asks
- * the HOST to raise the card and hands back the `requestId` the model presents
- * on its next call. There is deliberately NO "confirmed" input: an approval the
+ * the HOST for an exact-call receipt or card. There is deliberately NO "confirmed" input: an approval the
  * model could assert is not an approval, and a `requestId` is worthless until
  * the user's own reply turns it into a receipt in the host.
  */
@@ -108,83 +107,80 @@ export function makeAssistantCallTool(opts: AssistantToolOptions) {
       // something — a read stays allowed, everything else stops.
       const planned = refusedInPlanMode(op.route?.method ?? "GET", name);
       if (planned) return planned;
+      const checkedOp = op;
+      const callParams = checked.params;
       // The confirmation gate. It runs on the CHECKED params, so the approval
       // the user is asked for is bound to the bytes that would actually be sent.
-      if (op.confirm && !params.requestId)
-        return requestConfirmation(op, checked.params, opts.call, signal);
-
       const acting = currentActingContext();
       const conversationId = currentConversationId();
-      let res: Response;
-      try {
-        res = await opts.call(CALL_PATH, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            ...(conversationId
-              ? { [CONVERSATION_ID_HEADER]: conversationId }
-              : {}),
-            ...(acting?.actingAs
-              ? { "x-houston-acting-as": acting.actingAs }
-              : {}),
-            ...(acting?.actingUser
-              ? { "x-houston-acting-user": acting.actingUser }
-              : {}),
-          },
-          body: JSON.stringify({
-            operation: name,
-            params: checked.params,
-            ...(params.requestId ? { requestId: params.requestId } : {}),
-          }),
-          signal,
-        });
-      } catch (err) {
-        return assistantErrorResult(name, {
-          code: "transport_error",
-          message: `The app could not be reached to perform that: ${err instanceof Error ? err.message : String(err)}`,
-        });
-      }
-      if (!res.ok) {
-        const approval = await approvalCode(res.clone());
-        if (approval === "approval_denied")
-          return assistantErrorResult(name, {
-            code: "confirmation_declined",
-            message: declinedMessage(name),
+      async function perform(
+        requestId?: string,
+      ): Promise<AssistantOperationResult> {
+        let res: Response;
+        try {
+          res = await opts.call(CALL_PATH, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              ...(conversationId
+                ? { [CONVERSATION_ID_HEADER]: conversationId }
+                : {}),
+              ...(acting?.actingAs
+                ? { "x-houston-acting-as": acting.actingAs }
+                : {}),
+              ...(acting?.actingUser
+                ? { "x-houston-acting-user": acting.actingUser }
+                : {}),
+            },
+            body: JSON.stringify({
+              operation: name,
+              params: callParams,
+              ...(requestId ? { requestId } : {}),
+            }),
+            signal,
           });
-        // The receipt is missing, spent, expired, or was minted for different
-        // arguments. Ask again rather than dead-end: the host raises a fresh
-        // card and the model waits, exactly as on a first ask.
-        if (approval === "approval_required")
-          return requestConfirmation(op, checked.params, opts.call, signal);
-        return assistantErrorResult(name, await errorFromResponse(res));
+        } catch (err) {
+          return assistantErrorResult(name, {
+            code: "transport_error",
+            message: `The app could not be reached to perform that: ${err instanceof Error ? err.message : String(err)}`,
+          });
+        }
+        if (!res.ok) {
+          const approval = await approvalCode(res.clone());
+          if (approval === "approval_denied")
+            return assistantErrorResult(name, {
+              code: "confirmation_declined",
+              message: declinedMessage(name),
+            });
+          // The receipt is missing, spent, expired, or was minted for different
+          // arguments. Ask again rather than dead-end: the host raises a fresh
+          // card and the model waits, exactly as on a first ask.
+          if (approval === "approval_required") return confirm();
+          return assistantErrorResult(name, await errorFromResponse(res));
+        }
+        try {
+          const text = await res.text();
+          return assistantOkResult(name, text ? JSON.parse(text) : null);
+        } catch (err) {
+          return assistantErrorResult(name, {
+            code: "transport_error",
+            status: res.status,
+            message: `The operation answered something unreadable: ${err instanceof Error ? err.message : String(err)}`,
+          });
+        }
       }
-      try {
-        const text = await res.text();
-        return assistantOkResult(name, text ? JSON.parse(text) : null);
-      } catch (err) {
-        return assistantErrorResult(name, {
-          code: "transport_error",
-          status: res.status,
-          message: `The operation answered something unreadable: ${err instanceof Error ? err.message : String(err)}`,
-        });
+      async function confirm(): Promise<AssistantOperationResult> {
+        const outcome = await requestConfirmation(
+          checkedOp,
+          callParams,
+          opts.call,
+          signal,
+        );
+        return "preApproved" in outcome ? perform(outcome.requestId) : outcome;
       }
+      return op.confirm && !params.requestId
+        ? confirm()
+        : perform(params.requestId);
     },
-  });
-}
-
-/**
- * The live Plan-mode gate. Reads the mode at call time (see
- * `live-mode-gate.ts`), so a switch made while the agent works stops the very
- * next mutation. Reported as a RESULT, not a throw, because that is this tool's
- * whole contract: the model must be able to tell a refusal from a crash.
- */
-function refusedInPlanMode(
-  method: string,
-  name: string,
-): AssistantOperationResult | undefined {
-  if (method === "GET" || currentTurnMode() !== "plan") return undefined;
-  return assistantErrorResult(name, {
-    code: "operation_not_supported",
-    message: `The user just switched this conversation to Plan mode, so you can no longer change anything in Houston. ${name} was NOT performed. Stop acting now: summarize what you already did, then lay out the remaining work as a clear step-by-step plan in plain language for the user to approve, and end your turn.`,
   });
 }

@@ -1,3 +1,4 @@
+import type { Route } from "@playwright/test";
 import {
   showFewerProviders,
   subscriptionCard,
@@ -15,6 +16,8 @@ import {
 import { openManagerOnboarding, resetToFirstRun } from "./support/onboarding";
 
 import { workspaceMenuTrigger } from "./support/workspace-menu";
+
+const CONNECT_WAITING = "Waiting for you to sign in";
 
 /**
  * First run's opening: the AI Manager's conversation, inside the workspace
@@ -110,4 +113,34 @@ test("a reload mid-onboarding resumes on the step the user left", async ({
   await expect(managerStep(page, "survey-industry")).toBeVisible();
   await expect(receipt(page, "Connected OpenRouter.")).toBeVisible();
   await expect(connectAiStep(page)).toHaveCount(0);
+});
+
+test("the connect card shows at once, before the AI's home has answered", async ({
+  page,
+  request,
+}) => {
+  // A new account's first provider probe waits on its AI home starting up.
+  // Held here for as long as the spec needs: the card must not wait for it.
+  const held: Route[] = [];
+  let holding = true;
+  await page.route("**/setup-runtime/providers", async (route) => {
+    if (holding) held.push(route);
+    else await route.continue();
+  });
+  await resetToFirstRun(request);
+  await openManagerOnboarding(page);
+
+  await expect(connectAiStep(page)).toBeVisible();
+  const claude = subscriptionCard(page, "Claude");
+  await expect(claude).toBeEnabled();
+  // Pressed before the probe answers: it reads as connecting at once, and
+  // the sign-in itself starts when the probe lands.
+  await claude.click();
+  await expect(
+    connectAiStep(page).getByText(CONNECT_WAITING, { exact: true }),
+  ).toBeVisible();
+
+  holding = false;
+  for (const route of held.splice(0)) await route.continue();
+  await expect(connectAiStep(page)).toBeVisible();
 });

@@ -5,11 +5,12 @@
  * card's own employee cards, each named for its job and open to change.
  * "Hire one more" adds a card, a draft's Remove lets it go, and "Hire my
  * team" hires everyone (each created behind the person). The finish waits
- * for every hire; the manager then closes on the person's goal: "Yes, let's do it" or "Not now" hands the view to the real chat. A
+ * for every hire; the manager then closes on the person's goal and opens the
+ * real chat. A
  * run resumed with AI Employees already hired first offers "Hire one more"
  * or "That's my team".
  */
-import { expect, type Locator, type Page } from "@playwright/test";
+import { expect, type Locator, type Page, type Route } from "@playwright/test";
 import { prefilledName } from "./employee-name";
 import {
   GOAL_ANSWER,
@@ -25,8 +26,8 @@ export const TEAM_DONE_CHOICE = "That's my team";
 /** The starter team's three jobs, in the order the card shows them. */
 export const STARTER_ROLES = [
   "Executive assistant",
-  "Operations manager",
-  "Finance manager",
+  "Bookkeeper",
+  "Accounts payable clerk",
 ] as const;
 
 /** The job "Hire one more" deals first: the first shared job no starter
@@ -128,58 +129,73 @@ export async function hireStarterTeam(
   return hired;
 }
 
-/** The manager's closing, once the team is built: separate messages, in
- *  order. What the manager does is told as far as the deployment reaches;
- *  the fake host serves no shared spaces and no integrations. */
+/** The team card the manager closes on, once the team is built. What the
+ *  manager does is told as far as the deployment reaches; the fake host
+ *  serves no shared spaces and no integrations. */
 export const CLOSING_LINES = [
   "Your team is ready!",
-  "Open any of your AI Employees to start their first day of work.",
-  "Remember that I'm your AI Manager and I'm here to help. I hand out missions to your AI Employees and hire new ones when you need them.",
+  "Open any of your AI Employees to give them work directly.",
+] as const;
+export const MANAGER_ABILITIES = [
+  "Hand out missions",
+  "Hire new AI Employees",
 ] as const;
 
-/** The closing's last message for a person who named a goal. */
-export function goalOffer(goal: string = GOAL_ANSWER): string {
-  return `You'd love to hand off: “${goal}”. Want me to put an AI Employee on it?`;
+export function teamCard(scope: Page | Locator): Locator {
+  return scope.getByTestId("onboarding-team-card");
 }
 
-/** The closing's two answers to the goal offer. */
-export const HANDOFF_YES = "Yes, let's do it";
-export const HANDOFF_NOT_NOW = "Not now";
-
-/** The goal offer's answer, by its label. */
-export function handoffAnswer(page: Page, label: string): Locator {
-  return page
-    .getByTestId("manager-handoff")
-    .getByRole("button", { name: label, exact: true });
+export function goalCard(scope: Page | Locator): Locator {
+  return scope.getByTestId("onboarding-goal-card");
 }
 
-/** Wait for the closing messages and the offer to start on the goal. */
+/** Wait for the team card in the real chat, then the goal card under it. */
 export async function expectClosing(
   page: Page,
   goal: string = GOAL_ANSWER,
 ): Promise<void> {
-  const chat = managerOnboarding(page);
-  for (const line of [...CLOSING_LINES, goalOffer(goal)])
-    await expect(chat.getByText(line, { exact: true })).toBeVisible({
+  const chat = page.getByTestId("assistant-chat");
+  const card = teamCard(chat);
+  for (const line of [...CLOSING_LINES, ...MANAGER_ABILITIES])
+    await expect(card.getByText(line, { exact: true })).toBeVisible({
       timeout: 15_000,
     });
-  await expect(handoffAnswer(page, HANDOFF_YES)).toBeVisible();
+  await expect(goalCard(chat).getByText(`“${goal}”`)).toBeVisible();
 }
 
 /**
- * Close the conversation once the team is built: wait for the manager's
- * closing and its offer to start on the goal, answer "Not now", and land on
- * the real AI Manager chat, which opens on the conversation just had: its
- * lines were imported as the manager's real history, the offer included.
+ * Wait for the real AI Manager chat after the scripted closing and transcript
+ * import. The person's goal starts as its first real turn, drawn as the goal
+ * card.
  */
-export async function finishOnboarding(
-  page: Page,
-  mode: PressMode = "click",
-): Promise<void> {
-  await expectClosing(page);
-  await press(handoffAnswer(page, HANDOFF_NOT_NOW), mode);
+export async function finishOnboarding(page: Page): Promise<void> {
   const chat = page.getByTestId("assistant-chat");
-  await expect(chat).toBeVisible();
+  await expect(chat).toBeVisible({ timeout: 15_000 });
   await expect(managerOnboarding(page)).toHaveCount(0);
-  await expect(chat.getByText(goalOffer(), { exact: true })).toBeVisible();
+  await expect(teamCard(chat)).toBeVisible();
+  await expect(goalCard(chat)).toBeVisible();
+}
+
+/**
+ * Hold the closing's save: onboarding finishes only once its conversation is
+ * written into the manager's chat, so a held import keeps the person inside
+ * onboarding, on the closing, for as long as a spec needs (a reload there).
+ * The returned release lets every held save through, including the one a
+ * reloaded app retries as it boots; one from before a reload is already gone.
+ */
+export async function holdClosingSave(
+  page: Page,
+): Promise<() => Promise<void>> {
+  const pattern = "**/conversations/*/import";
+  const held: Route[] = [];
+  await page.route(pattern, (route) => {
+    held.push(route);
+  });
+  return async () => {
+    await page.unroute(pattern);
+    for (const route of held.splice(0))
+      await route.continue().catch(() => {
+        // Its page was reloaded away: there is nothing left to let through.
+      });
+  };
 }

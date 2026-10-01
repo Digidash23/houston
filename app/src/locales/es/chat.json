@@ -414,7 +414,15 @@
   "copyMessage": {
     "copy": "Copiar mensaje"
   },
+  "startedMission": {
+    "heading": "{{name}} se encarga de esto",
+    "open": "Abrir",
+    "openMission": "Abrir {{title}}",
+    "unavailable": "Ya no está en tu equipo"
+  },
   "approvalCard": {
+    "hire": "¿Contratar a {{name}}?",
+    "instructionsLabel": "Ver sus instrucciones",
     "approve": "Sí, adelante",
     "decline": "No, no lo hagas",
     "closing": "No puedo deshacer esto por ti. ¿Quieres continuar?",

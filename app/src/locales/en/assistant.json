@@ -32,17 +32,42 @@
       "teamResume_one": "You already have 1 AI Employee on your team. Let's pick up where you left off.",
       "teamResume_other": "You already have {{count}} AI Employees on your team. Let's pick up where you left off.",
       "closingReady": "Your team is ready!",
-      "closingEmployees": "Open any of your AI Employees to start their first day of work.",
+      "closingEmployees": "Open any of your AI Employees to give them work directly.",
       "closingManager": {
         "all": "Remember that I'm your AI Manager and I'm here to help. I hand out missions to your AI Employees, hire new ones when you need them, invite your teammates and connect the tools they need.",
         "invite": "Remember that I'm your AI Manager and I'm here to help. I hand out missions to your AI Employees, hire new ones when you need them and invite your teammates.",
         "connect": "Remember that I'm your AI Manager and I'm here to help. I hand out missions to your AI Employees, hire new ones when you need them and connect the tools they need.",
         "core": "Remember that I'm your AI Manager and I'm here to help. I hand out missions to your AI Employees and hire new ones when you need them."
       },
-      "closingGoal": "You'd love to hand off: “{{goal}}”. Want me to put an AI Employee on it?",
       "closingAsk": "What's a task you'd normally do yourself? Tell me and I'll get it done.",
       "profileIntro": "Hi again! A couple of quick questions so I can tailor everything to the way you work.",
       "profileThanks": "Thanks, that helps me a lot."
+    },
+    "teamCard": {
+      "open": "Open",
+      "managerTitle": "And I'm here to help",
+      "abilities": {
+        "missions": "Hand out missions",
+        "hire": "Hire new AI Employees",
+        "invite": "Invite your teammates",
+        "connect": "Connect your tools"
+      }
+    },
+    "goalCard": {
+      "title": "Starting your goal",
+      "goal": "“{{goal}}”",
+      "find": "Finding the right person",
+      "hiring": "Hiring your {{name}}",
+      "hired": "Hired your {{name}}",
+      "picked": "Picked {{name}}",
+      "assign": "Assign the task",
+      "assigning": "Assigning the task",
+      "assigned": "Task assigned",
+      "work": "Get to work",
+      "working": "{{name}} is on it",
+      "open": "Open {{name}}",
+      "tip": "You can also open any AI Employee to give them work yourself.",
+      "failed": "I couldn't get this started."
     },
     "questions": {
       "companySize": "How big is your company?"
@@ -72,10 +97,6 @@
     "roster": {
       "joining": "Joining",
       "hired": "Ready"
-    },
-    "handoff": {
-      "yes": "Yes, let's do it",
-      "notNow": "Not now"
     },
     "finish": {
       "profileAction": "Continue"

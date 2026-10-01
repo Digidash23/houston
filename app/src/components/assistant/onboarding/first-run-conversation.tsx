@@ -34,10 +34,10 @@ import {
   ONBOARDING_SURVEY_STEPS,
 } from "../../onboarding/survey-steps";
 import { ManagerChat } from "./manager-chat";
-import { ManagerGoalHandoff } from "./manager-goal-handoff";
 import type { ManagerOnboardingState } from "./manager-onboarding-context";
 import { ManagerSurveyCard } from "./manager-survey-card";
 import { ManagerTeamPrompt } from "./manager-team-prompt";
+import { useGoalHandoff } from "./use-goal-handoff";
 import { useFinishWithTranscript } from "./use-onboarding-transcript";
 import { useScriptCopy } from "./use-script-copy";
 
@@ -47,13 +47,13 @@ type FirstRun = Extract<ManagerOnboardingState, { mode: "first_run" }>;
  * The first-run conversation, derived from what is persisted (the connected
  * provider, the survey record, the AI Employees already hired) plus the team
  * answers of this session, so a reload resumes on the step it left with its
- * answers as history. It ends on the person's goal, which "Yes" hands to the
- * real chat to start, or, with no goal, in the real chat by itself.
+ * answers as history. It starts the person's goal in the real chat once the
+ * closing has been said.
  */
 export function FirstRunConversation({ state }: { state: FirstRun }) {
   const copy = useScriptCopy();
   const { capabilities } = useCapabilities();
-  // Where discovery serves no manager, nobody acts on the closing's offer.
+  // Where discovery serves no manager, nobody acts on the closing goal.
   const { showAssistant } = useSurfaceGates();
   const reach = showAssistant ? managerReach(capabilities) : null;
   const { data: session } = useSession();
@@ -76,10 +76,10 @@ export function FirstRunConversation({ state }: { state: FirstRun }) {
   const earlier = earlierHires(agents, earlierIds);
 
   const record = state.survey.survey;
+  // The connect step never waits on the provider probe: its card shows at
+  // once and waits for the probe itself only if a Connect is pressed.
   const loading =
-    state.stage === "connectAi"
-      ? scan.isLoading
-      : state.stage === "team" && (workspaceId === null || earlierIds === null);
+    state.stage === "team" && (workspaceId === null || earlierIds === null);
   const script = firstRunScript({
     stage: state.stage,
     firstName: firstNameOf(session?.displayName),
@@ -97,6 +97,22 @@ export function FirstRunConversation({ state }: { state: FirstRun }) {
     copy,
     state.finish,
   );
+  const facts = surveyAbout(record);
+  const industry =
+    facts.industry ??
+    team.entries.findLast((entry) => entry.question === "teamIndustry")
+      ?.value ??
+    null;
+  const startGoal = useGoalHandoff({
+    goal: record?.automationGoal ?? null,
+    about: {
+      industry: industry === null ? null : copy.answer("industry", industry),
+      role: facts.role === null ? null : copy.answer("role", facts.role),
+      companySize: facts.companySize,
+    },
+    reach,
+    finish: finishing.done,
+  });
   const missing = ONBOARDING_SURVEY_STEPS.filter(
     (question) => !surveyAnswered(record, question),
   );
@@ -141,22 +157,6 @@ export function FirstRunConversation({ state }: { state: FirstRun }) {
         }
       />
     );
-  // The offer is only made where a manager is served (`closingPart`).
-  if (script.prompt.kind === "handoff" && reach) {
-    const facts = surveyAbout(record);
-    prompt = (
-      <ManagerGoalHandoff
-        goal={script.prompt.goal}
-        about={{
-          role: facts.role === null ? null : copy.answer("role", facts.role),
-          companySize: facts.companySize,
-        }}
-        reach={reach}
-        finish={finishing.done}
-      />
-    );
-  }
-
   return (
     <ManagerChat
       lines={script.lines}
@@ -164,9 +164,7 @@ export function FirstRunConversation({ state }: { state: FirstRun }) {
       prompt={prompt}
       locked={teamBusy}
       onChange={change}
-      onSaid={
-        script.prompt.kind === "openChat" ? () => finishing.done() : undefined
-      }
+      onSaid={script.prompt.kind === "openChat" ? startGoal : undefined}
     />
   );
 }

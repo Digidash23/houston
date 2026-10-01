@@ -1,6 +1,16 @@
 import { expect, test } from "vitest";
 import { asSendInput } from "./turn-inputs";
 
+test("the send command admits only known user message grants", () => {
+  expect(
+    asSendInput({ conversationId: "c", text: "hire", grants: ["createAgent"] })
+      .grants,
+  ).toEqual(["createAgent"]);
+  expect(() =>
+    asSendInput({ conversationId: "c", text: "hire", grants: ["deleteAgent"] }),
+  ).toThrow();
+});
+
 /**
  * The `turns/send` envelope guard: the dispatch path hands `asSendInput` raw
  * JSON, so it must pass exactly the known per-turn mode literals and drop

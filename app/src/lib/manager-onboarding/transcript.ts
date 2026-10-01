@@ -4,6 +4,7 @@ import type {
   ConversationImportRequest,
 } from "@houston/wire-types";
 import { encodeInteractionAnswers } from "../interaction-answers-marker.ts";
+import { encodeTeamCard } from "./onboarding-card-markers.ts";
 import type { ScriptLine } from "./script-types.ts";
 
 /** Which onboarding conversation the manager ran. */
@@ -55,6 +56,15 @@ function answerMessage(receipt: { question?: string; answer: string }): string {
   );
 }
 
+/** A manager line as its chat keeps it: the team card behind its marker over
+ *  the words the model reads, any other line as its words. */
+function managerMessage(line: ManagerLine, copy: TranscriptCopy): string {
+  const text = copy.manager(line);
+  return line.id === "closingTeam"
+    ? encodeTeamCard({ reach: line.reach ?? null }, text)
+    : text;
+}
+
 /**
  * The finished onboarding conversation as the manager's real history: each
  * manager line an assistant message and each answer a user message, in the
@@ -75,7 +85,7 @@ export function onboardingTranscript(
     messages: lines.map(
       (line): ConversationImportMessage =>
         line.kind === "manager"
-          ? { role: "assistant", content: copy.manager(line) }
+          ? { role: "assistant", content: managerMessage(line, copy) }
           : { role: "user", content: answerMessage(copy.receipt(line)) },
     ),
   };

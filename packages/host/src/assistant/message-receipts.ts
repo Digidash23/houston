@@ -1,10 +1,15 @@
 import { createHash } from "node:crypto";
 import {
   type MessageAdmissionReceipt,
+  MessageGrantsSchema,
   messageRetryContent,
   parseMessageNonce,
 } from "@houston/protocol";
 import type { AgentId } from "../domain/types";
+import {
+  assistantRuntimeRole,
+  MANAGED_CLOUD_ENV,
+} from "../launcher/assistant-role";
 import type { ApprovalStore } from "./approvals";
 import { applyApprovalReceipts } from "./receipts";
 
@@ -14,20 +19,23 @@ export class ApprovalMessageRefusal extends Error {
       | "nonce_conflict"
       | "invalid_nonce"
       | "approval_guard_busy"
-      | "approval_guard_unavailable",
+      | "approval_guard_unavailable"
+      | "grants_not_allowed"
+      | "invalid_grants",
   ) {
     super(code);
   }
 }
 
 /** The host-owned fields a client may propose but never have forwarded. */
-const HOST_OWNED = ["approvals", "hostMessageFingerprint"] as const;
+const HOST_OWNED = ["approvals", "grants", "hostMessageFingerprint"] as const;
 
 function withoutHostFields(
   body: Record<string, unknown>,
 ): Record<string, unknown> {
   const {
     approvals: _receipts,
+    grants: _grants,
     hostMessageFingerprint: _untrusted,
     ...rest
   } = body;
@@ -50,6 +58,7 @@ export function prepareMessageReceipts(input: {
   agentId: AgentId;
   conversationId: string;
   actor: string;
+  grantActor?: string;
   body: Buffer;
   /** The body's parsed object (`turn-body.ts`), or null when it is not one. */
   parsed: Record<string, unknown> | null;
@@ -59,6 +68,16 @@ export function prepareMessageReceipts(input: {
   // A body that is not the JSON this route speaks is left entirely alone: what
   // to tell the client about it belongs to the channel it is headed for.
   if (!body) return { body: input.body };
+  const grants =
+    body.grants === undefined
+      ? undefined
+      : MessageGrantsSchema.safeParse(body.grants);
+  if (grants && !grants.success)
+    throw new ApprovalMessageRefusal("invalid_grants");
+  if (grants && !assistantRuntimeRole({ agentId: input.agentId }))
+    throw new ApprovalMessageRefusal("grants_not_allowed");
+  if (grants && process.env[MANAGED_CLOUD_ENV] === "1" && !input.grantActor)
+    throw new ApprovalMessageRefusal("grants_not_allowed");
   const nonce = parseMessageNonce(body.nonce);
   if (nonce === false) throw new ApprovalMessageRefusal("invalid_nonce");
   // A malformed request must not mutate approvals or reserve an identity - and
@@ -99,6 +118,23 @@ export function prepareMessageReceipts(input: {
       conversationId: input.conversationId,
       field: body.approvals,
     });
+  // A grant is the approval of the message it rode on, for that one turn: a
+  // new message starts a new turn, so whatever an earlier one left unspent
+  // can no longer skip a card.
+  if (guard?.kind !== "duplicate")
+    input.approvals.grants.clear(input.agentId, input.conversationId);
+  const issuedGrants: string[] = [];
+  if (guard?.kind !== "duplicate" && grants?.success)
+    for (const operation of new Set(grants.data))
+      issuedGrants.push(
+        input.approvals.grants.issue({
+          agentId: input.agentId,
+          conversationId: input.conversationId,
+          operation,
+          actor: input.grantActor ?? input.actor,
+          requiresActor: input.grantActor !== undefined,
+        }),
+      );
   // Receipts never reach the runtime, even after they expired or were spent,
   // and the retry fingerprint it does see is authored here, never copied.
   return {
@@ -110,7 +146,15 @@ export function prepareMessageReceipts(input: {
           }),
         )
       : forwarded(body, input.body),
-    ...(guard?.kind === "new" ? { release: guard.release } : {}),
+    // A rejected turn never carried the person's grant into a live conversation.
+    ...(guard?.kind === "new" || issuedGrants.length
+      ? {
+          release: () => {
+            if (guard?.kind === "new") guard.release();
+            for (const id of issuedGrants) input.approvals.grants.revoke(id);
+          },
+        }
+      : {}),
     ...(guard?.kind === "duplicate" ? { duplicate: true as const } : {}),
   };
 }

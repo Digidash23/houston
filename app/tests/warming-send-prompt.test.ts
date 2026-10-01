@@ -1,10 +1,12 @@
 import { deepStrictEqual, ok, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
+import { encodeAutoContinue } from "@houston/protocol";
 import type {
   PendingWarmingSend,
   ProvisioningEntry,
 } from "../src/lib/agent-provisioning/entry.ts";
 import { parsePersistedProvisioning } from "../src/lib/agent-provisioning/persist.ts";
+import { buildAttachmentPrompt } from "../src/lib/attachment-message.ts";
 import {
   hasHiddenPrompt,
   missionPrompt,
@@ -50,6 +52,21 @@ describe("the prompt a queued warming send delivers", () => {
       prompt: KICKOFF,
       source: "persisted",
     });
+  });
+
+  it("a context-only Manager kickoff survives a relaunch mid-warm-up", () => {
+    const prompt = buildAttachmentPrompt(
+      "",
+      [],
+      [],
+      encodeAutoContinue("Start the goal."),
+    );
+    const send = afterReload({ sessionKey: "manager", text: "", prompt });
+    deepStrictEqual(chooseWarmingPrompt(send, undefined), {
+      prompt,
+      source: "persisted",
+    });
+    ok(prompt.startsWith("<!--houston:auto_continue-->"));
   });
 
   it("the live builder wins over the prompt stored at queue time", () => {

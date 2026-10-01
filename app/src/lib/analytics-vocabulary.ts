@@ -64,9 +64,6 @@ export type AnalyticsProperty =
   // Which screen asked the question: "first_run_role" (the onboarding flow)
   // or "profile_completion" (the later prompt for an unfinished survey).
   | "source_screen"
-  // The answer to the onboarding's offer to start on the automation goal
-  // (onboarding_goal_handoff): "accepted" or "declined".
-  | "choice"
   // The automation goal IN THE USER'S OWN WORDS. Deliberately absent from
   // ALLOWED_PROPS: it is free text, so it never rides an event (autocapture
   // masks user content and events must stay content-free). `track` reads it
@@ -123,7 +120,6 @@ export const ALLOWED_PROPS = new Set<AnalyticsProperty>([
   "goal_provided",
   "missing_steps",
   "source_screen",
-  "choice",
   "chapter",
   "lesson",
   "role",

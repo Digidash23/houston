@@ -27,6 +27,7 @@ export type SnapshotTool = {
   input?: unknown;
   isError?: boolean;
   content?: string;
+  mission?: { id: string; title: string; agent: string };
 };
 
 export type ConversationSnapshot = {
@@ -116,6 +117,7 @@ export function reduceSnapshot(
             ...t,
             isError: event.data.isError,
             ...(event.data.content ? { content: event.data.content } : {}),
+            ...(event.data.mission ? { mission: event.data.mission } : {}),
           };
           break;
         }

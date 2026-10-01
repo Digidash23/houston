@@ -142,3 +142,63 @@ test("a value past the limit says how much it cut, structurally too", () => {
   // surfaces that have no wording of their own.
   expect(summary.detail).toContain("and 500 more characters");
 });
+
+test("nested object and array arguments read as labeled facts without JSON", () => {
+  const summary = confirmationSummary(
+    op("updateActivity", "Update a mission."),
+    {
+      patch: { title: "Collect receipts", members: ["Ada", "Sam"] },
+    },
+  );
+
+  expect(summary.args).toEqual([
+    { name: "patch.title", value: "Collect receipts", long: false },
+    { name: "patch.members 1", value: "Ada", long: false },
+    { name: "patch.members 2", value: "Sam", long: false },
+  ]);
+  expect(`${summary.title} ${summary.detail ?? ""}`).not.toMatch(/[{}[\]\\]/);
+  expect(summary.title).toContain("patch title");
+});
+
+test("a hire's starting instructions reach the card whole", () => {
+  const claudeMd = `---\nrole: Collector\n---\n\n${"Follow up. ".repeat(250)}`;
+  const summary = confirmationSummary(
+    op("createAgent", "Hire an AI Employee."),
+    {
+      name: "Document Collector",
+      seed: { claudeMd },
+    },
+  );
+  expect(summary.args.find((arg) => arg.name === "seed.claudeMd")?.value).toBe(
+    claudeMd,
+  );
+  expect(summary.title).toBe("Hire Document Collector?");
+  expect(summary.detail).toContain("Role: Collector");
+  expect(summary.detail).toContain("Instructions:\nFollow up.");
+  expect(summary.detail).not.toContain("---");
+  expect(summary.detail).not.toContain("{");
+});
+
+test("two different calls never read identically", () => {
+  const read = (params: Record<string, unknown>) =>
+    confirmationSummary(op("set", "Set it."), params).args;
+  expect(read({ field: null })).not.toEqual(read({ field: "none" }));
+  expect(read({ field: { a: { "b.c": 1 } } })).not.toEqual(
+    read({ field: { a: { b: { c: 1 } } } }),
+  );
+  expect(read({ field: "none" })).not.toEqual(read({ field: '"none"' }));
+  // No limit is not an empty allowed list.
+  expect(read({ allowedModels: null })).not.toEqual(
+    read({ allowedModels: [] }),
+  );
+  expect(read({ field: [] })).not.toEqual(read({ field: {} }));
+  expect(read({ x: { a: ["v"] } })).not.toEqual(read({ x: { "a 1": "v" } }));
+});
+
+test("a long list stays one argument, cut where the card says so", () => {
+  const items = Array.from({ length: 5000 }, (_, i) => `item-${i}`);
+  const args = confirmationSummary(op("set", "Set it."), { items }).args;
+  expect(args).toHaveLength(1);
+  expect(args[0]).toMatchObject({ name: "items", long: true });
+  expect(args[0]?.truncated).toBeGreaterThan(0);
+});

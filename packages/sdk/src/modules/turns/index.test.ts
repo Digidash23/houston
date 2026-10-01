@@ -357,8 +357,8 @@ test("observe replays the running turn's thinking + tools from the sync, deduped
   // Both results landed exactly once, carrying their output previews.
   const results = feed.filter((f) => f.feed_type === "tool_result");
   expect(results.map((f) => f.data)).toEqual([
-    { content: "ok", is_error: false },
-    { content: "the file body", is_error: false },
+    { name: "bash", content: "ok", is_error: false },
+    { name: "read", content: "the file body", is_error: false },
   ]);
 });
 

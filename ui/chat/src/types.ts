@@ -53,6 +53,20 @@ type FeedItemIdentity = { id?: string };
 /** The engine-authored system lines a host may localize by kind. */
 export type SystemNoticeKind = "engine_restart" | "engine_resumed";
 
+/**
+ * A row the host draws itself, placed in the log like any message. `kind`
+ * names it and `payload` carries what the host needs to draw it; the chat
+ * never reads either, and hands the row to `renderSystemMessage`. Never on
+ * the wire: a host adds it when it maps its feed.
+ */
+export interface HostCard {
+  kind: string;
+  payload: unknown;
+  /** The card shows its own progress while a turn runs, so the log draws no
+   *  thinking line under it. */
+  ownsProgress?: boolean;
+}
+
 export type FeedItem = FeedItemVariant & FeedItemIdentity;
 
 type FeedItemVariant =
@@ -83,8 +97,17 @@ type FeedItemVariant =
       turnId?: string;
     }
   | { feed_type: "provider_error"; data: ProviderError }
+  | { feed_type: "host_card"; data: HostCard }
   | { feed_type: "tool_call"; data: { name: string; input: unknown } }
-  | { feed_type: "tool_result"; data: { content: string; is_error: boolean } }
+  | {
+      feed_type: "tool_result";
+      data: {
+        name?: string;
+        content: string;
+        is_error: boolean;
+        mission?: { id: string; title: string; agent: string };
+      };
+    }
   | {
       feed_type: "system_message";
       data: string;

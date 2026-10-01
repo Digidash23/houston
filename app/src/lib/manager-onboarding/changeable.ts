@@ -10,7 +10,6 @@ import type {
 /** The prompts that end the conversation: nothing is asked again after. */
 const ENDING: ReadonlySet<ScriptPrompt["kind"]> = new Set([
   "finish",
-  "handoff",
   "openChat",
 ]);
 

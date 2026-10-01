@@ -1,4 +1,5 @@
 import type {
+  GrantableOperation,
   MessageApproval,
   MessageMention,
   SessionStartRequest,
@@ -15,7 +16,7 @@ import type {
 /** The fields a flush derives from the whole queue rather than its last entry. */
 export type MergedSendFields = Pick<
   SessionStartRequest,
-  "prompt" | "displayText" | "mentions" | "approvals"
+  "prompt" | "displayText" | "mentions" | "approvals" | "grants"
 >;
 
 /** Trim, drop the empties, and join blank-line-separated — the shape the old
@@ -64,6 +65,15 @@ function unionApprovals(
   return seen.size > 0 ? [...seen.values()] : undefined;
 }
 
+function unionGrants(
+  reqs: readonly SessionStartRequest[],
+): GrantableOperation[] | undefined {
+  const grants = new Set<GrantableOperation>();
+  for (const req of reqs)
+    for (const operation of req.grants ?? []) grants.add(operation);
+  return grants.size ? [...grants] : undefined;
+}
+
 /**
  * Combine the held requests' prompt, bubble text, @mentions and approvals.
  *
@@ -83,5 +93,6 @@ export function mergeSendFields(
       : undefined,
     mentions: unionMentions(reqs),
     approvals: unionApprovals(reqs),
+    grants: unionGrants(reqs),
   };
 }

@@ -414,7 +414,15 @@
   "copyMessage": {
     "copy": "Copiar mensagem"
   },
+  "startedMission": {
+    "heading": "{{name}} está cuidando disso",
+    "open": "Abrir",
+    "openMission": "Abrir {{title}}",
+    "unavailable": "Não está mais na sua equipe"
+  },
   "approvalCard": {
+    "hire": "Contratar {{name}}?",
+    "instructionsLabel": "Ver as instruções",
     "approve": "Sim, pode continuar",
     "decline": "Não, não faça isso",
     "closing": "Não posso desfazer isso para você. Quer continuar?",

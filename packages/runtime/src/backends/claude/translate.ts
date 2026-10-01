@@ -48,7 +48,7 @@ export function createStreamTranslator(cb: TranslatorCallbacks) {
         if (isAssistantMessageStart(msg)) blocks.onMessageStart();
         return blocks.onStreamEvent(msg.event as EventLike);
       case "user":
-        return blocks.onUserMessage(msg.message?.content);
+        return blocks.onUserMessage(msg.message?.content, msg.tool_use_result);
       case "assistant":
         return onAssistant(msg);
       case "result":

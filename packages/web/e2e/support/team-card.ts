@@ -21,8 +21,8 @@ export const TEAM_CARD_INDUSTRY = "Manufacturing";
 /** The basic team's three starters, in the order the card lists them. */
 export const BASIC_TEAM_ROLES = [
   "Executive assistant",
-  "Operations manager",
-  "Finance manager",
+  "Production planner",
+  "Production supervisor",
 ] as const;
 
 /**
