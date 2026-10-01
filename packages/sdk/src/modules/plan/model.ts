@@ -49,18 +49,14 @@ const MAX_TIMER_MS = 2_147_483_647;
 const MIN_REFRESH_MS = 30_000;
 
 /**
- * Refetch at the next instant the summary changes on its own: the launch, the
- * end of the early offer, and the weekly reset that unblocks the composer.
+ * Refetch at the next instant the summary changes on its own: the launch and
+ * the weekly reset that unblocks the composer.
  */
 export function planLaunchRefreshDelay(
   plan: PlanSummary | undefined,
   now: number,
 ): number | false {
-  const dates = [
-    plan?.limitsStartAt,
-    plan?.plus.offer?.endsAt,
-    plan?.usage?.resetsAt,
-  ]
+  const dates = [plan?.limitsStartAt, plan?.usage?.resetsAt]
     .filter((value): value is string => Boolean(value))
     .map((value) => Date.parse(value))
     .filter(Number.isFinite);

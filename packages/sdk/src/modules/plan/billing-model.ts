@@ -1,5 +1,5 @@
 import type { PlanSummary, PlusInvoice } from "@houston/wire-types";
-import { formatLaunchDate, formatPlanAmount } from "./format";
+import { formatPlanAmount } from "./format";
 
 export interface BillingCards {
   upgrade: boolean;
@@ -48,17 +48,9 @@ export function planPriceAmounts(plan: PlanSummary, locale?: string) {
   };
 }
 
-export function planOffer(
-  plan: PlanSummary,
-  locale?: string,
-  now = Date.now(),
-) {
+/** The beta tester gift as display values, or null when the person has none. */
+export function planOffer(plan: PlanSummary, locale?: string) {
   const offer = plan.plan === "free" ? plan.plus.offer : undefined;
-  if (!offer || Date.parse(offer.endsAt) <= now) return null;
-  return {
-    amount: formatPlanAmount(offer.amount, offer.currency, locale),
-    from: formatLaunchDate(offer.coversFrom, locale),
-    until: formatLaunchDate(offer.coversUntil, locale),
-    ends: formatLaunchDate(offer.endsAt, locale),
-  };
+  if (!offer) return null;
+  return { amount: formatPlanAmount(offer.amount, offer.currency, locale) };
 }

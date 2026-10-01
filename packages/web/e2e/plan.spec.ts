@@ -10,7 +10,6 @@ import {
   FREE_ROUTINES,
   freePlan,
   installPlanClock,
-  LIMITS_START_AT,
   openBilling,
   openedUrls,
   PAID_INVOICE,
@@ -41,6 +40,13 @@ async function expectNoUnlimited(page: Page): Promise<void> {
   await expect(page.locator("body")).not.toContainText(/unlimited/i);
 }
 
+/** The beta tester gift has no deadline and no launch date to beat. */
+async function expectNoDeadline(page: Page): Promise<void> {
+  await expect(page.locator("body")).not.toContainText(
+    /offer ends|upgrade before|October 1|Oct 1/i,
+  );
+}
+
 test("without the plan capability there is no Billing row", async ({
   page,
 }) => {
@@ -52,7 +58,7 @@ test("without the plan capability there is no Billing row", async ({
   await expect(billingRow(page)).toHaveCount(0);
 });
 
-test("Billing on Free: usage, the struck launch price and the early offer", async ({
+test("Billing on Free: usage, the struck launch price and the beta tester gift", async ({
   page,
 }) => {
   await armPlan({ summary: freePlan() });
@@ -76,10 +82,9 @@ test("Billing on Free: usage, the struck launch price and the early offer", asyn
   ).toBeVisible();
   await expect(
     billing.getByText(
-      "Upgrade before Oct 1, 2026: $10 today covers Oct 1, 2026 to Nov 1, 2026, then $15 per month",
+      "Beta tester gift: your first month for $10, then $15 per month",
     ),
   ).toBeVisible();
-  await expect(billing.getByText("Offer ends Sep 30, 2026")).toBeVisible();
   await expect(
     billing.getByRole("button", { name: "Get Plus for $10" }),
   ).toBeEnabled();
@@ -87,6 +92,7 @@ test("Billing on Free: usage, the struck launch price and the early offer", asyn
   await expect(billing.getByRole("button", { name: "Manage" })).toHaveCount(0);
   await expect(billing.getByText("No invoices yet")).toBeVisible();
   await expectNoUnlimited(page);
+  await expectNoDeadline(page);
 });
 
 test("Billing on Plus: Manage opens the portal only when it is manageable", async ({
@@ -186,7 +192,7 @@ test("a send refused with message_limit renders the limit card and is not retrie
 }) => {
   await armPlan({
     summary: freePlan({ usage: { percent: 50, used: 20, limit: 40 } }),
-    messageLimit: { limit: 40, resetsAt: "2026-09-27T17:00:00.000Z" },
+    messageLimit: { limit: 40, resetsAt: "2026-10-07T17:00:00.000Z" },
   });
   await page.goto("/");
   await openNewMission(page);
@@ -217,7 +223,7 @@ test("at the enforced limit the composer is replaced by the limit card", async (
         percent: 100,
         used: 40,
         limit: 40,
-        resetsAt: "2026-09-27T17:00:00.000Z",
+        resetsAt: "2026-10-07T17:00:00.000Z",
       },
     }),
   });
@@ -237,34 +243,30 @@ test("at the enforced limit the composer is replaced by the limit card", async (
   ).toBeVisible();
 });
 
-test("at 80% of the preview week the composer shows the usage hint", async ({
+test("at 80% the composer shows the usage hint and the beta tester gift", async ({
   page,
 }) => {
   await stubOpener(page, false);
   await armPlan({
-    summary: freePlan({
-      usage: { percent: 85, used: 34, limit: 40 },
-      limitsStartAt: LIMITS_START_AT,
-    }),
+    summary: freePlan({ usage: { percent: 85, used: 34, limit: 40 } }),
   });
   await page.goto("/");
   await openNewMission(page);
 
   await expect(
-    page.getByText(
-      "You're at 85% of the weekly usage that starts Oct 1, 2026.",
-    ),
+    page.getByText("You’ve used 85% of your weekly usage."),
   ).toBeVisible();
   await expect(
     page.getByText(
-      "Upgrade before Oct 1, 2026 and get your first month for $10.",
+      "Your first month of Plus is $10 as a thank-you for testing the beta.",
     ),
   ).toBeVisible();
   await page.getByRole("button", { name: "Get Plus for $10" }).click();
   await expect.poll(() => planCallCount("checkout")).toBe(1);
-  // The preview never blocks: the composer stays open.
+  // The hint never blocks: the composer stays open.
   await expect(page.getByPlaceholder(NEW_TASK_PLACEHOLDER)).toBeEditable();
   await expectNoUnlimited(page);
+  await expectNoDeadline(page);
 });
 
 test("paused routines: Resume posts once and closes the prompt", async ({
@@ -346,21 +348,31 @@ for (const close of ["Maybe later", "the X", "Escape"] as const) {
   }) => {
     await stubOpener(page, false);
     await armPlan({
-      summary: freePlan({ announcement: true, limitsStartAt: LIMITS_START_AT }),
+      summary: freePlan({ announcement: true }),
     });
     await page.goto("/");
 
     const dialog = announcementDialog(page);
     await expect(dialog).toBeVisible();
     await expect(
-      dialog.getByRole("heading", {
-        name: "Houston officially launches on October 1",
-      }),
+      dialog.getByRole("heading", { name: "Houston has officially launched" }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByText("A thank-you gift for our beta testers"),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole("heading", { name: "Your first month of Plus for $10" }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByText(
+        "Because you tested Houston during the beta, your first month of Plus is $10. Then $15/month.",
+      ),
     ).toBeVisible();
     await expect(
       dialog.getByRole("button", { name: "Get my first month for $10" }),
     ).toBeVisible();
     await expectNoUnlimited(page);
+    await expectNoDeadline(page);
 
     if (close === "Maybe later")
       await dialog

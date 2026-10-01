@@ -60,32 +60,25 @@ describe("plan refresh timing", () => {
   });
 });
 
-describe("the early offer closes at offer.endsAt", () => {
-  const ENDS = Date.parse("2026-10-01T06:28:00Z");
-  const offered: PlanSummary = {
+describe("the beta tester gift", () => {
+  const gifted: PlanSummary = {
     ...free,
-    limitsStartAt: "2026-10-01T07:00:00Z",
-    usage: { percent: 10, used: 4, limit: 40 },
-    plus: {
-      ...free.plus,
-      offer: {
-        amount: 1000,
-        currency: "usd",
-        coversFrom: "2026-10-01T07:00:00Z",
-        coversUntil: "2026-11-01T07:00:00Z",
-        endsAt: "2026-10-01T06:28:00Z",
-      },
-    },
+    plus: { ...free.plus, offer: { amount: 1000, currency: "usd" } },
   };
 
-  it("offers it until endsAt and hides it from that instant", () => {
-    expect(planOffer(offered, "en-US", ENDS - 1)).not.toBeNull();
-    expect(planOffer(offered, "en-US", ENDS)).toBeNull();
+  it("shows the first month's price while the person is eligible", () => {
+    expect(planOffer(gifted, "en-US")).toEqual({ amount: "$10" });
   });
 
-  it("refetches at endsAt, before the launch", () => {
-    const now = ENDS - 3_600_000;
-    expect(planLaunchRefreshDelay(offered, now)).toBe(3_600_000 + 250);
+  it("never shows it on Plus or without an offer", () => {
+    expect(planOffer({ ...gifted, plan: "plus" }, "en-US")).toBeNull();
+    expect(planOffer(free, "en-US")).toBeNull();
+  });
+
+  it("does not schedule a refetch of its own", () => {
+    expect(planLaunchRefreshDelay(gifted, NOW)).toBe(
+      planLaunchRefreshDelay(free, NOW),
+    );
   });
 });
 

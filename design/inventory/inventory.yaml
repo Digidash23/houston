@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 119
+version: 120
 
 components:
   - id: agent-delegation-settings
@@ -2195,13 +2195,13 @@ components:
     title: Personal plan dialogs
     purpose: Ask a Free person to resume routines, choose one to keep, or review the launch plans.
     anatomy: [title, explanation, routine-list, free-plus-teams-panels, thank-you-gift, primary-action, secondary-action]
-    states: [resume, keep, announcement, offer, no-offer, loading, empty]
+    states: [resume, keep, announcement, beta-gift, no-gift, loading, empty]
     variants: [phone, desktop]
     behavior: >-
       The plan summary gates resume before keep before the announcement.
       Dismissing the announcement by any close path persists across devices
-      through the SDK. The offer starts Plus checkout; without it, the primary
-      action opens Billing. Prices and dates come from the plan summary. Only
+      through the SDK. The beta tester gift starts Plus checkout; without it,
+      the primary action opens Billing. Prices come from the plan summary. Only
       a real choice closes a dialog: the synthetic Escape a screen change sends
       is ignored.
     a11y: >-
@@ -2211,13 +2211,13 @@ components:
   - id: personal-billing-screen
     title: Personal billing screen
     purpose: Show a person's Free or Plus plan, weekly usage, routine state, and invoices.
-    anatomy: [heading, current-plan-card, upgrade-card, launch-price, offer-line, usage-card, invoice-list]
-    states: [free, plus, offer, preview, past-due, ending, loading, empty-invoices, error]
+    anatomy: [heading, current-plan-card, upgrade-card, launch-price, gift-line, usage-card, invoice-list]
+    states: [free, plus, beta-gift, preview, past-due, ending, loading, empty-invoices, error]
     variants: [phone, desktop]
     behavior: >-
       Upgrade opens checkout and polls the plan; invoice links open externally.
       Free shows usage as a percentage, including the prelaunch preview, and
-      routine actions. Launch pricing and an early offer appear when supplied.
+      routine actions. Launch pricing and the beta tester gift appear when supplied.
       Plus shows renewal or payment status and subscription management.
     a11y: Visible actions, labeled progress, status announcement, and keyboard-accessible invoice links.
     since: 103
