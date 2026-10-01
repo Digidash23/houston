@@ -52,6 +52,10 @@ async function activityStatus(
   const runtime = channel.runtimeStatus
     ? await channel.runtimeStatus(ctx)
     : "unknown";
+  // A sign-in waiting on its user is not a turn: reported apart, never busy.
+  const loginPending = channel.loginPending
+    ? await channel.loginPending(ctx)
+    : false;
   // Other /agents/* requests held open right now — minus this probe itself.
   // Catches what the turn check cannot: an open conversation-events SSE
   // subscription (an agent open in a UI tab) between turns. Two probes
@@ -60,13 +64,15 @@ async function activityStatus(
   const activeRequests = deps.agentRequestCount
     ? Math.max(0, deps.agentRequestCount() - 1)
     : 0;
-  // The probe is a GET, so it never counts among the writes. turnBusy and
-  // activeWrites let a caller that ignores open reads still see real work.
+  // The probe is a GET, so it never counts among the writes. turnBusy,
+  // loginPending and activeWrites let a caller that ignores open reads still
+  // see real work.
   const activeWrites = deps.agentWriteCount ? deps.agentWriteCount() : 0;
   return {
     busy: turnBusy || runningRoutineRuns > 0 || activeRequests > 0,
     runtime,
     turnBusy,
+    loginPending,
     runningRoutineRuns,
     activeRequests,
     activeWrites,

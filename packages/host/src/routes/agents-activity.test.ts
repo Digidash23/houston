@@ -26,6 +26,7 @@ import { dispatchGroup } from "./registry/all";
 
 class SpyChannel implements RuntimeChannel {
   busyResult = false;
+  loginPendingResult = false;
   runtime = "running" as const;
   dispatched: string[] = [];
   fired: { conversationId: string; text: string; pin?: TurnPin }[] = [];
@@ -55,6 +56,9 @@ class SpyChannel implements RuntimeChannel {
   }
   async busy() {
     return this.busyResult;
+  }
+  async loginPending() {
+    return this.loginPendingResult;
   }
   async runtimeStatus() {
     return this.runtime;
@@ -191,6 +195,7 @@ test("reports idle activity without falling through to runtime dispatch", async 
     busy: false,
     runtime: "running",
     turnBusy: false,
+    loginPending: false,
     runningRoutineRuns: 0,
     activeRequests: 0,
     activeWrites: 0,
@@ -206,6 +211,7 @@ test("reports busy when the channel has an active turn", async () => {
     busy: true,
     runtime: "running",
     turnBusy: true,
+    loginPending: false,
     runningRoutineRuns: 0,
     activeRequests: 0,
     activeWrites: 0,
@@ -221,6 +227,7 @@ test("reports busy when a routine run is still running", async () => {
     busy: true,
     runtime: "running",
     turnBusy: false,
+    loginPending: false,
     runningRoutineRuns: 1,
     activeRequests: 0,
     activeWrites: 0,
@@ -241,6 +248,18 @@ test("counts OTHER held /agents/* requests as busy (open SSE stream)", async () 
   expect((await activity()).json).toMatchObject({
     busy: true,
     activeRequests: 1,
+  });
+});
+
+test("reports a sign-in waiting on its user apart from busy", async () => {
+  // A provider sign-in lives only in the runtime process until the user
+  // finishes it; a pod slept under it drops the sign-in. It is not a turn, so
+  // `busy` (and the usage meters that share its inputs) stay as they were.
+  channel.loginPendingResult = true;
+  expect((await activity()).json).toMatchObject({
+    busy: false,
+    turnBusy: false,
+    loginPending: true,
   });
 });
 

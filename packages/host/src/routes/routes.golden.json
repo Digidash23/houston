@@ -946,6 +946,7 @@
       "activeRequests",
       "activeWrites",
       "busy",
+      "loginPending",
       "runningRoutineRuns",
       "runtime",
       "turnBusy"
@@ -21100,6 +21101,7 @@
       "activeRequests",
       "activeWrites",
       "busy",
+      "loginPending",
       "runningRoutineRuns",
       "runtime",
       "turnBusy"
