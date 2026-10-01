@@ -144,7 +144,8 @@ export async function executeTurn(
       { ...turn, turnId },
       filesystem,
     );
-    const emit = (frame: WireFrame) => {
+    const emit = (raw: WireFrame) => {
+      const frame = turnSandbox ? turnSandbox.present(raw) : raw;
       sse.send(turnLog ? turnLog.record(frame) : frame);
       // The runtime persists the user message right before this frame; land
       // its transcript row now so a gateway that restarts mid-turn can rebuild

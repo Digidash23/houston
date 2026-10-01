@@ -10,6 +10,10 @@ import type { TurnRequest } from "./types";
 const CLAIMED_TURN_EXCLUDES = [
   "workspaces/*/*/.houston/runtime/runtime.log",
   "claude-login/",
+  // Houston's approval records: read and written only through their own
+  // generation-guarded path (turn-approvals.ts), never by the bulk hydrate.
+  "workspaces/*/*/.houston/runtime/assistant-approvals/",
+  "data/assistant-approvals/",
 ];
 
 /** Start hydration with the claimed conversation's read and ownership scope. */

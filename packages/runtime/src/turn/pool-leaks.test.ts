@@ -309,3 +309,66 @@ test("a granted turn keeps every operational secret out of pi, tools, bash, and 
   await response.text();
   expect(observed).toBe(true);
 });
+
+test("Houston's turn keeps its token out of the session, the tree, the store and env", async () => {
+  const coordinatorToken = "assistant-turn-v1.houston-secret-never-persist.sig";
+  let observed = false;
+  const runTurn: TurnRunner = async (filesystem, turn) => {
+    expect(turn.role).toBe("coordinator");
+    expect(JSON.stringify(turn)).not.toContain(coordinatorToken);
+    expect(treeText(join(filesystem.workspaceDir, "../../.."))).not.toContain(
+      coordinatorToken,
+    );
+    expect(Object.values(process.env)).not.toContain(coordinatorToken);
+    observed = true;
+    return {};
+  };
+  const houston = createTurnServer({
+    store,
+    token: "",
+    runTurn,
+    fetchImpl: async (input) =>
+      String(input).includes("/heartbeat")
+        ? new Response(null, { status: 204 })
+        : Response.json({ error: "expired" }, { status: 401 }),
+  });
+  const url = await listen(houston);
+  const response = await fetch(`${url}/turn`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      workspaceId: "w1",
+      agentId: "agent-s",
+      conversationId: "houston-cid",
+      text: "hello",
+      nonce: "n1",
+      gcsPrefix: "ws/w1/agent-s",
+      credential: {
+        provider: "openai-compatible",
+        access: "model-access",
+        expires: Date.now() + 60_000,
+        kind: "api_key",
+      },
+      hostToken: "host-secret-never-persist",
+      actingAs: { userId: "owner-1" },
+      actingToken: "acting-v1.x.y",
+      claim: {
+        id: "claim-houston",
+        bootId: "boot-houston",
+        token: "claim-secret-never-persist",
+        heartbeatUrl: "https://gateway.test/heartbeat",
+      },
+      grant: {
+        url: "https://gateway.test",
+        token: "grant-secret-never-persist",
+        expires: 2_000_000_000,
+        scopes: ["agent-writes"],
+      },
+      coordinator: { token: coordinatorToken, expires: 2_000_000_000 },
+    }),
+  });
+  expect(response.status).toBe(200);
+  await response.text();
+  expect(observed).toBe(true);
+  expect(treeText(storeRoot)).not.toContain(coordinatorToken);
+});
