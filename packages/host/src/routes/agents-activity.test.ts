@@ -598,3 +598,65 @@ test("the real server counts a held write, and never a held read, as a write", a
     await new Promise((r) => server.close(() => r(null)));
   }
 });
+
+test("a write keeps counting after its client hangs up, until its handler settles", async () => {
+  deps.verifier = {
+    async verify() {
+      return { userId: "alice" };
+    },
+  };
+  // A handler still writing files when its client goes away: the gateway's
+  // clock stopped with the client, so this count is all that holds the pod.
+  let started = false;
+  let finish: (() => void) | undefined;
+  channel.dispatch = async (
+    _ctx: ChannelCtx,
+    _method: string,
+    _rest: string,
+    _url: URL,
+    _req: IncomingMessage,
+    writeRes: ServerResponse,
+  ) => {
+    started = true;
+    await new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    if (!writeRes.writableEnded) writeRes.end();
+  };
+  const server = createControlPlaneServer(deps);
+  await new Promise<void>((r) => {
+    server.listen(0, "127.0.0.1", () => r());
+  });
+  const { port } = server.address() as AddressInfo;
+  const agentBase = `http://127.0.0.1:${port}/agents/${encodeURIComponent(agentId)}`;
+  const auth = { Authorization: "Bearer token" };
+  const probe = async () =>
+    (await fetch(`${agentBase}/activity`, { headers: auth })).json();
+  try {
+    const abort = new AbortController();
+    const write = fetch(`${agentBase}/conversations/c1/import`, {
+      method: "POST",
+      headers: { ...auth, "content-type": "application/json" },
+      body: "{}",
+      signal: abort.signal,
+    }).catch(() => null);
+    await vi.waitFor(() => {
+      expect(started).toBe(true);
+    });
+    abort.abort();
+    await write;
+    await vi.waitFor(async () => {
+      expect(await probe()).toMatchObject({ activeRequests: 0 });
+    });
+    expect(await probe()).toMatchObject({ activeWrites: 1 });
+
+    finish?.();
+    await vi.waitFor(async () => {
+      expect(await probe()).toMatchObject({ activeWrites: 0 });
+    });
+  } finally {
+    finish?.();
+    server.closeAllConnections?.();
+    await new Promise((r) => server.close(() => r(null)));
+  }
+});

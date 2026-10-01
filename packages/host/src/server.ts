@@ -105,7 +105,9 @@ export function createControlPlaneServer(deps: ControlPlaneDeps): Server {
   // pod with an open per-agent stream. `close` fires on both completion and a
   // severed connection (and always after `finish` on modern Node), so every
   // increment has exactly one decrement. Writes are also counted on their
-  // own: a waker that ignores open reads must still never sleep one.
+  // own, until the response closes AND the handler settles: a waker that
+  // ignores open reads must still never sleep one, and a handler can keep
+  // writing files after its client hangs up.
   let agentRequests = 0;
   let agentWrites = 0;
   const counted: ControlPlaneDeps = {
@@ -115,14 +117,20 @@ export function createControlPlaneServer(deps: ControlPlaneDeps): Server {
   };
   return createServer((req, res) => {
     const path = (req.url || "/").split("?")[0] ?? "";
+    let writeDone: (() => void) | undefined;
     if (path === "/agents" || path.startsWith("/agents/")) {
-      const write = !READ_METHODS.has((req.method ?? "GET").toUpperCase());
       agentRequests++;
-      if (write) agentWrites++;
       res.once("close", () => {
         agentRequests--;
-        if (write) agentWrites--;
       });
+      if (!READ_METHODS.has((req.method ?? "GET").toUpperCase())) {
+        agentWrites++;
+        let open = 2;
+        writeDone = () => {
+          if (--open === 0) agentWrites--;
+        };
+        res.once("close", writeDone);
+      }
     }
     // Tee the view routes' successful answers into the managed doc store so
     // the gateway can serve them while this pod is asleep. Transparent to the
@@ -135,40 +143,43 @@ export function createControlPlaneServer(deps: ControlPlaneDeps): Server {
         );
       }
     }
-    handle(counted, req, res).catch((err) => {
-      // An over-cap body maps to 413 (Payload Too Large) with its own clean
-      // message; a host mid-shutdown refusing to wake a runtime, or a rename
-      // latch refusing the old id for the few seconds the directory moves
-      // (PRODUCT-1804), answers the gateway's waking shape (503 + Retry-After)
-      // so the client re-sends instead of rendering a bug; everything else is
-      // a 500. Close the connection on 413: capping the body leaves unread
-      // bytes on the socket that would poison keep-alive.
-      const tooLarge = err instanceof BodyTooLargeError;
-      const unavailable =
-        err instanceof LauncherClosedError || err instanceof AgentRenamingError;
-      const message = err instanceof Error ? err.message : String(err);
-      try {
-        if (!res.headersSent) {
-          if (unavailable) {
-            json(
-              res,
-              503,
-              { error: "engine unavailable", detail: message },
-              { "Retry-After": "2" },
-            );
-          } else {
-            json(
-              res,
-              tooLarge ? 413 : 500,
-              { error: message },
-              tooLarge ? { Connection: "close" } : {},
-            );
-          }
-        } else if (!res.writableEnded) res.end();
-      } catch {
-        // The socket was already torn down while aborting the oversized body —
-        // there is nothing left to respond on.
-      }
-    });
+    handle(counted, req, res)
+      .catch((err) => {
+        // An over-cap body maps to 413 (Payload Too Large) with its own clean
+        // message; a host mid-shutdown refusing to wake a runtime, or a rename
+        // latch refusing the old id for the few seconds the directory moves
+        // (PRODUCT-1804), answers the gateway's waking shape (503 + Retry-After)
+        // so the client re-sends instead of rendering a bug; everything else is
+        // a 500. Close the connection on 413: capping the body leaves unread
+        // bytes on the socket that would poison keep-alive.
+        const tooLarge = err instanceof BodyTooLargeError;
+        const unavailable =
+          err instanceof LauncherClosedError ||
+          err instanceof AgentRenamingError;
+        const message = err instanceof Error ? err.message : String(err);
+        try {
+          if (!res.headersSent) {
+            if (unavailable) {
+              json(
+                res,
+                503,
+                { error: "engine unavailable", detail: message },
+                { "Retry-After": "2" },
+              );
+            } else {
+              json(
+                res,
+                tooLarge ? 413 : 500,
+                { error: message },
+                tooLarge ? { Connection: "close" } : {},
+              );
+            }
+          } else if (!res.writableEnded) res.end();
+        } catch {
+          // The socket was already torn down while aborting the oversized body —
+          // there is nothing left to respond on.
+        }
+      })
+      .finally(() => writeDone?.());
   });
 }
