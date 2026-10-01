@@ -1,4 +1,5 @@
 import { EngineError } from "./client";
+import { startIdleWatchdog } from "./idle-watchdog";
 import {
   type ConversationEventSource,
   DEFAULT_BACKOFF_INITIAL_MS,
@@ -53,10 +54,6 @@ export async function streamEventsResumable(
   const initialMs = opts.backoff?.initialMs ?? DEFAULT_BACKOFF_INITIAL_MS;
   const maxMs = opts.backoff?.maxMs ?? DEFAULT_BACKOFF_MAX_MS;
   const jitter = opts.backoff?.jitter ?? ((capMs) => Math.random() * capMs);
-  // Idle detection is a cheap timestamp + one coarse sweep interval — never a
-  // timer re-arm per delivered chunk. The sweep scales down with small (test)
-  // timeouts so the watchdog stays meaningful there too.
-  const sweepMs = Math.min(5_000, Math.max(20, Math.ceil(idleTimeoutMs / 4)));
 
   /** Last seen envelope seq — the reconnect cursor. */
   let after = opts.after;
@@ -69,11 +66,12 @@ export async function streamEventsResumable(
     const attempt = new AbortController();
     const abortAttempt = () => attempt.abort();
     opts.signal.addEventListener("abort", abortAttempt, { once: true });
-    // Covers a connect that never responds too: the timestamp starts now.
-    let lastActivity = Date.now();
-    const watchdog = setInterval(() => {
-      if (Date.now() - lastActivity > idleTimeoutMs) abortAttempt();
-    }, sweepMs);
+    // Silence counts only while the page runs: see `idle-watchdog.ts`.
+    const watchdog = startIdleWatchdog({
+      idleTimeoutMs,
+      now: Date.now,
+      onStall: abortAttempt,
+    });
     let delivered = false;
     /** An exception from the caller's onEvent — rethrown, never retried. */
     let handlerError: unknown;
@@ -84,9 +82,7 @@ export async function streamEventsResumable(
       await source.streamEvents(id, {
         signal: attempt.signal,
         after: legacy ? undefined : after,
-        onActivity: () => {
-          lastActivity = Date.now();
-        },
+        onActivity: () => watchdog.touch(),
         onEvent: (frame) => {
           delivered = true;
           consecutiveFailures = 0;
@@ -106,7 +102,7 @@ export async function streamEventsResumable(
       // below decides between stopping and reconnecting.
       failure = err;
     } finally {
-      clearInterval(watchdog);
+      watchdog.stop();
       opts.signal.removeEventListener("abort", abortAttempt);
     }
 

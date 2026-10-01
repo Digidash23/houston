@@ -1,8 +1,10 @@
 import {
   DEFAULT_GLOBAL_RECONNECT_MS,
   type GlobalEventsOptions,
+  WAKE_SETTLE_MS,
   WAKE_STALE_MS,
 } from "./global-events-contract";
+import { startIdleWatchdog } from "./idle-watchdog";
 import {
   DEFAULT_BACKOFF_MAX_MS,
   DEFAULT_IDLE_TIMEOUT_MS,
@@ -36,7 +38,9 @@ import { readEventStream } from "./sse-read";
  *   every 15s (`packages/host/src/sse.ts`), so silence means a half-open socket
  *   (laptop slept, Wi-Fi switched, NAT dropped the flow) — which otherwise
  *   leaves `reader.read()` pending FOREVER: the tab holds a dead stream, logs
- *   nothing, and reactivity stops against a perfectly healthy host.
+ *   nothing, and reactivity stops against a perfectly healthy host. Silence
+ *   counts only while the page runs (`idle-watchdog.ts`), so a hidden page
+ *   the OS wakes once a minute keeps its healthy stream.
  * - {@link GlobalEventsOptions.wake} lets a surface push "the network is back"
  *   / "the window is visible again" in for instant recovery.
  */
@@ -56,10 +60,6 @@ export async function streamGlobalEvents(
   const idleTimeoutMs = opts.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
   const wait = opts.sleep ?? defaultSleep;
   const now = opts.now ?? Date.now;
-  // Idle detection is a timestamp plus one coarse sweep — never a timer re-arm
-  // per delivered chunk. The sweep scales down with small (test) timeouts so
-  // the watchdog stays meaningful there too.
-  const sweepMs = Math.min(5_000, Math.max(20, Math.ceil(idleTimeoutMs / 4)));
 
   let capMs = initialMs;
   /** Live while an attempt is open: a wake asks it to give up on a dead socket. */
@@ -76,19 +76,23 @@ export async function streamGlobalEvents(
       const attempt = new AbortController();
       const abortAttempt = () => attempt.abort();
       signal.addEventListener("abort", abortAttempt, { once: true });
-      // Starts now, so a connect that never answers is caught too.
-      let lastActivity = now();
       let stalled = false;
       let delivered = false;
       const giveUp = () => {
         stalled = true;
         attempt.abort();
       };
-      const watchdog = setInterval(() => {
-        if (now() - lastActivity > idleTimeoutMs) giveUp();
-      }, sweepMs);
+      const watchdog = startIdleWatchdog({
+        idleTimeoutMs,
+        now,
+        onStall: giveUp,
+      });
+      let settle: ReturnType<typeof setTimeout> | undefined;
       pokeAttempt = () => {
-        if (now() - lastActivity > WAKE_STALE_MS) giveUp();
+        clearTimeout(settle);
+        settle = setTimeout(() => {
+          if (watchdog.silentMs() > WAKE_STALE_MS) giveUp();
+        }, WAKE_SETTLE_MS);
       };
 
       try {
@@ -106,7 +110,7 @@ export async function streamGlobalEvents(
             res.body,
             (frame) => opts.onEvent(frame as unknown),
             () => {
-              lastActivity = now();
+              watchdog.touch();
               // Bytes prove the route works: a stream that drops again after
               // real traffic reconnects fast instead of inheriting the grown
               // backoff of the outage that came before it.
@@ -120,7 +124,8 @@ export async function streamGlobalEvents(
         if (signal.aborted) return; // our own teardown — expected
         opts.onError?.(stalled ? stallError(idleTimeoutMs) : err);
       } finally {
-        clearInterval(watchdog);
+        watchdog.stop();
+        clearTimeout(settle);
         pokeAttempt = undefined;
         signal.removeEventListener("abort", abortAttempt);
       }
