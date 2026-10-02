@@ -9,6 +9,7 @@ import {
   createTurnCustomContext,
   type TurnCustomContext,
 } from "./turn-custom-context";
+import type { CapturedCustomDefinitions } from "./turn-custom-definitions-doc";
 import { TurnDocConflictError } from "./turn-doc-cas";
 import type { TurnFilesystem } from "./turn-filesystem";
 import { makeTurnCodeRoute, TURN_CODE_RUN_PATH } from "./turn-sandbox-code";
@@ -43,7 +44,7 @@ export interface TurnSandboxDeps {
 
 /** Mutation-derived views published after the turn's object sync lands. */
 export interface TurnSandboxViews {
-  customDefinitions?: unknown;
+  customDefinitions?: CapturedCustomDefinitions;
 }
 
 const json = (status: number, body: unknown): Response =>
@@ -85,6 +86,8 @@ export function makeTurnSandboxFetch(deps: TurnSandboxDeps): {
 } {
   const fetchImpl = deps.fetchImpl ?? fetch;
   const views: TurnSandboxViews = {};
+  // Every definition this turn's tools changed, across its custom contexts.
+  const touchedDefinitions = new Set<string>();
   const custom = new Map<AbortSignal | null, TurnCustomContext>();
   const getCustom = async (signal?: AbortSignal | null) => {
     const key = signal ?? null;
@@ -94,6 +97,7 @@ export function makeTurnSandboxFetch(deps: TurnSandboxDeps): {
       ...deps,
       grantUrl: deps.grant.url,
       fetchImpl: fetchWithTurnSignal(fetchImpl, signal),
+      onChanged: (slug) => touchedDefinitions.add(slug),
     });
     custom.set(key, context);
     return context;
@@ -119,7 +123,7 @@ export function makeTurnSandboxFetch(deps: TurnSandboxDeps): {
     getCustom,
     resetCustom,
     (view) => {
-      views.customDefinitions = view;
+      views.customDefinitions = { view, touched: touchedDefinitions };
     },
   );
 

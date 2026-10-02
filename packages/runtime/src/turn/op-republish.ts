@@ -10,8 +10,8 @@ import type { HoustonEvent } from "@houston/protocol";
 import type { OpResult } from "./op-apply";
 import { publishOpStoreDocs } from "./op-store-docs";
 import type { TurnServerDeps } from "./server-types";
-import { publish } from "./turn-activity-doc";
 import type { ActivityDocSource } from "./turn-activity-source";
+import { publishCustomDefinitionsView } from "./turn-custom-definitions-doc";
 import type { TurnFilesystem } from "./turn-filesystem";
 import { poolIdentity } from "./turn-store";
 import { publishStoreDoc } from "./turn-store-doc";
@@ -135,12 +135,13 @@ export async function republish(
       learnings,
     })),
   );
-  if (result.customDefinitionsView !== undefined) {
+  if (result.customDefinitions !== undefined) {
     // The definitions list is a view doc (docs/view-capture.ts family), so
     // the gateway's asleep reads show the mutation immediately.
-    const outcome = await publish(
+    const outcome = await publishCustomDefinitionsView(
       { ...common, family: "custom_definitions" },
-      result.customDefinitionsView,
+      source,
+      result.customDefinitions,
     );
     const failure = docNotLandedReason(outcome);
     if (failure) diagnostics.push(`custom_definitions: ${failure}`);

@@ -158,11 +158,14 @@ async function runRouteOp(
       ? (rel) => include(rel) || rel === CUSTOM_DEFS_FILE
       : include,
   };
-  if (custom?.changed()) {
+  if (custom && custom.touched.size > 0) {
     events.push({ type: "CustomIntegrationsChanged" });
     // Re-capture the definitions view the way the pod's route serves it, so
     // the gateway's asleep reads show the mutation immediately.
-    out.customDefinitionsView = { items: await custom.manager.list() };
+    out.customDefinitions = {
+      view: { items: await custom.manager.list() },
+      touched: custom.touched,
+    };
   }
   if (result.events.some((e) => e.type === "SkillsChanged")) {
     // Re-capture the skills view the way the pod would serve it, so the

@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { viewOf } from "@houston/host/src/integrations/custom/views";
 import { LocalDirStore } from "@houston/runtime-client/object-sync";
 import { expect, test } from "vitest";
 import type { TurnServerDeps } from "./server-types";
@@ -142,8 +143,24 @@ test("a family whose doc projection failed is not announced", async () => {
 });
 
 test("turn tool mutations publish the custom definition view", async () => {
-  const { deps, turn, filesystem, resolved, requests } = await claimedTurn(200);
+  const turnState = await claimedTurn(200);
+  const { deps, turn, filesystem, resolved, requests, prefixRoot } = turnState;
+  // The tool's CAS write landed the definition in the store.
+  const def = {
+    kind: "mcp" as const,
+    slug: "example",
+    name: "Example",
+    endpoint: "https://mcp.example.test",
+    auth: "credential" as const,
+    addedAtMs: 1,
+  };
+  await seed(
+    prefixRoot,
+    "custom-integrations.json",
+    JSON.stringify({ version: 1, items: [def] }),
+  );
   filesystem.immediateWrites.add("custom-integrations.json");
+  const entry = viewOf(def, { status: "pending", authMethods: [] }, []);
   const result = await finishTurnDurability({
     deps,
     turn,
@@ -152,7 +169,12 @@ test("turn tool mutations publish the custom definition view", async () => {
     heartbeat: null,
     outcome: {},
     transcript: null,
-    views: { customDefinitions: { items: [{ slug: "example" }] } },
+    views: {
+      customDefinitions: {
+        view: { items: [entry] },
+        touched: new Set(["example"]),
+      },
+    },
   });
 
   const viewPuts = requests.filter(
@@ -163,7 +185,7 @@ test("turn tool mutations publish the custom definition view", async () => {
     {
       url: "https://store.example/v1/pod/docs/w1/agent-1/custom_definitions",
       method: "PUT",
-      body: JSON.stringify({ doc: { items: [{ slug: "example" }] } }),
+      body: JSON.stringify({ doc: { items: [entry] } }),
     },
   ]);
   expect(result.changed).toEqual(

@@ -1,5 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
@@ -333,6 +335,24 @@ export async function storedRoutines(agent: AgentStore) {
   return normalizeRoutines(parseJsonDoc(raw, ROUTINES_REL), ROUTINES_REL).items;
 }
 
+let claimOrigin: Promise<string> | undefined;
+
+/** The op claim's origin, which also serves the custom-integration secrets
+ *  store: every request answers `200 {}` (no secret held). */
+function localClaimOrigin(): Promise<string> {
+  claimOrigin ??= new Promise((resolve) => {
+    const server = createServer((_req, res) => {
+      res.writeHead(200);
+      res.end("{}");
+    });
+    server.unref();
+    server.listen(0, "127.0.0.1", () =>
+      resolve(`http://127.0.0.1:${(server.address() as AddressInfo).port}`),
+    );
+  });
+  return claimOrigin;
+}
+
 /**
  * A sleeping agent's op, run the way executeOp runs it (the real
  * handler over a lazy tree, the scoped sync-back), split before its doc
@@ -351,7 +371,12 @@ export async function landOp(
     agentId: "agent-1",
     gcsPrefix: PREFIX,
     hostToken: "host-token",
-    claim: { id: "ops", bootId: "b", token: "t", heartbeatUrl: "https://x" },
+    claim: {
+      id: "ops",
+      bootId: "b",
+      token: "t",
+      heartbeatUrl: `${await localClaimOrigin()}/heartbeat`,
+    },
     triggersEnabled: false,
     op: {
       kind: "route",
@@ -369,7 +394,7 @@ export async function landOp(
     ...opTreeOptions(op.op),
   });
   const result = await applyOp(op, filesystem);
-  expect(result.status).toBeLessThan(300);
+  expect(result.status, result.body).toBeLessThan(300);
   await beforeSync?.();
   const synced = await syncBack(
     agent.store,
