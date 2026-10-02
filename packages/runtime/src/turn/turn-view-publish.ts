@@ -1,5 +1,6 @@
 import type { TurnServerDeps } from "./server-types";
 import { type ActivityDocPublishResult, publish } from "./turn-activity-doc";
+import type { ActivityDocSource } from "./turn-activity-source";
 import { turnDocTarget } from "./turn-doc-target";
 import type { TurnFilesystem } from "./turn-filesystem";
 import type { TurnSandboxViews } from "./turn-sandbox";
@@ -44,6 +45,7 @@ export async function publishTurnViews(input: {
   turn: TurnRequest;
   filesystem: TurnFilesystem;
   views: TurnSandboxViews | undefined;
+  source: ActivityDocSource;
   landed: readonly string[];
 }): Promise<TurnViewEvent[]> {
   const outcomes: Array<

@@ -144,6 +144,8 @@ export async function executeOp(
           filesystem,
           result,
           uploaded: synced.uploaded,
+          deleted: synced.deleted,
+          source: resolved,
           prefix: resolved.prefix,
         });
       }

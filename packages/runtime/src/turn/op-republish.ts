@@ -11,7 +11,13 @@ import type { HoustonEvent } from "@houston/protocol";
 import type { OpResult } from "./op-apply";
 import type { TurnServerDeps } from "./server-types";
 import { publish } from "./turn-activity-doc";
+import type { ActivityDocSource } from "./turn-activity-source";
 import type { TurnFilesystem } from "./turn-filesystem";
+import {
+  isSkillsView,
+  landedSkillSlugs,
+  publishSkillsView,
+} from "./turn-skills-doc";
 import { poolIdentity } from "./turn-store";
 
 /** The claim an op publishes under (its store writes use the same one). */
@@ -108,22 +114,23 @@ export async function publishFamilyDocs(
   return diagnostics;
 }
 
-/** Re-project every family the op changed, plus the skills and custom
- *  definitions views it re-captured. */
+/** Re-project every family the op changed, the skills its landed SKILL.md
+ *  writes and deletes changed (`landed`, read back through `source`), and
+ *  the custom definitions view it re-captured. */
 export async function republish(
   deps: DocDeps,
   turn: OpClaimTurn,
   filesystem: TurnFilesystem,
   result: OpResult,
+  landed: readonly string[],
+  source: ActivityDocSource,
 ): Promise<string[]> {
   const common = docTarget(deps, turn);
   if (!common) return [];
   const families = new Set<HoustonFamily>();
-  let skills = false;
   for (const event of result.events) {
     const family = EVENT_FAMILY[event.type];
     if (family) families.add(family);
-    if (event.type === "SkillsChanged") skills = true;
   }
   const diagnostics = await publishFamilyDocs(
     deps,
@@ -132,11 +139,18 @@ export async function republish(
     filesystem.workspaceRel,
     families,
   );
-  if (skills && result.skillsView !== undefined) {
-    const outcome = await publish(
-      { ...common, family: "skills" },
-      result.skillsView,
-    );
+  const slugs = landedSkillSlugs(filesystem.workspaceRel, landed);
+  if (slugs.size > 0) {
+    // The same merge pooled turns publish with: the op's captured list is a
+    // snapshot from its listing, which would drop a turn's newer skill.
+    const outcome = await publishSkillsView({
+      target: { ...common, family: "skills" },
+      source,
+      filesystem,
+      slugs,
+      base: async () =>
+        isSkillsView(result.skillsView) ? result.skillsView : undefined,
+    });
     if ("error" in outcome) diagnostics.push(`skills: ${outcome.error}`);
   }
   if (result.customDefinitionsView !== undefined) {

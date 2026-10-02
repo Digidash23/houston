@@ -140,6 +140,7 @@ export async function finishTurnDurability(
     turn: opts.turn,
     filesystem: opts.filesystem,
     views: opts.views,
+    source: opts.resolved,
     landed: [...synced.uploaded, ...synced.deleted],
   });
   for (const type of staleViews) without(type);
@@ -166,6 +167,7 @@ export async function finishTurnDurability(
     filesystem: opts.filesystem,
     source: opts.resolved,
     landed: [...synced.uploaded, ...opts.filesystem.immediateWrites],
+    deleted: synced.deleted,
   });
   for (const error of familyDocs.errors) outcome = appendError(outcome, error);
   for (const type of familyDocs.stale) without(type);

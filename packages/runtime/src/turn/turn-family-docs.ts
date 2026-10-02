@@ -18,7 +18,7 @@ type FamilyEvent =
 /**
  * Project every family file a claimed turn landed (`landed` = uploaded plus
  * immediate writes) into its doc: the routine run history, the routines and
- * the memories. Resolves to the errors to append to the turn's outcome and
+ * the memories (also when the turn deleted that file). Resolves to the errors to append to the turn's outcome and
  * the events that must not be announced: an event promises the refetch can
  * be served asleep, which a doc that did not land breaks.
  */
@@ -28,6 +28,8 @@ export async function publishLandedFamilyDocs(input: {
   filesystem: TurnFilesystem;
   source: ActivityDocSource;
   landed: readonly string[];
+  /** Keys sync-back deleted: a memories file the turn removed projects []. */
+  deleted: readonly string[];
 }): Promise<{ errors: string[]; stale: FamilyEvent[] }> {
   const { deps, turn, filesystem } = input;
   const errors: string[] = [];
@@ -58,7 +60,11 @@ export async function publishLandedFamilyDocs(input: {
       : null;
     if (routines) settle("RoutinesChanged", "routines", routines);
   }
-  if (input.landed.includes(docKey(filesystem.workspaceRel, "learnings"))) {
+  const learningsKey = docKey(filesystem.workspaceRel, "learnings");
+  if (
+    input.landed.includes(learningsKey) ||
+    input.deleted.includes(learningsKey)
+  ) {
     const learnings = await publishTurnLearningsDoc(
       deps,
       turn,

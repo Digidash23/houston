@@ -9,6 +9,7 @@ import { opTranscriptMirror } from "./op-transcript";
 import { isMigrationImport } from "./op-tree-options";
 import type { OpRequest } from "./parse-op-request";
 import type { TurnServerDeps } from "./server-types";
+import type { ActivityDocSource } from "./turn-activity-source";
 import { announcedOpEvents } from "./turn-changed-events";
 import type { TurnFilesystem } from "./turn-filesystem";
 
@@ -68,15 +69,21 @@ export async function projectDurableOp(input: {
   filesystem: TurnFilesystem;
   result: OpResult;
   uploaded: readonly string[];
+  deleted: readonly string[];
+  /** The op's store, for the docs derived from what landed (skills). */
+  source: ActivityDocSource;
   prefix: string;
 }): Promise<ReturnType<typeof announcedOpEvents>> {
   const { deps, turn, op, filesystem, result } = input;
-  let failures = await republish(deps, turn, filesystem, result);
+  const landed = [...input.uploaded, ...input.deleted];
+  const project = () =>
+    republish(deps, turn, filesystem, result, landed, input.source);
+  let failures = await project();
   if (failures.length > 0) {
     // One more round before accepting a lag: a blip on the doc PUT is the
     // common case and the files are already durable.
     await new Promise((resolve) => setTimeout(resolve, 500));
-    failures = await republish(deps, turn, filesystem, result);
+    failures = await project();
   }
   if (op.op.kind === "conversation") {
     failures.push(...(await opTranscriptMirror(deps, turn, op.op)));

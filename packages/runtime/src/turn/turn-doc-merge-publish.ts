@@ -99,17 +99,19 @@ export async function publishMerged(
 }
 
 /**
- * PUT a doc `derive` reads from the durable object, read only AFTER the
+ * PUT a doc `derive` builds from the durable object, read only AFTER the
  * revision it lands at: any writer that landed its object before this read
  * is in the doc, and one that lands after it either PUTs later from its own
- * fresh read or meets this PUT's revision as a 409. A lost race re-derives at
- * the revision the 409 names, for DOC_MERGE_ROUNDS PUTs. For docs whose
- * entry order only the object knows (a merged learnings file), where a merge
- * of this writer's copy could only approximate it.
+ * fresh read or meets this PUT's revision as a 409. `derive` gets the doc
+ * that revision holds (undefined when there is none) for what the object
+ * alone cannot say. A lost race re-derives at the revision the 409 names, for
+ * DOC_MERGE_ROUNDS PUTs. For docs where this writer's own copy is not what
+ * landed: a learnings file that overlapping merges reordered, a skill another
+ * turn edited again after this one.
  */
 export async function publishDerived(
   opts: ActivityDocOptions,
-  derive: () => Promise<unknown>,
+  derive: (current: unknown) => Promise<unknown>,
   backoff: ConflictBackoff = jitteredConflictBackoff,
 ): Promise<ActivityDocPublishResult> {
   let current = await readCurrent(opts);
@@ -118,7 +120,7 @@ export async function publishDerived(
     if (round > 1) await sleep(backoff(round - 1));
     const response = await putAtRevision(
       opts,
-      await derive(),
+      await derive(current.doc),
       current.revision,
     );
     if (response.status !== 409 || round === DOC_MERGE_ROUNDS) {
@@ -126,8 +128,8 @@ export async function publishDerived(
     }
     const conflict = await readAnswer(response);
     current =
-      conflict.revision !== undefined
-        ? { revision: conflict.revision }
+      conflict.revision !== undefined && conflict.carriesDoc
+        ? { revision: conflict.revision, doc: conflict.doc }
         : await readCurrent(opts);
   }
 }

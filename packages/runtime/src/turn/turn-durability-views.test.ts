@@ -3,8 +3,12 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { loadLearnings, loadSkills } from "@houston/domain";
 import { FsVfs } from "@houston/host/src/vfs";
-import { LocalDirStore } from "@houston/runtime-client/object-sync";
+import { LocalDirStore, syncBack } from "@houston/runtime-client/object-sync";
 import { expect, test } from "vitest";
+import { applyOp } from "./op-apply";
+import { projectDurableOp } from "./op-durability";
+import { opClaimId, opTreeOptions } from "./op-tree-options";
+import { parseOpRequest } from "./parse-op-request";
 import type { TurnServerDeps } from "./server-types";
 import { finishTurnDurability } from "./turn-durability";
 import { prepareTurnFilesystem, type TurnFilesystem } from "./turn-filesystem";
@@ -33,7 +37,12 @@ const skillMd = (slug: string, description: string) =>
 /** The pod-store docs route: per-family revisioned CAS (409 names the doc). */
 function podDocs(
   initial: Record<string, unknown> = {},
-  opts: { refusing?: string[]; outOfScope?: string[] } = {},
+  opts: {
+    refusing?: string[];
+    outOfScope?: string[];
+    /** Holds a GET (by family and claim conversation) until it resolves. */
+    hold?: (family: string, conversation: string) => Promise<void> | undefined;
+  } = {},
 ) {
   const docs = new Map<string, { doc: unknown; revision: number }>(
     Object.entries(initial).map(([family, doc]) => [
@@ -46,6 +55,11 @@ function podDocs(
     const family = String(url).split("/").at(-1) ?? "";
     const method = init?.method ?? "GET";
     requests.push({ family, method });
+    if (method === "GET") {
+      const conversation =
+        new Headers(init?.headers).get("X-Houston-Claim-Conversation") ?? "";
+      await opts.hold?.(family, conversation);
+    }
     const current = docs.get(family);
     if (method === "GET") {
       return current
@@ -388,4 +402,142 @@ test("a store whose turn claims cannot take the learnings doc keeps today's answ
 
   expect(result.outcome).toEqual({});
   expect(result.changed).toContain("LearningsChanged");
+});
+
+test("a turn that settles late never re-serves a skill summary another turn replaced", async () => {
+  // The first turn lands its edit, then stalls before its doc GET. A second
+  // turn hydrates after that landing, edits the same skill again, lands and
+  // publishes. The late publisher must not put its older summary back.
+  let reached!: () => void;
+  const atGet = new Promise<void>((resolve) => {
+    reached = resolve;
+  });
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let held = false;
+  const agent = await agentStore();
+  const docs = podDocs(
+    { skills: await podSkillsAnswer(agent) },
+    {
+      hold: (family, conversation) => {
+        if (family !== "skills" || conversation !== "c1" || held) return;
+        held = true;
+        reached();
+        return released;
+      },
+    },
+  );
+  const first = await claimedTurn(agent, docs, "c1");
+  await writeSkill(first.filesystem, "existing", "First edit");
+  const firstSettled = first.settle();
+  await atGet;
+  const second = await claimedTurn(agent, docs, "c2");
+  await writeSkill(second.filesystem, "existing", "Second edit");
+  await second.settle();
+  release();
+  await firstSettled;
+
+  expect(docs.doc("skills")).toEqual(await podSkillsAnswer(agent));
+  expect(
+    (docs.doc("skills") as { items: { description: string }[] }).items[0]
+      ?.description,
+  ).toBe("Second edit");
+});
+
+test("a turn that deletes the memories file republishes an empty doc", async () => {
+  const agent = await agentStore();
+  const docs = podDocs({ learnings: await podLearnings(agent) });
+  const { filesystem, settle } = await claimedTurn(agent, docs);
+  await rm(join(filesystem.workspaceDir, ".houston", "learnings"), {
+    recursive: true,
+  });
+
+  const result = await settle();
+
+  expect(docs.doc("learnings")).toEqual([]);
+  expect(result.changed).toContain("LearningsChanged");
+});
+
+/**
+ * A sleeping agent's skill create, run the way executeOp runs it (the real
+ * handler over a lazy tree, the scoped sync-back), split before its doc
+ * projection so a test can interleave a turn's publish.
+ */
+async function landSkillCreateOp(
+  agent: AgentStore,
+  docs: ReturnType<typeof podDocs>,
+  name: string,
+) {
+  const op = parseOpRequest({
+    workspaceId: "w1",
+    agentId: "agent-1",
+    gcsPrefix: PREFIX,
+    hostToken: "host-token",
+    claim: { id: "ops", bootId: "b", token: "t", heartbeatUrl: "https://x" },
+    triggersEnabled: false,
+    op: {
+      kind: "route",
+      method: "POST",
+      rest: "skills",
+      contentType: "application/json",
+      body: JSON.stringify({ name, description: `${name} op`, content: "Go" }),
+    },
+  });
+  const filesystem = await prepareTurnFilesystem({
+    store: agent.store,
+    prefix: PREFIX,
+    root: await mkdtemp(join(tmpdir(), "turn-views-op-")),
+    claimed: true,
+    ...opTreeOptions(op.op),
+  });
+  const result = await applyOp(op, filesystem);
+  expect(result.status).toBe(201);
+  const synced = await syncBack(
+    agent.store,
+    PREFIX,
+    filesystem.storeRoot,
+    filesystem.manifest,
+    {
+      include: result.include,
+      holdDeletesOnFailure: true,
+      generations: filesystem.generationAware,
+      workerMerge: true,
+    },
+  );
+  const deps = {
+    poolStoreUrl: "https://store.example",
+    fetchImpl: docs.fetchImpl,
+    activityDocRetryDelaysMs: [],
+  } as unknown as TurnServerDeps;
+  return () =>
+    projectDurableOp({
+      deps,
+      turn: { ...op, conversationId: opClaimId(op.op) },
+      op,
+      filesystem,
+      result,
+      uploaded: synced.uploaded,
+      deleted: synced.deleted,
+      source: { store: agent.store, prefix: PREFIX },
+      prefix: PREFIX,
+    });
+}
+
+test("an op that projects after a turn keeps the turn's skill", async () => {
+  // The op lands `alpha` from a tree listed before the turn's `beta`, then
+  // the turn publishes. A whole-list op snapshot would drop `beta`.
+  const agent = await agentStore();
+  const docs = podDocs({ skills: await podSkillsAnswer(agent) });
+  const turn = await claimedTurn(agent, docs);
+  const project = await landSkillCreateOp(agent, docs, "alpha");
+  await writeSkill(turn.filesystem, "beta", "The turn's");
+  await turn.settle();
+
+  const announced = await project();
+
+  expect(skillNames(docs)).toEqual(["alpha", "beta", "existing"]);
+  expect(docs.doc("skills")).toEqual(await podSkillsAnswer(agent));
+  expect(announced).toContain("SkillsChanged");
 });
