@@ -82,7 +82,7 @@ test("a family file another writer lands mid-migration stays theirs, and the run
   expect(fake.read(`${AGENT}/.houston/routines.json`)).toBe(FLAT);
 });
 
-test("a custody store that refuses the secrets leaves the store untouched", async () => {
+test("a custody store that refuses the secrets keeps the plaintext and the run incomplete", async () => {
   const fake = legacy();
   fake.put("custom-integration-secrets.json", '{"ci_crm_KEY":"plain"}');
   const refusing = (async (url: unknown) =>
@@ -95,9 +95,11 @@ test("a custody store that refuses the secrets leaves the store untouched", asyn
 
   const { status, answer } = await run(fake, { fetchImpl: refusing });
 
-  expect(status).toBe(500);
-  expect(answer.code).toBe("migration_failed");
-  expect(fake.uploads).toEqual([]);
+  // Never a failure (a failure sends the agent to a pod, whose boot would
+  // move the same secrets): the files land, the version waits.
+  expect(status).toBe(200);
+  expect(answer.complete).toBe(false);
+  expect(await fake.keys()).toContain("custom-integration-secrets.json");
   expect(fake.deletes).toEqual([]);
 });
 

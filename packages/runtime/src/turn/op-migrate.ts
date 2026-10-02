@@ -43,6 +43,31 @@ const relayed = (status: number, body: unknown): MigrateReply => ({
   },
 });
 
+/**
+ * The custody move, whose failure leaves the plaintext file and the rest of
+ * the migration in place: the answer is incomplete (the gateway records no
+ * version and runs it again later), never a failure that sends the agent to
+ * a pod, whose boot would move the same secrets.
+ */
+async function moveCustody(
+  input: MigrateOpInput,
+  storeRoot: string,
+): Promise<Awaited<ReturnType<typeof moveLegacySecrets>>> {
+  try {
+    return await moveLegacySecrets({
+      storeRoot,
+      op: input.op,
+      ...(input.deps.fetchImpl ? { fetchImpl: input.deps.fetchImpl } : {}),
+    });
+  } catch (error) {
+    console.error(
+      `[op] migrate custody move failed, plaintext kept prefix=${input.prefix}:`,
+      error,
+    );
+    return { moved: 0, complete: false };
+  }
+}
+
 const failed = (code: string, detail: Record<string, unknown> = {}) =>
   relayed(code === "migration_not_durable" ? 409 : 500, { code, ...detail });
 
@@ -94,11 +119,7 @@ export async function executeMigrateOp(
     // Custody is written directly, not through the claimed sync: no run
     // that lost its claim may reach it.
     if (await input.fenced()) return fenced;
-    custody = await moveLegacySecrets({
-      storeRoot: filesystem.storeRoot,
-      op,
-      ...(input.deps.fetchImpl ? { fetchImpl: input.deps.fetchImpl } : {}),
-    });
+    custody = await moveCustody(input, filesystem.storeRoot);
   } catch (error) {
     console.error(`[op] migrate failed before sync prefix=${prefix}:`, error);
     return failed("migration_failed", {

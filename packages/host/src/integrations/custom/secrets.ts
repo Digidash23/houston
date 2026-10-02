@@ -11,6 +11,7 @@ import { dirname } from "node:path";
 import type { CredentialProvider } from "@executor-js/sdk/core";
 import { atomicTempPath } from "@houston/protocol";
 import { Effect } from "effect";
+import { createCustomSecret, moveLegacyToCustody } from "./legacy-custody";
 import { parseBundle, resolveOAuthValue } from "./oauth-bundle";
 
 /**
@@ -193,17 +194,30 @@ export class RemoteCustomSecretStore implements CustomSecretStore {
   }
 
   /**
-   * Read every pre-Secret-Manager value after object-store hydration, upload it,
-   * and only then remove the plaintext file. A partial failure leaves the whole
-   * file intact for a safe retry on the next boot.
+   * Move every pre-Secret-Manager value into custody after object-store
+   * hydration, never replacing one custody holds (legacy-custody.ts), and
+   * remove the plaintext file only once custody holds them all. A failure
+   * leaves the file for a safe retry on the next boot.
    */
   async migrateLegacy(): Promise<number> {
     const legacy = this.opts.legacy;
     if (!legacy) return 0;
-    const entries = Object.entries(legacy.entries());
-    for (const [id, value] of entries) await this.set(id, value);
-    legacy.clear();
-    return entries.length;
+    const result = await moveLegacyToCustody(legacy.entries(), {
+      get: (id) => {
+        this.cache.delete(id);
+        return this.get(id);
+      },
+      create: (id, value) =>
+        createCustomSecret(
+          this.fetchImpl,
+          this.url(id),
+          this.opts.podToken,
+          id,
+          value,
+        ),
+    });
+    if (result.complete) legacy.clear();
+    return result.moved;
   }
 
   private url(id: string): string {

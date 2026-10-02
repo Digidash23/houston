@@ -12,20 +12,12 @@ export interface CustodyMove {
 }
 
 /**
- * The pod boot's custody move (RemoteCustomSecretStore.migrateLegacy) for a
- * hydrated store root: every plaintext custom-integration secret goes to the
- * gateway's custom-secret store, then the local file goes, so the sync-back
- * deletes the plaintext object. One difference: a value custody already
- * holds stays. Pool ops have written custody directly while this file sat in
- * the store, so the plaintext copy can be the older of the two.
- *
- * Each secret is CREATED (POST), which the gateway decides from its
- * transactional registry under the secret's lock, never from a vault read.
- * A refused create (412) counts only once a read finds the value; a gateway
- * that predates the create answers 405 and writes nothing. Either way the
- * file stays and the move is incomplete, for the next run.
- *
- * A failed request throws with the file still in place.
+ * The pod boot's custody move for a hydrated store root, by the same rules
+ * (host legacy-custody.ts): every plaintext custom-integration secret goes to
+ * the gateway's custody through a create that never replaces a value, and
+ * the local file goes only once custody holds every one, so the sync-back
+ * then deletes the plaintext object. Otherwise the file stays for the next
+ * run. A failed request throws with the file in place.
  */
 export async function moveLegacySecrets(input: {
   storeRoot: string;
@@ -36,9 +28,13 @@ export async function moveLegacySecrets(input: {
   if (!existsSync(path)) return { moved: 0, complete: true };
   // Imported only here: the module pulls the integration engine's runtime,
   // which no other migration step needs.
-  const { FileCustomSecretStore, RemoteCustomSecretStore } = await import(
-    "@houston/host/src/integrations/custom/secrets"
-  );
+  const [
+    { FileCustomSecretStore, RemoteCustomSecretStore },
+    { createCustomSecret, moveLegacyToCustody },
+  ] = await Promise.all([
+    import("@houston/host/src/integrations/custom/secrets"),
+    import("@houston/host/src/integrations/custom/legacy-custody"),
+  ]);
   const { org, agent } = poolIdentity(input.op.gcsPrefix);
   const baseUrl = new URL(input.op.claim.heartbeatUrl).origin;
   const fetchImpl = input.fetchImpl ?? fetch;
@@ -50,42 +46,20 @@ export async function moveLegacySecrets(input: {
     fetchImpl,
     cacheTtlMs: 0,
   });
-  let moved = 0;
-  let complete = true;
-  for (const [id, value] of Object.entries(
+  const result = await moveLegacyToCustody(
     new FileCustomSecretStore(path).entries(),
-  )) {
-    // The read spares a create for a value custody holds.
-    if ((await custody.get(id)) !== null) continue;
-    const url = `${baseUrl}/v1/pod/custom-secrets/${encodeURIComponent(org)}/${encodeURIComponent(agent)}/${encodeURIComponent(id)}`;
-    const created = await create(fetchImpl, url, input.op.hostToken, id, value);
-    if (created === "created") moved++;
-    else if (created === "unsupported" || (await custody.get(id)) === null)
-      complete = false;
-  }
-  if (complete) rmSync(path);
-  return { moved, complete };
-}
-
-async function create(
-  fetchImpl: typeof fetch,
-  url: string,
-  token: string,
-  id: string,
-  value: string,
-): Promise<"created" | "exists" | "unsupported"> {
-  const response = await fetchImpl(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "content-type": "application/json",
+    {
+      get: (id) => custody.get(id),
+      create: (id, value) =>
+        createCustomSecret(
+          fetchImpl,
+          `${baseUrl}/v1/pod/custom-secrets/${encodeURIComponent(org)}/${encodeURIComponent(agent)}/${encodeURIComponent(id)}`,
+          input.op.hostToken,
+          id,
+          value,
+        ),
     },
-    body: JSON.stringify({ value }),
-  });
-  await response.body?.cancel();
-  if (response.status === 412) return "exists";
-  if (response.status === 405) return "unsupported";
-  if (!response.ok)
-    throw new Error(`custom secret create ${id} failed (${response.status})`);
-  return "created";
+  );
+  if (result.complete) rmSync(path);
+  return result;
 }
