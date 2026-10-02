@@ -374,3 +374,35 @@ test("an older dead run's interruption line never answers a newer run in the sha
     summary: "The routine timed out without a response.",
   });
 });
+
+test("a shadow reply from another turn never hides a run's own reply in the file", async () => {
+  const env = await setup([run("t1")]);
+  await env.seed("routine-r1", [
+    {
+      role: "assistant",
+      content: "Two invoices are due.",
+      ts: STARTED.getTime() + 1000,
+      turnId: "t1",
+    },
+  ]);
+
+  await reconcileAgentRuns(
+    {
+      ...deps(env.vfs),
+      replyReader: {
+        replyAfter: async () => ({
+          role: "assistant",
+          content: "Hello there.",
+          ts: STARTED.getTime() + 2000,
+          turnId: "t2",
+        }),
+      },
+    },
+    env.ws,
+    env.agent,
+  );
+
+  const [settled] = await env.runs();
+  expect(settled?.status).toBe("surfaced");
+  expect(settled?.summary).toContain("Two invoices are due.");
+});

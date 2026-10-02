@@ -7,6 +7,7 @@ import {
   upsertById,
 } from "@houston/domain";
 import type { Vfs } from "@houston/host/src/vfs";
+import type { RoutineRun } from "@houston/protocol";
 
 /**
  * Give every surfaced run of the conversation the board card its row points
@@ -34,9 +35,17 @@ export async function repairSurfacedCards(
     (r) => !cards.some((card) => card.id === r.activity_id),
   );
   if (missing.length === 0) return false;
+  // A shared chat's runs share one card: it carries the newest of them.
+  const newest = new Map<string, RoutineRun>();
+  for (const run of missing) {
+    const id = run.activity_id ?? "";
+    const held = newest.get(id);
+    if (!held || Date.parse(run.started_at) > Date.parse(held.started_at))
+      newest.set(id, run);
+  }
   const { items: routines } = await loadRoutines(vfs, root);
   let next = cards;
-  for (const run of missing) {
+  for (const run of newest.values()) {
     const routine = routines.find((r) => r.id === run.routine_id);
     if (!routine || !run.activity_id) continue;
     const existing = next.find((card) => card.session_key === run.session_key);

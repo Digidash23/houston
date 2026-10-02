@@ -85,8 +85,17 @@ export function loadRunReplies(
           error,
         );
       }
-      if (remoteReply) return remoteReply;
-      return turnReply(await read(run.session_key), run);
+      // The shadow answers with the latest reply; one stamped with another
+      // turn may hide this run's own, which the file still has.
+      if (
+        remoteReply &&
+        (remoteReply.turnId === undefined || remoteReply.turnId === run.id)
+      )
+        return remoteReply;
+      const fromFile = turnReply(await read(run.session_key), run);
+      return remoteReply && fromFile?.turnId !== run.id
+        ? remoteReply
+        : fromFile;
     }),
   );
 }

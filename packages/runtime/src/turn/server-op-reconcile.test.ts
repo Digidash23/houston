@@ -558,3 +558,30 @@ test("a surfaced run whose card never landed gets it back on the retry", async (
     expect.objectContaining({ id: "card-1", session_key: "routine-r1" }),
   ]);
 });
+
+test("a shared chat's lost card comes back carrying its newest run", async () => {
+  const surfaced = (id: string, hoursAgo: number): RoutineRun => ({
+    id,
+    routine_id: "r1",
+    status: "surfaced",
+    session_key: "routine-r1",
+    started_at: new Date(STARTED - hoursAgo * 3_600_000).toISOString(),
+    completed_at: new Date(
+      STARTED - hoursAgo * 3_600_000 + 60_000,
+    ).toISOString(),
+    summary: `run ${id}`,
+    activity_id: "card-1",
+  });
+  const w = await worker({
+    runs: [surfaced("t2", 0), surfaced("t1", 2)],
+    chats: { "routine-r1": earlier },
+  });
+
+  await w.reconcile({ conversationId: "routine-r1" });
+
+  const board = JSON.parse(
+    w.pool.read(`${AGENT}/.houston/activity/activity.json`),
+  ) as { id: string; routine_run_id?: string }[];
+  expect(board).toHaveLength(1);
+  expect(board[0]?.routine_run_id).toBe("t2");
+});
