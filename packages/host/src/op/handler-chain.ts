@@ -20,6 +20,7 @@ import { handleAttachments } from "../turn/attachments";
 import { handleFiles } from "../turn/files";
 import type { Vfs } from "../vfs";
 import { OP_CHAIN, type OpGroup } from "./op-surface";
+import { handleRoutineRunCancelOp } from "./routine-run-cancel";
 
 export interface AgentOpChainDeps {
   vfs: Vfs;
@@ -52,6 +53,7 @@ type OpHandler = (
 ) => Answer;
 
 const OP_HANDLERS: Record<OpGroup, OpHandler> = {
+  "routine-runs": handleRoutineRunCancelOp,
   "agent-integrations": (deps, method, rest, req, res) =>
     handleCustomIntegrationsDispatch(
       deps.customIntegrations,
