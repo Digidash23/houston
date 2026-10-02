@@ -1,3 +1,6 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { readEmbeddedCatalog } from "@houston/host/src/assistant/catalog-source";
 import { afterEach, expect, test, vi } from "vitest";
 import { toolNamesForMode } from "../session/tool-selection";
@@ -9,6 +12,7 @@ import { makeIntegrationTools } from "../session/tools/integrations";
 import type { SandboxFetch } from "../session/tools/sandbox-fetch";
 import type { TurnSessionRequest } from "./turn-session";
 import {
+  buildTurnCommonTools,
   buildTurnHostTools,
   buildTurnToolSelection,
   turnCodeExecution,
@@ -16,8 +20,6 @@ import {
 
 /** The turn's own transport: every host-proxying tool must ride THIS one. */
 const call: SandboxFetch = async () => Response.json({});
-/** The process-level transport the assistant family is configured with. */
-const processCall: SandboxFetch = async () => Response.json({ process: true });
 
 const base = (scopes?: TurnSessionRequest["grant"]): TurnSessionRequest => ({
   conversationId: "c1",
@@ -36,8 +38,6 @@ function embeddedCatalog() {
 }
 
 afterEach(() => {
-  vi.doUnmock("../session/runtime-role");
-  vi.doUnmock("../session/assistant-family");
   vi.doUnmock("../session/tools/credential-tools");
   vi.resetModules();
 });
@@ -122,31 +122,29 @@ test("an agent turn registers exactly the shared credential surface", () => {
   ]);
 });
 
-test("a coordinator turn registers the coordinator credential tool", async () => {
+test("a coordinator turn registers the coordinator credential tool", () => {
   const catalog = embeddedCatalog();
-  vi.resetModules();
-  vi.doMock("../session/runtime-role", () => ({ personalAssistant: true }));
-  vi.doMock("../session/assistant-family", () => ({
-    assistantOptions: { catalog, call: processCall },
-  }));
-  const isolated = await import("./turn-toolset");
-  const registered = isolated
-    .buildTurnHostTools(base({ scopes: ["integrations"] }))
-    .map((tool) => tool.name);
-  expect(registered).toEqual([
-    "request_provider_connection",
-    "request_hands_on",
-    ...makeIntegrationTools({ call }).map((tool) => tool.name),
-    ...credentialTools({
-      personalAssistant: true,
-      assistant: { catalog, call },
-    }).map((tool) => tool.name),
-  ]);
+  const turn: TurnSessionRequest = {
+    ...base({ scopes: ["agent-writes"] }),
+    role: "coordinator",
+  };
+  const registered = buildTurnCommonTools(
+    turn,
+    null,
+    mkdtempSync(join(tmpdir(), "toolset-")),
+  ).map((tool) => tool.name);
+  for (const name of credentialTools({
+    personalAssistant: true,
+    assistant: { catalog, call },
+  }).map((tool) => tool.name)) {
+    expect(registered).toContain(name);
+  }
+  expect(registered).toContain("request_connection");
   expect(registered).not.toContain("custom_integration_add");
+  expect(registered).not.toContain("integration_execute");
 });
 
-test("the turn rebinds the credential surface to its own transport", async () => {
-  const catalog = embeddedCatalog();
+test("an agent turn binds the credential surface to its own transport", async () => {
   const seen: CredentialToolsInput[] = [];
   vi.resetModules();
   vi.doMock("../session/tools/credential-tools", () => ({
@@ -155,15 +153,11 @@ test("the turn rebinds the credential surface to its own transport", async () =>
       return [];
     },
   }));
-  vi.doMock("../session/assistant-family", () => ({
-    assistantOptions: { catalog, call: processCall },
-  }));
   const isolated = await import("./turn-toolset");
   isolated.buildTurnHostTools(base({ scopes: ["integrations"] }));
   expect(seen).toHaveLength(1);
+  expect(seen[0]?.personalAssistant).toBe(false);
   expect(seen[0]?.integrations?.call).toBe(call);
-  expect(seen[0]?.assistant?.call).toBe(call);
-  expect(seen[0]?.assistant?.catalog).toBe(catalog);
 });
 
 // --- run_code rides the code-run scope ---------------------------------------

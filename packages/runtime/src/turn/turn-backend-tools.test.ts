@@ -20,14 +20,21 @@ const claudeTools = vi.fn<(names: string[]) => void>();
 const piPrompt = vi.fn<(prompt: string | undefined) => void>();
 const piTransport = vi.fn<(transport: string | undefined) => void>();
 const claudePrompt = vi.fn<(prompt: string | undefined) => void>();
+const piRole = vi.fn<(role: string | null | undefined) => void>();
+const claudeRole =
+  vi.fn<
+    (role: string | null | undefined, clamp: boolean | undefined) => void
+  >();
 
 vi.mock("../backends/pi/backend", () => ({
   createPiBackend: (deps: {
     customTools: { name: string }[];
     systemPrompt?: string;
     transport?: string;
+    role?: string | null;
   }) => {
     piTools(deps.customTools.map((tool) => tool.name));
+    piRole(deps.role);
     piPrompt(deps.systemPrompt);
     piTransport(deps.transport);
     return { id: "pi", createSession: () => Promise.reject(new Error("stub")) };
@@ -39,8 +46,11 @@ vi.mock("../backends/claude/backend", () => ({
   createClaudeBackend: (deps: {
     tools: { name: string }[];
     systemPrompt?: string;
+    role?: string | null;
+    personalAssistant?: boolean;
   }) => {
     claudeTools(deps.tools.map((tool) => tool.name));
+    claudeRole(deps.role, deps.personalAssistant);
     claudePrompt(deps.systemPrompt);
     return {
       id: "anthropic",
@@ -117,4 +127,21 @@ test("both branches carry the follow-up tools the product prompt mandates", asyn
     expect(names).toContain("suggest_actions");
     expect(names).toContain("suggest_reusable");
   }
+});
+
+test("a coordinator turn tells BOTH branches its role", async () => {
+  const { createTurnBackend } = await import("./turn-backend");
+  piRole.mockClear();
+  claudeRole.mockClear();
+  const coordinator = deps();
+  coordinator.turn.role = "coordinator";
+  createTurnBackend("openai-codex", coordinator);
+  createTurnBackend("anthropic", coordinator);
+  expect(piRole.mock.calls[0]?.[0]).toBe("coordinator");
+  // The Claude branch clamps its SDK built-ins with the same flag.
+  expect(claudeRole.mock.calls[0]).toEqual(["coordinator", true]);
+  createTurnBackend("openai-codex", deps());
+  createTurnBackend("anthropic", deps());
+  expect(piRole.mock.calls[1]?.[0]).toBeNull();
+  expect(claudeRole.mock.calls[1]).toEqual([null, false]);
 });

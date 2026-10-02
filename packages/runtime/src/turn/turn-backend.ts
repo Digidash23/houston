@@ -89,7 +89,11 @@ export function createTurnBackend(
   deps: TurnBackendDeps,
 ): HarnessBackend {
   const { workspaceDir, dataDir, turnRoot } = deps.directories;
-  const commonTools = buildTurnCommonTools(deps.turn, deps.codeSandbox);
+  const commonTools = buildTurnCommonTools(
+    deps.turn,
+    deps.codeSandbox,
+    dataDir,
+  );
   if (provider === "anthropic") {
     const backend = createClaudeBackend({
       workspaceDir,
@@ -101,6 +105,8 @@ export function createTurnBackend(
       toolSelection: deps.toolSelection,
       systemPrompt: deps.systemPrompt,
       fileGuard: deps.fileGuard,
+      personalAssistant: deps.turn.role === "coordinator",
+      role: deps.turn.role ?? null,
       layout: turnClaudeLayout(turnRoot, dataDir, deps.turn.conversationId),
       compactions: turnCompactions(dataDir),
       // SAFETY: these are the same pi ToolDefinition objects the MCP bridge
@@ -140,6 +146,7 @@ export function createTurnBackend(
     systemPrompt: deps.systemPrompt,
     transport: POOLED_TURN_TRANSPORT,
     sharedSkillsDir: turnSharedSkillsDir(turnRoot),
+    role: deps.turn.role ?? null,
     tools: deps.toolSelection.toolNames,
     customTools: [
       ...makeClampedFileTools(workspaceDir, deps.fileGuard ?? {}),

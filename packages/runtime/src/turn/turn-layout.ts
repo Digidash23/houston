@@ -6,7 +6,9 @@ import { realAgents, standingTree } from "./turn-layout-agents";
 export type TurnSetupCode =
   | "credential_write_failed"
   | "hydrate_over_cap"
-  | "layout_unexpected";
+  | "layout_unexpected"
+  /** Houston's message reused a nonce for other words: a host refuses it. */
+  | "message_refused";
 
 /** A setup failure the internal turn stream exposes as a stable code. */
 export class TurnSetupError extends Error {

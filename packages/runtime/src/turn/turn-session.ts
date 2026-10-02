@@ -6,6 +6,7 @@ import { framePrompt } from "../session/attribution";
 import { newInteractionHolder } from "../session/interaction";
 import { recordPooledRoutineCarry } from "./turn-routine-context";
 import { openTurnBackendSession } from "./turn-session-backend";
+import { runInTurnContext } from "./turn-session-context";
 import { handleTurnSessionFailure } from "./turn-session-failure";
 import { newTurnFrames } from "./turn-session-frames";
 import { promptTurnSession } from "./turn-session-prompt";
@@ -97,16 +98,22 @@ export async function runTurn(
     // for (ask_user); established for the prompt's async subtree so the tool
     // records into it. Read after prompt() resolves, returned on the outcome.
     const interaction = newInteractionHolder();
-    await promptTurnSession({
-      session,
-      turn,
-      prompt: (replay?.text ?? "") + framePrompt(text, author, priorAuthors),
-      frames,
-      interaction,
-      usedTokens,
-      stallTimeoutMs: deps.stallTimeoutMs ?? config.turnStallTimeoutMs,
-      emit,
-    });
+    // The context a standing runtime holds around its prompt (exec-turn.ts).
+    await runInTurnContext(
+      { conversationId, mode: mode ?? "execute", model },
+      () =>
+        promptTurnSession({
+          session,
+          turn,
+          prompt:
+            (replay?.text ?? "") + framePrompt(text, author, priorAuthors),
+          frames,
+          interaction,
+          usedTokens,
+          stallTimeoutMs: deps.stallTimeoutMs ?? config.turnStallTimeoutMs,
+          emit,
+        }),
+    );
     const finishTitle = startPooledTurnTitle({
       turn,
       deps,

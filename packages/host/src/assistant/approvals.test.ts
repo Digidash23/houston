@@ -1,5 +1,7 @@
 import { expect, test } from "vitest";
-import { APPROVAL_TTL_MS, ApprovalStore, approvalKey } from "./approvals";
+import { approvalKey } from "./approval-key";
+import { APPROVAL_TTL_MS } from "./approval-record";
+import { ApprovalStore } from "./approvals";
 
 /**
  * The store's own contract. The end-to-end binding is pinned where it matters

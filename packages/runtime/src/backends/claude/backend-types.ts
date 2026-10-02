@@ -1,3 +1,4 @@
+import type { AssistantRuntimeRole } from "@houston/domain/assistant-role";
 import type { ClaudeSubscriptionType } from "../../auth/claude-plan";
 import type { ToolSelection } from "../../session/tool-selection";
 import type { AssistantToolOptions } from "../../session/tools/assistant";
@@ -48,6 +49,9 @@ export interface ClaudeBackendDeps {
    * the same coordinator surface the pi path does.
    */
   personalAssistant?: boolean;
+  /** The coordinator role the system prompt is built for. Absent = the
+   *  process's own; a pooled turn passes the turn's (`null` included). */
+  role?: AssistantRuntimeRole | null;
   tools?: BridgedPiTool[];
   /** External SDK adapter for tests that must not spawn a process. */
   sdk?: ClaudeSdk;

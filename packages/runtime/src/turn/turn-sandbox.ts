@@ -1,8 +1,10 @@
 import { CustomIntegrationError } from "@houston/host/src/integrations/custom/types";
 import { IntegrationUpstreamError } from "@houston/host/src/integrations/types";
+import type { WireFrame } from "@houston/runtime-client";
 import type { ObjectStore } from "@houston/runtime-client/object-sync";
 import type { TurnCodeVm } from "../code-vm/turn-code-vm";
 import type { SandboxFetch } from "../session/tools/sandbox-fetch";
+import type { TurnCoordinatorSession } from "./turn-coordinator";
 import {
   createTurnCustomContext,
   type TurnCustomContext,
@@ -35,6 +37,8 @@ export interface TurnSandboxDeps {
   fetchImpl?: typeof fetch;
   /** Present in `vm` mode: this turn's own code micro-VM, closed on dispose. */
   codeVm?: TurnCodeVm;
+  /** Present on Houston's own turn: its operation and mission routes. */
+  coordinator?: TurnCoordinatorSession;
 }
 
 /** Mutation-derived views published after the turn's object sync lands. */
@@ -74,6 +78,10 @@ export function makeTurnSandboxFetch(deps: TurnSandboxDeps): {
   views: () => TurnSandboxViews;
   /** Start the turn's code VM booting; a no-op outside `vm` mode. */
   warmCode: () => void;
+  /** A frame as the user is shown it (Houston's approval cards). */
+  present: (frame: WireFrame) => WireFrame;
+  /** Why the person's message may not start this turn, or null. */
+  admission: () => Promise<string | null>;
 } {
   const fetchImpl = deps.fetchImpl ?? fetch;
   const views: TurnSandboxViews = {};
@@ -116,6 +124,9 @@ export function makeTurnSandboxFetch(deps: TurnSandboxDeps): {
   );
 
   const call: SandboxFetch = async (path, init) => {
+    // Houston's own routes first: its mission reads are GETs.
+    const coordinated = deps.coordinator?.route(path, init);
+    if (coordinated) return coordinated;
     if ((init?.method ?? "GET") !== "POST")
       return json(405, { error: "method not allowed" });
     try {
@@ -169,7 +180,11 @@ export function makeTurnSandboxFetch(deps: TurnSandboxDeps): {
     try {
       await deps.codeVm?.close();
     } finally {
-      await resetCustom();
+      try {
+        await resetCustom();
+      } finally {
+        await deps.coordinator?.dispose();
+      }
     }
   };
   return {
@@ -177,5 +192,7 @@ export function makeTurnSandboxFetch(deps: TurnSandboxDeps): {
     dispose,
     views: () => ({ ...views }),
     warmCode: () => codeVm?.warm(),
+    present: (frame) => deps.coordinator?.present(frame) ?? frame,
+    admission: async () => (await deps.coordinator?.admission()) ?? null,
   };
 }

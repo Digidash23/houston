@@ -1,3 +1,4 @@
+import type { AssistantRuntimeRole } from "@houston/domain/assistant-role";
 import type { TurnMode } from "@houston/protocol";
 import type {
   ChatMessage,
@@ -54,6 +55,13 @@ export interface TurnSessionRequest {
   context?: ProvidedContext;
   /** Non-secret capability scopes copied from the parsed turn grant. */
   grant?: { scopes: TurnGrantScope[] };
+  /**
+   * `coordinator` when this turn IS the user's AI Manager, as the gateway
+   * marked it. Decides the tool surface, the file wall and the prompt for
+   * this turn alone: a pool worker serves Houston and an ordinary agent from
+   * the same process.
+   */
+  role?: AssistantRuntimeRole;
   /**
    * Turn-local routing closure; it owns all grant-bearing calls. `warmCode`
    * starts the turn's code VM booting (`vm` mode only).

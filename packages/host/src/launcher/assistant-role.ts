@@ -48,6 +48,7 @@ import {
   type AssistantRuntimeRole,
   COORDINATOR_ROLE,
 } from "@houston/domain/assistant-role";
+import { coordinatorScope } from "../assistant/coordinator-scope";
 
 /**
  * The managed-cloud profile marker. The host reads it as `gatewayFronted`
@@ -74,6 +75,9 @@ function agentName(agentId: string): string {
 export function assistantRuntimeRole(
   input: AssistantRoleInput,
 ): AssistantRuntimeRole | null {
+  // A pool worker running Houston's turn says so for that turn's calls only
+  // (assistant/coordinator-scope.ts); it has no pod environment to read.
+  if (coordinatorScope()) return COORDINATOR_ROLE;
   const hostEnv = input.hostEnv ?? process.env;
   if (
     hostEnv[MANAGED_CLOUD_ENV] === "1" &&

@@ -128,6 +128,8 @@ export async function executeTurn(
     try {
       await preparation.hydrated;
       timings.t_hydrated = performance.now();
+      const refused = await turnSandbox?.admission();
+      if (refused) throw new TurnSetupError("message_refused", refused);
     } catch (error) {
       await reportAbandonedTurnStartup(startup);
       throw error;
@@ -149,7 +151,8 @@ export async function executeTurn(
       { ...turn, turnId },
       filesystem,
     );
-    const emit = (frame: WireFrame) => {
+    const emit = (raw: WireFrame) => {
+      const frame = turnSandbox ? turnSandbox.present(raw) : raw;
       sse.send(turnLog ? turnLog.record(frame) : frame);
       // The runtime persists the user message right before this frame; land
       // its transcript row now so a gateway that restarts mid-turn can rebuild

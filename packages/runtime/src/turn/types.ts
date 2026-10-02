@@ -1,4 +1,8 @@
-import type { ChatMessage, TurnMode } from "@houston/protocol";
+import type {
+  ChatMessage,
+  GrantableOperation,
+  TurnMode,
+} from "@houston/protocol";
 import type { PrefetchedObjects } from "@houston/runtime-client/object-sync";
 import type { ServedCredential } from "../auth/auth-file";
 import type { ClaudeSubscriptionType } from "../auth/claude-plan";
@@ -18,6 +22,18 @@ export interface TurnGrant {
   token: string;
   expires: number;
   scopes: TurnGrantScope[];
+}
+
+/**
+ * Houston's own per-turn credential: the gateway mints it for the owner of the
+ * assistant this turn runs, bound to the turn's claim (released claim = dead
+ * token). Secret material: it lives in the sandbox facade's closure only,
+ * never in a log, a file, a child's env or the session.
+ */
+export interface TurnCoordinator {
+  token: string;
+  /** Unix seconds. */
+  expires: number;
 }
 
 /** The served credential, plus the plan a pool dispatch names beside it. */
@@ -135,6 +151,12 @@ export interface TurnRequest {
   };
   /** Secret turn-local authority. Never log, export, persist, or put in env. */
   grant?: TurnGrant;
+  /** Present only on Houston's own turn (parse-turn-coordinator.ts). */
+  coordinator?: TurnCoordinator;
+  /** The person's answers to approval cards, raw as their message sent them. */
+  approvals?: unknown;
+  /** One-use approvals the person's message carries for this turn. */
+  grants?: GrantableOperation[];
   /** The agent's listing and small files, read by the dispatcher next to
    *  the store and shipped with a claimed turn so a far-away worker skips
    *  those round trips. Absent means read the store directly. */

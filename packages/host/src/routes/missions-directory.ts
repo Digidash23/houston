@@ -1,4 +1,5 @@
 import type { AgentDelegationRefusalCode } from "@houston/protocol";
+import { gatewayAgentSlug } from "../assistant/coordinator-scope";
 import type { Agent, Workspace } from "../domain/types";
 import { assistantRuntimeRole } from "../launcher/assistant-role";
 import { resolveMissionGateway } from "./agent-caller-wiring";
@@ -119,7 +120,7 @@ export function missionTargetDirectory(
   const remote = gatewayMissionDirectory(gateway, {
     ...opts,
     actingAs: opts.actingAs ?? wiring.value?.actingAs,
-    excludeIds: [ctx.agent.id, process.env.HOUSTON_AGENT_SLUG ?? ctx.agent.id],
+    excludeIds: [ctx.agent.id, gatewayAgentSlug() ?? ctx.agent.id],
   });
   return {
     async list() {

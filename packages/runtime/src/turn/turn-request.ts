@@ -37,6 +37,7 @@ export function turnSessionRequest(
     author: turn.actingAs,
     ...(claudePlan ? { claudePlan } : {}),
     ...(turn.grant ? { grant: { scopes: turn.grant.scopes } } : {}),
+    ...(turn.coordinator ? { role: "coordinator" as const } : {}),
     ...(sandbox ? { sandbox } : {}),
     ...(timings ? { timings } : {}),
     ...(startup ? { startup } : {}),
