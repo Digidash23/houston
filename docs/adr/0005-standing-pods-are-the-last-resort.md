@@ -10,7 +10,7 @@ A code path may wake a standing pod only when all three hold:
 2. The wake is counted. The control plane counts every request in `houston_cp_ensure_awake_total{reason,result}` and logs the reason with the org and agent. A `scaled` result is a real wake from zero replicas. A call site that wakes without a reason fails `TestEveryWakeCarriesAReason`, and every test fake of the control plane refuses such a wake.
 3. The reason is on the allowlist below. Adding one amends this ADR and gets the review a migration gets.
 
-A pod that woke for an allowed reason sleeps as soon as its busy probe is clear, not after the idle window. While it is awake, every request on that agent goes to it.
+A pod that woke for an allowed reason should sleep as soon as its busy probe is clear, not after the idle window. While it is awake, the gateway sends most of that agent's requests to it instead of answering them from the store. Today the control plane does this only for a pod that kept a turn because its drain would have been slow. Every other woken pod still waits out the idle window, so this rule is still to build.
 
 ## Allowed reasons
 
@@ -35,7 +35,7 @@ Every other reason in the enum is a fallback to remove. Enforcement will answer 
 | `mission`, `mission_stream`, `first_day` | Delegation, following a mission's stream, and a new agent's setup turn. | An op that hands back the turn to dispatch, and mission streams read from the turn log. |
 | `pod_route` | Any other route only the pod serves. | An op, or a 404 before any wake for a route the pod does not serve. |
 | `agent_unseeded` | The worker could not seed a new agent, so the gateway seeds it through its pod. | The seed op retries in the background. |
-| `agent_create`, `agent_rename` | Only reached outside the serve scope now. Agents in a served org are born asleep since cloud #460 and rename without a pod since cloud #458. | The org joins the serve scope. |
+| `agent_create`, `agent_rename` | An org outside the serve scope. Agents in a served org are born asleep since cloud #460 and rename without a pod since cloud #458. A create there names `agent_create` only when something already woke the new agent's pod, so its seed scales nothing. | The org joins the serve scope. |
 | `routine_fire`, `trigger_fire` | A fire the pool stood down. Houston's own fires count here too. | Pool fires that retry or fail with a typed reason. |
 | `routine_alarm` | The waker's pre-wake for an org whose fires do not run on the pool. | Putting the org in the routine serve scope. |
 
