@@ -245,3 +245,26 @@ test("a doc route that refuses a family leaves the projection unconfirmed", asyn
 
   expect(answer.projected).toBe(false);
 });
+
+test("a custody value that lands between the read and the write stays", async () => {
+  const fake = legacy();
+  fake.put("custom-integration-secrets.json", '{"ci_crm_KEY":"plain"}');
+  const puts: Array<string | null> = [];
+  const racing = (async (url: unknown, init?: RequestInit) => {
+    if (!String(url).includes("/custom-secrets/"))
+      return Response.json({ error: "document not found" }, { status: 404 });
+    if (!init?.method)
+      return Response.json({ error: "not found" }, { status: 404 });
+    // Another writer set the id after the read: the gateway refuses the
+    // create-only write.
+    puts.push(new Headers(init.headers).get("If-None-Match"));
+    return Response.json({ error: "secret exists" }, { status: 412 });
+  }) as typeof fetch;
+
+  const { status, answer } = await run(fake, { fetchImpl: racing });
+
+  expect(status).toBe(200);
+  expect(answer.secretsMoved).toBe(0);
+  expect(puts).toEqual(["*"]);
+  expect(await fake.keys()).not.toContain("custom-integration-secrets.json");
+});

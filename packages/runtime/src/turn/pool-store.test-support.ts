@@ -160,6 +160,11 @@ export function fakePoolStore(prefix: string, transcriptStatus = 200) {
         : Response.json({ value });
     }
     if (method === "PUT") {
+      if (
+        new Headers(init?.headers).get("If-None-Match") === "*" &&
+        secrets.has(id)
+      )
+        return Response.json({ error: "secret exists" }, { status: 412 });
       secrets.set(
         id,
         (JSON.parse(String(init?.body)) as { value: string }).value,
