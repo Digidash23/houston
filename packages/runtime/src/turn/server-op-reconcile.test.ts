@@ -443,3 +443,23 @@ test("a run that failed on a credential wall completes its streak and pauses the
   expect(saved).toMatchObject({ name: "Renamed digest", enabled: false });
   expect(saved?.auto_paused?.reason).toBe("out_of_credits");
 });
+
+test("a chat whose file already ends with the dead turn's message settles from the file alone", async () => {
+  const w = await worker({
+    chats: { c3: [...earlier, userOf("t3", STARTED)] },
+  });
+
+  const json = await w.reconcile({
+    conversationId: "c3",
+    abandoned: {
+      turnId: "t3",
+      startedAt: new Date(STARTED).toISOString(),
+      routine: false,
+    },
+  });
+
+  expect(json.events, JSON.stringify(json)).toEqual(["ConversationsChanged"]);
+  const tail = w.chat("c3").slice(-2);
+  expect(tail[0]).toEqual(userOf("t3", STARTED));
+  expect(tail[1]?.interrupted).toEqual({ cause: "engine_restart" });
+});

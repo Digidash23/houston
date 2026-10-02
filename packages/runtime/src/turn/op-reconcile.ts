@@ -65,14 +65,16 @@ export async function executeReconcileOp(input: {
       synced,
       `prefix=${resolved.prefix} kind=reconcile`,
     );
-    if (partial) return { status: 200, body: partial };
+    // Only a settlement that landed whole is "done": an attempt that left
+    // anything behind declines, and its retry is safe.
+    if (partial) return decline("sync-back incomplete", resolved.prefix);
     landed = [...synced.uploaded];
   }
   if (landed.includes(turnRoutineRunsKey(filesystem.workspaceRel))) {
     events.push(...(await pauseAfterSync(input, applied.pause)));
   }
   const op = input.op.op;
-  const failures = await publishReconcile({
+  const projected = await publishReconcile({
     deps: input.deps,
     turn: input.turn,
     filesystem,
@@ -82,11 +84,16 @@ export async function executeReconcileOp(input: {
     runs: !op.abandoned || op.abandoned.routine,
     landed,
   });
-  if (failures.length > 0) {
+  if (projected.settle.length > 0) {
     // The files are durable; the retry re-projects them.
     return decline(
-      `projection failed: ${failures.join("; ")}`,
+      `projection failed: ${projected.settle.join("; ")}`,
       resolved.prefix,
+    );
+  }
+  if (projected.lag.length > 0) {
+    console.error(
+      `[op] reconcile doc projection lags until the next writer: ${projected.lag.join("; ")} prefix=${resolved.prefix}`,
     );
   }
   return {
@@ -96,7 +103,7 @@ export async function executeReconcileOp(input: {
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ chat: applied.chat }),
-      events: announcedOpEvents(events, []),
+      events: announcedOpEvents(events, projected.lag),
     },
   };
 }

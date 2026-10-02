@@ -203,3 +203,12 @@ test("a store that cannot take the row leaves the run to start from the hydrated
   ) as RoutineRun[];
   expect(local.map((r) => r.id)).toEqual(["t1"]);
 });
+
+test("the same turn re-dispatched after its sandbox died reuses its own running row", async () => {
+  const filesystem = await sandbox([], [running("t1")]);
+
+  const phase = await start(filesystem, docServer().deps);
+
+  expect(phase.run.id).toBe("t1");
+  expect(stored().filter((r) => r.id === "t1")).toHaveLength(1);
+});

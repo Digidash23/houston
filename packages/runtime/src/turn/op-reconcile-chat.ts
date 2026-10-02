@@ -59,16 +59,18 @@ export async function settleAbandonedChat(
   // A retry finds the line an earlier attempt wrote: still the store's to get.
   if (reply?.interrupted) return { line: reply, written: false };
   if (reply) return { skipped: "answered" };
-  if (!userMessage) return { skipped: "unknown_turn" };
   const userIndex = messages.findLastIndex(
     (m) => m.role === "user" && m.turnId === turnId,
   );
+  // The chat file's own copy first; the transcript store's only when the
+  // file never got the message.
+  if (userIndex < 0 && !userMessage) return { skipped: "unknown_turn" };
   const after =
     userIndex >= 0
       ? messages.slice(userIndex + 1)
-      : messages.filter((m) => m.ts >= userMessage.ts);
+      : messages.filter((m) => m.ts >= (userMessage?.ts ?? 0));
   if (after.length > 0) return { skipped: "superseded" };
-  if (userIndex < 0) {
+  if (userIndex < 0 && userMessage) {
     const conversation: StoredConversation = existing ?? {
       id: conversationId,
       title: userMessage.content.slice(0, 60) || "New chat",

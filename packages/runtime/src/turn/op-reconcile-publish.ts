@@ -14,11 +14,13 @@ import { putTranscriptRow } from "./turn-transcript-http";
 import { docNotLandedReason } from "./turn-view-publish";
 
 /**
- * A reconcile op's projections, re-run on every attempt whether or not this
- * one changed a file: an attempt whose files landed but whose projection
- * failed declines, and the retry finds nothing left to write but still owes
- * the transcript store its reply and the run history doc its rows. Every
- * step is idempotent. Answers the projections that failed.
+ * A reconcile op's projections. The settlement's own two (the reply into the
+ * transcript store, the run history doc merged by run id) re-run on every
+ * attempt, whether or not this one changed a file: an attempt whose files
+ * landed but whose settlement projection failed declines, and the retry owes
+ * them still. The board and routines docs follow only what this attempt
+ * changed, through the ops' own republish, and a lag there is the ops'
+ * usual one: the next writer re-projects. Every step is idempotent.
  */
 export async function publishReconcile(input: {
   deps: TurnServerDeps;
@@ -32,20 +34,21 @@ export async function publishReconcile(input: {
   /** The op settles runs (a routine fire, a stale row): their doc follows. */
   runs: boolean;
   landed: readonly string[];
-}): Promise<string[]> {
+}): Promise<{ settle: string[]; lag: string[] }> {
   const { deps, turn, filesystem } = input;
-  const failures: string[] = [];
+  const settle: string[] = [];
+  const lag: string[] = [];
   // The file landed first, as a turn's does: the store's file-to-database
   // repair then keeps the line too.
-  if (input.line) failures.push(...(await mirrorReply(input, input.line)));
+  if (input.line) settle.push(...(await mirrorReply(input, input.line)));
   const target = docTarget(deps, turn);
-  if (!target) return failures;
-  if (input.runs) failures.push(...(await publishRunsDoc(target, filesystem)));
+  if (!target) return { settle, lag };
+  if (input.runs) settle.push(...(await publishRunsDoc(target, filesystem)));
   const others = input.events.filter(
     (e) => e.type === "ActivityChanged" || e.type === "RoutinesChanged",
   );
   if (others.length > 0) {
-    failures.push(
+    lag.push(
       ...(await republish(
         deps,
         turn,
@@ -62,7 +65,7 @@ export async function publishReconcile(input: {
       )),
     );
   }
-  return failures;
+  return { settle, lag };
 }
 
 /** The run history as the sync-back merge left it, merged into the doc by

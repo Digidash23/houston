@@ -92,8 +92,17 @@ export async function prepareRoutineTurn(
   // it is here: settling it is reconcile's job, by the pod's scheduler while
   // the agent is awake, and otherwise by the control plane's reconcile op
   // (op-reconcile.ts) once no claim holds its conversation.
+  // The row under this turn's own id is this run's, published by an
+  // earlier attempt of the same turn (a follower re-dispatching it after
+  // its sandbox died): it never holds the run back, and the new row
+  // replaces it.
   if (
-    runs.some((r) => r.routine_id === routine.id && holdsRoutineBusy(r, nowMs))
+    runs.some(
+      (r) =>
+        r.routine_id === routine.id &&
+        r.id !== turnId &&
+        holdsRoutineBusy(r, nowMs),
+    )
   ) {
     throw new RoutineTurnError(
       "routine_busy",
@@ -101,7 +110,11 @@ export async function prepareRoutineTurn(
     );
   }
   const run = createRoutineRun(routine, turnId, nowIso);
-  await saveRoutineRuns(store, workspaceDir, pruneRoutineRuns([run, ...runs]));
+  await saveRoutineRuns(
+    store,
+    workspaceDir,
+    pruneRoutineRuns([run, ...runs.filter((r) => r.id !== turnId)]),
+  );
   const pin = routinePin(routine);
   const events = turn.routine.events ?? [];
   return {
