@@ -1,0 +1,39 @@
+import { expect, test } from "../support/fixtures";
+import { openMoreMenu } from "../support/mobile-nav";
+import {
+  armPlan,
+  billingScreen,
+  freePlan,
+  installPlanClock,
+  planCallCount,
+} from "../support/plan";
+
+for (const { percent, status } of [
+  { percent: 25, status: "Free plan" },
+  { percent: 85, status: "85% of weekly usage used" },
+  { percent: 100, status: "Usage limit reached" },
+]) {
+  test(`More offers upgrade at ${percent}% and closes onto Billing`, async ({
+    page,
+  }) => {
+    await installPlanClock(page);
+    await armPlan({
+      summary: freePlan({ usage: { percent, used: percent, limit: 100 } }),
+    });
+    await page.goto("/");
+    const menu = await openMoreMenu(page);
+    const upgrade = menu.getByTestId("plan-upgrade");
+    await expect(upgrade).toContainText(status);
+    await upgrade.tap();
+    await expect(menu).toBeHidden();
+    await expect(billingScreen(page)).toBeVisible();
+    expect(await planCallCount("checkout")).toBe(0);
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+      ),
+    ).toBeLessThanOrEqual(0);
+  });
+}

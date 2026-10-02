@@ -203,7 +203,7 @@ test("a send refused with message_limit renders the limit card and is not retrie
   await expect(page.getByText("Weekly usage limit reached")).toBeVisible();
   await expect(page.getByText(/^Your usage resets /)).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Upgrade to Plus" }),
+    page.getByRole("button", { name: "Upgrade to Plus", exact: true }),
   ).toBeVisible();
   // The typed card, never the gateway's raw refusal text.
   await expect(page.getByText("message limit reached")).toHaveCount(0);
@@ -237,7 +237,9 @@ test("at the enforced limit the composer is replaced by the limit card", async (
 
   await expect(page.getByText("Weekly usage limit reached")).toBeVisible();
   await expect(page.getByPlaceholder(NEW_TASK_PLACEHOLDER)).toHaveCount(0);
-  await page.getByRole("button", { name: "Upgrade to Plus" }).click();
+  await page
+    .getByRole("button", { name: "Upgrade to Plus", exact: true })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Billing", level: 1 }),
   ).toBeVisible();

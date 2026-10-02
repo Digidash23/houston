@@ -96,5 +96,12 @@
   "checkoutAccountDeletedTitle": "Tu cuenta se está eliminando",
   "checkoutAccountDeletedBody": "No puedes pasarte a Plus con una cuenta que se está eliminando.",
   "checkoutUnavailableTitle": "Plus no está disponible",
-  "checkoutUnavailableBody": "Por ahora no se puede comprar Plus aquí. Vuelve a intentarlo más tarde."
+  "checkoutUnavailableBody": "Por ahora no se puede comprar Plus aquí. Vuelve a intentarlo más tarde.",
+  "sidebar": {
+    "free": "Plan gratis",
+    "nearLimit": "Has usado el {{percent}}% de tu uso semanal",
+    "limit": "Límite de uso alcanzado",
+    "preview": "{{percent}}% usado en la vista previa",
+    "collapsed": "Mejorar a Plus. {{status}}"
+  }
 }

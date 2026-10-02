@@ -3,6 +3,13 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v121 - 2026-10-02
+
+Free users have a persistent Upgrade to Plus entry above Connect your apps in
+both the sidebar and phone More menu. It shows approaching and reached weekly
+usage limits, keeps launch previews distinct, and opens personal Billing.
+The collapsed rail keeps the action as a labeled icon with a tooltip.
+
 ## v120 - 2026-10-01
 
 The plan offer is the beta tester gift: a first month of Plus at a lower price,

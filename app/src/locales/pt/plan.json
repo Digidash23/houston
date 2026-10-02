@@ -96,5 +96,12 @@
   "checkoutAccountDeletedTitle": "Sua conta está sendo excluída",
   "checkoutAccountDeletedBody": "Não é possível assinar o Plus com uma conta que está sendo excluída.",
   "checkoutUnavailableTitle": "O Plus não está disponível",
-  "checkoutUnavailableBody": "No momento não é possível comprar o Plus aqui. Tente novamente mais tarde."
+  "checkoutUnavailableBody": "No momento não é possível comprar o Plus aqui. Tente novamente mais tarde.",
+  "sidebar": {
+    "free": "Plano grátis",
+    "nearLimit": "Você usou {{percent}}% do uso semanal",
+    "limit": "Limite de uso atingido",
+    "preview": "{{percent}}% usado na prévia",
+    "collapsed": "Mudar para Plus. {{status}}"
+  }
 }
