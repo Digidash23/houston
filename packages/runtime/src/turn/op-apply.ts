@@ -236,5 +236,7 @@ export async function applyOp(
       // A seed decides from the store listing before any tree exists
       // (op-seed.ts); executeOp never hands it a hydrated filesystem.
       throw new Error("a seed op does not run over a hydrated tree");
+    case "reconcile":
+      throw new Error("a reconcile op runs its own path (op-reconcile.ts)");
   }
 }

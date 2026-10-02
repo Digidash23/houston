@@ -1,50 +1,20 @@
 import {
-  completeRoutineRun,
   loadActivities,
   loadRoutineRuns,
   loadRoutines,
-  ROUTINE_RUN_TIMEOUT_MS,
   routineActivity,
   saveActivities,
   saveRoutineRuns,
   upsertById,
 } from "@houston/domain";
-import type { ChatMessage, Routine, RoutineRun } from "@houston/protocol";
 import type { Agent, Workspace } from "../domain/types";
 import type { EventHub } from "../events/hub";
-import { conversationKey, type WorkspacePaths } from "../paths";
+import type { WorkspacePaths } from "../paths";
 import type { Vfs } from "../vfs";
 import { pauseFailingRoutines } from "./auto-pause";
-import {
-  providerErrorSummary,
-  routineRunFailure,
-  routineRunFailureSummary,
-} from "./run-failure";
+import { decideRun, type RunUpdate } from "./reconcile-decide";
+import { loadRunReplies, type ReplyReader } from "./reconcile-replies";
 import { withRunsFile } from "./runs-lock";
-
-interface StoredConversation {
-  messages: ChatMessage[];
-}
-
-/**
- * The agent's reply for this run: the last assistant message after the run
- * started. Returns the MESSAGE (not just its text) so the caller can read a
- * persisted providerError — a failed turn appends an empty-content assistant
- * message carrying the typed failure, and that emptiness must classify as
- * "the turn answered (badly)", never "still in flight".
- */
-function replyAfter(
-  conversation: StoredConversation | null,
-  startedAtMs: number,
-): ChatMessage | null {
-  if (!conversation) return null;
-  for (let i = conversation.messages.length - 1; i >= 0; i--) {
-    const m = conversation.messages[i];
-    if (!m) continue;
-    if (m.role === "assistant" && m.ts >= startedAtMs) return m;
-  }
-  return null;
-}
 
 export interface ReconcileDeps {
   vfs: Vfs;
@@ -54,29 +24,18 @@ export interface ReconcileDeps {
   events?: EventHub;
   now: () => Date;
   newId: () => string;
-  /** Present only while the managed transcript dual-write is enabled. */
-  replyReader?: {
-    /** null/undefined means no shadow reply: retain the authoritative file read. */
-    replyAfter(
-      conversationId: string,
-      sinceMs: number,
-    ): Promise<ChatMessage | null | undefined>;
-  };
+  replyReader?: ReplyReader;
 }
 
-/** One sweep's decision for a run, applied only if the row is still `running`. */
-interface RunUpdate {
-  run: RoutineRun;
-  /**
-   * A NON-terminal field write. `run` is a snapshot taken before this sweep's
-   * awaits, so writing it back would revert whatever else changed on a row
-   * that stays `running` (a pause, an activity id). A patch is merged onto the
-   * FRESH row instead. Terminal updates keep replacing the row wholesale:
-   * there, the snapshot IS the decision and nothing may survive it.
-   */
-  patch?: Partial<RoutineRun>;
-  /** Set when the update surfaces content — drives the board Activity. */
-  surfacedRoutine?: Routine;
+/** Narrows one sweep. The standing scheduler sweeps everything; a pool
+ *  worker's reconcile op holds ONE conversation's claim, and knows which
+ *  turn of it died. */
+export interface ReconcileScope {
+  /** Only this conversation's runs: the one the caller's claim covers. */
+  conversationId?: string;
+  /** Runs whose turn is known dead (its pool claim ended unsettled): they
+   *  settle now, as interrupted, unless their turn did answer. */
+  abandoned?: ReadonlySet<string>;
 }
 
 /**
@@ -97,10 +56,16 @@ export async function reconcileAgentRuns(
   deps: ReconcileDeps,
   ws: Workspace,
   agent: Agent,
+  scope: ReconcileScope = {},
 ): Promise<void> {
   const root = deps.paths.agentRoot(ws, agent);
   const { items: runs } = await loadRoutineRuns(deps.vfs, root);
-  const running = runs.filter((r) => r.status === "running");
+  const running = runs.filter(
+    (r) =>
+      r.status === "running" &&
+      (scope.conversationId === undefined ||
+        r.session_key === scope.conversationId),
+  );
   if (running.length === 0) return;
 
   const { items: routines } = await loadRoutines(deps.vfs, root);
@@ -110,106 +75,31 @@ export async function reconcileAgentRuns(
     const routine = routines.find((item) => item.id === run.routine_id);
     return routine ? [{ run, routine }] : [];
   });
-  const replies = await Promise.all(
-    candidates.map(async ({ run }) => {
-      const startedAtMs = Date.parse(run.started_at);
-      let remoteReply: ChatMessage | null | undefined;
-      try {
-        remoteReply = await deps.replyReader?.replyAfter(
-          run.session_key,
-          startedAtMs,
-        );
-      } catch (error) {
-        console.debug(
-          `[transcript-shadow] reply-after failed for ${run.session_key}; using file`,
-          error,
-        );
-      }
-      if (remoteReply) return remoteReply;
-      const raw = await deps.vfs.readText(
-        conversationKey(deps.paths, ws, agent, run.session_key),
-      );
-      const conversation = raw ? (JSON.parse(raw) as StoredConversation) : null;
-      return replyAfter(conversation, startedAtMs);
-    }),
+  const replies = await loadRunReplies(
+    deps,
+    ws,
+    agent,
+    candidates.map((c) => c.run),
   );
 
   for (const [index, { run, routine }] of candidates.entries()) {
-    const reply = replies[index] ?? null;
-
-    // An `interrupted.resumed` reply is the engine saying "I died mid-run and
-    // am running this turn again myself" (PRODUCT-1785) — a pause, not the
-    // run's answer. Its 15-minute budget restarts from that interruption: the
-    // work began again there, and timing it out against the ORIGINAL start
-    // would kill a resume that only had seconds of the first window left.
-    const resumedReply = reply?.interrupted?.resumed === true ? reply : null;
-    const clockStartMs = resumedReply
-      ? resumedReply.ts
-      : Date.parse(run.started_at);
-    const timedOut =
-      (!reply || resumedReply !== null) &&
-      nowMs - clockStartMs > ROUTINE_RUN_TIMEOUT_MS;
-    if (!reply && !timedOut) continue; // turn still in flight
-    if (resumedReply && !timedOut) {
-      // Stays `running`, and deliberately takes NO completion lock: the
-      // resumed turn's real reply still has to win that lock on a later sweep.
-      // Writing the same flag from two replicas is idempotent.
-      if (!run.resumed) updates.push({ run, patch: { resumed: true } });
+    const decision = decideRun({
+      run,
+      routine,
+      reply: replies[index] ?? null,
+      nowMs,
+      nowIso: deps.now().toISOString(),
+      abandoned: scope.abandoned?.has(run.id) === true,
+    });
+    if (decision.kind === "wait") continue;
+    if (decision.kind === "patch") {
+      updates.push(decision.update);
       continue;
     }
-
     // One replica owns this run's completion.
     if (!(await deps.lock.setNx(`routine:reconcile:${run.id}`, "1", 120)))
       continue;
-
-    if (timedOut) {
-      updates.push({
-        run: {
-          ...run,
-          status: "error",
-          summary: "The routine timed out without a response.",
-          completed_at: deps.now().toISOString(),
-        },
-      });
-      continue;
-    }
-
-    if (!reply) continue; // narrowing: timedOut is false here, so reply must be set
-
-    // A failed turn (auth, rate limit, bad pin…) persists its typed provider
-    // error on the assistant message — surface THAT as the run's error right
-    // now (parity with the Rust dispatcher's visible run errors) instead of
-    // classifying the empty reply or waiting out the 15-minute timeout.
-    if (reply.providerError) {
-      // A credential-level wall gets the honest, whose-account-is-it sentence
-      // (PRODUCT-1475): the raw provider message says "no provider connected"
-      // to a reader whose OWN account is connected. Everything else keeps the
-      // verbatim provider text.
-      const failure = routineRunFailure(reply.providerError);
-      updates.push({
-        run: {
-          ...run,
-          status: "error",
-          summary: failure
-            ? routineRunFailureSummary(failure)
-            : providerErrorSummary(reply.providerError),
-          ...(failure ? { failure } : {}),
-          completed_at: deps.now().toISOString(),
-        },
-      });
-      continue;
-    }
-
-    const done = completeRoutineRun(
-      run,
-      routine,
-      reply.content,
-      deps.now().toISOString(),
-    );
-    updates.push({
-      run: done,
-      surfacedRoutine: done.status === "surfaced" ? routine : undefined,
-    });
+    updates.push(decision.update);
   }
   if (updates.length === 0) return;
 

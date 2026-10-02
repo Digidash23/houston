@@ -1,4 +1,5 @@
 import { ID, str } from "./op-grammar-fields";
+import { parseReconcileOp, type ReconcileOp } from "./op-grammar-reconcile";
 import { parseSeedOp, type SeedOp } from "./op-grammar-seed";
 import { parseSettingsOp, type SettingsOp } from "./op-grammar-settings";
 import {
@@ -43,7 +44,8 @@ export type AgentOp =
       conversationId: string;
       title?: string;
     }
-  | SeedOp;
+  | SeedOp
+  | ReconcileOp;
 
 export { ID, str } from "./op-grammar-fields";
 
@@ -85,6 +87,8 @@ export function parseAgentOp(raw: Record<string, unknown>): AgentOp {
     }
     case "seed":
       return parseSeedOp(raw);
+    case "reconcile":
+      return parseReconcileOp(raw);
     default:
       throw new Error("invalid 'op.kind'");
   }

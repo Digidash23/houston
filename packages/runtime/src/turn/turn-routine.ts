@@ -88,8 +88,10 @@ export async function prepareRoutineTurn(
   }
   const { items: runs } = await loadRoutineRuns(store, workspaceDir);
   const nowMs = Date.parse(nowIso);
-  // An abandoned `running` row stops blocking but stays as it is: settling
-  // it is reconcile's job, on the pod that ran it.
+  // An abandoned `running` row stops blocking past the timeout but stays as
+  // it is here: settling it is reconcile's job, by the pod's scheduler while
+  // the agent is awake, and otherwise by the control plane's reconcile op
+  // (op-reconcile.ts) once no claim holds its conversation.
   if (
     runs.some((r) => r.routine_id === routine.id && holdsRoutineBusy(r, nowMs))
   ) {

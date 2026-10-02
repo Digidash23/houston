@@ -35,7 +35,8 @@ export function isMigrationImport(op: AgentOp): boolean {
 
 /** The conversation id an op claims (its store writes and docs carry it). */
 export function opClaimId(op: AgentOp): string {
-  if (op.kind === "conversation") return op.conversationId;
+  if (op.kind === "conversation" || op.kind === "reconcile")
+    return op.conversationId;
   return isMigrationImport(op) ? AGENT_IMPORT_CLAIM_ID : AGENT_OPS_CLAIM_ID;
 }
 
@@ -73,6 +74,7 @@ export function opTreeOptions(op: AgentOp): {
     case "route":
       return { excludes: ROUTE_OP_EXCLUDES, lazy: true };
     case "conversation":
+    case "reconcile":
       return { lazy: true };
     case "settings":
     case "credential":
