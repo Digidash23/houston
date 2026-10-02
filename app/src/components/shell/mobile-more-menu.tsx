@@ -110,7 +110,7 @@ export function MobileMoreMenu() {
             </SidebarWorkspaceSwitcher>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto pb-2">
-            <PlanUpgradeRow nav="reset" />
+            <PlanUpgradeRow surface="sheet" nav="reset" />
             <div className="pb-2">
               <ConnectGroup
                 collapsed={false}

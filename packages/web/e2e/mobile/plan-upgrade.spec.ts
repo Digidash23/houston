@@ -10,8 +10,8 @@ import {
 
 for (const { percent, status } of [
   { percent: 25, status: "Free plan" },
-  { percent: 85, status: "85% of weekly usage used" },
-  { percent: 100, status: "Usage limit reached" },
+  { percent: 85, status: "85% used" },
+  { percent: 100, status: "Limit reached" },
 ]) {
   test(`More offers upgrade at ${percent}% and closes onto Billing`, async ({
     page,
@@ -24,6 +24,7 @@ for (const { percent, status } of [
     const menu = await openMoreMenu(page);
     const upgrade = menu.getByTestId("plan-upgrade");
     await expect(upgrade).toContainText(status);
+    await expect(upgrade).toContainText("Upgrade");
     await upgrade.tap();
     await expect(menu).toBeHidden();
     await expect(billingScreen(page)).toBeVisible();

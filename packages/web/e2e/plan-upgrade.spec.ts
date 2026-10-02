@@ -14,8 +14,8 @@ test.beforeEach(async ({ page }) => {
 
 for (const { percent, status } of [
   { percent: 25, status: "Free plan" },
-  { percent: 80, status: "80% of weekly usage used" },
-  { percent: 100, status: "Usage limit reached" },
+  { percent: 80, status: "80% used" },
+  { percent: 100, status: "Limit reached" },
 ]) {
   test(`sidebar upgrade stays visible at ${percent}% and opens Billing`, async ({
     page,
@@ -27,8 +27,9 @@ for (const { percent, status } of [
     const upgrade = page
       .getByTestId("sidebar-footer")
       .getByTestId("plan-upgrade");
-    await expect(upgrade).toContainText("Upgrade to Plus");
     await expect(upgrade).toContainText(status);
+    await expect(upgrade).toContainText("Upgrade");
+    await expect(upgrade).toHaveAccessibleName(`Upgrade to Plus. ${status}`);
     const apps = page.locator('[data-tour-target="nav-integrations"]');
     const upgradeBox = await upgrade.boundingBox();
     const appsBox = await apps.boundingBox();
@@ -53,9 +54,7 @@ test("collapsed sidebar keeps upgrade and its usage state accessible", async ({
   await expect(page.getByTestId("plan-upgrade")).toBeVisible();
   await page.getByRole("button", { name: "Collapse sidebar" }).click();
   const upgrade = page.getByTestId("plan-upgrade");
-  await expect(upgrade).toHaveAccessibleName(
-    "Upgrade to Plus. Usage limit reached",
-  );
+  await expect(upgrade).toHaveAccessibleName("Upgrade to Plus. Limit reached");
   await upgrade.click();
   await expect(billingScreen(page)).toBeVisible();
 });

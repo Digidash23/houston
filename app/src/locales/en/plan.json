@@ -99,9 +99,10 @@
   "checkoutUnavailableBody": "Plus can't be bought here right now. Please try again later.",
   "sidebar": {
     "free": "Free plan",
-    "nearLimit": "{{percent}}% of weekly usage used",
-    "limit": "Usage limit reached",
-    "preview": "{{percent}}% used in preview",
-    "collapsed": "Upgrade to Plus. {{status}}"
+    "nearLimit": "{{percent}}% used",
+    "limit": "Limit reached",
+    "preview": "Preview: {{percent}}% used",
+    "upgrade": "Upgrade",
+    "label": "Upgrade to Plus. {{status}}"
   }
 }
