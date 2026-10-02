@@ -23,33 +23,6 @@ import {
  * re-POST of the same chunk an idempotent resume.
  */
 
-/**
- * Whether an uploaded migration archive carries runtime transcript entries
- * (`.houston/runtime/**`). A pool worker declines those imports back to the
- * pod: session re-synthesis is agentDir-anchored and the transcript
- * authority learns imported conversations only from the pod's projector.
- * A malformed zip reads as `false` so the real import route owns its error.
- */
-export function archiveTouchesRuntime(bytes: Buffer): boolean {
-  try {
-    // Names only — the filter refuses every entry, so nothing inflates.
-    // Normalize EXACTLY as the import loop below does (safeSeedKey), so
-    // `./.houston/runtime/…` and friends cannot dodge the decline while
-    // still importing as a runtime path.
-    let touches = false;
-    unzipSync(new Uint8Array(bytes), {
-      filter: (file) => {
-        if (safeSeedKey(file.name)?.startsWith(".houston/runtime/"))
-          touches = true;
-        return false;
-      },
-    });
-    return touches;
-  } catch {
-    return false;
-  }
-}
-
 export class MigrationImportError extends Error {
   constructor(
     readonly status: number,
@@ -84,11 +57,14 @@ function migrationEventType(rel: string): AgentFileChangeEvent["type"] | null {
 function synthesizeSessionFromTranscript(
   agentDir: string,
   conv: StoredConversation,
+  listedSessions: ReadonlySet<string>,
 ): void {
   // The id names the session dir on disk — refuse anything path-like.
   if (!conv.id || /[/\\]/.test(conv.id) || conv.id.includes("..")) return;
   const sessionDir = join(agentDir, ".houston", "runtime", "sessions", conv.id);
-  if (existsSync(sessionDir)) return; // idempotent resume
+  // Idempotent resume. The listing sees a session a lazy tree (a pool
+  // worker) holds only in the store; on a real tree it adds nothing.
+  if (listedSessions.has(conv.id) || existsSync(sessionDir)) return;
   const pairs = conv.messages.filter(
     (m) => (m.role === "user" || m.role === "assistant") && m.content,
   );
@@ -162,35 +138,56 @@ export async function applyMigrationArchive(opts: {
       continue;
     }
     const key = `${opts.root}/${rel}`;
+    const transcript =
+      opts.agentDir &&
+      rel.startsWith(".houston/runtime/conversations/") &&
+      rel.endsWith(".json");
     if (!opts.overwrite && existing.has(key)) {
       result.skipped++;
+      // A retry after a crash between the transcript write and its session
+      // finds the transcript here: its session is still rebuilt from the
+      // transcript the store KEEPS (the chat and the model's memory must
+      // agree), and synthesis skips any session that already exists.
+      if (transcript) {
+        const kept = await opts.vfs.readText(key);
+        if (kept !== null) parseTranscript(Buffer.from(kept), transcripts);
+      }
       continue;
     }
     await opts.vfs.writeBytes(key, Buffer.from(data));
     result.written++;
     const eventType = migrationEventType(rel);
     if (eventType) events.add(eventType);
-    if (
-      opts.agentDir &&
-      rel.startsWith(".houston/runtime/conversations/") &&
-      rel.endsWith(".json")
-    ) {
-      try {
-        transcripts.push(
-          JSON.parse(Buffer.from(data).toString("utf8")) as StoredConversation,
-        );
-      } catch {
-        // The transcript file itself is imported verbatim either way; an
-        // unparseable one just gets no synthesized session.
-        result.rejected.push({ path: rel, reason: "transcript not parseable" });
-      }
-    }
+    // The transcript file itself is imported verbatim either way; an
+    // unparseable one just gets no synthesized session.
+    if (transcript && !parseTranscript(data, transcripts))
+      result.rejected.push({ path: rel, reason: "transcript not parseable" });
   }
 
   if (opts.agentDir) {
+    const sessionsRoot = `${opts.root}/.houston/runtime/sessions/`;
+    const listedSessions = new Set(
+      [...existing]
+        .filter((key) => key.startsWith(sessionsRoot))
+        .map((key) => key.slice(sessionsRoot.length).split("/")[0] ?? ""),
+    );
     for (const conv of transcripts) {
-      synthesizeSessionFromTranscript(opts.agentDir, conv);
+      synthesizeSessionFromTranscript(opts.agentDir, conv, listedSessions);
     }
   }
   return { result, events };
+}
+
+function parseTranscript(
+  data: Uint8Array,
+  into: StoredConversation[],
+): boolean {
+  try {
+    into.push(
+      JSON.parse(Buffer.from(data).toString("utf8")) as StoredConversation,
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }

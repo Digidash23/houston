@@ -34,6 +34,9 @@ export interface AgentOpChainDeps {
   /** Wired for custom-integration ops only (a per-op manager over the
    *  hydrated definitions file + the gateway's secret store). */
   customIntegrations?: CustomIntegrationManager;
+  /** The worker's on-disk agent dir; anchors a migration import's pi
+   *  sessions (routes/migration-import.ts). */
+  agentDir?: string;
 }
 
 /**
@@ -137,8 +140,8 @@ const OP_HANDLERS: Record<OpGroup, OpHandler> = {
     handlePortablePreview(deps, deps.ctx, method, rest, req, res),
   "portable-export": (deps, method, rest, req, res) =>
     handlePortableExport(deps, deps.ctx, method, rest, req, res),
-  // No agentDir: archives carrying runtime transcripts were declined before
-  // dispatch (turn/op-route.ts), so there is never a session to synthesize here.
+  // agentDir: a transcript chunk synthesizes its pi sessions on the worker's
+  // own tree (turn/op-route.ts), unless the import asked `sessions=0`.
   migration: (deps, method, rest, req, res) =>
     handleMigration(deps, deps.ctx, method, rest, req, res, deps.emit),
 };

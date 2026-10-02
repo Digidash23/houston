@@ -1,5 +1,10 @@
 import type { HoustonEvent } from "@houston/protocol";
 import { actingAuthorFor } from "../../auth/acting";
+import {
+  AGENT_NAME_HEADER,
+  displayNameFromHeader,
+  withDisplayName,
+} from "../../auth/agent-name-header";
 import type { Agent, UserId, Workspace } from "../../domain/types";
 import { authorizeAgent, trustedActingAs } from "../agent-authz";
 import { json, methodNotAllowed } from "../http";
@@ -102,8 +107,16 @@ async function authorize(
   if (agentId === undefined)
     throw new Error(`agent-phase group "${entry.group}" matched no :agentId`);
   const authz = await authorizeAgent(ctx.deps, userId, agentId);
-  if (authz.ok)
-    return { agentId, agent: authz.agent, workspace: authz.workspace };
+  if (authz.ok) {
+    const name = ctx.deps.gatewayFronted
+      ? displayNameFromHeader(ctx.req.headers[AGENT_NAME_HEADER])
+      : undefined;
+    return {
+      agentId,
+      agent: withDisplayName(authz.agent, name),
+      workspace: authz.workspace,
+    };
+  }
   json(ctx.res, authz.status, { error: authz.reason });
   return null;
 }

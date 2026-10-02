@@ -212,32 +212,6 @@ test("a migration import without runtime entries applies on the worker (bodyBase
   expect(synced.some((k) => k.endsWith("/files/notes.txt"))).toBe(true);
 });
 
-test("a migration import carrying runtime transcripts declines to the pod", async () => {
-  const { storeRoot } = await seedAgent();
-  const base = await listen(
-    createTurnServer({
-      store: new LocalDirStore(storeRoot),
-      token: "",
-      runTurn: noopTurn,
-    }),
-  );
-  const zip = zipSync({
-    ".houston/runtime/conversations/c9.json": new TextEncoder().encode("{}"),
-  });
-  const { json } = await postOp(
-    base,
-    opBody(await heartbeatOK(), {
-      kind: "route",
-      method: "POST",
-      rest: "migration/import",
-      contentType: "application/zip",
-      bodyBase64: Buffer.from(zip).toString("base64"),
-    }),
-  );
-  expect(json.ok).toBe(true);
-  expect(json.decline).toBe(true);
-});
-
 /** The gateway double: heartbeat + credential PUT + shared-endpoint PUT/DELETE. */
 function fakeGateway(recorded: {
   credentials: { path: string; body: string }[];

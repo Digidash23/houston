@@ -2,53 +2,20 @@ import { mkdtemp, rm } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  docKey,
-  type HoustonFamily,
-  normalizeActivities,
-  normalizeLearnings,
-  normalizeRoutineRuns,
-  normalizeRoutines,
-} from "@houston/domain";
-import type { HoustonEvent } from "@houston/protocol";
 import { syncBack } from "@houston/runtime-client/object-sync";
 import { startClaimHeartbeat } from "./claim-heartbeat";
-import { applyOp, type OpResult } from "./op-apply";
+import { applyOp } from "./op-apply";
+import { partialSyncReply, projectDurableOp } from "./op-durability";
 import { WorkerOpDeclinedError } from "./op-provider-guard";
-import { opTranscriptMirror } from "./op-transcript";
+import { executeSeedOp } from "./op-seed";
+import { opClaimId, opTreeOptions } from "./op-tree-options";
 import { parseOpRequest } from "./parse-op-request";
 import type { TurnServerDeps } from "./server-types";
-import { publish } from "./turn-activity-doc";
-import { announcedOpEvents } from "./turn-changed-events";
-import { prepareTurnFilesystem, type TurnFilesystem } from "./turn-filesystem";
-import { poolIdentity, resolveTurnStore } from "./turn-store";
+import type { announcedOpEvents } from "./turn-changed-events";
+import { prepareTurnFilesystem } from "./turn-filesystem";
+import { resolveTurnStore } from "./turn-store";
 
-/** Reserved claim key for agent-level writes (gateway + pod-store agree). */
-export const AGENT_OPS_CLAIM_ID = "agent-ops";
-
-/** Route ops never see the AGENT's runtime tree (`workspaces/<ws>/<agent>/
- *  .houston/runtime/`) — exactly that depth, so a user project carrying its
- *  own `.houston/runtime` directory is listed like any other file. */
-const ROUTE_OP_EXCLUDES = ["workspaces/*/*/.houston/runtime/"];
-/** A settings op reads/writes the runtime dir's small files only: skip the
- *  bulk (history, user files); the small .houston docs keep the layout real.
- *  A model-picker click must not pay a big agent's hydrate. */
-const SETTINGS_OP_EXCLUDES = [
-  "workspaces/*/*/.houston/runtime/conversations/",
-  "workspaces/*/*/.houston/runtime/sessions/",
-  "workspaces/*/*/files/",
-  "workspaces/*/*/uploads/",
-];
-/** A credential op needs nothing but the agent directory to exist. */
-const CREDENTIAL_OP_EXCLUDES = SETTINGS_OP_EXCLUDES;
-
-const EVENT_FAMILY: Partial<Record<HoustonEvent["type"], HoustonFamily>> = {
-  ActivityChanged: "activity",
-  RoutinesChanged: "routines",
-  RoutineRunsChanged: "routine_runs",
-  ConfigChanged: "config",
-  LearningsChanged: "learnings",
-};
+export { AGENT_IMPORT_CLAIM_ID, AGENT_OPS_CLAIM_ID } from "./op-tree-options";
 
 function json(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -77,11 +44,7 @@ export async function executeOp(
   }
   const root = await mkdtemp(join(tmpdir(), "houston-op-"));
   const abort = new AbortController();
-  const turnLike = {
-    ...op,
-    conversationId:
-      op.op.kind === "conversation" ? op.op.conversationId : AGENT_OPS_CLAIM_ID,
-  };
+  const turnLike = { ...op, conversationId: opClaimId(op.op) };
   const heartbeat = startClaimHeartbeat({
     claim: op.claim,
     hostToken: op.hostToken,
@@ -96,6 +59,23 @@ export async function executeOp(
       poolStoreUrl: deps.poolStoreUrl,
       fetchImpl: deps.fetchImpl,
     });
+    if (op.op.kind === "seed") {
+      // Decided from the listing before any tree exists: never through the
+      // claimed hydrate, which refuses the empty prefix a new agent has.
+      const reply = await executeSeedOp({
+        deps,
+        op: { ...op, op: op.op },
+        turn: turnLike,
+        store: resolved.store,
+        prefix: resolved.prefix,
+        root,
+        fenced: async () => {
+          await heartbeat.checkpoint();
+          return heartbeat.fenced;
+        },
+      });
+      return json(res, reply.status, reply.body);
+    }
     const filesystem = await prepareTurnFilesystem({
       store: resolved.store,
       prefix: resolved.prefix,
@@ -104,23 +84,7 @@ export async function executeOp(
       ...(deps.maxHydrateBytes !== undefined
         ? { maxBytes: deps.maxHydrateBytes }
         : {}),
-      // Agent-level routes (files, docs, skills) and conversation ops run
-      // over a LAZY tree: the store's listing, objects downloaded on first
-      // read — a Files listing or a one-file read costs one round-trip, not
-      // the agent's size, and a rename fetches its one conversation. The
-      // runtime tree (conversations, sessions) is never listed for routes.
-      // A settings op needs the runtime dir minus those two. A credential
-      // op touches no file at all (the gateway's store is the only write)
-      // — it still hydrates the layout so the agent-exists check holds.
-      ...(op.op.kind === "route"
-        ? { excludes: ROUTE_OP_EXCLUDES, lazy: true }
-        : op.op.kind === "conversation"
-          ? { lazy: true }
-          : op.op.kind === "settings"
-            ? { excludes: SETTINGS_OP_EXCLUDES }
-            : op.op.kind === "credential"
-              ? { excludes: CREDENTIAL_OP_EXCLUDES }
-              : {}),
+      ...opTreeOptions(op.op),
     });
     const result = await (deps.runOp ?? applyOp)(
       op,
@@ -167,62 +131,21 @@ export async function executeOp(
           workerMerge: true,
         },
       );
-      const landed = synced.uploaded.length + synced.deleted.length > 0;
-      const partial =
-        synced.outOfScope > 0 ||
-        synced.skipped.length > 0 ||
-        synced.conflicts.length > 0;
-      if (partial) {
-        console.error(
-          `[op] not durably synced: outOfScope=${synced.outOfScope} skipped=${synced.skipped.length} conflicts=${synced.conflicts.length} landed=${landed} prefix=${resolved.prefix} kind=${op.op.kind}`,
-        );
-        // A file the store refuses (over its per-object cap) can never
-        // persist anywhere — the pod would silently fail the same way, and
-        // proxying would let it answer success for an undurable write.
-        // Tell the user; the client does not retry a 413. Checked BEFORE
-        // the nothing-landed decline: a single refused file lands nothing.
-        if (synced.skipped.length > 0) {
-          return json(res, 200, {
-            ok: true,
-            status: 413,
-            contentType: "application/json",
-            body: JSON.stringify({
-              error: "file too large to store",
-              files: synced.skipped.map((s) => s.key),
-            }),
-            events: [],
-          });
-        }
-        // NOTHING landed: declining is safe — the gateway proxies and the
-        // pod applies the write from an unchanged tree.
-        if (!landed) return json(res, 200, { ok: true, decline: true });
-        // Something landed and something conflicted: the write is PARTLY
-        // durable. Re-running it on the pod would duplicate the part that
-        // landed (a routine create mints a fresh id); the client must be
-        // told the result is unknown instead.
-        return json(res, 200, { ok: true, ambiguous: true });
-      }
+      const partial = partialSyncReply(
+        synced,
+        `prefix=${resolved.prefix} kind=${op.op.kind}`,
+      );
+      if (partial) return json(res, 200, partial);
       if (result.status < 300) {
-        let failures = await republish(deps, turnLike, filesystem, result);
-        if (failures.length > 0) {
-          // One more round before accepting a lag: a blip on the doc PUT is
-          // the common case and the files are already durable.
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          failures = await republish(deps, turnLike, filesystem, result);
-        }
-        if (op.op.kind === "conversation") {
-          failures.push(...(await opTranscriptMirror(deps, turnLike, op.op)));
-        }
-        if (failures.length > 0) {
-          // The files ARE durable; only a doc/transcript projection lagged.
-          // Never re-run (duplicates) — answer the handler's status and make
-          // the gap loud: the next op's republish or the pod's wake-time
-          // projector re-projects from the files.
-          console.error(
-            `[op] projection failed after a durable sync (asleep reads may lag until the next projection): ${failures.join("; ")} prefix=${resolved.prefix}`,
-          );
-        }
-        announce = announcedOpEvents(result.events, failures);
+        announce = await projectDurableOp({
+          deps,
+          turn: turnLike,
+          op,
+          filesystem,
+          result,
+          uploaded: synced.uploaded,
+          prefix: resolved.prefix,
+        });
       }
     }
     json(res, 200, {
@@ -252,112 +175,5 @@ export async function executeOp(
     } finally {
       await rm(root, { recursive: true, force: true });
     }
-  }
-}
-
-/** Re-project every family the op changed, plus the skills view. */
-async function republish(
-  deps: TurnServerDeps,
-  turn: {
-    gcsPrefix: string;
-    hostToken: string;
-    claim: { token: string; bootId: string };
-    conversationId: string;
-  },
-  filesystem: TurnFilesystem,
-  result: OpResult,
-): Promise<string[]> {
-  const diagnostics: string[] = [];
-  const baseUrl = deps.poolStoreUrl ?? process.env.HOUSTON_POOL_STORE_URL;
-  if (!baseUrl) return diagnostics;
-  const { org, agent } = poolIdentity(turn.gcsPrefix);
-  const common = {
-    baseUrl,
-    org,
-    agent,
-    conversationId: turn.conversationId,
-    hostToken: turn.hostToken,
-    claim: turn.claim,
-    fetchImpl: deps.fetchImpl ?? fetch,
-  };
-  const families = new Set<HoustonFamily>();
-  let skills = false;
-  for (const event of result.events) {
-    const family = EVENT_FAMILY[event.type];
-    if (family) families.add(family);
-    if (event.type === "SkillsChanged") skills = true;
-  }
-  for (const family of families) {
-    const key = docKey(filesystem.workspaceRel, family);
-    let doc: unknown;
-    // Through the vfs: on a lazy tree the handler may have emitted the
-    // event without the family file being on disk yet — a raw read would
-    // project an EMPTY doc over real data. A read that THROWS (store blip,
-    // refused size) is a diagnostic; an absent or unparsable file projects
-    // the empty doc, as the pod's own projector does.
-    let raw: string | null;
-    try {
-      raw = await filesystem.vfs.readText(key);
-    } catch (error) {
-      diagnostics.push(
-        `${family}: read failed, not projected: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      continue;
-    }
-    try {
-      doc =
-        raw === null
-          ? family === "config"
-            ? {}
-            : []
-          : normalizeFamily(family, JSON.parse(raw), key);
-    } catch {
-      doc = family === "config" ? {} : [];
-    }
-    const outcome = await publish({ ...common, family }, doc);
-    if ("error" in outcome) diagnostics.push(`${family}: ${outcome.error}`);
-  }
-  if (skills && result.skillsView !== undefined) {
-    const outcome = await publish(
-      { ...common, family: "skills" },
-      result.skillsView,
-    );
-    if ("error" in outcome) diagnostics.push(`skills: ${outcome.error}`);
-  }
-  if (result.customDefinitionsView !== undefined) {
-    // The definitions list is a view doc (docs/view-capture.ts family), so
-    // the gateway's asleep reads show the mutation immediately.
-    const outcome = await publish(
-      { ...common, family: "custom_definitions" },
-      result.customDefinitionsView,
-    );
-    if ("error" in outcome)
-      diagnostics.push(`custom_definitions: ${outcome.error}`);
-  }
-  return diagnostics;
-}
-
-function normalizeFamily(
-  family: HoustonFamily,
-  parsed: unknown,
-  key: string,
-): unknown {
-  switch (family) {
-    case "activity":
-      return normalizeActivities(parsed, key).items;
-    case "routines":
-      return normalizeRoutines(parsed, key).items;
-    case "routine_runs":
-      return normalizeRoutineRuns(parsed, key).items;
-    case "learnings":
-      return normalizeLearnings(parsed, key).items;
-    case "config":
-      return parsed !== null &&
-        typeof parsed === "object" &&
-        !Array.isArray(parsed)
-        ? parsed
-        : {};
-    default:
-      return parsed;
   }
 }
