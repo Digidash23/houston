@@ -22,6 +22,7 @@ import { detectEngineAsleep } from "../lib/agent-provisioning/asleep";
 import { getEngine, isCoLocatedEngine, whenEngineReady } from "../lib/engine";
 import { buildWarmingSend, isFlushingWarmingSends } from "../lib/warming-sends";
 import {
+  handOff,
   rehydrateProvisioning,
   sleep,
   startEntry,
@@ -76,6 +77,13 @@ export const useAgentProvisioningStore = create<AgentProvisioningState>(
           });
         })
         .finally(() => asleepChecks.delete(agent.id));
+    },
+
+    engineAnswered: (agentPath) => {
+      const entry = Object.values(get().provisioning).find(
+        (e) => e.agentPath === agentPath,
+      );
+      if (entry) handOff(useAgentProvisioningStore, entry);
     },
 
     carryRename: (oldId, agent) => {

@@ -13,6 +13,24 @@ export interface WarmupHandoffDeps {
   clear: () => void;
 }
 
+/** Entries whose handoff already began. */
+const handedOff = new WeakSet<ProvisioningEntry>();
+
+/**
+ * {@link completeWarmupHandoff}, at most once per entry. Two things can learn
+ * the engine is up: the readiness probe, and a write the engine already
+ * answered (a first-day start rides out the warm-up on its own). Whichever
+ * reports first runs the handoff; `null` tells the other it already began.
+ */
+export function handOffOnce(
+  entry: ProvisioningEntry,
+  deps: WarmupHandoffDeps,
+): Promise<void> | null {
+  if (handedOff.has(entry)) return null;
+  handedOff.add(entry);
+  return completeWarmupHandoff(entry, deps);
+}
+
 /**
  * The engine answered: hand the warming entry off to the real engine state.
  *
