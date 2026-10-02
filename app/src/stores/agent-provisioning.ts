@@ -2,7 +2,8 @@
  * Global "this agent is still being created" state (HOU-693).
  *
  * Hosted profile only: creating an agent answers instantly while its engine
- * warms up for a couple of minutes with no readiness signal from the platform
+ * warms up (about 5 s in prod, minutes while an engine roll backs up the
+ * deployment controller) with no readiness signal from the platform
  * (see `lib/agent-provisioning/`). `useAgentStore.create` marks the fresh
  * agent here; a readiness long-poll clears it the moment the agent's engine
  * answers anything. The board's optimistic mission rows

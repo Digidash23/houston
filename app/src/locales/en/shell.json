@@ -503,7 +503,7 @@
     "stalledTitle": "Still working on it",
     "stalledBody": "This is taking longer than a normal start. We have not given up, your chat and messages are safe and will pick up the moment your AI Employee answers.",
     "gettingReadyTitle": "Getting {{name}} ready",
-    "gettingReadyBody": "This takes a minute or two. Feel free to look around while we set up {{name}}."
+    "gettingReadyBody": "This takes a few seconds. Feel free to look around while we set up {{name}}."
   },
   "reportBug": {
     "reportSuccessTitle": "Report sent",
