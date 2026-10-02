@@ -216,6 +216,8 @@ export class RemoteCustomSecretStore implements CustomSecretStore {
           value,
         ),
     });
+    // The creates bypassed set(): drop the absences the first reads cached.
+    for (const id of Object.keys(legacy.entries())) this.cache.delete(id);
     if (result.complete) legacy.clear();
     return result.moved;
   }

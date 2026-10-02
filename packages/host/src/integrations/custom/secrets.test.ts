@@ -262,3 +262,21 @@ test("legacy migration keeps the file while a refused create's value reads absen
 
   expect(existsSync(path)).toBe(true);
 });
+
+test("a value the migration created reads at once from the same store", async () => {
+  const legacy = new FileCustomSecretStore(path);
+  await legacy.set("ci_acme_token", "a");
+  const held = new Map<string, string>();
+  const remote = new RemoteCustomSecretStore({
+    baseUrl: "https://gateway.example",
+    orgSlug: "0123456789abcdef",
+    agentSlug: "aaaaaaaaaaaaaaaa",
+    podToken: "host-token",
+    legacy,
+    fetchImpl: custodyOver(held),
+  });
+
+  expect(await remote.migrateLegacy()).toBe(1);
+
+  expect(await remote.get("ci_acme_token")).toBe("a");
+});
