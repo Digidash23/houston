@@ -75,6 +75,7 @@ export async function reconcileAgentRuns(
   if (running.length === 0) return;
 
   const { items: routines } = await loadRoutines(deps.vfs, root);
+  const runIds = new Set(runs.map((r) => r.id));
   const nowMs = deps.now().getTime();
   const updates: RunUpdate[] = [];
   const candidates = running.flatMap((run) => {
@@ -97,6 +98,7 @@ export async function reconcileAgentRuns(
       nowMs,
       nowIso: deps.now().toISOString(),
       abandoned: scope.abandoned?.has(run.id) === true,
+      runIds,
     });
     if (decision.kind === "wait") continue;
     if (decision.kind === "patch") {

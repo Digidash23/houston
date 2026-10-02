@@ -20,6 +20,7 @@ import { LocalWorkspaceStore } from "@houston/host/src/store/local";
 import { PrefixedVfs } from "@houston/host/src/vfs";
 import type { ChatMessage, HoustonEvent } from "@houston/protocol";
 import type { AbandonedTurn, ReconcileOp } from "./op-grammar-reconcile";
+import { repairSurfacedCards } from "./op-reconcile-board";
 import { settleAbandonedChat } from "./op-reconcile-chat";
 import { engineAgentId } from "./op-scope";
 import type { TurnFilesystem } from "./turn-filesystem";
@@ -94,6 +95,10 @@ export async function applyReconcileOp(
     conversationId: op.conversationId,
     ...(abandoned ? { abandoned: new Set([abandoned.turnId]) } : {}),
   });
+  const root = deps.paths.agentRoot(ws, agent);
+  const now = new Date().toISOString();
+  if (await repairSurfacedCards(deps.vfs, root, op.conversationId, now))
+    events.push({ type: "ActivityChanged", agentPath: agentId });
   return { events, chat, ...(line ? { line } : {}) };
 }
 

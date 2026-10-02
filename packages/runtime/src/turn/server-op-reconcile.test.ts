@@ -531,3 +531,30 @@ test("a pause the settling attempt never reached is owed by the retry", async ()
   expect(saved?.enabled).toBe(false);
   expect(w.runs()).toEqual(walls);
 });
+
+test("a surfaced run whose card never landed gets it back on the retry", async () => {
+  const surfaced: RoutineRun = {
+    id: "t1",
+    routine_id: "r1",
+    status: "surfaced",
+    session_key: "routine-r1",
+    started_at: new Date(STARTED).toISOString(),
+    completed_at: new Date(STARTED + 60_000).toISOString(),
+    summary: "Two new invoices.",
+    activity_id: "card-1",
+  };
+  const w = await worker({
+    runs: [surfaced],
+    chats: { "routine-r1": earlier },
+  });
+
+  const json = await w.reconcile({ conversationId: "routine-r1" });
+
+  expect(json.events, JSON.stringify(json)).toEqual(["ActivityChanged"]);
+  const board = JSON.parse(
+    w.pool.read(`${AGENT}/.houston/activity/activity.json`),
+  ) as { id: string; session_key: string }[];
+  expect(board).toEqual([
+    expect.objectContaining({ id: "card-1", session_key: "routine-r1" }),
+  ]);
+});

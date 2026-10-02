@@ -43,16 +43,19 @@ export function decideRun(input: {
   nowIso: string;
   /** The run's turn is known dead: no reply is coming, and a resume never. */
   abandoned: boolean;
+  /** Every run id in the history: a pooled run's id IS its turn id. */
+  runIds: ReadonlySet<string>;
 }): RunDecision {
   const { run, routine, nowIso } = input;
-  // A dead pooled turn is known by its id (a pooled run's id IS its turn id):
-  // in a shared chat, a later turn's reply is that turn's, never this run's.
-  const reply =
-    input.abandoned &&
-    input.reply?.turnId !== undefined &&
-    input.reply.turnId !== run.id
-      ? null
-      : input.reply;
+  // In a shared chat a reply stamped with another run's turn is that run's,
+  // never this one's; a dead pooled turn is answered by its own id or not at
+  // all.
+  const stamp = input.reply?.turnId;
+  const foreign =
+    stamp !== undefined &&
+    stamp !== run.id &&
+    (input.abandoned || input.runIds.has(stamp));
+  const reply = foreign ? null : input.reply;
   // A dead turn's only reply is its interruption line (or none at all): the
   // run is over, and waiting out the timeout would only delay saying so.
   if (input.abandoned && (!reply || reply.interrupted !== undefined)) {

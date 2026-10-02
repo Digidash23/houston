@@ -50,9 +50,10 @@ function turnReply(
 
 /**
  * Each run's reply, in `runs` order: the shadow's when it has one, else the
- * conversation file's. A run whose turn is known dead (`abandoned`) is
- * answered only by its own turn's reply, read from the file: in a shared
- * chat a later turn's reply is the latest, and would hide it.
+ * conversation file's, where a reply stamped with the run's own id wins over
+ * the latest one (in a shared chat a later turn's reply is the latest, and
+ * would hide it). A run whose turn is known dead (`abandoned`) reads the file
+ * only.
  */
 export function loadRunReplies(
   deps: { vfs: Vfs; paths: WorkspacePaths; replyReader?: ReplyReader },
@@ -85,7 +86,7 @@ export function loadRunReplies(
         );
       }
       if (remoteReply) return remoteReply;
-      return replyAfter(await read(run.session_key), startedAtMs);
+      return turnReply(await read(run.session_key), run);
     }),
   );
 }

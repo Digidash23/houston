@@ -339,3 +339,38 @@ test("a deferred pause hands the failed routines to the caller instead of pausin
   const { items: routines } = await loadRoutines(env.vfs, env.root);
   expect(routines[0]?.enabled).toBe(true);
 });
+
+test("an older dead run's interruption line never answers a newer run in the shared chat", async () => {
+  const newer = run("t2", {
+    started_at: new Date(STARTED.getTime() - 20 * 60_000).toISOString(),
+  });
+  const env = await setup([
+    newer,
+    run("t1", {
+      started_at: new Date(STARTED.getTime() - 40 * 60_000).toISOString(),
+    }),
+  ]);
+  await env.seed("routine-r1", [
+    {
+      role: "assistant",
+      content: "",
+      ts: STARTED.getTime(),
+      turnId: "t1",
+      interrupted: { cause: "engine_restart" },
+    },
+  ]);
+
+  await reconcileAgentRuns(deps(env.vfs), env.ws, env.agent, {
+    abandoned: new Set(["t1"]),
+  });
+
+  const rows = await env.runs();
+  expect(rows.find((r) => r.id === "t1")?.summary).toBe(
+    "The routine was interrupted before it finished.",
+  );
+  // Twenty minutes in, with no reply of its own: timed out, never "surfaced".
+  expect(rows.find((r) => r.id === "t2")).toMatchObject({
+    status: "error",
+    summary: "The routine timed out without a response.",
+  });
+});
