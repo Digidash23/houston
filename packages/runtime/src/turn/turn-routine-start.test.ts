@@ -212,3 +212,17 @@ test("the same turn re-dispatched after its sandbox died reuses its own running 
   expect(phase.run.id).toBe("t1");
   expect(stored().filter((r) => r.id === "t1")).toHaveLength(1);
 });
+
+test("the same turn re-dispatched after its run settled never runs twice", async () => {
+  const settled: RoutineRun = {
+    ...running("t1"),
+    status: "surfaced",
+    completed_at: NOW,
+  };
+  const filesystem = await sandbox([], [settled]);
+
+  await expect(start(filesystem, docServer().deps)).rejects.toBeInstanceOf(
+    RoutineTurnError,
+  );
+  expect(stored()).toEqual([settled]);
+});

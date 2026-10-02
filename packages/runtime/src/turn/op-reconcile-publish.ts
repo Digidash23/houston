@@ -31,8 +31,6 @@ export async function publishReconcile(input: {
   events: readonly HoustonEvent[];
   /** The chat's interruption reply for the dead turn. */
   line?: ChatMessage;
-  /** The op settles runs (a routine fire, a stale row): their doc follows. */
-  runs: boolean;
   landed: readonly string[];
 }): Promise<{ settle: string[]; lag: string[] }> {
   const { deps, turn, filesystem } = input;
@@ -43,7 +41,7 @@ export async function publishReconcile(input: {
   if (input.line) settle.push(...(await mirrorReply(input, input.line)));
   const target = docTarget(deps, turn);
   if (!target) return { settle, lag };
-  if (input.runs) settle.push(...(await publishRunsDoc(target, filesystem)));
+  settle.push(...(await publishRunsDoc(target, filesystem)));
   const others = input.events.filter(
     (e) => e.type === "ActivityChanged" || e.type === "RoutinesChanged",
   );

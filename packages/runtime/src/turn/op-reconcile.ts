@@ -1,3 +1,4 @@
+import { loadRoutineRuns } from "@houston/domain";
 import type { HoustonEvent } from "@houston/protocol";
 import {
   type ObjectStore,
@@ -12,11 +13,8 @@ import type { OpClaimTurn } from "./op-republish";
 import type { OpRequest } from "./parse-op-request";
 import type { TurnServerDeps } from "./server-types";
 import { announcedOpEvents } from "./turn-changed-events";
-import {
-  claimedTurnIncludes,
-  type TurnFilesystem,
-  turnRoutineRunsKey,
-} from "./turn-filesystem";
+import { claimedTurnIncludes, type TurnFilesystem } from "./turn-filesystem";
+import { fsTextStore } from "./turn-fs-store";
 import { autoPauseRoutineTurn } from "./turn-routine-auto-pause";
 
 type Reply = { status: number; body: Record<string, unknown> };
@@ -70,10 +68,9 @@ export async function executeReconcileOp(input: {
     if (partial) return decline("sync-back incomplete", resolved.prefix);
     landed = [...synced.uploaded];
   }
-  if (landed.includes(turnRoutineRunsKey(filesystem.workspaceRel))) {
-    events.push(...(await pauseAfterSync(input, applied.pause)));
-  }
-  const op = input.op.op;
+  // Every attempt, from the durable history: a pause the attempt that
+  // settled the run never reached is owed still.
+  events.push(...(await pauseAfterSync(input)));
   const projected = await publishReconcile({
     deps: input.deps,
     turn: input.turn,
@@ -81,7 +78,6 @@ export async function executeReconcileOp(input: {
     source: resolved,
     events,
     ...(applied.line ? { line: applied.line } : {}),
-    runs: !op.abandoned || op.abandoned.routine,
     landed,
   });
   if (projected.settle.length > 0) {
@@ -109,19 +105,26 @@ export async function executeReconcileOp(input: {
 }
 
 /**
- * The pooled auto-pause for each routine whose run settled on a typed wall,
- * once that row is durable: rebased on the store's routines, so a concurrent
- * edit survives. A failed pause is reported and retried by the next failure.
+ * The pooled auto-pause for each routine with a run in this conversation
+ * that settled on a typed wall, read from the history the sync-back left on
+ * disk (every row in it is durable): rebased on the store's routines, so a
+ * concurrent edit survives, and a no-op once paused or when not earned. A
+ * failed pause is reported and retried by the next attempt or failure.
  */
-async function pauseAfterSync(
-  input: {
-    filesystem: TurnFilesystem;
-    resolved: { store: ObjectStore; prefix: string };
-  },
-  routineIds: readonly string[],
-): Promise<HoustonEvent[]> {
+async function pauseAfterSync(input: {
+  op: OpRequest & { op: ReconcileOp };
+  filesystem: TurnFilesystem;
+  resolved: { store: ObjectStore; prefix: string };
+}): Promise<HoustonEvent[]> {
+  const { items: runs } = await loadRoutineRuns(
+    fsTextStore(),
+    input.filesystem.workspaceDir,
+  );
+  const walled = runs.filter(
+    (r) => r.session_key === input.op.op.conversationId && r.failure,
+  );
   const events: HoustonEvent[] = [];
-  for (const routineId of new Set(routineIds)) {
+  for (const routineId of new Set(walled.map((r) => r.routine_id))) {
     try {
       const paused = await autoPauseRoutineTurn({
         store: input.resolved.store,

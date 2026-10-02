@@ -463,3 +463,26 @@ test("a chat whose file already ends with the dead turn's message settles from t
   expect(tail[0]).toEqual(userOf("t3", STARTED));
   expect(tail[1]?.interrupted).toEqual({ cause: "engine_restart" });
 });
+
+test("a pause the settling attempt never reached is owed by the retry", async () => {
+  const walls: RoutineRun[] = Array.from({ length: 10 }, (_, i) => ({
+    id: i === 0 ? "t1" : `w${i}`,
+    routine_id: "r1",
+    status: "error",
+    session_key: "routine-r1",
+    started_at: new Date(STARTED - i * 3_600_000).toISOString(),
+    completed_at: new Date(STARTED - i * 3_600_000 + 60_000).toISOString(),
+    failure: { code: "out_of_credits", provider: "anthropic" },
+  }));
+  const w = await worker({ runs: walls, chats: { "routine-r1": earlier } });
+
+  const json = await w.reconcile(abandonedFire());
+
+  expect(json.status, JSON.stringify(json)).toBe(200);
+  expect(json.events).toEqual(["RoutinesChanged"]);
+  const [saved] = JSON.parse(
+    w.pool.read(`${AGENT}/.houston/routines/routines.json`),
+  ) as Routine[];
+  expect(saved?.enabled).toBe(false);
+  expect(w.runs()).toEqual(walls);
+});

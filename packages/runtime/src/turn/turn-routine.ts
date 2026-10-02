@@ -94,8 +94,15 @@ export async function prepareRoutineTurn(
   // (op-reconcile.ts) once no claim holds its conversation.
   // The row under this turn's own id is this run's, published by an
   // earlier attempt of the same turn (a follower re-dispatching it after
-  // its sandbox died): it never holds the run back, and the new row
-  // replaces it.
+  // its sandbox died). Still running, it never holds the run back and the
+  // new row replaces it; settled, the run is over and never runs twice.
+  const own = runs.find((r) => r.id === turnId);
+  if (own && own.status !== "running") {
+    throw new RoutineTurnError(
+      "routine_busy",
+      `run ${turnId} of "${routine.name}" already settled`,
+    );
+  }
   if (
     runs.some(
       (r) =>
