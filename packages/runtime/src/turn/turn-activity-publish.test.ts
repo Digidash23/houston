@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { LocalDirStore } from "@houston/runtime-client/object-sync";
 import { expect, test } from "vitest";
 import type { TurnServerDeps } from "./server-types";
-import { publishTurnActivityDoc } from "./turn-activity-doc";
+import { publishTurnActivityDoc } from "./turn-board-doc";
 import type { TurnFilesystem } from "./turn-filesystem";
 import type { TurnRequest } from "./types";
 
@@ -33,17 +33,14 @@ async function setup(stored: unknown[] | undefined) {
   const puts: { ifMatch: string | null; doc: unknown }[] = [];
   const fetchImpl = (async (_url: unknown, init?: RequestInit) => {
     if (!init?.method || init.method === "GET") {
-      return Response.json({ revision: 3 });
+      return Response.json({ doc: [], revision: 3 });
     }
     const headers = new Headers(init.headers);
     puts.push({
       ifMatch: headers.get("If-Match"),
       doc: (JSON.parse(String(init.body)) as { doc: unknown }).doc,
     });
-    // The gateway projected its own board write first.
-    return puts.length === 1
-      ? Response.json({ revision: 4 }, { status: 409 })
-      : Response.json({ revision: 5 });
+    return Response.json({ revision: 4 });
   }) as typeof fetch;
   const publish = () =>
     publishTurnActivityDoc(
@@ -66,17 +63,17 @@ async function setup(stored: unknown[] | undefined) {
   return { puts, publish };
 }
 
-test("a lost revision race re-derives the doc from the stored board, never the stale copy", async () => {
+test("the doc is the stored board, never the turn's own copy", async () => {
+  // Another writer landed card g after this turn's upload.
   const { puts, publish } = await setup([card("a", "needs_you"), card("g")]);
   expect(await publish()).toEqual({ ok: true });
   expect(puts).toEqual([
-    { ifMatch: "3", doc: [card("a", "needs_you")] },
-    { ifMatch: "4", doc: [card("a", "needs_you"), card("g")] },
+    { ifMatch: "3", doc: [card("a", "needs_you"), card("g")] },
   ]);
 });
 
-test("a lost race with an unreadable stored board skips instead of overwriting", async () => {
+test("an unreadable stored board skips instead of publishing the turn's copy", async () => {
   const { puts, publish } = await setup(undefined);
   expect(await publish()).toEqual({ skipped: "stale_after_conflict" });
-  expect(puts).toHaveLength(1);
+  expect(puts).toEqual([]);
 });

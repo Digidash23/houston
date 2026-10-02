@@ -1,7 +1,8 @@
 import { StoreFencedError } from "@houston/runtime-client/object-sync";
 import type { ClaimHeartbeat } from "./claim-heartbeat";
 import type { TurnServerDeps } from "./server-types";
-import { activityDocStale, publishTurnActivityDoc } from "./turn-activity-doc";
+import { activityDocStale } from "./turn-activity-doc";
+import { publishTurnActivityDoc } from "./turn-board-doc";
 import { changedEventTypes } from "./turn-changed-events";
 import { publishLandedFamilyDocs } from "./turn-family-docs";
 import { syncTurnFilesystem, type TurnFilesystem } from "./turn-filesystem";

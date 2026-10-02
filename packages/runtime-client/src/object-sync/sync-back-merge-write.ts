@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { rename, rm, writeFile } from "node:fs/promises";
 import { atomicTempPath } from "@houston/protocol";
-import { mergeDocumentBodies } from "./sync-back-doc-merge";
+import { mergeDocumentBodies, mergeOverDeleted } from "./sync-back-doc-merge";
 import type { RemoteDocument } from "./sync-back-remote-read";
 
 /** One merge round's bytes, and why they are the local ones unmerged. */
@@ -11,7 +11,9 @@ export interface MergeOutcome {
 }
 
 /**
- * Merge the turn's bytes into the remote document. A side that will not parse
+ * Merge the turn's bytes into the remote document (a remote deleted outright
+ * merges as an empty one when the base can tell the turn's own entries
+ * apart). A side that will not parse
  * as the document (a byte-order mark, trailing bytes, a board that is not an
  * array) cannot be merged: the local bytes overwrite the remote, as every
  * conflict did before merges existed, and the reason rides the sync result to
@@ -23,8 +25,10 @@ export function mergeOrOverwrite(
   remote: RemoteDocument,
   base: string | undefined,
 ): MergeOutcome {
-  if (remote.body === undefined) return { body: local };
   try {
+    if (remote.body === undefined) {
+      return { body: mergeOverDeleted(relativePath, local, base) ?? local };
+    }
     return {
       body:
         mergeDocumentBodies(relativePath, local, remote.body, base) ?? local,

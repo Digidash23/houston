@@ -1,4 +1,7 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
+import type { CustomIntegrationManager } from "@houston/host/src/integrations/custom/manager";
 import type {
   CustomIntegrationDef,
   CustomIntegrationView,
@@ -13,10 +16,32 @@ import { customDefinitionsFile } from "./turn-custom-context";
 import { publishDerived } from "./turn-doc-merge-publish";
 import { readStoreText } from "./turn-store-read";
 
-/** A writer's re-captured definitions list and the slugs it changed. */
+/** A writer's re-captured definitions list, the definitions that list was
+ *  built from, and the slugs the writer changed. */
 export interface CapturedCustomDefinitions {
   view: unknown;
+  defs: readonly CustomIntegrationDef[];
   touched: ReadonlySet<string>;
+}
+
+/**
+ * Capture the list the pod's route serves after this writer's mutations,
+ * with the definitions file it was built from (the writer's local copy at
+ * `storeRoot`): the view alone hides a definition's credential and source.
+ */
+export async function captureCustomDefinitions(
+  manager: Pick<CustomIntegrationManager, "list">,
+  storeRoot: string,
+  touched: ReadonlySet<string>,
+): Promise<CapturedCustomDefinitions> {
+  let raw: string | null = null;
+  try {
+    raw = await readFile(join(storeRoot, customDefinitionsFile), "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  const defs = storedDefinitions(raw);
+  return { view: { items: await manager.list() }, defs, touched };
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -48,25 +73,42 @@ function storedDefinitions(raw: string | null): CustomIntegrationDef[] {
 
 const plain = (value: unknown) => JSON.parse(JSON.stringify(value)) as unknown;
 
+/** A standing entry shows exactly `def` as far as a view can tell. */
+const showsDef = (def: CustomIntegrationDef, entry: CustomIntegrationView) =>
+  isDeepStrictEqual(
+    plain(viewOf(def, entry.state, entry.authMethods ?? [])),
+    plain(entry),
+  );
+
 /**
  * One definition's entry: the store's def with the live state (compile
- * status, auth methods) of an entry captured from exactly that def when one
- * is, so a capture of an older def never brings its state back. The writer's
+ * status, auth methods) of a capture of exactly that def when there is one,
+ * so a capture of an older def never brings its state back. The writer's
  * own capture leads for the slugs it changed, the standing doc's otherwise.
  * Undefined when no capture holds the slug: its writer publishes it.
  */
 function entryFor(
   def: CustomIntegrationDef,
-  candidates: Array<CustomIntegrationView | undefined>,
+  ours: { entry?: CustomIntegrationView; def?: CustomIntegrationDef },
+  theirs: CustomIntegrationView | undefined,
+  touched: boolean,
 ): CustomIntegrationView | undefined {
-  const held = candidates.filter((entry) => entry !== undefined);
-  const current = held.find((entry) =>
-    isDeepStrictEqual(
-      plain(viewOf(def, entry.state, entry.authMethods ?? [])),
-      plain(entry),
-    ),
-  );
-  const pick = current ?? held[0];
+  const oursCurrent =
+    ours.entry !== undefined &&
+    ours.def !== undefined &&
+    isDeepStrictEqual(plain(ours.def), plain(def));
+  const theirsCurrent = theirs !== undefined && showsDef(def, theirs);
+  const pick = touched
+    ? oursCurrent
+      ? ours.entry
+      : theirsCurrent
+        ? theirs
+        : (ours.entry ?? theirs)
+    : theirsCurrent
+      ? theirs
+      : oursCurrent
+        ? ours.entry
+        : (theirs ?? ours.entry);
   return pick && viewOf(def, pick.state, pick.authMethods ?? []);
 }
 
@@ -84,6 +126,7 @@ export async function publishCustomDefinitionsView(
   captured: CapturedCustomDefinitions,
 ): Promise<ActivityDocPublishResult> {
   const mine = entries(captured.view);
+  const mineDefs = new Map(captured.defs.map((def) => [def.slug, def]));
   const derive = async (current: unknown) => {
     const standing = entries(current);
     const defs = storedDefinitions(
@@ -91,11 +134,11 @@ export async function publishCustomDefinitionsView(
     );
     const items: CustomIntegrationView[] = [];
     for (const def of defs) {
-      const ours = mine.get(def.slug);
-      const theirs = standing.get(def.slug);
       const entry = entryFor(
         def,
-        captured.touched.has(def.slug) ? [ours, theirs] : [theirs, ours],
+        { entry: mine.get(def.slug), def: mineDefs.get(def.slug) },
+        standing.get(def.slug),
+        captured.touched.has(def.slug),
       );
       if (entry) items.push(entry);
     }

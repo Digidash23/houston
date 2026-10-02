@@ -11,6 +11,7 @@ import {
   podDocs,
   podLearnings,
   podSkillsAnswer,
+  raceFirstUpload,
   seed,
   skillNames,
   writeSkill,
@@ -352,12 +353,118 @@ test("a memory deleted in the tab stays deleted when a turn saves another during
     agent,
     docs,
     { method: "PUT", rest: "learnings", body: { items: [] } },
-    () => turn.saveLearning("Prefers mornings"),
+    { beforeSync: () => turn.saveLearning("Prefers mornings") },
   );
   await turn.settle();
   await save();
 
   const stored = await podLearnings(agent);
   expect(stored.map((item) => item.text)).toEqual(["Prefers mornings"]);
+  expect(docs.doc("learnings")).toEqual(stored);
+});
+
+test("a memory deleted while a turn's save retries stays deleted", async () => {
+  // The turn's file holds an unsynced memory of its own. Its save_learning
+  // refreshes, then loses the upload race to the tab deleting l0. The retry
+  // merges against what it refreshed from, so l0 stays deleted and the
+  // turn's own memories stay.
+  const agent = await agentStore();
+  const docs = podDocs({ learnings: await podLearnings(agent) });
+  const turn = await claimedTurn(agent, docs);
+  await seed(
+    turn.filesystem.workspaceDir,
+    ".houston/learnings/learnings.json",
+    JSON.stringify([
+      ...(await podLearnings(agent)),
+      { id: "x", text: "Unsynced fact", created_at: "2026-09-02T00:00:00Z" },
+    ]),
+  );
+  raceFirstUpload(agent.hooks, "learnings.json", async () => {
+    const tab = await landOp(agent, docs, {
+      method: "PUT",
+      rest: "learnings",
+      body: { items: [] },
+    });
+    await tab();
+  });
+  await turn.saveLearning("Prefers mornings");
+  await turn.settle();
+
+  const stored = await podLearnings(agent);
+  expect(stored.map((item) => item.text)).toEqual([
+    "Unsynced fact",
+    "Prefers mornings",
+  ]);
+  expect(docs.doc("learnings")).toEqual(stored);
+});
+
+test("a memory a turn saves after the tab's op listed the store survives the tab's save", async () => {
+  // The tab's whole-list save keeps l0 and adds its own memory. The turn's
+  // memory lands after the op listed the store, before the op writes: the
+  // tab never saw it, so leaving it out of the list is no deletion.
+  const agent = await agentStore();
+  const docs = podDocs({ learnings: await podLearnings(agent) });
+  const turn = await claimedTurn(agent, docs);
+  const items = [
+    ...(await podLearnings(agent)),
+    { id: "l-tab", text: "Saved from the tab", created_at: "2026-10-01" },
+  ];
+  const save = await landOp(
+    agent,
+    docs,
+    { method: "PUT", rest: "learnings", body: { items } },
+    { beforeApply: () => turn.saveLearning("Prefers mornings") },
+  );
+  await turn.settle();
+  await save();
+
+  const stored = await podLearnings(agent);
+  expect(stored.map((item) => item.text).sort()).toEqual([
+    "Prefers mornings",
+    "Saved from the tab",
+    "Signs off as Ana",
+  ]);
+  expect(docs.doc("learnings")).toEqual(stored);
+});
+
+/** Another turn deletes the memories file outright and lands that. */
+async function deleteMemoriesFile(agent: AgentStore, docs: PodDocs) {
+  const other = await claimedTurn(agent, docs, "c-delete");
+  await rm(join(other.filesystem.workspaceDir, ".houston", "learnings"), {
+    recursive: true,
+  });
+  await other.settle();
+}
+
+test("a turn's memory save never brings back memories a deleted file held", async () => {
+  const agent = await agentStore();
+  const docs = podDocs({ learnings: await podLearnings(agent) });
+  const turn = await claimedTurn(agent, docs);
+  await deleteMemoriesFile(agent, docs);
+  await turn.saveLearning("Prefers mornings");
+  await turn.settle();
+
+  const stored = await podLearnings(agent);
+  expect(stored.map((item) => item.text)).toEqual(["Prefers mornings"]);
+  expect(docs.doc("learnings")).toEqual(stored);
+});
+
+test("a turn's memories file edit never brings back memories a deleted file held", async () => {
+  const agent = await agentStore();
+  const docs = podDocs({ learnings: await podLearnings(agent) });
+  const turn = await claimedTurn(agent, docs);
+  await seed(
+    turn.filesystem.workspaceDir,
+    ".houston/learnings/learnings.json",
+    JSON.stringify([
+      ...(await podLearnings(agent)),
+      { id: "x", text: "Written by hand", created_at: "2026-09-02T00:00:00Z" },
+    ]),
+  );
+  await deleteMemoriesFile(agent, docs);
+  await turn.settle();
+
+  const stored = await podLearnings(agent);
+  expect(stored.map((item) => item.text)).toEqual(["Written by hand"]);
   expect(docs.doc("learnings")).toEqual(stored);
 });

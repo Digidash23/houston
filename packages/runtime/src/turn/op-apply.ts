@@ -36,8 +36,7 @@ export interface OpResult {
   include: (relativePath: string) => boolean;
   /** The pod's own /skills answer after a skills mutation (the skills view). */
   skillsView?: unknown;
-  /** The pod's own definitions answer after a custom-integration mutation,
-   *  with the slugs that mutation changed. */
+  /** The definitions capture after a custom-integration mutation. */
   customDefinitions?: CapturedCustomDefinitions;
   /** The hydrated tree had no such agent — decline, do not relay. */
   agentMissing?: boolean;

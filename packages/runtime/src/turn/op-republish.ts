@@ -5,6 +5,7 @@ import {
   normalizeLearnings,
   normalizeRoutineRuns,
   normalizeRoutines,
+  parseJsonDoc,
 } from "@houston/domain";
 import type { HoustonEvent } from "@houston/protocol";
 import type { OpResult } from "./op-apply";
@@ -71,10 +72,9 @@ export function docTarget(deps: DocDeps, turn: OpClaimTurn) {
  * Project each family's file into its doc, derived from what the STORE holds
  * once the doc revision is read (publishStoreDoc): the writer's own tree is a
  * snapshot from its listing, and a turn may have landed and published the
- * same family since, so projecting the snapshot would roll that back. A read
- * that THROWS (store blip, refused size) is a diagnostic; an absent or
- * unparsable file projects the empty doc, as the pod's own projector does.
- * Answers the diagnostics (empty = every doc landed).
+ * same family since, so projecting the snapshot would roll that back. Parsed
+ * like every other reader (BOM strip, salvage). Answers the diagnostics
+ * (empty = every doc landed).
  */
 export async function publishFamilyDocs(
   deps: DocDeps,
@@ -94,7 +94,10 @@ export async function publishFamilyDocs(
       key,
       (raw) => projectFamily(family, raw, key),
     );
-    if ("error" in outcome) diagnostics.push(`${family}: ${outcome.error}`);
+    // A doc the store refused is as stale as one that failed: its event
+    // must not promise an asleep refetch.
+    const failure = docNotLandedReason(outcome);
+    if (failure) diagnostics.push(`${family}: ${failure}`);
   }
   return diagnostics;
 }
@@ -151,17 +154,15 @@ export async function republish(
 
 const emptyDoc = (family: HoustonFamily) => (family === "config" ? {} : []);
 
+/** Absent projects the empty doc, as the pod's projector does. Unreadable
+ *  past salvage throws: a diagnostic, never an empty doc over real data. */
 function projectFamily(
   family: HoustonFamily,
   raw: string | null,
   key: string,
 ): unknown {
   if (raw === null) return emptyDoc(family);
-  try {
-    return normalizeFamily(family, JSON.parse(raw), key);
-  } catch {
-    return emptyDoc(family);
-  }
+  return normalizeFamily(family, parseJsonDoc(raw, key), key);
 }
 
 function normalizeFamily(

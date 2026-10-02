@@ -22,16 +22,10 @@ function activityDoc(raw: string, key: string) {
   return normalizeActivities(parseJsonDoc(raw, key), key).items;
 }
 
-/** The board as this turn's sync-back left it on disk. */
-export async function readLocalActivityDoc(filesystem: TurnFilesystem) {
-  const key = turnActivityKey(filesystem.workspaceRel);
-  return activityDoc(await readFile(activityPath(filesystem), "utf8"), key);
-}
-
 /**
  * The board as the object store holds it now (another writer may have landed
  * after this turn's upload). Undefined when it cannot be read: the caller
- * skips rather than projecting a copy it knows is stale.
+ * skips rather than projecting a copy it may know to be stale.
  */
 export async function readStoredActivityDoc(
   source: ActivityDocSource,

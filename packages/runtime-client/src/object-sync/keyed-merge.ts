@@ -33,30 +33,6 @@ function stamp(entry: Entry): number {
 const newer = (local: Entry, remote: Entry): Entry =>
   stamp(remote) > stamp(local) ? remote : local;
 
-/** An entry both sides changed since the base: each field takes the side
- *  that changed it, and a field both changed goes to the newer side. */
-function mergeFields(base: Entry, local: Entry, remote: Entry): Entry {
-  const winner = newer(local, remote);
-  const merged: Entry = {};
-  const keys = new Set([
-    ...Object.keys(remote),
-    ...Object.keys(local),
-    ...Object.keys(base),
-  ]);
-  for (const key of keys) {
-    const localChanged = !isDeepStrictEqual(local[key], base[key]);
-    const remoteChanged = !isDeepStrictEqual(remote[key], base[key]);
-    const value =
-      localChanged && remoteChanged
-        ? winner[key]
-        : localChanged
-          ? local[key]
-          : remote[key];
-    if (value !== undefined) merged[key] = value;
-  }
-  return merged;
-}
-
 /** One key's entry after the merge; undefined = it is gone. */
 function resolve(
   base: Entry | undefined,
@@ -67,7 +43,10 @@ function resolve(
     if (!base) return newer(local, remote);
     if (isDeepStrictEqual(local, base)) return remote;
     if (isDeepStrictEqual(remote, base)) return local;
-    return mergeFields(base, local, remote);
+    // Both changed it. An entry's fields hang together (a routine's schedule
+    // or trigger, a provider and its model, a definition's kind and source),
+    // so the newer side's whole entry lands, never a mix of the two.
+    return newer(local, remote);
   }
   // In the base and missing from one side: that side deleted it, explicitly.
   // An edit on the other side never brings it back.
@@ -82,8 +61,8 @@ function resolve(
  *
  * With `base` (the bytes the writer started from) this is three-way per
  * entry: an entry the writer left untouched takes the remote's copy, so a
- * stale local copy never reverts another writer's edit, and an entry either
- * side deleted stays deleted. Without a base (the standing pod's sync) the
+ * stale local copy never reverts another writer's edit; one both changed
+ * goes whole to the newer side; one either side deleted stays deleted. Without a base (the standing pod's sync) the
  * author of a difference is unknowable: both sides' entries survive, and an
  * entry both hold resolves by `updated_at`, else to the local copy.
  *

@@ -38,16 +38,24 @@ test("entries new on either side both survive", () => {
   ).toEqual([r("x"), r("a"), r("y")]);
 });
 
-test("an entry both sides changed keeps each side's fields, newer wins a shared one", () => {
-  const base = [r("a")];
-  const local = [r("a", { prompt: "mine", updated_at: LATEST })];
-  const remote = [
-    r("a", { enabled: false, prompt: "theirs", updated_at: LATER }),
+test("an entry both sides changed goes whole to the newer side, never a mix", () => {
+  // One side moved the routine from its schedule to a trigger, the other
+  // changed the schedule later. A field mix would carry both wake mechanisms,
+  // which the routine reader drops, so the whole newer entry lands.
+  const base = [r("a", { schedule: "0 9 * * *" })];
+  const local = [
+    r("a", {
+      trigger: { kind: "webhook" },
+      schedule: undefined,
+      updated_at: LATER,
+    }),
   ];
+  const remote = [r("a", { schedule: "0 10 * * *", updated_at: LATEST })];
 
-  expect(mergeKeyedArrays(remote, local, "id", base)).toEqual([
-    r("a", { enabled: false, prompt: "mine", updated_at: LATEST }),
-  ]);
+  expect(mergeKeyedArrays(remote, local, "id", base)).toEqual(remote);
+  expect(mergeKeyedArrays(remote, local, "id", base)[0]).not.toHaveProperty(
+    "trigger",
+  );
 });
 
 test("without a base the union survives and a newer remote copy wins", () => {

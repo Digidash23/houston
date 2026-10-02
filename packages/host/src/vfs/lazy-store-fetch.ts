@@ -40,10 +40,10 @@ export async function fetchObject(
   const dest = join(opts.root, ...key.split("/"));
   await mkdir(dirname(dest), { recursive: true });
   try {
-    await opts.store.download(
-      opts.prefix ? `${opts.prefix}/${key}` : key,
-      dest,
-    );
+    const storeKey = opts.prefix ? `${opts.prefix}/${key}` : key;
+    const read = opts.store.downloadVersioned
+      ? await opts.store.downloadVersioned(storeKey, dest)
+      : await opts.store.download(storeKey, dest);
     const { size } = await stat(dest);
     if (size > maxObjectBytes) {
       throw new LazyReadRefusedError("object", key, size, maxObjectBytes);
@@ -55,10 +55,15 @@ export async function fetchObject(
     opts.manifest.set(key, {
       hash,
       ...(meta.generation !== undefined ? { generation: meta.generation } : {}),
-      // The bytes this op starts from: its sync-back merges a lost race
-      // three-way, so an entry it never touched or another writer deleted is
-      // never reverted or resurrected by its copy.
-      ...(keepsMergeBase(key)
+      // The base a lost upload race merges three-way against, so an entry
+      // the op never touched or another writer deleted is never reverted or
+      // resurrected by its copy. Only bytes provably AT the listed generation
+      // the upload is guarded by: a whole-list save is the client's list, not
+      // these bytes, and a newer copy as its base would read every entry
+      // landed since the listing as one the save deleted.
+      ...(keepsMergeBase(key) &&
+      read?.generation !== undefined &&
+      read.generation === meta.generation
         ? { mergeBase: await readFile(dest, "utf8") }
         : {}),
     });

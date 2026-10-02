@@ -40,8 +40,7 @@ export class CustomIntegrationManager {
     private readonly store: CustomIntegrationStore,
     private readonly secrets: CustomSecretStore,
     private readonly host: CustomExecutorHost,
-    /** Fires after each durable mutation with the slug it changed. */
-    private readonly onChanged: (slug: string) => void,
+    private readonly onChanged: (changedSlug: string) => void,
     /** OAuth sign-in (PRODUCT-1172): the browser-reachable callback URL —
      *  absent on deployments that cannot receive the redirect — the state
      *  routing prefix for gateway-fronted pods, and a fetch seam for tests. */

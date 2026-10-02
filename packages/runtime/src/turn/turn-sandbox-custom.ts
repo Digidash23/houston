@@ -19,7 +19,7 @@ export function makeTurnCustomRoutes(
   deps: TurnSandboxDeps,
   getCustom: (signal?: AbortSignal | null) => Promise<TurnCustomContext>,
   resetCustom: () => Promise<void>,
-  definitionsChanged: (view: unknown) => void,
+  definitionsChanged: (manager: TurnCustomContext["manager"]) => Promise<void>,
 ) {
   return async (
     path: string,
@@ -79,9 +79,7 @@ export function makeTurnCustomRoutes(
         }
       },
     });
-    definitionsChanged({
-      items: await (await getCustom(signal)).manager.list(),
-    });
+    await definitionsChanged((await getCustom(signal)).manager);
     return Response.json(result, { status: 200 });
   };
 }

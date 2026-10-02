@@ -36,7 +36,7 @@ import type { TurnRequest } from "./types";
 
 export const PREFIX = "ws/w1/agent-1";
 export const WORKSPACE_REL = "workspaces/W/A";
-const ROUTINES_REL = `${WORKSPACE_REL}/.houston/routines/routines.json`;
+export const ROUTINES_REL = `${WORKSPACE_REL}/.houston/routines/routines.json`;
 
 export async function seed(root: string, rel: string, content: string) {
   const path = join(root, ...rel.split("/"));
@@ -151,12 +151,36 @@ export function holdFirstGet(family: string, conversation: string) {
   return { hold, atGet, release };
 }
 
+export interface StoreHooks {
+  /** Runs before an upload of `key` lands: another writer can land first. */
+  beforeUpload?: (key: string) => Promise<void> | undefined;
+}
+
+/**
+ * Runs `race` once, before the first upload of a key ending in `suffix`:
+ * the window between a writer's read of a document and its CAS write.
+ */
+export function raceFirstUpload(
+  hooks: StoreHooks,
+  suffix: string,
+  race: () => Promise<void>,
+) {
+  hooks.beforeUpload = (key) => {
+    if (!key.endsWith(suffix)) return undefined;
+    hooks.beforeUpload = undefined;
+    return race();
+  };
+}
+
 /**
  * LocalDirStore with the pool store's generations: every write bumps the
  * key's generation and a write whose `ifGenerationMatch` names another one is
  * a 412. Operations run one at a time, so the fake itself never loses a write.
  */
-export function generationalStore(root: string): ObjectStore {
+export function generationalStore(
+  root: string,
+  hooks: StoreHooks = {},
+): ObjectStore {
   const inner = new LocalDirStore(root);
   const generations = new Map<string, number>();
   const current = (key: string) =>
@@ -188,13 +212,17 @@ export function generationalStore(root: string): ObjectStore {
         await inner.download(key, dest);
         return { generation: String(current(key)) };
       }),
-    upload: (source, key, opts) =>
-      serial(async () => {
+    upload: async (source, key, opts) => {
+      // Outside the queue: the racing writer's own operations must run.
+      const race = hooks.beforeUpload?.(key);
+      if (race) await race;
+      return serial(async () => {
         const generation = check(key, opts?.ifGenerationMatch) + 1;
         await inner.upload(source, key);
         generations.set(key, generation);
         return { generation: String(generation) };
-      }),
+      });
+    },
     delete: (key, opts) =>
       serial(async () => {
         check(key, opts?.ifGenerationMatch);
@@ -232,10 +260,29 @@ export async function agentStore(routines?: unknown[]) {
     ]),
   );
   if (routines) await seed(prefixRoot, ROUTINES_REL, JSON.stringify(routines));
-  return { storeRoot, prefixRoot, store: generationalStore(storeRoot) };
+  const hooks: StoreHooks = {};
+  return {
+    storeRoot,
+    prefixRoot,
+    hooks,
+    store: generationalStore(storeRoot, hooks),
+  };
 }
 
 export type AgentStore = Awaited<ReturnType<typeof agentStore>>;
+
+/** One family's doc target on `docs`, under a turn claim. */
+export const docTargetFor = (docs: PodDocs, family: string) => ({
+  family,
+  baseUrl: "https://store.example",
+  org: "w1",
+  agent: "agent-1",
+  conversationId: "c1",
+  hostToken: "host-token",
+  claim: { token: "t", bootId: "b" },
+  fetchImpl: docs.fetchImpl,
+  retryDelaysMs: [],
+});
 
 const docDeps = (docs: PodDocs) =>
   ({
@@ -356,15 +403,19 @@ function localClaimOrigin(): Promise<string> {
 /**
  * A sleeping agent's op, run the way executeOp runs it (the real
  * handler over a lazy tree, the scoped sync-back), split before its doc
- * projection so a test can interleave a turn's publish. `beforeSync` runs
- * between the handler's write and the sync-back: another writer landing
- * there makes the op's upload lose its generation race.
+ * projection so a test can interleave a turn's publish. `beforeApply` runs
+ * between the op's listing and its handler, `beforeSync` between the
+ * handler's write and the sync-back: another writer landing in either makes
+ * the op's upload lose its generation race.
  */
 export async function landOp(
   agent: AgentStore,
   docs: PodDocs,
   route: { method: string; rest: string; body?: unknown },
-  beforeSync?: () => Promise<void>,
+  race: {
+    beforeApply?: () => Promise<void>;
+    beforeSync?: () => Promise<void>;
+  } = {},
 ) {
   const op = parseOpRequest({
     workspaceId: "w1",
@@ -393,9 +444,10 @@ export async function landOp(
     claimed: true,
     ...opTreeOptions(op.op),
   });
+  await race.beforeApply?.();
   const result = await applyOp(op, filesystem);
   expect(result.status, result.body).toBeLessThan(300);
-  await beforeSync?.();
+  await race.beforeSync?.();
   const synced = await syncBack(
     agent.store,
     PREFIX,

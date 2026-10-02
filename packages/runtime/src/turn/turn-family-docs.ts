@@ -65,7 +65,9 @@ export async function publishLandedFamilyDocs(input: {
     const routines = turn.claim
       ? await publishTurnRoutinesDoc(deps, turn, filesystem, input.source)
       : null;
-    if (routines) settle("RoutinesChanged", "routines", routines);
+    // A refused doc stays stale, so no refetch is promised; the routine
+    // itself is durable, so the turn did not fail.
+    if (routines) settle("RoutinesChanged", "routines", routines, true);
   }
   const learningsKey = docKey(filesystem.workspaceRel, "learnings");
   if (

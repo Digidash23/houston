@@ -172,6 +172,7 @@ test("turn tool mutations publish the custom definition view", async () => {
     views: {
       customDefinitions: {
         view: { items: [entry] },
+        defs: [def],
         touched: new Set(["example"]),
       },
     },

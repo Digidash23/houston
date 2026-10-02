@@ -1,3 +1,5 @@
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { expect, test } from "vitest";
 import {
   agentStore,
@@ -5,6 +7,7 @@ import {
   holdFirstGet,
   landOp,
   podDocs,
+  ROUTINES_REL,
   routine,
   storedRoutines,
 } from "./turn-views.test-support";
@@ -144,7 +147,7 @@ test("a routine the user deletes stays deleted when a turn lands a routine durin
     agent,
     docs,
     { method: "DELETE", rest: "routines/r0" },
-    () => turn.saveRoutine(newRoutine),
+    { beforeSync: () => turn.saveRoutine(newRoutine) },
   );
   await turn.settle();
   await remove();
@@ -168,7 +171,7 @@ test("a user's routine edit never reverts the routine a turn paused during the o
     agent,
     docs,
     { method: "PATCH", rest: "routines/r1", body: { prompt: "Evening brief" } },
-    () => turn.saveRoutine({ id: "r2", enabled: false }),
+    { beforeSync: () => turn.saveRoutine({ id: "r2", enabled: false }) },
   );
   await turn.settle();
   await edit();
@@ -177,4 +180,43 @@ test("a user's routine edit never reverts the routine a turn paused during the o
   expect(prompts(stored)).toMatchObject({ r1: "Evening brief" });
   expect(stored.find((r) => r.id === "r2")?.enabled).toBe(false);
   expect(docs.doc("routines")).toEqual(stored);
+});
+
+test("an op projecting a routines file another writer left salvageable never publishes it empty", async () => {
+  // Another writer's raw write left trailing bytes after valid JSON. Every
+  // other reader salvages it; the op's projection must too, not put [] over
+  // the routines.
+  const agent = await agentStore([routine("r1", "Morning brief")]);
+  const docs = podDocs({ routines: await storedRoutines(agent) });
+  const edit = await landOp(agent, docs, {
+    method: "PATCH",
+    rest: "routines/r1",
+    body: { prompt: "Evening brief" },
+  });
+  const path = join(agent.prefixRoot, ...ROUTINES_REL.split("/"));
+  await writeFile(path, `${await readFile(path, "utf8")}\n}`);
+  await edit();
+
+  expect(prompts(docs.doc("routines"))).toEqual({ r1: "Evening brief" });
+});
+
+test("a routines doc the store will not take is never announced", async () => {
+  const agent = await agentStore([routine("r1", "Morning brief")]);
+  const standing = await storedRoutines(agent);
+  const docs = podDocs({ routines: standing }, { outOfScope: ["routines"] });
+  const edit = await landOp(agent, docs, {
+    method: "PATCH",
+    rest: "routines/r1",
+    body: { prompt: "Evening brief" },
+  });
+  const turn = await claimedTurn(agent, docs);
+  await turn.saveRoutine(newRoutine);
+
+  const result = await turn.settle();
+  const announced = await edit();
+
+  expect(result.outcome).toEqual({});
+  expect(result.changed).not.toContain("RoutinesChanged");
+  expect(announced).not.toContain("RoutinesChanged");
+  expect(docs.doc("routines")).toEqual(standing);
 });

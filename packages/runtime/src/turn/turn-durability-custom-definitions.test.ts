@@ -1,12 +1,17 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { viewOf } from "@houston/host/src/integrations/custom/views";
 import { expect, test } from "vitest";
+import { publishCustomDefinitionsView } from "./turn-custom-definitions-doc";
 import {
   type AgentStore,
   agentStore,
+  docTargetFor,
   holdFirstGet,
   landOp,
+  PREFIX,
   podDocs,
+  seed,
 } from "./turn-views.test-support";
 
 /**
@@ -55,9 +60,11 @@ test("an op whose add lost the race to another add keeps both in the view", asyn
   // re-captured list lacks the first op's integration.
   const agent = await agentStore();
   const docs = podDocs();
-  const second = await landOp(agent, docs, add("Gadgets"), async () => {
-    const first = await landOp(agent, docs, add("Widgets"));
-    await first();
+  const second = await landOp(agent, docs, add("Gadgets"), {
+    beforeSync: async () => {
+      const first = await landOp(agent, docs, add("Widgets"));
+      await first();
+    },
   });
   const announced = await second();
 
@@ -70,12 +77,14 @@ test("an integration another op removed stays out of the file and the view", asy
   const agent = await agentStore();
   const docs = podDocs();
   await (await landOp(agent, docs, add("Old")))();
-  const adding = await landOp(agent, docs, add("Gadgets"), async () => {
-    const remove = await landOp(agent, docs, {
-      method: "DELETE",
-      rest: "integrations/custom/definitions/old",
-    });
-    await remove();
+  const adding = await landOp(agent, docs, add("Gadgets"), {
+    beforeSync: async () => {
+      const remove = await landOp(agent, docs, {
+        method: "DELETE",
+        rest: "integrations/custom/definitions/old",
+      });
+      await remove();
+    },
   });
   await adding();
 
@@ -104,4 +113,46 @@ test("a late publisher never puts back the name another op changed since", async
   expect((docs.doc("custom_definitions") as View).items).toEqual([
     expect.objectContaining({ slug: "widgets", name: "Widgets Pro" }),
   ]);
+});
+
+test("a late capture of an older definition never overwrites the state of the newer one", async () => {
+  // A turn added the integration and captured it waiting for a credential.
+  // An op then saved the credential and published it connected. The turn
+  // publishes late: its capture is of the definition before the credential,
+  // which the view alone cannot tell apart.
+  const agent = await agentStore();
+  const added = {
+    kind: "mcp" as const,
+    slug: "crm",
+    name: "CRM",
+    endpoint: "https://mcp.crm.test",
+    auth: "credential" as const,
+    addedAtMs: 1,
+  };
+  const connected = {
+    ...added,
+    credential: { template: "bearer", secretIds: { token: "s1" } },
+  };
+  await seed(
+    agent.prefixRoot,
+    "custom-integrations.json",
+    JSON.stringify({ version: 1, items: [connected] }),
+  );
+  const active = viewOf(connected, { status: "active", toolCount: 3 }, []);
+  const docs = podDocs({ custom_definitions: { items: [active] } });
+
+  const outcome = await publishCustomDefinitionsView(
+    docTargetFor(docs, "custom_definitions"),
+    { store: agent.store, prefix: PREFIX },
+    {
+      view: {
+        items: [viewOf(added, { status: "pending", authMethods: [] }, [])],
+      },
+      touched: new Set(["crm"]),
+      defs: [added],
+    },
+  );
+
+  expect(outcome).toEqual({ ok: true });
+  expect(docs.doc("custom_definitions")).toEqual({ items: [active] });
 });

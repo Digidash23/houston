@@ -93,12 +93,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function identity(value: unknown, field: string): string | undefined {
-  if (!isRecord(value)) return undefined;
-  const candidate = value[field];
-  return typeof candidate === "string" ? candidate : undefined;
-}
-
 function arrayItems(value: unknown, relativePath: string): unknown[] {
   if (!Array.isArray(value)) throw new Error(`${relativePath} is not an array`);
   return value;
@@ -173,27 +167,27 @@ export function mergeDocumentBodies(
   return `${JSON.stringify(merged, null, 2)}\n`;
 }
 
-function cardIds(body: string): string[] {
-  try {
-    const doc = JSON.parse(body) as unknown;
-    return Array.isArray(doc)
-      ? doc.map((card) => identity(card, "id")).filter((id) => id !== undefined)
-      : [];
-  } catch {
-    return [];
-  }
-}
-
 /**
- * Board card ids `remoteBody` holds that `mergedBody` does not: what a merge
- * removed from the board it landed over. Empty for every other document.
+ * A keyed document's local copy merged over a remote another writer deleted
+ * outright: every entry of `base` (the bytes this writer started from) is
+ * gone with it, and only the writer's own additions and edits stay.
+ * Undefined when there is no base to tell those apart, or for any other
+ * document: the local bytes then recreate it, as before.
  */
-export function removedCardIds(
+export function mergeOverDeleted(
   relativePath: string,
-  remoteBody: string,
-  mergedBody: string,
-): string[] {
-  if (!isPath(relativePath, ACTIVITY_DOC)) return [];
-  const kept = new Set(cardIds(mergedBody));
-  return cardIds(remoteBody).filter((id) => !kept.has(id));
+  localBody: string,
+  baseBody: string | undefined,
+): string | undefined {
+  if (baseBody === undefined) return undefined;
+  if (arrayIdentity(relativePath) !== undefined)
+    return mergeDocumentBodies(relativePath, localBody, "[]", baseBody);
+  if (relativePath === CUSTOM_DEFINITIONS)
+    return mergeDocumentBodies(
+      relativePath,
+      localBody,
+      JSON.stringify({ version: 1, items: [] }),
+      baseBody,
+    );
+  return undefined;
 }

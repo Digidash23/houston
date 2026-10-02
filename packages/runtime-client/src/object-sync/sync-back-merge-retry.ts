@@ -1,9 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { atomicTempPath } from "@houston/protocol";
+import { removedCardIds } from "./activity-merge";
 import type { HydrateManifestEntry } from "./hydrate";
 import { type ObjectStore, StoreConflictError } from "./object-store";
-import { mergeUploadRounds, removedCardIds } from "./sync-back-doc-merge";
+import { mergeUploadRounds } from "./sync-back-doc-merge";
 import { trustedBase, withMergeBase } from "./sync-back-merge-base";
 import { mergeOrOverwrite, writeAtomically } from "./sync-back-merge-write";
 import {
