@@ -9,10 +9,13 @@ import {
 import type { Vfs } from "@houston/host/src/vfs";
 import type { HoustonEvent } from "@houston/protocol";
 import type { OpResult } from "./op-apply";
+import { publishOpStoreDocs } from "./op-store-docs";
 import type { TurnServerDeps } from "./server-types";
 import { publish } from "./turn-activity-doc";
+import type { ActivityDocSource } from "./turn-activity-source";
 import type { TurnFilesystem } from "./turn-filesystem";
 import { poolIdentity } from "./turn-store";
+import { docNotLandedReason } from "./turn-view-publish";
 
 /** The claim an op publishes under (its store writes use the same one). */
 export interface OpClaimTurn {
@@ -108,23 +111,25 @@ export async function publishFamilyDocs(
   return diagnostics;
 }
 
-/** Re-project every family the op changed, plus the skills and custom
- *  definitions views it re-captured. */
+/** Re-project every family the op changed, the skills its landed SKILL.md
+ *  writes and deletes changed (`landed`), and the custom definitions view it
+ *  re-captured. Skills and learnings are read back through `source`. */
 export async function republish(
   deps: DocDeps,
   turn: OpClaimTurn,
   filesystem: TurnFilesystem,
   result: OpResult,
+  landed: readonly string[],
+  source: ActivityDocSource,
 ): Promise<string[]> {
   const common = docTarget(deps, turn);
   if (!common) return [];
   const families = new Set<HoustonFamily>();
-  let skills = false;
   for (const event of result.events) {
     const family = EVENT_FAMILY[event.type];
     if (family) families.add(family);
-    if (event.type === "SkillsChanged") skills = true;
   }
+  const learnings = families.delete("learnings");
   const diagnostics = await publishFamilyDocs(
     deps,
     turn,
@@ -132,13 +137,16 @@ export async function republish(
     filesystem.workspaceRel,
     families,
   );
-  if (skills && result.skillsView !== undefined) {
-    const outcome = await publish(
-      { ...common, family: "skills" },
-      result.skillsView,
-    );
-    if ("error" in outcome) diagnostics.push(`skills: ${outcome.error}`);
-  }
+  diagnostics.push(
+    ...(await publishOpStoreDocs({
+      common,
+      source,
+      filesystem,
+      result,
+      landed,
+      learnings,
+    })),
+  );
   if (result.customDefinitionsView !== undefined) {
     // The definitions list is a view doc (docs/view-capture.ts family), so
     // the gateway's asleep reads show the mutation immediately.
@@ -146,8 +154,8 @@ export async function republish(
       { ...common, family: "custom_definitions" },
       result.customDefinitionsView,
     );
-    if ("error" in outcome)
-      diagnostics.push(`custom_definitions: ${outcome.error}`);
+    const failure = docNotLandedReason(outcome);
+    if (failure) diagnostics.push(`custom_definitions: ${failure}`);
   }
   return diagnostics;
 }
