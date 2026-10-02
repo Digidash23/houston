@@ -101,7 +101,7 @@ export async function publishSeedDocs(input: SeedPublishInput): Promise<void> {
       const out = await publishFamilyDocs(
         input.deps,
         input.turn,
-        vfs,
+        { store: input.store, prefix: input.prefix },
         input.tree.workspaceRel,
         AGENT_DOC_FAMILIES,
       );

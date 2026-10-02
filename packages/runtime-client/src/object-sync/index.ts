@@ -54,7 +54,7 @@ export type {
 } from "./shared-mirror";
 export { probeSharedMirror, syncSharedMirror } from "./shared-mirror";
 export type { SharedMirrorFileState } from "./shared-mirror-files";
-export { mergeDocumentBodies } from "./sync-back-doc-merge";
-export { trustedBase } from "./sync-back-merge-base";
+export { keepsMergeBase, mergeDocumentBodies } from "./sync-back-doc-merge";
+export { trustedBase, withMergeBase } from "./sync-back-merge-base";
 export type { ConflictBackoff } from "./sync-back-merge-retry";
 export { jitteredConflictBackoff } from "./sync-back-merge-retry";

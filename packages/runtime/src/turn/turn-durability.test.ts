@@ -48,7 +48,7 @@ async function claimedTurn(docPutStatus: number) {
     });
     return init?.method === "PUT"
       ? new Response("{}", { status: docPutStatus })
-      : Response.json({ revision: 1 });
+      : Response.json({ doc: [], revision: 1 });
   }) as typeof fetch;
   const deps = {
     poolStoreUrl: "https://store.example",
@@ -67,42 +67,44 @@ async function claimedTurn(docPutStatus: number) {
     deps,
     turn,
     filesystem,
+    prefixRoot,
     resolved: { store, prefix: "ws/w1/agent-1" },
     requests,
   };
 }
 
 /** A routines.json the turn wrote straight to the store (a CAS write). */
-async function routinesWrite(
-  filesystem: Awaited<ReturnType<typeof claimedTurn>>["filesystem"],
-) {
-  await seed(
-    filesystem.workspaceDir,
-    ".houston/routines/routines.json",
-    JSON.stringify([
-      {
-        id: "r1",
-        name: "Minutely",
-        prompt: "check",
-        schedule: "* * * * *",
-        enabled: false,
-        auto_paused: {
-          reason: "model_unavailable",
-          provider: "openai-codex",
-          failures: 10,
-          at: "2026-09-29T22:00:00.000Z",
-        },
+async function routinesWrite({
+  filesystem,
+  prefixRoot,
+}: Pick<Awaited<ReturnType<typeof claimedTurn>>, "filesystem" | "prefixRoot">) {
+  const body = JSON.stringify([
+    {
+      id: "r1",
+      name: "Minutely",
+      prompt: "check",
+      schedule: "* * * * *",
+      enabled: false,
+      auto_paused: {
+        reason: "model_unavailable",
+        provider: "openai-codex",
+        failures: 10,
+        at: "2026-09-29T22:00:00.000Z",
       },
-    ]),
-  );
+    },
+  ]);
+  const rel = ".houston/routines/routines.json";
+  await seed(filesystem.workspaceDir, rel, body);
+  await seed(prefixRoot, `${workspaceRel}/${rel}`, body);
   filesystem.immediateWrites.add(
     `${workspaceRel}/.houston/routines/routines.json`,
   );
 }
 
 test("a durable turn names the conversation and board as changed", async () => {
-  const { deps, turn, filesystem, resolved } = await claimedTurn(200);
-  await routinesWrite(filesystem);
+  const turnState = await claimedTurn(200);
+  const { deps, turn, filesystem, resolved } = turnState;
+  await routinesWrite(turnState);
   filesystem.immediateWrites.add("custom-integrations.json");
   const result = await finishTurnDurability({
     deps,
@@ -170,8 +172,9 @@ test("turn tool mutations publish the custom definition view", async () => {
 });
 
 test("a routines write republishes the routines doc the asleep Routines tab reads", async () => {
-  const { deps, turn, filesystem, resolved, requests } = await claimedTurn(200);
-  await routinesWrite(filesystem);
+  const turnState = await claimedTurn(200);
+  const { deps, turn, filesystem, resolved, requests } = turnState;
+  await routinesWrite(turnState);
   const result = await finishTurnDurability({
     deps,
     turn,
@@ -202,8 +205,9 @@ test("a routines write republishes the routines doc the asleep Routines tab read
 });
 
 test("a routines doc that did not land is not announced", async () => {
-  const { deps, turn, filesystem, resolved } = await claimedTurn(400);
-  await routinesWrite(filesystem);
+  const turnState = await claimedTurn(400);
+  const { deps, turn, filesystem, resolved } = turnState;
+  await routinesWrite(turnState);
   const result = await finishTurnDurability({
     deps,
     turn,

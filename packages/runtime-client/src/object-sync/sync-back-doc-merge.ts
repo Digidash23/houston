@@ -1,4 +1,5 @@
 import { ACTIVITY_DOC, mergeActivityArrays } from "./activity-merge";
+import { mergeKeyedArrays } from "./keyed-merge";
 import {
   mergeRoutineRunArrays,
   ROUTINE_RUNS_DOC,
@@ -48,21 +49,37 @@ export function mergesOnceOnConflict(relativePath: string): boolean {
   );
 }
 
-/** Documents whose hydrated bytes are kept as the base of a three-way merge. */
+/**
+ * Documents whose hydrated bytes are kept as the base of a three-way merge:
+ * the board, and the keyed documents a stale local copy would otherwise
+ * revert (an edit) or resurrect (a deletion) in.
+ */
 export function keepsMergeBase(relativePath: string): boolean {
-  return isPath(relativePath, ACTIVITY_DOC);
+  return (
+    isPath(relativePath, ACTIVITY_DOC) ||
+    arrayIdentity(relativePath) !== undefined ||
+    relativePath === CUSTOM_DEFINITIONS
+  );
 }
 
-function parseBase(baseBody: string | undefined): unknown[] | undefined {
+function parseBase(baseBody: string | undefined): unknown {
   if (baseBody === undefined) return undefined;
   try {
-    const base = JSON.parse(baseBody) as unknown;
-    return Array.isArray(base) ? base : undefined;
+    return JSON.parse(baseBody) as unknown;
   } catch {
     // An unparseable base only costs the three-way precision: the two-way
-    // merge still keeps every card either side holds.
+    // merge still keeps every entry either side holds.
     return undefined;
   }
+}
+
+const arrayBase = (base: unknown) => (Array.isArray(base) ? base : undefined);
+
+/** A definitions file's entries, only from the one version this merges. */
+function definitionsBase(base: unknown): unknown[] | undefined {
+  return isRecord(base) && base.version === 1 && Array.isArray(base.items)
+    ? base.items
+    : undefined;
 }
 
 function arrayIdentity(relativePath: string): string | undefined {
@@ -82,6 +99,11 @@ function identity(value: unknown, field: string): string | undefined {
   return typeof candidate === "string" ? candidate : undefined;
 }
 
+function arrayItems(value: unknown, relativePath: string): unknown[] {
+  if (!Array.isArray(value)) throw new Error(`${relativePath} is not an array`);
+  return value;
+}
+
 function objectDocument(value: unknown, relativePath: string) {
   if (!isRecord(value)) {
     throw new Error(`${relativePath} is not an object`);
@@ -89,30 +111,10 @@ function objectDocument(value: unknown, relativePath: string) {
   return value;
 }
 
-function mergeArrayDocument(
-  remote: unknown,
-  local: unknown,
-  field: string,
-  relativePath: string,
-): unknown[] {
-  if (!Array.isArray(remote) || !Array.isArray(local)) {
-    throw new Error(`${relativePath} is not an array`);
-  }
-  const localIds = new Set(
-    local.map((item) => identity(item, field)).filter((id) => id !== undefined),
-  );
-  return [
-    ...remote.filter((item) => {
-      const id = identity(item, field);
-      return id === undefined || !localIds.has(id);
-    }),
-    ...local,
-  ];
-}
-
 /**
  * Merge local document entries into a refreshed remote document. `baseBody`
- * (the bytes this writer started from) makes the activity merge three-way.
+ * (the bytes this writer started from) makes the board and the keyed
+ * documents merge three-way.
  */
 export function mergeDocumentBodies(
   relativePath: string,
@@ -128,7 +130,11 @@ export function mergeDocumentBodies(
     if (!Array.isArray(remote) || !Array.isArray(local)) {
       throw new Error(`${relativePath} is not an array`);
     }
-    const merged = mergeActivityArrays(remote, local, parseBase(baseBody));
+    const merged = mergeActivityArrays(
+      remote,
+      local,
+      arrayBase(parseBase(baseBody)),
+    );
     return `${JSON.stringify(merged, null, 2)}\n`;
   }
   if (isPath(relativePath, ROUTINE_RUNS_DOC)) {
@@ -138,7 +144,15 @@ export function mergeDocumentBodies(
     return `${JSON.stringify(mergeRoutineRunArrays(remote, local), null, 2)}\n`;
   }
   if (field) {
-    const merged = mergeArrayDocument(remote, local, field, relativePath);
+    if (!Array.isArray(remote) || !Array.isArray(local)) {
+      throw new Error(`${relativePath} is not an array`);
+    }
+    const merged = mergeKeyedArrays(
+      remote,
+      local,
+      field,
+      arrayBase(parseBase(baseBody)),
+    );
     return `${JSON.stringify(merged, null, 2)}\n`;
   }
   const remoteShape = objectDocument(remote, relativePath);
@@ -149,11 +163,11 @@ export function mergeDocumentBodies(
   const merged = {
     ...remoteShape,
     ...localShape,
-    items: mergeArrayDocument(
-      remoteShape.items,
-      localShape.items,
+    items: mergeKeyedArrays(
+      arrayItems(remoteShape.items, relativePath),
+      arrayItems(localShape.items, relativePath),
       "slug",
-      relativePath,
+      definitionsBase(parseBase(baseBody)),
     ),
   };
   return `${JSON.stringify(merged, null, 2)}\n`;

@@ -1,7 +1,8 @@
-import { mkdir, rm, stat } from "node:fs/promises";
+import { mkdir, readFile, rm, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
   fileSha256,
+  keepsMergeBase,
   type ObjectMetadata,
 } from "@houston/runtime-client/object-sync";
 import {
@@ -54,6 +55,12 @@ export async function fetchObject(
     opts.manifest.set(key, {
       hash,
       ...(meta.generation !== undefined ? { generation: meta.generation } : {}),
+      // The bytes this op starts from: its sync-back merges a lost race
+      // three-way, so an entry it never touched or another writer deleted is
+      // never reverted or resurrected by its copy.
+      ...(keepsMergeBase(key)
+        ? { mergeBase: await readFile(dest, "utf8") }
+        : {}),
     });
     budget.materializedBytes += size;
   } catch (error) {

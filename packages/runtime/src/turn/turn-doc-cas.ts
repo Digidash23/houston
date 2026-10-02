@@ -4,10 +4,13 @@ import { dirname, join, posix } from "node:path";
 import { atomicTempPath } from "@houston/protocol";
 import {
   fileSha256,
+  keepsMergeBase,
   mergeDocumentBodies,
   ObjectNotFoundError,
   type ObjectStore,
   StoreConflictError,
+  trustedBase,
+  withMergeBase,
 } from "@houston/runtime-client/object-sync";
 import { restoreTurnDocument, snapshotTurnDocument } from "./turn-doc-state";
 import type { TurnFilesystem } from "./turn-filesystem";
@@ -81,18 +84,25 @@ async function refreshDocument<T>(
     opts.filesystem.manifest.delete(opts.relativePath);
     return { refreshable: true };
   }
+  let remoteText: string | undefined;
   try {
     await mkdir(dirname(local), { recursive: true });
     if (localBody !== undefined) {
-      const remoteBody = await readFile(remoteTemp, "utf8");
+      remoteText = await readFile(remoteTemp, "utf8");
+      // Three-way against the bytes this turn last synced: a routine the
+      // turn never touched takes the store's copy, and one another writer
+      // deleted stays deleted.
       const merged = mergeDocumentBodies(
         opts.relativePath,
         localBody,
-        remoteBody,
+        remoteText,
+        trustedBase(opts.filesystem.manifest.get(opts.relativePath)),
       );
-      await writeFile(local, merged ?? remoteBody);
+      await writeFile(local, merged ?? remoteText);
     } else {
       await writeFile(local, await readFile(remoteTemp));
+      if (keepsMergeBase(opts.relativePath))
+        remoteText = await readFile(local, "utf8");
     }
   } finally {
     await rm(remoteTemp, { force: true });
@@ -101,6 +111,11 @@ async function refreshDocument<T>(
   opts.filesystem.manifest.set(opts.relativePath, {
     hash: await fileSha256(local, info.size),
     generation,
+    // The store's bytes at `generation`: trusted as the next attempt's base
+    // only while the local copy still equals them (trustedBase).
+    ...(remoteText !== undefined && keepsMergeBase(opts.relativePath)
+      ? { mergeBase: remoteText }
+      : {}),
   });
   return {
     generation,
@@ -145,10 +160,13 @@ export async function mutateTurnDocument<T>(
         const uploaded = await opts.store.upload(local, key, {
           ifGenerationMatch: refreshed.generation ?? "0",
         });
-        opts.filesystem.manifest.set(opts.relativePath, {
-          hash: await fileSha256(local, info.size),
-          generation: uploaded?.generation ?? refreshed.generation,
-        });
+        opts.filesystem.manifest.set(
+          opts.relativePath,
+          await withMergeBase(local, opts.relativePath, {
+            hash: await fileSha256(local, info.size),
+            generation: uploaded?.generation ?? refreshed.generation,
+          }),
+        );
         opts.filesystem.immediateWrites.add(opts.relativePath);
         return result;
       } catch (error) {
