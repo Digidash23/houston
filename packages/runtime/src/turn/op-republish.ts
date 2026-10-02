@@ -5,16 +5,17 @@ import {
   normalizeLearnings,
   normalizeRoutineRuns,
   normalizeRoutines,
+  parseJsonDoc,
 } from "@houston/domain";
-import type { Vfs } from "@houston/host/src/vfs";
 import type { HoustonEvent } from "@houston/protocol";
 import type { OpResult } from "./op-apply";
 import { publishOpStoreDocs } from "./op-store-docs";
 import type { TurnServerDeps } from "./server-types";
-import { publish } from "./turn-activity-doc";
 import type { ActivityDocSource } from "./turn-activity-source";
+import { publishCustomDefinitionsView } from "./turn-custom-definitions-doc";
 import type { TurnFilesystem } from "./turn-filesystem";
 import { poolIdentity } from "./turn-store";
+import { publishStoreDoc } from "./turn-store-doc";
 import { docNotLandedReason } from "./turn-view-publish";
 
 /** The claim an op publishes under (its store writes use the same one). */
@@ -68,17 +69,17 @@ export function docTarget(deps: DocDeps, turn: OpClaimTurn) {
 }
 
 /**
- * Project each family's file into its doc. Reads go through `vfs`: on a lazy
- * tree a handler may have emitted the event without the family file being on
- * disk yet, and a raw read would project an EMPTY doc over real data. A read
- * that THROWS (store blip, refused size) is a diagnostic; an absent or
- * unparsable file projects the empty doc, as the pod's own projector does.
- * Answers the diagnostics (empty = every doc landed).
+ * Project each family's file into its doc, derived from what the STORE holds
+ * once the doc revision is read (publishStoreDoc): the writer's own tree is a
+ * snapshot from its listing, and a turn may have landed and published the
+ * same family since, so projecting the snapshot would roll that back. Parsed
+ * like every other reader (BOM strip, salvage). Answers the diagnostics
+ * (empty = every doc landed).
  */
 export async function publishFamilyDocs(
   deps: DocDeps,
   turn: OpClaimTurn,
-  vfs: Vfs,
+  source: ActivityDocSource,
   workspaceRel: string,
   families: Iterable<HoustonFamily>,
 ): Promise<string[]> {
@@ -87,26 +88,16 @@ export async function publishFamilyDocs(
   if (!common) return diagnostics;
   for (const family of families) {
     const key = docKey(workspaceRel, family);
-    let raw: string | null;
-    try {
-      raw = await vfs.readText(key);
-    } catch (error) {
-      diagnostics.push(
-        `${family}: read failed, not projected: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      continue;
-    }
-    let doc: unknown;
-    try {
-      doc =
-        raw === null
-          ? emptyDoc(family)
-          : normalizeFamily(family, JSON.parse(raw), key);
-    } catch {
-      doc = emptyDoc(family);
-    }
-    const outcome = await publish({ ...common, family }, doc);
-    if ("error" in outcome) diagnostics.push(`${family}: ${outcome.error}`);
+    const outcome = await publishStoreDoc(
+      { ...common, family },
+      source,
+      key,
+      (raw) => projectFamily(family, raw, key),
+    );
+    // A doc the store refused is as stale as one that failed: its event
+    // must not promise an asleep refetch.
+    const failure = docNotLandedReason(outcome);
+    if (failure) diagnostics.push(`${family}: ${failure}`);
   }
   return diagnostics;
 }
@@ -133,7 +124,7 @@ export async function republish(
   const diagnostics = await publishFamilyDocs(
     deps,
     turn,
-    filesystem.vfs,
+    source,
     filesystem.workspaceRel,
     families,
   );
@@ -147,12 +138,13 @@ export async function republish(
       learnings,
     })),
   );
-  if (result.customDefinitionsView !== undefined) {
+  if (result.customDefinitions !== undefined) {
     // The definitions list is a view doc (docs/view-capture.ts family), so
     // the gateway's asleep reads show the mutation immediately.
-    const outcome = await publish(
+    const outcome = await publishCustomDefinitionsView(
       { ...common, family: "custom_definitions" },
-      result.customDefinitionsView,
+      source,
+      result.customDefinitions,
     );
     const failure = docNotLandedReason(outcome);
     if (failure) diagnostics.push(`custom_definitions: ${failure}`);
@@ -161,6 +153,17 @@ export async function republish(
 }
 
 const emptyDoc = (family: HoustonFamily) => (family === "config" ? {} : []);
+
+/** Absent projects the empty doc, as the pod's projector does. Unreadable
+ *  past salvage throws: a diagnostic, never an empty doc over real data. */
+function projectFamily(
+  family: HoustonFamily,
+  raw: string | null,
+  key: string,
+): unknown {
+  if (raw === null) return emptyDoc(family);
+  return normalizeFamily(family, parseJsonDoc(raw, key), key);
+}
 
 function normalizeFamily(
   family: HoustonFamily,

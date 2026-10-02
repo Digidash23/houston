@@ -21,6 +21,8 @@ export async function createTurnCustomContext(opts: {
   orgSlug: string;
   agentSlug: string;
   fetchImpl?: typeof fetch;
+  /** Each definition a mutation changed, by slug. */
+  onChanged?: (slug: string) => void;
 }): Promise<TurnCustomContext> {
   await opts.filesystem.vfs.readBytes(CUSTOM_DEFS_FILE);
   const [
@@ -45,7 +47,7 @@ export async function createTurnCustomContext(opts: {
     store,
     secrets,
     executor,
-    () => undefined,
+    opts.onChanged ?? (() => undefined),
     {},
   );
   return {

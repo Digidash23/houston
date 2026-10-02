@@ -21,7 +21,7 @@ const route = makeTurnCustomRoutes(
   {} as TurnSandboxDeps,
   async () => context,
   async () => undefined,
-  () => undefined,
+  async () => undefined,
 );
 
 test("OAuth detection directs the model to an awake app connection", async () => {

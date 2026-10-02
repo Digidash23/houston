@@ -1,19 +1,21 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { loadLearnings, loadSkills } from "@houston/domain";
-import { FsVfs } from "@houston/host/src/vfs";
-import { LocalDirStore, syncBack } from "@houston/runtime-client/object-sync";
+import { rm } from "node:fs/promises";
+import { join } from "node:path";
 import { expect, test } from "vitest";
-import { applyOp } from "./op-apply";
-import { projectDurableOp } from "./op-durability";
-import { opClaimId, opTreeOptions } from "./op-tree-options";
-import { parseOpRequest } from "./parse-op-request";
-import type { TurnServerDeps } from "./server-types";
-import { finishTurnDurability } from "./turn-durability";
-import { prepareTurnFilesystem, type TurnFilesystem } from "./turn-filesystem";
-import { handleTurnWriteRoute } from "./turn-sandbox-writes";
-import type { TurnRequest } from "./types";
+import {
+  type AgentStore,
+  agentStore,
+  claimedTurn,
+  holdFirstGet,
+  landOp,
+  type PodDocs,
+  podDocs,
+  podLearnings,
+  podSkillsAnswer,
+  raceFirstUpload,
+  seed,
+  skillNames,
+  writeSkill,
+} from "./turn-views.test-support";
 
 /**
  * A pooled turn changes what a sleeping agent's tabs read: the gateway serves
@@ -21,177 +23,6 @@ import type { TurnRequest } from "./types";
  * the learnings doc. These pin that the turn's settle republishes exactly the
  * docs its landed writes changed, merge-safely, before it announces them.
  */
-
-const PREFIX = "ws/w1/agent-1";
-const WORKSPACE_REL = "workspaces/W/A";
-
-async function seed(root: string, rel: string, content: string) {
-  const path = join(root, ...rel.split("/"));
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, content);
-}
-
-const skillMd = (slug: string, description: string) =>
-  `---\nname: ${slug}\ndescription: ${description}\n---\n\nDo the ${slug}.\n`;
-
-/** The pod-store docs route: per-family revisioned CAS (409 names the doc). */
-function podDocs(
-  initial: Record<string, unknown> = {},
-  opts: {
-    refusing?: string[];
-    outOfScope?: string[];
-    /** Holds a GET (by family and claim conversation) until it resolves. */
-    hold?: (family: string, conversation: string) => Promise<void> | undefined;
-  } = {},
-) {
-  const docs = new Map<string, { doc: unknown; revision: number }>(
-    Object.entries(initial).map(([family, doc]) => [
-      family,
-      { doc, revision: 1 },
-    ]),
-  );
-  const requests: Array<{ family: string; method: string }> = [];
-  const fetchImpl = (async (url: unknown, init?: RequestInit) => {
-    const family = String(url).split("/").at(-1) ?? "";
-    const method = init?.method ?? "GET";
-    requests.push({ family, method });
-    if (method === "GET") {
-      const conversation =
-        new Headers(init?.headers).get("X-Houston-Claim-Conversation") ?? "";
-      await opts.hold?.(family, conversation);
-    }
-    const current = docs.get(family);
-    if (method === "GET") {
-      return current
-        ? Response.json(current)
-        : Response.json({ error: "document not found" }, { status: 404 });
-    }
-    if (opts.refusing?.includes(family)) {
-      return Response.json({ error: "unavailable" }, { status: 503 });
-    }
-    if (opts.outOfScope?.includes(family)) {
-      return Response.json(
-        { error: "family outside claim scope" },
-        { status: 403 },
-      );
-    }
-    const expected = Number(new Headers(init?.headers).get("If-Match"));
-    if (expected !== (current?.revision ?? 0)) {
-      return Response.json(current, { status: 409 });
-    }
-    const next = {
-      doc: (JSON.parse(String(init?.body)) as { doc: unknown }).doc,
-      revision: expected + 1,
-    };
-    docs.set(family, next);
-    return Response.json(next);
-  }) as typeof fetch;
-  return {
-    fetchImpl,
-    requests,
-    doc: (family: string) => docs.get(family)?.doc,
-  };
-}
-
-/** A store holding a standing agent with one skill and one memory. */
-async function agentStore() {
-  const storeRoot = await mkdtemp(join(tmpdir(), "turn-views-store-"));
-  const prefixRoot = join(storeRoot, ...PREFIX.split("/"));
-  await seed(
-    prefixRoot,
-    `${WORKSPACE_REL}/.houston/runtime/settings.json`,
-    "{}",
-  );
-  await seed(prefixRoot, `${WORKSPACE_REL}/CLAUDE.md`, "# A\n");
-  await seed(
-    prefixRoot,
-    `${WORKSPACE_REL}/.agents/skills/existing/SKILL.md`,
-    skillMd("existing", "Already here"),
-  );
-  await seed(
-    prefixRoot,
-    `${WORKSPACE_REL}/.houston/learnings/learnings.json`,
-    JSON.stringify([
-      {
-        id: "l0",
-        text: "Signs off as Ana",
-        created_at: "2026-09-01T00:00:00Z",
-      },
-    ]),
-  );
-  return { storeRoot, prefixRoot, store: new LocalDirStore(storeRoot) };
-}
-
-type AgentStore = Awaited<ReturnType<typeof agentStore>>;
-
-/** One claimed turn hydrated from `agent`, publishing to `docs`. */
-async function claimedTurn(
-  agent: AgentStore,
-  docs: ReturnType<typeof podDocs>,
-  conversationId = "c1",
-) {
-  const root = await mkdtemp(join(tmpdir(), "turn-views-root-"));
-  const filesystem = await prepareTurnFilesystem({
-    store: agent.store,
-    prefix: PREFIX,
-    root,
-    claimed: true,
-  });
-  const deps = {
-    poolStoreUrl: "https://store.example",
-    fetchImpl: docs.fetchImpl,
-    activityDocRetryDelaysMs: [],
-  } as unknown as TurnServerDeps;
-  const turn = {
-    shadow: false,
-    claim: { id: "c", token: "t", bootId: "b", heartbeatUrl: "https://x" },
-    hostToken: "host-token",
-    gcsPrefix: PREFIX,
-    conversationId,
-    turnId: `turn-${conversationId}`,
-  } as unknown as TurnRequest & { turnId: string };
-  const settle = () =>
-    finishTurnDurability({
-      deps,
-      turn,
-      filesystem,
-      resolved: { store: agent.store, prefix: PREFIX },
-      heartbeat: null,
-      outcome: {},
-      transcript: null,
-    });
-  /** The agent's save_learning tool: a CAS write straight to the store. */
-  const saveLearning = async (text: string) => {
-    const response = await handleTurnWriteRoute(
-      "/sandbox/learnings/save",
-      { text },
-      {
-        store: agent.store,
-        prefix: PREFIX,
-        filesystem,
-        workspaceId: "W",
-        conversationId,
-      },
-    );
-    expect(response?.status).toBe(201);
-  };
-  return { filesystem, settle, saveLearning };
-}
-
-/** The host's own GET skills answer over what the store now holds. */
-async function podSkillsAnswer(agent: AgentStore) {
-  return loadSkills(
-    new FsVfs(join(agent.prefixRoot, "workspaces")),
-    WORKSPACE_REL.replace(/^workspaces\//, ""),
-  );
-}
-
-const writeSkill = (fs: TurnFilesystem, slug: string, description: string) =>
-  seed(
-    fs.workspaceDir,
-    `.agents/skills/${slug}/SKILL.md`,
-    skillMd(slug, description),
-  );
 
 test("a turn that adds a skill republishes the skills view and announces it", async () => {
   const agent = await agentStore();
@@ -239,11 +70,6 @@ test("a turn that changes no skill or memory republishes nothing", async () => {
   expect(docs.requests).toEqual([]);
   expect(result.changed).toEqual(["FilesChanged", "SkillsChanged"]);
 });
-
-const skillNames = (docs: ReturnType<typeof podDocs>) =>
-  (docs.doc("skills") as { items: { name: string }[] }).items.map(
-    (item) => item.name,
-  );
 
 test("overlapping turns keep each other's skills in the view", async () => {
   // Both hydrate before either lands: each tree lacks the other's skill, so a
@@ -311,12 +137,6 @@ test("a skills view that did not land is not announced and fails nothing", async
   expect(docs.doc("skills")).toEqual(standing);
   expect(result.changed).toEqual(["FilesChanged"]);
 });
-
-/** The pod's own learnings read over what the store now holds. */
-async function podLearnings(agent: AgentStore) {
-  return (await loadLearnings(new FsVfs(agent.prefixRoot), WORKSPACE_REL))
-    .items;
-}
 
 test("a turn that saves a memory republishes the learnings doc and announces it", async () => {
   const agent = await agentStore();
@@ -409,35 +229,20 @@ test("a turn that settles late never re-serves a skill summary another turn repl
   // The first turn lands its edit, then stalls before its doc GET. A second
   // turn hydrates after that landing, edits the same skill again, lands and
   // publishes. The late publisher must not put its older summary back.
-  let reached!: () => void;
-  const atGet = new Promise<void>((resolve) => {
-    reached = resolve;
-  });
-  let release!: () => void;
-  const released = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  let held = false;
+  const gate = holdFirstGet("skills", "c1");
   const agent = await agentStore();
   const docs = podDocs(
     { skills: await podSkillsAnswer(agent) },
-    {
-      hold: (family, conversation) => {
-        if (family !== "skills" || conversation !== "c1" || held) return;
-        held = true;
-        reached();
-        return released;
-      },
-    },
+    { hold: gate.hold },
   );
   const first = await claimedTurn(agent, docs, "c1");
   await writeSkill(first.filesystem, "existing", "First edit");
   const firstSettled = first.settle();
-  await atGet;
+  await gate.atGet;
   const second = await claimedTurn(agent, docs, "c2");
   await writeSkill(second.filesystem, "existing", "Second edit");
   await second.settle();
-  release();
+  gate.release();
   await firstSettled;
 
   expect(docs.doc("skills")).toEqual(await podSkillsAnswer(agent));
@@ -461,81 +266,12 @@ test("a turn that deletes the memories file republishes an empty doc", async () 
   expect(result.changed).toContain("LearningsChanged");
 });
 
-const landSkillCreateOp = (
-  agent: AgentStore,
-  docs: ReturnType<typeof podDocs>,
-  name: string,
-) =>
+const landSkillCreateOp = (agent: AgentStore, docs: PodDocs, name: string) =>
   landOp(agent, docs, {
     method: "POST",
     rest: "skills",
     body: { name, description: `${name} op`, content: "Go" },
   });
-
-/**
- * A sleeping agent's op, run the way executeOp runs it (the real
- * handler over a lazy tree, the scoped sync-back), split before its doc
- * projection so a test can interleave a turn's publish.
- */
-async function landOp(
-  agent: AgentStore,
-  docs: ReturnType<typeof podDocs>,
-  route: { method: string; rest: string; body: unknown },
-) {
-  const op = parseOpRequest({
-    workspaceId: "w1",
-    agentId: "agent-1",
-    gcsPrefix: PREFIX,
-    hostToken: "host-token",
-    claim: { id: "ops", bootId: "b", token: "t", heartbeatUrl: "https://x" },
-    triggersEnabled: false,
-    op: {
-      kind: "route",
-      method: route.method,
-      rest: route.rest,
-      contentType: "application/json",
-      body: JSON.stringify(route.body),
-    },
-  });
-  const filesystem = await prepareTurnFilesystem({
-    store: agent.store,
-    prefix: PREFIX,
-    root: await mkdtemp(join(tmpdir(), "turn-views-op-")),
-    claimed: true,
-    ...opTreeOptions(op.op),
-  });
-  const result = await applyOp(op, filesystem);
-  expect(result.status).toBeLessThan(300);
-  const synced = await syncBack(
-    agent.store,
-    PREFIX,
-    filesystem.storeRoot,
-    filesystem.manifest,
-    {
-      include: result.include,
-      holdDeletesOnFailure: true,
-      generations: filesystem.generationAware,
-      workerMerge: true,
-    },
-  );
-  const deps = {
-    poolStoreUrl: "https://store.example",
-    fetchImpl: docs.fetchImpl,
-    activityDocRetryDelaysMs: [],
-  } as unknown as TurnServerDeps;
-  return () =>
-    projectDurableOp({
-      deps,
-      turn: { ...op, conversationId: opClaimId(op.op) },
-      op,
-      filesystem,
-      result,
-      uploaded: synced.uploaded,
-      deleted: synced.deleted,
-      source: { store: agent.store, prefix: PREFIX },
-      prefix: PREFIX,
-    });
-}
 
 test("an op that projects after a turn keeps the turn's skill", async () => {
   // The op lands `alpha` from a tree listed before the turn's `beta`, then
@@ -604,4 +340,131 @@ test("an op whose learnings doc the store would not take announces nothing", asy
   });
 
   expect(await project()).toEqual([]);
+});
+
+test("a memory deleted in the tab stays deleted when a turn saves another during the op", async () => {
+  // The tab's whole-list save drops l0 and loses its upload race to the
+  // turn's save_learning. The merge keeps the turn's memory and never brings
+  // l0 back from the store's copy.
+  const agent = await agentStore();
+  const docs = podDocs({ learnings: await podLearnings(agent) });
+  const turn = await claimedTurn(agent, docs);
+  const save = await landOp(
+    agent,
+    docs,
+    { method: "PUT", rest: "learnings", body: { items: [] } },
+    { beforeSync: () => turn.saveLearning("Prefers mornings") },
+  );
+  await turn.settle();
+  await save();
+
+  const stored = await podLearnings(agent);
+  expect(stored.map((item) => item.text)).toEqual(["Prefers mornings"]);
+  expect(docs.doc("learnings")).toEqual(stored);
+});
+
+test("a memory deleted while a turn's save retries stays deleted", async () => {
+  // The turn's file holds an unsynced memory of its own. Its save_learning
+  // refreshes, then loses the upload race to the tab deleting l0. The retry
+  // merges against what it refreshed from, so l0 stays deleted and the
+  // turn's own memories stay.
+  const agent = await agentStore();
+  const docs = podDocs({ learnings: await podLearnings(agent) });
+  const turn = await claimedTurn(agent, docs);
+  await seed(
+    turn.filesystem.workspaceDir,
+    ".houston/learnings/learnings.json",
+    JSON.stringify([
+      ...(await podLearnings(agent)),
+      { id: "x", text: "Unsynced fact", created_at: "2026-09-02T00:00:00Z" },
+    ]),
+  );
+  raceFirstUpload(agent.hooks, "learnings.json", async () => {
+    const tab = await landOp(agent, docs, {
+      method: "PUT",
+      rest: "learnings",
+      body: { items: [] },
+    });
+    await tab();
+  });
+  await turn.saveLearning("Prefers mornings");
+  await turn.settle();
+
+  const stored = await podLearnings(agent);
+  expect(stored.map((item) => item.text)).toEqual([
+    "Unsynced fact",
+    "Prefers mornings",
+  ]);
+  expect(docs.doc("learnings")).toEqual(stored);
+});
+
+test("a memory a turn saves after the tab's op listed the store survives the tab's save", async () => {
+  // The tab's whole-list save keeps l0 and adds its own memory. The turn's
+  // memory lands after the op listed the store, before the op writes: the
+  // tab never saw it, so leaving it out of the list is no deletion.
+  const agent = await agentStore();
+  const docs = podDocs({ learnings: await podLearnings(agent) });
+  const turn = await claimedTurn(agent, docs);
+  const items = [
+    ...(await podLearnings(agent)),
+    { id: "l-tab", text: "Saved from the tab", created_at: "2026-10-01" },
+  ];
+  const save = await landOp(
+    agent,
+    docs,
+    { method: "PUT", rest: "learnings", body: { items } },
+    { beforeApply: () => turn.saveLearning("Prefers mornings") },
+  );
+  await turn.settle();
+  await save();
+
+  const stored = await podLearnings(agent);
+  expect(stored.map((item) => item.text).sort()).toEqual([
+    "Prefers mornings",
+    "Saved from the tab",
+    "Signs off as Ana",
+  ]);
+  expect(docs.doc("learnings")).toEqual(stored);
+});
+
+/** Another turn deletes the memories file outright and lands that. */
+async function deleteMemoriesFile(agent: AgentStore, docs: PodDocs) {
+  const other = await claimedTurn(agent, docs, "c-delete");
+  await rm(join(other.filesystem.workspaceDir, ".houston", "learnings"), {
+    recursive: true,
+  });
+  await other.settle();
+}
+
+test("a turn's memory save never brings back memories a deleted file held", async () => {
+  const agent = await agentStore();
+  const docs = podDocs({ learnings: await podLearnings(agent) });
+  const turn = await claimedTurn(agent, docs);
+  await deleteMemoriesFile(agent, docs);
+  await turn.saveLearning("Prefers mornings");
+  await turn.settle();
+
+  const stored = await podLearnings(agent);
+  expect(stored.map((item) => item.text)).toEqual(["Prefers mornings"]);
+  expect(docs.doc("learnings")).toEqual(stored);
+});
+
+test("a turn's memories file edit never brings back memories a deleted file held", async () => {
+  const agent = await agentStore();
+  const docs = podDocs({ learnings: await podLearnings(agent) });
+  const turn = await claimedTurn(agent, docs);
+  await seed(
+    turn.filesystem.workspaceDir,
+    ".houston/learnings/learnings.json",
+    JSON.stringify([
+      ...(await podLearnings(agent)),
+      { id: "x", text: "Written by hand", created_at: "2026-09-02T00:00:00Z" },
+    ]),
+  );
+  await deleteMemoriesFile(agent, docs);
+  await turn.settle();
+
+  const stored = await podLearnings(agent);
+  expect(stored.map((item) => item.text)).toEqual(["Written by hand"]);
+  expect(docs.doc("learnings")).toEqual(stored);
 });

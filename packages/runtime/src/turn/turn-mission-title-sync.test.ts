@@ -89,7 +89,7 @@ async function titledTurn(races: number) {
     fetchImpl: (async (_url: unknown, init?: RequestInit) =>
       init?.method === "PUT"
         ? new Response("{}", { status: 200 })
-        : Response.json({ revision: 1 })) as typeof fetch,
+        : Response.json({ doc: [], revision: 1 })) as typeof fetch,
     activityDocRetryDelaysMs: [],
   } as unknown as TurnServerDeps;
   const turn = {

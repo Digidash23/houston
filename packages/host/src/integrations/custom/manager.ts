@@ -40,7 +40,7 @@ export class CustomIntegrationManager {
     private readonly store: CustomIntegrationStore,
     private readonly secrets: CustomSecretStore,
     private readonly host: CustomExecutorHost,
-    private readonly onChanged: () => void,
+    private readonly onChanged: (changedSlug: string) => void,
     /** OAuth sign-in (PRODUCT-1172): the browser-reachable callback URL —
      *  absent on deployments that cannot receive the redirect — the state
      *  routing prefix for gateway-fronted pods, and a fetch seam for tests. */
@@ -134,7 +134,7 @@ export class CustomIntegrationManager {
     return this.serialize(async () => {
       const def = editDetails(await this.defOr404(slug), input);
       await this.store.put(def);
-      this.onChanged();
+      this.onChanged(slug);
     });
   }
 
@@ -235,7 +235,7 @@ export class CustomIntegrationManager {
     }
     await this.store.put(def);
     states.set(slug, state);
-    this.onChanged();
+    this.onChanged(slug);
     return viewOf(
       def,
       state,
@@ -320,7 +320,7 @@ export class CustomIntegrationManager {
       toolCount: await this.host.toolCount(executor, slug),
     };
     states.set(slug, state);
-    this.onChanged();
+    this.onChanged(slug);
     return {
       ...viewOf(updated, state, methods),
       ...(verified !== undefined ? { verified } : {}),
@@ -344,7 +344,7 @@ export class CustomIntegrationManager {
     } else {
       await executor.mcp.removeServer(slug).catch(() => undefined);
     }
-    this.onChanged();
+    this.onChanged(slug);
   }
 
   private async defOr404(slug: string): Promise<CustomIntegrationDef> {

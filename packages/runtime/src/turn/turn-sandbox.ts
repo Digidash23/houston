@@ -5,10 +5,11 @@ import type { ObjectStore } from "@houston/runtime-client/object-sync";
 import type { TurnCodeVm } from "../code-vm/turn-code-vm";
 import type { SandboxFetch } from "../session/tools/sandbox-fetch";
 import type { TurnCoordinatorSession } from "./turn-coordinator";
+import { turnCustomContexts } from "./turn-custom-contexts";
 import {
-  createTurnCustomContext,
-  type TurnCustomContext,
-} from "./turn-custom-context";
+  type CapturedCustomDefinitions,
+  captureCustomDefinitions,
+} from "./turn-custom-definitions-doc";
 import { TurnDocConflictError } from "./turn-doc-cas";
 import type { TurnFilesystem } from "./turn-filesystem";
 import { makeTurnCodeRoute, TURN_CODE_RUN_PATH } from "./turn-sandbox-code";
@@ -18,7 +19,6 @@ import {
   makeTurnIntegrationRoutes,
   TurnGrantExpiredError,
 } from "./turn-sandbox-integrations";
-import { fetchWithTurnSignal } from "./turn-sandbox-signal";
 import { handleTurnWriteRoute } from "./turn-sandbox-writes";
 import type { TurnGrant } from "./types";
 
@@ -43,7 +43,7 @@ export interface TurnSandboxDeps {
 
 /** Mutation-derived views published after the turn's object sync lands. */
 export interface TurnSandboxViews {
-  customDefinitions?: unknown;
+  customDefinitions?: CapturedCustomDefinitions;
 }
 
 const json = (status: number, body: unknown): Response =>
@@ -85,24 +85,8 @@ export function makeTurnSandboxFetch(deps: TurnSandboxDeps): {
 } {
   const fetchImpl = deps.fetchImpl ?? fetch;
   const views: TurnSandboxViews = {};
-  const custom = new Map<AbortSignal | null, TurnCustomContext>();
-  const getCustom = async (signal?: AbortSignal | null) => {
-    const key = signal ?? null;
-    const existing = custom.get(key);
-    if (existing) return existing;
-    const context = await createTurnCustomContext({
-      ...deps,
-      grantUrl: deps.grant.url,
-      fetchImpl: fetchWithTurnSignal(fetchImpl, signal),
-    });
-    custom.set(key, context);
-    return context;
-  };
-  const resetCustom = async () => {
-    const contexts = [...custom.values()];
-    custom.clear();
-    await Promise.all(contexts.map((context) => context.dispose()));
-  };
+  const custom = turnCustomContexts(deps, fetchImpl);
+  const { get: getCustom, reset: resetCustom } = custom;
   const integrations = makeTurnIntegrationRoutes(deps, fetchImpl, getCustom);
   // Scope-gated at BUILD time: without `code-run` the path is simply not a
   // route this turn has, so it 404s like any other unknown one. The grant
@@ -118,8 +102,12 @@ export function makeTurnSandboxFetch(deps: TurnSandboxDeps): {
     deps,
     getCustom,
     resetCustom,
-    (view) => {
-      views.customDefinitions = view;
+    async (manager) => {
+      views.customDefinitions = await captureCustomDefinitions(
+        manager,
+        deps.filesystem.storeRoot,
+        custom.touched,
+      );
     },
   );
 
