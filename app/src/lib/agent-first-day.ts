@@ -7,7 +7,10 @@
  * The host does the starting (`agents.startFirstDay`): it creates the task,
  * fires its hidden first turn on the brain the employee was hired with, and
  * records the start, once, however many buttons or tabs ask. This module only
- * opens what it started.
+ * opens what it started. A new hire's button shows the moment it is created,
+ * so a press often lands before its pod is up: the SDK's start waits that out
+ * on its own (the button stays pending), and the warming-write guard
+ * deliberately leaves this call alone.
  *
  * The first thing the user reads is not a model turn: the chat renders a
  * hello as the task's first item from the name and job recorded here
@@ -16,9 +19,11 @@
  */
 
 import type { FirstDayStartResult } from "@houston/engine-adapter";
-import type { Config } from "../data/config";
 import { registerSetupGreeting } from "../hooks/use-setup-greeting";
+import { useAgentProvisioningStore } from "../stores/agent-provisioning";
 import { useUIStore } from "../stores/ui";
+import { isFirstDayNotPendingError } from "./agent-first-day-model";
+import { recordFirstDayStarted } from "./agent-provisioning/born-config";
 import { tauriAgents } from "./agents-facade";
 import { analytics } from "./analytics";
 import { publishCreatedMission } from "./created-mission-handoff";
@@ -28,6 +33,9 @@ import { queryKeys } from "./query-keys";
 
 // The pure half lives apart so it loads without the engine client.
 export { isFirstDayPending } from "./agent-first-day-model";
+
+const engineAnswered = (agentPath: string) =>
+  useAgentProvisioningStore.getState().engineAnswered(agentPath);
 
 export interface FirstDayAgent {
   id: string;
@@ -50,10 +58,11 @@ export async function startEmployeeFirstDay(
       locale: i18n.language,
       title: i18n.t("agentOnboarding:setupMission.title"),
     });
-  } catch {
+  } catch (err) {
     // `call()` in lib/tauri.ts already reported it and chose the toast (a
-    // waking pod, offline). A refusal means this button was stale: the
-    // refetch takes it away.
+    // pod still waking past the SDK's wait, offline). A refusal means this
+    // button was stale, and that the engine is up: the refetch takes it away.
+    if (isFirstDayNotPendingError(err)) engineAnswered(agent.folderPath);
     void queryClient.invalidateQueries({ queryKey: configKey });
     return false;
   }
@@ -72,10 +81,10 @@ export async function startEmployeeFirstDay(
     });
   }
   // What the host just recorded, so every start button goes on this frame.
-  queryClient.setQueryData<Config>(configKey, (prev) => ({
-    ...(prev ?? {}),
-    firstDay: "started",
-  }));
+  recordFirstDayStarted(queryClient, agent.folderPath);
+  // The engine just answered: a new hire's warm-up is over, so its board and
+  // the task's chat read the engine now rather than after the next probe.
+  engineAnswered(agent.folderPath);
   // Name the task for the board BEFORE its panel opens: the sweep has not
   // returned this row yet, and without it the panel opens on no session.
   publishCreatedMission({

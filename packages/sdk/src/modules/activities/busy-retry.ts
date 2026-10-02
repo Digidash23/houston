@@ -11,8 +11,9 @@
  *  - the waking pairs ({@link isWakingAnswer}): the pod is not there yet
  *    (PRODUCT-1736). Only a create the caller marks `retryWhileWaking` walks
  *    {@link WAKING_CREATE_RETRY_MS}, the ladder the app ran on the optimistic
- *    mission row before the SDK owned it; every other write surfaces a waking
- *    refusal at once, as it always did.
+ *    mission row before the SDK owned it, and so does a first-day start
+ *    (`../agents/first-day.ts`), which the host makes idempotent; every other
+ *    write surfaces a waking refusal at once, as it always did.
  *
  * Every other failure surfaces unchanged on the first attempt. Safe to repeat:
  * create is idempotent by the client-supplied id (the host answers the stored
