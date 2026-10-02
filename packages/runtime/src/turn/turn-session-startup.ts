@@ -4,7 +4,6 @@ import type { HarnessBackend } from "../backends/types";
 import { config } from "../config";
 import { fileToolGuardOptions } from "../session/coordinator-policy";
 import type { MissionTitleRunner } from "../session/mission-title";
-import { systemPromptFor } from "../session/resource-loader";
 import { turnCodeExecutionMode } from "../session/tool-selection";
 import { makeRunCodeTool } from "../session/tools/run-code";
 import { sandboxFetchRunCodeTransport } from "../session/tools/run-code-transport";
@@ -14,6 +13,7 @@ import { createTurnModelRuntime } from "./turn-runtime";
 import { TURN_CODE_RUN_PATH } from "./turn-sandbox-code";
 import type { TurnDirectories, TurnSessionRequest } from "./turn-session";
 import { turnSharedSkillsDir } from "./turn-shared-skills";
+import { turnSystemPrompt } from "./turn-system-prompt";
 import { buildTurnToolSelection, turnCodeExecution } from "./turn-toolset";
 
 export interface RunTurnDeps {
@@ -102,7 +102,7 @@ async function prepareTurnSession(
     modelRuntime,
     toolSelection,
     codeSandbox,
-    systemPrompt: config.systemPrompt || systemPromptFor(codeExecution),
+    systemPrompt: config.systemPrompt || turnSystemPrompt(codeExecution),
     // The ROLE's file wall, the same policy the long-lived runtime builds
     // (session-tools.ts): a coordinator turn is held to its memory document,
     // so the shared skills mirror it must never rewrite is not a writable root

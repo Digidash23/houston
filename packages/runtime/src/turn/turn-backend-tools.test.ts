@@ -99,3 +99,22 @@ test("a pooled turn pins pi to SSE: the Codex WebSocket is never reused here", a
   createTurnBackend("openai-codex", deps());
   expect(piTransport.mock.calls).toEqual([["sse"]]);
 });
+
+test("both branches carry the follow-up tools the product prompt mandates", async () => {
+  // The product prompt ends every non-blocking turn with suggest_actions and
+  // offers saving work through suggest_reusable. A name in the allowlist with
+  // no tool object behind it is invisible to the model, so the prompt would
+  // order a call to a tool the turn does not have.
+  const { createTurnBackend } = await import("./turn-backend");
+  piTools.mockClear();
+  claudeTools.mockClear();
+  createTurnBackend("openai-codex", deps());
+  createTurnBackend("anthropic", deps());
+  for (const names of [
+    piTools.mock.calls[0]?.[0],
+    claudeTools.mock.calls[0]?.[0],
+  ]) {
+    expect(names).toContain("suggest_actions");
+    expect(names).toContain("suggest_reusable");
+  }
+});

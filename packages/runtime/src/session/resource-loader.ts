@@ -27,11 +27,18 @@ import {
 export function systemPromptFor(codeExecution: CodeExecutionMode): string {
   return [
     "You are a friendly AI assistant inside Houston, working for a non-technical user.",
-    codeExecution === "disabled"
-      ? "You can read and edit files in the user's working directory to help them. You cannot run shell commands or execute code; never claim that you can."
-      : "You can read and edit files and run commands in the user's working directory to help them.",
+    codeExecutionSentence(codeExecution),
     "Be clear and concise. Avoid jargon. Never mention file paths, JSON, or configs unless asked.",
   ].join("\n");
+}
+
+/** What this session may do with the workspace, in one sentence. */
+export function codeExecutionSentence(
+  codeExecution: CodeExecutionMode,
+): string {
+  return codeExecution === "disabled"
+    ? "You can read and edit files in the user's working directory to help them. You cannot run shell commands or execute code; never claim that you can."
+    : "You can read and edit files and run commands in the user's working directory to help them.";
 }
 
 /** This process's own base prompt (the long-lived runtime's one answer). */

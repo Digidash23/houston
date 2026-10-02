@@ -6,12 +6,16 @@ import {
   type CodeExecutionMode,
   type ToolSelection,
 } from "../session/tool-selection";
+import { makeAskUserTool } from "../session/tools/ask-user";
 import { credentialTools } from "../session/tools/credential-tools";
 import { makeIntegrationTools } from "../session/tools/integrations";
+import { makePlanReadyTool } from "../session/tools/plan-ready";
 import { makeRequestHandsOnTool } from "../session/tools/request-hands-on";
 import { makeRequestProviderConnectionTool } from "../session/tools/request-provider-connection";
 import { makeSaveLearningTool } from "../session/tools/save-learning";
 import { makeSaveRoutineTool } from "../session/tools/save-routine";
+import { makeSuggestActionsTool } from "../session/tools/suggest-actions";
+import { makeSuggestReusableTool } from "../session/tools/suggest-reusable";
 import type { TurnSessionRequest } from "./turn-session";
 
 function capabilities(turn: TurnSessionRequest) {
@@ -92,5 +96,26 @@ export function buildTurnHostTools(
           makeSaveLearningTool({ call: turn.sandbox.call }),
         ]
       : []),
+  ];
+}
+
+/**
+ * The tool objects BOTH provider branches carry, the same set a long-lived
+ * runtime registers (session/session-tools.ts) minus the file and shell tools
+ * the pi branch adds itself. The follow-up offers are here because the product
+ * prompt orders them on every clean finish, and a name in the allowlist with
+ * no object behind it is invisible to the model.
+ */
+export function buildTurnCommonTools(
+  turn: TurnSessionRequest,
+  codeSandbox: PiBackendDeps["customTools"][number] | null,
+): PiBackendDeps["customTools"] {
+  return [
+    makeAskUserTool(),
+    makePlanReadyTool(),
+    makeSuggestReusableTool(),
+    makeSuggestActionsTool(),
+    ...(codeSandbox ? [codeSandbox] : []),
+    ...buildTurnHostTools(turn),
   ];
 }
