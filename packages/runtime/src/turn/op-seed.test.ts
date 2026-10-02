@@ -425,3 +425,23 @@ test("a projection that throws after a durable seed is logged, never a failed se
     error.mockRestore();
   }
 });
+
+test("an adopted flat-layout tree never gets a family file over its flat twin", async () => {
+  const fake = generationStore();
+  const agent = "workspaces/Personal/Ledger";
+  // A pre-v0.4 agent: its routines are still the flat file the migrate op
+  // copies into a MISSING family file.
+  fake.put(`${agent}/CLAUDE.md`, "# Ledger\n");
+  fake.put(`${agent}/.houston/routines.json`, '[{"id":"r1"}]');
+  const { reply } = await runSeed(
+    {
+      name: "Ledger",
+      seeds: { ".houston/routines/routines.json": "[]", "notes.md": "hi\n" },
+    },
+    fake,
+  );
+  expect(answer(reply).status).toBe(200);
+  const uploaded = fake.uploads.map((u) => u.key.slice(PREFIX.length + 1));
+  expect(uploaded).not.toContain(`${agent}/.houston/routines/routines.json`);
+  expect(uploaded).toContain(`${agent}/notes.md`);
+});

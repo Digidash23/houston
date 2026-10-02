@@ -7,6 +7,7 @@ import type {
 } from "@houston/runtime-client/object-sync";
 import type { TurnFilesystem } from "./turn-filesystem";
 import { resolveListedLayout } from "./turn-layout";
+import { assertMigratedLayout } from "./turn-layout-legacy";
 
 /**
  * A manifest-only tree: the store's listing, the agent's directory skeleton,
@@ -25,6 +26,8 @@ export async function startLazyTurnFilesystem(opts: {
   excludes: string[];
   maxBytes: number;
   admit?: (relativePath: string) => boolean;
+  /** See prepareTurnFilesystem. */
+  allowLegacyLayout?: boolean;
   timings?: Record<string, number>;
 }): Promise<TurnFilesystem> {
   const admit = opts.admit;
@@ -47,6 +50,8 @@ export async function startLazyTurnFilesystem(opts: {
   const layout = await resolveListedLayout(opts.storeRoot, vfs.remoteKeys, {
     allowEmpty: !opts.claimed,
   });
+  if (opts.claimed && !opts.allowLegacyLayout)
+    assertMigratedLayout(layout, vfs.remoteKeys);
   if (opts.timings) opts.timings.t_layout = performance.now();
   return {
     ...layout,

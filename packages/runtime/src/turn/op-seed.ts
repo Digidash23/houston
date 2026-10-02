@@ -6,7 +6,12 @@ import type { DocDeps, OpClaimTurn } from "./op-republish";
 import { classifySeedListing, listPrefix } from "./op-seed-listing";
 import { publishSeedDocs } from "./op-seed-publish";
 import { syncSeedTree, withdrawSeedTree } from "./op-seed-sync";
-import { buildSeedTree, pruneListed, type SeedTree } from "./op-seed-tree";
+import {
+  buildSeedTree,
+  pruneLegacyFamilies,
+  pruneListed,
+  type SeedTree,
+} from "./op-seed-tree";
 import { RUNTIME_VIEW_SOURCES, type SeedViewSources } from "./op-seed-views";
 import type { OpRequest } from "./parse-op-request";
 
@@ -106,6 +111,7 @@ async function seedOnce(
     const [workspaceId = "", name = ""] = listing.id.split("/");
     tree = await buildSeedTree(storeRoot, op.op, actor, { workspaceId, name });
     await pruneListed(storeRoot, tree, new Set(rels));
+    await pruneLegacyFamilies(storeRoot, tree, rels);
   } else {
     tree = await buildSeedTree(storeRoot, op.op, actor);
   }

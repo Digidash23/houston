@@ -4,6 +4,7 @@ import { seedAgentTree } from "@houston/host/src/routes/agent-seed-tree";
 import { LocalWorkspaceStore } from "@houston/host/src/store/local";
 import { FsVfs } from "@houston/host/src/vfs";
 import type { SeedOp } from "./op-grammar-seed";
+import { pendingLegacyFamilies } from "./turn-layout-legacy";
 
 /** A seeded tree on local disk, keyed like the store (`workspaces/...`). */
 export interface SeedTree {
@@ -79,4 +80,24 @@ function collidesWithListed(key: string, listed: ReadonlySet<string>): boolean {
   const asDir = `${key}/`;
   for (const other of listed) if (other.startsWith(asDir)) return true;
   return false;
+}
+
+/** Never complete a family file whose pre-v0.4 flat twin the store still
+ *  holds: the boot migration copies the flat file only into a MISSING family
+ *  file, so a seeded one would hide the old data for good. The agent's
+ *  migrate op brings it forward instead. */
+export async function pruneLegacyFamilies(
+  storeRoot: string,
+  tree: SeedTree,
+  listed: readonly string[],
+): Promise<void> {
+  const local = new FsVfs(storeRoot);
+  for (const family of pendingLegacyFamilies(tree, listed)) {
+    const key = `${tree.workspaceRel}/${family}`;
+    if (!(await local.exists(key))) continue;
+    console.warn(
+      `[op] seed completion skipped ${key}: its flat twin awaits migration`,
+    );
+    await local.deleteKey(key);
+  }
 }

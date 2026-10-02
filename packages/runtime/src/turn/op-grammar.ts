@@ -1,4 +1,5 @@
 import { ID, str } from "./op-grammar-fields";
+import { type MigrateOp, parseMigrateOp } from "./op-grammar-migrate";
 import { parseReconcileOp, type ReconcileOp } from "./op-grammar-reconcile";
 import { parseSeedOp, type SeedOp } from "./op-grammar-seed";
 import { parseSettingsOp, type SettingsOp } from "./op-grammar-settings";
@@ -45,6 +46,7 @@ export type AgentOp =
       title?: string;
     }
   | SeedOp
+  | MigrateOp
   | ReconcileOp;
 
 export { ID, str } from "./op-grammar-fields";
@@ -87,6 +89,8 @@ export function parseAgentOp(raw: Record<string, unknown>): AgentOp {
     }
     case "seed":
       return parseSeedOp(raw);
+    case "migrate":
+      return parseMigrateOp(raw);
     case "reconcile":
       return parseReconcileOp(raw);
     default:

@@ -1,14 +1,7 @@
-import {
-  docKey,
-  type HoustonFamily,
-  normalizeActivities,
-  normalizeLearnings,
-  normalizeRoutineRuns,
-  normalizeRoutines,
-  parseJsonDoc,
-} from "@houston/domain";
+import { docKey, type HoustonFamily } from "@houston/domain";
 import type { HoustonEvent } from "@houston/protocol";
 import type { OpResult } from "./op-apply";
+import { familyDoc } from "./op-family-doc";
 import { publishOpStoreDocs } from "./op-store-docs";
 import type { TurnServerDeps } from "./server-types";
 import type { ActivityDocSource } from "./turn-activity-source";
@@ -152,40 +145,14 @@ export async function republish(
   return diagnostics;
 }
 
-const emptyDoc = (family: HoustonFamily) => (family === "config" ? {} : []);
-
-/** Absent projects the empty doc, as the pod's projector does. Unreadable
- *  past salvage throws: a diagnostic, never an empty doc over real data. */
+/** Unreadable past salvage throws: a diagnostic, never an empty doc over
+ *  real data (familyDoc projects absent as the empty doc). */
 function projectFamily(
   family: HoustonFamily,
   raw: string | null,
   key: string,
 ): unknown {
-  if (raw === null) return emptyDoc(family);
-  return normalizeFamily(family, parseJsonDoc(raw, key), key);
-}
-
-function normalizeFamily(
-  family: HoustonFamily,
-  parsed: unknown,
-  key: string,
-): unknown {
-  switch (family) {
-    case "activity":
-      return normalizeActivities(parsed, key).items;
-    case "routines":
-      return normalizeRoutines(parsed, key).items;
-    case "routine_runs":
-      return normalizeRoutineRuns(parsed, key).items;
-    case "learnings":
-      return normalizeLearnings(parsed, key).items;
-    case "config":
-      return parsed !== null &&
-        typeof parsed === "object" &&
-        !Array.isArray(parsed)
-        ? parsed
-        : {};
-    default:
-      return parsed;
-  }
+  const doc = familyDoc(family, raw, key);
+  if (doc === undefined) throw new Error("file is not JSON, not projected");
+  return doc;
 }

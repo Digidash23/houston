@@ -36,29 +36,49 @@ export function generationStore() {
   const uploads: Upload[] = [];
   const deletes: string[] = [];
   const hooks: { beforeUpload?: (key: string) => void } = {};
+  // Generations as a pool store mints them: an object written outside the
+  // store's own writes (put, a racing writer) reads as generation "1".
+  const generations = new Map<string, number>();
+  const generationOf = (key: string) =>
+    existsSync(join(root, key)) ? String(generations.get(key) ?? 1) : "0";
+  const cas = (key: string, opts?: WriteOptions) => {
+    const want = opts?.ifGenerationMatch;
+    if (want !== undefined && want !== generationOf(key))
+      throw new StoreConflictError(key, `412 on ${key}`);
+  };
   const store: ObjectStore = {
     list: (p) => inner.list(p),
     manifest: async (p) =>
-      (await inner.manifest(p)).map((o) => ({ ...o, generation: "1" })),
+      (await inner.manifest(p)).map((o) => ({
+        ...o,
+        generation: generationOf(o.key),
+      })),
     download: (key, dest) => inner.download(key, dest),
     upload: async (src, key, opts?: WriteOptions) => {
       hooks.beforeUpload?.(key);
-      if (opts?.ifGenerationMatch === "0" && existsSync(join(root, key)))
-        throw new StoreConflictError(key, `412 on ${key}`);
+      cas(key, opts);
       uploads.push({ key, ifGenerationMatch: opts?.ifGenerationMatch });
       await inner.upload(src, key);
-      return { generation: "2" };
+      const next = Number(generationOf(key)) + 1;
+      generations.set(key, next);
+      return { generation: String(next) };
     },
     delete: async (key, opts) => {
+      cas(key, opts);
       deletes.push(key);
       await inner.delete(key, opts);
+      generations.delete(key);
     },
   };
   /** Put an object in the store as some earlier writer left it. */
   const put = (rel: string, content: string) => {
     const file = join(root, PREFIX, ...rel.split("/"));
+    const key = `${PREFIX}/${rel}`;
+    // Another writer's object: a new generation the op's reads never saw.
+    const next = Number(generationOf(key)) + 1;
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, content);
+    generations.set(key, next);
   };
   const keys = async () =>
     (await inner.list(PREFIX)).map((k) => k.slice(PREFIX.length + 1));

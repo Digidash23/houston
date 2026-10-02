@@ -15,9 +15,10 @@ import { LocalDirStore } from "@houston/runtime-client/object-sync";
 /**
  * The gateway's pod-store as a `fetchImpl`: the object routes a claimed
  * worker reads and writes (`/v1/pod/store/<org>/<agent>/...`, create-only
- * CAS included), the doc route, the transcript routes and the claim
- * heartbeat. Every store write and transcript call is recorded with the
- * claim it carried.
+ * CAS included), the doc route (revisioned, If-Match enforced), the
+ * custom-secret custody route, the transcript routes and the claim
+ * heartbeat. Every store write, doc PUT and transcript call is recorded with
+ * the claim it carried.
  */
 
 export const POOL_STORE_URL = "https://store.example";
@@ -37,11 +38,20 @@ export interface TranscriptCall {
   body: string;
 }
 
+export interface DocPut {
+  family: string;
+  doc: unknown;
+  claim: string | null;
+}
+
 export function fakePoolStore(prefix: string, transcriptStatus = 200) {
   const root = mkdtempSync(join(tmpdir(), "pool-store-"));
   const fileOf = (key: string) => join(root, prefix, ...key.split("/"));
   const writes: StoreWrite[] = [];
   const transcripts: TranscriptCall[] = [];
+  const docs = new Map<string, { doc: unknown; revision: number }>();
+  const docPuts: DocPut[] = [];
+  const secrets = new Map<string, string>();
   const meta = (key: string) => {
     const bytes = readFileSync(fileOf(key));
     return {
@@ -104,9 +114,9 @@ export function fakePoolStore(prefix: string, transcriptStatus = 200) {
     const store = /^\/v1\/pod\/store\/[^/]+\/[^/]+\/(.+)$/.exec(url.pathname);
     if (store?.[1]) return storeRoute(method, store[1], init);
     if (url.pathname.startsWith("/v1/pod/docs/"))
-      return method === "GET"
-        ? Response.json({ error: "document not found" }, { status: 404 })
-        : Response.json({ revision: 1 });
+      return docRoute(method, url.pathname, init);
+    if (url.pathname.startsWith("/v1/pod/custom-secrets/"))
+      return secretRoute(method, url.pathname, init);
     if (url.pathname.startsWith("/v1/pod/transcripts/")) {
       transcripts.push({
         method,
@@ -118,6 +128,49 @@ export function fakePoolStore(prefix: string, transcriptStatus = 200) {
     }
     return new Response("", { status: 404 });
   }) as typeof fetch;
+  const docRoute = (method: string, path: string, init?: RequestInit) => {
+    const family = path.split("/").pop() ?? "";
+    const current = docs.get(family);
+    if (method === "GET")
+      return current
+        ? Response.json(current, {
+            headers: { ETag: `"${current.revision}"` },
+          })
+        : Response.json({ error: "document not found" }, { status: 404 });
+    const headers = new Headers(init?.headers);
+    const revision = current?.revision ?? 0;
+    const ifMatch = headers.get("If-Match");
+    if (ifMatch !== null && Number(ifMatch) !== revision)
+      return Response.json({ revision }, { status: 409 });
+    const { doc } = JSON.parse(String(init?.body)) as { doc: unknown };
+    docPuts.push({
+      family,
+      doc,
+      claim: headers.get("X-Houston-Claim-Conversation"),
+    });
+    docs.set(family, { doc, revision: revision + 1 });
+    return Response.json({ revision: revision + 1 });
+  };
+  const secretRoute = (method: string, path: string, init?: RequestInit) => {
+    const id = decodeURIComponent(path.split("/").pop() ?? "");
+    if (method === "GET") {
+      const value = secrets.get(id);
+      return value === undefined
+        ? Response.json({ error: "not found" }, { status: 404 })
+        : Response.json({ value });
+    }
+    // POST creates (412 over a value), PUT sets: the gateway's custody route.
+    if (method === "POST" || method === "PUT") {
+      if (method === "POST" && secrets.has(id))
+        return Response.json({ error: "secret exists" }, { status: 412 });
+      secrets.set(
+        id,
+        (JSON.parse(String(init?.body)) as { value: string }).value,
+      );
+      return Response.json({});
+    }
+    return new Response("", { status: 405 });
+  };
   const put = (rel: string, content: string) => {
     mkdirSync(dirname(fileOf(rel)), { recursive: true });
     writeFileSync(fileOf(rel), content);
@@ -127,5 +180,16 @@ export function fakePoolStore(prefix: string, transcriptStatus = 200) {
       k.slice(prefix.length + 1),
     );
   const read = (rel: string) => readFileSync(fileOf(rel), "utf8");
-  return { root, fetchImpl, writes, transcripts, put, keys, read };
+  return {
+    root,
+    fetchImpl,
+    writes,
+    transcripts,
+    docs,
+    docPuts,
+    secrets,
+    put,
+    keys,
+    read,
+  };
 }
