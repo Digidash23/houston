@@ -307,11 +307,15 @@ test("a team-space member's connect configures THEIR turns, with no scope on the
   await armCapabilities(request, { ...SPACES_CAPS, role: "user" });
   await armTeamWorkspace(request);
 
+  // Observed, never routed: a catch-all `page.route` sends each of the boot's
+  // ~2,700 vite dev-module requests through this worker and back, which on a
+  // loaded CI runner stretched the boot past settlesShell's 10s budget. Host
+  // calls only: vite also serves `app/src/components/auth/*` modules.
   const credentialCalls: string[] = [];
-  await page.route("**/*", async (route) => {
-    const url = route.request().url();
+  page.on("request", (req) => {
+    const url = req.url();
+    if (!url.startsWith(FAKE_HOST_URL)) return;
     if (/\/credential\/|\/auth\//.test(url)) credentialCalls.push(url);
-    await route.continue();
   });
 
   await page.goto("/");
@@ -327,10 +331,11 @@ test("a team-space member's connect configures THEIR turns, with no scope on the
   // And the self-serve connect for one that does not.
   await page.getByRole("button", { name: "Connect OpenAI" }).click();
 
-  // The login round-trip fired…
-  await expect
-    .poll(() => credentialCalls.length, { timeout: 15_000 })
-    .toBeGreaterThan(0);
+  // The login round-trip fired (the boot's `auth/status` probe does not
+  // count, or the check below could run before the login is recorded)…
+  const loginFired = () =>
+    credentialCalls.some((url) => /\/auth\/[^/]+\/login/.test(url));
+  await expect.poll(loginFired, { timeout: 15_000 }).toBe(true);
   // …and not one request named an account.
   for (const url of credentialCalls) {
     expect(url).not.toContain("scope=");
