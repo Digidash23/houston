@@ -26,13 +26,15 @@ async function readStopped(
   routineId: string,
   runId: string,
 ): Promise<Stopped> {
-  let body: Record<string, unknown>;
+  let body: unknown;
   try {
     body = await readJson(req);
   } catch {
     return { ok: false };
   }
-  const raw = body.stopped;
+  // `readJson` hands back whatever parsed, `null` included.
+  if (typeof body !== "object" || body === null) return { ok: false };
+  const raw = (body as Record<string, unknown>).stopped;
   if (raw === undefined) return { ok: true };
   if (typeof raw !== "object" || raw === null) return { ok: false };
   const { sessionKey, startedAt } = raw as Record<string, unknown>;

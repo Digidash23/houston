@@ -86,14 +86,35 @@ export async function cancelRunRow(
       summary: "Stopped by user",
       completed_at: deps.now().toISOString(),
     };
-    // A recorded row is the newest run: it goes first, as every writer
-    // prepends, and the per-routine cap applies to it like to any new run.
     const next = run
       ? upsertById(items, cancelled)
-      : pruneRoutineRuns([cancelled, ...items]);
+      : withStoppedRun(items, cancelled);
+    // A stop retried after the cap moved past the run: it has no place left.
+    if (!next) return { status: "not_running" };
     await saveRoutineRuns(deps.vfs, root, next);
     return { status: "cancelled", run: cancelled };
   });
+}
+
+/**
+ * The history with a recorded row placed by its start (newest first, as the
+ * cap assumes), then capped. Null when the cap drops the row itself: a stop
+ * retried long after the run must never evict a newer run.
+ */
+function withStoppedRun(
+  items: RoutineRun[],
+  row: RoutineRun,
+): RoutineRun[] | null {
+  const start = Date.parse(row.started_at);
+  // First row that did not start at or after this one; an unreadable start
+  // sorts oldest, as in the run history merge.
+  const at = items.findIndex((r) => !(Date.parse(r.started_at) >= start));
+  const placed =
+    at === -1
+      ? [...items, row]
+      : [...items.slice(0, at), row, ...items.slice(at)];
+  const capped = pruneRoutineRuns(placed);
+  return capped.includes(row) ? capped : null;
 }
 
 function stoppedRow(

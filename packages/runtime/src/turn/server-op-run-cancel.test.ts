@@ -325,3 +325,52 @@ test("the run history doc the gateway serves asleep gets the cancelled row, unde
     doc: [{ id: "run-1", status: "cancelled" }],
   });
 });
+
+test("a vouched-for row joins the history in start order and never evicts a newer run", async () => {
+  // A stop retried long after the run (its claim still says it was stopped)
+  // must not push a newer run past the per-routine cap.
+  const settledAt = (i: number) =>
+    new Date(Date.parse(STARTED) + (i + 1) * 60_000).toISOString();
+  const newer: RoutineRun[] = Array.from({ length: 50 }, (_, i) => ({
+    id: `run-n${49 - i}`,
+    routine_id: "r1",
+    status: "silent",
+    session_key: "routine-r1",
+    started_at: settledAt(49 - i),
+    completed_at: settledAt(49 - i),
+  }));
+  const { base, storedRuns } = await seedAgent(newer);
+  const old = JSON.stringify({
+    stopped: { sessionKey: "routine-r1", startedAt: STARTED },
+  });
+  const { json } = await postCancel(base, "r1", "run-old", old);
+  expect(json.status).toBe(409);
+  expect(storedRuns()).toEqual(newer);
+
+  // One between two kept runs lands between them.
+  const { base: base2, storedRuns: stored2 } = await seedAgent(
+    newer.slice(0, 3),
+  );
+  const between = JSON.stringify({
+    stopped: {
+      sessionKey: "routine-r1",
+      startedAt: new Date(Date.parse(settledAt(48)) + 30_000).toISOString(),
+    },
+  });
+  expect((await postCancel(base2, "r1", "run-mid", between)).json.status).toBe(
+    200,
+  );
+  expect(stored2().map((r) => r.id)).toEqual([
+    "run-n49",
+    "run-mid",
+    "run-n48",
+    "run-n47",
+  ]);
+});
+
+test("a JSON null body is the 400 a bad stop gets, never a handler failure", async () => {
+  const { base, storedRuns } = await seedAgent([running]);
+  const { json } = await postCancel(base, "r1", "run-1", "null");
+  expect(json.status).toBe(400);
+  expect(storedRuns()).toEqual([running]);
+});
