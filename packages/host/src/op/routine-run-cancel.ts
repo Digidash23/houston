@@ -32,8 +32,9 @@ async function readStopped(
   } catch {
     return { ok: false };
   }
-  // `readJson` hands back whatever parsed, `null` included.
-  if (typeof body !== "object" || body === null) return { ok: false };
+  // `readJson` hands back whatever parsed, `null` and arrays included.
+  if (typeof body !== "object" || body === null || Array.isArray(body))
+    return { ok: false };
   const raw = (body as Record<string, unknown>).stopped;
   if (raw === undefined) return { ok: true };
   if (typeof raw !== "object" || raw === null) return { ok: false };

@@ -97,24 +97,28 @@ export async function cancelRunRow(
 }
 
 /**
- * The history with a recorded row placed by its start (newest first, as the
- * cap assumes), then capped. Null when the cap drops the row itself: a stop
- * retried long after the run must never evict a newer run.
+ * The history with a recorded row in it, newest start first (the order the
+ * cap assumes), then capped. The sort is stable and the row goes in last, so
+ * existing rows keep their order and win ties; an unreadable start sorts
+ * oldest, as in the run history merge. Null when the cap drops the row
+ * itself: a stop retried long after the run must never evict a newer run.
  */
 function withStoppedRun(
   items: RoutineRun[],
   row: RoutineRun,
 ): RoutineRun[] | null {
-  const start = Date.parse(row.started_at);
-  // First row that did not start at or after this one; an unreadable start
-  // sorts oldest, as in the run history merge.
-  const at = items.findIndex((r) => !(Date.parse(r.started_at) >= start));
-  const placed =
-    at === -1
-      ? [...items, row]
-      : [...items.slice(0, at), row, ...items.slice(at)];
-  const capped = pruneRoutineRuns(placed);
+  const capped = pruneRoutineRuns(
+    [...items, row].sort((a, b) => {
+      const [x, y] = [startOf(a), startOf(b)];
+      return x === y ? 0 : x > y ? -1 : 1;
+    }),
+  );
   return capped.includes(row) ? capped : null;
+}
+
+function startOf(run: RoutineRun): number {
+  const parsed = Date.parse(run.started_at);
+  return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
 }
 
 function stoppedRow(

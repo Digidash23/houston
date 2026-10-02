@@ -374,3 +374,34 @@ test("a JSON null body is the 400 a bad stop gets, never a handler failure", asy
   expect(json.status).toBe(400);
   expect(storedRuns()).toEqual([running]);
 });
+
+test("an unreadable start elsewhere in the history never lets an old stop evict a newer run", async () => {
+  const at = (minutes: number) =>
+    new Date(Date.parse(STARTED) + minutes * 60_000).toISOString();
+  const legacy = {
+    id: "legacy",
+    routine_id: "r2",
+    status: "silent",
+    session_key: "routine-r2",
+    started_at: "",
+  } as RoutineRun;
+  const newer: RoutineRun[] = Array.from({ length: 50 }, (_, i) => ({
+    id: `run-n${50 - i}`,
+    routine_id: "r1",
+    status: "silent",
+    session_key: "routine-r1",
+    started_at: at(50 - i),
+  }));
+  const { base, storedRuns } = await seedAgent([legacy, ...newer]);
+  const old = JSON.stringify({
+    stopped: { sessionKey: "routine-r1", startedAt: STARTED },
+  });
+  expect((await postCancel(base, "r1", "run-old", old)).json.status).toBe(409);
+  expect(storedRuns()).toEqual([legacy, ...newer]);
+});
+
+test("a JSON array body is refused like any other body that is not an object", async () => {
+  const { base, storedRuns } = await seedAgent([running]);
+  expect((await postCancel(base, "r1", "run-1", "[]")).json.status).toBe(400);
+  expect(storedRuns()).toEqual([running]);
+});
