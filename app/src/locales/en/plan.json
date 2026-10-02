@@ -96,5 +96,13 @@
   "checkoutAccountDeletedTitle": "Your account is being deleted",
   "checkoutAccountDeletedBody": "You can't upgrade to Plus while your account is being deleted.",
   "checkoutUnavailableTitle": "Plus isn't available",
-  "checkoutUnavailableBody": "Plus can't be bought here right now. Please try again later."
+  "checkoutUnavailableBody": "Plus can't be bought here right now. Please try again later.",
+  "sidebar": {
+    "free": "Free plan",
+    "nearLimit": "{{percent}}% used",
+    "limit": "Limit reached",
+    "preview": "Preview: {{percent}}% used",
+    "upgrade": "Upgrade",
+    "label": "Upgrade to Plus. {{status}}"
+  }
 }

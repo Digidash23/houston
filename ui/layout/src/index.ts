@@ -32,6 +32,7 @@ export {
   sidebarPersonRow,
   sidebarRailInset,
   sidebarRingClearance,
+  sidebarRowType,
   sidebarSeat,
 } from "./sidebar-geometry";
 export {

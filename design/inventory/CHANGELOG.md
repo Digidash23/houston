@@ -3,6 +3,14 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v121 - 2026-10-02
+
+Free users have a persistent way to Plus above Connect your apps on the rail
+and in the phone More menu: a one-line pill naming where they stand ("Free
+plan", "85% used", "Limit reached") beside an Upgrade chip that opens personal
+Billing. Launch previews stay labeled as previews. The icon rail keeps the
+status glyph with a tooltip, and the More card draws it as its own sheet row.
+
 ## v120 - 2026-10-01
 
 The plan offer is the beta tester gift: a first month of Plus at a lower price,

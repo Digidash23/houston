@@ -13,7 +13,7 @@
 
 surface: web
 enforced: true
-inventoryVersion: 120
+inventoryVersion: 121
 
 components:
   manager-avatar:
@@ -343,3 +343,7 @@ components:
     status: partial
     ref: "app/src/components/settings/sections/plan.tsx"
     notes: Settings content shared by desktop and web; includes preview usage, beta tester gift, and launch price states.
+
+  personal-plan-upgrade-row:
+    status: implemented
+    ref: "app/src/components/shell/plan-upgrade-row.tsx, mounted by sidebar-footer.tsx and mobile-more-menu.tsx over SDK planUpgradeView"

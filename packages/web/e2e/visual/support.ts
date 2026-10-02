@@ -27,8 +27,12 @@ import type { Page } from "@playwright/test";
 export type Theme = "light" | "dark";
 
 /**
- * Pin the app theme by setting `data-theme` on `<html>` (mirrors
- * app/src/lib/theme-boot.ts `applyThemeAttribute`: dark → set, light → remove).
+ * Pin the app theme the way app/src/lib/theme-boot.ts `applyThemeAttribute`
+ * does: `data-theme` (dark → set, light → remove), `data-palette` (the
+ * Houston set for that mode) and the `<html>` background the gutter shows
+ * through. Flipping `data-theme` alone left the light palette's tokens and
+ * light gutter under dark ink, so every transparent surface (the sidebar)
+ * shot as pale text on a pale wash.
  * Call after `page.goto` and once the shell is visible, before the screenshot.
  */
 export async function pinTheme(page: Page, theme: Theme): Promise<void> {
@@ -36,6 +40,8 @@ export async function pinTheme(page: Page, theme: Theme): Promise<void> {
     const el = document.documentElement;
     if (t === "dark") el.setAttribute("data-theme", "dark");
     else el.removeAttribute("data-theme");
+    el.setAttribute("data-palette", `houston-${t}`);
+    el.style.background = "var(--ht-base)";
     // Also align the device-local preference + boot mirror: on web the theme
     // pref resolves device-locally, so if the one-shot
     // `loadThemePreference()` lands AFTER this pin (slow load), it re-applies
