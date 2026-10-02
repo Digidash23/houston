@@ -170,3 +170,78 @@ test("a family file with trailing junk projects what the pod's read salvages", a
     expect.objectContaining({ id: "a1" }),
   ]);
 });
+
+/** A revisioned doc route whose answer to a family's next PUT can be
+ *  scripted: `beforePut` runs first and may answer instead. */
+function scriptedDocs(
+  beforePut?: (
+    family: string,
+    state: Map<string, { doc: unknown; revision: number }>,
+  ) => Response | undefined,
+) {
+  const state = new Map<string, { doc: unknown; revision: number }>();
+  const fetchImpl = (async (url: unknown, init?: RequestInit) => {
+    const family = String(url).split("/").pop() ?? "";
+    if (!init?.method || init.method === "GET") {
+      const current = state.get(family);
+      return current
+        ? Response.json(current, { headers: { ETag: `"${current.revision}"` } })
+        : Response.json({ error: "document not found" }, { status: 404 });
+    }
+    const scripted = beforePut?.(family, state);
+    if (scripted) return scripted;
+    const revision = state.get(family)?.revision ?? 0;
+    if (Number(new Headers(init.headers).get("If-Match")) !== revision)
+      return Response.json({ revision }, { status: 409 });
+    const { doc } = JSON.parse(String(init.body)) as { doc: unknown };
+    state.set(family, { doc, revision: revision + 1 });
+    return Response.json({ revision: revision + 1 });
+  }) as typeof fetch;
+  return {
+    state,
+    docs: {
+      puts: [],
+      deps: {
+        poolStoreUrl: "https://store.example",
+        fetchImpl,
+        activityDocRetryDelaysMs: [],
+      },
+    } as unknown as ReturnType<typeof docRoute>,
+  };
+}
+
+test("a projection that loses its revision race checks the doc again", async () => {
+  const fake = legacy();
+  fake.put(
+    `${AGENT}/.houston/activity/activity.json`,
+    '[{"id":"new","title":"New","status":"done"}]',
+  );
+  let raced = false;
+  const { state, docs } = scriptedDocs((family, docState) => {
+    if (family !== "activity" || raced) return undefined;
+    raced = true;
+    // A late writer lands an OLDER board between the revision read and
+    // this PUT.
+    docState.set("activity", {
+      doc: [{ id: "old", title: "Old", status: "done" }],
+      revision: 1,
+    });
+    return Response.json({ revision: 1 }, { status: 409 });
+  });
+
+  const { answer } = await run(fake, { docs });
+
+  expect(state.get("activity")?.doc).toEqual([
+    expect.objectContaining({ id: "new" }),
+  ]);
+  expect(answer.projected).toBe(true);
+});
+
+test("a doc route that refuses a family leaves the projection unconfirmed", async () => {
+  const fake = legacy();
+  const { docs } = scriptedDocs(() => new Response("", { status: 403 }));
+
+  const { answer } = await run(fake, { docs });
+
+  expect(answer.projected).toBe(false);
+});

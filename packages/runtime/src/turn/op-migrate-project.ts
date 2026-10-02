@@ -38,7 +38,7 @@ export interface MigrateProjection {
   reprojected: boolean;
 }
 
-type FamilyOutcome = "published" | "current" | "unreadable" | "disabled";
+type FamilyOutcome = "published" | "current" | "unreadable";
 
 const message = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -108,8 +108,8 @@ export async function projectMigratedStore(input: {
         );
         families.delete(family);
         if (done === "published") out.published.push(family);
-        if (done === "unreadable" || done === "disabled")
-          console.warn(`[op] migrate: ${family} doc not projected (${done})`);
+        if (done === "unreadable")
+          console.warn(`[op] migrate: ${family} file unreadable, doc kept`);
       } catch (error) {
         out.lagging.push(`${family}: ${message(error)}`);
       }
@@ -166,11 +166,15 @@ async function projectFamily(
     return "current";
   const response = await putAtRevision(opts, doc, revision);
   if (response.status === 409) {
-    // A newer projection landed after the revision read: it stands.
+    // Another projection landed after the revision read. It is not proof
+    // the doc matches the file (a late PUT can carry older content): the
+    // next round reads both again.
     await response.body?.cancel();
-    return "current";
+    throw new Error("another projection landed; re-checking");
   }
   const outcome = await acceptPut(response);
   if ("error" in outcome) throw new Error(outcome.error);
-  return "ok" in outcome ? "published" : "disabled";
+  // A store that will not take the doc leaves it unprojected: unconfirmed.
+  if (!("ok" in outcome)) throw new Error("doc route refused the family");
+  return "published";
 }

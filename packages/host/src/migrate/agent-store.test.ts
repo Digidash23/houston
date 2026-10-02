@@ -169,6 +169,18 @@ describe("migrateAgentStore", () => {
     expect(read(".houston/routines/routines.json")).toBe("{not json");
   });
 
+  test("a stray folder beside the agent is not touched", async () => {
+    const stray = join(workspacesRoot, "Personal", "Leftover");
+    mkdirSync(stray, { recursive: true });
+    writeFileSync(join(stray, "GROUP.md"), "not ours\n");
+    write("GROUP.md", "the agent's gateway note\n");
+
+    await migrateAgentStore({ workspacesRoot, agentRoot, log: noLog });
+
+    expect(existsSync(join(agentRoot, "GROUP.md"))).toBe(false);
+    expect(readFileSync(join(stray, "GROUP.md"), "utf8")).toBe("not ours\n");
+  });
+
   test("the retired product prompt files are removed", async () => {
     write(".houston/prompts/system.md", "old prompt");
 

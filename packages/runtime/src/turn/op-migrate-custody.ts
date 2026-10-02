@@ -10,12 +10,18 @@ import { poolIdentity } from "./turn-store";
  * gateway's custom-secret store, then the local file goes, so the sync-back
  * deletes the plaintext object. One difference: a value custody already
  * holds stays. Pool ops have written custody directly while this file sat in
- * the store, so the plaintext copy can be the older of the two. The read and
- * the write are two requests, which is safe here: this op holds the
- * agent-ops claim that every integration add or edit takes, and a turn only
- * rewrites a secret it read from custody (an OAuth refresh), so nothing
- * creates an absent id in between. A failed read or write throws with the
- * file still in place: the next run retries. Answers how many secrets moved.
+ * the store, so the plaintext copy can be the older of the two.
+ *
+ * The read and the write are two requests. Integration adds and edits take
+ * the agent-ops claim this op holds, so the only writer that could create the
+ * id in between is a turn refreshing an OAuth bundle it read before the id
+ * was deleted. The gateway runs this op before an agent's first pooled turn,
+ * so such a turn exists only on an agent served before that gate. The bearer
+ * is the op's claim-bound turn token, which the gateway refuses once the
+ * claim is released: a run that lost its claim writes nothing here.
+ *
+ * A failed read or write throws with the file still in place: the next run
+ * retries. Answers how many secrets moved.
  */
 export async function moveLegacySecrets(input: {
   storeRoot: string;

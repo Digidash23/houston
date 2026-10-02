@@ -73,12 +73,12 @@ export function generationStore() {
   /** Put an object in the store as some earlier writer left it. */
   const put = (rel: string, content: string) => {
     const file = join(root, PREFIX, ...rel.split("/"));
+    const key = `${PREFIX}/${rel}`;
+    // Another writer's object: a new generation the op's reads never saw.
+    const next = Number(generationOf(key)) + 1;
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, content);
-    // Another writer's object: a new generation the op's reads never saw.
-    const key = `${PREFIX}/${rel}`;
-    if (generations.has(key))
-      generations.set(key, (generations.get(key) ?? 1) + 1);
+    generations.set(key, next);
   };
   const keys = async () =>
     (await inner.list(PREFIX)).map((k) => k.slice(PREFIX.length + 1));

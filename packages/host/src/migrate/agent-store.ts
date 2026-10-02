@@ -1,3 +1,5 @@
+import { relative, sep } from "node:path";
+import type { Agent, WorkspaceId } from "../domain/types";
 import { LocalPaths } from "../paths";
 import { LocalWorkspaceStore } from "../store/local";
 import { FsVfs } from "../vfs";
@@ -66,7 +68,10 @@ export async function migrateAgentStore(opts: {
   log: (message: string, error?: unknown) => void;
 }): Promise<AgentStoreMigrationReport> {
   const { workspacesRoot, agentRoot, log } = opts;
-  const store = new LocalWorkspaceStore(workspacesRoot);
+  const store = new OneAgentStore(
+    workspacesRoot,
+    relative(workspacesRoot, agentRoot).split(sep).join("/"),
+  );
   const vfs = new FsVfs(workspacesRoot);
   const paths = new LocalPaths();
   await migrateSidebarLayout({ store, vfs, paths, log });
@@ -90,4 +95,28 @@ export async function migrateAgentStore(opts: {
     }
   }
   return report;
+}
+
+/**
+ * The local store with every other folder of the workspace hidden: a stray
+ * folder beside the agent (no agent, just files) is not this migration's to
+ * touch, and its writes would fall outside what the migrate op may sync.
+ */
+class OneAgentStore extends LocalWorkspaceStore {
+  constructor(
+    root: string,
+    private readonly agentId: string,
+  ) {
+    super(root);
+  }
+
+  override async listAgents(workspaceId: WorkspaceId): Promise<Agent[]> {
+    const agents = await super.listAgents(workspaceId);
+    return agents.filter((agent) => agent.id === this.agentId);
+  }
+
+  override async listAllAgents(): Promise<Agent[]> {
+    const agents = await super.listAllAgents();
+    return agents.filter((agent) => agent.id === this.agentId);
+  }
 }
