@@ -15,7 +15,7 @@ import { publish } from "./turn-activity-doc";
 import type { ActivityDocSource } from "./turn-activity-source";
 import type { TurnFilesystem } from "./turn-filesystem";
 import { poolIdentity } from "./turn-store";
-import { viewPublishFailure } from "./turn-view-publish";
+import { docNotLandedReason } from "./turn-view-publish";
 
 /** The claim an op publishes under (its store writes use the same one). */
 export interface OpClaimTurn {
@@ -154,7 +154,7 @@ export async function republish(
       { ...common, family: "custom_definitions" },
       result.customDefinitionsView,
     );
-    const failure = viewPublishFailure(outcome);
+    const failure = docNotLandedReason(outcome);
     if (failure) diagnostics.push(`custom_definitions: ${failure}`);
   }
   return diagnostics;

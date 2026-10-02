@@ -387,9 +387,10 @@ test("a learnings doc that did not land is not announced", async () => {
   expect(result.changed).not.toContain("LearningsChanged");
 });
 
-test("a store whose turn claims cannot take the learnings doc keeps today's answer", async () => {
+test("a learnings doc the store will not take is not announced and fails nothing", async () => {
   // Rollout order: this worker may meet a pod-store that predates learnings
-  // in the turn-claim doc scope (403). That is a diagnostic, never a failure.
+  // in the turn-claim doc scope (403). The doc stays stale, so no refetch is
+  // promised; the memory itself is durable, so the turn did not fail.
   const agent = await agentStore();
   const docs = podDocs(
     { learnings: await podLearnings(agent) },
@@ -401,7 +402,7 @@ test("a store whose turn claims cannot take the learnings doc keeps today's answ
   const result = await settle();
 
   expect(result.outcome).toEqual({});
-  expect(result.changed).toContain("LearningsChanged");
+  expect(result.changed).not.toContain("LearningsChanged");
 });
 
 test("a turn that settles late never re-serves a skill summary another turn replaced", async () => {
@@ -586,6 +587,21 @@ test("an op whose skills view the store would not take announces nothing", async
     { outOfScope: ["skills"] },
   );
   const project = await landSkillCreateOp(agent, docs, "alpha");
+
+  expect(await project()).toEqual([]);
+});
+
+test("an op whose learnings doc the store would not take announces nothing", async () => {
+  const agent = await agentStore();
+  const docs = podDocs(
+    { learnings: await podLearnings(agent) },
+    { outOfScope: ["learnings"] },
+  );
+  const project = await landOp(agent, docs, {
+    method: "PUT",
+    rest: "learnings",
+    body: { items: [] },
+  });
 
   expect(await project()).toEqual([]);
 });

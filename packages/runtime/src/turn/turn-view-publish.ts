@@ -24,9 +24,9 @@ async function publishCustomDefinitions(
   }
 }
 
-/** Why a view publish did not land, or null when it did. A view the store
+/** Why a doc publish did not land, or null when it did. A doc the store
  *  would not take (`disabled`) is as stale as one that failed. */
-export const viewPublishFailure = (
+export const docNotLandedReason = (
   result: ActivityDocPublishResult,
 ): string | null =>
   "error" in result
@@ -64,7 +64,7 @@ export async function publishTurnViews(input: {
   ];
   const stale: TurnViewEvent[] = [];
   for (const [event, family, result] of outcomes) {
-    const reason = result && viewPublishFailure(result);
+    const reason = result && docNotLandedReason(result);
     if (!reason) continue;
     console.error(
       `[turn] ${family} view publish failed after durable sync: ${reason}`,

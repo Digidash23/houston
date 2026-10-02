@@ -38,10 +38,17 @@ export async function publishLandedFamilyDocs(input: {
     event: FamilyEvent,
     label: string,
     result: ActivityDocPublishResult | null,
+    refusedIsStale = false,
   ) => {
     if (result && "error" in result)
       errors.push(`${label} doc publish failed: ${result.error}`);
-    if (!result || "error" in result || "skipped" in result) stale.push(event);
+    if (
+      !result ||
+      "error" in result ||
+      "skipped" in result ||
+      (refusedIsStale && "disabled" in result)
+    )
+      stale.push(event);
   };
   if (input.landed.includes(turnRoutineRunsKey(filesystem.workspaceRel))) {
     // The runs doc is projected for routine fires only; any other turn that
@@ -71,7 +78,14 @@ export async function publishLandedFamilyDocs(input: {
       filesystem,
       input.source,
     );
-    if (learnings) settle("LearningsChanged", "learnings", learnings);
+    // A pod-store whose turn-claim scope predates the learnings doc refuses
+    // it (403): the doc stays stale, so the event is not promised, but the
+    // memory is durable and the turn did not fail.
+    if (learnings && "disabled" in learnings)
+      console.warn(
+        `[turn] learnings doc refused by the store (${learnings.reason}); asleep memories lag until the next projection`,
+      );
+    if (learnings) settle("LearningsChanged", "learnings", learnings, true);
   }
   return { errors, stale };
 }

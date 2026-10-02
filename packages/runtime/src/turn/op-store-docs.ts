@@ -8,7 +8,7 @@ import {
   landedSkillSlugs,
   publishSkillsView,
 } from "./turn-skills-doc";
-import { viewPublishFailure } from "./turn-view-publish";
+import { docNotLandedReason } from "./turn-view-publish";
 
 /**
  * The docs an op projects from what the STORE holds after its write landed,
@@ -40,7 +40,7 @@ export async function publishOpStoreDocs(input: {
           ? input.result.skillsView
           : undefined,
     });
-    const failure = viewPublishFailure(outcome);
+    const failure = docNotLandedReason(outcome);
     if (failure) diagnostics.push(`skills: ${failure}`);
   }
   if (input.learnings) {
@@ -49,7 +49,8 @@ export async function publishOpStoreDocs(input: {
       source,
       filesystem.workspaceRel,
     );
-    if ("error" in outcome) diagnostics.push(`learnings: ${outcome.error}`);
+    const failure = docNotLandedReason(outcome);
+    if (failure) diagnostics.push(`learnings: ${failure}`);
   }
   return diagnostics;
 }
