@@ -17,6 +17,7 @@ import {
   SEND_LOST_MESSAGE,
   STREAM_LOST_MESSAGE,
   StreamRegistry,
+  streamKey,
 } from "./stream-registry";
 import { TurnSink } from "./turn-sink";
 import {
@@ -159,6 +160,9 @@ const sync = (
 });
 const finals = (items: Item[]) =>
   items.filter((i) => i.feed_type === "final_result");
+/** The runtime's and the gateway's one-turn-gate refusal. */
+const turnRunningRefusal = () =>
+  new EngineError(409, JSON.stringify({ error: "turn running" }));
 
 // THE REGRESSION this rework exists for: a silently dropped stream used to
 // settle the turn from partial text (truncation). Now it reconnects with the
@@ -1270,7 +1274,7 @@ test("handoff on 202: the observer is disposed and the turn resumes from its cur
   expect(finals(items)).toHaveLength(1);
 });
 
-test("handoff on 409: the observer keeps rendering; the refusal surfaces without an error settle", async () => {
+test("handoff refused: the observer keeps rendering; the refusal surfaces without an error settle", async () => {
   let observerAborted = false;
   const { engine, afters } = fakeEngine(
     [
@@ -1292,7 +1296,7 @@ test("handoff on 409: the observer keeps rendering; the refusal surfaces without
     {
       sendError: new EngineError(
         409,
-        JSON.stringify({ error: "A turn is already running" }),
+        JSON.stringify({ error: "No provider connected." }),
       ),
     },
   );
@@ -1325,12 +1329,125 @@ test("handoff on 409: the observer keeps rendering; the refusal surfaces without
   expect(items).toContainEqual({
     // The refused resend never landed → fail its optimistic bubble.
     feed_type: "system_message",
-    data: "A turn is already running",
+    data: "No provider connected.",
     fails_pending: true,
   });
   // No terminal settle while a turn demonstrably runs: no error status, no final.
   expect(sessionStatuses).toEqual(["running", "running"]); // observer's + send attempt's
   expect(finals(items)).toHaveLength(0);
+});
+
+test("handoff meeting turn running holds until the observed turn settles, then sends", async () => {
+  let observedDone: () => void = () => {};
+  let sends = () => 0;
+  let nonceAt = (_i: number): string | undefined => undefined;
+  const { engine, afters, nonces } = fakeEngine(
+    [
+      // The observer: renders turn t-A until its terminal frame.
+      (o) =>
+        new Promise<void>((resolve) => {
+          o.onEvent(sync(true, "their turn", 4, { turnId: "t-A" }));
+          observedDone = () => {
+            o.onEvent({ type: "done", data: null, turnId: "t-A", seq: 5 });
+            resolve();
+          };
+        }),
+      // Our turn's own subscription, opened once the observer settled.
+      async (o) => {
+        await waitFor(() => sends() === 2);
+        o.onEvent({
+          type: "user",
+          data: { content: "hi", ts: 1, nonce: nonceAt(1) },
+          turnId: "t-B",
+          seq: 6,
+        });
+        o.onEvent({ type: "text", data: "Mine", turnId: "t-B", seq: 7 });
+        o.onEvent({ type: "done", data: null, turnId: "t-B", seq: 8 });
+      },
+    ],
+    [],
+    { sendErrors: [turnRunningRefusal()] },
+  );
+  sends = () => nonces.length;
+  nonceAt = (i) => nonces[i];
+  const { items, sessionStatuses, output } = makeOutput();
+
+  observeConversation(
+    engine,
+    "Houston/Bo",
+    "activity-handoff-held",
+    output,
+    1,
+    registry,
+    fast,
+  );
+  await waitFor(() => afters.length === 1);
+  const turn = streamTurn(
+    engine,
+    "Houston/Bo",
+    "activity-handoff-held",
+    "hi",
+    output,
+    registry,
+    { tuning: fast },
+  );
+  await waitFor(() => sends() === 1);
+  // Held: nothing failed while the observed turn still runs.
+  expect(items.some((i) => i.fails_pending)).toBe(false);
+  observedDone();
+  await turn;
+
+  expect(nonces).toHaveLength(2);
+  expect(new Set(nonces).size).toBe(1);
+  expect(afters).toEqual([undefined, 5]); // resumed from the observer's cursor
+  expect(items.filter((i) => i.feed_type === "system_message")).toEqual([]);
+  expect(sessionStatuses).not.toContain("error");
+  expect(
+    (finals(items).at(-1)?.data as { result?: string } | undefined)?.result,
+  ).toBe("Mine");
+});
+
+test("a teardown during a held handoff never sends into the gone client", async () => {
+  const { engine, afters, nonces } = fakeEngine(
+    [
+      (o) => {
+        o.onEvent(sync(true, "their turn", 4, { turnId: "t-A" }));
+        return hang(o);
+      },
+    ],
+    [],
+    { sendErrors: [turnRunningRefusal()] },
+  );
+  const { output } = makeOutput();
+  observeConversation(
+    engine,
+    "Houston/Bo",
+    "activity-held-logout",
+    output,
+    1,
+    registry,
+    fast,
+  );
+  await waitFor(() => afters.length === 1);
+  const turn = streamTurn(
+    engine,
+    "Houston/Bo",
+    "activity-held-logout",
+    "hi",
+    output,
+    registry,
+    { tuning: fast },
+  );
+  await waitFor(() => nonces.length === 1);
+
+  registry.disposeAll(); // logout while the message is held
+  await turn;
+
+  expect(nonces).toHaveLength(1);
+  expect(afters).toHaveLength(1); // no new stream after the teardown
+  expect(
+    registry.get(streamKey("Houston/Bo", "activity-held-logout")),
+  ).toBeUndefined();
 });
 
 test("a second turn disposes the previous turn's stream — never a silent overwrite", async () => {
@@ -2404,10 +2521,7 @@ test("a waking refusal past the ladder settles like any rejected send", async ()
 test("a non-waking refusal is never re-sent", async () => {
   const { engine, nonces } = fakeEngine([hang], [], {
     sendErrors: [
-      new EngineError(
-        409,
-        JSON.stringify({ error: "A turn is already running" }),
-      ),
+      new EngineError(409, JSON.stringify({ error: "No provider connected." })),
     ],
   });
   const { output } = makeOutput();
@@ -2423,6 +2537,204 @@ test("a non-waking refusal is never re-sent", async () => {
     },
   );
   expect(nonces).toHaveLength(1);
+});
+
+// The E2B tail (staging 2026-10-02): the previous turn's reply has streamed but
+// its sandbox still holds the conversation's claim while it writes back, so the
+// follow-up's send meets `409 turn running`. The message is held, never failed:
+// the bubble stays pending and the SAME message re-sends once the stream shows
+// the running turn ended.
+test("a send refused as turn running is held and re-sent when the running turn ends", async () => {
+  let sends = () => 0;
+  let nonceAt = (_i: number): string | undefined => undefined;
+  const { engine, nonces } = fakeEngine(
+    [
+      async (o) => {
+        o.onEvent(sync(true, "Earlier reply", 9, { turnId: "t-prev" }));
+        await waitFor(() => sends() === 1);
+        // The previous turn's terminal frame: the claim is about to free.
+        o.onEvent({ type: "done", data: null, turnId: "t-prev", seq: 10 });
+        await waitFor(() => sends() === 2);
+        o.onEvent({
+          type: "user",
+          data: { content: "follow-up", ts: 1, nonce: nonceAt(1) },
+          turnId: "t-new",
+          seq: 11,
+        });
+        o.onEvent({ type: "text", data: "Sure", turnId: "t-new", seq: 12 });
+        o.onEvent({ type: "done", data: null, turnId: "t-new", seq: 13 });
+      },
+    ],
+    [],
+    { sendErrors: [turnRunningRefusal()] },
+  );
+  sends = () => nonces.length;
+  nonceAt = (i) => nonces[i];
+  const { items, sessionStatuses, board, output } = makeOutput();
+
+  await streamTurn(
+    engine,
+    "Houston/Bo",
+    "activity-e2b-tail",
+    "follow-up",
+    output,
+    registry,
+    // A fallback far beyond the test's patience: the re-send must ride the
+    // stream's evidence, not the timer.
+    { tuning: { ...fast, sendTurnRunningRetryDelaysMs: [60_000] } },
+  );
+
+  expect(nonces).toHaveLength(2);
+  expect(new Set(nonces).size).toBe(1); // one message, never doubled
+  // Never an error: no raw "turn running", no failed bubble, no error status.
+  expect(items.filter((i) => i.feed_type === "system_message")).toEqual([]);
+  expect(items.some((i) => i.fails_pending)).toBe(false);
+  expect(sessionStatuses).not.toContain("error");
+  // The previous turn's frames were never folded into this one.
+  expect(items.some((i) => String(i.data ?? "").includes("Earlier"))).toBe(
+    false,
+  );
+  expect(
+    (finals(items)[0]?.data as { result?: string } | undefined)?.result,
+  ).toBe("Sure");
+  expect(board).toEqual(["running", "needs_you"]);
+});
+
+// The terminal frame lands before the sandbox releases the claim (done at
+// 21:33:56.58Z, claim freed at .77Z), so the evidence-driven re-send can meet
+// the same refusal once more. The fallback ladder carries it home.
+test("a re-send that still meets turn running retries on the fallback ladder", async () => {
+  let sends = () => 0;
+  let nonceAt = (_i: number): string | undefined => undefined;
+  const { engine, nonces } = fakeEngine(
+    [
+      async (o) => {
+        o.onEvent(sync(true, "", 9, { turnId: "t-prev" }));
+        await waitFor(() => sends() === 1);
+        o.onEvent({ type: "done", data: null, turnId: "t-prev", seq: 10 });
+        await waitFor(() => sends() === 3);
+        o.onEvent({
+          type: "user",
+          data: { content: "again", ts: 1, nonce: nonceAt(2) },
+          turnId: "t-new",
+          seq: 11,
+        });
+        o.onEvent({ type: "done", data: null, turnId: "t-new", seq: 12 });
+      },
+    ],
+    [],
+    { sendErrors: [turnRunningRefusal(), turnRunningRefusal()] },
+  );
+  sends = () => nonces.length;
+  nonceAt = (i) => nonces[i];
+  const { items, sessionStatuses, output } = makeOutput();
+
+  await streamTurn(
+    engine,
+    "Houston/Bo",
+    "activity-e2b-claim-lag",
+    "again",
+    output,
+    registry,
+    { tuning: { ...fast, sendTurnRunningRetryDelaysMs: [5] } },
+  );
+
+  expect(nonces).toHaveLength(3);
+  expect(new Set(nonces).size).toBe(1);
+  expect(items.filter((i) => i.feed_type === "system_message")).toEqual([]);
+  expect(sessionStatuses).toEqual(["running", "completed"]);
+});
+
+test("a held re-send whose echo beats its own 202 still renders its reply", async () => {
+  let emit: (f: WireFrame) => void = () => {};
+  const nonces: Array<string | undefined> = [];
+  const engine = {
+    async streamEvents(_id: string, o: EventStreamOptions) {
+      emit = o.onEvent;
+      o.onEvent(sync(true, "", 9, { turnId: "t-prev" }));
+      await hang(o);
+    },
+    async sendMessage(_id: string, _t: string, opts?: { nonce?: string }) {
+      nonces.push(opts?.nonce);
+      if (nonces.length === 1) {
+        // Refused, and the previous turn ends right after.
+        setTimeout(() => {
+          emit({ type: "done", data: null, turnId: "t-prev", seq: 10 });
+        }, 1);
+        throw turnRunningRefusal();
+      }
+      // The runtime streams the echo and the reply before the 202 lands.
+      emit({
+        type: "user",
+        data: { content: "hi", ts: 1, nonce: opts?.nonce },
+        turnId: "t-new",
+        seq: 11,
+      });
+      emit({ type: "text", data: "Fast", turnId: "t-new", seq: 12 });
+      setTimeout(() => {
+        emit({ type: "done", data: null, turnId: "t-new", seq: 13 });
+      }, 1);
+    },
+    async getHistory() {
+      return { id: "c", title: "", messages: [] };
+    },
+  } as unknown as HoustonEngineClient;
+  const { items, output } = makeOutput();
+
+  await streamTurn(
+    engine,
+    "Houston/Bo",
+    "activity-echo-first",
+    "hi",
+    output,
+    registry,
+    { tuning: { ...fast, sendTurnRunningRetryDelaysMs: [60_000] } },
+  );
+
+  expect(nonces).toHaveLength(2);
+  expect(
+    (finals(items)[0]?.data as { result?: string } | undefined)?.result,
+  ).toBe("Fast");
+});
+
+test("a held re-send that fails in transport still adopts its running turn", async () => {
+  let sends = () => 0;
+  const { engine, nonces } = fakeEngine(
+    [
+      async (o) => {
+        o.onEvent(sync(true, "", 9, { turnId: "t-prev" }));
+        await waitFor(() => sends() === 1);
+        o.onEvent({ type: "done", data: null, turnId: "t-prev", seq: 10 });
+        await waitFor(() => sends() === 2);
+        // The 202 and the echo were lost; a resync shows our turn running.
+        o.onEvent(sync(true, "Hal", 12, { turnId: "t-new", resync: true }));
+        o.onEvent({ type: "text", data: "lo", turnId: "t-new", seq: 13 });
+        o.onEvent({ type: "done", data: null, turnId: "t-new", seq: 14 });
+      },
+    ],
+    [],
+    { sendErrors: [turnRunningRefusal(), new TypeError("Load failed")] },
+  );
+  sends = () => nonces.length;
+  const { items, output } = makeOutput();
+
+  await streamTurn(
+    engine,
+    "Houston/Bo",
+    "activity-held-lost-202",
+    "hi",
+    output,
+    registry,
+    {
+      tuning: { ...fast, sendTurnRunningRetryDelaysMs: [60_000] },
+    },
+  );
+
+  expect(nonces).toHaveLength(2);
+  expect(items.some((i) => i.fails_pending)).toBe(false);
+  expect(
+    (finals(items)[0]?.data as { result?: string } | undefined)?.result,
+  ).toBe("Hallo");
 });
 
 test("C19 message_limit settles as a typed card after one send", async () => {

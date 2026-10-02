@@ -2,6 +2,7 @@ import type { PendingInteraction, WireFrame } from "@houston/runtime-client";
 import type { MessageLimitRefusal } from "@houston/wire-types";
 import type { TerminalBoardStatus } from "./feed-output";
 import { presettleFromHistory, reloadAndSettle } from "./settle-from-history";
+import { TurnEndCounter } from "./turn-end-counter";
 import { applyTurnFrame } from "./turn-frames";
 import { classifyFrame, classifyRunningSync } from "./turn-identity";
 import {
@@ -14,6 +15,11 @@ import {
 import type { TurnSinkOptions } from "./turn-sink-options";
 
 export type { TurnSinkOptions } from "./turn-sink-options";
+
+const isTerminal = (
+  ev: WireFrame,
+): ev is Extract<WireFrame, { type: "done" | "error" | "provider_error" }> =>
+  ev.type === "done" || ev.type === "error" || ev.type === "provider_error";
 
 /** One of the running turn's tools, as the `sync` frame reports it. */
 type SyncTool = {
@@ -50,6 +56,9 @@ export class TurnSink {
   private accepted = false;
   /** The pre-settled poll timer, live only while armed (see `maybeArmPresettlePoll`). */
   private presettleTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Turn mode: our send is held behind another turn (`send-hold.ts`). */
+  private holding = false;
+  private readonly ends = new TurnEndCounter();
 
   constructor(private readonly o: TurnSinkOptions) {
     this.s = newTurnState(o.agentPath, o.sessionKey, o.output, {
@@ -73,8 +82,26 @@ export class TurnSink {
   get active(): boolean {
     return this.sawRunning;
   }
+  /** Turn ends seen on this stream: a held send's re-send trigger. */
+  get turnEnds(): number {
+    return this.ends.count;
+  }
+  turnEndAfter(mark: number, signal: AbortSignal): Promise<void> {
+    return this.ends.after(mark, signal);
+  }
+  /**
+   * Turn mode: the engine refused our send because another turn holds the
+   * conversation. Until the re-send lands, every frame belongs to that turn:
+   * fold nothing, settle nothing (a resync's idle sync is not our turn
+   * ending), and keep the pre-settled poll quiet. Only turn ends count.
+   */
+  holdSend(): void {
+    this.holding = true;
+    this.cancelPresettlePoll();
+  }
   /** Turn mode: the send returned 202 — a running turn may now be OURS. */
   sendAccepted(): void {
+    this.holding = false;
     this.accepted = true;
     // The engine acknowledged the send — the message reached it, so the
     // optimistic bubble is delivered even if the turn later errors.
@@ -90,6 +117,8 @@ export class TurnSink {
    * — while `failUnlessStarted` arbitrates whether it really began.
    */
   sendMaybeAccepted(): void {
+    // The re-send of a held message may have landed: frames are ours again.
+    this.holding = false;
     this.accepted = true;
     // If the engine did accept it and the turn already finished, the pre-settled
     // poll can settle it conclusively — faster than the ambiguous-send verdict
@@ -116,6 +145,13 @@ export class TurnSink {
   }
 
   onFrame(ev: WireFrame): void {
+    // Another turn's terminal frame: the conversation is (about to be) free.
+    // An idle sync is NOT counted: the cloud pool's turnlog tail reports
+    // `running: false` mid-turn.
+    if (isTerminal(ev) && ev.turnId && ev.turnId !== this.s.turnId)
+      this.ends.bump();
+    // Our own echo ends the hold even when it beats the re-send's 202.
+    if (this.holding && !this.isOwnEcho(ev)) return;
     if (ev.type === "sync") {
       this.onSync(ev.data);
       return;
@@ -159,12 +195,21 @@ export class TurnSink {
     applyTurnFrame(this.s, ev, this.o.stop);
   }
 
+  private isOwnEcho(ev: WireFrame): boolean {
+    return (
+      ev.type === "user" &&
+      this.o.mode === "turn" &&
+      this.o.nonce === ev.data.nonce
+    );
+  }
+
   private onUser(ev: WireFrame & { type: "user" }): void {
     // The app already renders the user's message optimistically on send (and
     // history hydration covers observed turns), so echoes are never rendered.
-    if (this.o.mode === "turn" && this.o.nonce === ev.data.nonce) {
+    if (this.isOwnEcho(ev)) {
       // OUR echo: the turn started — adopt its id (absent on legacy servers).
       this.adoptTurnId(ev.turnId);
+      this.holding = false;
       this.accepted = true;
       this.sawRunning = true;
       this.s.delivered = true; // the engine echoed our send — it landed

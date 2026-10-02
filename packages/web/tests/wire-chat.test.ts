@@ -285,6 +285,41 @@ test("a new mission's first send asks the runtime to title the card after the re
   expect(calls.some((c) => c.url.endsWith("/title"))).toBe(false);
 });
 
+test("a send refused as turn running goes out again byte-identical, never dropped", async () => {
+  // The cloud pool holds the conversation's claim through the previous turn's
+  // write-back, so the follow-up meets 409 turn running (staging 2026-10-02).
+  // The SDK holds it and re-sends the SAME request: one message, one nonce.
+  let posts = 0;
+  stubRouted((call: Call) => {
+    if (call.url.endsWith("/events")) return new Response("", { status: 200 });
+    if (call.method === "POST" && call.url.endsWith("/messages"))
+      return ++posts === 1
+        ? json(409, { error: "turn running" })
+        : json(202, { ok: true });
+    return json(200, { ok: true, messages: [] });
+  });
+
+  await client().startSession(AGENT, {
+    sessionKey: "activity-held",
+    prompt: "and one more thing",
+  });
+
+  const sends = await vi.waitUntil(
+    () => {
+      const s = calls.filter(
+        (c) => c.method === "POST" && c.url.endsWith("/messages"),
+      );
+      return s.length === 2 ? s : undefined;
+    },
+    { timeout: 5_000 },
+  );
+  expect(sends[1].url).toBe(
+    `${BASE}/agents/${AGENT}/conversations/activity-held/messages`,
+  );
+  expect(sends[1].body).toBe(sends[0].body);
+  expectGatewayHeaders(sends[1]);
+});
+
 // ---- the ids the paths splice ----
 
 test("every conversation path percent-encodes the agent and the session key", async () => {

@@ -1,4 +1,5 @@
 import type { ChatMessage } from "@houston/runtime-client";
+import { hasLiveTurnStream } from "./turn-stream";
 import { conversationVm } from "./vm";
 
 /**
@@ -25,6 +26,17 @@ import { conversationVm } from "./vm";
  * the next tick retries. Each verdict is judged at tick time, so the watchdog
  * needs no arming-time state beyond its closure.
  */
+
+/**
+ * How long a server-idle verdict defers to a live turn stream before healing
+ * anyway. The cloud pool persists a turn's reply BEFORE its terminal frame
+ * (the sandbox titles the mission and writes back first, ~5 s on staging), so
+ * a trailing reply proves nothing while that turn's own stream is open: the
+ * stream's `done` is the settle. The grace only bounds a stream that hangs
+ * without ever settling; past it, a premature flush is still safe because the
+ * SDK holds a send refused as `turn running`.
+ */
+const LIVE_TURN_GRACE_MS = 60_000;
 
 /** Backoff between probes: quick first check, settling at a gentle idle poll. */
 const PROBE_DELAYS_MS = [2_000, 4_000, 8_000, 15_000];
@@ -68,6 +80,8 @@ export function armQueueWatchdog(
   sessions.set(scope, session);
   const delays = immediate ? IMMEDIATE_DELAYS_MS : PROBE_DELAYS_MS;
   let attempt = 0;
+  /** When the probe first proved idle while a live turn stream deferred it. */
+  let deferredSince: number | undefined;
   const owns = (): boolean => sessions.get(scope) === session;
   const schedule = (): void => {
     const delay = delays[Math.min(attempt, delays.length - 1)] ?? 0;
@@ -96,6 +110,10 @@ export function armQueueWatchdog(
       sessions.delete(scope);
       return;
     }
+    if (idle && hasLiveTurnStream(agentPath, sessionKey)) {
+      deferredSince ??= Date.now();
+      if (Date.now() - deferredSince < LIVE_TURN_GRACE_MS) idle = false;
+    } else deferredSince = undefined; // the grace is per live tail, never carried over
     if (!idle) {
       // A turn is genuinely half-open server-side — the settle watcher owns
       // the normal flush; keep watching in case ITS trigger dies too.

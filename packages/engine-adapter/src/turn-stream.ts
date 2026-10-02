@@ -30,6 +30,19 @@ export type { StreamTuning } from "@houston/sdk";
  */
 const registry = new StreamRegistry();
 
+/**
+ * Whether a turn THIS client dispatched is still streaming the conversation.
+ * That stream settles only on the turn's terminal frame or its failure
+ * budget, so it is the authority on "the turn is over" (the queue watchdog
+ * defers to it).
+ */
+export function hasLiveTurnStream(
+  agentPath: string,
+  sessionKey: string,
+): boolean {
+  return registry.get(streamKey(agentPath, sessionKey))?.kind === "turn";
+}
+
 /** Abort every live conversation stream this adapter owns (WS teardown seam). */
 export function disposeAllStreams(): void {
   registry.disposeAll();

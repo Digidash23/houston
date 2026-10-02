@@ -47,7 +47,6 @@ export {
   isEngineWakingRejection,
   isNotConnectedError,
   isStoppedByUser,
-  isTurnRunningRejection,
   messageLimitRefusal,
   TURN_FAILED_MESSAGE,
   turnErrorMessage,
@@ -59,6 +58,7 @@ export type {
   TurnSetModeInput,
   TurnTruncateInput,
 } from "./turn-inputs";
+export { isTurnRunningRejection } from "./turn-running";
 export {
   type StreamTurnOptions,
   streamTurn,
