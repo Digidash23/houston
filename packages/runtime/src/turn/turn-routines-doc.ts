@@ -6,8 +6,7 @@ import { atomicTempPath } from "@houston/protocol";
 import type { TurnServerDeps } from "./server-types";
 import { type ActivityDocPublishResult, publish } from "./turn-activity-doc";
 import type { ActivityDocSource } from "./turn-activity-source";
-import { type TurnFilesystem, turnRoutineRunsKey } from "./turn-filesystem";
-import { publishTurnRunsDoc } from "./turn-runs-doc";
+import type { TurnFilesystem } from "./turn-filesystem";
 import { poolIdentity } from "./turn-store";
 import type { TurnRequest } from "./types";
 
@@ -77,51 +76,4 @@ export async function publishTurnRoutinesDoc(
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) };
   }
-}
-
-type RoutineEvent = "RoutinesChanged" | "RoutineRunsChanged";
-
-/**
- * Project every routine file a claimed turn landed (`landed` = uploaded plus
- * immediate writes) into its doc. Resolves to the errors to append to the
- * turn's outcome and the events that must not be announced: an event promises
- * the refetch can be served asleep, which a doc that did not land breaks.
- */
-export async function publishLandedRoutineDocs(input: {
-  deps: TurnServerDeps;
-  turn: Turn;
-  filesystem: TurnFilesystem;
-  source: ActivityDocSource;
-  landed: readonly string[];
-}): Promise<{ errors: string[]; stale: RoutineEvent[] }> {
-  const { deps, turn, filesystem } = input;
-  const errors: string[] = [];
-  const stale: RoutineEvent[] = [];
-  const settle = (
-    event: RoutineEvent,
-    label: string,
-    result: ActivityDocPublishResult | null,
-  ) => {
-    if (result && "error" in result)
-      errors.push(`${label} doc publish failed: ${result.error}`);
-    if (!result || "error" in result || "skipped" in result) stale.push(event);
-  };
-  if (input.landed.includes(turnRoutineRunsKey(filesystem.workspaceRel))) {
-    // The runs doc is projected for routine fires only; any other turn that
-    // touched it has no doc to point other tabs at.
-    const runs =
-      turn.claim && turn.routine
-        ? await publishTurnRunsDoc(deps, turn, filesystem)
-        : null;
-    settle("RoutineRunsChanged", "runs", runs);
-  }
-  if (input.landed.includes(docKey(filesystem.workspaceRel, "routines"))) {
-    const routines = turn.claim
-      ? await publishTurnRoutinesDoc(deps, turn, filesystem, input.source)
-      : null;
-    // No doc system to project into (unclaimed, no pool store): the event
-    // stands as it always has, since reads there never come from the doc.
-    if (routines) settle("RoutinesChanged", "routines", routines);
-  }
-  return { errors, stale };
 }
