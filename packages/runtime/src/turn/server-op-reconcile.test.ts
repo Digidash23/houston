@@ -105,10 +105,19 @@ async function worker(seed: {
     );
   const docs: DocCall[] = [];
   let failReply = false;
+  let failRoutinesPut = false;
   const fetchImpl = (async (input: unknown, init?: RequestInit) => {
     const path = new URL(String(input)).pathname;
     if (failReply && path.endsWith("/assistant")) {
       failReply = false;
+      return Response.json({ error: "boom" }, { status: 500 });
+    }
+    if (
+      failRoutinesPut &&
+      init?.method === "PUT" &&
+      path.endsWith("routines.json")
+    ) {
+      failRoutinesPut = false;
       return Response.json({ error: "boom" }, { status: 500 });
     }
     if (path.startsWith("/v1/pod/docs/"))
@@ -166,7 +175,19 @@ async function worker(seed: {
   const failNextReply = () => {
     failReply = true;
   };
-  return { pool, docs, reconcile, runs, chat, assistantPuts, failNextReply };
+  const failNextPause = () => {
+    failRoutinesPut = true;
+  };
+  return {
+    pool,
+    docs,
+    reconcile,
+    runs,
+    chat,
+    assistantPuts,
+    failNextReply,
+    failNextPause,
+  };
 }
 
 const abandonedFire = (userMessage?: ChatMessage) => ({
@@ -462,6 +483,30 @@ test("a chat whose file already ends with the dead turn's message settles from t
   const tail = w.chat("c3").slice(-2);
   expect(tail[0]).toEqual(userOf("t3", STARTED));
   expect(tail[1]?.interrupted).toEqual({ cause: "engine_restart" });
+});
+
+test("a pause that fails declines the attempt, and the retry pauses", async () => {
+  const walls: RoutineRun[] = Array.from({ length: 10 }, (_, i) => ({
+    id: i === 0 ? "t1" : `w${i}`,
+    routine_id: "r1",
+    status: "error",
+    session_key: "routine-r1",
+    started_at: new Date(STARTED - i * 3_600_000).toISOString(),
+    completed_at: new Date(STARTED - i * 3_600_000 + 60_000).toISOString(),
+    failure: { code: "out_of_credits", provider: "anthropic" },
+  }));
+  const w = await worker({ runs: walls, chats: { "routine-r1": earlier } });
+  w.failNextPause();
+
+  const first = await w.reconcile(abandonedFire());
+  expect(first.decline, JSON.stringify(first)).toBe(true);
+
+  const second = await w.reconcile(abandonedFire());
+  expect(second.events, JSON.stringify(second)).toEqual(["RoutinesChanged"]);
+  const [saved] = JSON.parse(
+    w.pool.read(`${AGENT}/.houston/routines/routines.json`),
+  ) as Routine[];
+  expect(saved?.enabled).toBe(false);
 });
 
 test("a pause the settling attempt never reached is owed by the retry", async () => {

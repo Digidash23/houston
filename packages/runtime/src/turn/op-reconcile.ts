@@ -70,7 +70,14 @@ export async function executeReconcileOp(input: {
   }
   // Every attempt, from the durable history: a pause the attempt that
   // settled the run never reached is owed still.
-  events.push(...(await pauseAfterSync(input)));
+  const paused = await pauseAfterSync(input);
+  if (paused.failed.length > 0) {
+    return decline(
+      `auto-pause failed: ${paused.failed.join("; ")}`,
+      resolved.prefix,
+    );
+  }
+  events.push(...paused.events);
   const projected = await publishReconcile({
     deps: input.deps,
     turn: input.turn,
@@ -109,13 +116,13 @@ export async function executeReconcileOp(input: {
  * that settled on a typed wall, read from the history the sync-back left on
  * disk (every row in it is durable): rebased on the store's routines, so a
  * concurrent edit survives, and a no-op once paused or when not earned. A
- * failed pause is reported and retried by the next attempt or failure.
+ * failed pause declines the attempt, so the control plane retries it.
  */
 async function pauseAfterSync(input: {
   op: OpRequest & { op: ReconcileOp };
   filesystem: TurnFilesystem;
   resolved: { store: ObjectStore; prefix: string };
-}): Promise<HoustonEvent[]> {
+}): Promise<{ events: HoustonEvent[]; failed: string[] }> {
   const { items: runs } = await loadRoutineRuns(
     fsTextStore(),
     input.filesystem.workspaceDir,
@@ -124,6 +131,7 @@ async function pauseAfterSync(input: {
     (r) => r.session_key === input.op.op.conversationId && r.failure,
   );
   const events: HoustonEvent[] = [];
+  const failed: string[] = [];
   for (const routineId of new Set(walled.map((r) => r.routine_id))) {
     try {
       const paused = await autoPauseRoutineTurn({
@@ -142,13 +150,12 @@ async function pauseAfterSync(input: {
         agentPath: input.filesystem.workspaceRel.replace(/^workspaces\//, ""),
       });
     } catch (error) {
-      console.error(
-        `[op] reconcile auto-pause failed for ${routineId}:`,
-        error,
+      failed.push(
+        `${routineId}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
-  return events;
+  return { events, failed };
 }
 
 function decline(reason: string, prefix: string): Reply {

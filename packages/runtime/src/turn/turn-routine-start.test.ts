@@ -188,20 +188,29 @@ test("another sandbox's running row in the store holds the routine busy", async 
   expect(local.some((r) => r.id === "t1")).toBe(false);
 });
 
-test("a store that cannot take the row leaves the run to start from the hydrated copy", async () => {
+test("a store that cannot take the row fails the start instead of running from a stale copy", async () => {
   const filesystem = await sandbox([]);
   uploadError = new Error("store unavailable");
   const docs = docServer();
 
-  const phase = await start(filesystem, docs.deps);
-
-  expect(phase.run.id).toBe("t1");
+  await expect(start(filesystem, docs.deps)).rejects.toThrow(
+    "store unavailable",
+  );
   expect(stored()).toEqual([]);
   expect(docs.puts).toEqual([]);
   const local = JSON.parse(
     await readFile(join(root, RUNS), "utf8"),
   ) as RoutineRun[];
-  expect(local.map((r) => r.id)).toEqual(["t1"]);
+  expect(local).toEqual([]);
+});
+
+test("a history that changes under every attempt reads as busy", async () => {
+  const filesystem = await sandbox([]);
+  uploadError = new StoreConflictError(RUNS, "412");
+
+  const error = await start(filesystem, docServer().deps).catch((e) => e);
+  expect(error).toBeInstanceOf(RoutineTurnError);
+  expect((error as RoutineTurnError).code).toBe("routine_busy");
 });
 
 test("the same turn re-dispatched after its sandbox died reuses its own running row", async () => {
