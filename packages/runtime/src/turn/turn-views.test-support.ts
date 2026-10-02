@@ -296,6 +296,7 @@ export async function claimedTurn(
   agent: AgentStore,
   docs: PodDocs,
   conversationId = "c1",
+  opts: { routine?: boolean } = {},
 ) {
   const root = await mkdtemp(join(tmpdir(), "turn-views-root-"));
   const filesystem = await prepareTurnFilesystem({
@@ -311,6 +312,7 @@ export async function claimedTurn(
     gcsPrefix: PREFIX,
     conversationId,
     turnId: `turn-${conversationId}`,
+    ...(opts.routine ? { routine: { id: "r1" } } : {}),
   } as unknown as TurnRequest & { turnId: string };
   const settle = () =>
     finishTurnDurability({

@@ -145,6 +145,8 @@ export async function publish(
   return acceptPut(await putAtRevision(opts, latest, current));
 }
 
-/** Failed, or skipped with another writer's doc standing: no refetch promise. */
+/** Failed, skipped, or refused by the store: the doc did not land, so no
+ *  refetch is promised. */
 export const activityDocStale = (result: ActivityDocPublishResult | null) =>
-  result !== null && ("error" in result || "skipped" in result);
+  result !== null &&
+  ("error" in result || "skipped" in result || "disabled" in result);

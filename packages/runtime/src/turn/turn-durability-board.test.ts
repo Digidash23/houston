@@ -86,3 +86,38 @@ test("a turn that publishes its board late never rolls back a newer turn's card"
   ).toEqual(["done", "done"]);
   expect(result.changed).toContain("ActivityChanged");
 });
+
+test("a board or run history doc the store will not take is never announced", async () => {
+  const agent = await agentStore();
+  await seed(
+    agent.prefixRoot,
+    `${WORKSPACE_REL}/${BOARD}`,
+    JSON.stringify([card("a", "running", "09:00")]),
+  );
+  const docs = podDocs(
+    { activity: await storedBoard(agent), routine_runs: [] },
+    { outOfScope: ["activity", "routine_runs"] },
+  );
+  const turn = await claimedTurn(agent, docs, "c1", { routine: true });
+  await moveCard(turn, "a", "done");
+  await seed(
+    turn.filesystem.workspaceDir,
+    ".houston/routine_runs/routine_runs.json",
+    JSON.stringify([
+      {
+        id: "run-1",
+        routine_id: "r1",
+        status: "surfaced",
+        session_key: "routine-r1",
+        started_at: "2026-10-01T09:00:00.000Z",
+        completed_at: "2026-10-01T09:01:00.000Z",
+      },
+    ]),
+  );
+
+  const result = await turn.settle();
+
+  expect(result.outcome).toEqual({});
+  expect(result.changed).not.toContain("ActivityChanged");
+  expect(result.changed).not.toContain("RoutineRunsChanged");
+});
