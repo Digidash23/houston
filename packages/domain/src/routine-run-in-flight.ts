@@ -14,9 +14,10 @@ export const ROUTINE_RUN_TIMEOUT_MS = 15 * 60 * 1000;
  * only: a pooled run's row reaches the store settled (sync-back runs after
  * the settle), so a `running` row it hydrates is a settle that failed or a
  * standing pod's run, which that pod's reconcile times out on this same
- * clock. Nothing settles either while the agent sleeps, so past the timeout
- * the row stops blocking; its status is left for reconcile. A row with no
- * readable start can never be shown to be fresh, so it never blocks.
+ * clock. While the agent sleeps, the control plane's reconcile op settles it
+ * on a pool worker instead. Past the timeout the row stops blocking either
+ * way. A row with no readable start can never be shown to be fresh, so it
+ * never blocks.
  *
  * A `resumed` run restarted mid-run, and reconcile restarts its clock at the
  * interruption, which the row does not carry. An engine resumes only a turn
