@@ -5,7 +5,8 @@ import { agentRouteScope, type OpInclude } from "./op-scope";
  *  beside `custom-integrations.json` (host-integrations.ts). */
 export const LEGACY_SECRETS_FILE = "custom-integration-secrets.json";
 
-const PREFERENCES = `workspaces/${PREFERENCES_NAMESPACE}/`;
+/** The workspace preferences documents, beside the agent's folder. */
+export const PREFERENCES_PREFIX = `workspaces/${PREFERENCES_NAMESPACE}/`;
 
 /**
  * What the boot migrations read: the agent's `.houston` tree minus the
@@ -14,7 +15,8 @@ const PREFERENCES = `workspaces/${PREFERENCES_NAMESPACE}/`;
  * store, so a big agent migrates for the cost of its small files.
  */
 export function migrateHydrateFilter(rel: string): boolean {
-  if (rel === LEGACY_SECRETS_FILE || rel.startsWith(PREFERENCES)) return true;
+  if (rel === LEGACY_SECRETS_FILE || rel.startsWith(PREFERENCES_PREFIX))
+    return true;
   const parts = rel.split("/");
   if (parts[0] !== "workspaces" || parts.length < 4) return false;
   const inner = parts.slice(3);
@@ -31,5 +33,7 @@ export function migrateHydrateFilter(rel: string): boolean {
 export function migrateScope(workspaceRel: string): OpInclude {
   const agent = agentRouteScope(workspaceRel);
   return (rel) =>
-    agent(rel) || rel.startsWith(PREFERENCES) || rel === LEGACY_SECRETS_FILE;
+    agent(rel) ||
+    rel.startsWith(PREFERENCES_PREFIX) ||
+    rel === LEGACY_SECRETS_FILE;
 }

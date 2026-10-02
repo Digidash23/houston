@@ -1,14 +1,8 @@
-import {
-  docKey,
-  type HoustonFamily,
-  normalizeActivities,
-  normalizeLearnings,
-  normalizeRoutineRuns,
-  normalizeRoutines,
-} from "@houston/domain";
+import { docKey, type HoustonFamily } from "@houston/domain";
 import type { Vfs } from "@houston/host/src/vfs";
 import type { HoustonEvent } from "@houston/protocol";
 import type { OpResult } from "./op-apply";
+import { familyDoc } from "./op-family-doc";
 import { publishOpStoreDocs } from "./op-store-docs";
 import type { TurnServerDeps } from "./server-types";
 import { publish } from "./turn-activity-doc";
@@ -96,10 +90,12 @@ export async function publishFamilyDocs(
       );
       continue;
     }
-    const outcome = await publish(
-      { ...common, family },
-      familyDoc(family, raw, key),
-    );
+    const doc = familyDoc(family, raw, key);
+    if (doc === undefined) {
+      diagnostics.push(`${family}: file is not JSON, not projected`);
+      continue;
+    }
+    const outcome = await publish({ ...common, family }, doc);
     if ("error" in outcome) diagnostics.push(`${family}: ${outcome.error}`);
   }
   return diagnostics;
@@ -152,46 +148,4 @@ export async function republish(
     if (failure) diagnostics.push(`custom_definitions: ${failure}`);
   }
   return diagnostics;
-}
-
-const emptyDoc = (family: HoustonFamily) => (family === "config" ? {} : []);
-
-/** A family file's doc as the pod's projector derives it: an absent or
- *  unparsable file projects the empty doc. */
-export function familyDoc(
-  family: HoustonFamily,
-  raw: string | null,
-  key: string,
-): unknown {
-  if (raw === null) return emptyDoc(family);
-  try {
-    return normalizeFamily(family, JSON.parse(raw), key);
-  } catch {
-    return emptyDoc(family);
-  }
-}
-
-function normalizeFamily(
-  family: HoustonFamily,
-  parsed: unknown,
-  key: string,
-): unknown {
-  switch (family) {
-    case "activity":
-      return normalizeActivities(parsed, key).items;
-    case "routines":
-      return normalizeRoutines(parsed, key).items;
-    case "routine_runs":
-      return normalizeRoutineRuns(parsed, key).items;
-    case "learnings":
-      return normalizeLearnings(parsed, key).items;
-    case "config":
-      return parsed !== null &&
-        typeof parsed === "object" &&
-        !Array.isArray(parsed)
-        ? parsed
-        : {};
-    default:
-      return parsed;
-  }
 }

@@ -10,7 +10,12 @@ import {
   type SeedViewSources,
 } from "./op-seed-publish";
 import { syncSeedTree, withdrawSeedTree } from "./op-seed-sync";
-import { buildSeedTree, pruneListed, type SeedTree } from "./op-seed-tree";
+import {
+  buildSeedTree,
+  pruneLegacyFamilies,
+  pruneListed,
+  type SeedTree,
+} from "./op-seed-tree";
 import type { OpRequest } from "./parse-op-request";
 
 /** The worker's HTTP answer to `/op` for a seed. */
@@ -109,6 +114,7 @@ async function seedOnce(
     const [workspaceId = "", name = ""] = listing.id.split("/");
     tree = await buildSeedTree(storeRoot, op.op, actor, { workspaceId, name });
     await pruneListed(storeRoot, tree, new Set(rels));
+    await pruneLegacyFamilies(storeRoot, tree, rels);
   } else {
     tree = await buildSeedTree(storeRoot, op.op, actor);
   }

@@ -1,3 +1,4 @@
+import { mkdtemp } from "node:fs/promises";
 import { join, posix } from "node:path";
 import { docKey, type HoustonFamily } from "@houston/domain";
 import {
@@ -12,11 +13,11 @@ import {
   type ObjectStore,
   StoreConflictError,
 } from "@houston/runtime-client/object-sync";
+import { familyDoc } from "./op-family-doc";
 import {
   AGENT_DOC_FAMILIES,
   type DocDeps,
   docTarget,
-  familyDoc,
   type OpClaimTurn,
 } from "./op-republish";
 import {
@@ -30,11 +31,14 @@ import { TURN_HYDRATE_MAX_BYTES } from "./turn-filesystem";
 export interface MigrateProjection {
   /** Families whose doc this run created or brought up to the file. */
   published: HoustonFamily[];
-  /** Projection failures: the files are durable, the docs lag. */
+  /** Projections that still failed after a second round: the files are
+   *  durable, these docs or the routine schedules lag. */
   lagging: string[];
   /** The routines file was rewritten in place to re-run its projections. */
   reprojected: boolean;
 }
+
+type FamilyOutcome = "published" | "current" | "unreadable" | "disabled";
 
 const message = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -46,8 +50,9 @@ const message = (error: unknown) =>
  * revision BEFORE its file: a doc PUT another writer lands after that read is
  * a 409 here, and a writer that landed earlier wrote a file this read sees.
  * So a newer projection is never replaced by an older one. A family with no
- * file only fills a missing doc (the pod's projector answers the empty doc).
- * Failures are reported, never thrown: the files are what the store keeps.
+ * file only fills a missing doc (the pod's projector answers the empty doc);
+ * a file no salvage can read is never projected over its doc. A failure gets
+ * one more round; what still fails is reported, never thrown.
  */
 export async function projectMigratedStore(input: {
   deps: DocDeps;
@@ -55,71 +60,92 @@ export async function projectMigratedStore(input: {
   store: ObjectStore;
   prefix: string;
   workspaceRel: string;
-  /** An empty scratch directory for the fresh reads. */
+  /** A scratch directory for the fresh reads. */
   root: string;
   /** Store-relative keys this run's sync uploaded. */
   uploaded: readonly string[];
+  /** Pause before the second round (test seam). */
+  retryDelayMs?: number;
 }): Promise<MigrateProjection> {
   const out: MigrateProjection = {
     published: [],
     lagging: [],
     reprojected: false,
   };
-  const objects = input.store.manifest
-    ? await input.store.manifest(input.prefix)
-    : [];
-  const vfs = new LazyStoreVfs({
-    store: input.store,
-    prefix: input.prefix,
-    root: input.root,
-    objects,
-    manifest: new Map(),
-    excludes: DEFAULT_EXCLUDES,
-    maxObjectBytes: MAX_UPLOAD_BYTES,
-    maxBytes: TURN_HYDRATE_MAX_BYTES,
-  });
-  const listed = new Set(vfs.remoteKeys);
   const target = docTarget(input.deps, input.turn);
-  for (const family of AGENT_DOC_FAMILIES) {
-    if (!target) break;
-    try {
-      const opts = { ...target, family };
-      if (await projectFamily(opts, family, input.workspaceRel, vfs, listed))
-        out.published.push(family);
-    } catch (error) {
-      out.lagging.push(`${family}: ${message(error)}`);
-    }
-  }
+  const families = new Set<HoustonFamily>(target ? AGENT_DOC_FAMILIES : []);
   const routines = docKey(input.workspaceRel, "routines");
-  const generation = objects.find(
-    (o) => o.key === posix.join(input.prefix, routines),
-  )?.generation;
-  if (generation && !input.uploaded.includes(routines)) {
-    try {
-      await vfs.readBytes(routines);
-      await input.store.upload(
-        join(input.root, ...routines.split("/")),
-        posix.join(input.prefix, routines),
-        { ifGenerationMatch: generation },
-      );
-      out.reprojected = true;
-    } catch (error) {
-      // A conflict is a newer write, whose own PUT projected it.
-      if (!(error instanceof StoreConflictError))
-        out.lagging.push(`routines projection: ${message(error)}`);
+  // An upload of the file already ran its projections.
+  let reproject = !input.uploaded.includes(routines);
+  for (let round = 0; round < 2; round++) {
+    if (round > 0)
+      await new Promise((r) => setTimeout(r, input.retryDelayMs ?? 500));
+    out.lagging = [];
+    const objects = input.store.manifest
+      ? await input.store.manifest(input.prefix)
+      : [];
+    const root = await mkdtemp(join(input.root, "fresh-"));
+    const vfs = new LazyStoreVfs({
+      store: input.store,
+      prefix: input.prefix,
+      root,
+      objects,
+      manifest: new Map(),
+      excludes: DEFAULT_EXCLUDES,
+      maxObjectBytes: MAX_UPLOAD_BYTES,
+      maxBytes: TURN_HYDRATE_MAX_BYTES,
+    });
+    const listed = new Set(vfs.remoteKeys);
+    for (const family of [...families]) {
+      if (!target) break;
+      try {
+        const done = await projectFamily(
+          { ...target, family },
+          family,
+          input.workspaceRel,
+          vfs,
+          listed,
+        );
+        families.delete(family);
+        if (done === "published") out.published.push(family);
+        if (done === "unreadable" || done === "disabled")
+          console.warn(`[op] migrate: ${family} doc not projected (${done})`);
+      } catch (error) {
+        out.lagging.push(`${family}: ${message(error)}`);
+      }
     }
+    const generation = objects.find(
+      (o) => o.key === posix.join(input.prefix, routines),
+    )?.generation;
+    if (reproject && generation) {
+      try {
+        await vfs.readBytes(routines);
+        await input.store.upload(
+          join(root, ...routines.split("/")),
+          posix.join(input.prefix, routines),
+          { ifGenerationMatch: generation },
+        );
+        out.reprojected = true;
+        reproject = false;
+      } catch (error) {
+        // A conflict is a newer write, whose own PUT projected it.
+        if (error instanceof StoreConflictError) reproject = false;
+        else out.lagging.push(`routines projection: ${message(error)}`);
+      }
+    } else reproject = false;
+    if (out.lagging.length === 0) break;
   }
   return out;
 }
 
-/** One family's doc brought up to its file; true when a PUT landed. */
+/** One family's doc brought up to its file. Throws what may pass on retry. */
 async function projectFamily(
   opts: ActivityDocOptions,
   family: HoustonFamily,
   workspaceRel: string,
   vfs: LazyStoreVfs,
   listed: ReadonlySet<string>,
-): Promise<boolean> {
+): Promise<FamilyOutcome> {
   const seen = await request(opts);
   let revision = 0;
   let current: unknown;
@@ -132,20 +158,19 @@ async function projectFamily(
     if (seen.status !== 404) throw new Error(`GET rejected (${seen.status})`);
   }
   const key = docKey(workspaceRel, family);
-  if (!listed.has(key) && current !== undefined) return false;
-  const doc = familyDoc(
-    family,
-    listed.has(key) ? await vfs.readText(key) : null,
-    key,
-  );
+  if (!listed.has(key) && current !== undefined) return "current";
+  const raw = listed.has(key) ? await vfs.readText(key) : null;
+  const doc = familyDoc(family, raw, key);
+  if (doc === undefined) return "unreadable";
   if (current !== undefined && canonicalJSON(current) === canonicalJSON(doc))
-    return false;
+    return "current";
   const response = await putAtRevision(opts, doc, revision);
   if (response.status === 409) {
+    // A newer projection landed after the revision read: it stands.
     await response.body?.cancel();
-    return false;
+    return "current";
   }
   const outcome = await acceptPut(response);
   if ("error" in outcome) throw new Error(outcome.error);
-  return "ok" in outcome;
+  return "ok" in outcome ? "published" : "disabled";
 }

@@ -23,13 +23,27 @@ export function pendingLegacyLayout(
   layout: Pick<TurnLayout, "workspaceRel">,
   listed: Iterable<string>,
 ): string[] {
+  return pendingPairs(layout, listed).map(([, flat]) => flat);
+}
+
+/** The family files (relative to the agent) whose flat twin is pending: no
+ *  writer but the migration may create them. */
+export function pendingLegacyFamilies(
+  layout: Pick<TurnLayout, "workspaceRel">,
+  listed: Iterable<string>,
+): string[] {
+  return pendingPairs(layout, listed).map(([family]) => family);
+}
+
+function pendingPairs(
+  layout: Pick<TurnLayout, "workspaceRel">,
+  listed: Iterable<string>,
+): [string, string][] {
   const keys = new Set(listed);
   const root = `${layout.workspaceRel}/`;
-  return Object.entries(LEGACY_LAYOUT)
-    .filter(
-      ([family, flat]) => keys.has(root + flat) && !keys.has(root + family),
-    )
-    .map(([, flat]) => flat);
+  return Object.entries(LEGACY_LAYOUT).filter(
+    ([family, flat]) => keys.has(root + flat) && !keys.has(root + family),
+  );
 }
 
 /**

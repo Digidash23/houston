@@ -1,17 +1,14 @@
-import { mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
 import {
   AGENT_STORE_MIGRATION_VERSION,
   migrateAgentStore,
 } from "@houston/host/src/migrate/agent-store";
-import {
-  type ObjectStore,
-  syncBack,
-} from "@houston/runtime-client/object-sync";
+import type { ObjectStore } from "@houston/runtime-client/object-sync";
 import type { MigrateOp } from "./op-grammar-migrate";
 import { moveLegacySecrets } from "./op-migrate-custody";
 import { projectMigratedStore } from "./op-migrate-project";
-import { migrateHydrateFilter, migrateScope } from "./op-migrate-tree";
+import { syncMigratedTree } from "./op-migrate-sync";
+import { migrateHydrateFilter } from "./op-migrate-tree";
 import type { DocDeps, OpClaimTurn } from "./op-republish";
 import type { OpRequest } from "./parse-op-request";
 import type { TurnServerDeps } from "./server-types";
@@ -86,6 +83,7 @@ export async function executeMigrateOp(
       : console.error(`[op] migrate ${line}`, error);
   let report: Awaited<ReturnType<typeof migrateAgentStore>>;
   let secretsMoved: number;
+  const fenced = { status: 409, body: { error: "claim_fenced" } };
   try {
     report = await migrateAgentStore({
       workspacesRoot: join(filesystem.storeRoot, "workspaces"),
@@ -93,6 +91,9 @@ export async function executeMigrateOp(
       ...(op.op.ownerSub ? { ownerSub: op.op.ownerSub } : {}),
       log,
     });
+    // Custody is written directly, not through the claimed sync: no run
+    // that lost its claim may reach it.
+    if (await input.fenced()) return fenced;
     secretsMoved = await moveLegacySecrets({
       storeRoot: filesystem.storeRoot,
       op,
@@ -104,35 +105,22 @@ export async function executeMigrateOp(
       error: error instanceof Error ? error.message : String(error),
     });
   }
-  if (await input.fenced())
-    return { status: 409, body: { error: "claim_fenced" } };
-  // Without its listing, a 412 stays a conflict: the sync's refreshed-
-  // generation retry would otherwise write over the object a racing writer
-  // just landed (op-seed-sync.ts does the same).
-  const unlisted: ObjectStore = {
-    list: (p) => store.list(p),
-    download: (key, dest, opts) => store.download(key, dest, opts),
-    upload: (src, key, opts) => store.upload(src, key, opts),
-    delete: (key, opts) => store.delete(key, opts),
-  };
-  const synced = await syncBack(
-    unlisted,
+  if (await input.fenced()) return fenced;
+  const synced = await syncMigratedTree({
+    store,
     prefix,
-    filesystem.storeRoot,
-    filesystem.manifest,
-    {
-      include: migrateScope(filesystem.workspaceRel),
-      holdDeletesOnFailure: true,
-      generations: filesystem.generationAware,
-    },
-  );
-  if (synced.conflicts.length + synced.skipped.length + synced.outOfScope > 0) {
+    storeRoot: filesystem.storeRoot,
+    manifest: filesystem.manifest,
+    workspaceRel: filesystem.workspaceRel,
+    generationAware: filesystem.generationAware,
+  });
+  if (!synced.durable) {
     console.error(
-      `[op] migrate not durable: conflicts=${synced.conflicts.length} skipped=${synced.skipped.length} outOfScope=${synced.outOfScope} prefix=${prefix}`,
+      `[op] migrate not durable: conflicts=${synced.conflicts.length} skipped=${synced.skipped.length} prefix=${prefix}`,
     );
     return failed("migration_not_durable", {
-      conflicts: synced.conflicts.map((c) => c.key),
-      skipped: synced.skipped.map((s) => s.key),
+      conflicts: synced.conflicts,
+      skipped: synced.skipped,
     });
   }
   const projection = await projectMigratedStore({
@@ -141,7 +129,7 @@ export async function executeMigrateOp(
     store,
     prefix,
     workspaceRel: filesystem.workspaceRel,
-    root: await mkdtemp(join(input.root, "fresh-")),
+    root: input.root,
     uploaded: synced.uploaded,
   });
   if (projection.lagging.length > 0) {
@@ -158,5 +146,7 @@ export async function executeMigrateOp(
     docsPublished: projection.published,
     docsLagging: projection.lagging,
     routinesReprojected: projection.reprojected,
+    // The gateway records the version only once these landed too.
+    projected: projection.lagging.length === 0,
   });
 }
