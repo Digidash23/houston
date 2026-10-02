@@ -121,3 +121,23 @@ test("a setup failure posts a terminal error frame to the turnlog first", async 
   expect(turnlog[0]?.body).toHaveLength(1);
   expect(turnlog[0]?.body[0]).toMatchObject({ seq: 7, frame: expected });
 });
+
+test("a claimed turn over a flat-layout agent fails setup before any provider work", async () => {
+  const runTurn = vi.fn<TurnRunner>();
+  // A pre-v0.4 agent: its board is still the flat file the boot migration
+  // copies only into a MISSING family file. A turn that wrote the board
+  // first would hide the old cards from that migration for good.
+  const { frames } = await claimedTurn(
+    [
+      "workspaces/Personal/prime/CLAUDE.md",
+      "workspaces/Personal/prime/.houston/activity.json",
+    ],
+    runTurn,
+  );
+
+  expect(runTurn).not.toHaveBeenCalled();
+  expect(frames.at(-1)).toMatchObject({
+    type: "error",
+    data: { message: "agent_not_migrated", code: "agent_not_migrated" },
+  });
+});

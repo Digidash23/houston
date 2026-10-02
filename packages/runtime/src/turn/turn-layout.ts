@@ -7,6 +7,9 @@ export type TurnSetupCode =
   | "credential_write_failed"
   | "hydrate_over_cap"
   | "layout_unexpected"
+  /** The agent's store still holds the pre-v0.4 flat layout: only the
+   *  `migrate` op may run until its boot migration has (turn-layout-legacy). */
+  | "agent_not_migrated"
   /** Houston's message reused a nonce for other words: a host refuses it. */
   | "message_refused";
 

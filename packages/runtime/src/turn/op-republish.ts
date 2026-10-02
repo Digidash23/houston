@@ -96,16 +96,10 @@ export async function publishFamilyDocs(
       );
       continue;
     }
-    let doc: unknown;
-    try {
-      doc =
-        raw === null
-          ? emptyDoc(family)
-          : normalizeFamily(family, JSON.parse(raw), key);
-    } catch {
-      doc = emptyDoc(family);
-    }
-    const outcome = await publish({ ...common, family }, doc);
+    const outcome = await publish(
+      { ...common, family },
+      familyDoc(family, raw, key),
+    );
     if ("error" in outcome) diagnostics.push(`${family}: ${outcome.error}`);
   }
   return diagnostics;
@@ -161,6 +155,21 @@ export async function republish(
 }
 
 const emptyDoc = (family: HoustonFamily) => (family === "config" ? {} : []);
+
+/** A family file's doc as the pod's projector derives it: an absent or
+ *  unparsable file projects the empty doc. */
+export function familyDoc(
+  family: HoustonFamily,
+  raw: string | null,
+  key: string,
+): unknown {
+  if (raw === null) return emptyDoc(family);
+  try {
+    return normalizeFamily(family, JSON.parse(raw), key);
+  } catch {
+    return emptyDoc(family);
+  }
+}
 
 function normalizeFamily(
   family: HoustonFamily,

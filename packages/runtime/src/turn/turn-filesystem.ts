@@ -15,6 +15,7 @@ import {
   type TurnLayout,
   TurnSetupError,
 } from "./turn-layout";
+import { assertMigratedLayout } from "./turn-layout-legacy";
 import { turnHydrationPriorityIncludes } from "./turn-runtime";
 
 export {
@@ -81,6 +82,9 @@ export async function prepareTurnFilesystem(opts: {
   lazy?: boolean;
   /** Lazy only: keep just these listed keys (see turn-filesystem-lazy.ts). */
   admit?: (relativePath: string) => boolean;
+  /** Only the `migrate` op hydrates a claimed tree its boot migration has
+   *  not reached; everything else refuses it (turn-layout-legacy.ts). */
+  allowLegacyLayout?: boolean;
 }): Promise<TurnFilesystem> {
   return (await startTurnFilesystem(opts)).hydrated;
 }
@@ -96,6 +100,7 @@ export async function startTurnFilesystem(opts: {
   filter?: HydrateOptions["filter"];
   lazy?: boolean;
   admit?: (relativePath: string) => boolean;
+  allowLegacyLayout?: boolean;
   timings?: Record<string, number>;
 }): Promise<TurnFilesystemPreparation> {
   const storeRoot = join(opts.root, "store");
@@ -117,6 +122,7 @@ export async function startTurnFilesystem(opts: {
       excludes,
       maxBytes: maxBytes ?? TURN_HYDRATE_MAX_BYTES,
       ...(opts.admit ? { admit: opts.admit } : {}),
+      ...(opts.allowLegacyLayout ? { allowLegacyLayout: true } : {}),
       ...(opts.timings ? { timings: opts.timings } : {}),
     });
     return {
@@ -144,6 +150,8 @@ export async function startTurnFilesystem(opts: {
         layout = await resolveListedLayout(storeRoot, listing.rels, {
           allowEmpty: !opts.claimed,
         });
+        if (opts.claimed && !opts.allowLegacyLayout)
+          assertMigratedLayout(layout, listing.rels);
         if (opts.timings) opts.timings.t_layout = performance.now();
       },
     });

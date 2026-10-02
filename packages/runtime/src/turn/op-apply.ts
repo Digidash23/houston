@@ -233,8 +233,9 @@ export async function applyOp(
       };
     }
     case "seed":
-      // A seed decides from the store listing before any tree exists
-      // (op-seed.ts); executeOp never hands it a hydrated filesystem.
-      throw new Error("a seed op does not run over a hydrated tree");
+    case "migrate":
+      // Both run their own hydrate and sync (op-seed.ts, op-migrate.ts);
+      // executeOp never hands them this filesystem.
+      throw new Error(`a ${op.op.kind} op does not run over this tree`);
   }
 }
