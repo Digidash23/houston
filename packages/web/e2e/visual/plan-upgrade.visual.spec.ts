@@ -18,7 +18,11 @@ for (const width of ["desktop", "phone"] as const) {
           width === "phone"
             ? await openMoreMenu(page, "click")
             : page.getByTestId("sidebar-footer");
-        await expect(area.getByTestId("plan-upgrade")).toBeVisible();
+        // Two CI workers can boot past the default 10s window; match the
+        // phone shell's boot budget before asserting the settled screenshot.
+        await expect(area.getByTestId("plan-upgrade")).toBeVisible({
+          timeout: 20_000,
+        });
         await pinTheme(page, theme);
         await page.mouse.move(0, 0);
         await expect(area).toHaveScreenshot(
