@@ -82,7 +82,7 @@ export async function executeMigrateOp(
       ? console.log(`[op] migrate ${line}`)
       : console.error(`[op] migrate ${line}`, error);
   let report: Awaited<ReturnType<typeof migrateAgentStore>>;
-  let secretsMoved: number;
+  let custody: Awaited<ReturnType<typeof moveLegacySecrets>>;
   const fenced = { status: 409, body: { error: "claim_fenced" } };
   try {
     report = await migrateAgentStore({
@@ -94,7 +94,7 @@ export async function executeMigrateOp(
     // Custody is written directly, not through the claimed sync: no run
     // that lost its claim may reach it.
     if (await input.fenced()) return fenced;
-    secretsMoved = await moveLegacySecrets({
+    custody = await moveLegacySecrets({
       storeRoot: filesystem.storeRoot,
       op,
       ...(input.deps.fetchImpl ? { fetchImpl: input.deps.fetchImpl } : {}),
@@ -140,13 +140,13 @@ export async function executeMigrateOp(
   return relayed(200, {
     version: AGENT_STORE_MIGRATION_VERSION,
     ...report,
-    secretsMoved,
+    secretsMoved: custody.moved,
     uploaded: synced.uploaded.length,
     deleted: synced.deleted.length,
     docsPublished: projection.published,
     docsLagging: projection.lagging,
     routinesReprojected: projection.reprojected,
     // The gateway records the version only once these landed too.
-    projected: projection.lagging.length === 0,
+    complete: projection.lagging.length === 0 && custody.complete,
   });
 }

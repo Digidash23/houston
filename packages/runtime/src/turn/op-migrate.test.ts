@@ -141,7 +141,7 @@ test("projections that keep failing leave the version unconfirmed", async () => 
   const { status, answer } = await run(fake, { docs: docRoute(503) });
 
   expect(status).toBe(200);
-  expect(answer.projected).toBe(false);
+  expect(answer.complete).toBe(false);
   expect((answer.docsLagging as string[]).length).toBeGreaterThan(0);
 });
 
@@ -153,7 +153,7 @@ test("a family file no salvage can read is never projected over its doc", async 
   const { answer } = await run(fake, { docs });
 
   expect(docs.puts.map((p) => p.family)).not.toContain("activity");
-  expect(answer.projected).toBe(true);
+  expect(answer.complete).toBe(true);
 });
 
 test("a family file with trailing junk projects what the pod's read salvages", async () => {
@@ -234,7 +234,7 @@ test("a projection that loses its revision race checks the doc again", async () 
   expect(state.get("activity")?.doc).toEqual([
     expect.objectContaining({ id: "new" }),
   ]);
-  expect(answer.projected).toBe(true);
+  expect(answer.complete).toBe(true);
 });
 
 test("a doc route that refuses a family leaves the projection unconfirmed", async () => {
@@ -243,28 +243,71 @@ test("a doc route that refuses a family leaves the projection unconfirmed", asyn
 
   const { answer } = await run(fake, { docs });
 
-  expect(answer.projected).toBe(false);
+  expect(answer.complete).toBe(false);
 });
 
-test("a custody value that lands between the read and the write stays", async () => {
-  const fake = legacy();
-  fake.put("custom-integration-secrets.json", '{"ci_crm_KEY":"plain"}');
-  const puts: Array<string | null> = [];
-  const racing = (async (url: unknown, init?: RequestInit) => {
+/** The gateway's custody route, scripted: `create` answers each POST. */
+function custodyRoute(create: () => Response, confirm?: string) {
+  const calls: string[] = [];
+  const fetchImpl = (async (url: unknown, init?: RequestInit) => {
     if (!String(url).includes("/custom-secrets/"))
       return Response.json({ error: "document not found" }, { status: 404 });
-    if (!init?.method)
-      return Response.json({ error: "not found" }, { status: 404 });
-    // Another writer set the id after the read: the gateway refuses the
-    // create-only write.
-    puts.push(new Headers(init.headers).get("If-None-Match"));
-    return Response.json({ error: "secret exists" }, { status: 412 });
+    const method = init?.method ?? "GET";
+    calls.push(method);
+    if (method === "POST") return create();
+    // The first read finds nothing; a read after a refused create finds
+    // `confirm` (undefined: a read that has not caught up yet).
+    const value =
+      calls.filter((c) => c === "GET").length > 1 ? confirm : undefined;
+    return value === undefined
+      ? Response.json({ error: "not found" }, { status: 404 })
+      : Response.json({ value });
   }) as typeof fetch;
+  return { calls, fetchImpl };
+}
 
-  const { status, answer } = await run(fake, { fetchImpl: racing });
+test("a custody value that lands between the read and the create stays", async () => {
+  const fake = legacy();
+  fake.put("custom-integration-secrets.json", '{"ci_crm_KEY":"plain"}');
+  const custody = custodyRoute(
+    () => Response.json({ error: "secret exists" }, { status: 412 }),
+    "rotated",
+  );
+
+  const { status, answer } = await run(fake, { fetchImpl: custody.fetchImpl });
 
   expect(status).toBe(200);
+  expect(custody.calls).toEqual(["GET", "POST", "GET"]);
   expect(answer.secretsMoved).toBe(0);
-  expect(puts).toEqual(["*"]);
   expect(await fake.keys()).not.toContain("custom-integration-secrets.json");
+});
+
+test("a refused create whose value no read finds yet keeps the plaintext", async () => {
+  const fake = legacy();
+  fake.put("custom-integration-secrets.json", '{"ci_crm_KEY":"plain"}');
+  const custody = custodyRoute(() =>
+    Response.json({ error: "secret exists" }, { status: 412 }),
+  );
+
+  const { status, answer } = await run(fake, { fetchImpl: custody.fetchImpl });
+
+  expect(status).toBe(200);
+  expect(answer.complete).toBe(false);
+  expect(await fake.keys()).toContain("custom-integration-secrets.json");
+});
+
+test("a gateway older than the create keeps the plaintext and writes nothing", async () => {
+  const fake = legacy();
+  fake.put("custom-integration-secrets.json", '{"ci_crm_KEY":"plain"}');
+  const custody = custodyRoute(
+    () =>
+      new Response("", { status: 405, headers: { Allow: "GET, PUT, DELETE" } }),
+  );
+
+  const { status, answer } = await run(fake, { fetchImpl: custody.fetchImpl });
+
+  expect(status).toBe(200);
+  expect(answer.complete).toBe(false);
+  expect(custody.calls.filter((c) => c === "PUT")).toEqual([]);
+  expect(await fake.keys()).toContain("custom-integration-secrets.json");
 });

@@ -159,11 +159,9 @@ export function fakePoolStore(prefix: string, transcriptStatus = 200) {
         ? Response.json({ error: "not found" }, { status: 404 })
         : Response.json({ value });
     }
-    if (method === "PUT") {
-      if (
-        new Headers(init?.headers).get("If-None-Match") === "*" &&
-        secrets.has(id)
-      )
+    // POST creates (412 over a value), PUT sets: the gateway's custody route.
+    if (method === "POST" || method === "PUT") {
+      if (method === "POST" && secrets.has(id))
         return Response.json({ error: "secret exists" }, { status: 412 });
       secrets.set(
         id,
