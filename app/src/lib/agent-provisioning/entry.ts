@@ -3,8 +3,8 @@
  * and how it bends per-agent reads.
  *
  * On the hosted profile, creating an agent answers immediately while its
- * engine warms up in the background (HOU-649): the warm-up can take a couple
- * of minutes, and the platform gives the client no readiness field or event.
+ * engine warms up in the background (HOU-649): usually seconds, minutes when
+ * the cluster is backed up, and the platform gives no readiness signal.
  * The readiness long-poll is `probe.ts`, the persistence parse `persist.ts`;
  * the Zustand store (`stores/agent-provisioning.ts`) wires them to the real
  * engine adapter, toast, and localStorage.

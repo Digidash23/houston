@@ -503,7 +503,7 @@
     "stalledTitle": "Seguimos en eso",
     "stalledBody": "Esto está tardando más de lo normal. No nos hemos rendido, tu chat y tus mensajes están a salvo y continuarán en cuanto tu empleado de IA responda.",
     "gettingReadyTitle": "Preparando a {{name}}",
-    "gettingReadyBody": "Esto toma un par de minutos. Puedes explorar mientras preparamos a {{name}}."
+    "gettingReadyBody": "Esto toma unos segundos. Puedes explorar mientras preparamos a {{name}}."
   },
   "reportBug": {
     "reportSuccessTitle": "Reporte enviado",
