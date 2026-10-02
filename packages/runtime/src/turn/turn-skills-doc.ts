@@ -40,6 +40,13 @@ export function isSkillsView(value: unknown): value is SkillsView {
   );
 }
 
+/** Every slug a captured view lists, as an item or a diagnostic. */
+export const viewSlugs = (view: SkillsView): Set<string> =>
+  new Set([
+    ...view.items.map((item) => item.name),
+    ...view.diagnostics.map(diagnosticSlug),
+  ]);
+
 /**
  * Slugs whose top-level SKILL.md the landed keys wrote or deleted. Only that
  * file feeds the list (`loadSkillsFromDir`); a skill's other files never do.
@@ -65,7 +72,7 @@ export function landedSkillSlugs(
  */
 async function storeEntries(
   source: ActivityDocSource,
-  filesystem: TurnFilesystem,
+  filesystem: Pick<TurnFilesystem, "workspaceRel">,
   slugs: ReadonlySet<string>,
 ): Promise<SkillsView> {
   const fresh: SkillsView = { items: [], diagnostics: [] };
@@ -119,7 +126,7 @@ function swapSlugs<T>(
 export async function publishSkillsView(input: {
   target: ActivityDocOptions;
   source: ActivityDocSource;
-  filesystem: TurnFilesystem;
+  filesystem: Pick<TurnFilesystem, "workspaceRel">;
   slugs: ReadonlySet<string>;
   base: () => Promise<SkillsView | undefined>;
 }): Promise<ActivityDocPublishResult> {

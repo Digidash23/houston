@@ -1,17 +1,10 @@
-import { existsSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
-import { join, posix } from "node:path";
-import { dispatchAgentOp } from "@houston/host/src/op/dispatch";
 import { MAX_UPLOAD_BYTES } from "@houston/host/src/turn/files-import";
-import { LazyStoreVfs, PrefixedVfs } from "@houston/host/src/vfs";
+import { LazyStoreVfs } from "@houston/host/src/vfs";
 import {
   DEFAULT_EXCLUDES,
   type ObjectMetadata,
   type ObjectStore,
 } from "@houston/runtime-client/object-sync";
-import { listProviders } from "../ai/providers";
-import { listProviderUsage } from "../ai/usage";
-import { config } from "../config";
 import { publishIfAbsent } from "./op-doc-create";
 import {
   AGENT_DOC_FAMILIES,
@@ -21,33 +14,15 @@ import {
   publishFamilyDocs,
 } from "./op-republish";
 import type { SeedTree } from "./op-seed-tree";
-import { publish } from "./turn-activity-doc";
+import { computeSeedViews, type SeedViewSources } from "./op-seed-views";
+import { type ActivityDocOptions, publish } from "./turn-activity-doc";
 import { TURN_HYDRATE_MAX_BYTES } from "./turn-filesystem";
-
-/**
- * The provider answers a brand-new agent's pod gives: the runtime's baseline
- * (no settings, no credential, no custom endpoint). Both read the worker's
- * own `dataDir`, which a pool worker never writes an agent's state into; the
- * gateway overlays the connected set and active provider on every asleep
- * serve, so the baseline's unconfigured rows are the right ones.
- */
-export interface SeedViewSources {
-  providers: () => unknown;
-  providerUsage: () => Promise<unknown>;
-  dataDir: string;
-}
-
-export const RUNTIME_VIEW_SOURCES: SeedViewSources = {
-  providers: () => listProviders(),
-  providerUsage: () => listProviderUsage(),
-  dataDir: config.dataDir,
-};
-
-const AGENT_STATE_FILES = [
-  "settings.json",
-  "auth.json",
-  "custom-endpoint.json",
-];
+import {
+  isSkillsView,
+  publishSkillsView,
+  type SkillsView,
+  viewSlugs,
+} from "./turn-skills-doc";
 
 export interface SeedPublishInput {
   deps: DocDeps;
@@ -90,7 +65,7 @@ export async function publishSeedDocs(input: SeedPublishInput): Promise<void> {
   let views: [string, unknown][] = [];
   const failures: string[] = [];
   try {
-    views = await computeViews(input, vfs);
+    views = await computeSeedViews(input, vfs);
   } catch (error) {
     failures.push(`views: ${String(error)}`);
   }
@@ -108,9 +83,11 @@ export async function publishSeedDocs(input: SeedPublishInput): Promise<void> {
       for (const [family, doc] of views) {
         const opts = { ...target, family };
         const outcome =
-          input.adopted && PROVIDER_VIEWS.has(family)
-            ? await publishIfAbsent(opts, doc)
-            : await publish(opts, doc);
+          family === "skills" && isSkillsView(doc)
+            ? await publishSeedSkills(input, opts, doc)
+            : input.adopted && PROVIDER_VIEWS.has(family)
+              ? await publishIfAbsent(opts, doc)
+              : await publish(opts, doc);
         if ("error" in outcome) out.push(`${family}: ${outcome.error}`);
       }
       return out;
@@ -133,54 +110,21 @@ export async function publishSeedDocs(input: SeedPublishInput): Promise<void> {
   }
 }
 
-async function computeViews(
+/**
+ * The skills view, merged per slug: only the skills this seed's listing
+ * held move, each read back from the store after the doc revision is. A
+ * turn may land and publish a skill (or delete one) after that listing, and
+ * the seed's whole captured list would drop (or bring back) it.
+ */
+const publishSeedSkills = (
   input: SeedPublishInput,
-  vfs: LazyStoreVfs,
-): Promise<[string, unknown][]> {
-  const out: [string, unknown][] = [];
-  // The host resolves the agent from its folder; an adopt wrote nothing.
-  await mkdir(join(input.storeRoot, ...input.tree.workspaceRel.split("/")), {
-    recursive: true,
+  target: ActivityDocOptions,
+  captured: SkillsView,
+) =>
+  publishSkillsView({
+    target,
+    source: { store: input.store, prefix: input.prefix },
+    filesystem: input.tree,
+    slugs: viewSlugs(captured),
+    base: async () => captured,
   });
-  const skills = await dispatchAgentOp({
-    workspacesRoot: join(input.storeRoot, "workspaces"),
-    agentId: input.tree.id,
-    vfs: new PrefixedVfs(vfs, "workspaces"),
-    request: { method: "GET", rest: "skills", triggersEnabled: false },
-  });
-  if (skills.status === 200) out.push(["skills", JSON.parse(skills.body)]);
-  else
-    console.error(
-      `[op] seed skills view not captured: ${skills.status} prefix=${input.prefix}`,
-    );
-  const state = AGENT_STATE_FILES.filter((file) =>
-    existsSync(join(input.views.dataDir, file)),
-  );
-  if (state.length > 0) {
-    // A reused worker's config dir would publish another agent's providers.
-    console.warn(
-      `[op] seed provider views skipped: worker data dir holds ${state.join(", ")} prefix=${input.prefix}`,
-    );
-    return out;
-  }
-  const runtime = posix.join(
-    input.prefix,
-    input.tree.workspaceRel,
-    ".houston",
-    "runtime",
-  );
-  const own = AGENT_STATE_FILES.filter((file) =>
-    input.objects.some((o) => o.key === posix.join(runtime, file)),
-  );
-  if (own.length > 0) {
-    // An adopted agent with its own provider state: the baseline would be
-    // wrong for it, and its pod keeps its own view current.
-    console.warn(
-      `[op] seed provider views skipped: the agent holds ${own.join(", ")} prefix=${input.prefix}`,
-    );
-    return out;
-  }
-  out.push(["providers", input.views.providers()]);
-  out.push(["provider_usage", await input.views.providerUsage()]);
-  return out;
-}
