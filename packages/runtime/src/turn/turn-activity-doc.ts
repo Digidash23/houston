@@ -1,13 +1,4 @@
 import { fetchWithRetry } from "@houston/runtime-client/object-sync";
-import type { TurnServerDeps } from "./server-types";
-import {
-  type ActivityDocSource,
-  readLocalActivityDoc,
-  readStoredActivityDoc,
-} from "./turn-activity-source";
-import type { TurnFilesystem } from "./turn-filesystem";
-import { poolIdentity } from "./turn-store";
-import type { TurnRequest } from "./types";
 
 const REQUEST_TIMEOUT_MS = 5_000;
 
@@ -154,42 +145,8 @@ export async function publish(
   return acceptPut(await putAtRevision(opts, latest, current));
 }
 
-/** Failed, or skipped with another writer's doc standing: no refetch promise. */
+/** Failed, skipped, or refused by the store: the doc did not land, so no
+ *  refetch is promised. */
 export const activityDocStale = (result: ActivityDocPublishResult | null) =>
-  result !== null && ("error" in result || "skipped" in result);
-
-/** Project one successfully uploaded claimed-turn activity file into the DB doc. */
-export async function publishTurnActivityDoc(
-  deps: TurnServerDeps,
-  turn: TurnRequest & { turnId: string },
-  filesystem: TurnFilesystem,
-  source: ActivityDocSource,
-): Promise<ActivityDocPublishResult | null> {
-  const baseUrl = deps.poolStoreUrl ?? process.env.HOUSTON_POOL_STORE_URL;
-  if (turn.shadow || !baseUrl || !turn.claim || !turn.hostToken) return null;
-  try {
-    // The sync-back merge rewrote the local file to exactly the bytes it
-    // uploaded, so this is what landed in the object, not the turn's own copy.
-    const doc = await readLocalActivityDoc(filesystem);
-    const { org, agent } = poolIdentity(turn.gcsPrefix);
-    return await publish(
-      {
-        family: "activity",
-        baseUrl,
-        org,
-        agent,
-        conversationId: turn.conversationId,
-        hostToken: turn.hostToken,
-        claim: { token: turn.claim.token, bootId: turn.claim.bootId },
-        fetchImpl: deps.fetchImpl ?? fetch,
-        ...(deps.activityDocRetryDelaysMs
-          ? { retryDelaysMs: deps.activityDocRetryDelaysMs }
-          : {}),
-      },
-      doc,
-      () => readStoredActivityDoc(source, filesystem),
-    );
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) };
-  }
-}
+  result !== null &&
+  ("error" in result || "skipped" in result || "disabled" in result);

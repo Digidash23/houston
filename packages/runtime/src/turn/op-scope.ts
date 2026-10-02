@@ -70,6 +70,8 @@ export function conversationScope(dataRel: string, cid: string): OpInclude {
  * id (the layout resolver finds the single agent), but the host handlers
  * address the agent by its id — so it is derived here, never trusted.
  */
-export function engineAgentId(filesystem: TurnFilesystem): string {
+export function engineAgentId(
+  filesystem: Pick<TurnFilesystem, "workspaceRel">,
+): string {
   return filesystem.workspaceRel.replace(/^workspaces\//, "");
 }

@@ -32,7 +32,7 @@ export interface CustomOAuthDeps {
    *  the gateway's public callback can route the browser to this pod. */
   statePrefix?: string;
   fetchFn?: typeof fetch;
-  onChanged: () => void;
+  onChanged: (slug: string) => void;
 }
 
 export async function startOAuthOp(
@@ -119,6 +119,6 @@ export async function completeOAuthOp(
   // as "Connected, 0 actions".
   const liveState = await deps.host.connectedState(executor, updated);
   states.set(def.slug, liveState);
-  deps.onChanged();
+  deps.onChanged(def.slug);
   return viewOf(updated, liveState, methods);
 }

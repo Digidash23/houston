@@ -18,6 +18,7 @@ import {
   settingsOpFiles,
 } from "./op-settings";
 import type { OpRequest } from "./parse-op-request";
+import type { CapturedCustomDefinitions } from "./turn-custom-definitions-doc";
 import type { TurnFilesystem } from "./turn-filesystem";
 import { createTurnModelRuntime } from "./turn-runtime";
 import { poolIdentity } from "./turn-store";
@@ -35,8 +36,8 @@ export interface OpResult {
   include: (relativePath: string) => boolean;
   /** The pod's own /skills answer after a skills mutation (the skills view). */
   skillsView?: unknown;
-  /** The pod's own definitions answer after a custom-integration mutation. */
-  customDefinitionsView?: unknown;
+  /** The definitions capture after a custom-integration mutation. */
+  customDefinitions?: CapturedCustomDefinitions;
   /** The hydrated tree had no such agent — decline, do not relay. */
   agentMissing?: boolean;
   /** The worker cannot serve this one (a provider that needs the pod). */
@@ -237,5 +238,7 @@ export async function applyOp(
       // Both run their own hydrate and sync (op-seed.ts, op-migrate.ts);
       // executeOp never hands them this filesystem.
       throw new Error(`a ${op.op.kind} op does not run over this tree`);
+    case "reconcile":
+      throw new Error("a reconcile op runs its own path (op-reconcile.ts)");
   }
 }

@@ -5,10 +5,9 @@ import type {
   ActivityDocPublishResult,
 } from "./turn-activity-doc";
 import type { ActivityDocSource } from "./turn-activity-source";
-import { publishDerived } from "./turn-doc-merge-publish";
 import { turnDocTarget } from "./turn-doc-target";
 import type { TurnFilesystem } from "./turn-filesystem";
-import { readStoreText } from "./turn-store-read";
+import { publishStoreDoc } from "./turn-store-doc";
 import type { TurnRequest } from "./types";
 
 /**
@@ -25,17 +24,9 @@ export async function publishLearningsDoc(
   workspaceRel: string,
 ): Promise<ActivityDocPublishResult> {
   const rel = docKey(workspaceRel, "learnings");
-  const derive = async () => {
-    const raw = await readStoreText(source, rel);
-    return raw === null
-      ? []
-      : normalizeLearnings(parseJsonDoc(raw, rel), rel).items;
-  };
-  try {
-    return await publishDerived(target, derive);
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) };
-  }
+  return publishStoreDoc(target, source, rel, (raw) =>
+    raw === null ? [] : normalizeLearnings(parseJsonDoc(raw, rel), rel).items,
+  );
 }
 
 /** A claimed turn's memories write or deletion, projected (null = no doc system). */

@@ -13,8 +13,6 @@ export const OP_EXCLUSIONS = {
     "starting a first day fires the setup task's first turn, which a file-only worker cannot do",
   "agent-credentials":
     "credential writes ride their own op kinds against the gateway's secret store — a worker's hydrated tree holds no vault",
-  "routine-runs":
-    "firing or cancelling a run starts a turn, so it is the gateway's own pooled run-now op rather than a route",
   "agent-activity":
     "the busy probe asks the runtime channel about a live pod, and a worker has no pod to answer for",
   "agent-approvals":

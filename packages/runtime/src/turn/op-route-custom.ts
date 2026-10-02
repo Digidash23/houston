@@ -10,7 +10,8 @@ export const CUSTOM_DEFS_FILE = "custom-integrations.json";
 
 export interface CustomContext {
   manager: CustomIntegrationManager;
-  changed: () => boolean;
+  /** The slugs this op's mutations changed (empty = nothing changed). */
+  touched: ReadonlySet<string>;
   dispose: () => Promise<void>;
 }
 
@@ -51,20 +52,20 @@ export async function customIntegrationContext(
     ...(fetchImpl ? { fetchImpl } : {}),
   });
   const executor = new CustomExecutorHost(secrets, () => store.list());
-  let changed = false;
+  const touched = new Set<string>();
   const manager = new CustomIntegrationManager(
     store,
     secrets,
     executor,
-    () => {
-      changed = true;
+    (slug) => {
+      touched.add(slug);
     },
     // No OAuth options: sign-in never runs here (see the module doc).
     {},
   );
   return {
     manager,
-    changed: () => changed,
+    touched,
     dispose: () => executor.reset(),
   };
 }

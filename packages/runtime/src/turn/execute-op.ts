@@ -8,6 +8,7 @@ import { applyOp } from "./op-apply";
 import { partialSyncReply, projectDurableOp } from "./op-durability";
 import { executeOwnTreeOp } from "./op-own-tree";
 import { WorkerOpDeclinedError } from "./op-provider-guard";
+import { executeReconcileOp } from "./op-reconcile";
 import { opClaimId, opTreeOptions } from "./op-tree-options";
 import { parseOpRequest } from "./parse-op-request";
 import type { TurnServerDeps } from "./server-types";
@@ -88,6 +89,17 @@ export async function executeOp(
         : {}),
       ...opTreeOptions(op.op),
     });
+    if (op.op.kind === "reconcile") {
+      const reply = await executeReconcileOp({
+        deps,
+        op: { ...op, op: op.op },
+        turn: turnLike,
+        resolved,
+        filesystem,
+        heartbeat,
+      });
+      return json(res, reply.status, reply.body);
+    }
     const result = await (deps.runOp ?? applyOp)(
       op,
       filesystem,

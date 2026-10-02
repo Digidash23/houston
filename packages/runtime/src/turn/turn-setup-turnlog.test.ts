@@ -1,7 +1,8 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { createRoutine } from "@houston/domain";
 import { LocalDirStore } from "@houston/runtime-client/object-sync";
 import { afterEach, expect, test, vi } from "vitest";
 import { createTurnServer } from "./server";
@@ -28,19 +29,26 @@ interface TurnlogPost {
   body: { seq: number; frame: Record<string, unknown> }[];
 }
 
-async function claimedTurn(rels: string[], runTurn: TurnRunner) {
+async function claimedTurn(
+  rels: string[],
+  runTurn: TurnRunner,
+  extra: Record<string, unknown> = {},
+  contents: Record<string, string> = {},
+) {
   const storeRoot = await mkdtemp(join(tmpdir(), "turn-setup-turnlog-"));
   for (const rel of rels) {
     const path = join(storeRoot, "ws", "o1", "a1", ...rel.split("/"));
     await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, "x");
+    await writeFile(path, contents[rel] ?? "x");
   }
   const turnlog: TurnlogPost[] = [];
+  const fetched: string[] = [];
   const fetchImpl = (async (
     input: string | URL | Request,
     init?: RequestInit,
   ) => {
     const url = String(input);
+    fetched.push(url);
     if (url.includes("/v1/pod/turnlog/")) {
       turnlog.push({
         url,
@@ -82,13 +90,14 @@ async function claimedTurn(rels: string[], runTurn: TurnRunner) {
         token: "claim-token",
         heartbeatUrl: "https://gateway.test/v1/pool/claims/heartbeat",
       },
+      ...extra,
     }),
   });
   const frames = (await response.text())
     .split("\n")
     .filter((line) => line.startsWith("data: "))
     .map((line) => JSON.parse(line.slice(6)) as Record<string, unknown>);
-  return { frames, turnlog };
+  return { frames, turnlog, storeRoot, fetched };
 }
 
 test("a stray non-agent folder in the store does not fail the turn", async () => {
@@ -140,4 +149,43 @@ test("a claimed turn over a flat-layout agent fails setup before any provider wo
     type: "error",
     data: { message: "agent_not_migrated", code: "agent_not_migrated" },
   });
+});
+
+test("a pooled routine run over a flat-layout agent writes no running row", async () => {
+  const runTurn = vi.fn<TurnRunner>();
+  const routines = "workspaces/Personal/prime/.houston/routines/routines.json";
+  // The routines folder is migrated, the run history is still the flat
+  // file: a running row written first would create the family file the
+  // migration copies the flat history into, hiding it for good.
+  const { frames, storeRoot, fetched } = await claimedTurn(
+    [
+      "workspaces/Personal/prime/CLAUDE.md",
+      "workspaces/Personal/prime/.houston/activity/activity.json",
+      routines,
+      "workspaces/Personal/prime/.houston/routine_runs.json",
+    ],
+    runTurn,
+    { routine: { id: "r1" }, text: "" },
+    {
+      [routines]: JSON.stringify([
+        createRoutine(
+          { name: "Digest", prompt: "check", schedule: "0 9 * * *" },
+          "r1",
+          "2026-09-29T10:00:00.000Z",
+        ),
+      ]),
+    },
+  );
+
+  expect(runTurn).not.toHaveBeenCalled();
+  expect(frames.at(-1)).toMatchObject({
+    type: "error",
+    data: { code: "agent_not_migrated" },
+  });
+  const runs = join(
+    storeRoot,
+    "ws/o1/a1/workspaces/Personal/prime/.houston/routine_runs/routine_runs.json",
+  );
+  await expect(access(runs)).rejects.toThrow();
+  expect(fetched.filter((url) => url.includes("routine_runs"))).toEqual([]);
 });

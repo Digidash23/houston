@@ -6,6 +6,7 @@ import { type TurnFilesystem, turnRoutineRunsKey } from "./turn-filesystem";
 import { publishTurnLearningsDoc } from "./turn-learnings-doc";
 import { publishTurnRoutinesDoc } from "./turn-routines-doc";
 import { publishTurnRunsDoc } from "./turn-runs-doc";
+import { docNotLandedReason } from "./turn-view-publish";
 import type { TurnRequest } from "./types";
 
 type Turn = TurnRequest & { turnId: string };
@@ -34,21 +35,16 @@ export async function publishLandedFamilyDocs(input: {
   const { deps, turn, filesystem } = input;
   const errors: string[] = [];
   const stale: FamilyEvent[] = [];
+  // A doc the store refused (403/404) stays stale, so its event is not
+  // promised; the file is durable, so the turn did not fail.
   const settle = (
     event: FamilyEvent,
     label: string,
     result: ActivityDocPublishResult | null,
-    refusedIsStale = false,
   ) => {
     if (result && "error" in result)
       errors.push(`${label} doc publish failed: ${result.error}`);
-    if (
-      !result ||
-      "error" in result ||
-      "skipped" in result ||
-      (refusedIsStale && "disabled" in result)
-    )
-      stale.push(event);
+    if (!result || docNotLandedReason(result)) stale.push(event);
   };
   if (input.landed.includes(turnRoutineRunsKey(filesystem.workspaceRel))) {
     // The runs doc is projected for routine fires only; any other turn that
@@ -79,13 +75,12 @@ export async function publishLandedFamilyDocs(input: {
       input.source,
     );
     // A pod-store whose turn-claim scope predates the learnings doc refuses
-    // it (403): the doc stays stale, so the event is not promised, but the
-    // memory is durable and the turn did not fail.
+    // it (403).
     if (learnings && "disabled" in learnings)
       console.warn(
         `[turn] learnings doc refused by the store (${learnings.reason}); asleep memories lag until the next projection`,
       );
-    if (learnings) settle("LearningsChanged", "learnings", learnings, true);
+    if (learnings) settle("LearningsChanged", "learnings", learnings);
   }
   return { errors, stale };
 }

@@ -20,8 +20,12 @@ const OP_ROUTE =
 const READ_ROUTE =
   /^files(\/.+)?$|^agentfile\/|^skills\/[^/]+$|^skills-manifest$|^portable\/preview$|^migration\/status$|^integrations\/custom\/definitions$|^integrations\/custom\/definitions\/[^/]+\/tools$/;
 
+// A routine run's stop: the gateway released the run's pool claim first, so
+// the worker settles the row only (host op/routine-run-cancel.ts).
+const RUN_CANCEL_ROUTE = /^routines\/[^/]+\/runs\/[^/]+\/cancel$/;
+
 export function isOpRoute(decodedRest: string): boolean {
-  return OP_ROUTE.test(decodedRest);
+  return OP_ROUTE.test(decodedRest) || RUN_CANCEL_ROUTE.test(decodedRest);
 }
 
 export function isReadOpRoute(decodedRest: string): boolean {

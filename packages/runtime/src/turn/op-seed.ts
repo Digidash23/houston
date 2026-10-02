@@ -4,11 +4,7 @@ import type { ObjectStore } from "@houston/runtime-client/object-sync";
 import type { SeedOp } from "./op-grammar-seed";
 import type { DocDeps, OpClaimTurn } from "./op-republish";
 import { classifySeedListing, listPrefix } from "./op-seed-listing";
-import {
-  publishSeedDocs,
-  RUNTIME_VIEW_SOURCES,
-  type SeedViewSources,
-} from "./op-seed-publish";
+import { publishSeedDocs } from "./op-seed-publish";
 import { syncSeedTree, withdrawSeedTree } from "./op-seed-sync";
 import {
   buildSeedTree,
@@ -16,6 +12,7 @@ import {
   pruneListed,
   type SeedTree,
 } from "./op-seed-tree";
+import { RUNTIME_VIEW_SOURCES, type SeedViewSources } from "./op-seed-views";
 import type { OpRequest } from "./parse-op-request";
 
 /** The worker's HTTP answer to `/op` for a seed. */
