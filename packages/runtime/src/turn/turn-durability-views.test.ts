@@ -460,15 +460,26 @@ test("a turn that deletes the memories file republishes an empty doc", async () 
   expect(result.changed).toContain("LearningsChanged");
 });
 
-/**
- * A sleeping agent's skill create, run the way executeOp runs it (the real
- * handler over a lazy tree, the scoped sync-back), split before its doc
- * projection so a test can interleave a turn's publish.
- */
-async function landSkillCreateOp(
+const landSkillCreateOp = (
   agent: AgentStore,
   docs: ReturnType<typeof podDocs>,
   name: string,
+) =>
+  landOp(agent, docs, {
+    method: "POST",
+    rest: "skills",
+    body: { name, description: `${name} op`, content: "Go" },
+  });
+
+/**
+ * A sleeping agent's op, run the way executeOp runs it (the real
+ * handler over a lazy tree, the scoped sync-back), split before its doc
+ * projection so a test can interleave a turn's publish.
+ */
+async function landOp(
+  agent: AgentStore,
+  docs: ReturnType<typeof podDocs>,
+  route: { method: string; rest: string; body: unknown },
 ) {
   const op = parseOpRequest({
     workspaceId: "w1",
@@ -479,10 +490,10 @@ async function landSkillCreateOp(
     triggersEnabled: false,
     op: {
       kind: "route",
-      method: "POST",
-      rest: "skills",
+      method: route.method,
+      rest: route.rest,
       contentType: "application/json",
-      body: JSON.stringify({ name, description: `${name} op`, content: "Go" }),
+      body: JSON.stringify(route.body),
     },
   });
   const filesystem = await prepareTurnFilesystem({
@@ -493,7 +504,7 @@ async function landSkillCreateOp(
     ...opTreeOptions(op.op),
   });
   const result = await applyOp(op, filesystem);
-  expect(result.status).toBe(201);
+  expect(result.status).toBeLessThan(300);
   const synced = await syncBack(
     agent.store,
     PREFIX,
@@ -540,4 +551,41 @@ test("an op that projects after a turn keeps the turn's skill", async () => {
   expect(skillNames(docs)).toEqual(["alpha", "beta", "existing"]);
   expect(docs.doc("skills")).toEqual(await podSkillsAnswer(agent));
   expect(announced).toContain("SkillsChanged");
+});
+
+test("an op that projects after a turn keeps the turn's memory", async () => {
+  // The Memories tab's whole-list save lands from a tree listed before the
+  // turn's save_learning; projecting that list would drop the turn's fact.
+  const agent = await agentStore();
+  const docs = podDocs({ learnings: await podLearnings(agent) });
+  const project = await landOp(agent, docs, {
+    method: "PUT",
+    rest: "learnings",
+    body: {
+      items: [
+        ...(await podLearnings(agent)),
+        { id: "l-op", text: "Saved from the tab", created_at: "2026-10-01" },
+      ],
+    },
+  });
+  const turn = await claimedTurn(agent, docs);
+  await turn.saveLearning("Prefers mornings");
+  await turn.settle();
+
+  const announced = await project();
+
+  expect(docs.doc("learnings")).toEqual(await podLearnings(agent));
+  expect(docs.doc("learnings")).toHaveLength(3);
+  expect(announced).toContain("LearningsChanged");
+});
+
+test("an op whose skills view the store would not take announces nothing", async () => {
+  const agent = await agentStore();
+  const docs = podDocs(
+    { skills: await podSkillsAnswer(agent) },
+    { outOfScope: ["skills"] },
+  );
+  const project = await landSkillCreateOp(agent, docs, "alpha");
+
+  expect(await project()).toEqual([]);
 });

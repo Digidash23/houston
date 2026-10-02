@@ -9,16 +9,13 @@ import {
 import type { Vfs } from "@houston/host/src/vfs";
 import type { HoustonEvent } from "@houston/protocol";
 import type { OpResult } from "./op-apply";
+import { publishOpStoreDocs } from "./op-store-docs";
 import type { TurnServerDeps } from "./server-types";
 import { publish } from "./turn-activity-doc";
 import type { ActivityDocSource } from "./turn-activity-source";
 import type { TurnFilesystem } from "./turn-filesystem";
-import {
-  isSkillsView,
-  landedSkillSlugs,
-  publishSkillsView,
-} from "./turn-skills-doc";
 import { poolIdentity } from "./turn-store";
+import { viewPublishFailure } from "./turn-view-publish";
 
 /** The claim an op publishes under (its store writes use the same one). */
 export interface OpClaimTurn {
@@ -115,8 +112,8 @@ export async function publishFamilyDocs(
 }
 
 /** Re-project every family the op changed, the skills its landed SKILL.md
- *  writes and deletes changed (`landed`, read back through `source`), and
- *  the custom definitions view it re-captured. */
+ *  writes and deletes changed (`landed`), and the custom definitions view it
+ *  re-captured. Skills and learnings are read back through `source`. */
 export async function republish(
   deps: DocDeps,
   turn: OpClaimTurn,
@@ -132,6 +129,7 @@ export async function republish(
     const family = EVENT_FAMILY[event.type];
     if (family) families.add(family);
   }
+  const learnings = families.delete("learnings");
   const diagnostics = await publishFamilyDocs(
     deps,
     turn,
@@ -139,20 +137,16 @@ export async function republish(
     filesystem.workspaceRel,
     families,
   );
-  const slugs = landedSkillSlugs(filesystem.workspaceRel, landed);
-  if (slugs.size > 0) {
-    // The same merge pooled turns publish with: the op's captured list is a
-    // snapshot from its listing, which would drop a turn's newer skill.
-    const outcome = await publishSkillsView({
-      target: { ...common, family: "skills" },
+  diagnostics.push(
+    ...(await publishOpStoreDocs({
+      common,
       source,
       filesystem,
-      slugs,
-      base: async () =>
-        isSkillsView(result.skillsView) ? result.skillsView : undefined,
-    });
-    if ("error" in outcome) diagnostics.push(`skills: ${outcome.error}`);
-  }
+      result,
+      landed,
+      learnings,
+    })),
+  );
   if (result.customDefinitionsView !== undefined) {
     // The definitions list is a view doc (docs/view-capture.ts family), so
     // the gateway's asleep reads show the mutation immediately.
@@ -160,8 +154,8 @@ export async function republish(
       { ...common, family: "custom_definitions" },
       result.customDefinitionsView,
     );
-    if ("error" in outcome)
-      diagnostics.push(`custom_definitions: ${outcome.error}`);
+    const failure = viewPublishFailure(outcome);
+    if (failure) diagnostics.push(`custom_definitions: ${failure}`);
   }
   return diagnostics;
 }
