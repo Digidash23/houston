@@ -104,8 +104,13 @@ async function worker(seed: {
       conversation(cid, messages),
     );
   const docs: DocCall[] = [];
+  let failReply = false;
   const fetchImpl = (async (input: unknown, init?: RequestInit) => {
     const path = new URL(String(input)).pathname;
+    if (failReply && path.endsWith("/assistant")) {
+      failReply = false;
+      return Response.json({ error: "boom" }, { status: 500 });
+    }
     if (path.startsWith("/v1/pod/docs/"))
       docs.push({
         method: init?.method ?? "GET",
@@ -158,7 +163,10 @@ async function worker(seed: {
     ).messages;
   const assistantPuts = () =>
     pool.transcripts.filter((t) => t.path.endsWith("/assistant"));
-  return { pool, docs, reconcile, runs, chat, assistantPuts };
+  const failNextReply = () => {
+    failReply = true;
+  };
+  return { pool, docs, reconcile, runs, chat, assistantPuts, failNextReply };
 }
 
 const abandonedFire = (userMessage?: ChatMessage) => ({
@@ -223,10 +231,32 @@ test("a routine fire whose sandbox died settles its run and its chat once, and a
   expect(again.status, JSON.stringify(again)).toBe(200);
   expect(again.events).toEqual([]);
   expect(w.pool.writes).toHaveLength(writesBefore);
-  expect(w.assistantPuts()).toHaveLength(1);
   expect(
     w.chat("routine-r1").filter((m) => m.interrupted !== undefined),
   ).toHaveLength(1);
+  // The retry re-sends the same reply (the store keeps one per turn).
+  expect(w.assistantPuts().map((p) => p.body)).toEqual([
+    w.assistantPuts()[0]?.body,
+    w.assistantPuts()[0]?.body,
+  ]);
+});
+
+test("an attempt whose projection fails declines, and the retry finishes it", async () => {
+  const w = await worker({ chats: { "routine-r1": earlier } });
+  w.failNextReply();
+  const op = abandonedFire(userOf("t1", STARTED));
+
+  const first = await w.reconcile(op);
+  expect(first.decline, JSON.stringify(first)).toBe(true);
+  // The files are durable already.
+  expect(w.runs().find((r) => r.id === "t1")?.status).toBe("error");
+
+  const second = await w.reconcile(op);
+  expect(second.status, JSON.stringify(second)).toBe(200);
+  expect(w.assistantPuts().at(-1)?.path).toContain("/turns/t1/assistant");
+  expect(
+    w.docs.filter((d) => d.family === "routine_runs" && d.method === "PUT"),
+  ).toHaveLength(2);
 });
 
 test("a chat turn that died gets one interruption reply and no run row", async () => {
@@ -354,4 +384,62 @@ test("a stale running row with no turn named settles as the pod's reconcile woul
     status: "error",
     summary: "The routine timed out without a response.",
   });
+});
+
+test("a run that failed on a credential wall completes its streak and pauses the routine", async () => {
+  const walls: RoutineRun[] = Array.from({ length: 9 }, (_, i) => ({
+    id: `w${i}`,
+    routine_id: "r1",
+    status: "error",
+    session_key: "routine-r1",
+    started_at: new Date(STARTED - (i + 1) * 3_600_000).toISOString(),
+    completed_at: new Date(
+      STARTED - (i + 1) * 3_600_000 + 60_000,
+    ).toISOString(),
+    failure: { code: "out_of_credits", provider: "anthropic" },
+  }));
+  const stale: RoutineRun = {
+    id: "t1",
+    routine_id: "r1",
+    status: "running",
+    session_key: "routine-r1",
+    started_at: new Date(STARTED).toISOString(),
+  };
+  const w = await worker({
+    runs: [stale, ...walls],
+    chats: {
+      "routine-r1": [
+        userOf("t1", STARTED),
+        {
+          role: "assistant",
+          content: "",
+          ts: STARTED + 1000,
+          turnId: "t1",
+          providerError: {
+            kind: "quota_exhausted",
+            provider: "anthropic",
+            message: "credit balance too low",
+          },
+        },
+      ],
+    },
+  });
+  // The store's copy carries an edit the seed does not: the pause rebases
+  // on it rather than writing a stale entry back.
+  w.pool.put(
+    `${AGENT}/.houston/routines/routines.json`,
+    JSON.stringify([{ ...routine, name: "Renamed digest" }]),
+  );
+
+  const json = await w.reconcile({ conversationId: "routine-r1" });
+
+  expect(json.status, JSON.stringify(json)).toBe(200);
+  expect(json.events).toEqual(
+    expect.arrayContaining(["RoutineRunsChanged", "RoutinesChanged"]),
+  );
+  const [saved] = JSON.parse(
+    w.pool.read(`${AGENT}/.houston/routines/routines.json`),
+  ) as Routine[];
+  expect(saved).toMatchObject({ name: "Renamed digest", enabled: false });
+  expect(saved?.auto_paused?.reason).toBe("out_of_credits");
 });

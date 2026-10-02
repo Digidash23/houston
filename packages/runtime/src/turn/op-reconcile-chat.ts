@@ -12,8 +12,9 @@ import type { TurnFilesystem } from "./turn-filesystem";
 
 /** What settling a dead turn's chat did. */
 export type ChatSettle =
-  /** The interruption reply this op wrote, for the transcript store. */
-  | { landed: ChatMessage }
+  /** The chat's interruption reply for the turn, for the transcript store:
+   *  this op wrote it, or an earlier attempt did. */
+  | { line: ChatMessage; written: boolean }
   /** Nothing to write: the turn answered, or the chat moved on past it. */
   | { skipped: "answered" | "superseded" | "unknown_turn" }
   /** The transcript is over the worker's read cap. */
@@ -37,7 +38,6 @@ export async function settleAbandonedChat(
   abandoned: AbandonedTurn,
 ): Promise<ChatSettle> {
   const { turnId, userMessage } = abandoned;
-  if (!userMessage) return { skipped: "unknown_turn" };
   const fileRel = posix.join(
     filesystem.dataRel,
     "conversations",
@@ -53,8 +53,13 @@ export async function settleAbandonedChat(
   const dir = join(filesystem.dataDir, "conversations");
   const existing = loadConversation(dir, conversationId);
   const messages = existing?.messages ?? [];
-  if (messages.some((m) => m.role === "assistant" && m.turnId === turnId))
-    return { skipped: "answered" };
+  const reply = messages.findLast(
+    (m) => m.role === "assistant" && m.turnId === turnId,
+  );
+  // A retry finds the line an earlier attempt wrote: still the store's to get.
+  if (reply?.interrupted) return { line: reply, written: false };
+  if (reply) return { skipped: "answered" };
+  if (!userMessage) return { skipped: "unknown_turn" };
   const userIndex = messages.findLastIndex(
     (m) => m.role === "user" && m.turnId === turnId,
   );
@@ -80,5 +85,5 @@ export async function settleAbandonedChat(
     turnId,
   });
   if (!written) throw new Error(`conversation ${conversationId} vanished`);
-  return { landed: written.message };
+  return { line: written.message, written: true };
 }

@@ -36,16 +36,41 @@ function replyAfter(
   return null;
 }
 
-/** Each run's reply, in `runs` order: the shadow's when it has one, else the
- *  conversation file's. */
+/** The reply stamped with the run's own turn (a pooled run's id IS its turn
+ *  id), else the latest after its start. */
+function turnReply(
+  conversation: StoredConversation | null,
+  run: RoutineRun,
+): ChatMessage | null {
+  const own = conversation?.messages.findLast(
+    (m) => m.role === "assistant" && m.turnId === run.id,
+  );
+  return own ?? replyAfter(conversation, Date.parse(run.started_at));
+}
+
+/**
+ * Each run's reply, in `runs` order: the shadow's when it has one, else the
+ * conversation file's. A run whose turn is known dead (`abandoned`) is
+ * answered only by its own turn's reply, read from the file: in a shared
+ * chat a later turn's reply is the latest, and would hide it.
+ */
 export function loadRunReplies(
   deps: { vfs: Vfs; paths: WorkspacePaths; replyReader?: ReplyReader },
   ws: Workspace,
   agent: Agent,
   runs: readonly RoutineRun[],
+  abandoned?: ReadonlySet<string>,
 ): Promise<(ChatMessage | null)[]> {
+  const read = async (cid: string) => {
+    const raw = await deps.vfs.readText(
+      conversationKey(deps.paths, ws, agent, cid),
+    );
+    return raw ? (JSON.parse(raw) as StoredConversation) : null;
+  };
   return Promise.all(
     runs.map(async (run) => {
+      if (abandoned?.has(run.id))
+        return turnReply(await read(run.session_key), run);
       const startedAtMs = Date.parse(run.started_at);
       let remoteReply: ChatMessage | null | undefined;
       try {
@@ -60,11 +85,7 @@ export function loadRunReplies(
         );
       }
       if (remoteReply) return remoteReply;
-      const raw = await deps.vfs.readText(
-        conversationKey(deps.paths, ws, agent, run.session_key),
-      );
-      const conversation = raw ? (JSON.parse(raw) as StoredConversation) : null;
-      return replyAfter(conversation, startedAtMs);
+      return replyAfter(await read(run.session_key), startedAtMs);
     }),
   );
 }

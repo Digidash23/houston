@@ -1,95 +1,99 @@
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { normalizeRoutineRuns, parseJsonDoc } from "@houston/domain";
 import type { ChatMessage, HoustonEvent } from "@houston/protocol";
 import { mergeRoutineRunArrays } from "@houston/runtime-client/object-sync";
-import { docTarget, type OpClaimTurn, publishFamilyDocs } from "./op-republish";
+import { docTarget, type OpClaimTurn, republish } from "./op-republish";
 import type { TurnServerDeps } from "./server-types";
-import { publish } from "./turn-activity-doc";
-import {
-  type ActivityDocSource,
-  readLocalActivityDoc,
-  readStoredActivityDoc,
-} from "./turn-activity-source";
+import type { ActivityDocSource } from "./turn-activity-source";
 import { publishMerged } from "./turn-doc-merge-publish";
-import {
-  type TurnFilesystem,
-  turnActivityKey,
-  turnRoutineRunsKey,
-} from "./turn-filesystem";
+import { type TurnFilesystem, turnRoutineRunsKey } from "./turn-filesystem";
 import { poolIdentity } from "./turn-store";
 import { putTranscriptRow } from "./turn-transcript-http";
 import { docNotLandedReason } from "./turn-view-publish";
 
 /**
- * After a reconcile op's sync-back: the transcript store gets the
- * interruption reply (the file landed first, as a turn's does), and every doc
- * a sleeping agent's reads come from re-projects what landed. The run history
- * merges by run id into the doc, as a routine turn's does: overlapping fires
- * of the agent publish there too. Answers the projections that failed.
+ * A reconcile op's projections, re-run on every attempt whether or not this
+ * one changed a file: an attempt whose files landed but whose projection
+ * failed declines, and the retry finds nothing left to write but still owes
+ * the transcript store its reply and the run history doc its rows. Every
+ * step is idempotent. Answers the projections that failed.
  */
 export async function publishReconcile(input: {
   deps: TurnServerDeps;
   turn: OpClaimTurn;
   filesystem: TurnFilesystem;
   source: ActivityDocSource;
+  /** What this attempt changed (the board and the routines follow it). */
   events: readonly HoustonEvent[];
-  landed?: ChatMessage;
-  uploaded: readonly string[];
+  /** The chat's interruption reply for the dead turn. */
+  line?: ChatMessage;
+  /** The op settles runs (a routine fire, a stale row): their doc follows. */
+  runs: boolean;
+  landed: readonly string[];
 }): Promise<string[]> {
   const { deps, turn, filesystem } = input;
   const failures: string[] = [];
-  if (input.landed) failures.push(...(await mirrorReply(input, input.landed)));
+  // The file landed first, as a turn's does: the store's file-to-database
+  // repair then keeps the line too.
+  if (input.line) failures.push(...(await mirrorReply(input, input.line)));
   const target = docTarget(deps, turn);
   if (!target) return failures;
-  const { workspaceRel } = filesystem;
-  const runsKey = turnRoutineRunsKey(workspaceRel);
-  if (input.uploaded.includes(runsKey)) {
-    // The sync-back merge left the file as the bytes it uploaded.
-    const rows = normalizeRoutineRuns(
-      parseJsonDoc(await readFile(runsPath(filesystem), "utf8"), runsKey),
-      runsKey,
-    ).items;
-    const outcome = await publishMerged(
-      { ...target, family: "routine_runs" },
-      (current) =>
-        mergeRoutineRunArrays(
-          normalizeRoutineRuns(current, runsKey).items,
-          rows,
-        ),
-    );
-    const failed = docNotLandedReason(outcome);
-    if (failed) failures.push(`routine_runs: ${failed}`);
-  }
-  if (input.uploaded.includes(turnActivityKey(workspaceRel))) {
-    const outcome = await publish(
-      { ...target, family: "activity" },
-      await readLocalActivityDoc(filesystem),
-      () => readStoredActivityDoc(input.source, filesystem),
-    );
-    const failed = docNotLandedReason(outcome);
-    if (failed) failures.push(`activity: ${failed}`);
-  }
-  if (input.events.some((e) => e.type === "RoutinesChanged")) {
+  if (input.runs) failures.push(...(await publishRunsDoc(target, filesystem)));
+  const others = input.events.filter(
+    (e) => e.type === "ActivityChanged" || e.type === "RoutinesChanged",
+  );
+  if (others.length > 0) {
     failures.push(
-      ...(await publishFamilyDocs(deps, turn, filesystem.vfs, workspaceRel, [
-        "routines",
-      ])),
+      ...(await republish(
+        deps,
+        turn,
+        filesystem,
+        {
+          status: 200,
+          contentType: "application/json",
+          body: "",
+          events: others,
+          include: () => false,
+        },
+        input.landed,
+        input.source,
+      )),
     );
   }
   return failures;
 }
 
-const runsPath = (filesystem: TurnFilesystem) =>
-  join(
+/** The run history as the sync-back merge left it, merged into the doc by
+ *  run id: overlapping fires of the agent publish there too. */
+async function publishRunsDoc(
+  target: NonNullable<ReturnType<typeof docTarget>>,
+  filesystem: TurnFilesystem,
+): Promise<string[]> {
+  const path = join(
     filesystem.workspaceDir,
     ".houston",
     "routine_runs",
     "routine_runs.json",
   );
+  if (!existsSync(path)) return [];
+  const key = turnRoutineRunsKey(filesystem.workspaceRel);
+  const rows = normalizeRoutineRuns(
+    parseJsonDoc(await readFile(path, "utf8"), key),
+    key,
+  ).items;
+  const outcome = await publishMerged(
+    { ...target, family: "routine_runs" },
+    (current) =>
+      mergeRoutineRunArrays(normalizeRoutineRuns(current, key).items, rows),
+  );
+  const failed = docNotLandedReason(outcome);
+  return failed ? [`routine_runs: ${failed}`] : [];
+}
 
 /** PUT the reply under its turn. Idempotent per turn: a reply that already
- *  landed for this turn (a retry, or the turn's own) stays as it is. */
+ *  landed for the turn stays as it is. */
 async function mirrorReply(
   input: {
     deps: TurnServerDeps;

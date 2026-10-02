@@ -26,10 +26,13 @@ import type { TurnFilesystem } from "./turn-filesystem";
 
 export interface ReconcileApplied {
   events: HoustonEvent[];
-  /** The interruption reply written into the chat, for the transcript store. */
-  landed?: ChatMessage;
+  /** The chat's interruption reply for the dead turn, for the store. */
+  line?: ChatMessage;
   /** What became of the dead turn's chat (the reply body names it). */
   chat: string;
+  /** Routines whose run settled on a typed wall: the caller pauses them
+   *  after its sync-back, rebased on the store's routines. */
+  pause: string[];
   /** Not this worker's agent, or a chat over the read cap: decline. */
   decline?: true;
 }
@@ -53,11 +56,11 @@ export async function applyReconcileOp(
   const agent = await store.getAgent(agentId);
   const ws = agent ? await store.getWorkspace(agent.workspaceId) : null;
   if (!agent || !ws)
-    return { events: [], chat: "agent_missing", decline: true };
+    return { events: [], chat: "agent_missing", pause: [], decline: true };
   const events: HoustonEvent[] = [];
   const { abandoned } = op;
   let chat = "none";
-  let landed: ChatMessage | undefined;
+  let line: ChatMessage | undefined;
   if (abandoned) {
     const settled = await settleAbandonedChat(
       filesystem,
@@ -65,15 +68,17 @@ export async function applyReconcileOp(
       abandoned,
     );
     if ("tooLarge" in settled)
-      return { events: [], chat: "too_large", decline: true };
-    if ("landed" in settled) {
-      landed = settled.landed;
-      chat = "settled";
-      events.push({ type: "ConversationsChanged", agentPath: agentId });
+      return { events: [], chat: "too_large", pause: [], decline: true };
+    if ("line" in settled) {
+      line = settled.line;
+      chat = settled.written ? "settled" : "already_settled";
+      if (settled.written)
+        events.push({ type: "ConversationsChanged", agentPath: agentId });
     } else {
       chat = settled.skipped;
     }
   }
+  const pause: string[] = [];
   const deps: ReconcileDeps = {
     vfs: new PrefixedVfs(filesystem.vfs, "workspaces"),
     paths: new LocalPaths(),
@@ -83,6 +88,10 @@ export async function applyReconcileOp(
     events: collect(events),
     now: () => new Date(),
     newId: randomUUID,
+    // Never here: the hydrated routines would overwrite a concurrent edit.
+    pauseFailing: async (routineIds) => {
+      pause.push(...routineIds);
+    },
   };
   if (abandoned?.routine)
     await recordLostRun(deps, ws, agent, op.conversationId, abandoned);
@@ -90,7 +99,7 @@ export async function applyReconcileOp(
     conversationId: op.conversationId,
     ...(abandoned ? { abandoned: new Set([abandoned.turnId]) } : {}),
   });
-  return { events, chat, ...(landed ? { landed } : {}) };
+  return { events, chat, pause, ...(line ? { line } : {}) };
 }
 
 /**

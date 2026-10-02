@@ -10,8 +10,9 @@ import type { createTurnLog } from "./turn-log";
 import { landedMissionTitle } from "./turn-mission-title-outcome";
 import { remoteActivityReader } from "./turn-mission-title-remote";
 import { turnSessionRequest, unconnectedTurnOutcome } from "./turn-request";
-import { prepareRoutineTurn, RoutineTurnError } from "./turn-routine";
+import { RoutineTurnError } from "./turn-routine";
 import { finishRoutineTurn } from "./turn-routine-finish";
+import { startRoutineRun } from "./turn-routine-start";
 import type { makeTurnSandboxFetch } from "./turn-sandbox";
 import { runTurn, type TurnOutcome } from "./turn-session";
 import type { TurnSessionStartupTask } from "./turn-session-startup";
@@ -44,12 +45,10 @@ export async function executeReadyTurn(input: {
   let effectiveTurn = input.turn;
   if (input.turn.routine) {
     try {
-      routinePhase = await prepareRoutineTurn(
-        input.filesystem.workspaceDir,
-        input.turn,
-        input.turnId,
-        new Date().toISOString(),
-      );
+      routinePhase = await startRoutineRun({
+        ...input,
+        nowIso: new Date().toISOString(),
+      });
       effectiveTurn = {
         ...input.turn,
         text: routinePhase.text,

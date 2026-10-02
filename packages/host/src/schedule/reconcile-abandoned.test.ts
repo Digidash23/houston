@@ -265,3 +265,77 @@ test("a later turn's reply in a shared chat is not an abandoned run's answer", a
     "The routine was interrupted before it finished.",
   );
 });
+
+test("an abandoned run's own answer counts even when a later turn answered after it", async () => {
+  const env = await setup([run("t1")]);
+  await env.seed("routine-r1", [
+    { role: "user", content: "check", ts: STARTED.getTime(), turnId: "t1" },
+    {
+      role: "assistant",
+      content: "Two invoices are due.",
+      ts: STARTED.getTime() + 1000,
+      turnId: "t1",
+    },
+    { role: "user", content: "hi", ts: STARTED.getTime() + 2000, turnId: "t3" },
+    {
+      role: "assistant",
+      content: "Hello there.",
+      ts: STARTED.getTime() + 3000,
+      turnId: "t3",
+    },
+  ]);
+
+  await reconcileAgentRuns(deps(env.vfs), env.ws, env.agent, {
+    abandoned: new Set(["t1"]),
+  });
+
+  const [settled] = await env.runs();
+  expect(settled?.status).toBe("surfaced");
+  expect(settled?.summary).toContain("Two invoices are due.");
+});
+
+test("a deferred pause hands the failed routines to the caller instead of pausing here", async () => {
+  const env = await setup([
+    run("t1"),
+    ...Array.from({ length: ROUTINE_AUTO_PAUSE_AFTER - 1 }, (_, i) =>
+      run(`w${i}`, {
+        status: "error",
+        started_at: new Date(
+          STARTED.getTime() - (i + 1) * 60_000,
+        ).toISOString(),
+        completed_at: STARTED.toISOString(),
+        failure: { code: "out_of_credits", provider: "anthropic" },
+      }),
+    ),
+  ]);
+  await env.seed("routine-r1", [
+    {
+      role: "assistant",
+      content: "",
+      ts: STARTED.getTime() + 1000,
+      turnId: "t1",
+      providerError: {
+        kind: "quota_exhausted",
+        provider: "anthropic",
+        message: "credit balance too low",
+      },
+    },
+  ]);
+  const handed: string[][] = [];
+
+  await reconcileAgentRuns(
+    {
+      ...deps(env.vfs),
+      pauseFailing: async (ids) => {
+        handed.push(ids);
+      },
+    },
+    env.ws,
+    env.agent,
+    { abandoned: new Set(["t1"]) },
+  );
+
+  expect(handed).toEqual([["r1"]]);
+  const { items: routines } = await loadRoutines(env.vfs, env.root);
+  expect(routines[0]?.enabled).toBe(true);
+});

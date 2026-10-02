@@ -25,6 +25,12 @@ export interface ReconcileDeps {
   now: () => Date;
   newId: () => string;
   replyReader?: ReplyReader;
+  /**
+   * Pause the routines whose run just settled on a typed wall. Default: the
+   * host's pauseFailingRoutines, here and now. A pool worker runs the pooled
+   * pause after its sync-back instead, rebased on the store's routines.
+   */
+  pauseFailing?: (routineIds: string[]) => Promise<void>;
 }
 
 /** Narrows one sweep. The standing scheduler sweeps everything; a pool
@@ -80,6 +86,7 @@ export async function reconcileAgentRuns(
     ws,
     agent,
     candidates.map((c) => c.run),
+    scope.abandoned,
   );
 
   for (const [index, { run, routine }] of candidates.entries()) {
@@ -163,5 +170,6 @@ export async function reconcileAgentRuns(
       agentPath: agent.id,
     });
   }
-  await pauseFailingRoutines(deps, ws, agent, root, failedOn);
+  if (deps.pauseFailing) await deps.pauseFailing(failedOn);
+  else await pauseFailingRoutines(deps, ws, agent, root, failedOn);
 }
