@@ -1,7 +1,7 @@
 import type { WireEvent } from "@houston/runtime-client";
 import { afterEach, expect, test, vi } from "vitest";
 import { LOOP_WINDOW_CHARS } from "./runaway-output";
-import { firstResponseWindowMs, stallFailure } from "./stall-failure";
+import { stallFailure } from "./stall-failure";
 import { createStallWatchdog, type StallReason } from "./stall-watchdog";
 
 /**
@@ -21,7 +21,7 @@ function watch(firstResponseMs = 300) {
   const wd = createStallWatchdog({
     timeoutMs: 1000,
     firstResponseMs: (provider) =>
-      firstResponseWindowMs(provider, firstResponseMs),
+      provider === "openai-compatible" ? 0 : firstResponseMs,
     onStall: (reason, windowMs) => trips.push({ reason, windowMs }),
   });
   return { wd, trips };

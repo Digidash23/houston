@@ -293,20 +293,17 @@ export const config = {
     600_000,
   ),
   /**
-   * How long a model request may go without its response opening (no
-   * headers, no first stream event) before the stall watchdog ends the turn
-   * (session/stall-watchdog.ts, `unanswered`). Cloud provider APIs open their
-   * response within seconds, before any thinking; a silent think happens
-   * after that, under the 10-minute window above. On staging (RL2,
-   * 2026-10-03) 47 requests to one overloaded model sat unanswered until
-   * undici's 300 s header timeout. Two minutes leaves a slow start (a long
-   * prompt read before the first byte) many times its normal room and still
-   * frees the sandbox 3 minutes sooner. A custom endpoint (the user's own
-   * server) is exempt (session/stall-failure.ts). `0` disables it.
+   * How long a model request may wait for its response to open (headers or
+   * the first stream event) before the runtime sends it again, at most twice
+   * (ai/hedged-runtime.ts). After three full deadlines the stall watchdog ends
+   * the turn (`unanswered`). Claude Code gets it as its own request timeout,
+   * which it retries the same way. 15 s is 3x the measured p99 of the first
+   * byte (ai/first-byte.ts for the numbers). A custom endpoint (the user's own
+   * server) is exempt. `0` disables hedging and the cut.
    */
-  turnFirstResponseTimeoutMs: stallTimeoutMs(
-    env.HOUSTON_TURN_FIRST_RESPONSE_TIMEOUT_MS,
-    120_000,
+  turnFirstByteDeadlineMs: stallTimeoutMs(
+    env.HOUSTON_TURN_FIRST_BYTE_DEADLINE_MS,
+    15_000,
   ),
 
   /**

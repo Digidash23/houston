@@ -42,9 +42,9 @@ export function isAbortEcho(error: ProviderError): boolean {
  *   minutes after its response opens, so this window is long.
  * - `unanswered`: a request whose response never opened, for
  *   `firstResponseMs(provider)` (fed by `onPhase`). A provider that has not
- *   even sent its response headers is not thinking: on staging (RL2,
- *   2026-10-03) 47 requests to one overloaded model sat unanswered until
- *   undici's 300 s header timeout, each holding a sandbox.
+ *   even sent its response headers is not thinking. The hedge
+ *   (ai/hedged-runtime.ts) sends such a request again first; this window is
+ *   the backstop once every attempt has had its deadline (ai/first-byte.ts).
  * - `degenerate`: the reply turned into a repetition loop (runaway-output.ts).
  *
  * Timer-library-agnostic (plain `setTimeout`/`clearTimeout`) so tests drive it

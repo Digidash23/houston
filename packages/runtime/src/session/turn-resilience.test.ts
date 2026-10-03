@@ -27,7 +27,8 @@ process.env.HOUSTON_WORKSPACE_DIR = mkdtempSync(
   join(tmpdir(), "houston-resilience-ws-"),
 );
 process.env.HOUSTON_TURN_STALL_TIMEOUT_MS = "5000";
-process.env.HOUSTON_TURN_FIRST_RESPONSE_TIMEOUT_MS = "2000";
+// Unanswered cut = 3 deadlines and a third: 600 ms -> 2,000 ms.
+process.env.HOUSTON_TURN_FIRST_BYTE_DEADLINE_MS = "600";
 
 const STALL_MS = 5000;
 const FIRST_RESPONSE_MS = 2000;
@@ -186,7 +187,7 @@ class ToolInputSession implements HarnessSession {
 }
 
 /** A StallSession that reports its request going out: the response never
- *  opens, so the first-response window applies, not the quiet-stream one. */
+ *  opens, so the unanswered cut applies, not the quiet-stream one. */
 class UnansweredSession extends StallSession {
   private phases = new Set<(p: ModelPhase) => void>();
   subscribeModelPhase(l: (p: ModelPhase) => void): () => void {
@@ -482,7 +483,7 @@ test("a queued message is persisted + visible BEFORE the workdir lock frees — 
   await turn.catch(() => {});
 });
 
-test("a request whose response never opens is cut at the first-response window, well before the stall window", async () => {
+test("a request whose response never opens is cut once its retries have had their deadlines, well before the stall window", async () => {
   vi.useFakeTimers();
   state.model = OPENAI;
   const session = new UnansweredSession();

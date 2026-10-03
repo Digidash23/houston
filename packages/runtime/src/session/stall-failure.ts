@@ -1,20 +1,5 @@
 import type { ProviderError } from "@houston/runtime-client";
-import { OPENAI_COMPATIBLE } from "../ai/openai-compatible-model";
 import type { StallReason } from "./stall-watchdog";
-
-/**
- * The `unanswered` window for a request to `provider` (stall-watchdog.ts), 0
- * for none. A custom endpoint is the user's own server (Ollama, LM Studio,
- * vLLM), where loading the model and reading a long prompt on a laptop can
- * take minutes before the first byte, so it keeps only the quiet-stream
- * window.
- */
-export function firstResponseWindowMs(
-  provider: string,
-  configuredMs: number,
-): number {
-  return provider === OPENAI_COMPATIBLE ? 0 : configuredMs;
-}
 
 /** What the watchdog saw, for the log line and the card's message. */
 export function describeStall(reason: StallReason, windowMs: number): string {
@@ -23,7 +8,7 @@ export function describeStall(reason: StallReason, windowMs: number): string {
     case "silent":
       return `no provider event for ${seconds}s`;
     case "unanswered":
-      return `the provider did not start answering within ${seconds}s`;
+      return `the provider did not start answering within ${seconds}s, retries included`;
     case "degenerate":
       return "the reply turned into a repetition loop";
   }

@@ -164,7 +164,7 @@ async function run(
   dirs: TurnDirectories,
   backend: HarnessBackend,
   frames: WireFrame[],
-  windows: { stallTimeoutMs?: number; firstResponseTimeoutMs?: number } = {},
+  windows: { stallTimeoutMs?: number; firstByteDeadlineMs?: number } = {},
 ) {
   return runTurn(
     dirs,
@@ -179,7 +179,7 @@ async function run(
     {
       createBackend: () => backend,
       stallTimeoutMs: windows.stallTimeoutMs ?? 40,
-      firstResponseTimeoutMs: windows.firstResponseTimeoutMs ?? 120_000,
+      firstByteDeadlineMs: windows.firstByteDeadlineMs ?? 15_000,
     },
   );
 }
@@ -225,14 +225,14 @@ test("backend liveness keeps a long silent generation alive", async () => {
   expect(frames.filter((frame) => frame.type === "provider_error")).toEqual([]);
 });
 
-test("a request the provider never answers ends the pooled turn at the first-response window", async () => {
+test("a request the provider never answers ends the pooled turn once its retries have had their deadlines", async () => {
   const dirs = await directories();
   const frames: WireFrame[] = [];
 
   // The quiet-stream window is long; the unanswered one is what ends it.
   await run(dirs, phasedBackend(), frames, {
     stallTimeoutMs: 60_000,
-    firstResponseTimeoutMs: 40,
+    firstByteDeadlineMs: 15,
   });
 
   const errors = frames.filter((frame) => frame.type === "provider_error");
@@ -251,7 +251,7 @@ test("a reply stuck in a loop ends the pooled turn with the broken-response card
 
   await run(dirs, phasedBackend({ loop: "Symbol".repeat(20) }), frames, {
     stallTimeoutMs: 60_000,
-    firstResponseTimeoutMs: 60_000,
+    firstByteDeadlineMs: 60_000,
   });
 
   const errors = frames.filter((frame) => frame.type === "provider_error");
@@ -271,7 +271,7 @@ test("a loop after a retried failure settles on the loop's card, not the stale f
     dirs,
     phasedBackend({ loop: "Symbol".repeat(20), staleError: true }),
     frames,
-    { stallTimeoutMs: 60_000, firstResponseTimeoutMs: 60_000 },
+    { stallTimeoutMs: 60_000, firstByteDeadlineMs: 60_000 },
   );
 
   const errors = frames.filter((frame) => frame.type === "provider_error");

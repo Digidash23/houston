@@ -26,7 +26,7 @@ export async function promptTurnSession(input: {
   interaction: ReturnType<typeof newInteractionHolder>;
   usedTokens: ReturnType<typeof newUsedTokenCapture>;
   stallTimeoutMs: number;
-  firstResponseTimeoutMs: number;
+  firstByteDeadlineMs: number;
   emit: (frame: WireFrame) => void;
 }): Promise<void> {
   const { session, turn, frames, emit } = input;
@@ -36,7 +36,7 @@ export async function promptTurnSession(input: {
   const stall = guardTurnStall({
     session,
     timeoutMs: input.stallTimeoutMs,
-    firstResponseTimeoutMs: input.firstResponseTimeoutMs,
+    firstByteDeadlineMs: input.firstByteDeadlineMs,
     conversationId: turn.conversationId,
     turnId: turn.turnId,
   });

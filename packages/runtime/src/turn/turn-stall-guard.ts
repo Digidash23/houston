@@ -1,10 +1,7 @@
 import type { ProviderError, WireEvent } from "@houston/runtime-client";
+import { unansweredWindowMs } from "../ai/first-byte";
 import type { HarnessSession } from "../backends/types";
-import {
-  describeStall,
-  firstResponseWindowMs,
-  stallFailure,
-} from "../session/stall-failure";
+import { describeStall, stallFailure } from "../session/stall-failure";
 import {
   createStallWatchdog,
   type StallReason,
@@ -37,8 +34,8 @@ export interface TurnStallGuard {
 export function guardTurnStall(input: {
   session: HarnessSession;
   timeoutMs: number;
-  /** The configured first-response window (stall-failure.ts exempts own servers). */
-  firstResponseTimeoutMs: number;
+  /** The first-byte deadline (ai/first-byte.ts); the cut follows its retries. */
+  firstByteDeadlineMs: number;
   conversationId: string;
   turnId: string;
 }): TurnStallGuard {
@@ -46,7 +43,7 @@ export function guardTurnStall(input: {
   const watchdog = createStallWatchdog({
     timeoutMs: input.timeoutMs,
     firstResponseMs: (provider) =>
-      firstResponseWindowMs(provider, input.firstResponseTimeoutMs),
+      unansweredWindowMs(provider, input.firstByteDeadlineMs),
     onStall: (reason, windowMs) => {
       trip = { reason, windowMs };
       console.warn(

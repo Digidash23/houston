@@ -24,8 +24,8 @@ export interface RunTurnDeps {
   createModelRuntime?: typeof createTurnModelRuntime;
   /** Test seam: the stall window, else `config.turnStallTimeoutMs`. */
   stallTimeoutMs?: number;
-  /** Test seam: the first-response window, else `config.turnFirstResponseTimeoutMs`. */
-  firstResponseTimeoutMs?: number;
+  /** Test seam: the first-byte deadline, else `config.turnFirstByteDeadlineMs`. */
+  firstByteDeadlineMs?: number;
 }
 
 export interface TurnSessionStartup {
