@@ -62,15 +62,16 @@ test("a provider that answers in time is sent one request", async () => {
   expect(faux.state.callCount).toBe(1);
 });
 
-test("a deadline of 0 (a custom endpoint) never hedges, however slow", async () => {
+test("a deadline of 0 (a custom endpoint) never hedges, however slow, and still reports its first byte", async () => {
   const slow = async () => {
     await new Promise((r) => setTimeout(r, DEADLINE_MS * 3));
     return fauxAssistantMessage("Slow local model");
   };
-  const { faux, session, events } = await hedgedSession([slow], 0);
+  const { faux, session, events, answered } = await hedgedSession([slow], 0);
   await session.prompt("hello");
   expect(text(events)).toBe("Slow local model");
   expect(faux.state.callCount).toBe(1);
+  expect(answered).toHaveLength(1);
 });
 
 test("a request pi retries itself at the provider level is never hedged", async () => {

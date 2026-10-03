@@ -45,14 +45,15 @@ export function hedgedModelRuntime(
     // event: that wait is not silence, so such a request is never hedged.
     const deadlineMs =
       (options?.maxRetries ?? 0) > 0 ? 0 : deadlineFor(model.provider);
-    if (deadlineMs <= 0) return runtime.streamSimple(model, context, options);
     const target = `provider=${model.provider} model=${model.id}`;
     let hedges = 0;
+    // Unhedged, the same race with no extra attempt still reports the first
+    // byte (the pooled turn's `first_byte` mark).
     return hedgedStream(
       (signal) => runtime.streamSimple(model, context, { ...options, signal }),
       {
         deadlineMs,
-        extraAttempts: FIRST_BYTE_EXTRA_ATTEMPTS,
+        extraAttempts: deadlineMs > 0 ? FIRST_BYTE_EXTRA_ATTEMPTS : 0,
         signal: options?.signal,
         onAttempt(attempt, afterMs) {
           hedges++;
