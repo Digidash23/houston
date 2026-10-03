@@ -45,52 +45,78 @@ export interface RunawayDetector {
 }
 
 /**
- * A markdown code fence. Text inside one is never judged: output a person
- * asked for that repeats by design (ASCII art, a zero-filled array, rows of
- * one CSV line) belongs in a code block, while the staging loops all ran in
- * plain prose.
+ * Text inside a markdown code block is never judged: output a person asked
+ * for that repeats by design (ASCII art, a zero-filled array, rows of one CSV
+ * line) belongs in one, while the staging loops all ran in plain prose. A
+ * fence is a line, as CommonMark has it: up to 3 spaces, then 3 or more
+ * backticks or tildes; it closes on a line of the same character, at least as
+ * long, with nothing after it. A backtick run mid-sentence is no fence.
  */
-const FENCE = "```";
+const FENCE_LINE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+/** A fence line is short; a longer line is kept only this far. */
+const FENCE_LINE_MAX = 256;
+
+interface Fence {
+  char: string;
+  run: number;
+}
+
+/** The fence `line` opens (when `open` is null) or whether it closes `open`. */
+function fenceAt(line: string, open: Fence | null): Fence | boolean {
+  const match = FENCE_LINE.exec(line.replace(/\r$/, ""));
+  if (!match) return false;
+  const [, run = "", rest = ""] = match;
+  const char = run.charAt(0);
+  if (open)
+    return char === open.char && run.length >= open.run && rest.trim() === "";
+  // A backtick opener's info string holds no backtick (that line is inline code).
+  if (char === "`" && rest.includes("`")) return false;
+  return { char, run: run.length };
+}
 
 interface Stream {
   /** The judged text since the last fence, at most a window of it. */
   tail: string;
   unjudged: number;
-  inFence: boolean;
-  /** The last characters seen, for a fence split across two deltas. */
-  carry: string;
+  fence: Fence | null;
+  /** The current line so far (capped), to recognize a fence line. */
+  line: string;
 }
 
 export function createRunawayDetector(): RunawayDetector {
   const streams = new Map<StreamedKind, Stream>();
+  const judged = (stream: Stream, text: string) => {
+    stream.tail = (stream.tail + text).slice(-LOOP_WINDOW_CHARS);
+    stream.unjudged += text.length;
+  };
   return {
     feed(kind, delta) {
       let stream = streams.get(kind);
       if (!stream) {
-        stream = { tail: "", unjudged: 0, inFence: false, carry: "" };
+        stream = { tail: "", unjudged: 0, fence: null, line: "" };
         streams.set(kind, stream);
       }
-      const scan = stream.carry + delta;
-      // Past the last fence in this delta, or -1 for none.
-      let after = -1;
-      for (
-        let at = scan.indexOf(FENCE);
-        at !== -1;
-        at = scan.indexOf(FENCE, at + FENCE.length)
-      ) {
-        stream.inFence = !stream.inFence;
-        after = at + FENCE.length;
-      }
-      stream.carry = scan.slice(Math.max(after, scan.length - 2, 0));
-      if (after !== -1) {
+      let from = 0;
+      while (from < delta.length) {
+        const newline = delta.indexOf("\n", from);
+        const end = newline === -1 ? delta.length : newline + 1;
+        const piece = delta.slice(from, end);
+        from = end;
+        if (!stream.fence) judged(stream, piece);
+        if (stream.line.length < FENCE_LINE_MAX)
+          stream.line = (stream.line + piece.replace("\n", "")).slice(
+            0,
+            FENCE_LINE_MAX,
+          );
+        if (newline === -1) break;
+        const at = fenceAt(stream.line, stream.fence);
+        stream.line = "";
+        if (at === false) continue;
+        stream.fence = at === true ? null : at;
         stream.tail = "";
         stream.unjudged = 0;
       }
-      if (stream.inFence) return false;
-      const fresh = after === -1 ? delta : scan.slice(after);
-      stream.tail = (stream.tail + fresh).slice(-LOOP_WINDOW_CHARS);
-      stream.unjudged += fresh.length;
-      if (stream.unjudged < JUDGE_EVERY_CHARS) return false;
+      if (stream.fence || stream.unjudged < JUDGE_EVERY_CHARS) return false;
       stream.unjudged = 0;
       return isRepetitionLoop(stream.tail);
     },

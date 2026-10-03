@@ -124,3 +124,43 @@ test("four backticks are one fence, not two", () => {
   detector.feed("text", "``\n");
   expect(detector.feed("text", repeat("#", 6000))).toBe(false);
 });
+
+/** Whether `reply`, streamed in deltas of `size`, ever trips. */
+function trips(reply: string, size: number): boolean {
+  const detector = createRunawayDetector();
+  for (let i = 0; i < reply.length; i += size)
+    if (detector.feed("text", reply.slice(i, i + size))) return true;
+  return false;
+}
+
+const block = (fence: string, body: string, info = "") =>
+  `${fence}${info}\n${body}\n${fence}\n`;
+const art = Array.from({ length: 80 }, () => "#".repeat(64)).join("\n");
+
+test("fences are lines of 3+ backticks or tildes, however the deltas split", () => {
+  for (const size of [1, 3, 7, 64, 100_000]) {
+    // Longer openers, tildes, an info string: all code blocks.
+    expect(trips(`Here:\n${block("``````", art)}Done.`, size)).toBe(false);
+    expect(trips(`Here:\n${block("~~~", art, "text")}Done.`, size)).toBe(false);
+    expect(trips(`Here:\n${block("```", art, "json")}Done.`, size)).toBe(false);
+    // A shorter run inside a longer block does not close it.
+    expect(trips(`Here:\n${block("````", `\`\`\`\n${art}`)}Done.`, size)).toBe(
+      false,
+    );
+  }
+});
+
+test("a backtick run mid-sentence opens no block, so a loop after it trips", () => {
+  for (const size of [1, 5, 64]) {
+    expect(
+      trips(
+        `Use \`\`\` to start a code block. ${prose(200)}${repeat("Symbol", 6000)}`,
+        size,
+      ),
+    ).toBe(true);
+    // Nor does inline code at the start of a line.
+    expect(
+      trips(`\`\`\` x \`\`\`\n${prose(200)}${repeat("Symbol", 6000)}`, size),
+    ).toBe(true);
+  }
+});
