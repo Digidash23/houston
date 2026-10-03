@@ -94,12 +94,16 @@ export function hedgedStream(
     try {
       stream = open(controller.signal);
     } catch (error) {
-      // The first attempt throws as the request alone would; a hedge that
-      // cannot even start leaves the others to answer.
-      if (index === 0) throw error;
       controller.abort();
       const failed = attempts[index];
       if (failed) failed.settled = true;
+      // The first attempt throws as the request alone would, leaving nothing
+      // behind; a hedge that cannot even start leaves the others to answer.
+      if (index === 0) {
+        clearTimeout(timer);
+        options.signal?.removeEventListener("abort", onCallerAbort);
+        throw error;
+      }
       return;
     }
     void pump(index, stream);

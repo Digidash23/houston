@@ -180,3 +180,19 @@ test("when every attempt fails, the last failure is the answer", async () => {
     error: { errorMessage: "second failure" },
   });
 });
+
+test("a first attempt that throws leaves nothing scheduled behind it", async () => {
+  vi.useFakeTimers();
+  let opens = 0;
+  expect(() =>
+    hedgedStream(
+      () => {
+        opens++;
+        throw new Error("no such model");
+      },
+      { deadlineMs: 1000, extraAttempts: 2 },
+    ),
+  ).toThrow("no such model");
+  await vi.advanceTimersByTimeAsync(10_000);
+  expect(opens).toBe(1);
+});

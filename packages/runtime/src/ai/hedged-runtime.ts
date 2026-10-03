@@ -40,7 +40,11 @@ export function hedgedModelRuntime(
     context: Context,
     options?: StreamSimpleOptions,
   ): AssistantMessageEventStream => {
-    const deadlineMs = deadlineFor(model.provider);
+    // pi's own provider-level retry (`retry.provider.maxRetries`, 0 unless a
+    // settings file raises it) can sleep out a 429's Retry-After before any
+    // event: that wait is not silence, so such a request is never hedged.
+    const deadlineMs =
+      (options?.maxRetries ?? 0) > 0 ? 0 : deadlineFor(model.provider);
     if (deadlineMs <= 0) return runtime.streamSimple(model, context, options);
     const target = `provider=${model.provider} model=${model.id}`;
     let hedges = 0;

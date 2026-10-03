@@ -72,3 +72,16 @@ test("a deadline of 0 (a custom endpoint) never hedges, however slow", async () 
   expect(text(events)).toBe("Slow local model");
   expect(faux.state.callCount).toBe(1);
 });
+
+test("a request pi retries itself at the provider level is never hedged", async () => {
+  const slow = async () => {
+    await new Promise((r) => setTimeout(r, DEADLINE_MS * 3));
+    return fauxAssistantMessage("After a provider-level retry");
+  };
+  const { faux, session, events } = await hedgedSession([slow], DEADLINE_MS, {
+    retry: { baseDelayMs: 0, provider: { maxRetries: 2 } },
+  });
+  await session.prompt("hello");
+  expect(text(events)).toBe("After a provider-level retry");
+  expect(faux.state.callCount).toBe(1);
+});

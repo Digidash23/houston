@@ -31,6 +31,9 @@ export const neverAnswers: FauxResponseStep = (_context, options) =>
 export async function hedgedSession(
   responses: FauxResponseStep[],
   deadlineMs = DEADLINE_MS,
+  settings: Parameters<typeof SettingsManager.inMemory>[0] = {
+    retry: { baseDelayMs: 0 },
+  },
 ) {
   const cwd = mkdtempSync(join(tmpdir(), "houston-hedge-"));
   const faux = fauxProvider({
@@ -57,7 +60,7 @@ export async function hedgedSession(
     ),
     model: faux.getModel() as never,
     sessionManager: SessionManager.inMemory(),
-    settingsManager: SettingsManager.inMemory({ retry: { baseDelayMs: 0 } }),
+    settingsManager: SettingsManager.inMemory(settings),
     tools: [],
     customTools: [],
   });
