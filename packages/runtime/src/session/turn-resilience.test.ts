@@ -7,6 +7,7 @@ import type {
   CreateSessionOptions,
   HarnessBackend,
   HarnessSession,
+  ModelPhase,
   ResolvedModel,
 } from "../backends/types";
 
@@ -26,8 +27,10 @@ process.env.HOUSTON_WORKSPACE_DIR = mkdtempSync(
   join(tmpdir(), "houston-resilience-ws-"),
 );
 process.env.HOUSTON_TURN_STALL_TIMEOUT_MS = "5000";
+process.env.HOUSTON_TURN_FIRST_RESPONSE_TIMEOUT_MS = "2000";
 
 const STALL_MS = 5000;
+const FIRST_RESPONSE_MS = 2000;
 
 const state = vi.hoisted(() => ({
   model: null as ResolvedModel | null,
@@ -179,6 +182,23 @@ class ToolInputSession implements HarnessSession {
   setThinkingLevel(): void {}
   getContextUsage(): { tokens: number | null } {
     return { tokens: 100 };
+  }
+}
+
+/** A StallSession that reports its request going out: the response never
+ *  opens, so the first-response window applies, not the quiet-stream one. */
+class UnansweredSession extends StallSession {
+  private phases = new Set<(p: ModelPhase) => void>();
+  subscribeModelPhase(l: (p: ModelPhase) => void): () => void {
+    this.phases.add(l);
+    return () => {
+      this.phases.delete(l);
+    };
+  }
+  override prompt(): Promise<void> {
+    for (const p of this.phases)
+      p({ phase: "requesting", provider: "openai-codex" });
+    return super.prompt();
   }
 }
 
@@ -426,4 +446,36 @@ test("a queued message is persisted + visible BEFORE the workdir lock frees — 
   release?.();
   await held;
   await turn.catch(() => {});
+});
+
+test("a request whose response never opens is cut at the first-response window, well before the stall window", async () => {
+  vi.useFakeTimers();
+  state.model = OPENAI;
+  const session = new UnansweredSession();
+  const conv = convWith(session);
+
+  const events: WireEvent[] = [];
+  const unsub = subscribe("conv-unanswered", (e) => events.push(e));
+  const done = execTurn(conv, "conv-unanswered", "turn-u", "hi", {
+    author: undefined,
+    priorAuthors: [],
+  });
+
+  await vi.advanceTimersByTimeAsync(0);
+  await vi.advanceTimersByTimeAsync(FIRST_RESPONSE_MS - 1);
+  expect(session.aborted).toBe(false);
+  await vi.advanceTimersByTimeAsync(1);
+  await done;
+  unsub();
+
+  expect(session.aborted).toBe(true);
+  const pe = events.find(
+    (e): e is Extract<WireEvent, { type: "provider_error" }> =>
+      e.type === "provider_error",
+  );
+  expect(pe?.data).toMatchObject({
+    kind: "provider_internal",
+    message: expect.stringContaining("did not start answering"),
+  });
+  expect(events.some((e) => e.type === "done")).toBe(false);
 });

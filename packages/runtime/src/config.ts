@@ -91,8 +91,8 @@ const hostReachable = Boolean(
  * usual `Number(env.X || default)`: "0" is falsy and would silently restore
  * the default. Only an absent or empty value takes the default.
  */
-function stallTimeoutMs(raw: string | undefined): number {
-  return raw === undefined || raw.trim() === "" ? 600_000 : Number(raw);
+function stallTimeoutMs(raw: string | undefined, fallbackMs: number): number {
+  return raw === undefined || raw.trim() === "" ? fallbackMs : Number(raw);
 }
 
 export const config = {
@@ -288,7 +288,26 @@ export const config = {
    * disable (fail-safe: no false aborts). Tool execution is exempt — a long
    * bash/build is silent.
    */
-  turnStallTimeoutMs: stallTimeoutMs(env.HOUSTON_TURN_STALL_TIMEOUT_MS),
+  turnStallTimeoutMs: stallTimeoutMs(
+    env.HOUSTON_TURN_STALL_TIMEOUT_MS,
+    600_000,
+  ),
+  /**
+   * How long a model request may go without its response opening (no
+   * headers, no first stream event) before the stall watchdog ends the turn
+   * (session/stall-watchdog.ts, `unanswered`). Cloud provider APIs open their
+   * response within seconds, before any thinking; a silent think happens
+   * after that, under the 10-minute window above. On staging (RL2,
+   * 2026-10-03) 47 requests to one overloaded model sat unanswered until
+   * undici's 300 s header timeout. Two minutes leaves a slow start (a long
+   * prompt read before the first byte) many times its normal room and still
+   * frees the sandbox 3 minutes sooner. A custom endpoint (the user's own
+   * server) is exempt (session/stall-failure.ts). `0` disables it.
+   */
+  turnFirstResponseTimeoutMs: stallTimeoutMs(
+    env.HOUSTON_TURN_FIRST_RESPONSE_TIMEOUT_MS,
+    120_000,
+  ),
 
   /**
    * Max live agent sessions kept hot in the in-memory conversation cache. Each
