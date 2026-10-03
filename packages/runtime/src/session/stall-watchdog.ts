@@ -66,6 +66,12 @@ export interface StallWatchdog {
   touch(): void;
   /** Feed a round-trip boundary (`HarnessSession.subscribeModelPhase`). */
   onPhase(phase: ModelPhase): void;
+  /**
+   * A new assistant message starts (`subscribeAssistantMessageStart`, which
+   * every backend implements): the loop check starts over, so short replies
+   * that each say the same thing never add up to a loop.
+   */
+  onResponseStart(): void;
   /** Stop watching + clear any pending timer (call in a `finally`). Idempotent. */
   disarm(): void;
 }
@@ -145,8 +151,10 @@ export function createStallWatchdog(opts: {
     },
     onPhase(next) {
       phase = next;
-      if (next.phase === "responding") runaway.reset();
       reset();
+    },
+    onResponseStart() {
+      runaway.reset();
     },
     disarm() {
       armed = false;

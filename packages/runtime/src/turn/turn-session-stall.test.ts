@@ -103,7 +103,7 @@ function silentBackend(opts: { liveFor?: number; tickMs?: number } = {}) {
  * `loop`, the response opens and streams that unit over and over; without
  * it the response never opens. Either way it hangs until aborted.
  */
-function phasedBackend(opts: { loop?: string } = {}) {
+function phasedBackend(opts: { loop?: string; staleError?: boolean } = {}) {
   const listeners = new Set<(e: WireEvent) => void>();
   const phases = new Set<(p: ModelPhase) => void>();
   let aborted = false;
@@ -131,6 +131,20 @@ function phasedBackend(opts: { loop?: string } = {}) {
     },
     async abort() {
       aborted = true;
+      // pi flushes a failure it held from an attempt it had since retried
+      // (a 429 before the looping reply) once the aborted prompt settles.
+      if (opts.staleError)
+        for (const l of listeners)
+          l({
+            type: "provider_error",
+            data: {
+              kind: "rate_limited",
+              provider: "opencode",
+              model: null,
+              retry_after_seconds: null,
+              message: "429 Too Many Requests",
+            },
+          });
       release?.();
     },
     dispose: () => undefined,
@@ -246,5 +260,23 @@ test("a reply stuck in a loop ends the pooled turn with the broken-response card
     kind: "malformed_response",
     provider: "openai-codex",
   });
+  expect(persistedError(dirs)?.kind).toBe("malformed_response");
+});
+
+test("a loop after a retried failure settles on the loop's card, not the stale failure", async () => {
+  const dirs = await directories();
+  const frames: WireFrame[] = [];
+
+  await run(
+    dirs,
+    phasedBackend({ loop: "Symbol".repeat(20), staleError: true }),
+    frames,
+    { stallTimeoutMs: 60_000, firstResponseTimeoutMs: 60_000 },
+  );
+
+  const errors = frames.filter((frame) => frame.type === "provider_error");
+  expect(errors.map((frame) => frame.data.kind)).toEqual([
+    "malformed_response",
+  ]);
   expect(persistedError(dirs)?.kind).toBe("malformed_response");
 });

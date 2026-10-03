@@ -298,9 +298,10 @@ export async function execTurn(
     unsubPhase = conv.session.subscribeModelPhase?.((phase) =>
       watchdog.onPhase(phase),
     );
-    unsubMessageStart = conv.session.subscribeAssistantMessageStart?.(() =>
-      interaction.finish.noteAssistantMessageStart(),
-    );
+    unsubMessageStart = conv.session.subscribeAssistantMessageStart?.(() => {
+      interaction.finish.noteAssistantMessageStart();
+      watchdog.onResponseStart();
+    });
     unsub = conv.session.subscribe((wire: WireEvent) => {
       if (wire.type === "text") {
         assistantText += wire.data;
@@ -329,12 +330,14 @@ export async function execTurn(
       } else if (wire.type === "provider_error") {
         // Our OWN abort (the watchdog's, or the user's Stop), echoed back by
         // pi as an unclassifiable error: drop it, never publish it. The turn's
-        // surface is the synthesized "stopped responding" card after prompt()
-        // resolves, or the "Stopped by user" frame cancelTurn already sent
-        // (stall-watchdog.ts, PRODUCT-1778).
+        // surface is the watchdog's synthesized card after prompt() resolves,
+        // or the "Stopped by user" frame cancelTurn already sent
+        // (stall-watchdog.ts, PRODUCT-1778). After a watchdog trip ANY
+        // provider error is its consequence, including a failure pi held from
+        // an attempt it had since retried (backends/pi/wire.ts).
         if (
-          (stalled || conv.stoppedTurnId === turnId) &&
-          isAbortEcho(wire.data)
+          stalled ||
+          (conv.stoppedTurnId === turnId && isAbortEcho(wire.data))
         )
           return;
         providerError = wire.data;

@@ -114,17 +114,22 @@ test("a looping reply trips at once, and only while armed", () => {
   expect(trips).toEqual([{ reason: "degenerate", windowMs: 0 }]);
 });
 
-test("a new response forgets the last one's text", () => {
+test("a new assistant message forgets the last one's text", () => {
   vi.useFakeTimers();
   const { wd, trips } = watch();
   wd.arm();
-  wd.onPhase({ phase: "responding" });
-  wd.onEvent(text("Anchor".repeat(600)));
-  wd.onPhase({ phase: "idle" });
-  wd.onPhase({ phase: "responding" });
-  // 3,600 + 600 characters of loop, but split across two responses.
-  wd.onEvent(text("Anchor".repeat(100)));
+  // Many short replies that each say the same thing (a backend with no
+  // phases, like Claude's, still marks each message start).
+  for (let i = 0; i < 200; i++) {
+    wd.onResponseStart();
+    wd.onEvent(text("Processing the next batch of records. "));
+  }
   expect(trips).toEqual([]);
+  // The same text in ONE message is a loop.
+  wd.onResponseStart();
+  for (let i = 0; i < 200 && trips.length === 0; i++)
+    wd.onEvent(text("Processing the next batch of records. "));
+  expect(trips).toEqual([{ reason: "degenerate", windowMs: 0 }]);
 });
 
 test("the watchdog trips at most once", () => {

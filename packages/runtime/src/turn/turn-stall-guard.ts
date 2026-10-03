@@ -7,7 +7,6 @@ import {
 } from "../session/stall-failure";
 import {
   createStallWatchdog,
-  isAbortEcho,
   type StallReason,
 } from "../session/stall-watchdog";
 
@@ -22,7 +21,7 @@ import {
  * wire event and by the backend's raw liveness feed (a tool call's streamed
  * input is wire-silent), suspended while a tool runs. On a trip it aborts the
  * session; the caller then settles the turn on the typed card for the trip
- * (`failure`), and pi's echo of that abort is dropped.
+ * (`failure`), and every provider error after it is dropped.
  */
 export interface TurnStallGuard {
   /** Feed one wire event. False means drop it: our own abort, echoed back. */
@@ -62,10 +61,16 @@ export function guardTurnStall(input: {
   const unsubPhase = input.session.subscribeModelPhase?.((phase) =>
     watchdog.onPhase(phase),
   );
+  const unsubResponse = input.session.subscribeAssistantMessageStart?.(() =>
+    watchdog.onResponseStart(),
+  );
   return {
     admit(event) {
-      if (trip && event.type === "provider_error" && isAbortEcho(event.data))
-        return false;
+      // After a trip, any provider error is a consequence of our abort: its
+      // echo, or a failure pi held from an attempt it had since retried
+      // (backends/pi/wire.ts flushes it when the prompt settles). The trip's
+      // own card is the turn's surface.
+      if (trip && event.type === "provider_error") return false;
       watchdog.onEvent(event);
       return true;
     },
@@ -74,6 +79,7 @@ export function guardTurnStall(input: {
       watchdog.disarm();
       unsubLiveness?.();
       unsubPhase?.();
+      unsubResponse?.();
     },
     stalled: () => trip !== undefined,
     failure: (provider) =>

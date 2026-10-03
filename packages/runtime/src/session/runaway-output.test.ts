@@ -97,3 +97,30 @@ test("a long legit reply streamed in small deltas never trips", () => {
   for (let i = 0; i < reply.length; i += 17)
     expect(detector.feed("text", reply.slice(i, i + 17))).toBe(false);
 });
+
+test("a code block is never judged, so requested repetition survives", () => {
+  const detector = createRunawayDetector();
+  const square = Array.from({ length: 64 }, () => "#".repeat(64)).join("\n");
+  const zeros = `[${Array.from({ length: 3000 }, () => "0").join(", ")}]`;
+  const reply = `Here is your square:\n\n\`\`\`\n${square}\n\`\`\`\n\nAnd the array:\n\`\`\`json\n${zeros}\n\`\`\`\nDone.`;
+  // Streamed in 7-character deltas, so fences split across them.
+  for (let i = 0; i < reply.length; i += 7)
+    expect(detector.feed("text", reply.slice(i, i + 7))).toBe(false);
+});
+
+test("a loop after a closed code block still trips", () => {
+  const detector = createRunawayDetector();
+  const reply = `\`\`\`\n${"#".repeat(5000)}\n\`\`\`\n${prose(300)}${repeat("Symbol", 6000)}`;
+  let tripped = false;
+  for (let i = 0; i < reply.length && !tripped; i += 5)
+    tripped = detector.feed("text", reply.slice(i, i + 5));
+  expect(tripped).toBe(true);
+});
+
+test("four backticks are one fence, not two", () => {
+  const detector = createRunawayDetector();
+  // "````" opens a block; if it counted twice, the loop inside would be judged.
+  detector.feed("text", "``");
+  detector.feed("text", "``\n");
+  expect(detector.feed("text", repeat("#", 6000))).toBe(false);
+});

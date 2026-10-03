@@ -12,8 +12,9 @@
  * characters, 4 to 48 s into replies that ran 112 to 217 s, while none of the
  * other 255 replies of the same run tripped. Real prose, code, tables and JSON hold
  * hundreds: the least varied 4 KiB window across the Houston and cloud repos
- * (3,806 files, 40 MB) held 278. Tool-call input is never judged, so a file
- * the model writes may repeat itself freely.
+ * (3,806 files, 40 MB) held 278. Tool-call input and code blocks are never
+ * judged, so a file the model writes, or ASCII art it was asked for, may
+ * repeat itself freely.
  */
 
 /** Trailing characters judged together. */
@@ -43,20 +44,58 @@ export interface RunawayDetector {
   reset(): void;
 }
 
+/**
+ * A markdown code fence. Text inside one is never judged: output a person
+ * asked for that repeats by design (ASCII art, a zero-filled array, rows of
+ * one CSV line) belongs in a code block, while the staging loops all ran in
+ * plain prose.
+ */
+const FENCE = "```";
+
+interface Stream {
+  /** The judged text since the last fence, at most a window of it. */
+  tail: string;
+  unjudged: number;
+  inFence: boolean;
+  /** The last characters seen, for a fence split across two deltas. */
+  carry: string;
+}
+
 export function createRunawayDetector(): RunawayDetector {
-  const tails = new Map<StreamedKind, { tail: string; unjudged: number }>();
+  const streams = new Map<StreamedKind, Stream>();
   return {
     feed(kind, delta) {
-      const stream = tails.get(kind) ?? { tail: "", unjudged: 0 };
-      stream.tail = (stream.tail + delta).slice(-LOOP_WINDOW_CHARS);
-      stream.unjudged += delta.length;
-      tails.set(kind, stream);
+      let stream = streams.get(kind);
+      if (!stream) {
+        stream = { tail: "", unjudged: 0, inFence: false, carry: "" };
+        streams.set(kind, stream);
+      }
+      const scan = stream.carry + delta;
+      // Past the last fence in this delta, or -1 for none.
+      let after = -1;
+      for (
+        let at = scan.indexOf(FENCE);
+        at !== -1;
+        at = scan.indexOf(FENCE, at + FENCE.length)
+      ) {
+        stream.inFence = !stream.inFence;
+        after = at + FENCE.length;
+      }
+      stream.carry = scan.slice(Math.max(after, scan.length - 2, 0));
+      if (after !== -1) {
+        stream.tail = "";
+        stream.unjudged = 0;
+      }
+      if (stream.inFence) return false;
+      const fresh = after === -1 ? delta : scan.slice(after);
+      stream.tail = (stream.tail + fresh).slice(-LOOP_WINDOW_CHARS);
+      stream.unjudged += fresh.length;
       if (stream.unjudged < JUDGE_EVERY_CHARS) return false;
       stream.unjudged = 0;
       return isRepetitionLoop(stream.tail);
     },
     reset() {
-      tails.clear();
+      streams.clear();
     },
   };
 }
