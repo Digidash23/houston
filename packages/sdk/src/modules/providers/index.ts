@@ -50,6 +50,13 @@ export {
   ProvidersHttpError,
 } from "./credential-store";
 export { mergeProviders, overlayStatus } from "./merge";
+export {
+  type ProviderLoginStatus,
+  type ProviderReconnectNotice,
+  providerReconnectNotice,
+  providerReconnectNotices,
+  RECONNECT_NOTICE_DAYS,
+} from "./reconnect";
 export type {
   AuthStatus,
   CustomEndpoint,

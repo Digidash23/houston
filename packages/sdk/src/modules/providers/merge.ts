@@ -29,7 +29,7 @@ import type { ProvidersViewModel, ProviderVM } from "./types";
  *  model-carrying base. */
 type ProviderInfoLike = Pick<
   ProviderInfo,
-  "id" | "name" | "activeModel" | "models" | "configured"
+  "id" | "name" | "activeModel" | "models" | "configured" | "reconnectBy"
 >;
 
 function toVM(
@@ -46,6 +46,9 @@ function toVM(
     activeModel: info?.activeModel ?? "",
     models: info?.models ?? [],
   };
+  // The deadline rides the list only (the gateway stamps `GET /providers`); a
+  // status-only overlay keeps the one the prior snapshot carries.
+  if (info?.reconnectBy !== undefined) vm.reconnectBy = info.reconnectBy;
   if (auth) vm.login = auth.login;
   if (auth?.enterpriseUrl !== undefined) vm.enterpriseUrl = auth.enterpriseUrl;
   return vm;
