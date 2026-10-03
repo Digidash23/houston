@@ -81,8 +81,10 @@ export function createProviderOps(
       client.listProviders(),
       client.authStatus(),
     ]);
-    if (loadSeq.get(agentId) === seq)
-      store.publish(scope, mergeProviders(infos, auth));
+    if (loadSeq.get(agentId) !== seq) return;
+    store.publish(scope, mergeProviders(infos, auth));
+    // A full read settles any list a finished sign-in left owed.
+    listOwed.delete(agentId);
   }
 
   /**
@@ -104,24 +106,18 @@ export function createProviderOps(
   }
 
   /**
-   * The provider list a finished sign-in left stale. It stays owed until a
-   * read succeeds, so a failed one is retried by the next poll instead of
-   * being lost with the transition; the poll's own answer stands either way.
+   * The provider list a finished sign-in left stale. The debt clears only when
+   * a read's snapshot is published (here or by a full refresh), so a failed
+   * or superseded read leaves it for the next poll. A failed read rejects,
+   * after the poll's own answer is already published: the caller reports it.
    */
   async function readOwedList(agentId: string, auth: AuthStatus) {
     const seq = (loadSeq.get(agentId) ?? 0) + 1;
     loadSeq.set(agentId, seq);
-    try {
-      const infos = await ctx.clientFor(agentId).listProviders();
-      listOwed.delete(agentId);
-      if (loadSeq.get(agentId) === seq)
-        store.publish(providersScope(agentId), mergeProviders(infos, auth));
-    } catch (err) {
-      ctx.config.ports.logger.warn(
-        "providers: list re-read after sign-in failed",
-        { agentId, error: String(err) },
-      );
-    }
+    const infos = await ctx.clientFor(agentId).listProviders();
+    if (loadSeq.get(agentId) !== seq) return;
+    store.publish(providersScope(agentId), mergeProviders(infos, auth));
+    listOwed.delete(agentId);
   }
 
   /**
