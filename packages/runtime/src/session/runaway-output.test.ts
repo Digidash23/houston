@@ -164,3 +164,40 @@ test("a backtick run mid-sentence opens no block, so a loop after it trips", () 
     ).toBe(true);
   }
 });
+
+test("a fence nested in a list item or a quote is still a fence", () => {
+  for (const size of [1, 7, 64]) {
+    expect(
+      trips(
+        `- Example:\n\n    \`\`\`text\n${art}\n    \`\`\`\n- Next item.\n`,
+        size,
+      ),
+    ).toBe(false);
+    expect(trips(`> \`\`\`\n${art}\n> \`\`\`\n`, size)).toBe(false);
+  }
+});
+
+test("a line that only looks like a fence opener is judged as text", () => {
+  // Inline code longer than any fence line, then a loop.
+  const inline = `\`\`\`${"x".repeat(253)}\`\`\`\n`;
+  expect(trips(`${inline}${prose(200)}${repeat("Symbol", 10_000)}`, 7)).toBe(
+    true,
+  );
+  // A line that never ends is never a fence, even one that starts like it.
+  expect(trips(`\n\n\`\`\`${repeat("Symbol", 10_000)}`, 7)).toBe(true);
+});
+
+test("an opener is classified before its text is judged, however it streams", () => {
+  const reply = `\n\n\`\`\`text\n${art}\n\`\`\`\n`;
+  for (const size of [1, 2, 3, 4, 9, 4096, 100_000])
+    expect(trips(reply, size)).toBe(false);
+});
+
+test("CR and CRLF end lines too", () => {
+  expect(trips(`\`\`\`\r${art.replaceAll("\n", "\r")}\r\`\`\`\r`, 5)).toBe(
+    false,
+  );
+  expect(
+    trips(`\`\`\`\r\n${art.replaceAll("\n", "\r\n")}\r\n\`\`\`\r\n`, 5),
+  ).toBe(false);
+});

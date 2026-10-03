@@ -48,13 +48,16 @@ export interface RunawayDetector {
  * Text inside a markdown code block is never judged: output a person asked
  * for that repeats by design (ASCII art, a zero-filled array, rows of one CSV
  * line) belongs in one, while the staging loops all ran in plain prose. A
- * fence is a line, as CommonMark has it: up to 3 spaces, then 3 or more
- * backticks or tildes; it closes on a line of the same character, at least as
- * long, with nothing after it. A backtick run mid-sentence is no fence.
+ * fence is a line of 3 or more backticks or tildes, after any indentation or
+ * blockquote markers (a block nested in a list or a quote counts); it closes
+ * on a line of the same character, at least as long, with nothing after it.
+ * A backtick run mid-sentence is no fence, nor is any line longer than
+ * `FENCE_LINE_MAX`: a looping line never ends, and must still be judged.
  */
-const FENCE_LINE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
-/** A fence line is short; a longer line is kept only this far. */
-const FENCE_LINE_MAX = 256;
+const FENCE_LINE = /^[ \t>]*(`{3,}|~{3,})(.*)$/;
+/** A line that may still become a fence line as more of it streams. */
+const FENCE_PREFIX = /^[ \t>]*(?:`*|~*|`{3,}.*|~{3,}.*)$/s;
+const FENCE_LINE_MAX = 512;
 
 interface Fence {
   char: string;
@@ -63,7 +66,7 @@ interface Fence {
 
 /** The fence `line` opens (when `open` is null) or whether it closes `open`. */
 function fenceAt(line: string, open: Fence | null): Fence | boolean {
-  const match = FENCE_LINE.exec(line.replace(/\r$/, ""));
+  const match = FENCE_LINE.exec(line);
   if (!match) return false;
   const [, run = "", rest = ""] = match;
   const char = run.charAt(0);
@@ -79,13 +82,17 @@ interface Stream {
   tail: string;
   unjudged: number;
   fence: Fence | null;
-  /** The current line so far (capped), to recognize a fence line. */
-  line: string;
+  /**
+   * The current line while it may still be a fence line: held back from
+   * judgement until the line ends or proves to be text.
+   */
+  line: string | null;
 }
 
 export function createRunawayDetector(): RunawayDetector {
   const streams = new Map<StreamedKind, Stream>();
   const judged = (stream: Stream, text: string) => {
+    if (stream.fence || !text) return;
     stream.tail = (stream.tail + text).slice(-LOOP_WINDOW_CHARS);
     stream.unjudged += text.length;
   };
@@ -98,23 +105,35 @@ export function createRunawayDetector(): RunawayDetector {
       }
       let from = 0;
       while (from < delta.length) {
-        const newline = delta.indexOf("\n", from);
-        const end = newline === -1 ? delta.length : newline + 1;
-        const piece = delta.slice(from, end);
-        from = end;
-        if (!stream.fence) judged(stream, piece);
-        if (stream.line.length < FENCE_LINE_MAX)
-          stream.line = (stream.line + piece.replace("\n", "")).slice(
-            0,
-            FENCE_LINE_MAX,
-          );
-        if (newline === -1) break;
-        const at = fenceAt(stream.line, stream.fence);
+        // CR, LF and CRLF all end a line; a CRLF split across deltas only
+        // adds an empty line, which is never a fence.
+        let end = from;
+        while (end < delta.length && delta[end] !== "\n" && delta[end] !== "\r")
+          end++;
+        const text = delta.slice(from, end);
+        const ended = end < delta.length;
+        from = end + 1;
+        if (stream.line === null) judged(stream, text);
+        else {
+          stream.line += text;
+          if (
+            stream.line.length > FENCE_LINE_MAX ||
+            !FENCE_PREFIX.test(stream.line)
+          ) {
+            judged(stream, stream.line);
+            stream.line = null;
+          }
+        }
+        if (!ended) break;
+        const at =
+          stream.line === null ? false : fenceAt(stream.line, stream.fence);
+        if (at === false) judged(stream, `${stream.line ?? ""}\n`);
+        else {
+          stream.fence = at === true ? null : at;
+          stream.tail = "";
+          stream.unjudged = 0;
+        }
         stream.line = "";
-        if (at === false) continue;
-        stream.fence = at === true ? null : at;
-        stream.tail = "";
-        stream.unjudged = 0;
       }
       if (stream.fence || stream.unjudged < JUDGE_EVERY_CHARS) return false;
       stream.unjudged = 0;
