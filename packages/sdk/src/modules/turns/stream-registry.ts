@@ -11,6 +11,8 @@ export interface ActiveStream {
   dispose: () => void;
   /** Last seen envelope seq — the observer→turn handoff cursor. */
   lastSeq?: number;
+  /** A turn whose send is held behind another turn (`send-hold.ts`). */
+  held?: boolean;
 }
 
 export const streamKey = (agentPath: string, sessionKey: string): string =>

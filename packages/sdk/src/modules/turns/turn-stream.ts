@@ -26,7 +26,7 @@ import {
   isAmbiguousSendFailure,
   messageLimitRefusal,
 } from "./turn-errors";
-import { isTurnRunningRejection, sendRefusalMessage } from "./turn-running";
+import { isTurnRunningRejection, sendRefusal } from "./turn-running";
 import { TurnSink } from "./turn-sink";
 import type { FeedAuthor, FeedMention } from "./vm-output";
 
@@ -302,11 +302,15 @@ export async function streamTurn(
               },
               fails_pending: true,
             }
-          : {
-              feed_type: "system_message",
-              data: sendRefusalMessage(e),
-              fails_pending: true,
-            },
+          : (() => {
+              const refusal = sendRefusal(e);
+              return {
+                feed_type: "system_message" as const,
+                data: refusal.message,
+                ...(refusal.notice ? { notice: refusal.notice } : {}),
+                fails_pending: true,
+              };
+            })(),
       );
       firstResponse.resolve("error");
       return; // the observer keeps rendering the running turn
@@ -382,8 +386,13 @@ export async function streamTurn(
           sink,
           ac.signal,
           opts.tuning,
-          () => sink.holdSend(),
-        );
+          () => {
+            sink.holdSend();
+            entry.held = true;
+          },
+        ).finally(() => {
+          entry.held = false;
+        });
         sink.sendAccepted();
       } catch (e) {
         // A definitive failure (engine verdict / our abort) settles below.
@@ -406,7 +415,10 @@ export async function streamTurn(
     if (!sink.settled) {
       const limit = messageLimitRefusal(e);
       if (limit) sink.planLimit(limit);
-      else sink.fail(sendRefusalMessage(e));
+      else {
+        const refusal = sendRefusal(e);
+        sink.fail(refusal.message, refusal.notice);
+      }
     }
   } finally {
     if (sendVerdict !== undefined) clearTimeout(sendVerdict);

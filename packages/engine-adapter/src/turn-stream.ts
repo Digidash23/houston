@@ -31,16 +31,20 @@ export type { StreamTuning } from "@houston/sdk";
 const registry = new StreamRegistry();
 
 /**
- * Whether a turn THIS client dispatched is still streaming the conversation.
- * That stream settles only on the turn's terminal frame or its failure
- * budget, so it is the authority on "the turn is over" (the queue watchdog
- * defers to it).
+ * A turn THIS client dispatched on the conversation, as the queue watchdog
+ * sees it. `streaming`: its stream settles only on the turn's terminal frame
+ * or its failure budget, so it is the authority on "the turn is over".
+ * `held`: its send waits behind another turn (or is handing off over an
+ * observer) and settles by itself; a flush would dispose it and lose it.
  */
-export function hasLiveTurnStream(
-  agentPath: string,
-  sessionKey: string,
-): boolean {
-  return registry.get(streamKey(agentPath, sessionKey))?.kind === "turn";
+export type LiveTurn = "none" | "streaming" | "held";
+
+export function liveTurn(agentPath: string, sessionKey: string): LiveTurn {
+  const key = streamKey(agentPath, sessionKey);
+  const entry = registry.get(key);
+  if (registry.isSending(key) || (entry?.kind === "turn" && entry.held))
+    return "held";
+  return entry?.kind === "turn" ? "streaming" : "none";
 }
 
 /** Abort every live conversation stream this adapter owns (WS teardown seam). */

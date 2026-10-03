@@ -1,5 +1,9 @@
 import { EngineError } from "@houston/runtime-client";
-import { engineVerdictMessage, turnErrorMessage } from "./turn-errors";
+import {
+  type EngineNoticeKind,
+  engineVerdictMessage,
+  turnErrorMessage,
+} from "./turn-errors";
 
 /**
  * The runtime refused a control because a turn is accepted, queued or running
@@ -33,9 +37,14 @@ export const SEND_BUSY_MESSAGE =
   "The agent is still busy with another message. Send yours again in a moment.";
 
 /**
- * The chat copy for a refused send: the busy copy for a hold that ran out of
- * budget, else the engine's own message (see `turnErrorMessage`).
+ * The chat line for a refused send: the typed busy notice for a hold that ran
+ * out of budget, else the engine's own message (see `turnErrorMessage`).
  */
-export function sendRefusalMessage(e: unknown): string {
-  return isTurnRunningRejection(e) ? SEND_BUSY_MESSAGE : turnErrorMessage(e);
+export function sendRefusal(e: unknown): {
+  message: string;
+  notice?: EngineNoticeKind;
+} {
+  return isTurnRunningRejection(e)
+    ? { message: SEND_BUSY_MESSAGE, notice: "send_busy" }
+    : { message: turnErrorMessage(e) };
 }

@@ -95,6 +95,7 @@ afterEach(() => registry.disposeAll());
 type Item = {
   feed_type?: string;
   data?: unknown;
+  notice?: string;
   pending?: boolean;
   fails_pending?: boolean;
   author?: { userId: string; name?: string };
@@ -2735,6 +2736,132 @@ test("a held re-send that fails in transport still adopts its running turn", asy
   expect(
     (finals(items)[0]?.data as { result?: string } | undefined)?.result,
   ).toBe("Hallo");
+});
+
+// After a hold, the stream carried the turn we waited on while ours had no
+// id. Its late terminal frame must never settle ours (review of #1689).
+test("a held re-send lost in transport never adopts the awaited turn's done", async () => {
+  let sends = () => 0;
+  const { engine, nonces } = fakeEngine(
+    [
+      async (o) => {
+        o.onEvent(sync(true, "Earlier reply", 9, { turnId: "t-prev" }));
+        // The fallback re-send dies in transport BEFORE t-prev ends.
+        await waitFor(() => sends() === 2);
+        await new Promise((r) => setTimeout(r, 10));
+        o.onEvent({ type: "done", data: null, turnId: "t-prev", seq: 10 });
+        await hang(o);
+      },
+    ],
+    [],
+    { sendErrors: [turnRunningRefusal(), new TypeError("Load failed")] },
+  );
+  sends = () => nonces.length;
+  const { items, sessionStatuses, output } = makeOutput();
+
+  await streamTurn(
+    engine,
+    "Houston/Bo",
+    "activity-held-lost",
+    "follow-up",
+    output,
+    registry,
+    {
+      tuning: {
+        ...fast,
+        sendTurnRunningRetryDelaysMs: [5],
+        sendVerdictMs: 200,
+      },
+    },
+  );
+
+  // Nothing landed: the message fails visibly, never a silent empty reply.
+  expect(finals(items)).toHaveLength(0);
+  expect(sessionStatuses.at(-1)).toBe("error");
+  expect(items).toContainEqual(
+    expect.objectContaining({ data: SEND_LOST_MESSAGE, fails_pending: true }),
+  );
+});
+
+test("a held re-send accepted before the awaited turn's done renders its own reply", async () => {
+  let sends = () => 0;
+  let nonceAt = (_i: number): string | undefined => undefined;
+  const { engine, nonces } = fakeEngine(
+    [
+      async (o) => {
+        o.onEvent(sync(true, "Earlier reply", 9, { turnId: "t-prev" }));
+        await waitFor(() => sends() === 2);
+        await new Promise((r) => setTimeout(r, 10));
+        // The claim freed and the 202 landed; t-prev's done reaches us late.
+        o.onEvent({ type: "done", data: null, turnId: "t-prev", seq: 10 });
+        o.onEvent({
+          type: "user",
+          data: { content: "follow-up", ts: 1, nonce: nonceAt(1) },
+          turnId: "t-new",
+          seq: 11,
+        });
+        o.onEvent({ type: "text", data: "Mine", turnId: "t-new", seq: 12 });
+        o.onEvent({ type: "done", data: null, turnId: "t-new", seq: 13 });
+        await hang(o);
+      },
+    ],
+    [],
+    { sendErrors: [turnRunningRefusal()] },
+  );
+  sends = () => nonces.length;
+  nonceAt = (i) => nonces[i];
+  const { items, output } = makeOutput();
+
+  await streamTurn(
+    engine,
+    "Houston/Bo",
+    "activity-held-late-done",
+    "follow-up",
+    output,
+    registry,
+    {
+      tuning: { ...fast, sendTurnRunningRetryDelaysMs: [5] },
+    },
+  );
+
+  expect(finals(items)).toHaveLength(1);
+  expect(
+    (finals(items)[0]?.data as { result?: string } | undefined)?.result,
+  ).toBe("Mine");
+});
+
+test("a hold that outlives its budget settles with the typed send_busy notice", async () => {
+  const { engine } = fakeEngine([hang], [], {
+    sendError: turnRunningRefusal(),
+  });
+  const { items, sessionStatuses, output } = makeOutput();
+
+  await streamTurn(
+    engine,
+    "Houston/Bo",
+    "activity-held-out",
+    "hi",
+    output,
+    registry,
+    {
+      tuning: {
+        ...fast,
+        sendTurnRunningRetryDelaysMs: [5],
+        sendTurnRunningHoldMs: 30,
+      },
+    },
+  );
+
+  expect(sessionStatuses.at(-1)).toBe("error");
+  expect(items).toContainEqual(
+    expect.objectContaining({
+      feed_type: "system_message",
+      notice: "send_busy",
+      fails_pending: true,
+    }),
+  );
+  // The wire's raw reason never reaches the chat.
+  expect(items.some((i) => i.data === "turn running")).toBe(false);
 });
 
 test("C19 message_limit settles as a typed card after one send", async () => {

@@ -11,6 +11,7 @@ import type {
   HoustonEngineClient,
   WireFrame,
 } from "@houston/runtime-client";
+import { EngineError } from "@houston/runtime-client";
 import { conversationScope } from "@houston/sdk";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
@@ -136,4 +137,33 @@ it("still rescues the hold when the live turn never ends", async () => {
 
   await vi.advanceTimersByTimeAsync(120_000);
   expect(dispatched.map((r) => r.prompt)).toEqual(["follow-up"]);
+});
+
+it("never flushes over a held send, even past the grace", async () => {
+  // The claim outlives the grace (a dead worker's claim waits for the 75 s
+  // reap): the held send must keep its place, and the queue waits behind it.
+  const engine = {
+    async streamEvents(_id: string, o: EventStreamOptions) {
+      await new Promise<void>((resolve) => {
+        o.signal?.addEventListener("abort", () => resolve(), { once: true });
+      });
+    },
+    async sendMessage() {
+      throw new EngineError(409, JSON.stringify({ error: "turn running" }));
+    },
+    async getHistory() {
+      return { id: "c", title: "", messages: [] };
+    },
+  } as unknown as HoustonEngineClient;
+  void streamTurn(engine, AGENT, key, "held", async () => {}, {
+    tuning: { idleTimeoutMs: 600_000 },
+  });
+  await vi.advanceTimersByTimeAsync(0);
+  const probe = vi.fn(async () => [msg("user", "x"), msg("assistant", "y")]);
+  maybeQueueSend(AGENT, { sessionKey: key, prompt: "queued" }, dispatch, probe);
+
+  await vi.advanceTimersByTimeAsync(200_000);
+  expect(probe).toHaveBeenCalled();
+  expect(dispatched).toHaveLength(0);
+  expect(running()).toBe(true);
 });
