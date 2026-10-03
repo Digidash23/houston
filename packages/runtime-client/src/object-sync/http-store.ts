@@ -3,6 +3,7 @@ import { objectStoreResponseError } from "./http-store-errors";
 import type { HttpObjectStoreOptions } from "./http-store-options";
 import { downloadHttpObject, readHttpManifest } from "./http-store-read";
 import { uploadHttpObject } from "./http-store-write";
+import { storeWriteHeaders } from "./http-store-write-headers";
 import type { ObjectMetadata } from "./object-manifest";
 import type {
   ObjectStore,
@@ -64,13 +65,14 @@ export class HttpObjectStore implements ObjectStore {
   async manifest(prefix = "", opts?: ReadOptions): Promise<ObjectMetadata[]> {
     const query = prefix ? `?prefix=${encodeURIComponent(prefix)}` : "";
     return readHttpManifest(
-      () =>
+      (signal) =>
         this.fetch(`${this.baseUrl}/manifest${query}`, {
           headers: this.authHeaders(),
-          ...(opts?.signal ? { signal: opts.signal } : {}),
+          signal,
         }),
       (response) => this.captureFence(response),
       prefix,
+      opts?.signal,
     );
   }
 
@@ -89,10 +91,10 @@ export class HttpObjectStore implements ObjectStore {
     opts?: ReadOptions,
   ): Promise<ReadResult> {
     return downloadHttpObject(
-      () =>
+      (signal) =>
         this.fetch(this.objectUrl(key), {
           headers: this.authHeaders(),
-          signal: opts?.signal,
+          signal,
         }),
       (response) => this.captureFence(response),
       key,
@@ -173,19 +175,12 @@ export class HttpObjectStore implements ObjectStore {
   }
 
   private writeHeaders(opts?: WriteOptions): Record<string, string> {
-    const headers = this.authHeaders();
-    if (opts?.ifGenerationMatch !== undefined) {
-      headers["X-Houston-If-Generation-Match"] = opts.ifGenerationMatch;
-    }
-    if (this.fence?.token !== undefined && this.bootId !== undefined) {
-      headers["X-Houston-Fencing-Token"] = this.fence.token;
-      headers["X-Houston-Boot-Id"] = this.bootId;
-    } else if (this.claim) {
-      headers["X-Houston-Claim-Token"] = this.claim.token;
-      headers["X-Houston-Claim-Boot"] = this.claim.bootId;
-      headers["X-Houston-Claim-Conversation"] = this.claim.conversationId;
-    }
-    return headers;
+    const { bootId, fence, claim } = this;
+    return storeWriteHeaders(this.authHeaders(), opts, {
+      bootId,
+      fence,
+      claim,
+    });
   }
 
   private guardedWrite(opts?: WriteOptions): boolean {

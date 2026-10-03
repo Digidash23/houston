@@ -101,7 +101,9 @@ test("download forwards cancellation to the HTTP request", async () => {
   controller.abort(new Error("stop hydration"));
 
   await expect(downloading).rejects.toThrow("stop hydration");
-  expect(requestSignal).toBe(controller.signal);
+  // The request runs on its own signal that follows the caller's.
+  expect(requestSignal).not.toBe(controller.signal);
+  expect(requestSignal?.reason).toBe(controller.signal.reason);
 });
 
 test("manifest forwards cancellation to the HTTP request", async () => {
@@ -128,7 +130,9 @@ test("manifest forwards cancellation to the HTTP request", async () => {
   controller.abort(new Error("turn moved on"));
 
   await expect(listing).rejects.toThrow("turn moved on");
-  expect(requestSignal).toBe(controller.signal);
+  // The request runs on its own signal that follows the caller's.
+  expect(requestSignal).not.toBe(controller.signal);
+  expect(requestSignal?.reason).toBe(controller.signal.reason);
 });
 
 test("upload forwards cancellation to the HTTP request and its retries", async () => {
