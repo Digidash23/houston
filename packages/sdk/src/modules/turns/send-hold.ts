@@ -1,3 +1,4 @@
+import type { SendAccepted } from "@houston/runtime-client";
 import {
   type ActiveStream,
   SEND_TURN_RUNNING_HOLD_MS,
@@ -60,12 +61,13 @@ export function turnRunningDelay(
  * the accepted-first-time path keeps its exact timing.
  */
 export async function sendHolding(
-  send: () => Promise<void>,
+  /** An engine answering nothing on acceptance names no turn. */
+  send: () => Promise<SendAccepted | undefined>,
   evidence: TurnEndEvidence,
   signal: AbortSignal,
   tuning: StreamTuning | undefined,
   onHold: () => void,
-): Promise<void> {
+): Promise<SendAccepted> {
   const wakeDelays = tuning?.sendWakeRetryDelaysMs ?? SEND_WAKE_RETRY_DELAYS_MS;
   const holdBudget = tuning?.sendTurnRunningHoldMs ?? SEND_TURN_RUNNING_HOLD_MS;
   let wakes = 0;
@@ -75,8 +77,7 @@ export async function sendHolding(
     const mark = evidence.turnEnds;
     let refusal: unknown;
     try {
-      await send();
-      return;
+      return (await send()) ?? {};
     } catch (e) {
       refusal = e;
     }

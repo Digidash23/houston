@@ -100,9 +100,14 @@ export class TurnSink {
     this.held.hold();
     this.poll.cancel();
   }
-  /** Turn mode: the send returned 202 — a running turn may now be OURS. */
-  sendAccepted(): void {
+  /**
+   * Turn mode: the send returned 202 — a running turn may now be OURS. After
+   * a hold, the 202's turn id binds it: a pool turn can fail before it echoes,
+   * and a held send adopts no stray terminal frame.
+   */
+  sendAccepted(turnId?: string): void {
     this.held.release();
+    if (this.held.wasHeld) this.adoptTurnId(turnId);
     this.accepted = true;
     // The engine acknowledged the send — the message reached it, so the
     // optimistic bubble is delivered even if the turn later errors.

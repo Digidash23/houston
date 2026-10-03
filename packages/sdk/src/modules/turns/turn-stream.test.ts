@@ -2864,6 +2864,67 @@ test("a hold that outlives its budget settles with the typed send_busy notice", 
   expect(items.some((i) => i.data === "turn running")).toBe(false);
 });
 
+// A pool turn accepted after a hold can fail before it ever echoes (the
+// gateway writes the terminal error the worker never logged). The held send
+// adopts no stray terminal frame, so the 202's turn id is what binds it.
+test("a held re-send whose turn fails before echoing settles on the 202's turn id", async () => {
+  let emit: (f: WireFrame) => void = () => {};
+  const nonces: Array<string | undefined> = [];
+  const engine = {
+    async streamEvents(_id: string, o: EventStreamOptions) {
+      emit = o.onEvent;
+      o.onEvent(sync(true, "", 9, { turnId: "t-prev" }));
+      await hang(o);
+    },
+    async sendMessage(_id: string, _t: string, opts?: { nonce?: string }) {
+      nonces.push(opts?.nonce);
+      if (nonces.length === 1) {
+        setTimeout(() => {
+          emit({ type: "done", data: null, turnId: "t-prev", seq: 10 });
+        }, 1);
+        throw turnRunningRefusal();
+      }
+      setTimeout(() => {
+        emit({
+          type: "error",
+          data: {
+            message:
+              "The reply could not be completed. Please send your message again.",
+          },
+          turnId: "t-new",
+          seq: 11,
+        });
+      }, 1);
+      return { turnId: "t-new" };
+    },
+    async getHistory() {
+      return { id: "c", title: "", messages: [] };
+    },
+  } as unknown as HoustonEngineClient;
+  const { items, sessionStatuses, output } = makeOutput();
+
+  await streamTurn(
+    engine,
+    "Houston/Bo",
+    "activity-held-fail-first",
+    "hi",
+    output,
+    registry,
+    {
+      tuning: { ...fast, sendTurnRunningRetryDelaysMs: [60_000] },
+    },
+  );
+
+  expect(nonces).toHaveLength(2);
+  expect(sessionStatuses.at(-1)).toBe("error");
+  expect(items).toContainEqual(
+    expect.objectContaining({
+      feed_type: "system_message",
+      data: "The reply could not be completed. Please send your message again.",
+    }),
+  );
+});
+
 test("C19 message_limit settles as a typed card after one send", async () => {
   const refusal = {
     error: "message limit reached",

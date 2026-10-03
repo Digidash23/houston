@@ -91,3 +91,26 @@ export interface SendOptions {
   grants?: "createAgent"[];
   signal?: AbortSignal;
 }
+
+/**
+ * What an accepted send (202) names. `turnId`: the accepted turn, as every
+ * frame of it is stamped. Absent from a legacy server or a non-JSON body.
+ */
+export interface SendAccepted {
+  turnId?: string;
+}
+
+/** Read the accepted turn's id off a 202 body; any other shape names none. */
+export function parseSendAccepted(text: string): SendAccepted {
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return {}; // an empty or non-JSON 202 is still an acceptance
+  }
+  const turnId =
+    typeof body === "object" && body !== null
+      ? (body as { turnId?: unknown }).turnId
+      : undefined;
+  return typeof turnId === "string" && turnId !== "" ? { turnId } : {};
+}

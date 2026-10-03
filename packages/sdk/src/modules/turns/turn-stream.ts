@@ -381,7 +381,7 @@ export async function streamTurn(
     streaming.catch(() => {});
     if (!sent) {
       try {
-        await sendHolding(
+        const accepted = await sendHolding(
           () => engine.sendMessage(sessionKey, prompt, sendOptions),
           sink,
           ac.signal,
@@ -393,7 +393,7 @@ export async function streamTurn(
         ).finally(() => {
           entry.held = false;
         });
-        sink.sendAccepted();
+        sink.sendAccepted(accepted.turnId);
       } catch (e) {
         // A definitive failure (engine verdict / our abort) settles below.
         if (!isAmbiguousSendFailure(e)) throw e;
