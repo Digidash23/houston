@@ -107,6 +107,7 @@ export {
   type LoginOptions,
   type LoginState,
   mergeProviders,
+  nextReconnectNoticeChange,
   overlayStatus,
   type ProviderCredentialWrites,
   type ProviderId,

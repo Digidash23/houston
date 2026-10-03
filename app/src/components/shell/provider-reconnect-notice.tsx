@@ -1,37 +1,74 @@
+import type { ProviderReconnectNotice as Notice } from "@houston/sdk";
 import { Clock, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useProviderStatuses } from "../../hooks/use-provider-statuses";
-import { providerReconnectNoticeFor } from "../../lib/provider-reconnect-notice";
+import {
+  nextReconnectNoticeChangeFor,
+  providerReconnectNoticeFor,
+} from "../../lib/provider-reconnect-notice";
 import { providerName } from "../../lib/providers";
 import { tauriProvider } from "../../lib/tauri";
 
-type LaunchState = "idle" | "waiting" | "failed";
+/**
+ * A timer this long re-reads the clock even when the next change is further
+ * off: a laptop that slept past it fires it late, and the re-read catches up.
+ */
+const MAX_WAIT_MS = 60 * 60 * 1000;
 
 /**
  * A quiet pill at the top of the workspace, shown a few days before a hosted
  * Claude subscription login ends (the provider ends it about 28 days after the
- * sign-in). Pressing it runs the same sign-in every reconnect surface runs
- * (`tauriProvider.launchLogin`); the finished login refreshes the provider
- * statuses, which move the deadline out and clear the pill. When to show it is
- * the SDK's rule (`providerReconnectNotices`).
+ * sign-in). When to show it and what day it reads are the SDK's rules
+ * (`providerReconnectNotices`, `nextReconnectNoticeChange`); the pill re-reads
+ * them when the count would change, so an open window stays current.
  */
 export function ProviderReconnectNotice() {
-  const { t } = useTranslation("shell");
   const { statuses } = useProviderStatuses();
-  const [launch, setLaunch] = useState<LaunchState>("idle");
-  const notice = providerReconnectNoticeFor(statuses, Date.now());
-  if (!notice) return null;
+  const [, rerender] = useReducer((n: number) => n + 1, 0);
+  const now = Date.now();
+  const notice = providerReconnectNoticeFor(statuses, now);
+  const next = nextReconnectNoticeChangeFor(statuses, now);
 
+  useEffect(() => {
+    if (next === null) return;
+    const wait = Math.min(Math.max(next - Date.now(), 0), MAX_WAIT_MS);
+    const timer = setTimeout(rerender, wait);
+    return () => clearTimeout(timer);
+  }, [next]);
+
+  if (!notice) return null;
+  // Keyed by the deadline: a new login (a new deadline) starts a fresh pill.
+  return (
+    <ReconnectPill
+      key={`${notice.provider}:${notice.reconnectBy}`}
+      notice={notice}
+    />
+  );
+}
+
+/**
+ * Pressing runs the same sign-in every reconnect surface runs
+ * (`tauriProvider.launchLogin`). The spinner covers only the launch: past it,
+ * the sign-in's own screen owns the flow, and a finished login refreshes the
+ * provider statuses, which moves the deadline out and clears the pill.
+ */
+function ReconnectPill({ notice }: { notice: Notice }) {
+  const { t } = useTranslation("shell");
+  const [launching, setLaunching] = useState(false);
+  const [failed, setFailed] = useState(false);
   const provider = providerName(notice.provider);
+
   const signIn = async () => {
-    setLaunch("waiting");
+    setLaunching(true);
     try {
       await tauriProvider.launchLogin(notice.provider);
+      setFailed(false);
     } catch {
-      // `launchLogin` already reported the failure; the pill only offers
-      // the retry.
-      setLaunch("failed");
+      // `launchLogin` already reported the failure; the pill offers a retry.
+      setFailed(true);
+    } finally {
+      setLaunching(false);
     }
   };
   const label =
@@ -41,23 +78,22 @@ export function ProviderReconnectNotice() {
           provider,
           count: notice.daysLeft,
         });
-  const action =
-    launch === "waiting"
-      ? t("providerReconnect.waiting")
-      : launch === "failed"
-        ? t("providerReconnect.launchError")
-        : t("providerReconnect.signInAgain");
+  const action = launching
+    ? t("providerReconnect.waiting")
+    : failed
+      ? t("providerReconnect.launchError")
+      : t("providerReconnect.signInAgain");
 
   return (
-    <div role="status" className="shrink-0 px-4 pt-3">
+    <div className="shrink-0 px-4 pt-3">
       <button
         type="button"
         onClick={signIn}
-        disabled={launch === "waiting"}
+        disabled={launching}
         data-testid="provider-reconnect-notice"
         className="inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-full border border-line bg-chip-subtle/50 px-3 py-1 text-left text-xs font-medium text-ink transition-colors hover:bg-chip-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-80"
       >
-        {launch === "waiting" ? (
+        {launching ? (
           <Loader2 aria-hidden className="size-3.5 shrink-0 animate-spin" />
         ) : (
           <Clock aria-hidden className="size-3.5 shrink-0" />

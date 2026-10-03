@@ -1,6 +1,9 @@
 import { deepStrictEqual, strictEqual } from "node:assert/strict";
 import { describe, it } from "node:test";
-import { providerReconnectNoticeFor } from "../src/lib/provider-reconnect-notice.ts";
+import {
+  nextReconnectNoticeChangeFor,
+  providerReconnectNoticeFor,
+} from "../src/lib/provider-reconnect-notice.ts";
 import type { ProviderStatus } from "../src/lib/tauri.ts";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -54,5 +57,22 @@ describe("providerReconnectNoticeFor", () => {
       null,
     );
     strictEqual(providerReconnectNoticeFor({}, now), null);
+  });
+
+  it("names when the pill must re-read the clock", () => {
+    strictEqual(
+      nextReconnectNoticeChangeFor(
+        { anthropic: status("anthropic", true, now + 10 * DAY) },
+        now,
+      ),
+      now + 5 * DAY,
+    );
+    strictEqual(
+      nextReconnectNoticeChangeFor(
+        { anthropic: status("anthropic", false, now + 10 * DAY) },
+        now,
+      ),
+      null,
+    );
   });
 });

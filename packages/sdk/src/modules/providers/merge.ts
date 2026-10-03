@@ -96,3 +96,21 @@ export function overlayStatus(
 ): ProvidersViewModel {
   return build(prior?.providers ?? [], auth);
 }
+
+/**
+ * A provider went from signed out to signed in between two snapshots, or its
+ * login finished: the list behind the prior snapshot predates that login.
+ */
+export function signInFinished(
+  prior: ProvidersViewModel | undefined,
+  next: ProvidersViewModel,
+): boolean {
+  const before = new Map(prior?.providers.map((p) => [p.id, p]));
+  return next.providers.some((provider) => {
+    const was = before.get(provider.id);
+    if (!was) return false;
+    const completed =
+      provider.login?.status === "complete" && was.login?.status !== "complete";
+    return completed || (provider.configured && !was.configured);
+  });
+}

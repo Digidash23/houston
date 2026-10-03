@@ -64,3 +64,33 @@ export function providerReconnectNotices(
     .filter((notice): notice is ProviderReconnectNotice => notice !== null)
     .sort((a, b) => a.reconnectBy - b.reconnectBy);
 }
+
+/**
+ * When the notices for `statuses` next change on their own (a window opens,
+ * a day ticks down), or null when nothing will without a new status. A
+ * surface re-reads {@link providerReconnectNotices} then, so an open window
+ * shows the right day without waiting for a refetch.
+ */
+export function nextReconnectNoticeChange(
+  statuses: readonly ProviderLoginStatus[],
+  now: number,
+): number | null {
+  let next: number | null = null;
+  for (const { connected, reconnectBy } of statuses) {
+    if (!connected || reconnectBy === undefined) continue;
+    if (!Number.isFinite(reconnectBy)) continue;
+    const notice = providerReconnectNotice(
+      { provider: "", connected, reconnectBy },
+      now,
+    );
+    // Outside the window it opens at RECONNECT_NOTICE_DAYS; inside, the count
+    // drops when another whole day has passed, and stops at 0.
+    const at = notice
+      ? notice.daysLeft > 0
+        ? reconnectBy - notice.daysLeft * DAY_MS + 1
+        : null
+      : reconnectBy - RECONNECT_NOTICE_DAYS * DAY_MS;
+    if (at !== null && (next === null || at < next)) next = at;
+  }
+  return next;
+}

@@ -11,7 +11,7 @@
  */
 
 import type { ModuleContext } from "../../module-context";
-import { mergeProviders, overlayStatus } from "./merge";
+import { mergeProviders, overlayStatus, signInFinished } from "./merge";
 import {
   type LoginInfo,
   type LoginOptions,
@@ -92,7 +92,11 @@ export function createProviderOps(
     const auth = await ctx.clientFor(agentId).authStatus();
     const scope = providersScope(agentId);
     const prior = store.getSnapshot(scope) as ProvidersViewModel | undefined;
-    store.publish(scope, overlayStatus(prior, auth));
+    const next = overlayStatus(prior, auth);
+    store.publish(scope, next);
+    // A sign-in that just finished started a new login: its deadline
+    // (`reconnectBy`) rides the provider list, which this poll does not read.
+    if (signInFinished(prior, next)) await refresh(agentId);
   }
 
   /**

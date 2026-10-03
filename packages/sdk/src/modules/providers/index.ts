@@ -51,6 +51,7 @@ export {
 } from "./credential-store";
 export { mergeProviders, overlayStatus } from "./merge";
 export {
+  nextReconnectNoticeChange,
   type ProviderLoginStatus,
   type ProviderReconnectNotice,
   providerReconnectNotice,
