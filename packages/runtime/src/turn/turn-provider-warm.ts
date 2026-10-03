@@ -23,13 +23,15 @@ export const PROVIDER_WARM_EVERY_MS = 3_000;
 export const PROVIDER_WARM_MAX_MS = 3 * 60_000;
 const PROVIDER_WARM_REQUEST_MS = 5_000;
 
-// Qwen's region and Xiaomi's plan endpoint come from the agent's files too.
+// Qwen's region and Xiaomi's plan endpoint come from the agent's files, and
+// a Copilot business or enterprise host from its token, which never comes.
 const NOT_WARMED = new Set([
   "anthropic",
   "amazon-bedrock",
   "openai-compatible",
   "qwen",
   "xiaomi",
+  "github-copilot",
 ]);
 const AZURE_OPENAI = "azure-openai-responses";
 

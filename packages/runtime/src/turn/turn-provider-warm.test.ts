@@ -30,6 +30,7 @@ test("providers this process cannot warm answer nothing", () => {
     "openai-compatible",
     "qwen",
     "xiaomi",
+    "github-copilot",
     "",
     "no-such-provider",
   ]) {

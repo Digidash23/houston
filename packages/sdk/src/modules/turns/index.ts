@@ -11,6 +11,7 @@ import { createConversationControls } from "./conversation-controls";
 import {
   type ComposerDraft,
   DraftPrewarm,
+  type DraftPrewarmState,
   type PrewarmCapabilities,
 } from "./draft-prewarm";
 import { startTurnsEventStream } from "./events-stream";
@@ -130,6 +131,10 @@ export function createTurnsModule(
      */
     claimNewConversationId: (draftKey: string): string =>
       drafts.claimNewConversationId(draftKey),
+    /** The composers' typing state, for a replacement SDK to adopt. */
+    typingState: (): DraftPrewarmState => drafts.state(),
+    /** Take over the typing state of the SDK this one replaces. */
+    adoptTypingState: (state: DraftPrewarmState): void => drafts.adopt(state),
     /**
      * Drop a conversation's folded transcript from the in-memory VM cache (and
      * its retained snapshot) — call when a surface closes or deletes a

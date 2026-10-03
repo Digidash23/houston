@@ -59,15 +59,21 @@ export interface DraftPrewarmPorts {
 }
 
 /** The typing session one draft slot is in. */
-interface Session {
+export interface DraftPrewarmSession {
   /** The agent and the chat it targets; either changing starts a new one. */
   target: string;
   sentAt: number;
 }
 
+/** {@link DraftPrewarm.state}: plain data, safe to hand across instances. */
+export interface DraftPrewarmState {
+  sessions: [string, DraftPrewarmSession][];
+  pendingIds: [string, string][];
+}
+
 /** One SDK instance's typing sessions and the ids minted for new chats. */
 export class DraftPrewarm {
-  private readonly sessions = new Map<string, Session>();
+  private readonly sessions = new Map<string, DraftPrewarmSession>();
   private readonly pendingIds = new Map<string, string>();
   /** Targets with a prewarm on the wire. Kept apart from the sessions, which
    *  an emptied composer ends while its request may still be out. */
@@ -114,6 +120,24 @@ export class DraftPrewarm {
    * prewarmed, or a fresh one when nothing was. Forgets it, so the next new
    * chat in the same slot gets its own.
    */
+  /**
+   * The state a replacement SDK adopts: a hosted bearer rotation rebuilds the
+   * SDK while the person may be typing, and a new chat's send must still claim
+   * the id its typing prewarmed. A request in flight is not carried: at worst
+   * the new instance asks again and the gateway answers `held`.
+   */
+  state(): DraftPrewarmState {
+    return { sessions: [...this.sessions], pendingIds: [...this.pendingIds] };
+  }
+
+  /** Takes over `state` for every slot this instance has not typed in. */
+  adopt(state: DraftPrewarmState): void {
+    for (const [key, session] of state.sessions)
+      if (!this.sessions.has(key)) this.sessions.set(key, { ...session });
+    for (const [key, id] of state.pendingIds)
+      if (!this.pendingIds.has(key)) this.pendingIds.set(key, id);
+  }
+
   claimNewConversationId(draftKey: string): string {
     const pending = this.pendingIds.get(draftKey);
     this.pendingIds.delete(draftKey);
