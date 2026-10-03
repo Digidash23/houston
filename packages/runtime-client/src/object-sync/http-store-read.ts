@@ -2,36 +2,43 @@ import { downloadFile } from "./http-store-download";
 import { objectStoreResponseError } from "./http-store-errors";
 import { type ObjectMetadata, parseObjectManifest } from "./object-manifest";
 import type { ReadResult } from "./object-store";
+import { withOperationSignal } from "./operation-signal";
 
 type CaptureResponse = (response: Response) => void;
+type SignalledRequest = (signal?: AbortSignal) => Promise<Response>;
 
-export async function readHttpManifest(
-  request: () => Promise<Response>,
+export function readHttpManifest(
+  request: SignalledRequest,
   capture: CaptureResponse,
   prefix: string,
+  signal?: AbortSignal,
 ): Promise<ObjectMetadata[]> {
-  const response = await request();
-  capture(response);
-  if (!response.ok) {
-    throw await objectStoreResponseError(response, "GET", "manifest");
-  }
-  return parseObjectManifest(
-    await response.json(),
-    "object store GET manifest",
-  ).filter((object) => !prefix || object.key.startsWith(prefix));
+  return withOperationSignal(signal, async (own) => {
+    const response = await request(own);
+    capture(response);
+    if (!response.ok) {
+      throw await objectStoreResponseError(response, "GET", "manifest");
+    }
+    return parseObjectManifest(
+      await response.json(),
+      "object store GET manifest",
+    ).filter((object) => !prefix || object.key.startsWith(prefix));
+  });
 }
 
-export async function downloadHttpObject(
-  request: () => Promise<Response>,
+export function downloadHttpObject(
+  request: SignalledRequest,
   capture: CaptureResponse,
   key: string,
   destFile: string,
   signal?: AbortSignal,
 ): Promise<ReadResult> {
-  const response = await request();
-  capture(response);
-  if (!response.ok) {
-    throw await objectStoreResponseError(response, "GET", key);
-  }
-  return downloadFile(response, key, destFile, signal);
+  return withOperationSignal(signal, async (own) => {
+    const response = await request(own);
+    capture(response);
+    if (!response.ok) {
+      throw await objectStoreResponseError(response, "GET", key);
+    }
+    return downloadFile(response, key, destFile, own);
+  });
 }
