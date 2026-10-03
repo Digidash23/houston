@@ -15,8 +15,9 @@ const NEW_DEADLINE = OLD_DEADLINE + 27 * 24 * 60 * 60 * 1000;
  * re-reads the list the moment the poll sees the sign-in finish; otherwise the
  * snapshot keeps warning about the login that was just replaced.
  */
-it("the login poll re-reads the provider list once a sign-in finishes", async () => {
+it("the login poll re-reads the provider list once a sign-in finishes, until a read succeeds", async () => {
   let signedIn = false;
+  let listFails = 0;
   const paths: string[] = [];
   const json = (body: unknown) =>
     new Response(JSON.stringify(body), {
@@ -38,6 +39,10 @@ it("the login poll re-reads the provider list once a sign-in finishes", async ()
           },
         ],
       });
+    if (listFails > 0) {
+      listFails--;
+      return new Response("upstream down", { status: 502 });
+    }
     return json([
       {
         id: "anthropic",
@@ -76,9 +81,20 @@ it("the login poll re-reads the provider list once a sign-in finishes", async ()
   expect(paths.every((p) => p.endsWith("/auth/status"))).toBe(true);
   expect(deadline()).toBe(OLD_DEADLINE);
 
+  // The sign-in finishes while the list read fails: the poll still resolves
+  // with the sign-in status, and the list stays owed.
   signedIn = true;
+  listFails = 1;
   await sdk.providers.refreshStatus(AGENT);
   expect(paths.some((p) => p.endsWith("/providers"))).toBe(true);
+  expect(deadline()).toBe(OLD_DEADLINE);
+  expect(ports.logger.warn).toHaveBeenCalled();
+
+  // The next poll pays the debt, and the one after it reads no list.
+  await sdk.providers.refreshStatus(AGENT);
   expect(deadline()).toBe(NEW_DEADLINE);
+  paths.length = 0;
+  await sdk.providers.refreshStatus(AGENT);
+  expect(paths.every((p) => p.endsWith("/auth/status"))).toBe(true);
   sdk.dispose();
 });

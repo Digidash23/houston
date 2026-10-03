@@ -13,6 +13,7 @@
 import type { ModuleContext } from "../../module-context";
 import { mergeProviders, overlayStatus, signInFinished } from "./merge";
 import {
+  type AuthStatus,
   type LoginInfo,
   type LoginOptions,
   type ProviderId,
@@ -51,6 +52,8 @@ export function createProviderOps(
   // after a newer one never flushes a stale snapshot over the fresh one
   // (last-intent wins). Mirrors the activities module's guard.
   const loadSeq = new Map<string, number>();
+  // Agents whose provider list predates a finished sign-in (refreshStatus).
+  const listOwed = new Set<string>();
 
   /**
    * Refreshes which AI providers an agent can use and which one it is signed
@@ -96,7 +99,29 @@ export function createProviderOps(
     store.publish(scope, next);
     // A sign-in that just finished started a new login: its deadline
     // (`reconnectBy`) rides the provider list, which this poll does not read.
-    if (signInFinished(prior, next)) await refresh(agentId);
+    if (signInFinished(prior, next)) listOwed.add(agentId);
+    if (listOwed.has(agentId)) await readOwedList(agentId, auth);
+  }
+
+  /**
+   * The provider list a finished sign-in left stale. It stays owed until a
+   * read succeeds, so a failed one is retried by the next poll instead of
+   * being lost with the transition; the poll's own answer stands either way.
+   */
+  async function readOwedList(agentId: string, auth: AuthStatus) {
+    const seq = (loadSeq.get(agentId) ?? 0) + 1;
+    loadSeq.set(agentId, seq);
+    try {
+      const infos = await ctx.clientFor(agentId).listProviders();
+      listOwed.delete(agentId);
+      if (loadSeq.get(agentId) === seq)
+        store.publish(providersScope(agentId), mergeProviders(infos, auth));
+    } catch (err) {
+      ctx.config.ports.logger.warn(
+        "providers: list re-read after sign-in failed",
+        { agentId, error: String(err) },
+      );
+    }
   }
 
   /**

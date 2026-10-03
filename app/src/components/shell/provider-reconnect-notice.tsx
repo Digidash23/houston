@@ -1,42 +1,21 @@
 import type { ProviderReconnectNotice as Notice } from "@houston/sdk";
 import { Clock, Loader2 } from "lucide-react";
-import { useEffect, useReducer, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useProviderStatuses } from "../../hooks/use-provider-statuses";
-import {
-  nextReconnectNoticeChangeFor,
-  providerReconnectNoticeFor,
-} from "../../lib/provider-reconnect-notice";
+import { useReconnectNotice } from "../../hooks/use-reconnect-notice";
 import { providerName } from "../../lib/providers";
 import { tauriProvider } from "../../lib/tauri";
 
 /**
- * A timer this long re-reads the clock even when the next change is further
- * off: a laptop that slept past it fires it late, and the re-read catches up.
- */
-const MAX_WAIT_MS = 60 * 60 * 1000;
-
-/**
  * A quiet pill at the top of the workspace, shown a few days before a hosted
  * Claude subscription login ends (the provider ends it about 28 days after the
- * sign-in). When to show it and what day it reads are the SDK's rules
- * (`providerReconnectNotices`, `nextReconnectNoticeChange`); the pill re-reads
- * them when the count would change, so an open window stays current.
+ * sign-in). When to show it and what day it reads are the SDK's rules, kept
+ * current by `useReconnectNotice`.
  */
 export function ProviderReconnectNotice() {
   const { statuses } = useProviderStatuses();
-  const [, rerender] = useReducer((n: number) => n + 1, 0);
-  const now = Date.now();
-  const notice = providerReconnectNoticeFor(statuses, now);
-  const next = nextReconnectNoticeChangeFor(statuses, now);
-
-  useEffect(() => {
-    if (next === null) return;
-    const wait = Math.min(Math.max(next - Date.now(), 0), MAX_WAIT_MS);
-    const timer = setTimeout(rerender, wait);
-    return () => clearTimeout(timer);
-  }, [next]);
-
+  const notice = useReconnectNotice(statuses);
   if (!notice) return null;
   // Keyed by the deadline: a new login (a new deadline) starts a fresh pill.
   return (
