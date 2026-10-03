@@ -15,17 +15,21 @@ import { untrackedFetch } from "./turn-network-marks";
  *
  * Claude runs in its own CLI process, which dials Anthropic itself, and
  * Bedrock rides the AWS SDK's own pool, so neither is warmed here. A custom
- * endpoint's address lives in the agent's files, which only the turn reads.
+ * endpoint's address, Qwen's region and Xiaomi's plan endpoint live in the
+ * agent's files, which only the turn reads.
  */
 export const PROVIDER_WARM_EVERY_MS = 3_000;
 /** Bounds one warm however long its hold: a sandbox nobody sends to dies. */
 export const PROVIDER_WARM_MAX_MS = 3 * 60_000;
 const PROVIDER_WARM_REQUEST_MS = 5_000;
 
+// Qwen's region and Xiaomi's plan endpoint come from the agent's files too.
 const NOT_WARMED = new Set([
   "anthropic",
   "amazon-bedrock",
   "openai-compatible",
+  "qwen",
+  "xiaomi",
 ]);
 const AZURE_OPENAI = "azure-openai-responses";
 

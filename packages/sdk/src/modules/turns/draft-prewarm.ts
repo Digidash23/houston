@@ -63,13 +63,15 @@ interface Session {
   /** The agent and the chat it targets; either changing starts a new one. */
   target: string;
   sentAt: number;
-  inFlight: boolean;
 }
 
 /** One SDK instance's typing sessions and the ids minted for new chats. */
 export class DraftPrewarm {
   private readonly sessions = new Map<string, Session>();
   private readonly pendingIds = new Map<string, string>();
+  /** Targets with a prewarm on the wire. Kept apart from the sessions, which
+   *  an emptied composer ends while its request may still be out. */
+  private readonly inFlight = new Set<string>();
 
   constructor(private readonly ports: DraftPrewarmPorts) {}
 
@@ -95,17 +97,15 @@ export class DraftPrewarm {
     const target = JSON.stringify([draft.agentId, conversationId]);
     const now = this.ports.now();
     const session = this.sessions.get(draft.draftKey);
-    if (
-      session?.target === target &&
-      (session.inFlight || now - session.sentAt < PREWARM_REFRESH_MS)
-    )
+    if (this.inFlight.has(target)) return;
+    if (session?.target === target && now - session.sentAt < PREWARM_REFRESH_MS)
       return;
-    const started: Session = { target, sentAt: now, inFlight: true };
-    this.sessions.set(draft.draftKey, started);
+    this.sessions.set(draft.draftKey, { target, sentAt: now });
+    this.inFlight.add(target);
     try {
       await this.ports.prewarm(conversationId, draft.agentId, pinOf(draft));
     } finally {
-      started.inFlight = false;
+      this.inFlight.delete(target);
     }
   }
 

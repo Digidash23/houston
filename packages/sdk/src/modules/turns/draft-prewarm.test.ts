@@ -117,6 +117,31 @@ describe("rule 4: once at once, then at most every refresh interval", () => {
   });
 });
 
+describe("an emptied composer does not reopen the in-flight guard", () => {
+  it("clearing and retyping while a prewarm is out sends no second one", async () => {
+    let resolve: () => void = () => {};
+    const calls: string[] = [];
+    const policy = new DraftPrewarm({
+      prewarm: (conversationId) => {
+        calls.push(conversationId);
+        return new Promise<void>((done) => {
+          resolve = done;
+        });
+      },
+      now: () => 0,
+      mintId: () => "id-1",
+    });
+    const caps = { conversationPrewarm: true };
+    const draft = { agentId: "a", draftKey: "k", conversationId: "activity-c" };
+    const first = policy.draftChanged({ ...draft, text: "h" }, caps);
+    await policy.draftChanged({ ...draft, text: "" }, caps);
+    await policy.draftChanged({ ...draft, text: "hi" }, caps);
+    expect(calls).toEqual(["activity-c"]);
+    resolve();
+    await first;
+  });
+});
+
 describe("rule 5: a new slot, agent or chat is a new session", () => {
   it("sends at once on each change", async () => {
     const { requests, type } = harness();

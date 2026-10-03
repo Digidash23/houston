@@ -28,6 +28,8 @@ test("providers this process cannot warm answer nothing", () => {
     "anthropic",
     "amazon-bedrock",
     "openai-compatible",
+    "qwen",
+    "xiaomi",
     "",
     "no-such-provider",
   ]) {
