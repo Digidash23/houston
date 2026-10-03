@@ -166,15 +166,42 @@ test("a backtick run mid-sentence opens no block, so a loop after it trips", () 
 });
 
 test("a fence nested in a list item or a quote is still a fence", () => {
+  const indented = art
+    .split("\n")
+    .map((line) => `    ${line}`)
+    .join("\n");
+  const quoted = art
+    .split("\n")
+    .map((line) => `> ${line}`)
+    .join("\n");
   for (const size of [1, 7, 64]) {
     expect(
       trips(
-        `- Example:\n\n    \`\`\`text\n${art}\n    \`\`\`\n- Next item.\n`,
+        `- Example:\n\n    \`\`\`text\n${indented}\n    \`\`\`\n- Next item.\n`,
         size,
       ),
     ).toBe(false);
-    expect(trips(`> \`\`\`\n${art}\n> \`\`\`\n`, size)).toBe(false);
+    expect(trips(`> \`\`\`\n${quoted}\n> \`\`\`\n`, size)).toBe(false);
   }
+});
+
+test("a fence ends with its quote or list item, so a loop after it trips", () => {
+  const loop = repeat("Symbol", 6000);
+  expect(trips(`> \`\`\`text\n> sample\n\n${loop}`, 7)).toBe(true);
+  expect(trips(`- Example:\n\n    \`\`\`text\n    sample\n\n${loop}`, 7)).toBe(
+    true,
+  );
+});
+
+test("only a line in the opener's own container closes it", () => {
+  // Quoted or indented backticks inside a top-level block are its content.
+  const loop = repeat("Symbol", 6000);
+  expect(trips(`\`\`\`text\n> \`\`\`\n${loop}\n\`\`\`\n`, 7)).toBe(false);
+  expect(trips(`\`\`\`text\n    \`\`\`\n${loop}\n\`\`\`\n`, 7)).toBe(false);
+  // Trailing spaces do not stop a closer, however many.
+  expect(
+    trips(`\`\`\`text\nsample\n\`\`\`${" ".repeat(510)}\n${loop}`, 7),
+  ).toBe(true);
 });
 
 test("a line that only looks like a fence opener is judged as text", () => {

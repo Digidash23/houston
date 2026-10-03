@@ -1,3 +1,13 @@
+import {
+  CLOSER_SHAPE,
+  closes,
+  endsContainer,
+  FENCE_LINE_MAX,
+  FENCE_PREFIX,
+  type Fence,
+  opens,
+} from "./markdown-fence";
+
 /**
  * Spots a model stuck in a repetition loop while it streams. A degenerate
  * generation repeats a short unit ("SymbolSymbol…", "@\t@\t…", " 묶 묶…") until
@@ -45,38 +55,11 @@ export interface RunawayDetector {
 }
 
 /**
- * Text inside a markdown code block is never judged: output a person asked
- * for that repeats by design (ASCII art, a zero-filled array, rows of one CSV
- * line) belongs in one, while the staging loops all ran in plain prose. A
- * fence is a line of 3 or more backticks or tildes, after any indentation or
- * blockquote markers (a block nested in a list or a quote counts); it closes
- * on a line of the same character, at least as long, with nothing after it.
- * A backtick run mid-sentence is no fence, nor is any line longer than
- * `FENCE_LINE_MAX`: a looping line never ends, and must still be judged.
+ * Text inside a markdown code block is never judged (markdown-fence.ts):
+ * output a person asked for that repeats by design (ASCII art, a zero-filled
+ * array, rows of one CSV line) belongs in one, while the staging loops all
+ * ran in plain prose.
  */
-const FENCE_LINE = /^[ \t>]*(`{3,}|~{3,})(.*)$/;
-/** A line that may still become a fence line as more of it streams. */
-const FENCE_PREFIX = /^[ \t>]*(?:`*|~*|`{3,}.*|~{3,}.*)$/s;
-const FENCE_LINE_MAX = 512;
-
-interface Fence {
-  char: string;
-  run: number;
-}
-
-/** The fence `line` opens (when `open` is null) or whether it closes `open`. */
-function fenceAt(line: string, open: Fence | null): Fence | boolean {
-  const match = FENCE_LINE.exec(line);
-  if (!match) return false;
-  const [, run = "", rest = ""] = match;
-  const char = run.charAt(0);
-  if (open)
-    return char === open.char && run.length >= open.run && rest.trim() === "";
-  // A backtick opener's info string holds no backtick (that line is inline code).
-  if (char === "`" && rest.includes("`")) return false;
-  return { char, run: run.length };
-}
-
 interface Stream {
   /** The judged text since the last fence, at most a window of it. */
   tail: string;
@@ -96,6 +79,17 @@ export function createRunawayDetector(): RunawayDetector {
     stream.tail = (stream.tail + text).slice(-LOOP_WINDOW_CHARS);
     stream.unjudged += text.length;
   };
+  const fenceChanged = (stream: Stream, fence: Fence | null) => {
+    stream.fence = fence;
+    stream.tail = "";
+    stream.unjudged = 0;
+  };
+  /** The held line proved to be text: judge it, unless still in a fence. */
+  const text = (stream: Stream, line: string) => {
+    if (stream.fence && endsContainer(line, stream.fence))
+      fenceChanged(stream, null);
+    judged(stream, line);
+  };
   return {
     feed(kind, delta) {
       let stream = streams.get(kind);
@@ -110,30 +104,35 @@ export function createRunawayDetector(): RunawayDetector {
         let end = from;
         while (end < delta.length && delta[end] !== "\n" && delta[end] !== "\r")
           end++;
-        const text = delta.slice(from, end);
+        const piece = delta.slice(from, end);
         const ended = end < delta.length;
         from = end + 1;
-        if (stream.line === null) judged(stream, text);
+        if (stream.line === null) judged(stream, piece);
         else {
-          stream.line += text;
-          if (
-            stream.line.length > FENCE_LINE_MAX ||
-            !FENCE_PREFIX.test(stream.line)
-          ) {
-            judged(stream, stream.line);
+          let line = stream.line + piece;
+          if (line.length > FENCE_LINE_MAX && CLOSER_SHAPE.test(line))
+            line = line.trimEnd();
+          if (line.length > FENCE_LINE_MAX || !FENCE_PREFIX.test(line)) {
+            text(stream, line);
             stream.line = null;
-          }
+          } else stream.line = line;
         }
         if (!ended) break;
-        const at =
-          stream.line === null ? false : fenceAt(stream.line, stream.fence);
-        if (at === false) judged(stream, `${stream.line ?? ""}\n`);
-        else {
-          stream.fence = at === true ? null : at;
-          stream.tail = "";
-          stream.unjudged = 0;
-        }
+        const line = stream.line;
         stream.line = "";
+        if (line === null) {
+          judged(stream, "\n");
+          continue;
+        }
+        if (stream.fence && closes(line, stream.fence)) {
+          fenceChanged(stream, null);
+          continue;
+        }
+        if (stream.fence && endsContainer(line, stream.fence))
+          fenceChanged(stream, null);
+        const opened = stream.fence ? null : opens(line);
+        if (opened) fenceChanged(stream, opened);
+        else judged(stream, `${line}\n`);
       }
       if (stream.fence || stream.unjudged < JUDGE_EVERY_CHARS) return false;
       stream.unjudged = 0;
