@@ -27,6 +27,10 @@ export class SendHoldState {
   get holding(): boolean {
     return this.on;
   }
+  /** Whether the send was ever held (then only its own ids bind it). */
+  get wasHeld(): boolean {
+    return this.was;
+  }
   hold(): void {
     this.on = true;
     this.was = true;
