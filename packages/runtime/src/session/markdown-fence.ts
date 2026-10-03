@@ -29,11 +29,19 @@ export interface Fence extends Container {
   run: number;
 }
 
-function containerOf(line: string): Container {
+/**
+ * The quote markers and indentation `line` starts with. Past `maxQuotes`
+ * markers a `>` is content (a quotation inside a code block), not a quote.
+ */
+function containerOf(
+  line: string,
+  maxQuotes = Number.POSITIVE_INFINITY,
+): Container {
   let quotes = 0;
   let indent = 0;
   for (const c of /^[ \t>]*/.exec(line)?.[0] ?? "") {
     if (c === ">") {
+      if (quotes === maxQuotes) break;
       quotes++;
       indent = 0;
     } else indent += c === "\t" ? 4 : 1;
@@ -47,7 +55,7 @@ function containerOf(line: string): Container {
  */
 export function endsContainer(line: string, fence: Fence): boolean {
   if (line.trim() === "") return false;
-  const { quotes, indent } = containerOf(line);
+  const { quotes, indent } = containerOf(line, fence.quotes);
   return quotes < fence.quotes || indent < fence.indent - 3;
 }
 

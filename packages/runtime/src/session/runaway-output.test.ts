@@ -228,3 +228,12 @@ test("CR and CRLF end lines too", () => {
     trips(`\`\`\`\r\n${art.replaceAll("\n", "\r\n")}\r\n\`\`\`\r\n`, 5),
   ).toBe(false);
 });
+
+test("a quotation inside a nested code block is content, not a quote", () => {
+  const nested = art
+    .split("\n")
+    .map((line) => `      ${line}`)
+    .join("\n");
+  const reply = `- Example:\n  - Markdown source:\n\n      \`\`\`markdown\n      > A quotation\n${nested}\n      \`\`\`\n`;
+  for (const size of [1, 7, 64]) expect(trips(reply, size)).toBe(false);
+});
