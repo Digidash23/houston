@@ -2132,6 +2132,8 @@ export function useAgentChatPanel({
         return <SystemNote text={t("chat:engineRestart.sayContinue")} />;
       if (msg.notice === "engine_resumed")
         return <SystemNote text={t("chat:engineRestart.resuming")} />;
+      if (msg.notice === "send_busy")
+        return <SystemNote text={t("chat:sendBusy")} />;
       return undefined;
     },
     [

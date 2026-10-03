@@ -290,6 +290,7 @@
   "contextCompacted": "Earlier conversation summarized so the chat can keep going",
   "contextCompactedManual": "Conversation compacted to free up space",
   "contextCleared": "Context cleared. I'll start fresh, and I keep what I've learned about you.",
+  "sendBusy": "The agent is still busy with another message. Send yours again in a moment.",
   "engineRestart": {
     "sayContinue": "Your agent had to restart. Say continue and it will pick up where it left off.",
     "resuming": "Your agent was interrupted by a restart and is picking up where it left off."

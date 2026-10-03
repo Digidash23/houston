@@ -13,12 +13,12 @@
 
 import type { ModuleContext } from "../../module-context";
 import { createConversationImports } from "./conversation-imports";
-import { isTurnRunningRejection } from "./turn-errors";
 import {
   asConversationInput,
   asSetModeInput,
   asTruncateInput,
 } from "./turn-inputs";
+import { isTurnRunningRejection } from "./turn-running";
 
 /**
  * What a dismiss came to. `turn_running`: the runtime refused because a turn

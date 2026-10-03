@@ -227,6 +227,8 @@ test("the default board-status persister fires running at start and terminal on 
   const { mod, vm, calls } = harness();
   await mod.send({ conversationId: "c1", text: "hi" });
   await waitFor(() => vm()?.sessionStatus === "completed");
+  // The terminal persist is awaited AFTER the settle: wait for it, not a tick.
+  await waitFor(() => calls.boardPersists.length >= 2);
   // A running turn PATCHes the card to running, then to its terminal status —
   // the write the SDK path used to drop, keyed by the chat's id. Every clean
   // settle lands `needs_you`: the engine never closes a mission, the user does.

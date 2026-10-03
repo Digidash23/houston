@@ -8,13 +8,13 @@ import { streamEventsResumable } from "@houston/runtime-client";
 import type { FeedOutput } from "./feed-output";
 import { FirstResponseClock } from "./first-response";
 import { randomNonce } from "./random-nonce";
+import { observerSettled, sendHolding } from "./send-hold";
 import {
   type ActiveStream,
   PRESETTLED_POLL_MS,
   SEND_IN_FLIGHT_MESSAGE,
   SEND_LOST_MESSAGE,
   SEND_VERDICT_MS,
-  SEND_WAKE_RETRY_DELAYS_MS,
   STREAM_FAILURE_BUDGET,
   STREAM_LOST_MESSAGE,
   type StreamRegistry,
@@ -24,10 +24,9 @@ import {
 import {
   engineVerdictMessage,
   isAmbiguousSendFailure,
-  isEngineWakingRejection,
   messageLimitRefusal,
-  turnErrorMessage,
 } from "./turn-errors";
+import { isTurnRunningRejection, sendRefusal } from "./turn-running";
 import { TurnSink } from "./turn-sink";
 import type { FeedAuthor, FeedMention } from "./vm-output";
 
@@ -153,42 +152,6 @@ export interface StreamTurnOptions {
  * `registry` is the caller's stream set (one per SDK / adapter) — passed
  * explicitly so two owners never share a map and cross-abort each other.
  */
-/**
- * After a waking refusal (the pod is restarting or booting), re-send along
- * the delay ladder until the engine accepts; any other refusal, an exhausted
- * ladder, or the caller's abort rejects with the last refusal. Entered only
- * from the catch of the first, direct send, so the accepted-first-time path
- * keeps its exact timing.
- */
-async function resendWhileWaking(
-  send: () => Promise<void>,
-  refusal: unknown,
-  delaysMs: readonly number[],
-  signal: AbortSignal,
-): Promise<void> {
-  let last = refusal;
-  for (const delay of delaysMs) {
-    if (!isEngineWakingRejection(last) || signal.aborted) throw last;
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(done, delay);
-      function done() {
-        signal.removeEventListener("abort", done);
-        clearTimeout(timer);
-        resolve();
-      }
-      signal.addEventListener("abort", done, { once: true });
-    });
-    if (signal.aborted) throw last;
-    try {
-      await send();
-      return;
-    } catch (e) {
-      last = e;
-    }
-  }
-  throw last;
-}
-
 export async function streamTurn(
   engine: HoustonEngineClient,
   agentPath: string,
@@ -252,6 +215,15 @@ export async function streamTurn(
     registry.delete(key);
   }
 
+  const sendOptions = {
+    nonce,
+    ...opts.pin,
+    displayText: opts.displayText,
+    mentions,
+    approvals: opts.approvals,
+    missionTitle: opts.missionTitle,
+    grants: opts.grants,
+  };
   // Observer→turn handoff. The cursor snapshot happens BEFORE the send so the
   // resumed stream replays everything from that point — our `user` echo (the
   // turnId source) included, even if the observer consumed it before disposal.
@@ -275,18 +247,40 @@ export async function streamTurn(
       return;
     }
     after = prior.lastSeq;
+    let refusal: unknown;
     try {
-      const sendOptions = {
-        nonce,
-        ...opts.pin,
-        displayText: opts.displayText,
-        mentions,
-        approvals: opts.approvals,
-        missionTitle: opts.missionTitle,
-        grants: opts.grants,
-      };
       await engine.sendMessage(sessionKey, prompt, sendOptions);
+      sent = true;
     } catch (e) {
+      refusal = e;
+    }
+    if (sent) {
+      if (registry.get(key) !== prior) firstResponse.dispose(); // torn down meanwhile
+      prior.dispose();
+      registry.delete(key);
+    } else if (
+      isTurnRunningRejection(refusal) &&
+      (await observerSettled(registry, key, prior, opts.tuning))
+    ) {
+      // Held behind the observed turn until its observer settled (the bubble
+      // stayed pending, the send lock held). Send on the fresh path below,
+      // which holds again through the cloud pool's claim lag.
+      if (!registry.isSending(key)) {
+        // Torn down (logout) while held: the lock went with the streams, and
+        // nobody is waiting any more. Never send into a gone client.
+        firstResponse.dispose();
+        return;
+      }
+      // A newer observer (the chat reopened mid-hold) must not keep
+      // streaming beside this turn: every frame would render twice.
+      const next = registry.get(key);
+      if (next?.kind === "observer") {
+        next.dispose();
+        registry.delete(key);
+      }
+      after = prior.lastSeq;
+    } else {
+      const e = refusal;
       // The client tore the streams down while this send was out (the
       // observer is gone from the registry): nobody is waiting any more.
       if (registry.get(key) !== prior) firstResponse.dispose();
@@ -308,19 +302,19 @@ export async function streamTurn(
               },
               fails_pending: true,
             }
-          : {
-              feed_type: "system_message",
-              data: turnErrorMessage(e),
-              fails_pending: true,
-            },
+          : (() => {
+              const refusal = sendRefusal(e);
+              return {
+                feed_type: "system_message" as const,
+                data: refusal.message,
+                ...(refusal.notice ? { notice: refusal.notice } : {}),
+                fails_pending: true,
+              };
+            })(),
       );
       firstResponse.resolve("error");
       return; // the observer keeps rendering the running turn
     }
-    if (registry.get(key) !== prior) firstResponse.dispose(); // torn down meanwhile
-    sent = true;
-    prior.dispose();
-    registry.delete(key);
   }
 
   const ac = new AbortController();
@@ -387,26 +381,18 @@ export async function streamTurn(
     streaming.catch(() => {});
     if (!sent) {
       try {
-        const sendOptions = {
-          nonce,
-          ...opts.pin,
-          displayText: opts.displayText,
-          mentions,
-          approvals: opts.approvals,
-          missionTitle: opts.missionTitle,
-          grants: opts.grants,
-        };
-        const send = () => engine.sendMessage(sessionKey, prompt, sendOptions);
-        try {
-          await send();
-        } catch (refusal) {
-          await resendWhileWaking(
-            send,
-            refusal,
-            opts.tuning?.sendWakeRetryDelaysMs ?? SEND_WAKE_RETRY_DELAYS_MS,
-            ac.signal,
-          );
-        }
+        await sendHolding(
+          () => engine.sendMessage(sessionKey, prompt, sendOptions),
+          sink,
+          ac.signal,
+          opts.tuning,
+          () => {
+            sink.holdSend();
+            entry.held = true;
+          },
+        ).finally(() => {
+          entry.held = false;
+        });
         sink.sendAccepted();
       } catch (e) {
         // A definitive failure (engine verdict / our abort) settles below.
@@ -429,7 +415,10 @@ export async function streamTurn(
     if (!sink.settled) {
       const limit = messageLimitRefusal(e);
       if (limit) sink.planLimit(limit);
-      else sink.fail(turnErrorMessage(e));
+      else {
+        const refusal = sendRefusal(e);
+        sink.fail(refusal.message, refusal.notice);
+      }
     }
   } finally {
     if (sendVerdict !== undefined) clearTimeout(sendVerdict);
