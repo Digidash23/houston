@@ -122,6 +122,9 @@ export async function managedStoreConfig(
         bootId,
         fence,
       }),
+      // A claim that answered 404 (fencing off) leaves no token: nothing can
+      // fence this boot until one is published, so nothing waits on the check.
+      leaseClaimed: () => fence.token !== undefined,
       quietMs: optionalPositiveNumber("HOUSTON_STORE_SYNC_QUIET_MS"),
       intervalMs: optionalPositiveNumber("HOUSTON_STORE_SYNC_INTERVAL_MS"),
       maxHydrateBytes:

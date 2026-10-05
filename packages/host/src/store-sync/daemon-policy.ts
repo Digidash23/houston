@@ -58,6 +58,8 @@ export interface StoreSyncOptions {
   localWriteLock?: LocalWriteLock;
   /** The pod-store's write lease check (managed pods; see write-fence.ts). */
   leaseProbe?: () => Promise<WriteLeaseVerdict>;
+  /** Whether this boot carries a lease token (absent = always). */
+  leaseClaimed?: () => boolean;
   leaseHeartbeatMs?: number;
   /**
    * After this boot lost the agent's store lease: `live` when a running

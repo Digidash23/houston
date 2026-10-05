@@ -172,6 +172,8 @@ export interface ControlPlaneDeps {
    * self-host, where nothing fences.
    */
   storeWritable?: () => Promise<boolean>;
+  /** Ship an acknowledged write to the store now (store-sync/daemon.ts). */
+  storeSyncAfterWrite?: () => void;
   /**
    * Materialize a synthetic (dot-named) agent's directory — the personal
    * assistant's home (routes/assistant.ts). Local filesystem profiles only;

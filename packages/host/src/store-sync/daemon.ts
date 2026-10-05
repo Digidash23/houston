@@ -3,7 +3,9 @@ import {
   StoreFencedError,
 } from "@houston/runtime-client/object-sync";
 import type { TreeWatch } from "../watch/watch-tree";
-import { runHydrate } from "./daemon-hydrate";
+import { CoalescedRun } from "./coalesced-run";
+import { createDaemonFence } from "./daemon-fence";
+import { FENCE_RETIRED_MARKER, runHydrate } from "./daemon-hydrate";
 import { logFenceLost, logSyncFailed, logSyncResult } from "./daemon-log";
 import {
   awaitInFlightSync,
@@ -15,7 +17,7 @@ import {
   type StoreSyncOptions,
   startTreeWatch,
 } from "./daemon-policy";
-import { WriteFence } from "./write-fence";
+import type { WriteFence } from "./write-fence";
 
 export { STORE_SYNC_EXCLUDES, type StoreSyncOptions } from "./daemon-policy";
 
@@ -29,19 +31,15 @@ export class StoreSyncDaemon {
   private watcher: TreeWatch | undefined;
   private quietTimer: ReturnType<typeof setTimeout> | undefined;
   private intervalTimer: ReturnType<typeof setInterval> | undefined;
-  private syncPromise: Promise<void> | undefined;
-  private rerunRequested = false;
   private readonly fence: WriteFence;
+  private readonly syncs = new CoalescedRun(
+    () => this.syncOnce(),
+    () => !this.stopping && !this.fence.lost,
+  );
   private consecutiveFailures = 0;
 
   constructor(private readonly opts: StoreSyncOptions) {
-    this.fence = new WriteFence({
-      probe: opts.leaseProbe,
-      heartbeatMs: opts.leaseHeartbeatMs,
-      onLost: (err) => this.haltFenced(err),
-      onHolder: (holder) => opts.onFenceLost?.(holder),
-      log: opts.log,
-    });
+    this.fence = createDaemonFence(opts, (err) => this.haltFenced(err));
   }
 
   get fenced(): boolean {
@@ -89,7 +87,8 @@ export class StoreSyncDaemon {
     this.stopScheduling();
     if (!this.hydrated) return;
 
-    if (this.syncPromise) await awaitInFlightSync(this.opts, this.syncPromise);
+    const inFlight = this.syncs.inFlight;
+    if (inFlight) await awaitInFlightSync(this.opts, inFlight);
     if (this.fence.lost) {
       this.started = false;
       return;
@@ -99,7 +98,10 @@ export class StoreSyncDaemon {
   }
 
   private get excludes(): string[] {
-    return this.opts.excludes ?? STORE_SYNC_EXCLUDES;
+    return [
+      ...(this.opts.excludes ?? STORE_SYNC_EXCLUDES),
+      FENCE_RETIRED_MARKER,
+    ];
   }
 
   private markDirty(): void {
@@ -123,10 +125,26 @@ export class StoreSyncDaemon {
    * (PRODUCT-1807). A no-op before start, after stop, or once fenced.
    */
   async flush(): Promise<void> {
-    if (!this.started || this.stopping || this.fence.lost) return;
+    if (this.markForSync()) await this.syncs.request();
+  }
+
+  /**
+   * Ship an acknowledged write now, under the lease the gate just checked:
+   * the watcher skips the workspaces subtree, and a write left for the
+   * 5-minute pass is lost if a takeover lands first. Only while this boot
+   * carries a lease token, so an unfenced deployment syncs exactly as before.
+   */
+  syncAfterWrite(): void {
+    if ((this.opts.leaseClaimed?.() ?? true) && this.markForSync()) {
+      this.runInBackground("write");
+    }
+  }
+
+  private markForSync(): boolean {
+    if (!this.started || this.stopping || this.fence.lost) return false;
     this.dirty = true;
     this.dirtyVersion += 1;
-    await this.requestSync();
+    return true;
   }
 
   private runInBackground(trigger: string): void {
@@ -136,25 +154,9 @@ export class StoreSyncDaemon {
       (trigger === "debounced" && !this.dirty)
     )
       return;
-    void this.requestSync().catch((err) => {
+    void this.syncs.request().catch((err) => {
       logSyncFailed(this.opts, trigger, this.consecutiveFailures, err);
     });
-  }
-
-  private requestSync(): Promise<void> {
-    if (this.syncPromise) {
-      this.rerunRequested = true;
-      return this.syncPromise;
-    }
-    this.syncPromise = (async () => {
-      do {
-        this.rerunRequested = false;
-        await this.syncOnce();
-      } while (this.rerunRequested && !this.stopping && !this.fence.lost);
-    })().finally(() => {
-      this.syncPromise = undefined;
-    });
-    return this.syncPromise;
   }
 
   private async syncOnce(): Promise<void> {
@@ -179,7 +181,7 @@ export class StoreSyncDaemon {
   /** The sync halts for good; the fence's heartbeat keeps watching the holder. */
   private haltFenced(err: { message: string }): void {
     this.dirty = false;
-    this.rerunRequested = false;
+    this.syncs.cancelRerun();
     this.stopScheduling();
     logFenceLost(this.opts, err);
   }

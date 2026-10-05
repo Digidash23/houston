@@ -9,6 +9,13 @@ export const DEFAULT_LEASE_HEARTBEAT_MS = 60_000;
 export interface WriteFenceOptions {
   /** The pod-store's lease check; absent where no store fences (tests, PVC). */
   probe?: () => Promise<WriteLeaseVerdict>;
+  /**
+   * Whether this boot carries a lease token. False while the boot's claim
+   * answered 404 (fencing off): nothing can fence it, so no write waits on
+   * the store and no heartbeat asks. A token captured later (the flag flip)
+   * turns the check on. Absent = always claimed.
+   */
+  claimed?: () => boolean;
   heartbeatMs?: number;
   /** Runs once, the moment this boot first learns it lost the lease. */
   onLost: (err: { message: string }) => void;
@@ -44,8 +51,13 @@ export class WriteFence {
   private unsupportedLogged = false;
   private inFlight: Promise<WriteLeaseVerdict | undefined> | undefined;
   private heartbeat: ReturnType<typeof setInterval> | undefined;
+  private heartbeatWanted = false;
 
   constructor(private readonly opts: WriteFenceOptions) {}
+
+  private get claimed(): boolean {
+    return this.opts.claimed?.() ?? true;
+  }
 
   get lost(): boolean {
     return this.lostLatch;
@@ -63,6 +75,9 @@ export class WriteFence {
     else if (!this.opts.probe) this.settle("stale");
     // The heartbeat timer only calls watch(), which never rejects.
     else void this.watch();
+    // A loss proves the store fences this agent: watch the holder even if
+    // this boot never carried a token.
+    this.armHeartbeat();
   }
 
   /**
@@ -73,6 +88,8 @@ export class WriteFence {
    */
   async writable(): Promise<boolean> {
     if (this.lostLatch) return false;
+    if (!this.claimed) return true;
+    this.armHeartbeat();
     const verdict = await this.ask();
     if (verdict?.state === "fenced") {
       this.lose(
@@ -89,7 +106,13 @@ export class WriteFence {
    * keeps a hydrating boot live to a rival standing down.
    */
   startHeartbeat(): void {
-    if (!this.opts.probe || this.heartbeat || this.holder === "stale") return;
+    this.heartbeatWanted = true;
+    this.armHeartbeat();
+  }
+
+  private armHeartbeat(): void {
+    if (!this.heartbeatWanted || !this.opts.probe || this.heartbeat) return;
+    if (this.holder === "stale" || !(this.claimed || this.lostLatch)) return;
     this.heartbeat = setInterval(
       () => void (this.lostLatch ? this.watch() : this.writable()),
       this.opts.heartbeatMs ?? DEFAULT_LEASE_HEARTBEAT_MS,
@@ -98,6 +121,7 @@ export class WriteFence {
   }
 
   stopHeartbeat(): void {
+    this.heartbeatWanted = false;
     if (this.heartbeat) clearInterval(this.heartbeat);
     this.heartbeat = undefined;
   }
@@ -113,11 +137,9 @@ export class WriteFence {
     // A check this boot now passes (it captured a pre-mint its next write
     // would adopt) still finds a boot whose sync has halted: retire it.
     else if (verdict?.state === "held") this.settle("stale");
-    // No check to ask: retire, unless a running holder was already seen (a
-    // mixed pod-store fleet must not turn a stand-down into a re-claim).
-    else if (verdict?.state === "unsupported" && this.holder === undefined) {
-      this.settle("stale");
-    }
+    // "unsupported" decides nothing: during a pod-store roll it is an old
+    // replica, and retiring on it could re-claim over a running engine. The
+    // heartbeat asks again until a replica names the holder.
   }
 
   private settle(holder: LeaseHolderState): void {

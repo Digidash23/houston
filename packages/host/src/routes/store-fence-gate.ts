@@ -60,6 +60,7 @@ export async function handleStoreFenceGate(
   deps: {
     storeFenced?: () => boolean;
     storeWritable?: () => Promise<boolean>;
+    storeSyncAfterWrite?: () => void;
   },
   method: string,
   path: string,
@@ -68,6 +69,15 @@ export async function handleStoreFenceGate(
 ): Promise<boolean> {
   if (!isFencedWrite(method, path, scope)) return false;
   if (!deps.storeFenced?.() && (await deps.storeWritable?.()) !== false) {
+    // Upload the write right after it is acknowledged, while the lease the
+    // check just saw is still this boot's: left for the periodic pass, it
+    // would be lost to a takeover landing in the next five minutes.
+    const ship = deps.storeSyncAfterWrite;
+    if (ship) {
+      res.once("finish", () => {
+        if (res.statusCode < 400) ship();
+      });
+    }
     return false;
   }
   if (!reported) {

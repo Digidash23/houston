@@ -152,6 +152,9 @@ export function createHostServer(
     metrics: { render: () => boot.render(), contentType: boot.contentType },
     storeFenced: syncDaemon ? () => syncDaemon.fenced : undefined,
     storeWritable: syncDaemon ? () => syncDaemon.writable() : undefined,
+    storeSyncAfterWrite: syncDaemon
+      ? () => syncDaemon.syncAfterWrite()
+      : undefined,
     storeSyncFlush: syncDaemon ? () => syncDaemon.flush() : undefined,
     addressedAgent: docProjector
       ? (agentId) => {

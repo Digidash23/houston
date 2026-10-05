@@ -193,3 +193,56 @@ test("a stood-down pod does not retire on an unsupported answer", async () => {
   await vi.advanceTimersByTimeAsync(1_000);
   expect(holders).toEqual(["live", "stale"]);
 });
+
+// Prod runs with fencing off: the boot's claim answered 404 and it carries no
+// token. Nothing can fence it, so no write may wait on the store and no
+// heartbeat may call it, until a token is published (the flag flip).
+test("a boot without a lease token never calls the store", async () => {
+  vi.useFakeTimers();
+  let token: string | undefined;
+  const probe = vi.fn(async (): Promise<WriteLeaseVerdict> => held);
+  const subject = new WriteFence({
+    probe,
+    claimed: () => token !== undefined,
+    heartbeatMs: 1_000,
+    onLost: () => {},
+    onHolder: () => {},
+    log: () => {},
+  });
+  subject.startHeartbeat();
+  expect(await subject.writable()).toBe(true);
+  await vi.advanceTimersByTimeAsync(5_000);
+  expect(probe).not.toHaveBeenCalled();
+
+  // A token captured after the flip turns the check and the heartbeat on.
+  token = "9";
+  expect(await subject.writable()).toBe(true);
+  expect(probe).toHaveBeenCalledOnce();
+  await vi.advanceTimersByTimeAsync(1_000);
+  expect(probe).toHaveBeenCalledTimes(2);
+});
+
+// The flip's other signal: the sync of a token-less boot meets a 409. That
+// proves the store fences this agent, so the holder is watched from then on.
+test("a token-less boot whose sync meets a 409 still watches the holder", async () => {
+  vi.useFakeTimers();
+  let verdict: WriteLeaseVerdict = { state: "unsupported" };
+  const probe = vi.fn(async () => verdict);
+  const holders: LeaseHolderState[] = [];
+  const subject = new WriteFence({
+    probe,
+    claimed: () => false,
+    heartbeatMs: 1_000,
+    onLost: () => {},
+    onHolder: (holder) => holders.push(holder),
+    log: () => {},
+  });
+  subject.startHeartbeat();
+  subject.lose({ message: "object store PUT a.json failed (409)" });
+  await vi.advanceTimersByTimeAsync(2_000);
+  // An old pod-store replica decides nothing.
+  expect(holders).toEqual([]);
+  verdict = fencedBy("stale");
+  await vi.advanceTimersByTimeAsync(1_000);
+  expect(holders).toEqual(["stale"]);
+});

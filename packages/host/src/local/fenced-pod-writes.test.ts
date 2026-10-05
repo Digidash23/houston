@@ -121,6 +121,7 @@ async function bootPod(
   remote: LeasedStore,
   bootId: string,
   leaseHeartbeatMs?: number,
+  quietMs = 20,
 ) {
   const houstonHome = mkdtempSync(join(tmpdir(), "fenced-pod-"));
   const workspacesRoot = join(houstonHome, "workspaces");
@@ -136,7 +137,8 @@ async function bootPod(
     spawner: fakeSpawner,
     storeSync: {
       ...remote.boot(bootId),
-      quietMs: 20,
+      leaseClaimed: () => true,
+      quietMs,
       intervalMs: 60_000,
       leaseHeartbeatMs,
     },
@@ -259,6 +261,8 @@ test("a pod superseded by a running engine stands down, then retires when it sto
   });
   expect(refused.status).toBe(503);
   expect(pod.fenceLost.mock.calls).toEqual([["live"]]);
+  // It leaves the agent's Service: readiness answers 503.
+  expect((await fetch(`${pod.base}/health`)).status).toBe(503);
   await new Promise((resolve) => setTimeout(resolve, 100));
   expect(pod.fenceLost.mock.calls).toEqual([["live"]]);
 
@@ -266,4 +270,46 @@ test("a pod superseded by a running engine stands down, then retires when it sto
   await vi.waitFor(() =>
     expect(pod.fenceLost.mock.calls).toEqual([["live"], ["stale"]]),
   );
+}, 60_000);
+
+// The window a check alone leaves open: the edit was checked and acknowledged
+// while A held the lease, and the takeover lands minutes later, before any
+// pass of A's ships it (the watcher skips the workspaces subtree and the
+// periodic pass is five minutes out; the debounce is pushed out here so only
+// the post-answer upload can ship it). The acknowledged edit must already be
+// in the store when the takeover lands.
+test("an acknowledged edit survives a takeover that lands minutes later", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  const remote = new LeasedStore();
+  const seed = await bootPod(remote, "boot-seed");
+  const created = await fetch(`${seed.base}/agents/${AGENT}/routines`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({
+      name: "Daily cloud release cut",
+      prompt: "cut the release",
+      schedule: "30 11 * * *",
+    }),
+  });
+  const routine = (await created.json()) as Routine;
+  await stop(seed.host);
+
+  const podA = await bootPod(remote, "boot-a", undefined, 600_000);
+  const patched = await fetch(
+    `${podA.base}/agents/${AGENT}/routines/${routine.id}`,
+    {
+      method: "PATCH",
+      headers: auth,
+      body: JSON.stringify({ schedule: "0 7 * * *" }),
+    },
+  );
+  expect(patched.status).toBe(200);
+  // "Minutes later": past the upload that follows the answer, long before
+  // any pass of A's would run.
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  remote.mint();
+  await stop(podA.host);
+
+  const podC = await bootPod(remote, "boot-c");
+  expect((await routines(podC.base))[0]?.schedule).toBe("0 7 * * *");
 }, 60_000);

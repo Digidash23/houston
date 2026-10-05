@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import type { ServerResponse } from "node:http";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -197,6 +198,58 @@ describe("handleStoreFenceGate", () => {
       ),
     ).toBe(false);
     expect(asked).toEqual(["check"]);
+  });
+
+  // The watcher skips the workspaces subtree and the periodic pass is five
+  // minutes out: an acknowledged write ships now, under the lease the check
+  // just saw, or a takeover in those minutes loses it.
+  it("ships an acknowledged write to the store as soon as it is answered", async () => {
+    const shipped: string[] = [];
+    const deps = {
+      storeFenced: () => false,
+      storeWritable: async () => true,
+      storeSyncAfterWrite: () => shipped.push("ship"),
+    };
+    const answered = (status: number) =>
+      Object.assign(new EventEmitter(), {
+        statusCode: status,
+      }) as unknown as ServerResponse;
+
+    const ok = answered(200);
+    expect(
+      await handleStoreFenceGate(
+        deps,
+        "PATCH",
+        "/agents/a/routines/r1",
+        ok,
+        "authenticated",
+      ),
+    ).toBe(false);
+    expect(shipped).toEqual([]);
+    ok.emit("finish");
+    expect(shipped).toEqual(["ship"]);
+
+    // A refused or failed write changed nothing worth shipping.
+    const failed = answered(400);
+    await handleStoreFenceGate(
+      deps,
+      "POST",
+      "/sandbox/routines",
+      failed,
+      "sandbox",
+    );
+    failed.emit("finish");
+    // A read never ships.
+    const read = answered(200);
+    await handleStoreFenceGate(
+      deps,
+      "GET",
+      "/agents/a/routines",
+      read,
+      "authenticated",
+    );
+    read.emit("finish");
+    expect(shipped).toEqual(["ship"]);
   });
 
   it("names the state in the body so the toast and Sentry carry it", () => {

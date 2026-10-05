@@ -250,6 +250,7 @@ const host = buildLocalHost({
   // the agent, and restarts as its one writer once nobody does.
   onStoreFenceLost: managedStore
     ? respondToFenceLoss({
+        agent: `${managedStore.podGateway.orgSlug}/${managedStore.podGateway.agentSlug}`,
         stop: (stopOpts) => host.stop(stopOpts),
         standDown: (drainMs) => host.standDown(drainMs),
         exit: (code) => process.exit(code),

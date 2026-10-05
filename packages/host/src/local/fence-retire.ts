@@ -6,6 +6,8 @@ export const FENCE_RETIRE_DRAIN_MS = 3_000;
 export const FENCE_RETIRE_DEADLINE_MS = 20_000;
 
 export interface FenceRetireDeps {
+  /** `<org>/<agent>`, named on the retire line so an alert can count per agent. */
+  agent: string;
   /** The host's own stop, with a drain budget short enough for a retire. */
   stop: (opts: { drainMs: number }) => Promise<void>;
   /** Stop the local routine schedule and the runtimes; keep serving reads. */
@@ -47,7 +49,7 @@ export function respondToFenceLoss(
       if (stoodDown || retiring) return;
       stoodDown = true;
       console.error(
-        "[local-host] another running engine owns this agent's store; this pod stops firing routines and running turns, and refuses writes until it is replaced",
+        `[local-host] fence stand-down agent=${deps.agent} reason=live_holder: another running engine owns this agent's store; this pod stops firing routines and running turns, and refuses writes until it is replaced`,
       );
       void deps.standDown(FENCE_RETIRE_DRAIN_MS).catch((err: unknown) => {
         console.error("[local-host] stand-down failed:", err);
@@ -56,8 +58,10 @@ export function respondToFenceLoss(
     }
     if (retiring) return;
     retiring = true;
+    // One line per retire: two for the same agent within minutes means two
+    // engines trading its lease (or a crash loop), which is worth an alert.
     console.error(
-      "[local-host] another boot owns this agent's store and this pod can no longer persist writes; retiring it so the agent has one writer",
+      `[local-host] fence retire agent=${deps.agent} reason=stale_holder drain_ms=${FENCE_RETIRE_DRAIN_MS}: another boot owns this agent's store and this pod can no longer persist writes; retiring it so the agent has one writer`,
     );
     const deadline = new Promise<void>((resolve) => {
       setTimeout(resolve, deps.deadlineMs ?? FENCE_RETIRE_DEADLINE_MS);

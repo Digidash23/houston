@@ -9,6 +9,7 @@ afterEach(() => {
 function harness(stop: (opts: { drainMs: number }) => Promise<void>) {
   const events: string[] = [];
   const respond = respondToFenceLoss({
+    agent: "acme/writer",
     stop: async (opts) => {
       events.push(`stop ${opts.drainMs}`);
       await stop(opts);
@@ -32,8 +33,9 @@ test("with nobody holding the lease the pod stops on a short drain, reports, the
   await vi.waitFor(() => expect(events).toContain("exit 1"));
   expect(events).toEqual([`stop ${FENCE_RETIRE_DRAIN_MS}`, "flush", "exit 1"]);
   expect(error).toHaveBeenCalledOnce();
+  // One structured line per retire, keyed by agent, for a per-agent alert.
   expect(error.mock.calls[0]?.[0]).toContain(
-    "retiring it so the agent has one writer",
+    "[local-host] fence retire agent=acme/writer reason=stale_holder",
   );
 });
 

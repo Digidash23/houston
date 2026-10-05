@@ -107,6 +107,8 @@ export interface ManagedHostOptions {
     generations?: boolean;
     /** The pod-store's write lease check (store-sync/write-fence.ts). */
     leaseProbe?: () => Promise<WriteLeaseVerdict>;
+    /** Whether this boot carries a lease token (false while fencing is off). */
+    leaseClaimed?: () => boolean;
     leaseHeartbeatMs?: number;
   };
   /**
