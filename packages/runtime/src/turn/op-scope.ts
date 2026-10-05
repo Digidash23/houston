@@ -61,7 +61,13 @@ export function conversationScope(dataRel: string, cid: string): OpInclude {
     `${encodeURIComponent(cid)}.json`,
   );
   const sessions = `${posix.join(dataRel, "sessions", cid)}/`;
-  return (rel) => rel === file || rel.startsWith(sessions);
+  const archives = posix.join(
+    dataRel,
+    "conversations",
+    `${encodeURIComponent(cid)}.archive/`,
+  );
+  return (rel) =>
+    rel === file || rel.startsWith(archives) || rel.startsWith(sessions);
 }
 
 /**

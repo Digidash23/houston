@@ -50,6 +50,7 @@ export async function executeTurn(
   // dropped socket must not abort the work; a fenced heartbeat (the claim was
   // released or adopted) must. Unclaimed turns keep the connection contract.
   if (!turn.claim) req.on("close", () => abort.abort());
+  turn.liveMode = { current: turn.mode ?? "execute" };
   const turnId = turn.turnId ?? crypto.randomUUID();
   let heartbeat: ReturnType<typeof startClaimHeartbeat> | null = null;
   let turnSandbox: ReturnType<typeof makeTurnSandboxFetch> | null = null;
@@ -70,6 +71,9 @@ export async function executeTurn(
             claim: turn.claim,
             hostToken: turn.hostToken,
             onFenced: () => abort.abort(),
+            onMode: (mode) => {
+              if (turn.liveMode) turn.liveMode.current = mode;
+            },
             ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
             ...(deps.heartbeatIntervalMs
               ? { intervalMs: deps.heartbeatIntervalMs }

@@ -19,7 +19,7 @@ import type { FirstDayStartDeps } from "./agent-first-day-start";
 const DEFAULT_TITLE = "Getting set up";
 
 export function newSetupTask(
-  deps: FirstDayStartDeps,
+  deps: Pick<FirstDayStartDeps, "author">,
   input: FirstDayStartInput,
   config: AgentConfig,
 ): Activity {

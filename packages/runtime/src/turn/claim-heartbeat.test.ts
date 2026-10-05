@@ -60,3 +60,37 @@ test("a 409 fences the claim and fires onFenced once", async () => {
   expect(onFenced).toHaveBeenCalledOnce();
   await heartbeat.stop();
 });
+
+test("claim mode changes update the same live ref and ignore unknown or fenced responses", async () => {
+  const { runWithTurnMode, currentTurnMode } = await import(
+    "../session/turn-mode-context"
+  );
+  const mode = { current: "execute" as "execute" | "plan" | "auto" };
+  let response = Response.json({ ok: true, mode: "plan" });
+  const heartbeat = startClaimHeartbeat({
+    claim,
+    hostToken: "host-token",
+    intervalMs: 60_000,
+    fetchImpl: async () => response.clone(),
+    onMode: (next) => {
+      mode.current = next;
+    },
+  });
+  await runWithTurnMode(mode, async () => {
+    await heartbeat.ready;
+    expect(currentTurnMode()).toBe("plan");
+    response = Response.json({ ok: true, mode: "auto" });
+    await heartbeat.checkpoint();
+    expect(currentTurnMode()).toBe("auto");
+    response = Response.json({ ok: true, mode: "unknown" });
+    await heartbeat.checkpoint();
+    expect(currentTurnMode()).toBe("auto");
+    response = new Response(null, { status: 204 });
+    await heartbeat.checkpoint();
+    expect(currentTurnMode()).toBe("auto");
+    response = Response.json({ mode: "execute" }, { status: 409 });
+    await heartbeat.checkpoint();
+    expect(currentTurnMode()).toBe("auto");
+  });
+  await heartbeat.stop();
+});
