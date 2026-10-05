@@ -1120,3 +1120,64 @@ test("a Stop in the same tick as the handoff's 202 still wins", async () => {
   expect(await settledWithin(turn, 2_000)).toBe(true);
   expect(snapshot(key).feed.some((f) => f.data === STOPPED_BY_USER)).toBe(true);
 });
+
+test("an observer's reload still out when a busy send takes over publishes nothing", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-observer-reload-busy";
+  let answerHistory: (messages: unknown[]) => void = () => {};
+  let reloads = 0;
+  const { engine, nonces } = busyEngine(
+    1,
+    // The observer watches a turn run, then its connection drops.
+    async (o) => {
+      o.onEvent({
+        type: "sync",
+        data: { running: true, partial: "", turnId: "t-prev", seq: 3 },
+        seq: 3,
+      });
+      throw new Error("Load failed");
+    },
+    // Its reconnect opens on an idle resync: the observer reloads history.
+    async (o) => {
+      o.onEvent({
+        type: "sync",
+        data: { running: false, partial: "", resync: true, seq: 4 },
+        seq: 4,
+      });
+      await untilAborted(o);
+    },
+    // The busy send's own subscription.
+    async (o) => {
+      await waitFor(() => nonces.length === 2);
+      reply(o, nonces[1], 5);
+    },
+  );
+  engine.getHistory = (() => {
+    if (++reloads > 1)
+      return Promise.resolve({ id: "c", title: "", messages: [] });
+    return new Promise((resolve) => {
+      answerHistory = (messages) =>
+        resolve({ id: "c", title: "", messages } as never);
+    });
+  }) as typeof engine.getHistory;
+
+  observeConversation(engine, "Houston/Bo", key, output, 1, registry, fast);
+  await waitFor(() => reloads === 1);
+  const turn = streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: fast,
+  });
+  await waitFor(
+    () => registry.get(streamKey("Houston/Bo", key))?.kind === "turn",
+  );
+  answerHistory([
+    { role: "user", content: "earlier", turnId: "t-prev" },
+    { role: "assistant", content: "Earlier reply", turnId: "t-prev" },
+  ]);
+  await new Promise((r) => setTimeout(r, 50));
+  // The busy send still waits for room: the conversation is not idle.
+  expect(nonces).toHaveLength(1);
+  expect(snapshot(key).sessionStatus).toBe("running");
+  await turn;
+
+  expect(snapshot(key).sessionStatus).toBe("completed");
+});

@@ -55,7 +55,7 @@ export class TurnSink {
   private readonly poll: PresettlePoll;
   /** Turn mode: a send held behind another turn (`send-hold-state.ts`). */
   private readonly held = new SendHoldState();
-  /** Turn mode: stopped before the engine accepted it (see {@link mute}). */
+  /** No frame or history settle publishes ({@link mute}, {@link dispose}). */
   private muted = false;
 
   constructor(private readonly o: TurnSinkOptions) {
@@ -461,8 +461,14 @@ export class TurnSink {
     return settled;
   }
 
-  /** Teardown: clear the poll timer so an aborted stream leaves nothing pending. */
+  /**
+   * Teardown: an aborted stream leaves nothing pending. The poll timer is
+   * cleared, and a history reload still in flight publishes nothing: an
+   * observer disposed for a new turn must not report the conversation idle
+   * under it.
+   */
   dispose(): void {
+    this.muted = true;
     this.poll.cancel();
   }
 }
