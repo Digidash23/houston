@@ -26,6 +26,8 @@ export class PreAcceptTurn {
   private turnId: string | undefined;
   private discardedTurnId: string | undefined;
   private bytes = 0;
+  /** The kept turn outgrew the cap: its replay would be a suffix, not a turn. */
+  private overflowed = false;
 
   /** A running sync the sink dropped: the kept turn starts over from it. */
   keepSync(ev: WireFrame & { type: "sync" }): void {
@@ -61,15 +63,22 @@ export class PreAcceptTurn {
     this.frames = null;
     this.turnId = undefined;
     this.bytes = 0;
+    this.overflowed = false;
   }
 
-  /** The kept frames when `turnId` names the kept turn. Clears replay storage. */
-  claim(turnId: string | undefined): WireFrame[] {
+  /**
+   * The kept frames when `turnId` names the kept turn, and whether that turn's
+   * beginning was dropped at the cap (`lostPrefix`: the caller must not build
+   * the reply from later frames). Clears replay storage.
+   */
+  claim(turnId: string | undefined): {
+    frames: WireFrame[];
+    lostPrefix: boolean;
+  } {
     const candidateTurnId = this.turnId;
-    const frames =
-      turnId !== undefined && turnId === candidateTurnId
-        ? (this.frames ?? [])
-        : [];
+    const claimed = turnId !== undefined && turnId === candidateTurnId;
+    const frames = claimed ? (this.frames ?? []) : [];
+    const lostPrefix = claimed && this.overflowed;
     const discardedTurnId =
       turnId !== undefined &&
       candidateTurnId !== undefined &&
@@ -78,7 +87,7 @@ export class PreAcceptTurn {
         : undefined;
     this.clear();
     this.discardedTurnId = discardedTurnId;
-    return frames;
+    return { frames, lostPrefix };
   }
 
   private append(ev: WireFrame): void {
@@ -87,6 +96,7 @@ export class PreAcceptTurn {
     if (this.frames.length >= MAX_FRAMES || this.bytes + bytes > MAX_BYTES) {
       this.frames = null;
       this.bytes = 0;
+      this.overflowed = true;
       return;
     }
     this.frames.push(ev);

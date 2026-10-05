@@ -1,4 +1,4 @@
-import type { WireFrame } from "@houston/runtime-client";
+import type { ChatMessage, WireFrame } from "@houston/runtime-client";
 import { expect, test } from "vitest";
 import type { FeedOutput } from "./feed-output";
 import { TurnSink } from "./turn-sink";
@@ -11,7 +11,9 @@ import { TurnSink } from "./turn-sink";
 
 type Item = { feed_type?: string; data?: unknown };
 
-function makeSink() {
+function makeSink(
+  reloadHistory: () => Promise<ChatMessage[]> = async () => [],
+) {
   const items: Item[] = [];
   const statuses: string[] = [];
   const output: FeedOutput = {
@@ -31,7 +33,7 @@ function makeSink() {
     nonce: "our-nonce",
     prompt: "hi",
     stop: () => {},
-    reloadHistory: async () => [],
+    reloadHistory,
     historyGuard: () => false,
     presettledPollMs: 60_000,
   });
@@ -239,4 +241,48 @@ test("oversized pre-accept frames abandon replay until a resync", () => {
   expect(streamed(items)).toHaveLength(0);
   sink.onFrame(runningSync("t1", "authoritative", 4, true));
   expect(streamed(items).map((i) => i.data)).toEqual(["authoritative"]);
+});
+
+test("after an overflow, live frames never settle a truncated reply", async () => {
+  let reloads = 0;
+  const history: ChatMessage[] = [
+    { role: "user", content: "hi", ts: 1 },
+    { role: "assistant", content: "the whole reply", turnId: "t1", ts: 2 },
+  ];
+  const { sink, items } = makeSink(async () => {
+    reloads++;
+    return history;
+  });
+  sink.onFrame(runningSync("t1", "start"));
+  for (let seq = 3; seq <= 502; seq++) sink.onFrame(text("t1", "x", seq));
+
+  sink.sendAccepted("t1");
+  // The tail of the reply arrives live: it must not render as the reply.
+  sink.onFrame(text("t1", " tail", 503));
+  expect(streamed(items)).toEqual([]);
+
+  sink.onFrame(done("t1", 504));
+  await new Promise((r) => setTimeout(r, 0));
+  expect(reloads).toBe(1);
+  expect(sink.settled).toBe(true);
+  const final = items.find((i) => i.feed_type === "final_result");
+  expect(final?.data).toMatchObject({ result: "the whole reply" });
+  expect(JSON.stringify(items)).not.toContain(" tail");
+});
+
+test("after an overflow, a running resync restores live folding", () => {
+  const { sink, items } = makeSink();
+  sink.onFrame(runningSync("t1", "start"));
+  for (let seq = 3; seq <= 502; seq++) sink.onFrame(text("t1", "x", seq));
+  sink.sendAccepted("t1");
+
+  sink.onFrame(runningSync("t1", "full so far", 503, true));
+  sink.onFrame(text("t1", " more", 504));
+
+  expect(streamed(items).map((i) => i.data)).toEqual([
+    "full so far",
+    "full so far more",
+  ]);
+  sink.onFrame(done("t1", 505));
+  expect(sink.settled).toBe(true);
 });

@@ -58,6 +58,12 @@ export class TurnSink {
   private readonly held = new SendHoldState();
   /** Turn mode: the running turn seen before the 202 (`pre-accept-turn.ts`). */
   private readonly preAccept = new PreAcceptTurn();
+  /**
+   * The 202 claimed a turn whose pre-accept frames outgrew the cap: live frames
+   * are a suffix of the reply, so none fold until a running sync restores the
+   * text or the terminal settles from history.
+   */
+  private prefixLost = false;
   /** No frame or history settle publishes ({@link mute}, {@link dispose}). */
   private muted = false;
   /** Callers waiting for the first evidence the turn runs ({@link whenStarted}). */
@@ -129,12 +135,13 @@ export class TurnSink {
    */
   sendAccepted(turnId?: string): void {
     this.held.release();
-    const frames = this.preAccept.claim(turnId);
+    const { frames, lostPrefix } = this.preAccept.claim(turnId);
     if (turnId !== undefined) this.adoptTurnId(turnId);
     this.accepted = true;
     // The engine acknowledged the send — the message reached it, so the
     // optimistic bubble is delivered even if the turn later errors.
     this.s.delivered = true;
+    this.prefixLost = lostPrefix;
     // The stream showed this turn running before the 202 named it ours.
     for (const ev of frames) this.fold(ev);
     // The send landed while the stream already showed a fresh idle sync: the
@@ -237,6 +244,12 @@ export class TurnSink {
       this.s.delivered = true; // a real frame proves the turn started
       this.poll.cancel(); // stream evidence: the poll's job is done
     }
+    if (this.prefixLost) {
+      // Folding a suffix would settle a truncated reply; history holds it all.
+      if (ev.type === "done" || ev.type === "error")
+        this.settleFromHistorySoon();
+      return;
+    }
     applyTurnFrame(this.s, ev, this.o.stop);
   }
 
@@ -334,6 +347,7 @@ export class TurnSink {
       case "ours":
         break;
     }
+    this.prefixLost = false; // the sync's partial is the whole reply so far
     this.markRunning();
     // Replay the running turn's activity BEFORE the text so the mission log
     // folds in live order (thinking, then tools, then the reply bubble).
