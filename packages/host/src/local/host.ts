@@ -22,7 +22,8 @@ const SHUTDOWN_EXIT_SLACK_MS = 5_000;
 export interface LocalHost {
   server: Server;
   start(): Promise<void>;
-  stop(): Promise<void>;
+  /** `drainMs` overrides the turn drain budget (a fenced pod's retire). */
+  stop(stopOpts?: { drainMs?: number }): Promise<void>;
 }
 
 /** The shared host server with local storage and a supervised runtime per agent. */
@@ -48,8 +49,9 @@ export function buildLocalHost(opts: LocalHostOptions): LocalHost {
   return {
     server,
     start: () => startLocalHost(opts, state),
-    stop() {
+    stop(stopOpts) {
       if (stopPromise) return stopPromise;
+      const drainMs = stopOpts?.drainMs ?? opts.shutdownDrainMs;
       stopPromise = (async () => {
         state.beginDrain();
         // PRODUCT-1783: on an eviction the replacement pod is created ~1s into
@@ -60,8 +62,7 @@ export function buildLocalHost(opts: LocalHostOptions): LocalHost {
           await publishDrainStamp({
             rootDir: syncDaemon.rootDir,
             windowMs:
-              (opts.shutdownDrainMs ?? DEFAULT_SHUTDOWN_DRAIN_MS) +
-              SHUTDOWN_EXIT_SLACK_MS,
+              (drainMs ?? DEFAULT_SHUTDOWN_DRAIN_MS) + SHUTDOWN_EXIT_SLACK_MS,
             flush: () => syncDaemon.flush(),
             log: severityLog,
           });
@@ -76,9 +77,7 @@ export function buildLocalHost(opts: LocalHostOptions): LocalHost {
         // runtimes drain their turns within the same budget (they get it as
         // HOUSTON_RUNTIME_DRAIN_MS); the extra beat here covers their exit.
         await launcher.shutdownAllAndWait(
-          opts.shutdownDrainMs !== undefined
-            ? opts.shutdownDrainMs + SHUTDOWN_EXIT_SLACK_MS
-            : undefined,
+          drainMs !== undefined ? drainMs + SHUTDOWN_EXIT_SLACK_MS : undefined,
         );
         // Only now: the standing capture pumps the frames of the turns the
         // runtimes just finished draining, and stopping it before the drain

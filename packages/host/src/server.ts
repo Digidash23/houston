@@ -85,7 +85,7 @@ async function handle(
   // Everything past here is authenticated.
   const userId = await principal(deps, req, url);
   if (!userId) return json(res, 401, { error: "unauthorized" });
-  if (handleStoreFenceGate(deps, method, path, res, "agents")) return;
+  if (await handleStoreFenceGate(deps, method, path, res, "agents")) return;
   rememberAddressedAgent(deps, path);
 
   const authenticated = { ...entry, userId };

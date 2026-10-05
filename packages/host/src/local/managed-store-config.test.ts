@@ -2,7 +2,14 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
+import { waitForPredecessorDrain } from "../store-sync/predecessor-drain";
 import { managedStoreConfig } from "./managed-store-config";
+
+// The predecessor wait has its own suite (predecessor-drain.test.ts); here it
+// is only an ordering point, so it does nothing unless a test says otherwise.
+vi.mock("../store-sync/predecessor-drain", () => ({
+  waitForPredecessorDrain: vi.fn(async () => {}),
+}));
 
 afterEach(() => {
   vi.useRealTimers();
@@ -222,7 +229,7 @@ test("agent store shares a boot id and fencing holder while shared writes do not
   expect(sharedWrite?.headers.get("x-houston-boot-id")).toBeNull();
 });
 
-test("boot claims the write lease before any store traffic and seeds the fence", async () => {
+test("boot claims the write lease before any other store traffic and seeds the fence", async () => {
   vi.stubEnv("HOUSTON_STORE_URL", "https://store.test");
   vi.stubEnv("HOUSTON_ORG_SLUG", "acme");
   vi.stubEnv("HOUSTON_AGENT_SLUG", "writer");
@@ -260,4 +267,74 @@ test("boot claims the write lease before any store traffic and seeds the fence",
   const headers = (put?.init?.headers ?? {}) as Record<string, string>;
   expect(headers["X-Houston-Fencing-Token"]).toBe("7");
   expect(headers["X-Houston-Boot-Id"]).toBe(body.bootId);
+});
+
+// PRODUCT-1783 + PRODUCT-1706: an evicted pod drains its turn while this
+// replacement boots, and only its final sync lands that turn. Claiming first
+// would fence that sync, so the claim waits for the predecessor's window.
+test("claims the lease only after the predecessor's drain window closed", async () => {
+  stubManagedStoreEnv();
+  let drained!: () => void;
+  const drainWindow = new Promise<void>((resolve) => {
+    drained = resolve;
+  });
+  vi.mocked(waitForPredecessorDrain).mockImplementationOnce(
+    async ({ store }) => {
+      // The stamp read rides the agent store and captures the PREDECESSOR's
+      // token off its response header.
+      await store.manifest?.();
+      await drainWindow;
+    },
+  );
+  const calls: string[] = [];
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+    calls.push(`${init?.method ?? "GET"} ${String(url)}`);
+    if (String(url).endsWith("/lease")) {
+      return Response.json({ error: "not found" }, { status: 404 });
+    }
+    return Response.json(
+      { objects: [] },
+      { headers: { "X-Houston-Fencing-Token": "41" } },
+    );
+  });
+
+  const configPromise = managedStoreConfig("pod-token", "/data", async (m) => {
+    throw new Error(m);
+  });
+  await vi.waitFor(() => expect(calls).toHaveLength(1));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(calls).toEqual([
+    "GET https://store.test/v1/pod/store/acme/writer/manifest",
+  ]);
+
+  drained();
+  const config = await configPromise;
+  expect(calls[1]).toBe(
+    "POST https://store.test/v1/pod/store/acme/writer/lease",
+  );
+  // An unfenced gateway grants no token, and the predecessor's captured one
+  // is not this boot's to present.
+  expect(config?.podGateway.fence.token).toBeUndefined();
+});
+
+test("the lease check rides the agent prefix with this boot's write headers", async () => {
+  stubManagedStoreEnv();
+  const calls: { url: string; headers: Headers }[] = [];
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+    calls.push({ url: String(url), headers: new Headers(init?.headers) });
+    if (init?.method === "POST") return Response.json({ token: "12" });
+    return new Response(null, { status: 409 });
+  });
+  const config = await managedStoreConfig("pod-token", "/data", async (m) => {
+    throw new Error(m);
+  });
+  if (!config) throw new Error("expected managed store config");
+
+  expect(await config.storeSync.leaseProbe()).toBe("fenced");
+  const check = calls[1];
+  expect(check?.url).toBe("https://store.test/v1/pod/store/acme/writer/lease");
+  expect(check?.headers.get("x-houston-fencing-token")).toBe("12");
+  expect(check?.headers.get("x-houston-boot-id")).toBe(
+    config.podGateway.bootId,
+  );
 });

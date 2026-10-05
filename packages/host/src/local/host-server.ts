@@ -91,6 +91,7 @@ export function createHostServer(
         // FsWatcher below already watches this subtree for reactivity. Avoid a
         // second, redundant inotify watch over it (HOU-1237).
         watchExcludeDirs: [opts.workspacesRoot],
+        onFenceLost: opts.onStoreFenceLost,
         log: severityLog,
       })
     : undefined;
@@ -150,6 +151,7 @@ export function createHostServer(
     // widen the unauthenticated surface for them.
     metrics: { render: () => boot.render(), contentType: boot.contentType },
     storeFenced: syncDaemon ? () => syncDaemon.fenced : undefined,
+    storeWritable: syncDaemon ? () => syncDaemon.writable() : undefined,
     storeSyncFlush: syncDaemon ? () => syncDaemon.flush() : undefined,
     addressedAgent: docProjector
       ? (agentId) => {

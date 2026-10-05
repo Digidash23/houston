@@ -12,6 +12,7 @@ import {
 import { houstonSystemPrompt } from "../houston-prompt";
 import { installParentWatchdog } from "../parent-watchdog";
 import { isBenignRecursiveWatchRace } from "../watch/watcher-race";
+import { retireOnFenceLoss } from "./fence-retire";
 import { buildLocalHost } from "./host";
 import { managedStoreConfig } from "./managed-store-config";
 import { runtimeCommand } from "./runtime-command";
@@ -245,6 +246,14 @@ const host = buildLocalHost({
   // routines or churn watch events while the cloud app reads the old tree.
   passive: process.env.HOUSTON_PASSIVE === "1",
   storeSync: managedStore?.storeSync,
+  // A pod that lost its store lease restarts as the agent's one writer.
+  onStoreFenceLost: managedStore
+    ? retireOnFenceLoss({
+        stop: (stopOpts) => host.stop(stopOpts),
+        exit: (code) => process.exit(code),
+        flushReports: async () => sentry?.flush(500),
+      })
+    : undefined,
   sharedMirror: managedStore?.sharedMirror,
   // Platform-mode integrations: desktops get HOUSTON_INTEGRATIONS_URL (the
   // cloud gateway holding Houston's Composio key); self-host + the managed pod

@@ -4,6 +4,7 @@ import {
   type ObjectStore,
   type SyncResult,
   syncBack,
+  type WriteLeaseVerdict,
 } from "@houston/runtime-client/object-sync";
 import { type TreeWatch, watchTree } from "../watch/watch-tree";
 
@@ -54,6 +55,11 @@ export interface StoreSyncOptions {
   finalSyncRetryDelaysMs?: number[];
   /** The host's hold on its own writers of a document a merge rewrites. */
   localWriteLock?: LocalWriteLock;
+  /** The pod-store's write lease check (managed pods; see write-fence.ts). */
+  leaseProbe?: () => Promise<WriteLeaseVerdict>;
+  leaseHeartbeatMs?: number;
+  /** Runs once when this boot learns another boot owns the agent's store. */
+  onFenceLost?: () => void;
   log: (msg: string, err?: unknown) => void;
 }
 

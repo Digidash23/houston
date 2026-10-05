@@ -62,3 +62,8 @@ export {
 export { trustedBase, withMergeBase } from "./sync-back-merge-base";
 export type { ConflictBackoff } from "./sync-back-merge-retry";
 export { jitteredConflictBackoff } from "./sync-back-merge-retry";
+export type {
+  WriteLeaseProbeOptions,
+  WriteLeaseVerdict,
+} from "./write-lease-probe";
+export { createWriteLeaseProbe } from "./write-lease-probe";

@@ -18,8 +18,8 @@ import { json } from "./http";
  * The write is refused instead. The 503 carries a distinct reason (not the
  * gateway's waking shape), so the client shows its authored "couldn't save"
  * copy and reports it: a fenced pod still receiving writes is a bug we want
- * to see, never a quiet retry loop. Reads keep flowing — what the pod has is
- * still the freshest answer until it is recycled.
+ * to see, never a quiet retry loop. The pod then retires (local/fence-retire.ts)
+ * so the agent converges on one writer, where the next try lands.
  */
 
 export const STORE_FENCED_ERROR =
@@ -48,21 +48,30 @@ export function isFencedWrite(
 
 let reported = false;
 
-/** Answer 503 and return true when the write must be refused. */
-export function handleStoreFenceGate(
-  deps: { storeFenced?: () => boolean },
+/**
+ * Answer 503 and resolve true when the write must be refused: the sync has
+ * already met the fence, or the store's lease check says another boot owns
+ * the agent now. The check runs before the write is applied, so a pod
+ * superseded while idle refuses the edit instead of acknowledging it.
+ */
+export async function handleStoreFenceGate(
+  deps: {
+    storeFenced?: () => boolean;
+    storeWritable?: () => Promise<boolean>;
+  },
   method: string,
   path: string,
   res: ServerResponse,
   scope: "sandbox" | "agents",
-): boolean {
-  if (!deps.storeFenced?.() || !isFencedWrite(method, path, scope)) {
+): Promise<boolean> {
+  if (!isFencedWrite(method, path, scope)) return false;
+  if (!deps.storeFenced?.() && (await deps.storeWritable?.()) !== false) {
     return false;
   }
   if (!reported) {
     // Once per process: the fence loss itself is logged as a breadcrumb by
-    // the sync daemon (superseded setup pods lose it routinely); a REFUSED
-    // write is the moment a user's edit would have been lost, and reports.
+    // the sync daemon; a REFUSED write is the moment a user's edit would
+    // have been lost, and reports. The pod retires right after.
     reported = true;
     console.error(
       `[local-host] refusing ${method} ${path}: the object-store write fence was lost; this pod's writes would not persist`,

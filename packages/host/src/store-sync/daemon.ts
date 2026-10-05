@@ -1,21 +1,13 @@
-import { mkdir } from "node:fs/promises";
 import {
   type HydrateManifest,
-  hydrate,
-  type ObjectStore,
   StoreFencedError,
 } from "@houston/runtime-client/object-sync";
 import type { TreeWatch } from "../watch/watch-tree";
-import {
-  logFenceLost,
-  logHydrated,
-  logSyncFailed,
-  logSyncResult,
-} from "./daemon-log";
+import { runHydrate } from "./daemon-hydrate";
+import { logFenceLost, logSyncFailed, logSyncResult } from "./daemon-log";
 import {
   awaitInFlightSync,
   DEFAULT_INTERVAL_MS,
-  DEFAULT_MAX_HYDRATE_BYTES,
   DEFAULT_QUIET_MS,
   runFinalSync,
   runSyncBack,
@@ -23,6 +15,7 @@ import {
   type StoreSyncOptions,
   startTreeWatch,
 } from "./daemon-policy";
+import { WriteFence } from "./write-fence";
 
 export { STORE_SYNC_EXCLUDES, type StoreSyncOptions } from "./daemon-policy";
 
@@ -38,13 +31,25 @@ export class StoreSyncDaemon {
   private intervalTimer: ReturnType<typeof setInterval> | undefined;
   private syncPromise: Promise<void> | undefined;
   private rerunRequested = false;
-  private fencedLatch = false;
+  private readonly fence: WriteFence;
   private consecutiveFailures = 0;
 
-  constructor(private readonly opts: StoreSyncOptions) {}
+  constructor(private readonly opts: StoreSyncOptions) {
+    this.fence = new WriteFence({
+      probe: opts.leaseProbe,
+      heartbeatMs: opts.leaseHeartbeatMs,
+      onLost: (err) => this.haltFenced(err),
+      log: opts.log,
+    });
+  }
 
   get fenced(): boolean {
-    return this.fencedLatch;
+    return this.fence.lost;
+  }
+
+  /** Whether a write acknowledged now can still persist (write-fence.ts). */
+  writable(): Promise<boolean> {
+    return this.fence.writable();
   }
 
   /** The synced tree's root. Owned here so the drain handshake (which writes
@@ -53,31 +58,21 @@ export class StoreSyncDaemon {
     return this.opts.rootDir;
   }
 
-  get store(): ObjectStore {
-    return this.opts.store;
-  }
-
   /** Returns the number of objects restored (the boot telemetry records it). */
   async hydrate(): Promise<number> {
     this.hydrated = false;
-    const startedAt = Date.now();
-    await mkdir(this.opts.rootDir, { recursive: true });
-    const manifest = await hydrate(this.opts.store, "", this.opts.rootDir, {
-      excludes: this.excludes,
-      maxBytes: this.opts.maxHydrateBytes ?? DEFAULT_MAX_HYDRATE_BYTES,
-    });
-    this.manifest = manifest;
+    this.manifest = await runHydrate(this.opts, this.excludes);
     this.hydrated = true;
-    logHydrated(this.opts, manifest.size, startedAt);
-    return manifest.size;
+    return this.manifest.size;
   }
 
   start(): void {
     if (!this.hydrated) {
       throw new Error("store sync cannot start before successful hydration");
     }
-    if (this.started || this.fencedLatch) return;
+    if (this.started || this.fence.lost) return;
     this.started = true;
+    this.fence.startHeartbeat();
     this.watcher = startTreeWatch(this.opts, () => this.markDirty());
     this.intervalTimer = setInterval(
       () => this.runInBackground("periodic"),
@@ -92,7 +87,7 @@ export class StoreSyncDaemon {
     if (!this.hydrated) return;
 
     if (this.syncPromise) await awaitInFlightSync(this.opts, this.syncPromise);
-    if (this.fencedLatch) {
+    if (this.fence.lost) {
       this.started = false;
       return;
     }
@@ -105,7 +100,7 @@ export class StoreSyncDaemon {
   }
 
   private markDirty(): void {
-    if (this.stopping || this.fencedLatch) return;
+    if (this.stopping || this.fence.lost) return;
     this.dirty = true;
     this.dirtyVersion += 1;
     if (this.quietTimer) clearTimeout(this.quietTimer);
@@ -125,7 +120,7 @@ export class StoreSyncDaemon {
    * (PRODUCT-1807). A no-op before start, after stop, or once fenced.
    */
   async flush(): Promise<void> {
-    if (!this.started || this.stopping || this.fencedLatch) return;
+    if (!this.started || this.stopping || this.fence.lost) return;
     this.dirty = true;
     this.dirtyVersion += 1;
     await this.requestSync();
@@ -134,7 +129,7 @@ export class StoreSyncDaemon {
   private runInBackground(trigger: string): void {
     if (
       this.stopping ||
-      this.fencedLatch ||
+      this.fence.lost ||
       (trigger === "debounced" && !this.dirty)
     )
       return;
@@ -152,7 +147,7 @@ export class StoreSyncDaemon {
       do {
         this.rerunRequested = false;
         await this.syncOnce();
-      } while (this.rerunRequested && !this.stopping && !this.fencedLatch);
+      } while (this.rerunRequested && !this.stopping && !this.fence.lost);
     })().finally(() => {
       this.syncPromise = undefined;
     });
@@ -169,7 +164,7 @@ export class StoreSyncDaemon {
         this.consecutiveFailures += 1;
         throw err;
       }
-      this.loseFence(err);
+      this.fence.lose(err);
       return;
     }
     this.consecutiveFailures = 0;
@@ -178,16 +173,16 @@ export class StoreSyncDaemon {
     logSyncResult(result, this.opts);
   }
 
-  private loseFence(err: StoreFencedError): void {
-    if (this.fencedLatch) return;
-    this.fencedLatch = true;
+  private haltFenced(err: { message: string }): void {
     this.dirty = false;
     this.rerunRequested = false;
     this.stopScheduling();
     logFenceLost(this.opts, err);
+    this.opts.onFenceLost?.();
   }
 
   private stopScheduling(): void {
+    this.fence.stopHeartbeat();
     this.watcher?.close();
     this.watcher = undefined;
     if (this.quietTimer) clearTimeout(this.quietTimer);

@@ -391,11 +391,15 @@ test("a fencing loss latches once, halts scheduling, and skips the final drain",
     delete: (key, opts) => inner.delete(key, opts),
   };
   const logs: Array<{ err?: unknown; message: string }> = [];
+  let fenceLost = 0;
   const daemon = new StoreSyncDaemon({
     store: fencedStore,
     rootDir: localRoot,
     quietMs: 5,
     intervalMs: 20,
+    onFenceLost: () => {
+      fenceLost += 1;
+    },
     log: (message, err) => logs.push({ message, err }),
   });
   await daemon.hydrate();
@@ -404,6 +408,10 @@ test("a fencing loss latches once, halts scheduling, and skips the final drain",
 
   await eventually(() => expect(daemon.fenced).toBe(true));
   expect(uploads).toBe(1);
+  // The owner hears once (the pod retires on it), and no later write is
+  // acknowledged as persistable.
+  expect(fenceLost).toBe(1);
+  expect(await daemon.writable()).toBe(false);
   writeFileSync(join(localRoot, "workspace", "notes.txt"), "later edit");
   await new Promise((resolve) => setTimeout(resolve, 100));
   await daemon.stop();
@@ -418,6 +426,7 @@ test("a fencing loss latches once, halts scheduling, and skips the final drain",
   // routes any entry WITH an error to Sentry as an error event).
   expect(fencingLogs[0]?.err).toBeUndefined();
   expect(fencingLogs[0]?.message).toContain("lease lost");
+  expect(fenceLost).toBe(1);
 });
 
 test("the final sync retries a shutdown blip and flushes on a later attempt (HOUSTON-APP-58V)", async () => {

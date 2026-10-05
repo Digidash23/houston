@@ -25,7 +25,7 @@ import { handleStoreFenceGate } from "./routes/store-fence-gate";
  */
 
 /** Gate answered before its group; true when it wrote the response. */
-type Gate<Ctx> = (ctx: Ctx) => boolean;
+type Gate<Ctx> = (ctx: Ctx) => boolean | Promise<boolean>;
 
 const PRE_AUTH_GATES: Partial<Record<GroupId, Gate<PublicEntry>>> = {
   // THE COORDINATOR'S REACH (routes/sandbox-scope.ts). Every /sandbox/* family
@@ -44,7 +44,7 @@ const PRE_AUTH_GATES: Partial<Record<GroupId, Gate<PublicEntry>>> = {
 /** Public + sandbox: everything served before a bearer token is required. */
 export async function dispatchPreAuth(ctx: PublicEntry): Promise<boolean> {
   for (const group of PRE_AUTH_GROUPS) {
-    if (PRE_AUTH_GATES[group]?.(ctx)) return true;
+    if (await PRE_AUTH_GATES[group]?.(ctx)) return true;
     if (await dispatchGroup(group, ctx)) return true;
   }
   return false;
