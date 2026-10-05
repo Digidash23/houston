@@ -10,8 +10,10 @@ import { createServer, type Server } from "node:http";
 import { AdmissionLimiter, turnConcurrency } from "./admission";
 import { makeLoginRunnerRoutes } from "./login-runner-routes";
 import { authorized, incarnationOK, json } from "./server-http";
+import { servePrewarm } from "./server-prewarm";
 import type { TurnServerDeps } from "./server-types";
 import { serveOp, serveTurn } from "./server-work";
+import { ProviderWarmer } from "./turn-provider-warm";
 
 export type { TurnServerDeps } from "./server-types";
 
@@ -19,6 +21,7 @@ export function createTurnServer(deps: TurnServerDeps): Server {
   const admission =
     deps.admission ??
     new AdmissionLimiter(deps.concurrency ?? turnConcurrency());
+  const warmer = deps.providerWarmer ?? new ProviderWarmer();
   let use: "login" | "work" | undefined;
   let loginBegin: Promise<void> | undefined;
   const login = makeLoginRunnerRoutes(deps.loginRunner);
@@ -47,7 +50,8 @@ export function createTurnServer(deps: TurnServerDeps): Server {
       const isLogin = path.startsWith("/login/");
       if (
         !isLogin &&
-        (req.method !== "POST" || (path !== "/turn" && path !== "/op"))
+        (req.method !== "POST" ||
+          (path !== "/turn" && path !== "/op" && path !== "/prewarm"))
       ) {
         return json(res, 404, { error: "not found" });
       }
@@ -79,9 +83,12 @@ export function createTurnServer(deps: TurnServerDeps): Server {
         return;
       }
       use = "work";
+      if (path === "/prewarm") return servePrewarm(warmer, req, res);
       if (path === "/op") {
         await serveOp(deps, admission, req, res);
       } else {
+        // The turn's own model request takes the warm connection from here.
+        warmer.stop();
         await serveTurn(deps, admission, req, res, arrival);
       }
     })().catch((error) => {

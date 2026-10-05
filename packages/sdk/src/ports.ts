@@ -33,6 +33,13 @@ export interface KeyValueStore {
 export interface Clock {
   /** Current wall-clock time in milliseconds since the Unix epoch. */
   now(): number;
+  /**
+   * Milliseconds on a clock that never goes back (`performance.now()`), for
+   * spans a wall clock set back or forward would misstate. It may stop while
+   * the machine sleeps, so a span that must END on time reads both clocks.
+   * One timebase per process. Absent, {@link now} stands in.
+   */
+  monotonic?(): number;
   /** Schedule `fn` to run after `ms` milliseconds; returns a cancellation id. */
   setTimeout(fn: () => void, ms: number): number;
   /** Cancel a timer previously scheduled with {@link setTimeout}. */
