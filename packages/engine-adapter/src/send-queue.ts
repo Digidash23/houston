@@ -9,6 +9,7 @@ import type { SessionStartRequest } from "@houston/wire-types";
 import { armQueueWatchdog, disarmQueueWatchdog } from "./queue-watchdog";
 import { mergeSendFields } from "./send-queue-merge";
 import { armSettleWatcher, disarmSettleWatcher } from "./settle-watcher";
+import { liveTurn } from "./turn-stream";
 import { conversationStore, conversationVm } from "./vm";
 
 /**
@@ -181,6 +182,10 @@ export function flushQueuedSends(
   dispatch: (req: SessionStartRequest) => void,
 ): void {
   if (conversationRunning(agentPath, sessionKey)) return;
+  // A send still waiting to go out (held, waiting for room, or handing off
+  // over an observer whose turn just ended) keeps its place: the queue goes
+  // after it, from its own settle or the watchdog's next probe.
+  if (liveTurn(agentPath, sessionKey) === "held") return;
   const k = queueKey(agentPath, sessionKey);
   const all = queues.get(k);
   if (!all || all.length === 0) return;
