@@ -7,7 +7,7 @@ export function PlanAnnouncementGift({
   price,
   children,
 }: {
-  offer: { from: string; until: string; amount: string };
+  offer: { amount: string };
   price: string;
   children: ReactNode;
 }) {
@@ -35,12 +35,7 @@ export function PlanAnnouncementGift({
             {t("announcementGiftTitle", { amount: offer.amount })}
           </h3>
           <p className="text-sm leading-relaxed text-ink-muted">
-            {t("announcementGiftBody", {
-              date: offer.from,
-              until: offer.until,
-              amount: offer.amount,
-              price,
-            })}
+            {t("announcementGiftBody", { amount: offer.amount, price })}
           </p>
         </div>
       </div>

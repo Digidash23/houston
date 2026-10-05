@@ -8,13 +8,12 @@ import {
 } from "../lib/assistant-landing";
 import { logAndReportError } from "../lib/error-report";
 import { queryClient } from "../lib/query-client";
-import { queryKeys } from "../lib/query-keys";
 import { tauriOrg, tauriWorkspaces } from "../lib/tauri";
 import { useAgentStore } from "../stores/agents";
 import { useUIStore } from "../stores/ui";
 import { useWorkspaceStore } from "../stores/workspaces";
 import { channelWorkspaceScope } from "./channel-workspace-scope";
-import { discoverAssistant } from "./use-assistant";
+import { assistantQueryOptions } from "./use-assistant";
 import { useSession } from "./use-session";
 
 /** Public channel links resolve a fresh membership before selecting any space. */
@@ -65,10 +64,7 @@ export function useAssistantLanding() {
           scope = channelWorkspaceScope();
           await useAgentStore.getState().loadAgents(workspace.id);
           if (!current()) return false;
-          await queryClient.fetchQuery({
-            queryKey: queryKeys.assistant(),
-            queryFn: discoverAssistant,
-          });
+          await queryClient.fetchQuery(assistantQueryOptions(workspace.id));
           return current();
         },
         open: () => useUIStore.getState().setViewMode(ASSISTANT_VIEW_ID),

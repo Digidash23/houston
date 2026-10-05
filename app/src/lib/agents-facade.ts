@@ -89,6 +89,9 @@ export const tauriAgents = {
     engineCall<void>("delete_agent", () =>
       getEngine().deleteAgent(workspaceId, id),
     ),
+  // No warming-write guard, unlike the agent's other writes: a new hire offers
+  // its first day while its engine still warms, and the SDK's start rides that
+  // out (the host makes a repeated start hand back the same task).
   startFirstDay: (agentPath: string, input: FirstDayStartInput) =>
     engineCall<FirstDayStartResult>(
       "start_first_day",

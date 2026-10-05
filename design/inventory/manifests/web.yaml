@@ -13,7 +13,7 @@
 
 surface: web
 enforced: true
-inventoryVersion: 119
+inventoryVersion: 123
 
 components:
   manager-avatar:
@@ -188,7 +188,7 @@ components:
 
   routine-details:
     status: partial
-    ref: "app/src/components/agent/routine-screen.tsx + routine-runs-dialog.tsx + routine-model-selector.tsx over @houston-ai/routines RoutineRunList / RoutineRowScheduleEdit"
+    ref: "app/src/components/agent/routine-screen.tsx + routine-runs-dialog.tsx (RoutineRunsHistory translates SDK failure codes) + routine-model-selector.tsx over @houston-ai/routines RoutineRunList / RoutineRowScheduleEdit"
     notes: >-
       The run list + schedule editor are shared ui/; the screen composition
       (editable prompt, Runs modal, Back/Open-chat chrome) and the model row
@@ -257,7 +257,7 @@ components:
 
   sidebar-team-block:
     status: implemented
-    ref: "@houston-ai/layout AppSidebar (SidebarGroupedList renders root employees, folder headers and folder members as one flat @dnd-kit sortable tree, SidebarTreeRowView per row, the dragged row drawn as a ghost at its landing slot and depth; SidebarRowButton gives root employees and folder headers one left edge and indents only folder members), composed in app/src/components/shell/team-sidebar-lists.tsx"
+    ref: "@houston-ai/layout AppSidebar (SidebarGroupedList renders root employees, folder headers and folder members as one flat @dnd-kit sortable tree, SidebarTreeRowView per row, the dragged row drawn as a ghost at its landing slot and depth; SidebarRowButton gives root employees and folder headers one left edge and indents only folder members; members draw the guide line and folders start on the block gap, sidebar-group-block.tsx), composed in app/src/components/shell/team-sidebar-lists.tsx"
   sidebar-account-menu:
     status: implemented
     ref: "@houston-ai/layout SidebarProfileMenu, last in app/src/components/shell/sidebar-footer.tsx, filled by sidebar-workspace-menu.tsx with workspace-account.tsx's WorkspaceSwitchItems, the parts of sidebar-account-menu.tsx's useAccountMenu, and the Admin, Academy and Settings rows sidebar-nav-rows.tsx builds"
@@ -342,4 +342,8 @@ components:
   personal-billing-screen:
     status: partial
     ref: "app/src/components/settings/sections/plan.tsx"
-    notes: Settings content shared by desktop and web; includes preview usage, early offer, and launch price states.
+    notes: Settings content shared by desktop and web; includes preview usage, beta tester gift, and launch price states.
+
+  personal-plan-upgrade-row:
+    status: implemented
+    ref: "app/src/components/shell/plan-upgrade-row.tsx, mounted by sidebar-footer.tsx and mobile-more-menu.tsx over SDK planUpgradeView"

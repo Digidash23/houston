@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { assistantApprovals } from "../assistant/approvals";
 import { processAssistantCatalog } from "../assistant/catalog-source";
+import { gatewayAgentSlug } from "../assistant/coordinator-scope";
 import { ACTING_AS_HEADER } from "../auth/acting";
 import { assistantClaim } from "./assistant-claim";
 import {
@@ -132,13 +133,16 @@ export async function handleSandboxAssistant(
     approvals: deps.approvals ?? assistantApprovals,
     agentId: claim.agentId,
     gatewayFronted: deps.gatewayFronted,
-    gatewayAgentId: process.env.HOUSTON_AGENT_SLUG,
+    gatewayAgentId: gatewayAgentSlug(),
     conversationId: header(req, CONVERSATION_ID_HEADER),
     unserved: deps.unservedOperations?.() ?? new Set(),
     // Read lazily: only an operation that actually names an agent pays for the
     // listing, and both handlers resolve against the SAME set.
     agents: directory.agents,
     directory,
+    ...(deps.persistApprovals
+      ? { persistApprovals: deps.persistApprovals }
+      : {}),
   };
 
   if (!isCall) {

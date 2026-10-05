@@ -17,6 +17,15 @@ export {
 } from "./attachments";
 export type { DismissInteractionOutcome } from "./conversation-controls";
 export {
+  type TurnPrewarmInput,
+  TurnsHttpError,
+} from "./conversation-prewarm";
+export {
+  type ComposerDraft,
+  PREWARM_REFRESH_MS,
+  type PrewarmCapabilities,
+} from "./draft-prewarm";
+export {
   type BoardStatus,
   type FeedOutput,
   MultiplexFeedOutput,
@@ -24,8 +33,18 @@ export {
   type SessionStatusValue,
   type TerminalBoardStatus,
 } from "./feed-output";
+export {
+  FIRST_RESPONSE_TIMEOUT_MS,
+  type FirstResponse,
+  type FirstResponseOutcome,
+} from "./first-response";
 export { type FeedFrame, historyToFeed } from "./history";
 export { observeConversation } from "./observe-stream";
+export {
+  COMPUTE_BUSY_MESSAGE,
+  computeBusyRefusal,
+  type SendWaitReason,
+} from "./send-busy";
 export { TURN_DIED_MESSAGE } from "./settle-from-history";
 export {
   SEND_IN_FLIGHT_MESSAGE,
@@ -42,7 +61,6 @@ export {
   isEngineWakingRejection,
   isNotConnectedError,
   isStoppedByUser,
-  isTurnRunningRejection,
   messageLimitRefusal,
   TURN_FAILED_MESSAGE,
   turnErrorMessage,
@@ -54,6 +72,7 @@ export type {
   TurnSetModeInput,
   TurnTruncateInput,
 } from "./turn-inputs";
+export { isTurnRunningRejection } from "./turn-running";
 export {
   type StreamTurnOptions,
   streamTurn,

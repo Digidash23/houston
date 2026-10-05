@@ -6,7 +6,10 @@ import {
   warmingIsCreation,
   warmingReadsAnswerEmpty,
 } from "../src/lib/agent-provisioning/entry.ts";
-import { completeWarmupHandoff } from "../src/lib/agent-provisioning/handoff.ts";
+import {
+  completeWarmupHandoff,
+  handOffOnce,
+} from "../src/lib/agent-provisioning/handoff.ts";
 
 const REAL_CONFIG = '{"firstDay":"pending"}';
 
@@ -111,5 +114,31 @@ describe("openWarmingReads", () => {
     };
     openWarmingReads(entry);
     strictEqual(warmingReadsAnswerEmpty({ ...entry }), true);
+  });
+});
+
+describe("handOffOnce", () => {
+  it("runs the handoff once when the probe and an answered write both report", async () => {
+    const { entry, log, deps } = harness();
+    const first = handOffOnce(entry, deps);
+    // A first-day start the engine answered, reporting the same warm-up.
+    strictEqual(handOffOnce(entry, deps), null);
+    await first;
+    strictEqual(handOffOnce(entry, deps), null);
+    deepStrictEqual(log, [
+      "flush",
+      "refetch config while marked=true",
+      "clear",
+    ]);
+  });
+
+  it("hands off a new entry for the same agent on its own", async () => {
+    const a = harness();
+    const b = harness();
+    await handOffOnce(a.entry, a.deps);
+    const run = handOffOnce(b.entry, b.deps);
+    strictEqual(run === null, false);
+    await run;
+    strictEqual(b.store.size, 0);
   });
 });

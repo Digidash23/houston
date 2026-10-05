@@ -1,8 +1,10 @@
+import type { AssistantRuntimeRole } from "@houston/domain/assistant-role";
 import type { ClaudeSubscriptionType } from "../../auth/claude-plan";
 import type { ToolSelection } from "../../session/tool-selection";
 import type { AssistantToolOptions } from "../../session/tools/assistant";
 import type { WorkspaceGuardOptions } from "../../session/tools/fs-guard";
 import type { IntegrationToolOptions } from "../../session/tools/integrations";
+import type { CompactionCheckpoints } from "../../store/conversation-compaction";
 import type { BridgedPiTool } from "./custom-tools";
 import type { ClaudeLayout } from "./paths";
 import type { ClaudeSdk, ClaudeSdkLoadResult } from "./sdk-loader";
@@ -47,9 +49,18 @@ export interface ClaudeBackendDeps {
    * the same coordinator surface the pi path does.
    */
   personalAssistant?: boolean;
+  /** The coordinator role the system prompt is built for. Absent = the
+   *  process's own; a pooled turn passes the turn's (`null` included). */
+  role?: AssistantRuntimeRole | null;
   tools?: BridgedPiTool[];
   /** External SDK adapter for tests that must not spawn a process. */
   sdk?: ClaudeSdk;
   /** Optional import already running during pooled-turn hydration. */
   sdkLoad?: Promise<ClaudeSdkLoadResult>;
+  /**
+   * Where a compaction arms its summary. Absent = this process's own
+   * conversations dir; a pooled turn names its hydrated tree's, or the
+   * summary would land outside the conversation it summarizes.
+   */
+  compactions?: CompactionCheckpoints;
 }

@@ -1,5 +1,5 @@
 import {
-  excluded,
+  keepsMergeBase,
   ObjectNotFoundError,
 } from "@houston/runtime-client/object-sync";
 import { FsVfs } from "./fs";
@@ -34,11 +34,7 @@ export class LazyStoreVfs implements Vfs {
     this.local = new FsVfs(opts.root);
     this.state = new LazyOwnership(opts.manifest);
     this.downloads = new Materializer(opts);
-    for (const object of opts.objects) {
-      const rel = this.relOf(object.key);
-      if (!rel || excluded(rel, opts.excludes)) continue;
-      this.state.remote.set(rel, object);
-    }
+    this.state.ingest(opts.objects, opts.prefix, opts.excludes);
   }
 
   /** Whether the store mints generations (the sync-back CAS capability). */
@@ -49,14 +45,6 @@ export class LazyStoreVfs implements Vfs {
   /** Remote keys (store-relative) this vfs knows about, excludes applied. */
   get remoteKeys(): string[] {
     return [...this.state.remote.keys()];
-  }
-
-  private relOf(storeKey: string): string | null {
-    const { prefix } = this.opts;
-    if (!prefix) return storeKey;
-    return storeKey.startsWith(`${prefix}/`)
-      ? storeKey.slice(prefix.length + 1)
-      : null;
   }
 
   /**
@@ -126,6 +114,11 @@ export class LazyStoreVfs implements Vfs {
   async writeBytes(key: string, content: Buffer): Promise<void> {
     assertSafeKey(key);
     this.state.assertWritable(key);
+    // A keyed document replaced unread (a whole-list save) still needs the
+    // bytes it replaces: they are the base a lost upload race merges against,
+    // without which an entry this write deleted comes back from the store.
+    if (keepsMergeBase(key) && !(await this.local.exists(key)))
+      await this.readBytes(key);
     await this.downloads.settle(key);
     await this.local.writeBytes(key, content);
     this.state.written(key);

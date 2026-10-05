@@ -15,6 +15,14 @@ export const DEFAULT_GLOBAL_RECONNECT_MS = 1500;
  */
 export const WAKE_STALE_MS = 20_000;
 
+/**
+ * How long a wake waits before judging the connection. A page the OS kept
+ * asleep holds the heartbeats that arrived meanwhile, and the wake (window
+ * visible, network back) can run before they are read; judged at once, every
+ * return to a backgrounded window would tear down a healthy stream.
+ */
+export const WAKE_SETTLE_MS = 1_000;
+
 export interface GlobalEventsOptions {
   /**
    * Build the request URL for each (re)connect. A function, not a string, so
@@ -68,7 +76,8 @@ export interface GlobalEventsOptions {
    * Register external "try again now" signals — `online`, window visibility, an
    * OS resume. Called once with a `retryNow` callback and must return a
    * teardown. `retryNow` shortcuts a pending backoff wait, and force-reconnects
-   * a connection that has been silent past {@link WAKE_STALE_MS}.
+   * a connection still silent past {@link WAKE_STALE_MS} once
+   * {@link WAKE_SETTLE_MS} has let a just-woken page read what it slept through.
    */
   wake?: (retryNow: () => void) => () => void;
   /**

@@ -41,18 +41,12 @@ import { approvalArgs } from "./summary";
  *
  * Held in memory on purpose: a host restart drops every pending approval, which
  * fails CLOSED (the user is asked again). Persisting them would mean an
- * approval that outlives the conversation the person was looking at.
+ * approval that outlives the conversation the person was looking at. The one
+ * exception is a pool worker, which lives for a single turn: it carries ONE
+ * conversation's records to the turn that conversation's next message starts
+ * (`approval-carry.ts`), still bounded by the same expiry and retired by that
+ * message like any other.
  */
-
-export { approvalKey } from "./approval-key";
-export {
-  APPROVAL_TTL_MS,
-  type ApprovalDecision,
-  type ApprovalOutcome,
-  type ApprovalRequest,
-  type ConsumeApprovalInput,
-  type IssueApprovalInput,
-} from "./approval-record";
 
 export class ApprovalStore {
   private readonly byId = new Map<string, ApprovalRequest>();
@@ -156,6 +150,20 @@ export class ApprovalStore {
     return request.decision === "approve" ? "approved" : "denied";
   }
 
+  /** One conversation's live requests, copied out (`approval-carry.ts`). */
+  requestsFor(agentId: string, conversationId: string): ApprovalRequest[] {
+    this.prune();
+    return [...this.byId.values()]
+      .filter((request) => inApprovalScope(request, agentId, conversationId))
+      .map((request) => ({ ...request }));
+  }
+
+  /** Take back a request {@link requestsFor} copied out; expired stays out. */
+  adopt(request: ApprovalRequest): void {
+    if (request.expiresAt > this.now())
+      this.byId.set(request.requestId, { ...request });
+  }
+
   /** Forget one conversation's requests (it was deleted), or all of them. */
   clear(agentId?: string, conversationId?: string): void {
     this.messages.clear(agentId, conversationId);
@@ -174,10 +182,9 @@ export class ApprovalStore {
    */
   hasPending(agentId: string, conversationId: string): boolean {
     this.prune();
-    for (const request of this.byId.values()) {
-      if (inApprovalScope(request, agentId, conversationId)) return true;
-    }
-    return false;
+    return [...this.byId.values()].some((request) =>
+      inApprovalScope(request, agentId, conversationId),
+    );
   }
 
   /** An expired record is already useless, and the map is unbounded otherwise. */

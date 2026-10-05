@@ -231,7 +231,11 @@ test("custom definition writes capture the updated asleep-read view", async () =
     { slug: "example" },
   );
   expect(response.status).toBe(200);
-  expect(sandbox.views().customDefinitions).toEqual({ items: [] });
+  expect(sandbox.views().customDefinitions).toEqual({
+    view: { items: [] },
+    defs: [],
+    touched: new Set(["example"]),
+  });
   await sandbox.dispose();
 });
 

@@ -96,3 +96,21 @@ test("a message that answers no card carries no approvals key at all", async () 
   await client.sendMessage("c1", "hello");
   expect("approvals" in (bodies[0] ?? {})).toBe(false);
 });
+
+test("sendMessage resolves with the turn id the 202 names", async () => {
+  const answer = (body: string | null) =>
+    new HoustonEngineClient({
+      baseUrl: "http://engine.test",
+      fetch: (async () => new Response(body, { status: 202 })) as typeof fetch,
+    });
+  // The pod's and the pool's accepted-send shape.
+  await expect(
+    answer('{"ok":true,"id":"c1","turnId":"t-9"}').sendMessage("c1", "hi"),
+  ).resolves.toEqual({ turnId: "t-9" });
+  // A legacy 202 (no turnId), an empty body or a non-JSON body names none.
+  await expect(
+    answer('{"ok":true,"id":"c1"}').sendMessage("c1", "hi"),
+  ).resolves.toEqual({});
+  await expect(answer(null).sendMessage("c1", "hi")).resolves.toEqual({});
+  await expect(answer("accepted").sendMessage("c1", "hi")).resolves.toEqual({});
+});

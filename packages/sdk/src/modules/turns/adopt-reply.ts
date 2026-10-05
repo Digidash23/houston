@@ -9,6 +9,7 @@ import {
   finishErr,
   finishOk,
   finishResumed,
+  push,
   settleProviderErrorCard,
   type TurnState,
 } from "./turn-settle";
@@ -32,6 +33,8 @@ export function adoptReply(
     s.turnId ??= reply.turnId;
     onAdoptTurnId?.(reply.turnId);
   }
+  // Only the clean and provider-error settles flush the reasoning.
+  foldPersistedTools(s, reply, !reply.stopped && !reply.interrupted);
   if (reply.providerError) {
     // Adopt the persisted partial reply (same guards as the clean path below)
     // so the settle finalizes what streamed before the failure and the card
@@ -81,4 +84,54 @@ export function adoptReply(
   if (isPendingInteraction(reply.pendingInteraction))
     s.pendingInteraction = reply.pendingInteraction;
   finishOk(s);
+}
+
+type PersistedTool = NonNullable<ChatMessage["tools"]>[number];
+
+/**
+ * The turn's tool rows from its persisted record that no live frame or sync
+ * pushed (the sink's `toolsSeen` / `toolResultsSeen` cursors), each closed
+ * with its result. A settle from history otherwise ends the turn with its
+ * tool rows missing until a reload, and a started mission's result with them.
+ * With `reasoning`, the persisted reasoning goes first, as a live watcher saw
+ * it; the settle's own flush then finalizes it in place.
+ */
+function foldPersistedTools(
+  s: TurnState,
+  reply: ChatMessage,
+  reasoning: boolean,
+): void {
+  const tools = reply.tools ?? [];
+  if (s.toolResultsSeen >= tools.length) return;
+  if (reasoning && reply.thinking && !s.thinking) {
+    s.thinking = reply.thinking;
+    push(s, { feed_type: "thinking_streaming", data: s.thinking });
+  }
+  // A call pushed live whose result was lost closes first: tools run serially.
+  while (s.toolResultsSeen < Math.min(s.toolsSeen, tools.length))
+    pushToolResult(s, tools[s.toolResultsSeen]);
+  while (s.toolsSeen < tools.length) {
+    const tool = tools[s.toolsSeen];
+    push(s, {
+      feed_type: "tool_call",
+      data: { name: tool.name, input: tool.input ?? {} },
+      toolIndex: s.toolsSeen,
+    });
+    s.toolsSeen++;
+    pushToolResult(s, tool);
+  }
+}
+
+function pushToolResult(s: TurnState, tool: PersistedTool): void {
+  push(s, {
+    feed_type: "tool_result",
+    data: {
+      name: tool.name,
+      content: tool.result ?? "",
+      is_error: !!tool.isError,
+      ...(tool.mission ? { mission: tool.mission } : {}),
+    },
+    toolIndex: s.toolResultsSeen,
+  });
+  s.toolResultsSeen++;
 }

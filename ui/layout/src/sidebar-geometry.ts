@@ -102,9 +102,9 @@ export const sidebarPersonRow = {
   role: "text-xs leading-4 font-normal text-ink-muted",
   /** Inside the pill, 12px from each edge: the same 12px the portrait keeps
    *  from the top and bottom, so the portrait sits on even padding all round.
-   *  A grouped row steps in by the rail's usual 12px. */
+   *  A grouped row steps in 20px, leaving room for the member guide line. */
   padBlock: "pl-3 pr-3",
-  padChild: "pl-6 pr-3",
+  padChild: "pl-8 pr-3",
 } as const;
 
 /**

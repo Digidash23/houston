@@ -8,10 +8,18 @@
  * importing the module that installs it.
  */
 
+import type { EngineNoticeKind } from "@houston/sdk";
+
 /** One cached feed frame — the folded `{feed_type, data}` the VM seeds from. */
 export interface CachedFrame {
   feed_type: string;
   data: unknown;
+  /**
+   * Why the engine authored this `system_message` (a restart, a send refused
+   * for good), so a cache-painted line still renders in the person's language.
+   * Absent on every other frame and on records written before it existed.
+   */
+  notice?: EngineNoticeKind;
   /**
    * The frame's timestamp, when the source fold carried one — preserved so a
    * cache-painted bubble keeps its real time instead of losing it (HOU-819).

@@ -1,6 +1,7 @@
-import type {
-  HydrateManifest,
-  ObjectMetadata,
+import {
+  excluded,
+  type HydrateManifest,
+  type ObjectMetadata,
 } from "@houston/runtime-client/object-sync";
 import { UNREAD_HASH } from "./lazy-store-types";
 
@@ -16,6 +17,20 @@ export class LazyOwnership {
   readonly hidden = new Set<string>();
 
   constructor(private readonly manifest: HydrateManifest) {}
+
+  /** Learn the store's listing: keys under `prefix`, made relative to it,
+   *  minus the excluded ones. */
+  ingest(objects: ObjectMetadata[], prefix: string, excludes: string[]): void {
+    for (const object of objects) {
+      const rel = !prefix
+        ? object.key
+        : object.key.startsWith(`${prefix}/`)
+          ? object.key.slice(prefix.length + 1)
+          : null;
+      if (!rel || excluded(rel, excludes)) continue;
+      this.remote.set(rel, object);
+    }
+  }
 
   visible(rel: string): ObjectMetadata | undefined {
     return this.hidden.has(rel) ? undefined : this.remote.get(rel);

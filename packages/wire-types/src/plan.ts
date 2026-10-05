@@ -15,12 +15,11 @@ export interface PlanSummary {
       interval: "month";
       compareAt?: number;
     };
+    /** The beta tester gift, present while the person is eligible:
+     * `amount` is what the first month of Plus costs with it, minor units. */
     offer?: {
       amount: number;
       currency: string;
-      coversFrom: string;
-      coversUntil: string;
-      endsAt: string;
     };
   };
   limitsStartAt?: string;

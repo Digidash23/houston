@@ -5,9 +5,9 @@
  */
 
 /**
- * The zone that defines the C19 launch instants (`limitsStartAt`, the early
- * offer's `coversFrom`, `coversUntil`, `endsAt`): midnight in San Francisco.
- * Formatting them in the viewer's zone would show "September 30" west of it.
+ * The zone that defines the C19 launch instant (`limitsStartAt`): midnight in
+ * San Francisco. Formatting it in the viewer's zone would show "September 30"
+ * west of it.
  */
 export const LAUNCH_TIME_ZONE = "America/Los_Angeles";
 

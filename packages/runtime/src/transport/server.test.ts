@@ -54,12 +54,21 @@ test("GET /busy answers from the turns in flight, without auth", async () => {
   };
   let release = () => {};
   try {
-    await expect(busy()).resolves.toEqual({ busy: false });
+    await expect(busy()).resolves.toEqual({
+      busy: false,
+      loginPending: false,
+    });
 
     release = holdTurnInFlight();
-    await expect(busy()).resolves.toEqual({ busy: true });
+    await expect(busy()).resolves.toEqual({
+      busy: true,
+      loginPending: false,
+    });
     release();
-    await expect(busy()).resolves.toEqual({ busy: false });
+    await expect(busy()).resolves.toEqual({
+      busy: false,
+      loginPending: false,
+    });
   } finally {
     release();
     await close(server);
@@ -84,7 +93,10 @@ test("GET /busy ignores a stream left reading running with no turn behind it", a
       turnId: "t1",
     });
     const res = await fetch(`${baseUrl}/busy`);
-    await expect(res.json()).resolves.toEqual({ busy: false });
+    await expect(res.json()).resolves.toEqual({
+      busy: false,
+      loginPending: false,
+    });
   } finally {
     evict(conversationId);
     await close(server);

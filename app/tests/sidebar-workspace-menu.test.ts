@@ -203,9 +203,10 @@ describe("the connect group", () => {
 });
 
 describe("the phone's More card", () => {
-  it("tells the rail's story: switcher, connect rows, account, Admin, Academy, Settings", () => {
+  it("tells the rail's story: switcher, plan, connect rows, account, Admin, Academy, Settings", () => {
     inOrder(MORE_MENU, [
       "<SidebarWorkspaceSwitcher",
+      "<PlanUpgradeRow",
       "<ConnectGroup",
       "<MobileAccountRow",
       "{showOrganization && <MobileMoreRowButton row={admin} />}",
@@ -217,10 +218,11 @@ describe("the phone's More card", () => {
   });
 
   it("draws every row as a sheet row: one left edge, one type size", () => {
-    // The switcher is a sheet row by construction, the connect rows take the
-    // library's sheet surface, and the card's own rows wear the same class
-    // string.
-    assert.equal(MORE_MENU.match(/surface="sheet"/g)?.length, 1);
+    // The switcher is a sheet row by construction, the plan row and the
+    // connect rows take the sheet surface, and the card's own rows wear the
+    // same class string.
+    assert.equal(MORE_MENU.match(/surface="sheet"/g)?.length, 2);
+    assert.match(MORE_MENU, /<PlanUpgradeRow[^>]*surface="sheet"/);
     assert.match(MORE_MENU, /<ConnectGroup[^>]*surface="sheet"/);
     assert.ok(!MORE_MENU.includes("px-2"), "no rail inset re-padded");
     assert.equal(

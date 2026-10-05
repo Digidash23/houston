@@ -372,6 +372,26 @@ export class ProxyChannel implements RuntimeChannel {
     }
   }
 
+  async loginPending(ctx: ChannelCtx): Promise<boolean> {
+    // Same reach as busy: an asleep runtime holds no sign-in (sleep ends the
+    // process), and an unreadable answer must not read as nothing pending.
+    if ((await this.opts.launcher.status(ctx.agent.id)) !== "running")
+      return false;
+    try {
+      const endpoint = await this.opts.launcher.ensureAwake(ctx.agent);
+      const res = await fetch(`${endpoint.baseUrl}/busy`, {
+        headers: { Authorization: `Bearer ${endpoint.token}` },
+      });
+      if (!res.ok) return true;
+      const body = (await res.json()) as { loginPending?: unknown };
+      // Absent = a runtime older than the field: it reports no sign-in. Any
+      // present value but a literal false reads as pending.
+      return body.loginPending !== undefined && body.loginPending !== false;
+    } catch {
+      return true;
+    }
+  }
+
   async runtimeStatus(ctx: ChannelCtx) {
     return this.opts.launcher.status(ctx.agent.id);
   }

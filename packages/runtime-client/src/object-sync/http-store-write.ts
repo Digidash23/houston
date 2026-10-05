@@ -2,6 +2,7 @@ import { objectStoreResponseError } from "./http-store-errors";
 import { uploadFile } from "./http-store-upload";
 import { parseObjectManifest } from "./object-manifest";
 import type { WriteResult } from "./object-store";
+import { withOperationSignal } from "./operation-signal";
 
 /** Upload one object and normalize its generation response. */
 export async function uploadHttpObject(input: {
@@ -14,13 +15,20 @@ export async function uploadHttpObject(input: {
   capture: (response: Response) => void;
   signal?: AbortSignal;
 }): Promise<WriteResult | undefined> {
+  return withOperationSignal(input.signal, (signal) => upload(input, signal));
+}
+
+async function upload(
+  input: Parameters<typeof uploadHttpObject>[0],
+  signal: AbortSignal | undefined,
+): Promise<WriteResult | undefined> {
   const response = await uploadFile(
     input.fetchRequest,
     input.url,
     input.srcFile,
     input.headers,
     input.retryable,
-    input.signal,
+    signal,
   );
   input.capture(response);
   if (!response.ok) {

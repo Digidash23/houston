@@ -4,13 +4,21 @@
  * first agent output, app open → first output of the session — and ships them
  * to the gateway's `/v1/client-metrics` ingest (Prometheus histograms behind
  * grafana.gethouston.ai) plus a PostHog mirror for per-user drill-down. Only
- * the mirror carries the hosted org slug: the Prometheus histograms stay
- * without org labels.
+ * the mirror carries the hosted org slug and the send's outcome: the gateway
+ * ingest rejects unknown fields, and its histograms stay without org labels.
+ *
+ * The send spans are not paired here: the SDK reports each sent turn's first
+ * response (`FirstResponse`, from that turn's own frames), and this module
+ * only turns the report into spans. Every turn the client sends is measured,
+ * whichever surface sent it, and a slow or failed one is kept with its outcome.
  *
  * Pure module: no React, no Tauri, no fetch of its own until `configure()`
  * injects the transport. All clocks are epoch ms (performance.timeOrigin as
  * the web T0; the Tauri shell upgrades T0 to its process start).
  */
+
+import type { FirstResponse, FirstResponseOutcome } from "@houston/sdk";
+import { OrgHistory } from "./perf-span-org-history";
 
 export type PerfSpanName =
   | "app_to_board"
@@ -23,9 +31,12 @@ export interface PerfSpanObservation {
   ms: number;
 }
 
-/** What a send is tagged with, read before its first await. */
-export interface PerfSendContext {
-  readonly orgSlug: string | null;
+/** What a mirrored span carries beyond its duration. */
+export interface PerfSpanTags {
+  /** The hosted org a send ran in; null on spans no send pairs and off the gateway. */
+  orgSlug: string | null;
+  /** How the turn behind a send span ended up; absent on the other spans. */
+  outcome?: FirstResponseOutcome;
 }
 
 export interface PerfSpanTransport {
@@ -36,24 +47,28 @@ export interface PerfSpanTransport {
    * shipped, and the queue is dropped instead of growing forever.
    */
   send?(spans: PerfSpanObservation[]): Promise<void>;
-  /**
-   * Per-span mirror (PostHog). Fire-and-forget. `orgSlug` is the hosted org
-   * the user sent in, on the spans a send pairs; null on every other span and
-   * wherever no org is set (desktop, self-host).
-   */
-  mirror?(span: PerfSpanName, ms: number, orgSlug: string | null): void;
+  /** Per-span mirror (PostHog). Fire-and-forget. */
+  mirror?(span: PerfSpanName, ms: number, tags: PerfSpanTags): void;
 }
 
-/** Marks older than this are stale (user wandered off) — never completed. */
+/** A card click older than this is stale (user wandered off) — never completed. */
 const PENDING_TTL_MS = 60_000;
+/**
+ * The outcomes the gateway's time-to-first-text histogram may hold: a real
+ * first text, and a timeout as a censored one (it lands past the last bucket,
+ * exactly where its true value would). A failure is not a time to first text.
+ */
+const SHIPPED_OUTCOMES: ReadonlySet<FirstResponseOutcome> = new Set([
+  "first_text",
+  "timeout",
+]);
 const FLUSH_DELAY_MS = 5_000;
 
 export class PerfSpans {
   private t0Ms: number;
   private readonly onceDone = new Set<PerfSpanName>();
   private pendingChatOpenAt: number | null = null;
-  private pendingSend: { at: number; orgSlug: string | null } | null = null;
-  private orgSlug: string | null = null;
+  private readonly orgs = new OrgHistory();
   private queue: PerfSpanObservation[] = [];
   private transport: PerfSpanTransport | null = null;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -96,44 +111,28 @@ export class PerfSpans {
     if (at !== null) this.observe("card_click_to_chat", this.now() - at);
   }
 
-  /**
-   * The hosted org slug of the active space, or null where there is none. A
-   * reply keeps its send's tag only if the slug is still the same: after a
-   * space switch or a sign-in as someone else, the event stream follows the
-   * new space, so the output that completes the mark is not that reply.
-   */
+  /** The hosted org slug of the active space from now on, or null where there is none. */
   setOrgSlug(slug: string | null): void {
-    this.orgSlug = slug;
+    this.orgs.set(slug, this.now());
   }
 
-  /** The tag for a send starting now. Read it before the send's first await. */
-  sendContext(): PerfSendContext {
-    return { orgSlug: this.orgSlug };
+  /** The org a send dispatched at `at` (epoch ms) ran in. */
+  orgSlugAt(at: number): string | null {
+    return this.orgs.at(at);
   }
 
   /**
-   * The user's send went out, tagged with the `sendContext()` read when it
-   * started, so a space switch mid-request cannot retag it. Overwrites an
-   * unanswered previous send.
+   * A sent turn's first response, as the SDK paired it: `send_to_first_response`
+   * with its outcome, and the once-per-session `app_to_first_response` on the
+   * first real text. Tagged with the org the turn was SENT in.
    */
-  messageSent(context: PerfSendContext): void {
-    this.pendingSend = { at: this.now(), orgSlug: context.orgSlug };
-  }
-
-  /** First agent output (first streamed word) became visible. */
-  firstAssistantOutput(): void {
-    const send = this.pendingSend;
-    this.pendingSend = null;
-    const at = this.take(send?.at ?? null);
-    if (send && at !== null) {
-      const orgSlug = send.orgSlug === this.orgSlug ? send.orgSlug : null;
-      this.observe("send_to_first_response", this.now() - at, orgSlug);
-      this.observeOnce(
-        "app_to_first_response",
-        this.now() - this.t0Ms,
-        orgSlug,
-      );
-    }
+  turnResponded(response: FirstResponse): void {
+    const { outcome, sentAt, at } = response;
+    const tags: PerfSpanTags = { orgSlug: this.orgs.at(sentAt), outcome };
+    const ship = SHIPPED_OUTCOMES.has(outcome);
+    this.observe("send_to_first_response", at - sentAt, tags, ship);
+    if (outcome === "first_text")
+      this.observeOnce("app_to_first_response", at - this.t0Ms, tags);
   }
 
   /** Ship anything queued now (page-hide, tests). */
@@ -165,21 +164,24 @@ export class PerfSpans {
   private observeOnce(
     span: PerfSpanName,
     ms: number,
-    orgSlug: string | null = null,
+    tags: PerfSpanTags = { orgSlug: null },
   ): void {
     if (this.onceDone.has(span)) return;
     this.onceDone.add(span);
-    this.observe(span, ms, orgSlug);
+    this.observe(span, ms, tags);
   }
 
+  /** `ship: false` mirrors the span to PostHog only (never the gateway histogram). */
   private observe(
     span: PerfSpanName,
     ms: number,
-    orgSlug: string | null = null,
+    tags: PerfSpanTags = { orgSlug: null },
+    ship = true,
   ): void {
     if (!Number.isFinite(ms) || ms < 0) return;
+    this.transport?.mirror?.(span, Math.round(ms), tags);
+    if (!ship) return;
     this.queue.push({ span, ms: Math.round(ms) });
-    this.transport?.mirror?.(span, Math.round(ms), orgSlug);
     this.scheduleFlush();
   }
 

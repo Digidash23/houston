@@ -8,6 +8,13 @@ interface GuardEntry {
   expiresAt: number;
 }
 
+/** One message reservation as a pool worker carries it (`approval-carry.ts`). */
+export interface GuardReservation {
+  nonce: string;
+  fingerprint: string;
+  expiresAt: number;
+}
+
 export type MessageGuardResult =
   | { kind: "new"; release: () => void }
   | { kind: "duplicate" | "conflict" | "full" };
@@ -54,6 +61,35 @@ export class ApprovalMessageGuard {
         if (this.entries.get(key) === entry) this.entries.delete(key);
       },
     };
+  }
+
+  /** One conversation's live reservations, copied out. */
+  reservationsFor(agentId: string, conversationId: string): GuardReservation[] {
+    const now = this.now();
+    return [...this.entries]
+      .filter(
+        ([, entry]) =>
+          entry.agentId === agentId &&
+          entry.conversationId === conversationId &&
+          entry.expiresAt > now,
+      )
+      .map(([key, entry]) => ({
+        nonce: (JSON.parse(key) as [string, string, string])[2],
+        fingerprint: entry.fingerprint,
+        expiresAt: entry.expiresAt,
+      }));
+  }
+
+  /** Take back a reservation {@link reservationsFor} copied out. */
+  adopt(agentId: string, conversationId: string, held: GuardReservation): void {
+    if (held.expiresAt <= this.now() || this.entries.size >= this.capacity)
+      return;
+    this.entries.set(JSON.stringify([agentId, conversationId, held.nonce]), {
+      agentId,
+      conversationId,
+      fingerprint: held.fingerprint,
+      expiresAt: held.expiresAt,
+    });
   }
 
   clear(agentId?: string, conversationId?: string): void {

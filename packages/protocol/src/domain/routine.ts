@@ -1,9 +1,15 @@
 // Routines + routine runs. snake_case mirrors the on-disk .houston schemas.
 
-import type { RoutineAutoPause, RoutineRunFailure } from "./routine-failure";
+import type {
+  RoutineAutoPause,
+  RoutineDeliveryFailure,
+  RoutineRunFailure,
+} from "./routine-failure";
 
 export type {
   RoutineAutoPause,
+  RoutineDeliveryFailure,
+  RoutineDeliveryFailureCode,
   RoutineRunFailure,
   RoutineRunFailureCode,
 } from "./routine-failure";
@@ -168,10 +174,16 @@ export interface RoutineRun {
   paused_until?: string;
   /**
    * The typed credential-level reason an errored run failed. Additive and
-   * optional: a run that failed for any other reason (a timeout, a provider
-   * outage) carries only `summary`, exactly as before.
+   * optional: other failures after a run starts (a timeout, a provider
+   * outage) carry only `summary`, exactly as before.
    */
   failure?: RoutineRunFailure;
+  /**
+   * Cloud could not hand the fire to a worker before its max age, so the run
+   * never started. Written by the control plane, never by the engine; it is
+   * never paired with `failure` and never feeds the auto-pause streak.
+   */
+  delivery_failure?: RoutineDeliveryFailure;
   /**
    * The engine restarted mid-run and is running the turn again by itself
    * (PRODUCT-1785). The run stays `running` — its reply is still coming — and

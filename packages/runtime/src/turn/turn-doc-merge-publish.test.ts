@@ -1,6 +1,10 @@
 import { mergeRoutineRunArrays } from "@houston/runtime-client/object-sync";
 import { expect, test } from "vitest";
-import { DOC_MERGE_ROUNDS, publishMerged } from "./turn-doc-merge-publish";
+import {
+  DOC_MERGE_ROUNDS,
+  publishDerived,
+  publishMerged,
+} from "./turn-doc-merge-publish";
 import { docStore, type Row, row } from "./turn-doc-store.test-support";
 
 const options = (fetchImpl: typeof fetch) => ({
@@ -54,4 +58,49 @@ test("a doc still contended after every round is reported, not claimed", async (
 
   expect(result).toEqual({ error: "PUT rejected (409)" });
   expect(rounds).toBe(DOC_MERGE_ROUNDS);
+});
+
+test("a derived doc reads the object only after the revision it lands at", async () => {
+  // The order is the whole guarantee: a writer whose object landed before
+  // this read is in the doc; one landing after meets this PUT's revision.
+  const store = docStore([row("run-0", 0)]);
+  const steps: string[] = [];
+  const traced = (async (url: unknown, init?: RequestInit) => {
+    steps.push(init?.method ?? "GET");
+    return store.fetchImpl(String(url), init);
+  }) as typeof fetch;
+
+  const result = await publishDerived(options(traced), async () => {
+    steps.push("derive");
+    return [row("run-0", 0), row("mine", 1)];
+  });
+
+  expect(result).toEqual({ ok: true });
+  expect(steps).toEqual(["GET", "derive", "PUT"]);
+});
+
+test("a derived doc that lost the race re-reads the object, never re-sends its copy", async () => {
+  const store = docStore([row("run-0", 0)]);
+  let object = [row("run-0", 0), row("mine", 1)];
+  // Another writer lands its object AND its doc between our read and PUT.
+  store.raceNextPut([row("run-0", 0), row("other", 2)]);
+  const raced = (async (url: unknown, init?: RequestInit) => {
+    if (init?.method === "PUT" && object.length === 2)
+      object = [...object, row("other", 2)];
+    return store.fetchImpl(String(url), init);
+  }) as typeof fetch;
+  let reads = 0;
+
+  const result = await publishDerived(
+    options(raced),
+    async () => {
+      reads += 1;
+      return object;
+    },
+    () => 0,
+  );
+
+  expect(result).toEqual({ ok: true });
+  expect(reads).toBe(2);
+  expect(store.doc().map((r) => r.id)).toEqual(["run-0", "mine", "other"]);
 });

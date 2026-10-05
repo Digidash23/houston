@@ -41,6 +41,7 @@ export function cachePersistOutput(): FeedOutput {
           // on exactly the cold opens the cache exists for.
           ...(f.turnId !== undefined ? { turnId: f.turnId } : {}),
           ...(f.toolIndex !== undefined ? { toolIndex: f.toolIndex } : {}),
+          ...(f.notice !== undefined ? { notice: f.notice } : {}),
         })),
       );
     },

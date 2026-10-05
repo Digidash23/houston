@@ -12,6 +12,7 @@ import {
   PathDeniedError,
   PathEscapeError,
   PathNotAllowedError,
+  SharedSkillReadOnlyError,
   WorkspaceGuard,
 } from "./fs-guard";
 
@@ -280,6 +281,27 @@ test("a symlink inside a shared root cannot escape that root", () => {
   expect(() => g.clamp(join(canonicalShared, "escaped", "secret.txt"))).toThrow(
     PathEscapeError,
   );
+});
+
+test("a read-only root can be read and never written", () => {
+  // A pooled turn's org-shared skills snapshot: the model reads its skills,
+  // but an edit would land in a throwaway copy the turn never syncs back.
+  const ws = freshRoot();
+  const snapshot = mkdtempSync(join(tmpdir(), "houston-shared-snapshot-"));
+  mkdirSync(join(snapshot, "invoices"));
+  writeFileSync(join(snapshot, "invoices", "SKILL.md"), "shared skill");
+  const g = new WorkspaceGuard(ws, { readOnlyRoots: [snapshot] });
+  const skill = realpathSync(join(snapshot, "invoices", "SKILL.md"));
+
+  expect(g.clamp(skill)).toBe(skill);
+  expect(g.assertInside(skill)).toBe(skill);
+  expect(() => g.clampWrite(skill)).toThrow(SharedSkillReadOnlyError);
+  expect(() => g.assertWritable(skill)).toThrow(SharedSkillReadOnlyError);
+  expect(() =>
+    g.clampWrite(join(realpathSync(snapshot), "invoices", "new.md")),
+  ).toThrow(SharedSkillReadOnlyError);
+  // The workspace itself stays writable.
+  expect(g.clampWrite("notes.txt")).toBe(join(g.root, "notes.txt"));
 });
 
 test("without an existing shared root, everything stays workspace-only", () => {

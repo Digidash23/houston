@@ -28,6 +28,31 @@ export function agentRouteScope(workspaceRel: string): OpInclude {
   return (rel) => rel.startsWith(root) && !rel.startsWith(runtime);
 }
 
+/**
+ * A migration import's scope (the agent-import claim): the agent route scope
+ * plus the runtime transcripts it unpacks, their archive segments (a long
+ * desktop conversation arrives rotated, store/conversation-archive.ts), and
+ * the pi sessions synthesized from them. Nothing else of the runtime tree.
+ */
+export function importScope(workspaceRel: string, dataRel: string): OpInclude {
+  const agent = agentRouteScope(workspaceRel);
+  const conversations = `${posix.join(dataRel, "conversations")}/`;
+  const sessions = `${posix.join(dataRel, "sessions")}/`;
+  return (rel) => {
+    if (agent(rel) || rel.startsWith(sessions)) return true;
+    if (!rel.startsWith(conversations)) return false;
+    const [name = "", segment, ...deeper] = rel
+      .slice(conversations.length)
+      .split("/");
+    if (segment === undefined) return name.endsWith(".json");
+    return (
+      deeper.length === 0 &&
+      name.endsWith(".archive") &&
+      segment.endsWith(".json")
+    );
+  };
+}
+
 /** One conversation's file + sessions. */
 export function conversationScope(dataRel: string, cid: string): OpInclude {
   const file = posix.join(
@@ -36,7 +61,13 @@ export function conversationScope(dataRel: string, cid: string): OpInclude {
     `${encodeURIComponent(cid)}.json`,
   );
   const sessions = `${posix.join(dataRel, "sessions", cid)}/`;
-  return (rel) => rel === file || rel.startsWith(sessions);
+  const archives = posix.join(
+    dataRel,
+    "conversations",
+    `${encodeURIComponent(cid)}.archive/`,
+  );
+  return (rel) =>
+    rel === file || rel.startsWith(archives) || rel.startsWith(sessions);
 }
 
 /**
@@ -45,6 +76,8 @@ export function conversationScope(dataRel: string, cid: string): OpInclude {
  * id (the layout resolver finds the single agent), but the host handlers
  * address the agent by its id — so it is derived here, never trusted.
  */
-export function engineAgentId(filesystem: TurnFilesystem): string {
+export function engineAgentId(
+  filesystem: Pick<TurnFilesystem, "workspaceRel">,
+): string {
   return filesystem.workspaceRel.replace(/^workspaces\//, "");
 }

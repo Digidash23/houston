@@ -170,7 +170,7 @@ async function titledTurn(opts: {
     fetchImpl: (async (_url: unknown, init?: RequestInit) =>
       init?.method === "PUT"
         ? new Response("{}", { status: 200 })
-        : Response.json({ revision: 1 })) as typeof fetch,
+        : Response.json({ doc: [], revision: 1 })) as typeof fetch,
     activityDocRetryDelaysMs: [],
     runTurn: async (directories, request) => {
       const local = join(directories.workspaceDir, ".houston/activity");

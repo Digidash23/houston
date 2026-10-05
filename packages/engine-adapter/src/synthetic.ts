@@ -30,18 +30,18 @@ export const DEFAULT_AGENT_COLOR: AgentColorId = "purple";
 export const DEFAULT_AGENT_CONFIG_ID = "personal-assistant";
 const EPOCH = "2024-01-01T00:00:00.000Z";
 
-export function syntheticWorkspace(
-  provider?: string,
-  model?: string,
-): Workspace {
+/**
+ * The personal row. It carries no provider or model: providers are per agent,
+ * and labelling this row meant reading one agent's providers on every space
+ * list, which the app polls while it is open, so that agent never slept.
+ */
+export function syntheticWorkspace(): Workspace {
   return {
     id: DEFAULT_WORKSPACE_ID,
     name: "Personal",
     isDefault: true,
     createdAt: EPOCH,
     locale: null,
-    provider,
-    model,
   };
 }
 

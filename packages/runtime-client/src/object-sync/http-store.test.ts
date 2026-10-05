@@ -101,7 +101,38 @@ test("download forwards cancellation to the HTTP request", async () => {
   controller.abort(new Error("stop hydration"));
 
   await expect(downloading).rejects.toThrow("stop hydration");
-  expect(requestSignal).toBe(controller.signal);
+  // The request runs on its own signal that follows the caller's.
+  expect(requestSignal).not.toBe(controller.signal);
+  expect(requestSignal?.reason).toBe(controller.signal.reason);
+});
+
+test("manifest forwards cancellation to the HTTP request", async () => {
+  let requestSignal: AbortSignal | null | undefined;
+  const store = new HttpObjectStore({
+    baseUrl: "https://store.test",
+    token: "pod-token",
+    retryDelaysMs: [],
+    fetchImpl: async (_input, init) => {
+      requestSignal = init?.signal;
+      await new Promise<void>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          "abort",
+          () => reject(init.signal?.reason),
+          { once: true },
+        );
+      });
+      throw new Error("unreachable");
+    },
+  });
+  const controller = new AbortController();
+
+  const listing = store.manifest("skills/", { signal: controller.signal });
+  controller.abort(new Error("turn moved on"));
+
+  await expect(listing).rejects.toThrow("turn moved on");
+  // The request runs on its own signal that follows the caller's.
+  expect(requestSignal).not.toBe(controller.signal);
+  expect(requestSignal?.reason).toBe(controller.signal.reason);
 });
 
 test("upload forwards cancellation to the HTTP request and its retries", async () => {

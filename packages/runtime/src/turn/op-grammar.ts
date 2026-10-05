@@ -1,7 +1,16 @@
 import {
-  type ManagedBridgeEndpoint,
-  ManagedBridgeEndpointSchema,
-} from "@houston/protocol";
+  type ConversationOp,
+  parseConversationOp,
+} from "./op-grammar-conversation";
+import {
+  type CustomOAuthOp,
+  parseCustomOAuthOp,
+} from "./op-grammar-custom-oauth";
+import { str } from "./op-grammar-fields";
+import { type MigrateOp, parseMigrateOp } from "./op-grammar-migrate";
+import { parseReconcileOp, type ReconcileOp } from "./op-grammar-reconcile";
+import { parseSeedOp, type SeedOp } from "./op-grammar-seed";
+import { parseSettingsOp, type SettingsOp } from "./op-grammar-settings";
 import {
   isBinaryBodyOpRoute,
   isOpRoute,
@@ -29,31 +38,7 @@ export type AgentOp =
       contentType?: string;
     }
   | { kind: "title"; text: string }
-  | {
-      kind: "settings";
-      action: "put";
-      input: { activeProvider?: string; model?: string; effort?: string };
-    }
-  | {
-      kind: "settings";
-      action: "claim";
-      provider: string;
-      connectedProviders: string[];
-    }
-  | {
-      kind: "settings";
-      action: "endpoint";
-      input: {
-        bridge?: ManagedBridgeEndpoint;
-        baseUrl: string;
-        model: string;
-        name?: string;
-        contextWindow?: number;
-        reasoning?: boolean;
-        shared?: boolean;
-        apiKey?: string;
-      };
-    }
+  | SettingsOp
   | {
       kind: "credential";
       action: "api-key";
@@ -62,25 +47,19 @@ export type AgentOp =
       /** Azure OpenAI's per-resource endpoint, arriving with the key. */
       endpoint?: string;
     }
-  | {
-      kind: "conversation";
-      action: "rename" | "delete";
-      conversationId: string;
-      title?: string;
-    };
+  | ConversationOp
+  | { kind: "first-day"; body: string }
+  | CustomOAuthOp
+  | SeedOp
+  | MigrateOp
+  | ReconcileOp;
 
-export const ID = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$/;
-
-export function str(v: unknown, field: string): string {
-  if (typeof v !== "string" || !v.length) throw new Error(`invalid '${field}'`);
-  return v;
-}
-
-const strings = (v: unknown): string[] =>
-  Array.isArray(v) ? v.filter((s): s is string => typeof s === "string") : [];
+export { ID, str } from "./op-grammar-fields";
 
 export function parseAgentOp(raw: Record<string, unknown>): AgentOp {
   switch (raw.kind) {
+    case "custom-oauth":
+      return parseCustomOAuthOp(raw);
     case "route":
       return parseRouteOp(raw);
     case "title":
@@ -99,22 +78,19 @@ export function parseAgentOp(raw: Record<string, unknown>): AgentOp {
           : {}),
       };
     }
-    case "conversation": {
-      const action = raw.action;
-      if (action !== "rename" && action !== "delete")
-        throw new Error("invalid 'op.action'");
-      const conversationId = str(raw.conversationId, "op.conversationId");
-      if (!ID.test(conversationId))
-        throw new Error("invalid 'op.conversationId'");
-      if (action === "rename" && typeof raw.title !== "string")
-        throw new Error("rename needs 'op.title'");
+    case "conversation":
+      return parseConversationOp(raw);
+    case "first-day":
       return {
-        kind: "conversation",
-        action,
-        conversationId,
-        ...(typeof raw.title === "string" ? { title: raw.title } : {}),
+        kind: "first-day",
+        body: typeof raw.body === "string" ? raw.body : "{}",
       };
-    }
+    case "seed":
+      return parseSeedOp(raw);
+    case "migrate":
+      return parseMigrateOp(raw);
+    case "reconcile":
+      return parseReconcileOp(raw);
     default:
       throw new Error("invalid 'op.kind'");
   }
@@ -154,8 +130,7 @@ function parseRouteOp(raw: Record<string, unknown>): AgentOp {
     throw new Error("op.bodyBase64 is not accepted for this route");
   }
   // And the converse: a binary route must never smuggle its payload as a
-  // text body — a zip in a UTF-8 string is corrupt AND would bypass the
-  // runtime-transcript decline that keys off bodyBase64 (op-route.ts).
+  // text body — a zip in a UTF-8 string is corrupt.
   if (
     isBinaryBodyOpRoute(decoded) &&
     typeof raw.body === "string" &&
@@ -180,51 +155,4 @@ function parseRouteOp(raw: Record<string, unknown>): AgentOp {
       ? { contentType: raw.contentType }
       : {}),
   };
-}
-
-function parseSettingsOp(raw: Record<string, unknown>): AgentOp {
-  if (raw.action === "put") {
-    const input = (raw.input ?? {}) as Record<string, unknown>;
-    const pick = (k: string) =>
-      typeof input[k] === "string" && (input[k] as string).length <= 200
-        ? { [k]: input[k] as string }
-        : {};
-    return {
-      kind: "settings",
-      action: "put",
-      input: { ...pick("activeProvider"), ...pick("model"), ...pick("effort") },
-    };
-  }
-  if (raw.action === "claim") {
-    return {
-      kind: "settings",
-      action: "claim",
-      provider: str(raw.provider, "op.provider"),
-      connectedProviders: strings(raw.connectedProviders),
-    };
-  }
-  if (raw.action === "endpoint") {
-    const input = (raw.input ?? {}) as Record<string, unknown>;
-    return {
-      kind: "settings",
-      action: "endpoint",
-      input: {
-        ...(input.bridge !== undefined
-          ? { bridge: ManagedBridgeEndpointSchema.parse(input.bridge) }
-          : {}),
-        baseUrl: str(input.baseUrl, "op.input.baseUrl"),
-        model: str(input.model, "op.input.model"),
-        ...(typeof input.name === "string" ? { name: input.name } : {}),
-        ...(typeof input.contextWindow === "number"
-          ? { contextWindow: input.contextWindow }
-          : {}),
-        ...(typeof input.reasoning === "boolean"
-          ? { reasoning: input.reasoning }
-          : {}),
-        ...(input.shared === true ? { shared: true } : {}),
-        ...(typeof input.apiKey === "string" ? { apiKey: input.apiKey } : {}),
-      },
-    };
-  }
-  throw new Error("invalid 'op.action'");
 }

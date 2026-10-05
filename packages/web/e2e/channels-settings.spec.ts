@@ -18,7 +18,11 @@ interface ChannelCall {
  * route handler fails the request instead of the test, so every claim about
  * what the app sent is made from the test body, after the UI settled.
  */
-async function mockChannels(page: Page, configured = true) {
+async function mockChannels(
+  page: Page,
+  configured = true,
+  holdFirstListUntilRedeemed = false,
+) {
   const calls: ChannelCall[] = [];
   const connections = [
     {
@@ -30,6 +34,11 @@ async function mockChannels(page: Page, configured = true) {
     },
   ];
   let bound: (typeof connections)[number] | null = null;
+  let listed = false;
+  let redeemed = () => {};
+  const redemption = new Promise<void>((resolve) => {
+    redeemed = resolve;
+  });
   await page.route("**/v1/channels**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -53,7 +62,9 @@ async function mockChannels(page: Page, configured = true) {
         };
         connections.push(bound);
       }
-      return route.fulfill({ json: { connection: bound } });
+      await route.fulfill({ json: { connection: bound } });
+      redeemed();
+      return;
     }
     if (path.endsWith("/slack/link")) {
       return route.fulfill({
@@ -63,12 +74,17 @@ async function mockChannels(page: Page, configured = true) {
         },
       });
     }
-    return route.fulfill({
-      json: {
-        providers: [{ id: "slack", name: "Slack", configured }],
-        connections,
-      },
+    // The list is answered NOW; holding the first answer until the ticket is
+    // redeemed models a read the server served before a write the browser saw
+    // land first.
+    const json = structuredClone({
+      providers: [{ id: "slack", name: "Slack", configured }],
+      connections,
     });
+    const hold = holdFirstListUntilRedeemed && !listed;
+    listed = true;
+    if (hold) await redemption;
+    return route.fulfill({ json });
   });
   return calls;
 }
@@ -168,6 +184,17 @@ test("the callback ticket is redeemed once and leaves the address bar", async ({
       body: { ticket: TICKET },
     },
   ]);
+});
+
+test("a ticket redeemed during the first list read still shows its connection", async ({
+  page,
+}) => {
+  // The first list read was answered before the redemption and arrives after
+  // it: the redemption must trigger a read of its own, not ride the stale one.
+  await mockChannels(page, true, true);
+  await signInAsViewer(page);
+  await page.goto(`${AUTH_WEB_URL}/?settings=channels&slack=${TICKET}`);
+  await expect(page.getByText("Ada · Personal", { exact: true })).toBeVisible();
 });
 
 test("a refused callback ticket says so instead of failing silently", async ({

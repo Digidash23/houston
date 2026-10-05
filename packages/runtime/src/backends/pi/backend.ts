@@ -7,6 +7,11 @@ import {
   type ModelRuntime,
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
+import type { AssistantRuntimeRole } from "@houston/domain/assistant-role";
+import {
+  type HedgeObserver,
+  hedgedModelRuntime,
+} from "../../ai/hedged-runtime";
 import { isManagedBridgeModel } from "../../ai/openai-compatible-model";
 import { makeAgentLoader } from "../../session/resource-loader";
 import { toolNamesForMode } from "../../session/tool-selection";
@@ -44,6 +49,13 @@ export interface PiBackendDeps {
    * WebSocket across a conversation's turns.
    */
   transport?: Transport;
+  /** Workspace-shared skills dir; absent = the process's (resource-loader.ts). */
+  sharedSkillsDir?: string;
+  /** The coordinator role for this backend's sessions. Absent = the
+   *  process's own; a pooled turn passes the turn's (`null` included). */
+  role?: AssistantRuntimeRole | null;
+  /** Told when a request's response opens and when one is sent again. */
+  hedge?: HedgeObserver;
 }
 
 /**
@@ -158,6 +170,8 @@ export function createPiBackend(deps: PiBackendDeps): HarnessBackend {
         opts.mode,
         opts.context,
         deps.systemPrompt,
+        deps.sharedSkillsDir,
+        deps.role,
       );
       await loader.reload();
       const { session } = await createAgentSession({
@@ -165,7 +179,9 @@ export function createPiBackend(deps: PiBackendDeps): HarnessBackend {
         agentDir: deps.dataDir,
         model: opts.model as unknown as Model<Api>,
         ...(opts.thinkingLevel ? { thinkingLevel: opts.thinkingLevel } : {}),
-        modelRuntime: deps.modelRuntime,
+        // Every session request is hedged against a provider that never
+        // answers (ai/hedged-runtime.ts).
+        modelRuntime: hedgedModelRuntime(deps.modelRuntime, deps.hedge),
         // A cross-backend rebuild (opts.fresh) mints a NEW session file in the
         // conversation's dir instead of reopening the most recent one: the
         // history arrives as a transcript replay on the first prompt (HOU-951),

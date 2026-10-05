@@ -1,3 +1,4 @@
+import type { TurnMode } from "@houston/protocol";
 import type { TurnRequest } from "./types";
 
 const REQUEST_TIMEOUT_MS = 5_000;
@@ -21,6 +22,7 @@ export function startClaimHeartbeat(opts: {
   intervalMs?: number;
   /** Fired once, the moment a heartbeat learns the claim was adopted. */
   onFenced?: () => void;
+  onMode?: (mode: TurnMode) => void;
 }): ClaimHeartbeat {
   const fetchImpl = opts.fetchImpl ?? fetch;
   const intervalMs = opts.intervalMs ?? 15_000;
@@ -48,6 +50,14 @@ export function startClaimHeartbeat(opts: {
         fenced = true;
         clearInterval(timer);
         opts.onFenced?.();
+      } else if (response.ok && response.status !== 204 && opts.onMode) {
+        const body = (await response.json()) as { mode?: unknown };
+        if (
+          body.mode === "execute" ||
+          body.mode === "plan" ||
+          body.mode === "auto"
+        )
+          opts.onMode(body.mode);
       } else if (!response.ok) {
         console.warn(
           `[turn] claim heartbeat failed (${response.status}): ${(

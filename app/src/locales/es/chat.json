@@ -290,6 +290,9 @@
   "contextCompacted": "Resumimos la conversación anterior para que el chat pueda continuar",
   "contextCompactedManual": "Compactamos la conversación para liberar espacio",
   "contextCleared": "Contexto borrado. Empiezo de cero y conservo lo que aprendí sobre ti.",
+  "sendBusy": "El agente sigue ocupado con otro mensaje. Envía el tuyo de nuevo en un momento.",
+  "computeBusy": "Hay demasiada actividad para empezar tu mensaje ahora. Envíalo de nuevo en unos minutos.",
+  "sendWaitingBusy": "Hay mucha actividad en este momento. Seguimos intentando enviar tu mensaje.",
   "engineRestart": {
     "sayContinue": "Tu agente tuvo que reiniciarse. Dile que continúe y retomará donde se quedó.",
     "resuming": "Tu agente se interrumpió por un reinicio y está retomando donde se quedó."

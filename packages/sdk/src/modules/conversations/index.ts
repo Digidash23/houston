@@ -25,6 +25,7 @@
 
 import type { ConversationSummary } from "@houston/runtime-client";
 import type { ModuleContext } from "../../module-context";
+import { retryComputeRefusals } from "../compute-retry";
 import {
   parseDelete,
   parseRefresh,
@@ -83,19 +84,21 @@ export function createConversationsModule(ctx: ModuleContext) {
     return vm;
   };
 
+  // Both are pool ops on an asleep cloud agent: a typed nothing-ran refusal
+  // is sent again, never surfaced as a failed rename.
   const rename = (
     agentId: string,
     id: string,
     title: string,
   ): Promise<ConversationListVM> =>
-    clientFor(agentId)
-      .renameConversation(id, title)
-      .then(() => loadList(agentId));
+    retryComputeRefusals(ctx.config.ports.clock, () =>
+      clientFor(agentId).renameConversation(id, title),
+    ).then(() => loadList(agentId));
 
   const remove = (agentId: string, id: string): Promise<ConversationListVM> =>
-    clientFor(agentId)
-      .deleteConversation(id)
-      .then(() => loadList(agentId));
+    retryComputeRefusals(ctx.config.ports.clock, () =>
+      clientFor(agentId).deleteConversation(id),
+    ).then(() => loadList(agentId));
 
   /**
    * Names a chat from what was said in it, in a few words.

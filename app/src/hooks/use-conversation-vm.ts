@@ -47,6 +47,9 @@ export interface ConversationView {
    *  `earliestLoaded > 0` means older messages exist server-side and the chat
    *  offers scroll-up lazy-load. Absent before any windowed read. */
   historyWindow: ConversationVM["historyWindow"];
+  /** A sent message still waiting to start, and why (`busy`: the SDK keeps
+   *  re-sending it while the shared compute has no room). Absent otherwise. */
+  sendWaiting: ConversationVM["sendWaiting"];
 }
 
 const EMPTY_FEED: FeedItem[] = [];
@@ -60,6 +63,7 @@ function toView(vm: ConversationVM): ConversationView {
     queued: vm.queued,
     pendingInteraction: vm.pendingInteraction,
     historyWindow: vm.historyWindow,
+    sendWaiting: vm.sendWaiting,
   };
 }
 

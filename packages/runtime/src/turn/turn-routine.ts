@@ -88,10 +88,28 @@ export async function prepareRoutineTurn(
   }
   const { items: runs } = await loadRoutineRuns(store, workspaceDir);
   const nowMs = Date.parse(nowIso);
-  // An abandoned `running` row stops blocking but stays as it is: settling
-  // it is reconcile's job, on the pod that ran it.
+  // An abandoned `running` row stops blocking past the timeout but stays as
+  // it is here: settling it is reconcile's job, by the pod's scheduler while
+  // the agent is awake, and otherwise by the control plane's reconcile op
+  // (op-reconcile.ts) once no claim holds its conversation.
+  // The row under this turn's own id is this run's, published by an
+  // earlier attempt of the same turn (a follower re-dispatching it after
+  // its sandbox died). Still running, it never holds the run back and the
+  // new row replaces it; settled, the run is over and never runs twice.
+  const own = runs.find((r) => r.id === turnId);
+  if (own && own.status !== "running") {
+    throw new RoutineTurnError(
+      "routine_busy",
+      `run ${turnId} of "${routine.name}" already settled`,
+    );
+  }
   if (
-    runs.some((r) => r.routine_id === routine.id && holdsRoutineBusy(r, nowMs))
+    runs.some(
+      (r) =>
+        r.routine_id === routine.id &&
+        r.id !== turnId &&
+        holdsRoutineBusy(r, nowMs),
+    )
   ) {
     throw new RoutineTurnError(
       "routine_busy",
@@ -99,7 +117,11 @@ export async function prepareRoutineTurn(
     );
   }
   const run = createRoutineRun(routine, turnId, nowIso);
-  await saveRoutineRuns(store, workspaceDir, pruneRoutineRuns([run, ...runs]));
+  await saveRoutineRuns(
+    store,
+    workspaceDir,
+    pruneRoutineRuns([run, ...runs.filter((r) => r.id !== turnId)]),
+  );
   const pin = routinePin(routine);
   const events = turn.routine.events ?? [];
   return {

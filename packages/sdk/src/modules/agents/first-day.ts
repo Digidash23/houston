@@ -9,6 +9,10 @@
  * operation under the employee's own lock. So a repeated start (a second
  * button, a second tab, a retry after a lost answer) is safe by construction:
  * it hands back the task the first start made, with `outcome: "existing"`.
+ * That is also why the start, unlike other writes, rides out a pod that is
+ * still coming up: a new hire's first day is offered the moment it is created,
+ * often seconds before its pod answers, and a repeated start can only hand back
+ * the same task.
  */
 
 import type {
@@ -16,6 +20,10 @@ import type {
   FirstDayStartResult,
 } from "@houston/protocol";
 import type { ModuleContext } from "../../module-context";
+import {
+  retryWriteWhileRefused,
+  WAKING_CREATE_RETRY_MS,
+} from "../activities/busy-retry";
 import { type HttpScope, httpRequest } from "../http";
 import { field, requireString } from "../payload";
 import { AgentsCommand } from "./types";
@@ -26,7 +34,9 @@ export type { FirstDayStartInput, FirstDayStartResult };
  * Starts an AI Employee's first day: its setup task, where it introduces
  * itself and works out with the user how it should help. Only a new hire whose
  * first day is still waiting can start one; asking again for one that already
- * started hands back the same task instead of making another.
+ * started hands back the same task instead of making another. A new hire's
+ * first day can be started right after it is created: while the new agent is
+ * still getting ready, the start waits for it (up to about a minute and a half).
  *
  * @param agentId The agent this acts on, by the id listAgents returns. An
  *   agent's name is not its id, so read the id from listAgents first.
@@ -41,10 +51,15 @@ export async function startFirstDay(
   agentId: string,
   input: FirstDayStartInput = {},
 ): Promise<FirstDayStartResult> {
-  const res = await httpRequest(
-    scope,
-    `/agents/${encodeURIComponent(agentId)}/first-day`,
-    { method: "POST", body: JSON.stringify(input) },
+  const res = await retryWriteWhileRefused(
+    scope.ports.clock,
+    () =>
+      httpRequest(scope, `/agents/${encodeURIComponent(agentId)}/first-day`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    // Idempotent on the host, so a waking refusal is safe to re-issue.
+    { wakingLadderMs: WAKING_CREATE_RETRY_MS },
   );
   return (await res.json()) as FirstDayStartResult;
 }

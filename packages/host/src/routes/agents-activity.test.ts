@@ -26,6 +26,7 @@ import { dispatchGroup } from "./registry/all";
 
 class SpyChannel implements RuntimeChannel {
   busyResult = false;
+  loginPendingResult = false;
   runtime = "running" as const;
   dispatched: string[] = [];
   fired: { conversationId: string; text: string; pin?: TurnPin }[] = [];
@@ -55,6 +56,9 @@ class SpyChannel implements RuntimeChannel {
   }
   async busy() {
     return this.busyResult;
+  }
+  async loginPending() {
+    return this.loginPendingResult;
   }
   async runtimeStatus() {
     return this.runtime;
@@ -190,8 +194,11 @@ test("reports idle activity without falling through to runtime dispatch", async 
   expect(json).toEqual({
     busy: false,
     runtime: "running",
+    turnBusy: false,
+    loginPending: false,
     runningRoutineRuns: 0,
     activeRequests: 0,
+    activeWrites: 0,
   });
   expect(channel.dispatched).toEqual([]);
 });
@@ -203,8 +210,11 @@ test("reports busy when the channel has an active turn", async () => {
   expect(json).toEqual({
     busy: true,
     runtime: "running",
+    turnBusy: true,
+    loginPending: false,
     runningRoutineRuns: 0,
     activeRequests: 0,
+    activeWrites: 0,
   });
 });
 
@@ -216,8 +226,11 @@ test("reports busy when a routine run is still running", async () => {
   expect(json).toEqual({
     busy: true,
     runtime: "running",
+    turnBusy: false,
+    loginPending: false,
     runningRoutineRuns: 1,
     activeRequests: 0,
+    activeWrites: 0,
   });
 });
 
@@ -235,6 +248,42 @@ test("counts OTHER held /agents/* requests as busy (open SSE stream)", async () 
   expect((await activity()).json).toMatchObject({
     busy: true,
     activeRequests: 1,
+  });
+});
+
+test("reports a sign-in waiting on its user apart from busy", async () => {
+  // A provider sign-in lives only in the runtime process until the user
+  // finishes it; a pod slept under it drops the sign-in. It is not a turn, so
+  // `busy` (and the usage meters that share its inputs) stay as they were.
+  channel.loginPendingResult = true;
+  expect((await activity()).json).toMatchObject({
+    busy: false,
+    turnBusy: false,
+    loginPending: true,
+  });
+});
+
+test("reports a running turn and held writes apart from open reads", async () => {
+  // The cloud waker sleeps some pods on turns and writes alone: an open chat
+  // stream between turns is not a reason to stay awake there, a running turn
+  // or a write still in flight is. `busy` keeps counting every held request.
+  deps.agentRequestCount = () => 2; // the probe + one open chat stream
+  deps.agentWriteCount = () => 0;
+  expect((await activity()).json).toMatchObject({
+    busy: true,
+    turnBusy: false,
+    activeRequests: 1,
+    activeWrites: 0,
+  });
+
+  deps.agentRequestCount = () => 3; // + a write still in flight
+  deps.agentWriteCount = () => 1;
+  channel.busyResult = true;
+  expect((await activity()).json).toMatchObject({
+    busy: true,
+    turnBusy: true,
+    activeRequests: 2,
+    activeWrites: 1,
   });
 });
 
@@ -477,6 +526,136 @@ test("the real server wires the counter: a held stream reads busy over HTTP", as
       });
     });
   } finally {
+    server.closeAllConnections?.();
+    await new Promise((r) => server.close(() => r(null)));
+  }
+});
+
+test("the real server counts a held write, and never a held read, as a write", async () => {
+  deps.verifier = {
+    async verify() {
+      return { userId: "alice" };
+    },
+  };
+  const releases: (() => void)[] = [];
+  channel.dispatch = async (
+    _ctx: ChannelCtx,
+    _method: string,
+    _rest: string,
+    _url: URL,
+    _req: IncomingMessage,
+    heldRes: ServerResponse,
+  ) => {
+    heldRes.writeHead(200, { "content-type": "text/event-stream" });
+    heldRes.write(": hb\n\n");
+    await new Promise<void>((resolve) => {
+      releases.push(() => {
+        heldRes.end();
+        resolve();
+      });
+    });
+  };
+  const server = createControlPlaneServer(deps);
+  await new Promise<void>((r) => {
+    server.listen(0, "127.0.0.1", () => r());
+  });
+  const { port } = server.address() as AddressInfo;
+  const base = `http://127.0.0.1:${port}`;
+  const auth = { Authorization: "Bearer token" };
+  const agentBase = `${base}/agents/${encodeURIComponent(agentId)}`;
+  const probe = async () =>
+    (await fetch(`${agentBase}/activity`, { headers: auth })).json();
+  try {
+    const stream = fetch(`${agentBase}/conversations/c1/events`, {
+      headers: auth,
+    });
+    await vi.waitFor(() => {
+      expect(releases).toHaveLength(1);
+    });
+    expect(await probe()).toMatchObject({ activeRequests: 1, activeWrites: 0 });
+
+    const write = fetch(`${agentBase}/conversations/c1/import`, {
+      method: "POST",
+      headers: { ...auth, "content-type": "application/json" },
+      body: "{}",
+    });
+    await vi.waitFor(() => {
+      expect(releases).toHaveLength(2);
+    });
+    expect(await probe()).toMatchObject({ activeRequests: 2, activeWrites: 1 });
+
+    for (const release of releases) release();
+    await (await stream).text();
+    await (await write).text();
+    await vi.waitFor(async () => {
+      expect(await probe()).toMatchObject({
+        activeRequests: 0,
+        activeWrites: 0,
+      });
+    });
+  } finally {
+    server.closeAllConnections?.();
+    await new Promise((r) => server.close(() => r(null)));
+  }
+});
+
+test("a write keeps counting after its client hangs up, until its handler settles", async () => {
+  deps.verifier = {
+    async verify() {
+      return { userId: "alice" };
+    },
+  };
+  // A handler still writing files when its client goes away: the gateway's
+  // clock stopped with the client, so this count is all that holds the pod.
+  let started = false;
+  let finish: (() => void) | undefined;
+  channel.dispatch = async (
+    _ctx: ChannelCtx,
+    _method: string,
+    _rest: string,
+    _url: URL,
+    _req: IncomingMessage,
+    writeRes: ServerResponse,
+  ) => {
+    started = true;
+    await new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    if (!writeRes.writableEnded) writeRes.end();
+  };
+  const server = createControlPlaneServer(deps);
+  await new Promise<void>((r) => {
+    server.listen(0, "127.0.0.1", () => r());
+  });
+  const { port } = server.address() as AddressInfo;
+  const agentBase = `http://127.0.0.1:${port}/agents/${encodeURIComponent(agentId)}`;
+  const auth = { Authorization: "Bearer token" };
+  const probe = async () =>
+    (await fetch(`${agentBase}/activity`, { headers: auth })).json();
+  try {
+    const abort = new AbortController();
+    const write = fetch(`${agentBase}/conversations/c1/import`, {
+      method: "POST",
+      headers: { ...auth, "content-type": "application/json" },
+      body: "{}",
+      signal: abort.signal,
+    }).catch(() => null);
+    await vi.waitFor(() => {
+      expect(started).toBe(true);
+    });
+    abort.abort();
+    await write;
+    await vi.waitFor(async () => {
+      expect(await probe()).toMatchObject({ activeRequests: 0 });
+    });
+    expect(await probe()).toMatchObject({ activeWrites: 1 });
+
+    finish?.();
+    await vi.waitFor(async () => {
+      expect(await probe()).toMatchObject({ activeWrites: 0 });
+    });
+  } finally {
+    finish?.();
     server.closeAllConnections?.();
     await new Promise((r) => server.close(() => r(null)));
   }

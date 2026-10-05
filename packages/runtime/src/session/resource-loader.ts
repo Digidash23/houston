@@ -2,6 +2,7 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { DefaultResourceLoader } from "@earendil-works/pi-coding-agent";
 import { renderJobDescriptionForPrompt } from "@houston/domain";
+import type { AssistantRuntimeRole } from "@houston/domain/assistant-role";
 import type { TurnMode } from "@houston/protocol";
 import { config } from "../config";
 import { buildAssistantRulesSection } from "./assistant-rules-context";
@@ -27,11 +28,18 @@ import {
 export function systemPromptFor(codeExecution: CodeExecutionMode): string {
   return [
     "You are a friendly AI assistant inside Houston, working for a non-technical user.",
-    codeExecution === "disabled"
-      ? "You can read and edit files in the user's working directory to help them. You cannot run shell commands or execute code; never claim that you can."
-      : "You can read and edit files and run commands in the user's working directory to help them.",
+    codeExecutionSentence(codeExecution),
     "Be clear and concise. Avoid jargon. Never mention file paths, JSON, or configs unless asked.",
   ].join("\n");
+}
+
+/** What this session may do with the workspace, in one sentence. */
+export function codeExecutionSentence(
+  codeExecution: CodeExecutionMode,
+): string {
+  return codeExecution === "disabled"
+    ? "You can read and edit files in the user's working directory to help them. You cannot run shell commands or execute code; never claim that you can."
+    : "You can read and edit files and run commands in the user's working directory to help them.";
 }
 
 /** This process's own base prompt (the long-lived runtime's one answer). */
@@ -126,22 +134,31 @@ export function makeAgentLoader(
    * turn actually got.
    */
   basePrompt?: string,
+  /**
+   * The workspace-shared skills directory. Absent = this process's mirror; a
+   * pooled turn passes its own org's per-turn snapshot, since one worker
+   * process serves every org.
+   */
+  sharedSkillsDir: string = config.sharedSkillsDir,
+  /** The coordinator role for THIS session. Absent = the process's own; a
+   *  pooled turn passes the turn's, `null` included. */
+  role?: AssistantRuntimeRole | null,
 ) {
   // Workspace and user context precede saved memory, operating rules, and
   // the turn mode overlay. Agent instructions load through agentsFilesOverride.
   const section = buildWorkspaceContextSection(cwd, provided);
   const base = basePrompt || config.systemPrompt || SYSTEM_PROMPT;
   const withContext = section ? `${base}\n\n${section}` : base;
-  const learnings = buildLearningsSection(cwd);
+  const learnings = buildLearningsSection(cwd, role);
   const withLearnings = learnings
     ? `${withContext}\n\n${learnings}`
     : withContext;
-  const rules = buildAssistantRulesSection();
+  const rules = buildAssistantRulesSection(role);
   const withRules = rules ? `${withLearnings}\n\n${rules}` : withLearnings;
   return buildAgentLoader({
     cwd,
     skillsDir: config.skillsDirOverride || join(cwd, ".agents", "skills"),
-    sharedSkillsDir: config.sharedSkillsDir,
+    sharedSkillsDir,
     systemPrompt: withModeOverlay(withRules, mode),
   });
 }

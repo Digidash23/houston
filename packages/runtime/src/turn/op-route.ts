@@ -1,7 +1,6 @@
 import { join } from "node:path";
 import { ACTING_VIA_ASSISTANT } from "@houston/host/src/auth/acting";
 import { dispatchAgentOp } from "@houston/host/src/op/dispatch";
-import { archiveTouchesRuntime } from "@houston/host/src/routes/migration-import";
 import { PrefixedVfs } from "@houston/host/src/vfs";
 import type { HoustonEvent } from "@houston/protocol";
 import type { OpResult } from "./op-apply";
@@ -11,8 +10,9 @@ import {
   type CustomContext,
   customIntegrationContext,
 } from "./op-route-custom";
-import { agentRouteScope, engineAgentId } from "./op-scope";
+import { agentRouteScope, engineAgentId, importScope } from "./op-scope";
 import type { OpRequest } from "./parse-op-request";
+import { captureCustomDefinitions } from "./turn-custom-definitions-doc";
 import type { TurnFilesystem } from "./turn-filesystem";
 
 type RouteOp = OpRequest & { op: Extract<OpRequest["op"], { kind: "route" }> };
@@ -26,7 +26,15 @@ const decline = (include: OpResult["include"]): OpResult => ({
   decline: true,
 });
 
-/** An add whose auth mode is the browser sign-in (pod-only capability). */
+/** What a route op may write: the agent's tree, and for a migration import
+ *  also the runtime transcripts and sessions it unpacks. */
+function routeScope(filesystem: TurnFilesystem, decoded: string) {
+  return decoded === "migration/import"
+    ? importScope(filesystem.workspaceRel, filesystem.dataRel)
+    : agentRouteScope(filesystem.workspaceRel);
+}
+
+/** The old gateway cannot own a worker's pending OAuth attempt. */
 function oauthAddBody(body: string | undefined): boolean {
   try {
     return JSON.parse(body ?? "{}").auth === "oauth";
@@ -39,35 +47,25 @@ function oauthAddBody(body: string | undefined): boolean {
  * A `route` op: the pod's own handler chain over the hydrated tree. Custom
  * integrations additionally get a per-op manager (definitions at the store
  * root, secrets in the gateway's custom-secret store, a fresh in-memory
- * executor) — the same construction the pod boots with, minus OAuth sign-in,
- * whose pending state lives only in a pod's memory.
+ * executor), with OAuth options when the gateway owns pending attempts.
  */
 export async function applyRouteOp(
   op: RouteOp,
   filesystem: TurnFilesystem,
   fetchImpl?: typeof fetch,
 ): Promise<OpResult> {
-  const include = agentRouteScope(filesystem.workspaceRel);
   const { method, rest } = op.op;
   // parseOpRequest already proved the rest decodes (and validated the
   // decoded form against the allowlist).
   const decoded = decodeURIComponent(rest);
-
-  // Desktop→cloud migration: an archive that carries runtime transcripts
-  // needs the pod (agentDir-anchored session synthesis + the transcript
-  // authority's projector). File/core-only chunks — and every status /
-  // complete / export call — run here.
-  if (decoded === "migration/import" && op.op.bodyBase64) {
-    if (archiveTouchesRuntime(Buffer.from(op.op.bodyBase64, "base64"))) {
-      return decline(include);
-    }
-  }
-  // Adding an OAuth-auth integration mints a capability answer only the pod
-  // can honor (its callback + pending state) — decline before any write.
+  const include = routeScope(filesystem, decoded);
+  // Adding an OAuth definition advertises a capability this deployment
+  // must honor. Without gateway callback custody, decline before any write.
   if (
     decoded === "integrations/custom/definitions" &&
     method === "POST" &&
-    oauthAddBody(op.op.body)
+    oauthAddBody(op.op.body) &&
+    !op.customOAuthCallbackUrl
   ) {
     return decline(include);
   }
@@ -95,7 +93,7 @@ async function runRouteOp(
   custom: CustomContext | null,
 ): Promise<OpResult> {
   const agentId = engineAgentId(filesystem);
-  const include = agentRouteScope(filesystem.workspaceRel);
+  const include = routeScope(filesystem, decoded);
   // The handlers address the agent under `workspaces/`; the turn's vfs
   // is rooted one level up (lazy or real, the same seam).
   const vfs = new PrefixedVfs(filesystem.vfs, "workspaces");
@@ -107,6 +105,12 @@ async function runRouteOp(
       agentId,
       vfs,
       request,
+      ...(op.agentName ? { agentName: op.agentName } : {}),
+      // A migration import synthesizes each transcript's pi session against
+      // the on-disk agent dir, the same artifacts the pod writes.
+      ...(decoded === "migration/import"
+        ? { agentDir: filesystem.workspaceDir }
+        : {}),
       ...(custom ? { customIntegrations: custom.manager } : {}),
     });
   const result = await dispatch({
@@ -135,10 +139,14 @@ async function runRouteOp(
     triggersEnabled: op.triggersEnabled,
   });
 
-  // A detect that hits an OAuth wall carries `oauthSupported`, which only
-  // the pod (the deployment that runs the browser sign-in) can answer —
-  // decline so the response never diverges. Read-only, so nothing to undo.
-  if (custom && decoded === "integrations/custom/detect") {
+  // A detect that hits an OAuth wall carries `oauthSupported`. Without
+  // gateway callback custody only the pod can answer it, so decline rather
+  // than diverge from the pod's capability. Read-only, nothing to undo.
+  if (
+    custom &&
+    !op.customOAuthCallbackUrl &&
+    decoded === "integrations/custom/detect"
+  ) {
     try {
       if (JSON.parse(result.body).requiresOAuth === true)
         return decline(include);
@@ -155,11 +163,15 @@ async function runRouteOp(
       ? (rel) => include(rel) || rel === CUSTOM_DEFS_FILE
       : include,
   };
-  if (custom?.changed()) {
+  if (custom && custom.touched.size > 0) {
     events.push({ type: "CustomIntegrationsChanged" });
     // Re-capture the definitions view the way the pod's route serves it, so
     // the gateway's asleep reads show the mutation immediately.
-    out.customDefinitionsView = { items: await custom.manager.list() };
+    out.customDefinitions = await captureCustomDefinitions(
+      custom.manager,
+      filesystem.storeRoot,
+      custom.touched,
+    );
   }
   if (result.events.some((e) => e.type === "SkillsChanged")) {
     // Re-capture the skills view the way the pod would serve it, so the

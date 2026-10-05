@@ -1,3 +1,4 @@
+import { coordinatorScope } from "../assistant/coordinator-scope";
 import type { AssistantGateway } from "./assistant-forward";
 
 /**
@@ -67,6 +68,9 @@ function envAssistantGateway(env: NodeJS.ProcessEnv): AssistantGateway | null {
 export function resolveAssistantGateway(
   wiring: AssistantWiring = {},
 ): AssistantGateway | null {
+  // A pool worker's Houston turn performs with its own per-turn credential.
+  const scoped = coordinatorScope();
+  if (scoped) return normalize(scoped.gateway);
   const configured = envAssistantGateway(wiring.env ?? process.env);
   if (configured) return configured;
   // Marked loopback so the dispatcher proves the manager to its own routes;
