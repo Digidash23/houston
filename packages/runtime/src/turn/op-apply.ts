@@ -5,6 +5,7 @@ import { applyConversationOp } from "./op-conversation";
 import { applyApiKeyConnect, credentialOpFiles } from "./op-credential";
 import { applyCustomOAuthOp } from "./op-custom-oauth";
 import { applyEndpointConnect } from "./op-endpoint";
+import { prepareFirstDayOp } from "./op-first-day";
 import { assertWorkerOpProvider } from "./op-provider-guard";
 import { applyRouteOp } from "./op-route";
 import {
@@ -155,7 +156,9 @@ export async function applyOp(
       return { ...json(200, { title }), events: [], include: none };
     }
     case "conversation":
-      return applyConversationOp({ ...op, op: op.op }, filesystem);
+      return applyConversationOp(op.op, filesystem);
+    case "first-day":
+      return prepareFirstDayOp(op, filesystem);
     case "seed":
     case "migrate":
       // Both run their own hydrate and sync (op-seed.ts, op-migrate.ts);

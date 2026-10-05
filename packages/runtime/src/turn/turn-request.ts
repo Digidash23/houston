@@ -30,6 +30,7 @@ export function turnSessionRequest(
     nonce: turn.nonce,
     pin: { model: turn.model, effort: turn.effort },
     mode: turn.mode,
+    liveMode: turn.liveMode,
     turnId,
     displayText: turn.displayText,
     mentions: turn.mentions,

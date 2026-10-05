@@ -24,6 +24,7 @@ export async function repairImportedConversations(
   turn: OpClaimTurn,
   filesystem: TurnFilesystem,
   uploaded: readonly string[],
+  options: { requireRoute?: boolean } = {},
 ): Promise<string[]> {
   const baseUrl = deps.poolStoreUrl ?? process.env.HOUSTON_POOL_STORE_URL;
   if (!baseUrl) return [];
@@ -71,7 +72,7 @@ export async function repairImportedConversations(
         },
       );
       await response.body?.cancel();
-      if (!response.ok && response.status !== 404)
+      if (!response.ok && (response.status !== 404 || options.requireRoute))
         diagnostics.push(
           `transcript repair ${cid} rejected (${response.status})`,
         );
