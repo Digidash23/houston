@@ -440,6 +440,7 @@ export class TurnSink {
       this.o.historyGuard,
       this.o.stop,
       (turnId) => this.adoptTurnId(turnId),
+      () => !this.muted, // a reload a Stop overtook settles nothing
     );
   }
 
@@ -450,7 +451,7 @@ export class TurnSink {
       this.o.reloadHistory,
       this.s.turnId,
       this.o.historyGuard,
-      () => this.sawRunning,
+      () => this.sawRunning || this.muted,
       (turnId) => this.adoptTurnId(turnId),
     );
     if (settled) {

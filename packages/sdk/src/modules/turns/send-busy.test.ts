@@ -954,3 +954,74 @@ test("a Stop that races the engine's acceptance settles nothing before the cance
   expect(vm.boardStatus).toBe("needs_you");
   expect(vm.feed.some((f) => f.data === STOPPED_BY_USER)).toBe(true);
 });
+
+test("a history settle a Stop overtook publishes nothing", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-stop-overtakes-reload";
+  let nonce: string | undefined;
+  let reloading = false;
+  let answerHistory: (messages: unknown[]) => void = () => {};
+  const { engine } = busyEngine(
+    0,
+    // The engine echoes the message, then the connection drops.
+    async (o) => {
+      o.onEvent(sync(false, 0));
+      await waitFor(() => nonce !== undefined);
+      o.onEvent({
+        type: "user",
+        data: { content: "hi", ts: 1, nonce },
+        turnId: "t-mine",
+        seq: 1,
+      });
+      throw new Error("Load failed");
+    },
+    // The reconnect opens on an idle resync: settle from history.
+    async (o) => {
+      o.onEvent({
+        type: "sync",
+        data: { running: false, partial: "", resync: true, seq: 2 },
+        seq: 2,
+      });
+      await untilAborted(o);
+    },
+  );
+  engine.sendMessage = ((
+    _id: string,
+    _text: string,
+    o?: { nonce?: string; signal?: AbortSignal },
+  ) => {
+    nonce = o?.nonce;
+    return new Promise((_resolve, reject) => {
+      o?.signal?.addEventListener(
+        "abort",
+        () => reject(new DOMException("aborted", "AbortError")),
+        { once: true },
+      );
+    });
+  }) as typeof engine.sendMessage;
+  engine.getHistory = (() => {
+    reloading = true;
+    return new Promise((resolve) => {
+      answerHistory = (messages) =>
+        resolve({ id: "c", title: "", messages } as never);
+    });
+  }) as typeof engine.getHistory;
+
+  const turn = streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: fast,
+  });
+  await waitFor(() => reloading);
+  const finish = registry.stopUnsent(streamKey("Houston/Bo", key));
+  answerHistory([
+    { role: "user", content: "hi", turnId: "t-mine" },
+    { role: "assistant", content: "Done", turnId: "t-mine" },
+  ]);
+  await new Promise((r) => setTimeout(r, 100));
+  expect(snapshot(key).sessionStatus).toBe("running");
+  finish?.();
+  await turn;
+
+  const vm = snapshot(key);
+  expect(vm.boardStatus).toBe("needs_you");
+  expect(vm.feed.some((f) => f.data === STOPPED_BY_USER)).toBe(true);
+});
