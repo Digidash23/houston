@@ -16,6 +16,7 @@ import { panelTaskLabel } from "./panel-task-label";
 import { useBoardDrafts } from "./use-board-drafts";
 import { useBoardLabels } from "./use-board-labels";
 import { useBoardSendQueue } from "./use-board-send-queue";
+import { useComposerPrewarm } from "./use-composer-prewarm";
 import { useComposerSendOverrides } from "./use-composer-send-overrides";
 
 /**
@@ -33,7 +34,9 @@ export function useBoardChatWiring(source: BoardSource) {
   const addToast = useUIStore((s) => s.addToast);
   const queuedLabels = useQueuedMessageLabels();
   const { labels, cardLabels, composerLabels } = useBoardLabels();
-  const { drafts, onDraftChange } = useBoardDrafts(source.draftScope);
+  const { drafts, onDraftChange, newConversationKey } = useBoardDrafts(
+    source.draftScope,
+  );
 
   // The panel's own task line, composed here rather than left to `ui/`'s
   // i18n-agnostic English fallback (`panelTaskLabel`).
@@ -79,6 +82,12 @@ export function useBoardChatWiring(source: BoardSource) {
     onOpenChildMission: source.setSelectedId,
   });
   const overrides = useComposerSendOverrides(panel);
+  const prewarm = useComposerPrewarm(onDraftChange, {
+    agentPath: source.activeAgent?.folderPath,
+    newConversationKey,
+    provider: overrides.providerOverride,
+    model: overrides.modelOverride,
+  });
 
   const sendQueue = useBoardSendQueue({
     selectedSessionKey: source.selectedSessionKey,
@@ -103,6 +112,7 @@ export function useBoardChatWiring(source: BoardSource) {
         files,
         ...pinned,
         mentions,
+        conversationId: prewarm.claimNewConversationId(),
       });
     },
     [
@@ -110,6 +120,7 @@ export function useBoardChatWiring(source: BoardSource) {
       source.activeAgent?.folderPath,
       overrides,
       panel.resolveSendPin,
+      prewarm.claimNewConversationId,
     ],
   );
   const handleNotice = useCallback(
@@ -141,7 +152,7 @@ export function useBoardChatWiring(source: BoardSource) {
     hasOlderMessages: source.hasOlderMessages,
     onStopSession: source.stopSession,
     drafts,
-    onDraftChange,
+    onDraftChange: prewarm.onDraftChange,
     onNotice: handleNotice,
     labels,
     composerLabels,

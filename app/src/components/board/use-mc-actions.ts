@@ -17,7 +17,7 @@ import {
   missionControlSessionKeyForId,
 } from "../mission-control-session";
 import type { useMissionControl } from "../use-mission-control";
-import type { SendOverrides } from "./board-source";
+import type { NewConversationArgs, SendOverrides } from "./board-source";
 
 /**
  * Mission Control's card/composer actions, routed to the right agent. Create
@@ -48,7 +48,8 @@ export function useMcActions({
       modelOverride,
       effortOverride,
       mentions,
-    }: { text: string; files: File[] } & SendOverrides) => {
+      conversationId,
+    }: NewConversationArgs) => {
       const plan = planNewMission({
         activeAgent,
         providerOverride,
@@ -66,6 +67,7 @@ export function useMcActions({
         modelOverride: plan.modelOverride,
         effortOverride,
         mentions,
+        conversationId,
       });
     },
     [activeAgent, mc.handleCreateConversation, addToast, t],

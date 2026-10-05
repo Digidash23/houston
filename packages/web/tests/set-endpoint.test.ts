@@ -1,4 +1,5 @@
 import { HoustonClient } from "@houston/engine-adapter/client";
+import { PREWARM_TYPING_MS } from "@houston/sdk/draft-typing";
 import { afterEach, expect, test, vi } from "vitest";
 
 // The desktop shell repoints an already-built client whenever a new engine
@@ -32,6 +33,7 @@ function captureFetch(): { urls: string[]; bearers: (string | null)[] } {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 test("setEndpoint repoints gateway calls to the new base URL and bearer", async () => {
@@ -79,4 +81,44 @@ test("setEndpoint rebuilds the direct runtime client on the new port (local side
   await client.providerStatus("anthropic");
   expect(cap.urls[1]).toBe("http://127.0.0.1:50002/providers");
   expect(cap.bearers[1]).toBe("Bearer t2");
+});
+
+test("setEndpoint keeps the id a new chat's typing already prewarmed", async () => {
+  // Only the clocks: the typing policy reads them, and the fetches still settle.
+  vi.useFakeTimers({ toFake: ["Date", "performance"] });
+  const urls: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: unknown) => {
+      urls.push(String(input));
+      return new Response(
+        JSON.stringify({ outcome: "launching", holdMs: 20_000 }),
+        { status: 202, headers: { "Content-Type": "application/json" } },
+      );
+    }),
+  );
+  const client = new HoustonClient({
+    baseUrl: BASE_A,
+    token: "token-1",
+    controlPlane: true,
+  });
+  const draft = {
+    agentId: "agent",
+    draftKey: "new-conversation:board",
+    text: "h",
+  };
+  for (let t = 0; t <= PREWARM_TYPING_MS; t += 250) {
+    await client.draftChanged(draft, { conversationPrewarm: true });
+    vi.advanceTimersByTime(250);
+  }
+  const prewarmUrl = urls.find((url) => url.endsWith("/prewarm")) ?? "";
+  const prewarmed = /conversations\/activity-([^/]+)\/prewarm$/.exec(
+    prewarmUrl,
+  )?.[1];
+  expect(prewarmed).toBeTruthy();
+  // The hosted bearer rotation rebuilds the SDK mid-typing.
+  client.setEndpoint({ baseUrl: BASE_A, token: "token-2" });
+  expect(client.claimNewConversationId("new-conversation:board")).toBe(
+    prewarmed,
+  );
 });
