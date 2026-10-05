@@ -11,6 +11,7 @@ import type { turnSharedSkillsStore } from "./turn-shared-skills";
 /** Injectable dependencies and pool controls for the per-turn HTTP server. */
 export interface TurnServerDeps {
   store: ObjectStore;
+  loginRunner?: import("./login-runner").LoginRunner;
   /** App-layer token; empty means open local development. */
   token: string;
   runTurn?: TurnRunner;
@@ -43,8 +44,9 @@ export interface TurnServerDeps {
    * one claimed turn executes (fail-closed against a mid-turn crash);
    * `settled` fires after that turn's response has ended so the process can
    * shut down and let the orchestrator replace the pod. Only claimed /turn
-   * requests spend the worker — /op is a host-side write that runs no
-   * model-directed code.
+   * requests and the first /login/* request spend the worker. A login keeps
+   * custody until the gateway kills its runner. /op is a host-side write that
+   * runs no model-directed code.
    */
   singleUse?: {
     begin: () => Promise<void>;

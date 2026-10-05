@@ -13,8 +13,8 @@ import {
 } from "../store/conversation-file";
 import { importConversationMessagesAt } from "../store/conversation-import";
 import { truncateConversationMutationAt } from "../store/conversation-truncate";
-import type { OpResult } from "./op-apply";
 import type { ConversationOp } from "./op-grammar-conversation";
+import type { OpResult } from "./op-result";
 import { conversationScope, engineAgentId } from "./op-scope";
 import type { TurnFilesystem } from "./turn-filesystem";
 

@@ -14,7 +14,7 @@ export const OPENAI_COMPATIBLE = "openai-compatible";
  * Placeholder API key for a keyless local server. Keyless endpoints (Ollama /
  * LM Studio / vLLM) ignore Authorization, but pi requires SOME key to resolve a
  * request, so a blank key becomes this. Mirrors the runtime's own constant
- * (`runtime/src/auth/login.ts` LOCAL_PLACEHOLDER_KEY) — the value only needs to
+ * (`runtime/src/auth/login-keys.ts` LOCAL_PLACEHOLDER_KEY) — the value only needs to
  * be non-empty; the two packages share no code across the host/runtime boundary.
  */
 export const LOCAL_PLACEHOLDER_KEY = "houston-local";

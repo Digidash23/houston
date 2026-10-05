@@ -23,6 +23,7 @@ export class ConversationProjectionError extends Error {}
 export function partialSyncReply(
   synced: SyncResult,
   context: string,
+  durableElsewhere = false,
 ): Record<string, unknown> | null {
   const landed = synced.uploaded.length + synced.deleted.length > 0;
   const partial =
@@ -33,6 +34,8 @@ export function partialSyncReply(
   console.error(
     `[op] not durably synced: outOfScope=${synced.outOfScope} skipped=${synced.skipped.length} conflicts=${synced.conflicts.length} landed=${landed} ${context}`,
   );
+  // OAuth tokens may already be in remote custody even if no tree file landed.
+  if (durableElsewhere) return { ok: true, ambiguous: true };
   // A file the store refuses (over its per-object cap) can never persist
   // anywhere — the pod would silently fail the same way, and proxying would
   // let it answer success for an undurable write. Tell the user; the client

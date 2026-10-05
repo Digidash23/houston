@@ -1,10 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { gunzipSync } from "node:zlib";
-
-/** The per-turn server's request plumbing: authorization, the incarnation
- *  bind, bounded JSON bodies and JSON answers. */
-
 export function authorized(req: IncomingMessage, token: string): boolean {
   if (!token) return true;
   const header = req.headers["x-internal-token"];

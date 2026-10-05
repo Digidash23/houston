@@ -3,6 +3,7 @@ import { TOKEN_VARIABLE } from "./executor-host";
 import { parseBundle } from "./oauth-bundle";
 import {
   beginCustomOAuth,
+  type CustomOAuthAttempt,
   type CustomOAuthAttempts,
   settleCustomOAuth,
 } from "./oauth-flow";
@@ -14,10 +15,9 @@ import { viewOf } from "./views";
 
 /**
  * The manager-side OAuth operations (PRODUCT-1172), split out so the manager
- * stays a thin serializer. `start` mints the authorize URL (in-memory attempt
- * only — nothing durable moves before the exchange); `complete` is the
- * callback's landing: exchange the code, persist the token bundle under the
- * SAME secret id a pasted key would use, and rewire the connection through
+ * stays a thin serializer. Preparation leaves attempt custody to the caller;
+ * completion exchanges the callback's code, persists the token bundle under the
+ * SAME secret id a pasted key would use, and rewires the connection through
  * the proven setCredential sequence.
  */
 export interface CustomOAuthDeps {
@@ -26,19 +26,22 @@ export interface CustomOAuthDeps {
   host: CustomExecutorHost;
   attempts: CustomOAuthAttempts;
   /** The browser-reachable callback URL; absent = this deployment cannot
-   *  receive the redirect (managed cloud until its gateway route ships). */
+   *  receive the redirect. */
   callbackUrl?: string;
-  /** Gateway-fronted pods: `<orgSlug>.<agentSlug>` — minted INTO the state so
-   *  the gateway's public callback can route the browser to this pod. */
+  /** Gateway-fronted hosts and workers bind state to `<orgSlug>.<agentSlug>`. */
   statePrefix?: string;
   fetchFn?: typeof fetch;
   onChanged: (slug: string) => void;
 }
 
-export async function startOAuthOp(
+export async function prepareOAuthOp(
   deps: CustomOAuthDeps,
   def: CustomIntegrationDef,
-): Promise<{ authorizeUrl: string }> {
+): Promise<{
+  authorizeUrl: string;
+  state: string;
+  attempt: CustomOAuthAttempt;
+}> {
   if (!deps.callbackUrl) {
     throw new CustomIntegrationError(
       "oauth_unsupported",
@@ -68,6 +71,14 @@ export async function startOAuthOp(
       ...(deps.statePrefix ? { statePrefix: deps.statePrefix } : {}),
     },
   );
+  return { authorizeUrl, state, attempt };
+}
+
+export async function startOAuthOp(
+  deps: CustomOAuthDeps,
+  def: CustomIntegrationDef,
+): Promise<{ authorizeUrl: string }> {
+  const { authorizeUrl, state, attempt } = await prepareOAuthOp(deps, def);
   deps.attempts.put(state, attempt);
   return { authorizeUrl };
 }
@@ -85,6 +96,15 @@ export async function completeOAuthOp(
       "this sign-in link has expired or was already used - start again from the integration's card",
     );
   }
+  return completeOAuthWithAttempt(deps, defOf, attempt, code);
+}
+
+export async function completeOAuthWithAttempt(
+  deps: CustomOAuthDeps,
+  defOf: (slug: string) => Promise<CustomIntegrationDef>,
+  attempt: CustomOAuthAttempt,
+  code: string,
+): Promise<CustomIntegrationView> {
   const def = await defOf(attempt.slug);
   // The attempt binds to the SERVICE, not just the slug: a replace that moved
   // the slug to a different endpoint mid-flow must not receive the old

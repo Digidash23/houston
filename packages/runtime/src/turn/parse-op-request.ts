@@ -2,6 +2,7 @@ import { ACTING_VIA_ASSISTANT } from "@houston/host/src/auth/acting";
 import { validDisplayName } from "@houston/host/src/auth/agent-name-header";
 import type { ServedCredential } from "../auth/auth-file";
 import { type AgentOp, ID, parseAgentOp, str } from "./op-grammar";
+import { customOAuthCallbackUrl } from "./op-grammar-custom-oauth";
 import type { TurnRequest } from "./types";
 
 export type { AgentOp } from "./op-grammar";
@@ -38,6 +39,7 @@ export interface OpRequest {
   actingToken?: string;
   credential: ServedCredential | null;
   triggersEnabled: boolean;
+  customOAuthCallbackUrl?: string;
   op: AgentOp;
 }
 
@@ -108,6 +110,13 @@ export function parseOpRequest(body: unknown): OpRequest {
 
     credential,
     triggersEnabled: b.triggersEnabled === true,
+    ...(b.customOAuthCallbackUrl !== undefined
+      ? {
+          customOAuthCallbackUrl: customOAuthCallbackUrl(
+            b.customOAuthCallbackUrl,
+          ),
+        }
+      : {}),
     op: parseAgentOp(raw),
   };
 }

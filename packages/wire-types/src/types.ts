@@ -12,6 +12,7 @@ import type {
   AgentInitialConfig,
   GrantableOperation,
   RoutineAutoPause,
+  RoutineDeliveryFailure,
   RoutineRunFailure,
   SkillWorkflow,
 } from "@houston/protocol";
@@ -29,6 +30,8 @@ export type {
   FirstDayStartResult,
   GrantableOperation,
   RoutineAutoPause,
+  RoutineDeliveryFailure,
+  RoutineDeliveryFailureCode,
   RoutineRunFailure,
   RoutineRunFailureCode,
   SkillWorkflow,
@@ -866,8 +869,12 @@ export interface RoutineRun {
    *  usage-limit window. Only meaningful when status is `running`. */
   paused_until?: string;
   /** Typed reason an `error` run failed on the account or model it needed.
-   *  Absent for every other failure, whose story is in `summary`. */
+   *  Other failures after a run starts carry their story in `summary`. */
   failure?: RoutineRunFailure;
+  /** The run never started before its delivery deadline. */
+  delivery_failure?: RoutineDeliveryFailure;
+  /** The engine restarted and is repeating this run. */
+  resumed?: true;
 }
 
 export interface RoutineRunUpdate {
@@ -877,6 +884,7 @@ export interface RoutineRunUpdate {
   completed_at?: string;
   /** Pass `string` to set the hint, `null` to clear, omit to leave alone. */
   paused_until?: string | null;
+  resumed?: true;
 }
 
 export interface ProjectConfig {
