@@ -16,7 +16,6 @@ export async function prepareFirstDayOp(
   fs: TurnFilesystem,
 ): Promise<OpResult> {
   if (op.op.kind !== "first-day") throw new Error("not a first-day op");
-  const parsed = parseFirstDayStart(JSON.parse(op.op.body || "{}"));
   const json = (status: number, body: unknown): OpResult => ({
     status,
     contentType: "application/json",
@@ -24,6 +23,18 @@ export async function prepareFirstDayOp(
     events: [],
     include: () => false,
   });
+  // The pod's readJson throws on these and answers nothing useful; here a
+  // throw would be a worker 500, which fast-fails every op of the agent
+  // for a window on the gateway. Any other JSON value reads as the pod
+  // reads it: no input.
+  let body: unknown;
+  try {
+    body = JSON.parse(op.op.body || "{}");
+  } catch {
+    return json(400, { error: "invalid JSON body" });
+  }
+  if (body === null) return json(400, { error: "invalid JSON body" });
+  const parsed = parseFirstDayStart(body as Record<string, unknown>);
   if (!parsed.ok) return json(400, { error: parsed.error });
   const { config } = await loadConfig(fs.vfs, fs.workspaceRel);
   const brief = firstDayBrief(
