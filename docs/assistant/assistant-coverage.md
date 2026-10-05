@@ -10,7 +10,7 @@
 - Confirmed: 55
 - Routable: 152
 - Unroutable: 21
-- Raw-response routes: 107
+- Raw-response routes: 106
 - Acknowledged exceptions: 100
 - Acknowledged debt: 0
 
