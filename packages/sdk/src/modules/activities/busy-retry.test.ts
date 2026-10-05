@@ -96,6 +96,25 @@ describe("board-card writes retry a busy or waking refusal", () => {
     sdk.dispose();
   });
 
+  it("a coded pod_wake_refused on a waking-ladder create rides one budget, not one per rung", async () => {
+    const refused = JSON.stringify({
+      error: "engine unavailable",
+      code: "pod_wake_refused",
+      retryAfterMs: 8_000,
+    });
+    const { sdk, pauses, attempts } = makeSdk([refusal(503, refused)]);
+    await expect(
+      sdk.activities.writes.create(
+        AGENT,
+        { id: "m1", title: "T" },
+        { retryWhileWaking: true },
+      ),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(pauses).toEqual([8_000, 8_000]);
+    expect(attempts()).toBe(3);
+    sdk.dispose();
+  });
+
   it("a waking refusal on an update surfaces at once, as before the SDK retried", async () => {
     const { sdk, pauses, attempts } = makeSdk([refusal(503, WAKING), card]);
     await expect(

@@ -68,10 +68,16 @@ export function isAgentBusyRefusal(e: unknown): e is SdkHttpError {
   return (jsonReasonOf(text) ?? text) === AGENT_BUSY_503;
 }
 
-/** A waking pair in gateway JSON, read exactly as the app's classifier did. */
+/**
+ * A waking pair in gateway JSON, read exactly as the app's classifier did. A
+ * typed compute refusal (`pod_wake_refused` carries the waking reason too)
+ * already rode `httpRequest`'s budget: no ladder runs it again.
+ */
 export function isWakingWriteRefusal(e: unknown): e is SdkHttpError {
   if (!(e instanceof SdkHttpError)) return false;
-  const reason = jsonReasonOf(e.message.trim());
+  const text = e.message.trim();
+  if (parseComputeRefusalText(text)) return false;
+  const reason = jsonReasonOf(text);
   return reason !== null && isWakingAnswer(e.status, reason);
 }
 

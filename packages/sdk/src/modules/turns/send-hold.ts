@@ -80,42 +80,49 @@ export async function sendHolding(
   let wakes = 0;
   let holds = 0;
   let heldSince: number | undefined;
-  for (;;) {
-    const mark = evidence.turnEnds;
-    let refusal: unknown;
-    try {
-      return (await send()) ?? {};
-    } catch (e) {
-      refusal = e;
+  try {
+    for (;;) {
+      const mark = evidence.turnEnds;
+      let refusal: unknown;
+      try {
+        return (await send()) ?? {};
+      } catch (e) {
+        refusal = e;
+      }
+      if (signal.aborted) throw refusal;
+      // Before the waking check: a busy refusal carries the waking error string
+      // too, so a client from before the code still re-sends it.
+      const busy = computeBusyRefusal(refusal);
+      if (busy) {
+        if (busyClock.spent) throw refusal;
+        // Held, like a send behind a running turn: the stream's frames are not
+        // this turn's until it is accepted, so an idle sync cannot settle it.
+        onHold();
+        busyClock.armNotice(onBusy);
+        await pause(busyClock.pauseFor(busy), signal);
+        if (busyClock.spent) throw refusal;
+      } else if (isEngineWakingRejection(refusal)) {
+        const delay = wakeDelays[wakes++];
+        if (delay === undefined) throw refusal;
+        await pause(delay, signal);
+      } else if (isTurnRunningRejection(refusal)) {
+        heldSince ??= Date.now();
+        if (Date.now() - heldSince >= holdBudget) throw refusal;
+        onHold();
+        const ac = new AbortController();
+        const stop = () => ac.abort();
+        signal.addEventListener("abort", stop, { once: true });
+        await Promise.race([
+          pause(turnRunningDelay(tuning, holds++), ac.signal),
+          evidence.turnEndAfter(mark, ac.signal),
+        ]);
+        ac.abort();
+        signal.removeEventListener("abort", stop);
+      } else throw refusal;
+      if (signal.aborted) throw refusal;
     }
-    if (signal.aborted) throw refusal;
-    // Before the waking check: a busy refusal carries the waking error string
-    // too, so a client from before the code still re-sends it.
-    const busy = computeBusyRefusal(refusal);
-    if (busy) {
-      if (busyClock.spent) throw refusal;
-      if (busyClock.noticeable) onBusy();
-      await pause(busyClock.pauseFor(busy), signal);
-      if (busyClock.noticeable) onBusy();
-    } else if (isEngineWakingRejection(refusal)) {
-      const delay = wakeDelays[wakes++];
-      if (delay === undefined) throw refusal;
-      await pause(delay, signal);
-    } else if (isTurnRunningRejection(refusal)) {
-      heldSince ??= Date.now();
-      if (Date.now() - heldSince >= holdBudget) throw refusal;
-      onHold();
-      const ac = new AbortController();
-      const stop = () => ac.abort();
-      signal.addEventListener("abort", stop, { once: true });
-      await Promise.race([
-        pause(turnRunningDelay(tuning, holds++), ac.signal),
-        evidence.turnEndAfter(mark, ac.signal),
-      ]);
-      ac.abort();
-      signal.removeEventListener("abort", stop);
-    } else throw refusal;
-    if (signal.aborted) throw refusal;
+  } finally {
+    busyClock.dispose();
   }
 }
 

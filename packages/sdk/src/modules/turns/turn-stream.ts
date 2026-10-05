@@ -8,6 +8,7 @@ import { streamEventsResumable } from "@houston/runtime-client";
 import type { FeedOutput } from "./feed-output";
 import { FirstResponseClock } from "./first-response";
 import { randomNonce } from "./random-nonce";
+import { computeBusyRefusal } from "./send-busy";
 import { observerSettled, sendHolding } from "./send-hold";
 import {
   type ActiveStream,
@@ -258,6 +259,19 @@ export async function streamTurn(
       if (registry.get(key) !== prior) firstResponse.dispose(); // torn down meanwhile
       prior.dispose();
       registry.delete(key);
+    } else if (computeBusyRefusal(refusal)) {
+      // The shared compute had no room: nothing ran. The fresh path below
+      // re-sends it, held, on the server's hint (`send-busy.ts`).
+      if (!registry.isSending(key)) {
+        firstResponse.dispose(); // torn down while the send was out
+        return;
+      }
+      // The observer must not keep streaming beside this turn.
+      const current = registry.get(key);
+      if (current?.kind === "observer") {
+        current.dispose();
+        registry.delete(key);
+      }
     } else if (
       isTurnRunningRejection(refusal) &&
       (await observerSettled(registry, key, prior, opts.tuning))

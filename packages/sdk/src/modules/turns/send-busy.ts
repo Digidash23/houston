@@ -54,13 +54,14 @@ export function computeBusyRefusal(e: unknown): ComputeRefusal | null {
 export type SendWaitReason = "busy";
 
 /**
- * One send's busy budget: when it may re-send next, and whether the wait has
- * grown long enough for the VM to say so.
+ * One send's busy budget: when it may re-send next, and when the wait has
+ * grown long enough for the VM to say so. `dispose` once the send settles.
  */
 export class SendBusyClock {
   private readonly started = Date.now();
   private readonly budget: number;
   private readonly notice: number;
+  private noticeTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(tuning: StreamTuning | undefined) {
     this.budget = tuning?.sendBusyWaitMs ?? SEND_BUSY_WAIT_MS;
@@ -76,9 +77,21 @@ export class SendBusyClock {
     return this.waited >= this.budget;
   }
 
-  /** The wait is long enough for the VM to show it. */
-  get noticeable(): boolean {
-    return this.waited >= this.notice;
+  /**
+   * Call `onBusy` once the wait reaches the notice threshold, on a timer of
+   * its own: a re-send the gateway holds in its queue must not delay it.
+   * Arming again is a no-op.
+   */
+  armNotice(onBusy: () => void): void {
+    if (this.noticeTimer !== undefined) return;
+    this.noticeTimer = setTimeout(
+      onBusy,
+      Math.max(0, this.notice - this.waited),
+    );
+  }
+
+  dispose(): void {
+    clearTimeout(this.noticeTimer);
   }
 
   /** The pause before the next re-send: the server's hint, bounded. */
