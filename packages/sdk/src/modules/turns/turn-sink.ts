@@ -263,6 +263,10 @@ export class TurnSink {
         // attached. Reinforce the poll (already armed by an accepted send).
         this.poll.arm();
       }
+    } else if (this.o.mode === "turn" && !this.accepted && !this.sawRunning) {
+      // Our send is still out (a POST can sit a minute in the gateway's
+      // queue): nothing of ours ran, so nothing ended. Its acceptance arms the
+      // pre-settled poll; a refusal settles the turn itself.
     } else if (this.o.mode === "turn" || this.sawRunning) {
       // The turn ended while we were disconnected; persisted history is
       // complete once a turn ends — settle from it, not from partial text.

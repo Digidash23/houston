@@ -868,3 +868,45 @@ test("the fresh path's busy budget includes the handoff send's queue wait", asyn
   const note = snapshot(key).feed.find((f) => f.feed_type === "system_message");
   expect(note?.notice).toBe("compute_busy");
 });
+
+test("an idle resync while the first send is still out settles nothing", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-first-send-resync";
+  const { engine, nonces } = busyEngine(
+    1,
+    // The first connection drops before the send lands.
+    async (o) => {
+      o.onEvent(sync(false, 0));
+      throw new Error("Load failed");
+    },
+    // The reconnect opens on the idle resync contract.
+    async (o) => {
+      o.onEvent({
+        type: "sync",
+        data: { running: false, partial: "", resync: true, seq: 1 },
+        seq: 1,
+      });
+      await waitFor(() => nonces.length === 2);
+      reply(o, nonces[1], 2);
+    },
+  );
+  const send = engine.sendMessage.bind(engine);
+  let first = true;
+  engine.sendMessage = (async (...args: Parameters<typeof send>) => {
+    // The first POST waits in the gateway's queue, then is refused for room.
+    if (first) {
+      first = false;
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    return send(...args);
+  }) as typeof engine.sendMessage;
+
+  await streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: fast,
+  });
+
+  expect(nonces).toHaveLength(2);
+  const vm = snapshot(key);
+  expect(vm.feed.some((f) => f.feed_type === "system_message")).toBe(false);
+  expect(vm.sessionStatus).toBe("completed");
+});
