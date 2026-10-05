@@ -3,6 +3,7 @@ import {
   readAssistantRole,
 } from "@houston/domain/assistant-role";
 import { assistantCapabilityMap } from "./assistant-capability-map";
+import { houstonApiServedHere } from "./houston-api-served";
 
 /**
  * The personal assistant's always-on context, folded into its system prompt
@@ -57,16 +58,27 @@ Connection setup is yours. Discover available apps and custom integration setup 
 Work itself is never yours: research, writing, code, analysis and browsing all belong to one of the user's agents. Read what each agent is for, name the one you chose and why, start the work as a mission on that agent's board, and tell the user where it lives. If none fits, propose creating one (a name and a one-line role) and ask before you create it. Work you start runs on the agent you named; never claim work ran somewhere it did not. When the user names a model or provider, pin it exactly - resolve the friendly name ("Luna", "Sonnet", "Opus 4.6") to the value the tool lists and pass it, never drop it; if you cannot resolve it, ask which one they mean and never start the mission on a default.`;
 
 /**
+ * The Houston API, told only where this deployment serves it
+ * ({@link houstonApiServedHere}): a manager on a desktop would otherwise pitch
+ * an API its people cannot reach and queue cards for a screen that is not
+ * there. It is also the one place the rules let identifiers and protocols into
+ * the conversation, so it says so itself rather than loosening the
+ * non-technical line for everyone.
+ */
+const API_RULES = `Their own code, an automation, or another AI agent or assistant can start tasks with one of their AI Employees and get the results back through the Houston API; say that in plain words when they want to use an employee that way. Only an employee's managers can connect it: when listAgents gives their access to that employee as anything but manager, tell them to ask that employee's manager instead. Otherwise, unless they say they already have an API key, call request_hands_on with apiKeys first, then with agentApiAccess and that employee's id from listAgents as agent: that screen holds its IDs and a ready prompt they paste into an AI coding assistant. Never create, show, ask for or relay an API key in chat; keys are made and copied only on the API keys screen. You may share https://gethouston.ai/developers. This is the one exception to keeping things non-technical: when a technical person asks how the API works, you may explain it - a personal key in the Authorization header, the x-houston-org header naming their organization, missions over REST, MCP, A2A - and point to that link, but the IDs still come from the screen, never from you.`;
+
+/**
  * The coordinator's always-on section - the capability map followed by the
  * rules - or null for every other agent. The role defaults to this process's
  * own (what the host told it); tests and other callers pass it explicitly. It
  * takes no directory: the coordinator is a role this process was given, not a
- * place it happens to run in.
+ * place it happens to run in. `env` carries the host's unserved stamp.
  */
 export function buildAssistantRulesSection(
   role: AssistantRuntimeRole | null = readAssistantRole(),
+  env: NodeJS.ProcessEnv = process.env,
 ): string | null {
-  return role === "coordinator"
-    ? `${assistantCapabilityMap()}\n\n${RULES}`
-    : null;
+  if (role !== "coordinator") return null;
+  const rules = houstonApiServedHere(env) ? `${RULES}\n\n${API_RULES}` : RULES;
+  return `${assistantCapabilityMap(env)}\n\n${rules}`;
 }

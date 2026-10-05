@@ -76,6 +76,7 @@
     "handsOnSkippedLine": "Omitiste abrir {{screen}}.",
     "handsOnRedirectLine": "No abrí {{screen}}. En vez de eso, haz esto: {{text}}",
     "handsOnUnknownScreen": "esta pantalla",
+    "handsOnAgentApiAccessFor": "Acceso por API de {{name}}",
     "handsOnUnavailable": "Esta pantalla no está disponible en esta versión de Houston. Omite este paso y pídeme otra opción.",
     "handsOnNotYours": "Esta pantalla no está disponible desde aquí. Salta este paso y pídeme otra forma.",
     "handsOnScreens": {
@@ -83,7 +84,8 @@
       "billing": "Facturación",
       "files": "Archivos",
       "routineWebhook": "Rutinas",
-      "orgDanger": "Zona de peligro"
+      "orgDanger": "Zona de peligro",
+      "agentApiAccess": "Acceso por API"
     },
     "cancelConnection": "Cancelar conexión",
     "connectedLine": "Conectaste {{name}}.",

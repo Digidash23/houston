@@ -214,7 +214,7 @@
       "copyPrompt": "Copy prompt for AI agent",
       "promptCopied": "Prompt copied",
       "promptCopyFailed": "Couldn't copy the prompt",
-      "promptHint": "Paste it into Claude Code, Cursor or another coding agent. It contains no key, so the agent will ask you for one. You create keys in API keys.",
+      "promptHint": "Paste it into your AI agent or AI assistant. It contains no key, so the agent will ask you for one. You create keys in API keys.",
       "agentId": "Agent ID",
       "agentIdCopyFailed": "Couldn't copy the agent ID",
       "keysRow": "API keys",

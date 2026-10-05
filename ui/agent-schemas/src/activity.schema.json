@@ -127,9 +127,11 @@
                     "billing",
                     "files",
                     "routineWebhook",
-                    "orgDanger"
+                    "orgDanger",
+                    "agentApiAccess"
                   ]
                 },
+                "agentId": { "type": "string", "minLength": 1 },
                 "reason": { "type": "string" },
                 "summary": { "type": "string" },
                 "reusableKind": {

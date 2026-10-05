@@ -214,7 +214,7 @@
       "copyPrompt": "Copiar prompt para agente de IA",
       "promptCopied": "Prompt copiado",
       "promptCopyFailed": "No se pudo copiar el prompt",
-      "promptHint": "Pégalo en Claude Code, Cursor u otro agente de programación. No incluye ninguna clave, así que el agente te pedirá una. Las claves se crean en Claves de API.",
+      "promptHint": "Pégalo en tu agente o asistente de IA. No incluye ninguna clave, así que el agente te pedirá una. Las claves se crean en Claves de API.",
       "agentId": "ID del agente",
       "agentIdCopyFailed": "No se pudo copiar el ID del agente",
       "keysRow": "Claves de API",

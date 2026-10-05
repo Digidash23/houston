@@ -76,6 +76,7 @@
     "handsOnSkippedLine": "Skipped opening {{screen}}.",
     "handsOnRedirectLine": "I didn't open {{screen}}. Instead, do this: {{text}}",
     "handsOnUnknownScreen": "this screen",
+    "handsOnAgentApiAccessFor": "API access for {{name}}",
     "handsOnUnavailable": "This screen is not available in this version of Houston. Skip this step and ask me for another way.",
     "handsOnNotYours": "This screen isn't available from here. Skip this step and ask me for another way.",
     "handsOnScreens": {
@@ -83,7 +84,8 @@
       "billing": "Billing",
       "files": "Files",
       "routineWebhook": "Routines",
-      "orgDanger": "Danger zone"
+      "orgDanger": "Danger zone",
+      "agentApiAccess": "API access"
     },
     "cancelConnection": "Cancel connection",
     "connectedLine": "Connected {{name}}.",

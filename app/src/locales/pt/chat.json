@@ -76,6 +76,7 @@
     "handsOnSkippedLine": "Pulou abrir {{screen}}.",
     "handsOnRedirectLine": "Não abri {{screen}}. Em vez disso, faça o seguinte: {{text}}",
     "handsOnUnknownScreen": "esta tela",
+    "handsOnAgentApiAccessFor": "Acesso via API de {{name}}",
     "handsOnUnavailable": "Esta tela não está disponível nesta versão do Houston. Pule esta etapa e me peça outro caminho.",
     "handsOnNotYours": "Esta tela não está disponível a partir daqui. Pule esta etapa e me peça outro jeito.",
     "handsOnScreens": {
@@ -83,7 +84,8 @@
       "billing": "Faturamento",
       "files": "Arquivos",
       "routineWebhook": "Rotinas",
-      "orgDanger": "Zona de perigo"
+      "orgDanger": "Zona de perigo",
+      "agentApiAccess": "Acesso via API"
     },
     "cancelConnection": "Cancelar conexão",
     "connectedLine": "Conectou {{name}}.",

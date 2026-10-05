@@ -1,8 +1,13 @@
-import { FAKE_HOST_URL, SEED_AGENT_NAME } from "@houston/fake-host";
+import {
+  FAKE_HOST_URL,
+  SEED_AGENT_ID,
+  SEED_AGENT_NAME,
+} from "@houston/fake-host";
 import type { Page } from "@playwright/test";
 import { openAgentSettings } from "./support/agent-nav";
+import { ASSISTANT_COMPOSER } from "./support/composer";
 import { expect, test } from "./support/fixtures";
-import { openSettings } from "./support/settings-nav";
+import { openAssistant, openSettings } from "./support/settings-nav";
 
 const PERSONAL_SLUG = "fedcba9876543210";
 const SECRET = `hst_${"9f2c1a7b4e8d0364".repeat(4)}`;
@@ -162,4 +167,41 @@ test("an AI Employee's Settings has no API access without the public API", async
   await expect(page.getByRole("button", { name: /^API access/ })).toHaveCount(
     0,
   );
+});
+
+test("the AI Manager's API access card lands on that employee's screen", async ({
+  page,
+  request,
+}) => {
+  await request.post(`${FAKE_HOST_URL}/__test__/capabilities`, {
+    data: { apiKeys: true },
+  });
+  await mockGateway(page);
+  const reason = "Copy the prompt for your coding tool.";
+  await request.post(`${FAKE_HOST_URL}/__test__/chat-interaction`, {
+    data: {
+      interaction: {
+        steps: [
+          {
+            kind: "hands_on",
+            id: "h1",
+            surface: "agentApiAccess",
+            agentId: SEED_AGENT_ID,
+            reason,
+          },
+        ],
+      },
+    },
+  });
+  await page.goto("/");
+  await openAssistant(page);
+  const composer = page.getByPlaceholder(ASSISTANT_COMPOSER);
+  await composer.fill(`Connect ${SEED_AGENT_NAME} to my app`);
+  await composer.press("Enter");
+  await expect(page.getByText(reason, { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "API access", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(SEED_AGENT_ID, { exact: true })).toBeVisible();
 });

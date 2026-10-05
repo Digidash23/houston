@@ -4,12 +4,16 @@ import type { StepChrome } from "@houston-ai/chat";
 import { Button } from "@houston-ai/core";
 import { Check, CornerDownLeft, Hand } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useCapabilities } from "../hooks/use-capabilities";
 import { useSurfaceGates } from "../hooks/use-surface-gates";
 import { handsOnSurfaceReachable } from "../lib/hands-on-gates";
+import { openHandsOnSurface } from "../lib/hands-on-navigation";
 import {
-  handsOnScreenKey,
-  openHandsOnSurface,
-} from "../lib/hands-on-navigation";
+  handsOnAgentSettings,
+  handsOnScreenLabel,
+  resolveHandsOnAgent,
+} from "../lib/hands-on-screens";
+import { useAgentStore } from "../stores/agents";
 import {
   ChatConnectStepShell,
   type StepDraftApi,
@@ -19,6 +23,8 @@ interface Props extends StepChrome, StepDraftApi {
   stepId: string;
   /** The screen the agent is handing over, straight off the wire. */
   surface: string;
+  /** The employee the screen belongs to (`agentApiAccess`), off the wire. */
+  targetAgentId?: string;
   reason?: string;
   /** The user says they finished on the screen; carries its display name. */
   onFinished: (name: string) => void;
@@ -49,6 +55,7 @@ interface Props extends StepChrome, StepDraftApi {
 export function ChatHandsOnInteractionCard({
   stepId,
   surface,
+  targetAgentId,
   reason,
   onFinished,
   onSkip,
@@ -56,12 +63,30 @@ export function ChatHandsOnInteractionCard({
 }: Props) {
   const { t } = useTranslation("chat");
   const gates = useSurfaceGates();
+  const { capabilities } = useCapabilities();
+  const agents = useAgentStore((s) => s.agents);
+  const loaded = useAgentStore((s) => s.loaded);
+  const loading = useAgentStore((s) => s.loading);
+  // Only an employee's own screen asks whose it is: its Settings are drawn for
+  // its managers alone, so anyone else would land on nothing.
+  const agentSettings =
+    surface === "agentApiAccess"
+      ? handsOnAgentSettings(
+          resolveHandsOnAgent(targetAgentId, { agents, loaded, loading }),
+          capabilities,
+        )
+      : undefined;
   const known = isHandsOnSurface(surface);
-  const openable = known && handsOnSurfaceReachable(surface, gates);
-  const name = known
-    ? t(handsOnScreenKey(surface as HandsOnSurface))
-    : t("interaction.handsOnUnknownScreen");
-  const open = () => openHandsOnSurface(surface as HandsOnSurface);
+  const openable =
+    known && handsOnSurfaceReachable(surface, gates, agentSettings);
+  const label = handsOnScreenLabel(
+    { surface, agentId: targetAgentId },
+    (id) => agents.find((a) => a.id === id)?.name,
+  );
+  const name =
+    "name" in label ? t(label.key, { name: label.name }) : t(label.key);
+  const open = () =>
+    openHandsOnSurface(surface as HandsOnSurface, targetAgentId);
 
   return (
     <ChatConnectStepShell

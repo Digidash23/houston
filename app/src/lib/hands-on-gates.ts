@@ -13,6 +13,12 @@ import type { SurfaceGates } from "./surface-gates-model.ts";
  * not blame the account: on a desktop or self-hosted build the screen does not
  * exist at all, and the same words stay true there.
  *
+ * An employee's API access needs the API (`showApiKeys`) AND that employee's
+ * Settings, which only its managers are drawn (`canOpenAgentSettings`); the
+ * caller resolves the second as `agentSettings` (`hands-on-screens.ts`):
+ * false for no employee or one the settled roster lacks, `undefined` only while
+ * the roster loads, which reads as reachable.
+ *
  * Everything else is ordinary work anyone in the space can finish: keys, their
  * own files, a routine's webhook.
  *
@@ -22,6 +28,7 @@ import type { SurfaceGates } from "./surface-gates-model.ts";
 export function handsOnSurfaceReachable(
   surface: HandsOnSurface,
   gates: SurfaceGates,
+  agentSettings?: boolean,
 ): boolean {
   // Unsettled gates read as reachable: every flag is false while capabilities
   // load, and calling the screen missing on that evidence would flash
@@ -30,5 +37,7 @@ export function handsOnSurfaceReachable(
   if (surface === "billing") return gates.showOrganization && gates.showBilling;
   if (surface === "orgDanger") return gates.showWorkspaceDanger;
   if (surface === "apiKeys") return gates.showApiKeys;
+  if (surface === "agentApiAccess")
+    return gates.showApiKeys && agentSettings !== false;
   return true;
 }

@@ -42,6 +42,7 @@ export function interactionStepCards(args: {
             key={step.id}
             stepId={step.id}
             surface={request.surface}
+            targetAgentId={request.agentId}
             reason={request.reason}
             onFinished={(name) => {
               outcomes.handsOn.set(step.id, { name, finished: true });

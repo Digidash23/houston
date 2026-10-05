@@ -128,14 +128,20 @@ export function openAgentSettings(
 /**
  * Open one employee's API access screen (Settings, one level down): the AI
  * Manager's hands-on card for connecting an employee to the person's own code.
- * Same gate and roster wait as {@link openAgentSettings}.
+ * Same gate and roster wait as {@link openAgentSettings}. The screen is armed
+ * only once Settings actually opens, so an employee the roster lacks leaves
+ * nothing behind to drill a later visit into.
  */
 export function openAgentApiAccess(
   agentId: string,
   opts?: OpenAgentOptions,
 ): void {
-  useAgentSettingsNav.getState().setApiAccessFor(agentId);
-  openAgentSettings(agentId, "manage", opts);
+  openAgentSettings(agentId, "manage", {
+    onOpened: () => {
+      useAgentSettingsNav.getState().setApiAccessFor(agentId);
+      opts?.onOpened?.();
+    },
+  });
 }
 
 /** Write a resolved destination to the nav. */
