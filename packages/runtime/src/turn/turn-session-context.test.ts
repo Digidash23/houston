@@ -37,12 +37,22 @@ test("the pooled prompt sees its conversation, mode and resolved model", async (
     mkdir(dataDir, { recursive: true }),
   ]);
   const seen: unknown[] = [];
+  const liveMode: import("../session/turn-mode-context").TurnModeRef = {
+    current: "auto",
+  };
   const backend: HarnessBackend = {
     id: "pi",
     async createSession() {
       return {
         subscribe: () => () => undefined,
         prompt: async () => {
+          seen.push({
+            conversation: currentConversationId(),
+            mode: currentTurnMode(),
+            model: currentTurnModel(),
+          });
+          liveMode.current = "plan";
+          await Promise.resolve();
           seen.push({
             conversation: currentConversationId(),
             mode: currentTurnMode(),
@@ -65,6 +75,7 @@ test("the pooled prompt sees its conversation, mode and resolved model", async (
       text: "hello",
       provider: "openai-codex",
       mode: "auto",
+      liveMode,
       emit: () => undefined,
       signal: undefined,
       turnId: "t1",
@@ -75,6 +86,11 @@ test("the pooled prompt sees its conversation, mode and resolved model", async (
     {
       conversation: "assistant",
       mode: "auto",
+      model: { provider: "openai-codex", model: "gpt-5.5" },
+    },
+    {
+      conversation: "assistant",
+      mode: "plan",
       model: { provider: "openai-codex", model: "gpt-5.5" },
     },
   ]);
