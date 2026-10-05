@@ -96,7 +96,7 @@ before(async () => {
 });
 
 describe("RoutinePlanSkipNoticeView", () => {
-  it("counts the skipped events and names the minimum interval", async () => {
+  it("counts the skipped events and points to Plus", async () => {
     const html = await render(noticeFor("plan_min_interval", 21));
     ok(
       html.includes(
@@ -104,7 +104,7 @@ describe("RoutinePlanSkipNoticeView", () => {
       ),
       html,
     );
-    ok(html.includes("at most once every 15 minutes"), html);
+    ok(html.includes(en.triggerSkipped.minInterval), html);
     ok(html.includes(en.upgrade), html);
     ok(!html.includes(en.resume), html);
   });

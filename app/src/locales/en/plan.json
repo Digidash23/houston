@@ -100,12 +100,12 @@
   "triggerSkipped": {
     "title_one": "{{count}} run of this routine was skipped in the last 24 hours",
     "title_other": "{{count}} runs of this routine were skipped in the last 24 hours",
-    "minInterval": "Your routine is set up correctly. On Free, it runs at most once every {{minutes}} minutes, so anything that arrived sooner was skipped.",
+    "minInterval": "Your Free plan limits how often this routine can run. Upgrade to Plus so it runs every time.",
     "routineLimit": "Free keeps one routine running, and the one that stays active is a different one. Choose this routine to keep it running instead, or upgrade to Plus to run them all.",
     "routineLimitPaused": "Free keeps one routine running, and the one that stays active is a different one. Your routines also paused while you were away, so resume them first.",
     "inactivePaused": "Your routines paused while you were away. Resume them to run this routine again.",
     "inactiveResumed": "Your routines were paused while you were away. They're running again now.",
-    "creatorPlan": "This routine runs on its creator's Free plan, which skipped these runs. Its creator can upgrade to Plus to run it every time."
+    "creatorPlan": "This routine runs on its creator's Free plan, which limits how often it can run. They can upgrade to Plus so it runs every time."
   },
   "sidebar": {
     "free": "Free plan",

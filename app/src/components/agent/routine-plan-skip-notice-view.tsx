@@ -39,9 +39,7 @@ export function RoutinePlanSkipNoticeView({
   const body = (): string => {
     switch (notice.reason) {
       case "min_interval":
-        return t("triggerSkipped.minInterval", {
-          minutes: notice.minIntervalMinutes,
-        });
+        return t("triggerSkipped.minInterval");
       case "routine_limit":
         return t("triggerSkipped.routineLimit");
       case "routine_limit_paused":
@@ -77,11 +75,12 @@ export function RoutinePlanSkipNoticeView({
       )}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <p className="flex items-center gap-1.5 text-sm font-medium text-ink">
-          <span
-            aria-hidden
-            className="size-1.5 shrink-0 rounded-full bg-warning"
-          />
+        <p className="flex items-start gap-1.5 text-sm font-medium text-ink">
+          {/* h-5 = text-sm's line height: the dot centres on the first line
+              when the title wraps. */}
+          <span aria-hidden className="flex h-5 shrink-0 items-center">
+            <span className="size-1.5 rounded-full bg-warning" />
+          </span>
           {t("triggerSkipped.title", { count: notice.count })}
         </p>
         <p className="text-sm text-ink-muted">{body()}</p>
