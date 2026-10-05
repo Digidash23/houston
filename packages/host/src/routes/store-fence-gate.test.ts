@@ -33,16 +33,33 @@ function fakeResponse(): FakeResponse {
 }
 
 describe("isFencedWrite", () => {
-  it("gates user-facing agent-data mutations and nothing else", () => {
-    expect(isFencedWrite("PATCH", "/agents/a/routines/r1", "agents")).toBe(
+  it("gates every authenticated mutation and no read", () => {
+    expect(
+      isFencedWrite("PATCH", "/agents/a/routines/r1", "authenticated"),
+    ).toBe(true);
+    expect(isFencedWrite("POST", "/agents/a/activities", "authenticated")).toBe(
       true,
     );
-    expect(isFencedWrite("POST", "/agents/a/activities", "agents")).toBe(true);
-    expect(isFencedWrite("DELETE", "/agents/a/routines/r1", "agents")).toBe(
+    expect(
+      isFencedWrite("DELETE", "/agents/a/routines/r1", "authenticated"),
+    ).toBe(true);
+    // Agent data outside /agents/: colour, delegation, custom integrations.
+    expect(isFencedWrite("PUT", "/v1/agents/a/color", "authenticated")).toBe(
       true,
     );
-    expect(isFencedWrite("GET", "/agents/a/routines", "agents")).toBe(false);
-    expect(isFencedWrite("POST", "/feedback", "agents")).toBe(false);
+    expect(
+      isFencedWrite(
+        "POST",
+        "/v1/integrations/custom/definitions",
+        "authenticated",
+      ),
+    ).toBe(true);
+    expect(isFencedWrite("GET", "/agents/a/routines", "authenticated")).toBe(
+      false,
+    );
+    expect(isFencedWrite("HEAD", "/v1/agents/a/color", "authenticated")).toBe(
+      false,
+    );
   });
 
   it("gates the runtime's routine/learning/mission saves only", () => {
@@ -59,7 +76,7 @@ describe("isFencedWrite", () => {
     expect(
       isFencedWrite("POST", "/sandbox/integrations/execute", "sandbox"),
     ).toBe(false);
-    // The user-facing prefix is not this scope's job (it is gated post-auth).
+    // The user-facing routes are not this scope's job (gated post-auth).
     expect(isFencedWrite("PATCH", "/agents/a/routines/r1", "sandbox")).toBe(
       false,
     );
@@ -80,7 +97,7 @@ describe("handleStoreFenceGate", () => {
         "PATCH",
         "/agents/a/routines/r1",
         res,
-        "agents",
+        "authenticated",
       ),
     ).toBe(false);
     expect(
@@ -89,7 +106,7 @@ describe("handleStoreFenceGate", () => {
         "PATCH",
         "/agents/a/routines/r1",
         res,
-        "agents",
+        "authenticated",
       ),
     ).toBe(false);
     expect(res.headersSent).toBe(false);
@@ -105,7 +122,7 @@ describe("handleStoreFenceGate", () => {
         "PATCH",
         "/agents/a/routines/r1",
         first,
-        "agents",
+        "authenticated",
       ),
     ).toBe(true);
     expect(first.status).toBe(503);
@@ -138,7 +155,7 @@ describe("handleStoreFenceGate", () => {
         "GET",
         "/agents/a/routines",
         read,
-        "agents",
+        "authenticated",
       ),
     ).toBe(false);
   });
@@ -163,7 +180,7 @@ describe("handleStoreFenceGate", () => {
         "PATCH",
         "/agents/a/routines/r1",
         res,
-        "agents",
+        "authenticated",
       ),
     ).toBe(true);
     expect(res.status).toBe(503);
@@ -176,7 +193,7 @@ describe("handleStoreFenceGate", () => {
         "GET",
         "/agents/a/routines",
         fakeResponse(),
-        "agents",
+        "authenticated",
       ),
     ).toBe(false);
     expect(asked).toEqual(["check"]);

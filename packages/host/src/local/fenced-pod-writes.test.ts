@@ -196,7 +196,8 @@ test("an edit on a pod superseded while idle is refused, never acknowledged and 
     },
   );
   const shownOnA = (await routines(podA.base))[0]?.schedule;
-  // Let A's debounced sync run (it meets the fence if it has anything).
+  // A's stop runs its final sync, which meets the fence if A kept the edit
+  // (the watcher skips the workspaces subtree, so nothing syncs earlier).
   await new Promise((resolve) => setTimeout(resolve, 200));
   await stop(podA.host);
 

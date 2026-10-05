@@ -83,7 +83,11 @@ export class WriteFence {
     return !this.lostLatch;
   }
 
-  /** Re-check on a timer, so an idle superseded pod acts on its own. */
+  /**
+   * Re-check on a timer, so an idle superseded pod acts on its own. A held
+   * check renews the lease, so starting this right after the boot's claim
+   * keeps a hydrating boot live to a rival standing down.
+   */
   startHeartbeat(): void {
     if (!this.opts.probe || this.heartbeat || this.holder === "stale") return;
     this.heartbeat = setInterval(
@@ -101,11 +105,19 @@ export class WriteFence {
   /** After the loss: classify the holder until it is stale. */
   private async watch(): Promise<void> {
     if (this.holder === "stale") return;
+    // A check already in flight may have been answered before the loss
+    // ("held"); only one sent after it can classify the holder.
+    if (this.inFlight) await this.inFlight;
     const verdict = await this.ask();
+    if (verdict?.state === "fenced") this.settle(verdict.holder);
     // A check this boot now passes (it captured a pre-mint its next write
     // would adopt) still finds a boot whose sync has halted: retire it.
-    if (verdict?.state === "fenced") this.settle(verdict.holder);
-    else if (verdict) this.settle("stale");
+    else if (verdict?.state === "held") this.settle("stale");
+    // No check to ask: retire, unless a running holder was already seen (a
+    // mixed pod-store fleet must not turn a stand-down into a re-claim).
+    else if (verdict?.state === "unsupported" && this.holder === undefined) {
+      this.settle("stale");
+    }
   }
 
   private settle(holder: LeaseHolderState): void {

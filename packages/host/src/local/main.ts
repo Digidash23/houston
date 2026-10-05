@@ -251,7 +251,7 @@ const host = buildLocalHost({
   onStoreFenceLost: managedStore
     ? respondToFenceLoss({
         stop: (stopOpts) => host.stop(stopOpts),
-        standDown: () => host.standDown(),
+        standDown: (drainMs) => host.standDown(drainMs),
         exit: (code) => process.exit(code),
         flushReports: async () => sentry?.flush(500),
       })

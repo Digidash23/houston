@@ -62,6 +62,7 @@ export class StoreSyncDaemon {
   /** Returns the number of objects restored (the boot telemetry records it). */
   async hydrate(): Promise<number> {
     this.hydrated = false;
+    this.fence.startHeartbeat();
     this.manifest = await runHydrate(this.opts, this.excludes);
     this.hydrated = true;
     return this.manifest.size;

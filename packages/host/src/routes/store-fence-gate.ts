@@ -32,18 +32,20 @@ const SANDBOX_WRITE = /^\/sandbox\/(routines|learnings|missions)(\/|$)/;
 
 /**
  * Whether a request would write agent data. `scope` follows the server's
- * ordering: the sandbox families are gated before their HMAC routes, the
- * user-facing `/agents/` routes only after the bearer has been verified (an
- * anonymous caller must keep getting 401, not a hint about pod state).
+ * ordering: the sandbox families are gated before their HMAC routes, every
+ * authenticated mutation only after the bearer has been verified (an
+ * anonymous caller must keep getting 401, not a hint about pod state). Not
+ * only `/agents/`: an agent's colour, delegation, custom integrations,
+ * workspace and preferences all land in the synced tree too.
  */
 export function isFencedWrite(
   method: string,
   path: string,
-  scope: "sandbox" | "agents",
+  scope: "sandbox" | "authenticated",
 ): boolean {
   if (!MUTATING.has(method.toUpperCase())) return false;
   if (scope === "sandbox") return SANDBOX_WRITE.test(path);
-  return path.startsWith("/agents/");
+  return true;
 }
 
 let reported = false;
@@ -62,7 +64,7 @@ export async function handleStoreFenceGate(
   method: string,
   path: string,
   res: ServerResponse,
-  scope: "sandbox" | "agents",
+  scope: "sandbox" | "authenticated",
 ): Promise<boolean> {
   if (!isFencedWrite(method, path, scope)) return false;
   if (!deps.storeFenced?.() && (await deps.storeWritable?.()) !== false) {

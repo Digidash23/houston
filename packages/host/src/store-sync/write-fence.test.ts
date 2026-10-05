@@ -153,3 +153,43 @@ test("the heartbeat finds a takeover on an idle pod", async () => {
   await vi.advanceTimersByTimeAsync(5_000);
   expect(probe).toHaveBeenCalledTimes(2);
 });
+
+// A heartbeat check answered "held" just before a takeover must not stand in
+// for the classification: that would retire the pod and its restart would
+// fence the running engine.
+test("a sync 409 never classifies on a check sent before the loss", async () => {
+  const answers: Array<(verdict: WriteLeaseVerdict) => void> = [];
+  const probe = vi.fn(
+    () =>
+      new Promise<WriteLeaseVerdict>((resolve) => {
+        answers.push(resolve);
+      }),
+  );
+  const { subject, holders } = fence(probe);
+
+  const before = subject.writable();
+  subject.lose({ message: "object store PUT a.json failed (409)" });
+  answers[0]?.(held);
+  await before;
+  await vi.waitFor(() => expect(answers).toHaveLength(2));
+  answers[1]?.(fencedBy("live"));
+  await vi.waitFor(() => expect(holders).toEqual(["live"]));
+});
+
+// A pod-store replica without the route (a mixed fleet during a roll) must
+// not turn a stand-down into a retire whose restart re-claims the lease.
+test("a stood-down pod does not retire on an unsupported answer", async () => {
+  vi.useFakeTimers();
+  let verdict: WriteLeaseVerdict = fencedBy("live");
+  const probe = vi.fn(async () => verdict);
+  const { subject, holders } = fence(probe, 1_000);
+  subject.startHeartbeat();
+
+  expect(await subject.writable()).toBe(false);
+  verdict = { state: "unsupported" };
+  await vi.advanceTimersByTimeAsync(3_000);
+  expect(holders).toEqual(["live"]);
+  verdict = fencedBy("stale");
+  await vi.advanceTimersByTimeAsync(1_000);
+  expect(holders).toEqual(["live", "stale"]);
+});

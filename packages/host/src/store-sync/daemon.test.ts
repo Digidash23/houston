@@ -560,3 +560,29 @@ test("a transient sync failure is a breadcrumb; only a streak reports the error"
   failing = false;
   await daemon.stop();
 });
+
+// A held check renews the lease, so a boot must start checking as soon as it
+// claimed it: a long hydrate must not let the boot look stale to a rival.
+test("the lease heartbeat runs from hydrate, before the sync starts", async () => {
+  const remoteRoot = mkdtempSync(
+    join(tmpdir(), "store-sync-heartbeat-remote-"),
+  );
+  const localRoot = mkdtempSync(join(tmpdir(), "store-sync-heartbeat-local-"));
+  let checks = 0;
+  const daemon = new StoreSyncDaemon({
+    store: new LocalDirStore(remoteRoot),
+    rootDir: localRoot,
+    leaseProbe: async () => {
+      checks += 1;
+      return { state: "held" };
+    },
+    leaseHeartbeatMs: 10,
+    log: () => {},
+  });
+  await daemon.hydrate();
+  await eventually(() => expect(checks).toBeGreaterThan(0));
+  await daemon.stop();
+  const after = checks;
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(checks).toBe(after);
+});

@@ -13,7 +13,9 @@ function harness(stop: (opts: { drainMs: number }) => Promise<void>) {
       events.push(`stop ${opts.drainMs}`);
       await stop(opts);
     },
-    standDown: () => events.push("stand down"),
+    standDown: async (drainMs) => {
+      events.push(`stand down ${drainMs}`);
+    },
     exit: (code) => events.push(`exit ${code}`),
     flushReports: async () => events.push("flush"),
     deadlineMs: 1_000,
@@ -37,19 +39,20 @@ test("with nobody holding the lease the pod stops on a short drain, reports, the
 
 // Exiting against a running engine would restart this pod into a fresh claim
 // that fences that engine, and the two would trade the lease through
-// restarts. The pod only stops its schedule, then retires once it is stale.
+// restarts. The pod only stops its schedule and runtimes, then retires once
+// the holder is stale.
 test("a running engine holding the lease makes the pod stand down, not exit", async () => {
   vi.spyOn(console, "error").mockImplementation(() => {});
   const { respond, events } = harness(async () => {});
 
   respond("live");
   respond("live");
-  expect(events).toEqual(["stand down"]);
+  expect(events).toEqual([`stand down ${FENCE_RETIRE_DRAIN_MS}`]);
 
   respond("stale");
   await vi.waitFor(() => expect(events).toContain("exit 1"));
   expect(events).toEqual([
-    "stand down",
+    `stand down ${FENCE_RETIRE_DRAIN_MS}`,
     `stop ${FENCE_RETIRE_DRAIN_MS}`,
     "flush",
     "exit 1",

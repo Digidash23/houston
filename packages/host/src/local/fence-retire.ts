@@ -8,8 +8,8 @@ export const FENCE_RETIRE_DEADLINE_MS = 20_000;
 export interface FenceRetireDeps {
   /** The host's own stop, with a drain budget short enough for a retire. */
   stop: (opts: { drainMs: number }) => Promise<void>;
-  /** Stop the local routine schedule, nothing else. */
-  standDown: () => void;
+  /** Stop the local routine schedule and the runtimes; keep serving reads. */
+  standDown: (drainMs: number) => Promise<void>;
   exit: (code: number) => void;
   /** Deliver queued error reports before the process goes. */
   flushReports: () => Promise<unknown>;
@@ -26,8 +26,8 @@ export interface FenceRetireDeps {
  *
  * `live`: another running engine owns the agent (a split brain, or a
  * replacement while this pod drains). Claiming the lease back would make the
- * two trade it through restarts, so the pod only stops its local schedule
- * and waits: it is the one being replaced.
+ * two trade it through restarts, so the pod stops its local schedule and its
+ * runtimes, keeps refusing writes, and waits: it is the one being replaced.
  *
  * `stale`: nobody is writing (a control-plane mint no engine adopted, or a
  * boot that stopped renewing). The pod exits non-zero. A pod already
@@ -47,9 +47,11 @@ export function respondToFenceLoss(
       if (stoodDown || retiring) return;
       stoodDown = true;
       console.error(
-        "[local-host] another running engine owns this agent's store; this pod stops firing routines and refuses writes until it is replaced",
+        "[local-host] another running engine owns this agent's store; this pod stops firing routines and running turns, and refuses writes until it is replaced",
       );
-      deps.standDown();
+      void deps.standDown(FENCE_RETIRE_DRAIN_MS).catch((err: unknown) => {
+        console.error("[local-host] stand-down failed:", err);
+      });
       return;
     }
     if (retiring) return;
