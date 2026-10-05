@@ -181,6 +181,8 @@ export {
   type TeamsCommandType,
   TeamsHttpError,
   type TeamsModule,
+  type TriggerPlanSkipCode,
+  type TriggerPlanSkipped,
   type TriggerStatusItem,
   type TriggerStatusState,
 } from "./modules/teams";

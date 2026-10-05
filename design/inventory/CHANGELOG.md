@@ -3,6 +3,16 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v124 - 2026-10-05
+
+A Free person's trigger routine says when the plan skipped its events. The
+routine screen and the top of its Runs modal show how many webhook or app
+events were skipped in the last 24 hours and why: the routine fired sooner
+than the Free minimum interval, it is not the one routine Free keeps running,
+or routines paused after days away. Each reason offers what fixes it (Upgrade
+to Plus, Choose routine, Resume). Plus hides the notice. Before, a skipped
+event left no trace and the routine looked broken.
+
 ## v123 - 2026-10-05
 
 An open folder on the desktop rail with no AI Employees shows a muted "Drag an

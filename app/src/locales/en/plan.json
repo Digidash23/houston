@@ -97,6 +97,14 @@
   "checkoutAccountDeletedBody": "You can't upgrade to Plus while your account is being deleted.",
   "checkoutUnavailableTitle": "Plus isn't available",
   "checkoutUnavailableBody": "Plus can't be bought here right now. Please try again later.",
+  "triggerSkipped": {
+    "title_one": "{{count}} event was skipped in the last 24 hours",
+    "title_other": "{{count}} events were skipped in the last 24 hours",
+    "minInterval": "Your routine is set up correctly. On Free, it runs at most once every {{minutes}} minutes, so events that arrived sooner didn't start a run.",
+    "routineLimit": "Free keeps one routine running, and it's a different one. Choose this routine to keep it running instead, or upgrade to Plus to run them all.",
+    "inactivePaused": "Your routines paused because you haven't opened Houston in 7 days. Resume them to run this routine again.",
+    "inactiveResumed": "Your routines were paused because you hadn't opened Houston in 7 days. They're running again now."
+  },
   "sidebar": {
     "free": "Free plan",
     "nearLimit": "{{percent}}% used",

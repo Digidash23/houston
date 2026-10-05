@@ -97,6 +97,14 @@
   "checkoutAccountDeletedBody": "Não é possível assinar o Plus com uma conta que está sendo excluída.",
   "checkoutUnavailableTitle": "O Plus não está disponível",
   "checkoutUnavailableBody": "No momento não é possível comprar o Plus aqui. Tente novamente mais tarde.",
+  "triggerSkipped": {
+    "title_one": "{{count}} evento foi ignorado nas últimas 24 horas",
+    "title_other": "{{count}} eventos foram ignorados nas últimas 24 horas",
+    "minInterval": "Sua rotina está configurada corretamente. No plano Grátis, ela roda no máximo uma vez a cada {{minutes}} minutos, então os eventos que chegaram antes não iniciaram uma execução.",
+    "routineLimit": "O plano Grátis mantém uma rotina ativa, e é outra. Escolha esta rotina para mantê-la ativa, ou assine o Plus para rodar todas.",
+    "inactivePaused": "Suas rotinas foram pausadas porque você não abriu o Houston em 7 dias. Retome-as para esta rotina voltar a rodar.",
+    "inactiveResumed": "Suas rotinas ficaram pausadas porque você não abriu o Houston em 7 dias. Elas já estão ativas de novo."
+  },
   "sidebar": {
     "free": "Plano grátis",
     "nearLimit": "{{percent}}% usado",

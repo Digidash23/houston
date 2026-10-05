@@ -17,6 +17,7 @@ import type {
   SkillWorkflow,
 } from "@houston/protocol";
 import type { Agent } from "./agents";
+import type { TriggerPlanSkipped } from "./trigger-plan-skip";
 
 export type {
   AgentArrival,
@@ -1870,11 +1871,16 @@ export type TriggerStatusState =
   | "paused_revoked"
   | "error";
 
-/** One routine's trigger status, from `GET /v1/agents/:slug/trigger-status`. */
+/**
+ * One routine's trigger status, from `GET /v1/agents/:slug/trigger-status`.
+ * `plan_skipped` counts the routine's events the Free plan refused in the
+ * last 24 hours (absent when none); the SDK drops it when it does not parse.
+ */
 export interface TriggerStatusItem {
   routine_id: string;
   status: TriggerStatusState;
   detail?: string;
+  plan_skipped?: TriggerPlanSkipped;
 }
 
 /**

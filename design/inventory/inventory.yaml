@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 123
+version: 124
 
 components:
   - id: agent-delegation-settings
@@ -1028,6 +1028,7 @@ components:
         schedule-editor,
         model-row,
         connection-health-badge,
+        plan-skip-notice,
         runs-modal,
       ]
     states:
@@ -1041,6 +1042,7 @@ components:
         provider-connected,
         provider-unusable,
         provider-checking,
+        plan-skipped-events,
       ]
     variants: [full-screen]
     behavior: >-
@@ -1069,7 +1071,13 @@ components:
       deadline explanation with guidance to try running the routine again;
       clicking an entry closes the modal and opens that run's chat in the shell panel
       (closing the chat returns to this screen). "Open chat" reaches the
-      routine's setup chat the same way.
+      routine's setup chat the same way. For a person on Free, a trigger
+      routine whose events the plan refused in the last 24 hours shows a
+      notice on the screen AND at the top of the Runs modal: how many events
+      were skipped and why (SDK triggerPlanSkipNotice: the minimum interval,
+      the one-routine limit, or routines paused while away), with Upgrade to
+      Plus, Choose routine for the limit, and Resume while still paused.
+      Plus hides it.
     a11y: >-
       the screen title and sections are real headings; the prompt textarea is
       labeled; run rows are buttons whose accessible name carries the outcome,

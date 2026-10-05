@@ -65,6 +65,7 @@ export {
 } from "./modules/delegation";
 export * from "./modules/plan/announcement-model";
 export * from "./modules/plan/billing-model";
+export * from "./modules/plan/trigger-skip-notice";
 export * from "./modules/plan/upgrade-model";
 // The rules around a skill still being built in chat: what counts as one,
 // which is picked back up, which are listed, and discarding one.
