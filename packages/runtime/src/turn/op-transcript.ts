@@ -20,6 +20,7 @@ export async function opTranscriptMirror(
   },
   op: Extract<AgentOp, { kind: "conversation" }>,
 ): Promise<string[]> {
+  if (op.action !== "rename" && op.action !== "delete") return [];
   const baseUrl = deps.poolStoreUrl ?? process.env.HOUSTON_POOL_STORE_URL;
   if (!baseUrl) return [];
   const { org, agent } = poolIdentity(turn.gcsPrefix);

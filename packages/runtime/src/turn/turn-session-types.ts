@@ -42,6 +42,7 @@ export interface TurnSessionRequest {
   nonce?: string;
   pin?: TurnModelPin;
   mode?: TurnMode;
+  liveMode?: import("../session/turn-mode-context").TurnModeRef;
   turnId: string;
   displayText?: string;
   mentions?: ChatMessage["mentions"];

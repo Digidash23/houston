@@ -30,6 +30,14 @@ const agentRow = (page: Page, text: string): Locator =>
     .locator('[data-conversation-message-key^="assistant-"]')
     .filter({ hasText: text });
 
+/**
+ * Pace of the canned reply's deltas for the specs that act mid-turn (drop,
+ * turn boundary, kill). The turn lasts 3 x this after its first delta, and the
+ * spec must act inside it. A loaded CI runner took 2.5 s from Enter to the first
+ * delta on screen, so 800 ms (a 2.4 s turn) let the turn end first.
+ */
+const MID_TURN_DELAY_MS = 2_500;
+
 test("sends a message and renders the streamed reply", async ({ page }) => {
   await page.goto("/");
 
@@ -128,9 +136,9 @@ test("recovers a dropped stream mid-turn and renders the full reply", async ({
   page,
   request,
 }) => {
-  // Slow the canned reply (3 deltas x 800ms) so the drop lands mid-turn.
+  // Slow the canned reply so the drop lands mid-turn.
   await request.post(`${FAKE_HOST_URL}/__test__/chat-config`, {
-    data: { replyDelayMs: 800 },
+    data: { replyDelayMs: MID_TURN_DELAY_MS },
   });
   await page.goto("/");
   await openNewMission(page);
@@ -171,7 +179,7 @@ test("settles the interrupted turn from history by turnId across a turn boundary
   request,
 }) => {
   await request.post(`${FAKE_HOST_URL}/__test__/chat-config`, {
-    data: { replyDelayMs: 800 },
+    data: { replyDelayMs: MID_TURN_DELAY_MS },
   });
   await page.goto("/");
   await openNewMission(page);
@@ -212,7 +220,7 @@ test("a dead turn settles as an error with the reaper's message", async ({
   request,
 }) => {
   await request.post(`${FAKE_HOST_URL}/__test__/chat-config`, {
-    data: { replyDelayMs: 800 },
+    data: { replyDelayMs: MID_TURN_DELAY_MS },
   });
   await page.goto("/");
   await openNewMission(page);
