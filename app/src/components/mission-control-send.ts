@@ -20,7 +20,10 @@
 // the extension for runtime-value imports). Vite/TSC accept it because
 // `allowImportingTsExtensions: true` is set in `app/tsconfig.json`.
 import { toDisplayProviderIdOrNull } from "../lib/provider-overrides.ts";
-import { normalizeLegacyModel } from "../lib/providers.ts";
+import {
+  normalizeLegacyModel,
+  validEffortOrDefault,
+} from "../lib/providers.ts";
 import { DEFAULT_TURN_MODE } from "../lib/turn-mode.ts";
 
 /** Minimal shape needed for override resolution; mirrors `ActivityItem`. */
@@ -31,10 +34,12 @@ export interface ActivityOverrideSource {
   model?: string;
 }
 
-/** Override pair passed to `tauriChat.send`. */
+/** Override pins passed to `tauriChat.send`. */
 export interface SendOverrides {
   providerOverride?: string;
   modelOverride?: string;
+  /** Rows never store effort: it is always the composer's. */
+  effortOverride?: string;
   /** Turn mode pin for user-typed sends; absent = execute. */
   modeOverride?: "execute" | "plan" | "auto";
 }
@@ -89,7 +94,8 @@ export function resolveMissionControlSendOverrides(
  * after Enter. The list is already in the query cache whenever the chat panel
  * has been open a beat (it mounts the same query), so:
  *
- *  - cached and the row is found -> the row's own pin, exactly as before;
+ *  - cached and the row is found -> the row's own provider/model, with the
+ *    composer's effort (a row stores none);
  *  - otherwise -> the composer's effective pick, which the chat panel derives
  *    from that same row when loaded and from the agent default until then —
  *    so picker and wire still agree, and nothing awaits the pod.
@@ -103,5 +109,15 @@ export function resolveFollowUpOverrides(
   if (fromRow.providerOverride === undefined) {
     return { ...composer, modeOverride: DEFAULT_TURN_MODE };
   }
-  return { ...fromRow, modeOverride: DEFAULT_TURN_MODE };
+  // The composer's effort was validated against the composer's model, which
+  // can still be the agent default while the row pins another one.
+  return {
+    ...fromRow,
+    effortOverride: validEffortOrDefault(
+      fromRow.providerOverride,
+      fromRow.modelOverride,
+      composer.effortOverride,
+    ),
+    modeOverride: DEFAULT_TURN_MODE,
+  };
 }

@@ -46,6 +46,7 @@ export function useMcActions({
       files,
       providerOverride,
       modelOverride,
+      effortOverride,
       mentions,
       conversationId,
     }: NewConversationArgs) => {
@@ -64,6 +65,7 @@ export function useMcActions({
       return mc.handleCreateConversation(plan.agent, text, files, {
         providerOverride: plan.providerOverride,
         modelOverride: plan.modelOverride,
+        effortOverride,
         mentions,
         conversationId,
       });
