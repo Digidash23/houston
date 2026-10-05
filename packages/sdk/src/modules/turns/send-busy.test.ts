@@ -17,6 +17,7 @@ import {
 } from "./send-busy";
 import { sendHolding } from "./send-hold";
 import { StreamRegistry, streamKey } from "./stream-registry";
+import { STOPPED_BY_USER } from "./turn-errors";
 import {
   observeConversation,
   type StreamTuning,
@@ -103,8 +104,7 @@ test("a busy send goes out again, the same request, until it is admitted", async
     noEvidence,
     new AbortController().signal,
     { sendBusyNoticeMs: 0 },
-    () => {},
-    () => busyCalls++,
+    { onHold: () => {}, onBusy: () => busyCalls++ },
   );
   expect(accepted).toEqual({ turnId: "t-1" });
   expect(calls).toBe(3);
@@ -122,7 +122,7 @@ test("a busy send is held, so the waiting stream's frames are not its turn's", a
     noEvidence,
     new AbortController().signal,
     undefined,
-    () => holds++,
+    { onHold: () => holds++ },
   );
   expect(holds).toBe(2);
 });
@@ -138,8 +138,7 @@ test("a busy send says so only once the wait is long", async () => {
     noEvidence,
     new AbortController().signal,
     { sendBusyNoticeMs: 60_000 },
-    () => {},
-    () => busyCalls++,
+    { onHold: () => {}, onBusy: () => busyCalls++ },
   );
   expect(busyCalls).toBe(0);
 });
@@ -155,9 +154,11 @@ test("the busy line comes on time, while the re-send is still waiting", async ()
     noEvidence,
     ac.signal,
     { sendBusyNoticeMs: 20 },
-    () => {},
-    () => {
-      busyAt ||= Date.now();
+    {
+      onHold: () => {},
+      onBusy: () => {
+        busyAt ||= Date.now();
+      },
     },
   ).catch(() => {});
   await waitFor(() => busyAt > 0, 1_000);
@@ -177,7 +178,7 @@ test("a busy refusal never re-sends past the budget, even after a long hint", as
     noEvidence,
     new AbortController().signal,
     { sendBusyWaitMs: 30 },
-    () => {},
+    { onHold: () => {} },
   ).catch((e: unknown) => e);
   expect(computeBusyRefusal(refusal)).not.toBeNull();
   // The pause was cut to the 30 ms left, then the spent budget stood.
@@ -338,4 +339,108 @@ test("a busy refusal on the observer handoff is re-sent, held, on the fresh path
   const vm = snapshot(key);
   expect(vm.feed.some((f) => f.feed_type === "system_message")).toBe(false);
   expect(vm.sessionStatus).toBe("completed");
+});
+
+test("a handoff's busy refusal is waited out, held, before the first re-send", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-busy-handoff-wait";
+  const sentAt: number[] = [];
+  const { engine, nonces } = busyEngine(
+    1,
+    async (o) => {
+      o.onEvent(sync(false, 3));
+      await untilAborted(o);
+    },
+    async (o) => {
+      // An idle resync while the re-send waits: never this turn's settle.
+      o.onEvent(sync(false, 3));
+      await waitFor(() => nonces.length === 2);
+      reply(o, nonces[1], 4);
+    },
+  );
+  const send = engine.sendMessage.bind(engine);
+  engine.sendMessage = (async (...args: Parameters<typeof send>) => {
+    sentAt.push(Date.now());
+    return send(...args);
+  }) as typeof engine.sendMessage;
+
+  observeConversation(engine, "Houston/Bo", key, output, 1, registry, fast);
+  await waitFor(
+    () => registry.get(streamKey("Houston/Bo", key))?.kind === "observer",
+  );
+  await streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: fast,
+  });
+
+  expect(sentAt).toHaveLength(2);
+  // The refusal's hint (1 ms, floored to 1 s) is waited out, not skipped.
+  expect(sentAt[1] - sentAt[0]).toBeGreaterThanOrEqual(900);
+  expect(snapshot(key).sessionStatus).toBe("completed");
+});
+
+test("Stop ends a message still waiting for room: no re-send after it", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-busy-stop";
+  const { engine, nonces } = busyEngine(Number.POSITIVE_INFINITY, async (o) => {
+    o.onEvent(sync(false, 0));
+    await untilAborted(o);
+  });
+
+  const turn = streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: { ...fast, sendBusyNoticeMs: 0 },
+  });
+  await waitFor(() => snapshot(key)?.sendWaiting === "busy");
+  expect(registry.stopUnsent(streamKey("Houston/Bo", key))).toBe(true);
+  await turn;
+  const sends = nonces.length;
+  await new Promise((r) => setTimeout(r, 1_200));
+
+  expect(nonces.length).toBe(sends); // nothing goes out after Stop
+  const vm = snapshot(key);
+  expect(vm.sendWaiting).toBeUndefined();
+  expect(vm.boardStatus).toBe("needs_you");
+  expect(vm.feed.some((f) => f.data === STOPPED_BY_USER)).toBe(true);
+});
+
+test("Stop leaves an accepted turn to the engine's own cancel", async () => {
+  const { output } = vmOutput();
+  const key = "activity-accepted-stop";
+  let accepted = false;
+  const { engine } = busyEngine(0, async (o) => {
+    o.onEvent(sync(false, 0));
+    await waitFor(() => accepted);
+    await untilAborted(o);
+  });
+  const sendMessage = engine.sendMessage.bind(engine);
+  engine.sendMessage = (async (...args: Parameters<typeof sendMessage>) => {
+    const answer = await sendMessage(...args);
+    accepted = true;
+    return answer;
+  }) as typeof engine.sendMessage;
+
+  void streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: fast,
+  });
+  await waitFor(() => accepted);
+  await new Promise((r) => setTimeout(r, 10));
+  expect(registry.stopUnsent(streamKey("Houston/Bo", key))).toBe(false);
+});
+
+test("a teardown takes the busy line down at once", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-busy-teardown";
+  const { engine } = busyEngine(Number.POSITIVE_INFINITY, async (o) => {
+    o.onEvent(sync(false, 0));
+    await untilAborted(o);
+  });
+
+  const turn = streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: { ...fast, sendBusyNoticeMs: 0 },
+  });
+  await waitFor(() => snapshot(key)?.sendWaiting === "busy");
+  registry.disposeAll();
+  expect(snapshot(key).sendWaiting).toBeUndefined();
+  await turn;
+  await new Promise((r) => setTimeout(r, 50));
+  expect(snapshot(key).sendWaiting).toBeUndefined();
 });

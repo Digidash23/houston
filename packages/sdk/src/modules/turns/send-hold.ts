@@ -29,6 +29,17 @@ export interface TurnEndEvidence {
   turnEndAfter(mark: number, signal: AbortSignal): Promise<void>;
 }
 
+/** What a holding send reports back, and what it starts from. */
+export interface SendHoldHooks {
+  /** The send is held: frames meanwhile are another turn's. */
+  onHold: () => void;
+  /** A busy wait grew long enough for the person to be told. */
+  onBusy?: () => void;
+  /** A refusal an earlier send of this message already met (the observer
+   *  handoff's), handled before the first re-send. */
+  firstRefusal?: unknown;
+}
+
 /** Wait `ms`, waking early on abort. */
 export function pause(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise<void>((resolve) => {
@@ -71,9 +82,11 @@ export async function sendHolding(
   evidence: TurnEndEvidence,
   signal: AbortSignal,
   tuning: StreamTuning | undefined,
-  onHold: () => void,
-  onBusy: () => void = () => {},
+  hooks: SendHoldHooks,
 ): Promise<SendAccepted> {
+  const { onHold, onBusy = () => {} } = hooks;
+  // A refusal the first send already met is handled before anything is sent.
+  let carried = hooks.firstRefusal;
   const wakeDelays = tuning?.sendWakeRetryDelaysMs ?? SEND_WAKE_RETRY_DELAYS_MS;
   const holdBudget = tuning?.sendTurnRunningHoldMs ?? SEND_TURN_RUNNING_HOLD_MS;
   const busyClock = new SendBusyClock(tuning);
@@ -83,11 +96,14 @@ export async function sendHolding(
   try {
     for (;;) {
       const mark = evidence.turnEnds;
-      let refusal: unknown;
-      try {
-        return (await send()) ?? {};
-      } catch (e) {
-        refusal = e;
+      let refusal: unknown = carried;
+      carried = undefined;
+      if (refusal === undefined) {
+        try {
+          return (await send()) ?? {};
+        } catch (e) {
+          refusal = e;
+        }
       }
       if (signal.aborted) throw refusal;
       // Before the waking check: a busy refusal carries the waking error string

@@ -360,6 +360,42 @@ test("a send the shared compute had no room for goes out again byte-identical", 
   expectGatewayHeaders(sends[1]);
 });
 
+test("Stop on a message still waiting for room ends it: the cancel goes out, no re-send follows", async () => {
+  let posts = 0;
+  stubRouted((call: Call) => {
+    if (call.url.endsWith("/events")) return new Response("", { status: 200 });
+    if (call.method === "POST" && call.url.endsWith("/messages")) {
+      posts++;
+      return json(503, {
+        error: "engine unavailable",
+        code: "compute_busy",
+        retryAfterMs: 30_000,
+      });
+    }
+    return json(200, { ok: true, cancelled: false, messages: [] });
+  });
+  const c = client();
+  await c.startSession(AGENT, {
+    sessionKey: "activity-busy-stop",
+    prompt: "the weekly numbers, please",
+  });
+  await vi.waitUntil(() => posts === 1, { timeout: 5_000 });
+
+  const result = await c.cancelSession(AGENT, "activity-busy-stop");
+
+  expect(result).toEqual({ cancelled: true });
+  const cancel = calls.find(
+    (call) => call.method === "POST" && call.url.endsWith("/cancel"),
+  );
+  expect(cancel?.url).toBe(
+    `${BASE}/agents/${AGENT}/conversations/activity-busy-stop/cancel`,
+  );
+  // Stopped locally: no orphan rescue write, and nothing re-sent.
+  expect(calls.some((call) => call.method === "PATCH")).toBe(false);
+  await new Promise((r) => setTimeout(r, 1_200));
+  expect(posts).toBe(1);
+});
+
 // ---- the ids the paths splice ----
 
 test("every conversation path percent-encodes the agent and the session key", async () => {

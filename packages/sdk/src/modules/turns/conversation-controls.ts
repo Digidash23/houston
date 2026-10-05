@@ -13,6 +13,7 @@
 
 import type { ModuleContext } from "../../module-context";
 import { createConversationImports } from "./conversation-imports";
+import { type StreamRegistry, streamKey } from "./stream-registry";
 import {
   asConversationInput,
   asSetModeInput,
@@ -31,7 +32,10 @@ export type DismissInteractionOutcome =
   | { ok: true }
   | { ok: false; refusal: "turn_running" };
 
-export function createConversationControls(ctx: ModuleContext) {
+export function createConversationControls(
+  ctx: ModuleContext,
+  registry: StreamRegistry,
+) {
   /**
    * Stops whatever an agent is currently doing in one chat.
    *
@@ -43,11 +47,16 @@ export function createConversationControls(ctx: ModuleContext) {
    *   agent's name is not its id, so read the id from listAgents first.
    * @assistant group:chat unconfirmed: Stops work already under way; nothing already said or written is undone.
    */
-  const cancel = (
+  const cancel = async (
     conversationId: string,
     agentId: string,
-  ): Promise<{ ok: boolean; cancelled: boolean }> =>
-    ctx.clientFor(agentId).cancel(conversationId);
+  ): Promise<{ ok: boolean; cancelled: boolean }> => {
+    // A message still waiting to go out (held behind a turn, or for room)
+    // stops here; the engine is asked too, in case it took it meanwhile.
+    const stopped = registry.stopUnsent(streamKey(agentId, conversationId));
+    const answer = await ctx.clientFor(agentId).cancel(conversationId);
+    return stopped ? { ...answer, cancelled: true } : answer;
+  };
 
   /**
    * Switches the mode the running turn acts under, mid-turn.

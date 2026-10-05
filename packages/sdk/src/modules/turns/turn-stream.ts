@@ -9,7 +9,8 @@ import type { FeedOutput } from "./feed-output";
 import { FirstResponseClock } from "./first-response";
 import { randomNonce } from "./random-nonce";
 import { computeBusyRefusal } from "./send-busy";
-import { observerSettled, sendHolding } from "./send-hold";
+import { observerSettled } from "./send-hold";
+import { sendUntilAccepted } from "./send-wait";
 import {
   type ActiveStream,
   PRESETTLED_POLL_MS,
@@ -230,6 +231,8 @@ export async function streamTurn(
   // turnId source) included, even if the observer consumed it before disposal.
   let after: number | undefined;
   let sent = false;
+  // The handoff send's busy refusal, re-sent held on the fresh path.
+  let handoffRefusal: unknown;
   if (prior?.kind === "observer") {
     // Claim the per-key send lock SYNCHRONOUSLY, before the first await: the
     // observer entry still holds the key across `sendMessage`, so without this a
@@ -262,6 +265,7 @@ export async function streamTurn(
     } else if (computeBusyRefusal(refusal)) {
       // The shared compute had no room: nothing ran. The fresh path below
       // re-sends it, held, on the server's hint (`send-busy.ts`).
+      handoffRefusal = refusal;
       if (!registry.isSending(key)) {
         firstResponse.dispose(); // torn down while the send was out
         return;
@@ -395,19 +399,17 @@ export async function streamTurn(
     streaming.catch(() => {});
     if (!sent) {
       try {
-        const accepted = await sendHolding(
-          () => engine.sendMessage(sessionKey, prompt, sendOptions),
+        const accepted = await sendUntilAccepted({
+          send: (signal) =>
+            engine.sendMessage(sessionKey, prompt, { ...sendOptions, signal }),
           sink,
-          ac.signal,
-          opts.tuning,
-          () => {
-            sink.holdSend();
-            entry.held = true;
-          },
-          () => output.sendWaiting?.(agentPath, sessionKey, "busy"),
-        ).finally(() => {
-          entry.held = false;
-          output.sendWaiting?.(agentPath, sessionKey, null);
+          entry,
+          ac,
+          tuning: opts.tuning,
+          output,
+          agentPath,
+          sessionKey,
+          firstRefusal: handoffRefusal,
         });
         sink.sendAccepted(accepted.turnId);
       } catch (e) {

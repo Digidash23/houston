@@ -60,7 +60,7 @@ export function createTurnsModule(
   const { send, observe, history } = operations;
   // The one-shot conversation controls (stop / mode / dismiss / rewind) register
   // their own commands; they share the module's client cache and nothing else.
-  const controls = createConversationControls(ctx);
+  const controls = createConversationControls(ctx, registry);
   const attachments = createAttachmentsOperation(ctx);
   const stopEvents =
     ctx.config.reactivity === false

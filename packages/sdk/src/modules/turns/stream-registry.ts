@@ -13,6 +13,12 @@ export interface ActiveStream {
   lastSeq?: number;
   /** A turn whose send is held behind another turn (`send-hold.ts`). */
   held?: boolean;
+  /**
+   * Stop a turn whose send the engine has not accepted yet (held, or waiting
+   * for room): its re-sends end and it settles as stopped by the person.
+   * False once the send was accepted: the engine's own cancel stops it then.
+   */
+  stopUnsent?: () => boolean;
 }
 
 export const streamKey = (agentPath: string, sessionKey: string): string =>
@@ -45,6 +51,14 @@ export class StreamRegistry {
   delete(key: string): void {
     this.active.delete(key);
     this.wakeLeaving();
+  }
+  /**
+   * The person pressed Stop: end `key`'s turn locally when its send has not
+   * been accepted yet (see {@link ActiveStream.stopUnsent}). True when it did.
+   */
+  stopUnsent(key: string): boolean {
+    const entry = this.active.get(key);
+    return entry?.kind === "turn" && entry.stopUnsent?.() === true;
   }
   /** Remove `entry` only if it still owns `key` (a successor may have replaced it). */
   release(key: string, entry: ActiveStream): void {
