@@ -1294,7 +1294,7 @@ components:
   - id: sidebar-team-block
     title: Sidebar group block
     purpose: A personal folder in the AI Employees rail.
-    anatomy: [header-row, group-glyph, group-name, disclosure-caret, rollup-badge, folder-menu, agent-rows, empty-hint]
+    anatomy: [header-row, group-glyph, group-name, disclosure-caret, rollup-badge, folder-menu, agent-rows, member-guide, empty-hint]
     states: [resting, expanded, collapsed, collapsed-rollup, menu-open, drop-target, empty, renaming]
     variants: [named-group]
     behavior: >-
@@ -1302,7 +1302,10 @@ components:
       that folder's collapsed flag and never navigates. Its always-visible menu
       offers Rename, Icon & color, Move to another space where available, and
       Delete group. Agent rows follow the group's stored order. Agents
-      outside every folder share the header's left edge. SidebarLayout order
+      outside every folder share the header's left edge; members step 20px
+      in, and a 1px line runs down them under the header's glyph. A folder
+      header, and a root employee right after a folder, start 12px below the
+      row above, so a folder visibly ends where its members do. SidebarLayout order
       interleaves root employees and folders, with new employees at the start.
       Every person can create, rename, restyle, reorder, and delete folders.
       Deleting a folder puts its agents at that folder's root position in group

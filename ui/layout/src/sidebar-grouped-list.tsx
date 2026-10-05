@@ -12,9 +12,10 @@ import {
 } from "./sidebar-drag-accessibility";
 import { SidebarDragOverlay } from "./sidebar-drag-overlay";
 import {
+  blockStartKeys,
   emptyOpenGroupIds,
   SidebarEmptyGroupHint,
-} from "./sidebar-empty-group";
+} from "./sidebar-group-block";
 import type { SidebarGroupView, SidebarRootEntry } from "./sidebar-groups";
 import { DEFAULT_SIDEBAR_LABELS, type SidebarLabels } from "./sidebar-labels";
 import { sidebarListEnd } from "./sidebar-paint";
@@ -79,6 +80,7 @@ export function SidebarGroupedList({
   const emptyGroups = drag.disabled
     ? new Set<string>()
     : emptyOpenGroupIds(drag.rows);
+  const blockStarts = blockStartKeys(drag.rows);
   const emptyLabel = labels?.emptyGroup ?? DEFAULT_SIDEBAR_LABELS.emptyGroup;
   const keyboardMove = (key: string, direction: SidebarKeyboardDirection) => {
     const moved = drag.keyboardStep(key, direction);
@@ -137,6 +139,7 @@ export function SidebarGroupedList({
                   ctx={rowCtx}
                   ghost={key === drag.activeKey ? active : null}
                   disabled={drag.disabled}
+                  opensBlock={blockStarts.has(key)}
                   onActivateGroup={onActivateGroup}
                   onKeyboardMove={drag.disabled ? undefined : keyboardMove}
                 />

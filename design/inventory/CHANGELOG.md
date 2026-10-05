@@ -10,6 +10,11 @@ AI Employee here" line under its header. Before, folding an empty folder changed
 nothing on screen, and the employees right below it looked like its members.
 Phones have no rail; their group filter already says how to fill an empty group.
 
+Folder members on the desktop rail step 20px in (was 12px) beside a 1px guide
+line under the folder's glyph. A folder header, and the first root employee
+after a folder, sit 12px below the row above. Root employees right after a
+folder no longer read as its members.
+
 ## v122 - 2026-10-04
 
 Routine run history explains expired delivery in English, Spanish and Portuguese

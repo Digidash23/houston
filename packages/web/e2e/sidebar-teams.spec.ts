@@ -59,10 +59,11 @@ test("the list closes on one Add new AI Employee shortcut, outside every folder"
   await expect(
     page.locator("[data-tour-target='sidebar'] [data-tour-target='newAgent']"),
   ).toBeVisible();
-  // A member steps in one level from the root rows.
-  await expect(
-    rail.locator("[data-sidebar-member-of='work'] button").first(),
-  ).toHaveClass(/\bpl-6\b/);
+  // A member steps in one level from the root rows, past the guide line its
+  // row draws under the folder's glyph.
+  const member = rail.locator("[data-sidebar-member-of='work']");
+  await expect(member.locator("button").first()).toHaveClass(/\bpl-8\b/);
+  await expect(member).toHaveClass(/after:bg-line/);
 });
 
 test("the create menu identifies employees and groups by their glyphs", async ({

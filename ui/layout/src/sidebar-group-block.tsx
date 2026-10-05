@@ -1,7 +1,10 @@
 import { cn } from "@houston-ai/core";
 import { sidebarRowHeight } from "./sidebar-geometry";
-import { sidebarRowButtonClasses as c } from "./sidebar-paint";
-import type { SidebarTreeRow } from "./sidebar-tree";
+import {
+  sidebarRowButtonClasses as c,
+  sidebarMemberGuide,
+} from "./sidebar-paint";
+import { type SidebarTreeRow, treeRowKey } from "./sidebar-tree";
 
 /**
  * Open groups with no member rows. Read off the AT-REST rows, never the drag
@@ -20,6 +23,23 @@ export function emptyOpenGroupIds(rows: SidebarTreeRow[]): Set<string> {
 }
 
 /**
+ * Keys of the rows that open a block, which take the block gap: every group
+ * header but the first row, and a root agent right after a group's block.
+ * Root agents in a run stay one list.
+ */
+export function blockStartKeys(rows: SidebarTreeRow[]): Set<string> {
+  const starts = new Set<string>();
+  rows.forEach((row, index) => {
+    const prev = rows[index - 1];
+    if (!prev) return;
+    const afterGroup = prev.kind === "group" || prev.parentId !== null;
+    if (row.kind === "group" || (row.parentId === null && afterGroup))
+      starts.add(treeRowKey(row));
+  });
+  return starts;
+}
+
+/**
  * The line under an open group that holds nobody. Without it an empty group's
  * header folds and unfolds with nothing visibly changing, and the top-level
  * rows drawn right below it read as its members.
@@ -35,9 +55,10 @@ export function SidebarEmptyGroupHint({
     <div
       data-sidebar-empty-group={groupId}
       className={cn(
-        "flex items-center text-xs text-ink-muted",
+        "relative flex items-center text-xs text-ink-muted",
         sidebarRowHeight,
         c.depthChild,
+        sidebarMemberGuide,
       )}
     >
       <span className="min-w-0 truncate">{label}</span>

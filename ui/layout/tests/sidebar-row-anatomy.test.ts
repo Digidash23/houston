@@ -110,9 +110,10 @@ describe("sidebar row anatomy", () => {
 
   it("indents CHILD rows one step past the block rows they hang under", () => {
     // Two indents and only two: a block head sits at the rail's edge, and
-    // everything it contains shares one glyph column 12px to its right.
+    // everything it contains shares one column 20px to its right, past the
+    // member guide line.
     ok(includes(sidebarRowButtonClasses.depthBlock, "pl-3"));
-    ok(includes(sidebarRowButtonClasses.depthChild, "pl-6"));
+    ok(includes(sidebarRowButtonClasses.depthChild, "pl-8"));
     // The pill spans the row either way — hierarchy is inside it, never a
     // ragged left edge.
     ok(includes(sidebarRowButtonClasses.root, "w-full"));
@@ -575,7 +576,7 @@ describe("sidebar person row, message-list details", () => {
     // 12px from the pill's side, the same 12px it keeps top and bottom.
     ok(includes(sidebarPersonRow.padBlock, "pl-3"));
     ok(includes(sidebarPersonRow.padBlock, "pr-3"));
-    ok(includes(sidebarPersonRow.padChild, "pl-6"));
+    ok(includes(sidebarPersonRow.padChild, "pl-8"));
     const button = source("sidebar-row-button.tsx");
     ok(button.includes("person && [c.personHeight, c.personFill]"));
   });
@@ -594,7 +595,7 @@ describe("employee depth", () => {
       sidebarPersonRow.padChild.split(" ")[0],
     );
     ok(includes(sidebarRowButtonClasses.depthBlock, "pl-3"));
-    ok(includes(sidebarRowButtonClasses.depthChild, "pl-6"));
+    ok(includes(sidebarRowButtonClasses.depthChild, "pl-8"));
     ok(
       source("sidebar-item-row.tsx").includes(
         'depth={grouped ? "child" : "block"}',
