@@ -10,8 +10,8 @@ on desktop and web. The screen links the developer docs, lists keys, mints
 one with a one-time reveal and revokes with a confirmation. A new Organization ID row
 above the keys shows the ID apps send to reach the open organization, with a copy
 button, on desktop and phone. Each AI Employee's Settings gains an "API
-access" card with its Agent ID, the Organization ID, a way into API keys and the
-developer docs.
+access" row opening a screen with its Agent ID, the Organization ID, a way into
+API keys and the developer docs.
 
 ## v123 - 2026-10-05
 

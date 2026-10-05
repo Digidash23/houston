@@ -105,7 +105,7 @@ test("API keys shows the organization ID, mints a key once, and links the docs",
   await expect(page.getByRole("button", { name: "Copy" })).toBeInViewport();
 });
 
-test("an AI Employee's Settings shows its API access and opens the keys", async ({
+test("an AI Employee's API access opens from its Settings and leads to the keys", async ({
   page,
   request,
 }) => {
@@ -115,11 +115,20 @@ test("an AI Employee's Settings shows its API access and opens the keys", async 
   await mockGateway(page);
   await page.goto("/");
   await openAgentSettings(page, SEED_AGENT_NAME, null);
+  await page.getByRole("button", { name: /^API access/ }).click();
   await expect(
     page.getByRole("heading", { name: "API access", exact: true }),
   ).toBeVisible();
   await expect(page.getByText("Agent ID", { exact: true })).toBeVisible();
   await expect(page.getByText(PERSONAL_SLUG)).toBeVisible();
+  // Back returns to the Settings card, then in again for the keys door.
+  // The section strip also has a "Settings" tab; the way back lives in the body.
+  await page
+    .locator("[data-agent-section-body='manage']")
+    .getByRole("button", { name: "Settings", exact: true })
+    .click();
+  await expect(page.getByText("Change color & name")).toBeVisible();
+  await page.getByRole("button", { name: /^API access/ }).click();
   await page.getByRole("button", { name: /^API keys/ }).click();
   await expect(
     page.getByRole("heading", { name: "API keys", exact: true }),
@@ -134,7 +143,7 @@ test("an AI Employee's Settings has no API access without the public API", async
   await capabilities;
   await openAgentSettings(page, SEED_AGENT_NAME, null);
   await expect(page.getByText("Change color & name")).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "API access", exact: true }),
-  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^API access/ })).toHaveCount(
+    0,
+  );
 });

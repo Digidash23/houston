@@ -209,6 +209,8 @@
     },
     "agentAccess": {
       "title": "Acceso por API",
+      "rowDescription": "Conecta otras apps y asistentes de IA con {{name}}",
+      "intro": "Otras apps y asistentes de IA pueden iniciar tareas con {{name}} a través de la API de Houston. Necesitan estos ID y una de tus claves de API.",
       "agentId": "ID del agente",
       "agentIdCopyFailed": "No se pudo copiar el ID del agente",
       "keysRow": "Claves de API",

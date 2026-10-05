@@ -137,14 +137,16 @@ describe("Settings > API keys", () => {
     ok(body.includes("<ApiKeysSection />"));
   });
 
-  it("gives every AI Employee's Settings an API access card", () => {
+  it("gives every AI Employee's Settings an API access screen", () => {
     const manage = read(
       "../src/components/agent-settings/agent-settings-manage.tsx",
     );
     const card = read("../src/components/agent-settings/agent-api-access.tsx");
-    ok(manage.includes("<AgentApiAccess agent={agent} />"));
-    ok(card.includes("apiKeysSupported(capabilities)"));
-    ok(card.includes("useOrgSlug(supported)"), "no /v1/orgs read off-gateway");
+    // The row and the screen behind it share one gate, so a host without
+    // the public API never reads `/v1/orgs` for it.
+    ok(manage.includes("apiKeysSupported(useCapabilities().capabilities)"));
+    ok(manage.includes("apiAvailable && apiFor === agent.id"));
+    ok(manage.includes("<AgentApiAccess agent={agent} onBack="));
     ok(card.includes('openSettings("apiKeys")'));
   });
 
