@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 123
+version: 124
 
 components:
   - id: agent-delegation-settings
@@ -2199,6 +2199,25 @@ components:
       Real labeled buttons, a read-only labeled command input, status messages,
       and a focus-managed disconnect confirmation. All controls remain visible.
     since: 94
+
+  - id: api-keys-settings
+    title: API keys settings
+    purpose: Let a person mint and revoke the personal keys apps use to start work with their AI Employees, and read the open space's ID.
+    anatomy: [section-header, docs-link, space-id-row, copy-action, key-list, key-row, create-action, create-dialog, one-time-reveal, revoke-confirmation]
+    states: [loading, empty, listed, error, creating, key-limit, revealed, space-id-loading, unavailable]
+    variants: [phone, desktop]
+    behavior: >-
+      Listed in Settings only where the deployment serves the public API (the
+      hosted gateway, on desktop and web). The docs link opens the developer docs
+      in the browser. The Space ID row shows the slug API callers send as
+      x-houston-org for the space open in the app, with a copy action; it hides
+      when the space list cannot load. A new key's secret is shown once in the
+      create dialog and never cached. Revoke asks for confirmation. Reaching the
+      20-key limit is said inline instead of reported as a bug.
+    a11y: >-
+      Real labeled buttons for docs, copy, create and revoke; a focus-managed
+      create dialog and revoke confirmation. All controls remain visible.
+    since: 124
 
   - id: personal-plan-dialogs
     title: Personal plan dialogs

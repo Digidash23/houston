@@ -199,6 +199,7 @@
     "spaceId": {
       "title": "ID del espacio",
       "description": "Las apps envían este ID para trabajar con los empleados de IA de {{space}}. Tus claves funcionan en todos los espacios a los que perteneces, así que abre otro espacio para ver su ID.",
+      "descriptionNoName": "Las apps envían este ID para trabajar con los empleados de IA de este espacio. Tus claves funcionan en todos los espacios a los que perteneces, así que abre otro espacio para ver su ID.",
       "loading": "Cargando…",
       "copy": "Copiar",
       "copied": "Copiado",

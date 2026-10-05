@@ -18,16 +18,23 @@ import { useWorkspaceStore } from "../../../stores/workspaces";
 export function ApiSpaceId() {
   const { t } = useTranslation("settings");
   const workspace = useWorkspaceStore((s) => s.current);
-  const { data: orgs } = useOrgs(true);
+  const { data: orgs, isError } = useOrgs(true);
   const addToast = useUIStore((s) => s.addToast);
-  const [copied, setCopied] = useState(false);
   const slug = connectOrgSlug(workspace?.id, orgs);
+  // "Copied" belongs to the slug it copied, so another space's ID reads fresh.
+  const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+  const copied = slug !== null && copiedSlug === slug;
+
+  // A personal space's slug comes only from `GET /v1/orgs`; when that read
+  // failed (already reported by the adapter) there is no ID to show, and a
+  // row stuck on "Loading" would promise one.
+  if (!slug && isError) return null;
 
   async function copySlug() {
     if (!slug) return;
     try {
       await navigator.clipboard.writeText(slug);
-      setCopied(true);
+      setCopiedSlug(slug);
       addToast({ title: t("apiKeys.spaceId.copied") });
     } catch (err) {
       addToast({
@@ -61,7 +68,9 @@ export function ApiSpaceId() {
         </Button>
       </div>
       <p className="mt-2 text-xs text-ink-muted">
-        {t("apiKeys.spaceId.description", { space: workspace?.name ?? "" })}
+        {workspace
+          ? t("apiKeys.spaceId.description", { space: workspace.name })
+          : t("apiKeys.spaceId.descriptionNoName")}
       </p>
     </div>
   );

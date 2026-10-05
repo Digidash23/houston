@@ -166,8 +166,9 @@ lang: en
           If the mission was created with a webhook, this endpoint (and only
           this one) adds a <code>webhook</code> block. It always has
           <code>url</code>, <code>deliveredAt</code> (<code>null</code> until a
-          delivery succeeds), and <code>lastError</code> (the most recent
-          delivery error, or an empty string). The secret is never returned.
+          delivery succeeds), and <code>lastError</code> (the error from the
+          last failed attempt, set once Houston gives up, and an empty string
+          until then). The secret is never returned.
         </p>
         <div class="codeblock"><pre><code>{% raw %}curl {% endraw %}{{ api.gatewayUrl }}{% raw %}/v1/agents/3f9a1c07b2e84d65/missions/a7f3c91e0b2d4856e19c3f70b4a2d8e5 \
   -H "Authorization: Bearer hst_9f2c1a7b4e8d0364f1a2b3c4d5e6f7089f2c1a7b4e8d0364f1a2b3c4d5e6f708"{% endraw %}</code></pre></div>
@@ -291,6 +292,7 @@ lang: en
             <tr><td><code>401</code></td><td></td><td>The key is missing, revoked, or wrong: <code>missing bearer token</code> or <code>invalid or expired token</code>.</td></tr>
             <tr><td><code>403</code></td><td><code>api_key_scope</code></td><td>The key was used on a route outside the public API.</td></tr>
             <tr><td><code>403</code></td><td><code>not_member</code></td><td><code>x-houston-org</code> (or <code>?org=</code>) names a space you are not a member of.</td></tr>
+            <tr><td><code>403</code></td><td><code>needs_upgrade</code></td><td>The team space's plan has lapsed, so it refuses new work until an owner renews it.</td></tr>
             <tr><td><code>404</code></td><td></td><td><code>agent not found</code> or <code>mission not found</code>. A mission that belongs to another agent or another space also reads as not found.</td></tr>
             <tr><td><code>409</code></td><td><code>agent_busy</code></td><td>The agent is already running a turn. Retry once it finishes.</td></tr>
             <tr><td><code>409</code></td><td><code>mission_finished</code></td><td>Cancel was called on a mission that already ended.</td></tr>
@@ -342,7 +344,7 @@ lang: en
           <thead><tr><th>Header</th><th>Value</th></tr></thead>
           <tbody>
             <tr><td><code>X-Houston-Event</code></td><td>The event name, e.g. <code>mission.completed</code>.</td></tr>
-            <tr><td><code>X-Houston-Delivery</code></td><td>A unique id for this event, the same on every retry. Use it to deduplicate.</td></tr>
+            <tr><td><code>X-Houston-Delivery</code></td><td>An id for this delivery, the same on every retry of it. A redelivery after a Houston restart, or the webhook for a later turn of the same mission, gets a new id.</td></tr>
             <tr><td><code>X-Houston-Signature</code></td><td><code>sha256=&lt;hex&gt;</code>, the HMAC-SHA256 of the raw request body keyed with your <code>webhook.secret</code>. Sent only when the mission has a secret.</td></tr>
           </tbody>
         </table>
@@ -352,7 +354,7 @@ lang: en
         <ul>
           <li>Houston waits up to <strong>10 seconds</strong> for your endpoint to respond.</li>
           <li>Delivery is attempted up to <strong>6 times</strong>: the initial POST plus <strong>5 retries</strong>, backing off 30s, 1m, 2m, 4m, then 8m.</li>
-          <li>Delivery is <strong>at-least-once</strong>. Retries can duplicate an event, so treat handlers as idempotent and <strong>deduplicate on <code>X-Houston-Delivery</code></strong>.</li>
+          <li>Delivery is <strong>at-least-once</strong>. Retries can duplicate an event, so treat handlers as idempotent. <strong>Deduplicate on <code>mission.id</code> plus <code>event</code></strong>, and use <code>X-Houston-Delivery</code> to spot plain retries.</li>
           <li>The URL must be a <strong>public <code>https://</code></strong> address. Private, loopback, and internal addresses are rejected.</li>
         </ul>
 
@@ -382,9 +384,9 @@ app.post("/hooks/houston", express.raw({ type: "application/json" }), (req, res)
   );
   if (!ok) return res.sendStatus(401);
 
-  // Deduplicate on the delivery id, then process.
-  const deliveryId = req.get("X-Houston-Delivery");
+  // Deduplicate on mission id + event, then process.
   const payload = JSON.parse(req.body.toString("utf8"));
+  const dedupeKey = `${payload.mission.id}:${payload.event}`;
   // ... handle payload.event / payload.mission ...
   res.sendStatus(200);
 });{% endraw %}</code></pre></div>

@@ -160,6 +160,7 @@ const gates = (over: Partial<SurfaceGates> = {}): SurfaceGates => ({
   showBilling: true,
   showWorkspaceDanger: true,
   showAiModels: true,
+  showApiKeys: true,
   manageWorkspaceSkills: true,
   showAssistant: true,
   ready: true,
@@ -174,6 +175,7 @@ test("an errand to a screen this person does not hold offers no way in", () => {
     ["billing", { showBilling: false }],
     ["billing", { showOrganization: false }],
     ["orgDanger", { showWorkspaceDanger: false }],
+    ["apiKeys", { showApiKeys: false }],
   ] as const satisfies [HandsOnSurface, Partial<SurfaceGates>][])
     strictEqual(handsOnSurfaceReachable(surface, gates(denied)), false);
   // The rest is ordinary work anyone in the space can finish.

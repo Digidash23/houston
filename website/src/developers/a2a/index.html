@@ -147,7 +147,11 @@ lang: en
           <code>artifact-update</code> events carrying the agent's text as it
           is written, and finally a <code>status-update</code> with
           <code>"final": true</code>, after which the stream closes. Use this
-          for live progress.
+          for live progress. Honor each update's <code>append</code> flag:
+          <code>true</code> adds its text to the end of the result, and
+          <code>false</code> replaces the whole result (Houston sends one when
+          it resyncs the text written so far). Concatenating every event
+          blindly can duplicate text.
         </p>
         <div class="codeblock"><pre><code>{% raw %}curl -N -X POST {% endraw %}{{ api.gatewayUrl }}{% raw %}/a2a/8c41e7a0d39b2f16/3f9a1c07b2e84d65 \
   -H "Authorization: Bearer hst_9f2c1a7b4e8d0364f1a2b3c4d5e6f7089f2c1a7b4e8d0364f1a2b3c4d5e6f708" \

@@ -199,6 +199,7 @@
     "spaceId": {
       "title": "Space ID",
       "description": "Apps send this ID to work with the AI Employees in {{space}}. Your keys work in every space you belong to, so open another space to see its ID.",
+      "descriptionNoName": "Apps send this ID to work with the AI Employees in this space. Your keys work in every space you belong to, so open another space to see its ID.",
       "loading": "Loading…",
       "copy": "Copy",
       "copied": "Copied",

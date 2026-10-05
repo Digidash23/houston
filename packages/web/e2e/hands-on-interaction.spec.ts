@@ -64,6 +64,11 @@ for (const surface of ["manager", "mission"] as const) {
       }
     });
     const reason = "Copy the key Houston shows you once.";
+    // API keys exist only where the public API is served; without the
+    // capability the card offers no way in (hands-on-gates).
+    await request.post(`${FAKE_HOST_URL}/__test__/capabilities`, {
+      data: { apiKeys: true },
+    });
     await queueErrand(request, reason);
     await openSurface(page, surface);
 

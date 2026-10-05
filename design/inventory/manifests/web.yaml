@@ -13,7 +13,7 @@
 
 surface: web
 enforced: true
-inventoryVersion: 123
+inventoryVersion: 124
 
 components:
   manager-avatar:
@@ -334,6 +334,9 @@ components:
   messaging-channels-settings:
     status: implemented
     ref: app/src/components/settings/sections/channels.tsx
+  api-keys-settings:
+    status: implemented
+    ref: "app/src/components/settings/sections/api-keys.tsx (ApiKeysBody in api-keys-body.tsx, ApiSpaceId in api-space-id.tsx, ApiKeyCreateDialog in api-key-create-dialog.tsx) over lib/api-keys-model.ts"
 
   personal-plan-dialogs:
     status: partial

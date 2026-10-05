@@ -3,6 +3,14 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v124 - 2026-10-05
+
+Settings lists API keys again wherever the deployment serves the public API,
+on desktop and web. The screen links the developer docs, lists keys, mints
+one with a one-time reveal and revokes with a confirmation. A new Space ID row
+above the keys shows the ID apps send to reach the open space, with a copy
+button, on desktop and phone.
+
 ## v123 - 2026-10-05
 
 An open folder on the desktop rail with no AI Employees shows a muted "Drag an

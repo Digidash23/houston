@@ -195,7 +195,7 @@ lang: en
 }{% endraw %}</code></pre></div>
 
         <h3>cancel_mission</h3>
-        <p>Cancels a running mission and returns it in the <code>canceled</code> state.</p>
+        <p>Cancels a running mission and returns it in the <code>canceled</code> state. On a mission that already ended, the tool returns an error result instead.</p>
         <div class="codeblock"><pre><code>{% raw %}{
   "name": "cancel_mission",
   "description": "Cancel a running mission by id. Returns the mission in its canceled state.",

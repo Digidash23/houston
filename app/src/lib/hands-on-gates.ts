@@ -29,5 +29,6 @@ export function handsOnSurfaceReachable(
   if (!gates.ready) return true;
   if (surface === "billing") return gates.showOrganization && gates.showBilling;
   if (surface === "orgDanger") return gates.showWorkspaceDanger;
+  if (surface === "apiKeys") return gates.showApiKeys;
   return true;
 }

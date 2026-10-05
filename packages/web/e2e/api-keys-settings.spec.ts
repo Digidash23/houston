@@ -58,7 +58,11 @@ async function mockGateway(page: Page) {
 test("Settings lists API keys only where the public API is served", async ({
   page,
 }) => {
+  // The row is also absent while capabilities load, so the absence below
+  // only proves the gate once the answer has arrived.
+  const capabilities = page.waitForResponse("**/v1/capabilities");
   await page.goto("/");
+  await capabilities;
   await openSettings(page);
   await expect(page.getByRole("button", { name: /^API keys/ })).toHaveCount(0);
 });
@@ -79,7 +83,6 @@ test("API keys shows the space ID, mints a key once, and links the docs", async 
   ).toBeVisible();
   await expect(page.getByText(PERSONAL_SLUG)).toBeVisible();
   await expect(page.getByText("Zapier", { exact: true })).toBeVisible();
-  await page.screenshot({ path: "/tmp/houston-api-keys-desktop.png" });
 
   await page.getByRole("button", { name: "Create key" }).click();
   const dialog = page.getByRole("dialog");
@@ -95,6 +98,8 @@ test("API keys shows the space ID, mints a key once, and links the docs", async 
   await docs.click();
   expect((await popup).url()).toContain("gethouston.ai/developers");
 
+  // Phone width: the ID and its copy control stay on screen side by side.
   await page.setViewportSize({ width: 412, height: 915 });
-  await page.screenshot({ path: "/tmp/houston-api-keys-phone.png" });
+  await expect(page.getByText(PERSONAL_SLUG)).toBeInViewport();
+  await expect(page.getByRole("button", { name: "Copy" })).toBeInViewport();
 });
