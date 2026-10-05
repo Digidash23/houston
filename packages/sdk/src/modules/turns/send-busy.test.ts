@@ -910,3 +910,47 @@ test("an idle resync while the first send is still out settles nothing", async (
   expect(vm.feed.some((f) => f.feed_type === "system_message")).toBe(false);
   expect(vm.sessionStatus).toBe("completed");
 });
+
+test("a Stop that races the engine's acceptance settles nothing before the cancel answered", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-stop-races-accept";
+  let stopped = false;
+  let nonce: string | undefined;
+  const { engine } = busyEngine(0, async (o) => {
+    o.onEvent(sync(false, 0));
+    // The engine took the message before the Stop reached it: its own echo,
+    // reply and end arrive while the cancel is still out.
+    await waitFor(() => stopped);
+    reply(o, nonce, 1);
+    await untilAborted(o);
+  });
+  engine.sendMessage = ((
+    _id: string,
+    _text: string,
+    o?: { nonce?: string; signal?: AbortSignal },
+  ) => {
+    nonce = o?.nonce;
+    return new Promise((_resolve, reject) => {
+      o?.signal?.addEventListener(
+        "abort",
+        () => reject(new DOMException("aborted", "AbortError")),
+        { once: true },
+      );
+    });
+  }) as typeof engine.sendMessage;
+
+  const turn = streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: fast,
+  });
+  await waitFor(() => nonce !== undefined);
+  const finish = registry.stopUnsent(streamKey("Houston/Bo", key));
+  stopped = true;
+  await new Promise((r) => setTimeout(r, 100));
+  expect(snapshot(key).sessionStatus).toBe("running");
+  finish?.();
+  await turn;
+
+  const vm = snapshot(key);
+  expect(vm.boardStatus).toBe("needs_you");
+  expect(vm.feed.some((f) => f.data === STOPPED_BY_USER)).toBe(true);
+});

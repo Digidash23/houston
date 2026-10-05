@@ -55,6 +55,8 @@ export class TurnSink {
   private readonly poll: PresettlePoll;
   /** Turn mode: a send held behind another turn (`send-hold-state.ts`). */
   private readonly held = new SendHoldState();
+  /** Turn mode: stopped before the engine accepted it (see {@link mute}). */
+  private muted = false;
 
   constructor(private readonly o: TurnSinkOptions) {
     this.poll = new PresettlePoll(o.presettledPollMs, {
@@ -98,6 +100,16 @@ export class TurnSink {
    */
   holdSend(): void {
     this.held.hold();
+    this.poll.cancel();
+  }
+  /**
+   * Turn mode: the person stopped a send the engine had not accepted. No
+   * frame renders or settles the turn from here on, its own echo included:
+   * until the cancel answered, a settle would flush a queued message into
+   * that cancel. The turn then settles as stopped (`fail`).
+   */
+  mute(): void {
+    this.muted = true;
     this.poll.cancel();
   }
   /**
@@ -151,6 +163,7 @@ export class TurnSink {
   }
 
   onFrame(ev: WireFrame): void {
+    if (this.muted) return;
     // Another turn's terminal frame: the conversation is (about to be) free.
     // An idle sync is NOT counted: the cloud pool's turnlog tail reports
     // `running: false` mid-turn.

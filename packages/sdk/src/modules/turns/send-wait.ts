@@ -86,9 +86,9 @@ export async function sendUntilAccepted(
   entry.stopUnsent = () => {
     if (sink.settled || stop) return null;
     stop = new PersonStop();
-    // Held until the cancel answered: no frame but this message's own settles
-    // it, and the queue watchdog flushes nothing into that cancel.
-    sink.holdSend();
+    // Until the cancel answered no frame settles it, and the queue watchdog
+    // flushes nothing into that cancel.
+    sink.mute();
     entry.held = true;
     endSend();
     return stop.finish;
