@@ -15,10 +15,11 @@ export interface ActiveStream {
   held?: boolean;
   /**
    * Stop a turn whose send the engine has not accepted yet (held, or waiting
-   * for room): its re-sends end and it settles as stopped by the person.
-   * False once the send was accepted: the engine's own cancel stops it then.
+   * for room): its POST and re-sends end at once. It answers the `finish` to
+   * call once the engine's own cancel answered, when the turn then settles as
+   * stopped; null once the send was accepted (the engine's cancel stops it).
    */
-  stopUnsent?: () => boolean;
+  stopUnsent?: () => (() => void) | null;
 }
 
 export const streamKey = (agentPath: string, sessionKey: string): string =>
@@ -52,13 +53,26 @@ export class StreamRegistry {
     this.active.delete(key);
     this.wakeLeaving();
   }
+  /** Stop hooks of sends still out over an observer (the handoff's POST). */
+  private readonly sendStops = new Map<string, () => (() => void) | null>();
+
   /**
-   * The person pressed Stop: end `key`'s turn locally when its send has not
-   * been accepted yet (see {@link ActiveStream.stopUnsent}). True when it did.
+   * The person pressed Stop: end `key`'s message locally when the engine has
+   * not accepted it yet (see {@link ActiveStream.stopUnsent}), a turn's or a
+   * handoff's. Answers the `finish` to call once the engine's cancel answered,
+   * or null when nothing was waiting.
    */
-  stopUnsent(key: string): boolean {
+  stopUnsent(key: string): (() => void) | null {
     const entry = this.active.get(key);
-    return entry?.kind === "turn" && entry.stopUnsent?.() === true;
+    if (entry?.kind === "turn" && entry.stopUnsent) return entry.stopUnsent();
+    return this.sendStops.get(key)?.() ?? null;
+  }
+  /** Arm `stop` for the send `key`'s observer handoff has out. */
+  armSendStop(key: string, stop: () => (() => void) | null): void {
+    this.sendStops.set(key, stop);
+  }
+  disarmSendStop(key: string, stop: () => (() => void) | null): void {
+    if (this.sendStops.get(key) === stop) this.sendStops.delete(key);
   }
   /** Remove `entry` only if it still owns `key` (a successor may have replaced it). */
   release(key: string, entry: ActiveStream): void {
@@ -119,6 +133,7 @@ export class StreamRegistry {
     for (const s of this.active.values()) s.dispose();
     this.active.clear();
     this.sending.clear();
+    this.sendStops.clear();
     this.wakeLeaving();
   }
 }

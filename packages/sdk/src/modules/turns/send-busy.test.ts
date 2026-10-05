@@ -390,10 +390,15 @@ test("Stop ends a message still waiting for room: no re-send after it", async ()
     tuning: { ...fast, sendBusyNoticeMs: 0 },
   });
   await waitFor(() => snapshot(key)?.sendWaiting === "busy");
-  expect(registry.stopUnsent(streamKey("Houston/Bo", key))).toBe(true);
-  await turn;
+  const finish = registry.stopUnsent(streamKey("Houston/Bo", key));
+  expect(finish).not.toBeNull();
   const sends = nonces.length;
+  // Nothing settles before the engine's cancel answered: a message queued
+  // behind this turn must not go out while that cancel could stop it.
   await new Promise((r) => setTimeout(r, 1_200));
+  expect(snapshot(key).boardStatus).not.toBe("needs_you");
+  finish?.();
+  await turn;
 
   expect(nonces.length).toBe(sends); // nothing goes out after Stop
   const vm = snapshot(key);
@@ -423,7 +428,7 @@ test("Stop leaves an accepted turn to the engine's own cancel", async () => {
   });
   await waitFor(() => accepted);
   await new Promise((r) => setTimeout(r, 10));
-  expect(registry.stopUnsent(streamKey("Houston/Bo", key))).toBe(false);
+  expect(registry.stopUnsent(streamKey("Houston/Bo", key))).toBeNull();
 });
 
 test("a teardown takes the busy line down at once", async () => {
@@ -443,4 +448,89 @@ test("a teardown takes the busy line down at once", async () => {
   await turn;
   await new Promise((r) => setTimeout(r, 50));
   expect(snapshot(key).sendWaiting).toBeUndefined();
+});
+
+test("Stop reaches the observer handoff's send while it is still out", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-handoff-stop";
+  let posts = 0;
+  const { engine } = busyEngine(0, async (o) => {
+    o.onEvent(sync(false, 3));
+    await untilAborted(o);
+  });
+  // The handoff's POST waits in the gateway's queue until aborted.
+  engine.sendMessage = ((
+    _id: string,
+    _text: string,
+    o?: { signal?: AbortSignal },
+  ) => {
+    posts++;
+    return new Promise((_resolve, reject) => {
+      o?.signal?.addEventListener(
+        "abort",
+        () => reject(new DOMException("aborted", "AbortError")),
+        { once: true },
+      );
+    });
+  }) as typeof engine.sendMessage;
+
+  observeConversation(engine, "Houston/Bo", key, output, 1, registry, fast);
+  await waitFor(
+    () => registry.get(streamKey("Houston/Bo", key))?.kind === "observer",
+  );
+  const turn = streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: fast,
+  });
+  await waitFor(() => posts === 1);
+  const finish = registry.stopUnsent(streamKey("Houston/Bo", key));
+  expect(finish).not.toBeNull();
+  finish?.();
+  await turn;
+  await new Promise((r) => setTimeout(r, 1_200));
+
+  expect(posts).toBe(1); // never re-sent
+  const vm = snapshot(key);
+  expect(vm.boardStatus).toBe("needs_you");
+  expect(vm.feed.some((f) => f.data === STOPPED_BY_USER)).toBe(true);
+});
+
+test("a stream that keeps failing while the send waits for room never ends the turn", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-busy-stream-refused";
+  let nonceSeen: () => string | undefined = () => undefined;
+  let accepted = false;
+  let connections = 0;
+  const refusedStream: Stream = async () => {
+    connections++;
+    throw new EngineError(
+      503,
+      JSON.stringify({ error: "engine unavailable", code: "pod_wake_refused" }),
+    );
+  };
+  const { engine, nonces } = busyEngine(2, async (o) => {
+    // Every connection fails until the send lands, far past the stream's
+    // eight-attempt budget.
+    if (!accepted) return refusedStream(o);
+    o.onEvent(sync(false, 0));
+    reply(o, nonceSeen(), 1);
+  });
+  nonceSeen = () => nonces[2];
+  const send = engine.sendMessage.bind(engine);
+  engine.sendMessage = (async (...args: Parameters<typeof send>) => {
+    const answer = await send(...args);
+    accepted = true;
+    return answer;
+  }) as typeof engine.sendMessage;
+
+  await streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    // Real waits between attempts: a zero draw with a refusal that throws at
+    // once would retry on microtasks alone and starve the send's timers.
+    tuning: {
+      ...fast,
+      backoff: { initialMs: 5, maxMs: 10, jitter: (cap) => cap },
+    },
+  });
+
+  expect(connections).toBeGreaterThan(8);
+  expect(snapshot(key).sessionStatus).toBe("completed");
 });

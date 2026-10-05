@@ -106,7 +106,7 @@ const COMPUTE_RETRY_MIN_MS = 500;
 /**
  * Issue one JSON request against `scope.baseUrl + path` and return the raw
  * `Response` on any 2xx; a non-2xx always throws (never a soft result). A
- * typed compute refusal is sent again, the same request, within
+ * write's typed compute refusal is sent again, the same request, within
  * {@link COMPUTE_RETRY_BUDGET_MS}: the gateway answers it only when nothing
  * ran, so a re-send can never apply a write twice.
  */
@@ -144,8 +144,17 @@ function computeRetryPause(
   retryAfterMs: number | undefined,
   init: RequestInit | undefined,
 ): number | undefined {
-  // Only a body fetch can send again: a stream is spent by the first try.
-  if (status !== 503 || !(init?.body == null || typeof init.body === "string"))
+  // Only a body fetch can send again: a stream is spent by the first try. A
+  // read keeps the one retry it already has: the host's fetch transport rides
+  // a waking ladder for GET and HEAD (the web adapter's transientRetryFetch),
+  // and a second ladder here would stack on it.
+  const method = (init?.method ?? "GET").toUpperCase();
+  if (
+    status !== 503 ||
+    method === "GET" ||
+    method === "HEAD" ||
+    !(init?.body == null || typeof init.body === "string")
+  )
     return undefined;
   const refusal = parseComputeRefusalText(body);
   if (!refusal) return undefined;

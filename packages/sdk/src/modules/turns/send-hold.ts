@@ -152,8 +152,13 @@ export async function observerSettled(
   key: string,
   observer: ActiveStream,
   tuning: StreamTuning | undefined,
+  /** The person's Stop of the held send: ends the wait early. */
+  stop?: AbortSignal,
 ): Promise<boolean> {
   const ac = new AbortController();
+  const end = () => ac.abort();
+  stop?.addEventListener("abort", end, { once: true });
+  if (stop?.aborted) ac.abort();
   await Promise.race([
     registry.left(key, observer, ac.signal),
     pause(
@@ -162,5 +167,6 @@ export async function observerSettled(
     ),
   ]);
   ac.abort();
+  stop?.removeEventListener("abort", end);
   return registry.get(key) !== observer;
 }

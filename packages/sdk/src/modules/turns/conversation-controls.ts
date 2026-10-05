@@ -52,10 +52,15 @@ export function createConversationControls(
     agentId: string,
   ): Promise<{ ok: boolean; cancelled: boolean }> => {
     // A message still waiting to go out (held behind a turn, or for room)
-    // stops here; the engine is asked too, in case it took it meanwhile.
-    const stopped = registry.stopUnsent(streamKey(agentId, conversationId));
-    const answer = await ctx.clientFor(agentId).cancel(conversationId);
-    return stopped ? { ...answer, cancelled: true } : answer;
+    // stops here; the engine is asked too, in case it took it meanwhile, and
+    // the turn settles only once it answered.
+    const finish = registry.stopUnsent(streamKey(agentId, conversationId));
+    try {
+      const answer = await ctx.clientFor(agentId).cancel(conversationId);
+      return finish ? { ...answer, cancelled: true } : answer;
+    } finally {
+      finish?.();
+    }
   };
 
   /**

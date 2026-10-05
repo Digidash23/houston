@@ -26,7 +26,8 @@ function controls(cancelled: boolean) {
 
 test("Stop ends a message still waiting to go out, and still asks the engine", async () => {
   const { cancel, registry, controls: c } = controls(false);
-  const stopUnsent = vi.fn(() => true);
+  const finish = vi.fn();
+  const stopUnsent = vi.fn(() => finish);
   registry.set(streamKey("a1", "c1"), {
     kind: "turn",
     dispose: () => {},
@@ -36,6 +37,11 @@ test("Stop ends a message still waiting to go out, and still asks the engine", a
   expect(await c.cancel("c1", "a1")).toEqual({ ok: true, cancelled: true });
   expect(stopUnsent).toHaveBeenCalledOnce();
   expect(cancel).toHaveBeenCalledWith("c1");
+  // The turn settles only once the engine's cancel answered.
+  expect(finish).toHaveBeenCalledOnce();
+  expect(cancel.mock.invocationCallOrder[0]).toBeLessThan(
+    finish.mock.invocationCallOrder[0] ?? 0,
+  );
 });
 
 test("with nothing waiting, Stop is the engine's answer alone", async () => {
@@ -43,7 +49,7 @@ test("with nothing waiting, Stop is the engine's answer alone", async () => {
   registry.set(streamKey("a1", "c1"), {
     kind: "turn",
     dispose: () => {},
-    stopUnsent: () => false, // accepted: the engine stops it
+    stopUnsent: () => null, // accepted: the engine stops it
   });
 
   expect(await c.cancel("c1", "a1")).toEqual({ ok: true, cancelled: false });

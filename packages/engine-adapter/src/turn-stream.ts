@@ -48,11 +48,14 @@ export function liveTurn(agentPath: string, sessionKey: string): LiveTurn {
 }
 
 /**
- * The person pressed Stop: end the conversation's turn here when its message
- * has not gone out yet (the SDK's `StreamRegistry.stopUnsent`). True when it
- * did.
+ * The person pressed Stop: end the conversation's message here when it has
+ * not gone out yet (the SDK's `StreamRegistry.stopUnsent`). Answers the
+ * `finish` to call once the engine's cancel answered, or null.
  */
-export function stopUnsentTurn(agentPath: string, sessionKey: string): boolean {
+export function stopUnsentTurn(
+  agentPath: string,
+  sessionKey: string,
+): (() => void) | null {
   return registry.stopUnsent(streamKey(agentPath, sessionKey));
 }
 

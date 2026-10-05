@@ -119,6 +119,18 @@ describe("httpRequest: the gateway's nothing-ran refusals", () => {
     expect(pauses).toEqual([7_000, 7_000]);
   });
 
+  it("leaves a read's refusal to the transport's own ladder", async () => {
+    const { scope, bodies } = makeScope([
+      json(503, { error: "engine unavailable", code: "pod_wake_refused" }),
+      json(200, {}),
+    ]);
+
+    await expect(
+      httpRequest(scope, "/agents/a1/routines", { method: "GET" }),
+    ).rejects.toBeInstanceOf(TestHttpError);
+    expect(bodies).toHaveLength(1);
+  });
+
   it("throws any other 503 at once, as before", async () => {
     const { scope, bodies } = makeScope([
       json(503, { error: "engine unavailable", detail: "agent is waking" }),

@@ -33,13 +33,19 @@ export function ChatControlsMixin<TBase extends BaseCtor>(Base: TBase) {
       // settled by its own `streamTurn` when the abort lands, so we leave its
       // status alone — writing it here too would race that terminal write.
       // A message still waiting to go out (held, or for room) stops locally
-      // first; the engine is asked too, in case it took it meanwhile.
-      const stoppedLocally = stopUnsentTurn(agentPath, sessionKey);
-      const { cancelled } = await this.ctx.sdk.turns.cancel(
-        sessionKey,
-        runtimeScope(this.ctx, agentPath),
-      );
-      if (stoppedLocally) return { cancelled: true };
+      // first; the engine is asked too, in case it took it meanwhile, and the
+      // turn settles only once it answered.
+      const finish = stopUnsentTurn(agentPath, sessionKey);
+      let cancelled: boolean;
+      try {
+        ({ cancelled } = await this.ctx.sdk.turns.cancel(
+          sessionKey,
+          runtimeScope(this.ctx, agentPath),
+        ));
+      } finally {
+        finish?.();
+      }
+      if (finish) return { cancelled: true };
       if (cancelled !== true) {
         // Orphan rescue: a user Stop on a dead turn — never a pending interaction.
         await setActivityStatus(

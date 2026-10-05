@@ -10,7 +10,7 @@ import { FirstResponseClock } from "./first-response";
 import { randomNonce } from "./random-nonce";
 import { computeBusyRefusal } from "./send-busy";
 import { observerSettled } from "./send-hold";
-import { sendUntilAccepted } from "./send-wait";
+import { armHandoffStop, sendUntilAccepted } from "./send-wait";
 import {
   type ActiveStream,
   PRESETTLED_POLL_MS,
@@ -27,6 +27,7 @@ import {
   engineVerdictMessage,
   isAmbiguousSendFailure,
   messageLimitRefusal,
+  STOPPED_BY_USER,
 } from "./turn-errors";
 import { isTurnRunningRejection, sendRefusal } from "./turn-running";
 import { TurnSink } from "./turn-sink";
@@ -233,6 +234,9 @@ export async function streamTurn(
   let sent = false;
   // The handoff send's busy refusal, re-sent held on the fresh path.
   let handoffRefusal: unknown;
+  // Set when the person stopped the handoff's send before it landed:
+  // resolves once the engine's cancel answered.
+  let stoppedBeforeSend: Promise<void> | undefined;
   if (prior?.kind === "observer") {
     // Claim the per-key send lock SYNCHRONOUSLY, before the first await: the
     // observer entry still holds the key across `sendMessage`, so without this a
@@ -251,21 +255,41 @@ export async function streamTurn(
       return;
     }
     after = prior.lastSeq;
+    // The key is the observer's until this send lands: a Stop meanwhile
+    // reaches this hook, not a turn entry.
+    const handoffStop = armHandoffStop(registry, key);
     let refusal: unknown;
     try {
-      await engine.sendMessage(sessionKey, prompt, sendOptions);
+      await engine.sendMessage(sessionKey, prompt, {
+        ...sendOptions,
+        signal: handoffStop.signal,
+      });
       sent = true;
     } catch (e) {
       refusal = e;
     }
+    const settledBehind =
+      !sent &&
+      isTurnRunningRejection(refusal) &&
+      handoffStop.stopped() === undefined &&
+      (await observerSettled(
+        registry,
+        key,
+        prior,
+        opts.tuning,
+        handoffStop.signal,
+      ));
+    stoppedBeforeSend = sent ? undefined : handoffStop.stopped();
+    handoffStop.disarm();
     if (sent) {
       if (registry.get(key) !== prior) firstResponse.dispose(); // torn down meanwhile
       prior.dispose();
       registry.delete(key);
-    } else if (computeBusyRefusal(refusal)) {
-      // The shared compute had no room: nothing ran. The fresh path below
-      // re-sends it, held, on the server's hint (`send-busy.ts`).
-      handoffRefusal = refusal;
+    } else if (stoppedBeforeSend || computeBusyRefusal(refusal)) {
+      // Stopped while out: the fresh path settles it once the engine's cancel
+      // answered. Or no room on the shared compute, nothing ran: the fresh
+      // path re-sends it, held, on the server's hint (`send-busy.ts`).
+      if (!stoppedBeforeSend) handoffRefusal = refusal;
       if (!registry.isSending(key)) {
         firstResponse.dispose(); // torn down while the send was out
         return;
@@ -276,10 +300,7 @@ export async function streamTurn(
         current.dispose();
         registry.delete(key);
       }
-    } else if (
-      isTurnRunningRejection(refusal) &&
-      (await observerSettled(registry, key, prior, opts.tuning))
-    ) {
+    } else if (settledBehind) {
       // Held behind the observed turn until its observer settled (the bubble
       // stayed pending, the send lock held). Send on the fresh path below,
       // which holds again through the cloud pool's claim lag.
@@ -374,6 +395,7 @@ export async function streamTurn(
   if (sent) sink.sendAccepted();
 
   let sendVerdict: ReturnType<typeof setTimeout> | undefined;
+  let spentWhileHeld = 0;
   try {
     const streaming = streamEventsResumable(engine, sessionKey, {
       signal: ac.signal,
@@ -383,7 +405,15 @@ export async function streamTurn(
         sink.onFrame(f);
       },
       onRetry: ({ consecutiveFailures, error }) => {
-        if (consecutiveFailures < STREAM_FAILURE_BUDGET) return;
+        // A held send (behind a turn, or waiting for room) has its own budget:
+        // the stream's failures meanwhile never end it, and it starts a fresh
+        // stream budget once accepted.
+        if (entry.held) {
+          spentWhileHeld = consecutiveFailures;
+          return;
+        }
+        if (consecutiveFailures - spentWhileHeld < STREAM_FAILURE_BUDGET)
+          return;
         // The engine has been unreachable for the whole budget: settle with
         // the engine's own verdict when the last attempt got one, else the
         // product copy. Never the raw transport error — a watchdog-aborted
@@ -397,7 +427,11 @@ export async function streamTurn(
     // Observe settlement even on the early-exit path (send rejected before
     // `await streaming`) so nothing becomes an unhandled rejection.
     streaming.catch(() => {});
-    if (!sent) {
+    if (stoppedBeforeSend) {
+      await stoppedBeforeSend;
+      sink.fail(STOPPED_BY_USER);
+      ac.abort();
+    } else if (!sent) {
       try {
         const accepted = await sendUntilAccepted({
           send: (signal) =>
