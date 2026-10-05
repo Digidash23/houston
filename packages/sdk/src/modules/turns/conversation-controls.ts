@@ -16,6 +16,7 @@
 import type { ModuleContext } from "../../module-context";
 import { createConversationImports } from "./conversation-imports";
 import { createConversationPrewarm } from "./conversation-prewarm";
+import { type StreamRegistry, streamKey } from "./stream-registry";
 import {
   asConversationInput,
   asSetModeInput,
@@ -34,7 +35,10 @@ export type DismissInteractionOutcome =
   | { ok: true }
   | { ok: false; refusal: "turn_running" };
 
-export function createConversationControls(ctx: ModuleContext) {
+export function createConversationControls(
+  ctx: ModuleContext,
+  registry: StreamRegistry,
+) {
   /**
    * Stops whatever an agent is currently doing in one chat.
    *
@@ -51,6 +55,21 @@ export function createConversationControls(ctx: ModuleContext) {
     agentId: string,
   ): Promise<{ ok: boolean; cancelled: boolean }> =>
     ctx.clientFor(agentId).cancel(conversationId);
+
+  /**
+   * The person's Stop, on this client, of a message in the chat that has not
+   * gone out yet (held behind a turn, or waiting for room). It ends the send
+   * at once and answers the `finish` to call once {@link cancel} answered,
+   * when the turn settles as stopped (so a message queued behind it can never
+   * meet that cancel); null when nothing here was waiting. Call it just
+   * before `cancel`, and `finish` in a `finally`. Local to this client: it
+   * reaches no route, and the cancel's answer stays the host's own.
+   */
+  const stopUnsent = (
+    conversationId: string,
+    agentId: string,
+  ): (() => void) | null =>
+    registry.stopUnsent(streamKey(agentId, conversationId));
 
   /**
    * Switches the mode the running turn acts under, mid-turn.
@@ -121,9 +140,19 @@ export function createConversationControls(ctx: ModuleContext) {
   ): Promise<{ ok: boolean; removed: number }> =>
     ctx.clientFor(agentId).truncateConversation(conversationId, turnId);
 
+  // The command is the whole Stop: a send still waiting here ends first, and
+  // settles once the engine's cancel answered. The answer stays the host's.
+  const stopAndCancel = async (conversationId: string, agentId: string) => {
+    const finish = stopUnsent(conversationId, agentId);
+    try {
+      return await cancel(conversationId, agentId);
+    } finally {
+      finish?.();
+    }
+  };
   ctx.registerCommand("turns/cancel", (payload) => {
     const ref = asConversationInput(payload, "turns/cancel");
-    return cancel(ref.conversationId, ref.agentId);
+    return stopAndCancel(ref.conversationId, ref.agentId);
   });
   ctx.registerCommand("turns/setMode", (payload) => {
     const input = asSetModeInput(payload);
@@ -140,6 +169,7 @@ export function createConversationControls(ctx: ModuleContext) {
 
   return {
     cancel,
+    stopUnsent,
     setMode,
     dismissInteraction,
     truncate,

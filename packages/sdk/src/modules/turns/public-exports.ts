@@ -40,6 +40,11 @@ export {
 } from "./first-response";
 export { type FeedFrame, historyToFeed } from "./history";
 export { observeConversation } from "./observe-stream";
+export {
+  COMPUTE_BUSY_MESSAGE,
+  computeBusyRefusal,
+  type SendWaitReason,
+} from "./send-busy";
 export { TURN_DIED_MESSAGE } from "./settle-from-history";
 export {
   SEND_IN_FLIGHT_MESSAGE,

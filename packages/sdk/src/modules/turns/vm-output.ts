@@ -6,6 +6,8 @@ import type {
   FeedOutput,
   SessionStatusValue,
 } from "./feed-output";
+import type { SendWaitReason } from "./send-busy";
+import type { EngineNoticeKind } from "./turn-errors";
 
 /**
  * The SDK's built-in {@link FeedOutput}: folds one conversation's pushes into a
@@ -58,6 +60,7 @@ export interface FeedMention {
 interface HistoryFrame {
   feed_type: string;
   data: unknown;
+  notice?: EngineNoticeKind;
   ts?: number;
   author?: FeedAuthor;
   mentions?: FeedMention[];
@@ -130,6 +133,12 @@ export interface FeedItemVM {
    */
   turnId?: string;
   /**
+   * Why the engine authored this `system_message`, when it did: a surface
+   * renders its own copy by kind, `data` being the English default (a restart,
+   * a send refused for good). Optional/additive: absent on every other entry.
+   */
+  notice?: EngineNoticeKind;
+  /**
    * This entry's index among its turn's `tool_call`s / `tool_result`s — with
    * {@link turnId}, the identity that pairs a replayed tool row with the entry
    * it duplicates (tool rows are many-per-turn). Optional/additive, tool rows
@@ -180,6 +189,13 @@ export interface ConversationVM {
    * message count at the last read.
    */
   historyWindow?: HistoryWindowVM;
+  /**
+   * A message this client sent is still waiting to start, and why (additive;
+   * absent when nothing waits). `busy`: the cloud's shared compute has had no
+   * room for it for a while, and the SDK keeps re-sending it. A surface says
+   * so in place of its usual thinking line; the turn is still in flight.
+   */
+  sendWaiting?: SendWaitReason;
 }
 
 /** See {@link ConversationVM.historyWindow}. */
@@ -198,6 +214,7 @@ interface ConvState {
   streaming: Map<string, string>;
   queued: QueuedMessageVM[];
   historyWindow?: HistoryWindowVM;
+  sendWaiting?: SendWaitReason;
 }
 
 /** Final feed_type -> the streaming feed_type it finalizes. */
@@ -389,6 +406,7 @@ export class ConversationVmOutput implements FeedOutput {
       ...(f.author !== undefined ? { author: f.author } : {}),
       ...(f.mentions !== undefined ? { mentions: f.mentions } : {}),
       ...(f.turnId !== undefined ? { turnId: f.turnId } : {}),
+      ...(f.notice !== undefined ? { notice: f.notice } : {}),
       ...(f.toolIndex !== undefined ? { toolIndex: f.toolIndex } : {}),
     };
   }
@@ -405,9 +423,11 @@ export class ConversationVmOutput implements FeedOutput {
       mentions,
       turnId,
       toolIndex,
+      notice,
     } = item as {
       feed_type: string;
       data: unknown;
+      notice?: EngineNoticeKind;
       ts?: number;
       pending?: boolean;
       fails_pending?: boolean;
@@ -454,6 +474,7 @@ export class ConversationVmOutput implements FeedOutput {
         ...(mentions !== undefined ? { mentions } : {}),
         ...(turnId !== undefined ? { turnId } : {}),
         ...(toolIndex !== undefined ? { toolIndex } : {}),
+        ...(notice !== undefined ? { notice } : {}),
       });
     }
     this.publish(agentPath, sessionKey, s);
@@ -742,6 +763,17 @@ export class ConversationVmOutput implements FeedOutput {
     return true;
   }
 
+  sendWaiting(
+    agentPath: string,
+    sessionKey: string,
+    reason: SendWaitReason | null,
+  ): void {
+    const s = this.state(agentPath, sessionKey);
+    if ((s.sendWaiting ?? null) === reason) return;
+    s.sendWaiting = reason ?? undefined;
+    this.publish(agentPath, sessionKey, s);
+  }
+
   /** Replace the conversation's queued-message list (the send queue's seam). */
   setQueued(
     agentPath: string,
@@ -762,6 +794,7 @@ export class ConversationVmOutput implements FeedOutput {
       pendingInteraction: s.pendingInteraction,
       ...(s.queued.length ? { queued: s.queued.map((q) => ({ ...q })) } : {}),
       ...(s.historyWindow ? { historyWindow: { ...s.historyWindow } } : {}),
+      ...(s.sendWaiting ? { sendWaiting: s.sendWaiting } : {}),
     };
     const scope = conversationScope(agentPath, sessionKey);
     this.store.publish(scope, snapshot);

@@ -141,6 +141,7 @@ export async function writeCachedConversation(
         // against a live replay of the same turn.
         ...(f.turnId !== undefined ? { turnId: f.turnId } : {}),
         ...(f.toolIndex !== undefined ? { toolIndex: f.toolIndex } : {}),
+        ...(f.notice !== undefined ? { notice: f.notice } : {}),
       })),
       updatedAt: Date.now(),
     });

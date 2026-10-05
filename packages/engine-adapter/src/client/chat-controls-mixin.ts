@@ -4,7 +4,7 @@ import type {
   ConversationImportResult,
 } from "@houston/wire-types";
 import { DEFAULT_AGENT_PATH } from "../synthetic";
-import { truncateConversationVm } from "../turn-stream";
+import { stopUnsentTurn, truncateConversationVm } from "../turn-stream";
 import { setActivityStatus } from "./activity-status";
 import { runtimeScope } from "./chat-scope";
 import { importConversation, retryPendingImports } from "./conversation-import";
@@ -32,10 +32,20 @@ export function ChatControlsMixin<TBase extends BaseCtor>(Base: TBase) {
       // that case settle the card ourselves. A genuinely live turn (`true`) is
       // settled by its own `streamTurn` when the abort lands, so we leave its
       // status alone — writing it here too would race that terminal write.
-      const { cancelled } = await this.ctx.sdk.turns.cancel(
-        sessionKey,
-        runtimeScope(this.ctx, agentPath),
-      );
+      // A message still waiting to go out (held, or for room) stops locally
+      // first; the engine is asked too, in case it took it meanwhile, and the
+      // turn settles only once it answered.
+      const finish = stopUnsentTurn(agentPath, sessionKey);
+      let cancelled: boolean;
+      try {
+        ({ cancelled } = await this.ctx.sdk.turns.cancel(
+          sessionKey,
+          runtimeScope(this.ctx, agentPath),
+        ));
+      } finally {
+        finish?.();
+      }
+      if (finish) return { cancelled: true };
       if (cancelled !== true) {
         // Orphan rescue: a user Stop on a dead turn — never a pending interaction.
         await setActivityStatus(

@@ -66,9 +66,9 @@ export function createTurnsModule(
   });
   const { send, observe, history } = operations;
   // The one-shot conversation controls (stop / mode / dismiss / rewind /
-  // prewarm) register their own commands; they share the module's context and
-  // nothing else.
-  const controls = createConversationControls(ctx);
+  // prewarm) register their own commands; they share the module's client cache
+  // and nothing else.
+  const controls = createConversationControls(ctx, registry);
   // Per instance like the stream registry: typing sessions and the ids minted
   // for new chats belong to this SDK's composers alone.
   const clock = ctx.config.ports.clock;
