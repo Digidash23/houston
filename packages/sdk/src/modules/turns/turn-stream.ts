@@ -7,8 +7,11 @@ import type { HoustonEngineClient } from "@houston/runtime-client";
 import { streamEventsResumable } from "@houston/runtime-client";
 import type { FeedOutput } from "./feed-output";
 import { FirstResponseClock } from "./first-response";
+import type { PersonStop } from "./person-stop";
 import { randomNonce } from "./random-nonce";
-import { observerSettled, sendHolding } from "./send-hold";
+import { computeBusyRefusal } from "./send-busy";
+import { observerSettled } from "./send-hold";
+import { armHandoffStop, sendUntilAccepted } from "./send-wait";
 import {
   type ActiveStream,
   PRESETTLED_POLL_MS,
@@ -25,6 +28,7 @@ import {
   engineVerdictMessage,
   isAmbiguousSendFailure,
   messageLimitRefusal,
+  STOPPED_BY_USER,
 } from "./turn-errors";
 import { isTurnRunningRejection, sendRefusal } from "./turn-running";
 import { TurnSink } from "./turn-sink";
@@ -229,6 +233,29 @@ export async function streamTurn(
   // turnId source) included, even if the observer consumed it before disposal.
   let after: number | undefined;
   let sent = false;
+  // The handoff send's busy refusal, re-sent held on the fresh path, and
+  // when that send went out.
+  let handoffRefusal: unknown;
+  let handoffSentAt: number | undefined;
+  // Set when the person stopped the handoff's send before it landed:
+  // resolves once the engine's cancel answered.
+  let stoppedBeforeSend: PersonStop | undefined;
+  const refuseDuplicate = () => {
+    // The duplicate never sent a second turn — fail its optimistic bubble so
+    // it never reads as delivered (the first turn keeps rendering).
+    output.pushFeedItem(agentPath, sessionKey, {
+      feed_type: "system_message",
+      data: SEND_IN_FLIGHT_MESSAGE,
+      fails_pending: true,
+    });
+    firstResponse.resolve("error");
+  };
+  if (prior?.kind !== "observer" && registry.isSending(key)) {
+    // Another send still hands off on this key, its observer gone meanwhile:
+    // never a second real send beside it.
+    refuseDuplicate();
+    return;
+  }
   if (prior?.kind === "observer") {
     // Claim the per-key send lock SYNCHRONOUSLY, before the first await: the
     // observer entry still holds the key across `sendMessage`, so without this a
@@ -236,32 +263,65 @@ export async function streamTurn(
     // a second real send + attach a second sink (double render). The loser fails
     // fast; the observer keeps rendering the running turn.
     if (!registry.beginSend(key)) {
-      // The duplicate never sent a second turn — fail its optimistic bubble so
-      // it never reads as delivered (the first turn keeps rendering).
-      output.pushFeedItem(agentPath, sessionKey, {
-        feed_type: "system_message",
-        data: SEND_IN_FLIGHT_MESSAGE,
-        fails_pending: true,
-      });
-      firstResponse.resolve("error");
+      refuseDuplicate();
       return;
     }
     after = prior.lastSeq;
+    // The key is the observer's until this send lands: a Stop meanwhile
+    // reaches this hook, not a turn entry.
+    // A Stop disposes the observer at once: a terminal frame it already has
+    // must not report the conversation idle before the cancel answered.
+    const handoffStop = armHandoffStop(registry, key, () => prior.dispose());
     let refusal: unknown;
+    const sentAt = Date.now();
     try {
-      await engine.sendMessage(sessionKey, prompt, sendOptions);
+      await engine.sendMessage(sessionKey, prompt, {
+        ...sendOptions,
+        signal: handoffStop.signal,
+      });
       sent = true;
     } catch (e) {
       refusal = e;
     }
+    const settledBehind =
+      !sent &&
+      isTurnRunningRejection(refusal) &&
+      handoffStop.stopped() === undefined &&
+      (await observerSettled(
+        registry,
+        key,
+        prior,
+        opts.tuning,
+        handoffStop.signal,
+      ));
+    // A Stop wins even over a 202 that landed in its tick: the engine's
+    // cancel stops the turn it took, and nothing settles before it answered.
+    stoppedBeforeSend = handoffStop.stopped();
+    if (stoppedBeforeSend) sent = false;
+    handoffStop.disarm();
     if (sent) {
       if (registry.get(key) !== prior) firstResponse.dispose(); // torn down meanwhile
       prior.dispose();
       registry.delete(key);
-    } else if (
-      isTurnRunningRejection(refusal) &&
-      (await observerSettled(registry, key, prior, opts.tuning))
-    ) {
+    } else if (stoppedBeforeSend || computeBusyRefusal(refusal)) {
+      // Stopped while out: the fresh path settles it once the engine's cancel
+      // answered. Or no room on the shared compute, nothing ran: the fresh
+      // path re-sends it, held, on the server's hint (`send-busy.ts`).
+      if (!stoppedBeforeSend) {
+        handoffRefusal = refusal;
+        handoffSentAt = sentAt;
+      }
+      if (!registry.isSending(key)) {
+        firstResponse.dispose(); // torn down while the send was out
+        return;
+      }
+      // The observer must not keep streaming beside this turn.
+      const current = registry.get(key);
+      if (current?.kind === "observer") {
+        current.dispose();
+        registry.delete(key);
+      }
+    } else if (settledBehind) {
       // Held behind the observed turn until its observer settled (the bubble
       // stayed pending, the send lock held). Send on the fresh path below,
       // which holds again through the cloud pool's claim lag.
@@ -332,6 +392,10 @@ export async function streamTurn(
   // The turn stream now owns the key — release the handoff send lock (a no-op
   // for the fresh path, which never claimed it).
   registry.endSend(key);
+  // The observer may have settled the turn it watched while our send was
+  // out: this turn runs from here (held, waiting, or accepted).
+  if (prior?.kind === "observer")
+    output.sessionStatus(agentPath, sessionKey, "running");
 
   const sink = new TurnSink({
     agentPath,
@@ -354,47 +418,76 @@ export async function streamTurn(
     firstResponse,
   });
   if (sent) sink.sendAccepted();
+  // A teardown ends the sink at once: a history reload still out publishes
+  // nothing while the rest of this turn unwinds.
+  ac.signal.addEventListener("abort", () => sink.dispose(), { once: true });
 
   let sendVerdict: ReturnType<typeof setTimeout> | undefined;
+  // A send the engine has not taken yet (still out, held behind a turn, or
+  // waiting for room) has its own budget: the stream's failures meanwhile
+  // never end the turn, and the stream's own budget starts once it is taken.
+  let sendOut = !sent;
+  let spentUnsent = 0;
   try {
-    const streaming = streamEventsResumable(engine, sessionKey, {
-      signal: ac.signal,
-      after,
-      onEvent: (f) => {
-        if (typeof f.seq === "number") entry.lastSeq = f.seq;
-        sink.onFrame(f);
-      },
-      onRetry: ({ consecutiveFailures, error }) => {
-        if (consecutiveFailures < STREAM_FAILURE_BUDGET) return;
-        // The engine has been unreachable for the whole budget: settle with
-        // the engine's own verdict when the last attempt got one, else the
-        // product copy. Never the raw transport error — a watchdog-aborted
-        // hang rejects with WebKit's "Fetch is aborted", which is developer
-        // speak, not a message (HOU-705).
-        sink.fail(engineVerdictMessage(error) ?? STREAM_LOST_MESSAGE);
-        ac.abort();
-      },
-      ...opts.tuning,
-    });
+    // A handoff stopped before the engine had it streams nothing: an idle
+    // resync could settle it before the cancel answered.
+    const streaming = stoppedBeforeSend
+      ? Promise.resolve()
+      : streamEventsResumable(engine, sessionKey, {
+          signal: ac.signal,
+          after,
+          onEvent: (f) => {
+            spentUnsent = 0; // a delivered frame zeroes the transport's count too
+            if (typeof f.seq === "number") entry.lastSeq = f.seq;
+            sink.onFrame(f);
+          },
+          onRetry: ({ consecutiveFailures, error }) => {
+            if (sendOut) {
+              spentUnsent = consecutiveFailures;
+              return;
+            }
+            if (consecutiveFailures - spentUnsent < STREAM_FAILURE_BUDGET)
+              return;
+            // The engine has been unreachable for the whole budget: settle with
+            // the engine's own verdict when the last attempt got one, else the
+            // product copy. Never the raw transport error — a watchdog-aborted
+            // hang rejects with WebKit's "Fetch is aborted", which is developer
+            // speak, not a message (HOU-705).
+            sink.fail(engineVerdictMessage(error) ?? STREAM_LOST_MESSAGE);
+            ac.abort();
+          },
+          ...opts.tuning,
+        });
     // Observe settlement even on the early-exit path (send rejected before
     // `await streaming`) so nothing becomes an unhandled rejection.
     streaming.catch(() => {});
-    if (!sent) {
+    if (stoppedBeforeSend) {
+      const stopped = stoppedBeforeSend;
+      entry.held = true; // the queue watchdog flushes nothing into the cancel
+      entry.stopUnsent = () => stopped.join(); // a second Stop joins the wait
+      await stopped.settleWith(() => {
+        if (!ac.signal.aborted) sink.fail(STOPPED_BY_USER); // not after a teardown
+      });
+      ac.abort();
+    } else if (!sent) {
       try {
-        const accepted = await sendHolding(
-          () => engine.sendMessage(sessionKey, prompt, sendOptions),
+        const accepted = await sendUntilAccepted({
+          send: (signal) =>
+            engine.sendMessage(sessionKey, prompt, { ...sendOptions, signal }),
           sink,
-          ac.signal,
-          opts.tuning,
-          () => {
-            sink.holdSend();
-            entry.held = true;
-          },
-        ).finally(() => {
-          entry.held = false;
+          entry,
+          ac,
+          tuning: opts.tuning,
+          output,
+          agentPath,
+          sessionKey,
+          firstRefusal: handoffRefusal,
+          firstSentAt: handoffSentAt,
         });
+        sendOut = false;
         sink.sendAccepted(accepted.turnId);
       } catch (e) {
+        sendOut = false;
         // A definitive failure (engine verdict / our abort) settles below.
         if (!isAmbiguousSendFailure(e)) throw e;
         // Transport failure — the engine may be running the turn regardless.
@@ -411,8 +504,9 @@ export async function streamTurn(
     // A rejected send (e.g. the runtime refusing a not-connected turn with
     // 409), a fatal stream refusal (FatalResumeError), or a throwing frame
     // handler: settle with the engine's plain message so the spinner stops
-    // and the reason surfaces.
-    if (!sink.settled) {
+    // and the reason surfaces. Every settle aborts after it, so an abort with
+    // nothing settled is a teardown: a late refusal then settles nothing.
+    if (!sink.settled && !ac.signal.aborted) {
       const limit = messageLimitRefusal(e);
       if (limit) sink.planLimit(limit);
       else {

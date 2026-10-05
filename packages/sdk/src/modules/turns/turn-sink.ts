@@ -1,6 +1,7 @@
 import type { PendingInteraction, WireFrame } from "@houston/runtime-client";
 import type { MessageLimitRefusal } from "@houston/wire-types";
 import type { TerminalBoardStatus } from "./feed-output";
+import { PreAcceptTurn } from "./pre-accept-turn";
 import { PresettlePoll } from "./presettle-poll";
 import { SendHoldState } from "./send-hold-state";
 import { presettleFromHistory, reloadAndSettle } from "./settle-from-history";
@@ -55,11 +56,21 @@ export class TurnSink {
   private readonly poll: PresettlePoll;
   /** Turn mode: a send held behind another turn (`send-hold-state.ts`). */
   private readonly held = new SendHoldState();
+  /** Turn mode: the running turn seen before the 202 (`pre-accept-turn.ts`). */
+  private readonly preAccept = new PreAcceptTurn();
+  /** No frame or history settle publishes ({@link mute}, {@link dispose}). */
+  private muted = false;
+  /** Callers waiting for the first evidence the turn runs ({@link whenStarted}). */
+  private readonly onStarted: Array<() => void> = [];
 
   constructor(private readonly o: TurnSinkOptions) {
     this.poll = new PresettlePoll(o.presettledPollMs, {
       canArm: () =>
-        this.accepted && !this.sawRunning && !this.settling && !this.s.settled,
+        this.accepted &&
+        !this.sawRunning &&
+        !this.settling &&
+        !this.s.settled &&
+        !this.muted,
       check: () => this.presettleCheck(),
     });
     this.s = newTurnState(o.agentPath, o.sessionKey, o.output, {
@@ -98,20 +109,35 @@ export class TurnSink {
    */
   holdSend(): void {
     this.held.hold();
+    this.preAccept.clear();
     this.poll.cancel();
   }
   /**
-   * Turn mode: the send returned 202 — a running turn may now be OURS. After
-   * a hold, the 202's turn id binds it: a pool turn can fail before it echoes,
-   * and a held send adopts no stray terminal frame.
+   * Turn mode: the person stopped a send the engine had not accepted. No
+   * frame renders or settles the turn from here on, its own echo included:
+   * until the cancel answered, a settle would flush a queued message into
+   * that cancel. The turn then settles as stopped (`fail`).
+   */
+  mute(): void {
+    this.muted = true;
+    this.poll.cancel();
+    this.preAccept.clear(); // a muted sink claims nothing; release what it kept
+  }
+  /**
+   * Turn mode: the send returned 202 — its turn id is authoritative. A pool
+   * turn can fail before it echoes, so the 202 binds the sink before any
+   * replay or later frame can be classified as ours.
    */
   sendAccepted(turnId?: string): void {
     this.held.release();
-    if (this.held.wasHeld) this.adoptTurnId(turnId);
+    const frames = this.preAccept.claim(turnId);
+    if (turnId !== undefined) this.adoptTurnId(turnId);
     this.accepted = true;
     // The engine acknowledged the send — the message reached it, so the
     // optimistic bubble is delivered even if the turn later errors.
     this.s.delivered = true;
+    // The stream showed this turn running before the 202 named it ours.
+    for (const ev of frames) this.fold(ev);
     // The send landed while the stream already showed a fresh idle sync: the
     // turn may have completed before we attached — arm the pre-settled poll.
     this.poll.arm();
@@ -125,6 +151,8 @@ export class TurnSink {
   sendMaybeAccepted(): void {
     // The re-send of a held message may have landed: frames are ours again.
     this.held.release();
+    // No 202 will name a turn now: nothing kept can be claimed.
+    this.preAccept.clear();
     this.accepted = true;
     // If the engine did accept it and the turn already finished, the pre-settled
     // poll can settle it conclusively — faster than the ambiguous-send verdict
@@ -151,14 +179,25 @@ export class TurnSink {
   }
 
   onFrame(ev: WireFrame): void {
+    if (this.muted) return;
     // Another turn's terminal frame: the conversation is (about to be) free.
     // An idle sync is NOT counted: the cloud pool's turnlog tail reports
     // `running: false` mid-turn.
     this.held.note(ev, this.s.turnId, this.accepted);
     // Our own echo ends the hold even when it beats the re-send's 202.
-    if (this.held.holding && !this.isOwnEcho(ev)) return;
+    if (this.held.holding && !this.isOwnEcho(ev)) {
+      this.preAccept.keepWhileHeld(ev);
+      return;
+    }
+    this.fold(ev);
+  }
+
+  /** Fold one frame past the hold gate (live, or replayed by the 202). */
+  private fold(ev: WireFrame): void {
+    if (this.muted) return;
+    if (this.preAccept.shouldIgnore(ev)) return;
     if (ev.type === "sync") {
-      this.onSync(ev.data);
+      this.onSync(ev);
       return;
     }
     if (ev.type === "user") {
@@ -184,7 +223,10 @@ export class TurnSink {
           this.adoptTurnId(ev.turnId);
           break;
         }
-        return; // another turn's frame — never fold it into ours
+        // Another turn's frame, never folded into ours. While our send is
+        // out it may still turn out to be ours: kept for the 202.
+        if (!this.accepted) this.preAccept.keep(ev);
+        return;
       case "boundary":
         // A new turn owns the stream: OUR turn is over and its terminal frame
         // was lost — settle exactly, from persisted history by our turnId.
@@ -194,7 +236,7 @@ export class TurnSink {
         break;
     }
     if (ev.type !== "done" && ev.type !== "error") {
-      this.sawRunning = true;
+      this.markStarted();
       this.s.delivered = true; // a real frame proves the turn started
       this.poll.cancel(); // stream evidence: the poll's job is done
     }
@@ -217,7 +259,7 @@ export class TurnSink {
       this.adoptTurnId(ev.turnId);
       this.held.release();
       this.accepted = true;
-      this.sawRunning = true;
+      this.markStarted();
       this.s.delivered = true; // the engine echoed our send — it landed
       this.poll.cancel(); // the turn is demonstrably live on the stream
       return;
@@ -228,21 +270,17 @@ export class TurnSink {
     }
   }
 
-  private onSync(data: {
-    running: boolean;
-    partial: string;
-    resync?: boolean;
-    turnId?: string;
-    thinking?: string;
-    tools?: SyncTool[];
-  }): void {
+  private onSync(ev: WireFrame & { type: "sync" }): void {
+    const data = ev.data;
     // Any sync after the first is a reconnect catch-up: seq servers only
     // re-sync when our cursor was unserviceable (`resync: true`), legacy
     // servers on every reconnect. Either way the frames in between are LOST.
     const reconnect = this.sawSync || data.resync === true;
     this.sawSync = true;
+    // A new connection: whatever ran before it, the 202 may only claim this.
+    this.preAccept.clear();
     if (data.running) {
-      this.onRunningSync(data);
+      this.onRunningSync(ev);
       return;
     }
     if (!reconnect) {
@@ -263,6 +301,10 @@ export class TurnSink {
         // attached. Reinforce the poll (already armed by an accepted send).
         this.poll.arm();
       }
+    } else if (this.o.mode === "turn" && !this.accepted && !this.sawRunning) {
+      // Our send is still out (a POST can sit a minute in the gateway's
+      // queue): nothing of ours ran, so nothing ended. Its acceptance arms the
+      // pre-settled poll; a refusal settles the turn itself.
     } else if (this.o.mode === "turn" || this.sawRunning) {
       // The turn ended while we were disconnected; persisted history is
       // complete once a turn ends — settle from it, not from partial text.
@@ -275,16 +317,15 @@ export class TurnSink {
     }
   }
 
-  private onRunningSync(data: {
-    partial: string;
-    turnId?: string;
-    thinking?: string;
-    tools?: SyncTool[];
-  }): void {
+  private onRunningSync(ev: WireFrame & { type: "sync" }): void {
+    const data = ev.data;
     const mayAdopt = this.o.mode === "observer" || this.accepted;
     switch (classifyRunningSync(this.s.turnId, data.turnId, mayAdopt)) {
       case "foreign":
-        return; // another writer's turn, seen pre-send — not ours to render
+        // Seen before our send was accepted: another writer's turn, or ours
+        // with the echo folded in. Not rendered; kept for the 202 to claim.
+        this.preAccept.keepSync(ev);
+        return;
       case "boundary":
         this.settleFromHistorySoon(); // ours ended; a new turn runs
         return;
@@ -384,7 +425,7 @@ export class TurnSink {
         "running",
       );
     }
-    this.sawRunning = true;
+    this.markStarted();
     this.s.delivered = true; // a running sync proves the turn is live on the engine
     this.poll.cancel(); // a running turn on the stream: the poll is moot
   }
@@ -404,6 +445,7 @@ export class TurnSink {
   private adoptTurnId(turnId: string | undefined): void {
     if (turnId === undefined) return;
     this.s.turnId ??= turnId;
+    this.preAccept.clear(); // our turn is known: nothing left to claim
     if (this.o.mode === "turn")
       this.o.output.stampUserTurn?.(
         this.o.agentPath,
@@ -423,6 +465,7 @@ export class TurnSink {
       this.o.historyGuard,
       this.o.stop,
       (turnId) => this.adoptTurnId(turnId),
+      () => !this.muted, // a reload a Stop overtook settles nothing
     );
   }
 
@@ -433,7 +476,7 @@ export class TurnSink {
       this.o.reloadHistory,
       this.s.turnId,
       this.o.historyGuard,
-      () => this.sawRunning,
+      () => this.sawRunning || this.muted,
       (turnId) => this.adoptTurnId(turnId),
     );
     if (settled) {
@@ -443,8 +486,30 @@ export class TurnSink {
     return settled;
   }
 
-  /** Teardown: clear the poll timer so an aborted stream leaves nothing pending. */
+  /**
+   * Run `cb` once the turn is first seen running (our echo, its frames, or a
+   * running sync it adopted): at once if it already was.
+   */
+  whenStarted(cb: () => void): void {
+    if (this.sawRunning) cb();
+    else this.onStarted.push(cb);
+  }
+
+  private markStarted(): void {
+    if (this.sawRunning) return;
+    this.sawRunning = true;
+    for (const cb of this.onStarted.splice(0)) cb();
+  }
+
+  /**
+   * Teardown: an aborted stream leaves nothing pending. The poll timer is
+   * cleared, and a history reload still in flight publishes nothing: an
+   * observer disposed for a new turn must not report the conversation idle
+   * under it.
+   */
   dispose(): void {
+    this.muted = true;
     this.poll.cancel();
+    this.preAccept.clear();
   }
 }

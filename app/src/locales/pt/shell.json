@@ -55,7 +55,8 @@
       "menu": "Ações para {{name}}",
       "rename": "Renomear",
       "move": "Mover para outro espaço",
-      "delete": "Excluir grupo"
+      "delete": "Excluir grupo",
+      "empty": "Arraste um funcionário de IA para cá"
     },
     "teamIcons": {
       "bank": "Banco",
@@ -495,6 +496,11 @@
     "waiting": "Aguardando o login no navegador...",
     "signInAgain": "Entrar novamente",
     "launchError": "Não foi possível abrir o login. Tente de novo."
+  },
+  "providerReconnectNotice": {
+    "dueIn_one": "Sua sessão no {{provider}} termina em {{count}} dia.",
+    "dueIn_other": "Sua sessão no {{provider}} termina em {{count}} dias.",
+    "dueToday": "Sua sessão no {{provider}} termina hoje."
   },
   "agentProvisioning": {
     "title": "Estamos criando seu funcionário de IA",

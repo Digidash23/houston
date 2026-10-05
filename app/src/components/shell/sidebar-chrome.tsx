@@ -18,5 +18,6 @@ export function buildSidebarLabels(t: SidebarChromeT): SidebarLabels {
     dragKeyboardMovedInGroup: t("shell:sidebar.drag.keyboardMovedInGroup"),
     dragKeyboardEnteredGroup: t("shell:sidebar.drag.keyboardEnteredGroup"),
     dragKeyboardLeftGroup: t("shell:sidebar.drag.keyboardLeftGroup"),
+    emptyGroup: t("shell:sidebar.teams.empty"),
   };
 }

@@ -2,6 +2,7 @@ import type { SessionStartRequest } from "@houston/engine-adapter";
 import { maybeQueueSend } from "@houston/engine-adapter/send-queue";
 import {
   disposeAllStreams,
+  observeConversation,
   streamTurn,
 } from "@houston/engine-adapter/turn-stream";
 import { conversationStore } from "@houston/engine-adapter/vm";
@@ -166,4 +167,101 @@ it("never flushes over a held send, even past the grace", async () => {
   expect(probe).toHaveBeenCalled();
   expect(dispatched).toHaveLength(0);
   expect(running()).toBe(true);
+});
+
+it("keeps a follow-up queued behind a handoff whose observed turn ends mid-POST", async () => {
+  // An observer watches the previous turn; the person's message hands off
+  // over it and waits in the gateway's queue, a follow-up queues behind it,
+  // the previous turn ends, and the message is refused for room, then lands.
+  const emits: Array<(f: WireFrame) => void> = [];
+  const nonces: Array<string | undefined> = [];
+  let refuse: (e: unknown) => void = () => {};
+  const engine = {
+    async streamEvents(_id: string, o: EventStreamOptions) {
+      emits.push(o.onEvent);
+      if (emits.length === 1)
+        o.onEvent({
+          type: "sync",
+          data: { running: true, partial: "", turnId: "t-prev", seq: 3 },
+          seq: 3,
+        });
+      await new Promise<void>((resolve) => {
+        o.signal?.addEventListener("abort", () => resolve(), { once: true });
+      });
+    },
+    sendMessage(_id: string, _text: string, opts?: { nonce?: string }) {
+      nonces.push(opts?.nonce);
+      if (nonces.length === 1)
+        return new Promise((_resolve, reject) => {
+          refuse = reject;
+        });
+      const own = emits[emits.length - 1];
+      queueMicrotask(() => {
+        own?.({
+          type: "user",
+          data: { content: "first", ts: 1, nonce: opts?.nonce },
+          turnId: "t-mine",
+          seq: 5,
+        });
+        own?.({ type: "text", data: "Reply", turnId: "t-mine", seq: 6 });
+        own?.({ type: "done", data: null, turnId: "t-mine", seq: 7 });
+      });
+      return Promise.resolve({ turnId: "t-mine" });
+    },
+    async getHistory() {
+      return { id: "c", title: "", messages: [] };
+    },
+  } as unknown as HoustonEngineClient;
+
+  observeConversation(engine, AGENT, key, async () => {}, 1, {
+    idleTimeoutMs: 600_000,
+  });
+  await vi.advanceTimersByTimeAsync(0);
+  const turn = streamTurn(engine, AGENT, key, "first", async () => {}, {
+    tuning: { idleTimeoutMs: 600_000 },
+  });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(nonces).toHaveLength(1);
+  maybeQueueSend(
+    AGENT,
+    { sessionKey: key, prompt: "follow-up" },
+    dispatch,
+    async () => [],
+  );
+
+  emits[0]?.({ type: "done", data: null, turnId: "t-prev", seq: 4 });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(dispatched).toHaveLength(0);
+  // The VM reads idle now, but a message typed meanwhile still queues.
+  expect(running()).toBe(false);
+  expect(
+    maybeQueueSend(
+      AGENT,
+      { sessionKey: key, prompt: "typed later" },
+      dispatch,
+      async () => [],
+    ),
+  ).toBe(true);
+
+  refuse(
+    new EngineError(
+      503,
+      JSON.stringify({
+        error: "engine unavailable",
+        code: "compute_busy",
+        retryAfterMs: 1_000,
+      }),
+    ),
+  );
+  await vi.advanceTimersByTimeAsync(500);
+  expect(dispatched).toHaveLength(0);
+  expect(running()).toBe(true);
+
+  await vi.advanceTimersByTimeAsync(2_000);
+  await turn;
+  expect(nonces).toHaveLength(2);
+  expect(new Set(nonces).size).toBe(1);
+  expect(dispatched).toHaveLength(1);
+  expect(dispatched[0]?.prompt).toContain("follow-up");
+  expect(dispatched[0]?.prompt).toContain("typed later");
 });

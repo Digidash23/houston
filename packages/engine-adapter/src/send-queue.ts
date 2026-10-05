@@ -1,15 +1,12 @@
 import { isAutoContinue } from "@houston/protocol";
 import type { ChatMessage } from "@houston/runtime-client";
-import {
-  type ConversationVM,
-  conversationScope,
-  type QueuedMessageVM,
-} from "@houston/sdk";
+import { conversationScope, type QueuedMessageVM } from "@houston/sdk";
 import type { SessionStartRequest } from "@houston/wire-types";
+import { conversationBusy } from "./conversation-busy";
 import { armQueueWatchdog, disarmQueueWatchdog } from "./queue-watchdog";
 import { mergeSendFields } from "./send-queue-merge";
 import { armSettleWatcher, disarmSettleWatcher } from "./settle-watcher";
-import { conversationStore, conversationVm } from "./vm";
+import { conversationVm } from "./vm";
 
 /**
  * Queue-while-running: a send that arrives while the conversation's turn is
@@ -64,14 +61,6 @@ function publishQueued(agentPath: string, sessionKey: string): void {
   );
 }
 
-/** Whether this conversation's VM currently shows a running turn. */
-function conversationRunning(agentPath: string, sessionKey: string): boolean {
-  const snap = conversationStore.getSnapshot(
-    conversationScope(agentPath, sessionKey),
-  ) as ConversationVM | undefined;
-  return snap?.running === true;
-}
-
 /**
  * Bracket a DISPATCHED auto-resume turn's lifetime: while one is in flight, a
  * duplicate resume (another mounted reconnect card firing off the same login
@@ -107,7 +96,7 @@ export function maybeQueueSend(
   dispatch: (req: SessionStartRequest) => void,
   probe?: () => Promise<ChatMessage[]>,
 ): boolean {
-  if (!conversationRunning(agentPath, req.sessionKey)) return false;
+  if (!conversationBusy(agentPath, req.sessionKey)) return false;
   const k = queueKey(agentPath, req.sessionKey);
   const entries = queues.get(k) ?? [];
   if (
@@ -180,7 +169,9 @@ export function flushQueuedSends(
   sessionKey: string,
   dispatch: (req: SessionStartRequest) => void,
 ): void {
-  if (conversationRunning(agentPath, sessionKey)) return;
+  // A send still waiting to go out keeps its place: the queue goes after it,
+  // from its own settle or the watchdog's next probe.
+  if (conversationBusy(agentPath, sessionKey)) return;
   const k = queueKey(agentPath, sessionKey);
   const all = queues.get(k);
   if (!all || all.length === 0) return;

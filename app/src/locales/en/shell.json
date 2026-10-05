@@ -55,7 +55,8 @@
       "menu": "Actions for {{name}}",
       "rename": "Rename",
       "move": "Move to another space",
-      "delete": "Delete group"
+      "delete": "Delete group",
+      "empty": "Drag an AI Employee here"
     },
     "teamIcons": {
       "bank": "Bank",
@@ -495,6 +496,11 @@
     "waiting": "Waiting for browser sign-in...",
     "signInAgain": "Sign in again",
     "launchError": "Could not open sign-in. Try again."
+  },
+  "providerReconnectNotice": {
+    "dueIn_one": "Your {{provider}} session ends in {{count}} day.",
+    "dueIn_other": "Your {{provider}} session ends in {{count}} days.",
+    "dueToday": "Your {{provider}} session ends today."
   },
   "agentProvisioning": {
     "title": "We are creating your AI Employee",

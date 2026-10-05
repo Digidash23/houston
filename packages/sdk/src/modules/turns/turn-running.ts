@@ -1,4 +1,5 @@
 import { EngineError } from "@houston/runtime-client";
+import { COMPUTE_BUSY_MESSAGE, computeBusyRefusal } from "./send-busy";
 import {
   type EngineNoticeKind,
   engineVerdictMessage,
@@ -38,13 +39,16 @@ export const SEND_BUSY_MESSAGE =
 
 /**
  * The chat line for a refused send: the typed busy notice for a hold that ran
- * out of budget, else the engine's own message (see `turnErrorMessage`).
+ * out of budget (a running turn, or no room on the shared compute), else the
+ * engine's own message (see `turnErrorMessage`).
  */
 export function sendRefusal(e: unknown): {
   message: string;
   notice?: EngineNoticeKind;
 } {
-  return isTurnRunningRejection(e)
-    ? { message: SEND_BUSY_MESSAGE, notice: "send_busy" }
-    : { message: turnErrorMessage(e) };
+  if (isTurnRunningRejection(e))
+    return { message: SEND_BUSY_MESSAGE, notice: "send_busy" };
+  if (computeBusyRefusal(e))
+    return { message: COMPUTE_BUSY_MESSAGE, notice: "compute_busy" };
+  return { message: turnErrorMessage(e) };
 }

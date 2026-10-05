@@ -5,7 +5,11 @@ import type { KeyboardEvent } from "react";
 import { SidebarGroupHeader } from "./sidebar-group-header";
 import type { SidebarGroupView } from "./sidebar-groups";
 import { SidebarItemRow } from "./sidebar-item-row";
-import { sidebarRowNeighbour } from "./sidebar-paint";
+import {
+  sidebarBlockGap,
+  sidebarMemberGuide,
+  sidebarRowNeighbour,
+} from "./sidebar-paint";
 import type { SidebarItem } from "./sidebar-props";
 import type { SidebarRowContext } from "./sidebar-row-context";
 import {
@@ -23,6 +27,9 @@ export interface SidebarTreeRowViewProps {
   ghost: SidebarTreeRow | null;
   /** The rail cannot store a move: the row is not draggable. */
   disabled?: boolean;
+  /** Starts a block (a folder, or root employees after one): spaced off the
+   *  row above. */
+  opensBlock?: boolean;
   onActivateGroup?: (groupId: string) => void;
   onKeyboardMove?: (
     activeKey: string,
@@ -42,6 +49,7 @@ export function SidebarTreeRowView({
   ctx,
   ghost,
   disabled = false,
+  opensBlock = false,
   onActivateGroup,
   onKeyboardMove,
 }: SidebarTreeRowViewProps) {
@@ -99,6 +107,8 @@ export function SidebarTreeRowView({
         "relative touch-manipulation",
         sidebarRowNeighbour,
         member && "sidebar-disclosure-in",
+        inGroup && sidebarMemberGuide,
+        opensBlock && sidebarBlockGap,
         sortable.isDragging && "opacity-40",
       )}
     >
