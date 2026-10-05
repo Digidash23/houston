@@ -3,6 +3,13 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v123 - 2026-10-05
+
+An open folder on the desktop rail with no AI Employees shows a muted "Drag an
+AI Employee here" line under its header. Before, folding an empty folder changed
+nothing on screen, and the employees right below it looked like its members.
+Phones have no rail; their group filter already says how to fill an empty group.
+
 ## v122 - 2026-10-04
 
 Routine run history explains expired delivery in English, Spanish and Portuguese

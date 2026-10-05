@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 122
+version: 123
 
 components:
   - id: agent-delegation-settings
@@ -1294,7 +1294,7 @@ components:
   - id: sidebar-team-block
     title: Sidebar group block
     purpose: A personal folder in the AI Employees rail.
-    anatomy: [header-row, group-glyph, group-name, disclosure-caret, rollup-badge, folder-menu, agent-rows]
+    anatomy: [header-row, group-glyph, group-name, disclosure-caret, rollup-badge, folder-menu, agent-rows, empty-hint]
     states: [resting, expanded, collapsed, collapsed-rollup, menu-open, drop-target, empty, renaming]
     variants: [named-group]
     behavior: >-
@@ -1312,7 +1312,11 @@ components:
       and depth it will land in; there are no drop lines or highlighted
       targets. A sideways drag of 20px moves the ghost one level in or out,
       which is how an employee enters a collapsed group or leaves a group
-      after its last member.
+      after its last member. An open folder with no members shows one muted
+      line under its header asking for an AI Employee to be dragged in, so
+      folding it visibly changes the rail and root employees below it never
+      read as its members. Folding hides the line, and it is absent wherever
+      nothing can be dragged yet.
       A folder header is 28px tall around a 20px glyph column with a 14px
       group mark. An AI Employee is a person row laid out like a message
       list: 64px around a 40px portrait, 12px from every edge of its pill,
