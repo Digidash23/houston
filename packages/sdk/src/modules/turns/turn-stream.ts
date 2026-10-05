@@ -401,34 +401,40 @@ export async function streamTurn(
   let sendOut = !sent;
   let spentUnsent = 0;
   try {
-    const streaming = streamEventsResumable(engine, sessionKey, {
-      signal: ac.signal,
-      after,
-      onEvent: (f) => {
-        spentUnsent = 0; // a delivered frame zeroes the transport's count too
-        if (typeof f.seq === "number") entry.lastSeq = f.seq;
-        sink.onFrame(f);
-      },
-      onRetry: ({ consecutiveFailures, error }) => {
-        if (sendOut) {
-          spentUnsent = consecutiveFailures;
-          return;
-        }
-        if (consecutiveFailures - spentUnsent < STREAM_FAILURE_BUDGET) return;
-        // The engine has been unreachable for the whole budget: settle with
-        // the engine's own verdict when the last attempt got one, else the
-        // product copy. Never the raw transport error — a watchdog-aborted
-        // hang rejects with WebKit's "Fetch is aborted", which is developer
-        // speak, not a message (HOU-705).
-        sink.fail(engineVerdictMessage(error) ?? STREAM_LOST_MESSAGE);
-        ac.abort();
-      },
-      ...opts.tuning,
-    });
+    // A handoff stopped before the engine had it streams nothing: an idle
+    // resync could settle it before the cancel answered.
+    const streaming = stoppedBeforeSend
+      ? Promise.resolve()
+      : streamEventsResumable(engine, sessionKey, {
+          signal: ac.signal,
+          after,
+          onEvent: (f) => {
+            spentUnsent = 0; // a delivered frame zeroes the transport's count too
+            if (typeof f.seq === "number") entry.lastSeq = f.seq;
+            sink.onFrame(f);
+          },
+          onRetry: ({ consecutiveFailures, error }) => {
+            if (sendOut) {
+              spentUnsent = consecutiveFailures;
+              return;
+            }
+            if (consecutiveFailures - spentUnsent < STREAM_FAILURE_BUDGET)
+              return;
+            // The engine has been unreachable for the whole budget: settle with
+            // the engine's own verdict when the last attempt got one, else the
+            // product copy. Never the raw transport error — a watchdog-aborted
+            // hang rejects with WebKit's "Fetch is aborted", which is developer
+            // speak, not a message (HOU-705).
+            sink.fail(engineVerdictMessage(error) ?? STREAM_LOST_MESSAGE);
+            ac.abort();
+          },
+          ...opts.tuning,
+        });
     // Observe settlement even on the early-exit path (send rejected before
     // `await streaming`) so nothing becomes an unhandled rejection.
     streaming.catch(() => {});
     if (stoppedBeforeSend) {
+      entry.held = true; // the queue watchdog flushes nothing into the cancel
       await stoppedBeforeSend;
       sink.fail(STOPPED_BY_USER);
       ac.abort();

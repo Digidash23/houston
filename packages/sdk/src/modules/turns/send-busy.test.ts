@@ -398,6 +398,8 @@ test("Stop ends a message still waiting for room: no re-send after it", async ()
   // behind this turn must not go out while that cancel could stop it.
   await new Promise((r) => setTimeout(r, 1_200));
   expect(snapshot(key).boardStatus).not.toBe("needs_you");
+  // Held meanwhile, so the queue watchdog flushes nothing into that cancel.
+  expect(registry.get(streamKey("Houston/Bo", key))?.held).toBe(true);
   finish?.();
   await turn;
 
@@ -658,4 +660,112 @@ test("a send waiting for room reads as held, so the queue watchdog leaves it", a
   });
 
   expect(heldWhileWaiting).toBe(true);
+});
+
+test("a stopped handoff streams nothing and stays held until the cancel answered", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-handoff-stop-wait";
+  let connections = 0;
+  const { engine } = busyEngine(
+    0,
+    // The observer, mid-turn at seq 3.
+    async (o) => {
+      connections++;
+      o.onEvent({
+        type: "sync",
+        data: { running: true, partial: "", turnId: "t-prev", seq: 3 },
+        seq: 3,
+      });
+      await untilAborted(o);
+    },
+    // A subscription from the observer's cursor would open on an idle resync:
+    // "the turn ended unexpectedly", before the cancel answered.
+    async (o) => {
+      connections++;
+      o.onEvent({
+        type: "sync",
+        data: { running: false, partial: "", resync: true, seq: 4 },
+        seq: 4,
+      });
+      await untilAborted(o);
+    },
+  );
+  let posted = false;
+  engine.sendMessage = ((
+    _id: string,
+    _text: string,
+    o?: { signal?: AbortSignal },
+  ) => {
+    posted = true;
+    return new Promise((_resolve, reject) => {
+      o?.signal?.addEventListener(
+        "abort",
+        () => reject(new DOMException("aborted", "AbortError")),
+        { once: true },
+      );
+    });
+  }) as typeof engine.sendMessage;
+
+  observeConversation(engine, "Houston/Bo", key, output, 1, registry, fast);
+  await waitFor(
+    () => registry.get(streamKey("Houston/Bo", key))?.kind === "observer",
+  );
+  const turn = streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: fast,
+  });
+  await waitFor(() => posted);
+  const finish = registry.stopUnsent(streamKey("Houston/Bo", key));
+  await waitFor(
+    () => registry.get(streamKey("Houston/Bo", key))?.kind === "turn",
+  );
+  await new Promise((r) => setTimeout(r, 100));
+
+  expect(connections).toBe(1);
+  expect(registry.get(streamKey("Houston/Bo", key))?.held).toBe(true);
+  expect(snapshot(key).boardStatus).not.toBe("needs_you");
+  expect(snapshot(key).boardStatus).not.toBe("error");
+  finish?.();
+  await turn;
+
+  const vm = snapshot(key);
+  expect(vm.boardStatus).toBe("needs_you");
+  expect(vm.feed.some((f) => f.data === STOPPED_BY_USER)).toBe(true);
+});
+
+test("a Stop during the first send holds the turn until the cancel answered", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-first-send-stop";
+  const { engine } = busyEngine(0, async (o) => {
+    o.onEvent(sync(false, 0));
+    await untilAborted(o);
+  });
+  let posted = false;
+  // The first POST waits in the gateway's queue until aborted.
+  engine.sendMessage = ((
+    _id: string,
+    _text: string,
+    o?: { signal?: AbortSignal },
+  ) => {
+    posted = true;
+    return new Promise((_resolve, reject) => {
+      o?.signal?.addEventListener(
+        "abort",
+        () => reject(new DOMException("aborted", "AbortError")),
+        { once: true },
+      );
+    });
+  }) as typeof engine.sendMessage;
+
+  const turn = streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: fast,
+  });
+  await waitFor(() => posted);
+  const finish = registry.stopUnsent(streamKey("Houston/Bo", key));
+  await new Promise((r) => setTimeout(r, 50));
+  expect(registry.get(streamKey("Houston/Bo", key))?.held).toBe(true);
+  expect(snapshot(key).boardStatus).not.toBe("needs_you");
+  finish?.();
+  await turn;
+
+  expect(snapshot(key).feed.some((f) => f.data === STOPPED_BY_USER)).toBe(true);
 });

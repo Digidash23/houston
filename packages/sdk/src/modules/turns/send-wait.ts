@@ -81,6 +81,10 @@ export async function sendUntilAccepted(
   entry.stopUnsent = () => {
     if (sink.settled || stop) return null;
     stop = new PersonStop();
+    // Held until the cancel answered: no frame but this message's own settles
+    // it, and the queue watchdog flushes nothing into that cancel.
+    sink.holdSend();
+    entry.held = true;
     post.abort();
     hold.abort();
     return stop.finish;
@@ -102,7 +106,6 @@ export async function sendUntilAccepted(
     );
   } catch (e) {
     if (stop) {
-      entry.held = false;
       clearBusy();
       await stop.answered;
       sink.fail(STOPPED_BY_USER); // a no-op when frames settled it meanwhile
