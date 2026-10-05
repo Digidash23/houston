@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SdkConfig, SdkPorts } from "../../ports";
 import { HoustonSdk } from "../../sdk";
+import { createSpanClock } from "../../span-clock";
 import { memoryKv } from "../../test-ports";
 import { asPrewarmInput, TurnsHttpError } from "./conversation-prewarm";
 import { PREWARM_REFRESH_MS } from "./draft-prewarm";
@@ -38,7 +39,12 @@ function sdk(answer: () => Response = () => json(202, LAUNCHING)) {
     devicePreferences: memoryKv(),
     clock: {
       now: () => now,
-      monotonic: () => elapsed,
+      // What the adapter supplies: the span over the wall clock and a
+      // monotonic one that stops while the machine sleeps.
+      monotonic: createSpanClock(
+        () => now,
+        () => elapsed,
+      ),
       setTimeout: () => 0,
       clearTimeout: () => {},
     },
@@ -53,6 +59,10 @@ function sdk(answer: () => Response = () => json(202, LAUNCHING)) {
   const setWallClock = (ms: number) => {
     now += ms;
   };
+  /** The machine sleeps: the wall clock runs, the monotonic one stops. */
+  const sleep = (ms: number) => {
+    now += ms;
+  };
   const client = new HoustonSdk(config);
   type Draft = Parameters<typeof client.turns.draftChanged>[0];
   /** Types on, a keystroke every 250 ms, until just short of the typing
@@ -63,7 +73,7 @@ function sdk(answer: () => Response = () => json(202, LAUNCHING)) {
       advance(250);
     }
   };
-  return { client, calls, advance, setWallClock, typeUpTo };
+  return { client, calls, advance, setWallClock, sleep, typeUpTo };
 }
 
 const json = (status: number, body: unknown) =>
@@ -188,6 +198,45 @@ describe("turns.draftChanged and claimNewConversationId", () => {
       { conversationPrewarm: true },
     );
     expect(calls).toHaveLength(1);
+  });
+
+  it("a system sleep ends a hold the monotonic clock missed", async () => {
+    const { client, calls, advance, sleep, typeUpTo } = sdk();
+    const draft = {
+      agentId: "sales",
+      draftKey: "activity-c1",
+      conversationId: "activity-c1",
+      text: "h",
+    };
+    await typeUpTo(draft);
+    await client.turns.draftChanged(draft, { conversationPrewarm: true });
+    expect(calls).toHaveLength(1);
+    advance(10_000);
+    sleep(60_000);
+    await client.turns.draftChanged(
+      { ...draft, text: "he" },
+      { conversationPrewarm: true },
+    );
+    expect(calls).toHaveLength(1);
+  });
+
+  it("a system sleep ends an unfinished typing run", async () => {
+    const { client, calls, advance, sleep } = sdk();
+    const draft = {
+      agentId: "sales",
+      draftKey: "activity-c1",
+      conversationId: "activity-c1",
+      text: "h",
+    };
+    const caps = { conversationPrewarm: true };
+    await client.turns.draftChanged(draft, caps);
+    advance(1_000);
+    await client.turns.draftChanged({ ...draft, text: "he" }, caps);
+    sleep(60_000);
+    await client.turns.draftChanged({ ...draft, text: "hel" }, caps);
+    advance(500);
+    await client.turns.draftChanged({ ...draft, text: "hell" }, caps);
+    expect(calls).toEqual([]);
   });
 
   it("asks nothing of a deployment without the capability", async () => {

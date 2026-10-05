@@ -96,5 +96,6 @@ export type {
   SdkPorts,
 } from "./ports";
 export { HoustonSdk } from "./sdk";
+export { createSpanClock } from "./span-clock";
 export type { EventListener, SdkEvent, SnapshotListener } from "./store";
 export { ScopeStore } from "./store";

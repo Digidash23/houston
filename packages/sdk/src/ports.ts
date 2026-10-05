@@ -34,8 +34,9 @@ export interface Clock {
   /** Current wall-clock time in milliseconds since the Unix epoch. */
   now(): number;
   /**
-   * Milliseconds on a clock that never goes back (`performance.now()`), for
-   * measuring how long something took when a wall clock corrected backwards
+   * Milliseconds on a clock that never goes back and keeps counting through
+   * system sleep ({@link createSpanClock}), for measuring how long something
+   * took when a wall clock set back, or a monotonic clock paused in sleep,
    * would lie. Absent, {@link now} stands in.
    */
   monotonic?(): number;

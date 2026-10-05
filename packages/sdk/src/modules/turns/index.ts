@@ -74,8 +74,8 @@ export function createTurnsModule(
   const clock = ctx.config.ports.clock;
   const drafts = new DraftPrewarm({
     prewarm: controls.prewarm,
-    // Typing runs and holds are spans of time: a wall clock set back would
-    // stretch them.
+    // Typing runs and holds are spans of time: a wall clock set back, or a
+    // monotonic one paused in sleep, would stretch them.
     now: () => clock.monotonic?.() ?? clock.now(),
     mintId: randomNonce,
   });
