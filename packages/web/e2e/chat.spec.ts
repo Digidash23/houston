@@ -31,12 +31,13 @@ const agentRow = (page: Page, text: string): Locator =>
     .filter({ hasText: text });
 
 /**
- * Pace of the canned reply's deltas for the specs that act mid-turn (drop,
- * turn boundary, kill). The turn lasts 3 x this after its first delta, and the
- * spec must act inside it. A loaded CI runner took 2.5 s from Enter to the first
- * delta on screen, so 800 ms (a 2.4 s turn) let the turn end first.
+ * Config for the specs that act mid-turn (drop, turn boundary, kill). The fake
+ * host holds the turn after its first delta until the spec's control releases
+ * it: a loaded CI runner opened the chat stream only after a 7.5 s paced turn
+ * had ended, so no fixed pace can promise the turn is still running. The pace
+ * still spreads the deltas that follow the release.
  */
-const MID_TURN_DELAY_MS = 2_500;
+const MID_TURN_CONFIG = { replyDelayMs: 2_500, holdAfterFirstDelta: true };
 
 test("sends a message and renders the streamed reply", async ({ page }) => {
   await page.goto("/");
@@ -136,9 +137,9 @@ test("recovers a dropped stream mid-turn and renders the full reply", async ({
   page,
   request,
 }) => {
-  // Slow the canned reply so the drop lands mid-turn.
+  // Hold the turn after its first delta so the drop lands mid-turn.
   await request.post(`${FAKE_HOST_URL}/__test__/chat-config`, {
-    data: { replyDelayMs: MID_TURN_DELAY_MS },
+    data: MID_TURN_CONFIG,
   });
   await page.goto("/");
   await openNewMission(page);
@@ -179,7 +180,7 @@ test("settles the interrupted turn from history by turnId across a turn boundary
   request,
 }) => {
   await request.post(`${FAKE_HOST_URL}/__test__/chat-config`, {
-    data: { replyDelayMs: MID_TURN_DELAY_MS },
+    data: MID_TURN_CONFIG,
   });
   await page.goto("/");
   await openNewMission(page);
@@ -220,7 +221,7 @@ test("a dead turn settles as an error with the reaper's message", async ({
   request,
 }) => {
   await request.post(`${FAKE_HOST_URL}/__test__/chat-config`, {
-    data: { replyDelayMs: MID_TURN_DELAY_MS },
+    data: MID_TURN_CONFIG,
   });
   await page.goto("/");
   await openNewMission(page);
