@@ -125,6 +125,19 @@ export function openAgentSettings(
   });
 }
 
+/**
+ * Open one employee's API access screen (Settings, one level down): the AI
+ * Manager's hands-on card for connecting an employee to the person's own code.
+ * Same gate and roster wait as {@link openAgentSettings}.
+ */
+export function openAgentApiAccess(
+  agentId: string,
+  opts?: OpenAgentOptions,
+): void {
+  useAgentSettingsNav.getState().setApiAccessFor(agentId);
+  openAgentSettings(agentId, "manage", opts);
+}
+
 /** Write a resolved destination to the nav. */
 function openDestination(dest: AgentDestination): void {
   const ui = useUIStore.getState();

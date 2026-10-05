@@ -33,6 +33,7 @@ import {
 import { useCopyAgent } from "../agent-actions/use-copy-agent";
 import { SettingsCard, SettingsRow } from "../settings/settings-row";
 import { useSidebarLayout } from "../shell/../../hooks/use-sidebar-layout";
+import { useAgentSettingsNav } from "../team-view/agent-settings-nav-store";
 import { useMoveAgentTeam } from "../team-view/use-move-agent-team";
 import { AgentApiAccess } from "./agent-api-access";
 
@@ -60,9 +61,8 @@ export function AgentSettingsManage({ agent }: { agent: Agent }) {
   const [copyOpen, setCopyOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const apiAvailable = apiKeysSupported(useCapabilities().capabilities);
-  // Keyed on the agent so switching employees never lands inside another
-  // employee's API access screen.
-  const [apiFor, setApiFor] = useState<string | null>(null);
+  const apiFor = useAgentSettingsNav((s) => s.apiAccessFor);
+  const setApiFor = useAgentSettingsNav((s) => s.setApiAccessFor);
 
   // Both writes reject AFTER `call()` has toasted the failure and reported it
   // to Sentry, so there is exactly one user-visible surface already. Awaiting

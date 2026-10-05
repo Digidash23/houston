@@ -1,6 +1,10 @@
-import { BookOpen, Bot, Building2, KeyRound } from "lucide-react";
+import { apiSetupPrompt } from "@houston/sdk";
+import { Button } from "@houston-ai/core";
+import { BookOpen, Bot, Building2, Check, Copy, KeyRound } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DEVELOPER_DOCS } from "../../lib/agent-connect-model";
+import { genericErrorDescription } from "../../lib/error-report";
 import { tauriSystem } from "../../lib/tauri";
 import type { Agent } from "../../lib/types";
 import { useUIStore } from "../../stores/ui";
@@ -26,6 +30,34 @@ export function AgentApiAccess({
 }) {
   const { t } = useTranslation(["settings", "teams"]);
   const { slug, failed } = useOrgSlug();
+  const addToast = useUIStore((s) => s.addToast);
+  const [copied, setCopied] = useState(false);
+  // The hosted gateway the person's code calls; this screen only mounts there.
+  const baseUrl = window.__HOUSTON_ENGINE__?.baseUrl ?? null;
+  const prompt =
+    baseUrl && slug
+      ? apiSetupPrompt({
+          baseUrl,
+          agentId: agent.id,
+          agentName: agent.name,
+          orgId: slug,
+        })
+      : null;
+
+  async function copyPrompt() {
+    if (!prompt) return;
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopied(true);
+      addToast({ title: t("settings:apiKeys.agentAccess.promptCopied") });
+    } catch (err) {
+      addToast({
+        title: t("settings:apiKeys.agentAccess.promptCopyFailed"),
+        description: genericErrorDescription("copy_api_prompt", err),
+        variant: "error",
+      });
+    }
+  }
 
   return (
     <section>
@@ -36,8 +68,19 @@ export function AgentApiAccess({
       <h2 className="mt-4 text-lg font-semibold text-ink">
         {t("settings:apiKeys.agentAccess.title")}
       </h2>
-      <p className="mt-1 mb-4 text-sm text-ink-muted">
+      <p className="mt-1 text-sm text-ink-muted">
         {t("settings:apiKeys.agentAccess.intro", { name: agent.name })}
+      </p>
+      <Button
+        className="mt-4"
+        disabled={!prompt}
+        onClick={() => void copyPrompt()}
+      >
+        {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+        {t("settings:apiKeys.agentAccess.copyPrompt")}
+      </Button>
+      <p className="mt-2 mb-6 text-xs text-ink-muted">
+        {t("settings:apiKeys.agentAccess.promptHint")}
       </p>
       <SettingsCard>
         <CopyIdRow

@@ -121,6 +121,22 @@ test("an AI Employee's API access opens from its Settings and leads to the keys"
   ).toBeVisible();
   await expect(page.getByText("Agent ID", { exact: true })).toBeVisible();
   await expect(page.getByText(PERSONAL_SLUG)).toBeVisible();
+
+  // The prompt carries both IDs and the key's env var, never a key, and
+  // copying it mints nothing.
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  let minted = false;
+  page.on("request", (req) => {
+    if (req.method() === "POST" && req.url().includes("/v1/keys"))
+      minted = true;
+  });
+  await page.getByRole("button", { name: "Copy prompt for AI agent" }).click();
+  const prompt = await page.evaluate(() => navigator.clipboard.readText());
+  expect(prompt).toContain(`x-houston-org: ${PERSONAL_SLUG}`);
+  expect(prompt).toContain("HOUSTON_API_KEY");
+  expect(prompt).not.toMatch(/hst_[0-9a-f]/);
+  expect(minted).toBe(false);
+
   // Back returns to the Settings card, then in again for the keys door.
   // The section strip also has a "Settings" tab; the way back lives in the body.
   await page
