@@ -47,6 +47,18 @@ export function liveTurn(agentPath: string, sessionKey: string): LiveTurn {
   return entry?.kind === "turn" ? "streaming" : "none";
 }
 
+/**
+ * The person pressed Stop: end the conversation's message here when it has
+ * not gone out yet (the SDK's `StreamRegistry.stopUnsent`). Answers the
+ * `finish` to call once the engine's cancel answered, or null.
+ */
+export function stopUnsentTurn(
+  agentPath: string,
+  sessionKey: string,
+): (() => void) | null {
+  return registry.stopUnsent(streamKey(agentPath, sessionKey));
+}
+
 /** Abort every live conversation stream this adapter owns (WS teardown seam). */
 export function disposeAllStreams(): void {
   registry.disposeAll();
