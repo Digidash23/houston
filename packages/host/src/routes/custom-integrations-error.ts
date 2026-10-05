@@ -2,6 +2,8 @@ import type { ServerResponse } from "node:http";
 import { CustomIntegrationError } from "../integrations/custom/types";
 import { json } from "./http";
 
+/** Map manager failures to stable JSON bodies. Runtime tools and UI classify
+ *  on `code`, never bare statuses; unrecognized errors remain the caller's. */
 export function customErrorAnswer(err: unknown) {
   if (!(err instanceof CustomIntegrationError)) return null;
   return {

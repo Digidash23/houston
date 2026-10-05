@@ -11,6 +11,7 @@ import {
   prepareOAuthOp,
   startOAuthOp,
 } from "./oauth-ops";
+import { removeCustomIntegration } from "./remove-op";
 import type { CustomSecretStore } from "./secrets";
 import type { CustomIntegrationStore } from "./store";
 import { toolsOf } from "./tools";
@@ -46,7 +47,7 @@ export class CustomIntegrationManager {
     private readonly onChanged: (changedSlug: string) => void,
     /** OAuth sign-in (PRODUCT-1172): the browser-reachable callback URL —
      *  absent on deployments that cannot receive the redirect — the state
-     *  routing prefix for gateway-fronted pods, and a fetch seam for tests. */
+     *  routing prefix for gateway-fronted hosts and workers, and a fetch seam. */
     private readonly oauth: {
       callbackUrl?: string;
       statePrefix?: string;
@@ -70,10 +71,13 @@ export class CustomIntegrationManager {
     return this.oauth.callbackUrl !== undefined;
   }
 
+  /** Prepare without storing pending state; the caller owns attempt custody. */
   async prepareOAuth(slug: string) {
     return prepareOAuthOp(this.oauthDeps(), await this.defOr404(slug));
   }
 
+  /** The gateway has already consumed and validated this attempt. Serialize
+   *  its writes with replace/remove/credential changes, as local callbacks do. */
   completeOAuthWith(
     attempt: CustomOAuthAttempt,
     code: string,
@@ -88,6 +92,8 @@ export class CustomIntegrationManager {
     );
   }
 
+  /** Mint the authorize URL for a host-local sign-in. The attempt stays in
+   *  memory; tokens and definitions become durable only at completion. */
   async startOAuth(slug: string): Promise<{ authorizeUrl: string }> {
     return startOAuthOp(this.oauthDeps(), await this.defOr404(slug));
   }
@@ -168,23 +174,9 @@ export class CustomIntegrationManager {
   }
 
   remove(slug: string): Promise<void> {
-    return this.serialize(() => this.removeLocked(slug));
-  }
-
-  private async removeLocked(slug: string): Promise<void> {
-    const def = await this.defOr404(slug);
-    await this.store.remove(slug);
-    for (const id of Object.values(def.credential?.secretIds ?? {})) {
-      await this.secrets.delete(id);
-    }
-    const { executor, states } = await this.host.ensure();
-    states.delete(slug);
-    if (def.kind === "openapi") {
-      await executor.openapi.removeSpec(slug).catch(() => undefined);
-    } else {
-      await executor.mcp.removeServer(slug).catch(() => undefined);
-    }
-    this.onChanged(slug);
+    return this.serialize(async () =>
+      removeCustomIntegration(this.oauthDeps(), await this.defOr404(slug)),
+    );
   }
 
   private async defOr404(slug: string): Promise<CustomIntegrationDef> {

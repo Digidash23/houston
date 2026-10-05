@@ -72,6 +72,8 @@ export async function customIntegrationContext(
     (slug) => {
       touched.add(slug);
     },
+    // An older gateway omits callback custody; its add/detect routes decline
+    // to the pod, whose in-memory attempt owns the browser return leg.
     op.customOAuthCallbackUrl
       ? {
           callbackUrl: op.customOAuthCallbackUrl,

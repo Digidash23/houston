@@ -59,7 +59,8 @@ export async function applyRouteOp(
   // decoded form against the allowlist).
   const decoded = decodeURIComponent(rest);
   const include = routeScope(filesystem, decoded);
-  // Older gateways cannot receive a worker-owned sign-in.
+  // Adding an OAuth definition advertises a capability this deployment
+  // must honor. Without gateway callback custody, decline before any write.
   if (
     decoded === "integrations/custom/definitions" &&
     method === "POST" &&
@@ -138,6 +139,9 @@ async function runRouteOp(
     triggersEnabled: op.triggersEnabled,
   });
 
+  // A detect that hits an OAuth wall carries `oauthSupported`. Without
+  // gateway callback custody only the pod can answer it, so decline rather
+  // than diverge from the pod's capability. Read-only, nothing to undo.
   if (
     custom &&
     !op.customOAuthCallbackUrl &&
