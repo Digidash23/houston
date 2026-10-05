@@ -1,6 +1,7 @@
 import type { ChatMessage, WireFrame } from "@houston/runtime-client";
 import { expect, test } from "vitest";
 import type { FeedOutput } from "./feed-output";
+import { PRE_ACCEPT_MAX_BYTES, PRE_ACCEPT_MAX_FRAMES } from "./pre-accept-turn";
 import { TurnSink } from "./turn-sink";
 
 /**
@@ -64,6 +65,13 @@ const done = (turnId: string, seq: number): WireFrame => ({
 });
 const streamed = (items: Item[]) =>
   items.filter((i) => i.feed_type === "assistant_text_streaming");
+
+/** A running t1 sync, then text frames past the pre-accept cap; next seq is END. */
+const END = PRE_ACCEPT_MAX_FRAMES + 3;
+function overflow(sink: TurnSink): void {
+  sink.onFrame(runningSync("t1", "start"));
+  for (let seq = 3; seq < END; seq++) sink.onFrame(text("t1", "x", seq));
+}
 
 test("a running sync that beat the 202 renders once the 202 names its turn", () => {
   const { sink, items } = makeSink();
@@ -220,21 +228,23 @@ test("a held retry claims a running sync that beats its 202", () => {
 test("too many pre-accept frames abandon replay until a resync", () => {
   const { sink, items } = makeSink();
   sink.onFrame(runningSync("t1", "start"));
-  for (let seq = 3; seq <= 502; seq++) {
+  for (let seq = 3; seq <= PRE_ACCEPT_MAX_FRAMES + 2; seq++) {
     sink.onFrame(text("t1", "x", seq));
   }
 
   sink.sendAccepted("t1");
 
   expect(streamed(items)).toHaveLength(0);
-  sink.onFrame(runningSync("t1", "authoritative", 503, true));
+  sink.onFrame(
+    runningSync("t1", "authoritative", PRE_ACCEPT_MAX_FRAMES + 3, true),
+  );
   expect(streamed(items).map((i) => i.data)).toEqual(["authoritative"]);
 });
 
 test("oversized pre-accept frames abandon replay until a resync", () => {
   const { sink, items } = makeSink();
   sink.onFrame(runningSync("t1", "start"));
-  sink.onFrame(text("t1", "x".repeat(1024 * 1024), 3));
+  sink.onFrame(text("t1", "x".repeat(PRE_ACCEPT_MAX_BYTES), 3));
 
   sink.sendAccepted("t1");
 
@@ -243,7 +253,7 @@ test("oversized pre-accept frames abandon replay until a resync", () => {
   expect(streamed(items).map((i) => i.data)).toEqual(["authoritative"]);
 });
 
-test("after an overflow, live frames never settle a truncated reply", async () => {
+test("after an overflow, a clean end settles the reply from history", async () => {
   let reloads = 0;
   const history: ChatMessage[] = [
     { role: "user", content: "hi", ts: 1 },
@@ -253,36 +263,102 @@ test("after an overflow, live frames never settle a truncated reply", async () =
     reloads++;
     return history;
   });
-  sink.onFrame(runningSync("t1", "start"));
-  for (let seq = 3; seq <= 502; seq++) sink.onFrame(text("t1", "x", seq));
-
+  overflow(sink);
   sink.sendAccepted("t1");
-  // The tail of the reply arrives live: it must not render as the reply.
-  sink.onFrame(text("t1", " tail", 503));
-  expect(streamed(items)).toEqual([]);
+  sink.onFrame(text("t1", " tail", END));
 
-  sink.onFrame(done("t1", 504));
+  sink.onFrame(done("t1", END + 1));
   await new Promise((r) => setTimeout(r, 0));
+
   expect(reloads).toBe(1);
   expect(sink.settled).toBe(true);
   const final = items.find((i) => i.feed_type === "final_result");
   expect(final?.data).toMatchObject({ result: "the whole reply" });
-  expect(JSON.stringify(items)).not.toContain(" tail");
+});
+
+test("after an overflow, a provider error still ends the turn", () => {
+  const { sink, items } = makeSink();
+  overflow(sink);
+  sink.sendAccepted("t1");
+
+  sink.onFrame({
+    type: "provider_error",
+    data: { kind: "rate_limited", provider: "anthropic", message: "slow down" },
+    turnId: "t1",
+    seq: END,
+  } as WireFrame);
+
+  expect(sink.settled).toBe(true);
+  expect(items.some((i) => i.feed_type === "provider_error")).toBe(true);
+});
+
+test("after an overflow, an error frame settles with its own message", () => {
+  const { sink, items } = makeSink();
+  overflow(sink);
+  sink.sendAccepted("t1");
+
+  sink.onFrame({
+    type: "error",
+    data: { message: "Stopped by user" },
+    turnId: "t1",
+    seq: END,
+  });
+
+  expect(sink.settled).toBe(true);
+  expect(JSON.stringify(items)).toContain("Stopped by user");
 });
 
 test("after an overflow, a running resync restores live folding", () => {
   const { sink, items } = makeSink();
-  sink.onFrame(runningSync("t1", "start"));
-  for (let seq = 3; seq <= 502; seq++) sink.onFrame(text("t1", "x", seq));
+  overflow(sink);
   sink.sendAccepted("t1");
 
-  sink.onFrame(runningSync("t1", "full so far", 503, true));
-  sink.onFrame(text("t1", " more", 504));
+  sink.onFrame(runningSync("t1", "full so far", END, true));
+  sink.onFrame(text("t1", " more", END + 1));
+  sink.onFrame(done("t1", END + 2));
 
   expect(streamed(items).map((i) => i.data)).toEqual([
     "full so far",
     "full so far more",
   ]);
-  sink.onFrame(done("t1", 505));
+  const final = items.find((i) => i.feed_type === "final_result");
+  expect(final?.data).toMatchObject({ result: "full so far more" });
+});
+
+test("after an overflow, history that lags the end settles from the tail, not as a dead turn", async () => {
+  const { sink, items } = makeSink(async () => [
+    { role: "user", content: "hi", ts: 1 },
+  ]);
+  overflow(sink);
+  sink.sendAccepted("t1");
+  sink.onFrame(text("t1", " tail", END));
+
+  sink.onFrame(done("t1", END + 1));
+  await new Promise((r) => setTimeout(r, 0));
+
   expect(sink.settled).toBe(true);
+  expect(sink.terminal).toBe("needs_you");
+  const final = items.find((i) => i.feed_type === "final_result");
+  expect(final?.data).toMatchObject({ result: " tail" });
+});
+
+test("after an overflow, a failed reload reports it and settles from the tail", async () => {
+  const { sink, items } = makeSink(async () => {
+    throw new Error("offline");
+  });
+  overflow(sink);
+  sink.sendAccepted("t1");
+  sink.onFrame(text("t1", " tail", END));
+
+  sink.onFrame(done("t1", END + 1));
+  await new Promise((r) => setTimeout(r, 0));
+
+  expect(sink.settled).toBe(true);
+  expect(sink.terminal).toBe("needs_you");
+  expect(
+    items.some(
+      (i) =>
+        i.feed_type === "system_message" && String(i.data).includes("offline"),
+    ),
+  ).toBe(true);
 });

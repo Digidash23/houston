@@ -1,6 +1,7 @@
 import type { PendingInteraction, WireFrame } from "@houston/runtime-client";
 import type { MessageLimitRefusal } from "@houston/wire-types";
 import type { TerminalBoardStatus } from "./feed-output";
+import { settleOverflowedEnd } from "./overflow-settle";
 import { PreAcceptTurn } from "./pre-accept-turn";
 import { PresettlePoll } from "./presettle-poll";
 import { SendHoldState } from "./send-hold-state";
@@ -59,9 +60,9 @@ export class TurnSink {
   /** Turn mode: the running turn seen before the 202 (`pre-accept-turn.ts`). */
   private readonly preAccept = new PreAcceptTurn();
   /**
-   * The 202 claimed a turn whose pre-accept frames outgrew the cap: live frames
-   * are a suffix of the reply, so none fold until a running sync restores the
-   * text or the terminal settles from history.
+   * The 202 claimed a turn whose pre-accept frames outgrew the cap: the live
+   * text is only the reply's tail, so a clean end settles the reply from
+   * history (a running sync, whose partial is the whole reply, clears this).
    */
   private prefixLost = false;
   /** No frame or history settle publishes ({@link mute}, {@link dispose}). */
@@ -244,10 +245,22 @@ export class TurnSink {
       this.s.delivered = true; // a real frame proves the turn started
       this.poll.cancel(); // stream evidence: the poll's job is done
     }
-    if (this.prefixLost) {
-      // Folding a suffix would settle a truncated reply; history holds it all.
-      if (ev.type === "done" || ev.type === "error")
-        this.settleFromHistorySoon();
+    if (
+      this.prefixLost &&
+      ev.type === "done" &&
+      this.s.turnId !== undefined &&
+      !this.settling
+    ) {
+      this.poll.cancel();
+      this.settling = true;
+      void settleOverflowedEnd(
+        this.s,
+        ev,
+        this.s.turnId,
+        this.o.reloadHistory,
+        this.o.stop,
+        () => !this.muted,
+      );
       return;
     }
     applyTurnFrame(this.s, ev, this.o.stop);

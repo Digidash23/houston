@@ -1,8 +1,9 @@
 import type { WireFrame } from "@houston/runtime-client";
 
-// This covers ordinary admission latency while limiting one pending send to 1 MiB.
-const MAX_FRAMES = 500;
-const MAX_BYTES = 1024 * 1024;
+// Far above any turn's frames before its 202; only a pathological wait (a held
+// send behind a very long turn) reaches it, and that turn then settles from history.
+export const PRE_ACCEPT_MAX_FRAMES = 10_000;
+export const PRE_ACCEPT_MAX_BYTES = 8 * 1024 * 1024;
 const encoder = new TextEncoder();
 
 /**
@@ -93,7 +94,10 @@ export class PreAcceptTurn {
   private append(ev: WireFrame): void {
     if (this.frames === null) return;
     const bytes = encoder.encode(JSON.stringify(ev)).byteLength;
-    if (this.frames.length >= MAX_FRAMES || this.bytes + bytes > MAX_BYTES) {
+    if (
+      this.frames.length >= PRE_ACCEPT_MAX_FRAMES ||
+      this.bytes + bytes > PRE_ACCEPT_MAX_BYTES
+    ) {
       this.frames = null;
       this.bytes = 0;
       this.overflowed = true;
