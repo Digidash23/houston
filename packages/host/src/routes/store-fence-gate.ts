@@ -18,8 +18,8 @@ import { json } from "./http";
  * The write is refused instead. The 503 carries a distinct reason (not the
  * gateway's waking shape), so the client shows its authored "couldn't save"
  * copy and reports it: a fenced pod still receiving writes is a bug we want
- * to see, never a quiet retry loop. Reads keep flowing — what the pod has is
- * still the freshest answer until it is recycled.
+ * to see, never a quiet retry loop. The pod then retires (local/fence-retire.ts)
+ * so the agent converges on one writer, where the next try lands.
  */
 
 export const STORE_FENCED_ERROR =
@@ -27,42 +27,68 @@ export const STORE_FENCED_ERROR =
 
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-/** Runtime-tool write families that land in the agent's synced tree. */
-const SANDBOX_WRITE = /^\/sandbox\/(routines|learnings|missions)(\/|$)/;
+/**
+ * Runtime-tool write families that land in the agent's synced tree: routines,
+ * learnings, missions (the board), and the custom-integration definitions the
+ * agent adds or removes (custom-integrations.json).
+ */
+const SANDBOX_WRITE =
+  /^\/sandbox\/(routines|learnings|missions|integrations\/custom\/(add|remove))(\/|$)/;
 
 /**
  * Whether a request would write agent data. `scope` follows the server's
- * ordering: the sandbox families are gated before their HMAC routes, the
- * user-facing `/agents/` routes only after the bearer has been verified (an
- * anonymous caller must keep getting 401, not a hint about pod state).
+ * ordering: the sandbox families are gated before their HMAC routes, every
+ * authenticated mutation only after the bearer has been verified (an
+ * anonymous caller must keep getting 401, not a hint about pod state). Not
+ * only `/agents/`: an agent's colour, delegation, custom integrations,
+ * workspace and preferences all land in the synced tree too.
  */
 export function isFencedWrite(
   method: string,
   path: string,
-  scope: "sandbox" | "agents",
+  scope: "sandbox" | "authenticated",
 ): boolean {
   if (!MUTATING.has(method.toUpperCase())) return false;
   if (scope === "sandbox") return SANDBOX_WRITE.test(path);
-  return path.startsWith("/agents/");
+  return true;
 }
 
 let reported = false;
 
-/** Answer 503 and return true when the write must be refused. */
-export function handleStoreFenceGate(
-  deps: { storeFenced?: () => boolean },
+/**
+ * Answer 503 and resolve true when the write must be refused: the sync has
+ * already met the fence, or the store's lease check says another boot owns
+ * the agent now. The check runs before the write is applied, so a pod
+ * superseded while idle refuses the edit instead of acknowledging it.
+ */
+export async function handleStoreFenceGate(
+  deps: {
+    storeFenced?: () => boolean;
+    storeWritable?: () => Promise<boolean>;
+    storeSyncAfterWrite?: () => void;
+  },
   method: string,
   path: string,
   res: ServerResponse,
-  scope: "sandbox" | "agents",
-): boolean {
-  if (!deps.storeFenced?.() || !isFencedWrite(method, path, scope)) {
+  scope: "sandbox" | "authenticated",
+): Promise<boolean> {
+  if (!isFencedWrite(method, path, scope)) return false;
+  if (!deps.storeFenced?.() && (await deps.storeWritable?.()) !== false) {
+    // Upload the write right after it is acknowledged, while the lease the
+    // check just saw is still this boot's: left for the periodic pass, it
+    // would be lost to a takeover landing in the next five minutes.
+    const ship = deps.storeSyncAfterWrite;
+    if (ship) {
+      res.once("finish", () => {
+        if (res.statusCode < 400) ship();
+      });
+    }
     return false;
   }
   if (!reported) {
     // Once per process: the fence loss itself is logged as a breadcrumb by
-    // the sync daemon (superseded setup pods lose it routinely); a REFUSED
-    // write is the moment a user's edit would have been lost, and reports.
+    // the sync daemon; a REFUSED write is the moment a user's edit would
+    // have been lost, and reports. The pod retires right after.
     reported = true;
     console.error(
       `[local-host] refusing ${method} ${path}: the object-store write fence was lost; this pod's writes would not persist`,

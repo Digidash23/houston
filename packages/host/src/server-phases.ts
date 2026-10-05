@@ -25,7 +25,7 @@ import { handleStoreFenceGate } from "./routes/store-fence-gate";
  */
 
 /** Gate answered before its group; true when it wrote the response. */
-type Gate<Ctx> = (ctx: Ctx) => boolean;
+type Gate<Ctx> = (ctx: Ctx) => boolean | Promise<boolean>;
 
 const PRE_AUTH_GATES: Partial<Record<GroupId, Gate<PublicEntry>>> = {
   // THE COORDINATOR'S REACH (routes/sandbox-scope.ts). Every /sandbox/* family
@@ -34,17 +34,27 @@ const PRE_AUTH_GATES: Partial<Record<GroupId, Gate<PublicEntry>>> = {
   // families the coordinator has no tool for before any of them is asked.
   "sandbox-credential": (ctx) =>
     refuseOutOfCoordinatorScope(ctx.deps, ctx.path, ctx.url, ctx.req, ctx.res),
-  // A pod that lost its object-store write fence must not accept writes it can
-  // no longer persist (PRODUCT-1706): the runtime's own saves refused here,
-  // the user-facing /agents/ writes after the 401 wall.
-  "sandbox-routines": (ctx) =>
-    handleStoreFenceGate(ctx.deps, ctx.method, ctx.path, ctx.res, "sandbox"),
 };
 
 /** Public + sandbox: everything served before a bearer token is required. */
 export async function dispatchPreAuth(ctx: PublicEntry): Promise<boolean> {
+  // A pod that lost its object-store write fence must not accept writes it
+  // can no longer persist (PRODUCT-1706): the runtime's own saves are refused
+  // here, the authenticated writes after the 401 wall. Ahead of every group,
+  // so no family dispatched earlier in the table can slip past it.
+  if (
+    await handleStoreFenceGate(
+      ctx.deps,
+      ctx.method,
+      ctx.path,
+      ctx.res,
+      "sandbox",
+    )
+  ) {
+    return true;
+  }
   for (const group of PRE_AUTH_GROUPS) {
-    if (PRE_AUTH_GATES[group]?.(ctx)) return true;
+    if (await PRE_AUTH_GATES[group]?.(ctx)) return true;
     if (await dispatchGroup(group, ctx)) return true;
   }
   return false;
