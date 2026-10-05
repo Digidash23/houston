@@ -221,6 +221,13 @@
       "keysRowDescription": "Create the keys your apps use to start tasks with {{name}}",
       "docsRow": "Developer docs",
       "docsRowDescription": "How to work with {{name}} from your own code"
+    },
+    "example": {
+      "tryTitle": "Try your key",
+      "tryHint": "Run this in a terminal. It lists your AI Employees, so you can see the key work.",
+      "missionTitle": "Example request",
+      "missionHint": "Starts a task with {{name}}. First set HOUSTON_API_KEY to one of your API keys.",
+      "copyFailed": "Couldn't copy the example"
     }
   },
   "channels": {

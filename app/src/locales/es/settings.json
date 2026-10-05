@@ -221,6 +221,13 @@
       "keysRowDescription": "Crea las claves que usan tus apps para iniciar tareas con {{name}}",
       "docsRow": "Documentación para desarrolladores",
       "docsRowDescription": "Cómo trabajar con {{name}} desde tu propio código"
+    },
+    "example": {
+      "tryTitle": "Prueba tu clave",
+      "tryHint": "Ejecuta esto en una terminal. Muestra tus empleados de IA, así ves que la clave funciona.",
+      "missionTitle": "Ejemplo de solicitud",
+      "missionHint": "Inicia una tarea con {{name}}. Primero asigna una de tus claves de API a HOUSTON_API_KEY.",
+      "copyFailed": "No se pudo copiar el ejemplo"
     }
   },
   "channels": {

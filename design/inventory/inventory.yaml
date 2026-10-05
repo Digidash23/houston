@@ -2229,12 +2229,14 @@ components:
       in the browser. The Organization ID row shows the slug API callers send as
       x-houston-org for the organization open in the app, with a copy action; it hides
       when the organization list cannot load. A new key's secret is shown once in the
-      create dialog and never cached. Revoke asks for confirmation. Reaching the
+      create dialog and never cached, beside a "Try your key" curl
+      with that key filled in. Revoke asks for confirmation. Reaching the
       20-key limit is said inline instead of reported as a bug. Each AI
       Employee's Settings also has an "API access" row that opens its own
       screen (back control to Settings): the employee's Agent ID and the
-      Organization ID with copy actions, a row into Settings > API keys and a
-      row opening the developer docs.
+      Organization ID with copy actions, a row into Settings > API keys, a
+      row opening the developer docs, and a copyable example request that
+      starts a task with that employee.
     a11y: >-
       Real labeled buttons for docs, copy, create and revoke; a focus-managed
       create dialog and revoke confirmation. All controls remain visible.

@@ -221,6 +221,13 @@
       "keysRowDescription": "Crie as chaves que seus apps usam para iniciar tarefas com {{name}}",
       "docsRow": "Documentação para desenvolvedores",
       "docsRowDescription": "Como trabalhar com {{name}} a partir do seu próprio código"
+    },
+    "example": {
+      "tryTitle": "Teste sua chave",
+      "tryHint": "Rode isto em um terminal. Ele lista seus funcionários de IA, assim você vê a chave funcionando.",
+      "missionTitle": "Exemplo de requisição",
+      "missionHint": "Inicia uma tarefa com {{name}}. Antes, defina HOUSTON_API_KEY com uma das suas chaves de API.",
+      "copyFailed": "Não foi possível copiar o exemplo"
     }
   },
   "channels": {

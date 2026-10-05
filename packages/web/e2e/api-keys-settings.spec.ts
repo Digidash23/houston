@@ -87,14 +87,17 @@ test("API keys shows the organization ID, mints a key once, and links the docs",
   await expect(
     page.getByRole("heading", { name: "API keys", exact: true }),
   ).toBeVisible();
-  await expect(page.getByText(PERSONAL_SLUG)).toBeVisible();
+  await expect(page.getByText(PERSONAL_SLUG, { exact: true })).toBeVisible();
   await expect(page.getByText("Zapier", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Create key" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("textbox").fill("My script");
   await dialog.getByRole("button", { name: "Create key" }).click();
-  await expect(dialog.getByText(SECRET)).toBeVisible();
+  await expect(dialog.getByText(SECRET, { exact: true })).toBeVisible();
+  await expect(
+    dialog.locator("pre").filter({ hasText: `Bearer ${SECRET}` }),
+  ).toBeVisible();
   await dialog.getByRole("button", { name: "Done" }).click();
   await expect(page.getByText("My script", { exact: true })).toBeVisible();
 
@@ -106,7 +109,7 @@ test("API keys shows the organization ID, mints a key once, and links the docs",
 
   // Phone width: the ID and its copy control stay on screen side by side.
   await page.setViewportSize({ width: 412, height: 915 });
-  await expect(page.getByText(PERSONAL_SLUG)).toBeInViewport();
+  await expect(page.getByText(PERSONAL_SLUG, { exact: true })).toBeInViewport();
   await expect(page.getByRole("button", { name: "Copy" })).toBeInViewport();
 });
 
@@ -125,7 +128,14 @@ test("an AI Employee's API access opens from its Settings and leads to the keys"
     page.getByRole("heading", { name: "API access", exact: true }),
   ).toBeVisible();
   await expect(page.getByText("Agent ID", { exact: true })).toBeVisible();
-  await expect(page.getByText(PERSONAL_SLUG)).toBeVisible();
+  await expect(page.getByText(PERSONAL_SLUG, { exact: true })).toBeVisible();
+  // A ready request starts a task with this employee, key read from the env.
+  await expect(
+    page
+      .locator("pre")
+      .filter({ hasText: `x-houston-org: ${PERSONAL_SLUG}` })
+      .filter({ hasText: "$HOUSTON_API_KEY" }),
+  ).toBeVisible();
 
   // The prompt carries both IDs and the key's env var, never a key, and
   // copying it mints nothing.
@@ -210,7 +220,7 @@ test("the AI Manager's API access card shows that employee's details in the chat
     page.getByRole("button", { name: "Open", exact: true }),
   ).toHaveCount(0);
   await expect(page.getByText(SEED_AGENT_ID, { exact: true })).toBeVisible();
-  await expect(page.getByText(PERSONAL_SLUG)).toBeVisible();
+  await expect(page.getByText(PERSONAL_SLUG, { exact: true })).toBeVisible();
 
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.getByRole("button", { name: "Copy prompt for AI agent" }).click();

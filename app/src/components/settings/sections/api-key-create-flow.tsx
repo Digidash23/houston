@@ -1,4 +1,5 @@
 import type { ApiKeyCreated } from "@houston/engine-adapter";
+import { apiTryKeyRequest } from "@houston/sdk";
 import { Button, Input } from "@houston-ai/core";
 import { Check, Copy, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -11,6 +12,7 @@ import {
 } from "../../../lib/api-keys-model";
 import { genericErrorDescription } from "../../../lib/error-report";
 import { useUIStore } from "../../../stores/ui";
+import { CodeExample } from "../code-example";
 
 /**
  * Mint an API key, then reveal its secret exactly once: the one flow both the
@@ -109,6 +111,8 @@ export function ApiKeyReveal({ created }: { created: ApiKeyCreated }) {
   const { t } = useTranslation("settings");
   const addToast = useUIStore((s) => s.addToast);
   const [copied, setCopied] = useState(false);
+  // The gateway the key works against; only the hosted gateway mints keys.
+  const baseUrl = window.__HOUSTON_ENGINE__?.baseUrl ?? null;
 
   async function copyKey() {
     try {
@@ -147,6 +151,14 @@ export function ApiKeyReveal({ created }: { created: ApiKeyCreated }) {
         <TriangleAlert className="mt-0.5 size-4 shrink-0" />
         {t("apiKeys.create.warning")}
       </p>
+      {baseUrl && (
+        <CodeExample
+          title={t("apiKeys.example.tryTitle")}
+          hint={t("apiKeys.example.tryHint")}
+          code={apiTryKeyRequest({ baseUrl, key: created.key })}
+          secret
+        />
+      )}
     </div>
   );
 }

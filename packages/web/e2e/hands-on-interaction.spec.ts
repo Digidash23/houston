@@ -119,6 +119,11 @@ test("the manager mints the key right in the chat and never sees it", async ({
   await page.getByRole("button", { name: "Create key", exact: true }).click();
   await expect(page.getByText(SECRET, { exact: true })).toBeVisible();
   expect(mints()).toBe(1);
+  // A ready request shows how the key is used, with the key filled in.
+  await expect(page.getByText("Try your key", { exact: true })).toBeVisible();
+  await expect(
+    page.locator("pre").filter({ hasText: `Bearer ${SECRET}` }),
+  ).toBeVisible();
 
   // Shown once means Done is the only way out: nothing to decline, no box to
   // paste the key into, and Esc closes nothing.

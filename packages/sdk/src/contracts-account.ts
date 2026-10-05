@@ -19,6 +19,10 @@ export {
   type EditableProfileUpdate,
 } from "./modules/account";
 export {
+  apiStartMissionRequest,
+  apiTryKeyRequest,
+} from "./modules/account/api-examples";
+export {
   type ApiSetupPromptInput,
   apiSetupPrompt,
   HOUSTON_API_DOCS,
