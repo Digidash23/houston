@@ -87,6 +87,28 @@ test("listRoutineRuns reads the runs' own collection", async () => {
   expect(rows).toEqual([run]);
 });
 
+test("delivery failures and resumed runs survive the SDK binding", async () => {
+  const failed = {
+    ...run,
+    status: "error" as const,
+    session_key: "",
+    delivery_failure: { code: "pool_delivery_expired" as const },
+  };
+  const resumed = { ...run, resumed: true as const };
+  stubFetch(json(200, { items: [failed, resumed] }));
+  const c = client();
+  c.setActiveOrg(ORG);
+
+  expect(await c.listRoutineRuns("a1")).toEqual([failed, resumed]);
+  expect(calls).toHaveLength(1);
+  expect(calls[0].method).toBe("GET");
+  expect(calls[0].url).toBe(`${BASE}/agents/a1/routine_runs`);
+  expect(calls[0].body).toBeNull();
+  expect(calls[0].headers.get("Content-Type")).toBe("application/json");
+  expect(calls[0].headers.get("Authorization")).toBe("Bearer t");
+  expect(calls[0].headers.get("x-houston-org")).toBe(ORG);
+});
+
 test("the routine reads carry the live x-houston-org", async () => {
   stubFetch(json(200, { items: [] }), json(200, { items: [] }));
   const c = client();

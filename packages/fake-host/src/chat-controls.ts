@@ -7,6 +7,7 @@ import {
   channels,
   finishTurn,
   publish,
+  releaseHeldTurn,
   resetReplyDelay,
   streamReplySafe,
   TURN_DIED_MESSAGE,
@@ -24,6 +25,7 @@ export function killRunningTurns(): number {
   for (const ch of channels.values()) {
     if (terminate(ch, TURN_DIED_MESSAGE)) killed++;
   }
+  releaseHeldTurn();
   return killed;
 }
 
@@ -40,6 +42,8 @@ export function dropChatStreams(): number {
     }
     ch.sinks.clear();
   }
+  // The drop lands mid-turn; the held turn now streams on into the replay log.
+  releaseHeldTurn();
   return dropped;
 }
 
@@ -61,6 +65,7 @@ export function turnBoundary(nextText: string): number {
     for (const sink of [...ch.sinks]) sink.close();
     ch.sinks.clear();
     ch.epoch++; // stop the live producer loop
+    releaseHeldTurn(); // a held producer wakes, sees the new epoch, and stops
     const partial = ch.channel.snapshot.partial;
     const rest = pending.remaining.splice(0);
     for (const d of rest) {

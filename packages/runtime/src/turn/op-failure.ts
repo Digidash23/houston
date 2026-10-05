@@ -13,6 +13,26 @@ export function answerOpFailure(
     res.writeHead(status, { "Content-Type": "application/json" });
     res.end(JSON.stringify(body));
   };
+  if (op.op.kind === "custom-oauth") {
+    // No message: an OAuth library error can echo the code or the verifier.
+    console.error(`[op] custom OAuth failed action=${op.op.action}`);
+    if (res.headersSent) return;
+    // A completion that threw may already hold the token in remote custody.
+    if (op.op.action === "complete")
+      json(res, 200, { ok: true, ambiguous: true });
+    else
+      json(res, 200, {
+        ok: true,
+        status: 502,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: "sign-in could not start",
+          code: "oauth_failed",
+        }),
+        events: [],
+      });
+    return;
+  }
   const message = error instanceof Error ? error.message : String(error);
   if (error instanceof TurnSetupError && error.code === "agent_not_migrated") {
     // Nothing was written: the gateway runs the agent's `migrate` op (an
