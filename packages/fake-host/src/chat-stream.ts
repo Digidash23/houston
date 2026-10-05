@@ -7,7 +7,8 @@
  *   `?after=<seq>` / `Last-Event-ID` → gap/dupe-free replay; unserviceable
  *   cursor → `sync` with `resync: true`.
  * - The turn produces into the replay log whether or not a stream is attached,
- *   just like the real runtime; the nonce is echoed on the `user` frame.
+ *   just like the real runtime; the nonce is echoed on the `user` frame, and
+ *   the 202 names the accepted turn's id.
  */
 
 import type { ChatMessage } from "@houston/protocol";
@@ -18,7 +19,7 @@ import {
 } from "@houston/runtime-client";
 import { channel, chatKey } from "./chat-channel";
 import { streamReplySafe } from "./chat-turn";
-import { noContent } from "./http";
+import { json } from "./http";
 import { type SseSink, sseResponse } from "./sse";
 
 /** `GET /agents/:id/conversations/:cid/events` — subscribe to the turn stream. */
@@ -60,7 +61,9 @@ export function openChatStream(
  * `POST /agents/:id/conversations/:cid/messages` — fire the turn (202). The
  * turn produces into the replay log whether or not a stream is attached, just
  * like the real runtime. The nonce is echoed on the `user` frame, and so are
- * the send's `mentions` (already guarded by the route).
+ * the send's `mentions` (already guarded by the route). The 202 body is the
+ * runtime's (`transport/conversation-start-turn.ts`): it names the turn, which
+ * is how a client whose stream attached mid-turn knows the turn is its own.
  */
 export function sendMessage(
   agentId: string,
@@ -70,6 +73,13 @@ export function sendMessage(
   displayText?: string,
   mentions?: ChatMessage["mentions"],
 ): Response {
-  streamReplySafe(agentId, cid, text, nonce, displayText, mentions);
-  return noContent(202);
+  const turnId = streamReplySafe(
+    agentId,
+    cid,
+    text,
+    nonce,
+    displayText,
+    mentions,
+  );
+  return json({ ok: true, id: cid, turnId }, 202);
 }

@@ -1,6 +1,10 @@
 /** Routine execution history with translated summaries for typed failures. */
 
-import { type RoutineRun, routineFailureCode } from "@houston/sdk";
+import {
+  type RoutineReaderAccount,
+  type RoutineRun,
+  routineFailureCode,
+} from "@houston/sdk";
 import {
   Dialog,
   DialogContent,
@@ -21,6 +25,9 @@ interface Props {
   locale: string;
   /** Opens the clicked run's chat (the caller closes the modal first). */
   onOpenRun: (run: RoutineRun) => void;
+  /** The reader's own account for a provider (`useRoutineReader`); without
+   *  it every failure reads as the engine recorded it. */
+  readerFor?: (provider: string) => RoutineReaderAccount;
 }
 
 export function RoutineRunsDialog({
@@ -30,6 +37,7 @@ export function RoutineRunsDialog({
   runsLoading,
   locale,
   onOpenRun,
+  readerFor,
 }: Props) {
   const { t } = useTranslation("routines");
 
@@ -50,6 +58,7 @@ export function RoutineRunsDialog({
               runs={runs ?? []}
               onOpenRun={onOpenRun}
               locale={locale}
+              readerFor={readerFor}
             />
           )}
         </div>
@@ -63,7 +72,8 @@ export function RoutineRunsHistory({
   runs,
   locale,
   onOpenRun,
-}: Pick<Props, "locale" | "onOpenRun"> & { runs: RoutineRun[] }) {
+  readerFor,
+}: Pick<Props, "locale" | "onOpenRun" | "readerFor"> & { runs: RoutineRun[] }) {
   const { t } = useTranslation("routines");
 
   // Spelled out per code rather than built from it: `t()` keys are typed, so a
@@ -71,7 +81,9 @@ export function RoutineRunsHistory({
   // see. `undefined` keeps the run's own summary.
   const failureSummary = (run: RoutineRun): string | undefined => {
     const provider = run.failure ? providerName(run.failure.provider) : "";
-    switch (routineFailureCode(run)) {
+    // An account the gateway signed out reads as "sign in again", not as
+    // never connected (the SDK's `routineFailureCode` with the reader).
+    switch (routineFailureCode(run, readerFor)) {
       case "pool_delivery_expired":
         return t("details.failure.poolDeliveryExpired");
       case "creator_not_connected":
