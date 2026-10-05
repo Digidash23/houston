@@ -635,3 +635,27 @@ test("a Stop waits for the engine's cancel to answer, however long it takes", as
     vi.useRealTimers();
   }
 });
+
+test("a send waiting for room reads as held, so the queue watchdog leaves it", async () => {
+  const { output } = vmOutput();
+  const key = "activity-busy-held";
+  const entry = () => registry.get(streamKey("Houston/Bo", key));
+  let heldWhileWaiting = false;
+  const { engine, nonces } = busyEngine(1, async (o) => {
+    o.onEvent(sync(false, 0));
+    await waitFor(() => {
+      if (nonces.length === 1 && entry()?.held === true)
+        heldWhileWaiting = true;
+      return nonces.length === 2;
+    });
+    // Accepted: the send no longer waits.
+    await waitFor(() => entry()?.held === false);
+    reply(o, nonces[1], 1);
+  });
+
+  await streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: fast,
+  });
+
+  expect(heldWhileWaiting).toBe(true);
+});

@@ -12,6 +12,11 @@ export interface ActiveStream {
   /** Last seen envelope seq — the observer→turn handoff cursor. */
   lastSeq?: number;
   /**
+   * A turn whose send waits behind another turn or for room (`send-hold.ts`):
+   * the queue watchdog never flushes over it.
+   */
+  held?: boolean;
+  /**
    * Stop a turn whose send the engine has not accepted yet (held, or waiting
    * for room): its POST and re-sends end at once. It answers the `finish` to
    * call once the engine's own cancel answered, when the turn then settles as

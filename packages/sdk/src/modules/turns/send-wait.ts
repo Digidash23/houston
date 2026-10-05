@@ -92,13 +92,17 @@ export async function sendUntilAccepted(
       hold.signal,
       turn.tuning,
       {
-        onHold: () => sink.holdSend(),
+        onHold: () => {
+          sink.holdSend();
+          entry.held = true;
+        },
         onBusy: showBusy,
         firstRefusal: turn.firstRefusal,
       },
     );
   } catch (e) {
     if (stop) {
+      entry.held = false;
       clearBusy();
       await stop.answered;
       sink.fail(STOPPED_BY_USER); // a no-op when frames settled it meanwhile
@@ -106,6 +110,7 @@ export async function sendUntilAccepted(
     }
     throw e;
   } finally {
+    entry.held = false;
     entry.stopUnsent = undefined;
     ac.signal.removeEventListener("abort", endHold);
     ac.signal.removeEventListener("abort", clearBusy);
