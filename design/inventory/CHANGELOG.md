@@ -5,13 +5,14 @@ Every `version` bump in `inventory.yaml` needs a matching entry here (enforced b
 
 ## v124 - 2026-10-05
 
-A Free person's trigger routine says when the plan skipped its events. The
-routine screen and the top of its Runs modal show how many webhook or app
-events were skipped in the last 24 hours and why: the routine fired sooner
-than the Free minimum interval, it is not the one routine Free keeps running,
-or routines paused after days away. Each reason offers what fixes it (Upgrade
-to Plus, Choose routine, Resume). Plus hides the notice. Before, a skipped
-event left no trace and the routine looked broken.
+A trigger routine says when a Free plan skipped its runs. The routine screen
+and the top of its Runs modal show how many runs were skipped in the last 24
+hours and why: the routine fired sooner than the Free minimum interval, it is
+not the one routine Free keeps running, or routines paused while its creator
+was away. The creator gets what fixes it (Upgrade to Plus, Choose routine,
+Resume first while paused); on Plus the notice is hidden. A teammate sees a
+read-only line that it ran on its creator's Free plan. Before, a skipped run
+left no trace and the routine looked broken.
 
 ## v123 - 2026-10-05
 

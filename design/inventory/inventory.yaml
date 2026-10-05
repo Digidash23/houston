@@ -1071,13 +1071,15 @@ components:
       deadline explanation with guidance to try running the routine again;
       clicking an entry closes the modal and opens that run's chat in the shell panel
       (closing the chat returns to this screen). "Open chat" reaches the
-      routine's setup chat the same way. For a person on Free, a trigger
-      routine whose events the plan refused in the last 24 hours shows a
-      notice on the screen AND at the top of the Runs modal: how many events
-      were skipped and why (SDK triggerPlanSkipNotice: the minimum interval,
-      the one-routine limit, or routines paused while away), with Upgrade to
-      Plus, Choose routine for the limit, and Resume while still paused.
-      Plus hides it.
+      routine's setup chat the same way. A trigger routine whose runs the
+      Free plan refused in the last 24 hours shows a notice on the screen AND
+      at the top of the Runs modal: how many runs were skipped and why (SDK
+      triggerPlanSkipNotice). The gateway judges the CREATOR's plan, so the
+      creator on Free sees the reason (the minimum interval, the one-routine
+      limit, or routines paused while away) with Upgrade to Plus, Choose
+      routine for the limit, and Resume first while still paused; on Plus it
+      is hidden. Anyone else, or a routine naming no creator, sees a
+      read-only line that it ran on its creator's Free plan.
     a11y: >-
       the screen title and sections are real headings; the prompt textarea is
       labeled; run rows are buttons whose accessible name carries the outcome,

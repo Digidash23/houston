@@ -37,10 +37,17 @@ const free: PlanSummary = {
   },
 };
 
+const creator: TriggerPlanSkipViewer = {
+  createdBy: "u1",
+  viewerId: "u1",
+  agentSlug: "agent-a",
+};
+
 function noticeFor(
   code: TriggerPlanSkipCode,
   count: number,
   plan: PlanSummary = free,
+  viewer: TriggerPlanSkipViewer = creator,
 ): TriggerPlanSkipNotice {
   const notice = triggerPlanSkipNotice(
     {
@@ -49,6 +56,7 @@ function noticeFor(
       plan_skipped: { code, count, last_at: "2026-10-05T19:43:49Z" },
     },
     plan,
+    viewer,
   );
   if (!notice) throw new Error(`no notice for ${code}`);
   return notice;
@@ -87,10 +95,15 @@ before(async () => {
   };
 });
 
-describe("RoutinePlanSkipNoticeView", async () => {
+describe("RoutinePlanSkipNoticeView", () => {
   it("counts the skipped events and names the minimum interval", async () => {
     const html = await render(noticeFor("plan_min_interval", 21));
-    ok(html.includes("21 events were skipped in the last 24 hours"), html);
+    ok(
+      html.includes(
+        "21 runs of this routine were skipped in the last 24 hours",
+      ),
+      html,
+    );
     ok(html.includes("at most once every 15 minutes"), html);
     ok(html.includes(en.upgrade), html);
     ok(!html.includes(en.resume), html);
@@ -98,7 +111,7 @@ describe("RoutinePlanSkipNoticeView", async () => {
 
   it("uses the singular for one event", async () => {
     const html = await render(noticeFor("plan_min_interval", 1));
-    ok(html.includes("1 event was skipped"), html);
+    ok(html.includes("1 run of this routine was skipped"), html);
   });
 
   it("offers to keep this routine on the routine limit", async () => {
@@ -120,6 +133,35 @@ describe("RoutinePlanSkipNoticeView", async () => {
     const running = await render(noticeFor("plan_inactive", 2));
     ok(running.includes(en.triggerSkipped.inactiveResumed), running);
     equal(running.includes(en.resume), false);
+  });
+
+  it("asks to resume before choosing a routine while paused", async () => {
+    const html = await render(
+      noticeFor("plan_routine_limit", 2, {
+        ...free,
+        routines: { ...(free.routines as never), paused: true },
+      }),
+    );
+    ok(html.includes(en.triggerSkipped.routineLimitPaused), html);
+    ok(html.includes(en.resume), html);
+    equal(html.includes(en.chooseRoutine), false);
+  });
+
+  it("tells a teammate it ran on the creator's plan, with no actions", async () => {
+    const html = await render(
+      noticeFor(
+        "plan_routine_limit",
+        4,
+        { ...free, plan: "plus" },
+        {
+          ...creator,
+          viewerId: "u2",
+        },
+      ),
+    );
+    ok(html.includes(en.triggerSkipped.creatorPlan), html);
+    for (const action of [en.upgrade, en.chooseRoutine, en.resume])
+      equal(html.includes(action), false, action);
   });
 
   for (const language of ["es", "pt"] as const) {

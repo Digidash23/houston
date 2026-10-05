@@ -44,10 +44,14 @@ export function RoutinePlanSkipNoticeView({
         });
       case "routine_limit":
         return t("triggerSkipped.routineLimit");
+      case "routine_limit_paused":
+        return t("triggerSkipped.routineLimitPaused");
       case "inactive_paused":
         return t("triggerSkipped.inactivePaused");
       case "inactive_resumed":
         return t("triggerSkipped.inactiveResumed");
+      case "creator_plan":
+        return t("triggerSkipped.creatorPlan");
     }
   };
   const label = (action: TriggerPlanSkipAction): string => {
@@ -82,24 +86,26 @@ export function RoutinePlanSkipNoticeView({
         </p>
         <p className="text-sm text-ink-muted">{body()}</p>
       </div>
-      <div
-        className={cn(
-          "flex flex-wrap gap-2 self-start",
-          layout === "row" && "md:shrink-0 md:self-center",
-        )}
-      >
-        {notice.actions.map((action) => (
-          <Button
-            key={action}
-            variant="secondary"
-            size="sm"
-            disabled={pending === action}
-            onClick={() => onAction(action)}
-          >
-            {label(action)}
-          </Button>
-        ))}
-      </div>
+      {notice.actions.length > 0 && (
+        <div
+          className={cn(
+            "flex flex-wrap gap-2 self-start",
+            layout === "row" && "md:shrink-0 md:self-center",
+          )}
+        >
+          {notice.actions.map((action) => (
+            <Button
+              key={action}
+              variant="secondary"
+              size="sm"
+              disabled={pending === action}
+              onClick={() => onAction(action)}
+            >
+              {label(action)}
+            </Button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

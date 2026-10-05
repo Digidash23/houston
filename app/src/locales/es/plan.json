@@ -98,12 +98,14 @@
   "checkoutUnavailableTitle": "Plus no está disponible",
   "checkoutUnavailableBody": "Por ahora no se puede comprar Plus aquí. Vuelve a intentarlo más tarde.",
   "triggerSkipped": {
-    "title_one": "Se omitió {{count}} evento en las últimas 24 horas",
-    "title_other": "Se omitieron {{count}} eventos en las últimas 24 horas",
-    "minInterval": "Tu rutina está bien configurada. En Gratis se ejecuta como máximo una vez cada {{minutes}} minutos, así que los eventos que llegaron antes no iniciaron una ejecución.",
-    "routineLimit": "Gratis mantiene una rutina activa, y es otra. Elige esta rutina para mantenerla activa, o pásate a Plus para ejecutarlas todas.",
-    "inactivePaused": "Tus rutinas se pausaron porque no abriste Houston en 7 días. Reanúdalas para que esta rutina vuelva a ejecutarse.",
-    "inactiveResumed": "Tus rutinas estuvieron en pausa porque no abriste Houston en 7 días. Ya están activas otra vez."
+    "title_one": "Se omitió {{count}} ejecución de esta rutina en las últimas 24 horas",
+    "title_other": "Se omitieron {{count}} ejecuciones de esta rutina en las últimas 24 horas",
+    "minInterval": "Tu rutina está bien configurada. En Gratis se ejecuta como máximo una vez cada {{minutes}} minutos, así que lo que llegó antes se omitió.",
+    "routineLimit": "Gratis mantiene una rutina activa, y la que sigue activa es otra. Elige esta rutina para mantenerla activa, o pásate a Plus para ejecutarlas todas.",
+    "routineLimitPaused": "Gratis mantiene una rutina activa, y la que sigue activa es otra. Además, tus rutinas se pausaron mientras no estabas, así que reanúdalas primero.",
+    "inactivePaused": "Tus rutinas se pausaron mientras no estabas. Reanúdalas para que esta rutina vuelva a ejecutarse.",
+    "inactiveResumed": "Tus rutinas estuvieron en pausa mientras no estabas. Ya están activas otra vez.",
+    "creatorPlan": "Esta rutina usa el plan Gratis de quien la creó, que omitió estas ejecuciones. Esa persona puede pasarse a Plus para que se ejecute siempre."
   },
   "sidebar": {
     "free": "Plan gratis",

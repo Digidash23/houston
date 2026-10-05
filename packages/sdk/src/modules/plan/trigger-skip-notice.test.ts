@@ -4,7 +4,12 @@ import type {
   TriggerStatusItem,
 } from "@houston/wire-types";
 import { describe, expect, it } from "vitest";
-import { triggerPlanSkipNotice } from "./trigger-skip-notice";
+import {
+  type TriggerPlanSkipViewer,
+  triggerPlanSkipNotice,
+} from "./trigger-skip-notice";
+
+type PlanRoutines = NonNullable<PlanSummary["routines"]>;
 
 const free: PlanSummary = {
   plan: "free",
@@ -22,41 +27,52 @@ const free: PlanSummary = {
     limitedCount: 0,
   },
 };
+const plus: PlanSummary = { ...free, plan: "plus" };
 const LAST = "2026-10-05T19:43:49Z";
+const creator: TriggerPlanSkipViewer = {
+  createdBy: "u1",
+  viewerId: "u1",
+  agentSlug: "agent-a",
+  orgSlug: "0123456789abcdef",
+};
+const member: TriggerPlanSkipViewer = { ...creator, viewerId: "u2" };
 const item = (code: TriggerPlanSkipCode, count = 21): TriggerStatusItem => ({
   routine_id: "r1",
   status: "active",
   plan_skipped: { code, count, last_at: LAST },
 });
-const routines = (patch: Partial<NonNullable<PlanSummary["routines"]>>) => ({
+const withRoutines = (patch: Partial<PlanRoutines>): PlanSummary => ({
   ...free,
-  routines: {
-    ...(free.routines as NonNullable<PlanSummary["routines"]>),
-    ...patch,
-  },
+  routines: { ...(free.routines as PlanRoutines), ...patch },
 });
+const kept = (agentSlug: string, orgSlug: string, routineId = "r1") =>
+  withRoutines({ kept: { orgSlug, agentSlug, routineId } });
 
-describe("triggerPlanSkipNotice", () => {
-  it("says nothing without skipped events", () => {
-    expect(triggerPlanSkipNotice(undefined, free)).toBeNull();
+describe("triggerPlanSkipNotice for the routine's creator", () => {
+  it("says nothing without skipped runs", () => {
+    expect(triggerPlanSkipNotice(undefined, free, creator)).toBeNull();
     expect(
-      triggerPlanSkipNotice({ routine_id: "r1", status: "active" }, free),
+      triggerPlanSkipNotice(
+        { routine_id: "r1", status: "active" },
+        free,
+        creator,
+      ),
     ).toBeNull();
     expect(
-      triggerPlanSkipNotice(item("plan_min_interval", 0), free),
+      triggerPlanSkipNotice(item("plan_min_interval", 0), free, creator),
     ).toBeNull();
   });
 
-  it("speaks only to a person on Free", () => {
+  it("speaks only while the creator is on Free", () => {
     const skipped = item("plan_min_interval");
-    expect(triggerPlanSkipNotice(skipped, undefined)).toBeNull();
-    expect(
-      triggerPlanSkipNotice(skipped, { ...free, plan: "plus" }),
-    ).toBeNull();
+    expect(triggerPlanSkipNotice(skipped, undefined, creator)).toBeNull();
+    expect(triggerPlanSkipNotice(skipped, plus, creator)).toBeNull();
   });
 
   it("names the minimum interval from the plan and offers Plus", () => {
-    expect(triggerPlanSkipNotice(item("plan_min_interval"), free)).toEqual({
+    expect(
+      triggerPlanSkipNotice(item("plan_min_interval"), free, creator),
+    ).toEqual({
       reason: "min_interval",
       count: 21,
       lastAt: LAST,
@@ -65,42 +81,60 @@ describe("triggerPlanSkipNotice", () => {
     });
     const { routines: _, ...bare } = free;
     expect(
-      triggerPlanSkipNotice(item("plan_min_interval"), bare),
+      triggerPlanSkipNotice(item("plan_min_interval"), bare, creator),
     ).toMatchObject({ minIntervalMinutes: 15 });
   });
 
   it("offers to keep this routine, until it is the kept one", () => {
-    expect(triggerPlanSkipNotice(item("plan_routine_limit", 3), free)).toEqual({
+    expect(
+      triggerPlanSkipNotice(item("plan_routine_limit", 3), free, creator),
+    ).toEqual({
       reason: "routine_limit",
       count: 3,
       lastAt: LAST,
       actions: ["keep_routine", "upgrade"],
     });
-    const keptHere = routines({
-      kept: { orgSlug: "o", agentSlug: "a", routineId: "r1" },
-    });
+    const keptHere = kept("agent-a", "0123456789abcdef");
     expect(
-      triggerPlanSkipNotice(item("plan_routine_limit"), keptHere),
+      triggerPlanSkipNotice(item("plan_routine_limit"), keptHere, creator),
     ).toBeNull();
-    const keptElsewhere = routines({
-      kept: { orgSlug: "o", agentSlug: "a", routineId: "r9" },
-    });
-    expect(
-      triggerPlanSkipNotice(item("plan_routine_limit"), keptElsewhere)?.reason,
-    ).toBe("routine_limit");
   });
 
-  it("offers Resume only while routines are still paused", () => {
+  it("matches the kept routine by the gateway's whole key", () => {
+    const limit = item("plan_routine_limit");
+    // Same routine id under another agent or another space: still refused.
+    for (const stale of [
+      kept("agent-b", "0123456789abcdef"),
+      kept("agent-a", "fedcba9876543210"),
+      kept("agent-a", "0123456789abcdef", "r9"),
+    ])
+      expect(triggerPlanSkipNotice(limit, stale, creator)?.reason).toBe(
+        "routine_limit",
+      );
+    // The personal space's org slug is not known client-side: agent + id.
+    const personal = { ...creator, orgSlug: null };
     expect(
-      triggerPlanSkipNotice(item("plan_inactive"), routines({ paused: true })),
+      triggerPlanSkipNotice(limit, kept("agent-a", "personal-org"), personal),
+    ).toBeNull();
+  });
+
+  it("offers Resume first and never the chooser while routines are paused", () => {
+    const paused = withRoutines({ paused: true });
+    expect(
+      triggerPlanSkipNotice(item("plan_routine_limit"), paused, creator),
+    ).toMatchObject({
+      reason: "routine_limit_paused",
+      actions: ["resume", "upgrade"],
+    });
+    expect(
+      triggerPlanSkipNotice(item("plan_inactive"), paused, creator),
     ).toMatchObject({
       reason: "inactive_paused",
       actions: ["resume", "upgrade"],
     });
-    expect(triggerPlanSkipNotice(item("plan_inactive"), free)).toMatchObject({
-      reason: "inactive_resumed",
-      actions: ["upgrade"],
-    });
+    expect(
+      triggerPlanSkipNotice(item("plan_inactive"), free, creator),
+    ).toMatchObject({ reason: "inactive_resumed", actions: ["upgrade"] });
   });
 
   it("ignores a code it cannot explain", () => {
@@ -109,6 +143,46 @@ describe("triggerPlanSkipNotice", () => {
       status: "active",
       plan_skipped: { code: "plan_future_rule", count: 2, last_at: LAST },
     } as unknown as TriggerStatusItem;
-    expect(triggerPlanSkipNotice(unknown, free)).toBeNull();
+    expect(triggerPlanSkipNotice(unknown, free, creator)).toBeNull();
+    expect(triggerPlanSkipNotice(unknown, free, member)).toBeNull();
+  });
+});
+
+describe("triggerPlanSkipNotice for anyone else", () => {
+  const readOnly = {
+    reason: "creator_plan",
+    count: 21,
+    lastAt: LAST,
+    actions: [],
+  };
+
+  it("tells a teammate whose plan it was, whatever their own plan", () => {
+    for (const plan of [free, plus, undefined, withRoutines({ paused: true })])
+      for (const code of [
+        "plan_min_interval",
+        "plan_routine_limit",
+        "plan_inactive",
+      ] as const)
+        expect(triggerPlanSkipNotice(item(code), plan, member)).toEqual(
+          readOnly,
+        );
+  });
+
+  it("stays read-only when the routine names no creator", () => {
+    expect(
+      triggerPlanSkipNotice(item("plan_routine_limit"), free, {
+        ...creator,
+        createdBy: undefined,
+      }),
+    ).toEqual(readOnly);
+  });
+
+  it("waits for the session before choosing a variant", () => {
+    expect(
+      triggerPlanSkipNotice(item("plan_min_interval"), free, {
+        ...creator,
+        viewerId: null,
+      }),
+    ).toBeNull();
   });
 });

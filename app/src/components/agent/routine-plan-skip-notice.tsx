@@ -1,8 +1,12 @@
 /**
- * RoutinePlanSkipNotice — tells a Free person that their plan refused some of
- * a trigger routine's events, which never become runs and would otherwise
+ * RoutinePlanSkipNotice — tells a person that a Free plan refused some of a
+ * trigger routine's runs, which never reach the history and would otherwise
  * leave the routine looking broken. Mounted on the routine screen and at the
  * top of its runs dialog, where people look for the missing run.
+ *
+ * The gateway judged those runs on the routine CREATOR's plan, so this feeds
+ * the SDK the creator, the signed-in viewer and the routine's gateway key
+ * (`triggerPlanSkipNotice`); a teammate gets the read-only variant.
  *
  * It reads the SAME per-agent trigger-status cache entry as the activation
  * chip (`agentTriggerStatusQueryOptions`), without the chip's error toast so a
@@ -11,16 +15,16 @@
  */
 
 import type { Routine } from "@houston/engine-adapter";
-import {
-  type TriggerPlanSkipAction,
-  triggerPlanSkipNotice,
-} from "@houston/sdk";
+import { triggerPlanSkipNotice } from "@houston/sdk";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { usePlan, useResumeRoutines } from "../../hooks/queries/use-plan";
 import { agentTriggerStatusQueryOptions } from "../../hooks/queries/use-triggers";
+import { useSession } from "../../hooks/use-session";
+import { orgSlugFromWorkspaceId } from "../../lib/space-id";
 import { useUIStore } from "../../stores/ui";
-import { RoutinePlanSkipNoticeView } from "./routine-plan-skip-notice-view";
+import { useWorkspaceStore } from "../../stores/workspaces";
+import { RoutinePlanSkipNoticeControls } from "./routine-plan-skip-notice-controls";
 
 interface Props {
   agentId: string;
@@ -45,6 +49,8 @@ export function RoutinePlanSkipNotice({
     enabled: !!routine.trigger,
   });
   const { data: plan } = usePlan();
+  const { data: session } = useSession();
+  const workspace = useWorkspaceStore((s) => s.current);
   const openSettings = useUIStore((s) => s.openSettings);
   const openKeepChooser = useUIStore((s) => s.setPlanKeepDialogOpen);
   const resume = useResumeRoutines();
@@ -52,31 +58,28 @@ export function RoutinePlanSkipNotice({
   const notice = triggerPlanSkipNotice(
     status.data?.find((item) => item.routine_id === routine.id),
     plan,
+    {
+      createdBy: routine.created_by,
+      viewerId: session?.uid,
+      // A hosted agent's client-side id IS its gateway slug.
+      agentSlug: agentId,
+      // Known for a team space; the personal space's slug is opaque here.
+      orgSlug: workspace ? orgSlugFromWorkspaceId(workspace.id) : null,
+    },
   );
   if (!notice) return null;
 
-  const onAction = (action: TriggerPlanSkipAction) => {
-    switch (action) {
-      case "upgrade":
-        onLeave?.();
-        openSettings("plan");
-        return;
-      case "keep_routine":
-        onLeave?.();
-        openKeepChooser(true);
-        return;
-      case "resume":
-        // A failure is surfaced by the engine call itself (`tauriOrg`).
-        resume.mutate();
-        return;
-    }
-  };
-
   return (
-    <RoutinePlanSkipNoticeView
+    <RoutinePlanSkipNoticeControls
       notice={notice}
-      onAction={onAction}
-      pending={resume.isPending ? "resume" : null}
+      effects={{
+        openBilling: () => openSettings("plan"),
+        openKeepChooser: () => openKeepChooser(true),
+        // A failure is surfaced by the engine call itself (`tauriOrg`).
+        resume: () => resume.mutate(),
+        resuming: resume.isPending,
+      }}
+      onLeave={onLeave}
       layout={layout}
       className={className}
     />
