@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { capturePodFence, type PodGatewayConfig } from "./pod-gateway";
 
-function gateway(token = "old"): PodGatewayConfig {
+function gateway(token = "4"): PodGatewayConfig {
   return {
     baseUrl: "https://gateway.example",
     orgSlug: "acme",
@@ -18,10 +18,10 @@ test("capturePodFence ignores fencing tokens on non-ok responses", () => {
     config,
     new Response(null, {
       status: 409,
-      headers: { "X-Houston-Fencing-Token": "new" },
+      headers: { "X-Houston-Fencing-Token": "5" },
     }),
   );
-  expect(config.fence.token).toBe("old");
+  expect(config.fence.token).toBe("4");
 });
 
 test("capturePodFence ignores an empty fencing token on an ok response", () => {
@@ -33,17 +33,31 @@ test("capturePodFence ignores an empty fencing token on an ok response", () => {
       headers: { "X-Houston-Fencing-Token": "" },
     }),
   );
-  expect(config.fence.token).toBe("old");
+  expect(config.fence.token).toBe("4");
 });
 
-test("capturePodFence adopts a real fencing token on an ok response", () => {
+test("capturePodFence adopts a newer fencing token on an ok response", () => {
   const config = gateway();
   capturePodFence(
     config,
     new Response(null, {
       status: 200,
-      headers: { "X-Houston-Fencing-Token": "new" },
+      headers: { "X-Houston-Fencing-Token": "5" },
     }),
   );
-  expect(config.fence.token).toBe("new");
+  expect(config.fence.token).toBe("5");
+});
+
+// A pod-store replica publishes its cached token, up to 2 s old: the boot's
+// own newer token must survive a read served from that cache.
+test("capturePodFence never moves the token back", () => {
+  const config = gateway("5");
+  capturePodFence(
+    config,
+    new Response(null, {
+      status: 200,
+      headers: { "X-Houston-Fencing-Token": "4" },
+    }),
+  );
+  expect(config.fence.token).toBe("5");
 });

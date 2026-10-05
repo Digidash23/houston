@@ -316,9 +316,10 @@ interface AgentChatPanelProps {
   afterMessages: AIBoardProps["afterMessages"];
   /** Hidden picker dialog mounted in the consumer. */
   pickerDialog: ReactNode;
-  /** Displayed provider/model for sending. */
+  /** Displayed provider/model/effort for sending. */
   effectiveProvider: string;
   effectiveModel: string;
+  effectiveEffort: string | undefined;
   /** The pin a send must carry, settled at send time (PRODUCT-1771). */
   resolveSendPin: () => Promise<ModelPin>;
   /** The composer's turn mode (execute | plan); consumers forward it as
@@ -2481,6 +2482,7 @@ export function useAgentChatPanel({
     pickerDialog,
     effectiveProvider: displayModelPin.provider,
     effectiveModel: displayModelPin.model,
+    effectiveEffort: displayModelPin.effort,
     resolveSendPin,
     turnMode,
     currentUserId,

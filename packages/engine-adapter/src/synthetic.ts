@@ -121,11 +121,15 @@ export function credentialSiblings(pid: NewProviderId): NewProviderId[] {
  * updates the doc the runtime never reads and every turn keeps running the
  * provider default. Pure so the bridge decision is unit-tested without the
  * HTTP client.
+ *
+ * A doc with no provider still forwards its effort: an agent never seeded with
+ * a provider (the desktop assistant's config is `{}`) gets an effort-only
+ * write from the effort picker, and the runtime saves effort on its own.
  */
 export function configWriteToSettings(
   relPath: string,
   content: string,
-): { activeProvider: string; model?: string; effort?: string } | null {
+): { activeProvider?: string; model?: string; effort?: string } | null {
   // `activeProvider` is whatever `migrateProviderModel` yields — since the wire
   // ProviderId now accepts any pi-ai id, a genuinely new provider passes through
   // as a plain string rather than being narrowed to the known `NewProviderId`.
@@ -140,7 +144,12 @@ export function configWriteToSettings(
   } catch {
     return null;
   }
-  if (typeof cfg.provider !== "string") return null;
+  const effort =
+    typeof cfg.effort === "string" && cfg.effort ? { effort: cfg.effort } : {};
+  // A model without its provider names nothing the runtime can resolve, so
+  // only the effort survives.
+  if (typeof cfg.provider !== "string")
+    return "effort" in effort ? effort : null;
   // Migrate legacy provider+model ids to ones pi-ai accepts BEFORE seeding the
   // runtime's settings. The runtime's getModel(provider, id) throws for an id it
   // doesn't offer (the legacy "openai" provider, bare "opus"/"sonnet", CLI-era
@@ -154,11 +163,5 @@ export function configWriteToSettings(
   );
   for (const d of diagnostics)
     console.warn(`[engine-adapter] migrated agent model: ${d.message}`);
-  return {
-    activeProvider: provider,
-    model,
-    ...(typeof cfg.effort === "string" && cfg.effort
-      ? { effort: cfg.effort }
-      : {}),
-  };
+  return { activeProvider: provider, model, ...effort };
 }

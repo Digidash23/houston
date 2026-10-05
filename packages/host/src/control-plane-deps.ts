@@ -167,6 +167,14 @@ export interface ControlPlaneDeps {
   /** Managed-store write-fence state; absent on desktop and self-host. */
   storeFenced?: () => boolean;
   /**
+   * Whether an agent-data write acknowledged now can still persist: asks the
+   * store's lease check (store-sync/write-fence.ts). Absent on desktop and
+   * self-host, where nothing fences.
+   */
+  storeWritable?: () => Promise<boolean>;
+  /** Ship an acknowledged write to the store now (store-sync/daemon.ts). */
+  storeSyncAfterWrite?: () => void;
+  /**
    * Materialize a synthetic (dot-named) agent's directory — the personal
    * assistant's home (routes/assistant.ts). Local filesystem profiles only;
    * absent → `GET /v1/assistant` answers 503 instead of handing out an address

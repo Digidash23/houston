@@ -1,3 +1,4 @@
+import { captureFencingToken } from "./fencing-token";
 import { downloadHttpBatch } from "./http-store-batch";
 import { objectStoreResponseError } from "./http-store-errors";
 import type { HttpObjectStoreOptions } from "./http-store-options";
@@ -188,8 +189,7 @@ export class HttpObjectStore implements ObjectStore {
   }
 
   private captureFence(res: Response): void {
-    if (!res.ok) return;
-    const token = res.headers.get("X-Houston-Fencing-Token");
-    if (token !== null && this.fence) this.fence.token = token;
+    if (!res.ok || !this.fence) return;
+    captureFencingToken(this.fence, res.headers.get("X-Houston-Fencing-Token"));
   }
 }

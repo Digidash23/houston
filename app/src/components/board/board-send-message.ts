@@ -79,6 +79,7 @@ export async function sendBoardMessage(
           : undefined,
       provider: overrides.providerOverride,
       model: overrides.modelOverride,
+      effort: overrides.effortOverride,
       mode: overrides.modeOverride,
       mentions: overrides.mentions,
       grants: overrides.grants,
@@ -109,6 +110,7 @@ export async function sendBoardMessage(
     await tauriChat.send(path, prompt, sessionKey, {
       providerOverride: overrides.providerOverride,
       modelOverride: overrides.modelOverride,
+      effortOverride: overrides.effortOverride,
       modeOverride: overrides.modeOverride,
       mentions: overrides.mentions,
       grants: overrides.grants,

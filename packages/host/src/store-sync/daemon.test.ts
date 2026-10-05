@@ -391,11 +391,15 @@ test("a fencing loss latches once, halts scheduling, and skips the final drain",
     delete: (key, opts) => inner.delete(key, opts),
   };
   const logs: Array<{ err?: unknown; message: string }> = [];
+  const fenceLost: string[] = [];
   const daemon = new StoreSyncDaemon({
     store: fencedStore,
     rootDir: localRoot,
     quietMs: 5,
     intervalMs: 20,
+    onFenceLost: (holder) => {
+      fenceLost.push(holder);
+    },
     log: (message, err) => logs.push({ message, err }),
   });
   await daemon.hydrate();
@@ -404,6 +408,10 @@ test("a fencing loss latches once, halts scheduling, and skips the final drain",
 
   await eventually(() => expect(daemon.fenced).toBe(true));
   expect(uploads).toBe(1);
+  // The owner hears once: with no lease check to name a running holder,
+  // the pod retires. No later write is acknowledged as persistable.
+  expect(fenceLost).toEqual(["stale"]);
+  expect(await daemon.writable()).toBe(false);
   writeFileSync(join(localRoot, "workspace", "notes.txt"), "later edit");
   await new Promise((resolve) => setTimeout(resolve, 100));
   await daemon.stop();
@@ -418,6 +426,7 @@ test("a fencing loss latches once, halts scheduling, and skips the final drain",
   // routes any entry WITH an error to Sentry as an error event).
   expect(fencingLogs[0]?.err).toBeUndefined();
   expect(fencingLogs[0]?.message).toContain("lease lost");
+  expect(fenceLost).toEqual(["stale"]);
 });
 
 test("the final sync retries a shutdown blip and flushes on a later attempt (HOUSTON-APP-58V)", async () => {
@@ -550,4 +559,30 @@ test("a transient sync failure is a breadcrumb; only a streak reports the error"
 
   failing = false;
   await daemon.stop();
+});
+
+// A held check renews the lease, so a boot must start checking as soon as it
+// claimed it: a long hydrate must not let the boot look stale to a rival.
+test("the lease heartbeat runs from hydrate, before the sync starts", async () => {
+  const remoteRoot = mkdtempSync(
+    join(tmpdir(), "store-sync-heartbeat-remote-"),
+  );
+  const localRoot = mkdtempSync(join(tmpdir(), "store-sync-heartbeat-local-"));
+  let checks = 0;
+  const daemon = new StoreSyncDaemon({
+    store: new LocalDirStore(remoteRoot),
+    rootDir: localRoot,
+    leaseProbe: async () => {
+      checks += 1;
+      return { state: "held" };
+    },
+    leaseHeartbeatMs: 10,
+    log: () => {},
+  });
+  await daemon.hydrate();
+  await eventually(() => expect(checks).toBeGreaterThan(0));
+  await daemon.stop();
+  const after = checks;
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(checks).toBe(after);
 });

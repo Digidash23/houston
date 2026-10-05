@@ -1,6 +1,8 @@
 import type {
+  LeaseHolderState,
   ManifestObjectStore,
   ObjectStore,
+  WriteLeaseVerdict,
 } from "@houston/runtime-client/object-sync";
 import type { PodGatewayConfig } from "../pod-gateway";
 import type { RoutineSchedulerMode } from "../schedule/scheduler";
@@ -103,7 +105,19 @@ export interface ManagedHostOptions {
     maxHydrateBytes?: number;
     /** Gateway's explicit generation-precondition capability (boot lease). */
     generations?: boolean;
+    /** The pod-store's write lease check (store-sync/write-fence.ts). */
+    leaseProbe?: () => Promise<WriteLeaseVerdict>;
+    /** Whether this boot carries a lease token (false while fencing is off). */
+    leaseClaimed?: () => boolean;
+    leaseHeartbeatMs?: number;
   };
+  /**
+   * After the store sync learns another boot owns this agent's store: `live`
+   * when a running engine holds the lease, then `stale` once nobody does. A
+   * managed pod stands down on the first and retires on the second
+   * (local/fence-retire.ts).
+   */
+  onStoreFenceLost?: (holder: LeaseHolderState) => void;
   /** Managed-pod read/write org prefix mirror, outside the agent workspace. */
   sharedMirror?: {
     store: ManifestObjectStore;

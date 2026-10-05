@@ -1,9 +1,11 @@
 import {
   type HydrateManifest,
+  type LeaseHolderState,
   type LocalWriteLock,
   type ObjectStore,
   type SyncResult,
   syncBack,
+  type WriteLeaseVerdict,
 } from "@houston/runtime-client/object-sync";
 import { type TreeWatch, watchTree } from "../watch/watch-tree";
 
@@ -54,6 +56,16 @@ export interface StoreSyncOptions {
   finalSyncRetryDelaysMs?: number[];
   /** The host's hold on its own writers of a document a merge rewrites. */
   localWriteLock?: LocalWriteLock;
+  /** The pod-store's write lease check (managed pods; see write-fence.ts). */
+  leaseProbe?: () => Promise<WriteLeaseVerdict>;
+  /** Whether this boot carries a lease token (absent = always). */
+  leaseClaimed?: () => boolean;
+  leaseHeartbeatMs?: number;
+  /**
+   * After this boot lost the agent's store lease: `live` when a running
+   * engine holds it (stand down), then `stale` once nobody does (retire).
+   */
+  onFenceLost?: (holder: LeaseHolderState) => void;
   log: (msg: string, err?: unknown) => void;
 }
 

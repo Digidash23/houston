@@ -312,6 +312,7 @@ export function useMissionControl(agents: Agent[]) {
                 : undefined,
             provider: overrides.providerOverride,
             model: overrides.modelOverride,
+            effort: overrides.effortOverride,
             mode: DEFAULT_TURN_MODE,
             mentions: overrides.mentions,
           })
@@ -375,6 +376,7 @@ export function useMissionControl(agents: Agent[]) {
       opts?: {
         providerOverride?: string;
         modelOverride?: string;
+        effortOverride?: string;
         /** Teammates the first message @mentions (HOU-944). */
         mentions?: MessageMention[];
         /** The id the composer's typing prewarmed (`CreateMissionOptions`). */
@@ -398,6 +400,7 @@ export function useMissionControl(agents: Agent[]) {
           {
             providerOverride: opts?.providerOverride,
             modelOverride: opts?.modelOverride,
+            effortOverride: opts?.effortOverride,
             mentions: opts?.mentions,
             conversationId: opts?.conversationId,
             modeOverride: DEFAULT_TURN_MODE,
