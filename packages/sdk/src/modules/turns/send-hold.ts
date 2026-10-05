@@ -1,4 +1,5 @@
 import type { SendAccepted } from "@houston/runtime-client";
+import { computeBusyRefusal, SendBusyClock } from "./send-busy";
 import {
   type ActiveStream,
   SEND_TURN_RUNNING_HOLD_MS,
@@ -11,11 +12,13 @@ import { isEngineWakingRejection } from "./turn-errors";
 import { isTurnRunningRejection } from "./turn-running";
 
 /**
- * Re-sending a message the engine refused as "not now". Two refusals are
+ * Re-sending a message the engine refused as "not now". Three refusals are
  * transient and never lose the message: the pod is waking (a restart, a
- * boot), or another turn still holds the conversation (`409 turn running`).
- * Every re-send carries the SAME request (same nonce), so a late acceptance
- * can never double the message, and the bubble stays pending throughout.
+ * boot), another turn still holds the conversation (`409 turn running`), or
+ * the cloud's shared compute has no room yet (`503 compute_busy`,
+ * `send-busy.ts`). Every re-send carries the SAME request (same nonce), so a
+ * late acceptance can never double the message, and the bubble stays pending
+ * throughout.
  */
 
 /** Where a held send learns the running turn ended (see `TurnSink`). */
@@ -50,7 +53,9 @@ export function turnRunningDelay(
 }
 
 /**
- * Send, and re-send while the refusal is transient. A waking refusal walks
+ * Send, and re-send while the refusal is transient. A busy refusal re-sends
+ * after the server's hint until the busy budget runs out, and once the wait
+ * grows long `onBusy` fires so the turn can say so. A waking refusal walks
  * the wake ladder; a `turn running` refusal is HELD: `onHold` fires, then the
  * re-send goes out as soon as the stream shows a turn end (the running turn's
  * terminal frame) or the fallback delay elapses, whichever comes first. The
@@ -67,9 +72,11 @@ export async function sendHolding(
   signal: AbortSignal,
   tuning: StreamTuning | undefined,
   onHold: () => void,
+  onBusy: () => void = () => {},
 ): Promise<SendAccepted> {
   const wakeDelays = tuning?.sendWakeRetryDelaysMs ?? SEND_WAKE_RETRY_DELAYS_MS;
   const holdBudget = tuning?.sendTurnRunningHoldMs ?? SEND_TURN_RUNNING_HOLD_MS;
+  const busyClock = new SendBusyClock(tuning);
   let wakes = 0;
   let holds = 0;
   let heldSince: number | undefined;
@@ -82,7 +89,15 @@ export async function sendHolding(
       refusal = e;
     }
     if (signal.aborted) throw refusal;
-    if (isEngineWakingRejection(refusal)) {
+    // Before the waking check: a busy refusal carries the waking error string
+    // too, so a client from before the code still re-sends it.
+    const busy = computeBusyRefusal(refusal);
+    if (busy) {
+      if (busyClock.spent) throw refusal;
+      if (busyClock.noticeable) onBusy();
+      await pause(busyClock.pauseFor(busy), signal);
+      if (busyClock.noticeable) onBusy();
+    } else if (isEngineWakingRejection(refusal)) {
       const delay = wakeDelays[wakes++];
       if (delay === undefined) throw refusal;
       await pause(delay, signal);

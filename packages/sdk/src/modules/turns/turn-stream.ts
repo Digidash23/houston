@@ -390,8 +390,10 @@ export async function streamTurn(
             sink.holdSend();
             entry.held = true;
           },
+          () => output.sendWaiting?.(agentPath, sessionKey, "busy"),
         ).finally(() => {
           entry.held = false;
+          output.sendWaiting?.(agentPath, sessionKey, null);
         });
         sink.sendAccepted(accepted.turnId);
       } catch (e) {

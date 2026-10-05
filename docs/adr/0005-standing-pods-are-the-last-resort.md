@@ -25,11 +25,17 @@ This list is the state on 2026-10-02. An org outside the serve scope, `GW_POOL_S
 | `sleep_undo` | Fresh activity raced our own sleep, so the pod comes back for work already sent to it. | Stays. |
 | `operator` | A person calling the control API by hand. | Stays. |
 
-Every other reason in the enum is a fallback to remove. Enforcement will answer each one with a typed, retryable refusal in a served org. It switches on per org through the same serve scope, with no new flag. Until then these reasons still wake a pod, and the counter shows how often.
+Every other reason in the enum is a fallback to remove. Since 2026-10-04 a served org's pod wakes only when something names the wake, through the same serve scope and no new flag:
+
+- The gateway's one allowlist of routes, cloud `internal/edge/agents/podrequired.go`, names each route that still needs the pod and its reason. A request off it that no store or pool path answered gets `503 {"error":"engine unavailable","code":"pod_wake_refused"}`. A pool path hands a request to the pod on purpose only for E2B down, a turn or path the worker cannot carry, a declined op, a store not migrated yet, a routine only the pod's file knows, or a wake that already owns the agent.
+- Short of sandbox room, or after a sandbox failed before running a turn and a retry on a fresh one failed too, a send, Run now or op answers `503 compute_busy` (wire type `ComputeRefusal` in `@houston/wire-types`). Nothing ran. The SDK sends the same request again: a turn keeps thinking for up to 10 minutes and its VM says `sendWaiting: "busy"` after 15 s; an SDK REST write re-sends within 20 s.
+- The control plane refuses a served org's wake that names no reason or one that never applies there (`agent_create`, `agent_rename`).
+
+The rows below shrink as their routes leave `podrequired.go`.
 
 | Reason | What it is | What replaces it |
 |---|---|---|
-| `send`, `run_now`, `op` | A pool fallback. No sandbox room, an op the worker declined, or an awake pod that would not yield. | A typed, retryable refusal. A send over capacity waits for E2B. |
+| `send`, `run_now`, `op` | A pool fallback: E2B down, a body or path the worker cannot carry, an op the worker declined. No sandbox room waits instead (`compute_busy`). | Each fallback becomes a pool path or a typed refusal. |
 | `read` | A read the store did not answer. No doc yet, file authority, or a stream the turn log could not serve. | Reads of the store file and views the gateway builds. |
 | `conversation_control`, `routine_run_cancel` | Mode, dismiss, truncate, import and cancel on a conversation, and stopping a routine run. | Conversation ops, and a cancel through the pool claims. |
 | `mission`, `mission_stream`, `first_day` | Delegation, following a mission's stream, and a new agent's setup turn. | An op that hands back the turn to dispatch, and mission streams read from the turn log. |

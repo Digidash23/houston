@@ -169,12 +169,14 @@ export const ENGINE_RESUMED_MESSAGE =
  * its own copy by kind and never by matching the English text: the wording
  * is a default for surfaces without a dictionary, not a contract to compare
  * against. `send_busy`: a send held behind a running turn past its whole
- * budget (`turn-running.ts`).
+ * budget (`turn-running.ts`). `compute_busy`: a send the cloud's shared
+ * compute had no room for past its whole budget (`send-busy.ts`).
  */
 export type EngineNoticeKind =
   | "engine_restart"
   | "engine_resumed"
-  | "send_busy";
+  | "send_busy"
+  | "compute_busy";
 
 /**
  * Whether a turn's terminal error is the user pressing Stop — the verbatim

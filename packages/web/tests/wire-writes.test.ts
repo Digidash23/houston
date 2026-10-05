@@ -18,7 +18,9 @@ import {
  * `Authorization` bearer, and the live `x-houston-org`) — over the ONE shared
  * gateway fetch, with NO post-write refetch (a single request). Writes never
  * transient-retry in either path (cpFetch only blind-retries GET/HEAD; the SDK
- * requester never retries), so a single stubbed response is the whole wire.
+ * requester re-sends only the gateway's typed nothing-ran refusals,
+ * `compute_busy` and `pod_wake_refused`, pinned in wire-routines), so a single
+ * stubbed response is the whole wire.
  *
  * The color overlay (agents) and the setSession 404-swallow (integrations) stay
  * adapter-side and are asserted here alongside the wire.

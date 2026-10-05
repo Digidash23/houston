@@ -31,6 +31,10 @@ export interface StreamTuning {
   sendTurnRunningRetryDelaysMs?: readonly number[];
   /** How long a held send waits in total (see {@link SEND_TURN_RUNNING_HOLD_MS}). */
   sendTurnRunningHoldMs?: number;
+  /** How long a busy send keeps re-sending (`send-busy.ts` SEND_BUSY_WAIT_MS). */
+  sendBusyWaitMs?: number;
+  /** How long a busy send waits before the VM says so (SEND_BUSY_NOTICE_MS). */
+  sendBusyNoticeMs?: number;
   /**
    * How long a sent turn may go without a first response before it reports
    * `timeout` (see `FIRST_RESPONSE_TIMEOUT_MS`). Tests shrink it.

@@ -79,6 +79,23 @@ describe("board-card writes retry a busy or waking refusal", () => {
     sdk.dispose();
   });
 
+  it("a coded busy refusal rides one budget, the HTTP seam's, never two stacked", async () => {
+    const coded = JSON.stringify({
+      error: "agent busy; retry in a moment",
+      code: "compute_busy",
+      retryAfterMs: 8_000,
+    });
+    const { sdk, pauses, attempts } = makeSdk([refusal(503, coded)]);
+    await expect(
+      sdk.activities.writes.update(AGENT, "m1", { title: "x" }),
+    ).rejects.toMatchObject({ status: 503 });
+    // 8 s + 8 s fit the 20 s budget, a third would not; the board's own
+    // busy retry does not run the ladder again on top.
+    expect(pauses).toEqual([8_000, 8_000]);
+    expect(attempts()).toBe(3);
+    sdk.dispose();
+  });
+
   it("a waking refusal on an update surfaces at once, as before the SDK retried", async () => {
     const { sdk, pauses, attempts } = makeSdk([refusal(503, WAKING), card]);
     await expect(

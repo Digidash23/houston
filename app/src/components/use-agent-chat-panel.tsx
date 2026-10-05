@@ -364,8 +364,12 @@ export function useAgentChatPanel({
   // Approval cards are worded HERE, from the host's structural account of the
   // exact call (`lib/interaction-approval-labels.ts`).
   const approvalCopy = useApprovalCardCopy();
-  const { processLabels, getThinkingMessage, thinkingIndicator } =
-    useChatDisplayLabels(agent?.id);
+  const {
+    processLabels,
+    getThinkingMessage,
+    thinkingIndicator,
+    busyIndicator,
+  } = useChatDisplayLabels(agent?.id);
   const queryClient = useQueryClient();
   const addToast = useUIStore((s) => s.addToast);
 
@@ -2134,6 +2138,8 @@ export function useAgentChatPanel({
         return <SystemNote text={t("chat:engineRestart.resuming")} />;
       if (msg.notice === "send_busy")
         return <SystemNote text={t("chat:sendBusy")} />;
+      if (msg.notice === "compute_busy")
+        return <SystemNote text={t("chat:computeBusy")} />;
       return undefined;
     },
     [
@@ -2451,7 +2457,10 @@ export function useAgentChatPanel({
     renderToolResult,
     processLabels,
     getThinkingMessage,
-    thinkingIndicator,
+    thinkingIndicator:
+      conversationVm?.sendWaiting === "busy"
+        ? busyIndicator
+        : thinkingIndicator,
     renderTurnSummary,
     renderSystemMessage,
     conversationMap,
