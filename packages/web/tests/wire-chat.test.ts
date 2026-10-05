@@ -320,6 +320,82 @@ test("a send refused as turn running goes out again byte-identical, never droppe
   expectGatewayHeaders(sends[1]);
 });
 
+test("a send the shared compute had no room for goes out again byte-identical", async () => {
+  // The cloud refuses a send it has no sandbox room for with 503 compute_busy
+  // (nothing ran) instead of waking a pod. The SDK keeps the turn thinking and
+  // re-sends the SAME request after the hint: one message, one nonce.
+  let posts = 0;
+  stubRouted((call: Call) => {
+    if (call.url.endsWith("/events")) return new Response("", { status: 200 });
+    if (call.method === "POST" && call.url.endsWith("/messages"))
+      return ++posts === 1
+        ? json(503, {
+            error: "engine unavailable",
+            code: "compute_busy",
+            detail: "sandbox_queue_timeout",
+            retryAfterMs: 1,
+          })
+        : json(202, { ok: true });
+    return json(200, { ok: true, messages: [] });
+  });
+
+  await client().startSession(AGENT, {
+    sessionKey: "activity-busy",
+    prompt: "the weekly numbers, please",
+  });
+
+  const sends = await vi.waitUntil(
+    () => {
+      const s = calls.filter(
+        (c) => c.method === "POST" && c.url.endsWith("/messages"),
+      );
+      return s.length === 2 ? s : undefined;
+    },
+    { timeout: 5_000 },
+  );
+  expect(sends[1].url).toBe(
+    `${BASE}/agents/${AGENT}/conversations/activity-busy/messages`,
+  );
+  expect(sends[1].body).toBe(sends[0].body);
+  expectGatewayHeaders(sends[1]);
+});
+
+test("Stop on a message still waiting for room ends it: the cancel goes out, no re-send follows", async () => {
+  let posts = 0;
+  stubRouted((call: Call) => {
+    if (call.url.endsWith("/events")) return new Response("", { status: 200 });
+    if (call.method === "POST" && call.url.endsWith("/messages")) {
+      posts++;
+      return json(503, {
+        error: "engine unavailable",
+        code: "compute_busy",
+        retryAfterMs: 30_000,
+      });
+    }
+    return json(200, { ok: true, cancelled: false, messages: [] });
+  });
+  const c = client();
+  await c.startSession(AGENT, {
+    sessionKey: "activity-busy-stop",
+    prompt: "the weekly numbers, please",
+  });
+  await vi.waitUntil(() => posts === 1, { timeout: 5_000 });
+
+  const result = await c.cancelSession(AGENT, "activity-busy-stop");
+
+  expect(result).toEqual({ cancelled: true });
+  const cancel = calls.find(
+    (call) => call.method === "POST" && call.url.endsWith("/cancel"),
+  );
+  expect(cancel?.url).toBe(
+    `${BASE}/agents/${AGENT}/conversations/activity-busy-stop/cancel`,
+  );
+  // Stopped locally: no orphan rescue write, and nothing re-sent.
+  expect(calls.some((call) => call.method === "PATCH")).toBe(false);
+  await new Promise((r) => setTimeout(r, 1_200));
+  expect(posts).toBe(1);
+});
+
 // ---- the ids the paths splice ----
 
 test("every conversation path percent-encodes the agent and the session key", async () => {

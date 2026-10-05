@@ -16,6 +16,7 @@
 
 import type { PendingInteraction } from "@houston/runtime-client";
 import type { FirstResponse } from "./first-response";
+import type { SendWaitReason } from "./send-busy";
 
 export type { PendingInteraction } from "@houston/runtime-client";
 
@@ -96,6 +97,16 @@ export interface FeedOutput {
     sessionKey: string,
     response: FirstResponse,
   ): void;
+  /**
+   * A message this client sent is still waiting to start, and why (only busy
+   * compute today, `send-busy.ts`), or `null` once it was accepted or failed.
+   * Optional and additive.
+   */
+  sendWaiting?(
+    agentPath: string,
+    sessionKey: string,
+    reason: SendWaitReason | null,
+  ): void;
 }
 
 /**
@@ -150,5 +161,14 @@ export class MultiplexFeedOutput implements FeedOutput {
   ): void {
     for (const o of this.outputs)
       o.firstResponse?.(agentPath, sessionKey, response);
+  }
+
+  sendWaiting(
+    agentPath: string,
+    sessionKey: string,
+    reason: SendWaitReason | null,
+  ): void {
+    for (const o of this.outputs)
+      o.sendWaiting?.(agentPath, sessionKey, reason);
   }
 }

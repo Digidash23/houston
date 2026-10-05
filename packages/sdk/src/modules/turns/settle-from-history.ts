@@ -117,16 +117,20 @@ export async function reloadAndSettle(
   guard: (messages: ChatMessage[]) => boolean,
   stop: () => void,
   onAdoptTurnId?: (turnId: string) => void,
+  /** False once the turn may no longer settle this way (a Stop muted it). */
+  live: () => boolean = () => true,
 ): Promise<void> {
   let messages: ChatMessage[] | null = null;
   try {
     messages = await reloadHistory();
   } catch (e) {
+    if (!live()) return;
     push(s, {
       feed_type: "system_message",
       data: `Couldn't reload the conversation: ${e instanceof Error ? e.message : String(e)}`,
     });
   }
+  if (!live()) return;
   if (!s.settled) settleFromHistory(s, messages, turnId, guard, onAdoptTurnId);
   stop();
 }

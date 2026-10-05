@@ -23,6 +23,7 @@
  * hold, and counting that hold would leave no retry at all.
  */
 
+import { parseComputeRefusalText } from "@houston/wire-types";
 import type { Clock } from "../../ports";
 import { SdkHttpError } from "../http";
 import { isWakingAnswer } from "../waking-answer";
@@ -55,17 +56,28 @@ function jsonReasonOf(text: string): string | null {
   }
 }
 
-/** The gateway's busy refusal, JSON or plain text. */
+/**
+ * The gateway's busy refusal, JSON or plain text. One that carries the
+ * `compute_busy` code was already sent again, within its budget, by
+ * `httpRequest` itself: it surfaces here spent.
+ */
 export function isAgentBusyRefusal(e: unknown): e is SdkHttpError {
   if (!(e instanceof SdkHttpError) || e.status !== 503) return false;
   const text = e.message.trim();
+  if (parseComputeRefusalText(text)) return false;
   return (jsonReasonOf(text) ?? text) === AGENT_BUSY_503;
 }
 
-/** A waking pair in gateway JSON, read exactly as the app's classifier did. */
+/**
+ * A waking pair in gateway JSON, read exactly as the app's classifier did. A
+ * typed compute refusal (`pod_wake_refused` carries the waking reason too)
+ * already rode `httpRequest`'s budget: no ladder runs it again.
+ */
 export function isWakingWriteRefusal(e: unknown): e is SdkHttpError {
   if (!(e instanceof SdkHttpError)) return false;
-  const reason = jsonReasonOf(e.message.trim());
+  const text = e.message.trim();
+  if (parseComputeRefusalText(text)) return false;
+  const reason = jsonReasonOf(text);
   return reason !== null && isWakingAnswer(e.status, reason);
 }
 

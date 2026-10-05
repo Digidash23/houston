@@ -168,4 +168,17 @@ describe("goalProgress when the turn fails before the manager answers", () => {
       hiring: null,
     });
   });
+
+  it("fails on a send the shared compute never had room for", () => {
+    const busy: FeedItem = {
+      feed_type: "system_message",
+      data: "It's too busy right now to start your message.",
+      notice: "compute_busy",
+    };
+    deepStrictEqual(goalProgress([busy]), {
+      phase: "failed",
+      staff: null,
+      reason: null,
+    });
+  });
 });

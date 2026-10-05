@@ -1065,9 +1065,27 @@ test("a fatal stream refusal (401) settles the turn with the engine's message", 
   expect(board).toEqual(["running", "error"]);
 });
 
+/**
+ * Marks when `engine`'s send landed: a stream's failures count against its
+ * budget only from then on (while the send is out, they never end the turn).
+ */
+function sendLanded(engine: HoustonEngineClient): () => boolean {
+  let landed = false;
+  const send = engine.sendMessage.bind(engine);
+  engine.sendMessage = (async (...args: Parameters<typeof send>) => {
+    const answer = await send(...args);
+    landed = true;
+    return answer;
+  }) as typeof engine.sendMessage;
+  return () => landed;
+}
+
 test("the failure budget settles a dead-server turn instead of spinning forever", async () => {
-  // Every attempt connects and closes clean without a single frame.
-  const { engine, afters } = fakeEngine([() => {}]);
+  // Once the send landed, every attempt connects and closes clean without a
+  // single frame.
+  let landed = () => false;
+  const { engine, afters } = fakeEngine([() => waitFor(landed)]);
+  landed = sendLanded(engine);
   const { items, sessionStatuses, output } = makeOutput();
 
   await streamTurn(
@@ -1094,13 +1112,16 @@ test("the failure budget settles a dead-server turn instead of spinning forever"
 // loop's idle watchdog aborts each held attempt, and the budget settle used to
 // surface that abort's raw message — WebKit's "Fetch is aborted" — in the chat.
 test("budget exhaustion on aborted/hung attempts settles with product copy, never the raw transport error", async () => {
+  let landed = () => false;
   const { engine, afters } = fakeEngine([
-    () => {
+    async () => {
+      await waitFor(landed);
       const e = new Error("Fetch is aborted"); // WebKit's AbortError message
       e.name = "AbortError";
       throw e;
     },
   ]);
+  landed = sendLanded(engine);
   const { items, sessionStatuses, output } = makeOutput();
 
   await streamTurn(

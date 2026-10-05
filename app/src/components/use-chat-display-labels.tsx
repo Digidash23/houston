@@ -4,12 +4,14 @@ import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useActionBrandResolver } from "./use-action-brand-resolver";
 
-export function useChatDisplayLabels(
-  agentId?: string,
-): Pick<
+export function useChatDisplayLabels(agentId?: string): Pick<
   ChatPanelProps,
   "processLabels" | "getThinkingMessage" | "thinkingIndicator"
-> {
+> & {
+  /** The connecting line while the SDK keeps re-sending a message the
+   *  shared compute had no room for (`ConversationVM.sendWaiting`). */
+  busyIndicator: ChatPanelProps["thinkingIndicator"];
+} {
   const { t } = useTranslation("chat");
   // Resolves an in-flight integration action to the app logo + name + present-
   // tense label the process header shows as a branded row; ui/chat calls it
@@ -56,10 +58,15 @@ export function useChatDisplayLabels(
     () => <ChatThinkingIndicator phrases={loadingPhrases} />,
     [loadingPhrases],
   );
+  const busyIndicator = useMemo(
+    () => <ChatThinkingIndicator phrases={[t("sendWaitingBusy")]} />,
+    [t],
+  );
 
   return {
     processLabels,
     getThinkingMessage,
     thinkingIndicator,
+    busyIndicator,
   };
 }

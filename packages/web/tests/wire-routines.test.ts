@@ -227,6 +227,29 @@ test("the routine writes percent-encode both spliced ids", async () => {
   ]);
 });
 
+test("a routine write the shared compute had no room for goes out again, byte-identical", async () => {
+  // The gateway answers compute_busy only when nothing ran: the SDK sends the
+  // SAME request again after its hint, so a write is never lost or doubled.
+  stubFetch(
+    json(503, {
+      error: "agent busy; retry in a moment",
+      code: "compute_busy",
+      retryAfterMs: 1,
+    }),
+    json(200, routine),
+  );
+  const input = { name: "Daily digest", prompt: "p", schedule: "0 9 * * *" };
+
+  const created = await client().createRoutine("a1", input);
+
+  expect(calls).toHaveLength(2);
+  expect(calls[1].method).toBe("POST");
+  expect(calls[1].url).toBe(`${BASE}/agents/a1/routines`);
+  expect(calls[1].body).toBe(calls[0].body);
+  expect(calls[1].headers.get("Authorization")).toBe("Bearer t");
+  expect(created).toEqual(routine);
+});
+
 test("a failed routine write propagates — never swallowed", async () => {
   stubFetch(json(400, { error: "bad cron" }));
   await expect(
