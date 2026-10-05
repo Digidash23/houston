@@ -232,8 +232,10 @@ export async function streamTurn(
   // turnId source) included, even if the observer consumed it before disposal.
   let after: number | undefined;
   let sent = false;
-  // The handoff send's busy refusal, re-sent held on the fresh path.
+  // The handoff send's busy refusal, re-sent held on the fresh path, and
+  // when that send went out.
   let handoffRefusal: unknown;
+  let handoffSentAt: number | undefined;
   // Set when the person stopped the handoff's send before it landed:
   // resolves once the engine's cancel answered.
   let stoppedBeforeSend: Promise<void> | undefined;
@@ -259,6 +261,7 @@ export async function streamTurn(
     // reaches this hook, not a turn entry.
     const handoffStop = armHandoffStop(registry, key);
     let refusal: unknown;
+    const sentAt = Date.now();
     try {
       await engine.sendMessage(sessionKey, prompt, {
         ...sendOptions,
@@ -289,7 +292,10 @@ export async function streamTurn(
       // Stopped while out: the fresh path settles it once the engine's cancel
       // answered. Or no room on the shared compute, nothing ran: the fresh
       // path re-sends it, held, on the server's hint (`send-busy.ts`).
-      if (!stoppedBeforeSend) handoffRefusal = refusal;
+      if (!stoppedBeforeSend) {
+        handoffRefusal = refusal;
+        handoffSentAt = sentAt;
+      }
       if (!registry.isSending(key)) {
         firstResponse.dispose(); // torn down while the send was out
         return;
@@ -436,7 +442,7 @@ export async function streamTurn(
     if (stoppedBeforeSend) {
       entry.held = true; // the queue watchdog flushes nothing into the cancel
       await stoppedBeforeSend;
-      sink.fail(STOPPED_BY_USER);
+      if (!ac.signal.aborted) sink.fail(STOPPED_BY_USER); // not after a teardown
       ac.abort();
     } else if (!sent) {
       try {
@@ -451,6 +457,7 @@ export async function streamTurn(
           agentPath,
           sessionKey,
           firstRefusal: handoffRefusal,
+          firstSentAt: handoffSentAt,
         });
         sendOut = false;
         sink.sendAccepted(accepted.turnId);
@@ -472,8 +479,9 @@ export async function streamTurn(
     // A rejected send (e.g. the runtime refusing a not-connected turn with
     // 409), a fatal stream refusal (FatalResumeError), or a throwing frame
     // handler: settle with the engine's plain message so the spinner stops
-    // and the reason surfaces.
-    if (!sink.settled) {
+    // and the reason surfaces. Every settle aborts after it, so an abort with
+    // nothing settled is a teardown: a late refusal then settles nothing.
+    if (!sink.settled && !ac.signal.aborted) {
       const limit = messageLimitRefusal(e);
       if (limit) sink.planLimit(limit);
       else {

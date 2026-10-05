@@ -769,3 +769,102 @@ test("a Stop during the first send holds the turn until the cancel answered", as
 
   expect(snapshot(key).feed.some((f) => f.data === STOPPED_BY_USER)).toBe(true);
 });
+
+test("a handoff's busy wait counts from when its send went out", async () => {
+  expect(
+    new SendBusyClock({ sendBusyWaitMs: 1_000 }, Date.now() - 1_000).spent,
+  ).toBe(true);
+  let busyCalls = 0;
+  let sends = 0;
+  const started = Date.now();
+  // The handoff's POST sat 900 ms in the gateway's queue before its refusal:
+  // 100 ms of the 1 s budget is left, and the 50 ms notice is overdue.
+  const refusal = await sendHolding(
+    async () => {
+      sends++;
+      return {};
+    },
+    noEvidence,
+    new AbortController().signal,
+    { sendBusyNoticeMs: 50, sendBusyWaitMs: 1_000 },
+    {
+      onHold: () => {},
+      onBusy: () => busyCalls++,
+      firstRefusal: busy(),
+      busySince: Date.now() - 900,
+    },
+  ).catch((e: unknown) => e);
+  expect(computeBusyRefusal(refusal)).not.toBeNull();
+  expect(sends).toBe(0);
+  expect(busyCalls).toBe(1);
+  expect(Date.now() - started).toBeLessThan(500);
+});
+
+test("a teardown aborts the busy re-send still out, and a late refusal settles nothing", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-busy-teardown-late";
+  const persisted: string[] = [];
+  output.persistBoardStatus = async (_agent, _session, status) => {
+    persisted.push(status);
+  };
+  const { engine } = busyEngine(0, async (o) => {
+    o.onEvent(sync(false, 0));
+    await untilAborted(o);
+  });
+  let calls = 0;
+  let outSignal: AbortSignal | undefined;
+  engine.sendMessage = (async (
+    _id: string,
+    _text: string,
+    o?: { signal?: AbortSignal },
+  ) => {
+    if (++calls === 1) throw busy();
+    outSignal = o?.signal;
+    // A binding that ignores the abort: its refusal still lands, late.
+    await new Promise((r) => setTimeout(r, 100));
+    throw busy();
+  }) as typeof engine.sendMessage;
+
+  const turn = streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: fast,
+  });
+  await waitFor(() => outSignal !== undefined);
+  const persistedBefore = persisted.length;
+  registry.disposeAll();
+  expect(outSignal?.aborted).toBe(true);
+  await turn;
+
+  expect(persisted.slice(persistedBefore)).toEqual([]);
+  expect(snapshot(key).feed.some((f) => f.feed_type === "system_message")).toBe(
+    false,
+  );
+});
+
+test("the fresh path's busy budget includes the handoff send's queue wait", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-handoff-busy-since";
+  const { engine } = busyEngine(0, async (o) => {
+    o.onEvent(sync(false, 3));
+    await untilAborted(o);
+  });
+  let sends = 0;
+  engine.sendMessage = (async () => {
+    // The handoff's POST waits 1.1 s in the gateway's queue; every send is
+    // refused for room.
+    if (++sends === 1) await new Promise((r) => setTimeout(r, 1_100));
+    throw busy();
+  }) as typeof engine.sendMessage;
+
+  observeConversation(engine, "Houston/Bo", key, output, 1, registry, fast);
+  await waitFor(
+    () => registry.get(streamKey("Houston/Bo", key))?.kind === "observer",
+  );
+  await streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: { ...fast, sendBusyWaitMs: 1_200 },
+  });
+
+  // 100 ms of budget was left after the handoff: no re-send fits.
+  expect(sends).toBe(1);
+  const note = snapshot(key).feed.find((f) => f.feed_type === "system_message");
+  expect(note?.notice).toBe("compute_busy");
+});

@@ -45,6 +45,8 @@ export interface UnsentTurn {
   sessionKey: string;
   /** A refusal the observer handoff's send already met. */
   firstRefusal?: unknown;
+  /** When that send went out: its busy wait counts from then. */
+  firstSentAt?: number;
 }
 
 /**
@@ -59,12 +61,15 @@ export async function sendUntilAccepted(
   turn: UnsentTurn,
 ): Promise<SendAccepted> {
   const { sink, entry, ac, output, agentPath, sessionKey } = turn;
-  // `post` aborts the request still out; `hold` ends the re-send loop, on a
-  // teardown (the stream's own abort) or a Stop.
+  // `post` aborts the request still out; `hold` ends the re-send loop. A
+  // teardown (the stream's own abort) and a Stop end both.
   const post = new AbortController();
   const hold = new AbortController();
-  const endHold = () => hold.abort();
-  ac.signal.addEventListener("abort", endHold, { once: true });
+  const endSend = () => {
+    post.abort();
+    hold.abort();
+  };
+  ac.signal.addEventListener("abort", endSend, { once: true });
   let shown = false;
   const showBusy = () => {
     if (ac.signal.aborted || shown) return;
@@ -85,8 +90,7 @@ export async function sendUntilAccepted(
     // it, and the queue watchdog flushes nothing into that cancel.
     sink.holdSend();
     entry.held = true;
-    post.abort();
-    hold.abort();
+    endSend();
     return stop.finish;
   };
   try {
@@ -102,20 +106,22 @@ export async function sendUntilAccepted(
         },
         onBusy: showBusy,
         firstRefusal: turn.firstRefusal,
+        busySince: turn.firstSentAt,
       },
     );
   } catch (e) {
     if (stop) {
       clearBusy();
       await stop.answered;
-      sink.fail(STOPPED_BY_USER); // a no-op when frames settled it meanwhile
+      // A no-op when frames settled it meanwhile; nothing after a teardown.
+      if (!ac.signal.aborted) sink.fail(STOPPED_BY_USER);
       ac.abort();
     }
     throw e;
   } finally {
     entry.held = false;
     entry.stopUnsent = undefined;
-    ac.signal.removeEventListener("abort", endHold);
+    ac.signal.removeEventListener("abort", endSend);
     ac.signal.removeEventListener("abort", clearBusy);
     clearBusy();
   }

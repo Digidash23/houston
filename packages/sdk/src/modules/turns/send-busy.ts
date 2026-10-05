@@ -58,12 +58,15 @@ export type SendWaitReason = "busy";
  * grown long enough for the VM to say so. `dispose` once the send settles.
  */
 export class SendBusyClock {
-  private readonly started = Date.now();
   private readonly budget: number;
   private readonly notice: number;
   private noticeTimer: ReturnType<typeof setTimeout> | undefined;
 
-  constructor(tuning: StreamTuning | undefined) {
+  /** `started`: when the message first went out (default: now). */
+  constructor(
+    tuning: StreamTuning | undefined,
+    private readonly started: number = Date.now(),
+  ) {
     this.budget = tuning?.sendBusyWaitMs ?? SEND_BUSY_WAIT_MS;
     this.notice = tuning?.sendBusyNoticeMs ?? SEND_BUSY_NOTICE_MS;
   }

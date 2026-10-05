@@ -38,6 +38,9 @@ export interface SendHoldHooks {
   /** A refusal an earlier send of this message already met (the observer
    *  handoff's), handled before the first re-send. */
   firstRefusal?: unknown;
+  /** When that earlier send went out: the busy budget and notice count from
+   *  then, not from its refusal (which can follow the gateway's queue). */
+  busySince?: number;
 }
 
 /** Wait `ms`, waking early on abort. */
@@ -89,7 +92,7 @@ export async function sendHolding(
   let carried = hooks.firstRefusal;
   const wakeDelays = tuning?.sendWakeRetryDelaysMs ?? SEND_WAKE_RETRY_DELAYS_MS;
   const holdBudget = tuning?.sendTurnRunningHoldMs ?? SEND_TURN_RUNNING_HOLD_MS;
-  const busyClock = new SendBusyClock(tuning);
+  const busyClock = new SendBusyClock(tuning, hooks.busySince);
   let wakes = 0;
   let holds = 0;
   let heldSince: number | undefined;
