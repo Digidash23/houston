@@ -7,14 +7,11 @@ import type { HoustonEngineClient } from "@houston/runtime-client";
 import { streamEventsResumable } from "@houston/runtime-client";
 import type { FeedOutput } from "./feed-output";
 import { FirstResponseClock } from "./first-response";
+import type { PersonStop } from "./person-stop";
 import { randomNonce } from "./random-nonce";
 import { computeBusyRefusal } from "./send-busy";
 import { observerSettled } from "./send-hold";
-import {
-  armHandoffStop,
-  type PersonStop,
-  sendUntilAccepted,
-} from "./send-wait";
+import { armHandoffStop, sendUntilAccepted } from "./send-wait";
 import {
   type ActiveStream,
   PRESETTLED_POLL_MS,
@@ -459,8 +456,9 @@ export async function streamTurn(
       const stopped = stoppedBeforeSend;
       entry.held = true; // the queue watchdog flushes nothing into the cancel
       entry.stopUnsent = () => stopped.join(); // a second Stop joins the wait
-      await stopped.answered;
-      if (!ac.signal.aborted) sink.fail(STOPPED_BY_USER); // not after a teardown
+      await stopped.settleWith(() => {
+        if (!ac.signal.aborted) sink.fail(STOPPED_BY_USER); // not after a teardown
+      });
       ac.abort();
     } else if (!sent) {
       try {

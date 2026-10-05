@@ -1,5 +1,6 @@
 import type { SendAccepted } from "@houston/runtime-client";
 import type { FeedOutput } from "./feed-output";
+import { PersonStop } from "./person-stop";
 import { sendHolding } from "./send-hold";
 import type {
   ActiveStream,
@@ -8,46 +9,6 @@ import type {
 } from "./stream-registry";
 import { STOPPED_BY_USER } from "./turn-errors";
 import type { TurnSink } from "./turn-sink";
-
-/**
- * The person's Stop of a message the engine has not accepted. The send ends
- * at once; the turn settles as stopped only once the caller's engine cancel
- * answered (`finish`), however long that takes. Settling first would let a
- * message queued behind the turn go out, and that cancel would then stop it
- * instead. Every caller calls `finish` in a `finally`, so a cancel that fails
- * settles the turn too.
- */
-export class PersonStop {
-  readonly answered: Promise<void>;
-  private resolve: () => void = () => {};
-  /** Cancels still out: a second Stop sends a second one. */
-  private pending = 0;
-  private done = false;
-
-  constructor() {
-    this.answered = new Promise<void>((r) => {
-      this.resolve = r;
-    });
-  }
-
-  /**
-   * One Stop's cancel: the `finish` its caller calls once that cancel
-   * answered. The turn settles only when every cancel out has answered, so
-   * none of them can reach a message queued behind it. Null once settled.
-   */
-  join(): (() => void) | null {
-    if (this.done) return null;
-    this.pending++;
-    let finished = false;
-    return () => {
-      if (finished) return;
-      finished = true;
-      if (--this.pending > 0) return;
-      this.done = true;
-      this.resolve();
-    };
-  }
-}
 
 /** A send the person stopped: never ambiguous, so nothing waits on it. */
 function stoppedError(): Error {
@@ -143,9 +104,10 @@ export async function sendUntilAccepted(
   } catch (e) {
     if (stop) {
       clearBusy();
-      await stop.answered;
-      // A no-op when frames settled it meanwhile; nothing after a teardown.
-      if (!ac.signal.aborted) sink.fail(STOPPED_BY_USER);
+      await stop.settleWith(() => {
+        // A no-op when frames settled it meanwhile; nothing after a teardown.
+        if (!ac.signal.aborted) sink.fail(STOPPED_BY_USER);
+      });
       ac.abort();
     }
     throw e;

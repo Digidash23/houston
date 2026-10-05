@@ -8,6 +8,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { ScopeStore } from "../../store";
 import type { FeedOutput } from "./feed-output";
 import { MultiplexFeedOutput } from "./feed-output";
+import { PersonStop } from "./person-stop";
 import {
   COMPUTE_BUSY_MESSAGE,
   computeBusyRefusal,
@@ -624,9 +625,12 @@ test("a Stop waits for the engine's cancel to answer, however long it takes", as
     const finish = stops.stopUnsent("k");
     expect(finish).not.toBeNull();
     let answered = false;
-    void handoff.stopped()?.answered.then(() => {
-      answered = true;
-    });
+    void handoff
+      .stopped()
+      ?.settleWith(() => {})
+      .then(() => {
+        answered = true;
+      });
     await vi.advanceTimersByTimeAsync(120_000);
     expect(answered).toBe(false);
     finish?.();
@@ -1398,4 +1402,43 @@ test("a busy takeover runs the conversation again after the observer settled", a
   await turn;
 
   expect(snapshot(key).sessionStatus).toBe("completed");
+});
+
+test("the last cancel's answer settles the stopped send in the same tick", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-busy-stop-same-tick-settle";
+  const { engine } = busyEngine(Number.POSITIVE_INFINITY, async (o) => {
+    o.onEvent(sync(false, 0));
+    await untilAborted(o);
+  });
+
+  const turn = streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: { ...fast, sendBusyNoticeMs: 0 },
+  });
+  await waitFor(() => snapshot(key)?.sendWaiting === "busy");
+  const finish = registry.stopUnsent(streamKey("Houston/Bo", key));
+  await new Promise((r) => setTimeout(r, 20));
+  finish?.();
+  // Settled already: a Stop now finds a finished turn, never an unsettled
+  // one that a cancel it sends could outlive.
+  expect(snapshot(key).running).toBe(false);
+  expect(registry.stopUnsent(streamKey("Houston/Bo", key))).toBeNull();
+  await turn;
+});
+
+test("a Stop between the last answer and the settle still joins the wait", () => {
+  const stop = new PersonStop();
+  const first = stop.join();
+  first?.();
+  // Nothing registered the settle yet: the barrier stays open.
+  const second = stop.join();
+  expect(second).not.toBeNull();
+  let settled = false;
+  void stop.settleWith(() => {
+    settled = true;
+  });
+  expect(settled).toBe(false);
+  second?.();
+  expect(settled).toBe(true);
+  expect(stop.join()).toBeNull();
 });
