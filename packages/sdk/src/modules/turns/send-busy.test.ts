@@ -18,7 +18,11 @@ import {
 } from "./send-busy";
 import { sendHolding } from "./send-hold";
 import { armHandoffStop } from "./send-wait";
-import { StreamRegistry, streamKey } from "./stream-registry";
+import {
+  SEND_IN_FLIGHT_MESSAGE,
+  StreamRegistry,
+  streamKey,
+} from "./stream-registry";
 import { STOPPED_BY_USER } from "./turn-errors";
 import {
   observeConversation,
@@ -1441,4 +1445,62 @@ test("a Stop between the last answer and the settle still joins the wait", () =>
   second?.();
   expect(settled).toBe(true);
   expect(stop.join()).toBeNull();
+});
+
+test("a send while another still hands off on the key, its observer gone, fails fast", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-send-lock-no-observer";
+  const { engine, nonces } = busyEngine(0, untilAborted);
+  // Another streamTurn holds the key's send lock; its observer has left.
+  expect(registry.beginSend(streamKey("Houston/Bo", key))).toBe(true);
+
+  await streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: fast,
+  });
+
+  expect(nonces).toHaveLength(0);
+  expect(
+    snapshot(key).feed.some((f) => f.data === SEND_IN_FLIGHT_MESSAGE),
+  ).toBe(true);
+  registry.endSend(streamKey("Houston/Bo", key));
+});
+
+test("the busy line goes once the re-send's own echo beats its 202", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-busy-echo-first";
+  let echoed = false;
+  let clearedBeforeAnswer = false;
+  const { engine, nonces } = busyEngine(1, async (o) => {
+    o.onEvent(sync(false, 0));
+    await waitFor(() => nonces.length === 2);
+    o.onEvent({
+      type: "user",
+      data: { content: "hi", ts: 1, nonce: nonces[1] },
+      turnId: "t-mine",
+      seq: 1,
+    });
+    echoed = true;
+    await waitFor(() => answered);
+    o.onEvent({ type: "text", data: "Done", turnId: "t-mine", seq: 2 });
+    o.onEvent({ type: "done", data: null, turnId: "t-mine", seq: 3 });
+  });
+  let answered = false;
+  const send = engine.sendMessage.bind(engine);
+  engine.sendMessage = (async (...args: Parameters<typeof send>) => {
+    const answer = await send(...args);
+    if (nonces.length === 2) {
+      // The 202 lags the echo.
+      await waitFor(() => echoed);
+      clearedBeforeAnswer = snapshot(key).sendWaiting === undefined;
+      answered = true;
+    }
+    return answer;
+  }) as typeof engine.sendMessage;
+
+  await streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: { ...fast, sendBusyNoticeMs: 0 },
+  });
+
+  expect(clearedBeforeAnswer).toBe(true);
+  expect(snapshot(key).sessionStatus).toBe("completed");
 });

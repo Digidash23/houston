@@ -232,6 +232,16 @@ it("keeps a follow-up queued behind a handoff whose observed turn ends mid-POST"
   emits[0]?.({ type: "done", data: null, turnId: "t-prev", seq: 4 });
   await vi.advanceTimersByTimeAsync(0);
   expect(dispatched).toHaveLength(0);
+  // The VM reads idle now, but a message typed meanwhile still queues.
+  expect(running()).toBe(false);
+  expect(
+    maybeQueueSend(
+      AGENT,
+      { sessionKey: key, prompt: "typed later" },
+      dispatch,
+      async () => [],
+    ),
+  ).toBe(true);
 
   refuse(
     new EngineError(
@@ -251,5 +261,7 @@ it("keeps a follow-up queued behind a handoff whose observed turn ends mid-POST"
   await turn;
   expect(nonces).toHaveLength(2);
   expect(new Set(nonces).size).toBe(1);
-  expect(dispatched.map((r) => r.prompt)).toEqual(["follow-up"]);
+  expect(dispatched).toHaveLength(1);
+  expect(dispatched[0]?.prompt).toContain("follow-up");
+  expect(dispatched[0]?.prompt).toContain("typed later");
 });

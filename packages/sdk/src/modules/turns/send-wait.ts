@@ -59,7 +59,8 @@ export async function sendUntilAccepted(
   ac.signal.addEventListener("abort", endSend, { once: true });
   let shown = false;
   const showBusy = () => {
-    if (ac.signal.aborted || shown) return;
+    // Never once the turn is seen running: its own echo can beat the 202.
+    if (ac.signal.aborted || shown || sink.active) return;
     shown = true;
     output.sendWaiting?.(agentPath, sessionKey, "busy");
   };
@@ -69,6 +70,7 @@ export async function sendUntilAccepted(
     output.sendWaiting?.(agentPath, sessionKey, null);
   };
   ac.signal.addEventListener("abort", clearBusy, { once: true });
+  sink.whenStarted(clearBusy); // the engine took it: nothing waits any more
   let stop: PersonStop | undefined;
   entry.stopUnsent = () => {
     if (sink.settled) return null;

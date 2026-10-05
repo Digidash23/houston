@@ -240,6 +240,22 @@ export async function streamTurn(
   // Set when the person stopped the handoff's send before it landed:
   // resolves once the engine's cancel answered.
   let stoppedBeforeSend: PersonStop | undefined;
+  const refuseDuplicate = () => {
+    // The duplicate never sent a second turn — fail its optimistic bubble so
+    // it never reads as delivered (the first turn keeps rendering).
+    output.pushFeedItem(agentPath, sessionKey, {
+      feed_type: "system_message",
+      data: SEND_IN_FLIGHT_MESSAGE,
+      fails_pending: true,
+    });
+    firstResponse.resolve("error");
+  };
+  if (prior?.kind !== "observer" && registry.isSending(key)) {
+    // Another send still hands off on this key, its observer gone meanwhile:
+    // never a second real send beside it.
+    refuseDuplicate();
+    return;
+  }
   if (prior?.kind === "observer") {
     // Claim the per-key send lock SYNCHRONOUSLY, before the first await: the
     // observer entry still holds the key across `sendMessage`, so without this a
@@ -247,14 +263,7 @@ export async function streamTurn(
     // a second real send + attach a second sink (double render). The loser fails
     // fast; the observer keeps rendering the running turn.
     if (!registry.beginSend(key)) {
-      // The duplicate never sent a second turn — fail its optimistic bubble so
-      // it never reads as delivered (the first turn keeps rendering).
-      output.pushFeedItem(agentPath, sessionKey, {
-        feed_type: "system_message",
-        data: SEND_IN_FLIGHT_MESSAGE,
-        fails_pending: true,
-      });
-      firstResponse.resolve("error");
+      refuseDuplicate();
       return;
     }
     after = prior.lastSeq;

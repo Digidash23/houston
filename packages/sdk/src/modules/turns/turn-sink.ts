@@ -57,6 +57,8 @@ export class TurnSink {
   private readonly held = new SendHoldState();
   /** No frame or history settle publishes ({@link mute}, {@link dispose}). */
   private muted = false;
+  /** Callers waiting for the first evidence the turn runs ({@link whenStarted}). */
+  private readonly onStarted: Array<() => void> = [];
 
   constructor(private readonly o: TurnSinkOptions) {
     this.poll = new PresettlePoll(o.presettledPollMs, {
@@ -211,7 +213,7 @@ export class TurnSink {
         break;
     }
     if (ev.type !== "done" && ev.type !== "error") {
-      this.sawRunning = true;
+      this.markStarted();
       this.s.delivered = true; // a real frame proves the turn started
       this.poll.cancel(); // stream evidence: the poll's job is done
     }
@@ -234,7 +236,7 @@ export class TurnSink {
       this.adoptTurnId(ev.turnId);
       this.held.release();
       this.accepted = true;
-      this.sawRunning = true;
+      this.markStarted();
       this.s.delivered = true; // the engine echoed our send — it landed
       this.poll.cancel(); // the turn is demonstrably live on the stream
       return;
@@ -405,7 +407,7 @@ export class TurnSink {
         "running",
       );
     }
-    this.sawRunning = true;
+    this.markStarted();
     this.s.delivered = true; // a running sync proves the turn is live on the engine
     this.poll.cancel(); // a running turn on the stream: the poll is moot
   }
@@ -463,6 +465,21 @@ export class TurnSink {
       this.o.stop();
     }
     return settled;
+  }
+
+  /**
+   * Run `cb` once the turn is first seen running (our echo, its frames, or a
+   * running sync it adopted): at once if it already was.
+   */
+  whenStarted(cb: () => void): void {
+    if (this.sawRunning) cb();
+    else this.onStarted.push(cb);
+  }
+
+  private markStarted(): void {
+    if (this.sawRunning) return;
+    this.sawRunning = true;
+    for (const cb of this.onStarted.splice(0)) cb();
   }
 
   /**
