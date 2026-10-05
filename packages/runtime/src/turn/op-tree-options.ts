@@ -71,6 +71,7 @@ export function opTreeOptions(op: AgentOp): {
 } {
   if (isMigrationImport(op)) return { lazy: true, admit: importListed };
   switch (op.kind) {
+    case "first-day":
     case "route":
       return { excludes: ROUTE_OP_EXCLUDES, lazy: true };
     case "conversation":
