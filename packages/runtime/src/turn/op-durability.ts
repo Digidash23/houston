@@ -13,6 +13,8 @@ import type { ActivityDocSource } from "./turn-activity-source";
 import { announcedOpEvents } from "./turn-changed-events";
 import type { TurnFilesystem } from "./turn-filesystem";
 
+export class ConversationProjectionError extends Error {}
+
 /**
  * What a sync-back that did not fully land answers instead of the handler's
  * reply, or null when every write is durable. `context` names the op in the
@@ -88,6 +90,24 @@ export async function projectDurableOp(input: {
   if (op.op.kind === "conversation") {
     failures.push(...(await opTranscriptMirror(deps, turn, op.op)));
   }
+  if (
+    op.op.kind === "conversation" &&
+    op.op.action !== "rename" &&
+    op.op.action !== "delete" &&
+    (op.op.action !== "dismiss-interaction" || result.events.length > 0)
+  ) {
+    failures.push(
+      ...(await repairImportedConversations(
+        deps,
+        turn,
+        filesystem,
+        [
+          `${filesystem.dataRel}/conversations/${encodeURIComponent(op.op.conversationId)}.json`,
+        ],
+        { requireRoute: true },
+      )),
+    );
+  }
   if (isMigrationImport(op.op)) {
     const carried =
       op.op.kind === "route"
@@ -109,5 +129,14 @@ export async function projectDurableOp(input: {
       `[op] projection failed after a durable sync (asleep reads may lag until the next projection): ${failures.join("; ")} prefix=${input.prefix}`,
     );
   }
+  if (
+    op.op.kind === "conversation" &&
+    op.op.action !== "rename" &&
+    op.op.action !== "delete" &&
+    failures.length > 0
+  )
+    throw new ConversationProjectionError(
+      `conversation projection failed: ${failures.join("; ")}`,
+    );
   return announcedOpEvents(result.events, failures);
 }

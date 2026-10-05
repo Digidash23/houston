@@ -100,7 +100,12 @@ export async function runTurn(
     const interaction = newInteractionHolder();
     // The context a standing runtime holds around its prompt (exec-turn.ts).
     await runInTurnContext(
-      { conversationId, mode: mode ?? "execute", model },
+      {
+        conversationId,
+        mode: mode ?? "execute",
+        liveMode: turn.liveMode,
+        model,
+      },
       () =>
         promptTurnSession({
           session,
@@ -111,6 +116,8 @@ export async function runTurn(
           interaction,
           usedTokens,
           stallTimeoutMs: deps.stallTimeoutMs ?? config.turnStallTimeoutMs,
+          firstByteDeadlineMs:
+            deps.firstByteDeadlineMs ?? config.turnFirstByteDeadlineMs,
           emit,
         }),
     );
