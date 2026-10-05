@@ -2,17 +2,15 @@ import { mkdtemp, rm } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { syncBack } from "@houston/runtime-client/object-sync";
 import { startClaimHeartbeat } from "./claim-heartbeat";
 import { applyOp } from "./op-apply";
-import { partialSyncReply, projectDurableOp } from "./op-durability";
 import { executeOwnTreeOp } from "./op-own-tree";
 import { WorkerOpDeclinedError } from "./op-provider-guard";
 import { executeReconcileOp } from "./op-reconcile";
+import { syncOp } from "./op-sync";
 import { opClaimId, opTreeOptions } from "./op-tree-options";
 import { parseOpRequest } from "./parse-op-request";
 import type { TurnServerDeps } from "./server-types";
-import type { announcedOpEvents } from "./turn-changed-events";
 import { prepareTurnFilesystem } from "./turn-filesystem";
 import { TurnSetupError } from "./turn-layout";
 import { resolveTurnStore } from "./turn-store";
@@ -113,57 +111,16 @@ export async function executeOp(
     }
     await heartbeat.checkpoint();
     if (heartbeat.fenced) return json(res, 409, { error: "claim_fenced" });
-    const isRead = op.op.kind === "route" && op.op.method === "GET";
-    let announce: ReturnType<typeof announcedOpEvents> = [];
-    if (!isRead) {
-      const treeOp = op.op.kind === "route" || op.op.kind === "conversation";
-      if (result.tooLarge || (treeOp && result.status >= 500)) {
-        // A tree-mutating handler failed part-way (a refused lazy read, a
-        // 5xx): the overlay may hold HALF a multi-key mutation. Nothing has
-        // reached the store yet, so declining is exact — the pod re-runs
-        // the write from an unchanged tree instead of the user seeing a
-        // split folder. Credential/settings ops have no overlay to leave
-        // half-written; their own status (a 502 from the credential store)
-        // is the pod's answer too.
-        console.error(
-          `[op] handler failed before sync: status=${result.status} tooLarge=${result.tooLarge === true} prefix=${resolved.prefix} kind=${op.op.kind}`,
-        );
-        return json(res, 200, { ok: true, decline: true });
-      }
-      const synced = await syncBack(
-        resolved.store,
-        resolved.prefix,
-        filesystem.storeRoot,
-        filesystem.manifest,
-        {
-          include: result.include,
-          holdDeletesOnFailure: true,
-          // A lazy tree's manifest may be EMPTY for a pure create; the
-          // listing still told us whether the store mints generations, so a
-          // first create stays create-only (CAS "0") instead of blind.
-          generations: filesystem.generationAware,
-          workerMerge: true,
-        },
-      );
-      const partial = partialSyncReply(
-        synced,
-        `prefix=${resolved.prefix} kind=${op.op.kind}`,
-      );
-      if (partial) return json(res, 200, partial);
-      if (result.status < 300) {
-        announce = await projectDurableOp({
-          deps,
-          turn: turnLike,
-          op,
-          filesystem,
-          result,
-          uploaded: synced.uploaded,
-          deleted: synced.deleted,
-          source: resolved,
-          prefix: resolved.prefix,
-        });
-      }
-    }
+    if (result.ambiguous) return json(res, 200, { ok: true, ambiguous: true });
+    const { announce, reply } = await syncOp({
+      deps,
+      op,
+      filesystem,
+      result,
+      resolved,
+      turnLike,
+    });
+    if (reply) return json(res, 200, reply);
     json(res, 200, {
       ok: true,
       status: result.status,
@@ -174,6 +131,27 @@ export async function executeOp(
       events: announce,
     });
   } catch (error) {
+    if (op.op.kind === "custom-oauth") {
+      console.error(`[op] custom OAuth failed action=${op.op.action}`);
+      if (!res.headersSent)
+        json(
+          res,
+          200,
+          op.op.action === "complete"
+            ? { ok: true, ambiguous: true }
+            : {
+                ok: true,
+                status: 502,
+                contentType: "application/json",
+                body: JSON.stringify({
+                  error: "sign-in could not start",
+                  code: "oauth_failed",
+                }),
+                events: [],
+              },
+        );
+      return;
+    }
     const message = error instanceof Error ? error.message : String(error);
     if (
       error instanceof TurnSetupError &&

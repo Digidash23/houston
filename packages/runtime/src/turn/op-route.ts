@@ -34,7 +34,7 @@ function routeScope(filesystem: TurnFilesystem, decoded: string) {
     : agentRouteScope(filesystem.workspaceRel);
 }
 
-/** An add whose auth mode is the browser sign-in (pod-only capability). */
+/** The old gateway cannot own a worker's pending OAuth attempt. */
 function oauthAddBody(body: string | undefined): boolean {
   try {
     return JSON.parse(body ?? "{}").auth === "oauth";
@@ -47,8 +47,7 @@ function oauthAddBody(body: string | undefined): boolean {
  * A `route` op: the pod's own handler chain over the hydrated tree. Custom
  * integrations additionally get a per-op manager (definitions at the store
  * root, secrets in the gateway's custom-secret store, a fresh in-memory
- * executor) — the same construction the pod boots with, minus OAuth sign-in,
- * whose pending state lives only in a pod's memory.
+ * executor), with OAuth options when the gateway owns pending attempts.
  */
 export async function applyRouteOp(
   op: RouteOp,
@@ -60,12 +59,12 @@ export async function applyRouteOp(
   // decoded form against the allowlist).
   const decoded = decodeURIComponent(rest);
   const include = routeScope(filesystem, decoded);
-  // Adding an OAuth-auth integration mints a capability answer only the pod
-  // can honor (its callback + pending state) — decline before any write.
+  // Older gateways cannot receive a worker-owned sign-in.
   if (
     decoded === "integrations/custom/definitions" &&
     method === "POST" &&
-    oauthAddBody(op.op.body)
+    oauthAddBody(op.op.body) &&
+    !op.customOAuthCallbackUrl
   ) {
     return decline(include);
   }
@@ -139,10 +138,11 @@ async function runRouteOp(
     triggersEnabled: op.triggersEnabled,
   });
 
-  // A detect that hits an OAuth wall carries `oauthSupported`, which only
-  // the pod (the deployment that runs the browser sign-in) can answer —
-  // decline so the response never diverges. Read-only, so nothing to undo.
-  if (custom && decoded === "integrations/custom/detect") {
+  if (
+    custom &&
+    !op.customOAuthCallbackUrl &&
+    decoded === "integrations/custom/detect"
+  ) {
     try {
       if (JSON.parse(result.body).requiresOAuth === true)
         return decline(include);

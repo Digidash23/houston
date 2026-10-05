@@ -71,6 +71,8 @@ export function opTreeOptions(op: AgentOp): {
 } {
   if (isMigrationImport(op)) return { lazy: true, admit: importListed };
   switch (op.kind) {
+    case "custom-oauth":
+      return { excludes: ROUTE_OP_EXCLUDES, lazy: true };
     case "route":
       return { excludes: ROUTE_OP_EXCLUDES, lazy: true };
     case "conversation":
