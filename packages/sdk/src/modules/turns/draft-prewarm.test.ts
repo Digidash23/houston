@@ -300,6 +300,21 @@ describe("the prewarm carries the composer's pin", () => {
   });
 });
 
+describe("a clock that goes back restarts the run", () => {
+  it("typing before the rollback never counts toward the threshold", async () => {
+    const { requests, type, advance } = harness();
+    await type({ text: "h" });
+    advance(PREWARM_TYPING_GAP_MS);
+    await type({ text: "he" });
+    // The clock is corrected back; the next keystrokes are a second apart.
+    advance(-500);
+    await type({ text: "hel" });
+    advance(PREWARM_TYPING_GAP_MS);
+    await type({ text: "hell" });
+    expect(requests).toEqual([]);
+  });
+});
+
 describe("state belongs to one policy", () => {
   it("two policies share no sessions and no pending ids", async () => {
     const one = harness();
@@ -310,6 +325,26 @@ describe("state belongs to one policy", () => {
     expect(two.requests).toHaveLength(1);
     expect(two.policy.claimNewConversationId("new")).toBe("id-1");
     expect(one.policy.claimNewConversationId("new")).toBe("id-1");
+  });
+
+  it("a refresh in flight when the SDK is replaced settles the hold the replacement reads", async () => {
+    const one = harness(false);
+    await one.typeUpTo({ conversationId: "activity-c1", text: "h" });
+    const first = one.type({ conversationId: "activity-c1", text: "h" });
+    one.requests[0].settle();
+    await first;
+    one.advance(PREWARM_REFRESH_MS);
+    const refresh = one.type({ conversationId: "activity-c1", text: "he" });
+    expect(one.requests).toHaveLength(2);
+    const two = harness();
+    two.advance(PREWARM_TYPING_MS + PREWARM_REFRESH_MS + 250);
+    two.policy.adopt(one.policy.state());
+    one.requests[1].settle();
+    await refresh;
+    // Inside the refreshed hold, past the interval: one keystroke refreshes.
+    two.advance(PREWARM_REFRESH_MS);
+    await two.type({ conversationId: "activity-c1", text: "hel" });
+    expect(two.requests).toHaveLength(1);
   });
 
   it("a replacement policy adopts the typing run and the hold", async () => {

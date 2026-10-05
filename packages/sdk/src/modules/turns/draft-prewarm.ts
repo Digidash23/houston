@@ -145,12 +145,14 @@ export class DraftPrewarm {
   /**
    * The state a replacement SDK adopts: a hosted bearer rotation rebuilds the
    * SDK while the person may be typing, and a new chat's send must still claim
-   * the id its typing prewarmed. A request in flight is not carried: at worst
-   * the new instance asks again and the gateway answers `held`.
+   * the id its typing prewarmed. Sessions are handed over as they are, not
+   * copied: a request still in flight on the instance replaced settles the
+   * hold its replacement reads. The request itself is not carried; the
+   * session's send time keeps the replacement from asking again too soon.
    */
   state(): DraftPrewarmState {
     return {
-      sessions: [...this.sessions].map(([key, s]) => [key, { ...s }]),
+      sessions: [...this.sessions],
       pendingIds: [...this.pendingIds],
       typing: this.typing.entries(),
     };
@@ -159,7 +161,7 @@ export class DraftPrewarm {
   /** Takes over `state` for every slot this instance has not typed in. */
   adopt(state: DraftPrewarmState): void {
     for (const [key, session] of state.sessions)
-      if (!this.sessions.has(key)) this.sessions.set(key, { ...session });
+      if (!this.sessions.has(key)) this.sessions.set(key, session);
     for (const [key, id] of state.pendingIds)
       if (!this.pendingIds.has(key)) this.pendingIds.set(key, id);
     this.typing.adopt(state.typing);

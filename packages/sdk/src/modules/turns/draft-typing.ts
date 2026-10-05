@@ -24,11 +24,13 @@ export interface DraftTypingRun {
 export class DraftTypingRuns {
   private readonly runs = new Map<string, DraftTypingRun>();
 
-  /** Extends the slot's run, or starts one after a pause past the gap or on
-   *  another target. */
+  /** Extends the slot's run, or starts one after a pause past the gap, on
+   *  another target, or when the clock went back (the elapsed time is then
+   *  unknown, so nothing typed before counts). */
   keystroke(draftKey: string, target: string, now: number): DraftTypingRun {
     const run = this.runs.get(draftKey);
-    if (run?.target === target && now - run.lastAt <= PREWARM_TYPING_GAP_MS) {
+    const gap = run ? now - run.lastAt : -1;
+    if (run?.target === target && gap >= 0 && gap <= PREWARM_TYPING_GAP_MS) {
       run.lastAt = now;
       return run;
     }
