@@ -5,14 +5,19 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { cn } from "@houston-ai/core";
-import { useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useLayoutEffect, useRef, useState } from "react";
 import {
   createSidebarAccessibility,
   keyboardMoveAnnouncement,
 } from "./sidebar-drag-accessibility";
 import { SidebarDragOverlay } from "./sidebar-drag-overlay";
+import {
+  blockStartKeys,
+  emptyOpenGroupIds,
+  SidebarEmptyGroupHint,
+} from "./sidebar-group-block";
 import type { SidebarGroupView, SidebarRootEntry } from "./sidebar-groups";
-import type { SidebarLabels } from "./sidebar-labels";
+import { DEFAULT_SIDEBAR_LABELS, type SidebarLabels } from "./sidebar-labels";
 import { sidebarListEnd } from "./sidebar-paint";
 import type { SidebarItem } from "./sidebar-props";
 import type { SidebarBaseRowContext } from "./sidebar-row-context";
@@ -71,6 +76,12 @@ export function SidebarGroupedList({
   const itemById = new Map(items.map((item) => [item.id, item]));
   const groupById = new Map(groups.map((group) => [group.id, group]));
   const active = drag.ghost;
+  // Drag hint, so only where a drag can land.
+  const emptyGroups = drag.disabled
+    ? new Set<string>()
+    : emptyOpenGroupIds(drag.rows);
+  const blockStarts = blockStartKeys(drag.rows);
+  const emptyLabel = labels?.emptyGroup ?? DEFAULT_SIDEBAR_LABELS.emptyGroup;
   const keyboardMove = (key: string, direction: SidebarKeyboardDirection) => {
     const moved = drag.keyboardStep(key, direction);
     if (!moved) return;
@@ -118,17 +129,29 @@ export function SidebarGroupedList({
           {drag.rows.map((row) => {
             const key = treeRowKey(row);
             return (
-              <SidebarTreeRowView
-                key={key}
-                row={row}
-                item={row.kind === "agent" ? itemById.get(row.id) : undefined}
-                group={row.kind === "group" ? groupById.get(row.id) : undefined}
-                ctx={rowCtx}
-                ghost={key === drag.activeKey ? active : null}
-                disabled={drag.disabled}
-                onActivateGroup={onActivateGroup}
-                onKeyboardMove={drag.disabled ? undefined : keyboardMove}
-              />
+              <Fragment key={key}>
+                <SidebarTreeRowView
+                  row={row}
+                  item={row.kind === "agent" ? itemById.get(row.id) : undefined}
+                  group={
+                    row.kind === "group" ? groupById.get(row.id) : undefined
+                  }
+                  ctx={rowCtx}
+                  ghost={key === drag.activeKey ? active : null}
+                  disabled={drag.disabled}
+                  opensBlock={blockStarts.has(key)}
+                  onActivateGroup={onActivateGroup}
+                  onKeyboardMove={drag.disabled ? undefined : keyboardMove}
+                />
+                {row.kind === "group" &&
+                  emptyGroups.has(row.id) &&
+                  key !== drag.activeKey && (
+                    <SidebarEmptyGroupHint
+                      groupId={row.id}
+                      label={emptyLabel}
+                    />
+                  )}
+              </Fragment>
             );
           })}
         </SortableContext>
