@@ -20,6 +20,7 @@ interface Call {
 function sdk(answer: () => Response = () => json(202, LAUNCHING)) {
   const calls: Call[] = [];
   let now = 0;
+  let elapsed = 0;
   const fetchImpl = vi.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
       calls.push({
@@ -35,11 +36,21 @@ function sdk(answer: () => Response = () => json(202, LAUNCHING)) {
     fetch: fetchImpl as typeof fetch,
     storage: memoryKv(),
     devicePreferences: memoryKv(),
-    clock: { now: () => now, setTimeout: () => 0, clearTimeout: () => {} },
+    clock: {
+      now: () => now,
+      monotonic: () => elapsed,
+      setTimeout: () => 0,
+      clearTimeout: () => {},
+    },
     logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   };
   const config: SdkConfig = { baseUrl: `${BASE}/`, ports, reactivity: false };
   const advance = (ms: number) => {
+    now += ms;
+    elapsed += ms;
+  };
+  /** The wall clock alone is set: time itself went on as before. */
+  const setWallClock = (ms: number) => {
     now += ms;
   };
   const client = new HoustonSdk(config);
@@ -52,7 +63,7 @@ function sdk(answer: () => Response = () => json(202, LAUNCHING)) {
       advance(250);
     }
   };
-  return { client, calls, advance, typeUpTo };
+  return { client, calls, advance, setWallClock, typeUpTo };
 }
 
 const json = (status: number, body: unknown) =>
@@ -155,6 +166,28 @@ describe("turns.draftChanged and claimNewConversationId", () => {
     const id = client.turns.claimNewConversationId(draft.draftKey);
     const url = `${BASE}/v1/agents/sales/conversations/activity-${id}/prewarm`;
     expect(calls.map((call) => call.url)).toEqual([url, url]);
+  });
+
+  it("measures typing and holds on the clock that never goes back", async () => {
+    const { client, calls, advance, setWallClock, typeUpTo } = sdk();
+    const draft = {
+      agentId: "sales",
+      draftKey: "activity-c1",
+      conversationId: "activity-c1",
+      text: "h",
+    };
+    await typeUpTo(draft);
+    await client.turns.draftChanged(draft, { conversationPrewarm: true });
+    expect(calls).toHaveLength(1);
+    // The wall clock is set back 15 s while 30 s pass: the 20 s hold has
+    // ended, so one keystroke readies nothing.
+    setWallClock(-15_000);
+    advance(30_000);
+    await client.turns.draftChanged(
+      { ...draft, text: "he" },
+      { conversationPrewarm: true },
+    );
+    expect(calls).toHaveLength(1);
   });
 
   it("asks nothing of a deployment without the capability", async () => {

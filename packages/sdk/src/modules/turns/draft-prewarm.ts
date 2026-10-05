@@ -63,6 +63,8 @@ export interface DraftPrewarmPorts {
     agentId: string,
     input: ConversationPrewarmInput,
   ): Promise<unknown>;
+  /** Milliseconds on a clock that never goes back: runs, intervals and holds
+   *  are spans, which a wall clock set back would stretch. */
   now(): number;
   /** A fresh conversation id for a new chat. Must never throw. */
   mintId(): string;

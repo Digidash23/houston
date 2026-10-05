@@ -71,9 +71,12 @@ export function createTurnsModule(
   const controls = createConversationControls(ctx);
   // Per instance like the stream registry: typing sessions and the ids minted
   // for new chats belong to this SDK's composers alone.
+  const clock = ctx.config.ports.clock;
   const drafts = new DraftPrewarm({
     prewarm: controls.prewarm,
-    now: () => ctx.config.ports.clock.now(),
+    // Typing runs and holds are spans of time: a wall clock set back would
+    // stretch them.
+    now: () => clock.monotonic?.() ?? clock.now(),
     mintId: randomNonce,
   });
   const attachments = createAttachmentsOperation(ctx);

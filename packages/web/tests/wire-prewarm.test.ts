@@ -26,8 +26,8 @@ const PREWARM_ON = { conversationPrewarm: true };
 const { calls, reset, restore, stubFetch } = createWireCapture();
 
 beforeEach(() => {
-  // Only Date: the typing policy reads the clock, and the fetches still settle.
-  vi.useFakeTimers({ toFake: ["Date"] });
+  // Only the clocks: the typing policy reads them, and the fetches still settle.
+  vi.useFakeTimers({ toFake: ["Date", "performance"] });
   installLocalStorage();
   reset();
   stubFetch(() => json(202, ANSWER));
@@ -46,7 +46,7 @@ type Draft = Parameters<HoustonClient["draftChanged"]>[0];
 async function typeUpTo(c: HoustonClient, draft: Draft) {
   for (let t = 0; t < PREWARM_TYPING_MS; t += 250) {
     await c.draftChanged(draft, PREWARM_ON);
-    vi.setSystemTime(Date.now() + 250);
+    vi.advanceTimersByTime(250);
   }
 }
 

@@ -84,8 +84,8 @@ test("setEndpoint rebuilds the direct runtime client on the new port (local side
 });
 
 test("setEndpoint keeps the id a new chat's typing already prewarmed", async () => {
-  // Only Date: the typing policy reads the clock, and the fetches still settle.
-  vi.useFakeTimers({ toFake: ["Date"] });
+  // Only the clocks: the typing policy reads them, and the fetches still settle.
+  vi.useFakeTimers({ toFake: ["Date", "performance"] });
   const urls: string[] = [];
   vi.stubGlobal(
     "fetch",
@@ -109,7 +109,7 @@ test("setEndpoint keeps the id a new chat's typing already prewarmed", async () 
   };
   for (let t = 0; t <= PREWARM_TYPING_MS; t += 250) {
     await client.draftChanged(draft, { conversationPrewarm: true });
-    vi.setSystemTime(Date.now() + 250);
+    vi.advanceTimersByTime(250);
   }
   const prewarmUrl = urls.find((url) => url.endsWith("/prewarm")) ?? "";
   const prewarmed = /conversations\/activity-([^/]+)\/prewarm$/.exec(
