@@ -26,6 +26,34 @@ describe("chat-config holdAfterFirstDelta", () => {
       }
     ).messages;
   const settle = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  /** The first frame a FRESH subscriber gets: the `sync` snapshot. */
+  const firstSync = async (cid: string) => {
+    const abort = new AbortController();
+    try {
+      const res = await fetch(`${host.url}${convo(cid)}/events`, {
+        signal: abort.signal,
+      });
+      const reader = (res.body as ReadableStream<Uint8Array>).getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) throw new Error("stream ended before a sync frame");
+        buffer += decoder.decode(value, { stream: true });
+        const line = buffer
+          .split("\n")
+          .find((l) => l.startsWith("data: ") && l.includes('"sync"'));
+        if (line)
+          return JSON.parse(line.slice(6)).data as {
+            running: boolean;
+            partial: string;
+            turnId?: string;
+          };
+      }
+    } finally {
+      abort.abort();
+    }
+  };
 
   beforeEach(async () => {
     host = await startFakeHost(0);
@@ -44,6 +72,26 @@ describe("chat-config holdAfterFirstDelta", () => {
     await settle(300);
     const res = await post("/__test__/kill-turn");
     expect(((await res.json()) as { killed: number }).killed).toBe(1);
+  });
+
+  it("a stream that attaches mid-turn gets the turn the 202 named, with its first delta", async () => {
+    await post("/__test__/chat-config", {
+      replyDelayMs: 5,
+      holdAfterFirstDelta: true,
+    });
+    const sent = await post(`${convo("hold-late")}/messages`, {
+      text: "hold me",
+    });
+    // The runtime's 202 body: it names the accepted turn.
+    const accepted = (await sent.json()) as { ok: boolean; turnId?: string };
+    expect(sent.status).toBe(202);
+    expect(accepted.turnId).toEqual(expect.any(String));
+    await settle(100);
+
+    const sync = await firstSync("hold-late");
+    expect(sync).toMatchObject({ running: true, turnId: accepted.turnId });
+    expect(sync.partial).toMatch(/^Roger that/);
+    await post("/__test__/kill-turn");
   });
 
   it("a drop releases the held turn, which then finishes into history", async () => {
