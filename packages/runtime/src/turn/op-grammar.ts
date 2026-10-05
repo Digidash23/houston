@@ -2,6 +2,10 @@ import {
   type ConversationOp,
   parseConversationOp,
 } from "./op-grammar-conversation";
+import {
+  type CustomOAuthOp,
+  parseCustomOAuthOp,
+} from "./op-grammar-custom-oauth";
 import { str } from "./op-grammar-fields";
 import { type MigrateOp, parseMigrateOp } from "./op-grammar-migrate";
 import { parseReconcileOp, type ReconcileOp } from "./op-grammar-reconcile";
@@ -45,6 +49,7 @@ export type AgentOp =
     }
   | ConversationOp
   | { kind: "first-day"; body: string }
+  | CustomOAuthOp
   | SeedOp
   | MigrateOp
   | ReconcileOp;
@@ -53,6 +58,8 @@ export { ID, str } from "./op-grammar-fields";
 
 export function parseAgentOp(raw: Record<string, unknown>): AgentOp {
   switch (raw.kind) {
+    case "custom-oauth":
+      return parseCustomOAuthOp(raw);
     case "route":
       return parseRouteOp(raw);
     case "title":

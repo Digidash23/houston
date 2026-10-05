@@ -58,8 +58,7 @@ test("tranche-2 route allowlist: portable/migration/custom in, OAuth start out",
   ] as const) {
     expect(() => parseOpRequest(routeOp(rest, method)), rest).not.toThrow();
   }
-  // OAuth sign-in stays pod-side: its pending state lives in pod memory,
-  // where the browser callback lands.
+  // OAuth start is a dedicated op; its richer reply is gateway-only.
   expect(() =>
     parseOpRequest(
       routeOp("integrations/custom/definitions/acme/oauth/start", "POST"),
@@ -142,4 +141,154 @@ test("actingAs.via: only the assistant marker survives, anything else reads as a
   expect(
     parseOpRequest(envelope({ via: "assistant" })).actingAs,
   ).toBeUndefined();
+});
+
+const oauthEnvelope = (op: unknown, extra: object = {}) => ({
+  workspaceId: "w1",
+  agentId: "a1",
+  gcsPrefix: "ws/org1/a1",
+  hostToken: "ht",
+  claim: {
+    id: "c",
+    bootId: "b",
+    token: "t",
+    heartbeatUrl: "https://gateway.example/hb",
+  },
+  op,
+  ...extra,
+});
+const callback =
+  "https://gateway.example/v1/integrations/custom/oauth/callback";
+const validAttempt = {
+  slug: "acme",
+  endpoint: "https://mcp.example/mcp",
+  codeVerifier: "verifier",
+  redirectUri: callback,
+  authorizationServerUrl: "https://auth.example",
+  client: { client_id: "client", redirect_uris: [callback] },
+  expiresAtMs: 123,
+};
+
+test("custom OAuth kinds and callback envelope validate every input", () => {
+  expect(
+    parseOpRequest(
+      oauthEnvelope({
+        kind: "custom-oauth",
+        action: "start",
+        slug: "acme",
+        callbackUrl: callback,
+      }),
+    ).op,
+  ).toEqual({
+    kind: "custom-oauth",
+    action: "start",
+    slug: "acme",
+    callbackUrl: callback,
+  });
+  expect(
+    parseOpRequest(
+      oauthEnvelope({
+        kind: "custom-oauth",
+        action: "complete",
+        attempt: validAttempt,
+        code: "code",
+      }),
+    ).op,
+  ).toMatchObject({ attempt: validAttempt, code: "code" });
+  for (const url of [
+    callback,
+    "http://127.0.0.1:4318/v1/integrations/custom/oauth/callback",
+    "http://localhost/v1/integrations/custom/oauth/callback",
+    "http://[::1]/v1/integrations/custom/oauth/callback",
+  ]) {
+    expect(
+      parseOpRequest(
+        oauthEnvelope(
+          { kind: "title", text: "title" },
+          { customOAuthCallbackUrl: url },
+        ),
+      ).customOAuthCallbackUrl,
+    ).toBe(url);
+  }
+  for (const callbackUrl of [
+    "/relative",
+    "http://remote.example/v1/integrations/custom/oauth/callback",
+    "https://gateway.example/other",
+    `${callback}?code=x`,
+    `${callback}#x`,
+    "https://u:p@gateway.example/v1/integrations/custom/oauth/callback",
+    null,
+    1,
+  ]) {
+    expect(() =>
+      parseOpRequest(
+        oauthEnvelope({
+          kind: "custom-oauth",
+          action: "start",
+          slug: "acme",
+          callbackUrl,
+        }),
+      ),
+    ).toThrow();
+    expect(() =>
+      parseOpRequest(
+        oauthEnvelope(
+          { kind: "title", text: "title" },
+          { customOAuthCallbackUrl: callbackUrl },
+        ),
+      ),
+    ).toThrow();
+  }
+  for (const slug of ["Bad Slug", "../x", "", "x".repeat(65)]) {
+    expect(() =>
+      parseOpRequest(
+        oauthEnvelope({
+          kind: "custom-oauth",
+          action: "start",
+          slug,
+          callbackUrl: callback,
+        }),
+      ),
+    ).toThrow();
+  }
+  for (const code of ["", " ", 1, "c".repeat(8193)]) {
+    expect(() =>
+      parseOpRequest(
+        oauthEnvelope({
+          kind: "custom-oauth",
+          action: "complete",
+          attempt: validAttempt,
+          code,
+        }),
+      ),
+    ).toThrow();
+  }
+  for (const attempt of [
+    null,
+    [],
+    { ...validAttempt, client: [] },
+    { ...validAttempt, metadata: [] },
+    { ...validAttempt, resource: 1 },
+    { ...validAttempt, expiresAtMs: Infinity },
+    { ...validAttempt, expiresAtMs: "1" },
+    { ...validAttempt, client: { filler: "x".repeat(65536) } },
+    ...[
+      "slug",
+      "endpoint",
+      "codeVerifier",
+      "redirectUri",
+      "authorizationServerUrl",
+    ].map((key) => ({ ...validAttempt, [key]: 1 })),
+  ]) {
+    expect(() =>
+      parseOpRequest(
+        oauthEnvelope({
+          kind: "custom-oauth",
+          action: "complete",
+          attempt,
+          code: "code",
+        }),
+      ),
+    ).toThrow();
+  }
 });

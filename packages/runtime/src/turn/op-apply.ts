@@ -1,9 +1,9 @@
 import { join } from "node:path";
-import type { HoustonEvent } from "@houston/protocol";
 import { applyServedCredential } from "../auth/auth-file";
 import { generateTitle } from "../session/summarize";
 import { applyConversationOp } from "./op-conversation";
 import { applyApiKeyConnect, credentialOpFiles } from "./op-credential";
+import { applyCustomOAuthOp } from "./op-custom-oauth";
 import { applyEndpointConnect } from "./op-endpoint";
 import { prepareFirstDayOp } from "./op-first-day";
 import { assertWorkerOpProvider } from "./op-provider-guard";
@@ -14,33 +14,13 @@ import {
   settingsOpFiles,
 } from "./op-settings";
 import type { OpRequest } from "./parse-op-request";
-import type { CapturedCustomDefinitions } from "./turn-custom-definitions-doc";
 import type { TurnFilesystem } from "./turn-filesystem";
 import { createTurnModelRuntime } from "./turn-runtime";
 import { poolIdentity } from "./turn-store";
 
-export interface OpResult {
-  status: number;
-  contentType: string;
-  body: string;
-  /** Binary answer (file download / archive), base64 — relayed raw. */
-  bodyBase64?: string;
-  /** Response headers the client depends on (Content-Disposition, ...). */
-  headers?: Record<string, string>;
-  events: HoustonEvent[];
-  /** Store-relative paths this op may have written (the sync-back scope). */
-  include: (relativePath: string) => boolean;
-  /** The pod's own /skills answer after a skills mutation (the skills view). */
-  skillsView?: unknown;
-  /** The definitions capture after a custom-integration mutation. */
-  customDefinitions?: CapturedCustomDefinitions;
-  /** The hydrated tree had no such agent — decline, do not relay. */
-  agentMissing?: boolean;
-  /** The worker cannot serve this one (a provider that needs the pod). */
-  decline?: boolean;
-  /** A lazy read was refused mid-handler: the overlay may be partial. */
-  tooLarge?: true;
-}
+export type { OpResult } from "./op-result";
+
+import type { OpResult } from "./op-result";
 
 const json = (
   status: number,
@@ -71,6 +51,8 @@ export async function applyOp(
 ): Promise<OpResult> {
   const none = () => false;
   switch (op.op.kind) {
+    case "custom-oauth":
+      return applyCustomOAuthOp({ ...op, op: op.op }, filesystem, fetchImpl);
     case "route":
       return applyRouteOp(
         op as OpRequest & { op: Extract<OpRequest["op"], { kind: "route" }> },

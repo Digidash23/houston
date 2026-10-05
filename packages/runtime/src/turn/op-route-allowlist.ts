@@ -8,8 +8,8 @@
 
 // The agent-data families, agentfile writes, skills, files/attachments,
 // portable preview + export, the desktop→cloud migration, and custom
-// integrations (OAuth start excepted: its pending state lives in the pod's
-// memory, where the browser callback lands). Never a runtime path.
+// integrations. OAuth start uses the dedicated custom-oauth op.
+// Never a runtime path.
 const OP_ROUTE =
   /^(activities|routines|routine_runs|learnings|config)(\/[^/]+)?$|^agentfile\/(?!\.houston\/runtime\/).+$|^skills(\/[^/]+)?$|^files(\/.+)?$|^attachments$|^skills-manifest$|^portable\/(preview|export)$|^migration\/(export|import|complete|status)$|^integrations\/custom\/(detect|definitions|definitions\/[^/]+|definitions\/[^/]+\/(credential|tools))$/;
 
