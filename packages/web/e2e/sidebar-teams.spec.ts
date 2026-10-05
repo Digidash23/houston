@@ -59,10 +59,11 @@ test("the list closes on one Add new AI Employee shortcut, outside every folder"
   await expect(
     page.locator("[data-tour-target='sidebar'] [data-tour-target='newAgent']"),
   ).toBeVisible();
-  // A member steps in one level from the root rows.
-  await expect(
-    rail.locator("[data-sidebar-member-of='work'] button").first(),
-  ).toHaveClass(/\bpl-6\b/);
+  // A member steps in one level from the root rows, past the guide line its
+  // row draws under the folder's glyph.
+  const member = rail.locator("[data-sidebar-member-of='work']");
+  await expect(member.locator("button").first()).toHaveClass(/\bpl-8\b/);
+  await expect(member).toHaveClass(/after:bg-line/);
 });
 
 test("the create menu identifies employees and groups by their glyphs", async ({
@@ -191,4 +192,27 @@ test("the list's shortcut opens the create sheet on a new AI Employee", async ({
       .or(page.getByRole("radio", { name: "Finance", exact: true }))
       .first(),
   ).toBeVisible();
+});
+
+test("an open empty folder says how to fill it, and folding hides the line", async ({
+  page,
+}) => {
+  await seedSidebarLayout(page.request, {
+    groups: [{ id: "later", name: "Later", collapsed: false, agentIds: [] }],
+    order: [
+      { kind: "group", id: "later" },
+      { kind: "agent", id: SEED_AGENT_ID },
+    ],
+  });
+  await page.goto("/");
+  const hint = page.locator('[data-sidebar-empty-group="later"]');
+  await expect(hint).toHaveText("Drag an AI Employee here");
+  await page
+    .locator('[data-sidebar-group-header="later"] button')
+    .first()
+    .click();
+  await expect(hint).toHaveCount(0);
+  await expect(page.locator("[data-sidebar-item]")).toContainText(
+    SEED_AGENT_NAME,
+  );
 });
