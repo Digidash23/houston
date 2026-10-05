@@ -1181,3 +1181,28 @@ test("an observer's reload still out when a busy send takes over publishes nothi
 
   expect(snapshot(key).sessionStatus).toBe("completed");
 });
+
+test("a pre-settled poll still out at teardown never polls again", async () => {
+  const { output } = vmOutput();
+  const key = "activity-poll-teardown";
+  let reloads = 0;
+  let answerHistory: () => void = () => {};
+  const { engine } = busyEngine(0, untilAborted);
+  engine.getHistory = (() => {
+    reloads++;
+    return new Promise((resolve) => {
+      answerHistory = () => resolve({ id: "c", title: "", messages: [] });
+    });
+  }) as typeof engine.getHistory;
+
+  const turn = streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: { ...fast, presettledPollMs: 10 },
+  });
+  await waitFor(() => reloads === 1);
+  registry.disposeAll();
+  await turn;
+  answerHistory();
+  await new Promise((r) => setTimeout(r, 100));
+
+  expect(reloads).toBe(1);
+});

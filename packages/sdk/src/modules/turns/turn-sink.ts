@@ -61,7 +61,11 @@ export class TurnSink {
   constructor(private readonly o: TurnSinkOptions) {
     this.poll = new PresettlePoll(o.presettledPollMs, {
       canArm: () =>
-        this.accepted && !this.sawRunning && !this.settling && !this.s.settled,
+        this.accepted &&
+        !this.sawRunning &&
+        !this.settling &&
+        !this.s.settled &&
+        !this.muted,
       check: () => this.presettleCheck(),
     });
     this.s = newTurnState(o.agentPath, o.sessionKey, o.output, {
