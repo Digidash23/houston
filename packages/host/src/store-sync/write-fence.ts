@@ -75,9 +75,6 @@ export class WriteFence {
     else if (!this.opts.probe) this.settle("stale");
     // The heartbeat timer only calls watch(), which never rejects.
     else void this.watch();
-    // A loss proves the store fences this agent: watch the holder even if
-    // this boot never carried a token.
-    this.armHeartbeat();
   }
 
   /**
@@ -89,7 +86,6 @@ export class WriteFence {
   async writable(): Promise<boolean> {
     if (this.lostLatch) return false;
     if (!this.claimed) return true;
-    this.armHeartbeat();
     const verdict = await this.ask();
     if (verdict?.state === "fenced") {
       this.lose(
@@ -103,7 +99,10 @@ export class WriteFence {
   /**
    * Re-check on a timer, so an idle superseded pod acts on its own. A held
    * check renews the lease, so starting this right after the boot's claim
-   * keeps a hydrating boot live to a rival standing down.
+   * keeps a hydrating boot live to a rival standing down. The timer runs from
+   * here even with no token (fencing off), where a tick does no I/O at all:
+   * writable() answers at once until a read publishes a token (the flag
+   * flip), and from then on the same tick checks, idle pod included.
    */
   startHeartbeat(): void {
     this.heartbeatWanted = true;
@@ -112,7 +111,7 @@ export class WriteFence {
 
   private armHeartbeat(): void {
     if (!this.heartbeatWanted || !this.opts.probe || this.heartbeat) return;
-    if (this.holder === "stale" || !(this.claimed || this.lostLatch)) return;
+    if (this.holder === "stale") return;
     this.heartbeat = setInterval(
       () => void (this.lostLatch ? this.watch() : this.writable()),
       this.opts.heartbeatMs ?? DEFAULT_LEASE_HEARTBEAT_MS,

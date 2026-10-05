@@ -72,6 +72,20 @@ describe("isFencedWrite", () => {
     expect(isFencedWrite("POST", "/sandbox/missions/start", "sandbox")).toBe(
       true,
     );
+    // The agent's custom-integration definitions (custom-integrations.json).
+    expect(
+      isFencedWrite("POST", "/sandbox/integrations/custom/add", "sandbox"),
+    ).toBe(true);
+    expect(
+      isFencedWrite("POST", "/sandbox/integrations/custom/remove", "sandbox"),
+    ).toBe(true);
+    // Its reads go by POST too, and write nothing.
+    expect(
+      isFencedWrite("POST", "/sandbox/integrations/custom/status", "sandbox"),
+    ).toBe(false);
+    expect(
+      isFencedWrite("POST", "/sandbox/integrations/custom/detect", "sandbox"),
+    ).toBe(false);
     // The credential serve and the integration proxy never touch the tree.
     expect(isFencedWrite("POST", "/sandbox/credential", "sandbox")).toBe(false);
     expect(

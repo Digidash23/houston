@@ -41,14 +41,27 @@ function daemon(
 // A retire restarts the container on the same emptyDir. Hydrate only
 // overwrites what the store lists, so a conversation a pool op deleted while
 // this pod was fenced would come back with the first sync under the fresh
-// lease. The retire marker makes the next boot prune to the store first.
-test("after a fence retire the next boot prunes local files the store does not hold", async () => {
+// lease. The retire marker names what the old boot had seen in the store;
+// the next boot prunes those the store dropped, and keeps the old boot's own
+// never-synced writes (a stale holder means nobody else had a copy).
+test("after a fence retire the next boot prunes what the store dropped and keeps its own unsynced writes", async () => {
   const { remote, local } = roots();
+  const session = "workspaces/Work/Sales/.houston/runtime/sessions/s1.json";
   writeFileSync(join(remote, "workspace", "kept.json"), "store copy");
   writeFileSync(join(local, "workspace", "kept.json"), "fenced pod copy");
   writeFileSync(join(local, "workspace", "deleted-by-pool-op.json"), "old");
+  mkdirSync(join(local, "workspaces/Work/Sales/.houston/runtime/sessions"), {
+    recursive: true,
+  });
+  writeFileSync(join(local, session), "a turn this pod never synced");
   writeFileSync(join(local, "credentials.json"), "{}");
-  writeFileSync(join(local, FENCE_RETIRED_MARKER), "2026-10-05T00:00:00Z");
+  writeFileSync(
+    join(local, FENCE_RETIRED_MARKER),
+    JSON.stringify({
+      retiredAt: "2026-10-05T00:00:00Z",
+      synced: ["workspace/kept.json", "workspace/deleted-by-pool-op.json"],
+    }),
+  );
 
   const next = daemon(remote, local);
   await next.hydrate();
@@ -59,16 +72,31 @@ test("after a fence retire the next boot prunes local files the store does not h
   expect(existsSync(join(local, "workspace", "deleted-by-pool-op.json"))).toBe(
     false,
   );
-  // Never-synced local state stays: it was never the store's to prune.
+  expect(readFileSync(join(local, session), "utf8")).toBe(
+    "a turn this pod never synced",
+  );
   expect(existsSync(join(local, "credentials.json"))).toBe(true);
   expect(existsSync(join(local, FENCE_RETIRED_MARKER))).toBe(false);
   await next.stop();
   expect(existsSync(join(remote, "workspace", "deleted-by-pool-op.json"))).toBe(
     false,
   );
+  // The pod's own write ships under the fresh lease.
+  expect(existsSync(join(remote, session))).toBe(true);
 });
 
-test("an ordinary restart keeps local files the store lacks", async () => {
+test("an unreadable retire marker prunes nothing", async () => {
+  const { remote, local } = roots();
+  writeFileSync(join(local, "workspace", "mine.json"), "mine");
+  writeFileSync(join(local, FENCE_RETIRED_MARKER), "2026-10-05T00:00:00Z");
+  const next = daemon(remote, local);
+  await next.hydrate();
+  expect(existsSync(join(local, "workspace", "mine.json"))).toBe(true);
+  expect(existsSync(join(local, FENCE_RETIRED_MARKER))).toBe(false);
+  await next.stop();
+});
+
+test("an ordinary restart prunes nothing", async () => {
   const { remote, local } = roots();
   writeFileSync(join(local, "workspace", "unsynced.json"), "mine");
   const next = daemon(remote, local);
@@ -79,6 +107,7 @@ test("an ordinary restart keeps local files the store lacks", async () => {
 
 test("retiring on a stale holder leaves the marker, which never syncs", async () => {
   const { remote, local } = roots();
+  writeFileSync(join(remote, "workspace", "seen.json"), "{}");
   const holders: string[] = [];
   const fenced = daemon(remote, local, {
     leaseProbe: async (): Promise<WriteLeaseVerdict> => ({
@@ -91,7 +120,10 @@ test("retiring on a stale holder leaves the marker, which never syncs", async ()
   fenced.start();
   expect(await fenced.writable()).toBe(false);
   expect(holders).toEqual(["stale"]);
-  expect(existsSync(join(local, FENCE_RETIRED_MARKER))).toBe(true);
+  // The marker names what this boot's sync had seen in the store.
+  expect(
+    JSON.parse(readFileSync(join(local, FENCE_RETIRED_MARKER), "utf8")),
+  ).toMatchObject({ synced: ["workspace/seen.json"] });
   await fenced.stop();
   expect(existsSync(join(remote, FENCE_RETIRED_MARKER))).toBe(false);
 });

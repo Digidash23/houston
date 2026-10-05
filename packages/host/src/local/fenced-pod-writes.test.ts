@@ -263,6 +263,15 @@ test("a pod superseded by a running engine stands down, then retires when it sto
   expect(pod.fenceLost.mock.calls).toEqual([["live"]]);
   // It leaves the agent's Service: readiness answers 503.
   expect((await fetch(`${pod.base}/health`)).status).toBe(503);
+  // The agent's own saves are refused too, whatever family dispatches them
+  // first: the gate runs ahead of every sandbox group.
+  const added = await fetch(`${pod.base}/sandbox/integrations/custom/add`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "x" }),
+  });
+  expect(added.status).toBe(503);
+  expect(await added.json()).toMatchObject({ code: "store_fenced" });
   await new Promise((resolve) => setTimeout(resolve, 100));
   expect(pod.fenceLost.mock.calls).toEqual([["live"]]);
 

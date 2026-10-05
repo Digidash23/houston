@@ -27,8 +27,13 @@ export const STORE_FENCED_ERROR =
 
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-/** Runtime-tool write families that land in the agent's synced tree. */
-const SANDBOX_WRITE = /^\/sandbox\/(routines|learnings|missions)(\/|$)/;
+/**
+ * Runtime-tool write families that land in the agent's synced tree: routines,
+ * learnings, missions (the board), and the custom-integration definitions the
+ * agent adds or removes (custom-integrations.json).
+ */
+const SANDBOX_WRITE =
+  /^\/sandbox\/(routines|learnings|missions|integrations\/custom\/(add|remove))(\/|$)/;
 
 /**
  * Whether a request would write agent data. `scope` follows the server's

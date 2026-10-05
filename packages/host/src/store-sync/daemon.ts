@@ -2,21 +2,18 @@ import {
   type HydrateManifest,
   StoreFencedError,
 } from "@houston/runtime-client/object-sync";
-import type { TreeWatch } from "../watch/watch-tree";
 import { CoalescedRun } from "./coalesced-run";
 import { createDaemonFence } from "./daemon-fence";
 import { FENCE_RETIRED_MARKER, runHydrate } from "./daemon-hydrate";
 import { logFenceLost, logSyncFailed, logSyncResult } from "./daemon-log";
 import {
   awaitInFlightSync,
-  DEFAULT_INTERVAL_MS,
-  DEFAULT_QUIET_MS,
   runFinalSync,
   runSyncBack,
   STORE_SYNC_EXCLUDES,
   type StoreSyncOptions,
-  startTreeWatch,
 } from "./daemon-policy";
+import { SyncSchedule } from "./sync-schedule";
 import type { WriteFence } from "./write-fence";
 
 export { STORE_SYNC_EXCLUDES, type StoreSyncOptions } from "./daemon-policy";
@@ -28,9 +25,7 @@ export class StoreSyncDaemon {
   private stopping = false;
   private dirty = false;
   private dirtyVersion = 0;
-  private watcher: TreeWatch | undefined;
-  private quietTimer: ReturnType<typeof setTimeout> | undefined;
-  private intervalTimer: ReturnType<typeof setInterval> | undefined;
+  private readonly schedule: SyncSchedule;
   private readonly fence: WriteFence;
   private readonly syncs = new CoalescedRun(
     () => this.syncOnce(),
@@ -39,7 +34,12 @@ export class StoreSyncDaemon {
   private consecutiveFailures = 0;
 
   constructor(private readonly opts: StoreSyncOptions) {
-    this.fence = createDaemonFence(opts, (err) => this.haltFenced(err));
+    this.schedule = new SyncSchedule(opts);
+    this.fence = createDaemonFence(
+      opts,
+      (err) => this.haltFenced(err),
+      () => this.manifest.keys(),
+    );
   }
 
   get fenced(): boolean {
@@ -73,18 +73,16 @@ export class StoreSyncDaemon {
     if (this.started || this.fence.lost) return;
     this.started = true;
     this.fence.startHeartbeat();
-    this.watcher = startTreeWatch(this.opts, () => this.markDirty());
-    this.intervalTimer = setInterval(
+    this.schedule.start(
+      () => this.markDirty(),
       () => this.runInBackground("periodic"),
-      this.opts.intervalMs ?? DEFAULT_INTERVAL_MS,
     );
-    this.intervalTimer.unref?.();
   }
 
   async stop(): Promise<void> {
     this.stopping = true;
     this.fence.stopHeartbeat();
-    this.stopScheduling();
+    this.schedule.stop();
     if (!this.hydrated) return;
 
     const inFlight = this.syncs.inFlight;
@@ -108,12 +106,7 @@ export class StoreSyncDaemon {
     if (this.stopping || this.fence.lost) return;
     this.dirty = true;
     this.dirtyVersion += 1;
-    if (this.quietTimer) clearTimeout(this.quietTimer);
-    this.quietTimer = setTimeout(
-      () => this.runInBackground("debounced"),
-      this.opts.quietMs ?? DEFAULT_QUIET_MS,
-    );
-    this.quietTimer.unref?.();
+    this.schedule.debounce(() => this.runInBackground("debounced"));
   }
 
   /**
@@ -182,16 +175,7 @@ export class StoreSyncDaemon {
   private haltFenced(err: { message: string }): void {
     this.dirty = false;
     this.syncs.cancelRerun();
-    this.stopScheduling();
+    this.schedule.stop();
     logFenceLost(this.opts, err);
-  }
-
-  private stopScheduling(): void {
-    this.watcher?.close();
-    this.watcher = undefined;
-    if (this.quietTimer) clearTimeout(this.quietTimer);
-    if (this.intervalTimer) clearInterval(this.intervalTimer);
-    this.quietTimer = undefined;
-    this.intervalTimer = undefined;
   }
 }

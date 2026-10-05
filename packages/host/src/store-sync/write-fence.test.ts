@@ -246,3 +246,28 @@ test("a token-less boot whose sync meets a 409 still watches the holder", async 
   await vi.advanceTimersByTimeAsync(1_000);
   expect(holders).toEqual(["stale"]);
 });
+
+// After the flag flip an idle pod gets its token from a read (the capture),
+// not from a write: the heartbeat that was ticking without I/O starts asking.
+test("an idle boot starts checking once a read hands it a token", async () => {
+  vi.useFakeTimers();
+  let token: string | undefined;
+  const probe = vi.fn(async () => fencedBy("stale"));
+  const holders: LeaseHolderState[] = [];
+  const subject = new WriteFence({
+    probe,
+    claimed: () => token !== undefined,
+    heartbeatMs: 1_000,
+    onLost: () => {},
+    onHolder: (holder) => holders.push(holder),
+    log: () => {},
+  });
+  subject.startHeartbeat();
+  await vi.advanceTimersByTimeAsync(3_000);
+  expect(probe).not.toHaveBeenCalled();
+
+  token = "41";
+  await vi.advanceTimersByTimeAsync(1_000);
+  expect(probe).toHaveBeenCalledOnce();
+  expect(holders).toEqual(["stale"]);
+});
