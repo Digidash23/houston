@@ -126,6 +126,7 @@ export function createEngineSdk(opts: EngineSdkOptions): HoustonSdk {
       devicePreferences: createDevicePrefsStore(),
       clock: {
         now: () => Date.now(),
+        monotonic: () => performance.now(),
         setTimeout: (fn, ms) => setTimeout(fn, ms) as unknown as number,
         clearTimeout: (id) => clearTimeout(id),
       },
