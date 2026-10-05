@@ -40,6 +40,10 @@ export function useCreateApiKey() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (name: string) => tauriApiKeys.create(name.trim()),
+    // The mutation cache keeps a settled mutation's result (the secret) for
+    // `gcTime` after its last observer leaves: drop it the moment the dialog or
+    // chat card that minted it is gone.
+    gcTime: 0,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.apiKeys() });
     },

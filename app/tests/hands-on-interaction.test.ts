@@ -8,8 +8,11 @@ import {
 } from "../src/lib/active-interaction.ts";
 import { handsOnSurfaceReachable } from "../src/lib/hands-on-gates.ts";
 import {
+  apiKeyNameAgentId,
   handsOnAgentSettings,
+  handsOnManagerOnly,
   handsOnScreenLabel,
+  inlineHandsOn,
   resolveHandsOnAgent,
 } from "../src/lib/hands-on-screens.ts";
 import { finalHandsOnNames } from "../src/lib/interaction-outcomes.ts";
@@ -284,6 +287,43 @@ test("an employee's screen is titled with that employee", () => {
   deepStrictEqual(handsOnScreenLabel({ surface: "newScreen" }, names), {
     key: "interaction.handsOnUnknownScreen",
   });
+});
+
+test("a key minted beside an employee's API access defaults to that employee", () => {
+  // The key belongs to the person; the employee only suggests its name.
+  strictEqual(
+    apiKeyNameAgentId([
+      { kind: "hands_on", id: "h1", surface: "apiKeys" },
+      { kind: "hands_on", id: "h2", surface: "agentApiAccess", agentId: "a1" },
+    ]),
+    "a1",
+  );
+  strictEqual(
+    apiKeyNameAgentId([{ kind: "hands_on", id: "h1", surface: "apiKeys" }]),
+    undefined,
+  );
+  // Another screen carrying an id says nothing about the key.
+  strictEqual(
+    apiKeyNameAgentId([
+      { kind: "hands_on", id: "h1", surface: "files", agentId: "a1" },
+    ]),
+    undefined,
+  );
+});
+
+test("only the AI Manager's chat runs the API errands in place", () => {
+  // A mint form under a mission agent's own words, beside a box that talks to
+  // that agent, would be a phishing kit in Houston's chrome.
+  strictEqual(inlineHandsOn("apiKeys", true), "apiKey");
+  strictEqual(inlineHandsOn("agentApiAccess", true), "agentApi");
+  strictEqual(inlineHandsOn("apiKeys", false), null);
+  strictEqual(inlineHandsOn("agentApiAccess", false), null);
+  for (const surface of ["files", "billing", "routineWebhook", "orgDanger"])
+    strictEqual(inlineHandsOn(surface, true), null);
+  // The client agrees with the runtime: one employee's API access is the
+  // Manager's alone to hand over.
+  strictEqual(handsOnManagerOnly("agentApiAccess"), true);
+  strictEqual(handsOnManagerOnly("apiKeys"), false);
 });
 
 test("an unsettled gate never calls a screen missing", () => {

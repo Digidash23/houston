@@ -1,0 +1,100 @@
+import { apiSetupPrompt } from "@houston/sdk";
+import { Button, cn } from "@houston-ai/core";
+import { Bot, Building2, Check, Copy } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { genericErrorDescription } from "../../lib/error-report";
+import type { Agent } from "../../lib/types";
+import { useUIStore } from "../../stores/ui";
+import { CopyIdRow } from "../settings/copy-id-row";
+import { useOrgSlug } from "../settings/sections/api-org-id";
+import { SettingsCard } from "../settings/settings-row";
+
+/**
+ * What a developer needs to reach ONE AI Employee from their own code: the
+ * "Copy prompt for AI agent" button (the SDK's {@link apiSetupPrompt}, never a
+ * key) with its hint, then the Agent ID and Organization ID with copy buttons.
+ * The employee's API access screen and the AI Manager's chat card both render
+ * it, so the two can never hand out different values. `children` join the ID
+ * card as extra rows (the screen adds its doors to the keys and the docs).
+ *
+ * Only mounted where the deployment serves the public API: the gateway origin
+ * is the address the prompt tells the coding agent to call.
+ */
+export function AgentApiDetails({
+  agent,
+  compact = false,
+  children,
+}: {
+  agent: Pick<Agent, "id" | "name">;
+  /** Inside a chat card, whose shell already spaces its body. */
+  compact?: boolean;
+  children?: ReactNode;
+}) {
+  const { t } = useTranslation("settings");
+  const { slug, failed } = useOrgSlug();
+  const addToast = useUIStore((s) => s.addToast);
+  const [copied, setCopied] = useState(false);
+  const baseUrl = window.__HOUSTON_ENGINE__?.baseUrl ?? null;
+  const prompt =
+    baseUrl && slug
+      ? apiSetupPrompt({
+          baseUrl,
+          agentId: agent.id,
+          agentName: agent.name,
+          orgId: slug,
+        })
+      : null;
+
+  async function copyPrompt() {
+    if (!prompt) return;
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopied(true);
+      addToast({ title: t("apiKeys.agentAccess.promptCopied") });
+    } catch (err) {
+      addToast({
+        title: t("apiKeys.agentAccess.promptCopyFailed"),
+        description: genericErrorDescription("copy_api_prompt", err),
+        variant: "error",
+      });
+    }
+  }
+
+  // Compact = rows of the chat card's own body, spaced by its shell.
+  const body = (
+    <>
+      <Button
+        className={compact ? "self-start" : undefined}
+        disabled={!prompt}
+        onClick={() => void copyPrompt()}
+      >
+        {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+        {t("apiKeys.agentAccess.copyPrompt")}
+      </Button>
+      <p className={cn("text-xs text-ink-muted", !compact && "mt-2 mb-6")}>
+        {t("apiKeys.agentAccess.promptHint")}
+      </p>
+      <SettingsCard>
+        <CopyIdRow
+          icon={Bot}
+          label={t("apiKeys.agentAccess.agentId")}
+          value={agent.id}
+          copyFailedTitle={t("apiKeys.agentAccess.agentIdCopyFailed")}
+          reportKey="copy_agent_id"
+        />
+        {!failed && (
+          <CopyIdRow
+            icon={Building2}
+            label={t("apiKeys.orgId.title")}
+            value={slug}
+            copyFailedTitle={t("apiKeys.orgId.copyFailed")}
+            reportKey="copy_org_id"
+          />
+        )}
+        {children}
+      </SettingsCard>
+    </>
+  );
+  return compact ? body : <div>{body}</div>;
+}

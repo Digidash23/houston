@@ -69,13 +69,13 @@ export function makeRequestHandsOnTool({
   const surfaceList = offered.join(", ");
   const errands = personalAssistant
     ? agentScreens
-      ? "pay or change a plan, copy a key the app shows once, pick files from their device, copy a routine's webhook, destroy a shared space, or connect one AI Employee to their own code or another AI assistant (agentApiAccess opens that employee's API access screen: its IDs and a ready setup prompt for an AI coding assistant; pass the employee's id from listAgents as agent)"
+      ? "pay or change a plan, copy a key the app shows once, pick files from their device, copy a routine's webhook, destroy a shared space, or connect one AI Employee to their own code or another AI assistant (apiKeys lets them create and copy a key right in the chat, and you never see it; agentApiAccess shows that employee's Agent ID, Organization ID and a ready setup prompt for an AI coding assistant right in the chat; pass the employee's id from listAgents as agent)"
       : "pay or change a plan, copy a key the app shows once, pick files from their device, copy a routine's webhook, or destroy a shared space"
     : "copy a key the app shows once, pick files from their device, or copy a routine's webhook";
   return defineTool({
     name: REQUEST_HANDS_ON_TOOL_NAME,
     label: "Hand an app screen to the user",
-    description: `Send the user to a screen in the app to finish something only they can do there: ${errands}. The app shows a card that opens the screen for them and asks them to confirm when they are finished. Valid screens: ${surfaceList}. Never describe the clicks in chat and never ask them to paste a secret into the conversation. Queue the card, finish independent work, then end your turn.`,
+    description: `Send the user to a screen in the app to finish something only they can do there: ${errands}. The app shows a card that opens the screen for them${agentScreens ? " (or, for apiKeys and agentApiAccess, does the job right in the chat)" : ""} and asks them to confirm when they are finished. Valid screens: ${surfaceList}. Never describe the clicks in chat and never ask them to paste a secret into the conversation. Queue the card, finish independent work, then end your turn.`,
     parameters: Type.Object({
       surface: Type.String(),
       agent: Type.Optional(
@@ -129,7 +129,7 @@ export function makeRequestHandsOnTool({
         content: [
           {
             type: "text" as const,
-            text: "A card that opens that screen was queued. End your turn after any independent work; you get a message once the user says they finished there, or that they skipped it.",
+            text: "The card was queued. End your turn after any independent work; you get a message once the user says they finished it, or that they skipped it.",
           },
         ],
         details: { surface, ...(agentId ? { agentId } : {}) },

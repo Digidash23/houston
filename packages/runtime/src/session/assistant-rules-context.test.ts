@@ -167,19 +167,30 @@ const rulesOn = (env: NodeJS.ProcessEnv): string =>
     RULES_HEADING,
   )[1] ?? "";
 
-test("connecting an employee to the person's own code goes through its API access screen", () => {
+test("connecting an employee to the person's own code happens right in the chat", () => {
   // The Houston API is how a person's code, automation or other AI assistant
-  // starts work with an employee. The manager explains it, then lands them on
-  // THAT employee's screen (IDs + a ready prompt), resolved from the roster.
+  // starts work with an employee. The manager explains it, then queues the two
+  // cards that do the job inline: a key, then THAT employee's details.
   const rules = rulesOn(SERVED);
   expect(rules).toContain("through the Houston API");
   expect(rules).toContain("another AI agent or assistant");
-  // A key first unless they have one: the screen's prompt reads the key from
+  // A key first unless they have one: the card's prompt reads the key from
   // their environment, so it is useless without one.
   expect(rules).toContain(
-    "unless they say they already have an API key, call request_hands_on with apiKeys first, then with agentApiAccess and that employee's id from listAgents as agent",
+    "unless they say they already have an API key, call request_hands_on with apiKeys first",
   );
-  // Its screen is drawn for the employee's managers alone.
+  expect(rules).toContain(
+    "that card lets them create and copy a key right in this chat, and you never see it",
+  );
+  expect(rules).toContain(
+    "then with agentApiAccess and that employee's id from listAgents as agent",
+  );
+  expect(rules).toContain(
+    "that card shows the employee's Agent ID, Organization ID and a ready prompt for their AI agent, right in this chat",
+  );
+  // The prompt names the gateway address, which the manager cannot know.
+  expect(rules).toContain("Never write that prompt yourself");
+  // Its details are its managers' alone.
   expect(rules).toContain(
     "when listAgents gives their access to that employee as anything but manager, tell them to ask that employee's manager instead",
   );
@@ -191,12 +202,15 @@ test("connecting an employee to the person's own code goes through its API acces
 });
 
 test("the API is the one named exception to keeping things non-technical", () => {
-  // The non-technical rule bans identifiers; explaining headers and protocols
-  // to a developer who asks would contradict it unless the rules reconcile the
-  // two out loud, and the IDs themselves still never come from the manager.
+  // The non-technical rule bans identifiers; stating the IDs or explaining
+  // headers and protocols to someone who asks would contradict it unless the
+  // rules reconcile the two out loud, and say where each ID is read from.
   const rules = rulesOn(SERVED);
   expect(rules).toContain(
     "This is the one exception to keeping things non-technical",
+  );
+  expect(rules).toContain(
+    "the Agent ID is the id listAgents returns, the Organization ID is the slug getOrg returns",
   );
   expect(rules).toContain("when a technical person asks how the API works");
   for (const concept of [
@@ -207,7 +221,6 @@ test("the API is the one named exception to keeping things non-technical", () =>
     "A2A",
   ])
     expect(rules).toContain(concept);
-  expect(rules).toContain("the IDs still come from the screen, never from you");
 });
 
 test("a deployment without the API never hears of it", () => {

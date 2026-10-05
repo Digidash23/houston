@@ -1,6 +1,7 @@
 import type { Agent, Capabilities } from "@houston/engine-adapter";
 import {
   type HandsOnSurface,
+  type InteractionStep,
   isHandsOnSurface,
 } from "@houston/protocol/interaction-types";
 import { canOpenAgentSettings } from "./agent-nav.ts";
@@ -94,4 +95,46 @@ export function handsOnScreenLabel(
   return name
     ? { key: "interaction.handsOnAgentApiAccessFor", name }
     : { key: handsOnScreenKey(step.surface) };
+}
+
+/**
+ * The employee a key minted in this sequence is FOR: the one its API access
+ * step names, so the key's name can default to that employee. A key belongs
+ * to the person, not an employee, so this is only a name suggestion.
+ */
+export function apiKeyNameAgentId(
+  steps: readonly InteractionStep[],
+): string | undefined {
+  for (const step of steps)
+    if (
+      step.kind === "hands_on" &&
+      step.surface === "agentApiAccess" &&
+      step.agentId
+    )
+      return step.agentId;
+  return undefined;
+}
+
+/**
+ * Which errand the card does IN PLACE, in the AI Manager's chat only. A mission
+ * agent reads web pages and mail all day; a mint form under its model-authored
+ * reason, beside a box that talks to that same agent, would be a phishing kit
+ * in Houston's own chrome. Everywhere else `apiKeys` stays the navigating card.
+ */
+export type InlineHandsOn = "apiKey" | "agentApi";
+
+export function inlineHandsOn(
+  surface: string,
+  managerChat: boolean,
+): InlineHandsOn | null {
+  if (!managerChat) return null;
+  if (surface === "apiKeys") return "apiKey";
+  if (surface === "agentApiAccess") return "agentApi";
+  return null;
+}
+
+/** Screens only the AI Manager hands over (the runtime refuses them anywhere
+ *  else), so outside its chat they read as unavailable. */
+export function handsOnManagerOnly(surface: string): boolean {
+  return surface === "agentApiAccess";
 }

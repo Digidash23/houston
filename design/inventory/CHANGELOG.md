@@ -3,6 +3,19 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v125 - 2026-10-05
+
+The AI Manager's two API errands work right in its chat card instead of
+sending the person to another screen, on desktop and phone. The API-key card
+names a key (the employee's name when one is in play), creates it and shows the
+secret once with Copy and the one-time warning, under a fixed line that the
+Manager never sees it; once shown, Done is the only way out. A quiet link still
+leads to Settings > API keys. The API access card shows the employee's ready
+prompt button, Agent ID and Organization ID with copy buttons. Mission chats
+keep the API-keys card that opens the screen. Errand replies now read
+"Finished {screen}." / "Skipped {screen}.", and the secret never reaches the
+conversation.
+
 ## v124 - 2026-10-05
 
 Settings lists API keys again wherever the deployment serves the public API,

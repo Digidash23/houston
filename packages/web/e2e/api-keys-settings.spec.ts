@@ -169,7 +169,7 @@ test("an AI Employee's Settings has no API access without the public API", async
   );
 });
 
-test("the AI Manager's API access card lands on that employee's screen", async ({
+test("the AI Manager's API access card shows that employee's details in the chat", async ({
   page,
   request,
 }) => {
@@ -199,9 +199,29 @@ test("the AI Manager's API access card lands on that employee's screen", async (
   await composer.fill(`Connect ${SEED_AGENT_NAME} to my app`);
   await composer.press("Enter");
   await expect(page.getByText(reason, { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Open", exact: true }).click();
+  const url = page.url();
+
+  // Everything is in the card: the title names the employee, and its IDs and
+  // the ready prompt sit right there, with nowhere to be sent.
   await expect(
-    page.getByRole("heading", { name: "API access", exact: true }),
+    page.getByText(`API access for ${SEED_AGENT_NAME}`, { exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Open", exact: true }),
+  ).toHaveCount(0);
   await expect(page.getByText(SEED_AGENT_ID, { exact: true })).toBeVisible();
+  await expect(page.getByText(PERSONAL_SLUG)).toBeVisible();
+
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.getByRole("button", { name: "Copy prompt for AI agent" }).click();
+  const prompt = await page.evaluate(() => navigator.clipboard.readText());
+  expect(prompt).toContain(`x-houston-org: ${PERSONAL_SLUG}`);
+  expect(prompt).toContain("HOUSTON_API_KEY");
+  expect(prompt).toContain(SEED_AGENT_ID);
+  expect(prompt).not.toMatch(/hst_[0-9a-f]/);
+  expect(page.url()).toBe(url);
+  await expect(page.getByText(reason, { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(composer).toBeVisible({ timeout: 15_000 });
 });

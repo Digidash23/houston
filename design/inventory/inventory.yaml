@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 124
+version: 125
 
 components:
   - id: agent-delegation-settings
@@ -582,9 +582,26 @@ components:
       on. Nothing can observe such an errand, so the card never claims to detect
       completion: "Open {screen}" navigates to the screen (tearing this card
       down and rebuilding it on return, so it holds no state), and "Done" beside
-      it plus the shared decline are the two honest answers. The composed reply
-      states which happened ("Opened {screen} and finished there." / "Skipped
-      opening {screen}.") so the agent is never left guessing, and the errand's
+      it plus the shared decline are the two honest answers. In the AI
+      Manager's chat ONLY, the two API errands are done INLINE, never by
+      navigating (a mission chat keeps the navigating API-keys card, and an
+      employee's API access reads as unavailable there). The API-key card always
+      shows the fixed line that the key is shown once and the Manager never sees
+      it, apart from the agent's reason; it names a key (defaulting to the
+      employee a sibling API access step names) once capabilities have loaded,
+      creates it and reveals the secret once with Copy and the "only time you'll
+      see this key" warning, with the inline key-limit notice and a quiet link to
+      manage keys in Settings before a key is shown. Done waits out a mint in
+      flight. Once the key is shown the card is locked: Done is the only way out
+      (no decline, no free-text row, no pager or dismiss, Esc does nothing). The
+      secret stays in the card's own state, is blocked from session replay, and
+      never reaches the reply, a message, the parked card or a cache. The API
+      access card ("API access for {employee}") shows that employee's "Copy
+      prompt for AI agent" button with its hint and its Agent ID and
+      Organization ID rows with copy buttons, the same block as the employee's
+      API access screen, with Done and the shared decline. The composed reply
+      states which happened ("Finished {screen}." / "Skipped {screen}.") so the
+      agent is never left guessing, and the errand's
       free-text decline relays the person's "do this instead" like every other
       step's. The card's in-progress state (the step it stands on, the answers
       already given, what each connect / sign-in / key / errand step ended up
@@ -595,7 +612,7 @@ components:
       actually runs on that conversation, whoever started it (this person, a
       routine, a teammate or another device), or the card is dismissed. A send
       the server refuses keeps it.
-    a11y: one step announced at a time, its question read as the modal title; option rows are role=radio in a radiogroup, keyboard-selectable by the left number badge's position digit and visible at rest (no hover gate), showing label + optional Recommended chip only (no description); the free-text escape field (a bordered text input with a leading pencil adornment, no embedded control) is always present on question steps and follows the fixed footer on signin/connect/credential steps; the pager's Back/Forward chevrons, collapse chevron, and dismiss X are labeled icon buttons; collapsed cards retain one muted, truncated context line; the footer's unified decline is a labeled button with an Esc keycap hint on every kind, and signin/connect add a labeled filled CTA (Enter fires it, Esc declines); a hands-on step adds TWO labeled footer buttons beside that decline, an outline "Done" confirm and a filled "Open" CTA carrying the return-key glyph (Enter opens the screen the card's title names), both absent when the screen is unrecognised or not this person's to open, so the decline is the only way on. While collapsed, step shortcuts are inert; while a turn runs, every action except the collapse chevron is disabled. The "N of M" pager copy is visible text.
+    a11y: one step announced at a time, its question read as the modal title; option rows are role=radio in a radiogroup, keyboard-selectable by the left number badge's position digit and visible at rest (no hover gate), showing label + optional Recommended chip only (no description); the free-text escape field (a bordered text input with a leading pencil adornment, no embedded control) is always present on question steps and follows the fixed footer on signin/connect/credential steps; the pager's Back/Forward chevrons, collapse chevron, and dismiss X are labeled icon buttons; collapsed cards retain one muted, truncated context line; the footer's unified decline is a labeled button with an Esc keycap hint on every kind, and signin/connect add a labeled filled CTA (Enter fires it, Esc declines); a hands-on step adds TWO labeled footer buttons beside that decline, an outline "Done" confirm and a filled "Open" CTA carrying the return-key glyph (Enter opens the screen the card's title names), both absent when the screen is unrecognised or not this person's to open, so the decline is the only way on; the Manager's inline API-key card instead pairs an outline "Done" with a filled "Create key" submit (Enter in the labeled "Key name" field creates), then a filled "Done" alone once the key is shown, and the inline API access card has a single filled "Done" beside the decline. While collapsed, step shortcuts are inert; while a turn runs, every action except the collapse chevron is disabled. The "N of M" pager copy is visible text.
     since: 4
 
   - id: interaction-approval-card

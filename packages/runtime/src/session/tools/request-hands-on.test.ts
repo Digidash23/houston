@@ -172,6 +172,11 @@ test("an employee's API access names that employee, and only the AI Manager hand
   // employee hands the person IDs that call someone else from their code.
   expect(managerTool.description).toContain("agentApiAccess");
   expect(managerTool.description).toContain("id from listAgents as agent");
+  // Both API errands are done right in the chat, and the key stays unseen.
+  expect(managerTool.description).toContain(
+    "apiKeys lets them create and copy a key right in the chat, and you never see it",
+  );
+  expect(managerTool.description).toContain("does the job right in the chat");
   expect(tool.description).not.toContain("agentApiAccess");
   const holder = newInteractionHolder();
   await runWithInteractionCapture(holder, async () => {

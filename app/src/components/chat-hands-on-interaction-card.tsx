@@ -10,7 +10,9 @@ import { handsOnSurfaceReachable } from "../lib/hands-on-gates";
 import { openHandsOnSurface } from "../lib/hands-on-navigation";
 import {
   handsOnAgentSettings,
+  handsOnManagerOnly,
   handsOnScreenLabel,
+  inlineHandsOn,
   resolveHandsOnAgent,
 } from "../lib/hands-on-screens";
 import { useAgentStore } from "../stores/agents";
@@ -18,6 +20,8 @@ import {
   ChatConnectStepShell,
   type StepDraftApi,
 } from "./chat-connect-step-shell";
+import { ChatHandsOnAgentApiCard } from "./chat-hands-on-agent-api-card";
+import { ChatHandsOnApiKeyCard } from "./chat-hands-on-api-key-card";
 
 interface Props extends StepChrome, StepDraftApi {
   stepId: string;
@@ -25,6 +29,11 @@ interface Props extends StepChrome, StepDraftApi {
   surface: string;
   /** The employee the screen belongs to (`agentApiAccess`), off the wire. */
   targetAgentId?: string;
+  /** The employee a key minted here is for (a sibling `agentApiAccess` step),
+   *  which the key's name defaults to. */
+  keyNameAgentId?: string;
+  /** The AI Manager's own chat: the only place the API errands run inline. */
+  managerChat: boolean;
   reason?: string;
   /** The user says they finished on the screen; carries its display name. */
   onFinished: (name: string) => void;
@@ -51,11 +60,18 @@ interface Props extends StepChrome, StepDraftApi {
  * person's own Houston does not hold (Billing for a plain member, the Danger
  * zone for anyone but the space owner), both say so and leave Skip as the way
  * on, rather than offering a button to nowhere.
+ *
+ * In the AI Manager's chat the two API errands do their job INLINE instead
+ * (people dislike being sent out of the chat): a key is created and copied
+ * right in the card, and an employee's IDs and setup prompt are shown there.
+ * Anywhere else `apiKeys` keeps navigating ({@link inlineHandsOn}).
  */
 export function ChatHandsOnInteractionCard({
   stepId,
   surface,
   targetAgentId,
+  keyNameAgentId,
+  managerChat,
   reason,
   onFinished,
   onSkip,
@@ -69,22 +85,43 @@ export function ChatHandsOnInteractionCard({
   const loading = useAgentStore((s) => s.loading);
   // Only an employee's own screen asks whose it is: its Settings are drawn for
   // its managers alone, so anyone else would land on nothing.
+  const target = resolveHandsOnAgent(targetAgentId, {
+    agents,
+    loaded,
+    loading,
+  });
   const agentSettings =
     surface === "agentApiAccess"
-      ? handsOnAgentSettings(
-          resolveHandsOnAgent(targetAgentId, { agents, loaded, loading }),
-          capabilities,
-        )
+      ? handsOnAgentSettings(target, capabilities)
       : undefined;
   const known = isHandsOnSurface(surface);
   const openable =
-    known && handsOnSurfaceReachable(surface, gates, agentSettings);
+    known &&
+    (managerChat || !handsOnManagerOnly(surface)) &&
+    handsOnSurfaceReachable(surface, gates, agentSettings);
+  const inlineCard = openable ? inlineHandsOn(surface, managerChat) : null;
   const label = handsOnScreenLabel(
     { surface, agentId: targetAgentId },
     (id) => agents.find((a) => a.id === id)?.name,
   );
   const name =
     "name" in label ? t(label.key, { name: label.name }) : t(label.key);
+  const inline = { ...chrome, stepId, reason, name, onFinished, onSkip };
+  if (inlineCard === "apiKey")
+    return (
+      <ChatHandsOnApiKeyCard
+        {...inline}
+        keyName={agents.find((a) => a.id === keyNameAgentId)?.name ?? ""}
+        ready={gates.ready}
+      />
+    );
+  if (inlineCard === "agentApi")
+    return (
+      <ChatHandsOnAgentApiCard
+        {...inline}
+        agent={target.kind === "found" ? target.agent : null}
+      />
+    );
   const open = () =>
     openHandsOnSurface(surface as HandsOnSurface, targetAgentId);
 
