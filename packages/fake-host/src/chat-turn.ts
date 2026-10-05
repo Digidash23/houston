@@ -54,6 +54,7 @@ export function resetReplyDelay(): void {
 async function streamReply(
   agentId: string,
   cid: string,
+  turnId: string,
   userText: string,
   nonce: string | undefined,
   displayText: string | undefined,
@@ -61,7 +62,6 @@ async function streamReply(
 ): Promise<void> {
   const ch = channel(chatKey(agentId, cid));
   const epoch = ch.epoch;
-  const turnId = crypto.randomUUID();
   const reply = cannedReply(userText);
   const tools = takeToolCalls();
   const held = takeHold();
@@ -140,6 +140,7 @@ export function finishTurn(
 /**
  * Fire-and-forget a canned turn, crashing the harness LOUDLY if it ever
  * fails — a swallowed fake-host bug would surface as a hanging test instead.
+ * Returns the turn's id, which the send's 202 names like the runtime's does.
  */
 export function streamReplySafe(
   agentId: string,
@@ -148,8 +149,9 @@ export function streamReplySafe(
   nonce: string | undefined,
   displayText?: string,
   mentions?: ChatMessage["mentions"],
-): void {
-  streamReply(agentId, cid, text, nonce, displayText, mentions).catch(
+): string {
+  const turnId = crypto.randomUUID();
+  streamReply(agentId, cid, turnId, text, nonce, displayText, mentions).catch(
     (err: unknown) => {
       console.error("[fake-host] streamReply failed:", err);
       queueMicrotask(() => {
@@ -157,6 +159,7 @@ export function streamReplySafe(
       });
     },
   );
+  return turnId;
 }
 
 /** Terminate a channel's running turn with a terminal `error` frame. */

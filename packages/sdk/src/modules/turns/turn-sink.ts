@@ -1,6 +1,7 @@
 import type { PendingInteraction, WireFrame } from "@houston/runtime-client";
 import type { MessageLimitRefusal } from "@houston/wire-types";
 import type { TerminalBoardStatus } from "./feed-output";
+import { PreAcceptTurn } from "./pre-accept-turn";
 import { PresettlePoll } from "./presettle-poll";
 import { SendHoldState } from "./send-hold-state";
 import { presettleFromHistory, reloadAndSettle } from "./settle-from-history";
@@ -55,6 +56,8 @@ export class TurnSink {
   private readonly poll: PresettlePoll;
   /** Turn mode: a send held behind another turn (`send-hold-state.ts`). */
   private readonly held = new SendHoldState();
+  /** Turn mode: the running turn seen before the 202 (`pre-accept-turn.ts`). */
+  private readonly preAccept = new PreAcceptTurn();
   /** No frame or history settle publishes ({@link mute}, {@link dispose}). */
   private muted = false;
   /** Callers waiting for the first evidence the turn runs ({@link whenStarted}). */
@@ -106,6 +109,7 @@ export class TurnSink {
    */
   holdSend(): void {
     this.held.hold();
+    this.preAccept.clear();
     this.poll.cancel();
   }
   /**
@@ -130,6 +134,8 @@ export class TurnSink {
     // The engine acknowledged the send — the message reached it, so the
     // optimistic bubble is delivered even if the turn later errors.
     this.s.delivered = true;
+    // The stream showed this turn running before the 202 named it ours.
+    for (const ev of this.preAccept.claim(turnId)) this.fold(ev);
     // The send landed while the stream already showed a fresh idle sync: the
     // turn may have completed before we attached — arm the pre-settled poll.
     this.poll.arm();
@@ -176,8 +182,14 @@ export class TurnSink {
     this.held.note(ev, this.s.turnId, this.accepted);
     // Our own echo ends the hold even when it beats the re-send's 202.
     if (this.held.holding && !this.isOwnEcho(ev)) return;
+    this.fold(ev);
+  }
+
+  /** Fold one frame past the hold gate (live, or replayed by the 202). */
+  private fold(ev: WireFrame): void {
+    if (this.muted) return;
     if (ev.type === "sync") {
-      this.onSync(ev.data);
+      this.onSync(ev);
       return;
     }
     if (ev.type === "user") {
@@ -203,7 +215,10 @@ export class TurnSink {
           this.adoptTurnId(ev.turnId);
           break;
         }
-        return; // another turn's frame — never fold it into ours
+        // Another turn's frame, never folded into ours. While our send is
+        // out it may still turn out to be ours: kept for the 202.
+        if (!this.accepted) this.preAccept.keep(ev);
+        return;
       case "boundary":
         // A new turn owns the stream: OUR turn is over and its terminal frame
         // was lost — settle exactly, from persisted history by our turnId.
@@ -247,21 +262,17 @@ export class TurnSink {
     }
   }
 
-  private onSync(data: {
-    running: boolean;
-    partial: string;
-    resync?: boolean;
-    turnId?: string;
-    thinking?: string;
-    tools?: SyncTool[];
-  }): void {
+  private onSync(ev: WireFrame & { type: "sync" }): void {
+    const data = ev.data;
     // Any sync after the first is a reconnect catch-up: seq servers only
     // re-sync when our cursor was unserviceable (`resync: true`), legacy
     // servers on every reconnect. Either way the frames in between are LOST.
     const reconnect = this.sawSync || data.resync === true;
     this.sawSync = true;
+    // A new connection: whatever ran before it, the 202 may only claim this.
+    this.preAccept.clear();
     if (data.running) {
-      this.onRunningSync(data);
+      this.onRunningSync(ev);
       return;
     }
     if (!reconnect) {
@@ -298,16 +309,15 @@ export class TurnSink {
     }
   }
 
-  private onRunningSync(data: {
-    partial: string;
-    turnId?: string;
-    thinking?: string;
-    tools?: SyncTool[];
-  }): void {
+  private onRunningSync(ev: WireFrame & { type: "sync" }): void {
+    const data = ev.data;
     const mayAdopt = this.o.mode === "observer" || this.accepted;
     switch (classifyRunningSync(this.s.turnId, data.turnId, mayAdopt)) {
       case "foreign":
-        return; // another writer's turn, seen pre-send — not ours to render
+        // Seen before our send was accepted: another writer's turn, or ours
+        // with the echo folded in. Not rendered; kept for the 202 to claim.
+        this.preAccept.keepSync(ev);
+        return;
       case "boundary":
         this.settleFromHistorySoon(); // ours ended; a new turn runs
         return;
@@ -427,6 +437,7 @@ export class TurnSink {
   private adoptTurnId(turnId: string | undefined): void {
     if (turnId === undefined) return;
     this.s.turnId ??= turnId;
+    this.preAccept.clear(); // our turn is known: nothing left to claim
     if (this.o.mode === "turn")
       this.o.output.stampUserTurn?.(
         this.o.agentPath,
