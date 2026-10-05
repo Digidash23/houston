@@ -26,3 +26,27 @@ test.each(accountCodes)("keeps the account failure code %s", (code) => {
 test("an untyped summary has no classified failure", () => {
   expect(routineFailureCode({})).toBeUndefined();
 });
+
+test("the reader's signed-out account turns a not-connected run into a reconnect", () => {
+  const readerFor = (provider: string) => ({
+    provider,
+    health: "needs_reconnect" as const,
+    readerIsCreator: true,
+  });
+  expect(
+    routineFailureCode(
+      { failure: { code: "creator_not_connected", provider: "anthropic" } },
+      readerFor,
+    ),
+  ).toBe("creator_needs_reconnect");
+  // Delivery expiry is not about an account, whatever the reader says.
+  expect(
+    routineFailureCode(
+      {
+        delivery_failure: { code: "pool_delivery_expired" },
+        failure: { code: "creator_not_connected", provider: "anthropic" },
+      },
+      readerFor,
+    ),
+  ).toBe("pool_delivery_expired");
+});

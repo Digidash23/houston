@@ -1,0 +1,296 @@
+import { describe, expect, it, vi } from "vitest";
+import type { SdkConfig, SdkPorts } from "../../ports";
+import { HoustonSdk } from "../../sdk";
+import { memoryKv } from "../../test-ports";
+import { asPrewarmInput, TurnsHttpError } from "./conversation-prewarm";
+import { PREWARM_REFRESH_MS } from "./draft-prewarm";
+import { PREWARM_TYPING_MS } from "./draft-typing";
+
+const BASE = "https://gw.example";
+const LAUNCHING = { outcome: "launching", holdMs: 20_000 };
+
+interface Call {
+  url: string;
+  method: string;
+  body: string | null;
+  contentType: string | null;
+}
+
+/** A real SDK over a recording fetch and a clock the test moves. */
+function sdk(answer: () => Response = () => json(202, LAUNCHING)) {
+  const calls: Call[] = [];
+  let now = 0;
+  let elapsed = 0;
+  const fetchImpl = vi.fn(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({
+        url: String(input),
+        method: init?.method ?? "GET",
+        body: typeof init?.body === "string" ? init.body : null,
+        contentType: new Headers(init?.headers).get("Content-Type"),
+      });
+      return answer();
+    },
+  );
+  const ports: SdkPorts = {
+    fetch: fetchImpl as typeof fetch,
+    storage: memoryKv(),
+    devicePreferences: memoryKv(),
+    clock: {
+      now: () => now,
+      // performance.now(): never set, stopped while the machine sleeps.
+      monotonic: () => elapsed,
+      setTimeout: () => 0,
+      clearTimeout: () => {},
+    },
+    logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  };
+  const config: SdkConfig = { baseUrl: `${BASE}/`, ports, reactivity: false };
+  const advance = (ms: number) => {
+    now += ms;
+    elapsed += ms;
+  };
+  /** The wall clock alone is set: time itself went on as before. */
+  const setWallClock = (ms: number) => {
+    now += ms;
+  };
+  /** The machine sleeps: the wall clock runs, the monotonic one stops. */
+  const sleep = (ms: number) => {
+    now += ms;
+  };
+  const client = new HoustonSdk(config);
+  type Draft = Parameters<typeof client.turns.draftChanged>[0];
+  /** Types on, a keystroke every 250 ms, until just short of the typing
+   *  threshold: the next keystroke reaches it. */
+  const typeUpTo = async (draft: Draft) => {
+    for (let t = 0; t < PREWARM_TYPING_MS; t += 250) {
+      await client.turns.draftChanged(draft, { conversationPrewarm: true });
+      advance(250);
+    }
+  };
+  return { client, calls, advance, setWallClock, sleep, typeUpTo };
+}
+
+const json = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), { status });
+
+describe("turns.prewarm", () => {
+  it("posts the composer's pin to the gateway's prewarm route", async () => {
+    const { client, calls } = sdk();
+    const answer = await client.turns.prewarm("activity-c 1", "sales/team", {
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+    });
+    expect(answer).toEqual(LAUNCHING);
+    expect(calls).toEqual([
+      {
+        url: `${BASE}/v1/agents/sales%2Fteam/conversations/activity-c%201/prewarm`,
+        method: "POST",
+        body: '{"provider":"anthropic","model":"claude-sonnet-4-6"}',
+        contentType: "application/json",
+      },
+    ]);
+  });
+
+  it("sends an empty object when the composer has no pin", async () => {
+    const { client, calls } = sdk();
+    await client.turns.prewarm("activity-c1", "sales");
+    expect(calls[0]?.body).toBe("{}");
+  });
+
+  it("throws the module's typed error with the gateway's status", async () => {
+    const { client } = sdk(() =>
+      json(503, { error: "prewarm not configured", code: "not_configured" }),
+    );
+    const failure = client.turns.prewarm("activity-c1", "sales");
+    await expect(failure).rejects.toBeInstanceOf(TurnsHttpError);
+    await expect(failure).rejects.toMatchObject({
+      name: "TurnsHttpError",
+      status: 503,
+    });
+  });
+
+  it("the turns/prewarm command takes the same route", async () => {
+    const { client, calls } = sdk();
+    const result = await client.dispatch({
+      id: "p",
+      type: "turns/prewarm",
+      payload: {
+        agentId: "sales",
+        conversationId: "activity-c1",
+        input: { model: "gpt-5.5" },
+      },
+    });
+    expect(result).toMatchObject({ ok: true, value: LAUNCHING });
+    expect(calls).toEqual([
+      {
+        url: `${BASE}/v1/agents/sales/conversations/activity-c1/prewarm`,
+        method: "POST",
+        body: '{"model":"gpt-5.5"}',
+        contentType: "application/json",
+      },
+    ]);
+  });
+});
+
+describe("asPrewarmInput", () => {
+  it("requires the conversation and agent and keeps only string pins", () => {
+    expect(() => asPrewarmInput({ conversationId: "c1" })).toThrow();
+    expect(() =>
+      asPrewarmInput({ conversationId: "c1", agentId: "a", input: "x" }),
+    ).toThrow();
+    expect(
+      asPrewarmInput({
+        conversationId: "c1",
+        agentId: "a",
+        input: { provider: 7, model: "m" },
+      }),
+    ).toEqual({ conversationId: "c1", agentId: "a", input: { model: "m" } });
+    expect(asPrewarmInput({ conversationId: "c1", agentId: "a" })).toEqual({
+      conversationId: "c1",
+      agentId: "a",
+    });
+  });
+});
+
+describe("turns.draftChanged and claimNewConversationId", () => {
+  it("prewarm a new chat under the id its first send then claims", async () => {
+    const { client, calls, advance, typeUpTo } = sdk();
+    const draft = { agentId: "sales", draftKey: "new-conversation:board" };
+    await typeUpTo({ ...draft, text: "h" });
+    expect(calls).toEqual([]);
+    await client.turns.draftChanged(
+      { ...draft, text: "he" },
+      { conversationPrewarm: true },
+    );
+    advance(PREWARM_REFRESH_MS);
+    await client.turns.draftChanged(
+      { ...draft, text: "hel" },
+      { conversationPrewarm: true },
+    );
+    const id = client.turns.claimNewConversationId(draft.draftKey);
+    const url = `${BASE}/v1/agents/sales/conversations/activity-${id}/prewarm`;
+    expect(calls.map((call) => call.url)).toEqual([url, url]);
+  });
+
+  it("measures typing and holds on the clock that never goes back", async () => {
+    const { client, calls, advance, setWallClock, typeUpTo } = sdk();
+    const draft = {
+      agentId: "sales",
+      draftKey: "activity-c1",
+      conversationId: "activity-c1",
+      text: "h",
+    };
+    await typeUpTo(draft);
+    await client.turns.draftChanged(draft, { conversationPrewarm: true });
+    expect(calls).toHaveLength(1);
+    // The wall clock is set back 15 s while 30 s pass: the 20 s hold has
+    // ended, so one keystroke readies nothing.
+    setWallClock(-15_000);
+    advance(30_000);
+    await client.turns.draftChanged(
+      { ...draft, text: "he" },
+      { conversationPrewarm: true },
+    );
+    expect(calls).toHaveLength(1);
+  });
+
+  it("a wall clock set forward never shortens the typing threshold", async () => {
+    const { client, calls, advance, setWallClock } = sdk();
+    const draft = {
+      agentId: "sales",
+      draftKey: "activity-c1",
+      conversationId: "activity-c1",
+      text: "h",
+    };
+    const caps = { conversationPrewarm: true };
+    // Four keystrokes a quarter second apart: 1 s of real typing, with the
+    // wall clock set 500 ms forward in the middle of it.
+    for (let i = 0; i < 4; i++) {
+      await client.turns.draftChanged(draft, caps);
+      advance(250);
+      if (i === 1) setWallClock(500);
+    }
+    await client.turns.draftChanged(draft, caps);
+    expect(calls).toEqual([]);
+  });
+
+  it("a system sleep ends a hold the monotonic clock missed", async () => {
+    const { client, calls, advance, sleep, typeUpTo } = sdk();
+    const draft = {
+      agentId: "sales",
+      draftKey: "activity-c1",
+      conversationId: "activity-c1",
+      text: "h",
+    };
+    await typeUpTo(draft);
+    await client.turns.draftChanged(draft, { conversationPrewarm: true });
+    expect(calls).toHaveLength(1);
+    advance(10_000);
+    sleep(60_000);
+    await client.turns.draftChanged(
+      { ...draft, text: "he" },
+      { conversationPrewarm: true },
+    );
+    expect(calls).toHaveLength(1);
+  });
+
+  it("a system sleep ends an unfinished typing run", async () => {
+    const { client, calls, advance, sleep } = sdk();
+    const draft = {
+      agentId: "sales",
+      draftKey: "activity-c1",
+      conversationId: "activity-c1",
+      text: "h",
+    };
+    const caps = { conversationPrewarm: true };
+    await client.turns.draftChanged(draft, caps);
+    advance(1_000);
+    await client.turns.draftChanged({ ...draft, text: "he" }, caps);
+    sleep(60_000);
+    await client.turns.draftChanged({ ...draft, text: "hel" }, caps);
+    advance(500);
+    await client.turns.draftChanged({ ...draft, text: "hell" }, caps);
+    expect(calls).toEqual([]);
+  });
+
+  it("asks nothing of a deployment without the capability", async () => {
+    const { client, calls } = sdk();
+    await client.turns.draftChanged(
+      { agentId: "sales", draftKey: "activity-c1", text: "hello" },
+      undefined,
+    );
+    expect(calls).toEqual([]);
+  });
+
+  it("rejects with the prewarm's error so the surface can report it", async () => {
+    const { client, typeUpTo } = sdk(() =>
+      json(500, { error: "registry unavailable" }),
+    );
+    await typeUpTo({
+      agentId: "sales",
+      draftKey: "activity-c1",
+      conversationId: "activity-c1",
+      text: "hello",
+    });
+    await expect(
+      client.turns.draftChanged(
+        {
+          agentId: "sales",
+          draftKey: "activity-c1",
+          conversationId: "activity-c1",
+          text: "hello",
+        },
+        { conversationPrewarm: true },
+      ),
+    ).rejects.toMatchObject({ name: "TurnsHttpError", status: 500 });
+  });
+
+  it("claims a fresh id when nothing was typed", () => {
+    const { client } = sdk();
+    const one = client.turns.claimNewConversationId("new-conversation:x");
+    const two = client.turns.claimNewConversationId("new-conversation:x");
+    expect(one).toMatch(/^[0-9a-f-]{32,36}$/);
+    expect(two).not.toBe(one);
+  });
+});
