@@ -1,6 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { CustomIntegrationManager } from "../integrations/custom/manager";
-import { CustomIntegrationError } from "../integrations/custom/types";
 import type { CredentialVault } from "../ports";
 import { parseAddInput } from "./custom-integrations-input";
 import { bearer, json, readJson } from "./http";
@@ -17,16 +16,9 @@ export interface CustomIntegrationDeps {
   customIntegrations?: CustomIntegrationManager;
 }
 
-const httpStatusOf = (code: CustomIntegrationError["code"]): number =>
-  code === "not_found" ? 404 : code === "duplicate_slug" ? 409 : 400;
+export { relayCustomError } from "./custom-integrations-error";
 
-/** Map manager failures to stable JSON bodies (the runtime tools + UI classify
- *  on `code`, never bare statuses); rethrow anything unrecognized. */
-export function relayCustomError(res: ServerResponse, err: unknown): boolean {
-  if (!(err instanceof CustomIntegrationError)) return false;
-  json(res, httpStatusOf(err.code), { error: err.message, code: err.code });
-  return true;
-}
+import { relayCustomError } from "./custom-integrations-error";
 
 /** A malformed client body must never 500: parse failures (and non-object
  *  JSON like `null`) answer 400 and report "already responded" via `null`. */

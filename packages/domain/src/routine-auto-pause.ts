@@ -72,8 +72,10 @@ const startedMs = (run: RoutineRun): number => {
  * newest first and counts the streak of errors that share one typed failure:
  * - a run that answered (silent or surfaced) ends the streak — it recovered;
  * - a typed failure of another kind or provider ends it too (a new wall);
- * - an error with no typed failure (a timeout, an outage, a rate limit) and a
- *   run someone stopped neither count nor end it;
+ * - an error with no typed failure (a timeout, an outage, a rate limit), a
+ *   fire cloud could not deliver in time (`delivery_failure`: our capacity,
+ *   never the person's account) and a run someone stopped neither count nor
+ *   end it;
  * - runs that started before the routine's last edit are not counted, so
  *   resuming (or fixing the routine's model) starts the count from zero.
  */

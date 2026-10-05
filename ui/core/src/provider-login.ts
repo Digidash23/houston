@@ -18,6 +18,6 @@ export const PROVIDER_LOGIN_PORT_BUSY_ERROR =
  *  403 `no_copilot_access` after the device flow (an account with no Copilot
  *  subscription; GitHub's raw body carries the user's handle and must never
  *  reach the toast). Mirrors `COPILOT_NO_ACCESS_ERROR` in
- *  packages/runtime/src/auth/login.ts — matched by value, keep in sync. */
+ *  packages/runtime/src/auth/login-state.ts — matched by value, keep in sync. */
 export const PROVIDER_COPILOT_NO_ACCESS_ERROR =
   "Your GitHub account doesn't have Copilot access yet. Enable GitHub Copilot on github.com (the Free plan works), then try connecting again.";

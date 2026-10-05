@@ -2,19 +2,16 @@ import { mkdtemp, rm } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { syncBack } from "@houston/runtime-client/object-sync";
 import { startClaimHeartbeat } from "./claim-heartbeat";
 import { applyOp } from "./op-apply";
-import { partialSyncReply, projectDurableOp } from "./op-durability";
+import { answerOpFailure } from "./op-failure";
 import { executeOwnTreeOp } from "./op-own-tree";
-import { WorkerOpDeclinedError } from "./op-provider-guard";
 import { executeReconcileOp } from "./op-reconcile";
+import { syncOp } from "./op-sync";
 import { opClaimId, opTreeOptions } from "./op-tree-options";
 import { parseOpRequest } from "./parse-op-request";
 import type { TurnServerDeps } from "./server-types";
-import type { announcedOpEvents } from "./turn-changed-events";
 import { prepareTurnFilesystem } from "./turn-filesystem";
-import { TurnSetupError } from "./turn-layout";
 import { resolveTurnStore } from "./turn-store";
 
 export { AGENT_IMPORT_CLAIM_ID, AGENT_OPS_CLAIM_ID } from "./op-tree-options";
@@ -113,57 +110,16 @@ export async function executeOp(
     }
     await heartbeat.checkpoint();
     if (heartbeat.fenced) return json(res, 409, { error: "claim_fenced" });
-    const isRead = op.op.kind === "route" && op.op.method === "GET";
-    let announce: ReturnType<typeof announcedOpEvents> = [];
-    if (!isRead) {
-      const treeOp = op.op.kind === "route" || op.op.kind === "conversation";
-      if (result.tooLarge || (treeOp && result.status >= 500)) {
-        // A tree-mutating handler failed part-way (a refused lazy read, a
-        // 5xx): the overlay may hold HALF a multi-key mutation. Nothing has
-        // reached the store yet, so declining is exact — the pod re-runs
-        // the write from an unchanged tree instead of the user seeing a
-        // split folder. Credential/settings ops have no overlay to leave
-        // half-written; their own status (a 502 from the credential store)
-        // is the pod's answer too.
-        console.error(
-          `[op] handler failed before sync: status=${result.status} tooLarge=${result.tooLarge === true} prefix=${resolved.prefix} kind=${op.op.kind}`,
-        );
-        return json(res, 200, { ok: true, decline: true });
-      }
-      const synced = await syncBack(
-        resolved.store,
-        resolved.prefix,
-        filesystem.storeRoot,
-        filesystem.manifest,
-        {
-          include: result.include,
-          holdDeletesOnFailure: true,
-          // A lazy tree's manifest may be EMPTY for a pure create; the
-          // listing still told us whether the store mints generations, so a
-          // first create stays create-only (CAS "0") instead of blind.
-          generations: filesystem.generationAware,
-          workerMerge: true,
-        },
-      );
-      const partial = partialSyncReply(
-        synced,
-        `prefix=${resolved.prefix} kind=${op.op.kind}`,
-      );
-      if (partial) return json(res, 200, partial);
-      if (result.status < 300) {
-        announce = await projectDurableOp({
-          deps,
-          turn: turnLike,
-          op,
-          filesystem,
-          result,
-          uploaded: synced.uploaded,
-          deleted: synced.deleted,
-          source: resolved,
-          prefix: resolved.prefix,
-        });
-      }
-    }
+    if (result.ambiguous) return json(res, 200, { ok: true, ambiguous: true });
+    const { announce, reply } = await syncOp({
+      deps,
+      op,
+      filesystem,
+      result,
+      resolved,
+      turnLike,
+    });
+    if (reply) return json(res, 200, reply);
     json(res, 200, {
       ok: true,
       status: result.status,
@@ -174,29 +130,7 @@ export async function executeOp(
       events: announce,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (
-      error instanceof TurnSetupError &&
-      error.code === "agent_not_migrated"
-    ) {
-      // Nothing was written: the gateway runs the agent's `migrate` op (an
-      // older gateway proxies to the pod, whose boot migrates), never a
-      // write that would hide the flat files from that migration.
-      console.warn(`[op] declined kind=${op.op.kind}: ${message}`);
-      if (!res.headersSent)
-        json(res, 200, { ok: true, decline: true, reason: error.code });
-      return;
-    }
-    if (error instanceof WorkerOpDeclinedError) {
-      console.warn(`[op] declined kind=${op.op.kind}: ${message}`);
-      if (!res.headersSent) json(res, 200, { ok: true, decline: true });
-      return;
-    }
-    // Loud: a 500 here is the gateway's "worker_500" with no other trace.
-    console.error(
-      `[op] failed kind=${op.op.kind} ${op.op.kind === "route" ? `${op.op.method} ${op.op.rest}` : ""}: ${message}`,
-    );
-    if (!res.headersSent) json(res, 500, { error: message });
+    answerOpFailure(res, op, error);
   } finally {
     try {
       await heartbeat.stop();

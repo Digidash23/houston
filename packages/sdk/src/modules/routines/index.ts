@@ -54,10 +54,8 @@ export {
   type RoutinePauseRemedy,
   routinePauseNotice,
 } from "./auto-pause";
-export {
-  type RoutineReaderAccount,
-  routineFailureCode,
-} from "./failure-view";
+export { routineFailureCode } from "./failure-code";
+export type { RoutineReaderAccount } from "./failure-view";
 export { type RoutinePin, routineFirePin } from "./fire-pin";
 export { RoutinesHttpError } from "./http";
 export type {

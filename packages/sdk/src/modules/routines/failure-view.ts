@@ -42,8 +42,8 @@ const SIGNED_OUT: Partial<
   team_not_connected: { as: "team_needs_reconnect", account: "team" },
 };
 
-/** The failure code to present for `failure`, as `reader` can see it. */
-export function routineFailureCode(
+/** The account failure code to present for `failure`, as `reader` can see it. */
+export function failureCodeForReader(
   failure: RoutineRunFailure,
   reader?: RoutineReaderAccount,
 ): RoutineRunFailureCode {

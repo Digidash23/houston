@@ -1,4 +1,12 @@
-import { ID, str } from "./op-grammar-fields";
+import {
+  type ConversationOp,
+  parseConversationOp,
+} from "./op-grammar-conversation";
+import {
+  type CustomOAuthOp,
+  parseCustomOAuthOp,
+} from "./op-grammar-custom-oauth";
+import { str } from "./op-grammar-fields";
 import { type MigrateOp, parseMigrateOp } from "./op-grammar-migrate";
 import { parseReconcileOp, type ReconcileOp } from "./op-grammar-reconcile";
 import { parseSeedOp, type SeedOp } from "./op-grammar-seed";
@@ -39,12 +47,9 @@ export type AgentOp =
       /** Azure OpenAI's per-resource endpoint, arriving with the key. */
       endpoint?: string;
     }
-  | {
-      kind: "conversation";
-      action: "rename" | "delete";
-      conversationId: string;
-      title?: string;
-    }
+  | ConversationOp
+  | { kind: "first-day"; body: string }
+  | CustomOAuthOp
   | SeedOp
   | MigrateOp
   | ReconcileOp;
@@ -53,6 +58,8 @@ export { ID, str } from "./op-grammar-fields";
 
 export function parseAgentOp(raw: Record<string, unknown>): AgentOp {
   switch (raw.kind) {
+    case "custom-oauth":
+      return parseCustomOAuthOp(raw);
     case "route":
       return parseRouteOp(raw);
     case "title":
@@ -71,22 +78,13 @@ export function parseAgentOp(raw: Record<string, unknown>): AgentOp {
           : {}),
       };
     }
-    case "conversation": {
-      const action = raw.action;
-      if (action !== "rename" && action !== "delete")
-        throw new Error("invalid 'op.action'");
-      const conversationId = str(raw.conversationId, "op.conversationId");
-      if (!ID.test(conversationId))
-        throw new Error("invalid 'op.conversationId'");
-      if (action === "rename" && typeof raw.title !== "string")
-        throw new Error("rename needs 'op.title'");
+    case "conversation":
+      return parseConversationOp(raw);
+    case "first-day":
       return {
-        kind: "conversation",
-        action,
-        conversationId,
-        ...(typeof raw.title === "string" ? { title: raw.title } : {}),
+        kind: "first-day",
+        body: typeof raw.body === "string" ? raw.body : "{}",
       };
-    }
     case "seed":
       return parseSeedOp(raw);
     case "migrate":

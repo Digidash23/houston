@@ -11,7 +11,10 @@ import type {
   RoutineAutoPause,
   RoutineRunFailureCode,
 } from "@houston/protocol";
-import { type RoutineReaderAccount, routineFailureCode } from "./failure-view";
+import {
+  failureCodeForReader,
+  type RoutineReaderAccount,
+} from "./failure-view";
 import type { Routine } from "./types";
 
 /** The one thing a person does before resuming an auto-paused routine. */
@@ -65,7 +68,7 @@ export function routinePauseNotice(
 ): RoutinePauseNotice | null {
   const pause = routine.auto_paused;
   if (routine.enabled || !pause) return null;
-  const reason = routineFailureCode(
+  const reason = failureCodeForReader(
     { code: pause.reason, provider: pause.provider },
     reader,
   );

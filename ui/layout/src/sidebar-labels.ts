@@ -22,6 +22,8 @@ export interface SidebarLabels {
   dragKeyboardEnteredGroup?: string;
   /** A keyboard move out of a group to the top level: `%name%`, `%group%`. */
   dragKeyboardLeftGroup?: string;
+  /** The line under an open group with no members. */
+  emptyGroup?: string;
 }
 
 export const DEFAULT_SIDEBAR_LABELS: Required<SidebarLabels> = {
@@ -37,4 +39,5 @@ export const DEFAULT_SIDEBAR_LABELS: Required<SidebarLabels> = {
   dragKeyboardMovedInGroup: "Moved %name% to position %position% in %group%.",
   dragKeyboardEnteredGroup: "Moved %name% into %group%.",
   dragKeyboardLeftGroup: "Moved %name% out of %group%, to the top level.",
+  emptyGroup: "Drag an item here",
 };

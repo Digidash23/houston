@@ -26,6 +26,13 @@ export interface RoutineRunFailure {
   provider: string;
 }
 
+/** Delivery failures never contribute to credential auto-pause streaks. */
+export type RoutineDeliveryFailureCode = "pool_delivery_expired";
+
+export interface RoutineDeliveryFailure {
+  code: RoutineDeliveryFailureCode;
+}
+
 /**
  * Why the engine paused a routine (see `Routine.auto_paused`). Every one of the
  * last `failures` runs failed with the same `reason`, so firing again would

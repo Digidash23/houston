@@ -61,7 +61,7 @@ They drive the failure/reactivity scenarios the specs assert against:
 | --- | --- | --- |
 | `/__test__/reset` | — | Restore the seed + clear all chat channels (called before each test). |
 | `/__test__/emit` | `{ type, agentPath? }` | Push a domain event onto the `/v1/events` reactivity feed. |
-| `/__test__/chat-config` | `{ replyDelayMs }` | Slow the canned reply so a drop/kill lands mid-turn deterministically. |
+| `/__test__/chat-config` | `{ replyDelayMs, holdAfterFirstDelta? }` | Pace the canned reply. `holdAfterFirstDelta` holds the NEXT turn after its first delta until a drop/kill/turn-boundary control releases it (60 s cap), so those controls always land mid-turn. |
 | `/__test__/chat-interaction` | `{ interaction }` | Arm the NEXT scripted turn to end on a `PendingInteraction` (its `done` frame carries it) so the settle lands the card on `needs_you` + composer card. `null` disarms. |
 | `/__test__/chat-history` | `{ conversationId, messages, agentId? }` | Replace a conversation's transcript verbatim with the given `ChatMessage[]` (defaults to the seeded agent). The only way to reach a SHARED conversation locally: user messages carrying the `author` the cloud gateway stamps in multiplayer, which the sender-attribution spec renders. Returns `{ messages }`. |
 | `/__test__/drop-chat-streams` | — | Sever every open chat stream WITHOUT ending the turns (network blip). Returns `{ dropped }`. |

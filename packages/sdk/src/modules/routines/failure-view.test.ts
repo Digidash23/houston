@@ -1,7 +1,7 @@
 import type { RoutineRunFailureCode } from "@houston/protocol";
 import { expect, test } from "vitest";
 import { routinePauseNotice } from "./auto-pause";
-import { routineFailureCode } from "./failure-view";
+import { failureCodeForReader } from "./failure-view";
 
 const failure = (code: RoutineRunFailureCode) => ({
   code,
@@ -14,10 +14,10 @@ const signedOut = {
 };
 
 test("a not-connected failure on an account the gateway signed out reads as a reconnect", () => {
-  expect(routineFailureCode(failure("creator_not_connected"), signedOut)).toBe(
-    "creator_needs_reconnect",
-  );
-  expect(routineFailureCode(failure("team_not_connected"), signedOut)).toBe(
+  expect(
+    failureCodeForReader(failure("creator_not_connected"), signedOut),
+  ).toBe("creator_needs_reconnect");
+  expect(failureCodeForReader(failure("team_not_connected"), signedOut)).toBe(
     "team_needs_reconnect",
   );
 });
@@ -25,20 +25,20 @@ test("a not-connected failure on an account the gateway signed out reads as a re
 test("the reader's account speaks only for the same account and provider", () => {
   // Someone else's routine runs on its creator's account, not the reader's.
   expect(
-    routineFailureCode(failure("creator_not_connected"), {
+    failureCodeForReader(failure("creator_not_connected"), {
       ...signedOut,
       readerIsCreator: false,
     }),
   ).toBe("creator_not_connected");
   // A member's personal account is not the space's single account.
   expect(
-    routineFailureCode(failure("team_not_connected"), {
+    failureCodeForReader(failure("team_not_connected"), {
       ...signedOut,
       credentialScope: "personal",
     }),
   ).toBe("team_not_connected");
   expect(
-    routineFailureCode(failure("creator_not_connected"), {
+    failureCodeForReader(failure("creator_not_connected"), {
       ...signedOut,
       provider: "openai-codex",
     }),
@@ -47,15 +47,15 @@ test("the reader's account speaks only for the same account and provider", () =>
 
 test("an account never connected, or a failure that is not about connecting, keeps its code", () => {
   expect(
-    routineFailureCode(failure("creator_not_connected"), {
+    failureCodeForReader(failure("creator_not_connected"), {
       ...signedOut,
       health: "not_connected",
     }),
   ).toBe("creator_not_connected");
-  expect(routineFailureCode(failure("creator_not_connected"))).toBe(
+  expect(failureCodeForReader(failure("creator_not_connected"))).toBe(
     "creator_not_connected",
   );
-  expect(routineFailureCode(failure("out_of_credits"), signedOut)).toBe(
+  expect(failureCodeForReader(failure("out_of_credits"), signedOut)).toBe(
     "out_of_credits",
   );
 });

@@ -32,15 +32,27 @@ describe("provider login error sentinels", () => {
 
   it("the runtime mirrors the Copilot no-access sentinel by value", () => {
     // The runtime is frontend-agnostic and cannot import @houston-ai/core, so
-    // COPILOT_NO_ACCESS_ERROR (packages/runtime/src/auth/login.ts) duplicates
-    // this sentinel by value; drift breaks the toast's value-match silently.
+    // COPILOT_NO_ACCESS_ERROR (packages/runtime/src/auth/login-state.ts)
+    // duplicates this sentinel by value, and loginFailureMessage in the same
+    // module is what every login path (a pod's runtime, a pool worker's login
+    // runner) reports a Copilot no-access failure through. Drift breaks the
+    // toast's value-match silently.
     const runtime = readFileSync(
-      join(import.meta.dirname, "../../packages/runtime/src/auth/login.ts"),
+      join(
+        import.meta.dirname,
+        "../../packages/runtime/src/auth/login-state.ts",
+      ),
       "utf8",
     );
     ok(
-      runtime.includes(PROVIDER_COPILOT_NO_ACCESS_ERROR),
-      "packages/runtime/src/auth/login.ts must contain the exact sentinel string",
+      runtime.includes(JSON.stringify(PROVIDER_COPILOT_NO_ACCESS_ERROR)),
+      "packages/runtime/src/auth/login-state.ts must define the exact sentinel string",
+    );
+    ok(
+      /export function loginFailureMessage[\s\S]*?return COPILOT_NO_ACCESS_ERROR;/.test(
+        runtime,
+      ),
+      "loginFailureMessage must emit COPILOT_NO_ACCESS_ERROR",
     );
   });
 

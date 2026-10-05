@@ -3,6 +3,25 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v123 - 2026-10-05
+
+An open folder on the desktop rail with no AI Employees shows a muted "Drag an
+AI Employee here" line under its header. Before, folding an empty folder changed
+nothing on screen, and the employees right below it looked like its members.
+Phones have no rail; their group filter already says how to fill an empty group.
+
+Folder members on the desktop rail step 20px in (was 12px) beside a 1px guide
+line under the folder's glyph. A folder header, and the first root employee
+after a folder, sit 12px below the row above. Root employees right after a
+folder no longer read as its members.
+
+## v122 - 2026-10-04
+
+Routine run history explains expired delivery in English, Spanish and Portuguese
+on desktop and phone. The SDK classifies the failure separately from account
+problems. The history offers a retry without promising a scheduled run for
+routines started by events.
+
 ## v121 - 2026-10-02
 
 Free users have a persistent way to Plus above Connect your apps on the rail

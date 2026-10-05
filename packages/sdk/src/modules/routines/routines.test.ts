@@ -92,6 +92,24 @@ describe("routines module — an agent's scheduled work", () => {
     expect(calls[0].url).toBe(`${BASE}/agents/a1/routine_runs`);
   });
 
+  it("carries delivery failures through the facade and command result", async () => {
+    const failed = {
+      ...RUN,
+      status: "error",
+      session_key: "",
+      delivery_failure: { code: "pool_delivery_expired" },
+    };
+    const { sdk } = makeSdk(() => json({ items: [failed] }));
+    await expect(sdk.routines.listRoutineRuns("a1")).resolves.toEqual([failed]);
+    await expect(
+      sdk.dispatch({
+        id: "runs",
+        type: RoutinesCommand.ListRuns,
+        payload: { agentId: "a1" },
+      }),
+    ).resolves.toEqual({ id: "runs", ok: true, value: [failed] });
+  });
+
   it("posts the whole new routine as the body", async () => {
     const { sdk, calls } = makeSdk(() => json(ROUTINE));
     const input = {

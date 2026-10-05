@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 121
+version: 123
 
 components:
   - id: agent-delegation-settings
@@ -1037,6 +1037,7 @@ components:
         editing-schedule,
         loading-runs,
         no-runs-yet,
+        delivery-expired,
         provider-connected,
         provider-unusable,
         provider-checking,
@@ -1064,7 +1065,8 @@ components:
       run newest-first with its plain-language outcome (running / done /
       nothing to report / failed / stopped), date + time, elapsed time, and
       -- when the run wasn't silent -- the result it left behind, or, for a run
-      that never reached the agent, the reason its AI account could not run it;
+      that never reached the agent, a translated account failure or delivery
+      deadline explanation with guidance to try running the routine again;
       clicking an entry closes the modal and opens that run's chat in the shell panel
       (closing the chat returns to this screen). "Open chat" reaches the
       routine's setup chat the same way.
@@ -1292,7 +1294,7 @@ components:
   - id: sidebar-team-block
     title: Sidebar group block
     purpose: A personal folder in the AI Employees rail.
-    anatomy: [header-row, group-glyph, group-name, disclosure-caret, rollup-badge, folder-menu, agent-rows]
+    anatomy: [header-row, group-glyph, group-name, disclosure-caret, rollup-badge, folder-menu, agent-rows, member-guide, empty-hint]
     states: [resting, expanded, collapsed, collapsed-rollup, menu-open, drop-target, empty, renaming]
     variants: [named-group]
     behavior: >-
@@ -1300,7 +1302,10 @@ components:
       that folder's collapsed flag and never navigates. Its always-visible menu
       offers Rename, Icon & color, Move to another space where available, and
       Delete group. Agent rows follow the group's stored order. Agents
-      outside every folder share the header's left edge. SidebarLayout order
+      outside every folder share the header's left edge; members step 20px
+      in, and a 1px line runs down them under the header's glyph. A folder
+      header, and a root employee right after a folder, start 12px below the
+      row above, so a folder visibly ends where its members do. SidebarLayout order
       interleaves root employees and folders, with new employees at the start.
       Every person can create, rename, restyle, reorder, and delete folders.
       Deleting a folder puts its agents at that folder's root position in group
@@ -1310,7 +1315,11 @@ components:
       and depth it will land in; there are no drop lines or highlighted
       targets. A sideways drag of 20px moves the ghost one level in or out,
       which is how an employee enters a collapsed group or leaves a group
-      after its last member.
+      after its last member. An open folder with no members shows one muted
+      line under its header asking for an AI Employee to be dragged in, so
+      folding it visibly changes the rail and root employees below it never
+      read as its members. Folding hides the line, and it is absent wherever
+      nothing can be dragged yet.
       A folder header is 28px tall around a 20px glyph column with a 14px
       group mark. An AI Employee is a person row laid out like a message
       list: 64px around a 40px portrait, 12px from every edge of its pill,

@@ -66,9 +66,10 @@ export const sidebarRowButtonClasses = {
    *  12px edge as a root person row's portrait (`sidebarPersonRow.padBlock`),
    *  so folder headers and root employees share one left edge. */
   depthBlock: "pl-3",
-  /** Indented under a block head, one 12px step in, like a member person
-   *  row (`sidebarPersonRow.padChild`). */
-  depthChild: "pl-6",
+  /** Indented under a block head, 20px in, like a member person row
+   *  (`sidebarPersonRow.padChild`): room for {@link sidebarMemberGuide}
+   *  between the header's glyph column and the member's portrait. */
+  depthChild: "pl-8",
   /** The person row's own height, overriding the glyph row's on both
    *  elements (tailwind-merge keeps the later height). */
   personHeight: sidebarPersonRow.height,
@@ -145,6 +146,20 @@ export const sidebarHeaderControlClasses =
  * pinned run, whose next row is the first of the scrolling list beside it;
  * with no such row, the run ends the rail without a line, as the list does.
  */
+/**
+ * The 1px line down a folder's members, under the header's glyph column. The
+ * indent alone (20px against 40px portraits) did not say which employees a
+ * folder holds: a root employee right after a folder read as its member. It
+ * sits on the row WRAPPER, 1px above it to bridge the list's 1px gap, so the
+ * members' lines join into one.
+ */
+export const sidebarMemberGuide =
+  "after:pointer-events-none after:absolute after:-top-px after:bottom-0 after:left-5 after:w-px after:bg-line after:content-['']";
+
+/** Space before a row that opens a block: a folder header, or a root
+ *  employee right after a folder. Marks where a folder ends. */
+export const sidebarBlockGap = "mt-3";
+
 export const sidebarRowNeighbour =
   "[&:has(+*:hover)_[data-person-text]]:border-transparent [&:has(+*_[aria-current=page])_[data-person-text]]:border-transparent";
 /** On the list: its last row separates nothing from anything below it, so

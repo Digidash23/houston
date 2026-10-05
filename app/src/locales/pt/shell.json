@@ -55,7 +55,8 @@
       "menu": "Ações para {{name}}",
       "rename": "Renomear",
       "move": "Mover para outro espaço",
-      "delete": "Excluir grupo"
+      "delete": "Excluir grupo",
+      "empty": "Arraste um funcionário de IA para cá"
     },
     "teamIcons": {
       "bank": "Banco",
