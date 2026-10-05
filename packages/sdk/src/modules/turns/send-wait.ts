@@ -30,6 +30,13 @@ class PersonStop {
   }
 }
 
+/** A send the person stopped: never ambiguous, so nothing waits on it. */
+function stoppedError(): Error {
+  const e = new Error(STOPPED_BY_USER);
+  e.name = "AbortError";
+  return e;
+}
+
 /** What {@link sendUntilAccepted} works on: one turn's fresh send. */
 export interface UnsentTurn {
   /** One POST of the message; `signal` aborts it when the person stops. */
@@ -94,7 +101,7 @@ export async function sendUntilAccepted(
     return stop.finish;
   };
   try {
-    return await sendHolding(
+    const accepted = await sendHolding(
       () => turn.send(post.signal),
       sink,
       hold.signal,
@@ -109,6 +116,10 @@ export async function sendUntilAccepted(
         busySince: turn.firstSentAt,
       },
     );
+    if (!stop) return accepted;
+    // The 202 landed in the same tick as the Stop: the Stop wins, and the
+    // engine's cancel stops the turn it took.
+    throw stoppedError();
   } catch (e) {
     if (stop) {
       clearBusy();

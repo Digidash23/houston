@@ -282,7 +282,10 @@ export async function streamTurn(
         opts.tuning,
         handoffStop.signal,
       ));
-    stoppedBeforeSend = sent ? undefined : handoffStop.stopped();
+    // A Stop wins even over a 202 that landed in its tick: the engine's
+    // cancel stops the turn it took, and nothing settles before it answered.
+    stoppedBeforeSend = handoffStop.stopped();
+    if (stoppedBeforeSend) sent = false;
     handoffStop.disarm();
     if (sent) {
       if (registry.get(key) !== prior) firstResponse.dispose(); // torn down meanwhile

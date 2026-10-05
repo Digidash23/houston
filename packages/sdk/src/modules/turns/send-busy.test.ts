@@ -1025,3 +1025,98 @@ test("a history settle a Stop overtook publishes nothing", async () => {
   expect(vm.boardStatus).toBe("needs_you");
   expect(vm.feed.some((f) => f.data === STOPPED_BY_USER)).toBe(true);
 });
+
+/** Resolve with `turnId` and press Stop in the same tick, before any await resumes. */
+function acceptThenStop(
+  key: string,
+  onStop: (finish: (() => void) | null) => void,
+) {
+  return ((_id: string, _text: string, o?: { nonce?: string }) =>
+    new Promise((resolve) => {
+      setTimeout(() => {
+        resolve({ turnId: "t-mine" });
+        onStop(registry.stopUnsent(streamKey("Houston/Bo", key)));
+      }, 10);
+      void o;
+    })) as unknown as HoustonEngineClient["sendMessage"];
+}
+
+const settledWithin = (turn: Promise<void>, ms: number) =>
+  Promise.race([
+    turn.then(() => true),
+    new Promise<boolean>((r) => setTimeout(() => r(false), ms)),
+  ]);
+
+test("a Stop in the same tick as the 202 still wins on the fresh path", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-stop-same-tick";
+  let finish: (() => void) | null = null;
+  let stopped = false;
+  const { engine } = busyEngine(0, async (o) => {
+    o.onEvent(sync(false, 0));
+    await waitFor(() => stopped);
+    reply(o, undefined, 1);
+    await untilAborted(o);
+  });
+  engine.sendMessage = acceptThenStop(key, (f) => {
+    finish = f;
+    stopped = true;
+  });
+
+  const turn = streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: fast,
+  });
+  await waitFor(() => stopped);
+  expect(finish).not.toBeNull();
+  await new Promise((r) => setTimeout(r, 100));
+  expect(snapshot(key).sessionStatus).toBe("running");
+  expect(registry.get(streamKey("Houston/Bo", key))?.held).toBe(true);
+  (finish as (() => void) | null)?.();
+
+  expect(await settledWithin(turn, 2_000)).toBe(true);
+  expect(snapshot(key).feed.some((f) => f.data === STOPPED_BY_USER)).toBe(true);
+});
+
+test("a Stop in the same tick as the handoff's 202 still wins", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-handoff-stop-same-tick";
+  let finish: (() => void) | null = null;
+  let stopped = false;
+  let connections = 0;
+  const { engine } = busyEngine(
+    0,
+    async (o) => {
+      connections++;
+      o.onEvent(sync(false, 3));
+      await untilAborted(o);
+    },
+    // The turn's own subscription would see the engine finish the turn.
+    async (o) => {
+      connections++;
+      reply(o, undefined, 4);
+      await untilAborted(o);
+    },
+  );
+  engine.sendMessage = acceptThenStop(key, (f) => {
+    finish = f;
+    stopped = true;
+  });
+
+  observeConversation(engine, "Houston/Bo", key, output, 1, registry, fast);
+  await waitFor(
+    () => registry.get(streamKey("Houston/Bo", key))?.kind === "observer",
+  );
+  const turn = streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: fast,
+  });
+  await waitFor(() => stopped);
+  expect(finish).not.toBeNull();
+  await new Promise((r) => setTimeout(r, 100));
+  expect(connections).toBe(1);
+  expect(snapshot(key).sessionStatus).not.toBe("completed");
+  expect(registry.get(streamKey("Houston/Bo", key))?.held).toBe(true);
+  (finish as (() => void) | null)?.();
+
+  expect(await settledWithin(turn, 2_000)).toBe(true);
+  expect(snapshot(key).feed.some((f) => f.data === STOPPED_BY_USER)).toBe(true);
+});
