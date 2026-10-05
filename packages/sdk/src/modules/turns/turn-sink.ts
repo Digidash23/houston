@@ -1,7 +1,6 @@
 import type { PendingInteraction, WireFrame } from "@houston/runtime-client";
 import type { MessageLimitRefusal } from "@houston/wire-types";
 import type { TerminalBoardStatus } from "./feed-output";
-import { settleOverflowedEnd } from "./overflow-settle";
 import { PreAcceptTurn } from "./pre-accept-turn";
 import { PresettlePoll } from "./presettle-poll";
 import { SendHoldState } from "./send-hold-state";
@@ -59,12 +58,6 @@ export class TurnSink {
   private readonly held = new SendHoldState();
   /** Turn mode: the running turn seen before the 202 (`pre-accept-turn.ts`). */
   private readonly preAccept = new PreAcceptTurn();
-  /**
-   * The 202 claimed a turn whose pre-accept frames outgrew the cap: the live
-   * text is only the reply's tail, so a clean end settles the reply from
-   * history (a running sync, whose partial is the whole reply, clears this).
-   */
-  private prefixLost = false;
   /** No frame or history settle publishes ({@link mute}, {@link dispose}). */
   private muted = false;
   /** Callers waiting for the first evidence the turn runs ({@link whenStarted}). */
@@ -136,13 +129,12 @@ export class TurnSink {
    */
   sendAccepted(turnId?: string): void {
     this.held.release();
-    const { frames, lostPrefix } = this.preAccept.claim(turnId);
+    const frames = this.preAccept.claim(turnId);
     if (turnId !== undefined) this.adoptTurnId(turnId);
     this.accepted = true;
     // The engine acknowledged the send — the message reached it, so the
     // optimistic bubble is delivered even if the turn later errors.
     this.s.delivered = true;
-    this.prefixLost = lostPrefix;
     // The stream showed this turn running before the 202 named it ours.
     for (const ev of frames) this.fold(ev);
     // The send landed while the stream already showed a fresh idle sync: the
@@ -245,24 +237,6 @@ export class TurnSink {
       this.s.delivered = true; // a real frame proves the turn started
       this.poll.cancel(); // stream evidence: the poll's job is done
     }
-    if (
-      this.prefixLost &&
-      ev.type === "done" &&
-      this.s.turnId !== undefined &&
-      !this.settling
-    ) {
-      this.poll.cancel();
-      this.settling = true;
-      void settleOverflowedEnd(
-        this.s,
-        ev,
-        this.s.turnId,
-        this.o.reloadHistory,
-        this.o.stop,
-        () => !this.muted,
-      );
-      return;
-    }
     applyTurnFrame(this.s, ev, this.o.stop);
   }
 
@@ -360,7 +334,6 @@ export class TurnSink {
       case "ours":
         break;
     }
-    this.prefixLost = false; // the sync's partial is the whole reply so far
     this.markRunning();
     // Replay the running turn's activity BEFORE the text so the mission log
     // folds in live order (thinking, then tools, then the reply bubble).

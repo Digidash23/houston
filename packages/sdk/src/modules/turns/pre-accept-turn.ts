@@ -1,11 +1,5 @@
 import type { WireFrame } from "@houston/runtime-client";
 
-// Far above any turn's frames before its 202; only a pathological wait (a held
-// send behind a very long turn) reaches it, and that turn then settles from history.
-export const PRE_ACCEPT_MAX_FRAMES = 10_000;
-export const PRE_ACCEPT_MAX_BYTES = 8 * 1024 * 1024;
-const encoder = new TextEncoder();
-
 /**
  * The running turn a turn sink saw while its send was still out, kept so the
  * send's 202 can claim it.
@@ -21,14 +15,16 @@ const encoder = new TextEncoder();
  * Only a 202 that names its turn can claim: without an id, a turn that ended
  * just before ours was admitted would be spliced in. Those servers keep the
  * old behavior.
+ *
+ * Nothing caps the kept frames: they are one turn's own output, the same data
+ * the sink holds once that turn is ours, and they clear on the 202, a new sync,
+ * a hold or the sink's disposal. A cap would have to settle a turn whose start
+ * was dropped, which history cannot always do.
  */
 export class PreAcceptTurn {
   private frames: WireFrame[] | null = null;
   private turnId: string | undefined;
   private discardedTurnId: string | undefined;
-  private bytes = 0;
-  /** The kept turn outgrew the cap: its replay would be a suffix, not a turn. */
-  private overflowed = false;
 
   /** A running sync the sink dropped: the kept turn starts over from it. */
   keepSync(ev: WireFrame & { type: "sync" }): void {
@@ -63,23 +59,15 @@ export class PreAcceptTurn {
   clear(): void {
     this.frames = null;
     this.turnId = undefined;
-    this.bytes = 0;
-    this.overflowed = false;
   }
 
-  /**
-   * The kept frames when `turnId` names the kept turn, and whether that turn's
-   * beginning was dropped at the cap (`lostPrefix`: the caller must not build
-   * the reply from later frames). Clears replay storage.
-   */
-  claim(turnId: string | undefined): {
-    frames: WireFrame[];
-    lostPrefix: boolean;
-  } {
+  /** The kept frames when `turnId` names the kept turn. Clears replay storage. */
+  claim(turnId: string | undefined): WireFrame[] {
     const candidateTurnId = this.turnId;
-    const claimed = turnId !== undefined && turnId === candidateTurnId;
-    const frames = claimed ? (this.frames ?? []) : [];
-    const lostPrefix = claimed && this.overflowed;
+    const frames =
+      turnId !== undefined && turnId === candidateTurnId
+        ? (this.frames ?? [])
+        : [];
     const discardedTurnId =
       turnId !== undefined &&
       candidateTurnId !== undefined &&
@@ -88,22 +76,10 @@ export class PreAcceptTurn {
         : undefined;
     this.clear();
     this.discardedTurnId = discardedTurnId;
-    return { frames, lostPrefix };
+    return frames;
   }
 
   private append(ev: WireFrame): void {
-    if (this.frames === null) return;
-    const bytes = encoder.encode(JSON.stringify(ev)).byteLength;
-    if (
-      this.frames.length >= PRE_ACCEPT_MAX_FRAMES ||
-      this.bytes + bytes > PRE_ACCEPT_MAX_BYTES
-    ) {
-      this.frames = null;
-      this.bytes = 0;
-      this.overflowed = true;
-      return;
-    }
-    this.frames.push(ev);
-    this.bytes += bytes;
+    this.frames?.push(ev);
   }
 }
