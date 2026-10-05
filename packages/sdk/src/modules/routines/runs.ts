@@ -19,6 +19,11 @@ import type { RoutineRun, WebhookKeyReveal } from "./types";
 
 /**
  * Lists the times an agent's routines have run, including any run in progress.
+ *
+ * An `error` run says why in `failure` (the account or model it needed is
+ * unusable: fix that, or the routine pauses itself after repeated runs) or in
+ * `delivery_failure` (it never started in time; nothing to fix, run it again
+ * with runRoutineNow); any other failure tells its story in `summary` only.
  * @param agentId The agent this acts on, by the id listAgents returns. An
  *   agent's name is not its id, so read the id from listAgents first.
  * @assistant group:routines

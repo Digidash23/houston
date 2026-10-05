@@ -141,7 +141,7 @@
       "teamNeedsReconnect": "Hay que volver a conectar {{provider}}.",
       "outOfCredits": "La cuenta de {{provider}} se quedó sin créditos.",
       "modelUnavailable": "La cuenta de {{provider}} no puede usar el modelo de esta rutina.",
-      "poolDeliveryExpired": "Esta ejecución no pudo comenzar antes de que se agotara el tiempo de espera. Puedes intentar ejecutar la rutina de nuevo."
+      "poolDeliveryExpired": "Esta ejecución no pudo iniciar a tiempo y se omitió. Puedes ejecutar la rutina de nuevo."
     },
     "autoPause": {
       "chip": "En pausa",
