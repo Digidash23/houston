@@ -100,6 +100,7 @@ export function SettingsIndex({
             <SettingsRow
               icon={KeyRound}
               title={t("settings:nav.apiKeys")}
+              badge={t("settings:advancedBadge")}
               description={t("settings:index.rows.apiKeys")}
               onClick={() => onSelect("apiKeys")}
             />

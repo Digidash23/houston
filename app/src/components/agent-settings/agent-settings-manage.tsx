@@ -123,6 +123,7 @@ export function AgentSettingsManage({ agent }: { agent: Agent }) {
           <SettingsRow
             icon={KeyRound}
             title={t("settings:apiKeys.agentAccess.title")}
+            badge={t("settings:advancedBadge")}
             description={t("settings:apiKeys.agentAccess.rowDescription", {
               name: agent.name,
             })}

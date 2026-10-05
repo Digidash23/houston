@@ -253,5 +253,6 @@
     "refresh": "Actualizar conexiones",
     "notConfigured": "Las conexiones de Slack aún no están listas para este espacio de Houston. Pídele a tu administrador de Houston que termine de configurar Slack y actualiza.",
     "unsupported": "Los canales no están disponibles en esta instalación de Houston."
-  }
+  },
+  "advancedBadge": "Avanzado"
 }
