@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 121
+version: 122
 
 components:
   - id: agent-delegation-settings
@@ -1037,6 +1037,7 @@ components:
         editing-schedule,
         loading-runs,
         no-runs-yet,
+        delivery-expired,
         provider-connected,
         provider-unusable,
         provider-checking,
@@ -1064,7 +1065,8 @@ components:
       run newest-first with its plain-language outcome (running / done /
       nothing to report / failed / stopped), date + time, elapsed time, and
       -- when the run wasn't silent -- the result it left behind, or, for a run
-      that never reached the agent, the reason its AI account could not run it;
+      that never reached the agent, a translated account failure or delivery
+      deadline explanation with guidance to try running the routine again;
       clicking an entry closes the modal and opens that run's chat in the shell panel
       (closing the chat returns to this screen). "Open chat" reaches the
       routine's setup chat the same way.

@@ -134,6 +134,7 @@ export {
   RoutinesHttpError,
   type RoutinesModule,
   type RoutineUpdate,
+  routineFailureCode,
   routineFirePin,
   routinePauseNotice,
   type WebhookKeyReveal,

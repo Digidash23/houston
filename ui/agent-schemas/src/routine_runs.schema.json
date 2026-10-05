@@ -21,6 +21,40 @@
       "paused_until": {
         "type": "string",
         "description": "Human-readable reset hint while the provider CLI is sleeping on a usage-limit window. Only meaningful when status is 'running'."
+      },
+      "failure": {
+        "type": "object",
+        "required": ["code", "provider"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "creator_not_connected",
+              "team_not_connected",
+              "creator_needs_reconnect",
+              "team_needs_reconnect",
+              "out_of_credits",
+              "model_unavailable"
+            ]
+          },
+          "provider": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "delivery_failure": {
+        "type": "object",
+        "required": ["code"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": ["pool_delivery_expired"]
+          }
+        },
+        "additionalProperties": false
+      },
+      "resumed": {
+        "type": "boolean",
+        "const": true
       }
     },
     "additionalProperties": false
