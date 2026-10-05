@@ -40,14 +40,15 @@ class LeasedStore {
   );
   private token = 0;
   private holder = "";
+  /** Whether the holder is a running engine that keeps renewing. */
+  private holderRenews = false;
 
   /** A boot claims the lease (the newest claim wins) and gets its view. */
   boot(bootId: string): {
     store: ObjectStore;
     leaseProbe: () => Promise<WriteLeaseVerdict>;
   } {
-    this.token += 1;
-    this.holder = bootId;
+    this.claim(bootId, true);
     const token = this.token;
     const held = () => this.token === token && this.holder === bootId;
     const fence = (key: string) => {
@@ -71,8 +72,30 @@ class LeasedStore {
           await this.objects.delete(key, opts);
         },
       },
-      leaseProbe: async () => (held() ? "held" : "fenced"),
+      leaseProbe: async () =>
+        held()
+          ? { state: "held" }
+          : {
+              state: "fenced",
+              holder: this.holderRenews ? "live" : "stale",
+            },
     };
+  }
+
+  /** A control-plane mint no engine adopted: nobody writes under it. */
+  mint(): void {
+    this.claim("wake-op", false);
+  }
+
+  /** The holding engine is gone and its renewals stop. */
+  holderStops(): void {
+    this.holderRenews = false;
+  }
+
+  private claim(holder: string, renews: boolean): void {
+    this.token += 1;
+    this.holder = holder;
+    this.holderRenews = renews;
   }
 }
 
@@ -155,12 +178,13 @@ test("an edit on a pod superseded while idle is refused, never acknowledged and 
   const routine = (await created.json()) as Routine;
   await stop(seed.host);
 
-  // Pod A serves the agent; then a newer boot takes the lease (a roll's
-  // replacement, a mint with no engine behind it). A has nothing to upload,
-  // so its sync never meets the 409.
+  // Pod A serves the agent; then the lease moves past it to a mint with no
+  // engine behind it (staging logged exactly this on 2026-10-01; in the
+  // incident a boot that took the lease and went away). A has nothing to
+  // upload, so its sync never meets the 409.
   const podA = await bootPod(remote, "boot-a");
   expect((await routines(podA.base))[0]?.schedule).toBe("30 11 * * *");
-  remote.boot("boot-b");
+  remote.mint();
 
   // The user moves the routine to 7:00 on pod A.
   const patched = await fetch(
@@ -188,7 +212,7 @@ test("an edit on a pod superseded while idle is refused, never acknowledged and 
   expect(await patched.json()).toMatchObject({ code: "store_fenced" });
   expect(shownOnA).toBe("30 11 * * *");
   expect(afterRecycle).toBe("30 11 * * *");
-  expect(podA.fenceLost).toHaveBeenCalledOnce();
+  expect(podA.fenceLost.mock.calls).toEqual([["stale"]]);
 
   // The retry lands on the agent's one writer and survives the next recycle.
   const retried = await fetch(
@@ -214,6 +238,31 @@ test("an idle superseded pod retires on its own", async () => {
   await new Promise((resolve) => setTimeout(resolve, 80));
   expect(pod.fenceLost).not.toHaveBeenCalled();
 
+  remote.mint();
+  await vi.waitFor(() => expect(pod.fenceLost.mock.calls).toEqual([["stale"]]));
+}, 60_000);
+
+// A newer engine that is running (a split brain, or this pod's replacement
+// while it drains) owns the agent: the pod refuses the edit and stands down
+// without claiming the lease back, and retires only once that engine stops.
+test("a pod superseded by a running engine stands down, then retires when it stops", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  const remote = new LeasedStore();
+  const pod = await bootPod(remote, "boot-a", 25);
   remote.boot("boot-b");
-  await vi.waitFor(() => expect(pod.fenceLost).toHaveBeenCalledOnce());
+
+  const refused = await fetch(`${pod.base}/agents/${AGENT}/routines`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ name: "x", prompt: "x", schedule: "0 7 * * *" }),
+  });
+  expect(refused.status).toBe(503);
+  expect(pod.fenceLost.mock.calls).toEqual([["live"]]);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  expect(pod.fenceLost.mock.calls).toEqual([["live"]]);
+
+  remote.holderStops();
+  await vi.waitFor(() =>
+    expect(pod.fenceLost.mock.calls).toEqual([["live"], ["stale"]]),
+  );
 }, 60_000);

@@ -1,4 +1,5 @@
 export { mergeActivityArrays } from "./activity-merge";
+export { captureFencingToken } from "./fencing-token";
 export { fileSha256 } from "./file-hash";
 export type { HttpObjectStoreOptions } from "./http-store";
 export { HttpObjectStore } from "./http-store";
@@ -63,6 +64,7 @@ export { trustedBase, withMergeBase } from "./sync-back-merge-base";
 export type { ConflictBackoff } from "./sync-back-merge-retry";
 export { jitteredConflictBackoff } from "./sync-back-merge-retry";
 export type {
+  LeaseHolderState,
   WriteLeaseProbeOptions,
   WriteLeaseVerdict,
 } from "./write-lease-probe";

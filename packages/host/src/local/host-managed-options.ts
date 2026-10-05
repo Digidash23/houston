@@ -1,4 +1,5 @@
 import type {
+  LeaseHolderState,
   ManifestObjectStore,
   ObjectStore,
   WriteLeaseVerdict,
@@ -109,11 +110,12 @@ export interface ManagedHostOptions {
     leaseHeartbeatMs?: number;
   };
   /**
-   * Runs once when the store sync learns another boot owns this agent's
-   * store. A managed pod retires on it (local/fence-retire.ts): it can no
-   * longer persist anything, and its restart claims the lease again.
+   * After the store sync learns another boot owns this agent's store: `live`
+   * when a running engine holds the lease, then `stale` once nobody does. A
+   * managed pod stands down on the first and retires on the second
+   * (local/fence-retire.ts).
    */
-  onStoreFenceLost?: () => void;
+  onStoreFenceLost?: (holder: LeaseHolderState) => void;
   /** Managed-pod read/write org prefix mirror, outside the agent workspace. */
   sharedMirror?: {
     store: ManifestObjectStore;

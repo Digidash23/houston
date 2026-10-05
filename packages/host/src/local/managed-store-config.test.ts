@@ -323,14 +323,20 @@ test("the lease check rides the agent prefix with this boot's write headers", as
   vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
     calls.push({ url: String(url), headers: new Headers(init?.headers) });
     if (init?.method === "POST") return Response.json({ token: "12" });
-    return new Response(null, { status: 409 });
+    return Response.json(
+      { error: "fencing token stale", holder: "live" },
+      { status: 409 },
+    );
   });
   const config = await managedStoreConfig("pod-token", "/data", async (m) => {
     throw new Error(m);
   });
   if (!config) throw new Error("expected managed store config");
 
-  expect(await config.storeSync.leaseProbe()).toBe("fenced");
+  expect(await config.storeSync.leaseProbe()).toEqual({
+    state: "fenced",
+    holder: "live",
+  });
   const check = calls[1];
   expect(check?.url).toBe("https://store.test/v1/pod/store/acme/writer/lease");
   expect(check?.headers.get("x-houston-fencing-token")).toBe("12");

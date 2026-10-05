@@ -12,7 +12,7 @@ import {
 import { houstonSystemPrompt } from "../houston-prompt";
 import { installParentWatchdog } from "../parent-watchdog";
 import { isBenignRecursiveWatchRace } from "../watch/watcher-race";
-import { retireOnFenceLoss } from "./fence-retire";
+import { respondToFenceLoss } from "./fence-retire";
 import { buildLocalHost } from "./host";
 import { managedStoreConfig } from "./managed-store-config";
 import { runtimeCommand } from "./runtime-command";
@@ -246,10 +246,12 @@ const host = buildLocalHost({
   // routines or churn watch events while the cloud app reads the old tree.
   passive: process.env.HOUSTON_PASSIVE === "1",
   storeSync: managedStore?.storeSync,
-  // A pod that lost its store lease restarts as the agent's one writer.
+  // A pod that lost its store lease stands down while a running engine owns
+  // the agent, and restarts as its one writer once nobody does.
   onStoreFenceLost: managedStore
-    ? retireOnFenceLoss({
+    ? respondToFenceLoss({
         stop: (stopOpts) => host.stop(stopOpts),
+        standDown: () => host.standDown(),
         exit: (code) => process.exit(code),
         flushReports: async () => sentry?.flush(500),
       })

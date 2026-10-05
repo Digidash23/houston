@@ -24,6 +24,8 @@ export interface LocalHost {
   start(): Promise<void>;
   /** `drainMs` overrides the turn drain budget (a fenced pod's retire). */
   stop(stopOpts?: { drainMs?: number }): Promise<void>;
+  /** Stop firing routines locally: another running engine owns the agent. */
+  standDown(): void;
 }
 
 /** The shared host server with local storage and a supervised runtime per agent. */
@@ -49,6 +51,7 @@ export function buildLocalHost(opts: LocalHostOptions): LocalHost {
   return {
     server,
     start: () => startLocalHost(opts, state),
+    standDown: () => scheduler.stop(),
     stop(stopOpts) {
       if (stopPromise) return stopPromise;
       const drainMs = stopOpts?.drainMs ?? opts.shutdownDrainMs;

@@ -15,7 +15,10 @@ afterEach(async () => {
   );
 });
 
-async function podStore(status: () => number) {
+async function podStore(
+  status: () => number,
+  conflictBody = '{"error":"fencing token stale","holder":"live"}',
+) {
   const seen: Array<{
     method?: string;
     url?: string;
@@ -24,7 +27,7 @@ async function podStore(status: () => number) {
   const server = createServer((req, res) => {
     seen.push({ method: req.method, url: req.url, headers: req.headers });
     res.writeHead(status());
-    res.end(status() === 409 ? '{"error":"fencing token stale"}' : undefined);
+    res.end(status() === 409 ? conflictBody : undefined);
   });
   servers.push(server);
   await new Promise<void>((resolve) =>
@@ -48,7 +51,7 @@ test("asks with exactly the headers a write would carry", async () => {
     fence,
   });
 
-  expect(await probe()).toBe("held");
+  expect(await probe()).toEqual({ state: "held" });
   expect(store.seen[0]).toMatchObject({
     method: "GET",
     url: "/v1/pod/store/acme/agent/lease",
@@ -87,13 +90,30 @@ test("maps the pod-store's answers to verdicts", async () => {
     fence: { token: "1" },
   });
 
-  expect(await probe()).toBe("fenced");
+  expect(await probe()).toEqual({ state: "fenced", holder: "live" });
   // A pod-store from before the check route: the POST-only mint path (405)
   // or no route at all (404).
   status = 405;
-  expect(await probe()).toBe("unsupported");
+  expect(await probe()).toEqual({ state: "unsupported" });
   status = 404;
-  expect(await probe()).toBe("unsupported");
+  expect(await probe()).toEqual({ state: "unsupported" });
   status = 503;
   await expect(probe()).rejects.toThrow("write lease check failed (503)");
+});
+
+test("a 409 that names no running holder reads as stale", async () => {
+  for (const body of [
+    '{"error":"fencing token stale","holder":"stale"}',
+    '{"error":"fencing token stale"}',
+    "",
+  ]) {
+    const store = await podStore(() => 409, body);
+    const verdict = await createWriteLeaseProbe({
+      baseUrl: store.baseUrl,
+      token: "pod-token",
+      bootId: "boot-a",
+      fence: { token: "1" },
+    })();
+    expect(verdict).toEqual({ state: "fenced", holder: "stale" });
+  }
 });

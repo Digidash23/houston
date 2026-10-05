@@ -1,5 +1,6 @@
 import {
   type HydrateManifest,
+  type LeaseHolderState,
   type LocalWriteLock,
   type ObjectStore,
   type SyncResult,
@@ -58,8 +59,11 @@ export interface StoreSyncOptions {
   /** The pod-store's write lease check (managed pods; see write-fence.ts). */
   leaseProbe?: () => Promise<WriteLeaseVerdict>;
   leaseHeartbeatMs?: number;
-  /** Runs once when this boot learns another boot owns the agent's store. */
-  onFenceLost?: () => void;
+  /**
+   * After this boot lost the agent's store lease: `live` when a running
+   * engine holds it (stand down), then `stale` once nobody does (retire).
+   */
+  onFenceLost?: (holder: LeaseHolderState) => void;
   log: (msg: string, err?: unknown) => void;
 }
 

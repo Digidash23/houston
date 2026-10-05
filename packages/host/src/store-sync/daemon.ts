@@ -39,6 +39,7 @@ export class StoreSyncDaemon {
       probe: opts.leaseProbe,
       heartbeatMs: opts.leaseHeartbeatMs,
       onLost: (err) => this.haltFenced(err),
+      onHolder: (holder) => opts.onFenceLost?.(holder),
       log: opts.log,
     });
   }
@@ -83,6 +84,7 @@ export class StoreSyncDaemon {
 
   async stop(): Promise<void> {
     this.stopping = true;
+    this.fence.stopHeartbeat();
     this.stopScheduling();
     if (!this.hydrated) return;
 
@@ -173,16 +175,15 @@ export class StoreSyncDaemon {
     logSyncResult(result, this.opts);
   }
 
+  /** The sync halts for good; the fence's heartbeat keeps watching the holder. */
   private haltFenced(err: { message: string }): void {
     this.dirty = false;
     this.rerunRequested = false;
     this.stopScheduling();
     logFenceLost(this.opts, err);
-    this.opts.onFenceLost?.();
   }
 
   private stopScheduling(): void {
-    this.fence.stopHeartbeat();
     this.watcher?.close();
     this.watcher = undefined;
     if (this.quietTimer) clearTimeout(this.quietTimer);
