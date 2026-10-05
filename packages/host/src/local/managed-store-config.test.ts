@@ -344,3 +344,26 @@ test("the lease check rides the agent prefix with this boot's write headers", as
     config.podGateway.bootId,
   );
 });
+
+// Prod with fencing off: the claim answers 404, the boot carries no token,
+// and nothing may wait on the lease check until a token is published.
+test("a boot whose claim found no fencing reports no lease until a token appears", async () => {
+  stubManagedStoreEnv();
+  const calls: string[] = [];
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+    calls.push(`${init?.method ?? "GET"} ${String(url)}`);
+    return Response.json({ error: "not found" }, { status: 404 });
+  });
+  const config = await managedStoreConfig("pod-token", "/data", async (m) => {
+    throw new Error(m);
+  });
+  if (!config) throw new Error("expected managed store config");
+
+  expect(config.storeSync.leaseClaimed()).toBe(false);
+  expect(
+    calls.some((call) => call.startsWith("GET") && call.endsWith("/lease")),
+  ).toBe(false);
+  // The flip: a read publishes the lease's token, and the check turns on.
+  config.podGateway.fence.token = "3";
+  expect(config.storeSync.leaseClaimed()).toBe(true);
+});
