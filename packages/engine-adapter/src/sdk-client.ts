@@ -20,23 +20,11 @@
  * place) reroutes the SDK's calls too, with no extra threading.
  */
 
-import {
-  createSpanClock,
-  HoustonSdk,
-  type KeyValueStore,
-  type SdkLogger,
-} from "@houston/sdk";
+import { HoustonSdk, type KeyValueStore, type SdkLogger } from "@houston/sdk";
 import { createDevicePrefsStore } from "./client/device-prefs";
 // The barrel, never `cp/transient-retry` directly: the web suite mocks
 // `./control-plane` wholesale and a submodule import would bypass the mock.
 import { transientRetryFetch } from "./control-plane";
-
-// One per process: every SDK this adapter builds, a bearer rotation's rebuild
-// included, measures spans on one timebase.
-const spanClock = createSpanClock(
-  () => Date.now(),
-  () => performance.now(),
-);
 
 /** Namespace for every SDK-owned `localStorage` key, so nothing the SDK
  *  persists can collide with the adapter's existing browser state. */
@@ -138,7 +126,7 @@ export function createEngineSdk(opts: EngineSdkOptions): HoustonSdk {
       devicePreferences: createDevicePrefsStore(),
       clock: {
         now: () => Date.now(),
-        monotonic: spanClock,
+        monotonic: () => performance.now(),
         setTimeout: (fn, ms) => setTimeout(fn, ms) as unknown as number,
         clearTimeout: (id) => clearTimeout(id),
       },

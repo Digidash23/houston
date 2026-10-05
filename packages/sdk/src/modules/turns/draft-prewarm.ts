@@ -23,6 +23,7 @@ import {
   recordConversationKind,
 } from "@houston/domain/conversation-keys";
 import {
+  type DraftInstant,
   type DraftTypingRun,
   DraftTypingRuns,
   holdOf,
@@ -63,9 +64,11 @@ export interface DraftPrewarmPorts {
     agentId: string,
     input: ConversationPrewarmInput,
   ): Promise<unknown>;
-  /** Milliseconds on a clock that never goes back and counts system sleep:
-   *  runs, intervals and holds are spans. */
+  /** The wall clock, in milliseconds. */
   now(): number;
+  /** Milliseconds on a clock that never goes back, though it may stop while
+   *  the machine sleeps; absent, the wall clock stands in. */
+  monotonic?(): number;
   /** A fresh conversation id for a new chat. Must never throw. */
   mintId(): string;
 }
@@ -74,10 +77,11 @@ export interface DraftPrewarmPorts {
 export interface DraftPrewarmSession {
   /** The agent and the chat it targets; either changing starts a new one. */
   target: string;
-  sentAt: number;
-  /** Until when the gateway holds what the last request readied: a
-   *  keystroke before then refreshes the hold, one after starts over. */
-  heldUntil: number;
+  sent: DraftInstant;
+  /** Until when the gateway holds what the last request readied, on each
+   *  clock: a keystroke before both refreshes the hold, one after either
+   *  starts over (a sleep or a clock set forward ends it early, never late). */
+  held: DraftInstant;
 }
 
 /** {@link DraftPrewarm.state}: plain data, safe to hand across instances. */
@@ -119,17 +123,19 @@ export class DraftPrewarm {
     // A routine's chat runs on its schedule; nobody's send is coming.
     if (recordConversationKind(conversationId) === "routine") return;
     const target = JSON.stringify([draft.agentId, conversationId]);
-    const now = this.ports.now();
-    const run = this.typing.keystroke(draft.draftKey, target, now);
+    const wall = this.ports.now();
+    const at: DraftInstant = { wall, mono: this.ports.monotonic?.() ?? wall };
+    const run = this.typing.keystroke(draft.draftKey, target, at);
     if (this.inFlight.has(target)) return;
     const session = this.sessions.get(draft.draftKey);
     const same = session?.target === target;
-    if (same && now - session.sentAt < PREWARM_REFRESH_MS) return;
+    if (same && at.mono - session.sent.mono < PREWARM_REFRESH_MS) return;
     // A hold still running is refreshed by any keystroke; anything else is a
     // new start, which waits for the person to type on.
-    const refreshing = same && now < session.heldUntil;
-    if (!refreshing && now - run.startedAt < PREWARM_TYPING_MS) return;
-    const sent: DraftPrewarmSession = { target, sentAt: now, heldUntil: now };
+    const refreshing =
+      same && at.wall < session.held.wall && at.mono < session.held.mono;
+    if (!refreshing && at.mono - run.startedMono < PREWARM_TYPING_MS) return;
+    const sent: DraftPrewarmSession = { target, sent: at, held: at };
     this.sessions.set(draft.draftKey, sent);
     this.inFlight.add(target);
     try {
@@ -138,7 +144,8 @@ export class DraftPrewarm {
         draft.agentId,
         pinOf(draft),
       );
-      sent.heldUntil = now + holdOf(answer);
+      const hold = holdOf(answer);
+      sent.held = { wall: at.wall + hold, mono: at.mono + hold };
     } finally {
       this.inFlight.delete(target);
     }

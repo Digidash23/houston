@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SdkConfig, SdkPorts } from "../../ports";
 import { HoustonSdk } from "../../sdk";
-import { createSpanClock } from "../../span-clock";
 import { memoryKv } from "../../test-ports";
 import { asPrewarmInput, TurnsHttpError } from "./conversation-prewarm";
 import { PREWARM_REFRESH_MS } from "./draft-prewarm";
@@ -39,12 +38,8 @@ function sdk(answer: () => Response = () => json(202, LAUNCHING)) {
     devicePreferences: memoryKv(),
     clock: {
       now: () => now,
-      // What the adapter supplies: the span over the wall clock and a
-      // monotonic one that stops while the machine sleeps.
-      monotonic: createSpanClock(
-        () => now,
-        () => elapsed,
-      ),
+      // performance.now(): never set, stopped while the machine sleeps.
+      monotonic: () => elapsed,
       setTimeout: () => 0,
       clearTimeout: () => {},
     },
@@ -198,6 +193,26 @@ describe("turns.draftChanged and claimNewConversationId", () => {
       { conversationPrewarm: true },
     );
     expect(calls).toHaveLength(1);
+  });
+
+  it("a wall clock set forward never shortens the typing threshold", async () => {
+    const { client, calls, advance, setWallClock } = sdk();
+    const draft = {
+      agentId: "sales",
+      draftKey: "activity-c1",
+      conversationId: "activity-c1",
+      text: "h",
+    };
+    const caps = { conversationPrewarm: true };
+    // Four keystrokes a quarter second apart: 1 s of real typing, with the
+    // wall clock set 500 ms forward in the middle of it.
+    for (let i = 0; i < 4; i++) {
+      await client.turns.draftChanged(draft, caps);
+      advance(250);
+      if (i === 1) setWallClock(500);
+    }
+    await client.turns.draftChanged(draft, caps);
+    expect(calls).toEqual([]);
   });
 
   it("a system sleep ends a hold the monotonic clock missed", async () => {

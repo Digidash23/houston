@@ -13,28 +13,58 @@ export const PREWARM_TYPING_MS = 1_500;
 /** The longest pause between keystrokes that still counts as typing on. */
 export const PREWARM_TYPING_GAP_MS = 1_000;
 
+/**
+ * One reading of two clocks. The wall clock goes on through system sleep but
+ * can be set back or forward; the monotonic one is never set but stops while
+ * the machine sleeps (`performance.now()` on macOS WebKit). A span measured
+ * to start something is read on the monotonic clock, which no adjustment
+ * lengthens; a span measured to end something must have passed on either.
+ */
+export interface DraftInstant {
+  wall: number;
+  mono: number;
+}
+
 /** One draft slot's typing without a pause past the gap. */
 export interface DraftTypingRun {
   target: string;
-  startedAt: number;
-  lastAt: number;
+  startedMono: number;
+  lastWall: number;
+  lastMono: number;
 }
 
 /** The typing runs of one policy's draft slots. */
 export class DraftTypingRuns {
   private readonly runs = new Map<string, DraftTypingRun>();
 
-  /** Extends the slot's run, or starts one after a pause past the gap, on
-   *  another target, or when the clock went back (the elapsed time is then
-   *  unknown, so nothing typed before counts). */
-  keystroke(draftKey: string, target: string, now: number): DraftTypingRun {
+  /** Extends the slot's run, or starts one on another target or after a
+   *  pause past the gap on either clock: a sleep shows on the wall clock, and
+   *  a wall clock set back leaves the pause unknown. */
+  keystroke(
+    draftKey: string,
+    target: string,
+    at: DraftInstant,
+  ): DraftTypingRun {
     const run = this.runs.get(draftKey);
-    const gap = run ? now - run.lastAt : -1;
-    if (run?.target === target && gap >= 0 && gap <= PREWARM_TYPING_GAP_MS) {
-      run.lastAt = now;
-      return run;
+    if (run?.target === target) {
+      const wallGap = at.wall - run.lastWall;
+      const monoGap = at.mono - run.lastMono;
+      if (
+        wallGap >= 0 &&
+        wallGap <= PREWARM_TYPING_GAP_MS &&
+        monoGap <= PREWARM_TYPING_GAP_MS
+      ) {
+        run.lastWall = at.wall;
+        run.lastMono = at.mono;
+        return run;
+      }
     }
-    const started: DraftTypingRun = { target, startedAt: now, lastAt: now };
+    const started: DraftTypingRun = {
+      target,
+      startedMono: at.mono,
+      lastWall: at.wall,
+      lastMono: at.mono,
+    };
     this.runs.set(draftKey, started);
     return started;
   }
