@@ -144,19 +144,14 @@ describe("Settings > API keys", () => {
     const card = read("../src/components/agent-settings/agent-api-access.tsx");
     ok(manage.includes("<AgentApiAccess agent={agent} />"));
     ok(card.includes("apiKeysSupported(capabilities)"));
-    ok(
-      card.includes("useSpaceSlug(supported)"),
-      "no /v1/orgs read off-gateway",
-    );
+    ok(card.includes("useOrgSlug(supported)"), "no /v1/orgs read off-gateway");
     ok(card.includes('openSettings("apiKeys")'));
   });
 
-  it("shows the open space's ID, the one value no key can look up", () => {
+  it("shows the open organization's ID, the one value no key can look up", () => {
     const section = read("../src/components/settings/sections/api-keys.tsx");
-    const spaceId = read(
-      "../src/components/settings/sections/api-space-id.tsx",
-    );
-    ok(section.includes("<ApiSpaceId />"));
+    const spaceId = read("../src/components/settings/sections/api-org-id.tsx");
+    ok(section.includes("<ApiOrgId />"));
     ok(spaceId.includes("connectOrgSlug(workspace?.id, orgs)"));
   });
 });

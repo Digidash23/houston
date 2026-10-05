@@ -74,19 +74,22 @@ lang: en
             (16 hex characters, the same slug the REST API uses).
           </li>
           <li>
-            <code>:org</code> is the <strong>Space ID</strong> shown in the
-            Houston app under <code>Settings → API keys</code> for the space
-            the agent lives in (also 16 hex characters).
+            <code>:org</code> is the <strong>Organization ID</strong> of the
+            organization the agent lives in, shown in the Houston app under
+            <code>Settings → API keys</code> and in the agent's
+            <code>Settings → API access</code> while that organization is open
+            (also 16 hex characters).
           </li>
         </ul>
         <p>
-          <code>:org</code> must match the space your request acts in, or the
+          <code>:org</code> must match the organization your request acts in, or the
           gateway answers <code>403</code> with
           <code>{ "error": "org mismatch" }</code>. Without a header, a request
-          acts in your personal space. For an agent in a team space, put the
-          team's Space ID in the path <strong>and</strong> send it as
+          acts in your personal organization. For an agent in a team
+          organization, put its Organization ID in the path
+          <strong>and</strong> send it as
           <code>x-houston-org</code> on every request, card fetch included
-          (see <a class="link" href="/developers/#spaces">Spaces</a>):
+          (see <a class="link" href="/developers/#organizations">Organizations</a>):
         </p>
         <div class="codeblock"><pre><code>{% raw %}curl {% endraw %}{{ api.gatewayUrl }}{% raw %}/a2a/8c41e7a0d39b2f16/3f9a1c07b2e84d65/.well-known/agent-card.json \
   -H "Authorization: Bearer hst_9f2c1a7b4e8d0364f1a2b3c4d5e6f7089f2c1a7b4e8d0364f1a2b3c4d5e6f708" \
@@ -265,11 +268,11 @@ lang: en
         <table class="fields-table">
           <thead><tr><th>Code</th><th>Message</th><th>When</th></tr></thead>
           <tbody>
-            <tr><td><code>-32001</code></td><td><code>task not found</code></td><td>No task with that id exists for this agent in this space.</td></tr>
+            <tr><td><code>-32001</code></td><td><code>task not found</code></td><td>No task with that id exists for this agent in this organization.</td></tr>
             <tr><td><code>-32002</code></td><td><code>task is not cancelable</code></td><td>The task already reached a terminal state.</td></tr>
             <tr><td><code>-32000</code></td><td><code>the agent is busy with another turn</code></td><td>The agent is already running a turn. Retry once it finishes.</td></tr>
             <tr><td><code>-32029</code></td><td><code>message limit reached</code></td><td>Your plan's message limit is reached. <code>error.data</code> carries <code>code</code> (<code>message_limit</code>), <code>limit</code>, and <code>resetsAt</code>.</td></tr>
-            <tr><td><code>-32602</code></td><td><code>agent not found</code></td><td>No agent with that slug exists in this space.</td></tr>
+            <tr><td><code>-32602</code></td><td><code>agent not found</code></td><td>No agent with that slug exists in this organization.</td></tr>
             <tr><td><code>-32602</code></td><td>varies</td><td>No AI provider is connected, so the agent cannot run. <code>error.data.code</code> is <code>no_provider</code>.</td></tr>
             <tr><td><code>-32602</code></td><td>varies</td><td>Invalid params, for example an empty message (<code>missing 'input'</code>) or a missing <code>id</code>.</td></tr>
           </tbody>
@@ -283,9 +286,9 @@ lang: en
         <p>
           A few failures happen before JSON-RPC and use HTTP status codes:
           <code>401</code> for a missing or invalid key, <code>403</code>
-          <code>org mismatch</code> when <code>:org</code> is not the space the
+          <code>org mismatch</code> when <code>:org</code> is not the organization the
           request acts in, <code>403</code> <code>not_member</code> when
-          <code>x-houston-org</code> names a space you are not in, and
+          <code>x-houston-org</code> names an organization you are not in, and
           <code>404</code> for a malformed agent slug or an agent card for an
           agent that does not exist.
         </p>

@@ -336,7 +336,7 @@ components:
     ref: app/src/components/settings/sections/channels.tsx
   api-keys-settings:
     status: implemented
-    ref: "app/src/components/settings/sections/api-keys.tsx (ApiKeysBody in api-keys-body.tsx, ApiSpaceId in api-space-id.tsx, ApiKeyCreateDialog in api-key-create-dialog.tsx, the shared CopyIdRow in settings/copy-id-row.tsx) over lib/api-keys-model.ts; the employee card is agent-settings/agent-api-access.tsx"
+    ref: "app/src/components/settings/sections/api-keys.tsx (ApiKeysBody in api-keys-body.tsx, ApiOrgId in api-org-id.tsx, ApiKeyCreateDialog in api-key-create-dialog.tsx, the shared CopyIdRow in settings/copy-id-row.tsx) over lib/api-keys-model.ts; the employee card is agent-settings/agent-api-access.tsx"
 
   personal-plan-dialogs:
     status: partial

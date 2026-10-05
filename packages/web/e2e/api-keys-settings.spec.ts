@@ -10,7 +10,7 @@ const SECRET = `hst_${"9f2c1a7b4e8d0364".repeat(4)}`;
 /**
  * The fake host serves neither `/v1/keys` nor a personal org slug, so both are
  * answered here: one existing key, a mint that returns the secret once, and
- * the personal membership the Space ID row reads its slug from.
+ * the personal membership the Organization ID row reads its slug from.
  */
 async function mockGateway(page: Page) {
   const keys = [
@@ -68,7 +68,7 @@ test("Settings lists API keys only where the public API is served", async ({
   await expect(page.getByRole("button", { name: /^API keys/ })).toHaveCount(0);
 });
 
-test("API keys shows the space ID, mints a key once, and links the docs", async ({
+test("API keys shows the organization ID, mints a key once, and links the docs", async ({
   page,
   request,
 }) => {

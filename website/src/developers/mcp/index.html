@@ -80,10 +80,12 @@ lang: en
         <p>
           Point any MCP client at <code>{{ api.gatewayUrl }}/mcp</code>
           with your key in the <code>Authorization</code> header. The tools
-          act in your personal space. To work with a team space's agents, also
-          send <code>x-houston-org: &lt;space id&gt;</code>, using the Space
-          ID from <code>Settings → API keys</code> (see
-          <a class="link" href="/developers/#spaces">Spaces</a>).
+          act in your personal organization. To work with a team
+          organization's agents, also send
+          <code>x-houston-org: &lt;organization id&gt;</code>, using the
+          Organization ID from <code>Settings → API keys</code> or an AI
+          Employee's <code>Settings → API access</code> (see
+          <a class="link" href="/developers/#organizations">Organizations</a>).
         </p>
 
         <h3>Claude Code</h3>
@@ -125,7 +127,7 @@ lang: en
         </p>
 
         <h3>list_agents</h3>
-        <p>Lists the agents in the space the request acts in. No input.</p>
+        <p>Lists the agents in the organization the request acts in. No input.</p>
         <div class="codeblock"><pre><code>{% raw %}{
   "name": "list_agents",
   "description": "List the Houston agents in your workspace. Returns each agent's slug (use it as the 'agent' argument to start_mission) and display name.",

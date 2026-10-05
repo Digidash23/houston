@@ -41,9 +41,10 @@ lang: en
           <code>:slug</code> is the agent's <code>id</code> from
           <a class="link" href="#agents"><code>GET /agents</code></a>, 16 hex
           characters such as <code>3f9a1c07b2e84d65</code>. Mission ids are 32
-          hex characters. Every request acts in one space: your personal space
-          by default, or the space named by the <code>x-houston-org</code>
-          header (see <a class="link" href="/developers/#spaces">Spaces</a>).
+          hex characters. Every request acts in one organization: your personal
+          organization by default, or the organization named by the
+          <code>x-houston-org</code> header (see
+          <a class="link" href="/developers/#organizations">Organizations</a>).
         </p>
 
         <div class="toc">
@@ -208,8 +209,8 @@ lang: en
             <code>EventSource</code> cannot send an <code>Authorization</code>
             header, so this endpoint also accepts the key as a query
             parameter: <code>?token=hst_...</code>. It cannot send
-            <code>x-houston-org</code> either, so pass the space as
-            <code>?org=&lt;space id&gt;</code>. Keep that URL out of logs.
+            <code>x-houston-org</code> either, so pass the organization as
+            <code>?org=&lt;organization id&gt;</code>. Keep that URL out of logs.
           </p>
         </div>
 
@@ -233,9 +234,9 @@ lang: en
           <span class="path">/agents</span>
         </div>
         <p>
-          Lists the agents in the space the request acts in. Each agent's
-          <code>id</code> is the slug you pass to the mission endpoints. In a
-          team space, members other than the owner see only the agents
+          Lists the agents in the organization the request acts in. Each
+          agent's <code>id</code> is the slug you pass to the mission
+          endpoints. In a team organization, members other than the owner see only the agents
           assigned to them.
         </p>
         <div class="codeblock"><pre><code>{% raw %}curl {% endraw %}{{ api.gatewayUrl }}{% raw %}/agents \
@@ -272,10 +273,10 @@ lang: en
           a new one.
         </p>
         <p>
-          A key belongs to you, not to a space. It reaches every space you are
-          a member of, one space per request, chosen with the
-          <code>x-houston-org</code> header. See
-          <a class="link" href="/developers/#spaces">Spaces</a>.
+          A key belongs to you, not to an organization. It reaches every
+          organization you are a member of, one organization per request,
+          chosen with the <code>x-houston-org</code> header. See
+          <a class="link" href="/developers/#organizations">Organizations</a>.
         </p>
 
         <h2 id="errors">Errors</h2>
@@ -291,9 +292,9 @@ lang: en
             <tr><td><code>400</code></td><td></td><td>The request is invalid. The <code>error</code> message says why, for example <code>missing 'input'</code>, <code>invalid 'mode' (want execute|plan|auto)</code>, or a rejected webhook URL.</td></tr>
             <tr><td><code>401</code></td><td></td><td>The key is missing, revoked, or wrong: <code>missing bearer token</code> or <code>invalid or expired token</code>.</td></tr>
             <tr><td><code>403</code></td><td><code>api_key_scope</code></td><td>The key was used on a route outside the public API.</td></tr>
-            <tr><td><code>403</code></td><td><code>not_member</code></td><td><code>x-houston-org</code> (or <code>?org=</code>) names a space you are not a member of.</td></tr>
-            <tr><td><code>403</code></td><td><code>needs_upgrade</code></td><td>The team space's plan has lapsed, so it refuses new work until an owner renews it.</td></tr>
-            <tr><td><code>404</code></td><td></td><td><code>agent not found</code> or <code>mission not found</code>. A mission that belongs to another agent or another space also reads as not found.</td></tr>
+            <tr><td><code>403</code></td><td><code>not_member</code></td><td><code>x-houston-org</code> (or <code>?org=</code>) names an organization you are not a member of.</td></tr>
+            <tr><td><code>403</code></td><td><code>needs_upgrade</code></td><td>The team organization's plan has lapsed, so it refuses new work until an owner renews it.</td></tr>
+            <tr><td><code>404</code></td><td></td><td><code>agent not found</code> or <code>mission not found</code>. A mission that belongs to another agent or another organization also reads as not found.</td></tr>
             <tr><td><code>409</code></td><td><code>agent_busy</code></td><td>The agent is already running a turn. Retry once it finishes.</td></tr>
             <tr><td><code>409</code></td><td><code>mission_finished</code></td><td>Cancel was called on a mission that already ended.</td></tr>
             <tr><td><code>409</code></td><td><code>no_provider</code></td><td>No AI provider is connected, so the agent cannot run. Connect one in the Houston app, then retry.</td></tr>
@@ -333,8 +334,8 @@ lang: en
           <code>mission.failed</code>, or <code>mission.canceled</code>.
           <code>mission</code> has the same fields as
           <a class="link" href="#get">Get a mission</a>, without the
-          <code>webhook</code> block, plus <code>orgSlug</code>: the space ID
-          the mission ran in. <code>error</code> and <code>completedAt</code>
+          <code>webhook</code> block, plus <code>orgSlug</code>: the organization
+          ID the mission ran in. <code>error</code> and <code>completedAt</code>
           appear when they are set.
         </p>
 

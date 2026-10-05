@@ -78,38 +78,44 @@ lang: en
           <a class="link" href="/developers/missions/#scope">API-key scope</a>).
         </p>
 
-        <h2 id="spaces">Spaces</h2>
+        <h2 id="organizations">Organizations</h2>
         <p>
-          A key belongs to you, not to a space. It works in every Houston
-          space you are a member of, and acts in one space per request:
+          Every person has a personal organization, the one the Houston app
+          lists as <strong>Personal</strong> in its space menu, and can also
+          belong to team organizations. A key belongs to you, not to an
+          organization. It works in every organization you are a member of,
+          and acts in one organization per request:
         </p>
         <ul>
           <li>
             <strong>No header:</strong> the request acts in your personal
-            space.
+            organization.
           </li>
           <li>
-            <strong><code>x-houston-org: &lt;space id&gt;</code></strong>: the
-            request acts in that space, for example a team space you belong
-            to. Send the header on every request. The events stream also
-            accepts <code>?org=&lt;space id&gt;</code> for clients that cannot
+            <strong><code>x-houston-org: &lt;organization id&gt;</code></strong>:
+            the request acts in that organization, for example a team
+            organization you belong to. Send the header on every request. The
+            events stream also accepts
+            <code>?org=&lt;organization id&gt;</code> for clients that cannot
             set headers. If a stream request carries both, <code>?org=</code>
             wins.
           </li>
         </ul>
         <p>
-          Find the <strong>Space ID</strong> in the Houston app under
-          <code>Settings → API keys</code>. It shows the ID of the space that
-          is open in the app, with a copy button, so open the space you want
-          first. A space ID is 16 hex characters, like
-          <code>8c41e7a0d39b2f16</code>. If you name a space you are not a
-          member of, the gateway answers <code>403</code>:
+          Find the <strong>Organization ID</strong> in the Houston app under
+          <code>Settings → API keys</code>, or in an AI Employee's
+          <code>Settings → API access</code>. Both show the ID of the
+          organization that is open in the app, with a copy button, so open
+          the organization you want first. An organization ID is 16 hex
+          characters, like <code>8c41e7a0d39b2f16</code>. If you name an
+          organization you are not a member of, the gateway answers
+          <code>403</code>:
         </p>
         <div class="codeblock"><pre><code>{% raw %}{ "error": "not a member", "code": "not_member" }{% endraw %}</code></pre></div>
         <p>
-          Agents, missions, and A2A addresses all belong to one space. A
-          mission started in a team space is only visible to requests that
-          act in that same space.
+          Agents, missions, and A2A addresses all belong to one organization.
+          A mission started in a team organization is only visible to
+          requests that act in that same organization.
         </p>
 
         <h2 id="base-url">Base URL</h2>
@@ -163,8 +169,8 @@ lang: en
           your key and <code>3f9a1c07b2e84d65</code> with your agent's slug.
           A slug is the agent's <code>id</code> from
           <a class="link" href="#find-agents"><code>GET /agents</code></a>
-          (step 3), 16 hex characters. To act in a team space, add the
-          <code>x-houston-org</code> header from <a class="link" href="#spaces">Spaces</a>.
+          (step 3), 16 hex characters. To act in a team organization, add the
+          <code>x-houston-org</code> header from <a class="link" href="#organizations">Organizations</a>.
         </p>
 
         <h3>1 · Start a mission</h3>
@@ -250,8 +256,8 @@ lang: en
           <p>
             <code>EventSource</code> cannot set headers, so the events
             endpoint also accepts the key as a query parameter:
-            <code>?token=hst_...</code>, and the space as
-            <code>?org=&lt;space id&gt;</code>. Reconnect from where you left
+            <code>?token=hst_...</code>, and the organization as
+            <code>?org=&lt;organization id&gt;</code>. Reconnect from where you left
             off by sending the <code>Last-Event-ID</code> header (native SSE
             clients do this automatically) or by adding
             <code>?after=&lt;last event id&gt;</code>.
@@ -260,8 +266,8 @@ lang: en
 
         <h3 id="find-agents">3 · Find your agents</h3>
         <p>
-          Do not know an agent's slug? List the agents in the space the
-          request acts in:
+          Do not know an agent's slug? List the agents in the organization
+          the request acts in:
         </p>
         <div class="endpoint">
           <span class="method get">GET</span>
@@ -283,8 +289,8 @@ lang: en
           also carry fields the Houston app uses, such as
           <code>workspaceId</code>, <code>role</code>, <code>assigned</code>,
           and <code>access</code>; you only need <code>id</code>. In a team
-          space, members other than the owner see only the agents assigned to
-          them.
+          organization, members other than the owner see only the agents
+          assigned to them.
         </p>
 
         <div class="callout callout-success">

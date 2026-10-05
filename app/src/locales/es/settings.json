@@ -196,11 +196,11 @@
       "confirm": "Revocar",
       "cancel": "Cancelar"
     },
-    "spaceId": {
-      "title": "ID del espacio",
-      "description": "Las apps envían este ID para trabajar con los empleados de IA de {{space}}. Tus claves funcionan en todos los espacios a los que perteneces, así que abre otro espacio para ver su ID.",
-      "descriptionNoName": "Las apps envían este ID para trabajar con los empleados de IA de este espacio. Tus claves funcionan en todos los espacios a los que perteneces, así que abre otro espacio para ver su ID.",
-      "copyFailed": "No se pudo copiar el ID del espacio"
+    "orgId": {
+      "title": "ID de la organización",
+      "description": "Las apps envían este ID para trabajar con los empleados de IA de {{org}}. Tus claves funcionan en todas las organizaciones a las que perteneces, así que cambia a otra para ver su ID.",
+      "descriptionNoName": "Las apps envían este ID para trabajar con los empleados de IA de esta organización. Tus claves funcionan en todas las organizaciones a las que perteneces, así que cambia a otra para ver su ID.",
+      "copyFailed": "No se pudo copiar el ID de la organización"
     },
     "idRow": {
       "copy": "Copiar",

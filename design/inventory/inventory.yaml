@@ -2202,20 +2202,20 @@ components:
 
   - id: api-keys-settings
     title: API keys settings
-    purpose: Let a person mint and revoke the personal keys apps use to start work with their AI Employees, and read the open space's ID.
-    anatomy: [section-header, docs-link, space-id-row, copy-action, key-list, key-row, create-action, create-dialog, one-time-reveal, revoke-confirmation]
-    states: [loading, empty, listed, error, creating, key-limit, revealed, space-id-loading, unavailable]
+    purpose: Let a person mint and revoke the personal keys apps use to start work with their AI Employees, and read the open organization's ID.
+    anatomy: [section-header, docs-link, org-id-row, copy-action, key-list, key-row, create-action, create-dialog, one-time-reveal, revoke-confirmation]
+    states: [loading, empty, listed, error, creating, key-limit, revealed, org-id-loading, unavailable]
     variants: [phone, desktop]
     behavior: >-
       Listed in Settings only where the deployment serves the public API (the
       hosted gateway, on desktop and web). The docs link opens the developer docs
-      in the browser. The Space ID row shows the slug API callers send as
-      x-houston-org for the space open in the app, with a copy action; it hides
-      when the space list cannot load. A new key's secret is shown once in the
+      in the browser. The Organization ID row shows the slug API callers send as
+      x-houston-org for the organization open in the app, with a copy action; it hides
+      when the organization list cannot load. A new key's secret is shown once in the
       create dialog and never cached. Revoke asks for confirmation. Reaching the
       20-key limit is said inline instead of reported as a bug. Each AI
       Employee's Settings also carries an "API access" card under its manage
-      rows: the employee's Agent ID and the Space ID with copy actions, a row
+      rows: the employee's Agent ID and the Organization ID with copy actions, a row
       into Settings > API keys and a row opening the developer docs.
     a11y: >-
       Real labeled buttons for docs, copy, create and revoke; a focus-managed

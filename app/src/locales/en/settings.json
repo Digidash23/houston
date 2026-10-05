@@ -196,11 +196,11 @@
       "confirm": "Revoke",
       "cancel": "Cancel"
     },
-    "spaceId": {
-      "title": "Space ID",
-      "description": "Apps send this ID to work with the AI Employees in {{space}}. Your keys work in every space you belong to, so open another space to see its ID.",
-      "descriptionNoName": "Apps send this ID to work with the AI Employees in this space. Your keys work in every space you belong to, so open another space to see its ID.",
-      "copyFailed": "Couldn't copy the space ID"
+    "orgId": {
+      "title": "Organization ID",
+      "description": "Apps send this ID to work with the AI Employees in {{org}}. Your keys work in every organization you belong to, so switch to another one to see its ID.",
+      "descriptionNoName": "Apps send this ID to work with the AI Employees in this organization. Your keys work in every organization you belong to, so switch to another one to see its ID.",
+      "copyFailed": "Couldn't copy the organization ID"
     },
     "idRow": {
       "copy": "Copy",

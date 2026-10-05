@@ -7,7 +7,7 @@ import { tauriSystem } from "../../lib/tauri";
 import type { Agent } from "../../lib/types";
 import { useUIStore } from "../../stores/ui";
 import { CopyIdRow } from "../settings/copy-id-row";
-import { useSpaceSlug } from "../settings/sections/api-space-id";
+import { useOrgSlug } from "../settings/sections/api-org-id";
 import { SettingsCard, SettingsRow } from "../settings/settings-row";
 
 /**
@@ -21,7 +21,7 @@ export function AgentApiAccess({ agent }: { agent: Agent }) {
   const { t } = useTranslation("settings");
   const { capabilities } = useCapabilities();
   const supported = apiKeysSupported(capabilities);
-  const { slug, failed } = useSpaceSlug(supported);
+  const { slug, failed } = useOrgSlug(supported);
   if (!supported) return null;
 
   return (
@@ -37,10 +37,10 @@ export function AgentApiAccess({ agent }: { agent: Agent }) {
         {!failed && (
           <CopyIdRow
             icon={Building2}
-            label={t("apiKeys.spaceId.title")}
+            label={t("apiKeys.orgId.title")}
             value={slug}
-            copyFailedTitle={t("apiKeys.spaceId.copyFailed")}
-            reportKey="copy_space_id"
+            copyFailedTitle={t("apiKeys.orgId.copyFailed")}
+            reportKey="copy_org_id"
           />
         )}
         <SettingsRow

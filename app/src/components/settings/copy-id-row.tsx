@@ -18,7 +18,7 @@ interface CopyIdRowProps {
 
 /**
  * One identifier a developer pastes into their own code (an agent's slug, a
- * space's ID): the label, the value in mono, and a Copy button. "Copied"
+ * organization's ID): the label, the value in mono, and a Copy button. "Copied"
  * belongs to the value it copied, so a different value reads fresh.
  */
 export function CopyIdRow({
