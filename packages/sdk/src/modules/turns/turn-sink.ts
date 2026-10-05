@@ -123,19 +123,20 @@ export class TurnSink {
     this.poll.cancel();
   }
   /**
-   * Turn mode: the send returned 202 — a running turn may now be OURS. After
-   * a hold, the 202's turn id binds it: a pool turn can fail before it echoes,
-   * and a held send adopts no stray terminal frame.
+   * Turn mode: the send returned 202 — its turn id is authoritative. A pool
+   * turn can fail before it echoes, so the 202 binds the sink before any
+   * replay or later frame can be classified as ours.
    */
   sendAccepted(turnId?: string): void {
     this.held.release();
-    if (this.held.wasHeld) this.adoptTurnId(turnId);
+    const frames = this.preAccept.claim(turnId);
+    if (turnId !== undefined) this.adoptTurnId(turnId);
     this.accepted = true;
     // The engine acknowledged the send — the message reached it, so the
     // optimistic bubble is delivered even if the turn later errors.
     this.s.delivered = true;
     // The stream showed this turn running before the 202 named it ours.
-    for (const ev of this.preAccept.claim(turnId)) this.fold(ev);
+    for (const ev of frames) this.fold(ev);
     // The send landed while the stream already showed a fresh idle sync: the
     // turn may have completed before we attached — arm the pre-settled poll.
     this.poll.arm();
@@ -181,13 +182,17 @@ export class TurnSink {
     // `running: false` mid-turn.
     this.held.note(ev, this.s.turnId, this.accepted);
     // Our own echo ends the hold even when it beats the re-send's 202.
-    if (this.held.holding && !this.isOwnEcho(ev)) return;
+    if (this.held.holding && !this.isOwnEcho(ev)) {
+      this.preAccept.keepWhileHeld(ev);
+      return;
+    }
     this.fold(ev);
   }
 
   /** Fold one frame past the hold gate (live, or replayed by the 202). */
   private fold(ev: WireFrame): void {
     if (this.muted) return;
+    if (this.preAccept.shouldIgnore(ev)) return;
     if (ev.type === "sync") {
       this.onSync(ev);
       return;

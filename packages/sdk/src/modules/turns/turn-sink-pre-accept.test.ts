@@ -38,14 +38,25 @@ function makeSink() {
   return { sink, items, statuses };
 }
 
-const runningSync = (turnId: string, partial: string, seq = 2): WireFrame => ({
+const runningSync = (
+  turnId: string,
+  partial: string,
+  seq = 2,
+  resync = false,
+): WireFrame => ({
   type: "sync",
-  data: { running: true, partial, seq, turnId },
+  data: { running: true, partial, seq, turnId, ...(resync ? { resync } : {}) },
   seq,
 });
 const text = (turnId: string, data: string, seq: number): WireFrame => ({
   type: "text",
   data,
+  turnId,
+  seq,
+});
+const done = (turnId: string, seq: number): WireFrame => ({
+  type: "done",
+  data: null,
   turnId,
   seq,
 });
@@ -122,6 +133,31 @@ test("a 202 naming another turn claims nothing", () => {
   expect(streamed(items)).toEqual([]);
 });
 
+test("a mismatched 202 does not adopt the old turn's delayed terminal", async () => {
+  const { sink, items } = makeSink();
+  sink.onFrame(runningSync("t-old", "not ours"));
+
+  sink.sendAccepted("t-new");
+  sink.onFrame(done("t-old", 3));
+  await Promise.resolve();
+
+  expect(sink.settled).toBe(false);
+  expect(sink.active).toBe(false);
+  expect(streamed(items)).toEqual([]);
+});
+
+test("a mismatched 202 adopts a later resync for its named turn", () => {
+  const { sink, items } = makeSink();
+  sink.onFrame(runningSync("t-old", "not ours"));
+
+  sink.sendAccepted("t-new");
+  sink.onFrame(done("t-old", 3));
+  sink.onFrame(runningSync("t-new", "ours", 4, true));
+
+  expect(sink.active).toBe(true);
+  expect(streamed(items).map((i) => i.data)).toEqual(["ours"]);
+});
+
 test("a 202 that names no turn claims nothing (servers without the id)", () => {
   const { sink, items } = makeSink();
   sink.onFrame(runningSync("t1", "Roger"));
@@ -130,6 +166,9 @@ test("a 202 that names no turn claims nothing (servers without the id)", () => {
 
   expect(sink.active).toBe(false);
   expect(streamed(items)).toEqual([]);
+
+  sink.onFrame(done("t1", 3));
+  expect(sink.settled).toBe(true);
 });
 
 test("a newer sync replaces the kept turn", () => {
@@ -155,4 +194,49 @@ test("a held send never claims the turn it was held behind", () => {
   sink.sendAccepted("t2");
 
   expect(streamed(items)).toEqual([]);
+});
+
+test("a held retry claims a running sync that beats its 202", () => {
+  const { sink, items } = makeSink();
+  sink.onFrame(runningSync("t-prev", "previous"));
+  sink.holdSend();
+  sink.onFrame(done("t-prev", 3));
+  sink.onFrame(runningSync("t-new", "partial", 4, true));
+
+  sink.sendAccepted("t-new");
+  sink.onFrame(text("t-new", " reply", 5));
+
+  expect(streamed(items).map((i) => i.data)).toEqual([
+    "partial",
+    "partial reply",
+  ]);
+  expect(streamed(items).map((i) => i.data)).not.toContain("previous");
+  sink.onFrame(done("t-new", 6));
+  expect(sink.settled).toBe(true);
+});
+
+test("too many pre-accept frames abandon replay until a resync", () => {
+  const { sink, items } = makeSink();
+  sink.onFrame(runningSync("t1", "start"));
+  for (let seq = 3; seq <= 502; seq++) {
+    sink.onFrame(text("t1", "x", seq));
+  }
+
+  sink.sendAccepted("t1");
+
+  expect(streamed(items)).toHaveLength(0);
+  sink.onFrame(runningSync("t1", "authoritative", 503, true));
+  expect(streamed(items).map((i) => i.data)).toEqual(["authoritative"]);
+});
+
+test("oversized pre-accept frames abandon replay until a resync", () => {
+  const { sink, items } = makeSink();
+  sink.onFrame(runningSync("t1", "start"));
+  sink.onFrame(text("t1", "x".repeat(1024 * 1024), 3));
+
+  sink.sendAccepted("t1");
+
+  expect(streamed(items)).toHaveLength(0);
+  sink.onFrame(runningSync("t1", "authoritative", 4, true));
+  expect(streamed(items).map((i) => i.data)).toEqual(["authoritative"]);
 });
