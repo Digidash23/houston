@@ -3,10 +3,15 @@
  * the round-trip asks for is decided in `import-install-request.ts`.
  */
 
-import type { PortableInstalledAgent } from "@houston/engine-adapter";
+import type {
+  PortableInstalledAgent,
+  PortableInstallRequest,
+} from "@houston/engine-adapter";
+import { seedBornConfig } from "../../lib/agent-provisioning/born-config";
 import { analytics } from "../../lib/analytics";
 import { getEngine } from "../../lib/engine";
 import type { KickoffPin } from "../../lib/kickoff-pin";
+import { queryClient } from "../../lib/query-client";
 import { tauriProvider } from "../../lib/tauri";
 import {
   type InstallImportedAgentArgs,
@@ -24,10 +29,13 @@ export async function installImportedAgent(
   args: InstallImportedAgentArgs,
   kickoffPin: KickoffPin,
 ): Promise<PortableInstalledAgent> {
-  const installed = await getEngine().importInstall({
+  const request = {
     ...importInstallRequest(args),
     config: { ...kickoffPin, firstDay: "pending", arrival: "imported" },
-  });
+  } satisfies PortableInstallRequest;
+  const installed = await getEngine().importInstall(request);
+  // Before the reveal adopts it: the first-day offer is on its board at once.
+  seedBornConfig(queryClient, installed.agent.folderPath, request.config);
   // Keep the sticky last-used in sync (local, so it's cheap to await).
   const lastUsed = lastUsedFromPin(kickoffPin);
   if (lastUsed) {

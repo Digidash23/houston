@@ -33,6 +33,21 @@ import { CONVERSATION_ID_HEADER } from "./tools/save-learning";
 const LEARNINGS_SAVE_PATH = "/sandbox/learnings/save";
 
 /**
+ * Where a harvest reads the agent's memories and writes new ones. A long-lived
+ * runtime has one of each for its life (the default); a pooled turn names its
+ * own hydrated workspace and its per-turn sandbox facade.
+ */
+export interface FactHarvestTarget {
+  call: SandboxFetch | null;
+  workspaceDir: string;
+}
+
+const processTarget = (): FactHarvestTarget => ({
+  call: sandboxCall,
+  workspaceDir: config.workspaceDir,
+});
+
+/**
  * Compact `session`, asking the summarizer for the assistant's durable facts and
  * saving the ones it returns. For every other conversation this is exactly
  * today's `session.compact()` with no instructions and nothing persisted.
@@ -40,11 +55,12 @@ const LEARNINGS_SAVE_PATH = "/sandbox/learnings/save";
 export async function compactWithFactHarvest(
   session: HarnessSession,
   conversationId: string,
+  target: FactHarvestTarget = processTarget(),
 ): Promise<void> {
   const outcome = await session.compact(
     durableFactsInstructions(conversationId),
   );
-  await harvestDurableFacts(conversationId, outcome);
+  await harvestDurableFacts(conversationId, outcome, target);
 }
 
 /**
@@ -55,20 +71,19 @@ export async function compactWithFactHarvest(
 async function harvestDurableFacts(
   conversationId: string,
   outcome: CompactionOutcome | undefined,
+  { call, workspaceDir }: FactHarvestTarget,
 ): Promise<void> {
   if (!isAssistantConversation(conversationId)) return;
   const facts = parseDurableFacts(outcome?.summary);
   // No host to write through (a runtime with no sandbox token) — the same gate
   // that leaves the `save_learning` tool unregistered.
-  if (facts.length === 0 || !sandboxCall) return;
+  if (facts.length === 0 || !call) return;
 
   // Already-known facts are dropped here rather than at the host: a summarizer
   // re-states the same standing preference at every compaction, and the append
   // route is idempotent on ID only, so nothing else would stop the duplicates.
   const known = new Set(
-    loadAgentLearnings(config.workspaceDir).map((item) =>
-      normalizeFact(item.text),
-    ),
+    loadAgentLearnings(workspaceDir).map((item) => normalizeFact(item.text)),
   );
   for (const fact of facts) {
     const key = normalizeFact(fact);
@@ -76,7 +91,7 @@ async function harvestDurableFacts(
     known.add(key);
     // Sequential: the host's write is a doc-locked read-modify-write, so
     // parallel saves would only queue on that lock.
-    await saveFact(sandboxCall, conversationId, fact);
+    await saveFact(call, conversationId, fact);
   }
 }
 

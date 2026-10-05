@@ -90,6 +90,19 @@ test("write/read round trip", async () => {
   expect(await readCachedConversation("Ws/Agent", "other")).toBeNull();
 });
 
+test("a system line keeps its notice through the cache, so it reloads translated", async () => {
+  const frames: CachedFrame[] = [
+    { feed_type: "user_message", data: "hi" },
+    {
+      feed_type: "system_message",
+      data: "It's too busy right now to start your message.",
+      notice: "compute_busy",
+    },
+  ];
+  await writeCachedConversation("Houston/Bo", "sk", frames);
+  expect(await readCachedConversation("Houston/Bo", "sk")).toEqual(frames);
+});
+
 test("no identity (local engine / static token) disables the cache", async () => {
   setConversationCacheIdentity(() => null);
   await writeCachedConversation("Ws/Agent", "sess-1", FRAMES);

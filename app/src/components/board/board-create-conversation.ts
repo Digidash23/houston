@@ -5,12 +5,11 @@ import { buildAttachmentPrompt } from "../../lib/attachment-message";
 import { createMission } from "../../lib/create-mission";
 import { classifyFileKind } from "../../lib/file-kind";
 import { maybeShowFirstMissionPrompt } from "../../lib/notification-nudge";
-import { perfSpans } from "../../lib/perf-spans";
 import { queryKeys } from "../../lib/query-keys";
 import { formatVisibleMessageText } from "../../lib/queued-chat";
 import { tauriAttachments } from "../../lib/tauri";
 import type { ToastItem } from "../../stores/ui";
-import type { SendOverrides } from "./board-source";
+import type { NewConversationArgs } from "./board-source";
 
 /**
  * The composer's "start a new mission" send, lifted out of the React layer
@@ -43,7 +42,8 @@ export async function createBoardConversation(
     modelOverride,
     modeOverride,
     mentions,
-  }: { text: string; files: File[] } & SendOverrides,
+    conversationId: claimedId,
+  }: NewConversationArgs,
 ): Promise<string> {
   const {
     path,
@@ -55,7 +55,6 @@ export async function createBoardConversation(
     t,
     setSessionLoading,
   } = deps;
-  const perfSend = perfSpans.sendContext();
   const visible = formatVisibleMessageText(text, files, (names) =>
     t("chat:queue.attached", { names }),
   );
@@ -72,6 +71,7 @@ export async function createBoardConversation(
       modelOverride,
       modeOverride,
       mentions,
+      conversationId: claimedId,
       titleText: visible,
       buildPrompt: async (activityId) => {
         const saved = await tauriAttachments.save(
@@ -99,7 +99,6 @@ export async function createBoardConversation(
     provider: providerOverride,
     model: modelOverride,
   });
-  perfSpans.messageSent(perfSend);
   analytics.track("chat_message_sent", {
     provider: providerOverride,
     model: modelOverride,

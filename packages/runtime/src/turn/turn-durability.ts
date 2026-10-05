@@ -1,10 +1,11 @@
 import { StoreFencedError } from "@houston/runtime-client/object-sync";
 import type { ClaimHeartbeat } from "./claim-heartbeat";
 import type { TurnServerDeps } from "./server-types";
-import { activityDocStale, publishTurnActivityDoc } from "./turn-activity-doc";
+import { activityDocStale } from "./turn-activity-doc";
+import { publishTurnActivityDoc } from "./turn-board-doc";
 import { changedEventTypes } from "./turn-changed-events";
+import { publishLandedFamilyDocs } from "./turn-family-docs";
 import { syncTurnFilesystem, type TurnFilesystem } from "./turn-filesystem";
-import { publishLandedRoutineDocs } from "./turn-routines-doc";
 import type { TurnSandboxViews } from "./turn-sandbox";
 import type { TurnOutcome } from "./turn-session";
 import type { ResolvedTurnStore } from "./turn-store";
@@ -13,7 +14,7 @@ import type {
   TranscriptPublishResult,
   TurnTranscript,
 } from "./turn-transcript";
-import { publishTurnSandboxViews } from "./turn-view-publish";
+import { publishTurnViews } from "./turn-view-publish";
 import type { TurnRequest } from "./types";
 
 interface TurnDurabilityOptions {
@@ -135,12 +136,15 @@ export async function finishTurnDurability(
     );
     without("ConversationsChanged");
   }
-  const viewFailures = await publishTurnSandboxViews(
-    opts.deps,
-    opts.turn,
-    opts.views,
-  );
-  if (viewFailures.length > 0) without("CustomIntegrationsChanged");
+  const staleViews = await publishTurnViews({
+    deps: opts.deps,
+    turn: opts.turn,
+    filesystem: opts.filesystem,
+    views: opts.views,
+    source: opts.resolved,
+    landed: [...synced.uploaded, ...synced.deleted],
+  });
+  for (const type of staleViews) without(type);
 
   const activityPublished =
     opts.turn.claim && sync.board.landed
@@ -158,15 +162,16 @@ export async function finishTurnDurability(
     );
   }
   if (activityDocStale(activityPublished)) without("ActivityChanged");
-  const routineDocs = await publishLandedRoutineDocs({
+  const familyDocs = await publishLandedFamilyDocs({
     deps: opts.deps,
     turn: opts.turn,
     filesystem: opts.filesystem,
     source: opts.resolved,
     landed: [...synced.uploaded, ...opts.filesystem.immediateWrites],
+    deleted: synced.deleted,
   });
-  for (const error of routineDocs.errors) outcome = appendError(outcome, error);
-  for (const type of routineDocs.stale) without(type);
+  for (const error of familyDocs.errors) outcome = appendError(outcome, error);
+  for (const type of familyDocs.stale) without(type);
   // The claim may have been adopted while sync/publish were in flight (the
   // heartbeat loop learns it asynchronously). A last checkpoint keeps a stale
   // worker from ever announcing a clean done.

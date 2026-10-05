@@ -20,7 +20,7 @@ export function AgentGettingReady({
   stalled,
 }: {
   agent: Agent;
-  /** Past the normal start window: say so instead of promising a minute. */
+  /** Past the normal start window: say so instead of promising seconds. */
   stalled: boolean;
 }) {
   const { t } = useTranslation("shell");

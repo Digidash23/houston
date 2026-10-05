@@ -1,7 +1,6 @@
 import { join } from "node:path";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import type { ProviderError } from "@houston/runtime-client";
-import { readAuthFile, writeAuthFile } from "../auth/auth-file";
 import {
   type ClaudeBackendDeps,
   ClaudeBackendUnavailableError,
@@ -15,43 +14,17 @@ import { createSessionsStore } from "../backends/claude/sessions-store";
 import { createPiBackend, type PiBackendDeps } from "../backends/pi/backend";
 import type { HarnessBackend } from "../backends/types";
 import type { ToolSelection } from "../session/tool-selection";
-import { makeAskUserTool } from "../session/tools/ask-user";
 import { makeClampedFileTools } from "../session/tools/clamped-fs";
 import type { WorkspaceGuardOptions } from "../session/tools/fs-guard";
-import { makePlanReadyTool } from "../session/tools/plan-ready";
 import { makeScrubbedBashTool } from "../session/tools/scrubbed-bash";
+import { turnAuthStore } from "./turn-auth-store";
+import { turnCompactions } from "./turn-compactions";
 import { POOLED_TURN_TRANSPORT } from "./turn-pi-transport";
 import type { TurnDirectories, TurnSessionRequest } from "./turn-session";
-import { buildTurnHostTools } from "./turn-toolset";
+import { turnSharedSkillsDir } from "./turn-shared-skills";
+import { buildTurnCommonTools } from "./turn-toolset";
 
 type TurnTool = PiBackendDeps["customTools"][number];
-
-/**
- * The `get`/`remove` slice of the credential store `readAnthropicToken` needs,
- * over this pooled turn's own `auth.json`.
- *
- * Read fresh from disk per call rather than cached: the pod's credential is
- * re-served between turns, and a cached copy would spawn the SDK on a token the
- * control plane has already replaced. `remove` is the write side of the same
- * contract — when the shared login dir proves the stored entry belongs to a
- * login the user has replaced, the dead entry is dropped instead of being
- * skipped on every future read.
- */
-export function turnAuthStore(dataDir: string): {
-  get: (provider: string) => ReturnType<typeof readAuthFile>[string];
-  remove: (provider: string) => void;
-} {
-  const path = join(dataDir, "auth.json");
-  return {
-    get: (provider) => readAuthFile(path)[provider],
-    remove: (provider) => {
-      const creds = readAuthFile(path);
-      if (!(provider in creds)) return;
-      delete creds[provider];
-      writeAuthFile(path, creds);
-    },
-  };
-}
 
 /** Dependencies shared by the pi and Claude pooled-turn backend branches. */
 export interface TurnBackendDeps {
@@ -116,13 +89,11 @@ export function createTurnBackend(
   deps: TurnBackendDeps,
 ): HarnessBackend {
   const { workspaceDir, dataDir, turnRoot } = deps.directories;
-  const hostTools = buildTurnHostTools(deps.turn);
-  const commonTools = [
-    makeAskUserTool(),
-    makePlanReadyTool(),
-    ...(deps.codeSandbox ? [deps.codeSandbox] : []),
-    ...hostTools,
-  ];
+  const commonTools = buildTurnCommonTools(
+    deps.turn,
+    deps.codeSandbox,
+    dataDir,
+  );
   if (provider === "anthropic") {
     const backend = createClaudeBackend({
       workspaceDir,
@@ -134,7 +105,10 @@ export function createTurnBackend(
       toolSelection: deps.toolSelection,
       systemPrompt: deps.systemPrompt,
       fileGuard: deps.fileGuard,
+      personalAssistant: deps.turn.role === "coordinator",
+      role: deps.turn.role ?? null,
       layout: turnClaudeLayout(turnRoot, dataDir, deps.turn.conversationId),
+      compactions: turnCompactions(dataDir),
       // SAFETY: these are the same pi ToolDefinition objects the MCP bridge
       // accepts; only their heterogeneous schema generics need widening.
       tools: commonTools as unknown as BridgedPiTool[],
@@ -163,14 +137,29 @@ export function createTurnBackend(
       },
     };
   }
+  const timings = deps.turn.timings;
   return createPiBackend({
     workspaceDir,
     dataDir,
     modelRuntime: deps.modelRuntime,
+    // The turn's first answered request and first hedge, on the terminal
+    // frame's timingsMs (turn-terminal.ts) beside the other marks.
+    hedge: timings
+      ? {
+          answered() {
+            timings.t_first_byte ??= performance.now();
+          },
+          hedged() {
+            timings.t_first_hedge ??= performance.now();
+          },
+        }
+      : undefined,
     // The SAME prompt the Claude branch gets: the capability sentence follows
     // the turn's granted tools, not the provider it landed on.
     systemPrompt: deps.systemPrompt,
     transport: POOLED_TURN_TRANSPORT,
+    sharedSkillsDir: turnSharedSkillsDir(turnRoot),
+    role: deps.turn.role ?? null,
     tools: deps.toolSelection.toolNames,
     customTools: [
       ...makeClampedFileTools(workspaceDir, deps.fileGuard ?? {}),

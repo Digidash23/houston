@@ -38,6 +38,10 @@ _Avoid_: compaction flag
 The runtime starting a routine run on a fresh session, carrying only a bounded transcript of the chat's recent runs, because the context the previous run ended on reached the routine's carry line (half the window, at most 100k tokens) or that run overflowed. The routine chat's form of autocompact: it needs no model call, so it cannot fail the way a summary can.
 _Avoid_: routine compaction, per-run chat (that is the `per_run` chat mode)
 
+**First response**:
+What the sender of a turn waited for: the turn's first visible assistant text, or, when none came, how the turn ended without one (no text, error, cancelled, interrupted, or a timeout after ten minutes). The SDK reports it once per turn this client sent, paired with that turn alone.
+_Avoid_: first output, TTFT event
+
 **Queue-while-running**:
 Messages accepted while a turn is active, held by the engine adapter and flushed as one combined send when the turn settles.
 _Avoid_: message buffer

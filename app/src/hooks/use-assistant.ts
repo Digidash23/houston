@@ -1,15 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { isAssistantUnavailableError } from "../lib/assistant-availability.ts";
+import { runDiscoveryLadder } from "../lib/assistant-discovery-ladder.ts";
 import {
   type AssistantDiscovery,
   assistantDiscoveryState,
 } from "../lib/assistant-discovery-state.ts";
-import {
-  assistantDiscoveryRetryDelayMs,
-  assistantRefetchIntervalMs,
-  shouldRetryAssistantDiscovery,
-} from "../lib/assistant-retry-schedule.ts";
+import { assistantRefetchIntervalMs } from "../lib/assistant-retry-schedule.ts";
 import { newEngineActive } from "../lib/engine.ts";
 import { queryKeys } from "../lib/query-keys.ts";
 import {
@@ -17,6 +14,7 @@ import {
   surfaceEngineError,
   tauriAssistant,
 } from "../lib/tauri.ts";
+import { useWorkspaceStore } from "../stores/workspaces.ts";
 
 export type {
   AssistantDiscovery,
@@ -45,25 +43,40 @@ export interface AssistantAccess extends AssistantDiscovery {
  * `call()` would have used. Same discipline as the cross-agent sweep
  * (`hooks/queries/all-conversations-sweep.ts`).
  */
-export async function discoverAssistant(): Promise<AssistantHandle> {
-  for (let failures = 0; ; failures += 1) {
-    try {
-      return await tauriAssistant.discover({ surface: false });
-    } catch (err) {
-      if (!shouldRetryAssistantDiscovery(failures, err)) {
-        // The same silence the single-call path used: a deployment with no
-        // assistant and a pod that is merely waking are both expected states of
-        // a healthy install, so they are logged and never reported.
-        await surfaceEngineError("get_assistant", err, undefined, {
-          silence: isAssistantUnavailableError,
-        });
-        throw err;
-      }
-      await new Promise((resolve) =>
-        setTimeout(resolve, assistantDiscoveryRetryDelayMs(failures, err)),
-      );
-    }
-  }
+export function discoverAssistant(
+  signal?: AbortSignal,
+): Promise<AssistantHandle> {
+  return runDiscoveryLadder({
+    ask: () => tauriAssistant.discover({ surface: false }),
+    // The same silence the single-call path used: a deployment with no
+    // assistant and a pod that is merely waking are both expected states of
+    // a healthy install, so they are logged and never reported.
+    surface: (err) =>
+      surfaceEngineError("get_assistant", err, undefined, {
+        silence: isAssistantUnavailableError,
+      }),
+    signal,
+  });
+}
+
+/**
+ * The one definition of the discovery query for a space, shared by the hook
+ * and the channel-link landing so both read and fill the same entry.
+ *
+ * The address is fixed for a person in a space, so a settled answer is kept
+ * for the whole session: never stale, never collected, held across a space
+ * switch and out of the reconnect sweep (`lib/assistant-address-cache.ts`).
+ * Each ask holds the gateway until the assistant's pod is awake, so a
+ * needless one wakes it. Only an identity change or the space leaving the
+ * list drops the entry.
+ */
+export function assistantQueryOptions(spaceId: string | null) {
+  return {
+    queryKey: queryKeys.assistant(spaceId),
+    queryFn: ({ signal }: { signal: AbortSignal }) => discoverAssistant(signal),
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: Number.POSITIVE_INFINITY,
+  };
 }
 
 /**
@@ -96,15 +109,15 @@ export async function discoverAssistant(): Promise<AssistantHandle> {
  *
  * `staleTime` is infinite for the SUCCESS case only: an address does not
  * change under us. A query holding no data is stale whatever that value says,
- * which is exactly what makes an unanswered discovery keep trying.
+ * which is exactly what makes an unanswered discovery keep trying. The answer
+ * is kept per space for the session (see {@link assistantQueryOptions}).
  */
 export function useAssistant(): AssistantAccess {
   const enabled = newEngineActive();
+  const spaceId = useWorkspaceStore((s) => s.current?.id ?? null);
   const query = useQuery({
-    queryKey: queryKeys.assistant(),
-    queryFn: discoverAssistant,
+    ...assistantQueryOptions(spaceId),
     enabled,
-    staleTime: Number.POSITIVE_INFINITY,
     // No `retry` here on purpose: the bounded, reason-aware ladder is inside
     // `discoverAssistant`, where the intermediate attempts stay silent.
     retry: false,

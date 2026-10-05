@@ -51,4 +51,11 @@ export interface AssistantSandboxDeps {
   gatewayFronted?: boolean;
   /** Injection point for tests; production shares one per-process store. */
   approvals?: ApprovalStore;
+  /**
+   * Make the approval records durable. Absent on a host, which keeps them in
+   * memory for its whole life; a pool worker lives one turn and keeps them in
+   * the agent's store, so a receipt spent here must be recorded as spent
+   * before the operation it authorizes leaves (turn/turn-coordinator.ts).
+   */
+  persistApprovals?: () => Promise<void>;
 }

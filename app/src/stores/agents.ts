@@ -1,8 +1,10 @@
 import type { AgentInitialConfig } from "@houston/engine-adapter";
 import { create } from "zustand";
+import { seedBornConfig } from "../lib/agent-provisioning/born-config";
 import { tauriAgents } from "../lib/agents-facade";
 import { analytics } from "../lib/analytics";
 import { prepareAgentDraftForget } from "../lib/forget-agent-drafts";
+import { queryClient } from "../lib/query-client";
 import type { Agent } from "../lib/types";
 import { useAgentProvisioningStore } from "./agent-provisioning";
 import type { AgentState } from "./agents/state";
@@ -64,6 +66,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     );
     analytics.track("agent_created", { config_id: configId });
     const { agent } = result;
+    // Before the agent shows anywhere: a new hire's first-day offer is on its
+    // board from the first frame, not after its engine warms up.
+    seedBornConfig(queryClient, agent.folderPath, config);
     get().adopt(agent);
     return { agent };
   },

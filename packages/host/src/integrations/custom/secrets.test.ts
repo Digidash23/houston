@@ -173,6 +173,8 @@ test("legacy migration uploads every value before removing the plaintext file", 
     podToken: "host-token",
     legacy,
     fetchImpl: (async (url: string | URL | Request, init?: RequestInit) => {
+      if (!init?.method) return new Response("{}", { status: 404 });
+      expect(init.method).toBe("POST");
       const id = decodeURIComponent(String(url).split("/").at(-1) ?? "");
       const body = JSON.parse(String(init?.body)) as { value: string };
       uploaded.set(id, body.value);
@@ -204,4 +206,77 @@ test("legacy migration keeps the file when any upload fails", async () => {
   await expect(remote.migrateLegacy()).rejects.toThrow("503");
   expect(existsSync(path)).toBe(true);
   expect(await legacy.get("ci_acme_token")).toBe("a");
+});
+
+/** A custody route over `held`: POST creates (412 over a value), GET reads. */
+function custodyOver(held: Map<string, string>, refuseCreates = false) {
+  return (async (url: string | URL | Request, init?: RequestInit) => {
+    const id = decodeURIComponent(String(url).split("/").at(-1) ?? "");
+    if (!init?.method) {
+      const value = held.get(id);
+      return value === undefined
+        ? new Response("{}", { status: 404 })
+        : new Response(JSON.stringify({ value }), { status: 200 });
+    }
+    if (refuseCreates || held.has(id))
+      return new Response(`{"error":"secret exists"}`, { status: 412 });
+    held.set(id, (JSON.parse(String(init.body)) as { value: string }).value);
+    return new Response(`{"ok":true}`, { status: 200 });
+  }) as typeof fetch;
+}
+
+test("legacy migration never replaces a value custody holds", async () => {
+  const legacy = new FileCustomSecretStore(path);
+  await legacy.set("ci_acme_token", "stale");
+  await legacy.set("ci_beta_token", "b");
+  const held = new Map([["ci_acme_token", "rotated"]]);
+  const remote = new RemoteCustomSecretStore({
+    baseUrl: "https://gateway.example",
+    orgSlug: "0123456789abcdef",
+    agentSlug: "aaaaaaaaaaaaaaaa",
+    podToken: "host-token",
+    legacy,
+    fetchImpl: custodyOver(held),
+  });
+
+  expect(await remote.migrateLegacy()).toBe(1);
+
+  expect(held.get("ci_acme_token")).toBe("rotated");
+  expect(held.get("ci_beta_token")).toBe("b");
+  expect(existsSync(path)).toBe(false);
+});
+
+test("legacy migration keeps the file while a refused create's value reads absent", async () => {
+  const legacy = new FileCustomSecretStore(path);
+  await legacy.set("ci_acme_token", "a");
+  const remote = new RemoteCustomSecretStore({
+    baseUrl: "https://gateway.example",
+    orgSlug: "0123456789abcdef",
+    agentSlug: "aaaaaaaaaaaaaaaa",
+    podToken: "host-token",
+    legacy,
+    fetchImpl: custodyOver(new Map(), true),
+  });
+
+  expect(await remote.migrateLegacy()).toBe(0);
+
+  expect(existsSync(path)).toBe(true);
+});
+
+test("a value the migration created reads at once from the same store", async () => {
+  const legacy = new FileCustomSecretStore(path);
+  await legacy.set("ci_acme_token", "a");
+  const held = new Map<string, string>();
+  const remote = new RemoteCustomSecretStore({
+    baseUrl: "https://gateway.example",
+    orgSlug: "0123456789abcdef",
+    agentSlug: "aaaaaaaaaaaaaaaa",
+    podToken: "host-token",
+    legacy,
+    fetchImpl: custodyOver(held),
+  });
+
+  expect(await remote.migrateLegacy()).toBe(1);
+
+  expect(await remote.get("ci_acme_token")).toBe("a");
 });

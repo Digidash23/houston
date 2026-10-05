@@ -3,12 +3,15 @@ import type { BootCodeVm } from "../code-vm/types";
 import type { AdmissionLimiter } from "./admission";
 import type { applyOp } from "./op-apply";
 import type { TurnCredentialWriter } from "./turn-credential";
+import type { ProviderWarmer } from "./turn-provider-warm";
 import type { TurnRunner } from "./turn-session";
 import type { RunTurnDeps } from "./turn-session-startup";
+import type { turnSharedSkillsStore } from "./turn-shared-skills";
 
 /** Injectable dependencies and pool controls for the per-turn HTTP server. */
 export interface TurnServerDeps {
   store: ObjectStore;
+  loginRunner?: import("./login-runner").LoginRunner;
   /** App-layer token; empty means open local development. */
   token: string;
   runTurn?: TurnRunner;
@@ -19,6 +22,9 @@ export interface TurnServerDeps {
   /** Test seam for ordering root removal after hydration settlement. */
   removeTurnRoot?: (root: string) => Promise<void>;
   hydrationSettleTimeoutMs?: number;
+  /** Test seam: the provider connection a prewarm keeps open (default: one
+   *  per server, stopped by the first turn). */
+  providerWarmer?: ProviderWarmer;
   /** Test seam for the worker op executor. */
   runOp?: typeof applyOp;
   concurrency?: number;
@@ -38,14 +44,17 @@ export interface TurnServerDeps {
    * one claimed turn executes (fail-closed against a mid-turn crash);
    * `settled` fires after that turn's response has ended so the process can
    * shut down and let the orchestrator replace the pod. Only claimed /turn
-   * requests spend the worker — /op is a host-side write that runs no
-   * model-directed code.
+   * requests and the first /login/* request spend the worker. A login keeps
+   * custody until the gateway kills its runner. /op is a host-side write that
+   * runs no model-directed code.
    */
   singleUse?: {
     begin: () => Promise<void>;
     settled: () => void;
   };
   poolStoreUrl?: string;
+  /** Test seam: the org-shared store a turn reads its shared skills from. */
+  sharedSkillsStore?: typeof turnSharedSkillsStore;
   turnLogUrl?: string;
   fetchImpl?: typeof fetch;
   /** Test seam: how a `vm`-mode turn boots its code VM (default Gondolin). */

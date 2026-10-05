@@ -159,6 +159,7 @@ export function createClaudeBackend(deps: ClaudeBackendDeps): HarnessBackend {
           deps.systemPrompt,
           opts.mode,
           opts.context,
+          deps.role,
         ),
       };
 
@@ -179,6 +180,7 @@ export function createClaudeBackend(deps: ClaudeBackendDeps): HarnessBackend {
         conversationId: opts.conversationId,
         baseOptions,
         sessionsStore,
+        ...(deps.compactions ? { compactions: deps.compactions } : {}),
         model: toSdkModel(opts.model.id),
         thinkingLevel: opts.thinkingLevel,
         freshRetryPromptPrefix: opts.freshRetryPromptPrefix,

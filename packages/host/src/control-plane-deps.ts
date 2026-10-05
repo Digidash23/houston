@@ -133,6 +133,8 @@ export interface ControlPlaneDeps {
    * scoped to the per-agent surface only).
    */
   agentRequestCount?: () => number;
+  /** The writes among them; see AgentRouteDeps.agentWriteCount. */
+  agentWriteCount?: () => number;
   /**
    * Cross-replica dedup lock for the pod trigger-events route (C9): the Go
    * control plane delivers external events to a managed pod; the lock stops a

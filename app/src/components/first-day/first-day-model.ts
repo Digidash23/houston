@@ -63,7 +63,9 @@ export function firstDayPlacement<A extends { folderPath: string }>({
 /**
  * Whether every read the offer depends on is in: the capabilities (who may
  * start a first day) and each config. An employee still being created answers
- * its config with an empty placeholder, so it is not in until the warm-up ends.
+ * its config with what its create recorded, if anything (`born-config.ts`),
+ * never yet the whole document, so it is not in until the warm-up ends. A new
+ * hire's offer shows meanwhile: placement reads the seeded config regardless.
  */
 export function firstDayConfigsSettled({
   capabilitiesLoading,

@@ -52,11 +52,12 @@ export const queryKeys = {
       : (["provider-statuses"] as const),
   capabilities: () => ["capabilities"] as const,
   /**
-   * The personal assistant's address (`GET /v1/assistant`). Space-scoped like
-   * the capabilities beside it: switching space changes which deployment
-   * answers, so the space-cache purge drops it with the rest.
+   * The personal assistant's address (`GET /v1/assistant`) in one space. The
+   * space id is in the key because each space answers its own assistant, and
+   * keeping one entry per space is what lets a switch back skip the ask
+   * (`lib/assistant-address-cache.ts`).
    */
-  assistant: () => ["assistant"] as const,
+  assistant: (spaceId: string | null) => ["assistant", spaceId] as const,
 
   /**
    * Durable onboarding flags — USER-scoped and space-INVARIANT (engine prefs on

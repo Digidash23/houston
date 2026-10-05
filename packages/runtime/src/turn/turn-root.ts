@@ -3,6 +3,7 @@ import { chmod, mkdir, mkdtemp, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { config } from "../config";
+import { turnSharedSkillsDir } from "./turn-shared-skills";
 import type { TurnRequest } from "./types";
 
 /** Every turn root, conversation-named or fallback, carries this prefix. */
@@ -66,6 +67,21 @@ export async function createTurnRoot(
     `[turn] conversation root ${root} already exists (a concurrent or leftover turn); running in ${fallback}, so this turn misses the prompt cache`,
   );
   return fallback;
+}
+
+/** Create this turn's root with the directories every turn path expects. */
+export async function prepareTurnRoot(id: TurnRootIdentity): Promise<string> {
+  const root = await createTurnRoot(id);
+  // Explicit modes, not the umask's: under a tool shell the umask is 002 and
+  // the root is group-shared, and the Claude CLI's shell runs as THIS user
+  // with HOME here, sourcing its dotfiles, so the tool user must not write it.
+  await Promise.all([
+    mkdir(join(root, "home"), { recursive: true, mode: 0o755 }),
+    mkdir(join(root, "claude-credstore"), { recursive: true, mode: 0o700 }),
+    // Before any file guard is built: a root missing then is no root at all.
+    mkdir(turnSharedSkillsDir(root), { recursive: true, mode: 0o755 }),
+  ]);
+  return root;
 }
 
 /**

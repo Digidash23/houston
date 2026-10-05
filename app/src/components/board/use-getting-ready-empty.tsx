@@ -5,8 +5,10 @@ import { AgentGettingReady } from "../shell/agent-getting-ready";
 
 /**
  * The empty state of a board pinned to one AI Employee that is still starting
- * and has no tasks: "Getting {{name}} ready" instead of bare columns while the
- * first-day offer waits on the warm-up. Undefined otherwise.
+ * and has no tasks: "Getting {{name}} ready" instead of bare columns. A new
+ * hire's first-day hero takes its place (`mission-board.tsx`), so this is for
+ * an employee with no offer to show: one that joined with no first day, or
+ * an existing one waking up. Undefined otherwise.
  */
 export function useGettingReadyEmpty(
   pinnedAgent: Agent | null,

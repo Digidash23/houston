@@ -1,26 +1,17 @@
-/**
- * RoutineRunsDialog — the execution history as an emergent modal
- * (PRODUCT-1208), n8n-style: every recorded run with its outcome, date, time,
- * elapsed time, and (when the run wasn't silent) the result it left behind.
- * Clicking an entry closes the modal and opens that run's chat.
- *
- * A run that never reached the agent has no result to show: its AI account was
- * disconnected, needed reconnecting, or was out of credits (PRODUCT-1475). The
- * engine reports that as a typed `failure`, and `summaryFor` turns it into a
- * sentence naming the provider — so "Failed" stops being the whole story.
- */
+/** Routine execution history with translated summaries for typed failures. */
 
+import {
+  type RoutineReaderAccount,
+  type RoutineRun,
+  routineFailureCode,
+} from "@houston/sdk";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@houston-ai/core";
-import {
-  type RoutineRun,
-  RoutineRunList,
-  type RunStatus,
-} from "@houston-ai/routines";
+import { RoutineRunList, type RunStatus } from "@houston-ai/routines";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { providerName } from "../../lib/providers";
@@ -34,6 +25,9 @@ interface Props {
   locale: string;
   /** Opens the clicked run's chat (the caller closes the modal first). */
   onOpenRun: (run: RoutineRun) => void;
+  /** The reader's own account for a provider (`useRoutineReader`); without
+   *  it every failure reads as the engine recorded it. */
+  readerFor?: (provider: string) => RoutineReaderAccount;
 }
 
 export function RoutineRunsDialog({
@@ -43,16 +37,55 @@ export function RoutineRunsDialog({
   runsLoading,
   locale,
   onOpenRun,
+  readerFor,
 }: Props) {
+  const { t } = useTranslation("routines");
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{t("details.runsTitle")}</DialogTitle>
+        </DialogHeader>
+        <div className="max-h-[60dvh] min-h-0 overflow-y-auto">
+          {runsLoading ? (
+            <p className="flex items-center gap-2 px-1 py-2 text-sm text-ink-muted">
+              <Loader2 aria-hidden className="size-4 animate-spin" />
+              {t("details.runsLoading")}
+            </p>
+          ) : (
+            <RoutineRunsHistory
+              runs={runs ?? []}
+              onOpenRun={onOpenRun}
+              locale={locale}
+              readerFor={readerFor}
+            />
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** The same history body is used in the modal on desktop and web. */
+export function RoutineRunsHistory({
+  runs,
+  locale,
+  onOpenRun,
+  readerFor,
+}: Pick<Props, "locale" | "onOpenRun" | "readerFor"> & { runs: RoutineRun[] }) {
   const { t } = useTranslation("routines");
 
   // Spelled out per code rather than built from it: `t()` keys are typed, so a
   // template-literal key would compile past a typo the locale validator can't
   // see. `undefined` keeps the run's own summary.
   const failureSummary = (run: RoutineRun): string | undefined => {
-    if (!run.failure) return undefined;
-    const provider = providerName(run.failure.provider);
-    switch (run.failure.code) {
+    const provider = run.failure ? providerName(run.failure.provider) : "";
+    // An account the gateway signed out reads as "sign in again", not as
+    // never connected (the SDK's `routineFailureCode` with the reader).
+    switch (routineFailureCode(run, readerFor)) {
+      case "pool_delivery_expired":
+        return t("details.failure.poolDeliveryExpired");
       case "creator_not_connected":
         return t("details.failure.creatorNotConnected", { provider });
       case "team_not_connected":
@@ -69,35 +102,19 @@ export function RoutineRunsDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{t("details.runsTitle")}</DialogTitle>
-        </DialogHeader>
-        <div className="max-h-[60dvh] min-h-0 overflow-y-auto">
-          {runsLoading ? (
-            <p className="flex items-center gap-2 px-1 py-2 text-sm text-ink-muted">
-              <Loader2 aria-hidden className="size-4 animate-spin" />
-              {t("details.runsLoading")}
-            </p>
-          ) : (
-            <RoutineRunList
-              runs={runs ?? []}
-              onOpenRun={onOpenRun}
-              locale={locale}
-              summaryFor={failureSummary}
-              labels={{
-                empty: t("details.runsEmpty"),
-                openRun: t("details.openRun"),
-                status: t("details.status", { returnObjects: true }) as Record<
-                  RunStatus,
-                  string
-                >,
-              }}
-            />
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+    <RoutineRunList
+      runs={runs}
+      onOpenRun={onOpenRun}
+      locale={locale}
+      summaryFor={failureSummary}
+      labels={{
+        empty: t("details.runsEmpty"),
+        openRun: t("details.openRun"),
+        status: t("details.status", { returnObjects: true }) as Record<
+          RunStatus,
+          string
+        >,
+      }}
+    />
   );
 }

@@ -2,81 +2,13 @@ import { normalizeTurnMode, parseMentions } from "@houston/protocol";
 import { parsePrefetchedObjects } from "@houston/runtime-client/object-sync";
 import { parseMissionTitle } from "../session/mission-title";
 import { assertRoutineEventBounds } from "./parse-routine-events";
+import { parseTurnCoordinator } from "./parse-turn-coordinator";
 import { parseTurnCredential } from "./parse-turn-credential";
-import type { TurnGrant, TurnGrantScope, TurnRequest } from "./types";
+import { exactKeys, nonEmpty, parseGrant, record } from "./parse-turn-fields";
+import type { TurnRequest } from "./types";
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const PREFIX = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$/;
-
-function record(value: unknown, field: string): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`invalid '${field}'`);
-  }
-  // SAFETY: the object/array check establishes the string-keyed JSON record
-  // shape; every consumed property is parsed again below.
-  return value as Record<string, unknown>;
-}
-
-function exactKeys(
-  value: Record<string, unknown>,
-  allowed: readonly string[],
-  field: string,
-): void {
-  if (Object.keys(value).some((key) => !allowed.includes(key))) {
-    throw new Error(`invalid '${field}'`);
-  }
-}
-
-function nonEmpty(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0;
-}
-
-const GRANT_SCOPES: readonly TurnGrantScope[] = [
-  "integrations",
-  "agent-writes",
-  "code-run",
-];
-
-function parseGrant(value: unknown): TurnGrant {
-  const grant = record(value, "grant");
-  exactKeys(grant, ["url", "token", "expires", "scopes"], "grant");
-  if (
-    !nonEmpty(grant.url) ||
-    !nonEmpty(grant.token) ||
-    typeof grant.expires !== "number" ||
-    !Number.isSafeInteger(grant.expires) ||
-    grant.expires <= 0 ||
-    !Array.isArray(grant.scopes)
-  ) {
-    throw new Error("invalid 'grant'");
-  }
-  let origin: URL;
-  try {
-    origin = new URL(grant.url);
-  } catch {
-    throw new Error("invalid 'grant'");
-  }
-  if (
-    (origin.protocol !== "http:" && origin.protocol !== "https:") ||
-    origin.username !== "" ||
-    origin.password !== "" ||
-    origin.pathname !== "/" ||
-    origin.search !== "" ||
-    origin.hash !== ""
-  ) {
-    throw new Error("invalid 'grant'");
-  }
-  return {
-    url: origin.origin,
-    token: grant.token,
-    expires: grant.expires,
-    scopes: grant.scopes.filter(
-      (scope): scope is TurnGrantScope =>
-        typeof scope === "string" &&
-        GRANT_SCOPES.includes(scope as TurnGrantScope),
-    ),
-  };
-}
 
 /** Validate an untyped body into a TurnRequest. Throws with the real reason. */
 export function parseTurnRequest(body: unknown): TurnRequest {
@@ -195,6 +127,12 @@ export function parseTurnRequest(body: unknown): TurnRequest {
     }
     routine = { id: parsed.id, ...(events ? { events } : {}) };
   }
+  const coordinator = parseTurnCoordinator(b, {
+    claim,
+    grant,
+    actingAs,
+    shadow: b.shadow === true,
+  });
   const poolPrefix = prefix.split("/");
   if (
     claim &&
@@ -240,6 +178,7 @@ export function parseTurnRequest(body: unknown): TurnRequest {
     routine,
     claim,
     grant,
+    ...coordinator,
     ...(claim && b.prefetch !== undefined
       ? { prefetch: parsePrefetchedObjects(b.prefetch) }
       : {}),

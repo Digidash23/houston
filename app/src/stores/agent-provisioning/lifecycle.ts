@@ -6,7 +6,7 @@
  */
 
 import type { ProvisioningEntry } from "../../lib/agent-provisioning/entry";
-import { completeWarmupHandoff } from "../../lib/agent-provisioning/handoff";
+import { handOffOnce } from "../../lib/agent-provisioning/handoff";
 import { parsePersistedProvisioning } from "../../lib/agent-provisioning/persist";
 import { runProvisioningProbe } from "../../lib/agent-provisioning/probe";
 import { getEngine, isCoLocatedEngine } from "../../lib/engine";
@@ -38,6 +38,27 @@ export function startEntry(
   startProbe(store, entry);
 }
 
+/**
+ * The engine answered for this entry: hand it off, once, whoever noticed
+ * first (the probe, or a write the engine answered). The flush-then-refetch-
+ * then-clear order, and why reads open before the refetch, is
+ * `completeWarmupHandoff`. New sends already steer to the normal wire path
+ * once the flush started.
+ */
+export function handOff(
+  store: AgentProvisioningStore,
+  entry: ProvisioningEntry,
+): void {
+  const run = handOffOnce(entry, {
+    flush: flushWarmingSends,
+    refetch: (queryKey) => queryClient.invalidateQueries({ queryKey }),
+    clear: () => store.getState().clearProvisioning(entry.agentId, entry),
+  });
+  void run?.catch((e) =>
+    reportError("agent_provisioning_handoff", "warm-up handoff failed", e),
+  );
+}
+
 function startProbe(
   store: AgentProvisioningStore,
   entry: ProvisioningEntry,
@@ -48,18 +69,7 @@ function startProbe(
       getEngine().readAgentFile(agentPath, relPath),
     // Identity, not presence: a re-mark of the same id retires this probe.
     isMarked: (id) => store.getState().provisioning[id] === entry,
-    onReady: (id) => {
-      // The flush-then-refetch-then-clear order, and why reads open before
-      // the refetch, is `completeWarmupHandoff`. New sends already steer to
-      // the normal wire path once the flush started.
-      void completeWarmupHandoff(entry, {
-        flush: flushWarmingSends,
-        refetch: (queryKey) => queryClient.invalidateQueries({ queryKey }),
-        clear: () => actions.clearProvisioning(id, entry),
-      }).catch((e) =>
-        reportError("agent_provisioning_handoff", "warm-up handoff failed", e),
-      );
-    },
+    onReady: () => handOff(store, entry),
     onGone: (id, err) => {
       // The server no longer knows this agent (deleted/unshared elsewhere
       // while the entry — possibly rehydrated from the localStorage mirror —

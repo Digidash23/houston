@@ -8,6 +8,7 @@ import type {
   BatchReadOutcome,
   ReadOptions,
 } from "./object-store";
+import { withOperationSignal } from "./operation-signal";
 
 type BatchPost = (init: RequestInit) => Promise<Response>;
 
@@ -25,13 +26,15 @@ export async function downloadHttpBatch(
   entries: BatchReadEntry[],
   opts?: ReadOptions,
 ): Promise<Map<string, BatchReadOutcome>> {
-  const response = await post({
-    method: "POST",
-    headers: { ...authHeaders, "Content-Type": "application/json" },
-    body: JSON.stringify({ keys: entries.map(({ key }) => key) }),
-    signal: opts?.signal,
+  return withOperationSignal(opts?.signal, async (signal) => {
+    const response = await post({
+      method: "POST",
+      headers: { ...authHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ keys: entries.map(({ key }) => key) }),
+      signal,
+    });
+    return landHttpBatch(response, entries, signal);
   });
-  return landHttpBatch(response, entries, opts?.signal);
 }
 
 /**

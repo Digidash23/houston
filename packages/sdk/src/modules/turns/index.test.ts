@@ -136,7 +136,7 @@ async function waitFor(cond: () => boolean, ms = 2_000): Promise<void> {
   }
 }
 
-test("registers every turns command: send, the conversation controls and imports, observe, history and attachments/save", () => {
+test("registers every turns command: send, the conversation controls, imports and prewarm, observe, history and attachments/save", () => {
   const { commands } = harness();
   expect([...commands.keys()].sort()).toEqual([
     "turns/attachments/save",
@@ -145,6 +145,7 @@ test("registers every turns command: send, the conversation controls and imports
     "turns/history",
     "turns/importMessages",
     "turns/observe",
+    "turns/prewarm",
     "turns/retryPendingImports",
     "turns/send",
     "turns/setMode",
@@ -227,6 +228,8 @@ test("the default board-status persister fires running at start and terminal on 
   const { mod, vm, calls } = harness();
   await mod.send({ conversationId: "c1", text: "hi" });
   await waitFor(() => vm()?.sessionStatus === "completed");
+  // The terminal persist is awaited AFTER the settle: wait for it, not a tick.
+  await waitFor(() => calls.boardPersists.length >= 2);
   // A running turn PATCHes the card to running, then to its terminal status —
   // the write the SDK path used to drop, keyed by the chat's id. Every clean
   // settle lands `needs_you`: the engine never closes a mission, the user does.

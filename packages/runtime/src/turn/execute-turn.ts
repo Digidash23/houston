@@ -1,4 +1,3 @@
-import { mkdir } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import type { WireFrame } from "@houston/runtime-client";
@@ -15,7 +14,7 @@ import { TurnSetupError } from "./turn-layout";
 import { createTurnLog } from "./turn-log";
 import { setActiveTurnTimings } from "./turn-network-marks";
 import { turnSessionRequest } from "./turn-request";
-import { createTurnRoot } from "./turn-root";
+import { prepareTurnRoot } from "./turn-root";
 import type { makeTurnSandboxFetch } from "./turn-sandbox";
 import { createTurnSandbox } from "./turn-sandbox-startup";
 import {
@@ -24,6 +23,11 @@ import {
   type TurnSessionStartupTask,
 } from "./turn-session-startup";
 import { answerTurnSetupFailure } from "./turn-setup-failure";
+import {
+  snapshotTurnSharedSkills,
+  turnSharedSkillsDir,
+  turnSharedSkillsStore,
+} from "./turn-shared-skills";
 import { poolIdentity, resolveTurnStore } from "./turn-store";
 import { createTurnTranscript } from "./turn-transcript";
 import type { TurnRequest } from "./types";
@@ -36,14 +40,7 @@ export async function executeTurn(
   res: ServerResponse,
   timings: Record<string, number>,
 ): Promise<void> {
-  const root = await createTurnRoot(turn);
-  // Explicit modes, not the umask's: under a tool shell the umask is 002 and
-  // the root is group-shared, and the Claude CLI's shell runs as THIS user
-  // with HOME here, sourcing its dotfiles, so the tool user must not write it.
-  await Promise.all([
-    mkdir(join(root, "home"), { recursive: true, mode: 0o755 }),
-    mkdir(join(root, "claude-credstore"), { recursive: true, mode: 0o700 }),
-  ]);
+  const root = await prepareTurnRoot(turn);
   timings.t_tmpdir = performance.now();
   setActiveTurnTimings(timings);
   const scope = `${turn.workspaceId}/${turn.agentId}`;
@@ -53,6 +50,7 @@ export async function executeTurn(
   // dropped socket must not abort the work; a fenced heartbeat (the claim was
   // released or adopted) must. Unclaimed turns keep the connection contract.
   if (!turn.claim) req.on("close", () => abort.abort());
+  turn.liveMode = { current: turn.mode ?? "execute" };
   const turnId = turn.turnId ?? crypto.randomUUID();
   let heartbeat: ReturnType<typeof startClaimHeartbeat> | null = null;
   let turnSandbox: ReturnType<typeof makeTurnSandboxFetch> | null = null;
@@ -62,16 +60,20 @@ export async function executeTurn(
   try {
     const sandboxIdentity =
       turn.grant && turn.hostToken ? poolIdentity(turn.gcsPrefix) : undefined;
-    const resolved = resolveTurnStore(turn, deps.store, {
+    const storeConfig = {
       poolStoreUrl: deps.poolStoreUrl,
       fetchImpl: deps.fetchImpl,
-    });
+    };
+    const resolved = resolveTurnStore(turn, deps.store, storeConfig);
     heartbeat =
       turn.claim && turn.hostToken
         ? startClaimHeartbeat({
             claim: turn.claim,
             hostToken: turn.hostToken,
             onFenced: () => abort.abort(),
+            onMode: (mode) => {
+              if (turn.liveMode) turn.liveMode.current = mode;
+            },
             ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
             ...(deps.heartbeatIntervalMs
               ? { intervalMs: deps.heartbeatIntervalMs }
@@ -130,10 +132,19 @@ export async function executeTurn(
     try {
       await preparation.hydrated;
       timings.t_hydrated = performance.now();
+      const refused = await turnSandbox?.admission();
+      if (refused) throw new TurnSetupError("message_refused", refused);
     } catch (error) {
       await reportAbandonedTurnStartup(startup);
       throw error;
     }
+    // Needs the agent's own skills manifest, so after hydration.
+    if (!turn.shadow)
+      await snapshotTurnSharedSkills(
+        (deps.sharedSkillsStore ?? turnSharedSkillsStore)(turn, storeConfig),
+        turnSharedSkillsDir(root),
+        filesystem.workspaceDir,
+      );
 
     const sse = openSSE(res);
     closeSse = sse.close;
@@ -144,7 +155,8 @@ export async function executeTurn(
       { ...turn, turnId },
       filesystem,
     );
-    const emit = (frame: WireFrame) => {
+    const emit = (raw: WireFrame) => {
+      const frame = turnSandbox ? turnSandbox.present(raw) : raw;
       sse.send(turnLog ? turnLog.record(frame) : frame);
       // The runtime persists the user message right before this frame; land
       // its transcript row now so a gateway that restarts mid-turn can rebuild

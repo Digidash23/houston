@@ -185,7 +185,7 @@ test("a reload mid-onboarding resumes on the step the user left", async ({
   await connectAi(page, "tap");
   await answerSurvey(page, "tap");
   // Held so the reload lands on the closing, before onboarding finishes.
-  const release = await holdClosingSave(page);
+  const release = await holdClosingSave(request);
   await hireStarterTeam(page, null, "tap", STARTER_ROLES);
   await page.reload();
   await release();

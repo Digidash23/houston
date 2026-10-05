@@ -4,6 +4,7 @@ import { assertAllowedFile, assertContained } from "./fs-guard-containment";
 import {
   BoardWriteDeniedError,
   RoutineWriteDeniedError,
+  SharedSkillReadOnlyError,
 } from "./fs-guard-errors";
 import {
   contains,
@@ -19,6 +20,7 @@ export {
   PathNotAllowedError,
   ProtectedWriteDeniedError,
   RoutineWriteDeniedError,
+  SharedSkillReadOnlyError,
 } from "./fs-guard-errors";
 
 const PROTECTED_WRITES = [
@@ -65,6 +67,9 @@ export interface WorkspaceGuardOptions {
    *  of the org original); deletion stays a human act in the UI, and the
    *  same symlink-resolved containment applies as for the workspace. */
   sharedRoots?: string[];
+  /** Extra READABLE roots no tool may write: a pooled turn's snapshot of its
+   *  org's shared skills (turn/turn-shared-skills.ts). */
+  readOnlyRoots?: string[];
   /**
    * An EXACT list of the files the tools may touch. When present it NARROWS the
    * workspace to those files — `sharedRoots` and the rest of the workspace are
@@ -85,6 +90,7 @@ export class WorkspaceGuard {
   readonly sharedRoots: string[];
   private readonly workspaceBoundary: RootBoundary;
   private readonly sharedBoundaries: RootBoundary[];
+  private readonly readOnlyBoundaries: RootBoundary[];
   /** Exact-file allowlist (empty = root containment governs). */
   private readonly allowedFiles: RootBoundary[];
 
@@ -94,21 +100,8 @@ export class WorkspaceGuard {
       lexical: resolve(root),
     };
     this.root = this.workspaceBoundary.canonical;
-    const boundaries = (options?.sharedRoots ?? []).flatMap(
-      (sharedRoot): RootBoundary[] => {
-        try {
-          return [
-            {
-              canonical: realpathSync(sharedRoot),
-              lexical: resolve(sharedRoot),
-            },
-          ];
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-          throw error;
-        }
-      },
-    );
+    const boundaries = existingBoundaries(options?.sharedRoots);
+    this.readOnlyBoundaries = existingBoundaries(options?.readOnlyRoots);
     this.sharedBoundaries = boundaries.filter(
       (boundary, index) =>
         boundary.canonical !== this.root &&
@@ -175,9 +168,29 @@ export class WorkspaceGuard {
       if (contains(proven, join(this.root, ".houston", family)))
         throw new refusal();
     }
+    for (const { canonical, lexical } of this.readOnlyBoundaries) {
+      if (contains(proven, canonical) || contains(proven, lexical))
+        throw new SharedSkillReadOnlyError();
+    }
   }
 
   private allowedRoots(): RootBoundary[] {
-    return [this.workspaceBoundary, ...this.sharedBoundaries];
+    return [
+      this.workspaceBoundary,
+      ...this.sharedBoundaries,
+      ...this.readOnlyBoundaries,
+    ];
   }
+}
+
+/** The roots that exist, in both forms; a missing root is simply not a root. */
+function existingBoundaries(roots: string[] = []): RootBoundary[] {
+  return roots.flatMap((root): RootBoundary[] => {
+    try {
+      return [{ canonical: realpathSync(root), lexical: resolve(root) }];
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw error;
+    }
+  });
 }

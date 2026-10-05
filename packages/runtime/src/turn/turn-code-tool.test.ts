@@ -152,6 +152,8 @@ test.each([
   // The prompt must agree with the allowlist, or the model claims an ability
   // it does not have.
   expect(deps.systemPrompt).toContain("run commands");
+  // ...and it is the product prompt, not the engine's bare fallback.
+  expect(deps.systemPrompt).toContain("# Houston Context");
 });
 
 test.each([

@@ -94,7 +94,19 @@ function textResult(
   return { content: [{ type: "text" as const, text }], details };
 }
 
-export function makeHoustonRecallTool() {
+/** Where a conversation's full history is read from. */
+export type HistoryReader = (
+  conversationId: string,
+) => ReturnType<typeof getHistory>;
+
+/**
+ * `readHistory` defaults to this runtime's own transcript store. A pooled turn
+ * passes its own: its transcript lives in the turn's data directory, not in
+ * the process's.
+ */
+export function makeHoustonRecallTool(
+  readHistory: HistoryReader = (id) => getHistory(id),
+) {
   return defineTool({
     name: HOUSTON_RECALL_TOOL_NAME,
     label: "Search our earlier conversation",
@@ -124,7 +136,7 @@ export function makeHoustonRecallTool() {
       }
       // ONE full read: the store is parse-cache-backed, so re-reading per term
       // would re-walk the whole transcript for nothing.
-      const history = getHistory(conversationId);
+      const history = readHistory(conversationId);
       const messages = history?.messages ?? [];
       const totalMessages = history?.totalMessages ?? 0;
       const needle = query.toLowerCase();

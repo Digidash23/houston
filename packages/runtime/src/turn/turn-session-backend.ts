@@ -9,8 +9,10 @@ import { hasUnreadablePiSessionTail } from "../backends/pi/backend";
 import { replayCharBudget } from "../session/replay-transcript";
 import { replayForConversation } from "../session/routine-replay";
 import { estimateTokens } from "../session/token-estimate";
+import { autocompactPooledSession } from "./turn-autocompact";
 import { resolveTurnClaudeResume, turnClaudeLayout } from "./turn-backend";
 import { seedTurnClaudeFlags } from "./turn-claude-flags";
+import { settleClaudeSummary } from "./turn-compactions";
 import { readTurnHarness, writeTurnHarness } from "./turn-harness-state";
 import {
   resetPooledRoutineContext,
@@ -88,6 +90,11 @@ export async function openTurnBackendSession(input: {
   const freshSession =
     switchedHarness || unreadablePiResume || routineReset !== null;
   writeTurnHarness(directories.dataDir, conversationId, harness);
+  const armedSummary = settleClaudeSummary(
+    directories.dataDir,
+    conversationId,
+    { harness, freshSession },
+  );
   const claudeResume =
     harness === "claude" && !switchedHarness
       ? resolveTurnClaudeResume(directories, conversationId)
@@ -111,8 +118,11 @@ export async function openTurnBackendSession(input: {
       windowTokens: routineReset?.windowTokens ?? catalogWindow,
       charBudget: replayCharBudget(model.contextWindow),
     });
+  // An armed Claude summary IS the history the new session starts from.
   const replay =
-    freshSession || (harness === "claude" && !claudeResume) ? replayOf() : null;
+    freshSession || (harness === "claude" && !claudeResume && !armedSummary)
+      ? replayOf()
+      : null;
   // Claude's fallback when the SDK refuses its resume: deferred until then.
   const retryReplay = () => (replay ?? replayOf())?.text ?? "";
   // The CLI blocks its first start on a flag fetch unless its config dir
@@ -137,12 +147,32 @@ export async function openTurnBackendSession(input: {
     ...(harness === "claude" ? { freshRetryPromptPrefix: retryReplay } : {}),
   });
   if (turn.timings) turn.timings.t_backend_session = performance.now();
+  // Proactive autocompact, as the pod runs it before every prompt: only a
+  // session that resumed its native history has anything to compact.
+  const resumedHistory =
+    !freshSession &&
+    (harness === "pi" || (claudeResume !== undefined && !armedSummary));
+  const autocompaction = resumedHistory
+    ? await autocompactPooledSession({
+        session,
+        model,
+        dataDir: directories.dataDir,
+        conversationId,
+        canonical: input.canonicalMessages,
+        transcriptFill: harness === "claude",
+        ...(turn.signal ? { signal: turn.signal } : {}),
+        harvest: {
+          call: turn.sandbox?.call ?? null,
+          workspaceDir: directories.workspaceDir,
+        },
+      })
+    : undefined;
   return {
     replay,
     session,
     model,
     modelRuntime,
-    compaction: routineReset?.compaction,
+    compaction: routineReset?.compaction ?? autocompaction,
     // What the reset's replay put in the fresh session, for the run's
     // recorded carry (turn-routine-context.ts).
     routineResetBase: routineReset

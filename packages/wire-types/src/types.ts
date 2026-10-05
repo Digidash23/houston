@@ -12,6 +12,7 @@ import type {
   AgentInitialConfig,
   GrantableOperation,
   RoutineAutoPause,
+  RoutineDeliveryFailure,
   RoutineRunFailure,
   SkillWorkflow,
 } from "@houston/protocol";
@@ -29,6 +30,8 @@ export type {
   FirstDayStartResult,
   GrantableOperation,
   RoutineAutoPause,
+  RoutineDeliveryFailure,
+  RoutineDeliveryFailureCode,
   RoutineRunFailure,
   RoutineRunFailureCode,
   SkillWorkflow,
@@ -218,6 +221,13 @@ export interface Capabilities {
    * workers advertises it; the open host (desktop, self-host) never does.
    */
   missionTitleOnSend?: boolean;
+  /**
+   * The gateway readies the sandbox a person's next send will run in while
+   * they type (`POST /v1/agents/:slug/conversations/:cid/prewarm`). Present
+   * only where the active space's sends run in per-turn sandboxes; the open
+   * host (desktop, self-host) never sets it.
+   */
+  conversationPrewarm?: boolean;
 }
 
 // ---------- Org / roles (multiplayer) ----------
@@ -859,8 +869,12 @@ export interface RoutineRun {
    *  usage-limit window. Only meaningful when status is `running`. */
   paused_until?: string;
   /** Typed reason an `error` run failed on the account or model it needed.
-   *  Absent for every other failure, whose story is in `summary`. */
+   *  Other failures after a run starts carry their story in `summary`. */
   failure?: RoutineRunFailure;
+  /** The run never started before its delivery deadline. */
+  delivery_failure?: RoutineDeliveryFailure;
+  /** The engine restarted and is repeating this run. */
+  resumed?: true;
 }
 
 export interface RoutineRunUpdate {
@@ -870,6 +884,7 @@ export interface RoutineRunUpdate {
   completed_at?: string;
   /** Pass `string` to set the hint, `null` to clear, omit to leave alone. */
   paused_until?: string | null;
+  resumed?: true;
 }
 
 export interface ProjectConfig {
@@ -1042,6 +1057,12 @@ export interface ProviderStatus {
    * that predate it, so treat absence as "read `authState` as before".
    */
   health?: ProviderHealth;
+  /**
+   * Epoch ms by which the person must sign in again (`ProviderInfo.reconnectBy`
+   * in `@houston/protocol`): a hosted Claude subscription login ends about 28
+   * days after it. Absent means no known deadline.
+   */
+  reconnectBy?: number;
 }
 
 /**

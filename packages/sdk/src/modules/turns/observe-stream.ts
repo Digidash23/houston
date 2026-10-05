@@ -58,6 +58,8 @@ export function observeConversation(
     // turn actually ended, not a previous turn. turnId matching replaces it.
     historyGuard: (messages) => messages.length > messagesAtOpen,
   });
+  // A dispose (a turn taking the key over, a teardown) ends the sink at once.
+  ac.signal.addEventListener("abort", () => sink.dispose(), { once: true });
 
   void (async () => {
     let exhausted = false;

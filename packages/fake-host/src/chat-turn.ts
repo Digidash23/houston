@@ -21,6 +21,7 @@ import type {
   ToolCallRecord,
 } from "@houston/protocol";
 import { type ChatChannel, channel, chatKey, publish } from "./chat-channel";
+import { resetHold, takeHold, waitForRelease } from "./chat-hold";
 import {
   cannedReply,
   replyDeltas,
@@ -47,11 +48,13 @@ export function setReplyDelay(ms: number): void {
 export function resetReplyDelay(): void {
   replyDelayMs = DEFAULT_REPLY_DELAY_MS;
   resetScript();
+  resetHold();
 }
 
 async function streamReply(
   agentId: string,
   cid: string,
+  turnId: string,
   userText: string,
   nonce: string | undefined,
   displayText: string | undefined,
@@ -59,9 +62,10 @@ async function streamReply(
 ): Promise<void> {
   const ch = channel(chatKey(agentId, cid));
   const epoch = ch.epoch;
-  const turnId = crypto.randomUUID();
   const reply = cannedReply(userText);
   const tools = takeToolCalls();
+  const held = takeHold();
+  let sent = 0;
   ch.pending = { turnId, remaining: replyDeltas(reply) };
   // The user message persists at turn START (the dead-turn history shape).
   state.appendUserMessage(
@@ -96,7 +100,7 @@ async function streamReply(
     const next = ch.pending.remaining.shift();
     if (next === undefined) break;
     publish(ch, { type: "text", data: next, turnId });
-    await delay(replyDelayMs);
+    await (held && sent++ === 0 ? waitForRelease() : delay(replyDelayMs));
   }
   if (ch.epoch !== epoch || ch.pending?.turnId !== turnId) return;
   // Consume any armed interaction: this turn's `done` carries it (one-shot).
@@ -136,6 +140,7 @@ export function finishTurn(
 /**
  * Fire-and-forget a canned turn, crashing the harness LOUDLY if it ever
  * fails — a swallowed fake-host bug would surface as a hanging test instead.
+ * Returns the turn's id, which the send's 202 names like the runtime's does.
  */
 export function streamReplySafe(
   agentId: string,
@@ -144,8 +149,9 @@ export function streamReplySafe(
   nonce: string | undefined,
   displayText?: string,
   mentions?: ChatMessage["mentions"],
-): void {
-  streamReply(agentId, cid, text, nonce, displayText, mentions).catch(
+): string {
+  const turnId = crypto.randomUUID();
+  streamReply(agentId, cid, turnId, text, nonce, displayText, mentions).catch(
     (err: unknown) => {
       console.error("[fake-host] streamReply failed:", err);
       queueMicrotask(() => {
@@ -153,6 +159,7 @@ export function streamReplySafe(
       });
     },
   );
+  return turnId;
 }
 
 /** Terminate a channel's running turn with a terminal `error` frame. */

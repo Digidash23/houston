@@ -1,17 +1,13 @@
-import { join, posix } from "node:path";
-import { LazyReadRefusedError } from "@houston/host/src/vfs";
-import type { HoustonEvent } from "@houston/protocol";
+import { join } from "node:path";
 import { applyServedCredential } from "../auth/auth-file";
 import { generateTitle } from "../session/summarize";
-import {
-  deleteConversationAt,
-  renameConversationMutationAt,
-} from "../store/conversation-file";
+import { applyConversationOp } from "./op-conversation";
 import { applyApiKeyConnect, credentialOpFiles } from "./op-credential";
+import { applyCustomOAuthOp } from "./op-custom-oauth";
 import { applyEndpointConnect } from "./op-endpoint";
+import { prepareFirstDayOp } from "./op-first-day";
 import { assertWorkerOpProvider } from "./op-provider-guard";
 import { applyRouteOp } from "./op-route";
-import { conversationScope, engineAgentId } from "./op-scope";
 import {
   claimActiveProviderIn,
   putSettingsIn,
@@ -22,28 +18,9 @@ import type { TurnFilesystem } from "./turn-filesystem";
 import { createTurnModelRuntime } from "./turn-runtime";
 import { poolIdentity } from "./turn-store";
 
-export interface OpResult {
-  status: number;
-  contentType: string;
-  body: string;
-  /** Binary answer (file download / archive), base64 — relayed raw. */
-  bodyBase64?: string;
-  /** Response headers the client depends on (Content-Disposition, ...). */
-  headers?: Record<string, string>;
-  events: HoustonEvent[];
-  /** Store-relative paths this op may have written (the sync-back scope). */
-  include: (relativePath: string) => boolean;
-  /** The pod's own /skills answer after a skills mutation (the skills view). */
-  skillsView?: unknown;
-  /** The pod's own definitions answer after a custom-integration mutation. */
-  customDefinitionsView?: unknown;
-  /** The hydrated tree had no such agent — decline, do not relay. */
-  agentMissing?: boolean;
-  /** The worker cannot serve this one (a provider that needs the pod). */
-  decline?: boolean;
-  /** A lazy read was refused mid-handler: the overlay may be partial. */
-  tooLarge?: true;
-}
+export type { OpResult } from "./op-result";
+
+import type { OpResult } from "./op-result";
 
 const json = (
   status: number,
@@ -72,9 +49,10 @@ export async function applyOp(
   filesystem: TurnFilesystem,
   fetchImpl?: typeof fetch,
 ): Promise<OpResult> {
-  const agentId = engineAgentId(filesystem);
   const none = () => false;
   switch (op.op.kind) {
+    case "custom-oauth":
+      return applyCustomOAuthOp({ ...op, op: op.op }, filesystem, fetchImpl);
     case "route":
       return applyRouteOp(
         op as OpRequest & { op: Extract<OpRequest["op"], { kind: "route" }> },
@@ -177,60 +155,16 @@ export async function applyOp(
       });
       return { ...json(200, { title }), events: [], include: none };
     }
-    case "conversation": {
-      const { conversationId, action } = op.op;
-      const dir = join(filesystem.dataDir, "conversations");
-      const include = conversationScope(filesystem.dataRel, conversationId);
-      const notFound = {
-        ...json(404, { error: "conversation not found" }),
-        events: [],
-        include,
-      };
-      const conversationsRel = posix.join(filesystem.dataRel, "conversations");
-      const fileRel = posix.join(
-        conversationsRel,
-        `${encodeURIComponent(conversationId)}.json`,
-      );
-      // Existence from the listing: a lazy tree answers it without a
-      // download (the pod's 404 for an unknown conversation, same contract).
-      const exists = (await filesystem.vfs.list(conversationsRel)).includes(
-        fileRel,
-      );
-      if (!exists) return notFound;
-      if (action === "delete") {
-        // Deletes need no bytes: tombstone the file and the session dir so
-        // a lazy tree never downloads what it is about to remove.
-        await filesystem.vfs.deleteKey(fileRel);
-        await filesystem.vfs.deletePrefix(
-          posix.join(filesystem.dataRel, "sessions", conversationId),
-        );
-        deleteConversationAt(dir, conversationId);
-      } else {
-        // A rename reads the file: materialize it (a hydrated tree already
-        // has it). Over the read cap the pod must do it — decline.
-        try {
-          await filesystem.vfs.readBytes(fileRel);
-        } catch (error) {
-          if (!(error instanceof LazyReadRefusedError)) throw error;
-          return {
-            ...json(503, { error: "conversation too large to edit asleep" }),
-            events: [],
-            include,
-            decline: true,
-          };
-        }
-        const renamed = renameConversationMutationAt(
-          dir,
-          conversationId,
-          op.op.title ?? "",
-        );
-        if (renamed === null) return notFound;
-      }
-      return {
-        ...json(200, { ok: true }),
-        events: [{ type: "ConversationsChanged", agentPath: agentId }],
-        include,
-      };
-    }
+    case "conversation":
+      return applyConversationOp(op.op, filesystem);
+    case "first-day":
+      return prepareFirstDayOp(op, filesystem);
+    case "seed":
+    case "migrate":
+      // Both run their own hydrate and sync (op-seed.ts, op-migrate.ts);
+      // executeOp never hands them this filesystem.
+      throw new Error(`a ${op.op.kind} op does not run over this tree`);
+    case "reconcile":
+      throw new Error("a reconcile op runs its own path (op-reconcile.ts)");
   }
 }

@@ -1,5 +1,6 @@
 import type { SequencedFrame, WireFrame } from "@houston/runtime-client";
 import type { TurnServerDeps } from "./server-types";
+import { postTurnLogBatch } from "./turn-log-post";
 import { markTurnOnce } from "./turn-network-marks";
 import { poolIdentity } from "./turn-store";
 import type { TurnRequest } from "./types";
@@ -16,6 +17,8 @@ interface TurnLogOptions {
   batchSize?: number;
   /** First seq to stamp (the conversation's stream continues, never restarts). */
   seqStart?: number;
+  /** Waits before each resend of a failed batch (default 500 ms, 2 s). */
+  retryDelaysMs?: number[];
 }
 
 const REQUEST_TIMEOUT_MS = 5_000;
@@ -32,6 +35,7 @@ export class TurnLog {
   private readonly fetchImpl: typeof fetch;
   private readonly batchMs: number;
   private readonly batchSize: number;
+  private readonly retryDelaysMs: number[];
   private readonly frames: SequencedFrame[] = [];
   private seq: number;
   private disabled = false;
@@ -43,6 +47,7 @@ export class TurnLog {
     this.fetchImpl = opts.fetchImpl ?? fetch;
     this.batchMs = opts.batchMs ?? 50;
     this.batchSize = opts.batchSize ?? 32;
+    this.retryDelaysMs = opts.retryDelaysMs ?? [500, 2_000];
     this.seq = (opts.seqStart ?? 1) - 1;
   }
 
@@ -108,43 +113,41 @@ export class TurnLog {
     )}/${encodeURIComponent(this.opts.agent)}/${encodeURIComponent(
       this.opts.conversationId,
     )}`;
+    const body = JSON.stringify(
+      frames.map((frame) => ({ seq: frame.seq, frame })),
+    );
     // The first text reaches the user through this POST; its queue wait and
     // round trip are the worker's half of the delivery time.
     const carriesText = frames.some((sequenced) => sequenced.type === "text");
     markTurnOnce("t_turnlog_first_post_start");
     if (carriesText) markTurnOnce("t_turnlog_text_post_start");
-    try {
-      const response = await this.fetchImpl(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.opts.hostToken}`,
-          "Content-Type": "application/json",
-          "X-Houston-Claim-Token": this.opts.claim.token,
-          "X-Houston-Claim-Boot": this.opts.claim.bootId,
+    // A dropped batch is a permanent seq gap: the gateway then resyncs the
+    // conversation, so later frames (the terminal too) never reach the client
+    // in order. Resend like the standing pod's sender.
+    for (let attempt = 0; ; attempt++) {
+      const result = await postTurnLogBatch({
+        fetchImpl: this.fetchImpl,
+        url,
+        init: {
+          headers: {
+            Authorization: `Bearer ${this.opts.hostToken}`,
+            "Content-Type": "application/json",
+            "X-Houston-Claim-Token": this.opts.claim.token,
+            "X-Houston-Claim-Boot": this.opts.claim.bootId,
+          },
+          body,
         },
-        body: JSON.stringify(
-          frames.map((frame) => ({ seq: frame.seq, frame })),
-        ),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        timeoutMs: REQUEST_TIMEOUT_MS,
+        carriesText,
       });
-      markTurnOnce("t_turnlog_first_post_done");
-      if (carriesText) markTurnOnce("t_turnlog_text_post_done");
-      if (response.ok) return;
-      if (response.status === 404) {
+      if (result === "route_absent") {
         this.disabled = true;
         console.debug("[turnlog] gateway route unavailable for this turn");
         return;
       }
-      console.warn(
-        `[turnlog] batch failed (${response.status}): ${(
-          await response.text()
-        ).slice(0, 300)}`,
-      );
-    } catch (error) {
-      console.warn(
-        "[turnlog] batch failed:",
-        error instanceof Error ? error.message : String(error),
-      );
+      const delay = this.retryDelaysMs[attempt];
+      if (result !== "retry" || delay === undefined) return;
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 }

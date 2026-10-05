@@ -78,9 +78,12 @@ export type AnalyticsProperty =
   | "role"
   // Client UX timing (perf_span). `org_slug` is the hosted org a measured send
   // ran in, the key the gateway's per-org switches use; absent off the gateway.
+  // `outcome` is how a send's turn answered: first_text, or no_text / error /
+  // cancelled / interrupted / timeout for one that never showed text.
   | "span"
   | "org_slug"
-  | "duration_ms";
+  | "duration_ms"
+  | "outcome";
 
 export const ALLOWED_PROPS = new Set<AnalyticsProperty>([
   "provider",
@@ -126,4 +129,5 @@ export const ALLOWED_PROPS = new Set<AnalyticsProperty>([
   "span",
   "org_slug",
   "duration_ms",
+  "outcome",
 ]);

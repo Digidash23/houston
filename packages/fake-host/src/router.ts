@@ -10,7 +10,12 @@
 import { buildProviderCatalog } from "@houston/host/src/providers/pi-catalog";
 import type { ChatMessage, PendingInteraction } from "@houston/protocol";
 import type { ProviderUsage } from "@houston/runtime-client";
-import { setNextInteraction, setNextReplyText, setReplyDelay } from "./chat";
+import {
+  armHoldAfterFirstDelta,
+  setNextInteraction,
+  setNextReplyText,
+  setReplyDelay,
+} from "./chat";
 import {
   clearChatStreams,
   dropChatStreams,
@@ -99,10 +104,12 @@ export async function handle(req: Request): Promise<Response> {
   if (path === "/__test__/drop-chat-streams" && method === "POST") {
     return json({ dropped: dropChatStreams() });
   }
-  // Slow the canned reply so a test can land a drop mid-turn deterministically.
+  // Pace the canned reply, and optionally hold the next turn after its first
+  // delta until a drop/kill/boundary control releases it (chat-hold.ts).
   if (path === "/__test__/chat-config" && method === "POST") {
     const body = await parseBody(req);
     setReplyDelay(Number(body?.replyDelayMs ?? 15));
+    armHoldAfterFirstDelta(body?.holdAfterFirstDelta === true);
     return json({ ok: true });
   }
   // Arm the NEXT scripted turn to reply with this exact text instead of the
@@ -166,6 +173,13 @@ export async function handle(req: Request): Promise<Response> {
     const body = await parseBody(req);
     state.setAgentReadHoldMs(Number(body?.ms ?? 0));
     return json({ ms: state.arming.agentReadHoldMs });
+  }
+  // Hold every conversation import until `{ hold: false }` (or the per-test
+  // reset) lets them through: keeps onboarding on its closing across a reload.
+  if (path === "/__test__/hold-imports" && method === "POST") {
+    const body = await parseBody(req);
+    state.setImportHold(body?.hold === true);
+    return json({ hold: state.arming.importHold !== null });
   }
   // Fail every per-agent read (`GET /agents/:id/*`) for the named agents with a
   // 500, leaving the rest healthy — the half-broken fleet the cross-agent

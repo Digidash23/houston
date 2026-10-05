@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 119
+version: 123
 
 components:
   - id: agent-delegation-settings
@@ -1037,6 +1037,7 @@ components:
         editing-schedule,
         loading-runs,
         no-runs-yet,
+        delivery-expired,
         provider-connected,
         provider-unusable,
         provider-checking,
@@ -1064,7 +1065,8 @@ components:
       run newest-first with its plain-language outcome (running / done /
       nothing to report / failed / stopped), date + time, elapsed time, and
       -- when the run wasn't silent -- the result it left behind, or, for a run
-      that never reached the agent, the reason its AI account could not run it;
+      that never reached the agent, a translated account failure or delivery
+      deadline explanation with guidance to try running the routine again;
       clicking an entry closes the modal and opens that run's chat in the shell panel
       (closing the chat returns to this screen). "Open chat" reaches the
       routine's setup chat the same way.
@@ -1292,7 +1294,7 @@ components:
   - id: sidebar-team-block
     title: Sidebar group block
     purpose: A personal folder in the AI Employees rail.
-    anatomy: [header-row, group-glyph, group-name, disclosure-caret, rollup-badge, folder-menu, agent-rows]
+    anatomy: [header-row, group-glyph, group-name, disclosure-caret, rollup-badge, folder-menu, agent-rows, member-guide, empty-hint]
     states: [resting, expanded, collapsed, collapsed-rollup, menu-open, drop-target, empty, renaming]
     variants: [named-group]
     behavior: >-
@@ -1300,7 +1302,10 @@ components:
       that folder's collapsed flag and never navigates. Its always-visible menu
       offers Rename, Icon & color, Move to another space where available, and
       Delete group. Agent rows follow the group's stored order. Agents
-      outside every folder share the header's left edge. SidebarLayout order
+      outside every folder share the header's left edge; members step 20px
+      in, and a 1px line runs down them under the header's glyph. A folder
+      header, and a root employee right after a folder, start 12px below the
+      row above, so a folder visibly ends where its members do. SidebarLayout order
       interleaves root employees and folders, with new employees at the start.
       Every person can create, rename, restyle, reorder, and delete folders.
       Deleting a folder puts its agents at that folder's root position in group
@@ -1310,7 +1315,11 @@ components:
       and depth it will land in; there are no drop lines or highlighted
       targets. A sideways drag of 20px moves the ghost one level in or out,
       which is how an employee enters a collapsed group or leaves a group
-      after its last member.
+      after its last member. An open folder with no members shows one muted
+      line under its header asking for an AI Employee to be dragged in, so
+      folding it visibly changes the rail and root employees below it never
+      read as its members. Folding hides the line, and it is absent wherever
+      nothing can be dragged yet.
       A folder header is 28px tall around a 20px glyph column with a 14px
       group mark. An AI Employee is a person row laid out like a message
       list: 64px around a 40px portrait, 12px from every edge of its pill,
@@ -1582,7 +1591,7 @@ components:
     purpose: >-
       The phone's long tail behind the nav bar's More item: every destination
       the desktop rail lists, as a floating card rising from the bar.
-    anatomy: [card, workspace-switcher, connect-group, account-row, account-menu,
+    anatomy: [card, workspace-switcher, plan-upgrade-row, connect-group, account-row, account-menu,
       destination-row, row-glyph]
     states: [closed, open]
     variants: []
@@ -1593,7 +1602,7 @@ components:
       one 16px left edge, its words 16px, whichever component draws it. Its
       header is the workspace switcher (sidebar-workspace-switcher), whose
       menu opens downward on the workspaces and create, headed by who is
-      signed in. Below it the rail's connect group (sidebar-connect-group),
+      signed in. Below it the personal plan upgrade row, then the rail's connect group (sidebar-connect-group),
       the same component with the same labels and logos. Then the
       account menu's destinations as rows, in its order: the account row
       (the portrait and "Your account", opening the person's menu with
@@ -2195,13 +2204,13 @@ components:
     title: Personal plan dialogs
     purpose: Ask a Free person to resume routines, choose one to keep, or review the launch plans.
     anatomy: [title, explanation, routine-list, free-plus-teams-panels, thank-you-gift, primary-action, secondary-action]
-    states: [resume, keep, announcement, offer, no-offer, loading, empty]
+    states: [resume, keep, announcement, beta-gift, no-gift, loading, empty]
     variants: [phone, desktop]
     behavior: >-
       The plan summary gates resume before keep before the announcement.
       Dismissing the announcement by any close path persists across devices
-      through the SDK. The offer starts Plus checkout; without it, the primary
-      action opens Billing. Prices and dates come from the plan summary. Only
+      through the SDK. The beta tester gift starts Plus checkout; without it,
+      the primary action opens Billing. Prices come from the plan summary. Only
       a real choice closes a dialog: the synthetic Escape a screen change sends
       is ignored.
     a11y: >-
@@ -2211,13 +2220,31 @@ components:
   - id: personal-billing-screen
     title: Personal billing screen
     purpose: Show a person's Free or Plus plan, weekly usage, routine state, and invoices.
-    anatomy: [heading, current-plan-card, upgrade-card, launch-price, offer-line, usage-card, invoice-list]
-    states: [free, plus, offer, preview, past-due, ending, loading, empty-invoices, error]
+    anatomy: [heading, current-plan-card, upgrade-card, launch-price, gift-line, usage-card, invoice-list]
+    states: [free, plus, beta-gift, preview, past-due, ending, loading, empty-invoices, error]
     variants: [phone, desktop]
     behavior: >-
       Upgrade opens checkout and polls the plan; invoice links open externally.
       Free shows usage as a percentage, including the prelaunch preview, and
-      routine actions. Launch pricing and an early offer appear when supplied.
+      routine actions. Launch pricing and the beta tester gift appear when supplied.
       Plus shows renewal or payment status and subscription management.
     a11y: Visible actions, labeled progress, status announcement, and keyboard-accessible invoice links.
     since: 103
+
+  - id: personal-plan-upgrade-row
+    title: Personal plan upgrade row
+    purpose: Make upgrading discoverable throughout the Free experience and show approaching or reached weekly usage limits.
+    anatomy: [status-icon, status-label, upgrade-chip, collapsed-tooltip]
+    states: [hidden, free, near-limit, limit-reached, preview]
+    variants: [expanded-rail, collapsed-rail, phone-more-menu]
+    behavior: >-
+      SDK planUpgradeView keeps the entry on Free, warns from 80 percent, and
+      marks the enforced limit at 100 percent. Before limits start, preview
+      usage never claims an enforced limit. Unknown plans and Plus hide it.
+      The rail draws a one-line pill between the update notice and Connect
+      your apps: the status ("Free plan", "85% used", "Limit reached") beside
+      a filled Upgrade chip. The icon rail keeps the status glyph; the phone's
+      More card draws it as its own sheet row. Every variant opens personal
+      Billing; the phone closes More and resets navigation.
+    a11y: Every variant is one button named "Upgrade to Plus" plus the usage state, and the icon rail shows that name as a tooltip. Warning and limit states use text and an icon as well as color.
+    since: 121

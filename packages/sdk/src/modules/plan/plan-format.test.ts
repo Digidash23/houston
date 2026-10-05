@@ -1,7 +1,6 @@
 import type { PlanSummary } from "@houston/wire-types";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { planAnnouncementView } from "./announcement-model";
-import { planOffer } from "./billing-model";
 import {
   formatLaunchDate,
   formatLocalDate,
@@ -12,7 +11,6 @@ import {
 /** Intl separates a currency code from the number with a no-break space. */
 const plain = (value: string) => value.replace(/\u00a0/g, " ");
 
-const BEFORE_LAUNCH = Date.parse("2026-09-25T00:00:00Z");
 const launch: PlanSummary = {
   plan: "free",
   announcement: true,
@@ -22,13 +20,7 @@ const launch: PlanSummary = {
     status: "none",
     manageable: false,
     price: { amount: 1500, currency: "usd", interval: "month" },
-    offer: {
-      amount: 1000,
-      currency: "usd",
-      coversFrom: "2026-10-01T07:00:00Z",
-      coversUntil: "2026-11-01T07:00:00Z",
-      endsAt: "2026-10-01T06:28:00Z",
-    },
+    offer: { amount: 1000, currency: "usd" },
   },
 };
 
@@ -50,19 +42,11 @@ describe("launch instants read as San Francisco dates in every zone", () => {
     ).toBe("September 30");
   });
 
-  it("shows October 1 in the announcement title and gift", () => {
-    const view = planAnnouncementView(launch, "en-US", BEFORE_LAUNCH);
-    expect(view.starts).toBe("October 1");
-    expect(view.offer?.from).toBe("October 1");
-    expect(view.offer?.until).toBe("November 1");
+  it("shows October 1 in the announcement title", () => {
+    expect(planAnnouncementView(launch, "en-US").starts).toBe("October 1");
   });
 
-  it("shows October 1 in the offer lead and September 30 as the offer end", () => {
-    expect(planOffer(launch, "en-US", BEFORE_LAUNCH)).toMatchObject({
-      from: "Oct 1, 2026",
-      until: "Nov 1, 2026",
-      ends: "Sep 30, 2026",
-    });
+  it("shows October 1 as the medium launch date", () => {
     expect(formatLaunchDate("2026-10-01T07:00:00Z", "en-US")).toBe(
       "Oct 1, 2026",
     );

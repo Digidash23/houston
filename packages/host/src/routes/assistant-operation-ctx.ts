@@ -1,5 +1,6 @@
 import type { ApprovalStore } from "../assistant/approvals";
 import type { AssistantCatalog } from "../assistant/catalog";
+import { gatewayAgentSlug } from "../assistant/coordinator-scope";
 import type { EntityDirectory } from "../assistant/entity-directory";
 import { gatewayEntityDirectory } from "../assistant/entity-directory-gateway";
 import { localEntityDirectory } from "../assistant/entity-directory-local";
@@ -37,6 +38,8 @@ export interface AssistantOperationCtx {
    *  operation's parameters name (`assistant/entity-resolution.ts`). */
   agents(): Promise<readonly ReachableAgent[]>;
   directory: EntityDirectory;
+  /** See `AssistantSandboxDeps.persistApprovals`. */
+  persistApprovals?: () => Promise<void>;
 }
 
 export interface AssistantCallInput {
@@ -60,7 +63,7 @@ export function assistantOperationDirectory(
     ? gatewayEntityDirectory({
         gateway,
         agentId: claim.agentId,
-        gatewayAgentId: process.env.HOUSTON_AGENT_SLUG,
+        gatewayAgentId: gatewayAgentSlug(),
         actingAs,
         fetchImpl: deps.fetchImpl,
       })

@@ -18,6 +18,7 @@ import {
 } from "./assistant-result";
 import { groupCounts, searchOperations } from "./assistant-search";
 import {
+  type HistoryReader,
   HOUSTON_RECALL_TOOL_NAME,
   makeHoustonRecallTool,
 } from "./houston-recall";
@@ -173,11 +174,14 @@ export function makeAssistantDescribeTool(opts: AssistantToolOptions) {
  * {@link ASSISTANT_TOOL_NAMES} — pi exposes only their intersection, and a name
  * with no object behind it is invisible to the model with no error anywhere.
  */
-export function makeAssistantTools(opts: AssistantToolOptions) {
+export function makeAssistantTools(
+  opts: AssistantToolOptions,
+  readHistory?: HistoryReader,
+) {
   return [
     makeAssistantCapabilitiesTool(opts),
     makeAssistantDescribeTool(opts),
     makeAssistantCallTool(opts),
-    makeHoustonRecallTool(),
+    makeHoustonRecallTool(readHistory),
   ];
 }

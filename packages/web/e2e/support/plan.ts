@@ -13,17 +13,12 @@ import { screen } from "./team-nav";
  * Billing screen, the announcement and the Stripe opener it drives.
  *
  * Every instant is FIXED and the page clock starts at `PLAN_NOW`
- * (`installPlanClock`), so the launch copy ("starts Oct 1"), the early offer's
- * window and the preview-versus-enforced mode are a function of the fixture
+ * (`installPlanClock`), so every date on screen is a function of the fixture
  * alone, on any day the suite runs.
  */
 
-/** The page's "now": six days before the limits start. */
-export const PLAN_NOW = "2026-09-25T17:00:00.000Z";
-/** `LimitsStartAt`, `EarlyPeriodEnd` and the offer's close (`- 32 min`). */
-export const LIMITS_START_AT = "2026-10-01T07:00:00.000Z";
-const EARLY_PERIOD_END = "2026-11-01T07:00:00.000Z";
-const OFFER_ENDS_AT = "2026-10-01T06:28:00.000Z";
+/** The page's "now": after the launch, so the summary carries no `limitsStartAt`. */
+export const PLAN_NOW = "2026-10-05T17:00:00.000Z";
 /** Where the fake host's checkout and portal point (never a real Stripe). */
 export const CHECKOUT_URL = "https://checkout.houston.invalid/c/pay/e2e";
 export const PORTAL_URL = "https://billing.houston.invalid/p/session/e2e";
@@ -37,7 +32,7 @@ export const FREE_ROUTINES: NonNullable<PlanSummary["routines"]> = {
   limitedCount: 0,
 };
 
-/** A Free person mid-week, with the launch discount and the early offer on. */
+/** A Free person mid-week, with the launch discount and the beta tester gift. */
 export function freePlan(patch: Partial<PlanSummary> = {}): PlanSummary {
   return {
     plan: "free",
@@ -51,13 +46,7 @@ export function freePlan(patch: Partial<PlanSummary> = {}): PlanSummary {
         interval: "month",
         compareAt: 2000,
       },
-      offer: {
-        amount: 1000,
-        currency: "usd",
-        coversFrom: LIMITS_START_AT,
-        coversUntil: EARLY_PERIOD_END,
-        endsAt: OFFER_ENDS_AT,
-      },
+      offer: { amount: 1000, currency: "usd" },
     },
     announcement: false,
     routines: FREE_ROUTINES,

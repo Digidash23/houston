@@ -140,7 +140,8 @@
       "creatorNeedsReconnect": "{{provider}} needs to be reconnected by the routine's creator.",
       "teamNeedsReconnect": "{{provider}} needs to be reconnected.",
       "outOfCredits": "The {{provider}} account is out of credits.",
-      "modelUnavailable": "The {{provider}} account can't use the model this routine runs on."
+      "modelUnavailable": "The {{provider}} account can't use the model this routine runs on.",
+      "poolDeliveryExpired": "This run couldn't start in time and was skipped. You can run the routine again."
     },
     "autoPause": {
       "chip": "Paused",

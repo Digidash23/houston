@@ -35,7 +35,6 @@ export function usePlanComposerState() {
         />
       ),
     };
-  const startsCheckout = mode === "previewHint" && offer !== null;
   return {
     hint: (
       <div className="flex flex-wrap items-center gap-2 px-2 py-1 text-xs text-ink-muted md:gap-3">
@@ -47,27 +46,16 @@ export function usePlanComposerState() {
               })
             : t("hint", { percent })}
         </span>
-        {startsCheckout && (
-          <span>
-            {t("previewOfferHint", {
-              date: offer.from,
-              amount: offer.amount,
-            })}
-          </span>
-        )}
+        {offer && <span>{t("offerHint", { amount: offer.amount })}</span>}
         <Button
           variant="link"
           className="h-auto p-0 text-xs font-normal text-link underline"
-          disabled={startsCheckout && checkout.outstanding}
-          onClick={() =>
-            startsCheckout ? checkout.start() : openSettings("plan")
-          }
+          disabled={offer !== null && checkout.outstanding}
+          onClick={() => (offer ? checkout.start() : openSettings("plan"))}
         >
-          {startsCheckout
-            ? t("getPlusFor", { amount: offer.amount })
-            : t("upgrade")}
+          {offer ? t("getPlusFor", { amount: offer.amount }) : t("upgrade")}
         </Button>
-        {startsCheckout && checkout.fallbackUrl && (
+        {offer && checkout.fallbackUrl && (
           <FallbackLink
             href={checkout.fallbackUrl}
             command="plus_checkout_open"

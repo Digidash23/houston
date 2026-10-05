@@ -49,3 +49,24 @@ test("no mirror mounted means no shared root, for either role", () => {
     fileToolGuardOptions({ role: null, workspaceDir, sharedSkillsDir: "" }),
   ).toEqual({ sharedRoots: [] });
 });
+
+test("a pooled turn's shared skills snapshot is readable, never a writable root", () => {
+  const snapshot = "/tmp/houston-turn-1/shared-skills";
+  expect(
+    fileToolGuardOptions({
+      role: null,
+      workspaceDir: "/data/ws/Writer",
+      sharedSkillsDir: "",
+      sharedSkillsSnapshot: snapshot,
+    }),
+  ).toEqual({ sharedRoots: [], readOnlyRoots: [snapshot] });
+  // The coordinator keeps its one document, snapshot or not.
+  expect(
+    fileToolGuardOptions({
+      role: "coordinator",
+      workspaceDir,
+      sharedSkillsDir: "",
+      sharedSkillsSnapshot: snapshot,
+    }),
+  ).toEqual({ allowedFiles: [learningsDocPath(workspaceDir)] });
+});

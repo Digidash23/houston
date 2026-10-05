@@ -1,4 +1,9 @@
-import type { EventStreamOptions, SendOptions } from "./client-contract";
+import {
+  type EventStreamOptions,
+  parseSendAccepted,
+  type SendAccepted,
+  type SendOptions,
+} from "./client-contract";
 import { EngineConversationsClient } from "./client-conversations";
 import { createRequester, EngineError, type Requester } from "./requester";
 import { readEventStream } from "./sse-read";
@@ -13,7 +18,11 @@ import type {
   VersionResponse,
 } from "./types";
 
-export type { EventStreamOptions, SendOptions } from "./client-contract";
+export type {
+  EventStreamOptions,
+  SendAccepted,
+  SendOptions,
+} from "./client-contract";
 export { EngineError };
 
 /**
@@ -126,32 +135,37 @@ export class HoustonEngineClient extends EngineConversationsClient {
   }
 
   /**
-   * Send a message, triggering a turn. Resolves once the turn is accepted (202);
-   * the turn's events stream over `streamEvents(id)`, not this call.
+   * Send a message, triggering a turn. Resolves once the turn is accepted (202)
+   * with the turn id the server names; the turn's events stream over
+   * `streamEvents(id)`, not this call.
    */
   async sendMessage(
     id: string,
     text: string,
     opts: SendOptions = {},
-  ): Promise<void> {
-    await this.request(`/conversations/${encodeURIComponent(id)}/messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text,
-        nonce: opts.nonce,
-        provider: opts.provider,
-        model: opts.model,
-        effort: opts.effort,
-        mode: opts.mode,
-        displayText: opts.displayText,
-        mentions: opts.mentions,
-        approvals: opts.approvals,
-        missionTitle: opts.missionTitle,
-        grants: opts.grants,
-      }),
-      signal: opts.signal,
-    });
+  ): Promise<SendAccepted> {
+    const res = await this.request(
+      `/conversations/${encodeURIComponent(id)}/messages`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          nonce: opts.nonce,
+          provider: opts.provider,
+          model: opts.model,
+          effort: opts.effort,
+          mode: opts.mode,
+          displayText: opts.displayText,
+          mentions: opts.mentions,
+          approvals: opts.approvals,
+          missionTitle: opts.missionTitle,
+          grants: opts.grants,
+        }),
+        signal: opts.signal,
+      },
+    );
+    return parseSendAccepted(await res.text());
   }
 
   /**

@@ -35,7 +35,12 @@ const BAD_MODEL: RoutineRunFailure = {
   provider: "anthropic",
 };
 
-type Outcome = RoutineRunFailure | "ok" | "transient" | "cancelled";
+type Outcome =
+  | RoutineRunFailure
+  | "ok"
+  | "transient"
+  | "cancelled"
+  | "undelivered";
 
 /** Runs of r1, OLDEST first, one minute apart after the routine's edit. */
 function history(outcomes: Outcome[], routineId = "r1"): RoutineRun[] {
@@ -53,6 +58,16 @@ function history(outcomes: Outcome[], routineId = "r1"): RoutineRun[] {
       if (outcome === "cancelled") return { ...run, status: "cancelled" };
       if (outcome === "transient")
         return { ...run, status: "error", summary: "timed out" };
+      // Exactly the row cloud records for a fire it could not deliver in time.
+      if (outcome === "undelivered")
+        return {
+          ...run,
+          status: "error",
+          session_key: "",
+          summary:
+            "The routine could not start before its delivery deadline. Retry the routine.",
+          delivery_failure: { code: "pool_delivery_expired" },
+        };
       return { ...run, status: "error", failure: outcome };
     })
     .reverse();
@@ -86,6 +101,31 @@ test("transient errors and stopped runs neither count nor reset the streak", () 
     routineAutoPause(
       routine(),
       history([...times(N - 1, NO_CREDITS), ...times(20, "transient")]),
+      NOW,
+    ),
+  ).toBeNull();
+});
+
+test("delivery failures are our capacity problem: they never pause, count or reset", () => {
+  // A routine whose every fire expired must never be paused for it.
+  expect(
+    routineAutoPause(routine(), history(times(3 * N, "undelivered")), NOW),
+  ).toBeNull();
+  // Expired fires between account failures neither add to nor break the streak.
+  const interleaved = times(N, NO_CREDITS).flatMap((f) => [
+    f,
+    "undelivered" as const,
+  ]);
+  expect(routineAutoPause(routine(), history(interleaved), NOW)).toEqual({
+    reason: "out_of_credits",
+    provider: "anthropic",
+    failures: N,
+    at: NOW,
+  });
+  expect(
+    routineAutoPause(
+      routine(),
+      history([...times(N - 1, NO_CREDITS), ...times(N, "undelivered")]),
       NOW,
     ),
   ).toBeNull();

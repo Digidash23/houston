@@ -21,6 +21,12 @@ export interface AgentProvisioningState {
    * an optimistic mission row, and flush when the readiness probe clears.
    */
   detectSleepingEngine: (agent: { id: string; folderPath: string }) => void;
+  /**
+   * The agent's engine answered a request of its own (a first-day start that
+   * rode out the warm-up): hand the entry off now instead of waiting for the
+   * probe's next attempt. No-op when the agent isn't marked.
+   */
+  engineAnswered: (agentPath: string) => void;
   /** A rename mid-warm-up moves the agent's id/path; re-key the entry. */
   carryRename: (
     oldId: string,

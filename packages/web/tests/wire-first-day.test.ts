@@ -16,9 +16,9 @@ import {
  *   create itself, as the config document in `seeds`: no second write, so it
  *   can neither fail after the hire nor race a later one.
  * - The start is ONE `POST /agents/:id/first-day`. The host makes it
- *   idempotent, which is why it, alone among writes, rides the transport's
- *   wake ladder: a start pressed while a new hire's pod is still coming up
- *   waits it out, and a repeat can only hand back the same task.
+ *   idempotent, which is why the SDK re-issues it on a waking answer
+ *   (`agents/first-day.ts`): a start pressed while a new hire's pod is still
+ *   coming up waits it out, and a repeat can only hand back the same task.
  */
 
 const BASE = "http://host";

@@ -2,26 +2,15 @@ import type { PlanSummary } from "@houston/wire-types";
 import { planOffer, planPriceAmounts } from "./billing-model";
 import { formatLaunchMonthDay, formatPlanAmount } from "./format";
 
-export function planAnnouncementView(
-  plan: PlanSummary,
-  locale?: string,
-  now = Date.now(),
-) {
-  const offer = planOffer(plan, locale, now);
+export function planAnnouncementView(plan: PlanSummary, locale?: string) {
+  const offer = planOffer(plan, locale);
   return {
     starts: plan.limitsStartAt
       ? formatLaunchMonthDay(plan.limitsStartAt, locale)
       : null,
     free: formatPlanAmount(0, plan.plus.price.currency, locale),
     plus: planPriceAmounts(plan, locale),
-    offer:
-      offer && plan.plus.offer
-        ? {
-            ...offer,
-            from: formatLaunchMonthDay(plan.plus.offer.coversFrom, locale),
-            until: formatLaunchMonthDay(plan.plus.offer.coversUntil, locale),
-          }
-        : null,
+    offer,
     action: offer ? ("checkout" as const) : ("plans" as const),
   };
 }

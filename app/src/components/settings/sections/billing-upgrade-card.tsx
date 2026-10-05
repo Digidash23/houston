@@ -35,15 +35,8 @@ export function UpgradeCard({
             <p className="text-sm font-medium">
               {t("offerLead", {
                 amount: offer.amount,
-                from: offer.from,
-                until: offer.until,
                 price: planPriceAmounts(plan, i18n.language).current,
               })}
-            </p>
-          )}
-          {offer && (
-            <p className="text-xs text-ink-muted">
-              {t("offerEnds", { date: offer.ends })}
             </p>
           )}
           <PlanPrice plan={plan} />

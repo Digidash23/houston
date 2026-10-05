@@ -109,19 +109,6 @@ export function engineVerdictMessage(e: unknown): string | undefined {
  * The web adapter's `isEngineWakingError` reads the same pairs across every
  * client error shape; this is the one shape the turn stream sees.
  */
-/**
- * The runtime refused a control because a turn is accepted, queued or running
- * on the conversation (`409 turn running`, its one 409). For a dismiss this
- * means the card the surface showed was stale: a turn started elsewhere (a
- * member's send, another device, a routine, a webhook) had already retired
- * that interaction, so nothing broke and the running turn is the truth the
- * surface must catch up to. Read by `dismissInteraction`, which turns it into
- * a typed outcome instead of a throw (HOUSTON-APP-5EY / PRODUCT-1827).
- */
-export function isTurnRunningRejection(e: unknown): boolean {
-  return e instanceof EngineError && e.status === 409;
-}
-
 export function isEngineWakingRejection(e: unknown): boolean {
   if (!(e instanceof EngineError)) return false;
   const reason = engineVerdictMessage(e);
@@ -177,13 +164,19 @@ export const ENGINE_RESUMED_MESSAGE =
   "Your agent was interrupted by a restart and is picking up where it left off.";
 
 /**
- * WHY the engine authored a system line, carried on the `system_message`
- * feed item beside its English default. A surface renders its own copy by
- * kind and never by matching the English text: the wording above is a
- * default for surfaces without a dictionary, not a contract to compare
- * against.
+ * WHY the engine or the SDK authored a system line, carried on the
+ * `system_message` feed item beside its English default. A surface renders
+ * its own copy by kind and never by matching the English text: the wording
+ * is a default for surfaces without a dictionary, not a contract to compare
+ * against. `send_busy`: a send held behind a running turn past its whole
+ * budget (`turn-running.ts`). `compute_busy`: a send the cloud's shared
+ * compute had no room for past its whole budget (`send-busy.ts`).
  */
-export type EngineNoticeKind = "engine_restart" | "engine_resumed";
+export type EngineNoticeKind =
+  | "engine_restart"
+  | "engine_resumed"
+  | "send_busy"
+  | "compute_busy";
 
 /**
  * Whether a turn's terminal error is the user pressing Stop — the verbatim

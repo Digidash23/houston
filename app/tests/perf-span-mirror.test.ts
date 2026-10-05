@@ -115,28 +115,43 @@ describe("perfSpanNeedsMemberships", () => {
 });
 
 describe("perfSpanEventProps", () => {
-  it("carries the org slug when the span has one", () => {
+  it("carries the org slug and the outcome when the span has them", () => {
     deepStrictEqual(
-      perfSpanEventProps("send_to_first_response", 800, "5f2b225f316c6079"),
+      perfSpanEventProps("send_to_first_response", 800, {
+        orgSlug: "5f2b225f316c6079",
+        outcome: "first_text",
+      }),
       {
         span: "send_to_first_response",
         duration_ms: 800,
         org_slug: "5f2b225f316c6079",
+        outcome: "first_text",
       },
     );
   });
 
-  it("leaves org_slug out entirely when there is no org", () => {
-    const props = perfSpanEventProps("send_to_first_response", 800, null);
-    deepStrictEqual(props, {
-      span: "send_to_first_response",
-      duration_ms: 800,
-    });
+  it("carries a failed send's outcome so the canary can count it", () => {
+    deepStrictEqual(
+      perfSpanEventProps("send_to_first_response", 4_000, {
+        orgSlug: null,
+        outcome: "error",
+      }),
+      { span: "send_to_first_response", duration_ms: 4_000, outcome: "error" },
+    );
+  });
+
+  it("leaves org_slug and outcome out entirely when there are none", () => {
+    const props = perfSpanEventProps("app_to_board", 800, { orgSlug: null });
+    deepStrictEqual(props, { span: "app_to_board", duration_ms: 800 });
     ok(!("org_slug" in props), "org_slug must be absent, not empty");
+    ok(!("outcome" in props), "outcome must be absent, not empty");
   });
 
   it("only sends properties the analytics allow-list keeps", () => {
-    const props = perfSpanEventProps("app_to_board", 5, "5f2b225f316c6079");
+    const props = perfSpanEventProps("send_to_first_response", 5, {
+      orgSlug: "5f2b225f316c6079",
+      outcome: "timeout",
+    });
     for (const key of Object.keys(props)) {
       ok(TRACKED_ALLOWED_PROPS.has(key), `cleanProps would drop "${key}"`);
     }

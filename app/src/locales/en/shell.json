@@ -55,7 +55,8 @@
       "menu": "Actions for {{name}}",
       "rename": "Rename",
       "move": "Move to another space",
-      "delete": "Delete group"
+      "delete": "Delete group",
+      "empty": "Drag an AI Employee here"
     },
     "teamIcons": {
       "bank": "Bank",
@@ -496,6 +497,11 @@
     "signInAgain": "Sign in again",
     "launchError": "Could not open sign-in. Try again."
   },
+  "providerReconnectNotice": {
+    "dueIn_one": "Your {{provider}} session ends in {{count}} day.",
+    "dueIn_other": "Your {{provider}} session ends in {{count}} days.",
+    "dueToday": "Your {{provider}} session ends today."
+  },
   "agentProvisioning": {
     "title": "We are creating your AI Employee",
     "stillStarting": "Your AI Employee is taking longer than usual to start. We are still trying, hang tight.",
@@ -503,7 +509,7 @@
     "stalledTitle": "Still working on it",
     "stalledBody": "This is taking longer than a normal start. We have not given up, your chat and messages are safe and will pick up the moment your AI Employee answers.",
     "gettingReadyTitle": "Getting {{name}} ready",
-    "gettingReadyBody": "This takes a minute or two. Feel free to look around while we set up {{name}}."
+    "gettingReadyBody": "This takes a few seconds. Feel free to look around while we set up {{name}}."
   },
   "reportBug": {
     "reportSuccessTitle": "Report sent",

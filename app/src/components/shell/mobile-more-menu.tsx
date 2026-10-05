@@ -8,6 +8,7 @@ import { ACADEMY_VIEW_ID } from "../../lib/top-level-views";
 import { useUIStore } from "../../stores/ui";
 import { ConnectGroup } from "./connect-group";
 import { MobileAccountRow, MobileMoreRowButton } from "./mobile-more-row";
+import { PlanUpgradeRow } from "./plan-upgrade-row";
 import { useAccountMenu } from "./sidebar-account-menu";
 import { SidebarDialogs } from "./sidebar-dialogs";
 import { academyNavRow, adminNavRow, settingsNavRow } from "./sidebar-nav-rows";
@@ -34,7 +35,7 @@ import { useWorkspaceSwitcherFace } from "./workspace-switcher-face";
  * navigate with `nav: "reset"`: reaching a destination from the menu is a
  * tab-level move, not a level pushed onto the tree the user was in.
  *
- * Under the switcher: the connect group (apps, then AI behind
+ * Under the switcher: the personal plan entry, then the connect group (apps, then AI behind
  * `showAiModels`), as at the rail's foot; then the account row opening the
  * person's menu, Admin behind the org gate, the Academy and Settings, which
  * the rail keeps inside its account menu and the card has the room to show
@@ -109,6 +110,7 @@ export function MobileMoreMenu() {
             </SidebarWorkspaceSwitcher>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+            <PlanUpgradeRow surface="sheet" nav="reset" />
             <div className="pb-2">
               <ConnectGroup
                 collapsed={false}

@@ -4,7 +4,6 @@ import type { HarnessBackend } from "../backends/types";
 import { config } from "../config";
 import { fileToolGuardOptions } from "../session/coordinator-policy";
 import type { MissionTitleRunner } from "../session/mission-title";
-import { systemPromptFor } from "../session/resource-loader";
 import { turnCodeExecutionMode } from "../session/tool-selection";
 import { makeRunCodeTool } from "../session/tools/run-code";
 import { sandboxFetchRunCodeTransport } from "../session/tools/run-code-transport";
@@ -13,6 +12,8 @@ import { turnRunCodeLimiter } from "./turn-run-code-limiter";
 import { createTurnModelRuntime } from "./turn-runtime";
 import { TURN_CODE_RUN_PATH } from "./turn-sandbox-code";
 import type { TurnDirectories, TurnSessionRequest } from "./turn-session";
+import { turnSharedSkillsDir } from "./turn-shared-skills";
+import { turnSystemPrompt } from "./turn-system-prompt";
 import { buildTurnToolSelection, turnCodeExecution } from "./turn-toolset";
 
 export interface RunTurnDeps {
@@ -21,6 +22,10 @@ export interface RunTurnDeps {
   titleRunner?: MissionTitleRunner;
   createBackend?: (provider: string, deps: TurnBackendDeps) => HarnessBackend;
   createModelRuntime?: typeof createTurnModelRuntime;
+  /** Test seam: the stall window, else `config.turnStallTimeoutMs`. */
+  stallTimeoutMs?: number;
+  /** Test seam: the first-byte deadline, else `config.turnFirstByteDeadlineMs`. */
+  firstByteDeadlineMs?: number;
 }
 
 export interface TurnSessionStartup {
@@ -99,15 +104,16 @@ async function prepareTurnSession(
     modelRuntime,
     toolSelection,
     codeSandbox,
-    systemPrompt: config.systemPrompt || systemPromptFor(codeExecution),
+    systemPrompt: config.systemPrompt || turnSystemPrompt(codeExecution),
     // The ROLE's file wall, the same policy the long-lived runtime builds
     // (session-tools.ts): a coordinator turn is held to its memory document,
     // so the shared skills mirror it must never rewrite is not a writable root
     // for it on any provider.
     fileGuard: fileToolGuardOptions({
-      role: config.assistantRole,
+      role: turn.role ?? null,
       workspaceDir: directories.workspaceDir,
       sharedSkillsDir: config.sharedSkillsDir,
+      sharedSkillsSnapshot: turnSharedSkillsDir(directories.turnRoot),
     }),
     claudeSdk: deps.claudeSdk,
     claudeSdkLoad: sdkLoad,
