@@ -60,7 +60,7 @@ export function createConversationPrewarm(ctx: ModuleContext) {
   /**
    * Readies the sandbox the person's next message in one chat will run in.
    *
-   * The gateway holds it for about 30 seconds after the latest request (3
+   * The gateway holds it for about 20 seconds after the latest request (3
    * minutes at most), for this person's next send in this chat alone. Asking
    * again extends the hold and never starts a second sandbox. Every outcome,
    * `skipped` included, answers 202.

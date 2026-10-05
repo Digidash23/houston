@@ -1,4 +1,5 @@
 import { HoustonClient } from "@houston/engine-adapter/client";
+import { PREWARM_TYPING_MS } from "@houston/sdk/draft-typing";
 import { afterEach, expect, test, vi } from "vitest";
 
 // The desktop shell repoints an already-built client whenever a new engine
@@ -32,6 +33,7 @@ function captureFetch(): { urls: string[]; bearers: (string | null)[] } {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 test("setEndpoint repoints gateway calls to the new base URL and bearer", async () => {
@@ -82,13 +84,15 @@ test("setEndpoint rebuilds the direct runtime client on the new port (local side
 });
 
 test("setEndpoint keeps the id a new chat's typing already prewarmed", async () => {
+  // Only Date: the typing policy reads the clock, and the fetches still settle.
+  vi.useFakeTimers({ toFake: ["Date"] });
   const urls: string[] = [];
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: unknown) => {
       urls.push(String(input));
       return new Response(
-        JSON.stringify({ outcome: "launching", holdMs: 30_000 }),
+        JSON.stringify({ outcome: "launching", holdMs: 20_000 }),
         { status: 202, headers: { "Content-Type": "application/json" } },
       );
     }),
@@ -103,7 +107,10 @@ test("setEndpoint keeps the id a new chat's typing already prewarmed", async () 
     draftKey: "new-conversation:board",
     text: "h",
   };
-  await client.draftChanged(draft, { conversationPrewarm: true });
+  for (let t = 0; t <= PREWARM_TYPING_MS; t += 250) {
+    await client.draftChanged(draft, { conversationPrewarm: true });
+    vi.setSystemTime(Date.now() + 250);
+  }
   const prewarmUrl = urls.find((url) => url.endsWith("/prewarm")) ?? "";
   const prewarmed = /conversations\/activity-([^/]+)\/prewarm$/.exec(
     prewarmUrl,

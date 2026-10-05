@@ -4,9 +4,10 @@ import { HoustonSdk } from "../../sdk";
 import { memoryKv } from "../../test-ports";
 import { asPrewarmInput, TurnsHttpError } from "./conversation-prewarm";
 import { PREWARM_REFRESH_MS } from "./draft-prewarm";
+import { PREWARM_TYPING_MS } from "./draft-typing";
 
 const BASE = "https://gw.example";
-const LAUNCHING = { outcome: "launching", holdMs: 30_000 };
+const LAUNCHING = { outcome: "launching", holdMs: 20_000 };
 
 interface Call {
   url: string;
@@ -41,7 +42,17 @@ function sdk(answer: () => Response = () => json(202, LAUNCHING)) {
   const advance = (ms: number) => {
     now += ms;
   };
-  return { client: new HoustonSdk(config), calls, advance };
+  const client = new HoustonSdk(config);
+  type Draft = Parameters<typeof client.turns.draftChanged>[0];
+  /** Types on, a keystroke every 250 ms, until just short of the typing
+   *  threshold: the next keystroke reaches it. */
+  const typeUpTo = async (draft: Draft) => {
+    for (let t = 0; t < PREWARM_TYPING_MS; t += 250) {
+      await client.turns.draftChanged(draft, { conversationPrewarm: true });
+      advance(250);
+    }
+  };
+  return { client, calls, advance, typeUpTo };
 }
 
 const json = (status: number, body: unknown) =>
@@ -128,12 +139,10 @@ describe("asPrewarmInput", () => {
 
 describe("turns.draftChanged and claimNewConversationId", () => {
   it("prewarm a new chat under the id its first send then claims", async () => {
-    const { client, calls, advance } = sdk();
+    const { client, calls, advance, typeUpTo } = sdk();
     const draft = { agentId: "sales", draftKey: "new-conversation:board" };
-    await client.turns.draftChanged(
-      { ...draft, text: "h" },
-      { conversationPrewarm: true },
-    );
+    await typeUpTo({ ...draft, text: "h" });
+    expect(calls).toEqual([]);
     await client.turns.draftChanged(
       { ...draft, text: "he" },
       { conversationPrewarm: true },
@@ -158,7 +167,15 @@ describe("turns.draftChanged and claimNewConversationId", () => {
   });
 
   it("rejects with the prewarm's error so the surface can report it", async () => {
-    const { client } = sdk(() => json(500, { error: "registry unavailable" }));
+    const { client, typeUpTo } = sdk(() =>
+      json(500, { error: "registry unavailable" }),
+    );
+    await typeUpTo({
+      agentId: "sales",
+      draftKey: "activity-c1",
+      conversationId: "activity-c1",
+      text: "hello",
+    });
     await expect(
       client.turns.draftChanged(
         {

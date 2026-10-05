@@ -1,4 +1,5 @@
 import { HoustonClient } from "@houston/engine-adapter/client";
+import { PREWARM_TYPING_MS } from "@houston/sdk/draft-typing";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import {
   createWireCapture,
@@ -19,12 +20,14 @@ import {
 
 const BASE = "https://gw.example";
 const AGENT = "sales";
-const ANSWER = { outcome: "launching", holdMs: 30_000 };
+const ANSWER = { outcome: "launching", holdMs: 20_000 };
 const PREWARM_ON = { conversationPrewarm: true };
 
 const { calls, reset, restore, stubFetch } = createWireCapture();
 
 beforeEach(() => {
+  // Only Date: the typing policy reads the clock, and the fetches still settle.
+  vi.useFakeTimers({ toFake: ["Date"] });
   installLocalStorage();
   reset();
   stubFetch(() => json(202, ANSWER));
@@ -32,8 +35,20 @@ beforeEach(() => {
 
 afterEach(() => {
   restore();
+  vi.useRealTimers();
   vi.clearAllMocks();
 });
+
+type Draft = Parameters<HoustonClient["draftChanged"]>[0];
+
+/** Types on, a keystroke every 250 ms, until just short of the typing
+ *  threshold: the next keystroke is the one that prewarms. */
+async function typeUpTo(c: HoustonClient, draft: Draft) {
+  for (let t = 0; t < PREWARM_TYPING_MS; t += 250) {
+    await c.draftChanged(draft, PREWARM_ON);
+    vi.setSystemTime(Date.now() + 250);
+  }
+}
 
 const client = () => {
   const c = new HoustonClient({
@@ -77,8 +92,10 @@ test("draftChanged on a new chat prewarms the id the first send claims", async (
     text: "hi",
     model: "gpt-5.5",
   };
-  await c.draftChanged(draft, PREWARM_ON);
+  await typeUpTo(c, draft);
+  expect(calls).toEqual([]);
   await c.draftChanged({ ...draft, text: "hi there" }, PREWARM_ON);
+  await c.draftChanged({ ...draft, text: "hi there!" }, PREWARM_ON);
 
   const id = c.claimNewConversationId(draft.draftKey);
   expect(calls).toHaveLength(1);
@@ -103,15 +120,16 @@ test("a refused prewarm rejects as the adapter's engine error", async () => {
   stubFetch(() =>
     json(503, { error: "prewarm not configured", code: "not_configured" }),
   );
-  await expect(
-    client().draftChanged(
-      {
-        agentId: AGENT,
-        draftKey: "activity-c1",
-        conversationId: "activity-c1",
-        text: "hello",
-      },
-      PREWARM_ON,
-    ),
-  ).rejects.toMatchObject({ name: "HoustonEngineError", status: 503 });
+  const c = client();
+  const draft = {
+    agentId: AGENT,
+    draftKey: "activity-c1",
+    conversationId: "activity-c1",
+    text: "hello",
+  };
+  await typeUpTo(c, draft);
+  await expect(c.draftChanged(draft, PREWARM_ON)).rejects.toMatchObject({
+    name: "HoustonEngineError",
+    status: 503,
+  });
 });

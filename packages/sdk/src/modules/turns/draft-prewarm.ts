@@ -1,11 +1,15 @@
 /**
  * When typing in a composer readies the sandbox its send will run in.
  *
- * The gateway holds a prewarmed sandbox about 30 s after the latest request,
- * so a typing session asks once on its first keystroke and then at most every
- * {@link PREWARM_REFRESH_MS} while the person keeps typing: the hold ends 20 to
- * 30 s after their last keystroke. A new chat has no id until its first send,
- * so the id is minted here and handed to that send by
+ * A prewarm starts only once the person has typed for
+ * {@link PREWARM_TYPING_MS} without a pause longer than
+ * {@link PREWARM_TYPING_GAP_MS}: a stray keystroke, or typing that starts and
+ * stops, readies nothing, since a sandbox nobody sends to is pure cost. While
+ * the gateway holds it (`holdMs` from the latest answer, 20 s), any keystroke
+ * at least {@link PREWARM_REFRESH_MS} after the last request asks again and
+ * extends the hold; once the hold has ended, the next prewarm waits for the
+ * person to type on again. A new chat has no id until its first send, so the
+ * id is minted here and handed to that send by
  * {@link DraftPrewarm.claimNewConversationId}. Only a send to the SAME
  * conversation attaches to the sandbox, which is why the two must agree.
  *
@@ -18,6 +22,12 @@ import {
   missionConversationId,
   recordConversationKind,
 } from "@houston/domain/conversation-keys";
+import {
+  type DraftTypingRun,
+  DraftTypingRuns,
+  holdOf,
+  PREWARM_TYPING_MS,
+} from "@houston/sdk/draft-typing";
 import type {
   Capabilities,
   ConversationPrewarmInput,
@@ -63,18 +73,23 @@ export interface DraftPrewarmSession {
   /** The agent and the chat it targets; either changing starts a new one. */
   target: string;
   sentAt: number;
+  /** Until when the gateway holds what the last request readied: a
+   *  keystroke before then refreshes the hold, one after starts over. */
+  heldUntil: number;
 }
 
 /** {@link DraftPrewarm.state}: plain data, safe to hand across instances. */
 export interface DraftPrewarmState {
   sessions: [string, DraftPrewarmSession][];
   pendingIds: [string, string][];
+  typing: [string, DraftTypingRun][];
 }
 
 /** One SDK instance's typing sessions and the ids minted for new chats. */
 export class DraftPrewarm {
   private readonly sessions = new Map<string, DraftPrewarmSession>();
   private readonly pendingIds = new Map<string, string>();
+  private readonly typing = new DraftTypingRuns();
   /** Targets with a prewarm on the wire. Kept apart from the sessions, which
    *  an emptied composer ends while its request may still be out. */
   private readonly inFlight = new Set<string>();
@@ -93,6 +108,7 @@ export class DraftPrewarm {
     if (capabilities?.conversationPrewarm !== true) return;
     if (draft.text.trim() === "") {
       this.sessions.delete(draft.draftKey);
+      this.typing.end(draft.draftKey);
       return;
     }
     const conversationId =
@@ -102,24 +118,30 @@ export class DraftPrewarm {
     if (recordConversationKind(conversationId) === "routine") return;
     const target = JSON.stringify([draft.agentId, conversationId]);
     const now = this.ports.now();
-    const session = this.sessions.get(draft.draftKey);
+    const run = this.typing.keystroke(draft.draftKey, target, now);
     if (this.inFlight.has(target)) return;
-    if (session?.target === target && now - session.sentAt < PREWARM_REFRESH_MS)
-      return;
-    this.sessions.set(draft.draftKey, { target, sentAt: now });
+    const session = this.sessions.get(draft.draftKey);
+    const same = session?.target === target;
+    if (same && now - session.sentAt < PREWARM_REFRESH_MS) return;
+    // A hold still running is refreshed by any keystroke; anything else is a
+    // new start, which waits for the person to type on.
+    const refreshing = same && now < session.heldUntil;
+    if (!refreshing && now - run.startedAt < PREWARM_TYPING_MS) return;
+    const sent: DraftPrewarmSession = { target, sentAt: now, heldUntil: now };
+    this.sessions.set(draft.draftKey, sent);
     this.inFlight.add(target);
     try {
-      await this.ports.prewarm(conversationId, draft.agentId, pinOf(draft));
+      const answer = await this.ports.prewarm(
+        conversationId,
+        draft.agentId,
+        pinOf(draft),
+      );
+      sent.heldUntil = now + holdOf(answer);
     } finally {
       this.inFlight.delete(target);
     }
   }
 
-  /**
-   * The id a new chat's first send uses: the one its typing already
-   * prewarmed, or a fresh one when nothing was. Forgets it, so the next new
-   * chat in the same slot gets its own.
-   */
   /**
    * The state a replacement SDK adopts: a hosted bearer rotation rebuilds the
    * SDK while the person may be typing, and a new chat's send must still claim
@@ -127,7 +149,11 @@ export class DraftPrewarm {
    * the new instance asks again and the gateway answers `held`.
    */
   state(): DraftPrewarmState {
-    return { sessions: [...this.sessions], pendingIds: [...this.pendingIds] };
+    return {
+      sessions: [...this.sessions].map(([key, s]) => [key, { ...s }]),
+      pendingIds: [...this.pendingIds],
+      typing: this.typing.entries(),
+    };
   }
 
   /** Takes over `state` for every slot this instance has not typed in. */
@@ -136,8 +162,14 @@ export class DraftPrewarm {
       if (!this.sessions.has(key)) this.sessions.set(key, { ...session });
     for (const [key, id] of state.pendingIds)
       if (!this.pendingIds.has(key)) this.pendingIds.set(key, id);
+    this.typing.adopt(state.typing);
   }
 
+  /**
+   * The id a new chat's first send uses: the one its typing already
+   * prewarmed, or a fresh one when nothing was. Forgets it, so the next new
+   * chat in the same slot gets its own.
+   */
   claimNewConversationId(draftKey: string): string {
     const pending = this.pendingIds.get(draftKey);
     this.pendingIds.delete(draftKey);

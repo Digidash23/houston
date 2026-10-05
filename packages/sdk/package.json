@@ -70,6 +70,10 @@
     "./draft-prewarm": {
       "types": "./src/modules/turns/draft-prewarm.ts",
       "import": "./src/modules/turns/draft-prewarm.ts"
+    },
+    "./draft-typing": {
+      "types": "./src/modules/turns/draft-typing.ts",
+      "import": "./src/modules/turns/draft-typing.ts"
     }
   },
   "files": [

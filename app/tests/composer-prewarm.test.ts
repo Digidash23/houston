@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import type { Capabilities } from "@houston/engine-adapter";
 import { DraftPrewarm } from "@houston/sdk/draft-prewarm";
+import { PREWARM_TYPING_MS } from "@houston/sdk/draft-typing";
 import {
   type ComposerTarget,
   composerDraft,
@@ -25,12 +26,13 @@ function harness(capabilities: Capabilities | undefined, failWith?: Error) {
   const prewarmed: { conversationId: string; agentId: string }[] = [];
   const reported: [string, unknown][] = [];
   let minted = 0;
+  let now = 0;
   const policy = new DraftPrewarm({
     prewarm: async (conversationId, agentId) => {
       prewarmed.push({ conversationId, agentId });
       if (failWith) throw failWith;
     },
-    now: () => 0,
+    now: () => now,
     mintId: () => `u-${++minted}`,
   });
   const composer = createComposerPrewarm({
@@ -41,7 +43,15 @@ function harness(capabilities: Capabilities | undefined, failWith?: Error) {
     capabilities: () => capabilities,
     report: (command, err) => reported.push([command, err]),
   });
-  return { composer, prewarmed, reported };
+  /** Types on past the SDK's threshold, a keystroke every 250 ms. */
+  const typeOn = async (key: string, text: string) => {
+    for (let t = 0; t <= PREWARM_TYPING_MS; t += 250) {
+      composer.draftChanged(key, text, TARGET);
+      await settled();
+      now += 250;
+    }
+  };
+  return { composer, prewarmed, reported, typeOn };
 }
 
 const settled = () => new Promise((resolve) => setImmediate(resolve));
@@ -86,9 +96,11 @@ describe("warm while typing", () => {
   });
 
   it("a new chat's first send uses the id its typing prewarmed", async () => {
-    const { composer, prewarmed } = harness(ON);
+    const { composer, prewarmed, typeOn } = harness(ON);
     composer.draftChanged("new-conversation", "h", TARGET);
     await settled();
+    deepStrictEqual(prewarmed, [], "one keystroke readies nothing");
+    await typeOn("new-conversation", "hello");
     const claimed = composer.claimNewConversationId(SLOT);
     const mission = newMissionIds(claimed);
     deepStrictEqual(prewarmed, [
@@ -99,9 +111,8 @@ describe("warm while typing", () => {
 
   it("a failed prewarm is reported, never thrown", async () => {
     const boom = new Error("gateway said no");
-    const { composer, reported } = harness(ON, boom);
-    composer.draftChanged("activity-c1", "hello", TARGET);
-    await settled();
+    const { reported, typeOn } = harness(ON, boom);
+    await typeOn("activity-c1", "hello");
     deepStrictEqual(reported, [["prewarm_conversation", boom]]);
   });
 });
