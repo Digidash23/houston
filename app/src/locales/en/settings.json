@@ -200,10 +200,21 @@
       "title": "Space ID",
       "description": "Apps send this ID to work with the AI Employees in {{space}}. Your keys work in every space you belong to, so open another space to see its ID.",
       "descriptionNoName": "Apps send this ID to work with the AI Employees in this space. Your keys work in every space you belong to, so open another space to see its ID.",
-      "loading": "Loading…",
+      "copyFailed": "Couldn't copy the space ID"
+    },
+    "idRow": {
       "copy": "Copy",
       "copied": "Copied",
-      "copyFailed": "Couldn't copy the space ID"
+      "loading": "Loading…"
+    },
+    "agentAccess": {
+      "title": "API access",
+      "agentId": "Agent ID",
+      "agentIdCopyFailed": "Couldn't copy the agent ID",
+      "keysRow": "API keys",
+      "keysRowDescription": "Create the keys your apps use to start tasks with {{name}}",
+      "docsRow": "Developer docs",
+      "docsRowDescription": "How to work with {{name}} from your own code"
     }
   },
   "channels": {

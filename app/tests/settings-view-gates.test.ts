@@ -137,6 +137,20 @@ describe("Settings > API keys", () => {
     ok(body.includes("<ApiKeysSection />"));
   });
 
+  it("gives every AI Employee's Settings an API access card", () => {
+    const manage = read(
+      "../src/components/agent-settings/agent-settings-manage.tsx",
+    );
+    const card = read("../src/components/agent-settings/agent-api-access.tsx");
+    ok(manage.includes("<AgentApiAccess agent={agent} />"));
+    ok(card.includes("apiKeysSupported(capabilities)"));
+    ok(
+      card.includes("useSpaceSlug(supported)"),
+      "no /v1/orgs read off-gateway",
+    );
+    ok(card.includes('openSettings("apiKeys")'));
+  });
+
   it("shows the open space's ID, the one value no key can look up", () => {
     const section = read("../src/components/settings/sections/api-keys.tsx");
     const spaceId = read(

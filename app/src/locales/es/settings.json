@@ -200,10 +200,21 @@
       "title": "ID del espacio",
       "description": "Las apps envían este ID para trabajar con los empleados de IA de {{space}}. Tus claves funcionan en todos los espacios a los que perteneces, así que abre otro espacio para ver su ID.",
       "descriptionNoName": "Las apps envían este ID para trabajar con los empleados de IA de este espacio. Tus claves funcionan en todos los espacios a los que perteneces, así que abre otro espacio para ver su ID.",
-      "loading": "Cargando…",
+      "copyFailed": "No se pudo copiar el ID del espacio"
+    },
+    "idRow": {
       "copy": "Copiar",
       "copied": "Copiado",
-      "copyFailed": "No se pudo copiar el ID del espacio"
+      "loading": "Cargando…"
+    },
+    "agentAccess": {
+      "title": "Acceso por API",
+      "agentId": "ID del agente",
+      "agentIdCopyFailed": "No se pudo copiar el ID del agente",
+      "keysRow": "Claves de API",
+      "keysRowDescription": "Crea las claves que usan tus apps para iniciar tareas con {{name}}",
+      "docsRow": "Documentación para desarrolladores",
+      "docsRowDescription": "Cómo trabajar con {{name}} desde tu propio código"
     }
   },
   "channels": {

@@ -1,73 +1,47 @@
-import { Button } from "@houston-ai/core";
-import { Check, Copy } from "lucide-react";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useOrgs } from "../../../hooks/queries/use-spaces";
 import { connectOrgSlug } from "../../../lib/agent-connect-model";
-import { genericErrorDescription } from "../../../lib/error-report";
-import { useUIStore } from "../../../stores/ui";
 import { useWorkspaceStore } from "../../../stores/workspaces";
+import { CopyIdRow } from "../copy-id-row";
 
 /**
  * The open space's ID, the value an API caller sends as `x-houston-org` (and
  * the `:org` segment of an A2A address). Keys belong to the person, not a
- * space, and no route a key can reach returns this slug, so this row is the
- * only place a developer can read it. Rendered only inside the API-keys
+ * space, and no route a key can reach returns this slug, so the app is the
+ * only place a developer can read it. `null` while `GET /v1/orgs` loads;
+ * `failed` once that read failed (already reported by the adapter), so the
+ * caller hides the row instead of promising an ID forever. Pass `enabled`
+ * false off the public API: a host without it serves no `/v1/orgs`.
+ */
+export function useSpaceSlug(enabled = true): {
+  slug: string | null;
+  failed: boolean;
+} {
+  const workspace = useWorkspaceStore((s) => s.current);
+  const { data: orgs, isError } = useOrgs(enabled);
+  const slug = connectOrgSlug(workspace?.id, orgs);
+  return { slug, failed: !slug && isError };
+}
+
+/**
+ * The Space ID card above the key list. Rendered only inside the API-keys
  * section, which is already gated on `capabilities.apiKeys`.
  */
 export function ApiSpaceId() {
   const { t } = useTranslation("settings");
   const workspace = useWorkspaceStore((s) => s.current);
-  const { data: orgs, isError } = useOrgs(true);
-  const addToast = useUIStore((s) => s.addToast);
-  const slug = connectOrgSlug(workspace?.id, orgs);
-  // "Copied" belongs to the slug it copied, so another space's ID reads fresh.
-  const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
-  const copied = slug !== null && copiedSlug === slug;
-
-  // A personal space's slug comes only from `GET /v1/orgs`; when that read
-  // failed (already reported by the adapter) there is no ID to show, and a
-  // row stuck on "Loading" would promise one.
-  if (!slug && isError) return null;
-
-  async function copySlug() {
-    if (!slug) return;
-    try {
-      await navigator.clipboard.writeText(slug);
-      setCopiedSlug(slug);
-      addToast({ title: t("apiKeys.spaceId.copied") });
-    } catch (err) {
-      addToast({
-        title: t("apiKeys.spaceId.copyFailed"),
-        description: genericErrorDescription("copy_space_id", err),
-        variant: "error",
-      });
-    }
-  }
+  const { slug, failed } = useSpaceSlug();
+  if (failed) return null;
 
   return (
-    <div className="mb-6 rounded-xl border border-line bg-card px-4 py-3">
-      <div className="flex items-center gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium text-ink">
-            {t("apiKeys.spaceId.title")}
-          </div>
-          <code className="mt-0.5 block truncate font-mono text-xs text-ink-muted">
-            {slug ?? t("apiKeys.spaceId.loading")}
-          </code>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="shrink-0"
-          disabled={!slug}
-          onClick={() => void copySlug()}
-        >
-          {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-          {copied ? t("apiKeys.spaceId.copied") : t("apiKeys.spaceId.copy")}
-        </Button>
-      </div>
-      <p className="mt-2 text-xs text-ink-muted">
+    <div className="mb-6 overflow-hidden rounded-xl border border-line bg-card">
+      <CopyIdRow
+        label={t("apiKeys.spaceId.title")}
+        value={slug}
+        copyFailedTitle={t("apiKeys.spaceId.copyFailed")}
+        reportKey="copy_space_id"
+      />
+      <p className="px-4 pb-3 text-xs text-ink-muted">
         {workspace
           ? t("apiKeys.spaceId.description", { space: workspace.name })
           : t("apiKeys.spaceId.descriptionNoName")}

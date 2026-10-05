@@ -9,7 +9,9 @@ Settings lists API keys again wherever the deployment serves the public API,
 on desktop and web. The screen links the developer docs, lists keys, mints
 one with a one-time reveal and revokes with a confirmation. A new Space ID row
 above the keys shows the ID apps send to reach the open space, with a copy
-button, on desktop and phone.
+button, on desktop and phone. Each AI Employee's Settings gains an "API
+access" card with its Agent ID, the Space ID, a way into API keys and the
+developer docs.
 
 ## v123 - 2026-10-05
 

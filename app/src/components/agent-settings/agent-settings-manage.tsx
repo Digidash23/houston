@@ -25,6 +25,7 @@ import { useCopyAgent } from "../agent-actions/use-copy-agent";
 import { SettingsCard, SettingsRow } from "../settings/settings-row";
 import { useSidebarLayout } from "../shell/../../hooks/use-sidebar-layout";
 import { useMoveAgentTeam } from "../team-view/use-move-agent-team";
+import { AgentApiAccess } from "./agent-api-access";
 
 export function AgentSettingsManage({ agent }: { agent: Agent }) {
   const { t } = useTranslation(["shell", "teams", "agents"]);
@@ -110,6 +111,7 @@ export function AgentSettingsManage({ agent }: { agent: Agent }) {
           onClick={() => setDeleting(true)}
         />
       </SettingsCard>
+      <AgentApiAccess agent={agent} />
 
       <AgentIdentityDialog
         agent={agent}

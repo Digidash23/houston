@@ -1,5 +1,6 @@
-import { FAKE_HOST_URL } from "@houston/fake-host";
+import { FAKE_HOST_URL, SEED_AGENT_NAME } from "@houston/fake-host";
 import type { Page } from "@playwright/test";
+import { openAgentSettings } from "./support/agent-nav";
 import { expect, test } from "./support/fixtures";
 import { openSettings } from "./support/settings-nav";
 
@@ -102,4 +103,38 @@ test("API keys shows the space ID, mints a key once, and links the docs", async 
   await page.setViewportSize({ width: 412, height: 915 });
   await expect(page.getByText(PERSONAL_SLUG)).toBeInViewport();
   await expect(page.getByRole("button", { name: "Copy" })).toBeInViewport();
+});
+
+test("an AI Employee's Settings shows its API access and opens the keys", async ({
+  page,
+  request,
+}) => {
+  await request.post(`${FAKE_HOST_URL}/__test__/capabilities`, {
+    data: { apiKeys: true },
+  });
+  await mockGateway(page);
+  await page.goto("/");
+  await openAgentSettings(page, SEED_AGENT_NAME, null);
+  await expect(
+    page.getByRole("heading", { name: "API access", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Agent ID", { exact: true })).toBeVisible();
+  await expect(page.getByText(PERSONAL_SLUG)).toBeVisible();
+  await page.getByRole("button", { name: /^API keys/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "API keys", exact: true }),
+  ).toBeVisible();
+});
+
+test("an AI Employee's Settings has no API access without the public API", async ({
+  page,
+}) => {
+  const capabilities = page.waitForResponse("**/v1/capabilities");
+  await page.goto("/");
+  await capabilities;
+  await openAgentSettings(page, SEED_AGENT_NAME, null);
+  await expect(page.getByText("Change color & name")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "API access", exact: true }),
+  ).toHaveCount(0);
 });
