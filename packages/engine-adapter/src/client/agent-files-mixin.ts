@@ -6,6 +6,7 @@ import {
 } from "../agent-files";
 import { emitLocalEcho } from "../bus";
 import * as controlPlane from "../control-plane";
+import { reportAdapterError } from "../error-sink";
 import { configWriteToSettings } from "../synthetic";
 import type { BaseCtor } from "./mixin";
 import { viaSdk } from "./sdk-error";
@@ -61,11 +62,11 @@ export function AgentFilesMixin<TBase extends BaseCtor>(Base: TBase) {
     }
 
     /**
-     * Mirror a per-agent `config.json` write (provider + model) into the engine's
-     * settings, so a model/provider pick in the chat picker actually changes what
-     * the next turn runs. Best-effort: the doc write already succeeded, and the
-     * picker only offers connected providers, so a failure here is logged (never a
-     * silent model swap) but doesn't fail the file write.
+     * Mirror a per-agent `config.json` write (provider, model, effort) into the
+     * engine's settings, so a pick in the chat picker actually changes what the
+     * next turn runs. Best-effort: the doc write already succeeded and every send
+     * carries the picker's pin anyway, so a failure here is reported through the
+     * app's error path (never a silent model swap) but doesn't fail the write.
      */
     private async syncConfigToSettings(
       agentPath: string,
@@ -80,10 +81,7 @@ export function AgentFilesMixin<TBase extends BaseCtor>(Base: TBase) {
           : this.ctx.engine;
         await engine.setSettings(update);
       } catch (err) {
-        console.error(
-          "[engine-adapter] failed to sync the model selection to the engine:",
-          err,
-        );
+        reportAdapterError("engine-adapter.config-settings-sync", err);
       }
     }
     /**

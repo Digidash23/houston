@@ -40,6 +40,7 @@ export async function createBoardConversation(
     files,
     providerOverride,
     modelOverride,
+    effortOverride,
     modeOverride,
     mentions,
     conversationId: claimedId,
@@ -69,6 +70,7 @@ export async function createBoardConversation(
     {
       providerOverride,
       modelOverride,
+      effortOverride,
       modeOverride,
       mentions,
       conversationId: claimedId,

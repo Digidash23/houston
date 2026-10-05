@@ -5,6 +5,7 @@ import { useSessionMessageQueue } from "../../hooks/use-session-message-queue";
 import { isAgentPathWarming } from "../../lib/agent-warming-guard";
 import type { ModelPin } from "../../lib/model-selector-lock";
 import type { SendOverrides } from "./board-source";
+import { settleOnPin } from "./composer-send-overrides";
 
 /**
  * Follow-up send + queue display shared by both board views.
@@ -14,10 +15,10 @@ import type { SendOverrides } from "./board-source";
  * send here just sends; this hook renders the open conversation's queued
  * bubbles and forwards the remove affordance.
  *
- * `overrides` carry the composer's effective provider/model so the wire
+ * `overrides` carry the composer's effective provider/model/effort so the wire
  * mirrors the dropdown; the source decides whether to honor or re-resolve
  * them inside `sendMessageNow`. `resolveSendPin` (the chat panel's gate,
- * PRODUCT-1771) supersedes the captured provider/model at SEND time: a send
+ * PRODUCT-1771) supersedes the captured pin at SEND time: a send
  * fired while the composer is still resolving waits for the settled pin
  * instead of shipping the guess it was rendered with.
  */
@@ -49,12 +50,7 @@ export function useBoardSendQueue({
       (selectedAgentPath && isAgentPathWarming(selectedAgentPath))
     )
       return overrides;
-    const pin = await resolveSendPin();
-    return {
-      ...overrides,
-      providerOverride: pin.provider,
-      modelOverride: pin.model,
-    };
+    return settleOnPin(overrides, await resolveSendPin());
   }, [overrides, resolveSendPin, selectedAgentPath]);
 
   const sendSelectedNow = useCallback(
