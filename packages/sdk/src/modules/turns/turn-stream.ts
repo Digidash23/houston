@@ -259,7 +259,9 @@ export async function streamTurn(
     after = prior.lastSeq;
     // The key is the observer's until this send lands: a Stop meanwhile
     // reaches this hook, not a turn entry.
-    const handoffStop = armHandoffStop(registry, key);
+    // A Stop disposes the observer at once: a terminal frame it already has
+    // must not report the conversation idle before the cancel answered.
+    const handoffStop = armHandoffStop(registry, key, () => prior.dispose());
     let refusal: unknown;
     const sentAt = Date.now();
     try {
@@ -402,6 +404,9 @@ export async function streamTurn(
     firstResponse,
   });
   if (sent) sink.sendAccepted();
+  // A teardown ends the sink at once: a history reload still out publishes
+  // nothing while the rest of this turn unwinds.
+  ac.signal.addEventListener("abort", () => sink.dispose(), { once: true });
 
   let sendVerdict: ReturnType<typeof setTimeout> | undefined;
   // A send the engine has not taken yet (still out, held behind a turn, or

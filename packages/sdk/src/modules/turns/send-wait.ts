@@ -155,12 +155,15 @@ export interface HandoffStop {
 export function armHandoffStop(
   registry: StreamRegistry,
   key: string,
+  /** Runs at the Stop, before anything unwinds (the observer's dispose). */
+  onStop: () => void,
 ): HandoffStop {
   const post = new AbortController();
   let stop: PersonStop | undefined;
   const hook = () => {
     if (stop) return null;
     stop = new PersonStop();
+    onStop();
     post.abort();
     return stop.finish;
   };

@@ -620,7 +620,7 @@ test("a Stop waits for the engine's cancel to answer, however long it takes", as
   vi.useFakeTimers();
   try {
     const stops = new StreamRegistry();
-    const handoff = armHandoffStop(stops, "k");
+    const handoff = armHandoffStop(stops, "k", () => {});
     const finish = stops.stopUnsent("k");
     expect(finish).not.toBeNull();
     let answered = false;
@@ -1205,4 +1205,125 @@ test("a pre-settled poll still out at teardown never polls again", async () => {
   await new Promise((r) => setTimeout(r, 100));
 
   expect(reloads).toBe(1);
+});
+
+test("a handoff Stop silences the observer before its rejection unwinds", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-handoff-stop-observer";
+  let observerEmit: ((f: WireFrame) => void) | undefined;
+  const { engine } = busyEngine(0, async (o) => {
+    o.onEvent({
+      type: "sync",
+      data: { running: true, partial: "", turnId: "t-prev", seq: 3 },
+      seq: 3,
+    });
+    observerEmit = o.onEvent;
+    await untilAborted(o);
+  });
+  let posted = false;
+  engine.sendMessage = ((
+    _id: string,
+    _text: string,
+    o?: { signal?: AbortSignal },
+  ) => {
+    posted = true;
+    return new Promise((_resolve, reject) => {
+      o?.signal?.addEventListener(
+        "abort",
+        () => reject(new DOMException("aborted", "AbortError")),
+        { once: true },
+      );
+    });
+  }) as typeof engine.sendMessage;
+
+  observeConversation(engine, "Houston/Bo", key, output, 1, registry, fast);
+  await waitFor(() => observerEmit !== undefined);
+  const turn = streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: fast,
+  });
+  await waitFor(() => posted);
+  const finish = registry.stopUnsent(streamKey("Houston/Bo", key));
+  // The observed turn's end, already in hand when the Stop lands.
+  observerEmit?.({ type: "done", data: null, turnId: "t-prev", seq: 4 });
+  await new Promise((r) => setTimeout(r, 50));
+  expect(snapshot(key).running).toBe(true);
+  finish?.();
+  await turn;
+
+  expect(snapshot(key).feed.some((f) => f.data === STOPPED_BY_USER)).toBe(true);
+});
+
+test("a teardown silences a history reload the turn still has out", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-teardown-reload";
+  const persisted: string[] = [];
+  output.persistBoardStatus = async (_agent, _session, status) => {
+    persisted.push(status);
+  };
+  let reloading = false;
+  let answerHistory: (messages: unknown[]) => void = () => {};
+  const { engine, nonces } = busyEngine(
+    1,
+    // The re-send echoes before its POST answers, then the connection drops.
+    async (o) => {
+      o.onEvent(sync(false, 0));
+      await waitFor(() => nonces.length === 2);
+      o.onEvent({
+        type: "user",
+        data: { content: "hi", ts: 1, nonce: nonces[1] },
+        turnId: "t-mine",
+        seq: 1,
+      });
+      throw new Error("Load failed");
+    },
+    // The reconnect's idle resync starts a history settle.
+    async (o) => {
+      o.onEvent({
+        type: "sync",
+        data: { running: false, partial: "", resync: true, seq: 2 },
+        seq: 2,
+      });
+      await untilAborted(o);
+    },
+  );
+  const send = engine.sendMessage.bind(engine);
+  engine.sendMessage = (async (
+    id: string,
+    text: string,
+    o?: { nonce?: string; signal?: AbortSignal },
+  ) => {
+    if (nonces.length === 0) return send(id, text, o); // refused for room
+    await send(id, text, o);
+    // The re-send's 202 never comes.
+    return new Promise<never>((_resolve, reject) => {
+      o?.signal?.addEventListener(
+        "abort",
+        () => reject(new DOMException("aborted", "AbortError")),
+        { once: true },
+      );
+    });
+  }) as typeof engine.sendMessage;
+  engine.getHistory = (() => {
+    reloading = true;
+    return new Promise((resolve) => {
+      answerHistory = (messages) =>
+        resolve({ id: "c", title: "", messages } as never);
+    });
+  }) as typeof engine.getHistory;
+
+  const turn = streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: fast,
+  });
+  await waitFor(() => reloading);
+  const persistedBefore = persisted.length;
+  registry.disposeAll();
+  answerHistory([
+    { role: "user", content: "hi", turnId: "t-mine" },
+    { role: "assistant", content: "Done", turnId: "t-mine" },
+  ]);
+  await turn;
+  await new Promise((r) => setTimeout(r, 50));
+
+  expect(snapshot(key).sessionStatus).not.toBe("completed");
+  expect(persisted.slice(persistedBefore)).toEqual([]);
 });
