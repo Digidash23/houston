@@ -14,12 +14,13 @@ export function runInTurnContext<T>(
   turn: {
     conversationId: string;
     mode: TurnMode;
+    liveMode?: import("../session/turn-mode-context").TurnModeRef;
     model: { provider: string; id: string };
   },
   fn: () => T,
 ): T {
   return runWithConversationId(turn.conversationId, () =>
-    runWithTurnMode({ current: turn.mode }, () =>
+    runWithTurnMode(turn.liveMode ?? { current: turn.mode }, () =>
       runWithTurnModel(
         { provider: turn.model.provider, model: turn.model.id },
         fn,

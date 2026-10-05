@@ -49,6 +49,8 @@ export type TurnCredential = ServedCredential & {
  * requests.
  */
 export interface TurnRequest {
+  /** Per-request mode ref; never accepted from the wire. */
+  liveMode?: import("../session/turn-mode-context").TurnModeRef;
   workspaceId: string;
   agentId: string;
   conversationId: string;
