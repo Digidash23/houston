@@ -192,3 +192,26 @@ test("the list's shortcut opens the create sheet on a new AI Employee", async ({
       .first(),
   ).toBeVisible();
 });
+
+test("an open empty folder says how to fill it, and folding hides the line", async ({
+  page,
+}) => {
+  await seedSidebarLayout(page.request, {
+    groups: [{ id: "later", name: "Later", collapsed: false, agentIds: [] }],
+    order: [
+      { kind: "group", id: "later" },
+      { kind: "agent", id: SEED_AGENT_ID },
+    ],
+  });
+  await page.goto("/");
+  const hint = page.locator('[data-sidebar-empty-group="later"]');
+  await expect(hint).toHaveText("Drag an AI Employee here");
+  await page
+    .locator('[data-sidebar-group-header="later"] button')
+    .first()
+    .click();
+  await expect(hint).toHaveCount(0);
+  await expect(page.locator("[data-sidebar-item]")).toContainText(
+    SEED_AGENT_NAME,
+  );
+});
