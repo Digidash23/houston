@@ -16,12 +16,13 @@ import { defineRoute } from "./registry";
 const SOURCE = "packages/host/src/routes/meta.ts";
 
 export function healthBody(deps: Pick<ControlPlaneDeps, "storeFenced">): {
-  status: "ok";
+  status: "ok" | "fenced";
   storeFenced?: boolean;
 } {
+  const fenced = deps.storeFenced?.() ?? false;
   return {
-    status: "ok",
-    ...(deps.storeFenced ? { storeFenced: deps.storeFenced() } : {}),
+    status: fenced ? "fenced" : "ok",
+    ...(deps.storeFenced ? { storeFenced: fenced } : {}),
   };
 }
 
@@ -33,9 +34,14 @@ defineRoute({
   classification: "infra",
   reason: "Liveness probe: no user identity, no domain payload.",
   source: SOURCE,
-  // The gateway may use storeFenced to change routing/readiness later. This
-  // only surfaces the state and deliberately keeps health at 200.
-  handler: ({ deps, res }) => json(res, 200, healthBody(deps)),
+  // /health is the engine pod's readiness probe. A pod that lost its store
+  // lease answers 503 so it leaves the agent's Service and clients stop
+  // retrying against it: it retires, or stands down while a running engine
+  // holds the lease (local/fence-retire.ts).
+  handler: ({ deps, res }) => {
+    const body = healthBody(deps);
+    json(res, body.status === "fenced" ? 503 : 200, body);
+  },
 });
 
 defineRoute({

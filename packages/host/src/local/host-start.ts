@@ -2,7 +2,6 @@ import { trackBoundAgentRole } from "../agent-role/role-publisher";
 import { processAssistantCatalog } from "../assistant/catalog-source";
 import { warmViewDocs } from "../docs/view-warm";
 import { formatAssistantModeLog } from "../routes/assistant-wiring";
-import { waitForPredecessorDrain } from "../store-sync/predecessor-drain";
 import { sendBootReport } from "../telemetry/boot-report";
 import { formatHostListeningBanner } from "./banner";
 import { formatIntegrationsModeLog, severityLog } from "./host-log";
@@ -40,16 +39,11 @@ export async function startLocalHost(
   // The object store is authoritative in managed server mode. Hydration is
   // readiness-critical and must finish before migrations or HTTP listening;
   // failure propagates so the pod restarts without ever syncing an empty tree.
+  // A managed boot reaches here only after its predecessor's drain window
+  // closed and its own lease claim landed (local/managed-store-config.ts):
+  // hydrating inside that window would read an in-flight marker for a turn
+  // that is still alive (PRODUCT-1783).
   if (syncDaemon) {
-    // PRODUCT-1783: a pod evicted mid-turn keeps draining for minutes while
-    // this replacement boots. Hydrating inside that window reads an in-flight
-    // marker for a turn that is still alive, and the runtime's boot settle
-    // then writes "your agent had to restart" over a reply that lands a
-    // moment later. Wait the predecessor's published window out first.
-    await waitForPredecessorDrain({
-      store: syncDaemon.store,
-      log: severityLog,
-    });
     const objects = await boot.time("hydrate", () => syncDaemon.hydrate());
     boot.setHydratedObjects(objects);
   }
