@@ -624,7 +624,7 @@ test("a Stop waits for the engine's cancel to answer, however long it takes", as
     const finish = stops.stopUnsent("k");
     expect(finish).not.toBeNull();
     let answered = false;
-    void handoff.stopped()?.then(() => {
+    void handoff.stopped()?.answered.then(() => {
       answered = true;
     });
     await vi.advanceTimersByTimeAsync(120_000);
@@ -1326,4 +1326,76 @@ test("a teardown silences a history reload the turn still has out", async () => 
 
   expect(snapshot(key).sessionStatus).not.toBe("completed");
   expect(persisted.slice(persistedBefore)).toEqual([]);
+});
+
+test("two Stops settle the waiting send only once both cancels answered", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-busy-double-stop";
+  const { engine } = busyEngine(Number.POSITIVE_INFINITY, async (o) => {
+    o.onEvent(sync(false, 0));
+    await untilAborted(o);
+  });
+
+  const turn = streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: { ...fast, sendBusyNoticeMs: 0 },
+  });
+  await waitFor(() => snapshot(key)?.sendWaiting === "busy");
+  const first = registry.stopUnsent(streamKey("Houston/Bo", key));
+  const second = registry.stopUnsent(streamKey("Houston/Bo", key));
+  expect(second).not.toBeNull();
+  first?.();
+  await new Promise((r) => setTimeout(r, 50));
+  // The second cancel is still out: it could stop a queued message.
+  expect(snapshot(key).boardStatus).not.toBe("needs_you");
+  expect(registry.get(streamKey("Houston/Bo", key))?.held).toBe(true);
+  second?.();
+  await turn;
+
+  expect(snapshot(key).boardStatus).toBe("needs_you");
+});
+
+test("a busy takeover runs the conversation again after the observer settled", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-busy-takeover-running";
+  let observerEmit: ((f: WireFrame) => void) | undefined;
+  const { engine, nonces } = busyEngine(
+    1,
+    async (o) => {
+      o.onEvent({
+        type: "sync",
+        data: { running: true, partial: "", turnId: "t-prev", seq: 3 },
+        seq: 3,
+      });
+      observerEmit = o.onEvent;
+      await untilAborted(o);
+    },
+    async (o) => {
+      await waitFor(() => nonces.length === 2);
+      reply(o, nonces[1], 5);
+    },
+  );
+  const send = engine.sendMessage.bind(engine);
+  engine.sendMessage = (async (...args: Parameters<typeof send>) => {
+    // The previous turn ends while the handoff's POST waits in the queue.
+    if (nonces.length === 0) {
+      observerEmit?.({ type: "done", data: null, turnId: "t-prev", seq: 4 });
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    return send(...args);
+  }) as typeof engine.sendMessage;
+
+  observeConversation(engine, "Houston/Bo", key, output, 1, registry, fast);
+  await waitFor(() => observerEmit !== undefined);
+  const turn = streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: fast,
+  });
+  await waitFor(
+    () => registry.get(streamKey("Houston/Bo", key))?.kind === "turn",
+  );
+  // The message waits for room: the conversation is running, not idle.
+  expect(nonces).toHaveLength(1);
+  expect(snapshot(key).running).toBe(true);
+  await turn;
+
+  expect(snapshot(key).sessionStatus).toBe("completed");
 });

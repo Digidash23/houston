@@ -10,7 +10,11 @@ import { FirstResponseClock } from "./first-response";
 import { randomNonce } from "./random-nonce";
 import { computeBusyRefusal } from "./send-busy";
 import { observerSettled } from "./send-hold";
-import { armHandoffStop, sendUntilAccepted } from "./send-wait";
+import {
+  armHandoffStop,
+  type PersonStop,
+  sendUntilAccepted,
+} from "./send-wait";
 import {
   type ActiveStream,
   PRESETTLED_POLL_MS,
@@ -238,7 +242,7 @@ export async function streamTurn(
   let handoffSentAt: number | undefined;
   // Set when the person stopped the handoff's send before it landed:
   // resolves once the engine's cancel answered.
-  let stoppedBeforeSend: Promise<void> | undefined;
+  let stoppedBeforeSend: PersonStop | undefined;
   if (prior?.kind === "observer") {
     // Claim the per-key send lock SYNCHRONOUSLY, before the first await: the
     // observer entry still holds the key across `sendMessage`, so without this a
@@ -382,6 +386,10 @@ export async function streamTurn(
   // The turn stream now owns the key — release the handoff send lock (a no-op
   // for the fresh path, which never claimed it).
   registry.endSend(key);
+  // The observer may have settled the turn it watched while our send was
+  // out: this turn runs from here (held, waiting, or accepted).
+  if (prior?.kind === "observer")
+    output.sessionStatus(agentPath, sessionKey, "running");
 
   const sink = new TurnSink({
     agentPath,
@@ -448,8 +456,10 @@ export async function streamTurn(
     // `await streaming`) so nothing becomes an unhandled rejection.
     streaming.catch(() => {});
     if (stoppedBeforeSend) {
+      const stopped = stoppedBeforeSend;
       entry.held = true; // the queue watchdog flushes nothing into the cancel
-      await stoppedBeforeSend;
+      entry.stopUnsent = () => stopped.join(); // a second Stop joins the wait
+      await stopped.answered;
       if (!ac.signal.aborted) sink.fail(STOPPED_BY_USER); // not after a teardown
       ac.abort();
     } else if (!sent) {

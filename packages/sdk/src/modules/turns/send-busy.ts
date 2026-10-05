@@ -80,6 +80,11 @@ export class SendBusyClock {
     return this.waited >= this.budget;
   }
 
+  /** What is left of the budget. */
+  get left(): number {
+    return Math.max(0, this.budget - this.waited);
+  }
+
   /**
    * Call `onBusy` once the wait reaches the notice threshold, on a timer of
    * its own: a re-send the gateway holds in its queue must not delay it.
@@ -104,6 +109,6 @@ export class SendBusyClock {
       Math.max(hint, BUSY_RETRY_MIN_MS),
       BUSY_RETRY_MAX_MS,
     );
-    return Math.min(pause, Math.max(0, this.budget - this.waited));
+    return Math.min(pause, this.left);
   }
 }

@@ -118,8 +118,12 @@ export async function sendHolding(
         // this turn's until it is accepted, so an idle sync cannot settle it.
         onHold();
         busyClock.armNotice(onBusy);
-        await pause(busyClock.pauseFor(busy), signal);
-        if (busyClock.spent) throw refusal;
+        const left = busyClock.left;
+        const wait = busyClock.pauseFor(busy);
+        await pause(wait, signal);
+        // A pause cut to the budget's end is the last one, whatever the
+        // timer's jitter: no re-send follows it.
+        if (wait >= left || busyClock.spent) throw refusal;
       } else if (isEngineWakingRejection(refusal)) {
         const delay = wakeDelays[wakes++];
         if (delay === undefined) throw refusal;

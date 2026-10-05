@@ -17,16 +17,35 @@ import type { TurnSink } from "./turn-sink";
  * instead. Every caller calls `finish` in a `finally`, so a cancel that fails
  * settles the turn too.
  */
-class PersonStop {
+export class PersonStop {
   readonly answered: Promise<void>;
-  readonly finish: () => void;
+  private resolve: () => void = () => {};
+  /** Cancels still out: a second Stop sends a second one. */
+  private pending = 0;
+  private done = false;
 
   constructor() {
-    let resolve: () => void = () => {};
     this.answered = new Promise<void>((r) => {
-      resolve = r;
+      this.resolve = r;
     });
-    this.finish = () => resolve();
+  }
+
+  /**
+   * One Stop's cancel: the `finish` its caller calls once that cancel
+   * answered. The turn settles only when every cancel out has answered, so
+   * none of them can reach a message queued behind it. Null once settled.
+   */
+  join(): (() => void) | null {
+    if (this.done) return null;
+    this.pending++;
+    let finished = false;
+    return () => {
+      if (finished) return;
+      finished = true;
+      if (--this.pending > 0) return;
+      this.done = true;
+      this.resolve();
+    };
   }
 }
 
@@ -91,14 +110,15 @@ export async function sendUntilAccepted(
   ac.signal.addEventListener("abort", clearBusy, { once: true });
   let stop: PersonStop | undefined;
   entry.stopUnsent = () => {
-    if (sink.settled || stop) return null;
+    if (sink.settled) return null;
+    if (stop) return stop.join();
     stop = new PersonStop();
     // Until the cancel answered no frame settles it, and the queue watchdog
     // flushes nothing into that cancel.
     sink.mute();
     entry.held = true;
     endSend();
-    return stop.finish;
+    return stop.join();
   };
   try {
     const accepted = await sendHolding(
@@ -142,8 +162,8 @@ export async function sendUntilAccepted(
 export interface HandoffStop {
   /** Aborts the handoff's POST, and any hold behind the observed turn. */
   signal: AbortSignal;
-  /** Set once the person stopped it: resolves when the engine's cancel answered. */
-  stopped(): Promise<void> | undefined;
+  /** Set once the person stopped it: settles once every cancel answered. */
+  stopped(): PersonStop | undefined;
   disarm(): void;
 }
 
@@ -161,16 +181,16 @@ export function armHandoffStop(
   const post = new AbortController();
   let stop: PersonStop | undefined;
   const hook = () => {
-    if (stop) return null;
+    if (stop) return stop.join();
     stop = new PersonStop();
     onStop();
     post.abort();
-    return stop.finish;
+    return stop.join();
   };
   registry.armSendStop(key, hook);
   return {
     signal: post.signal,
-    stopped: () => stop?.answered,
+    stopped: () => stop,
     disarm: () => registry.disarmSendStop(key, hook),
   };
 }
