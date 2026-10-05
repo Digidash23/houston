@@ -1,17 +1,19 @@
+/**
+ * The pooled runtime admits bounded work, hydrates a throwaway agent root,
+ * publishes durable changes, then wipes the root. A login reserves the process
+ * for one sign-in and cannot share it with turns or ops.
+ *
+ * Authorization is two-layered: deployment IAM protects the endpoint, while
+ * X-Internal-Token is the application secret for dispatched work and logins.
+ */
 import { createServer, type Server } from "node:http";
-import { MAX_UPLOAD_BODY_BYTES } from "@houston/host/src/turn/files-import";
 import { AdmissionLimiter, turnConcurrency } from "./admission";
-import { executeOp } from "./execute-op";
-import { executeTurn } from "./execute-turn";
 import { makeLoginRunnerRoutes } from "./login-runner-routes";
-import { parseTurnRequest } from "./parse-turn-request";
-import { authorized, incarnationOK, json, readJson } from "./server-http";
+import { authorized, incarnationOK, json } from "./server-http";
 import type { TurnServerDeps } from "./server-types";
-import type { TurnRequest } from "./types";
+import { serveOp, serveTurn } from "./server-work";
 
 export type { TurnServerDeps } from "./server-types";
-
-const OP_BODY_MAX_BYTES = MAX_UPLOAD_BODY_BYTES + 1024 * 1024;
 
 export function createTurnServer(deps: TurnServerDeps): Server {
   const admission =
@@ -21,10 +23,13 @@ export function createTurnServer(deps: TurnServerDeps): Server {
   let loginBegin: Promise<void> | undefined;
   const login = makeLoginRunnerRoutes(deps.loginRunner);
   return createServer((req, res) => {
+    // Start before the body streams in so upload time is measured separately.
     const arrival: Record<string, number> = { t_arrived: performance.now() };
     (async () => {
       const path = (req.url || "/").split("?")[0];
       if (req.method === "GET" && path === "/health") {
+        // Report a spent worker as NOT-ready so probes mark it 0/1 READY while
+        // awaiting recycle, and the dispatcher cannot send it more work.
         if (use === "login" || deps.isDraining?.()) {
           return json(res, 503, { status: "draining", mode: "turn" });
         }
@@ -75,57 +80,9 @@ export function createTurnServer(deps: TurnServerDeps): Server {
       }
       use = "work";
       if (path === "/op") {
-        const releaseOp = admission.tryAcquire();
-        if (!releaseOp) {
-          return json(
-            res,
-            503,
-            { error: "worker_full" },
-            { "Retry-After": "1" },
-          );
-        }
-        try {
-          const body = await readJson(req, OP_BODY_MAX_BYTES);
-          await executeOp(deps, req, res, body);
-        } finally {
-          releaseOp();
-        }
-        return;
-      }
-      let turn: TurnRequest;
-      try {
-        turn = parseTurnRequest(await readJson(req, 40 * 1024 * 1024, arrival));
-        arrival.t_body_parsed = performance.now();
-      } catch (error) {
-        return json(res, 400, {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-      if (deps.singleUse && !turn.shadow && !turn.claim) {
-        return json(res, 400, { error: "single_use_requires_claim" });
-      }
-      const release = admission.tryAcquire();
-      if (!release) {
-        return json(res, 503, { error: "worker_full" }, { "Retry-After": "1" });
-      }
-      const spend = Boolean(turn.claim && !turn.shadow && deps.singleUse);
-      try {
-        if (deps.isDraining?.()) {
-          return json(
-            res,
-            503,
-            { error: "worker_draining" },
-            { "Retry-After": "1" },
-          );
-        }
-        if (spend) await deps.singleUse?.begin();
-        await executeTurn(deps, turn, req, res, {
-          ...arrival,
-          t0_request: performance.now(),
-        });
-      } finally {
-        release();
-        if (spend) deps.singleUse?.settled();
+        await serveOp(deps, admission, req, res);
+      } else {
+        await serveTurn(deps, admission, req, res, arrival);
       }
     })().catch((error) => {
       const message = error instanceof Error ? error.message : String(error);

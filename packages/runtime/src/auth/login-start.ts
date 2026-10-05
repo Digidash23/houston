@@ -1,7 +1,3 @@
-import type {
-  AuthPrompt,
-  ProviderAuthInteraction,
-} from "@earendil-works/pi-ai";
 import type { LoginInfo } from "@houston/runtime-client";
 import {
   isProvider,
@@ -11,8 +7,8 @@ import {
 import { preflightCodexCallbackPort } from "./codex-port-preflight";
 import { clearProviderMarks } from "./credential-health";
 import { runClaudeLogin, runProviderOAuthLogin } from "./login-drivers";
+import { loginInteraction } from "./login-interaction";
 import {
-  autoPromptAnswer,
   codexLoginMethod,
   OPENAI_CODEX_BROWSER_LOGIN_METHOD,
 } from "./login-policy";
@@ -74,46 +70,15 @@ export async function startLogin(
   // Device flows never consume this promise, but cancellation still rejects it.
   pastePromise.catch(() => {});
 
-  const interaction: ProviderAuthInteraction = {
-    signal: abort.signal,
-    notify: (event) => {
-      switch (event.type) {
-        case "auth_url":
-          state.info = { kind: "url", url: event.url };
-          state.status = "awaiting_user";
-          resolveInfo(state.info);
-          return;
-        case "device_code":
-          state.info = {
-            kind: "device_code",
-            verificationUri: event.verificationUri,
-            userCode: event.userCode,
-          };
-          state.status = "awaiting_user";
-          resolveInfo(state.info);
-          return;
-        default:
-          console.log(`[oauth:${provider}]`, event.message);
-          return;
-      }
-    },
-    prompt: (p: AuthPrompt) => {
-      if (p.type === "select") {
-        if (provider === "openai-codex")
-          return Promise.resolve(codexLoginMethod({ deviceAuth }));
-        const first = p.options[0]?.id;
-        console.warn(
-          `[oauth:${provider}] auto-selecting "${first}" for: ${p.message}`,
-        );
-        return first
-          ? Promise.resolve(first)
-          : Promise.reject(new Error(`no options for prompt: ${p.message}`));
-      }
-      if (p.type === "manual_code") return pastePromise;
-      const auto = autoPromptAnswer(provider, enterpriseDomain);
-      return auto === null ? pastePromise : Promise.resolve(auto);
-    },
-  };
+  const interaction = loginInteraction(
+    provider,
+    state,
+    abort,
+    pastePromise,
+    resolveInfo,
+    deviceAuth,
+    enterpriseDomain,
+  );
 
   const login: Promise<unknown> =
     provider === "anthropic"
@@ -129,6 +94,8 @@ export async function startLogin(
     })
     .catch((e: unknown) => {
       clearLoginExpiry(state);
+      // Cancel removed the slot; expiry already recorded its error. An abort
+      // unwinds those paths and must not replace their outcomes with a failure.
       if (state.abort?.signal.aborted) {
         console.log(`[oauth:${provider}] login flow closed`);
         return;
@@ -136,6 +103,8 @@ export async function startLogin(
       state.status = "error";
       const raw = e instanceof Error ? e.message : String(e);
       state.error = loginFailureMessage(provider, raw);
+      // An account without Copilot is an expected refusal. Its raw 403 carries
+      // a GitHub handle, so only the fixed message may reach the crash feed.
       if (state.error === COPILOT_NO_ACCESS_ERROR) {
         console.warn(
           `[oauth:${provider}] login refused: 403 no_copilot_access — account has no Copilot subscription`,
