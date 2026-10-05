@@ -1,7 +1,8 @@
 import type { Server } from "node:http";
 import { LocalDirStore } from "@houston/runtime-client/object-sync";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { AdmissionLimiter } from "./admission";
+import type { LoginRunner } from "./login-runner";
 import { createTurnServer } from "./server";
 import type { TurnServerDeps } from "./server-types";
 import { ProviderWarmer } from "./turn-provider-warm";
@@ -139,4 +140,40 @@ test("a turn's arrival stops the warm before anything else", async () => {
     body: "{not json",
   });
   expect(warmer.stops).toBe(1);
+});
+
+// A process serves one sign-in or work, never both.
+function loginServe() {
+  const start = vi.fn(async () => ({
+    kind: "auth_code" as const,
+    url: "https://auth.example/login",
+  }));
+  const loginRunner = { start } as unknown as LoginRunner;
+  const login = (base: string) =>
+    fetch(`${base}/login/start`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ provider: "anthropic" }),
+    });
+  return { start, login, deps: { loginRunner } };
+}
+
+test("a process that serves a sign-in refuses a prewarm", async () => {
+  const { login, start, deps } = loginServe();
+  const { base, warmer } = await serve(deps);
+  expect((await login(base)).status).toBe(200);
+  expect(start).toHaveBeenCalledOnce();
+  const res = await prewarm(base, { provider: "openrouter", holdMs: 1_000 });
+  expect(res.status).toBe(503);
+  expect(warmer.started).toHaveLength(0);
+});
+
+test("a process warmed for a turn refuses a sign-in", async () => {
+  const { login, start, deps } = loginServe();
+  const { base, warmer } = await serve(deps);
+  const res = await prewarm(base, { provider: "openrouter", holdMs: 1_000 });
+  expect(res.status).toBe(202);
+  expect(warmer.started).toHaveLength(1);
+  expect((await login(base)).status).toBe(503);
+  expect(start).not.toHaveBeenCalled();
 });
