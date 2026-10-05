@@ -4,12 +4,12 @@ activeDoc: overview
 lang: en
 ---
 {% extends "base.njk" %}
-{% block title %}Houston API — Run and drive agent missions programmatically{% endblock %}
+{% block title %}Houston API · Run and drive agent missions programmatically{% endblock %}
 {% block meta %}
 <meta name="description" content="The Houston public API: start and drive AI agent missions from your own code over REST, Agent2Agent (A2A), and MCP. Authenticate with an API key and get running in 60 seconds.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://gethouston.ai/developers/">
-<meta property="og:title" content="Houston API — Run agent missions programmatically">
+<meta property="og:title" content="Houston API · Run agent missions programmatically">
 <meta property="og:description" content="Start and drive Houston agent missions from your own code over REST, A2A, and MCP.">
 <meta property="og:site_name" content="Houston">
 <meta name="twitter:card" content="summary_large_image">
@@ -34,7 +34,7 @@ lang: en
           Start and drive your Houston agents' missions from your own code.
           One API key, three ways in: a REST API, the Agent2Agent (A2A)
           protocol, and MCP. Give an agent an instruction, then poll, stream,
-          or get a signed webhook when it finishes.
+          or get a webhook when it finishes.
         </p>
 
         <div class="hero-actions">
@@ -53,10 +53,12 @@ lang: en
 
         <h2 id="auth">Authentication</h2>
         <p>
-          The API authenticates with an <strong>API key</strong>. Mint one in
-          the Houston app under <code>Settings → API Keys</code>. Keys look
-          like <code>hst_...</code> and are <strong>shown only once</strong> at
-          creation, so copy it somewhere safe immediately.
+          The API authenticates with an <strong>API key</strong>. Create one in
+          the Houston app under <code>Settings → API keys</code>. The section
+          is in the Houston desktop app, and in the web app when you are
+          signed in to Houston cloud. Keys look like <code>hst_...</code> and
+          are <strong>shown only once</strong> at creation, so copy yours
+          somewhere safe right away.
         </p>
         <p>Send it as a bearer token on every request:</p>
         <div class="codeblock"><pre><code>{% raw %}Authorization: Bearer hst_9f2c1a7b4e8d0364f1a2b3c4d5e6f7089f2c1a7b4e8d0364f1a2b3c4d5e6f708{% endraw %}</code></pre></div>
@@ -66,9 +68,48 @@ lang: en
             An API key can start missions and read their results. Treat it
             like a password: never ship it in a browser, mobile app, or public
             repository. You can revoke a key at any time from
-            <code>Settings → API Keys</code>.
+            <code>Settings → API keys</code>.
           </p>
         </div>
+        <p>
+          Keys are created and revoked in the app only. A key cannot list,
+          create, or revoke keys: the <code>/v1/keys</code> routes refuse it
+          with <code>403</code>, like every route outside the public API (see
+          <a class="link" href="/developers/missions/#scope">API-key scope</a>).
+        </p>
+
+        <h2 id="spaces">Spaces</h2>
+        <p>
+          A key belongs to you, not to a space. It works in every Houston
+          space you are a member of, and acts in one space per request:
+        </p>
+        <ul>
+          <li>
+            <strong>No header:</strong> the request acts in your personal
+            space.
+          </li>
+          <li>
+            <strong><code>x-houston-org: &lt;space id&gt;</code></strong>: the
+            request acts in that space, for example a team space you belong
+            to. Send the header on every request. The events stream also
+            accepts <code>?org=&lt;space id&gt;</code> for clients that cannot
+            set headers.
+          </li>
+        </ul>
+        <p>
+          Find the <strong>Space ID</strong> in the Houston app under
+          <code>Settings → API keys</code>. It shows the ID of the space that
+          is open in the app, with a copy button, so open the space you want
+          first. A space ID is 16 hex characters, like
+          <code>8c41e7a0d39b2f16</code>. If you name a space you are not a
+          member of, the gateway answers <code>403</code>:
+        </p>
+        <div class="codeblock"><pre><code>{% raw %}{ "error": "not a member", "code": "not_member" }{% endraw %}</code></pre></div>
+        <p>
+          Agents, missions, and A2A addresses all belong to one space. A
+          mission started in a team space is only visible to requests that
+          act in that same space.
+        </p>
 
         <h2 id="base-url">Base URL</h2>
         <p>
@@ -118,20 +159,25 @@ lang: en
         <h2 id="quickstart">60-second quickstart</h2>
         <p>
           This uses the REST Missions API. Replace <code>hst_...</code> with
-          your key and <code>revenue-manager</code> with your agent's slug.
+          your key and <code>3f9a1c07b2e84d65</code> with your agent's slug.
+          A slug is the agent's <code>id</code> from
+          <a class="link" href="#find-agents"><code>GET /agents</code></a>
+          (step 3), 16 hex characters. To act in a team space, add the
+          <code>x-houston-org</code> header from <a class="link" href="#spaces">Spaces</a>.
         </p>
 
         <h3>1 · Start a mission</h3>
         <p>
           <code>POST</code> an instruction to the agent. You get a
-          <code>202 Accepted</code> back immediately with the mission id; the
-          agent keeps working in the background.
+          <code>202 Accepted</code> back with the mission id, and the agent
+          keeps working in the background. Mission and conversation ids are
+          32 hex characters.
         </p>
         <div class="endpoint">
           <span class="method post">POST</span>
           <span class="path">/v1/agents/<b>:slug</b>/missions</span>
         </div>
-        <div class="codeblock"><pre><code>{% raw %}curl -X POST {% endraw %}{{ api.gatewayUrl }}{% raw %}/v1/agents/revenue-manager/missions \
+        <div class="codeblock"><pre><code>{% raw %}curl -X POST {% endraw %}{{ api.gatewayUrl }}{% raw %}/v1/agents/3f9a1c07b2e84d65/missions \
   -H "Authorization: Bearer hst_9f2c1a7b4e8d0364f1a2b3c4d5e6f7089f2c1a7b4e8d0364f1a2b3c4d5e6f708" \
   -H "Content-Type: application/json" \
   -d '{
@@ -144,9 +190,9 @@ lang: en
   }'{% endraw %}</code></pre></div>
         <p><strong>202 Accepted</strong></p>
         <div class="codeblock"><pre><code>{% raw %}{
-  "id": "msn_7Q4c1a9f2b",
-  "agentSlug": "revenue-manager",
-  "conversationId": "cnv_3e8d0364f1",
+  "id": "a7f3c91e0b2d4856e19c3f70b4a2d8e5",
+  "agentSlug": "3f9a1c07b2e84d65",
+  "conversationId": "5d0e8b3a6c1f4927b8e2a4c6d9f01b37",
   "status": "running",
   "createdAt": "2026-07-12T09:31:07.482Z"
 }{% endraw %}</code></pre></div>
@@ -164,13 +210,13 @@ lang: en
             agent's final text.
           </li>
           <li>
-            <strong>Stream</strong> live progress over Server-Sent Events, with
-            <code>Last-Event-ID</code> resume.
+            <strong>Stream</strong> live progress over Server-Sent Events, and
+            resume with <code>Last-Event-ID</code> or <code>?after=&lt;id&gt;</code>.
           </li>
           <li>
-            <strong>Webhook</strong> — the simplest for servers. Houston
-            <code>POST</code>s a signed payload to your URL the moment the
-            mission finishes. No polling.
+            <strong>Webhook</strong>, the simplest for servers. Houston
+            <code>POST</code>s a payload to your URL when the mission
+            finishes, signed if you set a secret. No polling.
           </li>
         </ul>
 
@@ -179,15 +225,16 @@ lang: en
           <span class="method get">GET</span>
           <span class="path">/v1/agents/<b>:slug</b>/missions/<b>:id</b></span>
         </div>
-        <div class="codeblock"><pre><code>{% raw %}curl {% endraw %}{{ api.gatewayUrl }}{% raw %}/v1/agents/revenue-manager/missions/msn_7Q4c1a9f2b \
+        <div class="codeblock"><pre><code>{% raw %}curl {% endraw %}{{ api.gatewayUrl }}{% raw %}/v1/agents/3f9a1c07b2e84d65/missions/a7f3c91e0b2d4856e19c3f70b4a2d8e5 \
   -H "Authorization: Bearer hst_9f2c1a7b4e8d0364f1a2b3c4d5e6f7089f2c1a7b4e8d0364f1a2b3c4d5e6f708"{% endraw %}</code></pre></div>
         <div class="codeblock"><pre><code>{% raw %}{
-  "id": "msn_7Q4c1a9f2b",
-  "agentSlug": "revenue-manager",
-  "conversationId": "cnv_3e8d0364f1",
+  "id": "a7f3c91e0b2d4856e19c3f70b4a2d8e5",
+  "agentSlug": "3f9a1c07b2e84d65",
+  "conversationId": "5d0e8b3a6c1f4927b8e2a4c6d9f01b37",
   "status": "completed",
   "result": "Market pulse for Lisbon (Aug 14-17) is ready...",
-  "createdAt": "2026-07-12T09:31:07.482Z"
+  "createdAt": "2026-07-12T09:31:07.482Z",
+  "completedAt": "2026-07-12T09:34:51.903Z"
 }{% endraw %}</code></pre></div>
 
         <p><strong>Or stream</strong> with Server-Sent Events:</p>
@@ -195,22 +242,25 @@ lang: en
           <span class="method get">GET</span>
           <span class="path">/v1/agents/<b>:slug</b>/missions/<b>:id</b>/events</span>
         </div>
-        <div class="codeblock"><pre><code>{% raw %}curl -N {% endraw %}{{ api.gatewayUrl }}{% raw %}/v1/agents/revenue-manager/missions/msn_7Q4c1a9f2b/events \
+        <div class="codeblock"><pre><code>{% raw %}curl -N {% endraw %}{{ api.gatewayUrl }}{% raw %}/v1/agents/3f9a1c07b2e84d65/missions/a7f3c91e0b2d4856e19c3f70b4a2d8e5/events \
   -H "Authorization: Bearer hst_9f2c1a7b4e8d0364f1a2b3c4d5e6f7089f2c1a7b4e8d0364f1a2b3c4d5e6f708"{% endraw %}</code></pre></div>
         <div class="callout callout-info">
           <div class="callout-label">Streaming in the browser</div>
           <p>
             <code>EventSource</code> cannot set headers, so the events
             endpoint also accepts the key as a query parameter:
-            <code>?token=hst_...</code>. Reconnect from where you left off by
-            sending the <code>Last-Event-ID</code> header (curl and native SSE
-            clients do this automatically).
+            <code>?token=hst_...</code>, and the space as
+            <code>?org=&lt;space id&gt;</code>. Reconnect from where you left
+            off by sending the <code>Last-Event-ID</code> header (native SSE
+            clients do this automatically) or by adding
+            <code>?after=&lt;last event id&gt;</code>.
           </p>
         </div>
 
-        <h3>3 · Find your agents</h3>
+        <h3 id="find-agents">3 · Find your agents</h3>
         <p>
-          Do not know an agent's slug? List everything the key can reach:
+          Do not know an agent's slug? List the agents in the space the
+          request acts in:
         </p>
         <div class="endpoint">
           <span class="method get">GET</span>
@@ -218,14 +268,31 @@ lang: en
         </div>
         <div class="codeblock"><pre><code>{% raw %}curl {% endraw %}{{ api.gatewayUrl }}{% raw %}/agents \
   -H "Authorization: Bearer hst_9f2c1a7b4e8d0364f1a2b3c4d5e6f7089f2c1a7b4e8d0364f1a2b3c4d5e6f708"{% endraw %}</code></pre></div>
+        <p>The response is a JSON array. Each agent's <code>id</code> is its slug:</p>
+        <div class="codeblock"><pre><code>{% raw %}[
+  {
+    "id": "3f9a1c07b2e84d65",
+    "name": "Revenue Manager",
+    "createdAt": 1780401067482,
+    ...
+  }
+]{% endraw %}</code></pre></div>
+        <p>
+          <code>createdAt</code> is milliseconds since the Unix epoch. Items
+          also carry fields the Houston app uses, such as
+          <code>workspaceId</code>, <code>role</code>, <code>assigned</code>,
+          and <code>access</code>; you only need <code>id</code>. In a team
+          space, members other than the owner see only the agents assigned to
+          them.
+        </p>
 
         <div class="callout callout-success">
           <div class="callout-label">That's the whole loop</div>
           <p>
             Create → poll, stream, or await a webhook → read the result. The
             <a class="link" href="/developers/missions/">Missions reference</a>
-            documents every field, webhook signing, cancellation, and key
-            scoping in full.
+            documents every field, error responses, webhook signing,
+            cancellation, and key scoping.
           </p>
         </div>
 

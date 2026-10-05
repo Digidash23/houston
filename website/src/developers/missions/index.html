@@ -4,12 +4,12 @@ activeDoc: missions
 lang: en
 ---
 {% extends "base.njk" %}
-{% block title %}Missions (REST) — Houston API reference{% endblock %}
+{% block title %}Missions (REST) · Houston API reference{% endblock %}
 {% block meta %}
 <meta name="description" content="Full REST reference for the Houston Missions API: create, list, get, stream, and cancel agent missions, API-key scope, and signed webhooks with HMAC-SHA256 verification.">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://gethouston.ai/developers/missions/">
-<meta property="og:title" content="Missions (REST) — Houston API reference">
+<meta property="og:title" content="Missions (REST) · Houston API reference">
 <meta property="og:description" content="Create, list, get, stream, and cancel Houston agent missions, plus signed webhooks.">
 <meta property="og:site_name" content="Houston">
 <meta name="twitter:card" content="summary_large_image">
@@ -33,9 +33,17 @@ lang: en
         <p class="lead">
           The REST Missions API is the most direct way to drive a Houston
           agent. Create a mission, then poll it, stream it, or wait for a
-          signed webhook. All paths are on
+          webhook. All paths are on
           <code>{{ api.gatewayUrl }}</code> and take
           <code>Authorization: Bearer hst_...</code>.
+        </p>
+        <p>
+          <code>:slug</code> is the agent's <code>id</code> from
+          <a class="link" href="#agents"><code>GET /agents</code></a>, 16 hex
+          characters such as <code>3f9a1c07b2e84d65</code>. Mission ids are 32
+          hex characters. Every request acts in one space: your personal space
+          by default, or the space named by the <code>x-houston-org</code>
+          header (see <a class="link" href="/developers/#spaces">Spaces</a>).
         </p>
 
         <div class="toc">
@@ -48,6 +56,7 @@ lang: en
             <li><a href="#cancel">Cancel a mission</a></li>
             <li><a href="#agents">List agents</a></li>
             <li><a href="#scope">API-key scope &amp; limits</a></li>
+            <li><a href="#errors">Errors</a></li>
             <li><a href="#webhooks">Webhooks</a></li>
           </ol>
         </div>
@@ -73,14 +82,14 @@ lang: en
             <tr><td><code>model</code> <span class="opt">optional</span></td><td>string</td><td>Override the model for this mission. Defaults to the agent's configured model.</td></tr>
             <tr><td><code>effort</code> <span class="opt">optional</span></td><td>string</td><td>Reasoning effort for the mission. Defaults to the agent's setting.</td></tr>
             <tr><td><code>title</code> <span class="opt">optional</span></td><td>string</td><td>A label for the mission, shown in the Houston app. Auto-generated if omitted.</td></tr>
-            <tr><td><code>webhook</code> <span class="opt">optional</span></td><td>object</td><td>Delivers a signed callback when the mission finishes. See <a class="link" href="#webhooks">Webhooks</a>.</td></tr>
-            <tr><td><code>webhook.url</code></td><td>string</td><td>Public <code>https://</code> URL to POST to. Private and internal addresses are rejected.</td></tr>
-            <tr><td><code>webhook.secret</code></td><td>string</td><td>Signing secret used to compute the <code>X-Houston-Signature</code> HMAC.</td></tr>
+            <tr><td><code>webhook</code> <span class="opt">optional</span></td><td>object</td><td>Delivers a callback when the mission finishes, signed if you set a <code>secret</code>. See <a class="link" href="#webhooks">Webhooks</a>.</td></tr>
+            <tr><td><code>webhook.url</code></td><td>string</td><td>Public <code>https://</code> URL to POST to. Private and internal addresses are rejected with <code>400</code>. Required when <code>webhook</code> is present.</td></tr>
+            <tr><td><code>webhook.secret</code></td><td>string</td><td>Signing secret used to compute the <code>X-Houston-Signature</code> HMAC. Without a secret, deliveries are unsigned.</td></tr>
           </tbody>
         </table>
         </div>
 
-        <div class="codeblock"><pre><code>{% raw %}curl -X POST {% endraw %}{{ api.gatewayUrl }}{% raw %}/v1/agents/revenue-manager/missions \
+        <div class="codeblock"><pre><code>{% raw %}curl -X POST {% endraw %}{{ api.gatewayUrl }}{% raw %}/v1/agents/3f9a1c07b2e84d65/missions \
   -H "Authorization: Bearer hst_9f2c1a7b4e8d0364f1a2b3c4d5e6f7089f2c1a7b4e8d0364f1a2b3c4d5e6f708" \
   -H "Content-Type: application/json" \
   -d '{
@@ -95,9 +104,9 @@ lang: en
   }'{% endraw %}</code></pre></div>
         <p><strong>202 Accepted</strong></p>
         <div class="codeblock"><pre><code>{% raw %}{
-  "id": "msn_7Q4c1a9f2b",
-  "agentSlug": "revenue-manager",
-  "conversationId": "cnv_3e8d0364f1",
+  "id": "a7f3c91e0b2d4856e19c3f70b4a2d8e5",
+  "agentSlug": "3f9a1c07b2e84d65",
+  "conversationId": "5d0e8b3a6c1f4927b8e2a4c6d9f01b37",
   "status": "running",
   "createdAt": "2026-07-12T09:31:07.482Z"
 }{% endraw %}</code></pre></div>
@@ -105,8 +114,9 @@ lang: en
           An agent runs one turn at a time. If it is already working, for
           example on another mission or a chat, you get
           <code>409 Conflict</code>; retry once the current work finishes.
+          Other failures are listed under <a class="link" href="#errors">Errors</a>.
         </p>
-        <div class="codeblock"><pre><code>{% raw %}{ "code": "agent_busy" }{% endraw %}</code></pre></div>
+        <div class="codeblock"><pre><code>{% raw %}{ "error": "the agent is busy with another turn", "code": "agent_busy" }{% endraw %}</code></pre></div>
 
         <h2 id="list">List missions</h2>
         <div class="endpoint">
@@ -118,20 +128,22 @@ lang: en
         <table class="fields-table">
           <thead><tr><th>Query</th><th>Type</th><th>Description</th></tr></thead>
           <tbody>
-            <tr><td><code>limit</code> <span class="opt">optional</span></td><td>integer</td><td>How many to return. Defaults to <code>50</code>, maximum <code>200</code>.</td></tr>
+            <tr><td><code>limit</code> <span class="opt">optional</span></td><td>integer</td><td>How many to return. Defaults to <code>50</code>. Values above <code>200</code> are capped at <code>200</code>.</td></tr>
           </tbody>
         </table>
         </div>
-        <div class="codeblock"><pre><code>{% raw %}curl "{% endraw %}{{ api.gatewayUrl }}{% raw %}/v1/agents/revenue-manager/missions?limit=20" \
+        <div class="codeblock"><pre><code>{% raw %}curl "{% endraw %}{{ api.gatewayUrl }}{% raw %}/v1/agents/3f9a1c07b2e84d65/missions?limit=20" \
   -H "Authorization: Bearer hst_9f2c1a7b4e8d0364f1a2b3c4d5e6f7089f2c1a7b4e8d0364f1a2b3c4d5e6f708"{% endraw %}</code></pre></div>
         <div class="codeblock"><pre><code>{% raw %}{
   "missions": [
     {
-      "id": "msn_7Q4c1a9f2b",
-      "agentSlug": "revenue-manager",
-      "conversationId": "cnv_3e8d0364f1",
+      "id": "a7f3c91e0b2d4856e19c3f70b4a2d8e5",
+      "agentSlug": "3f9a1c07b2e84d65",
+      "conversationId": "5d0e8b3a6c1f4927b8e2a4c6d9f01b37",
       "status": "completed",
-      "createdAt": "2026-07-12T09:31:07.482Z"
+      "result": "Weekly competitor summary is ready...",
+      "createdAt": "2026-07-12T09:31:07.482Z",
+      "completedAt": "2026-07-12T09:34:51.903Z"
     }
   ]
 }{% endraw %}</code></pre></div>
@@ -145,23 +157,32 @@ lang: en
           Returns the mission's current state. <code>status</code> is one of
           <code>running</code>, <code>completed</code>, <code>failed</code>,
           or <code>canceled</code>. Once the status is terminal,
-          <code>result</code> carries the agent's final text. If the mission
-          was created with a webhook, the response includes a
-          <code>webhook</code> block recording when it was delivered, or the
-          last error if delivery has not yet succeeded.
+          <code>result</code> carries the agent's final text,
+          <code>error</code> describes a failure, and
+          <code>completedAt</code> records when it ended. These three fields
+          are left out while they are empty.
         </p>
-        <div class="codeblock"><pre><code>{% raw %}curl {% endraw %}{{ api.gatewayUrl }}{% raw %}/v1/agents/revenue-manager/missions/msn_7Q4c1a9f2b \
+        <p>
+          If the mission was created with a webhook, this endpoint (and only
+          this one) adds a <code>webhook</code> block. It always has
+          <code>url</code>, <code>deliveredAt</code> (<code>null</code> until a
+          delivery succeeds), and <code>lastError</code> (the most recent
+          delivery error, or an empty string). The secret is never returned.
+        </p>
+        <div class="codeblock"><pre><code>{% raw %}curl {% endraw %}{{ api.gatewayUrl }}{% raw %}/v1/agents/3f9a1c07b2e84d65/missions/a7f3c91e0b2d4856e19c3f70b4a2d8e5 \
   -H "Authorization: Bearer hst_9f2c1a7b4e8d0364f1a2b3c4d5e6f7089f2c1a7b4e8d0364f1a2b3c4d5e6f708"{% endraw %}</code></pre></div>
         <div class="codeblock"><pre><code>{% raw %}{
-  "id": "msn_7Q4c1a9f2b",
-  "agentSlug": "revenue-manager",
-  "conversationId": "cnv_3e8d0364f1",
+  "id": "a7f3c91e0b2d4856e19c3f70b4a2d8e5",
+  "agentSlug": "3f9a1c07b2e84d65",
+  "conversationId": "5d0e8b3a6c1f4927b8e2a4c6d9f01b37",
   "status": "completed",
   "result": "Weekly competitor summary is ready. Three properties moved rates...",
   "createdAt": "2026-07-12T09:31:07.482Z",
+  "completedAt": "2026-07-12T09:34:51.903Z",
   "webhook": {
     "url": "https://api.acme.com/hooks/houston",
-    "deliveredAt": "2026-07-12T09:34:52.140Z"
+    "deliveredAt": "2026-07-12T09:34:52.140Z",
+    "lastError": ""
   }
 }{% endraw %}</code></pre></div>
 
@@ -172,19 +193,22 @@ lang: en
         </div>
         <p>
           Streams the mission's progress as Server-Sent Events and closes when
-          the mission reaches a terminal state. Each event has an id; if the
+          the mission reaches a terminal state. Each event has an id. If the
           connection drops, reconnect and send the
-          <code>Last-Event-ID</code> header to resume without gaps. Native SSE
-          clients and curl do this for you.
+          <code>Last-Event-ID</code> header to resume without gaps (native
+          SSE clients do this for you), or pass the last id you saw as
+          <code>?after=&lt;id&gt;</code>. The header wins when both are set.
         </p>
-        <div class="codeblock"><pre><code>{% raw %}curl -N {% endraw %}{{ api.gatewayUrl }}{% raw %}/v1/agents/revenue-manager/missions/msn_7Q4c1a9f2b/events \
+        <div class="codeblock"><pre><code>{% raw %}curl -N {% endraw %}{{ api.gatewayUrl }}{% raw %}/v1/agents/3f9a1c07b2e84d65/missions/a7f3c91e0b2d4856e19c3f70b4a2d8e5/events \
   -H "Authorization: Bearer hst_9f2c1a7b4e8d0364f1a2b3c4d5e6f7089f2c1a7b4e8d0364f1a2b3c4d5e6f708"{% endraw %}</code></pre></div>
         <div class="callout callout-info">
           <div class="callout-label">Browser (EventSource)</div>
           <p>
             <code>EventSource</code> cannot send an <code>Authorization</code>
             header, so this endpoint also accepts the key as a query
-            parameter: <code>?token=hst_...</code>. Keep that URL out of logs.
+            parameter: <code>?token=hst_...</code>. It cannot send
+            <code>x-houston-org</code> either, so pass the space as
+            <code>?org=&lt;space id&gt;</code>. Keep that URL out of logs.
           </p>
         </div>
 
@@ -194,10 +218,13 @@ lang: en
           <span class="path">/v1/agents/<b>:slug</b>/missions/<b>:id</b>/cancel</span>
         </div>
         <p>
-          Requests cancellation of a running mission. If the mission has
-          already reached a terminal state, you get <code>409 Conflict</code>:
+          Cancels a running mission and answers <code>200 OK</code> with the
+          mission JSON, now with <code>status</code> <code>canceled</code>. A
+          webhook, if set, fires with <code>mission.canceled</code>. If the
+          mission has already reached a terminal state, you get
+          <code>409 Conflict</code>:
         </p>
-        <div class="codeblock"><pre><code>{% raw %}{ "code": "mission_finished" }{% endraw %}</code></pre></div>
+        <div class="codeblock"><pre><code>{% raw %}{ "error": "mission already finished", "code": "mission_finished" }{% endraw %}</code></pre></div>
 
         <h2 id="agents">List agents</h2>
         <div class="endpoint">
@@ -205,11 +232,28 @@ lang: en
           <span class="path">/agents</span>
         </div>
         <p>
-          Lists the agents this key can reach, with the slugs you pass to the
-          mission endpoints.
+          Lists the agents in the space the request acts in. Each agent's
+          <code>id</code> is the slug you pass to the mission endpoints. In a
+          team space, members other than the owner see only the agents
+          assigned to them.
         </p>
         <div class="codeblock"><pre><code>{% raw %}curl {% endraw %}{{ api.gatewayUrl }}{% raw %}/agents \
   -H "Authorization: Bearer hst_9f2c1a7b4e8d0364f1a2b3c4d5e6f7089f2c1a7b4e8d0364f1a2b3c4d5e6f708"{% endraw %}</code></pre></div>
+        <p>The response is a bare JSON array:</p>
+        <div class="codeblock"><pre><code>{% raw %}[
+  {
+    "id": "3f9a1c07b2e84d65",
+    "name": "Revenue Manager",
+    "createdAt": 1780401067482,
+    ...
+  }
+]{% endraw %}</code></pre></div>
+        <p>
+          <code>createdAt</code> is milliseconds since the Unix epoch. Items
+          also carry fields the Houston app uses, such as
+          <code>workspaceId</code>, <code>role</code>, <code>assigned</code>,
+          and <code>access</code>. You only need <code>id</code>.
+        </p>
 
         <h2 id="scope">API-key scope &amp; limits</h2>
         <p>
@@ -218,36 +262,78 @@ lang: en
           endpoints, A2A, MCP, and <code>GET /agents</code>. Point it at any
           other part of the gateway and you get <code>403 Forbidden</code>:
         </p>
-        <div class="codeblock"><pre><code>{% raw %}{ "code": "api_key_scope" }{% endraw %}</code></pre></div>
+        <div class="codeblock"><pre><code>{% raw %}{ "error": "api keys are limited to the public API", "code": "api_key_scope" }{% endraw %}</code></pre></div>
         <p>
-          You can hold up to <strong>20 active keys</strong>. Creating a 21st
-          returns <code>400 Bad Request</code>; revoke an old one first.
+          That includes <code>/v1/keys</code>: a key cannot list, create, or
+          revoke keys. You manage keys in the Houston app under
+          <code>Settings → API keys</code>, where you can hold up to
+          <strong>20 active keys</strong>. Revoke an old one to make room for
+          a new one.
         </p>
-        <div class="codeblock"><pre><code>{% raw %}{ "code": "key_limit" }{% endraw %}</code></pre></div>
+        <p>
+          A key belongs to you, not to a space. It reaches every space you are
+          a member of, one space per request, chosen with the
+          <code>x-houston-org</code> header. See
+          <a class="link" href="/developers/#spaces">Spaces</a>.
+        </p>
+
+        <h2 id="errors">Errors</h2>
+        <p>
+          Errors are JSON with an <code>error</code> message. Most also carry a
+          stable <code>code</code>; match on <code>code</code> when it is
+          present, and on the status otherwise.
+        </p>
+        <div class="table-scroll">
+        <table class="fields-table">
+          <thead><tr><th>Status</th><th>Code</th><th>When</th></tr></thead>
+          <tbody>
+            <tr><td><code>400</code></td><td></td><td>The request is invalid. The <code>error</code> message says why, for example <code>missing 'input'</code>, <code>invalid 'mode' (want execute|plan|auto)</code>, or a rejected webhook URL.</td></tr>
+            <tr><td><code>401</code></td><td></td><td>The key is missing, revoked, or wrong: <code>missing bearer token</code> or <code>invalid or expired token</code>.</td></tr>
+            <tr><td><code>403</code></td><td><code>api_key_scope</code></td><td>The key was used on a route outside the public API.</td></tr>
+            <tr><td><code>403</code></td><td><code>not_member</code></td><td><code>x-houston-org</code> (or <code>?org=</code>) names a space you are not a member of.</td></tr>
+            <tr><td><code>404</code></td><td></td><td><code>agent not found</code> or <code>mission not found</code>. A mission that belongs to another agent or another space also reads as not found.</td></tr>
+            <tr><td><code>409</code></td><td><code>agent_busy</code></td><td>The agent is already running a turn. Retry once it finishes.</td></tr>
+            <tr><td><code>409</code></td><td><code>mission_finished</code></td><td>Cancel was called on a mission that already ended.</td></tr>
+            <tr><td><code>409</code></td><td><code>no_provider</code></td><td>No AI provider is connected, so the agent cannot run. Connect one in the Houston app, then retry.</td></tr>
+            <tr><td><code>413</code></td><td></td><td>The request body is over 1 MiB.</td></tr>
+            <tr><td><code>429</code></td><td><code>message_limit</code></td><td>Your plan's message limit is reached. The body includes <code>limit</code> and <code>resetsAt</code>, and the <code>Retry-After</code> header gives the seconds until the reset.</td></tr>
+            <tr><td><code>502</code></td><td></td><td><code>engine unavailable</code>: the agent's engine refused or failed the request. A <code>detail</code> field says more.</td></tr>
+            <tr><td><code>503</code></td><td><code>pool_unavailable</code></td><td>The mission could not start right now and nothing ran. Retry after the <code>Retry-After</code> header.</td></tr>
+          </tbody>
+        </table>
+        </div>
 
         <h2 id="webhooks">Webhooks</h2>
         <p>
           Pass a <code>webhook</code> object when you create a mission and
-          Houston will <code>POST</code> a signed payload to your URL the
-          instant the mission finishes. This is the recommended pattern for
-          servers: no polling, no open connections.
+          Houston will <code>POST</code> a payload to your URL as soon as the
+          mission finishes, signed when you set a <code>secret</code>. This is
+          the recommended pattern for servers: no polling, no open
+          connections.
         </p>
 
         <h3>Payload</h3>
         <div class="codeblock"><pre><code>{% raw %}{
   "event": "mission.completed",
   "mission": {
-    "id": "msn_7Q4c1a9f2b",
-    "agentSlug": "revenue-manager",
-    "conversationId": "cnv_3e8d0364f1",
+    "id": "a7f3c91e0b2d4856e19c3f70b4a2d8e5",
+    "agentSlug": "3f9a1c07b2e84d65",
+    "orgSlug": "8c41e7a0d39b2f16",
+    "conversationId": "5d0e8b3a6c1f4927b8e2a4c6d9f01b37",
     "status": "completed",
     "result": "Weekly competitor summary is ready...",
-    "createdAt": "2026-07-12T09:31:07.482Z"
+    "createdAt": "2026-07-12T09:31:07.482Z",
+    "completedAt": "2026-07-12T09:34:51.903Z"
   }
 }{% endraw %}</code></pre></div>
         <p>
           <code>event</code> is one of <code>mission.completed</code>,
           <code>mission.failed</code>, or <code>mission.canceled</code>.
+          <code>mission</code> has the same fields as
+          <a class="link" href="#get">Get a mission</a>, without the
+          <code>webhook</code> block, plus <code>orgSlug</code>: the space ID
+          the mission ran in. <code>error</code> and <code>completedAt</code>
+          appear when they are set.
         </p>
 
         <h3>Headers</h3>
@@ -256,8 +342,8 @@ lang: en
           <thead><tr><th>Header</th><th>Value</th></tr></thead>
           <tbody>
             <tr><td><code>X-Houston-Event</code></td><td>The event name, e.g. <code>mission.completed</code>.</td></tr>
-            <tr><td><code>X-Houston-Delivery</code></td><td>A unique id for this delivery attempt group. Use it to deduplicate.</td></tr>
-            <tr><td><code>X-Houston-Signature</code></td><td><code>sha256=&lt;hex&gt;</code>, the HMAC-SHA256 of the raw request body keyed with your <code>webhook.secret</code>.</td></tr>
+            <tr><td><code>X-Houston-Delivery</code></td><td>A unique id for this event, the same on every retry. Use it to deduplicate.</td></tr>
+            <tr><td><code>X-Houston-Signature</code></td><td><code>sha256=&lt;hex&gt;</code>, the HMAC-SHA256 of the raw request body keyed with your <code>webhook.secret</code>. Sent only when the mission has a secret.</td></tr>
           </tbody>
         </table>
         </div>

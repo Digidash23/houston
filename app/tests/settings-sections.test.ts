@@ -60,6 +60,13 @@ describe("settingsSectionAvailable", () => {
     strictEqual(settingsSectionAvailable("plan", undefined), false);
     strictEqual(settingsSectionAvailable("channels", undefined), true);
   });
+
+  it("shows API keys only where the deployment serves the public API", () => {
+    strictEqual(settingsSectionAvailable("apiKeys", { apiKeys: true }), true);
+    strictEqual(settingsSectionAvailable("apiKeys", { apiKeys: false }), false);
+    strictEqual(settingsSectionAvailable("apiKeys", { plan: true }), false);
+    strictEqual(settingsSectionAvailable("apiKeys", null), false);
+  });
 });
 
 describe("settingsLandingSection", () => {
@@ -67,6 +74,14 @@ describe("settingsLandingSection", () => {
     strictEqual(settingsLandingSection("plan", { plan: false }), null);
     strictEqual(settingsLandingSection("plan", null), null);
     strictEqual(settingsLandingSection("plan", { plan: true }), "plan");
+  });
+
+  it("lands an API-keys link on the index where the public API is not served", () => {
+    strictEqual(settingsLandingSection("apiKeys", {}), null);
+    strictEqual(
+      settingsLandingSection("apiKeys", { apiKeys: true }),
+      "apiKeys",
+    );
   });
 
   it("lands every other section as linked", () => {

@@ -195,6 +195,14 @@
       "description": "\"{{name}}\" vai parar de funcionar imediatamente. Qualquer ferramenta que a use perderá o acesso. Isso não pode ser desfeito.",
       "confirm": "Revogar",
       "cancel": "Cancelar"
+    },
+    "spaceId": {
+      "title": "ID do espaço",
+      "description": "Os apps enviam este ID para trabalhar com os funcionários de IA de {{space}}. Suas chaves funcionam em todos os espaços dos quais você participa, então abra outro espaço para ver o ID dele.",
+      "loading": "Carregando…",
+      "copy": "Copiar",
+      "copied": "Copiado",
+      "copyFailed": "Não foi possível copiar o ID do espaço"
     }
   },
   "channels": {

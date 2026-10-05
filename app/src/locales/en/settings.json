@@ -195,6 +195,14 @@
       "description": "\"{{name}}\" will stop working right away. Any tool using it will lose access. This cannot be undone.",
       "confirm": "Revoke",
       "cancel": "Cancel"
+    },
+    "spaceId": {
+      "title": "Space ID",
+      "description": "Apps send this ID to work with the AI Employees in {{space}}. Your keys work in every space you belong to, so open another space to see its ID.",
+      "loading": "Loading…",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyFailed": "Couldn't copy the space ID"
     }
   },
   "channels": {
