@@ -1,6 +1,7 @@
 import type { WireFrame } from "@houston/runtime-client";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import type { FeedOutput } from "./feed-output";
+import { PreAcceptTurn } from "./pre-accept-turn";
 import { TurnSink } from "./turn-sink";
 
 /**
@@ -213,4 +214,16 @@ test("a held retry claims a running sync that beats its 202", () => {
   expect(streamed(items).map((i) => i.data)).not.toContain("previous");
   sink.onFrame(done("t-new", 6));
   expect(sink.settled).toBe(true);
+});
+
+test("stop, an ambiguous send and teardown release the kept frames", () => {
+  const clear = vi.spyOn(PreAcceptTurn.prototype, "clear");
+  for (const end of ["mute", "sendMaybeAccepted", "dispose"] as const) {
+    const { sink } = makeSink();
+    sink.onFrame(runningSync("t1", "kept"));
+    clear.mockClear();
+    sink[end]();
+    expect(clear, end).toHaveBeenCalled();
+  }
+  clear.mockRestore();
 });

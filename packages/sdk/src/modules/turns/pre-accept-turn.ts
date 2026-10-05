@@ -18,8 +18,10 @@ import type { WireFrame } from "@houston/runtime-client";
  *
  * Nothing caps the kept frames: they are one turn's own output, the same data
  * the sink holds once that turn is ours, and they clear on the 202, a new sync,
- * a hold or the sink's disposal. A cap would have to settle a turn whose start
- * was dropped, which history cannot always do.
+ * a hold, a Stop, an ambiguous send or the sink's disposal. A cap would have to
+ * settle a turn whose start was dropped, which history cannot always do. A
+ * send whose POST never answers keeps them until the person stops or leaves,
+ * the same hang that send has without them.
  */
 export class PreAcceptTurn {
   private frames: WireFrame[] | null = null;

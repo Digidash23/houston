@@ -121,6 +121,7 @@ export class TurnSink {
   mute(): void {
     this.muted = true;
     this.poll.cancel();
+    this.preAccept.clear(); // a muted sink claims nothing; release what it kept
   }
   /**
    * Turn mode: the send returned 202 — its turn id is authoritative. A pool
@@ -150,6 +151,8 @@ export class TurnSink {
   sendMaybeAccepted(): void {
     // The re-send of a held message may have landed: frames are ours again.
     this.held.release();
+    // No 202 will name a turn now: nothing kept can be claimed.
+    this.preAccept.clear();
     this.accepted = true;
     // If the engine did accept it and the turn already finished, the pre-settled
     // poll can settle it conclusively — faster than the ambiguous-send verdict
@@ -507,5 +510,6 @@ export class TurnSink {
   dispose(): void {
     this.muted = true;
     this.poll.cancel();
+    this.preAccept.clear();
   }
 }
