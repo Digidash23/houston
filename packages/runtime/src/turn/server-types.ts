@@ -10,6 +10,7 @@ import type { turnSharedSkillsStore } from "./turn-shared-skills";
 /** Injectable dependencies and pool controls for the per-turn HTTP server. */
 export interface TurnServerDeps {
   store: ObjectStore;
+  loginRunner?: import("./login-runner").LoginRunner;
   /** App-layer token; empty means open local development. */
   token: string;
   runTurn?: TurnRunner;
