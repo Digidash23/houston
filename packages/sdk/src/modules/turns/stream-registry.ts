@@ -11,8 +11,6 @@ export interface ActiveStream {
   dispose: () => void;
   /** Last seen envelope seq — the observer→turn handoff cursor. */
   lastSeq?: number;
-  /** A turn whose send is held behind another turn (`send-hold.ts`). */
-  held?: boolean;
   /**
    * Stop a turn whose send the engine has not accepted yet (held, or waiting
    * for room): its POST and re-sends end at once. It answers the `finish` to

@@ -4,7 +4,7 @@ import type {
   WireFrame,
 } from "@houston/runtime-client";
 import { EngineError } from "@houston/runtime-client";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { ScopeStore } from "../../store";
 import type { FeedOutput } from "./feed-output";
 import { MultiplexFeedOutput } from "./feed-output";
@@ -16,6 +16,7 @@ import {
   SendBusyClock,
 } from "./send-busy";
 import { sendHolding } from "./send-hold";
+import { armHandoffStop } from "./send-wait";
 import { StreamRegistry, streamKey } from "./stream-registry";
 import { STOPPED_BY_USER } from "./turn-errors";
 import {
@@ -533,4 +534,104 @@ test("a stream that keeps failing while the send waits for room never ends the t
 
   expect(connections).toBeGreaterThan(8);
   expect(snapshot(key).sessionStatus).toBe("completed");
+});
+
+const podWakeRefused = () =>
+  new EngineError(
+    503,
+    JSON.stringify({ error: "engine unavailable", code: "pod_wake_refused" }),
+  );
+
+/** Real waits between stream attempts (see the test above). */
+const paced: StreamTuning = {
+  ...fast,
+  backoff: { initialMs: 5, maxMs: 10, jitter: (cap) => cap },
+};
+
+test("a stream that fails while the first send is still out never ends the turn", async () => {
+  const { output, snapshot } = vmOutput();
+  const key = "activity-first-send-stream-refused";
+  let accepted = false;
+  let failures = 0;
+  const { engine, nonces } = busyEngine(0, async (o) => {
+    if (!accepted) {
+      failures++;
+      throw podWakeRefused();
+    }
+    o.onEvent(sync(false, 0));
+    reply(o, nonces[0], 1);
+  });
+  const send = engine.sendMessage.bind(engine);
+  // The first POST sits in the gateway's queue past the stream's budget.
+  engine.sendMessage = (async (...args: Parameters<typeof send>) => {
+    await waitFor(() => failures > 12);
+    const answer = await send(...args);
+    accepted = true;
+    return answer;
+  }) as typeof engine.sendMessage;
+
+  await streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: paced,
+  });
+
+  expect(snapshot(key).sessionStatus).toBe("completed");
+});
+
+test("once the send is taken, a frame gives the stream its own budget, no more", async () => {
+  const { output } = vmOutput();
+  const key = "activity-stream-budget-reset";
+  let accepted = false;
+  let framed = false;
+  let failedWaiting = 0;
+  let failedAfter = 0;
+  const { engine } = busyEngine(1, async (o) => {
+    if (!accepted) {
+      failedWaiting++;
+      throw podWakeRefused();
+    }
+    if (!framed) {
+      framed = true;
+      o.onEvent(sync(true, 1));
+      return;
+    }
+    failedAfter++;
+    throw podWakeRefused();
+  });
+  const send = engine.sendMessage.bind(engine);
+  engine.sendMessage = (async (...args: Parameters<typeof send>) => {
+    const answer = await send(...args);
+    accepted = true;
+    return answer;
+  }) as typeof engine.sendMessage;
+
+  await streamTurn(engine, "Houston/Bo", key, "hi", output, registry, {
+    tuning: paced,
+  });
+
+  expect(failedWaiting).toBeGreaterThan(8);
+  // Eight attempts after the frame, the stream's own budget: the failures
+  // during the wait are not added on top.
+  expect(failedAfter).toBe(8);
+});
+
+test("a Stop waits for the engine's cancel to answer, however long it takes", async () => {
+  vi.useFakeTimers();
+  try {
+    const stops = new StreamRegistry();
+    const handoff = armHandoffStop(stops, "k");
+    const finish = stops.stopUnsent("k");
+    expect(finish).not.toBeNull();
+    let answered = false;
+    void handoff.stopped()?.then(() => {
+      answered = true;
+    });
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(answered).toBe(false);
+    finish?.();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(answered).toBe(true);
+    handoff.disarm();
+  } finally {
+    vi.useRealTimers();
+  }
 });

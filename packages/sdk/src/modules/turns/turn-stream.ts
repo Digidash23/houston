@@ -395,25 +395,26 @@ export async function streamTurn(
   if (sent) sink.sendAccepted();
 
   let sendVerdict: ReturnType<typeof setTimeout> | undefined;
-  let spentWhileHeld = 0;
+  // A send the engine has not taken yet (still out, held behind a turn, or
+  // waiting for room) has its own budget: the stream's failures meanwhile
+  // never end the turn, and the stream's own budget starts once it is taken.
+  let sendOut = !sent;
+  let spentUnsent = 0;
   try {
     const streaming = streamEventsResumable(engine, sessionKey, {
       signal: ac.signal,
       after,
       onEvent: (f) => {
+        spentUnsent = 0; // a delivered frame zeroes the transport's count too
         if (typeof f.seq === "number") entry.lastSeq = f.seq;
         sink.onFrame(f);
       },
       onRetry: ({ consecutiveFailures, error }) => {
-        // A held send (behind a turn, or waiting for room) has its own budget:
-        // the stream's failures meanwhile never end it, and it starts a fresh
-        // stream budget once accepted.
-        if (entry.held) {
-          spentWhileHeld = consecutiveFailures;
+        if (sendOut) {
+          spentUnsent = consecutiveFailures;
           return;
         }
-        if (consecutiveFailures - spentWhileHeld < STREAM_FAILURE_BUDGET)
-          return;
+        if (consecutiveFailures - spentUnsent < STREAM_FAILURE_BUDGET) return;
         // The engine has been unreachable for the whole budget: settle with
         // the engine's own verdict when the last attempt got one, else the
         // product copy. Never the raw transport error — a watchdog-aborted
@@ -445,8 +446,10 @@ export async function streamTurn(
           sessionKey,
           firstRefusal: handoffRefusal,
         });
+        sendOut = false;
         sink.sendAccepted(accepted.turnId);
       } catch (e) {
+        sendOut = false;
         // A definitive failure (engine verdict / our abort) settles below.
         if (!isAmbiguousSendFailure(e)) throw e;
         // Transport failure — the engine may be running the turn regardless.

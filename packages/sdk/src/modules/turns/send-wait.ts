@@ -10,16 +10,12 @@ import { STOPPED_BY_USER } from "./turn-errors";
 import type { TurnSink } from "./turn-sink";
 
 /**
- * How long a Stop waits for its caller to report the engine's cancel
- * answered before the turn settles as stopped anyway.
- */
-const STOP_SETTLE_FALLBACK_MS = 10_000;
-
-/**
  * The person's Stop of a message the engine has not accepted. The send ends
  * at once; the turn settles as stopped only once the caller's engine cancel
- * answered (`finish`). Settling first would let a message queued behind the
- * turn go out, and that cancel would then stop it instead.
+ * answered (`finish`), however long that takes. Settling first would let a
+ * message queued behind the turn go out, and that cancel would then stop it
+ * instead. Every caller calls `finish` in a `finally`, so a cancel that fails
+ * settles the turn too.
  */
 class PersonStop {
   readonly answered: Promise<void>;
@@ -30,14 +26,7 @@ class PersonStop {
     this.answered = new Promise<void>((r) => {
       resolve = r;
     });
-    let done = false;
-    const timer = setTimeout(() => this.finish(), STOP_SETTLE_FALLBACK_MS);
-    this.finish = () => {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      resolve();
-    };
+    this.finish = () => resolve();
   }
 }
 
@@ -103,17 +92,13 @@ export async function sendUntilAccepted(
       hold.signal,
       turn.tuning,
       {
-        onHold: () => {
-          sink.holdSend();
-          entry.held = true;
-        },
+        onHold: () => sink.holdSend(),
         onBusy: showBusy,
         firstRefusal: turn.firstRefusal,
       },
     );
   } catch (e) {
     if (stop) {
-      entry.held = false;
       clearBusy();
       await stop.answered;
       sink.fail(STOPPED_BY_USER); // a no-op when frames settled it meanwhile
@@ -121,7 +106,6 @@ export async function sendUntilAccepted(
     }
     throw e;
   } finally {
-    entry.held = false;
     entry.stopUnsent = undefined;
     ac.signal.removeEventListener("abort", endHold);
     ac.signal.removeEventListener("abort", clearBusy);
