@@ -140,7 +140,8 @@
       "creatorNeedsReconnect": "Quem criou a rotina precisa reconectar o {{provider}}.",
       "teamNeedsReconnect": "É preciso reconectar o {{provider}}.",
       "outOfCredits": "A conta {{provider}} está sem créditos.",
-      "modelUnavailable": "A conta {{provider}} não pode usar o modelo desta rotina."
+      "modelUnavailable": "A conta {{provider}} não pode usar o modelo desta rotina.",
+      "poolDeliveryExpired": "Esta execução não pôde iniciar a tempo e foi ignorada. Você pode executar a rotina novamente."
     },
     "autoPause": {
       "chip": "Pausada",

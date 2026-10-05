@@ -3,6 +3,13 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v122 - 2026-10-04
+
+Routine run history explains expired delivery in English, Spanish and Portuguese
+on desktop and phone. The SDK classifies the failure separately from account
+problems. The history offers a retry without promising a scheduled run for
+routines started by events.
+
 ## v121 - 2026-10-02
 
 Free users have a persistent way to Plus above Connect your apps on the rail

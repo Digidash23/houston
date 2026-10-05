@@ -21,6 +21,7 @@ import type {
   ToolCallRecord,
 } from "@houston/protocol";
 import { type ChatChannel, channel, chatKey, publish } from "./chat-channel";
+import { resetHold, takeHold, waitForRelease } from "./chat-hold";
 import {
   cannedReply,
   replyDeltas,
@@ -47,6 +48,7 @@ export function setReplyDelay(ms: number): void {
 export function resetReplyDelay(): void {
   replyDelayMs = DEFAULT_REPLY_DELAY_MS;
   resetScript();
+  resetHold();
 }
 
 async function streamReply(
@@ -62,6 +64,8 @@ async function streamReply(
   const turnId = crypto.randomUUID();
   const reply = cannedReply(userText);
   const tools = takeToolCalls();
+  const held = takeHold();
+  let sent = 0;
   ch.pending = { turnId, remaining: replyDeltas(reply) };
   // The user message persists at turn START (the dead-turn history shape).
   state.appendUserMessage(
@@ -96,7 +100,7 @@ async function streamReply(
     const next = ch.pending.remaining.shift();
     if (next === undefined) break;
     publish(ch, { type: "text", data: next, turnId });
-    await delay(replyDelayMs);
+    await (held && sent++ === 0 ? waitForRelease() : delay(replyDelayMs));
   }
   if (ch.epoch !== epoch || ch.pending?.turnId !== turnId) return;
   // Consume any armed interaction: this turn's `done` carries it (one-shot).
