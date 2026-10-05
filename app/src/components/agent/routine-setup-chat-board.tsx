@@ -20,6 +20,7 @@ import { useAttachmentRejectionDialog } from "../attachment-rejection-dialog";
 import { useAgentBoardSend } from "../board/use-agent-board-send";
 import { useBoardLabels } from "../board/use-board-labels";
 import { useBoardSendQueue } from "../board/use-board-send-queue";
+import { useComposerSendOverrides } from "../board/use-composer-send-overrides";
 import { AgentPanelAvatar } from "../shell/agent-panel-avatar";
 import { useAgentChatPanel } from "../use-agent-chat-panel";
 import { useQueuedMessageLabels } from "../use-queued-message-labels";
@@ -62,14 +63,7 @@ export function RoutineSetupChatBoard({
       panel.effectiveModel,
     ),
   });
-  const overrides = useMemo(
-    () => ({
-      providerOverride: panel.effectiveProvider,
-      modelOverride: panel.effectiveModel,
-      modeOverride: panel.turnMode,
-    }),
-    [panel.effectiveProvider, panel.effectiveModel, panel.turnMode],
-  );
+  const overrides = useComposerSendOverrides(panel);
 
   const rawItems = useMemo(() => [activity], [activity]);
   const send = useAgentBoardSend({

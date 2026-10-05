@@ -258,6 +258,32 @@ test("startSession posts the turn to the agent's own sandbox, carrying its per-t
   });
 });
 
+test("a typed send carries the picker's effort in the body", async () => {
+  // A pooled turn reads effort from the send alone (the stored choice is not
+  // injected when the body names a provider), so a send without it ran the
+  // default effort whatever the picker showed, for every agent and the
+  // assistant alike.
+  stubEngine({ ok: true });
+
+  await client().startSession(AGENT, {
+    sessionKey: "activity-effort-pin",
+    prompt: "think hard",
+    provider: "anthropic",
+    model: "claude-opus-5-5",
+    effort: "max",
+  });
+
+  const send = await vi.waitUntil(() =>
+    calls.find((c) => c.method === "POST" && c.url.endsWith("/messages")),
+  );
+  const body = JSON.parse(send.body ?? "{}") as Record<string, unknown>;
+  expect(body).toMatchObject({
+    provider: "anthropic",
+    model: "claude-opus-5-5",
+    effort: "max",
+  });
+});
+
 test("a new mission's first send asks the runtime to title the card after the reply", async () => {
   stubEngine({ ok: true });
 

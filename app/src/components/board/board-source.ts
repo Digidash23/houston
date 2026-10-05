@@ -26,12 +26,15 @@ import type { BoardSelectionModel } from "./board-selection-model";
  */
 
 /** Everything a user-typed send carries beside its text and files: the
- *  provider/model pair (so the wire mirrors the model the composer dropdown is
- *  showing, never silently re-resolved by the engine), the turn-mode pin, and
- *  the teammates the message named. */
+ *  provider/model/effort the composer picker is showing (so the wire mirrors
+ *  it, never silently re-resolved by the engine), the turn-mode pin, and the
+ *  teammates the message named. */
 export interface SendOverrides {
   providerOverride: string;
   modelOverride: string;
+  /** Reasoning effort the picker shows. A pooled (cloud) turn reads effort
+   *  from the send alone, so without it every turn ran the default. */
+  effortOverride?: string;
   /** Turn mode pin for user-typed sends; absent = execute. */
   modeOverride?: TurnMode;
   /** Teammates this message @mentions (HOU-944). Per-send, not a composer

@@ -46,6 +46,7 @@ export function useMcActions({
       files,
       providerOverride,
       modelOverride,
+      effortOverride,
       mentions,
     }: { text: string; files: File[] } & SendOverrides) => {
       const plan = planNewMission({
@@ -63,6 +64,7 @@ export function useMcActions({
       return mc.handleCreateConversation(plan.agent, text, files, {
         providerOverride: plan.providerOverride,
         modelOverride: plan.modelOverride,
+        effortOverride,
         mentions,
       });
     },

@@ -40,6 +40,7 @@ export async function createBoardConversation(
     files,
     providerOverride,
     modelOverride,
+    effortOverride,
     modeOverride,
     mentions,
   }: { text: string; files: File[] } & SendOverrides,
@@ -68,6 +69,7 @@ export async function createBoardConversation(
     {
       providerOverride,
       modelOverride,
+      effortOverride,
       modeOverride,
       mentions,
       titleText: visible,

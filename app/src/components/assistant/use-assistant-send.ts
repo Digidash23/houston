@@ -1,19 +1,23 @@
-import { useMemo } from "react";
 import type { Agent } from "../../lib/types";
 import { useAgentBoardSend } from "../board/use-agent-board-send";
 import { useBoardSendQueue } from "../board/use-board-send-queue";
+import { useComposerSendOverrides } from "../board/use-composer-send-overrides";
 import type { useAgentChatPanel } from "../use-agent-chat-panel";
 import { useManagerHandoff } from "./use-manager-handoff";
 
 type ComposerPin = Pick<
   ReturnType<typeof useAgentChatPanel>,
-  "effectiveProvider" | "effectiveModel" | "turnMode" | "resolveSendPin"
+  | "effectiveProvider"
+  | "effectiveModel"
+  | "effectiveEffort"
+  | "turnMode"
+  | "resolveSendPin"
 >;
 
 /**
  * The assistant chat's sends: the board send and its queue, on the pin the
- * composer shows, plus the first message onboarding may have left for it
- * ({@link useManagerHandoff}).
+ * composer shows (provider, model AND effort, like every mission chat), plus
+ * the first message onboarding may have left for it ({@link useManagerHandoff}).
  *
  * No board behind this chat (`rawItems: undefined`, not an empty board): the
  * send hook's per-conversation loading then follows the SDK conversation VM
@@ -25,14 +29,7 @@ export function useAssistantSend(
   sessionKey: string,
   pin: ComposerPin,
 ) {
-  const overrides = useMemo(
-    () => ({
-      providerOverride: pin.effectiveProvider,
-      modelOverride: pin.effectiveModel,
-      modeOverride: pin.turnMode,
-    }),
-    [pin.effectiveProvider, pin.effectiveModel, pin.turnMode],
-  );
+  const overrides = useComposerSendOverrides(pin);
   const send = useAgentBoardSend({
     agent,
     rawItems: undefined,
