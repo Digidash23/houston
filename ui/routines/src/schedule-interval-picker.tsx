@@ -10,6 +10,13 @@
  */
 import { cn } from "@houston-ai/core";
 import { Minus, Plus } from "lucide-react";
+import type { MouseEvent } from "react";
+import {
+  stepperBlurSnap,
+  stepperCanDecrease,
+  stepperDecrease,
+  stepperIncrease,
+} from "./schedule-floor";
 import type { IntervalUnit } from "./schedule-interval-utils";
 import { labelClass } from "./schedule-picker-fields";
 
@@ -33,7 +40,11 @@ function NumberStepper({
   min?: number;
 }) {
   const n = Number(value) || 1;
-  const lowest = min ?? 1;
+  // Under a floor a button press must not blur the field first: the blur snap
+  // would land on the floor and plus would then step one past it. Keeping
+  // focus works in WebKit too, where a clicked button never takes focus.
+  const keepFocus =
+    min === undefined ? undefined : (e: MouseEvent) => e.preventDefault();
   return (
     <div
       className={cn(
@@ -44,8 +55,9 @@ function NumberStepper({
       <button
         type="button"
         aria-label={decreaseLabel}
-        onClick={() => onChange(String(Math.max(lowest, n - 1)))}
-        disabled={n <= lowest}
+        onMouseDown={keepFocus}
+        onClick={() => onChange(String(stepperDecrease(n, min)))}
+        disabled={!stepperCanDecrease(n, min)}
         className="grid size-9 place-items-center text-ink-muted hover:text-ink disabled:opacity-30"
       >
         <Minus className="size-4" />
@@ -62,8 +74,8 @@ function NumberStepper({
           min === undefined
             ? undefined
             : () => {
-                if (value.trim() !== "" && Number(value) < min)
-                  onChange(String(min));
+                const snapped = stepperBlurSnap(value, min);
+                if (snapped !== null) onChange(snapped);
               }
         }
         className="w-10 bg-transparent text-center text-sm tabular-nums outline-none disabled:cursor-not-allowed"
@@ -71,7 +83,8 @@ function NumberStepper({
       <button
         type="button"
         aria-label={increaseLabel}
-        onClick={() => onChange(String(Math.max(lowest, n + 1)))}
+        onMouseDown={keepFocus}
+        onClick={() => onChange(String(stepperIncrease(n, min)))}
         className="grid size-9 place-items-center text-ink-muted hover:text-ink disabled:opacity-30"
       >
         <Plus className="size-4" />

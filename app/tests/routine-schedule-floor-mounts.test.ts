@@ -11,11 +11,8 @@ import { fileURLToPath } from "node:url";
  */
 
 const SRC = fileURLToPath(new URL("../src", import.meta.url));
-const EDITORS = [
-  "<RoutineRowScheduleEdit",
-  "<RoutinesGrid",
-  "<ScheduleBuilder",
-];
+const EDITOR_TAG =
+  /<(ScheduleBuilder|RoutinesGrid|RoutineRowScheduleEdit)[\s/>]/;
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -25,18 +22,34 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
-describe("schedule editors get the plan's floor", () => {
-  it("every editor mount passes freeScheduleMinInterval", () => {
+describe("schedule editors get the creator's floor", () => {
+  it("every editor mount passes the floor from useRoutineScheduleFloor", () => {
     const mounts = sourceFiles(SRC).filter((file) => {
       const src = readFileSync(file, "utf8");
-      return EDITORS.some((tag) => src.includes(`${tag}\n`));
+      return EDITOR_TAG.test(src);
     });
     ok(mounts.length >= 2, "routine screen + team routines grid");
     for (const file of mounts) {
       const src = readFileSync(file, "utf8");
       ok(
-        src.includes("minIntervalMinutes={freeScheduleMinInterval(plan)}"),
-        `${file} passes the floor`,
+        src.includes("useRoutineScheduleFloor()") &&
+          /(minIntervalMinutes|scheduleFloor)=\{/.test(src),
+        `${file} passes its creator's floor`,
+      );
+    }
+  });
+
+  it("each save backstop judges with the same creator floor", () => {
+    for (const rel of [
+      "components/agent/routine-screen-sections.tsx",
+      "components/team-view/team-routines/use-team-routine-actions.ts",
+    ]) {
+      const src = readFileSync(join(SRC, rel), "utf8");
+      ok(src.includes("useRoutineScheduleFloor()"), `${rel} reads the floor`);
+      ok(src.includes("scheduleFloorAllows("), `${rel} backstops with it`);
+      ok(
+        !src.includes("freeScheduleAllowed"),
+        `${rel} drops the plan-only gate`,
       );
     }
   });

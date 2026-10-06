@@ -11,6 +11,11 @@ import {
   defaultMinutesCount,
   minuteCountAllowed,
   presetAllowed,
+  scheduleSaveBlocked,
+  stepperBlurSnap,
+  stepperCanDecrease,
+  stepperDecrease,
+  stepperIncrease,
 } from "../src/schedule-floor.ts";
 import type { SchedulePreset } from "../src/types.ts";
 
@@ -71,6 +76,53 @@ describe("schedule floor: the minutes count", () => {
     assert.equal(countForUnitSwitch("2", "hours", FREE), null);
     assert.equal(countForUnitSwitch("", "minutes", FREE), null);
     assert.equal(countForUnitSwitch("2", "minutes", undefined), null);
+  });
+});
+
+describe("schedule floor: the count stepper", () => {
+  it("disables minus at the floor, and at 1 without one", () => {
+    assert.equal(stepperCanDecrease(15, FREE), false);
+    assert.equal(stepperCanDecrease(5, FREE), false);
+    assert.equal(stepperCanDecrease(16, FREE), true);
+    assert.equal(stepperCanDecrease(1, undefined), false);
+    assert.equal(stepperCanDecrease(2, undefined), true);
+  });
+
+  it("steps by one, never below the floor", () => {
+    assert.equal(stepperDecrease(16, FREE), 15);
+    assert.equal(stepperDecrease(15, FREE), 15);
+    assert.equal(stepperIncrease(15, FREE), 16);
+    assert.equal(stepperIncrease(44, FREE), 45);
+    assert.equal(stepperDecrease(2, undefined), 1);
+    assert.equal(stepperIncrease(1, undefined), 2);
+  });
+
+  it("plus from a count under the floor lands on the floor, not one past", () => {
+    // Typing 5 then pressing plus: the press keeps focus, so no blur snap
+    // runs first and plus itself lands on 15.
+    assert.equal(stepperIncrease(5, FREE), 15);
+    assert.equal(stepperIncrease(14, FREE), 15);
+  });
+
+  it("snaps a typed count under the floor up to it on blur", () => {
+    assert.equal(stepperBlurSnap("5", FREE), "15");
+    assert.equal(stepperBlurSnap("0", FREE), "15");
+    assert.equal(stepperBlurSnap("15", FREE), null);
+    assert.equal(stepperBlurSnap("45", FREE), null);
+    assert.equal(stepperBlurSnap("", FREE), null);
+    assert.equal(stepperBlurSnap("5", undefined), null);
+  });
+});
+
+describe("schedule floor: Save in the schedule editor", () => {
+  it("is disabled under a floor while the builder emits no schedule", () => {
+    assert.equal(scheduleSaveBlocked("", FREE), true);
+    assert.equal(scheduleSaveBlocked("  ", FREE), true);
+    assert.equal(scheduleSaveBlocked("*/15 * * * *", FREE), false);
+  });
+
+  it("is never disabled without a floor, as before", () => {
+    assert.equal(scheduleSaveBlocked("", undefined), false);
   });
 });
 

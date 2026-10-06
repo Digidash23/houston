@@ -78,7 +78,18 @@ export function useScheduleBuilder(
     detectedInterval ? detectedInterval.unit : "minutes",
   );
 
-  const everyNumber = Number(intervalEvery);
+  // Still the builder's own default count (not read from `value`, not edited,
+  // unit untouched): a floor that arrives late, as the plan loads after the
+  // editor opens, raises it. A count read from a saved cron stays as it is.
+  const countIsDefault = useRef(!detectedInterval);
+  useEffect(() => {
+    if (!countIsDefault.current || minIntervalMinutes === undefined) return;
+    const floor = minIntervalMinutes;
+    setEvery((every) =>
+      Number(every) < floor ? String(defaultMinutesCount(floor)) : every,
+    );
+  }, [minIntervalMinutes]);
+
   // A count must be a positive whole number, Weekly needs a day, and a pick
   // under the floor emits "" so the parent blocks saving it.
   const { everyValid, weeklyValid, floorOk, pickedCron, cron } = deriveSchedule(
@@ -91,14 +102,14 @@ export function useScheduleBuilder(
 
   // Emit cron when preset, options or interval change. An invalid (empty)
   // interval count emits "" so the parent's save validation can block saving.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the picker state is listed so every edit re-emits, as before `cron` was derived
+  // biome-ignore lint/correctness/useExhaustiveDependencies: every picker edit must re-emit even when the cron string is unchanged, so an edit always replaces an outside value the picker could not represent
   useEffect(() => {
     if (unrepresentable && !touched) return;
     onChangeRef.current(cron);
   }, [
     activePreset,
     options,
-    everyNumber,
+    intervalEvery,
     intervalUnit,
     touched,
     unrepresentable,
@@ -116,10 +127,12 @@ export function useScheduleBuilder(
     setTouched(true);
   };
   const setIntervalEvery = (every: string) => {
+    countIsDefault.current = false;
     setEvery(every);
     setTouched(true);
   };
   const setIntervalUnit = (unit: IntervalUnit) => {
+    countIsDefault.current = false;
     setUnit(unit);
     setTouched(true);
     const kept = countForUnitSwitch(intervalEvery, unit, minIntervalMinutes);
@@ -149,6 +162,7 @@ export function useScheduleBuilder(
     setActivePreset(preset ?? "daily");
     setOptions({ ...DEFAULT_OPTIONS, ...cronToOptions(value) });
     if (interval) {
+      countIsDefault.current = false;
       setEvery(String(interval.every));
       setUnit(interval.unit);
     }

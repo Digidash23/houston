@@ -14,12 +14,14 @@ paused); on Plus the notice is hidden. A teammate sees a
 read-only line that it ran on its creator's Free plan. Before, a skipped run
 left no trace and the routine looked broken.
 
-The schedule editor (routine screen and list rows) no longer offers a Free
-user a schedule under the plan's minimum interval: presets that fire more
-often are hidden (none at 15), the custom minutes count starts at 15 and
-its minus stops there, a lower typed count snaps up to 15 on blur and keeps
-Save disabled until it does, and a hint under it names the limit. Any count
-of 15 or more is fine, and the save check agrees. An existing shorter
+The schedule editor (routine screen and list rows) no longer offers a
+schedule under the Free minimum interval on a routine whose creator is on
+Free and is the one editing it (the creator's plan is what the runs are
+judged on): presets that fire more often are hidden (none at 15), the
+custom minutes count starts at 15 and its minus stops there, plus from a
+lower count lands on 15, a lower typed count snaps up to 15 on blur and
+keeps Save disabled until it does, and a hint under it names the limit. Any
+count of 15 or more is fine, and the save check agrees. An existing shorter
 schedule still shows as it is, with Save disabled until it is changed.
 Before, the editor offered every minute and only the save was refused.
 

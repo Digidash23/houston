@@ -67,7 +67,8 @@ Components:
 - `RoutineDraftRow` — a "Routine being created in chat" row with Resume/Discard.
 - `ScheduleBuilder` — the cron schedule picker (presets + custom interval), for
   the app's creation flow. An optional `minIntervalMinutes` (a plan's floor,
-  threaded from `RoutinesGrid` / `RoutineRowScheduleEdit` too) is a minimum
+  per routine via `RoutinesGrid`'s `scheduleFloor`, and on
+  `RoutineRowScheduleEdit`) is a minimum
   on the custom minutes count: the stepper stops there, a lower typed count
   snaps up on blur, saving a count under it is blocked, and any preset
   nominally faster is hidden.

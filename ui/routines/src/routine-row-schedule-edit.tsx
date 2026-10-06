@@ -26,6 +26,7 @@ import {
   type ScheduleLabels,
 } from "./labels";
 import { ScheduleBuilder } from "./schedule-builder";
+import { scheduleSaveBlocked } from "./schedule-floor";
 
 export interface RoutineRowScheduleEditProps {
   routineId: string;
@@ -130,7 +131,7 @@ export function RoutineRowScheduleEdit({
           <Button
             size="sm"
             onClick={save}
-            disabled={minIntervalMinutes !== undefined && !draft.trim()}
+            disabled={scheduleSaveBlocked(draft, minIntervalMinutes)}
           >
             {labels.save}
           </Button>

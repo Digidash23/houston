@@ -1,9 +1,8 @@
 import type { Routine } from "@houston/engine-adapter";
-import { freeScheduleMinInterval } from "@houston/sdk";
 import { RoutinesGrid } from "@houston-ai/routines";
 import type { ReactNode } from "react";
-import { usePlan } from "../../../hooks/queries/use-plan";
 import { useRoutineLabels } from "../../../hooks/use-routine-labels";
+import { useRoutineScheduleFloor } from "../../../hooks/use-routine-schedule-floor";
 import { allAgentReadsFailed } from "../../../lib/agent-read-failures";
 import type { Agent } from "../../../lib/types";
 import { RoutineWarningChip } from "../../agent/routine-warning-chip";
@@ -51,7 +50,9 @@ export function TeamRoutinesGrid({
   const unreadable = allAgentReadsFailed(data.failures);
   const gridLabels = useTeamGridLabels({ unreadable });
   const labels = useRoutineLabels();
-  const { data: plan } = usePlan();
+  const floorFor = useRoutineScheduleFloor();
+  const scheduleFloor = (routineId: string) =>
+    floorFor(data.list.routines.find((r) => r.id === routineId)?.created_by);
 
   // "This one will fail": an unpinned routine runs on whatever the employee
   // runs on. The chip renders itself away when the row is fine.
@@ -90,8 +91,8 @@ export function TeamRoutinesGrid({
         labels={gridLabels}
         rowLabels={labels.rowLabels}
         scheduleLabels={labels.schedule}
-        // The row editor never offers a pick under the plan's floor.
-        minIntervalMinutes={freeScheduleMinInterval(plan)}
+        // The row editor never offers a pick under its creator's plan floor.
+        scheduleFloor={scheduleFloor}
         scheduleSummaryLabels={labels.schedule.summary}
         triggerLabels={labels.trigger}
         nextFireLabels={labels.nextFire}

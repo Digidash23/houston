@@ -6,7 +6,7 @@
  */
 
 import type { Routine, RoutineUpdate } from "@houston/engine-adapter";
-import { freeScheduleAllowed, freeScheduleMinInterval } from "@houston/sdk";
+import { scheduleFloorAllows } from "@houston/sdk";
 import { Button, Textarea } from "@houston-ai/core";
 import {
   cronSummary,
@@ -16,8 +16,8 @@ import {
 } from "@houston-ai/routines";
 import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { usePlan } from "../../hooks/queries/use-plan";
 import { useRoutineLabels } from "../../hooks/use-routine-labels";
+import { useRoutineScheduleFloor } from "../../hooks/use-routine-schedule-floor";
 import type { Agent } from "../../lib/types";
 import { RoutineModelRow } from "./routine-model-row";
 
@@ -51,7 +51,7 @@ export function RoutineScreenSections({
 }: Props) {
   const { t } = useTranslation("routines");
   const { t: planT } = useTranslation("plan");
-  const { data: plan } = usePlan();
+  const floor = useRoutineScheduleFloor()(routine.created_by);
   const [shortInterval, setShortInterval] = useState(false);
   const labels = useRoutineLabels();
 
@@ -127,9 +127,9 @@ export function RoutineScreenSections({
               )}
               // The editor never offers a pick under the plan's floor; the
               // check below stays as the backstop for anything else.
-              minIntervalMinutes={freeScheduleMinInterval(plan)}
+              minIntervalMinutes={floor}
               onScheduleChange={(_routineId, cron) => {
-                const allowed = freeScheduleAllowed(cron, plan);
+                const allowed = scheduleFloorAllows(cron, floor);
                 setShortInterval(!allowed);
                 if (allowed) onSave({ schedule: cron });
               }}

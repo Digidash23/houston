@@ -1072,11 +1072,12 @@ components:
       shows the humanized cron with the SAME schedule-builder editor the rows
       use (plus the next fire time), or a trigger's plain-language event with
       its live activation chip (event bindings change via chat, not here).
-      On Free the editor takes the plan's minimum interval (SDK
-      freeScheduleMinInterval) as a plain minimum on the custom minutes
-      count: it starts there, minus stops there, a lower typed count snaps
-      up on blur with Save disabled until then, any count at or above it is
-      fine, and a hint names it; a preset nominally faster would be hidden
+      The editor takes the routine CREATOR's Free minimum interval (SDK
+      routineScheduleFloor: only when the viewer created it and is on Free;
+      the save check uses the same floor) as a plain minimum on the custom
+      minutes count: it starts there, minus stops there, plus from below
+      lands on it, a lower typed count snaps up on blur with Save disabled
+      until then, any count at or above it is fine, and a hint names it; a preset nominally faster would be hidden
       (none at 15). An existing shorter schedule still reads as it is, with
       Save disabled until changed.
       The model row ALWAYS names the resolved pair -- provider + model, e.g.

@@ -34,6 +34,45 @@ export function countForUnitSwitch(
   return String(floor);
 }
 
+/**
+ * The count stepper's rules, `min` being the floor on the minutes count (the
+ * caller passes it only for that unit) and 1 without one. `n` is the shown
+ * count, read as 1 while the field is empty.
+ */
+export function stepperCanDecrease(n: number, min: number | undefined) {
+  return n > (min ?? 1);
+}
+
+export function stepperDecrease(n: number, min: number | undefined): number {
+  return Math.max(min ?? 1, n - 1);
+}
+
+/** Plus from a count under the floor lands ON the floor, not one past it. */
+export function stepperIncrease(n: number, min: number | undefined): number {
+  return Math.max(min ?? 1, n + 1);
+}
+
+/** The count a typed value snaps to on blur, or null to leave it. */
+export function stepperBlurSnap(
+  value: string,
+  min: number | undefined,
+): string | null {
+  if (min === undefined || value.trim() === "") return null;
+  return Number(value) < min ? String(min) : null;
+}
+
+/**
+ * Whether the schedule editor's Save is disabled. Under a floor the builder
+ * emits "" for a pick it can't save (a count under the floor, a cleared
+ * count); without one, Save behaves as it always has.
+ */
+export function scheduleSaveBlocked(
+  draft: string,
+  floor: number | undefined,
+): boolean {
+  return floor !== undefined && !draft.trim();
+}
+
 const PRESET_INTERVAL_MINUTES: Record<SchedulePreset, number | null> = {
   every_30min: 30,
   hourly: 60,

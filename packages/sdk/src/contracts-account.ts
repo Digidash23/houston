@@ -125,8 +125,6 @@ export {
   stripeCurrencyDecimals,
 } from "./modules/plan/format";
 export {
-  freeScheduleAllowed,
-  freeScheduleMinInterval,
   planComposerMode,
   planDialog,
   planLaunchRefreshDelay,
@@ -138,6 +136,11 @@ export {
   type PlusCheckoutRefusal,
   plusCheckoutRefusal,
 } from "./modules/plan/refusals";
+export {
+  type RoutineScheduleViewer,
+  routineScheduleFloor,
+  scheduleFloorAllows,
+} from "./modules/plan/schedule-floor";
 // ===== Preferences module contract =====================================
 export {
   PreferencesCommand,
