@@ -6,7 +6,7 @@ import {
   setPreference,
 } from "@houston/domain";
 import type { Capabilities, Routine } from "@houston/protocol";
-import { afterAll, beforeEach, expect, test } from "vitest";
+import { afterAll, beforeEach, expect, test, vi } from "vitest";
 import { TurnFireError, turnBusyError } from "../channel/fire-error";
 import { MemoryCredentialStore } from "../credentials/store";
 import { CloudPaths } from "../paths";
@@ -16,6 +16,8 @@ import type {
   TokenVerifier,
   TurnPin,
 } from "../ports";
+import { AgentRenamingError, LauncherClosedError } from "../ports";
+import { decodeFireOutcome } from "../schedule/fire-outcome";
 import { ChannelRoutineFirer } from "../schedule/firer";
 import { Scheduler } from "../schedule/scheduler";
 import { type ControlPlaneDeps, createControlPlaneServer } from "../server";
@@ -212,7 +214,11 @@ test("busy burns the instant without creating another run", async () => {
 
   expect(await res.json()).toEqual({ result: "busy" });
   expect(await runs()).toHaveLength(1);
-  expect(await bus.get(`routine:fired:r1:${secondAt}`)).toBe("1");
+  expect(
+    decodeFireOutcome(await bus.get(`routine:fired:r1:${secondAt}`)),
+  ).toEqual({
+    result: "busy",
+  });
 });
 
 // The instant is burned before the fire, so any failure after it must be a
@@ -258,7 +264,70 @@ test.each([
   expect(await res.json()).toEqual(expected);
   const [run] = await runs();
   expect(run).toMatchObject({ status: "error", summary: refusal.message });
-  expect(await bus.get(`routine:fired:r1:${FIRE_AT}`)).toBe("1");
+
+  // The instant stays burned and a redelivery replays the recorded outcome.
+  const replay = await postFire(body);
+  expect(await replay.json()).toEqual({ ...expected, deduped: true });
+  expect(await runs()).toHaveLength(1);
+});
+
+// Where the fire ran, not what it is: the host drains or renames, or the
+// runtime is unreachable. The instant is unburned and answered 503, so the
+// control plane redelivers it and the replacement fires it.
+test.each([
+  ["a draining host", new LauncherClosedError()],
+  ["a renaming agent", new AgentRenamingError("a1")],
+  ["an unreachable runtime", new TypeError("fetch failed")],
+])("%s releases the instant and answers 503", async (_name, refusal) => {
+  await seedRoutines([routine()]);
+  channel.refusal = refusal;
+  const body = {
+    routineId: "r1",
+    fireAt: FIRE_AT,
+    actingAs: actingAs("creator-1"),
+  };
+  const res = await postFire(body);
+
+  expect(res.status).toBe(503);
+  expect(res.headers.get("retry-after")).toBe("2");
+  expect(await res.json()).toEqual({
+    error: "engine unavailable",
+    detail: refusal.message,
+  });
+  expect(await bus.get(`routine:fired:r1:${FIRE_AT}`)).toBeNull();
+
+  channel.refusal = null;
+  expect(await (await postFire(body)).json()).toEqual({ result: "fired" });
+  expect(channel.fired).toHaveLength(1);
+});
+
+// With no errored run the person has nothing to see: the instant must stay
+// deliverable rather than settle as a failure nobody can find.
+test.each([
+  ["before the run is recorded", 1, 0],
+  ["when the errored mark cannot be written", 2, 1],
+])("a runs-file failure %s releases the instant", async (_name, failingWrite, recorded) => {
+  await seedRoutines([routine()]);
+  channel.refusal = new Error("quota exceeded");
+  const write = vfs.writeText.bind(vfs);
+  let runWrites = 0;
+  const spy = vi
+    .spyOn(vfs, "writeText")
+    .mockImplementation(async (key, text) => {
+      if (key.includes("routine_runs") && ++runWrites === failingWrite)
+        throw new Error("store unavailable");
+      return write(key, text);
+    });
+  const res = await postFire({
+    routineId: "r1",
+    fireAt: FIRE_AT,
+    actingAs: actingAs("creator-1"),
+  });
+  spy.mockRestore();
+
+  expect(res.status).toBe(503);
+  expect(await bus.get(`routine:fired:r1:${FIRE_AT}`)).toBeNull();
+  expect(await runs()).toHaveLength(recorded);
 });
 
 test.each([
@@ -329,10 +398,17 @@ test("a duplicate instant is idempotently fired and deduped", async () => {
     actingAs: actingAs("creator-1"),
   };
   expect(await (await postFire(body)).json()).toEqual({ result: "fired" });
-  expect(await (await postFire(body)).json()).toEqual({
+  // The replay names when the original attempt started, so the control plane
+  // can time a fire whose answer it never got.
+  const replay = (await (await postFire(body)).json()) as {
+    startedAt: string;
+  };
+  expect(replay).toEqual({
     result: "fired",
     deduped: true,
+    startedAt: expect.any(String),
   });
+  expect(Number.isNaN(Date.parse(replay.startedAt))).toBe(false);
   expect(await runs()).toHaveLength(1);
   expect(channel.fired).toHaveLength(1);
 });

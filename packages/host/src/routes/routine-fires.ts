@@ -1,10 +1,19 @@
 import type { ServerResponse } from "node:http";
 import { loadRoutines } from "@houston/domain";
 import { ACTING_AS_HEADER, actingSubFromHeader } from "../auth/acting";
-import { isTurnBusy, TurnFireError } from "../channel/fire-error";
-import { burnRoutineFireInstant } from "../schedule/fire-lock";
+import {
+  burnRoutineFireInstant,
+  routineFireLockKey,
+} from "../schedule/fire-lock";
+import {
+  decodeFireOutcome,
+  encodeFireOutcome,
+  type FireOutcome,
+  isRetryableFireError,
+  unfiredOutcome,
+} from "../schedule/fire-outcome";
 import { ChannelRoutineFirer } from "../schedule/firer";
-import { fireRoutineRun, RoutineBusyError } from "../schedule/run";
+import { fireRoutineRun } from "../schedule/run";
 import { authorizeAgent, DEFAULT_PATHS } from "./agent-authz";
 import { json, readJson } from "./http";
 import { defineRoute } from "./registry";
@@ -31,33 +40,26 @@ function parseBody(raw: unknown): RoutineFireBody | null {
 }
 
 /**
- * What the pod answers the control plane for one delivered instant. `busy`
- * and `failed` are terminal: the control plane settles them, never retries.
+ * What the pod answers the control plane for one delivered instant, always
+ * with HTTP 200. `busy` and `failed` are terminal. `deduped` marks the replay
+ * of an instant this host already settled: it carries the recorded outcome
+ * (and, for `fired`, when that attempt started), or plain `fired` when there
+ * is none to replay. Every `result` here is one an older control plane
+ * already settles correctly; the extra fields are ignored there.
  */
 type RoutineFireReply =
-  | { result: "fired"; deduped?: true }
   | { result: "no_routine" }
-  | { result: "busy" }
-  | { result: "failed"; code: string | null; error: string };
-
-/**
- * The reply for a fire that threw AFTER its instant was burned. It must never
- * be a 5xx: the control plane would retry, find the instant burned, and record
- * a deduped "fired" for a routine that never ran. fireRoutineRun has already
- * recorded the run errored with the reason, which is where the person sees it.
- */
-function unfiredReply(error: unknown): RoutineFireReply {
-  if (error instanceof RoutineBusyError || isTurnBusy(error))
-    return { result: "busy" };
-  return {
-    result: "failed",
-    code: error instanceof TurnFireError ? error.code : null,
-    error: error instanceof Error ? error.message : String(error),
-  };
-}
+  | { result: "fired"; deduped?: true; startedAt?: string }
+  | { result: "busy"; deduped?: true }
+  | { result: "failed"; deduped?: true; code: string | null; error: string };
 
 const reply = (res: ServerResponse, body: RoutineFireReply) =>
   json(res, 200, body);
+
+/** A fresh fire's answer: a fired one's start is only for replays. */
+function freshReply(outcome: FireOutcome): RoutineFireReply {
+  return outcome.result === "fired" ? { result: "fired" } : outcome;
+}
 
 /**
  * POST /agents/:agentId/routine-fires — the control plane delivers ONE
@@ -118,14 +120,21 @@ defineRoute({
         error: "routine fire delivery not configured",
       });
 
-    const fresh = await burnRoutineFireInstant(
-      deps.routineFireLock,
-      routine.id,
-      body.fireAt,
-      deps.routineFireDedupTtlSec ?? 3600,
-    );
-    if (!fresh) return reply(res, { result: "fired", deduped: true });
+    const ledger = deps.routineFireLock;
+    const ttl = deps.routineFireDedupTtlSec ?? 3600;
+    const key = routineFireLockKey(routine.id, body.fireAt);
+    if (!(await burnRoutineFireInstant(ledger, routine.id, body.fireAt, ttl))) {
+      const recorded = decodeFireOutcome(await ledger.get(key));
+      return reply(
+        res,
+        recorded
+          ? { ...recorded, deduped: true }
+          : { result: "fired", deduped: true },
+      );
+    }
 
+    const startedAt = new Date().toISOString();
+    let outcome: FireOutcome;
     try {
       await fireRoutineRun(
         {
@@ -140,14 +149,30 @@ defineRoute({
         authz.agent,
         routine,
       );
-      reply(res, { result: "fired" });
+      outcome = { result: "fired", startedAt };
     } catch (error) {
-      const unfired = unfiredReply(error);
-      if (unfired.result === "failed")
+      if (isRetryableFireError(error)) {
+        // Unburn so the redelivery (to this host, its replacement pod, or the
+        // agent's new id) fires the instant instead of replaying a miss.
+        await ledger.del(key);
+        const detail = error instanceof Error ? error.message : String(error);
         console.warn(
-          `[routine-fires] routine ${routine.id} fire failed (${unfired.code ?? "uncoded"}): ${unfired.error}`,
+          `[routine-fires] routine ${routine.id} fire deferred: ${detail}`,
         );
-      reply(res, unfired);
+        return json(
+          res,
+          503,
+          { error: "engine unavailable", detail },
+          { "Retry-After": "2" },
+        );
+      }
+      outcome = unfiredOutcome(error);
+      if (outcome.result === "failed")
+        console.warn(
+          `[routine-fires] routine ${routine.id} fire failed (${outcome.code ?? "uncoded"}): ${outcome.error}`,
+        );
     }
+    await ledger.set(key, encodeFireOutcome(outcome), ttl);
+    reply(res, freshReply(outcome));
   },
 });

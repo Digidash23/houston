@@ -38,6 +38,26 @@ export class RoutineBusyError extends Error {
 }
 
 /**
+ * The fire did not happen or failed, and NO errored run records it: the
+ * "running" row could not be written before the fire, or the errored mark
+ * could not be written after a failed one. The person has nothing to see, so
+ * a delivered instant must stay deliverable (routes/routine-fires.ts). The
+ * message is the underlying failure's, so callers that show it are unchanged.
+ */
+export class RoutineRunUnrecordedError extends Error {
+  constructor(reason: unknown, recordFailure?: unknown) {
+    const message = (e: unknown) =>
+      e instanceof Error ? e.message : String(e);
+    super(
+      recordFailure === undefined
+        ? message(reason)
+        : `${message(reason)} (its errored run could not be recorded: ${message(recordFailure)})`,
+    );
+    this.name = "RoutineRunUnrecordedError";
+  }
+}
+
+/**
  * Record a routine run and fire it through the channel — the SINGLE path a
  * scheduled tick and a hand-pressed "run now" both go through, so an on-demand
  * run is indistinguishable from a cron one (same run record, same firer, same
@@ -67,16 +87,21 @@ export async function fireRoutineRun(
   const root = deps.paths.agentRoot(ws, agent);
   const runId = deps.newId();
   const run = createRoutineRun(routine, runId, deps.now().toISOString());
-  await withRunsFile(root, async () => {
-    const { items } = await loadRoutineRuns(deps.vfs, root);
-    if (
-      items.some((r) => r.routine_id === routine.id && r.status === "running")
-    )
-      throw new RoutineBusyError(routine.name);
-    // Newest first; prune keeps the history at the Rust engine's per-routine
-    // cap so routine_runs.json can't grow without bound.
-    await saveRoutineRuns(deps.vfs, root, pruneRoutineRuns([run, ...items]));
-  });
+  try {
+    await withRunsFile(root, async () => {
+      const { items } = await loadRoutineRuns(deps.vfs, root);
+      if (
+        items.some((r) => r.routine_id === routine.id && r.status === "running")
+      )
+        throw new RoutineBusyError(routine.name);
+      // Newest first; prune keeps the history at the Rust engine's per-routine
+      // cap so routine_runs.json can't grow without bound.
+      await saveRoutineRuns(deps.vfs, root, pruneRoutineRuns([run, ...items]));
+    });
+  } catch (err) {
+    if (err instanceof RoutineBusyError) throw err;
+    throw new RoutineRunUnrecordedError(err);
+  }
   deps.events?.emit(ws.ownerUserId, {
     type: "RoutineRunsChanged",
     agentPath: agent.id,
@@ -102,7 +127,7 @@ export async function fireRoutineRun(
       routine.provider
         ? { code: "creator_not_connected", provider: routine.provider }
         : undefined;
-    await withRunsFile(root, async () => {
+    await markRunErrored(root, err, async () => {
       const { items: current } = await loadRoutineRuns(deps.vfs, root);
       const row = current.find((r) => r.id === runId);
       // The row can only be missing/terminal if a cancel raced the failed
@@ -129,4 +154,20 @@ export async function fireRoutineRun(
     throw err;
   }
   return { runId, conversationId: run.session_key };
+}
+
+/**
+ * The errored mark after a failed fire. If it cannot be written the run stays
+ * "running" until reconcile times it out, so the failure is unrecorded.
+ */
+async function markRunErrored(
+  root: string,
+  fireError: unknown,
+  write: () => Promise<void>,
+): Promise<void> {
+  try {
+    await withRunsFile(root, write);
+  } catch (err) {
+    throw new RoutineRunUnrecordedError(fireError, err);
+  }
 }
