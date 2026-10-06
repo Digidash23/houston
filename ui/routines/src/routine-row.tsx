@@ -65,6 +65,8 @@ export interface RoutineRowProps {
   labels?: RoutineRowLabels;
   /** Schedule-builder labels, threaded to the inline schedule editor. */
   scheduleLabels?: ScheduleLabels;
+  /** Floor for the inline schedule editor, in minutes. Absent = no limit. */
+  minIntervalMinutes?: number;
   /** Schedule-summary + next-run labels, threaded to the cron/time formatters. */
   scheduleSummaryLabels?: ScheduleSummaryLabels;
   nextFireLabels?: NextFireLabels;
@@ -95,6 +97,7 @@ export function RoutineRow({
   onScheduleChange,
   labels = DEFAULT_ROW_LABELS,
   scheduleLabels = DEFAULT_SCHEDULE_LABELS,
+  minIntervalMinutes,
   scheduleSummaryLabels = DEFAULT_SCHEDULE_SUMMARY_LABELS,
   nextFireLabels = DEFAULT_NEXT_FIRE_LABELS,
   triggerLabels = DEFAULT_TRIGGER_LABELS,
@@ -155,6 +158,7 @@ export function RoutineRow({
           onScheduleChange={onScheduleChange}
           labels={labels}
           scheduleLabels={scheduleLabels}
+          minIntervalMinutes={minIntervalMinutes}
           scheduleSummaryLabels={scheduleSummaryLabels}
           triggerLabels={triggerLabels}
           triggerStatus={triggerStatus}

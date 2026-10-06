@@ -14,6 +14,14 @@ paused); on Plus the notice is hidden. A teammate sees a
 read-only line that it ran on its creator's Free plan. Before, a skipped run
 left no trace and the routine looked broken.
 
+The schedule editor (routine screen and list rows) no longer offers a Free
+user a schedule under the plan's minimum interval: presets that fire more
+often are hidden, the minutes count starts at and cannot step below 15 (it
+skips counts whose restart at the top of the hour would fire sooner), a hint
+under it names the limit, and Save stays disabled while the pick is under
+it. An existing shorter schedule still shows as it is until edited. Before,
+the editor offered every minute and only the save was refused.
+
 ## v125 - 2026-10-05
 
 The AI Manager's two API errands work right in its chat card instead of

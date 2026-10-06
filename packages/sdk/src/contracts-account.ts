@@ -126,6 +126,7 @@ export {
 } from "./modules/plan/format";
 export {
   freeScheduleAllowed,
+  freeScheduleMinInterval,
   planComposerMode,
   planDialog,
   planLaunchRefreshDelay,

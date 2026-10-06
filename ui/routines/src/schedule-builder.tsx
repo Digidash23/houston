@@ -11,13 +11,18 @@
  * jump. State and cron derivation live in useScheduleBuilder; this file is JSX.
  * All visible text arrives via `labels` (English defaults) so the package stays
  * i18n-agnostic; `locale` drives day names + time formatting in the summary.
+ *
+ * `minIntervalMinutes` (a plan's limit) hides presets that fire more often,
+ * keeps the custom count on allowed values, and emits "" for a pick under it
+ * (an existing short schedule still shows as it is) so the parent can't save.
  */
 
 import { cn } from "@houston-ai/core";
 import { AnimatePresence } from "framer-motion";
-import { DEFAULT_SCHEDULE_LABELS, type ScheduleLabels } from "./labels";
+import { DEFAULT_SCHEDULE_LABELS, interp, type ScheduleLabels } from "./labels";
 import { IntervalPicker } from "./schedule-interval-picker";
 import { DayOfMonthPicker, WeekdaysPicker } from "./schedule-picker-fields";
+import { SchedulePresetButtons } from "./schedule-preset-buttons";
 import { Reveal } from "./schedule-reveal";
 import { TimePicker } from "./time-picker";
 import type { SchedulePreset } from "./types";
@@ -31,6 +36,8 @@ export interface ScheduleBuilderProps {
   labels?: ScheduleLabels;
   /** BCP-47 locale for day names + time formatting in the live summary. */
   locale?: string;
+  /** Smallest allowed gap between fires, in minutes. Absent = no limit. */
+  minIntervalMinutes?: number;
 }
 
 const DEFAULT_PRESETS: SchedulePreset[] = [
@@ -48,6 +55,7 @@ export function ScheduleBuilder({
   presets = DEFAULT_PRESETS,
   labels = DEFAULT_SCHEDULE_LABELS,
   locale = "en-US",
+  minIntervalMinutes,
 }: ScheduleBuilderProps) {
   const {
     activePreset,
@@ -59,34 +67,25 @@ export function ScheduleBuilder({
     intervalUnit,
     setIntervalUnit,
     everyValid,
+    floorOk,
     isCustom,
     showTime,
     summary,
-  } = useScheduleBuilder(value, onChange, labels, locale);
+  } = useScheduleBuilder(value, onChange, labels, locale, minIntervalMinutes);
+  const floored = minIntervalMinutes !== undefined;
 
   const showCustomTime =
     isCustom && (intervalUnit === "days" || intervalUnit === "months");
 
   return (
     <div className="space-y-4">
-      {/* Preset buttons */}
-      <div className="flex flex-wrap gap-1.5">
-        {presets.map((preset) => (
-          <button
-            type="button"
-            key={preset}
-            onClick={() => selectPreset(preset)}
-            className={cn(
-              "h-8 px-3 rounded-full text-xs font-medium transition-colors",
-              activePreset === preset
-                ? "bg-action text-action-text"
-                : "bg-input border border-ink/[0.04] text-ink-muted hover:text-ink",
-            )}
-          >
-            {labels.presets[preset]}
-          </button>
-        ))}
-      </div>
+      <SchedulePresetButtons
+        presets={presets}
+        active={activePreset}
+        labels={labels.presets}
+        minIntervalMinutes={minIntervalMinutes}
+        onSelect={selectPreset}
+      />
 
       {/* Summary */}
       <p className="text-sm text-ink">{summary}</p>
@@ -138,10 +137,26 @@ export function ScheduleBuilder({
                 increaseLabel={labels.increase}
                 every={intervalEvery}
                 unit={intervalUnit}
-                invalid={!everyValid}
+                invalid={!everyValid || !floorOk}
+                minIntervalMinutes={minIntervalMinutes}
                 onEveryChange={setIntervalEvery}
                 onUnitChange={setIntervalUnit}
               />
+            </Reveal>
+          )}
+
+          {floored && isCustom && intervalUnit === "minutes" && (
+            <Reveal key="custom-floor">
+              <p
+                className={cn(
+                  "text-xs",
+                  floorOk ? "text-ink-muted" : "text-warning-ink",
+                )}
+              >
+                {interp(labels.minIntervalHint, {
+                  minutes: minIntervalMinutes,
+                })}
+              </p>
             </Reveal>
           )}
 

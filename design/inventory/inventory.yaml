@@ -1014,6 +1014,8 @@ components:
       The inline edit panel authors the wake mechanism: where the deployment
       supports event triggers it offers a plain-language "When should this
       happen?" choice (schedule / app event); otherwise it is schedule-only.
+      The inline schedule editor honors the plan's minimum interval the same
+      way the routine screen's does (no pick under it on Free).
       A row also carries a WARNING chip when the AI account the routine would
       run on is unusable -- not connected, needing a reconnect, or out of
       credits -- so a broken automation is visible in the list rather than only
@@ -1053,6 +1055,7 @@ components:
         viewing,
         editing-prompt,
         editing-schedule,
+        schedule-below-plan-minimum,
         loading-runs,
         no-runs-yet,
         delivery-expired,
@@ -1069,6 +1072,11 @@ components:
       shows the humanized cron with the SAME schedule-builder editor the rows
       use (plus the next fire time), or a trigger's plain-language event with
       its live activation chip (event bindings change via chat, not here).
+      On Free the editor takes the plan's minimum interval (SDK
+      freeScheduleMinInterval): presets firing more often are hidden, the
+      minutes count starts at and never steps below it, a hint names it, and
+      Save stays disabled while the pick is under it; an existing shorter
+      schedule still reads as it is until edited.
       The model row ALWAYS names the resolved pair -- provider + model, e.g.
       "Claude - Opus 5" -- whether the routine is pinned or follows the agent;
       an unpinned routine adds a quiet line saying so. Picking pins it (the fire

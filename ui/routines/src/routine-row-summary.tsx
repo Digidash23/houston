@@ -33,6 +33,7 @@ export interface RoutineRowSummaryProps {
   onScheduleChange?: (routineId: string, cron: string) => void;
   labels?: RoutineRowLabels;
   scheduleLabels?: ScheduleLabels;
+  minIntervalMinutes?: number;
   scheduleSummaryLabels?: ScheduleSummaryLabels;
   triggerLabels?: TriggerLabels;
   triggerStatus?: TriggerStatusItem;
@@ -47,6 +48,7 @@ export function RoutineRowSummary({
   onScheduleChange,
   labels = DEFAULT_ROW_LABELS,
   scheduleLabels = DEFAULT_SCHEDULE_LABELS,
+  minIntervalMinutes,
   scheduleSummaryLabels = DEFAULT_SCHEDULE_SUMMARY_LABELS,
   triggerLabels = DEFAULT_TRIGGER_LABELS,
   triggerStatus,
@@ -89,6 +91,7 @@ export function RoutineRowSummary({
         onScheduleChange={onScheduleChange}
         labels={labels}
         scheduleLabels={scheduleLabels}
+        minIntervalMinutes={minIntervalMinutes}
         locale={locale}
       />
     );

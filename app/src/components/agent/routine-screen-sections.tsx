@@ -6,7 +6,7 @@
  */
 
 import type { Routine, RoutineUpdate } from "@houston/engine-adapter";
-import { freeScheduleAllowed } from "@houston/sdk";
+import { freeScheduleAllowed, freeScheduleMinInterval } from "@houston/sdk";
 import { Button, Textarea } from "@houston-ai/core";
 import {
   cronSummary,
@@ -125,6 +125,9 @@ export function RoutineScreenSections({
                 labels.schedule.summary,
                 labels.locale,
               )}
+              // The editor never offers a pick under the plan's floor; the
+              // check below stays as the backstop for anything else.
+              minIntervalMinutes={freeScheduleMinInterval(plan)}
               onScheduleChange={(_routineId, cron) => {
                 const allowed = freeScheduleAllowed(cron, plan);
                 setShortInterval(!allowed);

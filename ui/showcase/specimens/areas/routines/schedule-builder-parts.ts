@@ -30,4 +30,9 @@ export const builderProps: readonly SpecimenProp[] = [
     type: "string",
     note: 'Defaults to `"en-US"`. Day names and clock format in the summary come from `Intl`.',
   },
+  {
+    name: "minIntervalMinutes",
+    type: "number",
+    note: 'A plan\'s floor between fires. Hides faster presets, keeps the minutes count on allowed values, shows `labels.minIntervalHint`, and emits "" for a pick under it. Absent = no limit.',
+  },
 ];

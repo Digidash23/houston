@@ -199,6 +199,7 @@
     "repeatEvery": "Repeat every",
     "enterNumber": "Enter a number",
     "pickDay": "Pick at least one day",
+    "minIntervalHint": "On Free, routines run at most every {minutes} minutes.",
     "weekdaysLabel": "On these days",
     "weekdayShortcuts": {
       "everyDay": "Every day",

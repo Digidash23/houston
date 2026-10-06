@@ -74,12 +74,27 @@ export function presenceDue(
   return lastReportedAt === null || now - lastReportedAt >= 600_000;
 }
 
+/** Free's routine floor when the summary omits it. */
+const DEFAULT_FREE_MIN_INTERVAL_MINUTES = 15;
+
+/**
+ * The smallest gap between routine fires, in minutes, a schedule editor may
+ * offer on this plan; undefined when the plan sets none (Plus, no summary).
+ */
+export function freeScheduleMinInterval(
+  plan: PlanSummary | undefined,
+): number | undefined {
+  if (plan?.plan !== "free") return undefined;
+  return plan.routines?.minIntervalMinutes ?? DEFAULT_FREE_MIN_INTERVAL_MINUTES;
+}
+
 /** Cosmetic Free schedule gate; the gateway evaluates real fire times. */
 export function freeScheduleAllowed(
   cron: string,
   plan: PlanSummary | undefined,
 ): boolean {
-  if (plan?.plan !== "free") return true;
+  const floor = freeScheduleMinInterval(plan);
+  if (floor === undefined) return true;
   const gap = minFireGapMinutes(cron);
-  return gap === null || gap >= (plan.routines?.minIntervalMinutes ?? 15);
+  return gap === null || gap >= floor;
 }

@@ -4,17 +4,14 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { DEFAULT_SCHEDULE_LABELS, type ScheduleLabels } from "./labels";
+import { deriveSchedule } from "./schedule-builder-derive";
 import {
   cronToOptions,
   cronToPreset,
-  presetToCron,
   type ScheduleOptions,
 } from "./schedule-cron-utils";
-import {
-  cronToInterval,
-  type IntervalUnit,
-  intervalToCron,
-} from "./schedule-interval-utils";
+import { defaultMinutesCount, nearestAllowedCount } from "./schedule-floor";
+import { cronToInterval, type IntervalUnit } from "./schedule-interval-utils";
 import { cronSummary, presetSummary } from "./schedule-summary";
 import type { SchedulePreset } from "./types";
 
@@ -36,6 +33,8 @@ export interface ScheduleBuilderState {
   intervalUnit: IntervalUnit;
   setIntervalUnit: (unit: IntervalUnit) => void;
   everyValid: boolean;
+  /** The pick fires no more often than `minIntervalMinutes` (true without one). */
+  floorOk: boolean;
   isCustom: boolean;
   showTime: boolean;
   summary: string;
@@ -46,6 +45,7 @@ export function useScheduleBuilder(
   onChange: (cronExpression: string) => void,
   labels: ScheduleLabels = DEFAULT_SCHEDULE_LABELS,
   locale = "en-US",
+  minIntervalMinutes?: number,
 ): ScheduleBuilderState {
   // Detect initial preset/interval from the incoming cron.
   const detectedPreset = cronToPreset(value);
@@ -71,21 +71,20 @@ export function useScheduleBuilder(
   // The interval count is held as a string so the field can be cleared fully
   // while typing (e.g. to replace "1" with "984"); "" means no valid number.
   const [intervalEvery, setEvery] = useState(
-    detectedInterval ? String(detectedInterval.every) : "5",
+    detectedInterval
+      ? String(detectedInterval.every)
+      : String(defaultMinutesCount(minIntervalMinutes)),
   );
   const [intervalUnit, setUnit] = useState<IntervalUnit>(
     detectedInterval ? detectedInterval.unit : "minutes",
   );
 
   const everyNumber = Number(intervalEvery);
-  // The custom interval count must be a positive whole number.
-  const everyValid =
-    intervalEvery.trim() !== "" &&
-    Number.isInteger(everyNumber) &&
-    everyNumber >= 1;
-  // The Weekly preset needs at least one weekday selected.
-  const weeklyValid =
-    activePreset !== "weekly" || options.daysOfWeek.length > 0;
+  // A count must be a positive whole number, Weekly needs a day, and a pick
+  // under the floor emits "" so the parent blocks saving it.
+  const { everyValid, weeklyValid, floorOk, pickedCron, cron } = deriveSchedule(
+    { activePreset, options, intervalEvery, intervalUnit, minIntervalMinutes },
+  );
 
   // Stable ref for onChange to avoid infinite effect loops.
   const onChangeRef = useRef(onChange);
@@ -93,24 +92,10 @@ export function useScheduleBuilder(
 
   // Emit cron when preset, options or interval change. An invalid (empty)
   // interval count emits "" so the parent's save validation can block saving.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the picker state is listed so every edit re-emits, as before `cron` was derived
   useEffect(() => {
     if (unrepresentable && !touched) return;
-    if (activePreset === "custom") {
-      onChangeRef.current(
-        everyValid
-          ? intervalToCron(
-              {
-                every: everyNumber,
-                unit: intervalUnit,
-                dayOfMonth: options.dayOfMonth,
-              },
-              options.time,
-            )
-          : "",
-      );
-      return;
-    }
-    onChangeRef.current(weeklyValid ? presetToCron(activePreset, options) : "");
+    onChangeRef.current(cron);
   }, [
     activePreset,
     options,
@@ -120,6 +105,7 @@ export function useScheduleBuilder(
     unrepresentable,
     everyValid,
     weeklyValid,
+    cron,
   ]);
 
   const selectPreset = (preset: SchedulePreset) => {
@@ -137,19 +123,19 @@ export function useScheduleBuilder(
   const setIntervalUnit = (unit: IntervalUnit) => {
     setUnit(unit);
     setTouched(true);
+    // A count the new unit can't take under the floor (2 hours → 2 minutes on
+    // a 15-minute floor) snaps up to the first count it can.
+    if (minIntervalMinutes === undefined || !everyValid) return;
+    const allowed = nearestAllowedCount(
+      everyNumber,
+      unit,
+      minIntervalMinutes,
+      1,
+    );
+    if (allowed !== null && allowed !== everyNumber) setEvery(String(allowed));
   };
 
   const isCustom = activePreset === "custom";
-  const customCron = everyValid
-    ? intervalToCron(
-        {
-          every: everyNumber,
-          unit: intervalUnit,
-          dayOfMonth: options.dayOfMonth,
-        },
-        options.time,
-      )
-    : "";
 
   // Re-derive the picker when the cron changes OUTSIDE this builder — the
   // setup chat's agent editing the open routine (HOU-725). Without this the
@@ -157,14 +143,7 @@ export function useScheduleBuilder(
   // fields keep showing the old values. A `value` equal to what the current
   // state emits is our own echo through the parent — skipped, so mid-edit
   // typing never resets the fields.
-  const emittedCron =
-    unrepresentable && !touched
-      ? value
-      : isCustom
-        ? customCron
-        : weeklyValid
-          ? presetToCron(activePreset, options)
-          : "";
+  const emittedCron = unrepresentable && !touched ? value : cron;
   // The re-derived state round-trips to `value`, so the emit effect's
   // follow-up call is a no-op echo.
   // biome-ignore lint/correctness/useExhaustiveDependencies: sync on the incoming value only — `emittedCron` is derived from the state this effect sets, and reacting to it would fight the user's edits
@@ -194,7 +173,8 @@ export function useScheduleBuilder(
       ? presetSummary(activePreset, options, labels.summary, locale)
       : labels.pickDay;
   } else if (everyValid) {
-    summary = cronSummary(customCron, labels.summary, locale);
+    // Describes the pick even under the floor, so the stepper never lies.
+    summary = cronSummary(pickedCron, labels.summary, locale);
   } else {
     summary = labels.enterNumber;
   }
@@ -209,6 +189,7 @@ export function useScheduleBuilder(
     intervalUnit,
     setIntervalUnit,
     everyValid,
+    floorOk,
     isCustom,
     showTime: NEEDS_TIME.includes(activePreset),
     summary,

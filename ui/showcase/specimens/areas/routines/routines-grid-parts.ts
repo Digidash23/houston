@@ -102,6 +102,11 @@ export const gridProps: readonly SpecimenProp[] = [
     note: "Threaded to the pure cron/next-run/trigger formatters.",
   },
   {
+    name: "minIntervalMinutes",
+    type: "number",
+    note: "Threaded to the inline schedule editor: no pick under this many minutes, Save disabled while one is. Absent = no limit.",
+  },
+  {
     name: "locale",
     type: "string",
     note: 'Defaults to `"en-US"`. Drives day names and clock format via `Intl`.',

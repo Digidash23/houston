@@ -2,7 +2,11 @@ import type { PlanSummary } from "@houston/wire-types";
 import { describe, expect, it } from "vitest";
 import { messageLimitRefusal } from "../turns/turn-errors";
 import { billingCards, planOffer } from "./billing-model";
-import { freeScheduleAllowed, planLaunchRefreshDelay } from "./model";
+import {
+  freeScheduleAllowed,
+  freeScheduleMinInterval,
+  planLaunchRefreshDelay,
+} from "./model";
 
 const NOW = Date.parse("2026-10-05T00:00:00Z");
 const free: PlanSummary = {
@@ -123,6 +127,34 @@ describe("Free cadence gate", () => {
     expect(freeScheduleAllowed("* * * * *", { ...free, plan: "plus" })).toBe(
       true,
     );
+  });
+});
+
+describe("Free schedule floor for editors", () => {
+  // The wire pins 15 today; the floor follows whatever the summary carries.
+  const withFloor = (minutes: number) =>
+    ({
+      ...free,
+      routines: { ...free.routines, minIntervalMinutes: minutes },
+    }) as unknown as PlanSummary;
+
+  it("is the plan's minimum interval on Free, 15 when the summary omits it", () => {
+    expect(freeScheduleMinInterval(free)).toBe(15);
+    expect(freeScheduleMinInterval(withFloor(30))).toBe(30);
+    expect(
+      freeScheduleMinInterval({ ...free, routines: undefined } as PlanSummary),
+    ).toBe(15);
+  });
+
+  it("sets no floor on Plus or before the plan loads", () => {
+    expect(freeScheduleMinInterval({ ...free, plan: "plus" })).toBeUndefined();
+    expect(freeScheduleMinInterval(undefined)).toBeUndefined();
+  });
+
+  it("is the same floor the save gate judges by", () => {
+    const thirty = withFloor(30);
+    expect(freeScheduleAllowed("*/20 * * * *", thirty)).toBe(false);
+    expect(freeScheduleAllowed("*/30 * * * *", thirty)).toBe(true);
   });
 });
 

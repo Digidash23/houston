@@ -4,14 +4,20 @@
  * pills (minute / hour / day / month). Every unit takes a count.
  *
  * All visible text arrives via props so the package stays i18n-agnostic; the
- * pills show the singular or plural unit name depending on the count.
+ * pills show the singular or plural unit name depending on the count. With a
+ * `minIntervalMinutes` floor (a plan's limit) the minus/plus buttons jump
+ * between the counts the floor allows instead of moving by one.
  */
 import { cn } from "@houston-ai/core";
 import { Minus, Plus } from "lucide-react";
+import { nearestAllowedCount } from "./schedule-floor";
 import type { IntervalUnit } from "./schedule-interval-utils";
 import { labelClass } from "./schedule-picker-fields";
 
 const UNIT_ORDER: IntervalUnit[] = ["minutes", "hours", "days", "months"];
+
+/** The next allowed count from `n` going `direction`, or null when none. */
+type CountStep = (n: number, direction: 1 | -1) => number | null;
 
 function NumberStepper({
   id,
@@ -20,6 +26,7 @@ function NumberStepper({
   invalid,
   decreaseLabel,
   increaseLabel,
+  step,
 }: {
   id: string;
   value: string;
@@ -27,8 +34,11 @@ function NumberStepper({
   invalid?: boolean;
   decreaseLabel: string;
   increaseLabel: string;
+  step?: CountStep;
 }) {
   const n = Number(value) || 1;
+  const down = step ? step(n - 1, -1) : Math.max(1, n - 1);
+  const up = step ? step(n + 1, 1) : n + 1;
   return (
     <div
       className={cn(
@@ -39,8 +49,8 @@ function NumberStepper({
       <button
         type="button"
         aria-label={decreaseLabel}
-        onClick={() => onChange(String(Math.max(1, n - 1)))}
-        disabled={n <= 1}
+        onClick={() => down !== null && onChange(String(down))}
+        disabled={step ? down === null : n <= 1}
         className="grid size-9 place-items-center text-ink-muted hover:text-ink disabled:opacity-30"
       >
         <Minus className="size-4" />
@@ -58,7 +68,7 @@ function NumberStepper({
       <button
         type="button"
         aria-label={increaseLabel}
-        onClick={() => onChange(String(n + 1))}
+        onClick={() => up !== null && onChange(String(up))}
         className="grid size-9 place-items-center text-ink-muted hover:text-ink disabled:opacity-30"
       >
         <Plus className="size-4" />
@@ -76,6 +86,7 @@ export function IntervalPicker({
   every,
   unit,
   invalid,
+  minIntervalMinutes,
   onEveryChange,
   onUnitChange,
 }: {
@@ -87,10 +98,17 @@ export function IntervalPicker({
   every: string;
   unit: IntervalUnit;
   invalid?: boolean;
+  /** Smallest allowed gap between fires, in minutes. Absent = any count. */
+  minIntervalMinutes?: number;
   onEveryChange: (every: string) => void;
   onUnitChange: (unit: IntervalUnit) => void;
 }) {
   const plural = Number(every) > 1;
+  const step: CountStep | undefined =
+    minIntervalMinutes === undefined
+      ? undefined
+      : (n, direction) =>
+          nearestAllowedCount(n, unit, minIntervalMinutes, direction);
   const inputId = "interval-picker-every";
   return (
     <div>
@@ -103,6 +121,7 @@ export function IntervalPicker({
           value={every}
           onChange={onEveryChange}
           invalid={invalid}
+          step={step}
           decreaseLabel={decreaseLabel}
           increaseLabel={increaseLabel}
         />

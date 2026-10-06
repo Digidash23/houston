@@ -22,10 +22,12 @@ function Builder({
   cron,
   presets,
   locale,
+  minIntervalMinutes,
 }: {
   cron: string;
   presets?: SchedulePreset[];
   locale?: string;
+  minIntervalMinutes?: number;
 }) {
   const [value, setValue] = useState(cron);
   return (
@@ -35,6 +37,7 @@ function Builder({
         onChange={setValue}
         presets={presets}
         locale={locale}
+        minIntervalMinutes={minIntervalMinutes}
       />
       <code className={cn(storeType.meta, "block font-mono")}>{value}</code>
     </div>
@@ -81,6 +84,9 @@ function ScheduleBuilderSpecimen() {
         <SpecimenRow label="Custom in months — reveals day of month and time">
           <Builder cron="0 9 15 */3 *" />
         </SpecimenRow>
+        <SpecimenRow label="15-minute floor — an existing 5-minute schedule">
+          <Builder cron="*/5 * * * *" minIntervalMinutes={15} />
+        </SpecimenRow>
       </SpecimenSection>
 
       <SpecimenProps items={builderProps} />
@@ -95,6 +101,7 @@ function ScheduleBuilderSpecimen() {
           "text-action-text",
           "text-ink",
           "text-ink-muted",
+          "text-warning-ink",
         ]}
       />
     </SpecimenPage>

@@ -188,7 +188,7 @@ components:
 
   routine-details:
     status: partial
-    ref: "app/src/components/agent/routine-screen.tsx + routine-runs-dialog.tsx (RoutineRunsHistory translates SDK failure codes) + routine-plan-skip-notice.tsx (SDK triggerPlanSkipNotice) + routine-model-selector.tsx over @houston-ai/routines RoutineRunList / RoutineRowScheduleEdit"
+    ref: "app/src/components/agent/routine-screen.tsx + routine-runs-dialog.tsx (RoutineRunsHistory translates SDK failure codes) + routine-plan-skip-notice.tsx (SDK triggerPlanSkipNotice) + routine-screen-sections.tsx (SDK freeScheduleMinInterval floors the schedule editor) + routine-model-selector.tsx over @houston-ai/routines RoutineRunList / RoutineRowScheduleEdit"
     notes: >-
       The run list + schedule editor are shared ui/; the screen composition
       (editable prompt, Runs modal, Back/Open-chat chrome) and the model row

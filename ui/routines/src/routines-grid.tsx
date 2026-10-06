@@ -76,6 +76,9 @@ export interface RoutinesGridProps {
   rowLabels?: RoutineRowLabels;
   /** Schedule-builder labels, threaded to the inline schedule editor in a row. */
   scheduleLabels?: ScheduleLabels;
+  /** Smallest allowed gap between fires, in minutes, for the inline schedule
+   *  editor (a plan's limit). Absent = no limit. */
+  minIntervalMinutes?: number;
   scheduleSummaryLabels?: ScheduleSummaryLabels;
   nextFireLabels?: NextFireLabels;
   /** Trigger (event-driven) copy for the row summary and status badge. */
