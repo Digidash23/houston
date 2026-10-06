@@ -4,6 +4,7 @@ import { LauncherClosedError } from "../ports";
 import {
   decodeFireOutcome,
   encodeFireOutcome,
+  FIRE_IN_FLIGHT,
   isRetryableFireError,
   unfiredOutcome,
 } from "./fire-outcome";
@@ -19,8 +20,12 @@ test("an outcome round-trips through the lock value", () => {
     expect(decodeFireOutcome(encodeFireOutcome(outcome))).toEqual(outcome);
 });
 
+test("a fresh burn reads as in flight, never as an outcome", () => {
+  expect(decodeFireOutcome(FIRE_IN_FLIGHT)).toEqual({ result: "pending" });
+});
+
 test("a burn with no recorded outcome replays nothing", () => {
-  // "1" is the local scan's burn, an older host's, or an attempt in flight.
+  // "1" is the local scan's burn or an older host's.
   for (const value of [null, "", "1", "not json", '{"result":"weird"}'])
     expect(decodeFireOutcome(value)).toBeNull();
 });

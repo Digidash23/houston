@@ -7,7 +7,11 @@ import {
 } from "@houston/domain";
 import type { Capabilities, Routine } from "@houston/protocol";
 import { afterAll, beforeEach, expect, test, vi } from "vitest";
-import { TurnFireError, turnBusyError } from "../channel/fire-error";
+import {
+  TurnDeliveryUncertainError,
+  TurnFireError,
+  turnBusyError,
+} from "../channel/fire-error";
 import { MemoryCredentialStore } from "../credentials/store";
 import { CloudPaths } from "../paths";
 import type {
@@ -249,6 +253,20 @@ test.each([
     new Error("quota exceeded"),
     { result: "failed", code: null, error: "quota exceeded" },
   ],
+  [
+    "a connection lost after the turn POST",
+    new TurnDeliveryUncertainError(
+      Object.assign(new TypeError("fetch failed"), {
+        cause: { code: "ECONNRESET" },
+      }),
+    ),
+    {
+      result: "failed",
+      code: null,
+      error:
+        "the runtime connection failed mid-request (ECONNRESET); the turn may have started",
+    },
+  ],
   ["a taken turn slot", turnBusyError("other-chat"), { result: "busy" }],
 ])("%s answers 200 with a terminal result and an errored run", async (_name, refusal, expected) => {
   await seedRoutines([routine()]);
@@ -278,6 +296,12 @@ test.each([
   ["a draining host", new LauncherClosedError()],
   ["a renaming agent", new AgentRenamingError("a1")],
   ["an unreachable runtime", new TypeError("fetch failed")],
+  [
+    "a refused turn POST",
+    Object.assign(new TypeError("fetch failed"), {
+      cause: { code: "ECONNREFUSED" },
+    }),
+  ],
 ])("%s releases the instant and answers 503", async (_name, refusal) => {
   await seedRoutines([routine()]);
   channel.refusal = refusal;
@@ -498,4 +522,41 @@ test("external mode leaves trigger delivery and run-now operational", async () =
   });
   expect(runNow.status).toBe(200);
   expect(channel.fired).toHaveLength(2);
+});
+
+// A redelivery while the first delivery is still firing (a cold boot slower
+// than the control plane's call, or a second replica) must not settle: the
+// first attempt may yet fail.
+test("a redelivery during the first fire waits instead of settling", async () => {
+  await seedRoutines([routine()]);
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const fire = channel.fireTurn.bind(channel);
+  channel.fireTurn = async (...args) => {
+    await gate;
+    return fire(...args);
+  };
+  const body = {
+    routineId: "r1",
+    fireAt: FIRE_AT,
+    actingAs: actingAs("creator-1"),
+  };
+  const first = postFire(body);
+  await vi.waitFor(async () =>
+    expect(await bus.get(`routine:fired:r1:${FIRE_AT}`)).not.toBeNull(),
+  );
+
+  const early = await postFire(body);
+  expect(early.status).toBe(503);
+  expect(early.headers.get("retry-after")).toBe("2");
+
+  release();
+  expect(await (await first).json()).toEqual({ result: "fired" });
+  expect(await (await postFire(body)).json()).toMatchObject({
+    result: "fired",
+    deduped: true,
+  });
+  expect(channel.fired).toHaveLength(1);
 });

@@ -8,6 +8,7 @@ import {
 import {
   decodeFireOutcome,
   encodeFireOutcome,
+  FIRE_IN_FLIGHT,
   type FireOutcome,
   isRetryableFireError,
   unfiredOutcome,
@@ -55,6 +56,15 @@ type RoutineFireReply =
 
 const reply = (res: ServerResponse, body: RoutineFireReply) =>
   json(res, 200, body);
+
+/** The drain shape (server.ts): the control plane retries a 503. */
+const unavailable = (res: ServerResponse, detail: string) =>
+  json(
+    res,
+    503,
+    { error: "engine unavailable", detail },
+    { "Retry-After": "2" },
+  );
 
 /** A fresh fire's answer: a fired one's start is only for replays. */
 function freshReply(outcome: FireOutcome): RoutineFireReply {
@@ -123,8 +133,23 @@ defineRoute({
     const ledger = deps.routineFireLock;
     const ttl = deps.routineFireDedupTtlSec ?? 3600;
     const key = routineFireLockKey(routine.id, body.fireAt);
-    if (!(await burnRoutineFireInstant(ledger, routine.id, body.fireAt, ttl))) {
+    const burned = await burnRoutineFireInstant(
+      ledger,
+      routine.id,
+      body.fireAt,
+      ttl,
+      FIRE_IN_FLIGHT,
+    );
+    if (!burned) {
       const recorded = decodeFireOutcome(await ledger.get(key));
+      // The first delivery is still firing (a slow cold boot outlasts the
+      // control plane's call; a second replica can deliver the same row):
+      // its outcome is unknown, so the redelivery waits rather than settle.
+      if (recorded?.result === "pending")
+        return unavailable(
+          res,
+          "this instant's first delivery is still firing",
+        );
       return reply(
         res,
         recorded
@@ -159,12 +184,7 @@ defineRoute({
         console.warn(
           `[routine-fires] routine ${routine.id} fire deferred: ${detail}`,
         );
-        return json(
-          res,
-          503,
-          { error: "engine unavailable", detail },
-          { "Retry-After": "2" },
-        );
+        return unavailable(res, detail);
       }
       outcome = unfiredOutcome(error);
       if (outcome.result === "failed")

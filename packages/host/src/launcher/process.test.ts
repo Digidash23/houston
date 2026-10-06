@@ -627,3 +627,30 @@ test("rename refusal uses agent-facing punctuation without an em dash", async ()
   ).rejects.toThrow("agent 'agent' is being renamed - retry with its new id");
   release();
 });
+
+// An engine roll drains the pod while a routine fire is booting its runtime:
+// the drain kills the child, and the fire must read that as the drain (503,
+// retried on the replacement pod), not as a broken runtime (settled failed).
+test("a boot killed by the drain fails as the drain, not as a crash", async () => {
+  let exitCb: (() => void) | undefined;
+  const spawner: RuntimeSpawner = {
+    spawn() {
+      return {
+        port: 5000,
+        kill: () => setTimeout(() => exitCb?.(), 0),
+        onExit: (cb) => {
+          exitCb = cb;
+        },
+      };
+    },
+  };
+  const launcher = new ProcessLauncher(
+    opts(spawner, { waitHealthy: () => new Promise(() => {}) }),
+  );
+
+  const boot = launcher.ensureAwake(agent("booting"));
+  await new Promise((r) => setTimeout(r, 0));
+  if (!exitCb) throw new Error("spawn never registered onExit");
+  launcher.shutdownAll();
+  await expect(boot).rejects.toBeInstanceOf(LauncherClosedError);
+});

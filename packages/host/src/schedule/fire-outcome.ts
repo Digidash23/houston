@@ -18,6 +18,17 @@ export type FireOutcome =
   | { result: "busy" }
   | { result: "failed"; code: string | null; error: string };
 
+/**
+ * What a fresh burn writes: the instant's first delivery is still firing. A
+ * redelivery meeting it must not read it as a success (the first attempt may
+ * yet fail), so it is answered 503 and retried. The local scan and older
+ * hosts burn "1", which decodes as nothing to replay.
+ */
+export const FIRE_IN_FLIGHT = JSON.stringify({ result: "pending" });
+
+/** A ledger entry: the instant's recorded outcome, or its fire in flight. */
+export type FireLedgerEntry = FireOutcome | { result: "pending" };
+
 /** The ledger holds a bounded reason: it is a lock value, not a log. */
 const MAX_ERROR_CHARS = 1000;
 
@@ -30,14 +41,17 @@ export function encodeFireOutcome(outcome: FireOutcome): string {
 }
 
 /**
- * The recorded outcome, or null when there is none to replay: the first
- * attempt is still running, or the instant was burned by the local scheduler
- * or a host that predates the ledger (both write "1").
+ * The recorded entry, or null when there is none to replay: the instant was
+ * burned by the local scheduler or a host that predates the ledger (both
+ * write "1").
  */
-export function decodeFireOutcome(value: string | null): FireOutcome | null {
+export function decodeFireOutcome(
+  value: string | null,
+): FireLedgerEntry | null {
   if (!value || value === "1") return null;
   try {
-    const parsed = JSON.parse(value) as Partial<FireOutcome> | null;
+    const parsed = JSON.parse(value) as Partial<FireLedgerEntry> | null;
+    if (parsed?.result === "pending") return { result: "pending" };
     if (parsed?.result === "fired" && typeof parsed.startedAt === "string")
       return { result: "fired", startedAt: parsed.startedAt };
     if (parsed?.result === "busy") return { result: "busy" };
@@ -57,13 +71,15 @@ export function decodeFireOutcome(value: string | null): FireOutcome | null {
 /**
  * A fire that failed because of where it ran, not what it is: the host is
  * draining or mid-rename (the replacement pod or the new id will take it), the
- * runtime could not be reached (undici's bare `fetch failed`), or no errored
- * run could be recorded for the person to see. The instant must stay
- * deliverable, so the caller releases the burn and answers 503.
+ * runtime could not be reached, or no errored run could be recorded for the
+ * person to see. The instant must stay deliverable, so the caller releases the
+ * burn and answers 503.
  *
- * A `fetch failed` can follow a request the runtime did receive; a redelivery
- * then meets the runtime's busy turn slot or the routine's busy gate rather
- * than starting a second turn.
+ * A raw `fetch failed` reaching here never came from the turn POST itself:
+ * ProxyChannel lets only a dial failure through and wraps any other failure
+ * of that POST in TurnDeliveryUncertainError (the runtime may already be
+ * running the turn, so it is never redelivered). The rest come from waking
+ * the runtime or preparing the turn, before any message was sent.
  */
 export function isRetryableFireError(err: unknown): boolean {
   return (
