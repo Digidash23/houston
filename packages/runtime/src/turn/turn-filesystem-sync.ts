@@ -3,8 +3,18 @@ import {
   type SyncResult,
   syncBack,
 } from "@houston/runtime-client/object-sync";
+import { deferredUpload } from "./turn-deferred-uploads";
 import type { TurnFilesystem } from "./turn-filesystem";
 import { claimedTurnIncludes } from "./turn-filesystem-scope";
+
+function withoutDeferred(
+  include: (rel: string) => boolean,
+  deferredFailed: boolean,
+): (rel: string) => boolean {
+  return deferredFailed
+    ? (rel) => !deferredUpload(rel) && include(rel)
+    : include;
+}
 
 /** Sync a turn, limiting a claimed writer to its granted turn-owned files. */
 export async function syncTurnFilesystem(opts: {
@@ -22,6 +32,23 @@ export async function syncTurnFilesystem(opts: {
   merges: SyncResult["merges"];
   manifest: SyncResult["manifest"];
 }> {
+  // A deferred upload landing mid-walk would read as a file the turn wrote.
+  // One that never landed is in no manifest, so its absence deletes nothing.
+  let deferredFailed = false;
+  if (opts.filesystem.workspaceReady) {
+    try {
+      await opts.filesystem.workspaceReady;
+    } catch (error) {
+      // No tool ran (the gate refused them all), so nothing under uploads/
+      // is the turn's: one that landed before the failure but never reached
+      // the manifest must not read as a new file to upload.
+      deferredFailed = true;
+      console.warn(
+        `[turn] syncing without the deferred uploads conversation=${opts.conversationId}:`,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
   const result = await syncBack(
     opts.store,
     opts.prefix,
@@ -37,10 +64,13 @@ export async function syncTurnFilesystem(opts: {
       workerMerge: true,
       ...(opts.claimed
         ? {
-            include: claimedTurnIncludes(
-              opts.filesystem.dataRel,
-              opts.filesystem.workspaceRel,
-              opts.conversationId,
+            include: withoutDeferred(
+              claimedTurnIncludes(
+                opts.filesystem.dataRel,
+                opts.filesystem.workspaceRel,
+                opts.conversationId,
+              ),
+              deferredFailed,
             ),
           }
         : {}),

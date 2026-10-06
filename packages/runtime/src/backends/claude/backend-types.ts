@@ -63,4 +63,7 @@ export interface ClaudeBackendDeps {
    * summary would land outside the conversation it summarizes.
    */
   compactions?: CompactionCheckpoints;
+  /** Every tool call waits for this first (tool-gate-hook.ts); a rejection
+   *  denies the call. A pooled turn's deferred uploads. */
+  beforeTool?: () => Promise<void>;
 }

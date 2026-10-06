@@ -4,9 +4,11 @@ import {
   type HydrateEntry,
 } from "./hydrate-download";
 import { DEFAULT_EXCLUDES, excluded } from "./hydrate-excludes";
+import { assertListedWithinCap, HydrateLimitError } from "./hydrate-limit";
 import type { ObjectStore } from "./object-store";
 
 export { DEFAULT_EXCLUDES, excluded } from "./hydrate-excludes";
+export { HydrateLimitError } from "./hydrate-limit";
 
 /**
  * Durable engine state is materialized into a local cache, then synchronized
@@ -35,19 +37,6 @@ export interface HydrateListedObject {
   updated?: string;
 }
 
-/** The hydrated prefix exceeded the caller's aggregate byte cap. */
-export class HydrateLimitError extends Error {
-  constructor(
-    readonly maxBytes: number,
-    readonly observedBytes: number,
-  ) {
-    super(
-      `workspace exceeds the ${Math.round(maxBytes / 1024 / 1024)} MiB hydration limit`,
-    );
-    this.name = "HydrateLimitError";
-  }
-}
-
 const DEFAULT_HYDRATE_CONCURRENCY = 16;
 
 export interface StartedHydration {
@@ -55,8 +44,10 @@ export interface StartedHydration {
   listed: { rels: string[]; generationAware: boolean };
   /** Listed objects rejected by the caller's filter. */
   skippedObjects: number;
-  /** Resolves only after every non-priority object has landed. */
+  /** Resolves only after every non-priority, non-deferred object has landed. */
   done: Promise<void>;
+  /** Resolves after `done` and every `opts.defer` object has landed. */
+  deferred: Promise<void>;
   /** Stop admitting downloads and cancel adapters that support AbortSignal. */
   abort: () => void;
 }
@@ -84,12 +75,14 @@ export async function startHydrate(
     objects ??
     (await store.list(prefix)).map((key) => ({ key, generation: undefined }));
   const candidates: (HydrateEntry & { updated?: string })[] = [];
+  const sizes = new Map<string, number>();
   let generationAware = false;
   for (const object of storeObjects) {
     const { key } = object;
     const rel = prefix ? key.slice(prefix.length + 1) : key;
     if (!rel || excluded(rel, excludes)) continue;
     if (object.generation !== undefined) generationAware = true;
+    if ("size" in object) sizes.set(rel, object.size);
     candidates.push({
       key,
       rel,
@@ -152,11 +145,21 @@ export async function startHydrate(
         filter(entry.rel, filterListing, destDir),
       )
     : remainingCandidates;
+  const defer = opts.defer;
+  const later = defer ? remaining.filter(({ rel }) => defer(rel)) : [];
+  if (later.length)
+    assertListedWithinCap([...priority, ...remaining], sizes, maxBytes);
+  const done = download(
+    later.length ? remaining.filter(({ rel }) => !defer?.(rel)) : remaining,
+  );
   return {
     manifest,
     listed,
     skippedObjects: candidates.length - priority.length - remaining.length,
-    done: download(remaining),
+    done,
+    // After `done`, so a deferred object never takes bandwidth from the set
+    // the caller is blocked on.
+    deferred: later.length ? done.then(() => download(later)) : done,
     abort: () => state.fail(new Error("hydration aborted before cleanup")),
   };
 }
@@ -169,7 +172,7 @@ export async function hydrate(
   opts: HydrateOptions = {},
 ): Promise<HydrateManifest> {
   const started = await startHydrate(store, prefix, destDir, opts);
-  await started.done;
+  await started.deferred;
   return started.manifest;
 }
 
