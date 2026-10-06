@@ -1,3 +1,7 @@
+import {
+  routineAutoPauseLogTail,
+  unconnectedRoutineFailure,
+} from "@houston/domain";
 import type { RoutineRunFailure } from "@houston/protocol";
 import type { ObjectStore } from "@houston/runtime-client/object-sync";
 import { type TurnFilesystem, turnRoutineRunsKey } from "./turn-filesystem";
@@ -29,13 +33,16 @@ export async function finishRoutineTurn(opts: {
   phase: RoutinePhase;
   conversationId: string;
   turnError?: string;
-  /** The turn never reached a provider: nothing was connected to run it on. */
-  unconnectedProvider?: string;
+  /**
+   * The turn never reached a provider: nothing was connected to run it on.
+   * `provider` is what the turn would have run on; absent when nothing named
+   * one (an unpinned routine).
+   */
+  unconnected?: { provider?: string };
 }): Promise<FinishedRoutineTurn> {
-  // Same rule as the standing fire path (schedule/run.ts): only a named
-  // provider makes the missing connection a typed failure.
-  const failure: RoutineRunFailure | undefined = opts.unconnectedProvider
-    ? { code: "creator_not_connected", provider: opts.unconnectedProvider }
+  // Same rule as the standing fire path (schedule/run.ts).
+  const failure: RoutineRunFailure | undefined = opts.unconnected
+    ? unconnectedRoutineFailure(opts.unconnected.provider)
     : undefined;
   let settled: Awaited<ReturnType<typeof settleRoutineTurn>>;
   try {
@@ -80,7 +87,7 @@ async function pauseIfEarned(opts: {
     });
     if (paused)
       console.info(
-        `[routine-auto-pause] paused ${paused.id} after ${paused.auto_paused?.failures} runs: ${paused.auto_paused?.reason} (${paused.auto_paused?.provider})`,
+        `[routine-auto-pause] paused ${paused.id} after ${routineAutoPauseLogTail(paused.auto_paused)}`,
       );
     return undefined;
   } catch (error) {

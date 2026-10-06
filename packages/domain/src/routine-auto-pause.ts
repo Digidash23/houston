@@ -62,6 +62,36 @@ export function routineRunFailure(
   return { code, provider: err.provider };
 }
 
+/**
+ * The typed failure for a routine fire that never reached a provider because
+ * nothing usable was connected for the identity it runs as. A routine that
+ * names a provider blames that account; one that names none (it predates
+ * per-routine models) has no provider to name, and choosing a model is the fix
+ * (PRODUCT-1982). Both count toward the same auto-pause streak, so an unpinned
+ * routine stops firing into nothing instead of failing on every instant.
+ */
+export function unconnectedRoutineFailure(
+  provider: string | null | undefined,
+): RoutineRunFailure {
+  return provider
+    ? { code: "creator_not_connected", provider }
+    : { code: "no_model" };
+}
+
+/** The provider a typed failure names; absent for `no_model`. */
+export function routineFailureProvider(
+  failure: RoutineRunFailure | RoutineAutoPause,
+): string | undefined {
+  return "provider" in failure ? failure.provider : undefined;
+}
+
+/** Whether two typed failures are the same wall (code and provider). */
+function sameWall(a: RoutineRunFailure, b: RoutineRunFailure): boolean {
+  return (
+    a.code === b.code && routineFailureProvider(a) === routineFailureProvider(b)
+  );
+}
+
 const startedMs = (run: RoutineRun): number => {
   const ms = Date.parse(run.started_at);
   return Number.isFinite(ms) ? ms : 0;
@@ -98,20 +128,14 @@ export function routineAutoPause(
     if (run.status !== "error") break;
     if (!run.failure) continue;
     wall ??= run.failure;
-    if (
-      run.failure.code !== wall.code ||
-      run.failure.provider !== wall.provider
-    )
-      break;
+    if (!sameWall(run.failure, wall)) break;
     failures++;
   }
   if (!wall || failures < ROUTINE_AUTO_PAUSE_AFTER) return null;
-  return {
-    reason: wall.code,
-    provider: wall.provider,
-    failures,
-    at: nowIso,
-  };
+  const counted = { failures, at: nowIso };
+  return wall.code === "no_model"
+    ? { reason: wall.code, ...counted }
+    : { reason: wall.code, provider: wall.provider, ...counted };
 }
 
 /** The routine, paused by the engine for `pause`. */
@@ -125,4 +149,13 @@ export function autoPauseRoutine(
     auto_paused: pause,
     updated_at: pause.at,
   };
+}
+
+/** The log line's tail for a pause: "<failures> runs: <reason> (<provider>)". */
+export function routineAutoPauseLogTail(
+  pause: RoutineAutoPause | undefined,
+): string {
+  if (!pause) return "no pause recorded";
+  const provider = routineFailureProvider(pause);
+  return `${pause.failures} runs: ${pause.reason}${provider ? ` (${provider})` : ""}`;
 }

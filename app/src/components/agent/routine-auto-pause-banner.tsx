@@ -1,7 +1,7 @@
 /**
  * RoutineAutoPauseBanner — the routine screen's notice for a routine the
  * engine paused by itself after its runs kept failing on the same account or
- * model problem. It names the problem and the one fix (the SDK's
+ * model problem (or on having no model at all). It names the problem and the one fix (the SDK's
  * `routinePauseNotice` decides which), and offers Resume. Renders nothing for
  * a running routine or one a person paused.
  */
@@ -34,13 +34,14 @@ export function RoutineAutoPauseBanner({
   const pause = routine.auto_paused;
   const notice = routinePauseNotice(
     routine,
-    pause ? readerFor(pause.provider) : undefined,
+    pause && "provider" in pause ? readerFor(pause.provider) : undefined,
   );
   if (!notice) return null;
 
   // Spelled out per remedy rather than built from it: `t()` keys are typed, so
   // a template-literal key would compile past a typo the validator can't see.
   const body = (n: RoutinePauseNotice): string => {
+    if (n.remedy === "choose_model") return t("details.autoPause.chooseModel");
     const provider = providerName(n.provider);
     switch (n.remedy) {
       case "connect_account":

@@ -18,6 +18,8 @@ export { routineRunFailure } from "@houston/domain";
 
 /** The run-row sentence for a typed failure. */
 export function routineRunFailureSummary(failure: RoutineRunFailure): string {
+  if (failure.code === "no_model")
+    return "This routine has no model chosen, and no AI account is connected to run it.";
   const name = sentenceProviderName(failure.provider);
   switch (failure.code) {
     case "creator_not_connected":

@@ -1,15 +1,15 @@
-import type { RoutineRunFailureCode } from "@houston/protocol";
+import type { RoutineAccountFailureCode } from "@houston/protocol";
 import { expect, test } from "vitest";
 import { routinePauseNotice } from "./auto-pause";
 
 const at = "2026-09-29T11:00:00.000Z";
-const paused = (reason: RoutineRunFailureCode) => ({
+const paused = (reason: RoutineAccountFailureCode) => ({
   enabled: false,
   auto_paused: { reason, provider: "anthropic", failures: 10, at },
 });
 
 test("every pause reason maps to one fix, naming whose account when it matters", () => {
-  const cases: [RoutineRunFailureCode, string, string | undefined][] = [
+  const cases: [RoutineAccountFailureCode, string, string | undefined][] = [
     ["creator_not_connected", "connect_account", "creator"],
     ["team_not_connected", "connect_account", "team"],
     ["creator_needs_reconnect", "reconnect_account", "creator"],
@@ -25,7 +25,9 @@ test("every pause reason maps to one fix, naming whose account when it matters",
       failures: 10,
       pausedAt: at,
     });
-    expect(notice?.account).toBe(account);
+    expect(notice && "account" in notice ? notice.account : undefined).toBe(
+      account,
+    );
   }
 });
 
@@ -36,4 +38,21 @@ test("a running routine, a hand pause, or a resumed routine carries no notice", 
   expect(
     routinePauseNotice({ ...paused("out_of_credits"), enabled: true }),
   ).toBeNull();
+});
+
+test("a routine paused for having no model asks for one, naming no provider", () => {
+  expect(
+    routinePauseNotice({
+      enabled: false,
+      auto_paused: { reason: "no_model", failures: 10, at },
+    }),
+  ).toEqual({ remedy: "choose_model", failures: 10, pausedAt: at });
+});
+
+test("a reason this client does not know reads as no notice, never a throw", () => {
+  const future = {
+    enabled: false,
+    auto_paused: { reason: "from_the_future", provider: "x", failures: 10, at },
+  } as never;
+  expect(routinePauseNotice(future)).toBeNull();
 });

@@ -24,7 +24,9 @@ const base: Routine = {
   updated_at: "2026-09-29T11:00:00.000Z",
 };
 
-const paused = (reason: NonNullable<Routine["auto_paused"]>["reason"]) =>
+const paused = (
+  reason: Exclude<NonNullable<Routine["auto_paused"]>["reason"], "no_model">,
+) =>
   ({
     ...base,
     enabled: false,
@@ -92,6 +94,23 @@ describe("RoutineAutoPauseBanner", () => {
         "Pick a model the account can run",
       ),
     );
+  });
+
+  it("asks a routine with no model to choose one, naming no provider", () => {
+    const html = text(
+      render({
+        ...base,
+        enabled: false,
+        auto_paused: {
+          reason: "no_model",
+          failures: 10,
+          at: "2026-09-29T11:00:00.000Z",
+        },
+      }),
+    );
+    ok(html.includes(routines.details.autoPause.chooseModel), html);
+    ok(html.includes(routines.details.autoPause.resume), html);
+    ok(!html.includes("undefined"), html);
   });
 
   it("asks to sign in again when the gateway signed the reader's account out", () => {

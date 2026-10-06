@@ -1,0 +1,168 @@
+import {
+  applyRoutineUpdate,
+  createRoutine,
+  loadRoutineRuns,
+  loadRoutines,
+  ROUTINE_AUTO_PAUSE_AFTER,
+  saveRoutines,
+} from "@houston/domain";
+import type { Routine } from "@houston/protocol";
+import { expect, test, vi } from "vitest";
+import { TurnFireError } from "../channel/fire-error";
+import type { EventHub } from "../events/hub";
+import { CloudPaths } from "../paths";
+import { workspaceRoot } from "../routes/agent-data";
+import { MemoryWorkspaceStore } from "../store/memory";
+import { MemoryVfs } from "../vfs";
+import { fireRoutineRun } from "./run";
+import type { RoutineFirer } from "./scheduler";
+
+/**
+ * PRODUCT-1982: a routine created before per-routine models carries no
+ * provider pin. When the runtime refuses its fire because nothing usable is
+ * connected, every fire used to record an untyped error and the routine kept
+ * firing forever. It now records `no_model` and pauses after the same streak
+ * as a pinned routine; choosing a model and resuming starts it again.
+ */
+
+const EDITED = Date.parse("2026-10-06T00:00:00.000Z");
+const FIFTEEN_MIN = 15 * 60_000;
+
+async function setup(r: Routine) {
+  const store = new MemoryWorkspaceStore();
+  const vfs = new MemoryVfs();
+  const ws = await store.getOrCreatePersonalWorkspace("alice");
+  const agent = await store.createAgent({ workspaceId: ws.id, name: "A" });
+  const root = workspaceRoot(ws, agent);
+  await saveRoutines(vfs, root, [r]);
+  const emit = vi.fn();
+  return {
+    vfs,
+    ws,
+    agent,
+    root,
+    emit,
+    events: { emit } as unknown as EventHub,
+  };
+}
+
+type Env = Awaited<ReturnType<typeof setup>>;
+
+/** Fire the routine as stored, `n` fifteen-minute instants after the edit. */
+async function fireAt(env: Env, n: number, firer: RoutineFirer) {
+  const [current] = (await loadRoutines(env.vfs, env.root)).items;
+  if (!current) throw new Error("routine missing");
+  return fireRoutineRun(
+    {
+      vfs: env.vfs,
+      paths: new CloudPaths(),
+      firer,
+      events: env.events,
+      now: () => new Date(EDITED + n * FIFTEEN_MIN),
+      newId: () => `run-${n}`,
+    },
+    env.ws,
+    env.agent,
+    current,
+  );
+}
+
+const refusing: RoutineFirer = {
+  fire: async () =>
+    Promise.reject(
+      new TurnFireError(
+        'runtime 409: {"error":"No provider connected.","code":"no_provider"}',
+        409,
+        "no_provider",
+      ),
+    ),
+};
+
+const routinesChanged = (env: Env) =>
+  env.emit.mock.calls.filter(([, e]) => e.type === "RoutinesChanged").length;
+
+test("an unpinned routine refused for no provider pauses once, then resumes on a chosen model", async () => {
+  const legacy = createRoutine(
+    { name: "Inbox sweep", prompt: "check", schedule: "*/15 * * * *" },
+    "r1",
+    new Date(EDITED).toISOString(),
+  );
+  expect(legacy.provider ?? null).toBeNull();
+  const env = await setup(legacy);
+
+  for (let n = 1; n <= ROUTINE_AUTO_PAUSE_AFTER; n++) {
+    await expect(fireAt(env, n, refusing)).rejects.toBeInstanceOf(
+      TurnFireError,
+    );
+    const [saved] = (await loadRoutines(env.vfs, env.root)).items;
+    // Still firing until the streak completes; paused by exactly the last one.
+    expect(saved?.enabled).toBe(n < ROUTINE_AUTO_PAUSE_AFTER);
+  }
+
+  const runs = (await loadRoutineRuns(env.vfs, env.root)).items;
+  expect(runs).toHaveLength(ROUTINE_AUTO_PAUSE_AFTER);
+  for (const run of runs) {
+    expect(run).toMatchObject({
+      status: "error",
+      failure: { code: "no_model" },
+      summary:
+        "This routine has no model chosen, and no AI account is connected to run it.",
+    });
+  }
+  const [paused] = (await loadRoutines(env.vfs, env.root)).items;
+  expect(paused?.auto_paused).toEqual({
+    reason: "no_model",
+    failures: ROUTINE_AUTO_PAUSE_AFTER,
+    at: new Date(EDITED + ROUTINE_AUTO_PAUSE_AFTER * FIFTEEN_MIN).toISOString(),
+  });
+  expect(routinesChanged(env)).toBe(1);
+
+  // The person picks a model (the routine screen's Model section), then
+  // resumes: the pause clears and the next fire runs on the chosen provider.
+  if (!paused) throw new Error("routine missing");
+  const resumeAt = new Date(EDITED + 20 * FIFTEEN_MIN).toISOString();
+  const picked = applyRoutineUpdate(
+    paused,
+    { provider: "anthropic", model: "claude-sonnet-4-5" },
+    resumeAt,
+  );
+  const resumed = applyRoutineUpdate(picked, { enabled: true }, resumeAt);
+  expect(resumed.auto_paused).toBeUndefined();
+  await saveRoutines(env.vfs, env.root, [resumed]);
+
+  const fire = vi.fn(async () => undefined);
+  await expect(fireAt(env, 21, { fire })).resolves.toMatchObject({
+    runId: "run-21",
+  });
+  expect(fire).toHaveBeenCalledWith(
+    expect.objectContaining({
+      routine: expect.objectContaining({
+        provider: "anthropic",
+        model: "claude-sonnet-4-5",
+      }),
+    }),
+  );
+  const [after] = (await loadRoutines(env.vfs, env.root)).items;
+  expect(after).toMatchObject({ enabled: true });
+  expect(routinesChanged(env)).toBe(1);
+});
+
+test("a fire refused for another reason stays untyped and never pauses", async () => {
+  const env = await setup(
+    createRoutine(
+      { name: "Inbox sweep", prompt: "check", schedule: "*/15 * * * *" },
+      "r1",
+      new Date(EDITED).toISOString(),
+    ),
+  );
+  const outage: RoutineFirer = {
+    fire: async () =>
+      Promise.reject(new TurnFireError("runtime 500: boom", 500, null)),
+  };
+  for (let n = 1; n <= ROUTINE_AUTO_PAUSE_AFTER + 1; n++)
+    await expect(fireAt(env, n, outage)).rejects.toBeInstanceOf(TurnFireError);
+  const [saved] = (await loadRoutines(env.vfs, env.root)).items;
+  expect(saved?.enabled).toBe(true);
+  const runs = (await loadRoutineRuns(env.vfs, env.root)).items;
+  expect(runs.every((r) => r.failure === undefined)).toBe(true);
+});

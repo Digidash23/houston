@@ -8,7 +8,7 @@ import {
   ROUTINE_AUTO_PAUSE_AFTER,
 } from "@houston/domain";
 import { FsVfs } from "@houston/host/src/vfs";
-import type { Routine, RoutineRun } from "@houston/protocol";
+import type { Routine, RoutineRun, RoutineRunFailure } from "@houston/protocol";
 import type {
   ObjectMetadata,
   ObjectStore,
@@ -80,7 +80,13 @@ const routine: Routine = createRoutine(
   EDITED,
 );
 
-async function seed(earlierFailures: number) {
+async function seed(
+  earlierFailures: number,
+  failure: RoutineRunFailure = {
+    code: "team_needs_reconnect",
+    provider: "anthropic",
+  },
+) {
   const routines = JSON.stringify([routine]);
   remote.set(ROUTINES_KEY, routines);
   const local = (key: string) => join(storeRoot, key);
@@ -94,7 +100,7 @@ async function seed(earlierFailures: number) {
       routine_id: "r1",
       status: "error",
       session_key: "routine-r1",
-      failure: { code: "team_needs_reconnect", provider: "anthropic" },
+      failure,
       started_at: new Date(
         Date.parse(run.started_at) - (i + 1) * 60_000,
       ).toISOString(),
@@ -133,13 +139,17 @@ async function seed(earlierFailures: number) {
 }
 
 /** Settle, then run the pause the caller defers until after sync-back. */
-async function finish(phase: Awaited<ReturnType<typeof seed>>) {
+async function finish(
+  phase: Awaited<ReturnType<typeof seed>>,
+  unconnected?: { provider?: string },
+) {
   const finished = await finishRoutineTurn({
     store,
     prefix: "",
     filesystem: filesystem(),
     phase,
     conversationId: "routine-r1",
+    ...(unconnected ? { unconnected } : {}),
   });
   expect(finished.error).toBeUndefined();
   return finished.afterSync?.([docKey(WS_REL, "routine_runs")]);
@@ -157,6 +167,27 @@ test("the settle completing a streak uploads the paused routine", async () => {
       provider: "anthropic",
       failures: ROUTINE_AUTO_PAUSE_AFTER,
     },
+  });
+});
+
+test("an unpinned turn with nothing connected settles as no_model and pauses on the streak", async () => {
+  const phase = await seed(ROUTINE_AUTO_PAUSE_AFTER - 1, { code: "no_model" });
+  expect(await finish(phase, {})).toBeUndefined();
+  const runs = JSON.parse(
+    (await readFile(
+      join(storeRoot, docKey(WS_REL, "routine_runs")),
+      "utf8",
+    )) as string,
+  ) as RoutineRun[];
+  expect(runs.find((r) => r.id === "turn-1")?.failure).toEqual({
+    code: "no_model",
+  });
+  const [saved] = JSON.parse(remote.get(ROUTINES_KEY) ?? "[]") as Routine[];
+  expect(saved).toMatchObject({ enabled: false });
+  expect(saved?.auto_paused).toEqual({
+    reason: "no_model",
+    failures: ROUTINE_AUTO_PAUSE_AFTER,
+    at: expect.any(String),
   });
 });
 

@@ -54,3 +54,13 @@ test.each([
 test("rows without the additive fields still validate", () => {
   expect(validate([legacy]), JSON.stringify(validate.errors)).toBe(true);
 });
+
+test("the schema accepts a no-model failure, which names no provider", () => {
+  expect(
+    validate([{ ...legacy, failure: { code: "no_model" } }]),
+    JSON.stringify(validate.errors),
+  ).toBe(true);
+  expect(
+    validate([{ ...legacy, failure: { code: "no_model", provider: "x" } }]),
+  ).toBe(false);
+});

@@ -141,6 +141,7 @@
       "teamNeedsReconnect": "É preciso reconectar o {{provider}}.",
       "outOfCredits": "A conta {{provider}} está sem créditos.",
       "modelUnavailable": "A conta {{provider}} não pode usar o modelo desta rotina.",
+      "noModel": "Esta rotina não tem um modelo escolhido e nenhuma conta de IA está conectada para executá-la.",
       "poolDeliveryExpired": "Esta execução não pôde iniciar a tempo e foi ignorada. Você pode executar a rotina novamente."
     },
     "autoPause": {
@@ -153,6 +154,7 @@
       "reconnectTeam": "É preciso reconectar o {{provider}}. Depois disso, retome a rotina.",
       "addCredits": "A conta {{provider}} está sem créditos. Adicione créditos ou mude de plano e depois retome a rotina.",
       "changeModel": "A conta {{provider}} não pode usar o modelo desta rotina. Escolha um modelo que a conta possa usar e depois retome a rotina.",
+      "chooseModel": "Esta rotina não tem um modelo escolhido e nenhuma conta de IA está conectada para executá-la. Escolha um modelo na seção Modelo e depois retome a rotina.",
       "resume": "Retomar"
     }
   },

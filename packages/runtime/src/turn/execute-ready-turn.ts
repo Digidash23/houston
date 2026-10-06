@@ -143,8 +143,12 @@ export async function executeReadyTurn(input: {
       phase: routinePhase,
       conversationId: input.turn.conversationId,
       ...(outcome.error ? { turnError: outcome.error } : {}),
-      ...(!input.turn.credential && effectiveTurn.provider
-        ? { unconnectedProvider: effectiveTurn.provider }
+      ...(!input.turn.credential
+        ? {
+            unconnected: effectiveTurn.provider
+              ? { provider: effectiveTurn.provider }
+              : {},
+          }
         : {}),
     });
     const failed = finished.error;

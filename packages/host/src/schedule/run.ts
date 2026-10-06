@@ -3,6 +3,7 @@ import {
   loadRoutineRuns,
   pruneRoutineRuns,
   saveRoutineRuns,
+  unconnectedRoutineFailure,
   upsertById,
 } from "@houston/domain";
 import type { Routine, RoutineRunFailure } from "@houston/protocol";
@@ -117,15 +118,14 @@ export async function fireRoutineRun(
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    // The runtime refused the fire outright because nothing is connected for
-    // the identity the routine runs as — the creator's (PRODUCT-1475). Typed
-    // only when the routine PINS a provider: the unpinned case genuinely has
-    // no provider to name, so it keeps the runtime's verbatim message.
+    // The runtime refused the fire outright because nothing usable is
+    // connected for the identity the routine runs as — the creator's
+    // (PRODUCT-1475). A pinned routine blames its provider's account; an
+    // unpinned one (it predates per-routine models) reads as "no model
+    // chosen" (PRODUCT-1982). Typed either way, so both stop at the pause.
     const failure: RoutineRunFailure | undefined =
-      err instanceof TurnFireError &&
-      err.code === "no_provider" &&
-      routine.provider
-        ? { code: "creator_not_connected", provider: routine.provider }
+      err instanceof TurnFireError && err.code === "no_provider"
+        ? unconnectedRoutineFailure(routine.provider)
         : undefined;
     await markRunErrored(root, err, async () => {
       const { items: current } = await loadRoutineRuns(deps.vfs, root);
