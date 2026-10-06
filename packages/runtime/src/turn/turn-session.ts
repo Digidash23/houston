@@ -4,6 +4,7 @@ import { newUsedTokenCapture } from "../auth/used-token";
 import { config } from "../config";
 import { framePrompt } from "../session/attribution";
 import { newInteractionHolder } from "../session/interaction";
+import { snapshotWhenReady } from "./turn-deferred-uploads";
 import { recordPooledRoutineCarry } from "./turn-routine-context";
 import { openTurnBackendSession } from "./turn-session-backend";
 import { runInTurnContext } from "./turn-session-context";
@@ -11,10 +12,7 @@ import { handleTurnSessionFailure } from "./turn-session-failure";
 import { newTurnFrames } from "./turn-session-frames";
 import { promptTurnSession } from "./turn-session-prompt";
 import type { RunTurnDeps } from "./turn-session-startup";
-import {
-  captureWorkspaceSnapshot,
-  finishSuccessfulTurn,
-} from "./turn-session-success";
+import { finishSuccessfulTurn } from "./turn-session-success";
 import { startPooledTurnTitle } from "./turn-session-title";
 import type {
   TurnDirectories,
@@ -92,7 +90,10 @@ export async function runTurn(
     // Snapshot the hydrated workspace so the turn's created/modified files can
     // be surfaced as a `file_changes` frame. The per-turn root is exclusive to
     // this request, so the diff is attributable by construction. Best-effort.
-    const beforeFiles = captureWorkspaceSnapshot(workspaceDir);
+    const beforeFiles = snapshotWhenReady(
+      workspaceDir,
+      directories.workspaceReady,
+    );
 
     // A fresh per-turn holder for whatever the model ends up waiting on the user
     // for (ask_user); established for the prompt's async subtree so the tool
@@ -130,7 +131,7 @@ export async function runTurn(
       failed: frames.providerError !== undefined,
     });
     const outcome = finishSuccessfulTurn({
-      beforeFiles,
+      beforeFiles: await beforeFiles,
       providerError: frames.providerError,
       workspaceDir,
       mode,
