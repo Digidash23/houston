@@ -1,4 +1,3 @@
-import type { WireEvent } from "@houston/runtime-client";
 import {
   type CompactionCheckpoints,
   conversationCompactions,
@@ -12,7 +11,7 @@ import type {
 import { compactClaudeSession, compactedPreamble } from "./compact";
 import { toSdkModel } from "./model";
 import type { ClaudeSessionDeps } from "./session-deps";
-import { SessionEventHub } from "./session-events";
+import { SessionEventSubscriptions } from "./session-events";
 import { runTurnAttempt, type TurnAttemptState } from "./session-turn-attempt";
 
 export type { ClaudeQuery, ClaudeSessionDeps, TurnAuth } from "./session-deps";
@@ -26,8 +25,10 @@ export type { ClaudeQuery, ClaudeSessionDeps, TurnAuth } from "./session-deps";
  * turn's `AbortController`; the SDK iterator then throws, and the post-abort
  * throw is swallowed (whatever its shape) so the stop is not double-reported.
  */
-export class ClaudeSession implements HarnessSession {
-  private readonly events = new SessionEventHub();
+export class ClaudeSession
+  extends SessionEventSubscriptions
+  implements HarnessSession
+{
   private disposed = false;
   private aborting = false;
   /** Why the last attempt asked for a fresh rerun, for the warn line. */
@@ -40,6 +41,7 @@ export class ClaudeSession implements HarnessSession {
   private readonly compactions: CompactionCheckpoints;
 
   constructor(private readonly deps: ClaudeSessionDeps) {
+    super();
     this.compactions = deps.compactions ?? conversationCompactions;
     this.model = deps.model;
     this.thinkingLevel = deps.thinkingLevel;
@@ -54,23 +56,6 @@ export class ClaudeSession implements HarnessSession {
    */
   getUsedAccessDigest(): string | undefined {
     return this.usedAccessDigest;
-  }
-
-  subscribe(listener: (e: WireEvent) => void): () => void {
-    return this.events.subscribe(listener);
-  }
-
-  subscribeLiveness(listener: () => void): () => void {
-    return this.events.subscribeLiveness(listener);
-  }
-
-  /**
-   * The Messages API `message_start` stream event of the main thread: one
-   * model round-trip beginning (a subagent's stream carries a parent tool id
-   * and is not this conversation's message).
-   */
-  subscribeAssistantMessageStart(listener: () => void): () => void {
-    return this.events.subscribeAssistantMessageStart(listener);
   }
 
   async prompt(text: string): Promise<void> {
@@ -132,6 +117,7 @@ export class ClaudeSession implements HarnessSession {
       emit: (e) => this.events.emit(e),
       tickLiveness: () => this.events.tickLiveness(),
       emitAssistantMessageStart: () => this.events.emitAssistantMessageStart(),
+      emitTiming: (e) => this.events.emitTiming(e),
     };
   }
 

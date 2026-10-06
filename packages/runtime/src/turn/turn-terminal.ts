@@ -1,3 +1,4 @@
+import type { ModelCallReport } from "@houston/protocol";
 import type { WireFrame } from "@houston/runtime-client";
 import type { TurnDurabilityResult } from "./turn-durability";
 import type { TurnSetupError } from "./turn-layout";
@@ -9,6 +10,7 @@ import type { TurnSyncReport } from "./turn-sync-report";
 export interface TurnTerminalDiagnostics {
   missionTitle?: MissionTitleReport;
   sync?: TurnSyncReport;
+  modelCalls?: ModelCallReport;
 }
 
 /**
@@ -42,7 +44,10 @@ export function turnTerminalFrame(
   extra: TurnTerminalDiagnostics = {},
 ): WireFrame {
   const timingsMs = timingDeltas(timings);
-  const { missionTitle, sync } = extra;
+  const { missionTitle, sync, modelCalls } = extra;
+  // The worker's pre-prompt cost is its own request-to-prompt span: the
+  // earliest mark is the request's arrival.
+  const prePrompt = timingsMs?.prompt_start;
   const fields = {
     ...(timingsMs ? { timingsMs } : {}),
     ...(changed.length > 0 ? { changed } : {}),
@@ -53,6 +58,17 @@ export function turnTerminalFrame(
     ...(missionTitle ? { missionTitle } : {}),
     ...(sync?.incomplete ? { syncIncomplete: sync.incomplete } : {}),
     ...(sync?.merges ? { syncMerges: sync.merges } : {}),
+    ...(modelCalls
+      ? {
+          modelCalls:
+            prePrompt === undefined
+              ? modelCalls
+              : {
+                  ...modelCalls,
+                  startupMs: { ...modelCalls.startupMs, pre_prompt: prePrompt },
+                },
+        }
+      : {}),
   };
   const diagnostic = Object.keys(fields).length > 0 ? fields : undefined;
   if (outcome.error) {
@@ -83,6 +99,7 @@ export function durableTerminalFrame(
   timings: Record<string, number>,
   hydration: { hydratedObjects: number; skippedObjects: number },
   missionTitle?: MissionTitleReport,
+  modelCalls?: ModelCallReport,
 ): WireFrame {
   return turnTerminalFrame(
     durable.outcome,
@@ -96,6 +113,7 @@ export function durableTerminalFrame(
     {
       ...(missionTitle ? { missionTitle } : {}),
       ...(durable.sync ? { sync: durable.sync } : {}),
+      ...(modelCalls ? { modelCalls } : {}),
     },
   );
 }

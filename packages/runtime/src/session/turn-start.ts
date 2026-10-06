@@ -124,12 +124,17 @@ export async function runTurn(
   }
 
   let conv: Conversation;
+  const buildStart = performance.now();
   try {
     conv = await getConversation(id, pin, context);
   } catch (err) {
     reportTurnStartFailure(failure, err, pin);
     return;
   }
+  const startup = {
+    sessionBuildMs: performance.now() - buildStart,
+    queuedAt: performance.now(),
+  };
 
   // Two layers of serialization: per-conversation ordering (conv.queue) AND
   // the per-workdir lock — every conversation in this runtime shares ONE
@@ -167,7 +172,7 @@ export async function runTurn(
       },
     );
     return withWorkdirLock(config.workspaceDir, () =>
-      execTurn(conv, id, turnId, text, recorded, pin, acting),
+      execTurn(conv, id, turnId, text, recorded, pin, acting, startup),
     );
   });
   // Keep the queue chain alive past a turn. execTurn already surfaces its own

@@ -19,6 +19,7 @@ import type { AssistantSandboxDeps } from "./routes/assistant-sandbox-deps";
 import type { CredentialServeHealer } from "./routes/credential-healer";
 import type { CustomIntegrationDeps } from "./routes/custom-integrations";
 import type { IntegrationDeps } from "./routes/integrations";
+import type { MissionsDeps } from "./routes/missions-sandbox";
 import type { FireLock } from "./schedule/fire-lock";
 import type { TranscriptShadow } from "./transcripts/http-shadow";
 import type { TriggerEventLock } from "./triggers/fire";
@@ -157,6 +158,8 @@ export interface ControlPlaneDeps {
    * edge and this host never sets on itself.
    */
   triggersEnabled?: boolean;
+  /** Turn-end model-call reports, forwarded to the gateway (managed pods). */
+  modelCallReports?: MissionsDeps["modelCallReports"];
   corsOrigin?: string;
   /**
    * Prometheus exposition for GET /metrics (HOU-1011): the boot-span ledger,

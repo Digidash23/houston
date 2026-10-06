@@ -32,6 +32,7 @@ export * from "./integration-provider";
 export * from "./local-model-bridge";
 export * from "./message-retry";
 export * from "./mission-title";
+export * from "./model-call-report";
 export * from "./model-windows";
 export * from "./provider-catalog";
 export * from "./provider-error";
