@@ -57,16 +57,26 @@ export function RoutineRowScheduleEdit({
 }: RoutineRowScheduleEditProps) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(cron);
+  // The schedule the editor opened on. Save compares the draft against THIS,
+  // not the live prop: if the agent changes the schedule while the editor is
+  // open, Save without edits must not write the old value back over it.
+  const [openedWith, setOpenedWith] = useState(cron);
 
   // Reseed the draft from the live cron every time the popover opens, so a
   // previously cancelled edit never leaks into the next one.
   const handleOpenChange = (next: boolean) => {
-    if (next) setDraft(cron);
+    if (next) {
+      setDraft(cron);
+      setOpenedWith(cron);
+    }
     setOpen(next);
   };
 
+  // The builder hands back "" for an invalid pick (a cleared or over-cap
+  // count, Weekly with no day), so Save stays disabled until it is valid.
+  const valid = draft.trim() !== "";
   const save = () => {
-    if (draft !== cron) onScheduleChange(routineId, draft);
+    if (valid && draft !== openedWith) onScheduleChange(routineId, draft);
     setOpen(false);
   };
 
@@ -121,7 +131,7 @@ export function RoutineRowScheduleEdit({
           <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
             {labels.cancel}
           </Button>
-          <Button size="sm" onClick={save}>
+          <Button size="sm" onClick={save} disabled={!valid}>
             {labels.save}
           </Button>
         </div>

@@ -1,5 +1,5 @@
 {
-  "$comment": "Shared table for the @every schedule form: packages/domain/src/schedule-interval.ts, its ui/routines twin and the cloud scheduler all assert against it. 'next' is the first fire strictly after 'after' on the UTC epoch grid (null = invalid). Keep the two repo copies byte-identical.",
+  "$comment": "Shared table for the @every schedule form: packages/domain/src/schedule-interval.ts, its ui/routines twin and the cloud scheduler all assert against it. 'next' is the first fire strictly after 'after' on the UTC epoch grid (null = invalid). Schedules are trimmed first, a leading U+FEFF included. Keep the two repo copies byte-identical.",
   "canonical": [
     {
       "every": 1,
@@ -132,6 +132,13 @@
       "schedule": "\t@every 45m\n",
       "interval": {
         "every": 45,
+        "unit": "minutes"
+      }
+    },
+    {
+      "schedule": "\ufeff@every 16m",
+      "interval": {
+        "every": 16,
         "unit": "minutes"
       }
     },
@@ -279,6 +286,11 @@
       "schedule": "@every 16m",
       "after": "2026-06-12T13:04:00.000Z",
       "next": "2026-06-12T13:20:00.000Z"
+    },
+    {
+      "schedule": "\ufeff@every 16m",
+      "after": "2026-06-12T12:48:00.000Z",
+      "next": "2026-06-12T13:04:00.000Z"
     },
     {
       "schedule": "@every 5h",

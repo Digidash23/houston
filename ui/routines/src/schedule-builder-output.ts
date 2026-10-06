@@ -94,7 +94,9 @@ export function builderSummary(
   }
   if (output.overMax) {
     return interp(labels.maxInterval, {
-      max: intervalCountMax(pick.intervalUnit),
+      max: new Intl.NumberFormat(locale).format(
+        intervalCountMax(pick.intervalUnit),
+      ),
       unit: labels.units[pick.intervalUnit],
     });
   }

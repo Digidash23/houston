@@ -11,7 +11,7 @@ import {
 /**
  * What the schedule picker writes and says. The rendered round trip (open the
  * editor on a legacy schedule, Save without edits) lives in
- * app/tests/routine-schedule-edit-legacy.test.ts.
+ * app/tests/routine-schedule-edit.test.ts.
  */
 
 const custom = (
@@ -99,7 +99,7 @@ describe("builderSummary", () => {
     const touched = { touched: true, value: "" };
     assert.equal(
       summary(custom("10081", "minutes"), touched),
-      "Enter 10080 minutes or less",
+      "Enter 10,080 minutes or less",
     );
     assert.equal(
       summary(custom("200", "hours"), touched),
@@ -110,5 +110,20 @@ describe("builderSummary", () => {
       "Enter 31 days or less",
     );
     assert.equal(summary(custom("", "days"), touched), "Enter a number");
+  });
+
+  it("formats the maximum for the locale", () => {
+    const pick = custom("10081", "minutes");
+    const es = builderSummary(
+      pick,
+      builderOutput(pick),
+      { touched: true, value: "" },
+      { ...DEFAULT_SCHEDULE_LABELS, maxInterval: "Hasta {max} {unit}" },
+      "es-ES",
+    );
+    assert.equal(
+      es,
+      `Hasta ${new Intl.NumberFormat("es-ES").format(10080)} minutes`,
+    );
   });
 });
