@@ -125,6 +125,7 @@ test("titles the card in the hydrated tree after the reply", async () => {
     missionTitle: {
       outcome: "written",
       ms: expect.any(Number),
+      waitMs: expect.any(Number),
       written: {
         conversationId: "activity-m1",
         title: "Weekly sales report",

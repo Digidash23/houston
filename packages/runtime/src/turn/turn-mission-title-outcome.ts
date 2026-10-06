@@ -35,8 +35,12 @@ export type MissionTitleOutcome =
 /** The terminal frame's `missionTitle` diagnostic. */
 export interface MissionTitleReport {
   outcome: MissionTitleOutcome;
-  /** Title call plus card write, from the reply's end. */
+  /** Title call plus card write, from the title's start (the model's first
+   *  response, so it overlaps the reply). */
   ms: number;
+  /** How long the reply's end waited on the title and card write: the delay
+   *  the title added to the terminal frame. */
+  waitMs?: number;
   /** Merge rounds the board needed to land after a lost race. */
   mergeAttempts?: number;
 }
