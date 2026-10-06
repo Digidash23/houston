@@ -18,6 +18,8 @@ interface Fixtures {
     schedule: string;
     interval: { every: number; unit: IntervalScheduleUnit } | null;
   }[];
+  canonicalize: { schedule: string; canonical: string }[];
+  next: { schedule: string; after: string; next: string | null }[];
 }
 
 const fixturePath = (rel: string) =>
@@ -47,6 +49,23 @@ describe("parseIntervalSchedule reads every fixture row", () => {
     expect(parsed && { every: parsed.every, unit: parsed.unit }).toEqual(
       row.interval,
     );
+  });
+});
+
+describe("canonicalSchedule rewrites every fixture row", () => {
+  test.each(fixtures.canonicalize)("'$schedule' -> '$canonical'", (row) => {
+    expect(canonicalSchedule(row.schedule)).toBe(row.canonical);
+  });
+});
+
+describe("nextRun follows the epoch grid in every fixture row", () => {
+  test.each(fixtures.next)("$schedule after $after", (row) => {
+    // A zone never moves the grid, pre-epoch instants included.
+    for (const tz of ["UTC", "Asia/Kolkata", null]) {
+      expect(
+        nextRun(row.schedule, tz, at(row.after))?.toISOString() ?? null,
+      ).toBe(row.next);
+    }
   });
 });
 

@@ -70,9 +70,9 @@ export interface Routine {
   name: string;
   prompt: string;
   /**
-   * Cron, or `@every <N>m|h` (a true interval from the Unix epoch, for N not
-   * dividing 60 / 24). Absent on trigger routines: exactly one of `schedule` /
-   * `trigger` is set (enforced in normalizeRoutines). */
+   * Cron, or `@every <N>m|h` (a true epoch interval, N not dividing 60 / 24).
+   * Absent on trigger routines; normalizeRoutines keeps exactly one of the two.
+   */
   schedule?: string;
   /** External-event wake binding. Absent on cron routines (see `schedule`). */
   trigger?: RoutineTriggerBinding;

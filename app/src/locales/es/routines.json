@@ -198,6 +198,7 @@
     "dayOfMonthLabel": "Día del mes",
     "repeatEvery": "Repetir cada",
     "enterNumber": "Ingresa un número",
+    "maxInterval": "Ingresa {max} {unit} o menos",
     "pickDay": "Elige al menos un día",
     "weekdaysLabel": "En estos días",
     "weekdayShortcuts": {

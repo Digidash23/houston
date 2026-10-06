@@ -10,7 +10,6 @@
 import { parseTime } from "./schedule-format.ts";
 import {
   everySchedule,
-  everyStepMinutes,
   MAX_INTERVAL_MINUTES,
   parseEverySchedule,
 } from "./schedule-interval-form.ts";
@@ -26,13 +25,28 @@ export interface ScheduleInterval {
 }
 
 /**
- * A positive whole count, and for minutes/hours no longer than the 7-day
- * interval cap. Days and months have no cap.
+ * The largest count each unit takes: minutes and hours stop at the 7-day
+ * interval cap; days and months at the largest cron step their field accepts
+ * (croner refuses `*​/32` days and `*​/13` months).
  */
+export function intervalCountMax(unit: IntervalUnit): number {
+  switch (unit) {
+    case "minutes":
+      return MAX_INTERVAL_MINUTES;
+    case "hours":
+      return MAX_INTERVAL_MINUTES / 60;
+    case "days":
+      return 31;
+    case "months":
+      return 12;
+  }
+}
+
+/** A positive whole count no larger than the unit's maximum. */
 export function intervalCountAllowed(every: number, unit: IntervalUnit) {
-  if (!Number.isInteger(every) || every < 1) return false;
-  if (unit !== "minutes" && unit !== "hours") return true;
-  return everyStepMinutes({ every, unit }) <= MAX_INTERVAL_MINUTES;
+  return (
+    Number.isInteger(every) && every >= 1 && every <= intervalCountMax(unit)
+  );
 }
 
 /**

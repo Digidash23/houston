@@ -9,6 +9,7 @@ import {
 } from "../src/schedule-interval-form.ts";
 import {
   intervalCountAllowed,
+  intervalCountMax,
   intervalToSchedule,
   scheduleToInterval,
 } from "../src/schedule-interval-utils.ts";
@@ -27,6 +28,8 @@ interface Fixtures {
     schedule: string;
     interval: { every: number; unit: EveryUnit } | null;
   }[];
+  canonicalize: { schedule: string; canonical: string }[];
+  next: { schedule: string; after: string; next: string | null }[];
 }
 
 const fixtures = JSON.parse(
@@ -48,6 +51,29 @@ describe("parseEverySchedule (fixture table)", () => {
   for (const row of fixtures.parse) {
     it(`'${row.schedule}'`, () => {
       assert.deepEqual(parseEverySchedule(row.schedule), row.interval);
+    });
+  }
+});
+
+describe("parse then canonicalize (fixture table)", () => {
+  for (const row of fixtures.canonicalize) {
+    it(`'${row.schedule}' -> '${row.canonical}'`, () => {
+      const interval = parseEverySchedule(row.schedule);
+      const canonical = interval
+        ? everySchedule(interval.every, interval.unit)
+        : row.schedule;
+      assert.equal(canonical, row.canonical);
+    });
+  }
+});
+
+describe("nextFire on the epoch grid (fixture table)", () => {
+  for (const row of fixtures.next) {
+    it(`${row.schedule} after ${row.after}`, () => {
+      for (const tz of ["UTC", "Asia/Kolkata"]) {
+        const next = nextFire(row.schedule, tz, new Date(row.after));
+        assert.equal(next?.toISOString() ?? null, row.next);
+      }
     });
   }
 });
@@ -101,14 +127,23 @@ describe("the picker writes and reads the interval form", () => {
     }
   });
 
-  it("caps minutes and hours at 7 days, never days or months", () => {
+  it("caps minutes and hours at 7 days, days at 31 and months at 12", () => {
     assert.equal(intervalCountAllowed(10080, "minutes"), true);
     assert.equal(intervalCountAllowed(10081, "minutes"), false);
     assert.equal(intervalCountAllowed(168, "hours"), true);
     assert.equal(intervalCountAllowed(169, "hours"), false);
-    assert.equal(intervalCountAllowed(400, "days"), true);
+    // croner refuses a step above the field's range (*/32 days, */13 months).
+    assert.equal(intervalCountAllowed(31, "days"), true);
+    assert.equal(intervalCountAllowed(32, "days"), false);
+    assert.equal(intervalCountAllowed(400, "days"), false);
+    assert.equal(intervalCountAllowed(12, "months"), true);
+    assert.equal(intervalCountAllowed(13, "months"), false);
     assert.equal(intervalCountAllowed(0, "minutes"), false);
     assert.equal(intervalCountAllowed(1.5, "hours"), false);
+    assert.deepEqual(
+      (["minutes", "hours", "days", "months"] as const).map(intervalCountMax),
+      [10080, 168, 31, 12],
+    );
   });
 });
 

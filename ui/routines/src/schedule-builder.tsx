@@ -58,6 +58,7 @@ export function ScheduleBuilder({
     setIntervalEvery,
     intervalUnit,
     setIntervalUnit,
+    intervalMax,
     everyValid,
     isCustom,
     showTime,
@@ -138,6 +139,7 @@ export function ScheduleBuilder({
                 increaseLabel={labels.increase}
                 every={intervalEvery}
                 unit={intervalUnit}
+                max={intervalMax}
                 invalid={!everyValid}
                 onEveryChange={setIntervalEvery}
                 onUnitChange={setIntervalUnit}

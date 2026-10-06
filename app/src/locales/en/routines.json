@@ -198,6 +198,7 @@
     "dayOfMonthLabel": "Day of month",
     "repeatEvery": "Repeat every",
     "enterNumber": "Enter a number",
+    "maxInterval": "Enter {max} {unit} or less",
     "pickDay": "Pick at least one day",
     "weekdaysLabel": "On these days",
     "weekdayShortcuts": {

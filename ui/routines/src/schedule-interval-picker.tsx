@@ -16,6 +16,7 @@ const UNIT_ORDER: IntervalUnit[] = ["minutes", "hours", "days", "months"];
 function NumberStepper({
   id,
   value,
+  max,
   onChange,
   invalid,
   decreaseLabel,
@@ -23,6 +24,8 @@ function NumberStepper({
 }: {
   id: string;
   value: string;
+  /** The largest count the unit takes; `+` stops there. */
+  max: number;
   onChange: (value: string) => void;
   invalid?: boolean;
   decreaseLabel: string;
@@ -39,7 +42,7 @@ function NumberStepper({
       <button
         type="button"
         aria-label={decreaseLabel}
-        onClick={() => onChange(String(Math.max(1, n - 1)))}
+        onClick={() => onChange(String(Math.min(max, Math.max(1, n - 1))))}
         disabled={n <= 1}
         className="grid size-9 place-items-center text-ink-muted hover:text-ink disabled:opacity-30"
       >
@@ -58,7 +61,8 @@ function NumberStepper({
       <button
         type="button"
         aria-label={increaseLabel}
-        onClick={() => onChange(String(n + 1))}
+        onClick={() => onChange(String(Math.min(max, n + 1)))}
+        disabled={n >= max}
         className="grid size-9 place-items-center text-ink-muted hover:text-ink disabled:opacity-30"
       >
         <Plus className="size-4" />
@@ -75,6 +79,7 @@ export function IntervalPicker({
   increaseLabel,
   every,
   unit,
+  max,
   invalid,
   onEveryChange,
   onUnitChange,
@@ -86,6 +91,8 @@ export function IntervalPicker({
   increaseLabel: string;
   every: string;
   unit: IntervalUnit;
+  /** The largest count `unit` takes (see intervalCountMax). */
+  max: number;
   invalid?: boolean;
   onEveryChange: (every: string) => void;
   onUnitChange: (unit: IntervalUnit) => void;
@@ -101,6 +108,7 @@ export function IntervalPicker({
         <NumberStepper
           id={inputId}
           value={every}
+          max={max}
           onChange={onEveryChange}
           invalid={invalid}
           decreaseLabel={decreaseLabel}
