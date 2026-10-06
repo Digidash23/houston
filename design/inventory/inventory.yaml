@@ -1072,9 +1072,10 @@ components:
       shows the humanized cron with the SAME schedule-builder editor the rows
       use (plus the next fire time), or a trigger's plain-language event with
       its live activation chip (event bindings change via chat, not here).
-      The editor takes the routine CREATOR's Free minimum interval (SDK
-      routineScheduleFloor: only when the viewer created it and is on Free;
-      the save check uses the same floor) as a plain minimum on the custom
+      The editor takes the VIEWER's own Free minimum interval on any routine
+      (SDK routineScheduleFloor: saving re-stamps the routine's creator to the
+      saver, whose plan the runs are judged on; the save check uses the same
+      floor, and the host refuses a save under it) as a plain minimum on the custom
       minutes count: it starts there, minus stops there, plus from below
       lands on it, a lower typed count snaps up on blur with Save disabled
       until then, any count at or above it is fine, and a hint names it; a preset nominally faster would be hidden

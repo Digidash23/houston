@@ -3,10 +3,10 @@ import { docKey, saveActivities } from "@houston/domain";
 import type { Activity, HoustonEvent } from "@houston/protocol";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { Agent, Workspace } from "../domain/types";
+import type { FireTurnOptions } from "../fire-turn-options";
 import { conversationKey, LocalPaths } from "../paths";
 import type {
   CredentialVault,
-  FireTurnOptions,
   RuntimeChannel,
   TurnPin,
   WorkspaceStore,

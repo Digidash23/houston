@@ -50,9 +50,7 @@ export function TeamRoutinesGrid({
   const unreadable = allAgentReadsFailed(data.failures);
   const gridLabels = useTeamGridLabels({ unreadable });
   const labels = useRoutineLabels();
-  const floorFor = useRoutineScheduleFloor();
-  const scheduleFloor = (routineId: string) =>
-    floorFor(data.list.routines.find((r) => r.id === routineId)?.created_by);
+  const scheduleFloor = useRoutineScheduleFloor();
 
   // "This one will fail": an unpinned routine runs on whatever the employee
   // runs on. The chip renders itself away when the row is fine.
@@ -91,7 +89,7 @@ export function TeamRoutinesGrid({
         labels={gridLabels}
         rowLabels={labels.rowLabels}
         scheduleLabels={labels.schedule}
-        // The row editor never offers a pick under its creator's plan floor.
+        // The row editor never offers a pick under the saver's plan floor.
         scheduleFloor={scheduleFloor}
         scheduleSummaryLabels={labels.schedule.summary}
         triggerLabels={labels.trigger}

@@ -15,8 +15,8 @@ read-only line that it ran on its creator's Free plan. Before, a skipped run
 left no trace and the routine looked broken.
 
 The schedule editor (routine screen and list rows) no longer offers a
-schedule under the Free minimum interval on a routine whose creator is on
-Free and is the one editing it (the creator's plan is what the runs are
+schedule under the Free minimum interval to a person on Free, on any
+routine (saving makes them the routine's creator, whose plan the runs are
 judged on): presets that fire more often are hidden (none at 15), the
 custom minutes count starts at 15 and its minus stops there, plus from a
 lower count lands on 15, a lower typed count snaps up to 15 on blur and

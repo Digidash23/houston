@@ -12,7 +12,7 @@ import type { SchedulePreset } from "../../ui/routines/src/types.ts";
 
 /**
  * SDK regression: the save backstop (`scheduleFloorAllows`) accepts every cron
- * the schedule picker can emit under a Free creator's floor. The picker lives
+ * the schedule picker can emit under a Free saver's floor. The picker lives
  * in `ui/routines`, the backstop in `@houston/sdk`; the app binds both, so the
  * agreement is pinned here.
  */
@@ -33,7 +33,7 @@ const free = {
     limitedCount: 0,
   },
 } satisfies PlanSummary;
-const floor = routineScheduleFloor(free, { createdBy: "u1", viewerId: "u1" });
+const floor = routineScheduleFloor(free);
 const OPTIONS: ScheduleOptions = {
   time: "09:30",
   daysOfWeek: [1, 3, 5],
@@ -47,7 +47,7 @@ const PRESETS: SchedulePreset[] = [
   "monthly",
 ];
 
-describe("picker and save backstop agree for a Free creator", () => {
+describe("picker and save backstop agree for a Free saver", () => {
   it("has the Free floor", () => {
     ok(floor === 15);
   });

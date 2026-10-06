@@ -24,6 +24,7 @@
   "trigger": "Runs when its event happens",
   "schedule": "Runs on its schedule",
   "shortInterval": "On Free, choose an interval of at least 15 minutes.",
+  "shortIntervalBody": "Nothing was saved. Pick a slower schedule, or upgrade to Plus.",
   "openCheckout": "Open checkout",
   "openPortal": "Open billing portal",
   "success": "You're on Plus",

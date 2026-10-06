@@ -1,4 +1,3 @@
-import type { Routine } from "@houston/engine-adapter";
 import { scheduleFloorAllows } from "@houston/sdk";
 import { useTranslation } from "react-i18next";
 import {
@@ -28,13 +27,10 @@ export interface TeamRoutineActions {
  * update throws its own "Activity not found" without going through `call()`,
  * so that one is awaited and toasted here.
  */
-export function useTeamRoutineActions(
-  agent: Agent,
-  routines: Routine[],
-): TeamRoutineActions {
+export function useTeamRoutineActions(agent: Agent): TeamRoutineActions {
   const { t } = useTranslation("routines");
   const { t: planT } = useTranslation("plan");
-  const floorFor = useRoutineScheduleFloor();
+  const floor = useRoutineScheduleFloor();
   const addToast = useUIStore((s) => s.addToast);
   const { update, remove, runNow, cancelRun } = useRoutineWritesForAnyAgent();
   const updateActivity = useUpdateActivityForAnyAgent();
@@ -46,9 +42,8 @@ export function useTeamRoutineActions(
     // Inline cron edit from the row: the same update route every other routine
     // write uses (`schedule` clears any trigger binding server-side).
     onScheduleChange: (routineId, cron) => {
-      // The same floor the row editor got: its creator's plan decides.
-      const routine = routines.find((r) => r.id === routineId);
-      if (!scheduleFloorAllows(cron, floorFor(routine?.created_by))) {
+      // The same floor the row editor got: the saver's own plan decides.
+      if (!scheduleFloorAllows(cron, floor)) {
         addToast({ title: planT("shortInterval") });
         return;
       }

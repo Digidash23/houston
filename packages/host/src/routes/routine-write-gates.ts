@@ -73,20 +73,25 @@ export interface PlanFloorRefusal {
 }
 
 /**
- * The refusal a routine with `schedule` earns under `floor` (the turn's plan
- * limit, routes/live-turn.ts), else null. A routine without a cron (an event
- * trigger) has no cadence to judge. The rule is the app editor's own
- * (`scheduleFloorAllows`), so the agent and the person are held to one line.
+ * The refusal a routine with `schedule` earns under `floor` (the writer's plan
+ * limit), else null. A routine without a cron (an event trigger) has no
+ * cadence to judge. The rule is the app editor's own (`scheduleFloorAllows`),
+ * so the agent and the person are held to one line. `kept` = the write left
+ * an existing schedule as it was (a wording edit of an old fast routine): the
+ * refusal then says the schedule itself has to move first.
  */
 export function planFloorRefusal(
   schedule: unknown,
   floor: number | undefined,
+  kept = false,
 ): PlanFloorRefusal | null {
   if (floor === undefined || typeof schedule !== "string" || !schedule)
     return null;
   if (scheduleFloorAllows(schedule, floor)) return null;
   return {
-    error: `This person's plan runs a scheduled task at most once every ${floor} minutes, so nothing was saved. Ask whether every ${floor} minutes or slower works, then save again; upgrading the plan removes this limit.`,
+    error: kept
+      ? `This task already runs more often than this person's plan allows (at most every ${floor} minutes), so nothing was saved. Move its schedule to every ${floor} minutes or slower before other changes can be saved; ask the person first.`
+      : `This person's plan runs a scheduled task at most once every ${floor} minutes, so nothing was saved. Ask whether every ${floor} minutes or slower works, then save again; upgrading the plan removes this limit.`,
     code: PLAN_MIN_INTERVAL_CODE,
     minIntervalMinutes: floor,
   };

@@ -380,3 +380,19 @@ test("a turn with no recorded limits keeps any cadence", async () => {
   );
   expect(r.status).toBe(201);
 });
+
+test("limits the runtime puts in the save body itself are ignored", async () => {
+  // Only the host's record of the turn carries limits; the runtime's request
+  // could name any, so a floor there is neither honored nor saved.
+  const r = await save(
+    {
+      ...BASE,
+      schedule: "*/5 * * * *",
+      limits: { routineMinIntervalMinutes: 60 },
+    },
+    { gatewayFronted: true, actingAs: actingToken() },
+  );
+  expect(r.status).toBe(201);
+  expect(await onDisk()).toHaveLength(1);
+  expect((await onDisk())[0]).not.toHaveProperty("limits");
+});

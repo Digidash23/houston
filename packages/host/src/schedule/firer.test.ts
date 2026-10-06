@@ -2,12 +2,8 @@ import { expect, test } from "vitest";
 import { ProxyChannel } from "../channel/proxy";
 import { MemoryCredentialStore } from "../credentials/store";
 import type { Agent, Workspace } from "../domain/types";
-import type {
-  ChannelCtx,
-  FireTurnOptions,
-  RuntimeChannel,
-  TurnPin,
-} from "../ports";
+import type { FireTurnOptions } from "../fire-turn-options";
+import type { ChannelCtx, RuntimeChannel, TurnPin } from "../ports";
 import { startTestFetchServer } from "../testing/fetch-server";
 import { ChannelRoutineFirer } from "./firer";
 import type { FiringJob } from "./scheduler";

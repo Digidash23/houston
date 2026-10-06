@@ -137,7 +137,6 @@ export {
   plusCheckoutRefusal,
 } from "./modules/plan/refusals";
 export {
-  type RoutineScheduleViewer,
   routineScheduleFloor,
   scheduleFloorAllows,
 } from "./modules/plan/schedule-floor";

@@ -135,10 +135,7 @@ describe("personal plan decisions", () => {
   it("throttles presence and refuses short Free intervals", () => {
     expect(presenceDue(100, 600_099)).toBe(false);
     expect(presenceDue(100, 600_100)).toBe(true);
-    const floor = routineScheduleFloor(summary, {
-      createdBy: "u1",
-      viewerId: "u1",
-    });
+    const floor = routineScheduleFloor(summary);
     expect(scheduleFloorAllows("*/5 * * * *", floor)).toBe(false);
     expect(scheduleFloorAllows("*/15 * * * *", floor)).toBe(true);
   });

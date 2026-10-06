@@ -6,12 +6,12 @@ import {
   RevokedRefillBlockedError,
   sharedRevocationTombstones,
 } from "../credentials/revocation-tombstones";
+import type { FireTurnOptions } from "../fire-turn-options";
 import {
   ApiKeyRejectedError,
   type CaptureResult,
   type ChannelCtx,
   type CredentialStore,
-  type FireTurnOptions,
   type ForwardRequest,
   type RuntimeChannel,
   type RuntimeEndpoint,

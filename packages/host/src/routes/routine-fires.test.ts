@@ -8,10 +8,10 @@ import {
 import type { Capabilities, Routine } from "@houston/protocol";
 import { afterAll, beforeEach, expect, test } from "vitest";
 import { MemoryCredentialStore } from "../credentials/store";
+import type { FireTurnOptions } from "../fire-turn-options";
 import { CloudPaths } from "../paths";
 import type {
   ChannelCtx,
-  FireTurnOptions,
   RuntimeChannel,
   TokenVerifier,
   TurnPin,

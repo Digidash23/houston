@@ -51,7 +51,7 @@ export function RoutineScreenSections({
 }: Props) {
   const { t } = useTranslation("routines");
   const { t: planT } = useTranslation("plan");
-  const floor = useRoutineScheduleFloor()(routine.created_by);
+  const floor = useRoutineScheduleFloor();
   const [shortInterval, setShortInterval] = useState(false);
   const labels = useRoutineLabels();
 

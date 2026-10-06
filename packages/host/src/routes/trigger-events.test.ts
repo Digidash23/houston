@@ -3,12 +3,8 @@ import { loadRoutineRuns, saveRoutines } from "@houston/domain";
 import type { Capabilities, Routine } from "@houston/protocol";
 import { beforeEach, expect, test } from "vitest";
 import { MemoryCredentialStore } from "../credentials/store";
-import type {
-  ChannelCtx,
-  FireTurnOptions,
-  RuntimeChannel,
-  TokenVerifier,
-} from "../ports";
+import type { FireTurnOptions } from "../fire-turn-options";
+import type { ChannelCtx, RuntimeChannel, TokenVerifier } from "../ports";
 import { type ControlPlaneDeps, createControlPlaneServer } from "../server";
 import { MemoryWorkspaceStore } from "../store/memory";
 import { MemoryTurnBus } from "../turn/bus";

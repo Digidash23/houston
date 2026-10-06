@@ -103,8 +103,8 @@ export const gridProps: readonly SpecimenProp[] = [
   },
   {
     name: "scheduleFloor",
-    type: "(routineId: string) => number | undefined",
-    note: "Per-routine minimum minutes for the inline schedule editor (the creator's plan decides): no count under it, Save disabled while one is shown. Absent = no limit.",
+    type: "number",
+    note: "Minimum minutes for every row's inline schedule editor (the saver's plan decides): no count under it, Save disabled while one is shown. Absent = no limit.",
   },
   {
     name: "locale",

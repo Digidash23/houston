@@ -6,7 +6,6 @@ import {
 import type {
   ClaudeOAuthCredential,
   CustomEndpoint,
-  TurnLimits,
   TurnMode,
 } from "@houston/protocol";
 import type {
@@ -17,6 +16,7 @@ import type {
   WorkspaceId,
   WorkspaceRuntime,
 } from "./domain/types";
+import type { FireTurnOptions } from "./fire-turn-options";
 
 /**
  * The control plane's outward dependencies, as interfaces ("ports"). Each has at
@@ -235,20 +235,6 @@ export interface TurnPin {
   model?: string | null;
   effort?: string | null;
   mode?: TurnMode | null;
-}
-
-/**
- * Who a programmatic fire acts as, and the limits it runs under. `actingUser`
- * is the local routine creator's bare `sub`; `actingAs` is a gateway-minted C2
- * token for an externally scheduled fire and replaces the bare header. Both
- * are absent for legacy creator-less local routines. `limits` are the plan
- * limits of the person the work is done for (a mission inherits its parent
- * turn's), recorded on the turn the fire starts.
- */
-export interface FireTurnOptions {
-  actingUser?: string | undefined;
-  actingAs?: string | undefined;
-  limits?: TurnLimits | undefined;
 }
 
 export type CaptureResult =

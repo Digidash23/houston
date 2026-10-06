@@ -11,7 +11,6 @@ import {
 import type { NewRoutine, Routine, RoutineUpdate } from "@houston/protocol";
 import type { Vfs } from "../vfs";
 import { withDocLock } from "./doc-lock";
-import { isRoutinePause } from "./mission-delegation-refusals";
 import {
   NO_TRIGGER_BACKEND_WRITE_ERROR,
   type PlanFloorRefusal,
@@ -39,9 +38,10 @@ export interface RoutineWriteOptions {
   /** Stable id supplied when an optimistic write may be retried. */
   id?: string;
   /**
-   * The fewest minutes between fires the writer's plan allows (the turn's
-   * `limits`, gateway only). Absent = no floor: the app's own route, which
-   * the schedule editor already holds to it, and every non-plan deployment.
+   * The fewest minutes between fires the writer's plan allows, as the gateway
+   * stamped it: the turn's `limits` for an agent's save, the
+   * `x-houston-routine-floor` header for an app or AI Manager write. Absent =
+   * no floor (Plus, the desktop, self-host).
    */
   minIntervalMinutes?: number;
 }
@@ -162,9 +162,13 @@ export async function updateRoutineChecked(
     }
     // Every update re-stamps `created_by` to the editor (applyRoutineUpdate),
     // whose plan then judges the fires, so even a prompt-only edit is checked.
-    // A bare pause is the one exception: it only ever makes fires rarer.
-    if (!isRoutinePause({ id: itemId, ...update })) {
-      const refusal = planFloorRefusal(next.schedule, opts.minIntervalMinutes);
+    // A routine left disabled never fires, so it is exempt; re-enabling is not.
+    if (next.enabled !== false) {
+      const refusal = planFloorRefusal(
+        next.schedule,
+        opts.minIntervalMinutes,
+        update.schedule === undefined,
+      );
       if (refusal) return refusal;
     }
     const providerErr = providerPinError(update);

@@ -15,6 +15,16 @@ export interface TurnLimits {
 /** A day: a floor above it would refuse every schedule, so it is not a floor. */
 const MAX_ROUTINE_MIN_INTERVAL_MINUTES = 1440;
 
+/** A floor the engine honors: a whole number of minutes, 1 to a day. */
+function validFloor(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= MAX_ROUTINE_MIN_INTERVAL_MINUTES
+  );
+}
+
 /**
  * Normalize an untrusted wire value into {@link TurnLimits}. Sibling of
  * `parseMentions`: anything but a plain object is no limits, and a field
@@ -27,12 +37,29 @@ export function parseTurnLimits(value: unknown): TurnLimits | undefined {
     return undefined;
   const floor = (value as { routineMinIntervalMinutes?: unknown })
     .routineMinIntervalMinutes;
-  if (
-    typeof floor !== "number" ||
-    !Number.isInteger(floor) ||
-    floor < 1 ||
-    floor > MAX_ROUTINE_MIN_INTERVAL_MINUTES
-  )
-    return undefined;
-  return { routineMinIntervalMinutes: floor };
+  return validFloor(floor) ? { routineMinIntervalMinutes: floor } : undefined;
+}
+
+/**
+ * The plan floor the gateway stamps on a routine write it proxies for a person
+ * on a plan with one (`POST /agents/:id/routines`, `PATCH
+ * /agents/:id/routines/:rid`): the fewest minutes between fires that person's
+ * save may set. The gateway strips any client-sent copy, and the host trusts
+ * it only where a gateway fronts every request. The request-scoped twin of
+ * {@link TurnLimits.routineMinIntervalMinutes}.
+ */
+export const ROUTINE_FLOOR_HEADER = "x-houston-routine-floor";
+
+/**
+ * The floor a {@link ROUTINE_FLOOR_HEADER} value names, or undefined for an
+ * absent or garbled one (no floor, never a failed write). Node hands a
+ * repeated header as an array; only the first value counts.
+ */
+export function parseRoutineFloorHeader(
+  value: string | string[] | undefined,
+): number | undefined {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (typeof raw !== "string" || !/^\d+$/.test(raw.trim())) return undefined;
+  const floor = Number(raw.trim());
+  return validFloor(floor) ? floor : undefined;
 }

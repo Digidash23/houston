@@ -19,39 +19,31 @@ const free = {
   },
 } satisfies PlanSummary;
 const plus: PlanSummary = { ...free, plan: "plus" };
-const creator = { createdBy: "u1", viewerId: "u1" };
 
-describe("routineScheduleFloor: the creator's plan decides", () => {
-  it("is the Free minimum when the viewer created the routine", () => {
-    expect(routineScheduleFloor(free, creator)).toBe(15);
-    // The wire pins 15 today; the floor follows whatever the summary carries.
+/**
+ * Every save re-stamps the routine's creator to the editor, so the floor is
+ * the EDITOR's plan: the routine's creator never enters the decision.
+ */
+describe("routineScheduleFloor: the editor's own plan decides", () => {
+  it("a Free viewer editing a Plus creator's routine gets the floor", () => {
+    expect(routineScheduleFloor(free)).toBe(15);
+  });
+
+  it("a Plus viewer editing a Free creator's routine gets none", () => {
+    expect(routineScheduleFloor(plus)).toBeUndefined();
+  });
+
+  it("follows the minimum the summary carries", () => {
     const thirty = {
       ...free,
       routines: { ...free.routines, minIntervalMinutes: 30 },
     } as unknown as PlanSummary;
-    expect(routineScheduleFloor(thirty, creator)).toBe(30);
+    expect(routineScheduleFloor(thirty)).toBe(30);
     const { routines: _omitted, ...bare } = free;
-    expect(routineScheduleFloor(bare, creator)).toBe(15);
+    expect(routineScheduleFloor(bare)).toBe(15);
   });
 
-  it("sets none for someone else's routine, whatever the viewer's plan", () => {
-    expect(
-      routineScheduleFloor(free, { createdBy: "u2", viewerId: "u1" }),
-    ).toBeUndefined();
-  });
-
-  it("sets none while either id is unknown", () => {
-    for (const viewer of [
-      { createdBy: undefined, viewerId: "u1" },
-      { createdBy: "u1", viewerId: null },
-      { createdBy: "u1", viewerId: undefined },
-      { createdBy: "", viewerId: "" },
-    ])
-      expect(routineScheduleFloor(free, viewer)).toBeUndefined();
-  });
-
-  it("sets none on Plus or before the plan loads", () => {
-    expect(routineScheduleFloor(plus, creator)).toBeUndefined();
-    expect(routineScheduleFloor(undefined, creator)).toBeUndefined();
+  it("sets none before the plan loads", () => {
+    expect(routineScheduleFloor(undefined)).toBeUndefined();
   });
 });

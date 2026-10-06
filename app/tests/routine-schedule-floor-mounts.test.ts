@@ -22,7 +22,7 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
-describe("schedule editors get the creator's floor", () => {
+describe("schedule editors get the saver's own floor", () => {
   it("every editor mount passes the floor from useRoutineScheduleFloor", () => {
     const mounts = sourceFiles(SRC).filter((file) => {
       const src = readFileSync(file, "utf8");
@@ -34,12 +34,12 @@ describe("schedule editors get the creator's floor", () => {
       ok(
         src.includes("useRoutineScheduleFloor()") &&
           /(minIntervalMinutes|scheduleFloor)=\{/.test(src),
-        `${file} passes its creator's floor`,
+        `${file} passes the saver's floor`,
       );
     }
   });
 
-  it("each save backstop judges with the same creator floor", () => {
+  it("each save backstop judges with the same floor", () => {
     for (const rel of [
       "components/agent/routine-screen-sections.tsx",
       "components/team-view/team-routines/use-team-routine-actions.ts",
@@ -51,6 +51,26 @@ describe("schedule editors get the creator's floor", () => {
         !src.includes("freeScheduleAllowed"),
         `${rel} drops the plan-only gate`,
       );
+    }
+  });
+
+  it("a server plan-floor refusal is an expected state, never a bug report", () => {
+    const tauri = readFileSync(join(SRC, "lib/tauri.ts"), "utf8");
+    ok(
+      tauri.includes("if (await surfacePlanMinInterval(err)) return;"),
+      "surfaceError hands the refusal to the plan copy before any bug path",
+    );
+    const surface = readFileSync(join(SRC, "lib/plan-min-interval.ts"), "utf8");
+    ok(
+      surface.includes("planMinIntervalRefusal(err)"),
+      "the SDK classifies it",
+    );
+    ok(surface.includes("showExpectedStateToast("), "an info toast, no Sentry");
+    for (const lang of ["en", "es", "pt"]) {
+      const json = JSON.parse(
+        readFileSync(join(SRC, "locales", lang, "plan.json"), "utf8"),
+      ) as { shortInterval?: string; shortIntervalBody?: string };
+      ok(json.shortInterval && json.shortIntervalBody, `${lang} has the copy`);
     }
   });
 

@@ -9,11 +9,11 @@ import type {
 import { beforeEach, expect, test } from "vitest";
 import { ACTING_AS_HEADER } from "../auth/acting";
 import type { Agent, Workspace } from "../domain/types";
+import type { FireTurnOptions } from "../fire-turn-options";
 import { LocalPaths } from "../paths";
 import type {
   CredentialStore,
   CredentialVault,
-  FireTurnOptions,
   RuntimeChannel,
   TurnPin,
   WorkspaceCredential,

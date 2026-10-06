@@ -18,7 +18,7 @@ export function TeamRoutines({ agent }: { agent: Agent }) {
   const { t } = useTranslation(["teams", "routines"]);
   const tz = useTimezonePreference();
   const data = useTeamRoutinesData(agent);
-  const actions = useTeamRoutineActions(agent, data.list.routines);
+  const actions = useTeamRoutineActions(agent);
   const host = useTeamRoutineHost({
     agent,
     list: data.list,

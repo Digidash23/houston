@@ -32,6 +32,8 @@ export interface AgentOpChainDeps {
   actingAuthor?: ActivityContributor;
   startedBy?: MissionStarter;
   triggersEnabled: boolean;
+  /** The acting person's plan floor for a routine write (op `limits`). */
+  routineFloorMinutes?: number;
   /** Wired for custom-integration ops only (a per-op manager over the
    *  hydrated definitions file + the gateway's secret store). */
   customIntegrations?: CustomIntegrationManager;
@@ -77,6 +79,9 @@ const OP_HANDLERS: Record<OpGroup, OpHandler> = {
         author: deps.actingAuthor,
         triggersEnabled: deps.triggersEnabled,
         ...(deps.startedBy ? { startedBy: deps.startedBy } : {}),
+        ...(deps.routineFloorMinutes
+          ? { routineFloorMinutes: deps.routineFloorMinutes }
+          : {}),
       },
     ),
   "agent-file": (deps, method, rest, req, res) =>
@@ -89,6 +94,7 @@ const OP_HANDLERS: Record<OpGroup, OpHandler> = {
       req,
       res,
       deps.emit,
+      deps.routineFloorMinutes,
     ),
   "skills-manifest": (deps, method, rest, req, res) =>
     handleSkillsManifest(

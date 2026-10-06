@@ -94,3 +94,35 @@ export function parseMessageLimitRefusal(
     resetsAt: value.resetsAt,
   };
 }
+
+/**
+ * The engine's refusal of a routine save that would fire more often than the
+ * saver's plan allows (`400 plan_min_interval`), on the routine create and
+ * update routes and the agent's own save. `minIntervalMinutes` is the floor.
+ */
+export interface PlanMinIntervalRefusal {
+  error: string;
+  code: "plan_min_interval";
+  minIntervalMinutes: number;
+}
+
+/** Parse only the exact refusal; any other 400 keeps its existing handling. */
+export function parsePlanMinIntervalRefusal(
+  body: unknown,
+): PlanMinIntervalRefusal | null {
+  if (typeof body !== "object" || body === null) return null;
+  const value = body as Record<string, unknown>;
+  if (
+    value.code !== "plan_min_interval" ||
+    typeof value.error !== "string" ||
+    typeof value.minIntervalMinutes !== "number" ||
+    !Number.isInteger(value.minIntervalMinutes) ||
+    value.minIntervalMinutes < 1
+  )
+    return null;
+  return {
+    error: value.error,
+    code: "plan_min_interval",
+    minIntervalMinutes: value.minIntervalMinutes,
+  };
+}

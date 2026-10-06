@@ -25,6 +25,13 @@ const REFUSAL = {
   minIntervalMinutes: 15,
 };
 
+const KEPT_REFUSAL = {
+  error:
+    "This task already runs more often than this person's plan allows (at most every 15 minutes), so nothing was saved. Move its schedule to every 15 minutes or slower before other changes can be saved; ask the person first.",
+  code: "plan_min_interval",
+  minIntervalMinutes: 15,
+};
+
 const every = (schedule: string) => ({
   name: "Check inbox",
   prompt: "Look for new mail.",
@@ -75,8 +82,13 @@ test("a create at or above the floor saves", async () => {
   expect(await onDisk(vfs)).toHaveLength(3);
 });
 
-test("the refusal fits the 300 characters save_routine relays", () => {
-  expect(JSON.stringify(REFUSAL).length).toBeLessThan(300);
+test("both refusals fit the 300 characters save_routine relays", () => {
+  for (const floor of [15, 1440]) {
+    const fresh = JSON.stringify(REFUSAL).replaceAll("15", String(floor));
+    const kept = JSON.stringify(KEPT_REFUSAL).replaceAll("15", String(floor));
+    expect(fresh.length).toBeLessThan(300);
+    expect(kept.length).toBeLessThan(300);
+  }
 });
 
 test("no floor saves anything", async () => {
@@ -133,7 +145,8 @@ test("renaming a routine that already fires below the floor is refused: the edit
     { name: "Renamed" },
     { ...FLOOR, actorSub: "free-person" },
   );
-  expect(result).toEqual(REFUSAL);
+  // The schedule was not part of the edit: the refusal says it must move first.
+  expect(result).toEqual(KEPT_REFUSAL);
   expect(await onDisk(vfs)).toEqual([routine]);
 });
 
@@ -152,10 +165,10 @@ test("a bare pause is never refused, even below the floor", async () => {
   expect((await onDisk(vfs))[0]?.enabled).toBe(false);
 });
 
-test("a pause that also edits something else is judged", async () => {
+test("any edit that leaves the routine disabled is exempt: it never fires", async () => {
   const vfs = new MemoryVfs();
   const routine = await seed(vfs, "*/5 * * * *");
-  const result = await updateRoutineChecked(
+  const paused = await updateRoutineChecked(
     vfs,
     ROOT,
     WS,
@@ -163,7 +176,52 @@ test("a pause that also edits something else is judged", async () => {
     { enabled: false, name: "Renamed" },
     FLOOR,
   );
-  expect(result).toEqual(REFUSAL);
+  expect("routine" in paused).toBe(true);
+  const edited = await updateRoutineChecked(
+    vfs,
+    ROOT,
+    WS,
+    routine.id,
+    { prompt: "Only unread mail." },
+    FLOOR,
+  );
+  expect("routine" in edited).toBe(true);
+  expect((await onDisk(vfs))[0]).toMatchObject({
+    enabled: false,
+    name: "Renamed",
+    prompt: "Only unread mail.",
+  });
+});
+
+test("re-enabling a fast disabled routine is judged", async () => {
+  const vfs = new MemoryVfs();
+  const routine = await seed(vfs, "*/5 * * * *");
+  await updateRoutineChecked(
+    vfs,
+    ROOT,
+    WS,
+    routine.id,
+    { enabled: false },
+    FLOOR,
+  );
+  const resumed = await updateRoutineChecked(
+    vfs,
+    ROOT,
+    WS,
+    routine.id,
+    { enabled: true },
+    FLOOR,
+  );
+  expect(resumed).toEqual(KEPT_REFUSAL);
+  const fixed = await updateRoutineChecked(
+    vfs,
+    ROOT,
+    WS,
+    routine.id,
+    { enabled: true, schedule: "*/20 * * * *" },
+    FLOOR,
+  );
+  expect("routine" in fixed).toBe(true);
 });
 
 test("an update that moves the routine to the floor saves", async () => {

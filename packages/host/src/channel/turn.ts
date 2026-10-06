@@ -1,10 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { CustomEndpoint } from "@houston/protocol";
 import { normalizeTurnMode } from "@houston/protocol";
+import type { FireTurnOptions } from "../fire-turn-options";
 import type {
   CaptureResult,
   ChannelCtx,
-  FireTurnOptions,
   RuntimeChannel,
   TurnPin,
 } from "../ports";

@@ -129,6 +129,7 @@ export {
 // ===== Routines module contract ========================================
 export {
   type NewRoutine,
+  planMinIntervalRefusal,
   type Routine,
   type RoutinePauseAccount,
   type RoutinePauseNotice,

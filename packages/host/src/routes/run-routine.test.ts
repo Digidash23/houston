@@ -3,9 +3,9 @@ import { loadRoutineRuns } from "@houston/domain";
 import type { Capabilities, Routine, RoutineRun } from "@houston/protocol";
 import { beforeEach, expect, test } from "vitest";
 import { MemoryCredentialStore } from "../credentials/store";
+import type { FireTurnOptions } from "../fire-turn-options";
 import type {
   ChannelCtx,
-  FireTurnOptions,
   RuntimeChannel,
   TokenVerifier,
   TurnPin,

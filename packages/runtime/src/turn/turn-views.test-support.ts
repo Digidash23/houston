@@ -11,6 +11,7 @@ import {
   parseJsonDoc,
 } from "@houston/domain";
 import { FsVfs } from "@houston/host/src/vfs";
+import type { TurnLimits } from "@houston/protocol";
 import {
   LocalDirStore,
   type ObjectStore,
@@ -296,7 +297,7 @@ export async function claimedTurn(
   agent: AgentStore,
   docs: PodDocs,
   conversationId = "c1",
-  opts: { routine?: boolean } = {},
+  opts: { routine?: boolean; limits?: TurnLimits } = {},
 ) {
   const root = await mkdtemp(join(tmpdir(), "turn-views-root-"));
   const filesystem = await prepareTurnFilesystem({
@@ -331,6 +332,7 @@ export async function claimedTurn(
       filesystem,
       workspaceId: "W",
       conversationId,
+      ...(opts.limits ? { limits: opts.limits } : {}),
     });
   /** The agent's save_learning tool: a CAS write straight to the store. */
   const saveLearning = async (text: string) => {
@@ -342,7 +344,7 @@ export async function claimedTurn(
     const response = await writeRoute("/sandbox/routines/save", body);
     expect(response?.status).toBeLessThan(300);
   };
-  return { filesystem, settle, saveLearning, saveRoutine };
+  return { filesystem, settle, saveLearning, saveRoutine, writeRoute };
 }
 
 /** The host's own GET skills answer over what the store now holds. */
@@ -410,16 +412,12 @@ function localClaimOrigin(): Promise<string> {
  * handler's write and the sync-back: another writer landing in either makes
  * the op's upload lose its generation race.
  */
-export async function landOp(
-  agent: AgentStore,
-  docs: PodDocs,
+/** One route op parsed from the gateway's envelope (`extra` rides on top). */
+async function routeOp(
   route: { method: string; rest: string; body?: unknown },
-  race: {
-    beforeApply?: () => Promise<void>;
-    beforeSync?: () => Promise<void>;
-  } = {},
+  extra: Record<string, unknown> = {},
 ) {
-  const op = parseOpRequest({
+  return parseOpRequest({
     workspaceId: "w1",
     agentId: "agent-1",
     gcsPrefix: PREFIX,
@@ -438,7 +436,37 @@ export async function landOp(
       contentType: "application/json",
       body: route.body === undefined ? "" : JSON.stringify(route.body),
     },
+    ...extra,
   });
+}
+
+/** Apply a route op over a fresh hydration of `agent`, without syncing back. */
+export async function applyRoute(
+  agent: AgentStore,
+  route: { method: string; rest: string; body?: unknown },
+  extra: Record<string, unknown> = {},
+) {
+  const op = await routeOp(route, extra);
+  const filesystem = await prepareTurnFilesystem({
+    store: agent.store,
+    prefix: PREFIX,
+    root: await mkdtemp(join(tmpdir(), "turn-views-op-")),
+    claimed: true,
+    ...opTreeOptions(op.op),
+  });
+  return applyOp(op, filesystem);
+}
+
+export async function landOp(
+  agent: AgentStore,
+  docs: PodDocs,
+  route: { method: string; rest: string; body?: unknown },
+  race: {
+    beforeApply?: () => Promise<void>;
+    beforeSync?: () => Promise<void>;
+  } = {},
+) {
+  const op = await routeOp(route);
   const filesystem = await prepareTurnFilesystem({
     store: agent.store,
     prefix: PREFIX,

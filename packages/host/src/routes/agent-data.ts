@@ -99,6 +99,9 @@ export async function handleAgentData(
           triggersEnabled: caller.triggersEnabled ?? false,
           nowIso,
           createdBy: caller.createdBy,
+          ...(caller.routineFloorMinutes
+            ? { minIntervalMinutes: caller.routineFloorMinutes }
+            : {}),
         },
       )
     )

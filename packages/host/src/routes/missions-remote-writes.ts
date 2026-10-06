@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { parseTurnLimits } from "@houston/protocol";
 import { json, readJson } from "./http";
 import { inboundMissionStarter } from "./mission-starter";
 import { MISSION_ID_HEADER } from "./missions-calling-agent";
@@ -88,9 +89,14 @@ export async function startInbound(
     missionId = raw;
   }
   const { agent: bodyAgent, ...parsedOrigin } = origin.value;
+  // The gateway's plan stamp for the person the mission works for: the child
+  // turn's routine saves are held to it. Trusted only behind the gateway.
+  const limits = ctx.deps.gatewayFronted
+    ? parseTurnLimits(body.limits)
+    : undefined;
   // Only the gateway-verified header can grant an agent move rights on this row.
   await startMission(
-    ctx,
+    limits ? { ...ctx, limits } : ctx,
     parsed.value,
     {
       ...parsedOrigin,

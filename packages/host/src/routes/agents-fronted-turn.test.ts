@@ -405,3 +405,23 @@ test.each([
     fx.close();
   }
 });
+
+test("a later send the gateway did not stamp clears the earlier limits", async () => {
+  const fx = await boot(true);
+  try {
+    liveTurns.forget(fx.agent.id);
+    await send(fx, {
+      text: "first",
+      limits: { routineMinIntervalMinutes: 15 },
+    });
+    expect(liveTurns.get(fx.agent.id, "conv-1")?.limits).toEqual({
+      routineMinIntervalMinutes: 15,
+    });
+    // The person moved to Plus between the two sends: no stamp, no floor.
+    await send(fx, { text: "second" });
+    expect(liveTurns.get(fx.agent.id, "conv-1")?.limits).toBeUndefined();
+  } finally {
+    liveTurns.forget(fx.agent.id);
+    fx.close();
+  }
+});

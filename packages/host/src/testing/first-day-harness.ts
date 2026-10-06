@@ -5,11 +5,16 @@ import {
   loadConfig,
   saveActivities,
 } from "@houston/domain";
-import type { Activity, AgentConfig, Capabilities } from "@houston/protocol";
+import type {
+  Activity,
+  AgentConfig,
+  Capabilities,
+  TurnLimits,
+} from "@houston/protocol";
 import { MemoryCredentialStore } from "../credentials/store";
+import type { FireTurnOptions } from "../fire-turn-options";
 import type {
   ChannelCtx,
-  FireTurnOptions,
   RuntimeChannel,
   TokenVerifier,
   TurnPin,
@@ -35,6 +40,7 @@ export interface Fired {
   text: string;
   pin?: TurnPin;
   actingUser?: string;
+  limits?: TurnLimits;
 }
 
 export class SpyChannel implements RuntimeChannel {
@@ -49,10 +55,16 @@ export class SpyChannel implements RuntimeChannel {
     conversationId: string,
     text: string,
     pin?: TurnPin,
-    { actingUser }: FireTurnOptions = {},
+    { actingUser, limits }: FireTurnOptions = {},
   ): Promise<void> {
     if (this.gate) await this.gate;
-    this.fired.push({ conversationId, text, pin, actingUser });
+    this.fired.push({
+      conversationId,
+      text,
+      pin,
+      actingUser,
+      ...(limits ? { limits } : {}),
+    });
     if (this.failWith === null) return;
     throw typeof this.failWith === "string"
       ? new Error(this.failWith)
@@ -118,7 +130,9 @@ export interface FirstDayHost {
   close(): Promise<void>;
 }
 
-export async function bootFirstDayHost(): Promise<FirstDayHost> {
+export async function bootFirstDayHost(
+  opts: { gatewayFronted?: boolean } = {},
+): Promise<FirstDayHost> {
   const store = new MemoryWorkspaceStore();
   const vfs = new MemoryVfs();
   const channel = new SpyChannel();
@@ -130,6 +144,7 @@ export async function bootFirstDayHost(): Promise<FirstDayHost> {
     channels: { gke: channel },
     vfs,
     capabilities: CAPS,
+    ...(opts.gatewayFronted ? { gatewayFronted: true } : {}),
   };
   const server: Server = createControlPlaneServer(deps);
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
