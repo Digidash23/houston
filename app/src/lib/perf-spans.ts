@@ -117,7 +117,8 @@ export class PerfSpans {
    * A sent turn's first response, as the SDK paired it:
    * `send_to_first_response` with its outcome, and `send_to_first_activity`
    * when the turn showed anything (or timed out showing nothing, censored like
-   * a text timeout). Tagged with the org the turn was SENT in.
+   * a text timeout). Which outcomes ship to the gateway: `perf-span-marks.ts`.
+   * Tagged with the org the turn was SENT in.
    */
   turnResponded(response: FirstResponse): void {
     const { outcome, sentAt } = response;

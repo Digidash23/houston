@@ -143,6 +143,162 @@ test("a turn that fails before showing anything carries no first activity", asyn
   expect(reports[0]).not.toHaveProperty("firstActivityAt");
 });
 
+test("a stop after a tool call reports cancelled with its first activity", async () => {
+  const reports = await timedTurn([
+    { at: 1_002_000, frame: tool("bash") },
+    {
+      at: 1_008_000,
+      frame: { type: "error", data: { message: "Stopped by user" } },
+    },
+  ]);
+  expect(reports).toEqual([
+    {
+      outcome: "cancelled",
+      sentAt: 1_000_000,
+      at: 1_008_000,
+      firstActivityAt: 1_002_000,
+    },
+  ]);
+});
+
+test("an engine restart after thinking reports interrupted with its first activity", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(1_000_000);
+  let nonce: string | undefined;
+  const engine = {
+    async streamEvents(_id: string, o: EventStreamOptions) {
+      o.onEvent({
+        type: "sync",
+        data: { running: false, partial: "", seq: 0 },
+      });
+      while (nonce === undefined) await new Promise((r) => setTimeout(r, 2));
+      o.onEvent({ type: "user", data: { nonce }, turnId: "t1" } as WireFrame);
+      vi.setSystemTime(1_003_000);
+      o.onEvent({ type: "thinking", data: "Plan", turnId: "t1" } as WireFrame);
+      vi.setSystemTime(1_009_000);
+      // The engine restarted: an idle resync, and history says interrupted.
+      o.onEvent({
+        type: "sync",
+        data: { running: false, partial: "", seq: 0, resync: true },
+      } as WireFrame);
+      await new Promise<void>((r) =>
+        o.signal?.addEventListener("abort", () => r(), { once: true }),
+      );
+    },
+    async sendMessage(_id: string, _t: string, opts?: { nonce?: string }) {
+      nonce = opts?.nonce;
+    },
+    async getHistory() {
+      return {
+        id: "a",
+        title: "",
+        messages: [
+          { role: "user", content: "hi", turnId: "t1" },
+          {
+            role: "assistant",
+            content: "",
+            turnId: "t1",
+            interrupted: { resumed: false },
+          },
+        ],
+      };
+    },
+  } as unknown as HoustonEngineClient;
+  const reports: FirstResponse[] = [];
+  const output: FeedOutput = {
+    pushFeedItem: () => {},
+    sessionStatus: () => {},
+    persistBoardStatus: async () => {},
+    firstResponse: (_a, _s, response) => reports.push(response),
+  };
+  await streamTurn(engine, "Ag", "a", "hi", output, registry, {
+    tuning: fast,
+  });
+  expect(reports).toHaveLength(1);
+  expect(reports[0]).toMatchObject({
+    outcome: "interrupted",
+    firstActivityAt: 1_003_000,
+  });
+});
+
+test("a timeout after a tool call keeps the activity it showed", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(1_000_000);
+  const reports: FirstResponse[] = [];
+  const clock = new FirstResponseClock((r) => reports.push(r), 20);
+  vi.setSystemTime(1_004_000);
+  clock.pushed({ feed_type: "tool_call", data: { name: "bash", input: {} } });
+  await new Promise((r) => setTimeout(r, 40));
+  expect(reports).toHaveLength(1);
+  expect(reports[0]).toMatchObject({
+    outcome: "timeout",
+    sentAt: 1_000_000,
+    firstActivityAt: 1_004_000,
+  });
+});
+
+test("a tool replayed by a running sync after a reconnect is the first activity", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(1_000_000);
+  let sent = false;
+  let connects = 0;
+  const engine = {
+    async streamEvents(_id: string, o: EventStreamOptions) {
+      connects++;
+      if (connects === 1) {
+        // The first connection drops before any of the turn's frames arrive.
+        o.onEvent({
+          type: "sync",
+          data: { running: false, partial: "", seq: 0 },
+        });
+        while (!sent) await new Promise((r) => setTimeout(r, 2));
+        return;
+      }
+      // The reconnect's running sync replays the tool that ran meanwhile.
+      vi.setSystemTime(1_006_000);
+      o.onEvent({
+        type: "sync",
+        data: {
+          running: true,
+          partial: "",
+          seq: 3,
+          turnId: "t-1",
+          tools: [{ name: "integration_search", input: {} }],
+        },
+      } as WireFrame);
+      vi.setSystemTime(1_012_000);
+      o.onEvent({ type: "text", data: "Found it", turnId: "t-1" } as WireFrame);
+      o.onEvent({ type: "done", data: null, turnId: "t-1" } as WireFrame);
+    },
+    async sendMessage() {
+      sent = true;
+    },
+    async getHistory() {
+      return { id: "a", title: "", messages: [] };
+    },
+  } as unknown as HoustonEngineClient;
+  const reports: FirstResponse[] = [];
+  const output: FeedOutput = {
+    pushFeedItem: () => {},
+    sessionStatus: () => {},
+    persistBoardStatus: async () => {},
+    firstResponse: (_a, _s, response) => reports.push(response),
+  };
+  await streamTurn(engine, "Ag", "a", "hi", output, registry, {
+    tuning: fast,
+  });
+  expect(connects).toBe(2);
+  expect(reports).toEqual([
+    {
+      outcome: "first_text",
+      sentAt: 1_000_000,
+      at: 1_012_000,
+      turnId: "t-1",
+      firstActivityAt: 1_006_000,
+    },
+  ]);
+});
+
 test("the clock stamps only the first activity, and nothing after its report", () => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(5_000);

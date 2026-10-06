@@ -55,25 +55,33 @@ describe("PerfSpans first activity", () => {
     ]);
   });
 
-  it("ships first activity whatever the turn's outcome, when it showed something", async () => {
+  it("mirrors first activity for every outcome, but ships only the text histogram's outcomes", async () => {
     const { spans, sent, mirrored } = harness();
     spans.turnResponded(response(0, 30_000, "no_text", 4_000));
     spans.turnResponded(response(0, 9_000, "error", 6_000));
+    spans.turnResponded(response(0, 8_000, "cancelled", 5_000));
     spans.turnResponded(response(0, 600_000, "timeout", 7_000));
+    spans.turnResponded(response(0, 12_000, "first_text", 3_000));
     await spans.flush();
-    deepStrictEqual(
-      sent.flat().filter((s) => s.span === "send_to_first_activity"),
-      [
-        { span: "send_to_first_activity", ms: 4_000 },
-        { span: "send_to_first_activity", ms: 6_000 },
-        { span: "send_to_first_activity", ms: 7_000 },
-      ],
-    );
+    // Both gateway histograms hold the same turns (first_text + timeout): it
+    // has no outcome label, so a mixed population could not be compared.
+    deepStrictEqual(sent.flat(), [
+      { span: "send_to_first_response", ms: 600_000 },
+      { span: "send_to_first_activity", ms: 7_000 },
+      { span: "send_to_first_response", ms: 12_000 },
+      { span: "send_to_first_activity", ms: 3_000 },
+    ]);
     deepStrictEqual(
       mirrored
         .filter((m) => m.span === "send_to_first_activity")
-        .map((m) => m.outcome),
-      ["no_text", "error", "timeout"],
+        .map((m) => [m.outcome, m.ms]),
+      [
+        ["no_text", 4_000],
+        ["error", 6_000],
+        ["cancelled", 5_000],
+        ["timeout", 7_000],
+        ["first_text", 3_000],
+      ],
     );
   });
 
