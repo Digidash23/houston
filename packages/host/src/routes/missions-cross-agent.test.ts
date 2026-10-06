@@ -6,6 +6,7 @@ import type { Agent, Workspace } from "../domain/types";
 import { conversationKey, LocalPaths } from "../paths";
 import type {
   CredentialVault,
+  FireTurnOptions,
   RuntimeChannel,
   TurnPin,
   WorkspaceStore,
@@ -71,8 +72,7 @@ const channel = {
     cid: string,
     text: string,
     pin?: TurnPin,
-    _actingUser?: string,
-    actingAs?: string,
+    { actingAs }: FireTurnOptions = {},
   ): Promise<void> {
     fired.push({
       agentId: ctx.agent.id,

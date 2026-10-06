@@ -1,4 +1,3 @@
-import { minFireGapMinutes } from "@houston/domain";
 import type { PlanSummary } from "@houston/wire-types";
 
 /** Free's routine floor when the summary omits it. */
@@ -30,23 +29,9 @@ export function routineScheduleFloor(
   return plan.routines?.minIntervalMinutes ?? DEFAULT_FREE_MIN_INTERVAL_MINUTES;
 }
 
-/** A minute-step cron, `*\/N * * * *`: what the editor's custom minutes count writes. */
-const MINUTE_STEP = /^\*\/(\d+) \* \* \* \*$/;
-
 /**
- * Whether `cron` respects `floor` (from `routineScheduleFloor`), the save
- * backstop that agrees with the editor: a minute step is judged by its nominal
- * N, anything else by its smallest real gap. Cosmetic: the gateway decides.
+ * The save backstop that agrees with the editor (`routineScheduleFloor` gives
+ * the floor). Lives in `@houston/domain` so the host's routine-write gate
+ * judges an agent's save by the same rule.
  */
-export function scheduleFloorAllows(
-  cron: string,
-  floor: number | undefined,
-): boolean {
-  if (floor === undefined) return true;
-  // `*\/16` restarts at the top of the hour (:48 then :00); the gateway judges
-  // real fire times, so it may skip the run that lands under the floor there.
-  const step = cron.trim().match(MINUTE_STEP);
-  if (step) return Number(step[1]) >= floor;
-  const gap = minFireGapMinutes(cron);
-  return gap === null || gap >= floor;
-}
+export { scheduleFloorAllows } from "@houston/domain";

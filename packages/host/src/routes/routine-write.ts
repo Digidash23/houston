@@ -1,6 +1,5 @@
 import {
   applyRoutineUpdate,
-  canonicalProviderId,
   createRoutine,
   getPreference,
   isValidTriggerBinding,
@@ -10,9 +9,16 @@ import {
   validateSchedule,
 } from "@houston/domain";
 import type { NewRoutine, Routine, RoutineUpdate } from "@houston/protocol";
-import { hostProvider } from "../providers";
 import type { Vfs } from "../vfs";
 import { withDocLock } from "./doc-lock";
+import { isRoutinePause } from "./mission-delegation-refusals";
+import {
+  NO_TRIGGER_BACKEND_WRITE_ERROR,
+  type PlanFloorRefusal,
+  planFloorRefusal,
+  providerPinError,
+  wakeMechanismError,
+} from "./routine-write-gates";
 
 /**
  * The merge-safe routine write path, shared by the authenticated agent-data
@@ -24,53 +30,6 @@ import { withDocLock } from "./doc-lock";
  * task #1 when task #2 was created); this is the one blessed write path.
  */
 
-/**
- * The rejection a routine write earns when it carries a `trigger` binding on a
- * deployment with no trigger backend: the automation could never wake, so we
- * refuse it up front rather than persist a dead routine. Written as a sentence
- * the agent can relay verbatim to a non-technical user (no jargon).
- */
-export const NO_TRIGGER_BACKEND_WRITE_ERROR =
-  "Event triggers are not available here. Give this automation a schedule instead.";
-
-/**
- * A routine has EXACTLY ONE wake mechanism: a cron `schedule` or an event
- * `trigger`. Reject "both" or "neither" (normalizeRoutines drops such an entry
- * on the next read, which would silently lose the write) and a malformed trigger
- * binding, so the caller learns immediately. Returns the reason, else null.
- */
-export const wakeMechanismError = (
-  body: Record<string, unknown>,
-): string | null => {
-  const hasSchedule = typeof body.schedule === "string" && body.schedule !== "";
-  const hasTrigger = body.trigger != null;
-  if (hasSchedule === hasTrigger) {
-    return "a routine needs exactly one of 'schedule' or 'trigger'";
-  }
-  if (hasTrigger && !isValidTriggerBinding(body.trigger)) {
-    return "invalid 'trigger' binding";
-  }
-  return null;
-};
-
-/**
- * Reject a provider pin naming a provider this host has never heard of —
- * otherwise the typo saves and every fired run errors. Validated through the
- * SAME canonical mapping the fire path uses (routinePin), so a Rust-era alias
- * ("claude", "codex") that still lives in a migrated routines.json round-trips
- * through an edit without a spurious rejection. Model ids are validated at
- * dispatch (the catalog is the runtime's). Returns the reason, else null.
- */
-export const providerPinError = (
-  body: Record<string, unknown>,
-): string | null => {
-  if (typeof body.provider !== "string" || !body.provider) return null;
-  const canonical = canonicalProviderId(body.provider);
-  return canonical && hostProvider(canonical)
-    ? null
-    : `unknown provider: ${body.provider}`;
-};
-
 /** Common gate options for both write paths. */
 export interface RoutineWriteOptions {
   /** Whether this deployment can fire event-driven routines (Houston Cloud). */
@@ -79,14 +38,24 @@ export interface RoutineWriteOptions {
   nowIso: string;
   /** Stable id supplied when an optimistic write may be retried. */
   id?: string;
+  /**
+   * The fewest minutes between fires the writer's plan allows (the turn's
+   * `limits`, gateway only). Absent = no floor: the app's own route, which
+   * the schedule editor already holds to it, and every non-plan deployment.
+   */
+  minIntervalMinutes?: number;
 }
+
+/** A refused write: the reason the caller relays, plus a code when it has one. */
+export type RoutineWriteError = { error: string } | PlanFloorRefusal;
 
 /**
  * Create a routine merge-safely. Runs the SAME create-time gates as the
  * authenticated POST (name/prompt present, exactly one wake, trigger-backend
- * availability, valid cron, known provider pin), then reads the existing file,
- * appends the new routine, and writes the whole survivor set back. Returns the
- * created routine or a plain-language error the caller relays.
+ * availability, valid cron, plan floor when one is set, known provider pin),
+ * then reads the existing file, appends the new routine, and writes the whole
+ * survivor set back. Returns the created routine or a plain-language error the
+ * caller relays.
  */
 export async function createRoutineChecked(
   vfs: Vfs,
@@ -94,7 +63,7 @@ export async function createRoutineChecked(
   workspaceId: string,
   body: Record<string, unknown>,
   opts: RoutineWriteOptions & { createdBy?: string },
-): Promise<{ routine: Routine } | { error: string }> {
+): Promise<{ routine: Routine } | RoutineWriteError> {
   for (const field of ["name", "prompt"]) {
     if (!body[field] || typeof body[field] !== "string") {
       return { error: `missing '${field}'` };
@@ -116,6 +85,11 @@ export async function createRoutineChecked(
     const scheduleErr = validateSchedule(input.schedule, accountTz);
     if (scheduleErr) return { error: `invalid schedule: ${scheduleErr}` };
   }
+  const floorRefusal = planFloorRefusal(
+    input.schedule,
+    opts.minIntervalMinutes,
+  );
+  if (floorRefusal) return floorRefusal;
   const providerErr = providerPinError(body);
   if (providerErr) return { error: providerErr };
 
@@ -149,7 +123,7 @@ export async function updateRoutineChecked(
   itemId: string,
   update: Record<string, unknown>,
   opts: RoutineWriteOptions & { actorSub?: string },
-): Promise<{ routine: Routine } | { error: string } | { notFound: true }> {
+): Promise<{ routine: Routine } | RoutineWriteError | { notFound: true }> {
   // The whole read-modify-write sits inside the lock: re-loading here is what
   // makes the final save apply to the list a concurrent writer just produced.
   return await withDocLock(`${root}#routines`, async () => {
@@ -185,6 +159,13 @@ export async function updateRoutineChecked(
       const accountTz = await getPreference(vfs, workspaceId, "timezone");
       const scheduleErr = validateSchedule(next.schedule, accountTz);
       if (scheduleErr) return { error: `invalid schedule: ${scheduleErr}` };
+    }
+    // Every update re-stamps `created_by` to the editor (applyRoutineUpdate),
+    // whose plan then judges the fires, so even a prompt-only edit is checked.
+    // A bare pause is the one exception: it only ever makes fires rarer.
+    if (!isRoutinePause({ id: itemId, ...update })) {
+      const refusal = planFloorRefusal(next.schedule, opts.minIntervalMinutes);
+      if (refusal) return refusal;
     }
     const providerErr = providerPinError(update);
     if (providerErr) return { error: providerErr };

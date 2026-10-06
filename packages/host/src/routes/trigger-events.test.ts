@@ -3,7 +3,12 @@ import { loadRoutineRuns, saveRoutines } from "@houston/domain";
 import type { Capabilities, Routine } from "@houston/protocol";
 import { beforeEach, expect, test } from "vitest";
 import { MemoryCredentialStore } from "../credentials/store";
-import type { ChannelCtx, RuntimeChannel, TokenVerifier } from "../ports";
+import type {
+  ChannelCtx,
+  FireTurnOptions,
+  RuntimeChannel,
+  TokenVerifier,
+} from "../ports";
 import { type ControlPlaneDeps, createControlPlaneServer } from "../server";
 import { MemoryWorkspaceStore } from "../store/memory";
 import { MemoryTurnBus } from "../turn/bus";
@@ -36,8 +41,7 @@ class SpyChannel implements RuntimeChannel {
     conversationId: string,
     text: string,
     _pin?: unknown,
-    actingUser?: string,
-    actingAs?: string,
+    { actingUser, actingAs }: FireTurnOptions = {},
   ) {
     this.fired.push({ conversationId, text, actingUser, actingAs });
   }

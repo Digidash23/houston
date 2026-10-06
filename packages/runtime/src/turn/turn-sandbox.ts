@@ -1,5 +1,6 @@
 import { CustomIntegrationError } from "@houston/host/src/integrations/custom/types";
 import { IntegrationUpstreamError } from "@houston/host/src/integrations/types";
+import type { TurnLimits } from "@houston/protocol";
 import type { WireFrame } from "@houston/runtime-client";
 import type { ObjectStore } from "@houston/runtime-client/object-sync";
 import type { TurnCodeVm } from "../code-vm/turn-code-vm";
@@ -32,6 +33,8 @@ export interface TurnSandboxDeps {
   workspaceId: string;
   conversationId: string;
   actingAs?: { userId: string; name?: string };
+  /** The acting person's plan limits (TurnRequest.limits). */
+  limits?: TurnLimits;
   orgSlug: string;
   agentSlug: string;
   fetchImpl?: typeof fetch;

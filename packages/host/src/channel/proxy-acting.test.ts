@@ -6,6 +6,7 @@ import type { Agent, Workspace } from "../domain/types";
 import { FakeLauncher } from "../launcher/fake";
 import type { ChannelCtx } from "../ports";
 import { forward } from "../proxy/route";
+import { liveTurns } from "../routes/live-turn";
 import { ProxyChannel } from "./proxy";
 
 /**
@@ -117,7 +118,9 @@ test("gateway-fronted profile (forwardActingHeader: true): the minted acting-as 
 test("routine creator identity (server-minted acting-user) flows regardless of the flag", async () => {
   for (const flag of [false, true]) {
     seenHeaders = [];
-    await makeChannel(flag).fireTurn(ctx, "c1", "run it", undefined, "sub-123");
+    await makeChannel(flag).fireTurn(ctx, "c1", "run it", undefined, {
+      actingUser: "sub-123",
+    });
     expect(seenHeaders[0]?.["x-houston-acting-user"]).toBe("sub-123");
     // fireTurn never sends the acting-as header — it is not the routine path.
     expect(seenHeaders[0]?.["x-houston-acting-as"]).toBeUndefined();
@@ -134,4 +137,17 @@ test("interactive and routine turns both refresh shared resources before dispatc
   await channel.fireTurn(ctx, "c1", "run it");
 
   expect(refreshes).toBe(2);
+});
+
+test("a fire records its acting identity and plan limits on the turn it starts", async () => {
+  liveTurns.forget(agent.id);
+  await makeChannel(true).fireTurn(ctx, "c1", "run it", undefined, {
+    actingAs: "acting-v1.payload.sig",
+    limits: { routineMinIntervalMinutes: 15 },
+  });
+  expect(liveTurns.get(agent.id, "c1")).toMatchObject({
+    actingAs: "acting-v1.payload.sig",
+    limits: { routineMinIntervalMinutes: 15 },
+  });
+  liveTurns.forget(agent.id);
 });

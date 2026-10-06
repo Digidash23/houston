@@ -2,7 +2,12 @@ import { expect, test } from "vitest";
 import { ProxyChannel } from "../channel/proxy";
 import { MemoryCredentialStore } from "../credentials/store";
 import type { Agent, Workspace } from "../domain/types";
-import type { ChannelCtx, RuntimeChannel, TurnPin } from "../ports";
+import type {
+  ChannelCtx,
+  FireTurnOptions,
+  RuntimeChannel,
+  TurnPin,
+} from "../ports";
 import { startTestFetchServer } from "../testing/fetch-server";
 import { ChannelRoutineFirer } from "./firer";
 import type { FiringJob } from "./scheduler";
@@ -69,7 +74,7 @@ function recordingChannel(): RuntimeChannel & {
       cid: string,
       text: string,
       pin?: TurnPin,
-      actingUser?: string,
+      { actingUser }: FireTurnOptions = {},
     ) {
       calls.push({ cid, text, pin, actingUser });
     },
@@ -330,7 +335,7 @@ test("ProxyChannel.fireTurn sends exactly the requested routine identity header"
       "c1",
       "go",
       undefined,
-      "sub-alice",
+      { actingUser: "sub-alice" },
     );
     expect(seen[0]?.actingUser).toBe("sub-alice");
     expect(seen[0]?.actingAs).toBeNull();
@@ -344,8 +349,7 @@ test("ProxyChannel.fireTurn sends exactly the requested routine identity header"
       "c1",
       "go",
       undefined,
-      "must-not-ride",
-      "acting-v1.payload.signature",
+      { actingUser: "must-not-ride", actingAs: "acting-v1.payload.signature" },
     );
     expect(seen[2]).toEqual({
       actingUser: null,

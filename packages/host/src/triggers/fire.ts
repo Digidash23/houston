@@ -111,8 +111,9 @@ class TriggerRoutineFirer implements RoutineFirer {
       job.conversationId,
       routineTriggerPrompt(job.routine, this.events),
       { ...pin, effort: job.routine.effort },
-      this.actingAs ? undefined : job.routine.created_by,
-      this.actingAs,
+      this.actingAs
+        ? { actingAs: this.actingAs }
+        : { actingUser: job.routine.created_by },
     );
   }
 }

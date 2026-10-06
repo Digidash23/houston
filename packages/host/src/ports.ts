@@ -6,6 +6,7 @@ import {
 import type {
   ClaudeOAuthCredential,
   CustomEndpoint,
+  TurnLimits,
   TurnMode,
 } from "@houston/protocol";
 import type {
@@ -236,6 +237,20 @@ export interface TurnPin {
   mode?: TurnMode | null;
 }
 
+/**
+ * Who a programmatic fire acts as, and the limits it runs under. `actingUser`
+ * is the local routine creator's bare `sub`; `actingAs` is a gateway-minted C2
+ * token for an externally scheduled fire and replaces the bare header. Both
+ * are absent for legacy creator-less local routines. `limits` are the plan
+ * limits of the person the work is done for (a mission inherits its parent
+ * turn's), recorded on the turn the fire starts.
+ */
+export interface FireTurnOptions {
+  actingUser?: string | undefined;
+  actingAs?: string | undefined;
+  limits?: TurnLimits | undefined;
+}
+
 export type CaptureResult =
   | { ok: true; provider: string }
   | { ok: false; status: number; error: string; detail?: string };
@@ -262,18 +277,15 @@ export interface RuntimeChannel {
    * turn is ACCEPTED; throws when it can't be started (busy / quota / transport)
    * so the caller records an errored run instead of a silent miss.
    *
-   * `pin` carries the routine's provider/model/effort/mode overrides.
-   * `actingUser` is the local routine creator's bare `sub`. `actingAs` is a
-   * gateway-minted C2 token for an externally scheduled fire and replaces the
-   * bare header. Both are absent for legacy creator-less local routines.
+   * `pin` carries the routine's provider/model/effort/mode overrides; `opts`
+   * who the turn acts as and its limits ({@link FireTurnOptions}).
    */
   fireTurn(
     ctx: ChannelCtx,
     conversationId: string,
     text: string,
     pin?: TurnPin,
-    actingUser?: string,
-    actingAs?: string,
+    opts?: FireTurnOptions,
   ): Promise<void>;
   /**
    * Abort the in-flight turn on a conversation — the "stop this routine run"

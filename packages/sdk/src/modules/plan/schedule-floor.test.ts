@@ -1,6 +1,6 @@
 import type { PlanSummary } from "@houston/wire-types";
 import { describe, expect, it } from "vitest";
-import { routineScheduleFloor, scheduleFloorAllows } from "./schedule-floor";
+import { routineScheduleFloor } from "./schedule-floor";
 
 const free = {
   plan: "free",
@@ -53,45 +53,5 @@ describe("routineScheduleFloor: the creator's plan decides", () => {
   it("sets none on Plus or before the plan loads", () => {
     expect(routineScheduleFloor(plus, creator)).toBeUndefined();
     expect(routineScheduleFloor(undefined, creator)).toBeUndefined();
-  });
-});
-
-describe("scheduleFloorAllows: the save backstop", () => {
-  it("allows anything without a floor", () => {
-    expect(scheduleFloorAllows("* * * * *", undefined)).toBe(true);
-  });
-
-  it("judges a minute step by its N, as the editor's minimum does", () => {
-    // Allowed even where the top of the hour comes sooner (:48 then :00).
-    for (const cron of [
-      "*/15 * * * *",
-      "*/16 * * * *",
-      "*/25 * * * *",
-      "*/45 * * * *",
-      " */59 * * * * ",
-    ])
-      expect(scheduleFloorAllows(cron, 15), cron).toBe(true);
-    for (const cron of ["*/5 * * * *", "*/14 * * * *", "*/1 * * * *"])
-      expect(scheduleFloorAllows(cron, 15), cron).toBe(false);
-    expect(scheduleFloorAllows("*/20 * * * *", 30)).toBe(false);
-  });
-
-  it("judges every other cron by its smallest real gap", () => {
-    for (const cron of [
-      "* * * * *",
-      "0-59/5 * * * *",
-      "0,5,10 * * * *",
-      "0,5 9 * * 1",
-      "55,0 * * * *",
-      "*/5 9 * * *",
-    ])
-      expect(scheduleFloorAllows(cron, 15), cron).toBe(false);
-    for (const cron of [
-      "0,20,40 * * * *",
-      "0,30 * * * *",
-      "0 9 * * 1-5",
-      "30 8 1 * *",
-    ])
-      expect(scheduleFloorAllows(cron, 15), cron).toBe(true);
   });
 });

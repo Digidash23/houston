@@ -1,6 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { docKey, saveActivities } from "@houston/domain";
-import type { Activity, HoustonEvent, TurnMode } from "@houston/protocol";
+import type {
+  Activity,
+  HoustonEvent,
+  TurnLimits,
+  TurnMode,
+} from "@houston/protocol";
 import { beforeEach, expect, test } from "vitest";
 import { ACTING_AS_HEADER } from "../auth/acting";
 import type { Agent, Workspace } from "../domain/types";
@@ -8,6 +13,7 @@ import { LocalPaths } from "../paths";
 import type {
   CredentialStore,
   CredentialVault,
+  FireTurnOptions,
   RuntimeChannel,
   TurnPin,
   WorkspaceCredential,
@@ -38,7 +44,12 @@ let ws: Workspace;
 let agent: Agent;
 let root: string;
 let events: HoustonEvent[];
-let fired: { cid: string; text: string; pin?: TurnPin }[];
+let fired: {
+  cid: string;
+  text: string;
+  pin?: TurnPin;
+  limits?: TurnLimits;
+}[];
 let fireError: Error | null;
 /** Which providers the host's central credential store holds a row for, or
  *  null for a deployment that has no store to judge with. */
@@ -67,9 +78,15 @@ const channel = {
     cid: string,
     text: string,
     pin?: TurnPin,
+    opts: FireTurnOptions = {},
   ): Promise<void> {
     if (fireError) throw fireError;
-    fired.push({ cid, text, pin });
+    fired.push({
+      cid,
+      text,
+      pin,
+      ...(opts.limits ? { limits: opts.limits } : {}),
+    });
   },
 } as unknown as RuntimeChannel;
 
@@ -117,6 +134,8 @@ async function call(
     /** An acting token the RUNTIME puts on its own loopback call (S16). */
     spoofedActingAs?: string;
     gatewayFronted?: boolean;
+    /** The plan limits the host recorded on the parent turn. */
+    limits?: TurnLimits;
   } = {},
 ) {
   const headers: Record<string, string> = {
@@ -131,6 +150,7 @@ async function call(
   if (opts.conversationId)
     liveTurns.start(agent.id, opts.conversationId, opts.mode ?? "execute", {
       actingAs: opts.actingAs,
+      limits: opts.limits,
     });
   else liveTurns.forget(agent.id);
   const { res, captured } = fakeRes();
@@ -876,4 +896,24 @@ test("the after-turn title lands only while the card shows its fallback", async 
     conversation_id: "activity-m-1",
   });
   expect(bad.status).toBe(400);
+});
+
+test.each([
+  [true, { routineMinIntervalMinutes: 15 }],
+  [false, undefined],
+])("the child turn runs under its parent's plan limits behind the gateway (fronted: %s)", async (fronted, expected) => {
+  const r = await call(
+    "POST",
+    "/sandbox/missions/start",
+    { title: "t", prompt: "p" },
+    {
+      conversationId: "conv-parent",
+      gatewayFronted: fronted,
+      actingAs: actingToken("alice-sub", "Alice"),
+      limits: { routineMinIntervalMinutes: 15 },
+    },
+  );
+  expect(r.status).toBe(201);
+  expect(fired).toHaveLength(1);
+  expect(fired[0]?.limits).toEqual(expected);
 });

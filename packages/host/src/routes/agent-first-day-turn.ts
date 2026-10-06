@@ -65,7 +65,8 @@ export function fireFirstTurn(
       // thinking is the user staring at the hello waiting for more.
       effort: "low",
     },
-    deps.actingAs ? undefined : deps.actingUser,
-    deps.actingAs,
+    deps.actingAs
+      ? { actingAs: deps.actingAs }
+      : { actingUser: deps.actingUser },
   );
 }

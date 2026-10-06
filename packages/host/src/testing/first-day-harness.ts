@@ -9,6 +9,7 @@ import type { Activity, AgentConfig, Capabilities } from "@houston/protocol";
 import { MemoryCredentialStore } from "../credentials/store";
 import type {
   ChannelCtx,
+  FireTurnOptions,
   RuntimeChannel,
   TokenVerifier,
   TurnPin,
@@ -48,7 +49,7 @@ export class SpyChannel implements RuntimeChannel {
     conversationId: string,
     text: string,
     pin?: TurnPin,
-    actingUser?: string,
+    { actingUser }: FireTurnOptions = {},
   ): Promise<void> {
     if (this.gate) await this.gate;
     this.fired.push({ conversationId, text, pin, actingUser });

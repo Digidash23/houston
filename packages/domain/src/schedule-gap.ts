@@ -35,3 +35,25 @@ export function minFireGapMinutes(schedule: string): number | null {
   }
   return smallest;
 }
+
+/** A minute-step cron, `*\/N * * * *`: what the editor's custom minutes count writes. */
+const MINUTE_STEP = /^\*\/(\d+) \* \* \* \*$/;
+
+/**
+ * Whether `cron` respects a plan's `floor` (minimum minutes between fires; no
+ * floor allows anything). The ONE rule the app's schedule editor, the SDK and
+ * the host's routine-write gate share: a minute step is judged by its nominal
+ * N, anything else by its smallest real gap.
+ */
+export function scheduleFloorAllows(
+  cron: string,
+  floor: number | undefined,
+): boolean {
+  if (floor === undefined) return true;
+  // `*\/16` restarts at the top of the hour (:48 then :00); the gateway judges
+  // real fire times, so it may skip the run that lands under the floor there.
+  const step = cron.trim().match(MINUTE_STEP);
+  if (step) return Number(step[1]) >= floor;
+  const gap = minFireGapMinutes(cron);
+  return gap === null || gap >= floor;
+}

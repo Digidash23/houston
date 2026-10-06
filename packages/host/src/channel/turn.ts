@@ -4,6 +4,7 @@ import { normalizeTurnMode } from "@houston/protocol";
 import type {
   CaptureResult,
   ChannelCtx,
+  FireTurnOptions,
   RuntimeChannel,
   TurnPin,
 } from "../ports";
@@ -57,8 +58,7 @@ export class TurnChannel implements RuntimeChannel {
     // identity flows through the standing-pod path (ProxyChannel). Not sent to
     // the runtime here - recorded on the turn, which is where the `/sandbox/*`
     // routes read it from.
-    actingUser?: string,
-    actingAs?: string,
+    { actingUser, actingAs, limits }: FireTurnOptions = {},
   ): Promise<void> {
     // A turn begins here for every programmatic fire (a routine, a trigger, a
     // mission's first turn): the host records which conversation this agent is
@@ -68,10 +68,7 @@ export class TurnChannel implements RuntimeChannel {
       ctx.agent.id,
       conversationId,
       normalizeTurnMode(pin?.mode),
-      {
-        actingAs,
-        actingUser,
-      },
+      { actingAs, actingUser, limits },
       liveTurnPin(pin),
     );
     const outcome = await dispatchTurn(

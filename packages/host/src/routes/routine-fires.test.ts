@@ -11,6 +11,7 @@ import { MemoryCredentialStore } from "../credentials/store";
 import { CloudPaths } from "../paths";
 import type {
   ChannelCtx,
+  FireTurnOptions,
   RuntimeChannel,
   TokenVerifier,
   TurnPin,
@@ -43,8 +44,7 @@ class SpyChannel implements RuntimeChannel {
     conversationId: string,
     text: string,
     pin?: TurnPin,
-    actingUser?: string,
-    actingAs?: string,
+    { actingUser, actingAs }: FireTurnOptions = {},
   ) {
     this.fired.push({ conversationId, text, pin, actingUser, actingAs });
   }

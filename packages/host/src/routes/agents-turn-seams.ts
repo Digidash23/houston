@@ -34,6 +34,8 @@ export interface TurnSeamCtx {
   /** The path after `/agents/:agentId/`, raw — the engine gets these bytes. */
   readonly rest: string;
   readonly emit?: (event: HoustonEvent) => void;
+  /** True only where a trusted gateway fronts every request (managed pod). */
+  readonly gatewayFronted: boolean;
   /** The acting human a trusted gateway vouched for; null off the gateway. */
   readonly actingAuthor: ActivityContributor | null;
   /** That same identity as the gateway-minted token, for what it starts. */

@@ -163,16 +163,22 @@ export async function handleSandboxRoutines(
     if (!fields.model && turn.pin.model) fields.model = turn.pin.model;
     if (!fields.effort && turn.pin.effort) fields.effort = turn.pin.effort;
   }
+  // The person's plan floor rides the turn the host recorded (gateway-stamped
+  // `limits`), never this request: the runtime could name any limit here.
+  const minIntervalMinutes = turn?.limits?.routineMinIntervalMinutes;
+  const floor = minIntervalMinutes ? { minIntervalMinutes } : {};
   const result = !creating
     ? await updateRoutineChecked(deps.vfs, root, ws.id, id, fields, {
         triggersEnabled,
         nowIso,
         actorSub: createdBy,
+        ...floor,
       })
     : await createRoutineChecked(deps.vfs, root, ws.id, fields, {
         triggersEnabled,
         nowIso,
         createdBy,
+        ...floor,
       });
 
   if ("notFound" in result) {
@@ -180,7 +186,8 @@ export async function handleSandboxRoutines(
     return true;
   }
   if ("error" in result) {
-    json(res, 400, { error: result.error });
+    // A plan-floor refusal carries its code and minutes beside the reason.
+    json(res, 400, result);
     return true;
   }
   emit({ type: "RoutinesChanged", agentPath: agent.id });

@@ -1,4 +1,5 @@
 import type { IncomingMessage } from "node:http";
+import { parseTurnLimits, type TurnLimits } from "@houston/protocol";
 import type { LiveTurnPin } from "./live-turn";
 import { MAX_JSON_BYTES, readBody } from "./read-body";
 
@@ -76,6 +77,23 @@ export function turnPinOf(body: Buffer): LiveTurnPin | undefined {
       ? { effort: parsed.effort }
       : {}),
   };
+}
+
+/**
+ * The plan limits the gateway stamped on a turn body (`limits`), normalized by
+ * the one wire guard. Trusted only where a gateway fronts the request: the
+ * caller decides that, this only reads.
+ */
+export function turnLimitsOf(body: Buffer): TurnLimits | undefined {
+  try {
+    const parsed = JSON.parse(body.toString("utf8") || "{}") as {
+      limits?: unknown;
+    };
+    return parseTurnLimits(parsed?.limits);
+  } catch {
+    // Same reasoning as turnModeOf: the channel answers an unparseable body.
+    return undefined;
+  }
 }
 
 /**

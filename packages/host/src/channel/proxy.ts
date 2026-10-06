@@ -11,6 +11,7 @@ import {
   type CaptureResult,
   type ChannelCtx,
   type CredentialStore,
+  type FireTurnOptions,
   type ForwardRequest,
   type RuntimeChannel,
   type RuntimeEndpoint,
@@ -257,8 +258,7 @@ export class ProxyChannel implements RuntimeChannel {
     conversationId: string,
     text: string,
     pin?: TurnPin,
-    actingUser?: string,
-    actingAs?: string,
+    { actingUser, actingAs, limits }: FireTurnOptions = {},
   ): Promise<void> {
     // A turn begins here for every programmatic fire (a routine, a trigger, a
     // mission's first turn): the host records which conversation this agent is
@@ -268,10 +268,7 @@ export class ProxyChannel implements RuntimeChannel {
       ctx.agent.id,
       conversationId,
       normalizeTurnMode(pin?.mode),
-      {
-        actingAs,
-        actingUser,
-      },
+      { actingAs, actingUser, limits },
       liveTurnPin(pin),
     );
     // Wake the standing runtime and POST the routine's prompt as a normal

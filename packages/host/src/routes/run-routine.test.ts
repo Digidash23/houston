@@ -5,6 +5,7 @@ import { beforeEach, expect, test } from "vitest";
 import { MemoryCredentialStore } from "../credentials/store";
 import type {
   ChannelCtx,
+  FireTurnOptions,
   RuntimeChannel,
   TokenVerifier,
   TurnPin,
@@ -44,8 +45,7 @@ class SpyChannel implements RuntimeChannel {
     conversationId: string,
     text: string,
     pin?: TurnPin,
-    actingUser?: string,
-    actingAs?: string,
+    { actingUser, actingAs }: FireTurnOptions = {},
   ): Promise<void> {
     this.fired.push({ conversationId, text, pin, actingUser, actingAs });
     if (this.throwMessage) throw new Error(this.throwMessage);
