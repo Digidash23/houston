@@ -11,9 +11,10 @@ import {
   type ScheduleOptions,
 } from "./schedule-cron-utils";
 import {
-  cronToInterval,
   type IntervalUnit,
-  intervalToCron,
+  intervalCountAllowed,
+  intervalToSchedule,
+  scheduleToInterval,
 } from "./schedule-interval-utils";
 import { cronSummary, presetSummary } from "./schedule-summary";
 import type { SchedulePreset } from "./types";
@@ -51,13 +52,13 @@ export function useScheduleBuilder(
   const detectedPreset = cronToPreset(value);
   const detectedOptions = cronToOptions(value);
   const detectedInterval =
-    detectedPreset === "custom" ? cronToInterval(value) : null;
+    detectedPreset === "custom" ? scheduleToInterval(value) : null;
 
   // A pre-existing custom cron the picker can't represent (e.g. a weekday range
   // from a legacy routine). We keep it untouched until the user actively edits,
   // so opening the editor never silently rewrites their schedule.
   const [unrepresentable] = useState(
-    () => detectedPreset === "custom" && !cronToInterval(value),
+    () => detectedPreset === "custom" && !scheduleToInterval(value),
   );
   const [touched, setTouched] = useState(false);
 
@@ -78,11 +79,10 @@ export function useScheduleBuilder(
   );
 
   const everyNumber = Number(intervalEvery);
-  // The custom interval count must be a positive whole number.
+  // A positive whole number, within the 7-day cap for minutes and hours.
   const everyValid =
     intervalEvery.trim() !== "" &&
-    Number.isInteger(everyNumber) &&
-    everyNumber >= 1;
+    intervalCountAllowed(everyNumber, intervalUnit);
   // The Weekly preset needs at least one weekday selected.
   const weeklyValid =
     activePreset !== "weekly" || options.daysOfWeek.length > 0;
@@ -98,7 +98,7 @@ export function useScheduleBuilder(
     if (activePreset === "custom") {
       onChangeRef.current(
         everyValid
-          ? intervalToCron(
+          ? intervalToSchedule(
               {
                 every: everyNumber,
                 unit: intervalUnit,
@@ -141,7 +141,7 @@ export function useScheduleBuilder(
 
   const isCustom = activePreset === "custom";
   const customCron = everyValid
-    ? intervalToCron(
+    ? intervalToSchedule(
         {
           every: everyNumber,
           unit: intervalUnit,
@@ -171,7 +171,7 @@ export function useScheduleBuilder(
   useEffect(() => {
     if (!value.trim() || value === emittedCron) return;
     const preset = cronToPreset(value);
-    const interval = preset === "custom" ? cronToInterval(value) : null;
+    const interval = preset === "custom" ? scheduleToInterval(value) : null;
     // An externally-written cron the picker can't represent: leave the state
     // alone (same stance as the mount-time `unrepresentable` guard) — the
     // value prop still drives the summary elsewhere and saving.

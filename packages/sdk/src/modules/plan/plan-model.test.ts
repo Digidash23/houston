@@ -108,6 +108,8 @@ describe("Free cadence gate", () => {
       "0,5,10 * * * *",
       "0,5 9 * * 1",
       "55,0 * * * *",
+      "@every 7m",
+      "@every 14m",
     ])
       expect(freeScheduleAllowed(cron, free), cron).toBe(false);
   });
@@ -118,6 +120,8 @@ describe("Free cadence gate", () => {
       "0,20,40 * * * *",
       "0 9 * * 1-5",
       "30 8 1 * *",
+      "@every 16m",
+      "@every 5h",
     ])
       expect(freeScheduleAllowed(cron, free), cron).toBe(true);
     expect(freeScheduleAllowed("* * * * *", { ...free, plan: "plus" })).toBe(

@@ -50,8 +50,10 @@ export async function listRoutines(
  * @param agentId The agent this acts on, by the id listAgents returns. An
  *   agent's name is not its id, so read the id from listAgents first.
  * @param input The routine to create: a name, the instructions it runs
- *   (`prompt`), and WHEN it runs - either `schedule`, a cron expression, or
- *   `trigger`, an event binding. Exactly one of the two.
+ *   (`prompt`), and WHEN it runs - either `schedule` or `trigger`, an event
+ *   binding. Exactly one of the two. `schedule` is a cron expression, or
+ *   `@every <N>m` / `@every <N>h` for every N minutes or hours when N does not
+ *   divide 60 (or 24) evenly (`@every 16m`; never mixed units like `1h30m`).
  * @assistant group:routines
  * @assistant confirm: money. A routine keeps firing on its own schedule once it exists, spending model budget on every run until someone stops it.
  * @assistant unschematized: a trigger binding carries the outside app's own event config, whose shape belongs to that app.
@@ -77,7 +79,8 @@ export async function createRoutine(
  * @param id The routine to change, by the id listRoutines returns.
  * @param updates Only the fields that change; anything omitted is left as
  *   it was. `schedule` and `trigger` are the two wake mechanisms: setting one
- *   replaces the other. `enabled: true` resumes a paused routine, including one
+ *   replaces the other. `schedule` takes the same forms as createRoutine's
+ *   (cron, or `@every <N>m` / `@every <N>h`). `enabled: true` resumes a paused routine, including one
  *   the engine paused itself after repeated account or model failures
  *   (`auto_paused`); fix what `auto_paused.reason` names first, or the next
  *   runs fail the same way.

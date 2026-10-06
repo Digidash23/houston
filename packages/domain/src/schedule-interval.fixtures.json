@@ -1,0 +1,58 @@
+{
+  "canonical": [
+    { "every": 1, "unit": "minutes", "schedule": "* * * * *" },
+    { "every": 5, "unit": "minutes", "schedule": "*/5 * * * *" },
+    { "every": 15, "unit": "minutes", "schedule": "*/15 * * * *" },
+    { "every": 16, "unit": "minutes", "schedule": "@every 16m" },
+    { "every": 30, "unit": "minutes", "schedule": "*/30 * * * *" },
+    { "every": 45, "unit": "minutes", "schedule": "@every 45m" },
+    { "every": 60, "unit": "minutes", "schedule": "0 * * * *" },
+    { "every": 90, "unit": "minutes", "schedule": "@every 90m" },
+    { "every": 120, "unit": "minutes", "schedule": "0 */2 * * *" },
+    { "every": 300, "unit": "minutes", "schedule": "@every 300m" },
+    { "every": 1440, "unit": "minutes", "schedule": "0 */24 * * *" },
+    { "every": 1, "unit": "hours", "schedule": "0 * * * *" },
+    { "every": 2, "unit": "hours", "schedule": "0 */2 * * *" },
+    { "every": 5, "unit": "hours", "schedule": "@every 5h" },
+    { "every": 8, "unit": "hours", "schedule": "0 */8 * * *" },
+    { "every": 24, "unit": "hours", "schedule": "0 */24 * * *" },
+    { "every": 48, "unit": "hours", "schedule": "@every 48h" },
+    { "every": 168, "unit": "hours", "schedule": "@every 168h" }
+  ],
+  "parse": [
+    {
+      "schedule": "@every 16m",
+      "interval": { "every": 16, "unit": "minutes" }
+    },
+    { "schedule": "@every 5h", "interval": { "every": 5, "unit": "hours" } },
+    {
+      "schedule": " @every 90m ",
+      "interval": { "every": 90, "unit": "minutes" }
+    },
+    {
+      "schedule": "@every 10080m",
+      "interval": { "every": 10080, "unit": "minutes" }
+    },
+    {
+      "schedule": "@every 168h",
+      "interval": { "every": 168, "unit": "hours" }
+    },
+    { "schedule": "@every 10081m", "interval": null },
+    { "schedule": "@every 169h", "interval": null },
+    { "schedule": "@every 99999m", "interval": null },
+    { "schedule": "@every 100000m", "interval": null },
+    { "schedule": "@every 0m", "interval": null },
+    { "schedule": "@every 016m", "interval": null },
+    { "schedule": "@every 1h30m", "interval": null },
+    { "schedule": "@every 16", "interval": null },
+    { "schedule": "@every 16 m", "interval": null },
+    { "schedule": "@every -5m", "interval": null },
+    { "schedule": "@every 1.5h", "interval": null },
+    { "schedule": "@every 16s", "interval": null },
+    { "schedule": "@every 2d", "interval": null },
+    { "schedule": "@EVERY 16m", "interval": null },
+    { "schedule": "@every16m", "interval": null },
+    { "schedule": "*/16 * * * *", "interval": null },
+    { "schedule": "", "interval": null }
+  ]
+}

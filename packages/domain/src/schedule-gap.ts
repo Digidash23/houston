@@ -1,4 +1,5 @@
 import { Cron } from "croner";
+import { isIntervalForm, parseIntervalSchedule } from "./schedule-interval";
 
 /** A fixed start keeps the answer identical on every device and every day. */
 const SAMPLE_FROM = new Date("2026-01-01T00:00:00Z");
@@ -14,10 +15,13 @@ const SAMPLE_FIRES = 128;
  * The smallest gap, in minutes, between two consecutive fires of `schedule`,
  * however the cron spells its cadence (`*\/5`, `0-59/5`, `0,5,10`, a list that
  * wraps the hour). Evaluated in UTC: the cadence is a property of the pattern,
- * not of the zone it runs in. Null when the pattern is invalid or fires fewer
- * than twice.
+ * not of the zone it runs in. An `@every` interval's gap is its step. Null when
+ * the pattern is invalid or fires fewer than twice.
  */
 export function minFireGapMinutes(schedule: string): number | null {
+  if (isIntervalForm(schedule)) {
+    return parseIntervalSchedule(schedule)?.stepMinutes ?? null;
+  }
   let cron: Cron;
   try {
     cron = new Cron(schedule, { timezone: "UTC" });
