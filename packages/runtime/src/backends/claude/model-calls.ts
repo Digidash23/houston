@@ -24,6 +24,8 @@ type OpenCall = Omit<ModelCallTiming, "ttfbMs" | "firstTokenMs"> & {
   requestAt: number;
   openedAt: number;
   firstTokenAt?: number;
+  /** The CLI's own request-to-`message_start` time, when it stamps one. */
+  cliTtfbMs?: number;
 };
 
 const count = (v: number | null | undefined, fallback: number) =>
@@ -32,14 +34,40 @@ const count = (v: number | null | undefined, fallback: number) =>
 /**
  * Turn one `query()`'s SDK messages into harness timings. Built right before
  * the query is spawned, so the init message measures the CLI's spawn-to-init
- * cost. The CLI's HTTP requests are invisible from here, so a request's start
- * is inferred: the init message for the first call, then the main thread's
- * tool-result message (or the previous response's end) for each next one. A
- * request the CLI retried internally reports its backoff inside `ttfbMs`.
- * Subagent streams (a parent tool id) are another context and are skipped.
+ * cost.
+ *
+ * `ttfbMs` prefers the CLI's own `ttft_ms`, which it stamps on each
+ * `message_start` stream event: request sent to `message_start`, timed inside
+ * the CLI. Without it (an older CLI) the request start is inferred from here:
+ * the init message for the first call, then the main thread's tool-result
+ * message (or the previous response's end) for each next one. The inferred
+ * span also holds the CLI's prompt assembly and our pipe; side by side the
+ * two differ by 7 to 22 ms. A request the CLI retried internally reports its
+ * backoff inside the inferred span. Subagent streams (a parent tool id) are
+ * another context and are skipped.
+ *
+ * Never throws: a stream shape this reader does not expect stops the timings
+ * for the query (one warn line), never the user's turn.
  */
 export function createClaudeCallTimer(
   now: () => number = () => performance.now(),
+): (msg: SDKMessage) => HarnessTimingEvent[] {
+  const step = claudeCallSteps(now);
+  let broken = false;
+  return (msg) => {
+    if (broken) return [];
+    try {
+      return step(msg);
+    } catch (error) {
+      broken = true;
+      console.warn("[claude] model-call timings stopped for this turn:", error);
+      return [];
+    }
+  };
+}
+
+function claudeCallSteps(
+  now: () => number,
 ): (msg: SDKMessage) => HarnessTimingEvent[] {
   const spawnedAt = now();
   let initSeen = false;
@@ -58,8 +86,10 @@ export function createClaudeCallTimer(
     }
     if (msg.type !== "stream_event" || msg.parent_tool_use_id !== null)
       return [];
-    const ev = msg.event as StreamEventLike;
+    const ev = msg.event as StreamEventLike | undefined;
+    if (!ev) return [];
     if (ev.type === "message_start") {
+      const cliTtfb = (msg as { ttft_ms?: unknown }).ttft_ms;
       const u = ev.message?.usage ?? {};
       open = {
         provider: "anthropic",
@@ -70,6 +100,9 @@ export function createClaudeCallTimer(
         cacheReadTokens: count(u.cache_read_input_tokens, 0),
         cacheWriteTokens: count(u.cache_creation_input_tokens, 0),
         outputTokens: count(u.output_tokens, 0),
+        ...(typeof cliTtfb === "number" && Number.isFinite(cliTtfb)
+          ? { cliTtfbMs: cliTtfb }
+          : {}),
       };
     } else if (ev.type === "content_block_start" && open) {
       if (ANSWER_BLOCKS.has(ev.content_block?.type ?? ""))
@@ -88,7 +121,13 @@ export function createClaudeCallTimer(
       );
       open.outputTokens = count(ev.usage.output_tokens, open.outputTokens);
     } else if (ev.type === "message_stop" && open) {
-      const { requestAt: sent, openedAt, firstTokenAt, ...rest } = open;
+      const {
+        requestAt: sent,
+        openedAt,
+        firstTokenAt,
+        cliTtfbMs,
+        ...rest
+      } = open;
       open = undefined;
       requestAt = now();
       return [
@@ -96,7 +135,7 @@ export function createClaudeCallTimer(
           type: "call",
           call: {
             ...rest,
-            ttfbMs: Math.max(0, Math.round(openedAt - sent)),
+            ttfbMs: Math.max(0, Math.round(cliTtfbMs ?? openedAt - sent)),
             ...(firstTokenAt !== undefined
               ? { firstTokenMs: Math.round(firstTokenAt - openedAt) }
               : {}),

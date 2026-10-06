@@ -1,5 +1,5 @@
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { createClaudeCallTimer } from "./model-calls";
 
 function clock() {
@@ -90,4 +90,44 @@ test("a response that never finishes reports no call; a second init is not a spa
   timer(blockStart("text"));
   expect(timer(init)).toEqual([]);
   expect(timer(msg({ type: "result", subtype: "success" }))).toEqual([]);
+});
+
+test("the CLI's own ttft_ms wins over the inferred request start", () => {
+  const c = clock();
+  const timer = createClaudeCallTimer(c.now);
+  timer(init);
+  c.advance(2005);
+  timer(
+    msg({
+      type: "stream_event",
+      parent_tool_use_id: null,
+      ttft_ms: 1983,
+      event: { type: "message_start", message: { model: "m", usage: {} } },
+    }),
+  );
+  const [call] = timer(stream({ type: "message_stop" }));
+  expect(call).toMatchObject({ call: { ttfbMs: 1983 } });
+});
+
+test("a malformed stream event never throws into the turn", () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  const timer = createClaudeCallTimer(clock().now);
+  timer(init);
+  expect(
+    timer(msg({ type: "stream_event", parent_tool_use_id: null })),
+  ).toEqual([]);
+  // A getter that throws stands in for any shape the reader cannot handle.
+  const hostile = msg({
+    type: "stream_event",
+    parent_tool_use_id: null,
+    get event(): never {
+      throw new Error("bad frame");
+    },
+  });
+  expect(timer(hostile)).toEqual([]);
+  expect(warn).toHaveBeenCalledTimes(1);
+  // Timings stay off for the rest of the query; the turn goes on.
+  expect(timer(messageStart({ input_tokens: 1 }))).toEqual([]);
+  expect(timer(stream({ type: "message_stop" }))).toEqual([]);
+  warn.mockRestore();
 });
