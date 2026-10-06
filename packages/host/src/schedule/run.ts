@@ -147,8 +147,18 @@ export async function fireRoutineRun(
       type: "RoutineRunsChanged",
       agentPath: agent.id,
     });
+    // The errored row is already written: a failed pause must not replace the
+    // fire's own error, or a caller reads it as "never recorded" and the
+    // instant is redelivered into a second errored row. Reported (console.error
+    // reaches Sentry), and the next failed run retries the pause.
     if (failure)
-      await pauseFailingRoutines(deps, ws, agent, root, [routine.id]);
+      await pauseFailingRoutines(deps, ws, agent, root, [routine.id]).catch(
+        (pauseError: unknown) =>
+          console.error(
+            `[routine-auto-pause] pause of ${agent.id}/${routine.id} failed:`,
+            pauseError,
+          ),
+      );
     throw err;
   }
   return { runId, conversationId: run.session_key };

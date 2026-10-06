@@ -11,6 +11,7 @@ import { expect, test, vi } from "vitest";
 import { TurnFireError } from "../channel/fire-error";
 import type { EventHub } from "../events/hub";
 import { CloudPaths } from "../paths";
+import { AgentRenamingError } from "../ports";
 import { workspaceRoot } from "../routes/agent-data";
 import { MemoryWorkspaceStore } from "../store/memory";
 import { MemoryVfs } from "../vfs";
@@ -200,4 +201,46 @@ test("an unpinned refusal that names the agent's saved provider blames that acco
     code: "creator_not_connected",
     provider: "anthropic",
   });
+});
+
+test("a pause that fails after the errored row is written never replaces the fire's error", async () => {
+  const env = await setup(
+    createRoutine(
+      { name: "Inbox sweep", prompt: "check", schedule: "*/15 * * * *" },
+      "r1",
+      new Date(EDITED).toISOString(),
+    ),
+  );
+  for (let n = 1; n < ROUTINE_AUTO_PAUSE_AFTER; n++)
+    await expect(fireAt(env, n, refusing)).rejects.toBeInstanceOf(
+      TurnFireError,
+    );
+  // The streak-completing fire's pause hits a rename hold on the routines doc.
+  const save = env.vfs.writeText.bind(env.vfs);
+  vi.spyOn(env.vfs, "writeText").mockImplementation(async (key, text) => {
+    if (key.includes("routines.json") && !key.includes("routine_runs"))
+      throw new AgentRenamingError("a1");
+    return save(key, text);
+  });
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    await expect(
+      fireAt(env, ROUTINE_AUTO_PAUSE_AFTER, refusing),
+    ).rejects.toBeInstanceOf(TurnFireError);
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining("[routine-auto-pause] pause of"),
+      expect.any(AgentRenamingError),
+    );
+  } finally {
+    error.mockRestore();
+    vi.restoreAllMocks();
+  }
+  const runs = (await loadRoutineRuns(env.vfs, env.root)).items;
+  expect(runs).toHaveLength(ROUTINE_AUTO_PAUSE_AFTER);
+  expect(runs[0]).toMatchObject({
+    status: "error",
+    failure: { code: "no_model" },
+  });
+  const [saved] = (await loadRoutines(env.vfs, env.root)).items;
+  expect(saved?.enabled).toBe(true);
 });

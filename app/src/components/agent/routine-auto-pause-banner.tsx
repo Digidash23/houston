@@ -1,9 +1,9 @@
 /**
  * RoutineAutoPauseBanner — the routine screen's notice for a routine the
  * engine paused by itself after its runs kept failing on the same account or
- * model problem (or on having no model at all). It names the problem and the one fix (the SDK's
- * `routinePauseNotice` decides which), and offers Resume. Renders nothing for
- * a running routine or one a person paused.
+ * model problem (or on having no model at all). It names the problem and the
+ * one fix (the SDK's `routinePauseNotice` decides which), and offers Resume.
+ * Renders nothing for a running routine or one a person paused.
  */
 
 import type { Routine } from "@houston/engine-adapter";
