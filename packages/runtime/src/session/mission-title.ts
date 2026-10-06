@@ -40,9 +40,11 @@ export function cleanMissionTitle(value: string | undefined): string | null {
 }
 
 class MissionTitleTimeout extends Error {}
+class MissionTitleCancelled extends Error {}
 
-/** Why a title run produced nothing better than the fallback. */
-export type MissionTitleMiss = "timeout" | "error" | "no_title";
+/** Why a title run produced nothing better than the fallback. `cancelled`
+ *  means the caller dropped it (its turn failed or was cancelled). */
+export type MissionTitleMiss = "timeout" | "error" | "no_title" | "cancelled";
 
 /** A usable title, or the reason there is none. */
 export type MissionTitleResult = { title: string } | { miss: MissionTitleMiss };
@@ -69,18 +71,27 @@ export async function runMissionTitle(
   request: MissionTitleRequest,
   run: MissionTitleRunner,
   timeoutMs = MISSION_TITLE_TIMEOUT_MS,
+  cancel?: AbortSignal,
 ): Promise<MissionTitleResult> {
   const excerpt = request.text.trim().slice(0, EXCERPT_MAX);
   if (!excerpt) return { miss: "no_title" };
+  if (cancel?.aborted) return { miss: "cancelled" };
   let timer: ReturnType<typeof setTimeout> | undefined;
-  // Aborted when the cap trips, so a slow model call stops spending (and, in a
-  // per-turn sandbox, stops holding the turn open) instead of running on.
+  let onCancel: (() => void) | undefined;
+  // Aborted when the cap trips or the caller cancels, so a slow model call
+  // stops spending (and, in a per-turn sandbox, stops holding the turn open)
+  // instead of running on.
   const abort = new AbortController();
   try {
     const raw = await Promise.race([
       run(excerpt, abort.signal),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new MissionTitleTimeout()), timeoutMs);
+        onCancel = () => {
+          abort.abort();
+          reject(new MissionTitleCancelled());
+        };
+        cancel?.addEventListener("abort", onCancel, { once: true });
       }),
     ]);
     const title = cleanMissionTitle(raw);
@@ -88,6 +99,9 @@ export async function runMissionTitle(
       ? { title }
       : { miss: "no_title" };
   } catch (err) {
+    // The caller's cancel already aborted the call; a drop is not a failure.
+    if (err instanceof MissionTitleCancelled || cancel?.aborted)
+      return { miss: "cancelled" };
     if (err instanceof MissionTitleTimeout) {
       abort.abort();
       console.warn(
@@ -102,5 +116,6 @@ export async function runMissionTitle(
     return { miss: "error" };
   } finally {
     if (timer) clearTimeout(timer);
+    if (onCancel) cancel?.removeEventListener("abort", onCancel);
   }
 }

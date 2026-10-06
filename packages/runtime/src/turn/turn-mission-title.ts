@@ -120,10 +120,10 @@ export async function writeMissionTitleInTree(
 }
 
 /**
- * Start the title the moment the reply is complete, so it overlaps the turn's
- * own finishing work (workspace diff, transcript append); the returned `finish`
- * awaits it, writes the card, and reports what happened. Never rejects: a
- * failed title or write keeps the fallback and is reported.
+ * Start the title call now, overlapping the reply (turn-session-title.ts); the
+ * returned `finish` awaits it, writes the card, and reports what happened.
+ * Never rejects: a failed title or write keeps the fallback and is reported.
+ * `cancel` drops a title whose turn failed; its `finish` is never called.
  */
 export function startTurnMissionTitle(input: {
   conversationId: string;
@@ -132,6 +132,7 @@ export function startTurnMissionTitle(input: {
   workspaceDir: string;
   readRemote?: RemoteActivityReader;
   timeoutMs?: number;
+  cancel?: AbortSignal;
 }): () => Promise<InTreeMissionTitle> {
   const started = performance.now();
   const pending = runMissionTitle(
@@ -139,12 +140,19 @@ export function startTurnMissionTitle(input: {
     input.request,
     input.run,
     input.timeoutMs,
+    input.cancel,
   );
-  const report = (outcome: InTreeMissionTitle["outcome"]) => ({
-    outcome,
-    ms: Math.round(performance.now() - started),
-  });
+  let waitStarted = 0;
+  const report = (outcome: InTreeMissionTitle["outcome"]) => {
+    const now = performance.now();
+    return {
+      outcome,
+      ms: Math.round(now - started),
+      waitMs: Math.round(now - waitStarted),
+    };
+  };
   return async () => {
+    waitStarted = performance.now();
     const result = await pending;
     if ("miss" in result) return report(result.miss);
     try {

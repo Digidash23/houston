@@ -3,6 +3,7 @@ import {
   cleanMissionTitle,
   generateMissionTitle,
   parseMissionTitle,
+  runMissionTitle,
 } from "./mission-title";
 
 const REQ = {
@@ -73,5 +74,35 @@ describe("generateMissionTitle", () => {
     // The cap aborts the model call instead of letting it run on.
     expect(signal?.aborted).toBe(true);
     vi.useRealTimers();
+  });
+});
+
+describe("runMissionTitle cancel", () => {
+  test("a caller's cancel aborts the call quietly", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    let signal: AbortSignal | undefined;
+    const run = (_excerpt: string, s: AbortSignal) => {
+      signal = s;
+      return new Promise<string>(() => {});
+    };
+    const cancel = new AbortController();
+    const pending = runMissionTitle("c1", REQ, run, 10_000, cancel.signal);
+    cancel.abort();
+    await expect(pending).resolves.toEqual({ miss: "cancelled" });
+    expect(signal?.aborted).toBe(true);
+    // A dropped title is the turn's failure, not a title failure.
+    expect(error).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  test("an already-cancelled call never runs", async () => {
+    const run = vi.fn(async () => "Weekly sales summary");
+    const cancel = new AbortController();
+    cancel.abort();
+    await expect(
+      runMissionTitle("c1", REQ, run, 10_000, cancel.signal),
+    ).resolves.toEqual({ miss: "cancelled" });
+    expect(run).not.toHaveBeenCalled();
   });
 });
