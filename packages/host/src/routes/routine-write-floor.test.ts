@@ -255,3 +255,31 @@ test("switching a fast routine to an event trigger saves", async () => {
   );
   expect("routine" in result).toBe(true);
 });
+
+test("a routine created disabled is exempt: it never fires", async () => {
+  const vfs = new MemoryVfs();
+  const result = await createRoutineChecked(
+    vfs,
+    ROOT,
+    WS,
+    { ...every("*/5 * * * *"), enabled: false },
+    FLOOR,
+  );
+  expect("routine" in result).toBe(true);
+});
+
+test("an update that re-sends the stored fast schedule gets the kept wording", async () => {
+  // The schedule rides the body but is the one already stored: it is the
+  // schedule that has to move, whatever else the edit changes.
+  const vfs = new MemoryVfs();
+  const routine = await seed(vfs, "*/5 * * * *");
+  const result = await updateRoutineChecked(
+    vfs,
+    ROOT,
+    WS,
+    routine.id,
+    { schedule: "*/5 * * * *", name: "Renamed" },
+    FLOOR,
+  );
+  expect(result).toEqual(KEPT_REFUSAL);
+});

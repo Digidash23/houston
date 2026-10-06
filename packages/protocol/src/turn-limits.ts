@@ -52,8 +52,10 @@ export const ROUTINE_FLOOR_HEADER = "x-houston-routine-floor";
 
 /**
  * The floor a {@link ROUTINE_FLOOR_HEADER} value names, or undefined for an
- * absent or garbled one (no floor, never a failed write). Node hands a
- * repeated header as an array; only the first value counts.
+ * absent or garbled one (no floor, never a failed write). Node joins a
+ * repeated custom header into one string ("1, 15"), which fails the digits
+ * check and so reads as no floor; the gateway Sets the header, so it never
+ * sends two. The array arm only covers the `IncomingHttpHeaders` type.
  */
 export function parseRoutineFloorHeader(
   value: string | string[] | undefined,

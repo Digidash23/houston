@@ -17,6 +17,7 @@
 // SDK root (it pulls @houston/domain, whose extensionless imports node rejects).
 import { bridgeQuietClass } from "@houston/sdk/local-model-bridge/quiet";
 import type { QuietErrorClass } from "@houston/sdk/quiet-error-class";
+import { isPlanMinIntervalRefusal } from "@houston/sdk/routines/plan-floor-quiet";
 import { isEngineWakingError } from "./engine-waking-error.ts";
 import { isNetworkTransportError } from "./network-transport-error.ts";
 import { isNoBrowserFailure } from "./url-open-failure.ts";
@@ -36,9 +37,14 @@ export type { QuietErrorClass } from "@houston/sdk/quiet-error-class";
  * fire-and-forget sites; this class catches the paths that keep the
  * rejection and report it, the codex loopback relay above all
  * (HOUSTON-APP-5EV, PRODUCT-1814): one fingerprinted warning, never a bug.
+ *
+ * `plan_min_interval` is a routine save the engine refused under the saver's
+ * plan floor (the SDK's `isPlanMinIntervalRefusal`): a business state with the
+ * plan's own copy, so every reporting path skips it outright.
  */
 export function classifyQuietError(err: unknown): QuietErrorClass | null {
   if (isNoBrowserFailure(err)) return "no_url_handler";
+  if (isPlanMinIntervalRefusal(err)) return "plan_min_interval";
   const bridge = bridgeQuietClass(err);
   if (bridge) return bridge;
   if (isEngineWakingError(err)) return "engine_waking";

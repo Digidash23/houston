@@ -5,24 +5,14 @@ import {
   loadConfig,
   saveActivities,
 } from "@houston/domain";
-import type {
-  Activity,
-  AgentConfig,
-  Capabilities,
-  TurnLimits,
-} from "@houston/protocol";
+import type { Activity, AgentConfig, Capabilities } from "@houston/protocol";
 import { MemoryCredentialStore } from "../credentials/store";
-import type { FireTurnOptions } from "../fire-turn-options";
-import type {
-  ChannelCtx,
-  RuntimeChannel,
-  TokenVerifier,
-  TurnPin,
-} from "../ports";
+import type { TokenVerifier } from "../ports";
 import { workspaceRoot } from "../routes/agent-data";
 import { type ControlPlaneDeps, createControlPlaneServer } from "../server";
 import { MemoryWorkspaceStore } from "../store/memory";
 import { MemoryVfs } from "../vfs";
+import { SpyChannel } from "./first-day-spy-channel";
 
 /**
  * A control-plane host serving `POST /agents/:agentId/first-day` over memory
@@ -34,60 +24,6 @@ const verifier: TokenVerifier = {
     return bearer.startsWith("tok:") ? { userId: bearer.slice(4) } : null;
   },
 };
-
-export interface Fired {
-  conversationId: string;
-  text: string;
-  pin?: TurnPin;
-  actingUser?: string;
-  limits?: TurnLimits;
-}
-
-export class SpyChannel implements RuntimeChannel {
-  fired: Fired[] = [];
-  /** What every fire throws, after recording it; a string becomes an Error. */
-  failWith: string | Error | null = null;
-  /** Holds every fire until released, to overlap two starts deterministically. */
-  gate: Promise<void> | null = null;
-  async dispatch() {}
-  async fireTurn(
-    _ctx: ChannelCtx,
-    conversationId: string,
-    text: string,
-    pin?: TurnPin,
-    { actingUser, limits }: FireTurnOptions = {},
-  ): Promise<void> {
-    if (this.gate) await this.gate;
-    this.fired.push({
-      conversationId,
-      text,
-      pin,
-      actingUser,
-      ...(limits ? { limits } : {}),
-    });
-    if (this.failWith === null) return;
-    throw typeof this.failWith === "string"
-      ? new Error(this.failWith)
-      : this.failWith;
-  }
-  async cancelTurn() {
-    return false;
-  }
-  async busy() {
-    return false;
-  }
-  async runtimeStatus() {
-    return "running" as const;
-  }
-  async teardown() {}
-  async captureCredential() {
-    return { ok: true as const, provider: "openai-codex" };
-  }
-  async forgetCredential() {}
-  async saveApiKeyCredential() {}
-  async saveClaudeOAuthCredential() {}
-  async saveCustomEndpoint() {}
-}
 
 const CAPS: Capabilities = {
   profile: "cloud",

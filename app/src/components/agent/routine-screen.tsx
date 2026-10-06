@@ -16,6 +16,7 @@ import { useRoutineWritesForAnyAgent } from "../../hooks/queries";
 import { useRoutineLabels } from "../../hooks/use-routine-labels";
 import { useRoutineReader } from "../../hooks/use-routine-provider-health";
 import { genericErrorDescription } from "../../lib/error-report";
+import { toastRoutineWriteFailure } from "../../lib/routine-write-failure";
 import type { Agent } from "../../lib/types";
 import { useUIStore } from "../../stores/ui";
 import { RoutineAutoPauseBanner } from "./routine-auto-pause-banner";
@@ -66,11 +67,11 @@ export function RoutineScreen({
       { agentPath: agent.folderPath, routineId: routine.id, updates },
       {
         onError: (err) =>
-          addToast({
-            title: t("toasts.updateError"),
-            description: genericErrorDescription("update_routine", err),
-            variant: "error",
-          }),
+          toastRoutineWriteFailure(
+            err,
+            { title: t("toasts.updateError"), command: "update_routine" },
+            { addToast, describe: genericErrorDescription },
+          ),
       },
     );
 

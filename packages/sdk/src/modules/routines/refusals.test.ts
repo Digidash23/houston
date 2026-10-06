@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RoutinesHttpError } from "./http";
+import { isPlanMinIntervalRefusal } from "./plan-floor-quiet";
 import { planMinIntervalRefusal } from "./refusals";
 
 const body = {
@@ -35,5 +36,23 @@ describe("planMinIntervalRefusal: an expected state, not a bug", () => {
     ).toBeNull();
     expect(planMinIntervalRefusal("plan_min_interval")).toBeNull();
     expect(planMinIntervalRefusal(undefined)).toBeNull();
+  });
+});
+
+describe("isPlanMinIntervalRefusal: the quiet classifier's gate", () => {
+  it("agrees with the parser on every transport shape", () => {
+    for (const err of [
+      engineError(400, body),
+      engineError(400, JSON.stringify(body)),
+      new RoutinesHttpError(JSON.stringify(body), 400),
+    ])
+      expect(isPlanMinIntervalRefusal(err)).toBe(true);
+    for (const err of [
+      engineError(409, body),
+      engineError(400, { error: "bad cron" }),
+      new RoutinesHttpError("not json", 400),
+      "plan_min_interval",
+    ])
+      expect(isPlanMinIntervalRefusal(err)).toBe(false);
   });
 });

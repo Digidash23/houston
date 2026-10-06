@@ -128,6 +128,7 @@ export {
 } from "./modules/providers";
 // ===== Routines module contract ========================================
 export {
+  isPlanMinIntervalRefusal,
   type NewRoutine,
   planMinIntervalRefusal,
   type Routine,

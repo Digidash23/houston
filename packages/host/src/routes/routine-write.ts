@@ -85,11 +85,11 @@ export async function createRoutineChecked(
     const scheduleErr = validateSchedule(input.schedule, accountTz);
     if (scheduleErr) return { error: `invalid schedule: ${scheduleErr}` };
   }
-  const floorRefusal = planFloorRefusal(
-    input.schedule,
-    opts.minIntervalMinutes,
-  );
-  if (floorRefusal) return floorRefusal;
+  // A routine created disabled never fires, so it is exempt (as on update).
+  if (input.enabled !== false) {
+    const refusal = planFloorRefusal(input.schedule, opts.minIntervalMinutes);
+    if (refusal) return refusal;
+  }
   const providerErr = providerPinError(body);
   if (providerErr) return { error: providerErr };
 
@@ -164,10 +164,12 @@ export async function updateRoutineChecked(
     // whose plan then judges the fires, so even a prompt-only edit is checked.
     // A routine left disabled never fires, so it is exempt; re-enabling is not.
     if (next.enabled !== false) {
+      // "Kept": the schedule is the one already stored, so the refusal says
+      // the schedule itself has to move first.
       const refusal = planFloorRefusal(
         next.schedule,
         opts.minIntervalMinutes,
-        update.schedule === undefined,
+        current.schedule === next.schedule,
       );
       if (refusal) return refusal;
     }

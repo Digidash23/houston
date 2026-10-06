@@ -1,12 +1,12 @@
 import { expect, test } from "vitest";
 import {
   agentStore,
-  applyRoute,
   claimedTurn,
   podDocs,
   routine,
   storedRoutines,
 } from "./turn-views.test-support";
+import { applyRoute } from "./turn-views-op.test-support";
 
 /**
  * The plan floor on a sleeping agent's routine writes, run on a pool worker:
@@ -77,7 +77,12 @@ test("an op's routine edit is held to the floor the envelope carries", async () 
 });
 
 test("an op's raw routines-document write is judged routine by routine", async () => {
-  const agent = await agentStore([routine("r1", "Morning brief")]);
+  // A stored FAST routine the write leaves untouched: it passes, which only
+  // holds if the stored doc was loaded and compared.
+  const agent = await agentStore([
+    routine("r1", "Morning brief"),
+    { ...routine("r0", "Old fast"), schedule: "*/5 * * * *" },
+  ]);
   const stored = await storedRoutines(agent);
   const write = (items: unknown[]) =>
     applyRoute(

@@ -5,12 +5,12 @@ import {
   agentStore,
   claimedTurn,
   holdFirstGet,
-  landOp,
   podDocs,
   ROUTINES_REL,
   routine,
   storedRoutines,
 } from "./turn-views.test-support";
+import { landOp } from "./turn-views-op.test-support";
 
 /**
  * The gateway serves a sleeping agent's Routines tab from the routines doc.

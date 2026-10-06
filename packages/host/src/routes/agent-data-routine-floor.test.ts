@@ -216,3 +216,39 @@ test("off the gateway a raw routines write ignores the header", async () => {
   const res = await putDoc(local, [docRoutine("x", "*/5 * * * *")], "15");
   expect(res.status).toBe(200);
 });
+
+const rawDoc = (
+  base: string,
+  content: string,
+  method = "PUT",
+  floor?: string,
+) =>
+  fetch(`${base}/agents/${agentId}/agentfile/${ROUTINES_DOC}`, {
+    method,
+    headers: headers(floor),
+    body: JSON.stringify({ content }),
+  });
+
+test("a BOM'd routines doc is read like every reader reads it: a fast entry is refused", async () => {
+  expect((await putDoc(fronted, [])).status).toBe(200);
+  const bommed = `\uFEFF${JSON.stringify([docRoutine("bom-fast", "*/5 * * * *")])}`;
+  const res = await rawDoc(fronted, bommed, "PUT", "15");
+  expect(res.status).toBe(400);
+  expect(await res.json()).toMatchObject({ code: "plan_min_interval" });
+});
+
+test("a corrupt stored routines doc never blocks the write that repairs it", async () => {
+  // No floor on this write: the corrupt bytes land as they would on any pod.
+  expect((await rawDoc(fronted, "{ not json at all")).status).toBe(200);
+  const res = await putDoc(fronted, [docRoutine("good", "0 9 * * *")], "15");
+  expect(res.status).toBe(200);
+  expect((await readDoc(fronted)).map((r) => r.id)).toEqual(["good"]);
+});
+
+test("the POST write of the routines doc is held to the floor too", async () => {
+  const fast = JSON.stringify([docRoutine("post-fast", "*/5 * * * *")]);
+  const refused = await rawDoc(fronted, fast, "POST", "15");
+  expect(refused.status).toBe(400);
+  const slow = JSON.stringify([docRoutine("post-slow", "*/30 * * * *")]);
+  expect((await rawDoc(fronted, slow, "POST", "15")).status).toBe(200);
+});

@@ -230,7 +230,7 @@ async function surfaceError(
   if (options?.silence?.(err)) return;
 
   if (await surfacePlanMessageLimit(err)) return;
-  if (await surfacePlanMinInterval(err)) return;
+  if (surfacePlanMinInterval(err)) return;
 
   // Expected business state, not a bug: a write into a team whose trial expired
   // (C8 `needs_upgrade`). Surface the real reason as a plain info toast — never

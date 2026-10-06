@@ -58,6 +58,7 @@ export { routineFailureCode } from "./failure-code";
 export type { RoutineReaderAccount } from "./failure-view";
 export { type RoutinePin, routineFirePin } from "./fire-pin";
 export { RoutinesHttpError } from "./http";
+export { isPlanMinIntervalRefusal } from "./plan-floor-quiet";
 export { planMinIntervalRefusal } from "./refusals";
 export type {
   NewRoutine,

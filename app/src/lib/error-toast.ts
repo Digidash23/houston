@@ -4,6 +4,7 @@ import { isAgentWarmingRefusal } from "./agent-warming-refusal";
 import { analytics, classifyAnalyticsError } from "./analytics";
 import { createBurstGate } from "./error-burst";
 import i18n from "./i18n";
+import { showPlanFloorToast } from "./plan-floor-toast";
 import { classifyQuietError } from "./quiet-error-class";
 import { reportQuietError } from "./quiet-error-report";
 import {
@@ -175,6 +176,9 @@ export function showErrorToast(
     case "bridge_state":
       console.error(`[toast:${command}] ${message}`);
       reportQuietError(quiet, command, message, originalError);
+      return;
+    case "plan_min_interval": // a business state: the plan's copy, no capture
+      showPlanFloorToast();
       return;
     case "no_url_handler":
       // Same remedy copy `openExternalUrl` shows; a rejection that reached
