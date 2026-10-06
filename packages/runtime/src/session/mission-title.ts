@@ -65,18 +65,29 @@ export async function generateMissionTitle(
   return "title" in result ? result.title : null;
 }
 
+/** How a caller bounds a title run beyond its time cap. */
+export interface MissionTitleControl {
+  /** Drops the run quietly: its turn failed or was cancelled. */
+  cancel?: AbortSignal;
+  /** The cap starts counting when this resolves (default: at once). A title
+   *  started beside its reply waits on the reply's end, so a model that
+   *  serves one request at a time cannot spend the cap queued behind it. */
+  capStart?: Promise<void>;
+}
+
 /** {@link generateMissionTitle}, naming why a run kept the fallback. */
 export async function runMissionTitle(
   conversationId: string,
   request: MissionTitleRequest,
   run: MissionTitleRunner,
   timeoutMs = MISSION_TITLE_TIMEOUT_MS,
-  cancel?: AbortSignal,
+  { cancel, capStart }: MissionTitleControl = {},
 ): Promise<MissionTitleResult> {
   const excerpt = request.text.trim().slice(0, EXCERPT_MAX);
   if (!excerpt) return { miss: "no_title" };
   if (cancel?.aborted) return { miss: "cancelled" };
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let done = false;
   let onCancel: (() => void) | undefined;
   // Aborted when the cap trips or the caller cancels, so a slow model call
   // stops spending (and, in a per-turn sandbox, stops holding the turn open)
@@ -86,7 +97,15 @@ export async function runMissionTitle(
     const raw = await Promise.race([
       run(excerpt, abort.signal),
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new MissionTitleTimeout()), timeoutMs);
+        const arm = () => {
+          if (done) return;
+          timer = setTimeout(
+            () => reject(new MissionTitleTimeout()),
+            timeoutMs,
+          );
+        };
+        if (capStart) void capStart.then(arm);
+        else arm();
         onCancel = () => {
           abort.abort();
           reject(new MissionTitleCancelled());
@@ -115,6 +134,7 @@ export async function runMissionTitle(
     );
     return { miss: "error" };
   } finally {
+    done = true;
     if (timer) clearTimeout(timer);
     if (onCancel) cancel?.removeEventListener("abort", onCancel);
   }

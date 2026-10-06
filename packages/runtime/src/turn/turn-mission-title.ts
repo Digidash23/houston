@@ -135,12 +135,18 @@ export function startTurnMissionTitle(input: {
   cancel?: AbortSignal;
 }): () => Promise<InTreeMissionTitle> {
   const started = performance.now();
+  // The cap counts from `finish`, the reply's end, as when the title only
+  // started there.
+  let startCap: () => void = () => undefined;
+  const capStart = new Promise<void>((resolve) => {
+    startCap = resolve;
+  });
   const pending = runMissionTitle(
     input.conversationId,
     input.request,
     input.run,
     input.timeoutMs,
-    input.cancel,
+    { capStart, ...(input.cancel ? { cancel: input.cancel } : {}) },
   );
   let waitStarted = 0;
   const report = (outcome: InTreeMissionTitle["outcome"]) => {
@@ -153,6 +159,7 @@ export function startTurnMissionTitle(input: {
   };
   return async () => {
     waitStarted = performance.now();
+    startCap();
     const result = await pending;
     if ("miss" in result) return report(result.miss);
     try {
