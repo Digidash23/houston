@@ -5,19 +5,16 @@
  *
  * All visible text arrives via props so the package stays i18n-agnostic; the
  * pills show the singular or plural unit name depending on the count. With a
- * `minIntervalMinutes` floor (a plan's limit) the minus/plus buttons jump
- * between the counts the floor allows instead of moving by one.
+ * `floor` (a plan's minimum interval, minutes unit only) the minus/plus buttons
+ * jump between the counts it offers and a typed count snaps up on blur.
  */
 import { cn } from "@houston-ai/core";
 import { Minus, Plus } from "lucide-react";
-import { nearestAllowedCount } from "./schedule-floor";
+import type { FloorStepper } from "./schedule-floor";
 import type { IntervalUnit } from "./schedule-interval-utils";
 import { labelClass } from "./schedule-picker-fields";
 
 const UNIT_ORDER: IntervalUnit[] = ["minutes", "hours", "days", "months"];
-
-/** The next allowed count from `n` going `direction`, or null when none. */
-type CountStep = (n: number, direction: 1 | -1) => number | null;
 
 function NumberStepper({
   id,
@@ -26,7 +23,7 @@ function NumberStepper({
   invalid,
   decreaseLabel,
   increaseLabel,
-  step,
+  floor,
 }: {
   id: string;
   value: string;
@@ -34,11 +31,9 @@ function NumberStepper({
   invalid?: boolean;
   decreaseLabel: string;
   increaseLabel: string;
-  step?: CountStep;
+  floor?: FloorStepper;
 }) {
   const n = Number(value) || 1;
-  const down = step ? step(n - 1, -1) : Math.max(1, n - 1);
-  const up = step ? step(n + 1, 1) : n + 1;
   return (
     <div
       className={cn(
@@ -49,8 +44,12 @@ function NumberStepper({
       <button
         type="button"
         aria-label={decreaseLabel}
-        onClick={() => down !== null && onChange(String(down))}
-        disabled={step ? down === null : n <= 1}
+        onClick={
+          floor
+            ? () => floor.down?.()
+            : () => onChange(String(Math.max(1, n - 1)))
+        }
+        disabled={floor ? floor.down === null : n <= 1}
         className="grid size-9 place-items-center text-ink-muted hover:text-ink disabled:opacity-30"
       >
         <Minus className="size-4" />
@@ -63,12 +62,14 @@ function NumberStepper({
         // Keep digits only; an empty string is allowed (and flagged invalid) so
         // it can be cleared while typing.
         onChange={(e) => onChange(e.target.value.replace(/[^\d]/g, ""))}
+        onBlur={floor?.commit}
         className="w-10 bg-transparent text-center text-sm tabular-nums outline-none disabled:cursor-not-allowed"
       />
       <button
         type="button"
         aria-label={increaseLabel}
-        onClick={() => up !== null && onChange(String(up))}
+        onClick={floor ? () => floor.up?.() : () => onChange(String(n + 1))}
+        disabled={floor ? floor.up === null : undefined}
         className="grid size-9 place-items-center text-ink-muted hover:text-ink disabled:opacity-30"
       >
         <Plus className="size-4" />
@@ -86,7 +87,7 @@ export function IntervalPicker({
   every,
   unit,
   invalid,
-  minIntervalMinutes,
+  floor,
   onEveryChange,
   onUnitChange,
 }: {
@@ -98,17 +99,12 @@ export function IntervalPicker({
   every: string;
   unit: IntervalUnit;
   invalid?: boolean;
-  /** Smallest allowed gap between fires, in minutes. Absent = any count. */
-  minIntervalMinutes?: number;
+  /** Floor stepping for the minutes count; absent = step by one. */
+  floor?: FloorStepper;
   onEveryChange: (every: string) => void;
   onUnitChange: (unit: IntervalUnit) => void;
 }) {
   const plural = Number(every) > 1;
-  const step: CountStep | undefined =
-    minIntervalMinutes === undefined
-      ? undefined
-      : (n, direction) =>
-          nearestAllowedCount(n, unit, minIntervalMinutes, direction);
   const inputId = "interval-picker-every";
   return (
     <div>
@@ -121,7 +117,7 @@ export function IntervalPicker({
           value={every}
           onChange={onEveryChange}
           invalid={invalid}
-          step={step}
+          floor={floor}
           decreaseLabel={decreaseLabel}
           increaseLabel={increaseLabel}
         />

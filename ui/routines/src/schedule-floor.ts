@@ -1,46 +1,112 @@
 /**
  * The schedule builder's optional minimum interval (a plan's limit, e.g. Free's
- * 15 minutes): which presets and custom counts fire no more often than the
- * floor. Every helper treats an `undefined` floor as "no limit".
+ * 15 minutes). Every helper treats an `undefined` floor as "no limit".
  *
- * Gaps are the REAL smallest gap between two fires, the same reading the
- * server's gate uses: a `*\/N` step restarts at the top of the hour (or day),
- * so "every 25 minutes" fires :00, :25, :50 and then :00 again 10 minutes
- * later. Such a count is refused even though it is above the floor.
+ * Under a floor the minutes count only offers counts that divide the hour
+ * evenly and reach the floor (15: 15, 20, 30). An uneven step restarts at the
+ * top of the hour and fires sooner than it says ("every 25 minutes" fires :50
+ * then :00), which the server's gate refuses. Past the top count the next
+ * choice is 1 hour. Hours, days and months are never limited.
  */
 import type { IntervalUnit } from "./schedule-interval-utils.ts";
 import type { SchedulePreset } from "./types.ts";
 
-const MINUTES_PER_DAY = 1440;
+const EVEN_MINUTE_COUNTS = [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30];
+const ONE_HOUR: IntervalCount = { every: 1, unit: "hours" };
 
-/** Smallest gap of a `*\/every` step over a field of `size` slots (60 min, 24 h). */
-function stepGap(every: number, size: number): number {
-  if (every >= size) return size;
-  const last = Math.floor((size - 1) / every) * every;
-  return Math.min(every, size - last);
+export interface IntervalCount {
+  every: number;
+  unit: IntervalUnit;
 }
 
-/** Smallest gap, in minutes, between fires of "every `every` `unit`". */
-export function intervalGapMinutes(every: number, unit: IntervalUnit): number {
-  switch (unit) {
-    case "minutes":
-      return stepGap(every, 60);
-    case "hours":
-      return stepGap(every, 24) * 60;
-    // A day step restarts each month, so its tightest gap is one day; a
-    // month step is never under one day either.
-    case "days":
-    case "months":
-      return MINUTES_PER_DAY;
-  }
+/** The minute counts a floor allows, ascending. Empty when the floor is above 30. */
+export function floorMinuteCounts(floor: number): number[] {
+  return EVEN_MINUTE_COUNTS.filter((n) => n >= floor);
+}
+
+export function minuteCountAllowed(n: number, floor: number | undefined) {
+  return floor === undefined || floorMinuteCounts(floor).includes(n);
+}
+
+/** The allowed pick at or above `n` minutes: an offered count, else 1 hour. */
+export function snapMinutesUp(n: number, floor: number): IntervalCount {
+  const every = floorMinuteCounts(floor).find((count) => count >= n);
+  return every === undefined ? ONE_HOUR : { every, unit: "minutes" };
+}
+
+/** The stepper's next pick from `n` minutes; going up past the top count is 1 hour. */
+export function stepMinutes(
+  n: number,
+  floor: number,
+  direction: 1 | -1,
+): IntervalCount | null {
+  const counts = floorMinuteCounts(floor);
+  if (direction === 1) return snapMinutesUp(n + 1, floor);
+  const every = counts.filter((count) => count < n).pop();
+  return every === undefined ? null : { every, unit: "minutes" };
+}
+
+/** The count the minutes stepper starts from: 5, or the floor's first count. */
+export function defaultMinutesCount(floor: number | undefined): number {
+  if (floor === undefined) return 5;
+  return floorMinuteCounts(floor).find((count) => count >= 5) ?? 5;
+}
+
+/**
+ * The count to show after the unit switches, or null to keep it: under a
+ * floor, switching to minutes lands on an offered count (2 hours → 15
+ * minutes, 40 days → 30 minutes).
+ */
+export function countForUnitSwitch(
+  every: string,
+  unit: IntervalUnit,
+  floor: number | undefined,
+): string | null {
+  const n = Number(every);
+  const valid = every.trim() !== "" && Number.isInteger(n) && n >= 1;
+  if (floor === undefined || unit !== "minutes" || !valid) return null;
+  const counts = floorMinuteCounts(floor);
+  const kept = counts.find((count) => count >= n) ?? counts.at(-1);
+  return kept === undefined || kept === n ? null : String(kept);
+}
+
+/**
+ * Stepper handlers for the minutes count under a floor; undefined without one
+ * or on any other unit, where the stepper moves by one as always. `down`/`up`
+ * are null where there is nowhere to go; `commit` (on blur) snaps a typed
+ * count that isn't offered up to the nearest one that is.
+ */
+export interface FloorStepper {
+  down: (() => void) | null;
+  up: (() => void) | null;
+  commit: () => void;
+}
+
+export function floorStepper(
+  every: string,
+  unit: IntervalUnit,
+  floor: number | undefined,
+  set: (pick: IntervalCount) => void,
+): FloorStepper | undefined {
+  if (floor === undefined || unit !== "minutes") return undefined;
+  const n = Number(every);
+  const valid = every.trim() !== "" && Number.isInteger(n) && n >= 1;
+  const go = (to: IntervalCount | null) => (to ? () => set(to) : null);
+  return {
+    down: valid ? go(stepMinutes(n, floor, -1)) : null,
+    up: go(stepMinutes(valid ? n : 0, floor, 1)),
+    commit: () => {
+      if (valid && !minuteCountAllowed(n, floor)) set(snapMinutesUp(n, floor));
+    },
+  };
 }
 
 const PRESET_GAP_MINUTES: Record<SchedulePreset, number | null> = {
   every_30min: 30,
   hourly: 60,
-  daily: MINUTES_PER_DAY,
-  weekly: MINUTES_PER_DAY,
-  monthly: MINUTES_PER_DAY,
+  daily: 1440,
+  weekly: 1440,
+  monthly: 1440,
   // Custom is judged by its count, not as a preset.
   custom: null,
 };
@@ -51,35 +117,4 @@ export function presetAllowed(
 ): boolean {
   const gap = PRESET_GAP_MINUTES[preset];
   return floor === undefined || gap === null || gap >= floor;
-}
-
-export function countAllowed(
-  every: number,
-  unit: IntervalUnit,
-  floor: number | undefined,
-): boolean {
-  return floor === undefined || intervalGapMinutes(every, unit) >= floor;
-}
-
-/**
- * The nearest allowed count from `from` in `direction` (inclusive of `from`),
- * or null when none exists going down. Going up always ends: a count of a
- * whole field (60 minutes, 24 hours) has the field's full gap.
- */
-export function nearestAllowedCount(
-  from: number,
-  unit: IntervalUnit,
-  floor: number | undefined,
-  direction: 1 | -1,
-): number | null {
-  for (let n = Math.max(1, from); n >= 1; n += direction) {
-    if (countAllowed(n, unit, floor)) return n;
-    if (direction === 1 && n > from + 1440) return null;
-  }
-  return null;
-}
-
-/** The count the minutes stepper starts from: 5, raised to the floor's first allowed count. */
-export function defaultMinutesCount(floor: number | undefined): number {
-  return nearestAllowedCount(5, "minutes", floor, 1) ?? 5;
 }

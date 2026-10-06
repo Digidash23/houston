@@ -3,12 +3,14 @@
  * builder emits and whether the choice is valid. Kept out of the hook so the
  * rules (including the optional minimum interval) are testable without React.
  */
+import type { ScheduleLabels } from "./labels.ts";
 import { presetToCron, type ScheduleOptions } from "./schedule-cron-utils.ts";
-import { countAllowed, presetAllowed } from "./schedule-floor.ts";
+import { minuteCountAllowed, presetAllowed } from "./schedule-floor.ts";
 import {
   type IntervalUnit,
   intervalToCron,
 } from "./schedule-interval-utils.ts";
+import { cronSummary, presetSummary } from "./schedule-summary.ts";
 import type { SchedulePreset } from "./types.ts";
 
 export interface BuilderPick {
@@ -57,8 +59,11 @@ export function deriveSchedule(pick: BuilderPick): DerivedSchedule {
           options.time,
         )
       : "";
+    // Only the minutes count is limited; hours, days and months never are.
     const floorOk =
-      !everyValid || countAllowed(everyNumber, intervalUnit, floor);
+      !everyValid ||
+      intervalUnit !== "minutes" ||
+      minuteCountAllowed(everyNumber, floor);
     const cron = everyValid && floorOk ? pickedCron : "";
     return { everyValid, weeklyValid, floorOk, pickedCron, cron };
   }
@@ -66,4 +71,27 @@ export function deriveSchedule(pick: BuilderPick): DerivedSchedule {
   const floorOk = presetAllowed(activePreset, floor);
   const cron = floorOk ? pickedCron : "";
   return { everyValid, weeklyValid, floorOk, pickedCron, cron };
+}
+
+/**
+ * The builder's live read-back. `untouchedLegacy` is a saved cron the picker
+ * can't represent, described as it is until the user edits. A pick under the
+ * floor is still described as picked, so the read-back never lies.
+ */
+export function builderSummary(
+  untouchedLegacy: string | null,
+  pick: Pick<BuilderPick, "activePreset" | "options"> &
+    Pick<DerivedSchedule, "everyValid" | "weeklyValid" | "pickedCron">,
+  labels: ScheduleLabels,
+  locale: string,
+): string {
+  if (untouchedLegacy !== null)
+    return cronSummary(untouchedLegacy, labels.summary, locale);
+  if (pick.activePreset !== "custom")
+    return pick.weeklyValid
+      ? presetSummary(pick.activePreset, pick.options, labels.summary, locale)
+      : labels.pickDay;
+  return pick.everyValid
+    ? cronSummary(pick.pickedCron, labels.summary, locale)
+    : labels.enterNumber;
 }

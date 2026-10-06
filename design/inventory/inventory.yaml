@@ -1074,9 +1074,10 @@ components:
       its live activation chip (event bindings change via chat, not here).
       On Free the editor takes the plan's minimum interval (SDK
       freeScheduleMinInterval): presets firing more often are hidden, the
-      minutes count starts at and never steps below it, a hint names it, and
-      Save stays disabled while the pick is under it; an existing shorter
-      schedule still reads as it is until edited.
+      minutes count offers only counts that divide the hour and reach it
+      (15, 20, 30; plus past 30 moves to 1 hour), a typed count snaps up to
+      the next offered one on blur, and a hint names it; an existing shorter
+      schedule still reads as it is, with Save disabled until changed.
       The model row ALWAYS names the resolved pair -- provider + model, e.g.
       "Claude - Opus 5" -- whether the routine is pinned or follows the agent;
       an unpinned routine adds a quiet line saying so. Picking pins it (the fire

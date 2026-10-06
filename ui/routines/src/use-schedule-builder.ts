@@ -4,15 +4,19 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { DEFAULT_SCHEDULE_LABELS, type ScheduleLabels } from "./labels";
-import { deriveSchedule } from "./schedule-builder-derive";
+import { builderSummary, deriveSchedule } from "./schedule-builder-derive";
 import {
   cronToOptions,
   cronToPreset,
   type ScheduleOptions,
 } from "./schedule-cron-utils";
-import { defaultMinutesCount, nearestAllowedCount } from "./schedule-floor";
+import {
+  countForUnitSwitch,
+  defaultMinutesCount,
+  type FloorStepper,
+  floorStepper,
+} from "./schedule-floor";
 import { cronToInterval, type IntervalUnit } from "./schedule-interval-utils";
-import { cronSummary, presetSummary } from "./schedule-summary";
 import type { SchedulePreset } from "./types";
 
 const DEFAULT_OPTIONS: ScheduleOptions = {
@@ -35,6 +39,8 @@ export interface ScheduleBuilderState {
   everyValid: boolean;
   /** The pick fires no more often than `minIntervalMinutes` (true without one). */
   floorOk: boolean;
+  /** Minutes-count stepping under the floor; undefined = step by one. */
+  floor: FloorStepper | undefined;
   isCustom: boolean;
   showTime: boolean;
   summary: string;
@@ -123,17 +129,19 @@ export function useScheduleBuilder(
   const setIntervalUnit = (unit: IntervalUnit) => {
     setUnit(unit);
     setTouched(true);
-    // A count the new unit can't take under the floor (2 hours → 2 minutes on
-    // a 15-minute floor) snaps up to the first count it can.
-    if (minIntervalMinutes === undefined || !everyValid) return;
-    const allowed = nearestAllowedCount(
-      everyNumber,
-      unit,
-      minIntervalMinutes,
-      1,
-    );
-    if (allowed !== null && allowed !== everyNumber) setEvery(String(allowed));
+    const kept = countForUnitSwitch(intervalEvery, unit, minIntervalMinutes);
+    if (kept !== null) setEvery(kept);
   };
+  const floor = floorStepper(
+    intervalEvery,
+    intervalUnit,
+    minIntervalMinutes,
+    (pick) => {
+      setEvery(String(pick.every));
+      setUnit(pick.unit);
+      setTouched(true);
+    },
+  );
 
   const isCustom = activePreset === "custom";
 
@@ -165,19 +173,12 @@ export function useScheduleBuilder(
 
   // While an unrepresentable legacy cron is still untouched, describe the actual
   // saved schedule rather than the placeholder picker state.
-  let summary: string;
-  if (unrepresentable && !touched) {
-    summary = cronSummary(value, labels.summary, locale);
-  } else if (!isCustom) {
-    summary = weeklyValid
-      ? presetSummary(activePreset, options, labels.summary, locale)
-      : labels.pickDay;
-  } else if (everyValid) {
-    // Describes the pick even under the floor, so the stepper never lies.
-    summary = cronSummary(pickedCron, labels.summary, locale);
-  } else {
-    summary = labels.enterNumber;
-  }
+  const summary = builderSummary(
+    unrepresentable && !touched ? value : null,
+    { activePreset, options, everyValid, weeklyValid, pickedCron },
+    labels,
+    locale,
+  );
 
   return {
     activePreset,
@@ -190,6 +191,7 @@ export function useScheduleBuilder(
     setIntervalUnit,
     everyValid,
     floorOk,
+    floor,
     isCustom,
     showTime: NEEDS_TIME.includes(activePreset),
     summary,
