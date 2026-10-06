@@ -1,5 +1,5 @@
 import { deepStrictEqual } from "node:assert";
-import { describe, it } from "node:test";
+import { before, describe, it } from "node:test";
 import { DEFAULT_MODEL } from "@houston/sdk/provider-catalog";
 import {
   type ActivityOverrideSource,
@@ -7,6 +7,8 @@ import {
   resolveFollowUpOverrides,
   resolveMissionControlSendOverrides,
 } from "../src/components/mission-control-send.ts";
+import { hydrateProviderCatalog } from "../src/lib/providers.ts";
+import { SAMPLE_CATALOG } from "./fixtures/sample-catalog.ts";
 
 const opus47Activity: ActivityOverrideSource = {
   id: "2792471e-1cca-4c75-addb-1259f3dd638b",
@@ -158,9 +160,12 @@ describe("resolveMissionControlSendOverrides", () => {
 });
 
 describe("resolveFollowUpOverrides (no pod read before the bubble)", () => {
+  // Effort is validated against the model it rides, which needs the catalog.
+  before(() => hydrateProviderCatalog(SAMPLE_CATALOG));
   const composer = {
     providerOverride: "openai",
     modelOverride: "gpt-6-astra",
+    effortOverride: "high",
     modeOverride: "plan" as const,
   };
 
@@ -174,6 +179,27 @@ describe("resolveFollowUpOverrides (no pod read before the bubble)", () => {
       {
         providerOverride: "anthropic",
         modelOverride: "claude-opus-5-5",
+        // A row stores no effort: the picker's effort rides the row's model.
+        effortOverride: "high",
+        modeOverride: "execute",
+      },
+    );
+  });
+
+  it("drops the composer's effort when the row's model has no effort levels", () => {
+    // The panel can still show the agent default while the row pins another
+    // model; an effort validated for the former must not ride the latter.
+    const nonReasoning: ActivityOverrideSource = {
+      id: "nr",
+      provider: "github-copilot",
+      model: "gpt-4.1",
+    };
+    deepStrictEqual(
+      resolveFollowUpOverrides("activity-nr", [nonReasoning], composer),
+      {
+        providerOverride: "github-copilot",
+        modelOverride: "gpt-4.1",
+        effortOverride: undefined,
         modeOverride: "execute",
       },
     );
@@ -188,6 +214,7 @@ describe("resolveFollowUpOverrides (no pod read before the bubble)", () => {
       {
         providerOverride: "openai",
         modelOverride: "gpt-6-astra",
+        effortOverride: "high",
         modeOverride: "execute",
       },
     );
@@ -199,6 +226,7 @@ describe("resolveFollowUpOverrides (no pod read before the bubble)", () => {
       {
         providerOverride: "openai",
         modelOverride: "gpt-6-astra",
+        effortOverride: "high",
         modeOverride: "execute",
       },
     );
@@ -212,6 +240,7 @@ describe("resolveFollowUpOverrides (no pod read before the bubble)", () => {
       {
         providerOverride: "openai",
         modelOverride: "gpt-6-astra",
+        effortOverride: "high",
         modeOverride: "execute",
       },
     );

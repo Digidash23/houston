@@ -1,9 +1,18 @@
-import { Building2, Copy, Palette, Trash2, UsersRound } from "lucide-react";
+import {
+  Building2,
+  Copy,
+  KeyRound,
+  Palette,
+  Trash2,
+  UsersRound,
+} from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAgentActions } from "../../hooks/use-agent-actions";
+import { useCapabilities } from "../../hooks/use-capabilities";
 import { usePersonalSpace } from "../../hooks/use-personal-space";
 import { useTeams } from "../../hooks/use-teams";
+import { apiKeysSupported } from "../../lib/api-keys-model";
 import { teamOfAgent } from "../../lib/teams-model";
 import type { Agent } from "../../lib/types";
 import { useAgentStore } from "../../stores/agents";
@@ -24,10 +33,12 @@ import {
 import { useCopyAgent } from "../agent-actions/use-copy-agent";
 import { SettingsCard, SettingsRow } from "../settings/settings-row";
 import { useSidebarLayout } from "../shell/../../hooks/use-sidebar-layout";
+import { useAgentSettingsNav } from "../team-view/agent-settings-nav-store";
 import { useMoveAgentTeam } from "../team-view/use-move-agent-team";
+import { AgentApiAccess } from "./agent-api-access";
 
 export function AgentSettingsManage({ agent }: { agent: Agent }) {
-  const { t } = useTranslation(["shell", "teams", "agents"]);
+  const { t } = useTranslation(["shell", "teams", "agents", "settings"]);
   const personalSpace = usePersonalSpace();
   const teams = useTeams();
   const currentTeam = teamOfAgent(teams, agent.id);
@@ -49,6 +60,9 @@ export function AgentSettingsManage({ agent }: { agent: Agent }) {
   const [organizationOpen, setOrganizationOpen] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const apiAvailable = apiKeysSupported(useCapabilities().capabilities);
+  const apiFor = useAgentSettingsNav((s) => s.apiAccessFor);
+  const setApiFor = useAgentSettingsNav((s) => s.setApiAccessFor);
 
   // Both writes reject AFTER `call()` has toasted the failure and reported it
   // to Sentry, so there is exactly one user-visible surface already. Awaiting
@@ -69,6 +83,9 @@ export function AgentSettingsManage({ agent }: { agent: Agent }) {
       // Already toasted + reported by `call()`.
     }
   };
+
+  if (apiAvailable && apiFor === agent.id)
+    return <AgentApiAccess agent={agent} onBack={() => setApiFor(null)} />;
 
   return (
     <>
@@ -102,6 +119,17 @@ export function AgentSettingsManage({ agent }: { agent: Agent }) {
           description={t("agents:copyAgent.rowDescription")}
           onClick={() => setCopyOpen(true)}
         />
+        {apiAvailable && (
+          <SettingsRow
+            icon={KeyRound}
+            title={t("settings:apiKeys.agentAccess.title")}
+            badge={t("settings:advancedBadge")}
+            description={t("settings:apiKeys.agentAccess.rowDescription", {
+              name: agent.name,
+            })}
+            onClick={() => setApiFor(agent.id)}
+          />
+        )}
         <SettingsRow
           icon={Trash2}
           title={t("teams:agentSettings.manage.delete", { name: agent.name })}

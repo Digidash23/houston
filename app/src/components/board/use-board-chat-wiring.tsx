@@ -11,11 +11,13 @@ import { AgentPanelAvatar } from "../shell/agent-panel-avatar";
 import { useAgentChatPanel } from "../use-agent-chat-panel";
 import { useQueuedMessageLabels } from "../use-queued-message-labels";
 import type { BoardSource } from "./board-source";
+import { settleOnPin } from "./composer-send-overrides";
 import { panelTaskLabel } from "./panel-task-label";
 import { useBoardDrafts } from "./use-board-drafts";
 import { useBoardLabels } from "./use-board-labels";
 import { useBoardSendQueue } from "./use-board-send-queue";
 import { useComposerPrewarm } from "./use-composer-prewarm";
+import { useComposerSendOverrides } from "./use-composer-send-overrides";
 
 /**
  * Everything the CHAT half of a mission surface wires up, extracted from
@@ -79,14 +81,7 @@ export function useBoardChatWiring(source: BoardSource) {
     // the chat swaps to that mission, exactly as clicking its card would.
     onOpenChildMission: source.setSelectedId,
   });
-  const overrides = useMemo(
-    () => ({
-      providerOverride: panel.effectiveProvider,
-      modelOverride: panel.effectiveModel,
-      modeOverride: panel.turnMode,
-    }),
-    [panel.effectiveProvider, panel.effectiveModel, panel.turnMode],
-  );
+  const overrides = useComposerSendOverrides(panel);
   const prewarm = useComposerPrewarm(onDraftChange, {
     agentPath: source.activeAgent?.folderPath,
     newConversationKey,
@@ -108,19 +103,14 @@ export function useBoardChatWiring(source: BoardSource) {
     async (text: string, files: File[], mentions?: MessageMention[]) => {
       // Same exemption as the follow-up queue: a warming pod parks the send.
       const agentPath = source.activeAgent?.folderPath;
-      const pin =
+      const pinned =
         agentPath && isAgentPathWarming(agentPath)
-          ? {
-              provider: overrides.providerOverride,
-              model: overrides.modelOverride,
-            }
-          : await panel.resolveSendPin();
+          ? overrides
+          : settleOnPin(overrides, await panel.resolveSendPin());
       return source.createConversation({
         text,
         files,
-        ...overrides,
-        providerOverride: pin.provider,
-        modelOverride: pin.model,
+        ...pinned,
         mentions,
         conversationId: prewarm.claimNewConversationId(),
       });

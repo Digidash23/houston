@@ -51,6 +51,10 @@ interface Props extends StepChrome, StepDraftApi {
   /** False parks the key bindings for a step whose surface isn't the active
    *  view, so a background card can't swallow Enter/Esc. */
   stepActive?: boolean;
+  /** The step holds something that must not be walked away from (a key shown
+   *  once): the CTA is the only way out. No decline, no escape row, no pager,
+   *  no dismiss, and Esc is swallowed rather than closing the panel. */
+  locked?: boolean;
 }
 
 /**
@@ -83,6 +87,7 @@ export function ChatConnectStepShell({
   onDecline,
   onEnter,
   stepActive = true,
+  locked = false,
   pager,
   onDismiss,
   dismissLabel,
@@ -100,7 +105,9 @@ export function ChatConnectStepShell({
   useInteractionStepKeys({
     enabled: stepActive && open && !busy && !done,
     onEnter,
-    onEscape: () => onDecline(),
+    // Swallowed, not unwired, while locked: an unhandled Escape falls through
+    // to the global close-the-panel shortcut, which would unmount the card.
+    onEscape: locked ? () => {} : () => onDecline(),
   });
 
   return (
@@ -111,10 +118,10 @@ export function ChatConnectStepShell({
       disabled={disabled}
       dismissLabel={dismissLabel}
       expandLabel={expandLabel}
-      onDismiss={onDismiss}
+      onDismiss={locked ? undefined : onDismiss}
       onOpenChange={onOpenChange}
       open={open}
-      pager={pager}
+      pager={locked ? undefined : pager}
       title={
         <InteractionModalTitle className="flex-1 truncate" icon={icon}>
           {title}
@@ -136,7 +143,9 @@ export function ChatConnectStepShell({
         )
       }
       footer={
-        done ? undefined : (
+        done ? undefined : locked ? (
+          cta
+        ) : (
           <>
             <ChatStepDeclineButton
               disabled={busy}
@@ -149,7 +158,7 @@ export function ChatConnectStepShell({
         )
       }
       trailing={
-        done ? undefined : (
+        done || locked ? undefined : (
           <InlineTextRow
             disabled={busy}
             // The decline commits nothing, so the step keeps its draft: empty

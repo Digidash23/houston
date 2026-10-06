@@ -12,16 +12,28 @@ import {
 import { runWithTurnMode } from "../turn-mode-context";
 import { makeRequestHandsOnTool } from "./request-hands-on";
 
-const tool = makeRequestHandsOnTool({ personalAssistant: false });
-const managerTool = makeRequestHandsOnTool({ personalAssistant: true });
+const tool = makeRequestHandsOnTool({
+  personalAssistant: false,
+  apiServed: true,
+});
+const managerTool = makeRequestHandsOnTool({
+  personalAssistant: true,
+  apiServed: true,
+});
+/** The AI Manager on a deployment that does not serve the Houston API. */
+const desktopManagerTool = makeRequestHandsOnTool({
+  personalAssistant: true,
+  apiServed: false,
+});
 const run = (
   which: typeof tool,
   surface: string,
   reason?: string,
+  agent?: string,
 ): Promise<unknown> =>
   which.execute(
     "id",
-    { surface, reason },
+    { surface, reason, ...(agent === undefined ? {} : { agent }) },
     undefined,
     undefined,
     {} as ExtensionToolContext,
@@ -153,4 +165,72 @@ test("wire parser validates the screen and the optional reason structurally", ()
     { ...valid, id: null },
   ])
     expect(isInteractionStep(malformed)).toBe(false);
+});
+
+test("an employee's API access names that employee, and only the AI Manager hands it over", async () => {
+  // The screen holds ONE employee's IDs and setup prompt: landing on the wrong
+  // employee hands the person IDs that call someone else from their code.
+  expect(managerTool.description).toContain("agentApiAccess");
+  expect(managerTool.description).toContain("id from listAgents as agent");
+  // Both API errands are done right in the chat, and the key stays unseen.
+  expect(managerTool.description).toContain(
+    "apiKeys lets them create and copy a key right in the chat, and you never see it",
+  );
+  expect(managerTool.description).toContain("does the job right in the chat");
+  expect(tool.description).not.toContain("agentApiAccess");
+  const holder = newInteractionHolder();
+  await runWithInteractionCapture(holder, async () => {
+    // An ordinary agent cannot read the roster, so it could only guess the id.
+    await expect(
+      run(tool, "agentApiAccess", undefined, "agent-1"),
+    ).rejects.toThrow("only the user's AI Manager can look up which");
+    for (const agent of [undefined, "", "   "])
+      await expect(
+        run(managerTool, "agentApiAccess", "Copy the prompt", agent),
+      ).rejects.toThrow("pass that employee's id from listAgents as agent");
+    expect(holder.pending).toBeUndefined();
+    await run(managerTool, "agentApiAccess", "First", " agent-1 ");
+    await run(managerTool, "agentApiAccess", "Second employee", "agent-2");
+    // The same employee again is the same trip; another employee is another.
+    await run(managerTool, "agentApiAccess", "Refreshed", "agent-1");
+    // Every other screen is no one's: an agent passed along is dropped.
+    await run(managerTool, "apiKeys", undefined, "agent-1");
+  });
+  expect(holder.pending?.steps).toEqual([
+    {
+      kind: "hands_on",
+      id: "h1",
+      surface: "agentApiAccess",
+      agentId: "agent-1",
+      reason: "Refreshed",
+    },
+    {
+      kind: "hands_on",
+      id: "h2",
+      surface: "agentApiAccess",
+      agentId: "agent-2",
+      reason: "Second employee",
+    },
+    { kind: "hands_on", id: "h3", surface: "apiKeys" },
+  ]);
+});
+
+test("without the Houston API there is no employee API access screen to hand over", async () => {
+  // A desktop serves no API: a card there would open a screen that is not
+  // drawn, so the screen is neither offered nor accepted.
+  expect(desktopManagerTool.description).not.toContain("agentApiAccess");
+  expect(desktopManagerTool.description).toContain("orgDanger");
+  const holder = newInteractionHolder();
+  await runWithInteractionCapture(holder, async () => {
+    await expect(
+      run(desktopManagerTool, "agentApiAccess", undefined, "agent-1"),
+    ).rejects.toThrow("does not offer the Houston API");
+  });
+  expect(holder.pending).toBeUndefined();
+});
+
+test("the description names no other company's product", () => {
+  for (const which of [tool, managerTool, desktopManagerTool])
+    for (const name of ["Claude Code", "Cursor", "ChatGPT", "Codex"])
+      expect(which.description).not.toContain(name);
 });

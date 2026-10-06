@@ -4,6 +4,7 @@ import {
   CloudUpload,
   CreditCard,
   Keyboard,
+  KeyRound,
   MessagesSquare,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -33,7 +34,7 @@ interface SettingsIndexProps {
  * own app and preferences.
  *
  * The page holds ONE general group (plan, channels, appearance, language,
- * notifications, and the shortcut, bug-report and migration rows), plus
+ * notifications, and the API-key, shortcut, bug-report and migration rows), plus
  * Danger. Admin is its own screen; an AI Employee's Skills live in that
  * employee's settings. The person themselves (who is signed in, Sign out,
  * their Profile and About me) is the account menu's, not a row here.
@@ -95,10 +96,15 @@ export function SettingsIndex({
           <AppearanceSection />
           <LanguageSection />
           <NotificationsSection />
-          {/* The API-keys row is HIDDEN for now (HOU-806): the Agents API
-              surface lives in the Routines tab. The section, its strings, and
-              all plumbing remain — restore by re-adding this row (and the
-              apiKeysAvailable gate from apiKeysSupported) when it returns. */}
+          {settingsSectionAvailable("apiKeys", capabilities) && (
+            <SettingsRow
+              icon={KeyRound}
+              title={t("settings:nav.apiKeys")}
+              badge={t("settings:advancedBadge")}
+              description={t("settings:index.rows.apiKeys")}
+              onClick={() => onSelect("apiKeys")}
+            />
+          )}
           <SettingsRow
             icon={Keyboard}
             title={t("settings:nav.shortcuts")}

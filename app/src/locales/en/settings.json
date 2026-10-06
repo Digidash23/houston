@@ -195,6 +195,39 @@
       "description": "\"{{name}}\" will stop working right away. Any tool using it will lose access. This cannot be undone.",
       "confirm": "Revoke",
       "cancel": "Cancel"
+    },
+    "orgId": {
+      "title": "Organization ID",
+      "description": "Apps send this ID to work with the AI Employees in {{org}}. Your keys work in every organization you belong to, so switch to another one to see its ID.",
+      "descriptionNoName": "Apps send this ID to work with the AI Employees in this organization. Your keys work in every organization you belong to, so switch to another one to see its ID.",
+      "copyFailed": "Couldn't copy the organization ID"
+    },
+    "idRow": {
+      "copy": "Copy",
+      "copied": "Copied",
+      "loading": "Loading…"
+    },
+    "agentAccess": {
+      "title": "API access",
+      "rowDescription": "Connect other apps and AI assistants to {{name}}",
+      "intro": "Other apps and AI assistants can start tasks with {{name}} through the Houston API. They need these IDs and one of your API keys.",
+      "copyPrompt": "Copy prompt for AI agent",
+      "promptCopied": "Prompt copied",
+      "promptCopyFailed": "Couldn't copy the prompt",
+      "promptHint": "Paste it into your AI agent or AI assistant. It contains no key, so the agent will ask you for one. You create keys in API keys.",
+      "agentId": "Agent ID",
+      "agentIdCopyFailed": "Couldn't copy the agent ID",
+      "keysRow": "API keys",
+      "keysRowDescription": "Create the keys your apps use to start tasks with {{name}}",
+      "docsRow": "Developer docs",
+      "docsRowDescription": "How to work with {{name}} from your own code"
+    },
+    "example": {
+      "tryTitle": "Try your key",
+      "tryHint": "Run this in a terminal. It lists your AI Employees, so you can see the key work.",
+      "missionTitle": "Example request",
+      "missionHint": "Starts a task with {{name}}. First set HOUSTON_API_KEY to one of your API keys.",
+      "copyFailed": "Couldn't copy the example"
     }
   },
   "channels": {
@@ -227,5 +260,6 @@
     "refresh": "Refresh connections",
     "notConfigured": "Slack connections are not ready for this Houston space. Ask your Houston administrator to finish setting up Slack, then refresh.",
     "unsupported": "Channels are unavailable on this Houston installation."
-  }
+  },
+  "advancedBadge": "Advanced"
 }

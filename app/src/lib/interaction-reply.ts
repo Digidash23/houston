@@ -31,7 +31,7 @@ import { encodeAutoContinueMessage } from "./auto-continue-message.ts";
  * `credentialedFollowup`, like a connect-only one; a skip in the mix falls to the
  * visible/hidden body path so the "Skipped ..." fact survives.
  *
- * A hands-on errand adds `handsOnLine(screen)` ("Opened X and finished there.")
+ * A hands-on errand adds `handsOnLine(screen)` ("Finished X.")
  * or `handsOnSkippedLine(screen)` — the person's own word for it, since nothing
  * can observe the screen they were sent to. A sequence carrying one never takes
  * the signin-only / credential-only shortcut: that fact must reach the agent.

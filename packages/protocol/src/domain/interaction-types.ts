@@ -39,6 +39,7 @@ export const HANDS_ON_SURFACES = [
   "files",
   "routineWebhook",
   "orgDanger",
+  "agentApiAccess",
 ] as const;
 
 export type HandsOnSurface = (typeof HANDS_ON_SURFACES)[number];
@@ -123,6 +124,18 @@ export type InteractionStep =
       id: string;
       /** Which Houston screen the person is being sent to. */
       surface: HandsOnSurface;
+      /** The AI Employee the screen belongs to, by the id `listAgents`
+       *  returns: set on a screen that is ONE employee's (`agentApiAccess`).
+       *  Optional on the wire because the other screens are not anyone's. A
+       *  surface never guesses a missing one (the employee on screen could be
+       *  someone else's IDs to paste into code): without it the card reads as
+       *  unavailable.
+       *
+       *  `activity.schema.json` declares it too. Local hosts re-seed agents'
+       *  schema copies at boot; E2B-served orgs pick it up on the next agent
+       *  store migration bump. Nothing waits on that: the step schema is open
+       *  (no `additionalProperties: false`) and a schema miss only warns. */
+      agentId?: string;
       reason?: string;
     }
   | { kind: "plan_ready"; id: string; summary: string }

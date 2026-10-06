@@ -3,16 +3,39 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
-## v124 - 2026-10-05
+## v126 - 2026-10-05
 
 A trigger routine says when a Free plan skipped its runs. The routine screen
 and the top of its Runs modal show how many runs were skipped in the last 24
-hours and why: the routine fired sooner than the Free minimum interval, it is
-not the one routine Free keeps running, or routines paused while its creator
-was away. The creator gets what fixes it (Upgrade to Plus, Choose routine,
-Resume first while paused); on Plus the notice is hidden. A teammate sees a
+hours and that the Free plan caused it: a run limit, the one routine Free
+keeps running, or routines paused while its creator was away. The creator
+gets what fixes it (Upgrade to Plus, Choose routine, Resume first while
+paused); on Plus the notice is hidden. A teammate sees a
 read-only line that it ran on its creator's Free plan. Before, a skipped run
 left no trace and the routine looked broken.
+
+## v125 - 2026-10-05
+
+The AI Manager's two API errands work right in its chat card instead of
+sending the person to another screen, on desktop and phone. The API-key card
+names a key (the employee's name when one is in play), creates it and shows the
+secret once with Copy and the one-time warning, under a fixed line that the
+Manager never sees it; once shown, Done is the only way out. A quiet link still
+leads to Settings > API keys. The API access card shows the employee's ready
+prompt button, Agent ID and Organization ID with copy buttons. Mission chats
+keep the API-keys card that opens the screen. Errand replies now read
+"Finished {screen}." / "Skipped {screen}.", and the secret never reaches the
+conversation.
+
+## v124 - 2026-10-05
+
+Settings lists API keys again wherever the deployment serves the public API,
+on desktop and web. The screen links the developer docs, lists keys, mints
+one with a one-time reveal and revokes with a confirmation. A new Organization ID row
+above the keys shows the ID apps send to reach the open organization, with a copy
+button, on desktop and phone. Each AI Employee's Settings gains an "API
+access" row opening a screen with its Agent ID, the Organization ID, a way into
+API keys and the developer docs.
 
 ## v123 - 2026-10-05
 

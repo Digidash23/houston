@@ -4,12 +4,12 @@ activeDoc: mcp
 lang: en
 ---
 {% extends "base.njk" %}
-{% block title %}MCP — Houston API{% endblock %}
+{% block title %}MCP · Houston API{% endblock %}
 {% block meta %}
 <meta name="description" content="Expose your Houston agents as tools over the Model Context Protocol. A single stateless Streamable HTTP endpoint with list_agents, start_mission, get_mission, and cancel_mission, plus a copy-paste config for Claude Code and other MCP clients.">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://gethouston.ai/developers/mcp/">
-<meta property="og:title" content="MCP — Houston API">
+<meta property="og:title" content="MCP · Houston API">
 <meta property="og:description" content="Connect Claude Code and any MCP client to your Houston agents over one endpoint.">
 <meta property="og:site_name" content="Houston">
 <meta name="twitter:card" content="summary_large_image">
@@ -52,25 +52,40 @@ lang: en
         </div>
         <p>
           A single <strong>Streamable HTTP</strong> MCP endpoint. It is
-          <strong>stateless</strong>, so there is no session to establish:
-          each request stands alone. It speaks protocol version
-          <code>2025-06-18</code>, and authenticates with your
-          <code>hst_...</code> API key as a bearer token.
+          <strong>stateless</strong>: each <code>POST</code> carries one
+          JSON-RPC request and gets one JSON response, with no SSE stream and
+          no session. It authenticates with your <code>hst_...</code> API key
+          as a bearer token.
         </p>
         <div class="callout callout-info">
           <div class="callout-label">Stateless by design</div>
           <p>
-            Because the endpoint keeps no session, it scales cleanly and
-            reconnects for free. Every call carries the
-            <code>Authorization</code> header; there is no separate
-            initialize-then-reuse handshake to manage.
+            The server answers <code>initialize</code>, <code>ping</code>,
+            <code>tools/list</code>, and <code>tools/call</code>.
+            <code>initialize</code> works as usual, but no
+            <code>Mcp-Session-Id</code> is issued or needed, so every call
+            simply carries the <code>Authorization</code> header.
+            Notifications get an empty <code>202</code>, and <code>GET</code>
+            or <code>DELETE</code> get <code>405</code>.
+          </p>
+          <p>
+            The server implements protocol version <code>2025-06-18</code>.
+            <code>initialize</code> also accepts <code>2025-03-26</code> and
+            <code>2024-11-05</code> and echoes the version you asked for;
+            any other version is answered with <code>2025-06-18</code>.
           </p>
         </div>
 
         <h2 id="connect">Connect a client</h2>
         <p>
           Point any MCP client at <code>{{ api.gatewayUrl }}/mcp</code>
-          with your key in the <code>Authorization</code> header.
+          with your key in the <code>Authorization</code> header. The tools
+          act in your personal organization. To work with a team
+          organization's agents, also send
+          <code>x-houston-org: &lt;organization id&gt;</code>, using the
+          Organization ID from <code>Settings → API keys</code> or an AI
+          Employee's <code>Settings → API access</code> (see
+          <a class="link" href="/developers/#organizations">Organizations</a>).
         </p>
 
         <h3>Claude Code</h3>
@@ -98,39 +113,65 @@ lang: en
             <code>.mcp.json</code> is often checked into a repo. Keep the raw
             key out of version control, for example by referencing an
             environment variable if your client supports it, and revoke any
-            key that leaks from <code>Settings → API Keys</code>.
+            key that leaks from <code>Settings → API keys</code>.
           </p>
         </div>
 
         <h2 id="tools">Tools</h2>
         <p>
           The server exposes four tools. Their input schemas are standard JSON
-          Schema, so MCP clients render and validate them automatically.
+          Schema, so MCP clients render and validate them automatically. A
+          successful result comes back twice: as a JSON text block in
+          <code>content</code> and as an object in
+          <code>structuredContent</code>.
         </p>
 
         <h3>list_agents</h3>
-        <p>Lists the agents your key can reach, with their slugs. No input.</p>
+        <p>Lists the agents in the organization the request acts in. No input.</p>
         <div class="codeblock"><pre><code>{% raw %}{
   "name": "list_agents",
-  "description": "List the Houston agents this API key can drive.",
+  "description": "List the Houston agents in your workspace. Returns each agent's slug (use it as the 'agent' argument to start_mission) and display name.",
   "inputSchema": {
     "type": "object",
     "properties": {},
     "additionalProperties": false
   }
 }{% endraw %}</code></pre></div>
+        <p>
+          Each item is <code>{ "agentSlug", "name" }</code>. The structured
+          result wraps the list in an object:
+        </p>
+        <div class="codeblock"><pre><code>{% raw %}{
+  "agents": [
+    { "agentSlug": "3f9a1c07b2e84d65", "name": "Revenue Manager" }
+  ]
+}{% endraw %}</code></pre></div>
 
         <h3>start_mission</h3>
-        <p>Starts a mission on an agent and returns the mission id and status.</p>
+        <p>
+          Starts a mission on an agent and returns the mission, with the same
+          fields as the <a class="link" href="/developers/missions/#get">REST mission JSON</a>.
+          <code>mode</code> defaults to <code>auto</code> when omitted.
+        </p>
         <div class="codeblock"><pre><code>{% raw %}{
   "name": "start_mission",
-  "description": "Start a mission on a Houston agent.",
+  "description": "Start an agent working on a task. The mission runs asynchronously: this returns immediately with a mission id you poll using get_mission until its status is completed, failed, or canceled.",
   "inputSchema": {
     "type": "object",
     "properties": {
-      "agent": { "type": "string", "description": "The agent slug to run." },
-      "input": { "type": "string", "description": "The instruction for the agent." },
-      "mode":  { "type": "string", "enum": ["execute", "plan", "auto"], "default": "auto" }
+      "agent": {
+        "type": "string",
+        "description": "The slug of the agent to run (from list_agents)."
+      },
+      "input": {
+        "type": "string",
+        "description": "The task or message to send the agent."
+      },
+      "mode": {
+        "type": "string",
+        "enum": ["execute", "plan", "auto"],
+        "description": "How the agent should approach the task: 'execute' acts directly, 'plan' produces a plan first, 'auto' (default) lets the agent decide."
+      }
     },
     "required": ["agent", "input"],
     "additionalProperties": false
@@ -141,11 +182,14 @@ lang: en
         <p>Returns a mission's status and, once terminal, its result.</p>
         <div class="codeblock"><pre><code>{% raw %}{
   "name": "get_mission",
-  "description": "Get the status and result of a mission.",
+  "description": "Fetch a mission by id to check its status and read its result. Poll this after start_mission until the status is a terminal state (completed, failed, canceled).",
   "inputSchema": {
     "type": "object",
     "properties": {
-      "missionId": { "type": "string" }
+      "missionId": {
+        "type": "string",
+        "description": "The id returned by start_mission."
+      }
     },
     "required": ["missionId"],
     "additionalProperties": false
@@ -153,19 +197,34 @@ lang: en
 }{% endraw %}</code></pre></div>
 
         <h3>cancel_mission</h3>
-        <p>Requests cancellation of a running mission.</p>
+        <p>Cancels a running mission and returns it in the <code>canceled</code> state. On a mission that already ended, the tool returns an error result instead.</p>
         <div class="codeblock"><pre><code>{% raw %}{
   "name": "cancel_mission",
-  "description": "Cancel a running mission.",
+  "description": "Cancel a running mission by id. Returns the mission in its canceled state.",
   "inputSchema": {
     "type": "object",
     "properties": {
-      "missionId": { "type": "string" }
+      "missionId": {
+        "type": "string",
+        "description": "The id of the mission to cancel."
+      }
     },
     "required": ["missionId"],
     "additionalProperties": false
   }
 }{% endraw %}</code></pre></div>
+
+        <h3>Tool errors</h3>
+        <p>
+          When a tool call fails, for example an unknown agent, a missing
+          mission, or a busy agent, the result has <code>"isError": true</code>
+          and a text block that explains it, so the model can read it and
+          correct course. A few cases are JSON-RPC errors instead: an unknown
+          tool or arguments that are not valid JSON (<code>-32602</code>), and
+          a reached message limit on <code>start_mission</code>
+          (<code>-32029</code>, with <code>resetsAt</code> in
+          <code>error.data</code>).
+        </p>
 
         <div class="callout callout-success">
           <div class="callout-label">In practice</div>

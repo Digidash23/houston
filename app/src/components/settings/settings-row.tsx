@@ -1,6 +1,7 @@
 import { cn } from "@houston-ai/core";
 import { ChevronRight, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import { Leading, RowText } from "./settings-row-parts";
 
 interface SettingsCardProps {
   /** Group heading shown above the card. Omit for the lead group. */
@@ -37,55 +38,11 @@ export function SettingsCard({ title, children }: SettingsCardProps) {
   );
 }
 
-function Leading({
-  icon: Icon,
-  leading,
-  destructive,
-}: {
-  icon?: LucideIcon;
-  leading?: ReactNode;
-  destructive?: boolean;
-}) {
-  if (leading) return <span className="shrink-0">{leading}</span>;
-  if (!Icon) return null;
-  return (
-    <Icon
-      className={`size-[18px] shrink-0 ${
-        destructive ? "text-danger" : "text-ink-muted"
-      }`}
-    />
-  );
-}
-
-interface RowTextProps {
-  title: string;
-  description?: string;
-  destructive?: boolean;
-  disabled?: boolean;
-}
-
-function RowText({ title, description, destructive, disabled }: RowTextProps) {
-  return (
-    <span className="min-w-0 flex-1">
-      <span
-        className={`block truncate text-sm font-medium ${
-          destructive && !disabled ? "text-danger" : "text-ink"
-        }`}
-      >
-        {title}
-      </span>
-      {description && (
-        <span className="block truncate text-xs text-ink-muted">
-          {description}
-        </span>
-      )}
-    </span>
-  );
-}
-
 interface SettingsRowProps {
   icon: LucideIcon;
   title: string;
+  /** A short tag beside the title, e.g. "Advanced" for developer settings. */
+  badge?: string;
   description?: string;
   ariaLabel?: string;
   /** Right-aligned current value, e.g. "2 members". */
@@ -104,6 +61,7 @@ interface SettingsRowProps {
 export function SettingsRow({
   icon,
   title,
+  badge,
   description,
   ariaLabel,
   value,
@@ -126,6 +84,7 @@ export function SettingsRow({
       <Leading icon={icon} destructive={destructive && !disabled} />
       <RowText
         title={title}
+        badge={badge}
         description={description}
         destructive={destructive}
         disabled={disabled}

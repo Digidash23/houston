@@ -1,9 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import {
+  createWriteLeaseProbe,
   fetchWithRetry,
   HttpObjectStore,
 } from "@houston/runtime-client/object-sync";
+import { waitForPredecessorDrain } from "../store-sync/predecessor-drain";
+import { severityLog } from "./host-log";
 
 function optionalPositiveNumber(name: string): number | undefined {
   const raw = process.env[name];
@@ -40,6 +43,20 @@ export async function managedStoreConfig(
   const bootId = randomUUID();
   const fence: { token?: string } = {};
   let generations: boolean | undefined;
+  const agentBaseUrl = `${root}/${encodeURIComponent(agentSlug)}`;
+  const store = new HttpObjectStore({
+    baseUrl: agentBaseUrl,
+    token: hostToken,
+    bootId,
+    fence,
+  });
+  // PRODUCT-1783: an evicted pod keeps draining its turn while this
+  // replacement boots, and its final sync is what lands that turn. Claiming
+  // the lease first would fence that sync (409) and lose the turn, so the
+  // claim waits the predecessor's published drain window out. Reads need no
+  // lease; the stamp read's captured token is the predecessor's, never ours.
+  await waitForPredecessorDrain({ store, log: severityLog });
+  fence.token = undefined;
   // Claim the write lease for THIS boot before anything hydrates or syncs.
   // Every legitimate new writer boots (kubelet container restarts and node
   // reschedules included — neither passes through a control-plane wake), and
@@ -52,7 +69,7 @@ export async function managedStoreConfig(
     const res = await fetchWithRetry(
       (input, init) =>
         fetch(input, { ...init, signal: AbortSignal.timeout(10_000) }),
-      `${root}/${encodeURIComponent(agentSlug)}/lease`,
+      `${agentBaseUrl}/lease`,
       {
         method: "POST",
         headers: {
@@ -98,12 +115,16 @@ export async function managedStoreConfig(
       fence,
     },
     storeSync: {
-      store: new HttpObjectStore({
-        baseUrl: `${root}/${encodeURIComponent(agentSlug)}`,
+      store,
+      leaseProbe: createWriteLeaseProbe({
+        baseUrl: agentBaseUrl,
         token: hostToken,
         bootId,
         fence,
       }),
+      // A claim that answered 404 (fencing off) leaves no token: nothing can
+      // fence this boot until one is published, so nothing waits on the check.
+      leaseClaimed: () => fence.token !== undefined,
       quietMs: optionalPositiveNumber("HOUSTON_STORE_SYNC_QUIET_MS"),
       intervalMs: optionalPositiveNumber("HOUSTON_STORE_SYNC_INTERVAL_MS"),
       maxHydrateBytes:

@@ -2,6 +2,7 @@ import type { ChatInteractionAnswer } from "@houston-ai/chat";
 import { ChatInteractionCard } from "@houston-ai/chat";
 import { type ReactNode, useCallback, useMemo } from "react";
 import { approvalsFromAnswers } from "../lib/interaction-approvals";
+import { useAgentStore } from "../stores/agents";
 import { interactionDraftKey } from "../stores/interaction-drafts";
 import {
   hasQuestionStep,
@@ -53,6 +54,7 @@ export function ChatInteractionStepper({
     steps,
   });
 
+  const agents = useAgentStore((s) => s.agents);
   const mapped = useMemo(
     () =>
       mapInteractionSteps({
@@ -60,9 +62,10 @@ export function ChatInteractionStepper({
         approvalCopy,
         resolveBrand,
         resolveProviderName,
+        resolveAgentName: (id) => agents.find((a) => a.id === id)?.name,
         t,
       }),
-    [steps, approvalCopy, resolveBrand, resolveProviderName, t],
+    [steps, approvalCopy, resolveBrand, resolveProviderName, agents, t],
   );
   const cards = useMemo(
     () =>
