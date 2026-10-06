@@ -64,11 +64,12 @@ export function routineRunFailure(
 
 /**
  * The typed failure for a routine fire that never reached a provider because
- * nothing usable was connected for the identity it runs as. A routine that
- * names a provider blames that account; one that names none (it predates
- * per-routine models) has no provider to name, and choosing a model is the fix
- * (PRODUCT-1982). Both count toward the same auto-pause streak, so an unpinned
- * routine stops firing into nothing instead of failing on every instant.
+ * nothing usable was connected for the identity it runs as. It blames the
+ * provider the turn would have run on: the routine's pin, else the agent's
+ * saved provider (logged out, or its login expired). Only a routine that names
+ * no model on an agent with nothing saved has no provider to name, and
+ * choosing a model is the fix (PRODUCT-1982). All count toward the same
+ * auto-pause streak, so the routine stops firing into nothing.
  */
 export function unconnectedRoutineFailure(
   provider: string | null | undefined,
@@ -78,11 +79,12 @@ export function unconnectedRoutineFailure(
     : { code: "no_model" };
 }
 
-/** The provider a typed failure names; absent for `no_model`. */
+/** The provider a run failure or a pause names; absent for `no_model`. */
 export function routineFailureProvider(
   failure: RoutineRunFailure | RoutineAutoPause,
 ): string | undefined {
-  return "provider" in failure ? failure.provider : undefined;
+  if ("cause" in failure && failure.cause) return undefined;
+  return "provider" in failure ? failure.provider || undefined : undefined;
 }
 
 /** Whether two typed failures are the same wall (code and provider). */
@@ -132,10 +134,17 @@ export function routineAutoPause(
     failures++;
   }
   if (!wall || failures < ROUTINE_AUTO_PAUSE_AFTER) return null;
-  const counted = { failures, at: nowIso };
+  // A no-model pause keeps an account reason old clients can render
+  // (`RoutineAutoPause.cause`).
   return wall.code === "no_model"
-    ? { reason: wall.code, ...counted }
-    : { reason: wall.code, provider: wall.provider, ...counted };
+    ? {
+        reason: "model_unavailable",
+        provider: "",
+        cause: "no_model",
+        failures,
+        at: nowIso,
+      }
+    : { reason: wall.code, provider: wall.provider, failures, at: nowIso };
 }
 
 /** The routine, paused by the engine for `pause`. */
@@ -157,5 +166,6 @@ export function routineAutoPauseLogTail(
 ): string {
   if (!pause) return "no pause recorded";
   const provider = routineFailureProvider(pause);
-  return `${pause.failures} runs: ${pause.reason}${provider ? ` (${provider})` : ""}`;
+  const reason = pause.cause ?? pause.reason;
+  return `${pause.failures} runs: ${reason}${provider ? ` (${provider})` : ""}`;
 }

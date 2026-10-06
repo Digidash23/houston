@@ -185,7 +185,9 @@ test("an unpinned turn with nothing connected settles as no_model and pauses on 
   const [saved] = JSON.parse(remote.get(ROUTINES_KEY) ?? "[]") as Routine[];
   expect(saved).toMatchObject({ enabled: false });
   expect(saved?.auto_paused).toEqual({
-    reason: "no_model",
+    reason: "model_unavailable",
+    provider: "",
+    cause: "no_model",
     failures: ROUTINE_AUTO_PAUSE_AFTER,
     at: expect.any(String),
   });

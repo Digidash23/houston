@@ -7,13 +7,12 @@ import {
   upsertById,
 } from "@houston/domain";
 import type { Routine, RoutineRunFailure } from "@houston/protocol";
-import { TurnFireError } from "../channel/fire-error";
 import type { Agent, Workspace } from "../domain/types";
 import type { EventHub } from "../events/hub";
 import type { WorkspacePaths } from "../paths";
 import type { Vfs } from "../vfs";
 import { pauseFailingRoutines } from "./auto-pause";
-import { routineRunFailureSummary } from "./run-failure";
+import { isUnconnectedRefusal, routineRunFailureSummary } from "./run-failure";
 import { withRunsFile } from "./runs-lock";
 import type { RoutineFirer } from "./scheduler";
 
@@ -120,13 +119,12 @@ export async function fireRoutineRun(
     const message = err instanceof Error ? err.message : String(err);
     // The runtime refused the fire outright because nothing usable is
     // connected for the identity the routine runs as — the creator's
-    // (PRODUCT-1475). A pinned routine blames its provider's account; an
-    // unpinned one (it predates per-routine models) reads as "no model
-    // chosen" (PRODUCT-1982). Typed either way, so both stop at the pause.
-    const failure: RoutineRunFailure | undefined =
-      err instanceof TurnFireError && err.code === "no_provider"
-        ? unconnectedRoutineFailure(routine.provider)
-        : undefined;
+    // (PRODUCT-1475). It blames the routine's pin, else the agent's saved
+    // provider the refusal names; with neither it reads as "no model chosen"
+    // (PRODUCT-1982). Typed every way, so all of them stop at the pause.
+    const failure: RoutineRunFailure | undefined = isUnconnectedRefusal(err)
+      ? unconnectedRoutineFailure(routine.provider || err.provider)
+      : undefined;
     await markRunErrored(root, err, async () => {
       const { items: current } = await loadRoutineRuns(deps.vfs, root);
       const row = current.find((r) => r.id === runId);

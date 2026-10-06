@@ -141,7 +141,7 @@
       "teamNeedsReconnect": "Hay que volver a conectar {{provider}}.",
       "outOfCredits": "La cuenta de {{provider}} se quedó sin créditos.",
       "modelUnavailable": "La cuenta de {{provider}} no puede usar el modelo de esta rutina.",
-      "noModel": "Esta rutina no tiene un modelo elegido y no hay ninguna cuenta de IA conectada para ejecutarla.",
+      "noModel": "Esta rutina no tiene un modelo elegido y la cuenta de IA que usaría no está conectada.",
       "poolDeliveryExpired": "Esta ejecución no pudo iniciar a tiempo y se omitió. Puedes ejecutar la rutina de nuevo."
     },
     "autoPause": {
@@ -154,7 +154,7 @@
       "reconnectTeam": "Hay que volver a conectar {{provider}}. Cuando esté listo, reanuda la rutina.",
       "addCredits": "La cuenta de {{provider}} se quedó sin créditos. Agrega créditos o cambia de plan y luego reanuda la rutina.",
       "changeModel": "La cuenta de {{provider}} no puede usar el modelo de esta rutina. Elige un modelo que la cuenta pueda usar y luego reanuda la rutina.",
-      "chooseModel": "Esta rutina no tiene un modelo elegido y no hay ninguna cuenta de IA conectada para ejecutarla. Elige un modelo en la sección Modelo y luego reanuda la rutina.",
+      "chooseModel": "Esta rutina no tiene un modelo elegido y la cuenta de IA que usaría no está conectada. Elige un modelo en la sección Modelo y luego reanuda la rutina.",
       "resume": "Reanudar"
     }
   },

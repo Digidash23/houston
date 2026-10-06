@@ -66,3 +66,18 @@ export async function startRoutineRun(input: {
     );
   return phase;
 }
+
+/** The turn a routine phase runs: its prompt, its pin, and Autopilot. */
+export function routinePhaseTurn(
+  turn: TurnRequest,
+  phase: RoutinePhase,
+): TurnRequest {
+  return {
+    ...turn,
+    text: phase.text,
+    ...(phase.provider ? { provider: phase.provider } : {}),
+    ...(phase.model ? { model: phase.model } : {}),
+    ...(phase.effort ? { effort: phase.effort } : {}),
+    mode: "auto",
+  };
+}

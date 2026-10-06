@@ -24,9 +24,7 @@ const base: Routine = {
   updated_at: "2026-09-29T11:00:00.000Z",
 };
 
-const paused = (
-  reason: Exclude<NonNullable<Routine["auto_paused"]>["reason"], "no_model">,
-) =>
+const paused = (reason: NonNullable<Routine["auto_paused"]>["reason"]) =>
   ({
     ...base,
     enabled: false,
@@ -102,7 +100,9 @@ describe("RoutineAutoPauseBanner", () => {
         ...base,
         enabled: false,
         auto_paused: {
-          reason: "no_model",
+          reason: "model_unavailable",
+          provider: "",
+          cause: "no_model",
           failures: 10,
           at: "2026-09-29T11:00:00.000Z",
         },

@@ -38,7 +38,7 @@ export async function finishRoutineTurn(opts: {
    * `provider` is what the turn would have run on; absent when nothing named
    * one (an unpinned routine).
    */
-  unconnected?: { provider?: string };
+  unconnected?: { provider?: string } | undefined;
 }): Promise<FinishedRoutineTurn> {
   // Same rule as the standing fire path (schedule/run.ts).
   const failure: RoutineRunFailure | undefined = opts.unconnected

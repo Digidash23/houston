@@ -83,7 +83,9 @@ export function routinePauseNotice(
   const pause = routine.auto_paused;
   if (routine.enabled || !pause) return null;
   const counts = { failures: pause.failures, pausedAt: pause.at };
-  if (pause.reason === "no_model") return { remedy: "choose_model", ...counts };
+  // Read before `reason`: a no-model pause carries an account reason only so
+  // older clients can render it (`RoutineAutoPause.cause`).
+  if (pause.cause === "no_model") return { remedy: "choose_model", ...counts };
   const reason = failureCodeForReader(
     { code: pause.reason, provider: pause.provider },
     reader,

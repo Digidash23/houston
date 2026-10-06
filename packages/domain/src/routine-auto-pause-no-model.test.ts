@@ -58,7 +58,14 @@ test("N no-model refusals in a row pause the routine with no provider named", ()
     routineAutoPause(routine(), runs(Array(N - 1).fill(noModel)), NOW),
   ).toBeNull();
   const pause = routineAutoPause(routine(), runs(Array(N).fill(noModel)), NOW);
-  expect(pause).toEqual({ reason: "no_model", failures: N, at: NOW });
+  // An account reason old clients can render, with the real cause beside it.
+  expect(pause).toEqual({
+    reason: "model_unavailable",
+    provider: "",
+    cause: "no_model",
+    failures: N,
+    at: NOW,
+  });
   expect(pause && routineFailureProvider(pause)).toBeUndefined();
   expect(routineAutoPauseLogTail(pause ?? undefined)).toBe(
     `${N} runs: no_model`,

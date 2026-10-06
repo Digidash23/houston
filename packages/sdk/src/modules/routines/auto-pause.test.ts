@@ -44,7 +44,13 @@ test("a routine paused for having no model asks for one, naming no provider", ()
   expect(
     routinePauseNotice({
       enabled: false,
-      auto_paused: { reason: "no_model", failures: 10, at },
+      auto_paused: {
+        reason: "model_unavailable",
+        provider: "",
+        cause: "no_model",
+        failures: 10,
+        at,
+      },
     }),
   ).toEqual({ remedy: "choose_model", failures: 10, pausedAt: at });
 });

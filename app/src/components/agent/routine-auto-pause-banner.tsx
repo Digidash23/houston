@@ -34,7 +34,7 @@ export function RoutineAutoPauseBanner({
   const pause = routine.auto_paused;
   const notice = routinePauseNotice(
     routine,
-    pause && "provider" in pause ? readerFor(pause.provider) : undefined,
+    pause && !pause.cause ? readerFor(pause.provider) : undefined,
   );
   if (!notice) return null;
 

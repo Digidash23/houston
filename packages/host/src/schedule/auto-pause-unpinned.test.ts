@@ -106,12 +106,14 @@ test("an unpinned routine refused for no provider pauses once, then resumes on a
       status: "error",
       failure: { code: "no_model" },
       summary:
-        "This routine has no model chosen, and no AI account is connected to run it.",
+        "This routine has no model chosen, and the AI account it would use isn't connected.",
     });
   }
   const [paused] = (await loadRoutines(env.vfs, env.root)).items;
   expect(paused?.auto_paused).toEqual({
-    reason: "no_model",
+    reason: "model_unavailable",
+    provider: "",
+    cause: "no_model",
     failures: ROUTINE_AUTO_PAUSE_AFTER,
     at: new Date(EDITED + ROUTINE_AUTO_PAUSE_AFTER * FIFTEEN_MIN).toISOString(),
   });
@@ -165,4 +167,37 @@ test("a fire refused for another reason stays untyped and never pauses", async (
   expect(saved?.enabled).toBe(true);
   const runs = (await loadRoutineRuns(env.vfs, env.root)).items;
   expect(runs.every((r) => r.failure === undefined)).toBe(true);
+});
+
+test("an unpinned refusal that names the agent's saved provider blames that account", async () => {
+  const env = await setup(
+    createRoutine(
+      { name: "Inbox sweep", prompt: "check", schedule: "*/15 * * * *" },
+      "r1",
+      new Date(EDITED).toISOString(),
+    ),
+  );
+  // The runtime's 409 names the saved provider when one is saved but logged
+  // out (or its login expired): that is the account to reconnect, not "no model".
+  const savedLoggedOut: RoutineFirer = {
+    fire: async () =>
+      Promise.reject(
+        new TurnFireError(
+          'runtime 409: {"code":"no_provider","provider":"anthropic"}',
+          409,
+          "no_provider",
+          TurnFireError.providerIn(
+            '{"code":"no_provider","provider":"anthropic"}',
+          ),
+        ),
+      ),
+  };
+  await expect(fireAt(env, 1, savedLoggedOut)).rejects.toBeInstanceOf(
+    TurnFireError,
+  );
+  const [run] = (await loadRoutineRuns(env.vfs, env.root)).items;
+  expect(run?.failure).toEqual({
+    code: "creator_not_connected",
+    provider: "anthropic",
+  });
 });
