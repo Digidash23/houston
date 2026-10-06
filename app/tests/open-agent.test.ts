@@ -60,6 +60,17 @@ describe("openAgentSettings for an agent the settled roster lacks", () => {
   });
 });
 
+describe("openAgentApiAccess", () => {
+  it("arms the API access screen only once Settings actually opens", () => {
+    // Armed before the roster check, an employee the roster lacks would leave
+    // it set, drilling a later Settings visit into a screen nobody asked for.
+    const body = fnSource("openAgentApiAccess");
+    const armed = body.indexOf("setApiAccessFor(agentId)");
+    ok(armed !== -1);
+    ok(armed > body.indexOf("onOpened:"), "set inside the opened callback");
+  });
+});
+
 describe("useAgentSettingsNav.clearRequested", () => {
   it("really drops a pending agent + section request", () => {
     const nav = useAgentSettingsNav.getState();

@@ -27,7 +27,8 @@ export type HandsOnSurface =
   | "billing"
   | "files"
   | "routineWebhook"
-  | "orgDanger";
+  | "orgDanger"
+  | "agentApiAccess";
 
 /** One step in the interaction sequence. `id` is tool-assigned (`q1`..`qN` for
  *  question steps, `s1` for the single signin step, `c1`..`cN` for connect
@@ -66,6 +67,9 @@ export type InteractionStep =
       kind: "hands_on";
       id: string;
       surface: HandsOnSurface;
+      /** The AI Employee the screen belongs to (`agentApiAccess`), by the id
+       *  `listAgents` returns. Absent on the screens that are no one's. */
+      agentId?: string;
       reason?: string;
     }
   /** The model finished planning: a short plan summary the user approves by

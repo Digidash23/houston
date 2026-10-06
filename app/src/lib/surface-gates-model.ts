@@ -1,5 +1,6 @@
 import type { Capabilities } from "@houston/engine-adapter";
 import { canSeeOrganization } from "../components/organization/org-view-model.ts";
+import { apiKeysSupported } from "./api-keys-model.ts";
 import type { AssistantDiscovery } from "./assistant-discovery-state.ts";
 import { canSeeBillingTab } from "./billing-gates.ts";
 import {
@@ -44,6 +45,11 @@ export interface SurfaceGates {
    * (HOU-789). Every caller can reach their own accounts.
    */
   showAiModels: boolean;
+  /**
+   * Settings > API keys: a deployment that serves the public API (the hosted
+   * gateway). Desktop and web reach the same gateway once signed in.
+   */
+  showApiKeys: boolean;
   /**
    * The AI Manager, the rail's lead row and a screen of its own. Not a role
    * gate: it asks whether this deployment HOLDS an assistant at all
@@ -94,6 +100,7 @@ export function surfaceGatesFor(inputs: SurfaceGateInputs): SurfaceGates {
       isTeam &&
       canDeleteWorkspace(capabilities),
     showAiModels: canSeeAiModelsPage(capabilities),
+    showApiKeys: apiKeysSupported(capabilities ?? null),
     // Unanswered capabilities read as single player, which owns everything:
     // nothing until the deployment has said who owns this space.
     manageWorkspaceSkills:

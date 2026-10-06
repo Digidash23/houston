@@ -37,11 +37,10 @@ export function SettingsSectionBody({
       >
         {active === "plan" &&
           settingsSectionAvailable("plan", capabilities) && <PlanSection />}
-        {/* The API-keys screen is HIDDEN from the index for now (HOU-806: the
-            Agents API surface lives in the Routines tab) — its nav row is gone,
-            so only a programmatic deep-link pin reaches it. The section and its
-            plumbing stay intact for when it returns. */}
-        {active === "apiKeys" && <ApiKeysSection />}
+        {active === "apiKeys" &&
+          settingsSectionAvailable("apiKeys", capabilities) && (
+            <ApiKeysSection />
+          )}
         {active === "channels" && <ChannelsSection />}
         {active === "shortcuts" && <ShortcutsSection />}
         {active === "reportBug" && <ReportBugSection />}

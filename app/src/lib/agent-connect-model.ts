@@ -1,5 +1,5 @@
 import type { OrgsList } from "@houston/engine-adapter";
-import { activeSpaceOrgSlug } from "@houston/sdk";
+import { activeSpaceOrgSlug, HOUSTON_API_DOCS } from "@houston/sdk";
 import { orgSlugFromWorkspaceId } from "./space-id.ts";
 
 /**
@@ -11,13 +11,9 @@ import { orgSlugFromWorkspaceId } from "./space-id.ts";
  * `api-keys-model.ts` `apiKeysSupported`).
  */
 
-/** Public developer docs (`houston/website/src/developers/*`), one page per face. */
-export const DEVELOPER_DOCS = {
-  overview: "https://gethouston.ai/developers",
-  mcp: "https://gethouston.ai/developers/mcp",
-  a2a: "https://gethouston.ai/developers/a2a",
-  missions: "https://gethouston.ai/developers/missions",
-} as const;
+/** Public developer docs, one page per face. Owned by the SDK, which also
+ *  writes them into the coding-agent setup prompt. */
+export const DEVELOPER_DOCS = HOUSTON_API_DOCS;
 
 /**
  * The public addresses for one agent on the hosted gateway (C10). `a2aCard` is
