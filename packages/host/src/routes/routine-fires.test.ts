@@ -7,6 +7,7 @@ import {
 } from "@houston/domain";
 import type { Capabilities, Routine } from "@houston/protocol";
 import { afterAll, beforeEach, expect, test } from "vitest";
+import { TurnFireError, turnBusyError } from "../channel/fire-error";
 import { MemoryCredentialStore } from "../credentials/store";
 import { CloudPaths } from "../paths";
 import type {
@@ -37,6 +38,8 @@ class SpyChannel implements RuntimeChannel {
     actingUser?: string;
     actingAs?: string;
   }[] = [];
+  /** When set, every fire is refused with this error. */
+  refusal: Error | null = null;
   async dispatch() {}
   async fireTurn(
     _ctx: ChannelCtx,
@@ -46,6 +49,7 @@ class SpyChannel implements RuntimeChannel {
     actingUser?: string,
     actingAs?: string,
   ) {
+    if (this.refusal) throw this.refusal;
     this.fired.push({ conversationId, text, pin, actingUser, actingAs });
   }
   async cancelTurn() {
@@ -209,6 +213,52 @@ test("busy burns the instant without creating another run", async () => {
   expect(await res.json()).toEqual({ result: "busy" });
   expect(await runs()).toHaveLength(1);
   expect(await bus.get(`routine:fired:r1:${secondAt}`)).toBe("1");
+});
+
+// The instant is burned before the fire, so any failure after it must be a
+// terminal 200: a 5xx makes the control plane retry into a deduped "fired"
+// for a routine that never ran.
+test.each([
+  [
+    "an unpinned routine with no provider",
+    new TurnFireError(
+      'runtime 409: {"error":"No provider connected.","code":"no_provider"}',
+      409,
+      "no_provider",
+    ),
+    {
+      result: "failed",
+      code: "no_provider",
+      error:
+        'runtime 409: {"error":"No provider connected.","code":"no_provider"}',
+    },
+  ],
+  [
+    "an uncoded runtime refusal",
+    new TurnFireError("runtime 502: bad gateway", 502, null),
+    { result: "failed", code: null, error: "runtime 502: bad gateway" },
+  ],
+  [
+    "an unexpected throw",
+    new Error("quota exceeded"),
+    { result: "failed", code: null, error: "quota exceeded" },
+  ],
+  ["a taken turn slot", turnBusyError("other-chat"), { result: "busy" }],
+])("%s answers 200 with a terminal result and an errored run", async (_name, refusal, expected) => {
+  await seedRoutines([routine()]);
+  channel.refusal = refusal;
+  const body = {
+    routineId: "r1",
+    fireAt: FIRE_AT,
+    actingAs: actingAs("creator-1"),
+  };
+  const res = await postFire(body);
+
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual(expected);
+  const [run] = await runs();
+  expect(run).toMatchObject({ status: "error", summary: refusal.message });
+  expect(await bus.get(`routine:fired:r1:${FIRE_AT}`)).toBe("1");
 });
 
 test.each([

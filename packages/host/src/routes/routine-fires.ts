@@ -1,5 +1,7 @@
+import type { ServerResponse } from "node:http";
 import { loadRoutines } from "@houston/domain";
 import { ACTING_AS_HEADER, actingSubFromHeader } from "../auth/acting";
+import { isTurnBusy, TurnFireError } from "../channel/fire-error";
 import { burnRoutineFireInstant } from "../schedule/fire-lock";
 import { ChannelRoutineFirer } from "../schedule/firer";
 import { fireRoutineRun, RoutineBusyError } from "../schedule/run";
@@ -27,6 +29,35 @@ function parseBody(raw: unknown): RoutineFireBody | null {
   if (Number.isNaN(fireAt.getTime())) return null;
   return { routineId: body.routineId, fireAt, actingAs: body.actingAs };
 }
+
+/**
+ * What the pod answers the control plane for one delivered instant. `busy`
+ * and `failed` are terminal: the control plane settles them, never retries.
+ */
+type RoutineFireReply =
+  | { result: "fired"; deduped?: true }
+  | { result: "no_routine" }
+  | { result: "busy" }
+  | { result: "failed"; code: string | null; error: string };
+
+/**
+ * The reply for a fire that threw AFTER its instant was burned. It must never
+ * be a 5xx: the control plane would retry, find the instant burned, and record
+ * a deduped "fired" for a routine that never ran. fireRoutineRun has already
+ * recorded the run errored with the reason, which is where the person sees it.
+ */
+function unfiredReply(error: unknown): RoutineFireReply {
+  if (error instanceof RoutineBusyError || isTurnBusy(error))
+    return { result: "busy" };
+  return {
+    result: "failed",
+    code: error instanceof TurnFireError ? error.code : null,
+    error: error instanceof Error ? error.message : String(error),
+  };
+}
+
+const reply = (res: ServerResponse, body: RoutineFireReply) =>
+  json(res, 200, body);
 
 /**
  * POST /agents/:agentId/routine-fires — the control plane delivers ONE
@@ -71,7 +102,7 @@ defineRoute({
         candidate.schedule &&
         !candidate.trigger,
     );
-    if (!routine) return json(res, 200, { result: "no_routine" });
+    if (!routine) return reply(res, { result: "no_routine" });
 
     // Pods do not hold the gateway HMAC key. On this pod-token-authenticated
     // internal route, match the strongest existing trusted-gateway pattern:
@@ -93,7 +124,7 @@ defineRoute({
       body.fireAt,
       deps.routineFireDedupTtlSec ?? 3600,
     );
-    if (!fresh) return json(res, 200, { result: "fired", deduped: true });
+    if (!fresh) return reply(res, { result: "fired", deduped: true });
 
     try {
       await fireRoutineRun(
@@ -109,10 +140,14 @@ defineRoute({
         authz.agent,
         routine,
       );
-      json(res, 200, { result: "fired" });
+      reply(res, { result: "fired" });
     } catch (error) {
-      if (!(error instanceof RoutineBusyError)) throw error;
-      json(res, 200, { result: "busy" });
+      const unfired = unfiredReply(error);
+      if (unfired.result === "failed")
+        console.warn(
+          `[routine-fires] routine ${routine.id} fire failed (${unfired.code ?? "uncoded"}): ${unfired.error}`,
+        );
+      reply(res, unfired);
     }
   },
 });
