@@ -59,7 +59,7 @@ export function deriveSchedule(pick: BuilderPick): DerivedSchedule {
           options.time,
         )
       : "";
-    // Only the minutes count is limited; hours, days and months never are.
+    // A plain minimum on the minutes count; hours, days and months never are.
     const floorOk =
       !everyValid ||
       intervalUnit !== "minutes" ||

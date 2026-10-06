@@ -10,12 +10,7 @@ import {
   cronToPreset,
   type ScheduleOptions,
 } from "./schedule-cron-utils";
-import {
-  countForUnitSwitch,
-  defaultMinutesCount,
-  type FloorStepper,
-  floorStepper,
-} from "./schedule-floor";
+import { countForUnitSwitch, defaultMinutesCount } from "./schedule-floor";
 import { cronToInterval, type IntervalUnit } from "./schedule-interval-utils";
 import type { SchedulePreset } from "./types";
 
@@ -39,8 +34,6 @@ export interface ScheduleBuilderState {
   everyValid: boolean;
   /** The pick fires no more often than `minIntervalMinutes` (true without one). */
   floorOk: boolean;
-  /** Minutes-count stepping under the floor; undefined = step by one. */
-  floor: FloorStepper | undefined;
   isCustom: boolean;
   showTime: boolean;
   summary: string;
@@ -132,16 +125,6 @@ export function useScheduleBuilder(
     const kept = countForUnitSwitch(intervalEvery, unit, minIntervalMinutes);
     if (kept !== null) setEvery(kept);
   };
-  const floor = floorStepper(
-    intervalEvery,
-    intervalUnit,
-    minIntervalMinutes,
-    (pick) => {
-      setEvery(String(pick.every));
-      setUnit(pick.unit);
-      setTouched(true);
-    },
-  );
 
   const isCustom = activePreset === "custom";
 
@@ -191,7 +174,6 @@ export function useScheduleBuilder(
     setIntervalUnit,
     everyValid,
     floorOk,
-    floor,
     isCustom,
     showTime: NEEDS_TIME.includes(activePreset),
     summary,

@@ -1073,11 +1073,12 @@ components:
       use (plus the next fire time), or a trigger's plain-language event with
       its live activation chip (event bindings change via chat, not here).
       On Free the editor takes the plan's minimum interval (SDK
-      freeScheduleMinInterval): presets firing more often are hidden, the
-      minutes count offers only counts that divide the hour and reach it
-      (15, 20, 30; plus past 30 moves to 1 hour), a typed count snaps up to
-      the next offered one on blur, and a hint names it; an existing shorter
-      schedule still reads as it is, with Save disabled until changed.
+      freeScheduleMinInterval) as a plain minimum on the custom minutes
+      count: it starts there, minus stops there, a lower typed count snaps
+      up on blur with Save disabled until then, any count at or above it is
+      fine, and a hint names it; a preset nominally faster would be hidden
+      (none at 15). An existing shorter schedule still reads as it is, with
+      Save disabled until changed.
       The model row ALWAYS names the resolved pair -- provider + model, e.g.
       "Claude - Opus 5" -- whether the routine is pinned or follows the agent;
       an unpinned routine adds a quiet line saying so. Picking pins it (the fire

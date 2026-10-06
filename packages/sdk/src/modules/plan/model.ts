@@ -88,13 +88,23 @@ export function freeScheduleMinInterval(
   return plan.routines?.minIntervalMinutes ?? DEFAULT_FREE_MIN_INTERVAL_MINUTES;
 }
 
-/** Cosmetic Free schedule gate; the gateway evaluates real fire times. */
+/** A minute-step cron, `*\/N * * * *`: what the schedule editor's custom minutes count writes. */
+const MINUTE_STEP = /^\*\/(\d+) \* \* \* \*$/;
+
+/**
+ * Cosmetic Free schedule gate, agreeing with the schedule editor: a minute
+ * step is judged by its nominal N, anything else by its smallest real gap.
+ */
 export function freeScheduleAllowed(
   cron: string,
   plan: PlanSummary | undefined,
 ): boolean {
   const floor = freeScheduleMinInterval(plan);
   if (floor === undefined) return true;
+  // `*\/16` restarts at the top of the hour (:48 then :00); the gateway judges
+  // real fire times, so it may skip the run that lands under the floor there.
+  const step = cron.trim().match(MINUTE_STEP);
+  if (step) return Number(step[1]) >= floor;
   const gap = minFireGapMinutes(cron);
   return gap === null || gap >= floor;
 }

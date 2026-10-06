@@ -4,13 +4,12 @@
  * pills (minute / hour / day / month). Every unit takes a count.
  *
  * All visible text arrives via props so the package stays i18n-agnostic; the
- * pills show the singular or plural unit name depending on the count. With a
- * `floor` (a plan's minimum interval, minutes unit only) the minus/plus buttons
- * jump between the counts it offers and a typed count snaps up on blur.
+ * pills show the singular or plural unit name depending on the count. A `min`
+ * (a plan's minimum, minutes unit only) keeps the stepper at or above it and
+ * snaps a lower typed count up to it on blur.
  */
 import { cn } from "@houston-ai/core";
 import { Minus, Plus } from "lucide-react";
-import type { FloorStepper } from "./schedule-floor";
 import type { IntervalUnit } from "./schedule-interval-utils";
 import { labelClass } from "./schedule-picker-fields";
 
@@ -23,7 +22,7 @@ function NumberStepper({
   invalid,
   decreaseLabel,
   increaseLabel,
-  floor,
+  min,
 }: {
   id: string;
   value: string;
@@ -31,9 +30,10 @@ function NumberStepper({
   invalid?: boolean;
   decreaseLabel: string;
   increaseLabel: string;
-  floor?: FloorStepper;
+  min?: number;
 }) {
   const n = Number(value) || 1;
+  const lowest = min ?? 1;
   return (
     <div
       className={cn(
@@ -44,12 +44,8 @@ function NumberStepper({
       <button
         type="button"
         aria-label={decreaseLabel}
-        onClick={
-          floor
-            ? () => floor.down?.()
-            : () => onChange(String(Math.max(1, n - 1)))
-        }
-        disabled={floor ? floor.down === null : n <= 1}
+        onClick={() => onChange(String(Math.max(lowest, n - 1)))}
+        disabled={n <= lowest}
         className="grid size-9 place-items-center text-ink-muted hover:text-ink disabled:opacity-30"
       >
         <Minus className="size-4" />
@@ -62,14 +58,20 @@ function NumberStepper({
         // Keep digits only; an empty string is allowed (and flagged invalid) so
         // it can be cleared while typing.
         onChange={(e) => onChange(e.target.value.replace(/[^\d]/g, ""))}
-        onBlur={floor?.commit}
+        onBlur={
+          min === undefined
+            ? undefined
+            : () => {
+                if (value.trim() !== "" && Number(value) < min)
+                  onChange(String(min));
+              }
+        }
         className="w-10 bg-transparent text-center text-sm tabular-nums outline-none disabled:cursor-not-allowed"
       />
       <button
         type="button"
         aria-label={increaseLabel}
-        onClick={floor ? () => floor.up?.() : () => onChange(String(n + 1))}
-        disabled={floor ? floor.up === null : undefined}
+        onClick={() => onChange(String(Math.max(lowest, n + 1)))}
         className="grid size-9 place-items-center text-ink-muted hover:text-ink disabled:opacity-30"
       >
         <Plus className="size-4" />
@@ -87,7 +89,7 @@ export function IntervalPicker({
   every,
   unit,
   invalid,
-  floor,
+  min,
   onEveryChange,
   onUnitChange,
 }: {
@@ -99,8 +101,8 @@ export function IntervalPicker({
   every: string;
   unit: IntervalUnit;
   invalid?: boolean;
-  /** Floor stepping for the minutes count; absent = step by one. */
-  floor?: FloorStepper;
+  /** Lowest count the stepper offers; absent = 1. */
+  min?: number;
   onEveryChange: (every: string) => void;
   onUnitChange: (unit: IntervalUnit) => void;
 }) {
@@ -117,7 +119,7 @@ export function IntervalPicker({
           value={every}
           onChange={onEveryChange}
           invalid={invalid}
-          floor={floor}
+          min={min}
           decreaseLabel={decreaseLabel}
           increaseLabel={increaseLabel}
         />

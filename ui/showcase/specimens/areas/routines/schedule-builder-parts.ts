@@ -33,6 +33,6 @@ export const builderProps: readonly SpecimenProp[] = [
   {
     name: "minIntervalMinutes",
     type: "number",
-    note: 'A plan\'s floor between fires. Hides faster presets, offers only minute counts that divide the hour and reach it (a typed one snaps up on blur), shows `labels.minIntervalHint`, and emits "" for a pick under it. Absent = no limit.',
+    note: 'A plan\'s floor between fires. A minimum on the custom minutes count (minus stops there, a lower typed count snaps up on blur), hides any preset nominally faster, shows `labels.minIntervalHint`, and emits "" for a pick under it. Absent = no limit.',
   },
 ];

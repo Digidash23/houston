@@ -156,6 +156,27 @@ describe("Free schedule floor for editors", () => {
     expect(freeScheduleAllowed("*/20 * * * *", thirty)).toBe(false);
     expect(freeScheduleAllowed("*/30 * * * *", thirty)).toBe(true);
   });
+
+  it("judges a minute step by its N, as the editor's minimum does", () => {
+    // Allowed even where the top of the hour comes sooner (:48 then :00).
+    for (const cron of [
+      "*/15 * * * *",
+      "*/16 * * * *",
+      "*/25 * * * *",
+      "*/45 * * * *",
+      " */59 * * * * ",
+    ])
+      expect(freeScheduleAllowed(cron, free), cron).toBe(true);
+    for (const cron of ["*/5 * * * *", "*/14 * * * *", "*/1 * * * *"])
+      expect(freeScheduleAllowed(cron, free), cron).toBe(false);
+  });
+
+  it("judges every other cron by its smallest real gap", () => {
+    expect(freeScheduleAllowed("* * * * *", free)).toBe(false);
+    expect(freeScheduleAllowed("0-59/5 * * * *", free)).toBe(false);
+    expect(freeScheduleAllowed("*/5 9 * * *", free)).toBe(false);
+    expect(freeScheduleAllowed("0,30 * * * *", free)).toBe(true);
+  });
 });
 
 describe("message limit from any transport", () => {

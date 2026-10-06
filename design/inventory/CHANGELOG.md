@@ -16,12 +16,12 @@ left no trace and the routine looked broken.
 
 The schedule editor (routine screen and list rows) no longer offers a Free
 user a schedule under the plan's minimum interval: presets that fire more
-often are hidden, the minutes count offers only 15, 20 and 30 (counts that
-divide the hour and reach the limit), plus past 30 moves to 1 hour, a typed
-count snaps up to the next offered one on blur (25 to 30, 45 to 1 hour), and
-a hint under it names the limit. An existing shorter schedule still shows as
-it is, with Save disabled until it is changed. Before, the editor offered
-every minute and only the save was refused.
+often are hidden (none at 15), the custom minutes count starts at 15 and
+its minus stops there, a lower typed count snaps up to 15 on blur and keeps
+Save disabled until it does, and a hint under it names the limit. Any count
+of 15 or more is fine, and the save check agrees. An existing shorter
+schedule still shows as it is, with Save disabled until it is changed.
+Before, the editor offered every minute and only the save was refused.
 
 ## v125 - 2026-10-05
 

@@ -12,10 +12,10 @@
  * All visible text arrives via `labels` (English defaults) so the package stays
  * i18n-agnostic; `locale` drives day names + time formatting in the summary.
  *
- * `minIntervalMinutes` (a plan's limit) hides presets that fire more often and
- * keeps the minutes count on the counts it offers (stepping between them, a
- * typed one snapped up on blur). A pick under it emits "" so the parent can't
- * save; an existing short schedule still shows as it is until edited.
+ * `minIntervalMinutes` (a plan's limit) is a minimum on the custom minutes
+ * count (and hides any preset nominally faster, none at 15). A count under it
+ * emits "" so the parent can't save; a lower typed count snaps up to it on
+ * blur; an existing short schedule still shows as it is until edited.
  */
 
 import { cn } from "@houston-ai/core";
@@ -69,7 +69,6 @@ export function ScheduleBuilder({
     setIntervalUnit,
     everyValid,
     floorOk,
-    floor,
     isCustom,
     showTime,
     summary,
@@ -140,7 +139,11 @@ export function ScheduleBuilder({
                 every={intervalEvery}
                 unit={intervalUnit}
                 invalid={!everyValid}
-                floor={floor}
+                min={
+                  floored && intervalUnit === "minutes"
+                    ? minIntervalMinutes
+                    : undefined
+                }
                 onEveryChange={setIntervalEvery}
                 onUnitChange={setIntervalUnit}
               />
