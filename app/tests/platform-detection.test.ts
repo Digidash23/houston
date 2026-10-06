@@ -1,6 +1,10 @@
 import { strictEqual } from "node:assert";
 import { describe, it } from "node:test";
-import { detectPlatformOs, isMacPlatform } from "../src/lib/platform.ts";
+import {
+  detectPlatformOs,
+  isMacPlatform,
+  metricsPlatform,
+} from "../src/lib/platform.ts";
 
 // `isMacPlatform` gates the whole notification fix: macOS keeps the JS
 // notification plugin, every other OS routes through the Rust command. A
@@ -83,5 +87,19 @@ describe("detectPlatformOs", () => {
     strictEqual(detectPlatformOs(undefined, undefined), "unknown");
     strictEqual(detectPlatformOs(null, null), "unknown");
     strictEqual(detectPlatformOs("", ""), "unknown");
+  });
+});
+
+// Latency spans must tell the web app from the desktop: a browser on a Mac is
+// not the macOS desktop app, and folding them together hid web in "macos".
+describe("metricsPlatform", () => {
+  it("labels the desktop shell with its OS", () => {
+    strictEqual(metricsPlatform(true, "windows"), "windows");
+    strictEqual(metricsPlatform(true, "macos"), "macos");
+  });
+
+  it("labels the web app web, whatever OS the browser runs on", () => {
+    strictEqual(metricsPlatform(false, "macos"), "web");
+    strictEqual(metricsPlatform(false, "unknown"), "web");
   });
 });
