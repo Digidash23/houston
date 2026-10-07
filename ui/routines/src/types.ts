@@ -92,17 +92,20 @@ export type RunStatus =
  * free of app/engine imports. `provider` is a bare id — naming it in the user's
  * language is the app's job.
  */
-export interface RoutineRunFailure {
-  code:
-    | "creator_not_connected"
-    | "team_not_connected"
-    | "creator_needs_reconnect"
-    | "team_needs_reconnect"
-    | "out_of_credits"
-    | "model_unavailable";
-  /** Provider id, e.g. `"anthropic"`. */
-  provider: string;
-}
+export type RoutineRunFailure =
+  | {
+      code:
+        | "creator_not_connected"
+        | "team_not_connected"
+        | "creator_needs_reconnect"
+        | "team_needs_reconnect"
+        | "out_of_credits"
+        | "model_unavailable";
+      /** Provider id, e.g. `"anthropic"`. */
+      provider: string;
+    }
+  /** The routine names no model and nothing is connected to fall back on. */
+  | { code: "no_model" };
 
 export interface RoutineRun {
   id: string;

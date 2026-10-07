@@ -28,3 +28,15 @@ test("TurnFireError carries status and code alongside the verbatim message", () 
   expect(err.code).toBe("no_provider");
   expect(err.message).toBe("runtime 409: nope");
 });
+
+test("providerIn reads the provider a runtime refusal names, and nothing else", () => {
+  expect(
+    TurnFireError.providerIn(
+      '{"error":"No provider connected.","code":"no_provider","provider":"anthropic"}',
+    ),
+  ).toBe("anthropic");
+  expect(TurnFireError.providerIn('{"code":"no_provider"}')).toBeNull();
+  expect(TurnFireError.providerIn('{"provider":""}')).toBeNull();
+  expect(TurnFireError.providerIn('{"provider":7}')).toBeNull();
+  expect(TurnFireError.providerIn("<html>bad gateway</html>")).toBeNull();
+});

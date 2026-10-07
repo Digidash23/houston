@@ -6,7 +6,12 @@ import {
   setPreference,
 } from "@houston/domain";
 import type { Capabilities, Routine } from "@houston/protocol";
-import { afterAll, beforeEach, expect, test } from "vitest";
+import { afterAll, beforeEach, expect, test, vi } from "vitest";
+import {
+  TurnDeliveryUncertainError,
+  TurnFireError,
+  turnBusyError,
+} from "../channel/fire-error";
 import { MemoryCredentialStore } from "../credentials/store";
 import { CloudPaths } from "../paths";
 import type {
@@ -15,6 +20,8 @@ import type {
   TokenVerifier,
   TurnPin,
 } from "../ports";
+import { AgentRenamingError, LauncherClosedError } from "../ports";
+import { decodeFireOutcome } from "../schedule/fire-outcome";
 import { ChannelRoutineFirer } from "../schedule/firer";
 import { Scheduler } from "../schedule/scheduler";
 import { type ControlPlaneDeps, createControlPlaneServer } from "../server";
@@ -37,6 +44,8 @@ class SpyChannel implements RuntimeChannel {
     actingUser?: string;
     actingAs?: string;
   }[] = [];
+  /** When set, every fire is refused with this error. */
+  refusal: Error | null = null;
   async dispatch() {}
   async fireTurn(
     _ctx: ChannelCtx,
@@ -46,6 +55,7 @@ class SpyChannel implements RuntimeChannel {
     actingUser?: string,
     actingAs?: string,
   ) {
+    if (this.refusal) throw this.refusal;
     this.fired.push({ conversationId, text, pin, actingUser, actingAs });
   }
   async cancelTurn() {
@@ -208,7 +218,150 @@ test("busy burns the instant without creating another run", async () => {
 
   expect(await res.json()).toEqual({ result: "busy" });
   expect(await runs()).toHaveLength(1);
-  expect(await bus.get(`routine:fired:r1:${secondAt}`)).toBe("1");
+  expect(
+    decodeFireOutcome(await bus.get(`routine:fired:r1:${secondAt}`)),
+  ).toEqual({
+    result: "busy",
+  });
+});
+
+// The instant is burned before the fire, so any failure after it must be a
+// terminal 200: a 5xx makes the control plane retry into a deduped "fired"
+// for a routine that never ran.
+test.each([
+  [
+    "an unpinned routine with no provider",
+    new TurnFireError(
+      'runtime 409: {"error":"No provider connected.","code":"no_provider"}',
+      409,
+      "no_provider",
+    ),
+    {
+      result: "failed",
+      code: "no_provider",
+      error:
+        'runtime 409: {"error":"No provider connected.","code":"no_provider"}',
+    },
+
+    // Typed, so it counts toward the auto-pause (PRODUCT-1982).
+    {
+      summary:
+        "This routine has no model chosen, and the AI account it would use isn't connected.",
+      failure: { code: "no_model" },
+    },
+  ],
+  [
+    "an uncoded runtime refusal",
+    new TurnFireError("runtime 502: bad gateway", 502, null),
+    { result: "failed", code: null, error: "runtime 502: bad gateway" },
+  ],
+  [
+    "an unexpected throw",
+    new Error("quota exceeded"),
+    { result: "failed", code: null, error: "quota exceeded" },
+  ],
+  [
+    "a connection lost after the turn POST",
+    new TurnDeliveryUncertainError(
+      Object.assign(new TypeError("fetch failed"), {
+        cause: { code: "ECONNRESET" },
+      }),
+    ),
+    {
+      result: "failed",
+      code: null,
+      error:
+        "the runtime connection failed mid-request (ECONNRESET); the turn may have started",
+    },
+  ],
+  ["a taken turn slot", turnBusyError("other-chat"), { result: "busy" }],
+])("%s answers 200 with a terminal result and an errored run", async (_name, refusal, expected, typedRun?: object) => {
+  await seedRoutines([routine()]);
+  channel.refusal = refusal;
+  const body = {
+    routineId: "r1",
+    fireAt: FIRE_AT,
+    actingAs: actingAs("creator-1"),
+  };
+  const res = await postFire(body);
+
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual(expected);
+  const [run] = await runs();
+  expect(run).toMatchObject({
+    status: "error",
+    ...(typedRun ?? { summary: refusal.message }),
+  });
+
+  // The instant stays burned and a redelivery replays the recorded outcome.
+  const replay = await postFire(body);
+  expect(await replay.json()).toEqual({ ...expected, deduped: true });
+  expect(await runs()).toHaveLength(1);
+});
+
+// Where the fire ran, not what it is: the host drains or renames, or the
+// runtime is unreachable. The instant is unburned and answered 503, so the
+// control plane redelivers it and the replacement fires it.
+test.each([
+  ["a draining host", new LauncherClosedError()],
+  ["a renaming agent", new AgentRenamingError("a1")],
+  ["an unreachable runtime", new TypeError("fetch failed")],
+  [
+    "a refused turn POST",
+    Object.assign(new TypeError("fetch failed"), {
+      cause: { code: "ECONNREFUSED" },
+    }),
+  ],
+])("%s releases the instant and answers 503", async (_name, refusal) => {
+  await seedRoutines([routine()]);
+  channel.refusal = refusal;
+  const body = {
+    routineId: "r1",
+    fireAt: FIRE_AT,
+    actingAs: actingAs("creator-1"),
+  };
+  const res = await postFire(body);
+
+  expect(res.status).toBe(503);
+  expect(res.headers.get("retry-after")).toBe("2");
+  expect(await res.json()).toEqual({
+    error: "engine unavailable",
+    detail: refusal.message,
+  });
+  expect(await bus.get(`routine:fired:r1:${FIRE_AT}`)).toBeNull();
+
+  channel.refusal = null;
+  expect(await (await postFire(body)).json()).toEqual({ result: "fired" });
+  expect(channel.fired).toHaveLength(1);
+});
+
+// With no errored run the person has nothing to see: the instant must stay
+// deliverable rather than settle as a failure nobody can find.
+test.each([
+  ["before the run is recorded", 1, 0],
+  ["when the errored mark cannot be written", 2, 1],
+])("a runs-file failure %s releases the instant", async (_name, failingWrite, recorded) => {
+  await seedRoutines([routine()]);
+  channel.refusal = new Error("quota exceeded");
+  const write = vfs.writeText.bind(vfs);
+  let runWrites = 0;
+  const spy = vi
+    .spyOn(vfs, "writeText")
+    .mockImplementation(async (key, text) => {
+      if (key.includes("routine_runs") && ++runWrites === failingWrite)
+        throw new Error("store unavailable");
+      return write(key, text);
+    });
+  const res = await postFire({
+    routineId: "r1",
+    fireAt: FIRE_AT,
+    actingAs: actingAs("creator-1"),
+  });
+  spy.mockRestore();
+
+  expect(res.status).toBe(503);
+  expect(await bus.get(`routine:fired:r1:${FIRE_AT}`)).toBeNull();
+  expect(await runs()).toHaveLength(recorded);
 });
 
 test.each([
@@ -279,10 +432,17 @@ test("a duplicate instant is idempotently fired and deduped", async () => {
     actingAs: actingAs("creator-1"),
   };
   expect(await (await postFire(body)).json()).toEqual({ result: "fired" });
-  expect(await (await postFire(body)).json()).toEqual({
+  // The replay names when the original attempt started, so the control plane
+  // can time a fire whose answer it never got.
+  const replay = (await (await postFire(body)).json()) as {
+    startedAt: string;
+  };
+  expect(replay).toEqual({
     result: "fired",
     deduped: true,
+    startedAt: expect.any(String),
   });
+  expect(Number.isNaN(Date.parse(replay.startedAt))).toBe(false);
   expect(await runs()).toHaveLength(1);
   expect(channel.fired).toHaveLength(1);
 });
@@ -372,4 +532,41 @@ test("external mode leaves trigger delivery and run-now operational", async () =
   });
   expect(runNow.status).toBe(200);
   expect(channel.fired).toHaveLength(2);
+});
+
+// A redelivery while the first delivery is still firing (a cold boot slower
+// than the control plane's call, or a second replica) must not settle: the
+// first attempt may yet fail.
+test("a redelivery during the first fire waits instead of settling", async () => {
+  await seedRoutines([routine()]);
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const fire = channel.fireTurn.bind(channel);
+  channel.fireTurn = async (...args) => {
+    await gate;
+    return fire(...args);
+  };
+  const body = {
+    routineId: "r1",
+    fireAt: FIRE_AT,
+    actingAs: actingAs("creator-1"),
+  };
+  const first = postFire(body);
+  await vi.waitFor(async () =>
+    expect(await bus.get(`routine:fired:r1:${FIRE_AT}`)).not.toBeNull(),
+  );
+
+  const early = await postFire(body);
+  expect(early.status).toBe(503);
+  expect(early.headers.get("retry-after")).toBe("2");
+
+  release();
+  expect(await (await first).json()).toEqual({ result: "fired" });
+  expect(await (await postFire(body)).json()).toMatchObject({
+    result: "fired",
+    deduped: true,
+  });
+  expect(channel.fired).toHaveLength(1);
 });
