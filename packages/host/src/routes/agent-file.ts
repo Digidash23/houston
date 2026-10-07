@@ -3,11 +3,13 @@ import { agentFileEventType, docKey } from "@houston/domain";
 import type { HoustonEvent } from "@houston/protocol";
 import type { Agent, Workspace } from "../domain/types";
 import type { WorkspacePaths } from "../paths";
-import { FilePathError, safeRel } from "../turn/files-path";
 import type { Vfs } from "../vfs";
 import { hostOwnedApprovalCards } from "./activity-approval-cards";
 import { DEFAULT_PATHS } from "./agent-authz";
 import { writeSurfaceConfigText } from "./agent-config-write";
+import { trustedRoutineFloor } from "./agent-data-caller";
+import { routinesDocFloorRefusal } from "./agent-file-routines-floor";
+import { isServedDocument } from "./agent-file-scope";
 import { agentRest } from "./agent-rest";
 import { json, methodNotAllowed, readJson } from "./http";
 import { defineRoute } from "./registry";
@@ -23,50 +25,6 @@ import { defineRoute } from "./registry";
 
 /** The board document, the one file served here that can carry an approval card. */
 const ACTIVITY_DOCUMENT = ".houston/activity/activity.json";
-
-/**
- * The internal documents this route serves, listed because the alternative is
- * serving the agent's whole state directory.
- *
- * On the LOCAL layout the runtime's data directory lives INSIDE the agent root
- * (`paths.ts`: `<Workspace>/<Agent>/.houston/runtime`), so a route that clamped
- * traversal alone handed out `auth.json` (the OAuth access + refresh tokens),
- * the served-providers manifest, `settings.json` and every stored transcript to
- * anything that could address it — the Files tab's own rule (no top-level
- * dot-directory, `turn/files-path.ts`) exists for exactly this reason.
- *
- * So the visible working tree is admitted by that same rule, and the documents
- * the app genuinely keeps under dot-directories are named one by one: the
- * families the board, settings and memory panes read/write, plus the skill
- * files the skills panes save. Everything else under a dot-directory answers
- * 403 — including anything added to `.houston/runtime` later, which is the
- * point of listing what is allowed rather than what is not.
- */
-const INTERNAL_DOCUMENT_PREFIXES: readonly string[] = [
-  ".houston/activity/",
-  ".houston/config/",
-  ".houston/learnings/",
-  ".houston/routines/",
-  ".houston/routine_runs/",
-  ".houston/skills/",
-  ".agents/skills/",
-  ".claude/skills/",
-];
-
-/**
- * True when `rel` is a document this route serves: an ordinary file in the
- * agent's visible working tree (the Files tab's own predicate, reused rather
- * than restated) or one of the named internal documents above.
- */
-function isServedDocument(rel: string): boolean {
-  try {
-    safeRel(rel);
-    return true;
-  } catch (error) {
-    if (!(error instanceof FilePathError)) throw error;
-    return INTERNAL_DOCUMENT_PREFIXES.some((prefix) => rel.startsWith(prefix));
-  }
-}
 
 /**
  * The reactivity event a write to `rel` should fire, or null for paths not
@@ -128,6 +86,7 @@ defineRoute({
       req,
       res,
       emit,
+      trustedRoutineFloor(deps, req),
     ),
 });
 
@@ -140,6 +99,8 @@ export async function handleAgentFile(
   req: IncomingMessage,
   res: ServerResponse,
   emit?: (event: HoustonEvent) => void,
+  /** The writer's gateway-stamped plan floor, held to on a routines write. */
+  routineFloorMinutes?: number,
 ): Promise<boolean> {
   const m = rest.match(/^agentfile\/(.+)$/);
   if (!m) return false;
@@ -182,6 +143,17 @@ export async function handleAgentFile(
       return true;
     }
     const root = paths.agentRoot(ctx.workspace, ctx.agent);
+    const refusal = await routinesDocFloorRefusal(
+      vfs,
+      root,
+      rel,
+      body.content,
+      routineFloorMinutes,
+    );
+    if (refusal) {
+      json(res, 400, refusal);
+      return true;
+    }
     if (rel === docKey("", "config").slice(1))
       await writeSurfaceConfigText(vfs, root, key, body.content);
     else await vfs.writeText(key, body.content);

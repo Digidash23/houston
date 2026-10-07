@@ -13,12 +13,16 @@ import {
 } from "@houston-ai/core";
 import { RoutineRunList, type RunStatus } from "@houston-ai/routines";
 import { Loader2 } from "lucide-react";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { providerName } from "../../lib/providers";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Drawn above the history: why runs may be missing (the Free plan's
+   *  skipped events). Mounts only while the dialog is open. */
+  notice?: ReactNode;
   /** Newest-first runs of ONE routine; undefined while loading. */
   runs: RoutineRun[] | undefined;
   runsLoading: boolean;
@@ -33,6 +37,7 @@ interface Props {
 export function RoutineRunsDialog({
   open,
   onOpenChange,
+  notice,
   runs,
   runsLoading,
   locale,
@@ -47,6 +52,7 @@ export function RoutineRunsDialog({
         <DialogHeader>
           <DialogTitle>{t("details.runsTitle")}</DialogTitle>
         </DialogHeader>
+        {notice}
         <div className="max-h-[60dvh] min-h-0 overflow-y-auto">
           {runsLoading ? (
             <p className="flex items-center gap-2 px-1 py-2 text-sm text-ink-muted">

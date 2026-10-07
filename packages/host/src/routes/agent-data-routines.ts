@@ -46,7 +46,8 @@ export async function handleRoutinesData(
       opts,
     );
     if ("error" in result) {
-      json(res, 400, { error: result.error });
+      // A plan-floor refusal carries its code and minutes beside the reason.
+      json(res, 400, result);
       return true;
     }
     fireChange();
@@ -68,7 +69,8 @@ export async function handleRoutinesData(
       return true;
     }
     if ("error" in result) {
-      json(res, 400, { error: result.error });
+      // A plan-floor refusal carries its code and minutes beside the reason.
+      json(res, 400, result);
       return true;
     }
     fireChange();

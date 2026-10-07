@@ -27,14 +27,15 @@ import type { ProviderId } from "./provider-ids";
  * The Claude models the `anthropic` provider offers: exactly one per family, in
  * picker order. Every other Claude id on that provider is retired from it.
  *
- * Haiku has no model here, on purpose: nothing maps a Haiku id UP into another
- * family, so a stored Haiku pin falls to the caller's own ladder (the provider
- * default, with a diagnostic) rather than being silently re-tiered here.
+ * Haiku comes last: it is the light, fast tier, not a step up from Sonnet. A
+ * stored Haiku 4.5 pin runs on Haiku 5.5, within its own family like every
+ * other Claude id.
  */
 export const ANTHROPIC_LINEUP = {
   sonnet: "claude-sonnet-5-5",
   opus: "claude-opus-5-5",
   fable: "claude-fable-5-1",
+  haiku: "claude-haiku-5-5",
 } as const;
 
 /**
@@ -49,14 +50,14 @@ const CLAUDE_FAMILY =
 /**
  * The lineup model a Claude id on the `anthropic` provider runs on: its own
  * family's model, never another family's (an Opus pin is never moved to
- * Sonnet). Undefined for an id with no family in the lineup (Haiku, `claude-2.1`,
- * a non-Claude id).
+ * Sonnet, a Haiku pin never up to Sonnet). Undefined for an id with no family
+ * in the lineup (`claude-2.1`, a non-Claude id).
  */
 export function anthropicLineupModel(model: string): string | undefined {
   const family = CLAUDE_FAMILY.exec(model)?.[1];
-  if (family === "opus" || family === "sonnet" || family === "fable")
-    return ANTHROPIC_LINEUP[family];
-  return undefined;
+  return family && Object.hasOwn(ANTHROPIC_LINEUP, family)
+    ? ANTHROPIC_LINEUP[family as keyof typeof ANTHROPIC_LINEUP]
+    : undefined;
 }
 
 export const MODEL_ALIASES: Partial<

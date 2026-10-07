@@ -4,6 +4,7 @@ import type { Capabilities, Routine } from "@houston/protocol";
 import { beforeEach, expect, test } from "vitest";
 import { TurnFireError } from "../channel/fire-error";
 import { MemoryCredentialStore } from "../credentials/store";
+import type { FireTurnOptions } from "../fire-turn-options";
 import type { ChannelCtx, RuntimeChannel, TokenVerifier } from "../ports";
 import { type ControlPlaneDeps, createControlPlaneServer } from "../server";
 import { MemoryWorkspaceStore } from "../store/memory";
@@ -40,8 +41,7 @@ class SpyChannel implements RuntimeChannel {
     conversationId: string,
     text: string,
     _pin?: unknown,
-    actingUser?: string,
-    actingAs?: string,
+    { actingUser, actingAs }: FireTurnOptions = {},
   ) {
     this.attempts++;
     if (this.refusal) throw this.refusal;

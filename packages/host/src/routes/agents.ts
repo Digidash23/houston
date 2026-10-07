@@ -59,6 +59,7 @@ defineProxyFamily({
       method,
       rest,
       ...(emit ? { emit } : {}),
+      gatewayFronted: deps.gatewayFronted === true,
       actingAuthor,
       ...(actingAs ? { actingAs } : {}),
       actor: actingAuthor?.user_id ?? userId,

@@ -165,9 +165,9 @@ ENV BUILD_SHA=$BUILD_SHA
 # container runtime and no Zig needed on the build machine.
 FROM node:24-bookworm-slim AS gondolin-guest
 
-ARG GONDOLIN_VERSION=0.12.0
-ARG SANDBOX_HELPERS_URL=https://github.com/earendil-works/gondolin/releases/download/sandbox-helpers--0.12.0/gondolin-sandbox-helpers-0.12.0-x86_64.tar.gz
-ARG SANDBOX_HELPERS_SHA256=3fa9a20162c49d8ce6c3599bc63843f3f31a6149724a3b775f73b0d795f09d69
+ARG GONDOLIN_VERSION=0.13.0
+ARG SANDBOX_HELPERS_URL=https://github.com/earendil-works/gondolin/releases/download/sandbox-helpers--0.13.0/gondolin-sandbox-helpers-0.13.0-x86_64.tar.gz
+ARG SANDBOX_HELPERS_SHA256=83cde11908ad6901e5c23e344bb13ab84fc286a37c91b32eea7ffbf668e3f8cc
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

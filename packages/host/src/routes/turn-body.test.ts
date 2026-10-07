@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { turnPinOf } from "./turn-body";
+import { turnLimitsOf, turnPinOf } from "./turn-body";
 
 const body = (v: unknown) => Buffer.from(JSON.stringify(v));
 
@@ -33,4 +33,21 @@ test("empty model and effort are absent, not empty strings", () => {
   expect(
     turnPinOf(body({ provider: "anthropic", model: "", effort: null })),
   ).toEqual({ provider: "anthropic" });
+});
+
+test("the gateway's plan stamp becomes the turn's limits", () => {
+  expect(
+    turnLimitsOf(
+      body({ text: "hi", limits: { routineMinIntervalMinutes: 15 } }),
+    ),
+  ).toEqual({ routineMinIntervalMinutes: 15 });
+});
+
+test("a body with no usable limits stamp records none", () => {
+  expect(turnLimitsOf(body({ text: "hi" }))).toBeUndefined();
+  expect(
+    turnLimitsOf(body({ limits: { routineMinIntervalMinutes: 0 } })),
+  ).toBeUndefined();
+  expect(turnLimitsOf(body(null))).toBeUndefined();
+  expect(turnLimitsOf(Buffer.from("{not json"))).toBeUndefined();
 });

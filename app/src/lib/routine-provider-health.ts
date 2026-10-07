@@ -10,9 +10,10 @@
  * WHOSE credential (the scope rule). `/providers` answers for the VIEWER's own
  * credential scope, while a fired routine runs on its CREATOR's. So the badge
  * is a claim the viewer's probe can only support for the viewer's OWN routines
- * — {@link viewerIsRoutineCreator} is the gate, and a routine someone else
- * created gets a neutral "runs on the creator's account" line instead of a
- * badge that would be answering a different question.
+ * — the SDK's `viewerIsRoutineCreator` is the gate (the same one the plan-skip
+ * notice uses), and a routine someone else created gets a neutral "runs on
+ * the creator's account" line instead of a badge that would be answering a
+ * different question.
  *
  * `health` is richer than `authenticated` (a credential can be valid yet out of
  * credits) and is absent on engines that predate it, so the fallback below
@@ -123,17 +124,4 @@ export function routineHealthOffersConnect(
   health: RoutineProviderHealth,
 ): boolean {
   return health === "not_connected" || health === "needs_reconnect";
-}
-
-/**
- * Whether the viewer's own `/providers` answer describes the account this
- * routine would fire on. True when the routine names no creator (single-player:
- * there is one account and it is the viewer's) or names the viewer.
- */
-export function viewerIsRoutineCreator(
-  createdBy: string | undefined,
-  viewerId: string | null | undefined,
-): boolean {
-  if (!createdBy) return true;
-  return !!viewerId && createdBy === viewerId;
 }

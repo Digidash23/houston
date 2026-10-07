@@ -7,7 +7,7 @@ import { assistantRuntimeRole } from "../launcher/assistant-role";
 import { stampTurnAttribution } from "./activity-attribution";
 import type { TurnSeam } from "./agents-turn-seams";
 import { liveTurns } from "./live-turn";
-import { turnModeOf, turnPinOf } from "./turn-body";
+import { turnLimitsOf, turnModeOf, turnPinOf } from "./turn-body";
 
 /**
  * WHAT THE HOST RECORDS ABOUT A TURN it is about to forward: which conversation
@@ -38,6 +38,10 @@ import { turnModeOf, turnPinOf } from "./turn-body";
  * saves during this turn inherits it (routines-sandbox.ts). The body is the
  * shared memo (turn-body.ts), so reading it here costs nothing downstream and
  * the engine still receives the same bytes.
+ *
+ * So are the plan limits the gateway stamped on the body, which hold the
+ * routines this turn saves to the person's plan floor. Read only where the
+ * gateway fronts the request: off it, `limits` is the client's own word.
  */
 export const recordLiveTurn: TurnSeam = async (ctx) => {
   if (ctx.turnConversationId === undefined || ctx.message.duplicate) return;
@@ -49,7 +53,10 @@ export const recordLiveTurn: TurnSeam = async (ctx) => {
     ctx.agent.id,
     ctx.turnConversationId,
     mode,
-    { actingAs: ctx.actingAs },
+    {
+      actingAs: ctx.actingAs,
+      limits: ctx.gatewayFronted ? turnLimitsOf(body) : undefined,
+    },
     turnPinOf(body),
   );
 };

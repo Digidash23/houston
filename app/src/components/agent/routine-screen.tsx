@@ -16,9 +16,11 @@ import { useRoutineWritesForAnyAgent } from "../../hooks/queries";
 import { useRoutineLabels } from "../../hooks/use-routine-labels";
 import { useRoutineReader } from "../../hooks/use-routine-provider-health";
 import { genericErrorDescription } from "../../lib/error-report";
+import { toastRoutineWriteFailure } from "../../lib/routine-write-failure";
 import type { Agent } from "../../lib/types";
 import { useUIStore } from "../../stores/ui";
 import { RoutineAutoPauseBanner } from "./routine-auto-pause-banner";
+import { RoutinePlanSkipNotice } from "./routine-plan-skip-notice";
 import { RoutineRunsDialog } from "./routine-runs-dialog";
 import { RoutineScreenHeader } from "./routine-screen-header";
 import { RoutineScreenSections } from "./routine-screen-sections";
@@ -65,11 +67,11 @@ export function RoutineScreen({
       { agentPath: agent.folderPath, routineId: routine.id, updates },
       {
         onError: (err) =>
-          addToast({
-            title: t("toasts.updateError"),
-            description: genericErrorDescription("update_routine", err),
-            variant: "error",
-          }),
+          toastRoutineWriteFailure(
+            err,
+            { title: t("toasts.updateError"), command: "update_routine" },
+            { addToast, describe: genericErrorDescription },
+          ),
       },
     );
 
@@ -107,6 +109,11 @@ export function RoutineScreen({
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-10 md:px-8">
+        <RoutinePlanSkipNotice
+          agentId={agent.id}
+          routine={routine}
+          className="mx-auto mb-6 max-w-3xl"
+        />
         <RoutineAutoPauseBanner
           routine={routine}
           onResume={() => save({ enabled: true })}
@@ -126,6 +133,15 @@ export function RoutineScreen({
       <RoutineRunsDialog
         open={runsOpen}
         onOpenChange={setRunsOpen}
+        notice={
+          <RoutinePlanSkipNotice
+            agentId={agent.id}
+            routine={routine}
+            onLeave={() => setRunsOpen(false)}
+            layout="stacked"
+            surface="inline"
+          />
+        }
         runs={allRuns?.filter((run) => run.routine_id === routine.id)}
         runsLoading={runsLoading}
         locale={labels.locale}

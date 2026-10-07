@@ -1,7 +1,8 @@
 /**
  * What ScheduleBuilder's picker state means, kept pure so it is tested without
- * mounting: the schedule it would emit, its validity, and the summary line.
- * useScheduleBuilder holds the state and the effects; this file derives.
+ * mounting: the schedule it would emit, its validity (including the optional
+ * plan floor), and the summary line. useScheduleBuilder holds the state and
+ * the effects; this file derives.
  */
 import {
   interp,
@@ -9,6 +10,7 @@ import {
   type ScheduleSummaryLabels,
 } from "./labels.ts";
 import { presetToCron, type ScheduleOptions } from "./schedule-cron-utils.ts";
+import { pickAllowed, type ScheduleFloor } from "./schedule-floor.ts";
 import {
   type IntervalUnit,
   intervalCountAllowed,
@@ -25,6 +27,8 @@ export interface BuilderPick {
   /** Held as typed so the field can be cleared; "" is no number. */
   intervalEvery: string;
   intervalUnit: IntervalUnit;
+  /** A plan's minimum interval and the rule that judges it. Undefined = none. */
+  floor?: ScheduleFloor;
 }
 
 export interface BuilderOutput {
@@ -34,30 +38,38 @@ export interface BuilderOutput {
   overMax: boolean;
   /** Weekly needs at least one day. */
   weeklyValid: boolean;
-  /** The schedule the picker writes; "" while invalid, so saving is blocked. */
+  /** The floor's rule accepts the pick (always true without one). */
+  floorOk: boolean;
+  /** The schedule the pick spells, refused by the floor or not; "" for none. */
+  picked: string;
+  /** The schedule the picker writes: `picked`, or "" while the pick is invalid
+   *  or under the floor, so saving is blocked. */
   schedule: string;
 }
 
 export function builderOutput(pick: BuilderPick): BuilderOutput {
-  const { activePreset, options, intervalEvery, intervalUnit } = pick;
+  const { activePreset, options, intervalEvery, intervalUnit, floor } = pick;
   const every = Number(intervalEvery);
   const typed = intervalEvery.trim() !== "" && Number.isInteger(every);
   const everyValid = typed && intervalCountAllowed(every, intervalUnit);
   const overMax = typed && every > intervalCountMax(intervalUnit);
   const weeklyValid =
     activePreset !== "weekly" || options.daysOfWeek.length > 0;
-  let schedule = "";
+  let picked = "";
   if (activePreset === "custom") {
     if (everyValid) {
-      schedule = intervalToSchedule(
+      picked = intervalToSchedule(
         { every, unit: intervalUnit, dayOfMonth: options.dayOfMonth },
         options.time,
       );
     }
   } else if (weeklyValid) {
-    schedule = presetToCron(activePreset, options);
+    picked = presetToCron(activePreset, options);
   }
-  return { everyValid, overMax, weeklyValid, schedule };
+  // Every pick, preset or custom count, is judged by the floor's own rule.
+  const floorOk = pickAllowed(picked, floor);
+  const schedule = floorOk ? picked : "";
+  return { everyValid, overMax, weeklyValid, floorOk, picked, schedule };
 }
 
 /**
@@ -70,7 +82,10 @@ export function builderEmits(touched: boolean, value: string): boolean {
   return touched || value.trim() === "";
 }
 
-/** The summary line: the saved schedule while untouched, else the pick. */
+/**
+ * The summary line: the saved schedule while untouched, else the pick. A pick
+ * under the floor is still described as picked, so the read-back never lies.
+ */
 export function builderSummary(
   pick: BuilderPick,
   output: BuilderOutput,
@@ -90,7 +105,7 @@ export function builderSummary(
       : labels.pickDay;
   }
   if (output.everyValid) {
-    return cronSummary(output.schedule, labels.summary, locale);
+    return cronSummary(output.picked, labels.summary, locale);
   }
   if (output.overMax) {
     return interp(labels.maxInterval, {

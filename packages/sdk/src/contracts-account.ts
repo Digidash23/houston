@@ -125,7 +125,6 @@ export {
   stripeCurrencyDecimals,
 } from "./modules/plan/format";
 export {
-  freeScheduleAllowed,
   planComposerMode,
   planDialog,
   planLaunchRefreshDelay,

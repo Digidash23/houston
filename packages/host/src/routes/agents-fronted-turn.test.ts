@@ -381,3 +381,47 @@ test.each([
     fx.close();
   }
 });
+
+test.each([
+  [true, { routineMinIntervalMinutes: 15 }],
+  [false, undefined],
+])("a send's plan limits are recorded only behind the gateway (fronted: %s)", async (fronted, expected) => {
+  const fx = await boot(fronted);
+  try {
+    liveTurns.forget(fx.agent.id);
+    const res = await send(
+      fx,
+      { text: "Check my inbox", limits: { routineMinIntervalMinutes: 15 } },
+      fronted ? ACTING : null,
+    );
+    expect(res.status).toBe(202);
+    expect(liveTurns.get(fx.agent.id, "conv-1")?.limits).toEqual(expected);
+    // The runtime still gets the body the client sent.
+    expect(JSON.parse(fx.channel.bodies.at(-1) ?? "{}")).toMatchObject({
+      text: "Check my inbox",
+    });
+  } finally {
+    liveTurns.forget(fx.agent.id);
+    fx.close();
+  }
+});
+
+test("a later send the gateway did not stamp clears the earlier limits", async () => {
+  const fx = await boot(true);
+  try {
+    liveTurns.forget(fx.agent.id);
+    await send(fx, {
+      text: "first",
+      limits: { routineMinIntervalMinutes: 15 },
+    });
+    expect(liveTurns.get(fx.agent.id, "conv-1")?.limits).toEqual({
+      routineMinIntervalMinutes: 15,
+    });
+    // The person moved to Plus between the two sends: no stamp, no floor.
+    await send(fx, { text: "second" });
+    expect(liveTurns.get(fx.agent.id, "conv-1")?.limits).toBeUndefined();
+  } finally {
+    liveTurns.forget(fx.agent.id);
+    fx.close();
+  }
+});

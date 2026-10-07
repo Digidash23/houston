@@ -59,6 +59,7 @@ export function createTurnSandbox(input: {
     workspaceId: turn.workspaceId,
     conversationId: turn.conversationId,
     ...(turn.actingAs ? { actingAs: turn.actingAs } : {}),
+    ...(turn.limits ? { limits: turn.limits } : {}),
     orgSlug: identity.org,
     agentSlug: identity.agent,
     ...(input.deps.fetchImpl ? { fetchImpl: input.deps.fetchImpl } : {}),

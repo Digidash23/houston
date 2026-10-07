@@ -23,7 +23,8 @@
   "keep": "Mantener esta",
   "trigger": "Se ejecuta cuando ocurre el evento",
   "schedule": "Se ejecuta según su horario",
-  "shortInterval": "En Gratis, elige un intervalo de al menos 15 minutos.",
+  "shortInterval": "En Gratis, elige un intervalo de al menos {{minutes}} minutos.",
+  "shortIntervalBody": "No se guardó nada. Elige un horario menos frecuente o mejora a Plus.",
   "openCheckout": "Abrir pago",
   "openPortal": "Abrir portal de facturación",
   "success": "Ya tienes Plus",
@@ -97,6 +98,16 @@
   "checkoutAccountDeletedBody": "No puedes pasarte a Plus con una cuenta que se está eliminando.",
   "checkoutUnavailableTitle": "Plus no está disponible",
   "checkoutUnavailableBody": "Por ahora no se puede comprar Plus aquí. Vuelve a intentarlo más tarde.",
+  "triggerSkipped": {
+    "title_one": "Se omitió {{count}} ejecución de esta rutina en las últimas 24 horas",
+    "title_other": "Se omitieron {{count}} ejecuciones de esta rutina en las últimas 24 horas",
+    "minInterval": "Tu plan Gratis limita cuántas veces puede ejecutarse esta rutina. Pásate a Plus para que se ejecute siempre.",
+    "routineLimit": "Gratis mantiene una rutina activa, y la que sigue activa es otra. Elige esta rutina para mantenerla activa, o pásate a Plus para ejecutarlas todas.",
+    "routineLimitPaused": "Gratis mantiene una rutina activa, y la que sigue activa es otra. Además, tus rutinas se pausaron mientras no estabas, así que reanúdalas primero.",
+    "inactivePaused": "Tus rutinas se pausaron mientras no estabas. Reanúdalas para que esta rutina vuelva a ejecutarse.",
+    "inactiveResumed": "Tus rutinas estuvieron en pausa mientras no estabas. Ya están activas otra vez.",
+    "creatorPlan": "Esta rutina usa el plan Gratis de quien la creó, que limita cuántas veces puede ejecutarse. Esa persona puede pasarse a Plus para que se ejecute siempre."
+  },
   "sidebar": {
     "free": "Plan gratis",
     "nearLimit": "{{percent}}% usado",

@@ -56,6 +56,8 @@ describe("builderOutput", () => {
       everyValid: true,
       overMax: false,
       weeklyValid: true,
+      floorOk: true,
+      picked: "@every 16m",
       schedule: "@every 16m",
     });
   });

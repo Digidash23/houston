@@ -94,3 +94,14 @@ export function parseMessageLimitRefusal(
     resetsAt: value.resetsAt,
   };
 }
+
+/**
+ * The engine's refusal of a routine save under the saver's plan floor (`400
+ * plan_min_interval`). The shape and its parser are the protocol's, shared
+ * with the host that mints it, so the client never parses a second copy.
+ */
+export {
+  PLAN_MIN_INTERVAL,
+  type PlanMinIntervalRefusal,
+  parsePlanMinIntervalRefusal,
+} from "@houston/protocol/plan-min-interval";

@@ -2,7 +2,7 @@ import type { PlanSummary } from "@houston/wire-types";
 import { describe, expect, it } from "vitest";
 import { messageLimitRefusal } from "../turns/turn-errors";
 import { billingCards, planOffer } from "./billing-model";
-import { freeScheduleAllowed, planLaunchRefreshDelay } from "./model";
+import { planLaunchRefreshDelay } from "./model";
 
 const NOW = Date.parse("2026-10-05T00:00:00Z");
 const free: PlanSummary = {
@@ -96,37 +96,6 @@ describe("Manage follows a real Stripe customer", () => {
         plus: { ...operator.plus, manageable: true },
       }).manage,
     ).toBe(true);
-  });
-});
-
-describe("Free cadence gate", () => {
-  it("catches every schedule that fires more often than 15 minutes", () => {
-    for (const cron of [
-      "* * * * *",
-      "*/5 * * * *",
-      "0-59/5 * * * *",
-      "0,5,10 * * * *",
-      "0,5 9 * * 1",
-      "55,0 * * * *",
-      "@every 7m",
-      "@every 14m",
-    ])
-      expect(freeScheduleAllowed(cron, free), cron).toBe(false);
-  });
-
-  it("allows cadences of 15 minutes or more, and everything on Plus", () => {
-    for (const cron of [
-      "*/15 * * * *",
-      "0,20,40 * * * *",
-      "0 9 * * 1-5",
-      "30 8 1 * *",
-      "@every 16m",
-      "@every 5h",
-    ])
-      expect(freeScheduleAllowed(cron, free), cron).toBe(true);
-    expect(freeScheduleAllowed("* * * * *", { ...free, plan: "plus" })).toBe(
-      true,
-    );
   });
 });
 

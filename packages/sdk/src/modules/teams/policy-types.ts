@@ -69,26 +69,13 @@ export interface AgentModelChoiceInfo {
 }
 
 /**
- * A trigger routine's live provisioning status (C9). `active` = the Composio
- * instance is provisioned and delivering; `pending` = reconcile in flight;
- * `paused_disconnected` = the connected account was disconnected;
- * `paused_revoked` = the toolkit fell outside the agent's allowlist;
- * `error` = Composio rejected creation or delivery is failing. A `paused_*` or
- * `error` badge carries a human-readable `detail`.
+ * A trigger routine's live status (C9) and the events the Free plan refused
+ * for it: the wire shapes themselves, so the SDK and every surface read one
+ * definition.
  */
-export type TriggerStatusState =
-  | "active"
-  | "pending"
-  | "paused_disconnected"
-  | "paused_revoked"
-  | "error";
-
-/**
- * One routine's trigger status, from
- * `GET /v1/agents/{agentSlugOrId}/trigger-status`.
- */
-export interface TriggerStatusItem {
-  routine_id: string;
-  status: TriggerStatusState;
-  detail?: string;
-}
+export type {
+  TriggerPlanSkipCode,
+  TriggerPlanSkipped,
+  TriggerStatusItem,
+  TriggerStatusState,
+} from "@houston/wire-types";

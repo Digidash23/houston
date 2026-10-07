@@ -1,6 +1,7 @@
 import type {
   ChatMessage,
   GrantableOperation,
+  TurnLimits,
   TurnMode,
 } from "@houston/protocol";
 import type { PrefetchedObjects } from "@houston/runtime-client/object-sync";
@@ -94,6 +95,11 @@ export interface TurnRequest {
    * message mentions nobody.
    */
   mentions?: ChatMessage["mentions"];
+  /**
+   * The acting person's plan limits, stamped by the gateway. A routine this
+   * turn saves is held to them (turn-sandbox-writes.ts). Absent = no limit.
+   */
+  limits?: TurnLimits;
   /**
    * A new mission's first send: title its card after the reply, in this same
    * worker, before sync-back (turn-mission-title.ts). Absent on every other turn.

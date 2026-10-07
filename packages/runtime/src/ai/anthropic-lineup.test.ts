@@ -19,7 +19,12 @@ import { providerDefaultModel, safeGetModel, safeModelIds } from "./providers";
  * Sonnet.
  */
 
-const LINEUP = ["claude-sonnet-5-5", "claude-opus-5-5", "claude-fable-5-1"];
+const LINEUP = [
+  "claude-sonnet-5-5",
+  "claude-opus-5-5",
+  "claude-fable-5-1",
+  "claude-haiku-5-5",
+];
 
 const RETIRED: Record<string, string> = {
   "claude-opus-5": "claude-opus-5-5",
@@ -30,6 +35,9 @@ const RETIRED: Record<string, string> = {
   "claude-sonnet-4-6": "claude-sonnet-5-5",
   sonnet: "claude-sonnet-5-5",
   "claude-fable-5": "claude-fable-5-1",
+  "claude-haiku-4-5": "claude-haiku-5-5",
+  "claude-haiku-4-5-20251001": "claude-haiku-5-5",
+  haiku: "claude-haiku-5-5",
 };
 
 const idOf = (m: unknown) => (m as { id?: string }).id;
@@ -78,10 +86,10 @@ test("a cloud turn resolves a retired pin and a retired saved model alike", () =
   ).toBe("claude-sonnet-5-5");
 });
 
-test("a Haiku pin has no lineup model: it fails naming Sonnet 5.5 as the switch", () => {
+test("an id with no family in the lineup fails naming Sonnet 5.5 as the switch", () => {
   let thrown: unknown;
   try {
-    safeGetModel(ANTHROPIC_PROVIDER_ID, "claude-haiku-4-5", true);
+    safeGetModel(ANTHROPIC_PROVIDER_ID, "claude-2.1", true);
   } catch (err) {
     thrown = err;
   }
@@ -92,10 +100,10 @@ test("a Haiku pin has no lineup model: it fails naming Sonnet 5.5 as the switch"
       ? providerError.suggested_fallback
       : null,
   ).toBe("claude-sonnet-5-5");
-  // A SAVED Haiku id falls back to the default instead of failing the turn.
-  expect(
-    idOf(safeGetModel(ANTHROPIC_PROVIDER_ID, "claude-haiku-4-5", false)),
-  ).toBe("claude-sonnet-5-5");
+  // A SAVED unknown id falls back to the default instead of failing the turn.
+  expect(idOf(safeGetModel(ANTHROPIC_PROVIDER_ID, "claude-2.1", false))).toBe(
+    "claude-sonnet-5-5",
+  );
 });
 
 test("the lineup rule never touches another provider's Claude rows", () => {

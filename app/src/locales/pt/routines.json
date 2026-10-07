@@ -202,6 +202,7 @@
     "enterNumber": "Digite um número",
     "maxInterval": "Digite {max} {unit} ou menos",
     "pickDay": "Escolha pelo menos um dia",
+    "minIntervalHint": "No plano Grátis, as rotinas rodam no máximo uma vez a cada {minutes} minutos.",
     "weekdaysLabel": "Nestes dias",
     "weekdayShortcuts": {
       "everyDay": "Todos os dias",

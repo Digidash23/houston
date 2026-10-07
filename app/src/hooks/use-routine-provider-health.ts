@@ -10,13 +10,15 @@
  * this hook only supplies the probe and the signed-in identity.
  */
 
-import type { RoutineReaderAccount } from "@houston/sdk";
+import {
+  type RoutineReaderAccount,
+  viewerIsRoutineCreator,
+} from "@houston/sdk";
 import { useCallback } from "react";
 import { toDisplayProviderIdOrNull } from "../lib/provider-overrides";
 import {
   type RoutineProviderHealth,
   routineProviderHealth,
-  viewerIsRoutineCreator,
 } from "../lib/routine-provider-health";
 import { useProviderStatuses } from "./use-provider-statuses";
 import { useSession } from "./use-session";

@@ -86,6 +86,7 @@ export const VISIBLE_MODELS: Readonly<Record<string, ReadonlySet<string>>> = {
     "claude-sonnet-5-5",
     "claude-opus-5-5",
     "claude-fable-5-1",
+    "claude-haiku-5-5",
   ]),
   // NOTE: pi-ai ships no plain `gemini-3.1-flash` (only the Lite tier), so the
   // 3.1 line is represented by Flash Lite here.
