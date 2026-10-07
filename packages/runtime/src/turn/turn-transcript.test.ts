@@ -575,3 +575,101 @@ test("the user row lands on the user frame, before the turn finishes", async () 
   ]);
   expect(raw).toContain('"type":"done"');
 });
+
+function errorMessage(raw: string): string | undefined {
+  const frame = raw
+    .split("\n")
+    .filter((line) => line.startsWith("data: "))
+    .map(
+      (line) =>
+        JSON.parse(line.slice(6)) as {
+          type: string;
+          data: { message?: string } | null;
+        },
+    )
+    .find((parsed) => parsed.type === "error");
+  return frame?.data?.message;
+}
+
+const NO_PROVIDER = "No provider connected. Connect your subscription first.";
+
+/**
+ * A turn dispatched with no credential never runs: its user frame is an echo
+ * with nothing persisted behind it. Publishing a transcript for it used to
+ * append "transcript publish failed: conversation file is missing" (a fresh
+ * routine run's conversation) or "turn user message is missing" (a shared
+ * chat) to the no-provider error, or PUT a row an earlier attempt persisted.
+ */
+test.each([
+  { name: "a fresh conversation", conversationId: "routine.run.1" },
+  { name: "an existing conversation", conversationId: "mission.1" },
+  {
+    name: "a conversation holding an earlier attempt's user message",
+    conversationId: "mission.1",
+    earlierAttempt: true,
+  },
+])("an unconnected turn publishes no transcript, in $name", async ({
+  conversationId,
+  earlierAttempt,
+}) => {
+  const objects = seedStandingLayout();
+  if (earlierAttempt) {
+    const conversation: StoredConversation = {
+      ...priorConversation,
+      messages: [
+        ...priorConversation.messages,
+        {
+          role: "user",
+          content: "Build the launch plan",
+          ts: 3,
+          turnId: "turn.7",
+        },
+      ],
+    };
+    objects.set(
+      "workspaces/Main/Helper/.houston/runtime/conversations/mission.1.json",
+      new TextEncoder().encode(JSON.stringify(conversation)),
+    );
+  }
+  const requests: TranscriptRequest[] = [];
+  const raw = await runClaimedTurn(
+    {
+      runTurn: async () => {
+        throw new Error("an unconnected turn must not run the session");
+      },
+      poolStoreUrl: "https://pool.example",
+      fetchImpl: poolFetch(objects, requests),
+      heartbeatIntervalMs: 60_000,
+    },
+    turnBody({ credential: null, conversationId }),
+  );
+
+  expect(requests).toHaveLength(0);
+  expect(raw).toContain('"type":"user"');
+  expect(errorMessage(raw)).toBe(NO_PROVIDER);
+});
+
+test("a credentialed turn that fails after persisting still publishes its user row", async () => {
+  const objects = seedStandingLayout();
+  const requests: TranscriptRequest[] = [];
+  const runTurn: TurnRunner = async (filesystem, turn) => {
+    const { message } = appendUserMessageAt(
+      join(filesystem.dataDir, "conversations"),
+      turn.conversationId,
+      turn.text,
+      { turnId: turn.turnId },
+    );
+    turn.emit({ type: "user", data: message, turnId: turn.turnId });
+    return { error: "provider exploded" };
+  };
+
+  const raw = await runClaimedTurn({
+    runTurn,
+    poolStoreUrl: "https://pool.example",
+    fetchImpl: poolFetch(objects, requests),
+    heartbeatIntervalMs: 60_000,
+  });
+
+  expect(requests.map((r) => r.url.split("/").at(-1))).toEqual(["user"]);
+  expect(errorMessage(raw)).toBe("provider exploded");
+});

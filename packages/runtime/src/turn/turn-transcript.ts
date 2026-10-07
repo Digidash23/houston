@@ -156,14 +156,21 @@ class HttpTurnTranscript implements TurnTranscript {
   }
 }
 
-/** Create a claim-authorized transcript publisher for one real pool turn. */
+/**
+ * Create a claim-authorized transcript publisher for one real pool turn. A
+ * turn with no credential never runs (executeReadyTurn answers it with
+ * unconnectedTurnOutcome): its echoed user frame has no persisted message
+ * behind it, so publishing would fail its terminal frame on a transcript it
+ * never wrote, or re-PUT a row an earlier attempt persisted.
+ */
 export function createTurnTranscript(
   deps: TurnServerDeps,
   turn: TurnRequest & { turnId: string },
   filesystem: TurnFilesystem,
 ): TurnTranscript | null {
   const baseUrl = deps.poolStoreUrl ?? process.env.HOUSTON_POOL_STORE_URL;
-  if (turn.shadow || !baseUrl || !turn.claim || !turn.hostToken) return null;
+  if (turn.shadow || !turn.credential) return null;
+  if (!baseUrl || !turn.claim || !turn.hostToken) return null;
   const { org, agent } = poolIdentity(turn.gcsPrefix);
   return new HttpTurnTranscript({
     baseUrl,
