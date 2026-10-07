@@ -1,6 +1,7 @@
+import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { NextRequest } from "next/server";
 import { describe, expect, it } from "vitest";
-import { middleware } from "./middleware";
+import { config, middleware } from "./middleware";
 
 const ORIGIN = "https://agents.gethouston.ai";
 
@@ -37,6 +38,10 @@ describe("middleware method guard", () => {
     ).toBe("1");
   });
 
+  it("treats bare /api like the rest of the API", () => {
+    expect(run("POST", "/api").headers.get("allow")).toBe("GET, HEAD, OPTIONS");
+  });
+
   it("refuses OPTIONS on a page", () => {
     expect(run("OPTIONS", "/explore").status).toBe(405);
   });
@@ -67,5 +72,23 @@ describe("middleware handle rewrite", () => {
 
   it("leaves a handle outside the gateway grammar alone", () => {
     expect(run("GET", "/@A").headers.get("x-middleware-rewrite")).toBeNull();
+  });
+});
+
+describe("middleware matcher", () => {
+  const matches = (url: string) =>
+    unstable_doesMiddlewareMatch({ config, url });
+
+  // The guard only protects what the matcher sends it.
+  it("runs on pages, unknown paths and the API", () => {
+    for (const url of ["/", "/explore", "/a/x", "/no/such/page", "/@maria_1"]) {
+      expect(matches(url)).toBe(true);
+    }
+    expect(matches("/api/agents/x/ir")).toBe(true);
+    expect(matches("/_next/image")).toBe(true);
+  });
+
+  it("skips hashed build assets", () => {
+    expect(matches("/_next/static/chunks/main.js")).toBe(false);
   });
 });

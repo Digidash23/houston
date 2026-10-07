@@ -16,23 +16,24 @@ const HANDLE_PATH = /^\/(?:@|%40)([a-z0-9][a-z0-9_]{1,29})$/;
  * export only GET plus OPTIONS for CORS preflight; every write goes from the
  * browser straight to the gateway. Next still hands a POST to any page to its
  * Server Action decoder, the code React2Shell (CVE-2025-55182) exploited, and
- * scanners keep probing it. Refusing other methods here keeps those requests
- * away from the decoder and out of the logs.
+ * scanners keep probing it. Next treats a url-encoded or multipart POST as a
+ * possible action even without the `Next-Action` header, so the guard keys on
+ * the method, not the header. Refusing other methods here keeps those
+ * requests away from the decoder and out of the logs.
  */
-const READ_METHODS = new Set(["GET", "HEAD"]);
-const API_PREFIX = "/api/";
+const PAGE_METHODS = "GET, HEAD";
+const API_METHODS = "GET, HEAD, OPTIONS";
 
-function isAllowedMethod(method: string, pathname: string): boolean {
-  if (READ_METHODS.has(method)) return true;
-  return method === "OPTIONS" && pathname.startsWith(API_PREFIX);
+function allowedMethods(pathname: string): string {
+  return pathname === "/api" || pathname.startsWith("/api/")
+    ? API_METHODS
+    : PAGE_METHODS;
 }
 
 export function middleware(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
-  if (!isAllowedMethod(request.method, pathname)) {
-    const allow = pathname.startsWith(API_PREFIX)
-      ? "GET, HEAD, OPTIONS"
-      : "GET, HEAD";
+  const allow = allowedMethods(pathname);
+  if (!allow.split(", ").includes(request.method)) {
     return new NextResponse(null, { status: 405, headers: { allow } });
   }
   const match = pathname.match(HANDLE_PATH);
