@@ -13,7 +13,7 @@
 
 surface: web
 enforced: true
-inventoryVersion: 125
+inventoryVersion: 126
 
 components:
   manager-avatar:
@@ -257,7 +257,7 @@ components:
 
   sidebar-team-block:
     status: implemented
-    ref: "@houston-ai/layout AppSidebar (SidebarGroupedList renders root employees, folder headers and folder members as one flat @dnd-kit sortable tree, SidebarTreeRowView per row, the dragged row drawn as a ghost at its landing slot and depth; SidebarRowButton gives root employees and folder headers one left edge and indents only folder members; members draw the guide line and folders start on the block gap, sidebar-group-block.tsx), composed in app/src/components/shell/team-sidebar-lists.tsx"
+    ref: "@houston-ai/layout AppSidebar (SidebarGroupedList renders root employees, folder headers and folder members as one flat @dnd-kit sortable tree, SidebarTreeRowView per row, the dragged row drawn as a ghost at its landing slot and depth; SidebarRowButton gives root employees and folder headers one left edge and indents only folder members; folder members draw no guide line or hairline and folders start on the block gap, sidebar-group-block.tsx), composed in app/src/components/shell/team-sidebar-lists.tsx"
   sidebar-account-menu:
     status: implemented
     ref: "@houston-ai/layout SidebarProfileMenu, last in app/src/components/shell/sidebar-footer.tsx, filled by sidebar-workspace-menu.tsx with workspace-account.tsx's WorkspaceSwitchItems, the parts of sidebar-account-menu.tsx's useAccountMenu, and the Admin, Academy and Settings rows sidebar-nav-rows.tsx builds"
