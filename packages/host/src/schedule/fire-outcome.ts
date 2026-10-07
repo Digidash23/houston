@@ -1,8 +1,13 @@
-import { isTurnBusy, TurnFireError } from "../channel/fire-error";
+import {
+  isTurnBusy,
+  TurnDeliveryUncertainError,
+  TurnFireError,
+} from "../channel/fire-error";
 import { AgentRenamingError, LauncherClosedError } from "../ports";
 import type { TurnBus } from "../turn/bus";
 import type { FireLock } from "./fire-lock";
 import { RoutineBusyError, RoutineRunUnrecordedError } from "./run";
+import { isUnconnectedRefusal } from "./run-failure";
 
 /**
  * The burned-instant lock doubles as the instant's outcome ledger: once the
@@ -71,27 +76,33 @@ export function decodeFireOutcome(
 /**
  * A fire that failed because of where it ran, not what it is: the host is
  * draining or mid-rename (the replacement pod or the new id will take it), the
- * runtime could not be reached, or no errored run could be recorded for the
- * person to see. The instant must stay deliverable, so the caller releases the
- * burn and answers 503.
+ * runtime could not be reached or refused to start the turn (its 503 while it
+ * drains), or no errored run could be recorded for the person to see. The
+ * instant must stay deliverable, so the caller releases the burn and answers
+ * 503.
  *
  * A raw `fetch failed` reaching here never came from the turn POST itself:
  * ProxyChannel lets only a dial failure through and wraps any other failure
  * of that POST in TurnDeliveryUncertainError (the runtime may already be
- * running the turn, so it is never redelivered). The rest come from waking
- * the runtime or preparing the turn, before any message was sent.
+ * running the turn, so it is never redelivered unless the host's drain had
+ * already stopped that runtime). The rest come from waking the runtime or
+ * preparing the turn, before any message was sent.
  */
 export function isRetryableFireError(err: unknown): boolean {
   return (
     err instanceof LauncherClosedError ||
     err instanceof AgentRenamingError ||
     err instanceof RoutineRunUnrecordedError ||
+    (err instanceof TurnDeliveryUncertainError && err.hostShuttingDown) ||
+    (err instanceof TurnFireError && err.status === 503) ||
     (err instanceof TypeError && err.message === "fetch failed")
   );
 }
 
 /** The terminal outcome of a fire that threw and is not retryable. */
-export function unfiredOutcome(error: unknown): FireOutcome {
+export function unfiredOutcome(
+  error: unknown,
+): Exclude<FireOutcome, { result: "fired" }> {
   if (error instanceof RoutineBusyError || isTurnBusy(error))
     return { result: "busy" };
   return {
@@ -99,4 +110,38 @@ export function unfiredOutcome(error: unknown): FireOutcome {
     code: error instanceof TurnFireError ? error.code : null,
     error: error instanceof Error ? error.message : String(error),
   };
+}
+
+const messageOf = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
+
+/**
+ * Log a delivered instant that did not fire. On the host only console.error
+ * becomes a Sentry event (local/main.ts), so a fault goes out at error level
+ * and an expected state as a warning breadcrumb, as in the local scan
+ * (agent-scan.ts). Expected: a turn already running, a creator with nothing
+ * connected (the errored run says so and the routine pauses), and a deferral
+ * the host's drain or a rename caused. A deferral because the run history
+ * could not be written is a fault even though the instant is redelivered.
+ */
+export function reportUnfiredFire(
+  routineId: string,
+  error: unknown,
+  deferred: boolean,
+): void {
+  const tag = `[routine-fires] routine ${routineId}`;
+  if (deferred) {
+    if (error instanceof RoutineRunUnrecordedError)
+      console.error(`${tag} fire deferred, its run unrecorded:`, error);
+    else console.warn(`${tag} fire deferred: ${messageOf(error)}`);
+    return;
+  }
+  const outcome = unfiredOutcome(error);
+  if (outcome.result === "busy") {
+    console.warn(`${tag} skipped: ${messageOf(error)}`);
+    return;
+  }
+  const failed = `${tag} fire failed (${outcome.code ?? "uncoded"})`;
+  if (isUnconnectedRefusal(error)) console.warn(`${failed}: ${outcome.error}`);
+  else console.error(`${failed}:`, error);
 }
