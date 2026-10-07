@@ -264,6 +264,7 @@
       "claude-opus-5": "Opus mas reciente. Razonamiento mas profundo y trabajo autonomo.",
       "claude-opus-4-8": "Opus anterior. Buen alineamiento y codigo con agentes.",
       "claude-fable-5-1": "El más capaz. Consume tus límites de Claude más rápido que Opus.",
+      "claude-haiku-5-5": "El más rápido y ligero. Ideal para tareas rápidas y simples.",
       "claude-fable-5": "Fable anterior. Consume el doble de creditos que Opus 5.",
       "claude-opus-4-7": "Opus antiguo. Autonomia de codigo y razonamiento complejo.",
       "gemini-3_5-flash": "Rápido y capaz. La mejor opción por defecto.",
