@@ -24,13 +24,13 @@ The schedule editor (routine screen and list rows) no longer offers a
 schedule under the Free minimum interval to a person on Free, on any
 routine (saving makes them the routine's creator, whose plan the runs are
 judged on). Every pick is judged by its real gap between runs, the plan's
-own rule from the SDK: a minutes step restarts at the top of the hour, so
-"every 16 minutes" runs at :48 and then :00, 12 minutes apart. The custom
-minutes count offers only the counts that rule accepts (on Free: 15, 20, 21,
-22 and 30 to 45), minus and plus step between them, plus past the top moves
-to 1 hour, a typed count it refuses snaps up on blur and keeps Save disabled
-until it does, presets it refuses are hidden (none at 15), and a hint under
-the count names the limit. The save check and the engine use the same rule.
+own rule from the SDK. An uneven minutes count saves as a true interval
+that runs exactly that many minutes apart, so its real gap is the count
+itself. On Free the custom minutes count therefore accepts any count of 15
+or more, 16 and 17 included, and nothing below it: minus stops at 15, a
+typed count under it snaps up to 15 on blur and keeps Save disabled until
+it does, presets it refuses are hidden (none at 15), and a hint under the
+count names the limit. The save check and the engine use the same rule.
 An existing shorter schedule still shows as it is, with Save disabled until
 it is changed. A save the engine still refuses shows the plan's copy naming
 its own limit. Before, the editor offered every minute and only the save was

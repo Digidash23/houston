@@ -25,6 +25,7 @@ import {
   shortWeekdayNames,
   weekdayName,
 } from "./schedule-format.ts";
+import { parseEverySchedule } from "./schedule-interval-form.ts";
 import type { SchedulePreset } from "./types";
 
 /** Generate a human-readable summary of a schedule preset */
@@ -72,11 +73,11 @@ export function presetSummary(
 }
 
 /**
- * Human-readable summary of any cron expression, written for non-technical
- * users. Recognizes the presets and the common interval patterns (every N
- * minutes / hours / days, weekly on chosen days, every N months) so a
- * `*​/5 * * * *` reads as "Runs every 5 minutes" instead of raw cron, and
- * otherwise falls back to a generic label.
+ * Human-readable summary of any schedule (cron or an `@every` interval),
+ * written for non-technical users. Recognizes the presets and the common
+ * interval patterns (every N minutes / hours / days, weekly on chosen days,
+ * every N months) so a `*​/5 * * * *` reads as "Runs every 5 minutes"
+ * instead of raw cron, and otherwise falls back to a generic label.
  */
 export function cronSummary(
   cron: string,
@@ -85,6 +86,16 @@ export function cronSummary(
 ): string {
   const trimmed = cron.trim();
   if (!trimmed) return labels.noSchedule;
+
+  // A true interval ("@every 16m") reads exactly like its cron twin.
+  const interval = parseEverySchedule(trimmed);
+  if (interval) {
+    const n = interval.every;
+    if (interval.unit === "hours") {
+      return n === 1 ? labels.everyHour : interp(labels.everyNHours, { n });
+    }
+    return n === 1 ? labels.everyMinute : interp(labels.everyNMinutes, { n });
+  }
 
   const preset = cronToPreset(trimmed);
   if (preset && preset !== "custom") {

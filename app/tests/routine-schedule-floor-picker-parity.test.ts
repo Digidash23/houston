@@ -11,10 +11,13 @@ import {
   type ScheduleOptions,
 } from "../../ui/routines/src/schedule-cron-utils.ts";
 import {
-  floorMinuteCounts,
+  floorMinuteMinimum,
   presetAllowed,
 } from "../../ui/routines/src/schedule-floor.ts";
-import { intervalToCron } from "../../ui/routines/src/schedule-interval-utils.ts";
+import {
+  intervalCountMax,
+  intervalToSchedule,
+} from "../../ui/routines/src/schedule-interval-utils.ts";
 import type { SchedulePreset } from "../../ui/routines/src/types.ts";
 
 /**
@@ -61,26 +64,32 @@ describe("picker and save backstop agree for a Free saver", () => {
     ok(minutes === 15);
   });
 
-  it("offers only the minute counts whose real gap reaches the floor", () => {
-    // A step restarts at the top of the hour: */16 fires :48 then :00.
-    const offered = floorMinuteCounts(rule);
-    deepStrictEqual(
-      offered,
-      [
-        15, 20, 21, 22, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43,
-        44, 45,
-      ],
-    );
-    for (let every = 1; every <= 59; every++) {
-      const cron = intervalToCron({ every, unit: "minutes" }, OPTIONS.time);
-      ok(offered.includes(every) === scheduleFloorAllows(cron, minutes), cron);
+  it("offers every minute count from the floor up, each one saved at its own gap", () => {
+    // An uneven count saves as a true interval (`@every 16m`), so its real gap
+    // IS the count; a plain `*\/16` would restart at :00 (:48 then :00).
+    const minimum = floorMinuteMinimum(rule);
+    deepStrictEqual(minimum, 15);
+    for (let every = 1; every <= intervalCountMax("minutes"); every++) {
+      const schedule = intervalToSchedule(
+        { every, unit: "minutes" },
+        OPTIONS.time,
+      );
+      ok(
+        every >= 15 === scheduleFloorAllows(schedule, minutes),
+        `${every}: ${schedule}`,
+      );
     }
+    deepStrictEqual(
+      intervalToSchedule({ every: 16, unit: "minutes" }, OPTIONS.time),
+      "@every 16m",
+    );
+    ok(!scheduleFloorAllows("*/16 * * * *", minutes));
   });
 
   it("accepts every hours, days and months count (1 to 120)", () => {
     for (const unit of ["hours", "days", "months"] as const)
       for (let every = 1; every <= 120; every++) {
-        const cron = intervalToCron(
+        const cron = intervalToSchedule(
           { every, unit, dayOfMonth: OPTIONS.dayOfMonth },
           OPTIONS.time,
         );

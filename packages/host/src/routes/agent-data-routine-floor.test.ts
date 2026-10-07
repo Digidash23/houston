@@ -142,6 +142,19 @@ test("a step that restarts under the floor at the top of the hour is refused", a
   expect((await create(fronted, "*/20 * * * *", "15")).status).toBe(201);
 });
 
+test("an interval under the floor is refused; an uneven one at or above it saves", async () => {
+  const refused = await create(fronted, "@every 14m", "15");
+  expect(refused.status).toBe(400);
+  expect(await refusalOf(refused)).toMatchObject({
+    code: "plan_min_interval",
+    minIntervalMinutes: 15,
+  });
+  // @every 16m runs exactly 16 minutes apart, unlike */16.
+  const saved = await create(fronted, "@every 16m", "15");
+  expect(saved.status).toBe(201);
+  expect(((await saved.json()) as Routine).schedule).toBe("@every 16m");
+});
+
 test("behind the gateway, an update is held to the floor; at the floor it saves", async () => {
   const created = await create(fronted, "*/15 * * * *", "15");
   expect(created.status).toBe(201);

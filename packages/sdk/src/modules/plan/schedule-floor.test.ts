@@ -59,4 +59,13 @@ describe("scheduleFloorRule: what an editor binds", () => {
     expect(rule.allows("*/5 * * * *")).toBe(false);
     expect(rule.allows("0 9 * * *")).toBe(true);
   });
+
+  it("judges an @every interval by its step: it runs exactly that far apart", () => {
+    const rule = scheduleFloorRule(15);
+    expect(rule.allows("@every 16m")).toBe(true);
+    expect(rule.allows("@every 15m")).toBe(true);
+    expect(rule.allows("@every 5h")).toBe(true);
+    expect(rule.allows("@every 14m")).toBe(false);
+    expect(rule.allows("@every 7m")).toBe(false);
+  });
 });

@@ -1,4 +1,5 @@
 import { Cron } from "croner";
+import { isIntervalForm, parseIntervalSchedule } from "./schedule-interval";
 
 /** A fixed start keeps the answer identical on every device and every day. */
 const SAMPLE_FROM = new Date("2026-01-01T00:00:00Z");
@@ -16,10 +17,14 @@ const SAMPLE_FIRES = 128;
  * wraps the hour, a step that restarts at the top of the hour). Evaluated at a
  * fixed UTC offset: the cadence is a property of the pattern, not of the zone
  * it runs in, and a named zone costs ~40x more per fire (the schedule editor
- * judges every minute count it offers). Null when the pattern is invalid or
- * fires fewer than twice.
+ * judges every minute count it offers). An `@every` interval's gap is its
+ * step: it runs exactly that far apart on a fixed grid. Null when the pattern
+ * is invalid or fires fewer than twice.
  */
 export function minFireGapMinutes(schedule: string): number | null {
+  if (isIntervalForm(schedule)) {
+    return parseIntervalSchedule(schedule)?.stepMinutes ?? null;
+  }
   let fires: Date[];
   try {
     fires = new Cron(schedule, { utcOffset: 0 }).nextRuns(
@@ -45,7 +50,8 @@ export function minFireGapMinutes(schedule: string): number | null {
  * Whether `cron` respects a plan's `floor` (minimum minutes between fires; no
  * floor allows anything), judged by its smallest REAL gap, the way the gateway
  * judges fires: `*\/16` restarts at the top of the hour (:48 then :00, 12
- * minutes), so it fires more often than its step says. The ONE rule the app's
+ * minutes), so it fires more often than its step says, while `@every 16m` runs
+ * exactly 16 apart. The ONE rule the app's
  * schedule editor, the SDK and the host's routine-write gate share. A pattern
  * with no gap to judge passes: validity is the schedule validator's call.
  */

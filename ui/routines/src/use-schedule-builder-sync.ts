@@ -1,6 +1,6 @@
 /**
  * Keeps ScheduleBuilder's own state in step with the two inputs that can
- * change after it opens: the cron `value` (edited outside the builder) and the
+ * change after it opens: the schedule `value` (edited outside the builder) and the
  * plan's floor (it loads after the editor opens). Split out of
  * useScheduleBuilder to keep that hook small.
  */
@@ -8,40 +8,39 @@ import { type MutableRefObject, useEffect, useMemo } from "react";
 import { cronToOptions, cronToPreset } from "./schedule-cron-utils";
 import {
   defaultMinutesCount,
-  floorMinuteCounts,
+  floorMinuteMinimum,
   type ScheduleFloor,
 } from "./schedule-floor";
-import { cronToInterval } from "./schedule-interval-utils";
+import { scheduleToInterval } from "./schedule-interval-utils";
 
-/** What an outside cron re-derives the picker to. */
+/** What an outside schedule re-derives the picker to. */
 export interface OutsidePick {
   preset: ReturnType<typeof cronToPreset> & string;
   options: ReturnType<typeof cronToOptions>;
-  interval: ReturnType<typeof cronToInterval>;
+  interval: ReturnType<typeof scheduleToInterval>;
 }
 
 /**
- * Re-derive the picker when the cron changes OUTSIDE this builder — the
+ * Re-derive the picker when the schedule changes OUTSIDE this builder — the
  * setup chat's agent editing the open routine (HOU-725). Without this the
  * saved schedule and the "next run" preview move while the preset/time fields
  * keep showing the old values. A `value` equal to what the current state
- * emits (`emittedCron`) is our own echo through the parent — skipped, so
+ * emits (`emitted`) is our own echo through the parent — skipped, so
  * mid-edit typing never resets the fields. The re-derived state round-trips
  * to `value`, so the emit effect's follow-up call is a no-op echo.
  */
-export function useOutsideCronSync(
+export function useOutsideScheduleSync(
   value: string,
-  emittedCron: string,
+  emitted: string,
   apply: (pick: OutsidePick) => void,
 ): void {
-  // biome-ignore lint/correctness/useExhaustiveDependencies: sync on the incoming value only — `emittedCron` is derived from the state this effect sets, and reacting to it would fight the user's edits
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sync on the incoming value only — `emitted` is derived from the state this effect sets, and reacting to it would fight the user's edits
   useEffect(() => {
-    if (!value.trim() || value === emittedCron) return;
+    if (!value.trim() || value === emitted) return;
     const preset = cronToPreset(value);
-    const interval = preset === "custom" ? cronToInterval(value) : null;
-    // An externally-written cron the picker can't represent: leave the state
-    // alone (same stance as the mount-time `unrepresentable` guard) — the
-    // value prop still drives the summary elsewhere and saving.
+    const interval = preset === "custom" ? scheduleToInterval(value) : null;
+    // An externally-written schedule the picker can't represent: leave the
+    // state alone — the value prop still drives the summary and saving.
     if (preset === "custom" && !interval) return;
     apply({
       preset: preset ?? "daily",
@@ -52,33 +51,34 @@ export function useOutsideCronSync(
 }
 
 /**
- * The minute counts the floor's rule accepts. The caller keeps `floor` stable
- * (memoized on its minutes), so the scan runs when the plan changes, not on
- * every render.
+ * The lowest minutes count the floor's rule accepts (null: none; undefined: no
+ * floor). The caller keeps `floor` stable (memoized on its minutes), so the
+ * scan runs when the plan changes, not on every render.
  */
-export function useFloorMinuteCounts(
+export function useFloorMinuteMinimum(
   floor: ScheduleFloor | undefined,
-): number[] | undefined {
-  return useMemo(() => (floor ? floorMinuteCounts(floor) : undefined), [floor]);
+): number | null | undefined {
+  return useMemo(
+    () => (floor ? floorMinuteMinimum(floor) : undefined),
+    [floor],
+  );
 }
 
 /**
  * While the count is still the builder's own default (not read from `value`,
  * not edited, unit untouched), a floor that arrives late moves it onto an
- * offered count. A count read from a saved cron stays as it is.
+ * offered count. A count read from a saved schedule stays as it is.
  */
 export function useLateFloorDefault(
-  minuteCounts: number[] | undefined,
+  minimum: number | null | undefined,
   countIsDefault: MutableRefObject<boolean>,
   setEvery: (update: (every: string) => string) => void,
 ): void {
   // biome-ignore lint/correctness/useExhaustiveDependencies: react to the floor arriving; the ref and setter are stable
   useEffect(() => {
-    if (!countIsDefault.current || !minuteCounts) return;
+    if (!countIsDefault.current || minimum == null) return;
     setEvery((every) =>
-      minuteCounts.includes(Number(every))
-        ? every
-        : String(defaultMinutesCount(minuteCounts)),
+      Number(every) >= minimum ? every : String(defaultMinutesCount(minimum)),
     );
-  }, [minuteCounts]);
+  }, [minimum]);
 }

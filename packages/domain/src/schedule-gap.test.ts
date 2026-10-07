@@ -66,3 +66,21 @@ describe("scheduleFloorAllows: the save backstop", () => {
       expect(scheduleFloorAllows(cron, 15), cron).toBe(true);
   });
 });
+
+describe("an @every interval's gap is its step", () => {
+  it("runs exactly N apart, so the floor judges N itself", () => {
+    expect(minFireGapMinutes("@every 16m")).toBe(16);
+    expect(minFireGapMinutes("@every 14m")).toBe(14);
+    expect(minFireGapMinutes("@every 5h")).toBe(300);
+    expect(minFireGapMinutes("@every 1h30m")).toBeNull();
+  });
+
+  it("allows 15 minutes or more under Free's floor, and nothing below it", () => {
+    for (const schedule of ["@every 15m", "@every 16m", "@every 17m"])
+      expect(scheduleFloorAllows(schedule, 15), schedule).toBe(true);
+    for (const schedule of ["@every 1m", "@every 10m", "@every 14m"])
+      expect(scheduleFloorAllows(schedule, 15), schedule).toBe(false);
+    // The cron spelling of 16 still restarts at :00, so it stays refused.
+    expect(scheduleFloorAllows("*/16 * * * *", 15)).toBe(false);
+  });
+});

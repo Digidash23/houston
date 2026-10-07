@@ -88,6 +88,37 @@ test("a create at or above the floor saves", async () => {
   expect(await onDisk(vfs)).toHaveLength(3);
 });
 
+test("an interval below the floor is refused, at or above it saves", async () => {
+  const vfs = new MemoryVfs();
+  for (const schedule of ["@every 14m", "@every 10m"]) {
+    const refused = await createRoutineChecked(
+      vfs,
+      ROOT,
+      WS,
+      every(schedule),
+      FLOOR,
+    );
+    expect(refused, schedule).toEqual(REFUSAL);
+  }
+  expect(await onDisk(vfs)).toEqual([]);
+  // Uneven counts run exactly N apart, so 16 and 17 clear a 15-minute floor.
+  for (const schedule of ["@every 16m", "@every 17m", "@every 15m"]) {
+    const saved = await createRoutineChecked(
+      vfs,
+      ROOT,
+      WS,
+      every(schedule),
+      FLOOR,
+    );
+    expect("routine" in saved, schedule).toBe(true);
+  }
+  expect((await onDisk(vfs)).map((r) => r.schedule)).toEqual([
+    "@every 16m",
+    "@every 17m",
+    "*/15 * * * *",
+  ]);
+});
+
 test("both refusals fit the 300 characters save_routine relays", () => {
   for (const floor of [15, 1440]) {
     const fresh = JSON.stringify(REFUSAL).replaceAll("15", String(floor));

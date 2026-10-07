@@ -16,11 +16,14 @@ import { builderProps } from "./schedule-builder-parts";
 
 /**
  * A stand-in for the plan rule the app binds (the SDK's real-gap rule): a
- * minute step restarts at the top of the hour, so `*\/16` fires :48 then :00.
+ * minute step restarts at the top of the hour, so `*\/16` fires :48 then :00,
+ * while `@every 16m` runs exactly 16 apart.
  */
 const FREE_FLOOR: ScheduleFloor = {
   minutes: 15,
   allows: (cron) => {
+    const every = cron.match(/^@every (\d+)(m|h)$/);
+    if (every) return Number(every[1]) * (every[2] === "h" ? 60 : 1) >= 15;
     const step = cron.match(/^\*\/(\d+) \* \* \* \*$/);
     if (cron === "* * * * *") return false;
     if (!step) return true;

@@ -24,7 +24,7 @@ import {
  * Same trust posture as the integration setup tools: it holds no secret and
  * carries only the per-sandbox HMAC token; the host resolves the sandbox to its
  * workspace and owns the write. Validation failures (both/neither wake, a bad
- * cron, a trigger on a deployment that cannot fire one) come back as tool errors
+ * schedule, a trigger on a deployment that cannot fire one) come back as tool errors
  * the agent relays to the user in plain words.
  */
 export const SAVE_ROUTINE_TOOL_NAME = "save_routine";
@@ -64,7 +64,7 @@ export function makeSaveRoutineTool(opts: SaveRoutineToolOptions) {
     name: SAVE_ROUTINE_TOOL_NAME,
     label: "Save a scheduled task",
     description:
-      "Create or update a scheduled task (a Routine) in the user's saved automations. NEVER write .houston/routines/routines.json with file tools - this tool is the ONLY safe way to save, because it merges with the user's other tasks instead of overwriting them. Omit 'id' to create; pass an existing task's 'id' to change it. Give exactly one wake: a 'schedule' (cron) or a 'trigger' (event). A save can be refused because it runs more often than this person's plan allows; offer the closest allowed cadence and ask before saving again. On success, tell the user in plain words - never mention files, JSON, or cron.",
+      "Create or update a scheduled task (a Routine) in the user's saved automations. NEVER write .houston/routines/routines.json with file tools - this tool is the ONLY safe way to save, because it merges with the user's other tasks instead of overwriting them. Omit 'id' to create; pass an existing task's 'id' to change it. Give exactly one wake: a 'schedule' (cron, or '@every <N>m' / '@every <N>h' for an uneven interval) or a 'trigger' (event). A save can be refused because it runs more often than this person's plan allows; offer the closest allowed cadence and ask before saving again. On success, tell the user in plain words - never mention files, JSON, cron, or '@every'.",
     promptSnippet: "Save or update a scheduled task",
     parameters: SaveRoutineParams,
     executionMode: "sequential",

@@ -22,10 +22,10 @@ export function routineScheduleFloor(
 
 /**
  * A floor as a schedule editor and its save check bind it: the minimum it
- * names, and the one rule that judges a cron against it. The editor derives
- * every pick it offers from `allows` (the minutes stepper offers exactly the
- * counts it accepts), so the picker, the save check and the host's
- * routine-write gate never disagree.
+ * names, and the one rule that judges a cron against it. The minutes stepper
+ * starts at the lowest count `allows` accepts and Save is judged by `allows`
+ * itself, so the picker, the save check and the host's routine-write gate
+ * never disagree.
  */
 export interface RoutineScheduleFloor {
   minutes: number;

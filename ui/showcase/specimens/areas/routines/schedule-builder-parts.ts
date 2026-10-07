@@ -33,6 +33,6 @@ export const builderProps: readonly SpecimenProp[] = [
   {
     name: "floor",
     type: "ScheduleFloor",
-    note: 'A plan\'s minimum interval (`minutes`) and the rule that judges a cron against it (`allows`, bound by the app to the SDK; keep it memoized). The minutes stepper steps between the counts `allows` accepts (past the top one, 1 hour), a refused typed count snaps up on blur, refused presets are hidden, `labels.minIntervalHint` names `minutes`, and a refused pick emits "". Absent = no limit.',
+    note: 'A plan\'s minimum interval (`minutes`) and the rule that judges a cron against it (`allows`, bound by the app to the SDK; keep it memoized). The minutes stepper starts at the lowest count `allows` accepts (an uneven count saves as a true `@every` interval, so every count above it is accepted too), a typed count below it snaps up on blur, refused presets are hidden, `labels.minIntervalHint` names `minutes`, and a refused pick emits "". Absent = no limit.',
   },
 ];

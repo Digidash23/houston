@@ -5,8 +5,8 @@
  *
  * All visible text arrives via props so the package stays i18n-agnostic; the
  * pills show the singular or plural unit name depending on the count. A
- * `stepper` (a plan's floor, minutes unit only) moves the buttons between the
- * counts the floor offers and snaps a typed count up to one on blur.
+ * `stepper` (a plan's floor, minutes unit only) keeps the buttons at or above
+ * the floor's lowest count and lifts a typed count below it on blur.
  */
 import { cn } from "@houston-ai/core";
 import { Minus, Plus } from "lucide-react";
@@ -20,6 +20,7 @@ const UNIT_ORDER: IntervalUnit[] = ["minutes", "hours", "days", "months"];
 function NumberStepper({
   id,
   value,
+  max,
   onChange,
   invalid,
   decreaseLabel,
@@ -28,6 +29,8 @@ function NumberStepper({
 }: {
   id: string;
   value: string;
+  /** The largest count the unit takes; `+` stops there. */
+  max: number;
   onChange: (value: string) => void;
   invalid?: boolean;
   decreaseLabel: string;
@@ -53,7 +56,7 @@ function NumberStepper({
         onClick={
           stepper
             ? () => stepper.down?.()
-            : () => onChange(String(Math.max(1, n - 1)))
+            : () => onChange(String(Math.min(max, Math.max(1, n - 1))))
         }
         disabled={stepper ? stepper.down === null : n <= 1}
         className="grid size-9 place-items-center text-ink-muted hover:text-ink disabled:opacity-30"
@@ -75,7 +78,10 @@ function NumberStepper({
         type="button"
         aria-label={increaseLabel}
         onMouseDown={keepFocus}
-        onClick={stepper ? stepper.up : () => onChange(String(n + 1))}
+        onClick={
+          stepper ? stepper.up : () => onChange(String(Math.min(max, n + 1)))
+        }
+        disabled={n >= max}
         className="grid size-9 place-items-center text-ink-muted hover:text-ink disabled:opacity-30"
       >
         <Plus className="size-4" />
@@ -92,6 +98,7 @@ export function IntervalPicker({
   increaseLabel,
   every,
   unit,
+  max,
   invalid,
   stepper,
   onEveryChange,
@@ -104,6 +111,8 @@ export function IntervalPicker({
   increaseLabel: string;
   every: string;
   unit: IntervalUnit;
+  /** The largest count `unit` takes (see intervalCountMax). */
+  max: number;
   invalid?: boolean;
   /** Floor stepping for the minutes count; absent = step by one from 1. */
   stepper?: FloorStepper;
@@ -121,6 +130,7 @@ export function IntervalPicker({
         <NumberStepper
           id={inputId}
           value={every}
+          max={max}
           onChange={onEveryChange}
           invalid={invalid}
           stepper={stepper}

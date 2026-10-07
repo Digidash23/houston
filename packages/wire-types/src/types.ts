@@ -761,9 +761,11 @@ export interface Routine {
   name: string;
   prompt: string;
   /**
-   * Cron expression the scheduler wakes this routine on. Absent when the routine
-   * is event-driven (`trigger` set instead) — exactly one of `schedule`/`trigger`
-   * is present.
+   * What the scheduler wakes this routine on: a cron expression, or
+   * `@every <N>m` / `@every <N>h` for a true interval counted from the Unix
+   * epoch (only when N does not divide 60 or 24; an even cadence is stored as
+   * cron). Absent when the routine is event-driven (`trigger` set instead) —
+   * exactly one of `schedule`/`trigger` is present.
    */
   schedule?: string;
   /**
@@ -806,8 +808,9 @@ export interface Routine {
 export interface NewRoutine {
   name: string;
   prompt: string;
-  /** Cron expression to wake on; omit when creating an event-driven routine
-   *  (pass `trigger` instead). Exactly one of `schedule`/`trigger` is set. */
+  /** Cron expression or `@every <N>m` / `@every <N>h` interval to wake on; omit
+   *  when creating an event-driven routine (pass `trigger` instead). Exactly one
+   *  of `schedule`/`trigger` is set. */
   schedule?: string;
   /** Event binding to wake on instead of a cron schedule (C9). Exactly one of
    *  `schedule`/`trigger` is set. */
@@ -831,8 +834,9 @@ export interface NewRoutine {
 export interface RoutineUpdate {
   name?: string;
   prompt?: string;
-  /** Switch to (or keep) a cron wake; pair with `trigger: null` to move a
-   *  routine off an event binding. Exactly one of `schedule`/`trigger` ends set. */
+  /** Switch to (or keep) a schedule wake (cron or `@every` interval); pair with
+   *  `trigger: null` to move a routine off an event binding. Exactly one of
+   *  `schedule`/`trigger` ends set. */
   schedule?: string;
   /** Switch to (or keep) an event wake; pass `null` to move the routine back to a
    *  cron `schedule`. Omit to leave the current wake mechanism unchanged. */
@@ -1516,7 +1520,8 @@ export interface PortableRoutinePreview {
   id: string;
   name: string;
   promptExcerpt: string;
-  /** Cron expression; absent for an event-driven (trigger) routine (C9). */
+  /** Cron expression or `@every` interval; absent for an event-driven
+   *  (trigger) routine (C9). */
   schedule?: string;
   enabled: boolean;
   integrations: string[];

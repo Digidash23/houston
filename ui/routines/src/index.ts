@@ -22,7 +22,8 @@ export {
 // Routine execution history (PRODUCT-1208) — the run list + its helpers.
 export type { RoutineRunListLabels } from "./labels-details";
 export { DEFAULT_RUN_LIST_LABELS } from "./labels-details";
-export { describeNextFire, nextFire } from "./next-fire";
+export { nextFire } from "./next-fire";
+export { describeNextFire } from "./next-fire-describe";
 export type { RoutineDraftRowProps } from "./routine-draft-row";
 export { RoutineDraftRow } from "./routine-draft-row";
 export type { RoutineRowProps } from "./routine-row";

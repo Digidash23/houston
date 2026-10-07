@@ -26,7 +26,7 @@ import {
   type ScheduleLabels,
 } from "./labels";
 import { ScheduleBuilder } from "./schedule-builder";
-import { type ScheduleFloor, scheduleSaveBlocked } from "./schedule-floor";
+import type { ScheduleFloor } from "./schedule-floor";
 
 export interface RoutineRowScheduleEditProps {
   routineId: string;
@@ -62,16 +62,28 @@ export function RoutineRowScheduleEdit({
 }: RoutineRowScheduleEditProps) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(cron);
+  // The schedule the editor opened on. Save compares the draft against THIS,
+  // not the live prop: if the agent changes the schedule while the editor is
+  // open, Save without edits must not write the old value back over it.
+  const [openedWith, setOpenedWith] = useState(cron);
 
   // Reseed the draft from the live cron every time the popover opens, so a
   // previously cancelled edit never leaks into the next one.
   const handleOpenChange = (next: boolean) => {
-    if (next) setDraft(cron);
+    if (next) {
+      setDraft(cron);
+      setOpenedWith(cron);
+    }
     setOpen(next);
   };
 
+  // The builder hands back "" for an invalid pick (a cleared or over-cap
+  // count, Weekly with no day, a pick under the floor), so Save stays
+  // disabled until it is valid. An untouched builder hands back nothing, so an
+  // existing schedule under the floor is judged here too.
+  const valid = draft.trim() !== "" && (scheduleFloor?.allows(draft) ?? true);
   const save = () => {
-    if (draft !== cron) onScheduleChange(routineId, draft);
+    if (valid && draft !== openedWith) onScheduleChange(routineId, draft);
     setOpen(false);
   };
 
@@ -127,11 +139,7 @@ export function RoutineRowScheduleEdit({
           <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
             {labels.cancel}
           </Button>
-          <Button
-            size="sm"
-            onClick={save}
-            disabled={scheduleSaveBlocked(draft, scheduleFloor)}
-          >
+          <Button size="sm" onClick={save} disabled={!valid}>
             {labels.save}
           </Button>
         </div>

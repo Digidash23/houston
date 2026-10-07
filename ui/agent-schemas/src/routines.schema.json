@@ -24,7 +24,7 @@
       },
       "schedule": {
         "type": "string",
-        "description": "Cron expression (e.g. '0 9 * * 1-5'). Omit when 'trigger' is set."
+        "description": "Cron expression (e.g. '0 9 * * 1-5'), or '@every <N>m' / '@every <N>h' for every N minutes or hours when N doesn't divide 60 (or 24) evenly (e.g. '@every 16m'). Omit when 'trigger' is set."
       },
       "trigger": {
         "type": "object",

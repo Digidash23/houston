@@ -13,11 +13,12 @@
  * i18n-agnostic; `locale` drives day names + time formatting in the summary.
  *
  * `floor` (a plan's minimum interval, with the plan's own rule as `allows`)
- * keeps every pick on what that rule accepts: the minutes stepper steps
- * between the counts it accepts (past the top one, 1 hour), a typed count it
- * refuses snaps up on blur, presets it refuses are hidden, and a pick it
- * refuses emits "" so the parent can't save. An existing short schedule still
- * shows as it is until edited.
+ * keeps every pick on what that rule accepts: the minutes stepper starts at
+ * the lowest count it accepts (an uneven count saves as a true interval, so
+ * every count above it is accepted too), a typed count below it snaps up on
+ * blur, presets it refuses are hidden, and a pick it refuses emits "" so the
+ * parent can't save. An existing short schedule still shows as it is until
+ * edited.
  */
 
 import { cn } from "@houston-ai/core";
@@ -71,6 +72,7 @@ export function ScheduleBuilder({
     setIntervalEvery,
     intervalUnit,
     setIntervalUnit,
+    intervalMax,
     everyValid,
     floorOk,
     stepper,
@@ -141,6 +143,7 @@ export function ScheduleBuilder({
                 increaseLabel={labels.increase}
                 every={intervalEvery}
                 unit={intervalUnit}
+                max={intervalMax}
                 invalid={!everyValid}
                 stepper={stepper}
                 onEveryChange={setIntervalEvery}

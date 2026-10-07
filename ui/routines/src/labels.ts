@@ -56,18 +56,8 @@ export interface ScheduleSummaryLabels {
   everyNMonths: string;
 }
 
-/** Relative + absolute "next run" phrasing. `{m}`/`{h}`/`{d}`/`{day}`/`{time}`. */
-export interface NextFireLabels {
-  lessThanMinute: string;
-  inMinutes: string;
-  inHoursMinutes: string;
-  inDaysHours: string;
-  inDays: string;
-  today: string;
-  tomorrow: string;
-  soon: string;
-  at: string;
-}
+// The "next run" phrasing contract lives beside this file (size budget).
+export type { NextFireLabels } from "./labels-next-fire.ts";
 
 /** Schedule builder + picker-field labels. */
 export interface ScheduleLabels {
@@ -93,6 +83,9 @@ export interface ScheduleLabels {
   increase: string;
   /** Validation summary shown when the custom interval count is empty/invalid. */
   enterNumber: string;
+  /** Validation summary when the count is over its unit's maximum.
+   *  `{max}` is that maximum, `{unit}` the plural unit name. */
+  maxInterval: string;
   /** Validation summary shown when the Weekly preset has no day selected. */
   pickDay: string;
   /**

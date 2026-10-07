@@ -1,12 +1,10 @@
 import {
   applyRoutineUpdate,
   createRoutine,
-  getPreference,
   isValidTriggerBinding,
   loadRoutines,
   saveRoutines,
   upsertById,
-  validateSchedule,
 } from "@houston/domain";
 import type {
   NewRoutine,
@@ -16,6 +14,7 @@ import type {
 } from "@houston/protocol";
 import type { Vfs } from "../vfs";
 import { withDocLock } from "./doc-lock";
+import { checkedSchedule } from "./routine-schedule";
 import {
   NO_TRIGGER_BACKEND_WRITE_ERROR,
   planFloorRefusal,
@@ -56,10 +55,10 @@ export type RoutineWriteError = { error: string } | PlanMinIntervalRefusal;
 /**
  * Create a routine merge-safely. Runs the SAME create-time gates as the
  * authenticated POST (name/prompt present, exactly one wake, trigger-backend
- * availability, valid cron, plan floor when one is set, known provider pin),
- * then reads the existing file, appends the new routine, and writes the whole
- * survivor set back. Returns the created routine or a plain-language error the
- * caller relays.
+ * availability, valid schedule, plan floor when one is set, known provider
+ * pin), then reads the existing file, appends the new routine, and writes the
+ * whole survivor set back. Returns the created routine or a plain-language error
+ * the caller relays.
  */
 export async function createRoutineChecked(
   vfs: Vfs,
@@ -80,14 +79,12 @@ export async function createRoutineChecked(
   if (body.trigger != null && !opts.triggersEnabled) {
     return { error: NO_TRIGGER_BACKEND_WRITE_ERROR };
   }
-  const input = body as unknown as NewRoutine;
-  // Reject a bad cron NOW (schedule routines only) — otherwise the routine saves
-  // and silently never fires. Validate against the single account-wide zone
-  // (HOU-470): there is no per-routine timezone. Trigger routines have no cron.
+  let input = body as unknown as NewRoutine;
+  // Trigger routines have no schedule to check.
   if (typeof input.schedule === "string") {
-    const accountTz = await getPreference(vfs, workspaceId, "timezone");
-    const scheduleErr = validateSchedule(input.schedule, accountTz);
-    if (scheduleErr) return { error: `invalid schedule: ${scheduleErr}` };
+    const checked = await checkedSchedule(vfs, workspaceId, input.schedule);
+    if ("error" in checked) return checked;
+    input = { ...input, schedule: checked.schedule };
   }
   // A routine created disabled never fires, so it is exempt (as on update).
   if (input.enabled !== false) {
@@ -116,9 +113,9 @@ export async function createRoutineChecked(
  * Update a routine by id merge-safely. Reads the file, applies the partial update
  * to the matching entry, re-checks the exactly-one-wake invariant on the APPLIED
  * result (e.g. `{trigger: null}` on a trigger routine clears its only wake), the
- * trigger-backend gate, the cron, and the provider pin, then writes the whole set
- * back. `{ notFound: true }` when no routine has that id; else the updated routine
- * or a plain-language error.
+ * trigger-backend gate, the schedule, and the provider pin, then writes the
+ * whole set back. `{ notFound: true }` when no routine has that id; else the
+ * updated routine or a plain-language error.
  */
 export async function updateRoutineChecked(
   vfs: Vfs,
@@ -139,7 +136,7 @@ export async function updateRoutineChecked(
     if (update.trigger != null && !isValidTriggerBinding(update.trigger)) {
       return { error: "invalid 'trigger' binding" };
     }
-    const next = applyRoutineUpdate(
+    let next = applyRoutineUpdate(
       current,
       update as RoutineUpdate,
       opts.nowIso,
@@ -160,9 +157,9 @@ export async function updateRoutineChecked(
       return { error: NO_TRIGGER_BACKEND_WRITE_ERROR };
     }
     if (typeof next.schedule === "string") {
-      const accountTz = await getPreference(vfs, workspaceId, "timezone");
-      const scheduleErr = validateSchedule(next.schedule, accountTz);
-      if (scheduleErr) return { error: `invalid schedule: ${scheduleErr}` };
+      const checked = await checkedSchedule(vfs, workspaceId, next.schedule);
+      if ("error" in checked) return checked;
+      next = { ...next, schedule: checked.schedule };
     }
     // Every update re-stamps `created_by` to the editor (applyRoutineUpdate),
     // whose plan then judges the fires, so even a prompt-only edit is checked.

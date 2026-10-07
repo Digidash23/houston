@@ -70,10 +70,11 @@ Components:
   plus the rule that judges a cron against it, which the app binds to the
   SDK; for every row via `RoutinesGrid`'s `scheduleFloor`, and on
   `RoutineRowScheduleEdit`) keeps every pick on what that rule accepts: the
-  minutes stepper offers only the counts it accepts (past the top one, 1
-  hour), a typed count it refuses snaps up on blur, presets it refuses are
-  hidden, and saving a pick it refuses is blocked. The builder never judges
-  a cadence itself.
+  minutes stepper starts at the lowest count it accepts (an uneven count saves
+  as a true `@every` interval, so every count above it is accepted too), a
+  typed count below it snaps up on blur, presets it refuses are hidden, and
+  saving a pick it refuses is blocked. The builder never judges a cadence
+  itself.
 - `TriggerPicker` / `TriggerConfigForm` — the event-trigger picker + generated
   config form, for the app's creation flow.
 - `TriggerStatusBadge` — a trigger routine's live status chip + reconnect; with

@@ -3,29 +3,33 @@ import { describe, it } from "node:test";
 import { DEFAULT_SCHEDULE_LABELS, interp } from "../src/labels.ts";
 import {
   type BuilderPick,
-  deriveSchedule,
-} from "../src/schedule-builder-derive.ts";
+  builderOutput,
+} from "../src/schedule-builder-output.ts";
 import type { ScheduleOptions } from "../src/schedule-cron-utils.ts";
 import {
   countForUnitSwitch,
   defaultMinutesCount,
-  floorMinuteCounts,
+  floorMinuteMinimum,
   floorStepper,
-  type IntervalCount,
   presetAllowed,
   type ScheduleFloor,
-  scheduleSaveBlocked,
 } from "../src/schedule-floor.ts";
 import type { SchedulePreset } from "../src/types.ts";
 
 /**
  * A stand-in for the plan rule the app binds (the SDK's real-gap rule): a
- * minute step restarts at the top of the hour, so `*\/16` fires :48 then :00.
- * The builder only ever asks the rule; it never judges a cadence itself.
+ * minute step restarts at the top of the hour, so `*\/16` fires :48 then :00,
+ * while `@every 16m` runs exactly 16 apart. The builder only ever asks the
+ * rule; it never judges a cadence itself.
  */
-function minuteStepGap(cron: string): number | null {
-  if (cron === "* * * * *") return 1;
-  const step = cron.match(/^\*\/(\d+) \* \* \* \*$/);
+function realGap(schedule: string): number | null {
+  const every = schedule.match(/^@every (\d+)(m|h)$/);
+  if (every) return Number(every[1]) * (every[2] === "h" ? 60 : 1);
+  if (schedule === "* * * * *") return 1;
+  if (schedule === "0 * * * *") return 60;
+  const hours = schedule.match(/^0 \*\/(\d+) \* \* \*$/);
+  if (hours) return Number(hours[1]) * 60;
+  const step = schedule.match(/^\*\/(\d+) \* \* \* \*$/);
   if (!step) return null;
   const n = Number(step[1]);
   const last = Math.floor(59 / n) * n;
@@ -33,13 +37,13 @@ function minuteStepGap(cron: string): number | null {
 }
 const floorOf = (minutes: number): ScheduleFloor => ({
   minutes,
-  allows: (cron) => {
-    const gap = minuteStepGap(cron);
+  allows: (schedule) => {
+    const gap = realGap(schedule);
     return gap === null || gap >= minutes;
   },
 });
 const FREE = floorOf(15);
-const COUNTS = floorMinuteCounts(FREE);
+const MINIMUM = floorMinuteMinimum(FREE);
 const OPTS: ScheduleOptions = { time: "09:00", daysOfWeek: [1], dayOfMonth: 1 };
 const ALL_PRESETS: SchedulePreset[] = [
   "every_30min",
@@ -61,12 +65,9 @@ function pick(patch: Partial<BuilderPick>): BuilderPick {
 }
 
 /** Run one stepper action and return where it landed, or null for none. */
-function step(
-  every: string,
-  act: "down" | "up" | "commit",
-): IntervalCount | null {
-  let landed: IntervalCount | null = null;
-  const stepper = floorStepper(every, "minutes", COUNTS, (to) => {
+function step(every: string, act: "down" | "up" | "commit"): number | null {
+  let landed: number | null = null;
+  const stepper = floorStepper(every, "minutes", MINIMUM, (to) => {
     landed = to;
   });
   assert.ok(stepper);
@@ -77,15 +78,15 @@ function step(
 }
 
 describe("schedule floor: the counts the rule offers", () => {
-  it("offers exactly the minute counts the rule accepts", () => {
-    assert.deepEqual(COUNTS, [
-      15,
-      20,
-      21,
-      22,
-      ...Array.from({ length: 16 }, (_, i) => 30 + i),
-    ]);
-    assert.deepEqual(floorMinuteCounts(floorOf(61)), []);
+  it("starts at the floor itself: every count from 15 saves at its own gap", () => {
+    assert.equal(MINIMUM, 15);
+    assert.equal(floorMinuteMinimum(floorOf(61)), 61);
+    for (const n of [15, 16, 17, 25, 46, 90])
+      assert.equal(
+        builderOutput(pick({ intervalEvery: String(n), floor: FREE })).floorOk,
+        true,
+        String(n),
+      );
   });
 
   it("offers every preset on Free and hides one the rule refuses", () => {
@@ -99,19 +100,19 @@ describe("schedule floor: the counts the rule offers", () => {
     assert.deepEqual(shown, ["hourly", "daily", "weekly", "monthly", "custom"]);
   });
 
-  it("starts at the first offered count instead of 5 minutes", () => {
+  it("starts at the floor's minimum instead of 5 minutes", () => {
     assert.equal(defaultMinutesCount(undefined), 5);
-    assert.equal(defaultMinutesCount(COUNTS), 15);
-    assert.equal(defaultMinutesCount([]), 5);
+    assert.equal(defaultMinutesCount(MINIMUM), 15);
+    assert.equal(defaultMinutesCount(3), 5);
+    assert.equal(defaultMinutesCount(null), 5);
   });
 
-  it("lands on an offered count when the unit switches to minutes", () => {
-    assert.equal(countForUnitSwitch("2", "minutes", COUNTS), "15");
-    assert.equal(countForUnitSwitch("20", "minutes", COUNTS), null);
-    assert.equal(countForUnitSwitch("25", "minutes", COUNTS), "30");
-    assert.equal(countForUnitSwitch("50", "minutes", COUNTS), "45");
-    assert.equal(countForUnitSwitch("2", "hours", COUNTS), null);
-    assert.equal(countForUnitSwitch("", "minutes", COUNTS), null);
+  it("lifts a count below the minimum when the unit switches to minutes", () => {
+    assert.equal(countForUnitSwitch("2", "minutes", MINIMUM), "15");
+    assert.equal(countForUnitSwitch("16", "minutes", MINIMUM), null);
+    assert.equal(countForUnitSwitch("90", "minutes", MINIMUM), null);
+    assert.equal(countForUnitSwitch("2", "hours", MINIMUM), null);
+    assert.equal(countForUnitSwitch("", "minutes", MINIMUM), null);
     assert.equal(countForUnitSwitch("2", "minutes", undefined), null);
   });
 });
@@ -123,109 +124,93 @@ describe("schedule floor: the minutes stepper", () => {
       undefined,
     );
     assert.equal(
-      floorStepper("15", "hours", COUNTS, () => {}),
+      floorStepper("15", "hours", MINIMUM, () => {}),
       undefined,
     );
   });
 
-  it("moves between offered counts, and past the top to 1 hour", () => {
+  it("moves by one at or above the minimum, never below it", () => {
     assert.equal(step("15", "down"), null);
-    assert.deepEqual(step("20", "down"), { every: 15, unit: "minutes" });
-    assert.deepEqual(step("15", "up"), { every: 20, unit: "minutes" });
-    assert.deepEqual(step("22", "up"), { every: 30, unit: "minutes" });
-    assert.deepEqual(step("45", "up"), { every: 1, unit: "hours" });
+    assert.equal(step("16", "down"), 15);
+    assert.equal(step("15", "up"), 16);
+    assert.equal(step("16", "up"), 17);
+    assert.equal(step("59", "up"), 60);
+    assert.equal(step("10080", "up"), 10080);
   });
 
-  it("steps from a typed count the rule refuses to its neighbors", () => {
+  it("steps from a typed count below the minimum onto it", () => {
     // The press keeps focus, so no blur snap runs first.
-    assert.deepEqual(step("5", "up"), { every: 15, unit: "minutes" });
-    assert.deepEqual(step("17", "up"), { every: 20, unit: "minutes" });
-    assert.deepEqual(step("17", "down"), { every: 15, unit: "minutes" });
-    assert.deepEqual(step("", "up"), { every: 15, unit: "minutes" });
+    assert.equal(step("5", "up"), 15);
+    assert.equal(step("5", "down"), null);
+    assert.equal(step("", "up"), 15);
     assert.equal(step("", "down"), null);
   });
 
-  it("snaps a typed count the rule refuses up on blur", () => {
-    assert.deepEqual(step("5", "commit"), { every: 15, unit: "minutes" });
-    assert.deepEqual(step("16", "commit"), { every: 20, unit: "minutes" });
-    assert.deepEqual(step("50", "commit"), { every: 1, unit: "hours" });
-    assert.deepEqual(step("90", "commit"), { every: 1, unit: "hours" });
-    assert.equal(step("21", "commit"), null);
+  it("lifts a typed count below the minimum on blur, and keeps the rest", () => {
+    assert.equal(step("5", "commit"), 15);
+    assert.equal(step("14", "commit"), 15);
+    assert.equal(step("16", "commit"), null);
+    assert.equal(step("90", "commit"), null);
     assert.equal(step("", "commit"), null);
   });
 });
 
-describe("schedule floor: Save in the schedule editor", () => {
-  it("is disabled under a floor while the builder emits no schedule", () => {
-    assert.equal(scheduleSaveBlocked("", FREE), true);
-    assert.equal(scheduleSaveBlocked("  ", FREE), true);
-    assert.equal(scheduleSaveBlocked("*/15 * * * *", FREE), false);
-  });
-
-  it("is never disabled without a floor, as before", () => {
-    assert.equal(scheduleSaveBlocked("", undefined), false);
-  });
-});
-
 describe("schedule floor: what the builder emits", () => {
-  it("emits nothing for a pick the rule refuses, so Save stays blocked", () => {
-    for (const n of ["5", "14", "16", "25", "46"]) {
-      const refused = deriveSchedule(pick({ intervalEvery: n, floor: FREE }));
+  it("Free plus every 16 minutes saves the true interval", () => {
+    const out = builderOutput(pick({ intervalEvery: "16", floor: FREE }));
+    assert.equal(out.floorOk, true);
+    assert.equal(out.schedule, "@every 16m");
+  });
+
+  it("Free plus every 15 minutes saves the even cron", () => {
+    const out = builderOutput(pick({ intervalEvery: "15", floor: FREE }));
+    assert.equal(out.schedule, "*/15 * * * *");
+  });
+
+  it("emits nothing for a count under the floor, so Save stays blocked", () => {
+    for (const [n, spelled] of [
+      ["5", "*/5 * * * *"],
+      ["10", "*/10 * * * *"],
+      ["14", "@every 14m"],
+    ]) {
+      const refused = builderOutput(pick({ intervalEvery: n, floor: FREE }));
       assert.equal(refused.floorOk, false, n);
-      assert.equal(refused.cron, "", n);
+      assert.equal(refused.schedule, "", n);
       // The pick itself still reads honestly in the summary.
-      assert.equal(refused.pickedCron, `*/${n} * * * *`, n);
+      assert.equal(refused.picked, spelled, n);
     }
   });
 
-  it("emits the cron for every count the rule accepts", () => {
-    for (const n of ["15", "20", "22", "40", "45"])
-      assert.equal(
-        deriveSchedule(pick({ intervalEvery: n, floor: FREE })).cron,
-        `*/${n} * * * *`,
-      );
-  });
-
-  it("holds a minutes count past 59 until the blur snaps it", () => {
-    assert.equal(
-      deriveSchedule(pick({ intervalEvery: "90", floor: FREE })).cron,
-      "",
-    );
-  });
-
   it("blocks a preset the rule refuses", () => {
-    const d = deriveSchedule(
+    const d = builderOutput(
       pick({ activePreset: "every_30min", floor: floorOf(45) }),
     );
-    assert.equal(d.cron, "");
-    assert.equal(d.pickedCron, "*/30 * * * *");
+    assert.equal(d.schedule, "");
+    assert.equal(d.picked, "*/30 * * * *");
   });
 
   it("asks the rule about hours too", () => {
-    const d = deriveSchedule(
+    const d = builderOutput(
       pick({ intervalEvery: "5", intervalUnit: "hours", floor: FREE }),
     );
-    assert.equal(d.cron, "0 */5 * * *");
+    assert.equal(d.schedule, "@every 5h");
   });
 
   it("changes nothing without a floor", () => {
-    for (const [every, cron] of [
+    for (const [every, schedule] of [
       ["1", "* * * * *"],
       ["5", "*/5 * * * *"],
-      ["16", "*/16 * * * *"],
-      ["90", "*/90 * * * *"],
+      ["16", "@every 16m"],
+      ["90", "@every 90m"],
       ["", ""],
     ])
-      assert.equal(deriveSchedule(pick({ intervalEvery: every })).cron, cron);
+      assert.equal(
+        builderOutput(pick({ intervalEvery: every })).schedule,
+        schedule,
+      );
     assert.equal(
-      deriveSchedule(pick({ activePreset: "daily" })).cron,
+      builderOutput(pick({ activePreset: "daily" })).schedule,
       "0 9 * * *",
-    );
-    assert.equal(
-      deriveSchedule(
-        pick({ activePreset: "weekly", options: { ...OPTS, daysOfWeek: [] } }),
-      ).cron,
-      "",
     );
   });
 

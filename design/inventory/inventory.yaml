@@ -1077,10 +1077,10 @@ components:
       saver, whose plan the runs are judged on), bound to the SDK's one rule
       (scheduleFloorRule: a cron's smallest REAL gap between fires, the same
       rule the save check and the host's write gate run). The editor only
-      asks that rule: the custom minutes count offers exactly the counts it
-      accepts (a step restarts at the top of the hour, so on Free 16-19,
-      23-29 and 46-59 are not offered), minus and plus step between them,
-      plus past the top moves to 1 hour, a typed count it refuses snaps up on
+      asks that rule: the custom minutes count starts at the lowest count it
+      accepts (on Free, 15; an uneven count saves as a true interval,
+      `@every 16m`, that runs exactly that far apart, so every count above it
+      is accepted too), minus stops there, a typed count below it snaps up on
       blur with Save disabled until then, a preset it refuses is hidden (none
       at 15), and a hint names the minimum. An existing shorter schedule
       still reads as it is, with Save disabled until changed.
