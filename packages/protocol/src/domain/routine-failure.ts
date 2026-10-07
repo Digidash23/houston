@@ -12,7 +12,7 @@
  * works but cannot run the model the routine uses; picking another model fixes
  * it.
  */
-export type RoutineRunFailureCode =
+export type RoutineAccountFailureCode =
   | "creator_not_connected"
   | "team_not_connected"
   | "creator_needs_reconnect"
@@ -20,11 +20,21 @@ export type RoutineRunFailureCode =
   | "out_of_credits"
   | "model_unavailable";
 
-export interface RoutineRunFailure {
-  code: RoutineRunFailureCode;
-  /** The provider id the run needed (e.g. "anthropic"). */
-  provider: string;
-}
+/**
+ * Every typed reason a routine run failed. `no_model`: the routine names no
+ * model (it predates per-routine models, PRODUCT-1982) and the agent has no
+ * saved provider to fall back on, so there is no provider to name; choosing a
+ * model for the routine fixes it.
+ */
+export type RoutineRunFailureCode = RoutineAccountFailureCode | "no_model";
+
+export type RoutineRunFailure =
+  | {
+      code: RoutineAccountFailureCode;
+      /** The provider id the run needed (e.g. "anthropic"). */
+      provider: string;
+    }
+  | { code: "no_model" };
 
 /** Delivery failures never contribute to credential auto-pause streaks. */
 export type RoutineDeliveryFailureCode = "pool_delivery_expired";
@@ -35,14 +45,23 @@ export interface RoutineDeliveryFailure {
 
 /**
  * Why the engine paused a routine (see `Routine.auto_paused`). Every one of the
- * last `failures` runs failed with the same `reason`, so firing again would
- * only fail again until someone fixes the account or the model it runs on.
+ * last `failures` runs failed with the same reason, so firing again would only
+ * fail again until someone fixes the account or the model it runs on.
  */
 export interface RoutineAutoPause {
   /** The failure each of the counted runs hit. */
-  reason: RoutineRunFailureCode;
-  /** The provider id those runs needed (e.g. "anthropic"). */
+  reason: RoutineAccountFailureCode;
+  /** The provider id those runs needed (e.g. "anthropic"); "" with `cause`. */
   provider: string;
+  /**
+   * Set when the runs failed on something the account codes cannot name.
+   * `no_model`: the routine names no model and nothing is saved to fall back
+   * on. Such a pause is written as `reason: "model_unavailable"` with an empty
+   * `provider`, because clients older than this field crash on a reason they
+   * do not know and the gateway serves this file to every client version; a
+   * client that knows `cause` reads it first (PRODUCT-1982).
+   */
+  cause?: "no_model";
   /** How many runs in a row failed that way. */
   failures: number;
   /** ISO time the engine paused the routine. */

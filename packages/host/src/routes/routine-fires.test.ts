@@ -242,6 +242,13 @@ test.each([
       error:
         'runtime 409: {"error":"No provider connected.","code":"no_provider"}',
     },
+
+    // Typed, so it counts toward the auto-pause (PRODUCT-1982).
+    {
+      summary:
+        "This routine has no model chosen, and the AI account it would use isn't connected.",
+      failure: { code: "no_model" },
+    },
   ],
   [
     "an uncoded runtime refusal",
@@ -268,7 +275,7 @@ test.each([
     },
   ],
   ["a taken turn slot", turnBusyError("other-chat"), { result: "busy" }],
-])("%s answers 200 with a terminal result and an errored run", async (_name, refusal, expected) => {
+])("%s answers 200 with a terminal result and an errored run", async (_name, refusal, expected, typedRun?: object) => {
   await seedRoutines([routine()]);
   channel.refusal = refusal;
   const body = {
@@ -281,7 +288,10 @@ test.each([
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual(expected);
   const [run] = await runs();
-  expect(run).toMatchObject({ status: "error", summary: refusal.message });
+  expect(run).toMatchObject({
+    status: "error",
+    ...(typedRun ?? { summary: refusal.message }),
+  });
 
   // The instant stays burned and a redelivery replays the recorded outcome.
   const replay = await postFire(body);

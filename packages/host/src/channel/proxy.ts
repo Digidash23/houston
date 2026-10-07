@@ -325,6 +325,7 @@ export class ProxyChannel implements RuntimeChannel {
         `runtime ${res.status}: ${body}`,
         res.status,
         errorCodeFrom(body),
+        TurnFireError.providerIn(body),
       );
     }
   }

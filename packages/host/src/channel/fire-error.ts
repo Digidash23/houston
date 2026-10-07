@@ -10,9 +10,29 @@ export class TurnFireError extends Error {
     message: string,
     readonly status: number,
     readonly code: string | null,
+    /**
+     * The provider the refusal names, when its body named one: the 409
+     * `no_provider` gate names the agent's SAVED provider (logged out, login
+     * expired) so a routine run can say which account to reconnect.
+     */
+    readonly provider: string | null = null,
   ) {
     super(message);
     this.name = "TurnFireError";
+  }
+
+  /** The `provider` field of a runtime error body, when it is JSON with one. */
+  static providerIn(body: string): string | null {
+    try {
+      const parsed: unknown = JSON.parse(body);
+      if (parsed && typeof parsed === "object" && "provider" in parsed) {
+        const provider = (parsed as { provider: unknown }).provider;
+        if (typeof provider === "string" && provider) return provider;
+      }
+    } catch {
+      // Not JSON: no provider named; the message keeps the verbatim body.
+    }
+    return null;
   }
 }
 

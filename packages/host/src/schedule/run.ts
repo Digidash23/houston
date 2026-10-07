@@ -3,16 +3,16 @@ import {
   loadRoutineRuns,
   pruneRoutineRuns,
   saveRoutineRuns,
+  unconnectedRoutineFailure,
   upsertById,
 } from "@houston/domain";
 import type { Routine, RoutineRunFailure } from "@houston/protocol";
-import { TurnFireError } from "../channel/fire-error";
 import type { Agent, Workspace } from "../domain/types";
 import type { EventHub } from "../events/hub";
 import type { WorkspacePaths } from "../paths";
 import type { Vfs } from "../vfs";
 import { pauseFailingRoutines } from "./auto-pause";
-import { routineRunFailureSummary } from "./run-failure";
+import { isUnconnectedRefusal, routineRunFailureSummary } from "./run-failure";
 import { withRunsFile } from "./runs-lock";
 import type { RoutineFirer } from "./scheduler";
 
@@ -117,16 +117,14 @@ export async function fireRoutineRun(
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    // The runtime refused the fire outright because nothing is connected for
-    // the identity the routine runs as — the creator's (PRODUCT-1475). Typed
-    // only when the routine PINS a provider: the unpinned case genuinely has
-    // no provider to name, so it keeps the runtime's verbatim message.
-    const failure: RoutineRunFailure | undefined =
-      err instanceof TurnFireError &&
-      err.code === "no_provider" &&
-      routine.provider
-        ? { code: "creator_not_connected", provider: routine.provider }
-        : undefined;
+    // The runtime refused the fire outright because nothing usable is
+    // connected for the identity the routine runs as — the creator's
+    // (PRODUCT-1475). It blames the routine's pin, else the agent's saved
+    // provider the refusal names; with neither it reads as "no model chosen"
+    // (PRODUCT-1982). Typed every way, so all of them stop at the pause.
+    const failure: RoutineRunFailure | undefined = isUnconnectedRefusal(err)
+      ? unconnectedRoutineFailure(routine.provider || err.provider)
+      : undefined;
     await markRunErrored(root, err, async () => {
       const { items: current } = await loadRoutineRuns(deps.vfs, root);
       const row = current.find((r) => r.id === runId);
@@ -149,8 +147,18 @@ export async function fireRoutineRun(
       type: "RoutineRunsChanged",
       agentPath: agent.id,
     });
+    // The errored row is already written: a failed pause must not replace the
+    // fire's own error, or a caller reads it as "never recorded" and the
+    // instant is redelivered into a second errored row. Reported (console.error
+    // reaches Sentry), and the next failed run retries the pause.
     if (failure)
-      await pauseFailingRoutines(deps, ws, agent, root, [routine.id]);
+      await pauseFailingRoutines(deps, ws, agent, root, [routine.id]).catch(
+        (pauseError: unknown) =>
+          console.error(
+            `[routine-auto-pause] pause of ${agent.id}/${routine.id} failed:`,
+            pauseError,
+          ),
+      );
     throw err;
   }
   return { runId, conversationId: run.session_key };

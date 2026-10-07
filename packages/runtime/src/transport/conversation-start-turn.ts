@@ -17,6 +17,7 @@ import {
   replyExistingAdmission,
   trackAdmission,
 } from "./message-admission";
+import { noProviderRefusal } from "./no-provider-refusal";
 
 /**
  * `POST /conversations/:id/messages` — the ONE door every channel's message
@@ -142,13 +143,7 @@ export async function handleStartTurn(ctx: RouteContext, id: string) {
     })) &&
     !pinnedProvider
   ) {
-    // `code` is the machine-readable half: the host's scheduler reads it to
-    // demote a routine firing into this expected user state (nothing connected
-    // yet) to a warning instead of a Sentry error (HOUSTON-APP-4XM).
-    json(ctx.res, 409, {
-      error: "No provider connected. Connect an AI provider first.",
-      code: "no_provider",
-    });
+    json(ctx.res, 409, noProviderRefusal());
     return;
   }
   // A `/clear` or `/compact` is rewriting this conversation's context right
