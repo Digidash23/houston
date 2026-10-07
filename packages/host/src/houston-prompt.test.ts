@@ -351,3 +351,30 @@ test("every agent learns the AI Manager is Houston, in BOTH mirrors", () => {
       /Houston(shows|detects|combines|messages|records|attaches|asks|runs|reports|says)/,
     );
 });
+
+test("a turn that needs tools opens with one plain sentence, in BOTH mirrors (PRODUCT-1979)", () => {
+  // 60% of turns ran tools before any text, and the user saw nothing for
+  // about 22 s against about 8 s for turns that answered straight away. One
+  // sentence before the first tool call puts text on screen after one model
+  // call instead of several.
+  const rust = readFileSync(
+    fileURLToPath(
+      new URL(
+        "../../../app/src-tauri/src/houston_prompt/base.rs",
+        import.meta.url,
+      ),
+    ),
+    "utf8",
+  );
+  const ts = norm(houstonSystemPrompt());
+  const rs = norm(rust);
+  for (const phrase of [
+    "When a turn needs tools, write one short sentence to the user before your first tool call",
+    "One sentence only: no file names, commands, or tool names.",
+    "Do not repeat it before later tool calls in the same turn, and skip it when you answer without tools.",
+  ]) {
+    const needle = norm(phrase);
+    expect(ts).toContain(needle);
+    expect(rs).toContain(needle);
+  }
+});
