@@ -114,7 +114,7 @@ export function MissionBoard({ source }: { source: BoardSource }) {
   const handleSelect = useCallback(
     (id: string | null) => {
       // Card-open perf mark (HOU-1011): completed when the opened
-      // conversation's messages paint (use-agent-board-data).
+      // conversation's messages paint (use-mc-open-conversation.ts).
       if (id) perfSpans.cardClicked();
       source.setSelectedId(id);
     },

@@ -5,10 +5,7 @@ import type {
 } from "@houston/runtime-client";
 import type { MessageLimitRefusal } from "@houston/wire-types";
 import type { FeedOutput, TerminalBoardStatus } from "./feed-output";
-import {
-  type FirstResponseClock,
-  isVisibleAssistantText,
-} from "./first-response";
+import type { FirstResponseClock } from "./first-response";
 import type { EngineNoticeKind } from "./turn-errors";
 import { isNotConnectedError, isStoppedByUser } from "./turn-errors";
 
@@ -123,8 +120,7 @@ export const push = (s: TurnState, item: object): void => {
     s.sessionKey,
     s.turnId === undefined ? item : { ...item, turnId: s.turnId },
   );
-  if (isVisibleAssistantText(item))
-    s.firstResponse?.resolve("first_text", s.turnId);
+  s.firstResponse?.pushed(item, s.turnId);
 };
 
 const invisibleFinal = (s: TurnState) =>

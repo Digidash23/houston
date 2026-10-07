@@ -12,6 +12,11 @@
  * whose echo never arrived. There is no cut-off for a slow answer below {@link
  * FIRST_RESPONSE_TIMEOUT_MS}; past it the turn reports `timeout` (censored)
  * rather than vanishing.
+ *
+ * The report also carries the turn's FIRST ACTIVITY: the first visible item of
+ * any kind (thinking, a tool call, or text). Text often waits for several tool
+ * round trips while the chat already shows the turn working, so first activity
+ * is the "is it alive" time and first text the "did it answer" time.
  */
 
 export type FirstResponseOutcome =
@@ -39,6 +44,12 @@ export interface FirstResponse {
   at: number;
   /** The turn's wire id, when it was adopted by then (absent on legacy servers). */
   turnId?: string;
+  /**
+   * Epoch ms the turn's first visible item of any kind (thinking, a tool call,
+   * or text) was pushed, at or before `at`. Absent when nothing visible came
+   * before the outcome (a refused send, a silent timeout).
+   */
+  firstActivityAt?: number;
 }
 
 /**
@@ -52,6 +63,7 @@ export const FIRST_RESPONSE_TIMEOUT_MS = 600_000;
 export class FirstResponseClock {
   readonly sentAt: number;
   private done = false;
+  private firstActivityAt: number | undefined;
   private timer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
@@ -64,16 +76,29 @@ export class FirstResponseClock {
     (this.timer as { unref?: () => void }).unref?.();
   }
 
+  /**
+   * The turn pushed a feed item: the first visible one stamps first activity,
+   * and the first visible assistant text resolves `first_text`.
+   */
+  pushed(item: object, turnId?: string): void {
+    if (this.done) return;
+    if (this.firstActivityAt === undefined && isVisibleActivity(item))
+      this.firstActivityAt = Date.now();
+    if (isVisibleAssistantText(item)) this.resolve("first_text", turnId);
+  }
+
   /** Report `outcome` unless the turn already reported one. */
   resolve(outcome: FirstResponseOutcome, turnId?: string): void {
     if (this.done) return;
     this.done = true;
     this.clearTimer();
+    const at = this.firstActivityAt;
     this.report({
       outcome,
       sentAt: this.sentAt,
       at: Date.now(),
       ...(turnId === undefined ? {} : { turnId }),
+      ...(at === undefined ? {} : { firstActivityAt: at }),
     });
   }
 
@@ -90,6 +115,18 @@ export class FirstResponseClock {
     if (this.timer !== undefined) clearTimeout(this.timer);
     this.timer = undefined;
   }
+}
+
+/**
+ * Whether a feed item shows the person the turn is working: non-blank thinking,
+ * a tool call, or visible assistant text.
+ */
+export function isVisibleActivity(item: object): boolean {
+  const it = item as { feed_type?: unknown; data?: unknown };
+  if (it.feed_type === "tool_call") return true;
+  if (it.feed_type === "thinking_streaming" || it.feed_type === "thinking")
+    return typeof it.data === "string" && it.data.trim() !== "";
+  return isVisibleAssistantText(item);
 }
 
 /** Whether a feed item is assistant text a person can see (not blank). */
