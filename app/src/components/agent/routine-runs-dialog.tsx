@@ -86,7 +86,10 @@ export function RoutineRunsHistory({
   // template-literal key would compile past a typo the locale validator can't
   // see. `undefined` keeps the run's own summary.
   const failureSummary = (run: RoutineRun): string | undefined => {
-    const provider = run.failure ? providerName(run.failure.provider) : "";
+    const provider =
+      run.failure && "provider" in run.failure
+        ? providerName(run.failure.provider)
+        : "";
     // An account the gateway signed out reads as "sign in again", not as
     // never connected (the SDK's `routineFailureCode` with the reader).
     switch (routineFailureCode(run, readerFor)) {
@@ -104,6 +107,8 @@ export function RoutineRunsHistory({
         return t("details.failure.outOfCredits", { provider });
       case "model_unavailable":
         return t("details.failure.modelUnavailable", { provider });
+      case "no_model":
+        return t("details.failure.noModel");
     }
   };
 

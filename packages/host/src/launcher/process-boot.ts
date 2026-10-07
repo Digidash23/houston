@@ -100,6 +100,9 @@ export async function spawnUntilHealthy(
     // as "running" - kill it and surface the failure (the turn errors visibly).
     handle.kill();
     state.running.delete(agent.id);
+    // A drain that killed the child mid-boot is the shutdown, not a broken
+    // runtime: callers answer it as a drain (503) and retry elsewhere.
+    if (state.closed()) throw new LauncherClosedError();
     throw err;
   } finally {
     abortBoot = undefined;

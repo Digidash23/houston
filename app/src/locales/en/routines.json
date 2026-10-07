@@ -141,6 +141,7 @@
       "teamNeedsReconnect": "{{provider}} needs to be reconnected.",
       "outOfCredits": "The {{provider}} account is out of credits.",
       "modelUnavailable": "The {{provider}} account can't use the model this routine runs on.",
+      "noModel": "This routine has no model chosen, and the AI account it would use isn't connected.",
       "poolDeliveryExpired": "This run couldn't start in time and was skipped. You can run the routine again."
     },
     "autoPause": {
@@ -153,6 +154,7 @@
       "reconnectTeam": "{{provider}} needs to be reconnected. Once that's done, resume the routine.",
       "addCredits": "The {{provider}} account is out of credits. Add credits or change plan, then resume the routine.",
       "changeModel": "The {{provider}} account can't use this routine's model. Pick a model the account can run, then resume the routine.",
+      "chooseModel": "This routine has no model chosen, and the AI account it would use isn't connected. Pick a model in the Model section, then resume the routine.",
       "resume": "Resume"
     }
   },

@@ -50,6 +50,11 @@ function loadSettings(dataDir: string): Settings {
   }
 }
 
+/** The agent's saved provider in a hydrated runtime dir, connected or not. */
+export function savedActiveProviderIn(dataDir: string): ProviderId | null {
+  return loadSettings(dataDir).activeProvider ?? null;
+}
+
 function writeJsonAtomic(file: string, value: unknown): void {
   mkdirSync(dirname(file), { recursive: true });
   const tmp = atomicTempPath(file);

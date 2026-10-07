@@ -28,6 +28,12 @@ export interface HydrateOptions {
   /** Download these candidates before filtering the non-priority objects. */
   priority?: (rel: string) => boolean;
   /**
+   * Admitted objects kept out of `done`: they start downloading once `done`
+   * resolves and land in `deferred`. A caller that defers must observe
+   * `deferred`, or its rejection goes unhandled.
+   */
+  defer?: (rel: string) => boolean;
+  /**
    * Keep the board's hydrated bytes in the manifest as its three-way merge
    * base (`SyncBackOptions.workerMerge`). Off for the standing store sync.
    */

@@ -1,18 +1,14 @@
-import {
-  loadRoutines,
-  routinePin,
-  routineTriggerPrompt,
-} from "@houston/domain";
+import { loadRoutines } from "@houston/domain";
 import type { Routine } from "@houston/protocol";
 import type { Agent, Workspace, WorkspaceRuntime } from "../domain/types";
 import type { EventHub } from "../events/hub";
 import type { WorkspacePaths } from "../paths";
 import type { RuntimeChannel } from "../ports";
-import { hostProvider, routineProviderUnavailable } from "../providers";
 import { fireRoutineRun, RoutineBusyError } from "../schedule/run";
-import type { FiringJob, RoutineFirer } from "../schedule/scheduler";
+import { isUnconnectedRefusal } from "../schedule/run-failure";
 import type { Vfs } from "../vfs";
 import { assertActingIsCreator } from "./acting";
+import { TriggerRoutineFirer } from "./trigger-firer";
 
 /**
  * One external event delivered to a routine. `id` is the DEDUP key — the cloud
@@ -78,47 +74,6 @@ export interface FireTriggerDeps {
 const lockKey = (eventId: string) => `trigger-event:${eventId}`;
 
 /**
- * The firer for an event-woken run: identical to `ChannelRoutineFirer` except it
- * frames the batch's events into the prompt (`routineTriggerPrompt`) instead of
- * the plain `routinePrompt`. Kept separate because the prompt IS the difference
- * and the scheduler's firer is prompt-fixed. Fires through the SAME per-workspace
- * channel a user message uses, pinning Autopilot (routine turns never block on
- * ask_user) and the routine's provider/model/effort.
- */
-class TriggerRoutineFirer implements RoutineFirer {
-  constructor(
-    private readonly channels: Partial<
-      Record<WorkspaceRuntime, RuntimeChannel>
-    >,
-    private readonly events: TriggerEvent[],
-    private readonly actingAs?: string,
-  ) {}
-
-  async fire(job: FiringJob): Promise<void> {
-    const channel = this.channels[job.workspace.runtime];
-    if (!channel)
-      throw new Error(`${job.workspace.runtime} runtime not configured`);
-    const pin = { ...routinePin(job.routine), mode: "auto" as const };
-    // A pin resolving to no known provider fails the run HERE with the real
-    // reason (parity with ChannelRoutineFirer) rather than as an opaque
-    // runtime stream error nobody persists.
-    if (pin.provider && !hostProvider(pin.provider))
-      throw new Error(routineProviderUnavailable(pin.provider));
-    // The minted token replaces the bare creator header (ChannelRoutineFirer
-    // parity): the runtime reads acting-as for the credential scope.
-    await channel.fireTurn(
-      { workspace: job.workspace, agent: job.agent },
-      job.conversationId,
-      routineTriggerPrompt(job.routine, this.events),
-      { ...pin, effort: job.routine.effort },
-      this.actingAs
-        ? { actingAs: this.actingAs }
-        : { actingUser: job.routine.created_by },
-    );
-  }
-}
-
-/**
  * Fire a batch of trigger events for one agent — the SINGLE firing path shared
  * by the pod route (control-plane→pod) and the self-host webhook ingress, so
  * there is exactly one place that matches events to routines, dedupes, and fires.
@@ -129,8 +84,10 @@ class TriggerRoutineFirer implements RoutineFirer {
  * caller marked delivery — never double-fires. A routine whose events were ALL
  * already consumed is acked without a new run. A fresh batch fires ONE run
  * (`routineTriggerPrompt`). A busy routine releases its just-set locks (so the
- * redelivery re-fires) and returns `busy`; any other fire failure also releases
- * them (retryable) and rethrows so the caller surfaces the real reason.
+ * redelivery re-fires) and returns `busy`. A fire refused because nothing usable
+ * is connected consumes its events (its typed errored run is the record); any
+ * other fire failure releases them (retryable) and rethrows so the caller
+ * surfaces the real reason.
  */
 export async function fireTriggerEvents(
   deps: FireTriggerDeps,
@@ -186,6 +143,14 @@ export async function fireTriggerEvents(
       );
       for (const e of group) consumed.push(e.id);
     } catch (err) {
+      // Nothing usable is connected: the errored run is recorded and typed,
+      // and a redelivery would only fail the same way and add a row, so one
+      // event could complete the auto-pause streak alone (PRODUCT-1982).
+      // Consume the events like a run that fired and failed.
+      if (isUnconnectedRefusal(err)) {
+        for (const e of group) consumed.push(e.id);
+        continue;
+      }
       // Release the just-set locks so the redelivery can re-fire — busy AND any
       // transient fire failure are retryable (fireRoutineRun already recorded an
       // errored run for the non-busy case; the caller marks delivery on retry).

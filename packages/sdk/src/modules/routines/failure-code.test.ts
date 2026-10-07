@@ -1,4 +1,4 @@
-import type { RoutineRunFailureCode } from "@houston/protocol";
+import type { RoutineAccountFailureCode } from "@houston/protocol";
 import { expect, test } from "vitest";
 import { routineFailureCode } from "./failure-code";
 
@@ -8,7 +8,7 @@ test("delivery expiry is classified separately from account failures", () => {
   ).toBe("pool_delivery_expired");
 });
 
-const accountCodes: RoutineRunFailureCode[] = [
+const accountCodes: RoutineAccountFailureCode[] = [
   "creator_not_connected",
   "team_not_connected",
   "creator_needs_reconnect",
@@ -20,6 +20,15 @@ const accountCodes: RoutineRunFailureCode[] = [
 test.each(accountCodes)("keeps the account failure code %s", (code) => {
   expect(routineFailureCode({ failure: { code, provider: "anthropic" } })).toBe(
     code,
+  );
+});
+
+test("a no-model run is classified without asking about any account", () => {
+  const readerFor = () => {
+    throw new Error("no provider to ask about");
+  };
+  expect(routineFailureCode({ failure: { code: "no_model" } }, readerFor)).toBe(
+    "no_model",
   );
 });
 

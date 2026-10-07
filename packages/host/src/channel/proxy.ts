@@ -22,7 +22,12 @@ import { LOCAL_PLACEHOLDER_KEY, OPENAI_COMPATIBLE } from "../providers";
 import { liveTurnPin, liveTurns } from "../routes/live-turn";
 import { MAX_JSON_BYTES, readBody } from "../routes/read-body";
 import { captureRuntimeCredential } from "./capture-credential";
-import { errorCodeFrom, TurnFireError } from "./fire-error";
+import {
+  errorCodeFrom,
+  isDialFailure,
+  TurnDeliveryUncertainError,
+  TurnFireError,
+} from "./fire-error";
 import { wakeForDispatch } from "./probe-wake";
 
 /**
@@ -306,7 +311,9 @@ export class ProxyChannel implements RuntimeChannel {
       );
     } catch (error) {
       this.stopTurnLogCapture(ctx.agent.id, conversationId);
-      throw error;
+      throw isDialFailure(error)
+        ? error
+        : new TurnDeliveryUncertainError(error);
     }
     if (!res.ok) {
       this.stopTurnLogCapture(ctx.agent.id, conversationId);
@@ -315,6 +322,7 @@ export class ProxyChannel implements RuntimeChannel {
         `runtime ${res.status}: ${body}`,
         res.status,
         errorCodeFrom(body),
+        TurnFireError.providerIn(body),
       );
     }
   }

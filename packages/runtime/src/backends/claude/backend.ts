@@ -20,8 +20,8 @@ import { installClaudeSdkWarningFilter } from "./sdk-warnings";
 import { type ClaudeQuery, ClaudeSession } from "./session";
 import { createSessionsStore } from "./sessions-store";
 import { buildSystemPrompt } from "./system-prompt";
+import { buildSessionHooks } from "./tool-gate-hook";
 import { buildToolPolicy, makeCanUseTool } from "./tool-policy";
-import { buildTurnEndHooks } from "./turn-end-hook";
 
 export type { ClaudeBackendDeps, ClaudeToken } from "./backend-types";
 export { ClaudeBackendUnavailableError } from "./sdk-loader";
@@ -148,7 +148,7 @@ export function createClaudeBackend(deps: ClaudeBackendDeps): HarnessBackend {
         allowedTools: houstonMcp.allowedTools,
         // End the turn after a tool batch in which an offer tool ran after
         // the closing message — the pi path's `terminate` hint, mirrored.
-        hooks: buildTurnEndHooks(),
+        hooks: buildSessionHooks(deps.beforeTool),
         // The role's file policy, whole: an ordinary agent's shared writable
         // roots, or the coordinator's exact-file allowlist (which replaces root
         // containment entirely, so its memory document is the only file this
