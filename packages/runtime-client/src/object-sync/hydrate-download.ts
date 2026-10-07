@@ -21,7 +21,7 @@ export interface HydrateDownloadState {
 
 /** Download one hydration batch while sharing the cap and failure latch. */
 export async function downloadHydrationEntries(opts: {
-  store: ObjectStore;
+  store: Pick<ObjectStore, "download" | "downloadMany">;
   destDir: string;
   entries: HydrateEntry[];
   manifest: HydrateManifest;
@@ -32,6 +32,8 @@ export async function downloadHydrationEntries(opts: {
   keepMergeBase?: boolean;
   signal: AbortSignal;
   limitError: (observedBytes: number) => Error;
+  /** Batched reads in flight at once (hydrate-batch.ts default otherwise). */
+  batchParallel?: number;
 }): Promise<void> {
   // A store that batches reads lands most of the batch in a few round trips;
   // only what it will not inline (large objects) goes one by one below.

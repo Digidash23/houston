@@ -132,6 +132,8 @@ export async function executeReadyTurn(input: {
     }
   }
 
+  // Any path that never prompted (unconnected, a setup failure) is over too.
+  input.filesystem.abandonDeferred?.();
   let afterSync: Awaited<ReturnType<typeof finishRoutineTurn>>["afterSync"];
   if (routinePhase) {
     const finished = await finishRoutineTurn({

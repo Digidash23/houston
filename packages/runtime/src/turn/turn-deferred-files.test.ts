@@ -9,11 +9,11 @@ import { expect, test } from "vitest";
 import type { PiBackendDeps } from "../backends/pi/backend";
 import { startTurnRequestFilesystem } from "./turn-claimed-hydration";
 import {
-  awaitDeferredUploads,
-  deferredUpload,
+  awaitDeferredFiles,
+  deferredWorkspaceFile,
   gateTurnTools,
   snapshotWhenReady,
-} from "./turn-deferred-uploads";
+} from "./turn-deferred-files";
 import { syncTurnFilesystem } from "./turn-filesystem";
 
 type TurnTool = PiBackendDeps["customTools"][number];
@@ -44,22 +44,37 @@ function callTool(tool: TurnTool, signal?: AbortSignal) {
   return tool.execute("call-1", {} as never, signal, undefined, {} as never);
 }
 
-test("only the agent's own uploads folder is deferred", () => {
-  expect(deferredUpload("workspaces/Personal/Bob/uploads/a.png")).toBe(true);
-  expect(deferredUpload("workspaces/Personal/Bob/uploads/docs/a.md")).toBe(
-    true,
-  );
-  expect(deferredUpload("workspaces/Personal/Bob/uploads")).toBe(false);
-  expect(deferredUpload("workspaces/Personal/Bob/notes/uploads/a.md")).toBe(
-    false,
-  );
-  expect(deferredUpload("workspaces/Personal/Bob/.houston/runtime/a")).toBe(
-    false,
-  );
-  expect(deferredUpload("data/uploads/a.png")).toBe(false);
+test("files in the agent's own non-hidden folders are deferred", () => {
+  const f = deferredWorkspaceFile;
+  expect(f("workspaces/Personal/Bob/uploads/a.png")).toBe(true);
+  expect(f("workspaces/Personal/Bob/uploads/docs/a.md")).toBe(true);
+  expect(f("workspaces/Personal/Bob/reports/q3.xlsx")).toBe(true);
+  expect(f("workspaces/Personal/Bob/notes/uploads/a.md")).toBe(true);
+  expect(f("workspaces/Personal/Bob/skills/a/SKILL.md")).toBe(true);
+  expect(f("workspaces/Personal/Bob/reports/.x.md")).toBe(true);
+  expect(f("workspaces/Personal/Bob/Contratación/oferta.pdf")).toBe(true);
 });
 
-test("a claimed turn is hydrated before its uploads land, and syncs after them", async () => {
+test("runtime inputs stay on the prompt's critical path", () => {
+  const f = deferredWorkspaceFile;
+  // Root files: the context files the prompt reads, and the person's own.
+  expect(f("workspaces/Personal/Bob/CLAUDE.md")).toBe(false);
+  expect(f("workspaces/Personal/Bob/AGENTS.md")).toBe(false);
+  expect(f("workspaces/Personal/Bob/notes.md")).toBe(false);
+  // Hidden folders: Houston state, skills, harness settings.
+  expect(f("workspaces/Personal/Bob/.houston/runtime/a")).toBe(false);
+  expect(f("workspaces/Personal/Bob/.houston/state/seen.json")).toBe(false);
+  expect(f("workspaces/Personal/Bob/.agents/skills/a/SKILL.md")).toBe(false);
+  expect(f("workspaces/Personal/Bob/.claude/settings.json")).toBe(false);
+  // Workspace-level files, the legacy data layout, and malformed paths.
+  expect(f("workspaces/Personal/GROUP.md")).toBe(false);
+  expect(f("workspaces/Personal/Bob/uploads")).toBe(false);
+  expect(f("workspaces/Personal/Bob//a.md")).toBe(false);
+  expect(f("data/uploads/a.png")).toBe(false);
+  expect(f("claude-login/projects/a.jsonl")).toBe(false);
+});
+
+test("a claimed turn is hydrated before its files land, and syncs after them", async () => {
   const storeRoot = mkdtempSync(join(tmpdir(), "deferred-store-"));
   const prefix = "ws/w1/agent-1";
   const agent = join(storeRoot, prefix, "workspaces", "Personal", "Bob");
@@ -126,7 +141,7 @@ test("a claimed turn is hydrated before its uploads land, and syncs after them",
   expect(await preparation.settled).toMatchObject({ ok: true });
 });
 
-test("a gated tool runs only once the deferred uploads land", async () => {
+test("a gated tool runs only once the deferred files land", async () => {
   const ready = deferred();
   let ran = false;
   const [tool] = gateTurnTools(
@@ -155,12 +170,12 @@ test("a failed or stopped deferred hydration refuses the tool", async () => {
 
   const pending = deferred();
   const abort = new AbortController();
-  const waiting = awaitDeferredUploads(pending.promise, abort.signal);
+  const waiting = awaitDeferredFiles(pending.promise, abort.signal);
   abort.abort();
   await expect(waiting).rejects.toThrow(/stopped/);
 });
 
-test("the file-change snapshot sees landed uploads but never a tool's write", async () => {
+test("the file-change snapshot sees landed files but never a tool's write", async () => {
   const workspace = mkdtempSync(join(tmpdir(), "deferred-snapshot-"));
   const ready = deferred();
   const before = snapshotWhenReady(workspace, ready.promise);
@@ -203,7 +218,7 @@ test("a gated call leaves no abort listener behind on the shared signal", async 
     remove(...args);
   }) as typeof remove;
   for (let i = 0; i < 20; i++)
-    await awaitDeferredUploads(Promise.resolve(), abort.signal);
+    await awaitDeferredFiles(Promise.resolve(), abort.signal);
   expect(listeners).toBe(0);
 });
 
@@ -256,4 +271,11 @@ test("a failed deferral syncs no upload that landed outside the manifest", async
   });
   expect(synced.uploaded).toEqual([]);
   expect(synced.deleted).toEqual([]);
+});
+
+test("a tool still waiting at the deadline is refused, as on Claude", async () => {
+  const never = new Promise<void>(() => undefined);
+  await expect(awaitDeferredFiles(never, undefined, 20)).rejects.toThrow(
+    /still loading/,
+  );
 });

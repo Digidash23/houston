@@ -7,7 +7,7 @@ import { buildTurnEndHooks } from "./turn-end-hook";
 
 /** The SDK lets a tool run once a hook times out, so the gate answers first. */
 const TOOL_GATE_TIMEOUT_S = 600;
-const TOOL_GATE_DENY_AFTER_MS = (TOOL_GATE_TIMEOUT_S - 10) * 1000;
+export const TOOL_GATE_DENY_AFTER_MS = (TOOL_GATE_TIMEOUT_S - 10) * 1000;
 
 function deny(reason: string) {
   return {
