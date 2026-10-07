@@ -3,6 +3,12 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v126 - 2026-10-07
+
+Folders on the desktop rail drop their lines. The 1px guide down a folder's
+members is gone, and so is the hairline between members. Members keep their
+20px step in, and root employees keep their hairlines. Phones have no rail.
+
 ## v125 - 2026-10-05
 
 The AI Manager's two API errands work right in its chat card instead of

@@ -110,8 +110,7 @@ describe("sidebar row anatomy", () => {
 
   it("indents CHILD rows one step past the block rows they hang under", () => {
     // Two indents and only two: a block head sits at the rail's edge, and
-    // everything it contains shares one column 20px to its right, past the
-    // member guide line.
+    // everything it contains shares one column 20px to its right.
     ok(includes(sidebarRowButtonClasses.depthBlock, "pl-3"));
     ok(includes(sidebarRowButtonClasses.depthChild, "pl-8"));
     // The pill spans the row either way — hierarchy is inside it, never a
@@ -530,7 +529,7 @@ describe("sidebar person row, message-list details", () => {
     ok(includes(sidebarRowButtonClasses.personText, "border-line"));
     ok(includes(sidebarRowButtonClasses.personText, "self-stretch"));
     const button = source("sidebar-row-button.tsx");
-    ok(button.includes("active && c.personTextBare"));
+    ok(button.includes('(active || depth === "child") && c.personTextBare'));
     ok(source("sidebar-profile-menu.tsx").includes("row.personTextBare"));
   });
 

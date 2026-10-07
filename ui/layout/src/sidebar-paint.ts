@@ -67,8 +67,7 @@ export const sidebarRowButtonClasses = {
    *  so folder headers and root employees share one left edge. */
   depthBlock: "pl-3",
   /** Indented under a block head, 20px in, like a member person row
-   *  (`sidebarPersonRow.padChild`): room for {@link sidebarMemberGuide}
-   *  between the header's glyph column and the member's portrait. */
+   *  (`sidebarPersonRow.padChild`). */
   depthChild: "pl-8",
   /** The person row's own height, overriding the glyph row's on both
    *  elements (tailwind-merge keeps the later height). */
@@ -85,8 +84,9 @@ export const sidebarRowButtonClasses = {
   personText:
     "flex min-w-0 flex-1 flex-col justify-center self-stretch border-b border-line [font-variation-settings:normal] group-hover/row:border-transparent",
   /** A person row without the hairline: the selected one (drawing it would
-   *  cut a line through the pill) and the account row that ends the rail,
-   *  which separates nothing from anything below it. */
+   *  cut a line through the pill), a folder member (a folder reads as one
+   *  block, so its members carry no lines between them) and the account row
+   *  that ends the rail, which separates nothing from anything below it. */
   personTextBare: "border-transparent",
   /** The pill spans the row's full width: a person row carries its own 12px
    *  padding instead of the glyph rows' 6px inset. */
@@ -146,16 +146,6 @@ export const sidebarHeaderControlClasses =
  * pinned run, whose next row is the first of the scrolling list beside it;
  * with no such row, the run ends the rail without a line, as the list does.
  */
-/**
- * The 1px line down a folder's members, under the header's glyph column. The
- * indent alone (20px against 40px portraits) did not say which employees a
- * folder holds: a root employee right after a folder read as its member. It
- * sits on the row WRAPPER, 1px above it to bridge the list's 1px gap, so the
- * members' lines join into one.
- */
-export const sidebarMemberGuide =
-  "after:pointer-events-none after:absolute after:-top-px after:bottom-0 after:left-5 after:w-px after:bg-line after:content-['']";
-
 /** Space before a row that opens a block: a folder header, or a root
  *  employee right after a folder. Marks where a folder ends. */
 export const sidebarBlockGap = "mt-3";
