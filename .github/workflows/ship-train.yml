@@ -98,9 +98,10 @@ jobs:
       # first-parent chain for the newest sha with a published engine image.
       - name: Resolve the train's engine image
         id: engine
+        env:
+          TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
-          TAG="${{ github.event.release.tag_name }}"
           VERSION="${TAG#cloud-v}"
           BASE_SHA=$(git rev-parse "${TAG}^")
           echo "Train ${VERSION}: base commit ${BASE_SHA}"
@@ -132,16 +133,19 @@ jobs:
       - name: Promote prod engine fleet
         env:
           GH_TOKEN: ${{ secrets.CLOUD_DISPATCH_TOKEN }}
+          VERSION: ${{ steps.engine.outputs.version }}
+          TRAIN_SHA: ${{ steps.engine.outputs.train_sha }}
+          DIGEST: ${{ steps.engine.outputs.digest }}
         run: |
           set -euo pipefail
-          IMAGE="${REGISTRY}/engine-pod@${{ steps.engine.outputs.digest }}"
+          IMAGE="${REGISTRY}/engine-pod@${DIGEST}"
           gh api repos/gethouston/cloud/dispatches \
             -f event_type='engine-pod-published-prod' \
-            -F "client_payload[digest]=${{ steps.engine.outputs.digest }}" \
+            -F "client_payload[digest]=${DIGEST}" \
             -F "client_payload[image]=$IMAGE" \
-            -F "client_payload[sha]=${{ steps.engine.outputs.train_sha }}" \
+            -F "client_payload[sha]=${TRAIN_SHA}" \
             -F "client_payload[run_number]=$(date +%s)"
-          echo "::notice::Prod engine promotion dispatched for train ${{ steps.engine.outputs.version }} (${IMAGE})"
+          echo "::notice::Prod engine promotion dispatched for train ${VERSION} (${IMAGE})"
 
       # Version label: engine-pod-v<version> at the train's engine sha. Pushed
       # with GITHUB_TOKEN so it can never trigger a build (see header). A
@@ -149,10 +153,11 @@ jobs:
       # at the same sha; a label pointing ELSEWHERE is a hard error — a train's
       # label must never silently move.
       - name: Stamp engine version label
+        env:
+          VERSION: ${{ steps.engine.outputs.version }}
+          TRAIN_SHA: ${{ steps.engine.outputs.train_sha }}
         run: |
           set -euo pipefail
-          VERSION="${{ steps.engine.outputs.version }}"
-          TRAIN_SHA="${{ steps.engine.outputs.train_sha }}"
           LABEL="engine-pod-v${VERSION}"
 
           if EXISTING=$(git rev-parse -q --verify "refs/tags/${LABEL}" 2>/dev/null); then
@@ -172,8 +177,12 @@ jobs:
           echo "::notice::Stamped ${LABEL} at ${TRAIN_SHA}"
 
       - name: Summary
+        env:
+          VERSION: ${{ steps.engine.outputs.version }}
+          TRAIN_SHA: ${{ steps.engine.outputs.train_sha }}
+          DIGEST: ${{ steps.engine.outputs.digest }}
         run: |
-          echo "::notice::Train ${{ steps.engine.outputs.version }} shipped: desktop updater flipped by cloud-updater-manifest.yml, prod engine rolling to engine-pod@${{ steps.engine.outputs.digest }} (sha ${{ steps.engine.outputs.train_sha }}), label engine-pod-v${{ steps.engine.outputs.version }} stamped."
+          echo "::notice::Train ${VERSION} shipped: desktop updater flipped by cloud-updater-manifest.yml, prod engine rolling to engine-pod@${DIGEST} (sha ${TRAIN_SHA}), label engine-pod-v${VERSION} stamped."
 
   promote-agentstore:
     # Same gate as promote: cloud channel drafts only.
@@ -207,9 +216,10 @@ jobs:
       # intersects locally — deep history costs nothing extra.
       - name: Resolve the train's agentstore image
         id: agentstore
+        env:
+          TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
-          TAG="${{ github.event.release.tag_name }}"
           VERSION="${TAG#cloud-v}"
           BASE_SHA=$(git rev-parse "${TAG}^")
           echo "Train ${VERSION}: base commit ${BASE_SHA}"
@@ -251,26 +261,30 @@ jobs:
       - name: Promote prod agentstore web
         env:
           GH_TOKEN: ${{ secrets.CLOUD_DISPATCH_TOKEN }}
+          VERSION: ${{ steps.agentstore.outputs.version }}
+          TRAIN_SHA: ${{ steps.agentstore.outputs.train_sha }}
+          DIGEST: ${{ steps.agentstore.outputs.digest }}
         run: |
           set -euo pipefail
-          IMAGE="${REGISTRY}/agentstore@${{ steps.agentstore.outputs.digest }}"
+          IMAGE="${REGISTRY}/agentstore@${DIGEST}"
           gh api repos/gethouston/cloud/dispatches \
             -f event_type='roll-agentstore-prod' \
-            -F "client_payload[digest]=${{ steps.agentstore.outputs.digest }}" \
+            -F "client_payload[digest]=${DIGEST}" \
             -F "client_payload[image]=$IMAGE" \
-            -F "client_payload[sha]=${{ steps.agentstore.outputs.train_sha }}" \
+            -F "client_payload[sha]=${TRAIN_SHA}" \
             -F "client_payload[run_number]=$(date +%s)"
-          echo "::notice::Prod agentstore promotion dispatched for train ${{ steps.agentstore.outputs.version }} (${IMAGE})"
+          echo "::notice::Prod agentstore promotion dispatched for train ${VERSION} (${IMAGE})"
 
       # Version label: agentstore-v<version> at the train's agentstore sha.
       # Same rules as engine-pod-v*: GITHUB_TOKEN push (never triggers the
       # tag build), re-publish at the same sha is a no-op, a label pointing
       # ELSEWHERE is a hard error — a train's label must never silently move.
       - name: Stamp agentstore version label
+        env:
+          VERSION: ${{ steps.agentstore.outputs.version }}
+          TRAIN_SHA: ${{ steps.agentstore.outputs.train_sha }}
         run: |
           set -euo pipefail
-          VERSION="${{ steps.agentstore.outputs.version }}"
-          TRAIN_SHA="${{ steps.agentstore.outputs.train_sha }}"
           LABEL="agentstore-v${VERSION}"
 
           if EXISTING=$(git rev-parse -q --verify "refs/tags/${LABEL}" 2>/dev/null); then
@@ -290,5 +304,9 @@ jobs:
           echo "::notice::Stamped ${LABEL} at ${TRAIN_SHA}"
 
       - name: Summary
+        env:
+          VERSION: ${{ steps.agentstore.outputs.version }}
+          TRAIN_SHA: ${{ steps.agentstore.outputs.train_sha }}
+          DIGEST: ${{ steps.agentstore.outputs.digest }}
         run: |
-          echo "::notice::Train ${{ steps.agentstore.outputs.version }}: agents.gethouston.ai rolling to agentstore@${{ steps.agentstore.outputs.digest }} (sha ${{ steps.agentstore.outputs.train_sha }}), label agentstore-v${{ steps.agentstore.outputs.version }} stamped."
+          echo "::notice::Train ${VERSION}: agents.gethouston.ai rolling to agentstore@${DIGEST} (sha ${TRAIN_SHA}), label agentstore-v${VERSION} stamped."
