@@ -11,6 +11,9 @@ test("the smallest gap between consecutive fires, whatever the cron spelling", (
   expect(minFireGapMinutes("*/15 * * * *")).toBe(15);
   expect(minFireGapMinutes("0,20,40 * * * *")).toBe(20);
   expect(minFireGapMinutes("0 9 * * *")).toBe(1440);
+  // A step restarts at the top of its field: :48 then :00, 20:00 then 00:00.
+  expect(minFireGapMinutes("*/16 * * * *")).toBe(12);
+  expect(minFireGapMinutes("0 */5 * * *")).toBe(240);
 });
 
 test("no gap for a pattern that is invalid or never fires twice", () => {
@@ -23,18 +26,24 @@ describe("scheduleFloorAllows: the save backstop", () => {
     expect(scheduleFloorAllows("* * * * *", undefined)).toBe(true);
   });
 
-  it("judges a minute step by its N, as the editor's minimum does", () => {
-    // Allowed even where the top of the hour comes sooner (:48 then :00).
+  it("judges a minute step by its real gap, where the hour restarts it", () => {
+    // Only the counts whose wrap at the top of the hour stays at or above 15.
+    const allowed = [];
+    for (let n = 1; n <= 59; n += 1)
+      if (scheduleFloorAllows(`*/${n} * * * *`, 15)) allowed.push(n);
+    expect(allowed).toEqual([
+      15, 20, 21, 22, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43,
+      44, 45,
+    ]);
+    // :48 then :00, :50 then :00, :45 then :00, :59 then :00.
     for (const cron of [
-      "*/15 * * * *",
       "*/16 * * * *",
       "*/25 * * * *",
-      "*/45 * * * *",
+      "*/46 * * * *",
       " */59 * * * * ",
     ])
-      expect(scheduleFloorAllows(cron, 15), cron).toBe(true);
-    for (const cron of ["*/5 * * * *", "*/14 * * * *", "*/1 * * * *"])
       expect(scheduleFloorAllows(cron, 15), cron).toBe(false);
+    expect(scheduleFloorAllows("*/45 * * * *", 15)).toBe(true);
     expect(scheduleFloorAllows("*/20 * * * *", 30)).toBe(false);
   });
 

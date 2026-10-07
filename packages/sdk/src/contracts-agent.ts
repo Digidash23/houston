@@ -146,6 +146,7 @@ export {
   routineFailureCode,
   routineFirePin,
   routinePauseNotice,
+  viewerIsRoutineCreator,
   type WebhookKeyReveal,
 } from "./modules/routines";
 // ===== Skills module contract ==========================================

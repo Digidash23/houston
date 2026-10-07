@@ -19,15 +19,14 @@ const SRC = join(import.meta.dirname, "../src");
 const read = (rel: string) => readFileSync(join(SRC, rel), "utf8");
 
 /** The adapter's `HoustonEngineError` shape for the refusal. */
-function refusal(): Error {
+function refusal(minutes = 15): Error {
   return Object.assign(new Error("HTTP 400"), {
     name: "HoustonEngineError",
     status: 400,
     body: {
-      error:
-        "This person's plan runs a scheduled task at most once every 15 minutes.",
+      error: `This person's plan runs a scheduled task at most once every ${minutes} minutes.`,
       code: "plan_min_interval",
-      minIntervalMinutes: 15,
+      minIntervalMinutes: minutes,
     },
   });
 }
@@ -55,9 +54,13 @@ describe("the plan-floor refusal is a quiet expected class", () => {
     ok(skip !== -1 && skip < body.indexOf("reportQuietError("), "reportError");
     ok(skip < body.indexOf("sentryCapture("), "no per-event capture");
     const toast = read("lib/error-toast.ts");
+    const quiet = read("lib/quiet-state-surface.ts");
     ok(
-      toast.includes('case "plan_min_interval":') &&
-        toast.includes("showPlanFloorToast();"),
+      toast.includes(
+        "surfaceQuietState(quiet, command, message, originalError)",
+      ) &&
+        quiet.includes('case "plan_min_interval":') &&
+        quiet.includes("return surfacePlanMinInterval(originalError);"),
       "showErrorToast shows the plan copy instead of reporting",
     );
     const tauri = read("lib/tauri.ts");
@@ -74,6 +77,21 @@ describe("the routine screen and model row on a plan-floor refusal", () => {
     const toasts = useUIStore.getState().toasts;
     strictEqual(toasts.length, 1);
     strictEqual(toasts[0]?.variant, "info");
+  });
+
+  it("the toast names the refusal's own floor", () => {
+    ok(surfacePlanMinInterval(refusal(30)));
+    const title = String(useUIStore.getState().toasts[0]?.title);
+    ok(title.includes("30") && !title.includes("15"), title);
+  });
+
+  it("a body naming the code without its floor is not the refusal", () => {
+    const partial = Object.assign(new Error("HTTP 400"), {
+      status: 400,
+      body: { error: "too often", code: "plan_min_interval" },
+    });
+    strictEqual(surfacePlanMinInterval(partial), false);
+    strictEqual(classifyQuietError(partial), null);
   });
 
   it("their own failure handlers add no toast and report nothing", () => {

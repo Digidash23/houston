@@ -1,3 +1,4 @@
+import { scheduleFloorAllows } from "@houston/domain";
 import type { PlanSummary } from "@houston/wire-types";
 
 /** Free's routine floor when the summary omits it. */
@@ -20,8 +21,24 @@ export function routineScheduleFloor(
 }
 
 /**
- * The save backstop that agrees with the editor (`routineScheduleFloor` gives
- * the floor). Lives in `@houston/domain` so the host's routine-write gate
- * judges a save by the same rule.
+ * A floor as a schedule editor and its save check bind it: the minimum it
+ * names, and the one rule that judges a cron against it. The editor derives
+ * every pick it offers from `allows` (the minutes stepper offers exactly the
+ * counts it accepts), so the picker, the save check and the host's
+ * routine-write gate never disagree.
  */
-export { scheduleFloorAllows } from "@houston/domain";
+export interface RoutineScheduleFloor {
+  minutes: number;
+  allows: (cron: string) => boolean;
+}
+
+export function scheduleFloorRule(minutes: number): RoutineScheduleFloor {
+  return { minutes, allows: (cron) => scheduleFloorAllows(cron, minutes) };
+}
+
+/**
+ * The rule itself: a cron is judged by its smallest REAL gap between fires.
+ * Lives in `@houston/domain` so the host's routine-write gate judges a save
+ * by the same function.
+ */
+export { scheduleFloorAllows };

@@ -3,6 +3,10 @@ import {
   isValidTriggerBinding,
   scheduleFloorAllows,
 } from "@houston/domain";
+import {
+  PLAN_MIN_INTERVAL,
+  type PlanMinIntervalRefusal,
+} from "@houston/protocol";
 import { hostProvider } from "../providers";
 
 /**
@@ -57,24 +61,14 @@ export const providerPinError = (
     : `unknown provider: ${body.provider}`;
 };
 
-/** Why a schedule was refused under the person's plan floor, machine-readable. */
-export const PLAN_MIN_INTERVAL_CODE = "plan_min_interval";
-
-/**
- * A save refused because it would fire more often than the person's plan
- * allows. `error` is relayed to the agent (save-routine.ts keeps the first
- * 300 chars of the body, so it comes first and stays short), and names
- * neither the plan nor a cron: the agent speaks to a non-technical person.
- */
-export interface PlanFloorRefusal {
-  error: string;
-  code: typeof PLAN_MIN_INTERVAL_CODE;
-  minIntervalMinutes: number;
-}
-
 /**
  * The refusal a routine with `schedule` earns under `floor` (the writer's plan
- * limit), else null. A routine without a cron (an event trigger) has no
+ * limit), else null: the protocol's `PlanMinIntervalRefusal`, which the client
+ * reads with the protocol's own parser (pinned by
+ * plan-floor-refusal-contract.test.ts). `error` is relayed to the agent
+ * (save-routine.ts keeps the first 300 chars of the body, so it comes first
+ * and stays short), and names neither the plan nor a cron: the agent speaks
+ * to a non-technical person. A routine without a cron (an event trigger) has no
  * cadence to judge. The rule is the app editor's own (`scheduleFloorAllows`),
  * so the agent and the person are held to one line. `kept` = the write left
  * an existing schedule as it was (a wording edit of an old fast routine): the
@@ -84,15 +78,15 @@ export function planFloorRefusal(
   schedule: unknown,
   floor: number | undefined,
   kept = false,
-): PlanFloorRefusal | null {
+): PlanMinIntervalRefusal | null {
   if (floor === undefined || typeof schedule !== "string" || !schedule)
     return null;
   if (scheduleFloorAllows(schedule, floor)) return null;
   return {
     error: kept
-      ? `This task already runs more often than this person's plan allows (at most every ${floor} minutes), so nothing was saved. Move its schedule to every ${floor} minutes or slower before other changes can be saved; ask the person first.`
+      ? `This task already runs more often than this person's plan allows (at most once every ${floor} minutes), so nothing was saved. Move its schedule to every ${floor} minutes or slower before other changes can be saved; ask the person first.`
       : `This person's plan runs a scheduled task at most once every ${floor} minutes, so nothing was saved. Ask whether every ${floor} minutes or slower works, then save again; upgrading the plan removes this limit.`,
-    code: PLAN_MIN_INTERVAL_CODE,
+    code: PLAN_MIN_INTERVAL,
     minIntervalMinutes: floor,
   };
 }

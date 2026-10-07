@@ -33,7 +33,7 @@ describe("schedule editors get the saver's own floor", () => {
       const src = readFileSync(file, "utf8");
       ok(
         src.includes("useRoutineScheduleFloor()") &&
-          /(minIntervalMinutes|scheduleFloor)=\{/.test(src),
+          /(floor|scheduleFloor)=\{/.test(src),
         `${file} passes the saver's floor`,
       );
     }
@@ -46,10 +46,12 @@ describe("schedule editors get the saver's own floor", () => {
     ]) {
       const src = readFileSync(join(SRC, rel), "utf8");
       ok(src.includes("useRoutineScheduleFloor()"), `${rel} reads the floor`);
-      ok(src.includes("scheduleFloorAllows("), `${rel} backstops with it`);
+      // The backstop asks the very rule the editor was handed.
+      ok(src.includes("floor.allows(cron)"), `${rel} backstops with it`);
       ok(
-        !src.includes("freeScheduleAllowed"),
-        `${rel} drops the plan-only gate`,
+        !src.includes("freeScheduleAllowed") &&
+          !src.includes("scheduleFloorAllows("),
+        `${rel} binds no second rule`,
       );
     }
   });
@@ -62,15 +64,22 @@ describe("schedule editors get the saver's own floor", () => {
     );
     const surface = readFileSync(join(SRC, "lib/plan-min-interval.ts"), "utf8");
     ok(
-      surface.includes("isPlanMinIntervalRefusal(err)"),
+      surface.includes("planMinIntervalRefusal(err)"),
       "the SDK classifies it",
     );
-    ok(surface.includes("showPlanFloorToast()"), "an info toast, no Sentry");
+    ok(
+      surface.includes("showPlanFloorToast(refusal.minIntervalMinutes)"),
+      "an info toast naming the refusal's floor, no Sentry",
+    );
     for (const lang of ["en", "es", "pt"]) {
       const json = JSON.parse(
         readFileSync(join(SRC, "locales", lang, "plan.json"), "utf8"),
       ) as { shortInterval?: string; shortIntervalBody?: string };
       ok(json.shortInterval && json.shortIntervalBody, `${lang} has the copy`);
+      ok(
+        json.shortInterval.includes("{{minutes}}"),
+        `${lang} plan.shortInterval names the floor`,
+      );
     }
   });
 
@@ -82,6 +91,13 @@ describe("schedule editors get the saver's own floor", () => {
       ok(
         json.schedule.minIntervalHint?.includes("{minutes}"),
         `${lang} schedule.minIntervalHint carries {minutes}`,
+      );
+      // "At most once every N minutes", never "at most every N minutes".
+      ok(
+        !/(at most every|como máximo cada|no máximo a cada)/.test(
+          json.schedule.minIntervalHint ?? "",
+        ),
+        `${lang} schedule.minIntervalHint says once every`,
       );
     }
   });

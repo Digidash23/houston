@@ -8,12 +8,16 @@ import {
   upsertById,
   validateSchedule,
 } from "@houston/domain";
-import type { NewRoutine, Routine, RoutineUpdate } from "@houston/protocol";
+import type {
+  NewRoutine,
+  PlanMinIntervalRefusal,
+  Routine,
+  RoutineUpdate,
+} from "@houston/protocol";
 import type { Vfs } from "../vfs";
 import { withDocLock } from "./doc-lock";
 import {
   NO_TRIGGER_BACKEND_WRITE_ERROR,
-  type PlanFloorRefusal,
   planFloorRefusal,
   providerPinError,
   wakeMechanismError,
@@ -47,7 +51,7 @@ export interface RoutineWriteOptions {
 }
 
 /** A refused write: the reason the caller relays, plus a code when it has one. */
-export type RoutineWriteError = { error: string } | PlanFloorRefusal;
+export type RoutineWriteError = { error: string } | PlanMinIntervalRefusal;
 
 /**
  * Create a routine merge-safely. Runs the SAME create-time gates as the

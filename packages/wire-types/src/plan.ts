@@ -96,33 +96,12 @@ export function parseMessageLimitRefusal(
 }
 
 /**
- * The engine's refusal of a routine save that would fire more often than the
- * saver's plan allows (`400 plan_min_interval`), on the routine create and
- * update routes and the agent's own save. `minIntervalMinutes` is the floor.
+ * The engine's refusal of a routine save under the saver's plan floor (`400
+ * plan_min_interval`). The shape and its parser are the protocol's, shared
+ * with the host that mints it, so the client never parses a second copy.
  */
-export interface PlanMinIntervalRefusal {
-  error: string;
-  code: "plan_min_interval";
-  minIntervalMinutes: number;
-}
-
-/** Parse only the exact refusal; any other 400 keeps its existing handling. */
-export function parsePlanMinIntervalRefusal(
-  body: unknown,
-): PlanMinIntervalRefusal | null {
-  if (typeof body !== "object" || body === null) return null;
-  const value = body as Record<string, unknown>;
-  if (
-    value.code !== "plan_min_interval" ||
-    typeof value.error !== "string" ||
-    typeof value.minIntervalMinutes !== "number" ||
-    !Number.isInteger(value.minIntervalMinutes) ||
-    value.minIntervalMinutes < 1
-  )
-    return null;
-  return {
-    error: value.error,
-    code: "plan_min_interval",
-    minIntervalMinutes: value.minIntervalMinutes,
-  };
-}
+export {
+  PLAN_MIN_INTERVAL,
+  type PlanMinIntervalRefusal,
+  parsePlanMinIntervalRefusal,
+} from "@houston/protocol/plan-min-interval";

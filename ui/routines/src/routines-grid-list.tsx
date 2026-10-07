@@ -81,7 +81,7 @@ export function RoutinesGridList({
         }
         labels={rowLabels}
         scheduleLabels={scheduleLabels}
-        minIntervalMinutes={scheduleFloor}
+        scheduleFloor={scheduleFloor}
         scheduleSummaryLabels={scheduleSummaryLabels}
         nextFireLabels={nextFireLabels}
         triggerLabels={triggerLabels}

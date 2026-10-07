@@ -23,7 +23,7 @@
   "keep": "Keep this one",
   "trigger": "Runs when its event happens",
   "schedule": "Runs on its schedule",
-  "shortInterval": "On Free, choose an interval of at least 15 minutes.",
+  "shortInterval": "On Free, choose an interval of at least {{minutes}} minutes.",
   "shortIntervalBody": "Nothing was saved. Pick a slower schedule, or upgrade to Plus.",
   "openCheckout": "Open checkout",
   "openPortal": "Open billing portal",

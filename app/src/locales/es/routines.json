@@ -199,7 +199,7 @@
     "repeatEvery": "Repetir cada",
     "enterNumber": "Ingresa un número",
     "pickDay": "Elige al menos un día",
-    "minIntervalHint": "En Gratis, las rutinas se ejecutan como máximo cada {minutes} minutos.",
+    "minIntervalHint": "En Gratis, las rutinas se ejecutan como máximo una vez cada {minutes} minutos.",
     "weekdaysLabel": "En estos días",
     "weekdayShortcuts": {
       "everyDay": "Todos los días",

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { RoutinesHttpError } from "./http";
-import { isPlanMinIntervalRefusal } from "./plan-floor-quiet";
-import { planMinIntervalRefusal } from "./refusals";
+import {
+  isPlanMinIntervalRefusal,
+  planMinIntervalRefusal,
+} from "./plan-floor-quiet";
 
 const body = {
   error:
@@ -41,6 +43,11 @@ describe("planMinIntervalRefusal: an expected state, not a bug", () => {
 
 describe("isPlanMinIntervalRefusal: the quiet classifier's gate", () => {
   it("agrees with the parser on every transport shape", () => {
+    // A body naming the code but missing the floor is not the refusal either:
+    // the toast that names the floor and the classifier read the same parse.
+    const partial = { error: "too often", code: "plan_min_interval" };
+    expect(isPlanMinIntervalRefusal(engineError(400, partial))).toBe(false);
+    expect(planMinIntervalRefusal(engineError(400, partial))).toBeNull();
     for (const err of [
       engineError(400, body),
       engineError(400, JSON.stringify(body)),

@@ -1,6 +1,6 @@
 import type { PlanSummary } from "@houston/wire-types";
 import { describe, expect, it } from "vitest";
-import { routineScheduleFloor } from "./schedule-floor";
+import { routineScheduleFloor, scheduleFloorRule } from "./schedule-floor";
 
 const free = {
   plan: "free",
@@ -45,5 +45,18 @@ describe("routineScheduleFloor: the editor's own plan decides", () => {
 
   it("sets none before the plan loads", () => {
     expect(routineScheduleFloor(undefined)).toBeUndefined();
+  });
+});
+
+describe("scheduleFloorRule: what an editor binds", () => {
+  it("judges a cron by its real gap, as the host's gate does", () => {
+    const rule = scheduleFloorRule(15);
+    expect(rule.minutes).toBe(15);
+    expect(rule.allows("*/15 * * * *")).toBe(true);
+    expect(rule.allows("*/20 * * * *")).toBe(true);
+    // :48 then :00: a 12-minute gap, whatever the step says.
+    expect(rule.allows("*/16 * * * *")).toBe(false);
+    expect(rule.allows("*/5 * * * *")).toBe(false);
+    expect(rule.allows("0 9 * * *")).toBe(true);
   });
 });

@@ -23,7 +23,7 @@
   "keep": "Manter esta",
   "trigger": "Executa quando o evento acontece",
   "schedule": "Executa conforme o horário",
-  "shortInterval": "No plano Grátis, escolha um intervalo de pelo menos 15 minutos.",
+  "shortInterval": "No plano Grátis, escolha um intervalo de pelo menos {{minutes}} minutos.",
   "shortIntervalBody": "Nada foi salvo. Escolha uma frequência menor ou faça upgrade para o Plus.",
   "openCheckout": "Abrir pagamento",
   "openPortal": "Abrir portal de cobrança",

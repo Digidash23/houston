@@ -82,9 +82,9 @@ export const rowProps: readonly SpecimenProp[] = [
     note: "Threaded to the pure cron, next-run and trigger formatters.",
   },
   {
-    name: "minIntervalMinutes",
-    type: "number",
-    note: "Threaded to the inline schedule editor: no pick under this many minutes, Save disabled while one is. Absent = no limit.",
+    name: "scheduleFloor",
+    type: "ScheduleFloor",
+    note: "Threaded to the inline schedule editor as its `floor`: no pick the rule refuses, Save disabled while one is shown. Absent = no limit.",
   },
   {
     name: "locale",

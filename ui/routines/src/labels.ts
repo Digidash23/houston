@@ -96,8 +96,8 @@ export interface ScheduleLabels {
   /** Validation summary shown when the Weekly preset has no day selected. */
   pickDay: string;
   /**
-   * Hint under the minutes count when the builder has a `minIntervalMinutes`
-   * floor (e.g. a plan's limit). `{minutes}` is the floor.
+   * Hint under the minutes count when the builder has a `floor` (e.g. a
+   * plan's limit). `{minutes}` is the floor's minimum.
    */
   minIntervalHint: string;
   /** Accessible names for the time picker's hour / minute / AM-PM columns. */

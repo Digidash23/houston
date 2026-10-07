@@ -12,15 +12,18 @@
  * All visible text arrives via `labels` (English defaults) so the package stays
  * i18n-agnostic; `locale` drives day names + time formatting in the summary.
  *
- * `minIntervalMinutes` (a plan's limit) is a minimum on the custom minutes
- * count (and hides any preset nominally faster, none at 15). A count under it
- * emits "" so the parent can't save; a lower typed count snaps up to it on
- * blur; an existing short schedule still shows as it is until edited.
+ * `floor` (a plan's minimum interval, with the plan's own rule as `allows`)
+ * keeps every pick on what that rule accepts: the minutes stepper steps
+ * between the counts it accepts (past the top one, 1 hour), a typed count it
+ * refuses snaps up on blur, presets it refuses are hidden, and a pick it
+ * refuses emits "" so the parent can't save. An existing short schedule still
+ * shows as it is until edited.
  */
 
 import { cn } from "@houston-ai/core";
 import { AnimatePresence } from "framer-motion";
 import { DEFAULT_SCHEDULE_LABELS, interp, type ScheduleLabels } from "./labels";
+import { presetAllowed, type ScheduleFloor } from "./schedule-floor";
 import { IntervalPicker } from "./schedule-interval-picker";
 import { DayOfMonthPicker, WeekdaysPicker } from "./schedule-picker-fields";
 import { SchedulePresetButtons } from "./schedule-preset-buttons";
@@ -37,8 +40,9 @@ export interface ScheduleBuilderProps {
   labels?: ScheduleLabels;
   /** BCP-47 locale for day names + time formatting in the live summary. */
   locale?: string;
-  /** Smallest allowed gap between fires, in minutes. Absent = no limit. */
-  minIntervalMinutes?: number;
+  /** A plan's minimum interval and the rule that judges a cron against it.
+   *  Keep it stable across renders (memoized). Absent = no limit. */
+  floor?: ScheduleFloor;
 }
 
 const DEFAULT_PRESETS: SchedulePreset[] = [
@@ -56,7 +60,7 @@ export function ScheduleBuilder({
   presets = DEFAULT_PRESETS,
   labels = DEFAULT_SCHEDULE_LABELS,
   locale = "en-US",
-  minIntervalMinutes,
+  floor,
 }: ScheduleBuilderProps) {
   const {
     activePreset,
@@ -69,11 +73,11 @@ export function ScheduleBuilder({
     setIntervalUnit,
     everyValid,
     floorOk,
+    stepper,
     isCustom,
     showTime,
     summary,
-  } = useScheduleBuilder(value, onChange, labels, locale, minIntervalMinutes);
-  const floored = minIntervalMinutes !== undefined;
+  } = useScheduleBuilder(value, onChange, labels, locale, floor);
 
   const showCustomTime =
     isCustom && (intervalUnit === "days" || intervalUnit === "months");
@@ -81,10 +85,9 @@ export function ScheduleBuilder({
   return (
     <div className="space-y-4">
       <SchedulePresetButtons
-        presets={presets}
+        presets={presets.filter((p) => presetAllowed(p, options, floor))}
         active={activePreset}
         labels={labels.presets}
-        minIntervalMinutes={minIntervalMinutes}
         onSelect={selectPreset}
       />
 
@@ -139,18 +142,14 @@ export function ScheduleBuilder({
                 every={intervalEvery}
                 unit={intervalUnit}
                 invalid={!everyValid}
-                min={
-                  floored && intervalUnit === "minutes"
-                    ? minIntervalMinutes
-                    : undefined
-                }
+                stepper={stepper}
                 onEveryChange={setIntervalEvery}
                 onUnitChange={setIntervalUnit}
               />
             </Reveal>
           )}
 
-          {floored && isCustom && intervalUnit === "minutes" && (
+          {floor && isCustom && (intervalUnit === "minutes" || !floorOk) && (
             <Reveal key="custom-floor">
               <p
                 className={cn(
@@ -158,9 +157,7 @@ export function ScheduleBuilder({
                   floorOk ? "text-ink-muted" : "text-warning-ink",
                 )}
               >
-                {interp(labels.minIntervalHint, {
-                  minutes: minIntervalMinutes,
-                })}
+                {interp(labels.minIntervalHint, { minutes: floor.minutes })}
               </p>
             </Reveal>
           )}

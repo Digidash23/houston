@@ -6,7 +6,6 @@
  */
 
 import type { Routine, RoutineUpdate } from "@houston/engine-adapter";
-import { scheduleFloorAllows } from "@houston/sdk";
 import { Button, Textarea } from "@houston-ai/core";
 import {
   cronSummary,
@@ -127,9 +126,9 @@ export function RoutineScreenSections({
               )}
               // The editor never offers a pick under the plan's floor; the
               // check below stays as the backstop for anything else.
-              minIntervalMinutes={floor}
+              scheduleFloor={floor}
               onScheduleChange={(_routineId, cron) => {
-                const allowed = scheduleFloorAllows(cron, floor);
+                const allowed = !floor || floor.allows(cron);
                 setShortInterval(!allowed);
                 if (allowed) onSave({ schedule: cron });
               }}
@@ -137,9 +136,9 @@ export function RoutineScreenSections({
               scheduleLabels={labels.schedule}
               locale={labels.locale}
             />
-            {shortInterval && (
+            {shortInterval && floor && (
               <p className="text-xs text-warning-ink">
-                {planT("shortInterval")}
+                {planT("shortInterval", { minutes: floor.minutes })}
               </p>
             )}
           </div>

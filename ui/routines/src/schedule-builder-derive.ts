@@ -5,7 +5,7 @@
  */
 import type { ScheduleLabels } from "./labels.ts";
 import { presetToCron, type ScheduleOptions } from "./schedule-cron-utils.ts";
-import { minuteCountAllowed, presetAllowed } from "./schedule-floor.ts";
+import { pickAllowed, type ScheduleFloor } from "./schedule-floor.ts";
 import {
   type IntervalUnit,
   intervalToCron,
@@ -19,8 +19,8 @@ export interface BuilderPick {
   /** The custom count as typed; "" while the field is cleared. */
   intervalEvery: string;
   intervalUnit: IntervalUnit;
-  /** Smallest allowed gap between fires, in minutes. Undefined = no floor. */
-  minIntervalMinutes?: number;
+  /** A plan's minimum interval and the rule that judges it. Undefined = none. */
+  floor?: ScheduleFloor;
 }
 
 export interface DerivedSchedule {
@@ -28,7 +28,7 @@ export interface DerivedSchedule {
   everyValid: boolean;
   /** The Weekly preset has at least one day. */
   weeklyValid: boolean;
-  /** The pick fires no more often than the floor (always true without one). */
+  /** The floor's rule accepts the pick (always true without one). */
   floorOk: boolean;
   /** The cron the pick spells, valid or not; "" when it spells none. */
   pickedCron: string;
@@ -38,8 +38,7 @@ export interface DerivedSchedule {
 }
 
 export function deriveSchedule(pick: BuilderPick): DerivedSchedule {
-  const { activePreset, options, intervalEvery, intervalUnit } = pick;
-  const floor = pick.minIntervalMinutes;
+  const { activePreset, options, intervalEvery, intervalUnit, floor } = pick;
   const everyNumber = Number(intervalEvery);
   const everyValid =
     intervalEvery.trim() !== "" &&
@@ -48,27 +47,23 @@ export function deriveSchedule(pick: BuilderPick): DerivedSchedule {
   const weeklyValid =
     activePreset !== "weekly" || options.daysOfWeek.length > 0;
 
-  if (activePreset === "custom") {
-    const pickedCron = everyValid
-      ? intervalToCron(
-          {
-            every: everyNumber,
-            unit: intervalUnit,
-            dayOfMonth: options.dayOfMonth,
-          },
-          options.time,
-        )
-      : "";
-    // A plain minimum on the minutes count; hours, days and months never are.
-    const floorOk =
-      !everyValid ||
-      intervalUnit !== "minutes" ||
-      minuteCountAllowed(everyNumber, floor);
-    const cron = everyValid && floorOk ? pickedCron : "";
-    return { everyValid, weeklyValid, floorOk, pickedCron, cron };
-  }
-  const pickedCron = weeklyValid ? presetToCron(activePreset, options) : "";
-  const floorOk = presetAllowed(activePreset, floor);
+  const custom = activePreset === "custom";
+  let pickedCron = "";
+  if (custom && everyValid)
+    pickedCron = intervalToCron(
+      {
+        every: everyNumber,
+        unit: intervalUnit,
+        dayOfMonth: options.dayOfMonth,
+      },
+      options.time,
+    );
+  else if (!custom && weeklyValid)
+    pickedCron = presetToCron(activePreset, options);
+  // Every pick, preset or custom count, is judged by the floor's own rule.
+  const minutesCount =
+    custom && intervalUnit === "minutes" ? everyNumber : null;
+  const floorOk = pickAllowed(pickedCron, minutesCount, floor);
   const cron = floorOk ? pickedCron : "";
   return { everyValid, weeklyValid, floorOk, pickedCron, cron };
 }

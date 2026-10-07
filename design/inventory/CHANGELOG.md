@@ -10,20 +10,26 @@ and the top of its Runs modal show how many runs were skipped in the last 24
 hours and that the Free plan caused it: a run limit, the one routine Free
 keeps running, or routines paused while its creator was away. The creator
 gets what fixes it (Upgrade to Plus, Choose routine, Resume first while
-paused); on Plus the notice is hidden. A teammate sees a
-read-only line that it ran on its creator's Free plan. Before, a skipped run
-left no trace and the routine looked broken.
+paused); on Plus the notice is hidden. A routine with no recorded creator
+(an Agent Store install or an import) counts as the viewer's own. A teammate
+sees a read-only line that it ran on its creator's Free plan. Before, a
+skipped run left no trace and the routine looked broken.
 
 The schedule editor (routine screen and list rows) no longer offers a
 schedule under the Free minimum interval to a person on Free, on any
 routine (saving makes them the routine's creator, whose plan the runs are
-judged on): presets that fire more often are hidden (none at 15), the
-custom minutes count starts at 15 and its minus stops there, plus from a
-lower count lands on 15, a lower typed count snaps up to 15 on blur and
-keeps Save disabled until it does, and a hint under it names the limit. Any
-count of 15 or more is fine, and the save check agrees. An existing shorter
-schedule still shows as it is, with Save disabled until it is changed.
-Before, the editor offered every minute and only the save was refused.
+judged on). Every pick is judged by its real gap between runs, the plan's
+own rule from the SDK: a minutes step restarts at the top of the hour, so
+"every 16 minutes" runs at :48 and then :00, 12 minutes apart. The custom
+minutes count offers only the counts that rule accepts (on Free: 15, 20, 21,
+22 and 30 to 45), minus and plus step between them, plus past the top moves
+to 1 hour, a typed count it refuses snaps up on blur and keeps Save disabled
+until it does, presets it refuses are hidden (none at 15), and a hint under
+the count names the limit. The save check and the engine use the same rule.
+An existing shorter schedule still shows as it is, with Save disabled until
+it is changed. A save the engine still refuses shows the plan's copy naming
+its own limit. Before, the editor offered every minute and only the save was
+refused.
 
 ## v125 - 2026-10-05
 

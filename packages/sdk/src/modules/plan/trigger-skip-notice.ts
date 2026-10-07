@@ -3,6 +3,12 @@ import type {
   TriggerPlanSkipped,
   TriggerStatusItem,
 } from "@houston/wire-types";
+import { viewerIsRoutineCreator } from "../routines/routine-creator";
+
+export type {
+  TriggerPlanSkipCode,
+  TriggerPlanSkipped,
+} from "@houston/wire-types";
 
 /**
  * Why a routine's runs were skipped, as the person needs to hear it.
@@ -15,7 +21,8 @@ import type {
  *   to keep, so resuming comes first.
  * - `creator_plan`: the gateway judges a fire against the routine CREATOR's
  *   plan, so a viewer who did not create it can only be told whose plan it
- *   was; their own plan, chooser and billing describe something else.
+ *   was; their own plan, chooser and billing describe something else. A
+ *   routine naming no creator is the viewer's (`viewerIsRoutineCreator`).
  */
 export type TriggerPlanSkipReason =
   | "min_interval"
@@ -67,11 +74,13 @@ const DEFAULT_MIN_INTERVAL_MINUTES = 15;
  * that silently ignored them.
  *
  * The refusal was decided on the CREATOR's plan. A viewer who is not the
- * creator, or a routine that names no creator, gets the read-only
- * `creator_plan` notice whatever the viewer's own plan is. The creator sees
- * it only while on Free: on Plus (or before the plan has loaded, or without
- * personal plans) the old refusals describe nothing they can act on, and the
- * routine they now keep says nothing about the routine limit.
+ * creator gets the read-only `creator_plan` notice whatever the viewer's own
+ * plan is. The creator (the viewer, too, for a routine naming no creator, as
+ * an Agent Store install or an import leaves it: the same rule the routine's
+ * connection badge uses) sees it only while on Free: on Plus (or before the
+ * plan has loaded, or without personal plans) the old refusals describe
+ * nothing they can act on, and the routine they now keep says nothing about
+ * the routine limit.
  */
 export function triggerPlanSkipNotice(
   item: TriggerStatusItem | undefined,
@@ -82,11 +91,9 @@ export function triggerPlanSkipNotice(
   if (!item || !skipped || skipped.count < 1 || !knownCode(skipped))
     return null;
   const base = { count: skipped.count, lastAt: skipped.last_at };
-  if (!viewer.createdBy)
-    return { ...base, reason: "creator_plan", actions: [] };
   // Unknown viewer: wait for the session rather than flash the wrong variant.
-  if (!viewer.viewerId) return null;
-  if (viewer.createdBy !== viewer.viewerId)
+  if (viewer.createdBy && !viewer.viewerId) return null;
+  if (!viewerIsRoutineCreator(viewer.createdBy, viewer.viewerId))
     return { ...base, reason: "creator_plan", actions: [] };
   if (plan?.plan !== "free") return null;
 

@@ -103,8 +103,8 @@ export const gridProps: readonly SpecimenProp[] = [
   },
   {
     name: "scheduleFloor",
-    type: "number",
-    note: "Minimum minutes for every row's inline schedule editor (the saver's plan decides): no count under it, Save disabled while one is shown. Absent = no limit.",
+    type: "ScheduleFloor",
+    note: "The plan's minimum interval and its rule for every row's inline schedule editor (the saver's plan decides): no pick the rule refuses, Save disabled while one is shown. Absent = no limit.",
   },
   {
     name: "locale",

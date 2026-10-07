@@ -23,7 +23,7 @@
   "keep": "Mantener esta",
   "trigger": "Se ejecuta cuando ocurre el evento",
   "schedule": "Se ejecuta según su horario",
-  "shortInterval": "En Gratis, elige un intervalo de al menos 15 minutos.",
+  "shortInterval": "En Gratis, elige un intervalo de al menos {{minutes}} minutos.",
   "shortIntervalBody": "No se guardó nada. Elige un horario menos frecuente o mejora a Plus.",
   "openCheckout": "Abrir pago",
   "openPortal": "Abrir portal de facturación",

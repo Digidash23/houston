@@ -136,10 +136,6 @@ export {
   type PlusCheckoutRefusal,
   plusCheckoutRefusal,
 } from "./modules/plan/refusals";
-export {
-  routineScheduleFloor,
-  scheduleFloorAllows,
-} from "./modules/plan/schedule-floor";
 // ===== Preferences module contract =====================================
 export {
   PreferencesCommand,
@@ -194,8 +190,6 @@ export {
   type TeamsCommandType,
   TeamsHttpError,
   type TeamsModule,
-  type TriggerPlanSkipCode,
-  type TriggerPlanSkipped,
   type TriggerStatusItem,
   type TriggerStatusState,
 } from "./modules/teams";

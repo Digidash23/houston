@@ -1,8 +1,8 @@
 import { isDeepStrictEqual } from "node:util";
 import { docKey, normalizeRoutines, parseJsonDoc } from "@houston/domain";
-import type { Routine } from "@houston/protocol";
+import type { PlanMinIntervalRefusal, Routine } from "@houston/protocol";
 import type { Vfs } from "../vfs";
-import { type PlanFloorRefusal, planFloorRefusal } from "./routine-write-gates";
+import { planFloorRefusal } from "./routine-write-gates";
 
 /** The routines document, as the raw agent-file route addresses it. */
 const ROUTINES_DOCUMENT = docKey("", "routines").slice(1);
@@ -23,7 +23,7 @@ export async function routinesDocFloorRefusal(
   rel: string,
   content: string,
   floor: number | undefined,
-): Promise<PlanFloorRefusal | null> {
+): Promise<PlanMinIntervalRefusal | null> {
   if (floor === undefined || rel !== ROUTINES_DOCUMENT) return null;
   const written = parsedRoutines(content);
   if (!written) return null;

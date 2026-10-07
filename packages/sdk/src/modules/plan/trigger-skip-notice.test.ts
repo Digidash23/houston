@@ -148,6 +148,33 @@ describe("triggerPlanSkipNotice for the routine's creator", () => {
   });
 });
 
+describe("triggerPlanSkipNotice for a routine naming no creator", () => {
+  // An Agent Store install or an import strips `created_by`: it is the
+  // viewer's own routine, judged like the creator's.
+  const owner = { ...creator, createdBy: undefined };
+
+  it("offers the Free viewer what fixes it", () => {
+    expect(
+      triggerPlanSkipNotice(item("plan_routine_limit"), free, owner),
+    ).toMatchObject({
+      reason: "routine_limit",
+      actions: ["keep_routine", "upgrade"],
+    });
+    expect(
+      triggerPlanSkipNotice(item("plan_min_interval"), free, {
+        ...owner,
+        viewerId: null,
+      }),
+    ).toMatchObject({ reason: "min_interval", actions: ["upgrade"] });
+  });
+
+  it("says nothing to a viewer on Plus", () => {
+    expect(
+      triggerPlanSkipNotice(item("plan_min_interval"), plus, owner),
+    ).toBeNull();
+  });
+});
+
 describe("triggerPlanSkipNotice for anyone else", () => {
   const readOnly = {
     reason: "creator_plan",
@@ -166,15 +193,6 @@ describe("triggerPlanSkipNotice for anyone else", () => {
         expect(triggerPlanSkipNotice(item(code), plan, member)).toEqual(
           readOnly,
         );
-  });
-
-  it("stays read-only when the routine names no creator", () => {
-    expect(
-      triggerPlanSkipNotice(item("plan_routine_limit"), free, {
-        ...creator,
-        createdBy: undefined,
-      }),
-    ).toEqual(readOnly);
   });
 
   it("waits for the session before choosing a variant", () => {

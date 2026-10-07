@@ -1,27 +1,13 @@
+import { parsePlanMinIntervalRefusal as protocolParse } from "@houston/protocol/plan-min-interval";
 import { expect, test } from "vitest";
-import { parsePlanMinIntervalRefusal } from "./plan";
+import { PLAN_MIN_INTERVAL, parsePlanMinIntervalRefusal } from "./plan";
 
-const body = {
-  error:
-    "This person's plan runs a scheduled task at most once every 15 minutes.",
-  code: "plan_min_interval",
-  minIntervalMinutes: 15,
-};
-
-test("the exact refusal parses", () => {
-  expect(parsePlanMinIntervalRefusal(body)).toEqual(body);
-});
-
-test("anything else is not this refusal", () => {
-  for (const value of [
-    null,
-    "plan_min_interval",
-    { ...body, code: "message_limit" },
-    { ...body, error: undefined },
-    { ...body, minIntervalMinutes: "15" },
-    { ...body, minIntervalMinutes: 0 },
-    { ...body, minIntervalMinutes: 15.5 },
-    { error: "bad cron" },
-  ])
-    expect(parsePlanMinIntervalRefusal(value)).toBeNull();
+/**
+ * The client reads the plan-floor refusal with the protocol's own parser, the
+ * one the host's refusal is pinned against: never a second copy that could
+ * disagree.
+ */
+test("the wire contract re-exports the protocol's one parser", () => {
+  expect(parsePlanMinIntervalRefusal).toBe(protocolParse);
+  expect(PLAN_MIN_INTERVAL).toBe("plan_min_interval");
 });

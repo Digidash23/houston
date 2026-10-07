@@ -1,5 +1,9 @@
 import type { Server } from "node:http";
-import { ROUTINE_FLOOR_HEADER, type Routine } from "@houston/protocol";
+import {
+  parsePlanMinIntervalRefusal,
+  ROUTINE_FLOOR_HEADER,
+  type Routine,
+} from "@houston/protocol";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { ProxyChannel } from "../channel/proxy";
 import { MemoryCredentialStore } from "../credentials/store";
@@ -113,14 +117,29 @@ const patch = (base: string, id: string, body: object, floor?: string) =>
     body: JSON.stringify(body),
   });
 
+/** The refusal body, which must be exactly what the client's parser reads. */
+const refusalOf = async (res: Response): Promise<unknown> => {
+  const body = await res.json();
+  expect(parsePlanMinIntervalRefusal(body)).toEqual(body);
+  return body;
+};
+
 test("behind the gateway, a create under the stamped floor is refused", async () => {
   const res = await create(fronted, "*/5 * * * *", "15");
   expect(res.status).toBe(400);
-  expect(await res.json()).toMatchObject({
+  expect(await refusalOf(res)).toMatchObject({
     code: "plan_min_interval",
     minIntervalMinutes: 15,
     error: expect.stringContaining("at most once every 15 minutes"),
   });
+});
+
+test("a step that restarts under the floor at the top of the hour is refused", async () => {
+  // */16 fires :48 then :00, 12 minutes apart.
+  const res = await create(fronted, "*/16 * * * *", "15");
+  expect(res.status).toBe(400);
+  expect(await refusalOf(res)).toMatchObject({ code: "plan_min_interval" });
+  expect((await create(fronted, "*/20 * * * *", "15")).status).toBe(201);
 });
 
 test("behind the gateway, an update is held to the floor; at the floor it saves", async () => {
@@ -129,7 +148,9 @@ test("behind the gateway, an update is held to the floor; at the floor it saves"
   const { id } = (await created.json()) as Routine;
   const tightened = await patch(fronted, id, { schedule: "*/5 * * * *" }, "15");
   expect(tightened.status).toBe(400);
-  expect(await tightened.json()).toMatchObject({ code: "plan_min_interval" });
+  expect(await refusalOf(tightened)).toMatchObject({
+    code: "plan_min_interval",
+  });
   const paused = await patch(fronted, id, { enabled: false }, "15");
   expect(paused.status).toBe(200);
 });
@@ -185,7 +206,7 @@ test("a raw routines-document write behind the gateway judges each changed routi
     "15",
   );
   expect(added.status).toBe(400);
-  expect(await added.json()).toMatchObject({ code: "plan_min_interval" });
+  expect(await refusalOf(added)).toMatchObject({ code: "plan_min_interval" });
   expect(await readDoc(fronted)).toEqual(stored);
 
   // Untouched, disabled and at-floor entries all pass.
@@ -207,7 +228,7 @@ test("a raw routines-document write behind the gateway judges each changed routi
     "15",
   );
   expect(reworded.status).toBe(400);
-  expect(await reworded.json()).toMatchObject({
+  expect(await refusalOf(reworded)).toMatchObject({
     error: expect.stringContaining("already runs more often"),
   });
 });

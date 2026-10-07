@@ -73,7 +73,7 @@ export const DEFAULT_SCHEDULE_LABELS: ScheduleLabels = {
   increase: "Increase",
   enterNumber: "Enter a number",
   pickDay: "Pick at least one day",
-  minIntervalHint: "Routines run at most every {minutes} minutes.",
+  minIntervalHint: "Routines run at most once every {minutes} minutes.",
   timePicker: { hour: "Hour", minute: "Minute", period: "AM/PM" },
   summary: DEFAULT_SCHEDULE_SUMMARY_LABELS,
 };

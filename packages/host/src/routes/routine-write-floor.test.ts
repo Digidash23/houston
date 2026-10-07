@@ -27,7 +27,7 @@ const REFUSAL = {
 
 const KEPT_REFUSAL = {
   error:
-    "This task already runs more often than this person's plan allows (at most every 15 minutes), so nothing was saved. Move its schedule to every 15 minutes or slower before other changes can be saved; ask the person first.",
+    "This task already runs more often than this person's plan allows (at most once every 15 minutes), so nothing was saved. Move its schedule to every 15 minutes or slower before other changes can be saved; ask the person first.",
   code: "plan_min_interval",
   minIntervalMinutes: 15,
 };
@@ -54,7 +54,13 @@ const onDisk = async (vfs: MemoryVfs) => (await loadRoutines(vfs, ROOT)).items;
 
 test("a create below the floor is refused and nothing is saved", async () => {
   const vfs = new MemoryVfs();
-  for (const cron of ["*/5 * * * *", "* * * * *", "0,5,10 * * * *"]) {
+  // */16 restarts at the top of the hour: :48 then :00, 12 minutes apart.
+  for (const cron of [
+    "*/5 * * * *",
+    "* * * * *",
+    "0,5,10 * * * *",
+    "*/16 * * * *",
+  ]) {
     const result = await createRoutineChecked(
       vfs,
       ROOT,
@@ -69,7 +75,7 @@ test("a create below the floor is refused and nothing is saved", async () => {
 
 test("a create at or above the floor saves", async () => {
   const vfs = new MemoryVfs();
-  for (const cron of ["*/15 * * * *", "*/16 * * * *", "0 9 * * 1-5"]) {
+  for (const cron of ["*/15 * * * *", "*/20 * * * *", "0 9 * * 1-5"]) {
     const result = await createRoutineChecked(
       vfs,
       ROOT,

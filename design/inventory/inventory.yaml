@@ -1074,13 +1074,16 @@ components:
       its live activation chip (event bindings change via chat, not here).
       The editor takes the VIEWER's own Free minimum interval on any routine
       (SDK routineScheduleFloor: saving re-stamps the routine's creator to the
-      saver, whose plan the runs are judged on; the save check uses the same
-      floor, and the host refuses a save under it) as a plain minimum on the custom
-      minutes count: it starts there, minus stops there, plus from below
-      lands on it, a lower typed count snaps up on blur with Save disabled
-      until then, any count at or above it is fine, and a hint names it; a preset nominally faster would be hidden
-      (none at 15). An existing shorter schedule still reads as it is, with
-      Save disabled until changed.
+      saver, whose plan the runs are judged on), bound to the SDK's one rule
+      (scheduleFloorRule: a cron's smallest REAL gap between fires, the same
+      rule the save check and the host's write gate run). The editor only
+      asks that rule: the custom minutes count offers exactly the counts it
+      accepts (a step restarts at the top of the hour, so on Free 16-19,
+      23-29 and 46-59 are not offered), minus and plus step between them,
+      plus past the top moves to 1 hour, a typed count it refuses snaps up on
+      blur with Save disabled until then, a preset it refuses is hidden (none
+      at 15), and a hint names the minimum. An existing shorter schedule
+      still reads as it is, with Save disabled until changed.
       The model row ALWAYS names the resolved pair -- provider + model, e.g.
       "Claude - Opus 5" -- whether the routine is pinned or follows the agent;
       an unpinned routine adds a quiet line saying so. Picking pins it (the fire
@@ -1107,8 +1110,9 @@ components:
       creator on Free sees the reason (the minimum interval, the one-routine
       limit, or routines paused while away) with Upgrade to Plus, Choose
       routine for the limit, and Resume first while still paused; on Plus it
-      is hidden. Anyone else, or a routine naming no creator, sees a
-      read-only line that it ran on its creator's Free plan.
+      is hidden. A routine naming no creator (an Agent Store install or an
+      import) is the viewer's own, as for the connection badge. Anyone else
+      sees a read-only line that it ran on its creator's Free plan.
     a11y: >-
       the screen title and sections are real headings; the prompt textarea is
       labeled; run rows are buttons whose accessible name carries the outcome,

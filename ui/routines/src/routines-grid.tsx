@@ -22,6 +22,7 @@ import type {
 import { DEFAULT_GRID_LABELS, type RoutinesGridLabels } from "./labels";
 import { RoutinesGridEmpty } from "./routines-grid-empty";
 import { RoutinesGridList } from "./routines-grid-list";
+import type { ScheduleFloor } from "./schedule-floor";
 import type { Routine, RoutineRun, TriggerStatusItem } from "./types";
 
 /** Minimal shape for a "routine in construction" chat — ui/ stays app-agnostic. */
@@ -76,9 +77,9 @@ export interface RoutinesGridProps {
   rowLabels?: RoutineRowLabels;
   /** Schedule-builder labels, threaded to the inline schedule editor in a row. */
   scheduleLabels?: ScheduleLabels;
-  /** Minimum minutes between fires for every row's inline schedule editor
-   *  (a plan's limit: the saver's plan decides). Absent = no limit. */
-  scheduleFloor?: number;
+  /** A plan's minimum interval for every row's inline schedule editor (the
+   *  saver's plan decides), with its rule (memoized). Absent = no limit. */
+  scheduleFloor?: ScheduleFloor;
   scheduleSummaryLabels?: ScheduleSummaryLabels;
   nextFireLabels?: NextFireLabels;
   /** Trigger (event-driven) copy for the row summary and status badge. */

@@ -4,9 +4,9 @@ import { isAgentWarmingRefusal } from "./agent-warming-refusal";
 import { analytics, classifyAnalyticsError } from "./analytics";
 import { createBurstGate } from "./error-burst";
 import i18n from "./i18n";
-import { showPlanFloorToast } from "./plan-floor-toast";
 import { classifyQuietError } from "./quiet-error-class";
 import { reportQuietError } from "./quiet-error-report";
+import { surfaceQuietState } from "./quiet-state-surface";
 import {
   captureException as sentryCapture,
   sentrySuppressedInDev,
@@ -162,37 +162,18 @@ export function showErrorToast(
   // query error here (the store screens: an anonymous catalog read that
   // never passes through `call()`) used to capture an offline device as a
   // per-user bug. Each class keeps its own informational surface and its ONE
-  // fingerprinted warning; the bridge class has an inline surface already.
+  // fingerprinted warning (`quiet-state-surface.ts` for the rest).
   const quiet = classifyQuietError(originalError);
-  switch (quiet) {
-    case "offline":
-      showConnectivityErrorToast(command, message, originalError);
-      return;
-    case "engine_waking":
-      showEngineWakingToast(command, message, originalError);
-      return;
-    case "bridge_unsupported":
-    case "bridge_no_agent":
-    case "bridge_state":
-      console.error(`[toast:${command}] ${message}`);
-      reportQuietError(quiet, command, message, originalError);
-      return;
-    case "plan_min_interval": // a business state: the plan's copy, no capture
-      showPlanFloorToast();
-      return;
-    case "no_url_handler":
-      // Same remedy copy `openExternalUrl` shows; a rejection that reached
-      // this surface skipped that seam (a raw `osOpenUrl` caller).
-      console.error(`[toast:${command}] ${message}`);
-      reportQuietError("no_url_handler", command, message, originalError);
-      showExpectedStateToast(
-        i18n.t("shell:openUrl.noBrowserTitle"),
-        i18n.t("shell:openUrl.noBrowser"),
-      );
-      return;
-    case null:
-      break;
+  if (quiet === "offline") {
+    showConnectivityErrorToast(command, message, originalError);
+    return;
   }
+  if (quiet === "engine_waking") {
+    showEngineWakingToast(command, message, originalError);
+    return;
+  }
+  if (quiet && surfaceQuietState(quiet, command, message, originalError))
+    return;
 
   // With no toast left, this line is the failure's only trace on the user's
   // machine — guarantee it here rather than trusting each caller to log.

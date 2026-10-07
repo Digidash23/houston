@@ -66,12 +66,14 @@ Components:
   (run/stop, delete).
 - `RoutineDraftRow` — a "Routine being created in chat" row with Resume/Discard.
 - `ScheduleBuilder` — the cron schedule picker (presets + custom interval), for
-  the app's creation flow. An optional `minIntervalMinutes` (a plan's floor,
-  for every row via `RoutinesGrid`'s `scheduleFloor`, and on
-  `RoutineRowScheduleEdit`) is a minimum
-  on the custom minutes count: the stepper stops there, a lower typed count
-  snaps up on blur, saving a count under it is blocked, and any preset
-  nominally faster is hidden.
+  the app's creation flow. An optional `floor` (a plan's minimum interval
+  plus the rule that judges a cron against it, which the app binds to the
+  SDK; for every row via `RoutinesGrid`'s `scheduleFloor`, and on
+  `RoutineRowScheduleEdit`) keeps every pick on what that rule accepts: the
+  minutes stepper offers only the counts it accepts (past the top one, 1
+  hour), a typed count it refuses snaps up on blur, presets it refuses are
+  hidden, and saving a pick it refuses is blocked. The builder never judges
+  a cadence itself.
 - `TriggerPicker` / `TriggerConfigForm` — the event-trigger picker + generated
   config form, for the app's creation flow.
 - `TriggerStatusBadge` — a trigger routine's live status chip + reconnect; with

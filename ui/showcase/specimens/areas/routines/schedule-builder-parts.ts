@@ -31,8 +31,8 @@ export const builderProps: readonly SpecimenProp[] = [
     note: 'Defaults to `"en-US"`. Day names and clock format in the summary come from `Intl`.',
   },
   {
-    name: "minIntervalMinutes",
-    type: "number",
-    note: 'A plan\'s floor between fires. A minimum on the custom minutes count (minus stops there, a lower typed count snaps up on blur), hides any preset nominally faster, shows `labels.minIntervalHint`, and emits "" for a pick under it. Absent = no limit.',
+    name: "floor",
+    type: "ScheduleFloor",
+    note: 'A plan\'s minimum interval (`minutes`) and the rule that judges a cron against it (`allows`, bound by the app to the SDK; keep it memoized). The minutes stepper steps between the counts `allows` accepts (past the top one, 1 hour), a refused typed count snaps up on blur, refused presets are hidden, `labels.minIntervalHint` names `minutes`, and a refused pick emits "". Absent = no limit.',
   },
 ];

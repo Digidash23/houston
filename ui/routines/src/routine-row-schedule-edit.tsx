@@ -4,8 +4,8 @@
  * as a ghost button with a small pencil glyph. Clicking opens a Popover holding
  * the full ScheduleBuilder (seeded with the routine's current cron) over a
  * compact Save / Cancel footer. Save commits the edited cron and closes; Cancel
- * discards the draft. With `minIntervalMinutes` the builder emits "" for a
- * pick under the floor, and Save stays disabled until the pick is allowed.
+ * discards the draft. With a `scheduleFloor` the builder emits "" for a pick
+ * the floor's rule refuses, and Save stays disabled until the pick is allowed.
  *
  * It re-enables pointer events and sits above the row-click button, so editing
  * the schedule never opens the routine's chat. Split out of RoutineRow to keep
@@ -26,7 +26,7 @@ import {
   type ScheduleLabels,
 } from "./labels";
 import { ScheduleBuilder } from "./schedule-builder";
-import { scheduleSaveBlocked } from "./schedule-floor";
+import { type ScheduleFloor, scheduleSaveBlocked } from "./schedule-floor";
 
 export interface RoutineRowScheduleEditProps {
   routineId: string;
@@ -45,9 +45,8 @@ export interface RoutineRowScheduleEditProps {
    * bordered field with the summary and a visible pencil (PRODUCT-1208).
    */
   variant?: "row" | "field";
-  /** Smallest allowed gap between fires, in minutes (a plan's limit).
-   *  Absent = no limit. */
-  minIntervalMinutes?: number;
+  /** A plan's minimum interval and its rule (memoized). Absent = no limit. */
+  scheduleFloor?: ScheduleFloor;
 }
 
 export function RoutineRowScheduleEdit({
@@ -59,7 +58,7 @@ export function RoutineRowScheduleEdit({
   scheduleLabels = DEFAULT_SCHEDULE_LABELS,
   locale = "en-US",
   variant = "row",
-  minIntervalMinutes,
+  scheduleFloor,
 }: RoutineRowScheduleEditProps) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(cron);
@@ -122,7 +121,7 @@ export function RoutineRowScheduleEdit({
           onChange={setDraft}
           labels={scheduleLabels}
           locale={locale}
-          minIntervalMinutes={minIntervalMinutes}
+          floor={scheduleFloor}
         />
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
@@ -131,7 +130,7 @@ export function RoutineRowScheduleEdit({
           <Button
             size="sm"
             onClick={save}
-            disabled={scheduleSaveBlocked(draft, minIntervalMinutes)}
+            disabled={scheduleSaveBlocked(draft, scheduleFloor)}
           >
             {labels.save}
           </Button>
