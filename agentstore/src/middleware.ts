@@ -11,8 +11,32 @@ import { type NextRequest, NextResponse } from "next/server";
  */
 const HANDLE_PATH = /^\/(?:@|%40)([a-z0-9][a-z0-9_]{1,29})$/;
 
+/**
+ * This server only reads. It defines no Server Actions, and its Route Handlers
+ * export only GET plus OPTIONS for CORS preflight; every write goes from the
+ * browser straight to the gateway. Next still hands a POST to any page to its
+ * Server Action decoder, the code React2Shell (CVE-2025-55182) exploited, and
+ * scanners keep probing it. Next treats a url-encoded or multipart POST as a
+ * possible action even without the `Next-Action` header, so the guard keys on
+ * the method, not the header. Refusing other methods here keeps those
+ * requests away from the decoder and out of the logs.
+ */
+const PAGE_METHODS = "GET, HEAD";
+const API_METHODS = "GET, HEAD, OPTIONS";
+
+function allowedMethods(pathname: string): string {
+  return pathname === "/api" || pathname.startsWith("/api/")
+    ? API_METHODS
+    : PAGE_METHODS;
+}
+
 export function middleware(request: NextRequest): NextResponse {
-  const match = request.nextUrl.pathname.match(HANDLE_PATH);
+  const { pathname } = request.nextUrl;
+  const allow = allowedMethods(pathname);
+  if (!allow.split(", ").includes(request.method)) {
+    return new NextResponse(null, { status: 405, headers: { allow } });
+  }
+  const match = pathname.match(HANDLE_PATH);
   if (match) {
     const url = request.nextUrl.clone();
     url.pathname = `/creators/${match[1]}`;
@@ -22,8 +46,7 @@ export function middleware(request: NextRequest): NextResponse {
 }
 
 export const config = {
-  // Only the `/@handle` shape can match; scope the matcher to a leading `@`
-  // (raw or percent-encoded) so the middleware never runs for ordinary routes,
-  // static assets, or the API surface.
-  matcher: ["/@:handle", "/%40:handle"],
+  // Every path except hashed build assets, so the method guard covers pages,
+  // unknown paths and the API alike.
+  matcher: ["/((?!_next/static/).*)"],
 };

@@ -500,8 +500,10 @@ test("ensureAwake during shutdownAllAndWait's drain is REFUSED, never respawned 
   };
   const launcher = new ProcessLauncher(opts(spawner));
   await launcher.ensureAwake(agent("polled"));
+  expect(launcher.isClosed()).toBe(false);
 
   const shutdown = launcher.shutdownAllAndWait(5_000);
+  expect(launcher.isClosed()).toBe(true);
   // Arrives mid-drain (child alive, live-set already cleared).
   await expect(launcher.ensureAwake(agent("polled"))).rejects.toBeInstanceOf(
     LauncherClosedError,
@@ -520,6 +522,7 @@ test("shutdownAll (the sync variant) latches the launcher the same way", async (
   const launcher = new ProcessLauncher(opts(spawner));
   await launcher.ensureAwake(agent("a"));
   launcher.shutdownAll();
+  expect(launcher.isClosed()).toBe(true);
   expect(killed).toEqual([5000]);
   await expect(launcher.ensureAwake(agent("b"))).rejects.toBeInstanceOf(
     LauncherClosedError,

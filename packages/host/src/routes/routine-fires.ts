@@ -11,6 +11,7 @@ import {
   FIRE_IN_FLIGHT,
   type FireOutcome,
   isRetryableFireError,
+  reportUnfiredFire,
   unfiredOutcome,
 } from "../schedule/fire-outcome";
 import { ChannelRoutineFirer } from "../schedule/firer";
@@ -176,21 +177,18 @@ defineRoute({
       );
       outcome = { result: "fired", startedAt };
     } catch (error) {
-      if (isRetryableFireError(error)) {
+      const deferred = isRetryableFireError(error);
+      reportUnfiredFire(routine.id, error, deferred);
+      if (deferred) {
         // Unburn so the redelivery (to this host, its replacement pod, or the
         // agent's new id) fires the instant instead of replaying a miss.
         await ledger.del(key);
-        const detail = error instanceof Error ? error.message : String(error);
-        console.warn(
-          `[routine-fires] routine ${routine.id} fire deferred: ${detail}`,
+        return unavailable(
+          res,
+          error instanceof Error ? error.message : String(error),
         );
-        return unavailable(res, detail);
       }
       outcome = unfiredOutcome(error);
-      if (outcome.result === "failed")
-        console.warn(
-          `[routine-fires] routine ${routine.id} fire failed (${outcome.code ?? "uncoded"}): ${outcome.error}`,
-        );
     }
     await ledger.set(key, encodeFireOutcome(outcome), ttl);
     reply(res, freshReply(outcome));

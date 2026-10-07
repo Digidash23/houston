@@ -129,3 +129,29 @@ test("the done frame says when a board would not merge and the turn's bytes over
   expect(frame.data.syncMerges).toEqual([merge]);
   expect(frame.data.syncIncomplete).toBeUndefined();
 });
+
+test("the terminal frame carries the model-call report with the worker's pre-prompt span", () => {
+  const modelCalls = {
+    v: 1 as const,
+    turnId: "t1",
+    backend: "claude" as const,
+    startupMs: { harness_init: 800 },
+    calls: [],
+    droppedCalls: 0,
+  };
+  const frame = turnTerminalFrame(
+    { error: "boom" },
+    "t1",
+    0,
+    undefined,
+    undefined,
+    [],
+    { t0_request: 1000, t_prompt_start: 1420.2 },
+    undefined,
+    { modelCalls },
+  ) as unknown as { data: { modelCalls: unknown } };
+  expect(frame.data.modelCalls).toEqual({
+    ...modelCalls,
+    startupMs: { harness_init: 800, pre_prompt: 420 },
+  });
+});

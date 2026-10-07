@@ -38,3 +38,18 @@ export const currentPlatformOs: PlatformOs =
     : "unknown";
 
 export const isMac = currentPlatformOs === "macos";
+
+/** Where a client latency span ran: the desktop's OS, or the web app. */
+export type MetricsPlatform = PlatformOs | "web";
+
+/**
+ * The `platform` a client latency span is labelled with. The web app reports
+ * "web" rather than the OS of the browser it runs in, so web and desktop never
+ * fold into one series (the browser's OS says nothing about the code path).
+ */
+export function metricsPlatform(
+  isDesktopShell: boolean,
+  os: PlatformOs,
+): MetricsPlatform {
+  return isDesktopShell ? os : "web";
+}

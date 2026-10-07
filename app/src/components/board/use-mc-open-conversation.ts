@@ -1,7 +1,9 @@
 import type { KanbanItem } from "@houston-ai/board";
 import type { FeedItem } from "@houston-ai/chat";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useConversationVm } from "../../hooks/use-conversation-vm";
+import { paintedSessionKey } from "../../lib/perf-span-marks";
+import { perfSpans } from "../../lib/perf-spans";
 import { tauriChat } from "../../lib/tauri";
 import {
   type OpenConversationIdentity,
@@ -56,6 +58,20 @@ export function useMcOpenConversation(
       activeSessionKey ? { [activeSessionKey]: activeVm?.feed ?? [] } : {},
     [activeSessionKey, activeVm],
   );
+  // Card-click → chat perf mark (HOU-1011): the opened conversation's
+  // messages are in the feed; the rAF waits for the paint. A no-op unless a
+  // card click armed it (mission-board). Keyed on the painted conversation, so
+  // switching between two cached chats re-fires it for the new one.
+  const painted = paintedSessionKey(
+    activeSessionKey,
+    activeVm?.feed.length ?? 0,
+  );
+  useEffect(() => {
+    if (painted === null) return;
+    if (typeof requestAnimationFrame === "function")
+      requestAnimationFrame(() => perfSpans.chatRendered());
+    else perfSpans.chatRendered();
+  }, [painted]);
   // Scroll-up lazy-load (HOU-819): the open chat renders the transcript's tail
   // window; older pages prepend on scroll.
   const hasOlderMessages = (activeVm?.historyWindow?.earliestLoaded ?? 0) > 0;

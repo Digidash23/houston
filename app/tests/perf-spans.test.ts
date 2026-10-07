@@ -65,7 +65,7 @@ describe("PerfSpans", () => {
     deepStrictEqual(sent.flat(), [{ span: "card_click_to_chat", ms: 320 }]);
   });
 
-  it("a turn's first text yields the send span and the once-only journey span", async () => {
+  it("every turn's first text yields its own send span", async () => {
     const { spans, sent, tick, now } = harness();
     tick(2000);
     const first = now();
@@ -78,7 +78,6 @@ describe("PerfSpans", () => {
     await spans.flush();
     deepStrictEqual(sent.flat(), [
       { span: "send_to_first_response", ms: 800 },
-      { span: "app_to_first_response", ms: 2800 },
       { span: "send_to_first_response", ms: 400 },
     ]);
   });
@@ -161,7 +160,6 @@ describe("PerfSpans first response", () => {
     await spans.flush();
     deepStrictEqual(sent.flat(), [
       { span: "send_to_first_response", ms: 1_000 },
-      { span: "app_to_first_response", ms: 3_000 },
       { span: "send_to_first_response", ms: 8_000 },
     ]);
   });
@@ -205,32 +203,14 @@ describe("PerfSpans first response", () => {
     const { spans, sent, mirroredOutcomes } = harness(0);
     spans.turnResponded(response(0, 600_000, "timeout"));
     await spans.flush();
+    // A silent timeout censors first activity too (perf-spans-first-activity).
     deepStrictEqual(sent.flat(), [
       { span: "send_to_first_response", ms: 600_000 },
+      { span: "send_to_first_activity", ms: 600_000 },
     ]);
     deepStrictEqual(mirroredOutcomes, [
       { span: "send_to_first_response", outcome: "timeout" },
-    ]);
-  });
-
-  it("starts app_to_first_response only from a real first text", async () => {
-    const { spans, sent } = harness(0);
-    spans.turnResponded(response(0, 1_000, "error"));
-    spans.turnResponded(response(0, 5_000, "timeout"));
-    spans.turnResponded(response(6_000, 8_000));
-    await spans.flush();
-    deepStrictEqual(
-      sent.flat().filter((s) => s.span === "app_to_first_response"),
-      [{ span: "app_to_first_response", ms: 8_000 }],
-    );
-  });
-
-  it("marks the journey span with first_text too", () => {
-    const { spans, mirroredOutcomes } = harness(0);
-    spans.turnResponded(response(0, 800));
-    deepStrictEqual(mirroredOutcomes, [
-      { span: "send_to_first_response", outcome: "first_text" },
-      { span: "app_to_first_response", outcome: "first_text" },
+      { span: "send_to_first_activity", outcome: "timeout" },
     ]);
   });
 });
@@ -245,7 +225,6 @@ describe("PerfSpans org slug", () => {
     spans.turnResponded(response(sentAt, now()));
     deepStrictEqual(mirroredOrgs, [
       { span: "send_to_first_response", orgSlug: "5f2b225f316c6079" },
-      { span: "app_to_first_response", orgSlug: "5f2b225f316c6079" },
     ]);
   });
 
@@ -281,7 +260,7 @@ describe("PerfSpans org slug", () => {
     spans.turnResponded(response(sentAt, now()));
     deepStrictEqual(
       mirroredOrgs.map((m) => m.orgSlug),
-      [null, null],
+      [null],
     );
   });
 
@@ -308,10 +287,7 @@ describe("PerfSpans org slug", () => {
     spans.turnResponded(response(sentAt, now()));
     await spans.flush();
     // The ingest decodes with DisallowUnknownFields: an extra key 400s the batch.
-    deepStrictEqual(sent.flat(), [
-      { span: "send_to_first_response", ms: 700 },
-      { span: "app_to_first_response", ms: 710 },
-    ]);
+    deepStrictEqual(sent.flat(), [{ span: "send_to_first_response", ms: 700 }]);
   });
 
   it("mirrors no org where none is set (desktop, self-host)", () => {
@@ -321,7 +297,7 @@ describe("PerfSpans org slug", () => {
     spans.turnResponded(response(sentAt, now()));
     deepStrictEqual(
       mirroredOrgs.map((m) => m.orgSlug),
-      [null, null],
+      [null],
     );
   });
 

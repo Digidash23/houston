@@ -3,6 +3,7 @@ import { docKey, saveActivities } from "@houston/domain";
 import type {
   Activity,
   HoustonEvent,
+  ModelCallReport,
   TurnLimits,
   TurnMode,
 } from "@houston/protocol";
@@ -136,6 +137,7 @@ async function call(
     gatewayFronted?: boolean;
     /** The plan limits the host recorded on the parent turn. */
     limits?: TurnLimits;
+    modelCallReports?: (report: ModelCallReport) => void;
   } = {},
 ) {
   const headers: Record<string, string> = {
@@ -166,6 +168,9 @@ async function call(
       channels: { local: channel },
       ...(opts.gatewayFronted ? { gatewayFronted: true } : {}),
       ...(connectedProviders === null ? {} : { credentials }),
+      ...(opts.modelCallReports
+        ? { modelCallReports: opts.modelCallReports }
+        : {}),
     },
     method,
     path,
@@ -916,4 +921,42 @@ test.each([
   expect(r.status).toBe(201);
   expect(fired).toHaveLength(1);
   expect(fired[0]?.limits).toEqual(expected);
+});
+
+test("settle hands a well-formed model-call report to the sink, any mission", async () => {
+  const reports: ModelCallReport[] = [];
+  const modelCalls = {
+    v: 1,
+    turnId: "turn-9",
+    backend: "pi",
+    startupMs: { session_build: 3, pre_prompt: 40 },
+    calls: [
+      {
+        provider: "openai-codex",
+        model: "gpt-6-luna",
+        ttfbMs: 900,
+        firstTokenMs: 300,
+        inputTokens: 100,
+        cacheReadTokens: 4000,
+        cacheWriteTokens: 0,
+        outputTokens: 20,
+      },
+    ],
+    droppedCalls: 0,
+  };
+  const sink = { modelCallReports: (r: ModelCallReport) => reports.push(r) };
+  // A user mission's settle changes no card, yet its timings still count.
+  await call(
+    "POST",
+    "/sandbox/missions/settle",
+    { conversation_id: "c1", status: "needs_you", model_calls: modelCalls },
+    sink,
+  );
+  await call(
+    "POST",
+    "/sandbox/missions/settle",
+    { conversation_id: "c1", status: "error", model_calls: { v: 9 } },
+    sink,
+  );
+  expect(reports).toEqual([modelCalls]);
 });

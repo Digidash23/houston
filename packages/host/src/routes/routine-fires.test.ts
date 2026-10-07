@@ -299,9 +299,45 @@ test.each([
   expect(await runs()).toHaveLength(1);
 });
 
+// Only console.error reaches Sentry on the host: an unexpected failure is
+// reported there, a creator with nothing connected stays a warning.
+test.each([
+  ["an unexpected throw", "error", new Error("quota exceeded")],
+  ["a runtime 5xx", "error", new TurnFireError("runtime 500: x", 500, null)],
+  [
+    "an unpinned routine with no provider",
+    "warn",
+    new TurnFireError("runtime 409", 409, "no_provider"),
+  ],
+] as const)("%s is logged at %s level", async (_name, level, refusal) => {
+  await seedRoutines([routine()]);
+  channel.refusal = refusal;
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  const tagged = (spy: typeof warn) =>
+    spy.mock.calls.filter(([first]) =>
+      String(first).startsWith("[routine-fires]"),
+    ).length;
+  try {
+    const res = await postFire({
+      routineId: "r1",
+      fireAt: FIRE_AT,
+      actingAs: actingAs("creator-1"),
+    });
+    expect(await res.json()).toMatchObject({ result: "failed" });
+    const [used, unused] = level === "error" ? [error, warn] : [warn, error];
+    expect(tagged(used)).toBe(1);
+    expect(tagged(unused)).toBe(0);
+  } finally {
+    warn.mockRestore();
+    error.mockRestore();
+  }
+});
+
 // Where the fire ran, not what it is: the host drains or renames, or the
-// runtime is unreachable. The instant is unburned and answered 503, so the
-// control plane redelivers it and the replacement fires it.
+// runtime is unreachable or refuses new turns while it drains. The instant is
+// unburned and answered 503, so the control plane redelivers it and the
+// replacement fires it.
 test.each([
   ["a draining host", new LauncherClosedError()],
   ["a renaming agent", new AgentRenamingError("a1")],
@@ -311,6 +347,23 @@ test.each([
     Object.assign(new TypeError("fetch failed"), {
       cause: { code: "ECONNREFUSED" },
     }),
+  ],
+  [
+    "a turn POST lost while the host drains",
+    new TurnDeliveryUncertainError(
+      Object.assign(new TypeError("fetch failed"), {
+        cause: { code: "ECONNRESET" },
+      }),
+      true,
+    ),
+  ],
+  [
+    "a draining runtime",
+    new TurnFireError(
+      'runtime 503: {"error":"engine unavailable","detail":"the agent is restarting"}',
+      503,
+      null,
+    ),
   ],
 ])("%s releases the instant and answers 503", async (_name, refusal) => {
   await seedRoutines([routine()]);

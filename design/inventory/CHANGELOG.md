@@ -3,7 +3,7 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
-## v126 - 2026-10-05
+## v127 - 2026-10-07
 
 A trigger routine says when a Free plan skipped its runs. The routine screen
 and the top of its Runs modal show how many runs were skipped in the last 24
@@ -30,6 +30,12 @@ An existing shorter schedule still shows as it is, with Save disabled until
 it is changed. A save the engine still refuses shows the plan's copy naming
 its own limit. Before, the editor offered every minute and only the save was
 refused.
+
+## v126 - 2026-10-07
+
+Folders on the desktop rail drop their lines. The 1px guide down a folder's
+members is gone, and so is the hairline between members. Members keep their
+20px step in, and root employees keep their hairlines. Phones have no rail.
 
 ## v125 - 2026-10-05
 

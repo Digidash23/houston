@@ -112,9 +112,22 @@ describe("SidebarGroupedList folder edges", () => {
     return found;
   };
 
-  it("draws the guide line on members only", () => {
-    assert.match(row("a"), /after:bg-line/);
-    assert.doesNotMatch(row("b"), /after:bg-line/);
+  // The hairline under a row's text, read off the markup from the row's
+  // wrapper to the next row.
+  const hairline = (id: string) => {
+    const tag = row(id);
+    const start = markup.indexOf(tag);
+    const end = markup.indexOf('data-sidebar-row=""', start + tag.length);
+    const chunk = markup.slice(start, end === -1 ? undefined : end);
+    const text = chunk.match(/<span data-person-text=""[^>]*>/)?.[0];
+    assert.ok(text, id);
+    return text;
+  };
+
+  it("draws no line inside a folder, down or between its members", () => {
+    assert.doesNotMatch(row("a"), /after:bg-line/);
+    assert.doesNotMatch(hairline("a"), /border-line/);
+    assert.match(hairline("b"), /border-line/);
   });
 
   it("spaces the first root employee after the folder, not the next one", () => {

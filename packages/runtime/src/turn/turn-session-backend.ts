@@ -170,6 +170,7 @@ export async function openTurnBackendSession(input: {
   return {
     replay,
     session,
+    backendId: backend.id,
     model,
     modelRuntime,
     compaction: routineReset?.compaction ?? autocompaction,

@@ -117,13 +117,26 @@ export function isDialFailure(err: unknown): boolean {
  * The turn POST failed after its connection opened: the runtime may have
  * accepted the message and be running the turn. Never redeliver it: a second
  * fire would start a second, concurrent run (a routine that sends email would
- * send it twice).
+ * send it twice). The one exception is `hostShuttingDown`.
  */
 export class TurnDeliveryUncertainError extends Error {
-  constructor(readonly reason: unknown) {
+  constructor(
+    readonly reason: unknown,
+    /**
+     * The host's launcher had shut down when the POST failed, so the drain had
+     * already sent the runtime SIGTERM. From then on the runtime refuses new
+     * turns, and a turn it accepted earlier answered 202 at once and holds the
+     * process up until it ends. A POST still unanswered when the connection
+     * dies never started a turn that outlives the runtime: safe to redeliver.
+     */
+    readonly hostShuttingDown = false,
+  ) {
     const code = (reason as { cause?: { code?: unknown } } | null)?.cause?.code;
+    const where = typeof code === "string" ? ` (${code})` : "";
     super(
-      `the runtime connection failed mid-request${typeof code === "string" ? ` (${code})` : ""}; the turn may have started`,
+      hostShuttingDown
+        ? `the runtime connection failed mid-request${where} while the host shut down; retry shortly`
+        : `the runtime connection failed mid-request${where}; the turn may have started`,
     );
     this.name = "TurnDeliveryUncertainError";
   }
