@@ -1,0 +1,74 @@
+# TEMPORARY: proves the background/wait step syntax release.yml now uses on
+# the runner images it runs on. Deleted before merge.
+name: Background steps check
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/background-steps-check.yml
+
+permissions: {}
+
+jobs:
+  check:
+    name: Background steps (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-latest, windows-11-arm, macos-latest]
+    env:
+      # Mirrors release.yml's `if: env.AZURE_CLIENT_SECRET != ''` gate with a
+      # value that is always empty, so the second background step is skipped.
+      ABSENT: ""
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Record start
+        run: echo "START=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Background step that runs
+        id: slow
+        background: true
+        run: |
+          set -euo pipefail
+          sleep 20
+          echo done > "$RUNNER_TEMP/slow.txt"
+
+      - name: Background step skipped by its if
+        id: skipped
+        if: ${{ env.ABSENT != '' }}
+        background: true
+        run: |
+          echo "this step must not run" >&2
+          exit 1
+
+      - name: Foreground step runs while the background step sleeps
+        run: |
+          set -euo pipefail
+          if [ -f "$RUNNER_TEMP/slow.txt" ]; then
+            echo "::error::background step finished before the foreground step started"
+            exit 1
+          fi
+          echo "foreground ran $(( $(date +%s) - START ))s after start, background still running"
+
+      - name: Wait for both (one ran, one skipped)
+        wait: [slow, skipped]
+
+      - name: Background output is visible after the wait
+        run: |
+          set -euo pipefail
+          test -f "$RUNNER_TEMP/slow.txt"
+          ELAPSED=$(( $(date +%s) - START ))
+          echo "wait released after ${ELAPSED}s"
+          [ "$ELAPSED" -ge 20 ]
+
+      - name: Single-id wait form
+        id: single
+        background: true
+        run: sleep 2
+
+      - name: Wait for one step
+        wait: single

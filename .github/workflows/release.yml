@@ -502,20 +502,6 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-
-      # No pnpm cache: one saved here would be scoped to this tag and never
-      # read by the next release.
-      - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        with:
-          node-version: 20
-          package-manager-cache: false
-
-      - name: Install dependencies
-        run: pnpm install
-
       - name: Setup Rust (universal macOS targets)
         id: toolchain
         uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
@@ -540,6 +526,52 @@ jobs:
             target/
           key: rust-release-macos-universal-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'app/src-tauri/Cargo.toml', 'app/src-tauri/tauri.conf.json', 'crates/*/Cargo.toml') }}
           restore-keys: rust-release-macos-universal-${{ steps.toolchain.outputs.cachekey }}-
+
+      # Build the whisper.cpp dictation sidecar (whisper-cli, MIT) for both arches
+      # and lipo a universal fat binary, mirroring the host sidecar below.
+      # build.rs::stage_whisper_sidecar also stages per-arch copies during tauri's
+      # per-arch cargo runs, but the `--target universal-apple-darwin` bundle ships
+      # this fat binary at binaries/whisper-cli-universal-apple-darwin. The `test -x`
+      # gate FAILS the release if a whisper build breaks, so we never ship the
+      # loud-fail placeholder instead of a working local-dictation binary.
+      #
+      # Runs in the background from here: it needs only the checkout and the
+      # Xcode toolchain, so it overlaps the dependency install and sidecar
+      # steps below. `wait: whisper` before the Tauri build is where a failure
+      # here fails the job.
+      - name: Build + lipo universal whisper-cli dictation sidecar (aarch64 + x86_64)
+        id: whisper
+        background: true
+        run: |
+          set -euo pipefail
+          for TRIPLE in aarch64-apple-darwin x86_64-apple-darwin; do
+            echo "=== building whisper-cli for $TRIPLE ==="
+            scripts/build-whisper.sh "$TRIPLE"
+            test -x "target/whisper/whisper-cli-$TRIPLE" \
+              || { echo "::error::whisper-cli missing for $TRIPLE"; exit 1; }
+          done
+          mkdir -p app/src-tauri/binaries
+          echo "=== Lipo universal whisper-cli ==="
+          lipo -create \
+            target/whisper/whisper-cli-aarch64-apple-darwin \
+            target/whisper/whisper-cli-x86_64-apple-darwin \
+            -output app/src-tauri/binaries/whisper-cli-universal-apple-darwin
+          chmod +x app/src-tauri/binaries/whisper-cli-universal-apple-darwin
+          lipo -info app/src-tauri/binaries/whisper-cli-universal-apple-darwin
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      # No pnpm cache: one saved here would be scoped to this tag and never
+      # read by the next release.
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 20
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: pnpm install
 
       - name: Write Apple API key to disk
         run: |
@@ -682,31 +714,6 @@ jobs:
             app/src-tauri/binaries/houston-engine-universal-apple-darwin \
             app/src-tauri/binaries/claude-universal-apple-darwin
 
-      # Build the whisper.cpp dictation sidecar (whisper-cli, MIT) for both arches
-      # and lipo a universal fat binary, mirroring the host sidecar above.
-      # build.rs::stage_whisper_sidecar also stages per-arch copies during tauri's
-      # per-arch cargo runs, but the `--target universal-apple-darwin` bundle ships
-      # this fat binary at binaries/whisper-cli-universal-apple-darwin. The `test -x`
-      # gate FAILS the release if a whisper build breaks, so we never ship the
-      # loud-fail placeholder instead of a working local-dictation binary.
-      - name: Build + lipo universal whisper-cli dictation sidecar (aarch64 + x86_64)
-        run: |
-          set -euo pipefail
-          for TRIPLE in aarch64-apple-darwin x86_64-apple-darwin; do
-            echo "=== building whisper-cli for $TRIPLE ==="
-            scripts/build-whisper.sh "$TRIPLE"
-            test -x "target/whisper/whisper-cli-$TRIPLE" \
-              || { echo "::error::whisper-cli missing for $TRIPLE"; exit 1; }
-          done
-          mkdir -p app/src-tauri/binaries
-          echo "=== Lipo universal whisper-cli ==="
-          lipo -create \
-            target/whisper/whisper-cli-aarch64-apple-darwin \
-            target/whisper/whisper-cli-x86_64-apple-darwin \
-            -output app/src-tauri/binaries/whisper-cli-universal-apple-darwin
-          chmod +x app/src-tauri/binaries/whisper-cli-universal-apple-darwin
-          lipo -info app/src-tauri/binaries/whisper-cli-universal-apple-darwin
-
       # Build only — no release creation (no tagName).
       # tauri-action handles certificate import, code signing, .app notarization + stapling.
       #
@@ -736,6 +743,9 @@ jobs:
       - name: Neutralize updater (staging flavor)
         if: ${{ matrix.flavor == 'staging' }}
         run: bash scripts/ci/point-updater-at-staging-noop.sh
+
+      - name: Wait for the whisper-cli build
+        wait: whisper
 
       - name: Build Tauri app (universal)
         uses: tauri-apps/tauri-action@v0
@@ -1315,19 +1325,6 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-
-      # No pnpm cache, as in build-macos: it would be scoped to this tag.
-      - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        with:
-          node-version: 20
-          package-manager-cache: false
-
-      - name: Install dependencies
-        run: pnpm install
-
       - name: Setup Rust (windows-msvc target)
         id: toolchain
         uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
@@ -1347,6 +1344,58 @@ jobs:
             target/
           key: rust-release-windows-${{ matrix.arch }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'app/src-tauri/Cargo.toml', 'app/src-tauri/tauri.conf.json', 'crates/*/Cargo.toml') }}
           restore-keys: rust-release-windows-${{ matrix.arch }}-${{ steps.toolchain.outputs.cachekey }}-
+
+      # Authenticode signing via Azure Artifact Signing. Production builds
+      # require the signing credentials. `cargo install` compiles ~230 crates
+      # (2.5-3.5 min), so it runs in the background from here, overlapping the
+      # whisper build, the pnpm install and the sidecar compile. It starts
+      # after the Rust cache restore so the two never write ~/.cargo/registry
+      # at the same time. Pinned — bump deliberately. Needs the .NET runtime +
+      # Windows SDK signtool, both preinstalled on GitHub's windows-latest AND
+      # windows-11-arm runners.
+      - name: Install artifact-signing-cli
+        id: signing-cli
+        if: ${{ env.AZURE_CLIENT_SECRET != '' }}
+        background: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo install artifact-signing-cli --version 0.11.0 --locked
+          artifact-signing-cli --help > /dev/null
+
+      # Build the whisper.cpp dictation sidecar (whisper-cli, MIT) for the matrix
+      # target BEFORE tauri build. build.rs::stage_whisper_sidecar copies
+      # target/whisper/whisper-cli-<target>.exe to the externalBin name
+      # binaries/whisper-cli-<target>.exe (same pattern as the host sidecar). CPU-only,
+      # self-contained (static), pinned to the AVX2 (Haswell 2013+) baseline on
+      # x86-64 — older CPUs are gated in-app (dictation/cpu.rs), never crashed.
+      # The `test -x` gate FAILS the release rather than shipping the loud-fail
+      # placeholder. Runs in the background (it needs only the checkout and the
+      # MSVC toolchain); the wait before the signing overlay is where a failure
+      # here fails the job.
+      - name: Build whisper-cli dictation sidecar (${{ matrix.target }})
+        id: whisper
+        background: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          scripts/build-whisper.sh ${{ matrix.target }}
+          test -x "target/whisper/whisper-cli-${{ matrix.target }}.exe" \
+            || { echo "::error::whisper-cli missing for ${{ matrix.target }}"; exit 1; }
+          ls -lah target/whisper/whisper-cli-${{ matrix.target }}.exe
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      # No pnpm cache, as in build-macos: it would be scoped to this tag.
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 20
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: pnpm install
 
       # Bun compiles the host sidecar. setup-bun resolves the right build for the
       # x64 and arm64 Windows runners.
@@ -1370,23 +1419,6 @@ jobs:
           echo "Sidecar size:"
           ls -lah target/host-sidecar/houston-host-${{ matrix.target }}.exe
 
-      # Build the whisper.cpp dictation sidecar (whisper-cli, MIT) for the matrix
-      # target BEFORE tauri build. build.rs::stage_whisper_sidecar copies
-      # target/whisper/whisper-cli-<target>.exe to the externalBin name
-      # binaries/whisper-cli-<target>.exe (same pattern as the host sidecar). CPU-only,
-      # self-contained (static), pinned to the AVX2 (Haswell 2013+) baseline on
-      # x86-64 — older CPUs are gated in-app (dictation/cpu.rs), never crashed.
-      # The `test -x` gate FAILS the release rather than shipping the loud-fail
-      # placeholder.
-      - name: Build whisper-cli dictation sidecar (${{ matrix.target }})
-        shell: bash
-        run: |
-          set -euo pipefail
-          scripts/build-whisper.sh ${{ matrix.target }}
-          test -x "target/whisper/whisper-cli-${{ matrix.target }}.exe" \
-            || { echo "::error::whisper-cli missing for ${{ matrix.target }}"; exit 1; }
-          ls -lah target/whisper/whisper-cli-${{ matrix.target }}.exe
-
       # CLOUD channel only: repoint the updater at `latest-cloud.json` before the
       # build bakes tauri.conf.json in (see build-macos for the why). The script
       # is Node-based so it also runs on windows-11-arm, where jq is absent.
@@ -1395,19 +1427,11 @@ jobs:
         shell: bash
         run: bash scripts/ci/point-updater-at-cloud-manifest.sh
 
-      # Authenticode signing via Azure Artifact Signing. Production builds
-      # require the signing credentials. `cargo install` compiles
-      # ~2-4 min on a cold runner; ~/.cargo/registry is in the cache above
-      # so warm runs are faster. Pinned — bump deliberately. Needs the .NET
-      # runtime + Windows SDK signtool, both preinstalled on GitHub's
-      # windows-latest AND windows-11-arm runners.
-      - name: Install artifact-signing-cli
-        if: ${{ env.AZURE_CLIENT_SECRET != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          cargo install artifact-signing-cli --version 0.11.0 --locked
-          artifact-signing-cli --help > /dev/null
+      # A wait always runs and takes no `if:`. When the signing credentials are
+      # absent the signing-cli step is skipped, the wait passes, and the overlay
+      # step below fails the build with the named error.
+      - name: Wait for artifact-signing-cli and the whisper-cli build
+        wait: [signing-cli, whisper]
 
       # Tauri config overlay that turns on `bundle.windows.signCommand`.
       # An overlay (not tauri.conf.json) so local `pnpm tauri build` on dev
