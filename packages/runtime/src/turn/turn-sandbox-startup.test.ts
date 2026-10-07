@@ -1,10 +1,14 @@
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import type { TurnServerDeps } from "./server-types";
 import type { TurnFilesystem } from "./turn-filesystem";
 import { TurnSetupError } from "./turn-layout";
+import { makeTurnSandboxFetch } from "./turn-sandbox";
 import { createTurnSandbox } from "./turn-sandbox-startup";
 import type { resolveTurnStore } from "./turn-store";
 import type { TurnRequest } from "./types";
+
+// Only what the startup hands the sandbox is under test here.
+vi.mock("./turn-sandbox", () => ({ makeTurnSandboxFetch: vi.fn(() => ({})) }));
 
 /**
  * Houston's routes run the host's handlers over its agent's own tree
@@ -47,4 +51,23 @@ test("Houston's turn on a non-standing tree fails at setup", () => {
       } as TurnFilesystem,
     }),
   ).toThrow(TurnSetupError);
+});
+
+test("the turn's plan limits reach its sandbox's routine writes", () => {
+  createTurnSandbox({
+    deps: {} as TurnServerDeps,
+    turn: {
+      ...turn,
+      coordinator: undefined,
+      limits: { routineMinIntervalMinutes: 15 },
+    },
+    identity: { org: "acme", agent: "a551abc" },
+    resolved: { store: {}, prefix: "ws/acme/a551abc" } as ReturnType<
+      typeof resolveTurnStore
+    >,
+    filesystem: { kind: "cloudrun" } as TurnFilesystem,
+  });
+  expect(makeTurnSandboxFetch).toHaveBeenCalledWith(
+    expect.objectContaining({ limits: { routineMinIntervalMinutes: 15 } }),
+  );
 });

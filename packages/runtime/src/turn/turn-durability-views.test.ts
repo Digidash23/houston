@@ -6,7 +6,6 @@ import {
   agentStore,
   claimedTurn,
   holdFirstGet,
-  landOp,
   type PodDocs,
   podDocs,
   podLearnings,
@@ -16,6 +15,7 @@ import {
   skillNames,
   writeSkill,
 } from "./turn-views.test-support";
+import { landOp } from "./turn-views-op.test-support";
 
 /**
  * A pooled turn changes what a sleeping agent's tabs read: the gateway serves

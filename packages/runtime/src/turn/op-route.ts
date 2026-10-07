@@ -137,6 +137,9 @@ async function runRouteOp(
         }
       : {}),
     triggersEnabled: op.triggersEnabled,
+    ...(op.limits?.routineMinIntervalMinutes
+      ? { routineFloorMinutes: op.limits.routineMinIntervalMinutes }
+      : {}),
   });
 
   // A detect that hits an OAuth wall carries `oauthSupported`. Without

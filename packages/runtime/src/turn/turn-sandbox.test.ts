@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadRoutines, saveActivities } from "@houston/domain";
 import { FsVfs } from "@houston/host/src/vfs";
+import type { TurnLimits } from "@houston/protocol";
 import type { ObjectStore } from "@houston/runtime-client/object-sync";
 import { expect, test, vi } from "vitest";
 import type { TurnFilesystem } from "./turn-filesystem";
@@ -13,6 +14,7 @@ async function fixture(
   fetchImpl: typeof fetch = fetch,
   scopes: TurnGrantScope[] = ["integrations", "agent-writes"],
   conversationId = "c1",
+  limits?: TurnLimits,
 ) {
   const root = await mkdtemp(join(tmpdir(), "turn-sandbox-"));
   const store: ObjectStore = {
@@ -52,6 +54,7 @@ async function fixture(
     orgSlug: "org",
     agentSlug: "agent",
     fetchImpl,
+    ...(limits ? { limits } : {}),
   });
   return { ...sandbox, root, filesystem };
 }
@@ -94,6 +97,38 @@ test("a pooled delegated mission cannot create or update scheduled work", async 
     });
   }
   expect((await loadRoutines(vfs, workspaceRel)).items).toEqual([]);
+  await sandbox.dispose();
+});
+
+test("a pooled turn under a plan floor cannot save a routine that fires more often", async () => {
+  const limits = { routineMinIntervalMinutes: 15 };
+  const sandbox = await fixture(fetch, ["agent-writes"], "c1", limits);
+  const { vfs, workspaceRel } = sandbox.filesystem;
+  const body = { name: "Inbox", prompt: "Check it", schedule: "*/5 * * * *" };
+  const refused = await post(sandbox.call, "/sandbox/routines/save", body);
+  expect(refused.status).toBe(400);
+  expect(await refused.json()).toMatchObject({
+    code: "plan_min_interval",
+    minIntervalMinutes: 15,
+    error: expect.stringContaining("at most once every 15 minutes"),
+  });
+  expect((await loadRoutines(vfs, workspaceRel)).items).toEqual([]);
+  const saved = await post(sandbox.call, "/sandbox/routines/save", {
+    ...body,
+    schedule: "*/15 * * * *",
+  });
+  expect(saved.status).toBe(201);
+  await sandbox.dispose();
+});
+
+test("a pooled turn with no plan limits keeps any cadence", async () => {
+  const sandbox = await fixture(fetch, ["agent-writes"]);
+  const response = await post(sandbox.call, "/sandbox/routines/save", {
+    name: "Inbox",
+    prompt: "Check it",
+    schedule: "*/5 * * * *",
+  });
+  expect(response.status).toBe(201);
   await sandbox.dispose();
 });
 

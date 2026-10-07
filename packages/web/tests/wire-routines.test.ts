@@ -1,5 +1,5 @@
 import { HoustonClient } from "@houston/engine-adapter/client";
-import { routinePauseNotice } from "@houston/sdk";
+import { planMinIntervalRefusal, routinePauseNotice } from "@houston/sdk";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { createWireCapture, json, ORG } from "./support/wire-capture";
 
@@ -255,6 +255,34 @@ test("a failed routine write propagates — never swallowed", async () => {
   await expect(
     client().updateRoutine("a1", "r1", { schedule: "nope" }),
   ).rejects.toMatchObject({ name: "HoustonEngineError", status: 400 });
+});
+
+test("a plan-floor refusal reaches the caller whole, classified as an expected state", async () => {
+  const refusal = {
+    error:
+      "This person's plan runs a scheduled task at most once every 15 minutes, so nothing was saved. Ask whether every 15 minutes or slower works, then save again; upgrading the plan removes this limit.",
+    code: "plan_min_interval",
+    minIntervalMinutes: 15,
+  };
+  for (const write of [
+    () =>
+      client().createRoutine("a1", {
+        name: "Inbox",
+        prompt: "Check it",
+        schedule: "*/5 * * * *",
+      }),
+    () => client().updateRoutine("a1", "r1", { schedule: "*/5 * * * *" }),
+  ]) {
+    reset();
+    stubFetch(json(400, refusal));
+    const err = await write().then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(calls).toHaveLength(1); // a refusal is final: never resent
+    expect(err).toMatchObject({ name: "HoustonEngineError", status: 400 });
+    expect(planMinIntervalRefusal(err)).toEqual(refusal);
+  }
 });
 
 // ---- runRoutineNow / cancelRoutineRun ----

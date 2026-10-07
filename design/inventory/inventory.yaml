@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 126
+version: 127
 
 components:
   - id: agent-delegation-settings
@@ -1014,6 +1014,8 @@ components:
       The inline edit panel authors the wake mechanism: where the deployment
       supports event triggers it offers a plain-language "When should this
       happen?" choice (schedule / app event); otherwise it is schedule-only.
+      The inline schedule editor honors the plan's minimum interval the same
+      way the routine screen's does (no pick under it on Free).
       A row also carries a WARNING chip when the AI account the routine would
       run on is unusable -- not connected, needing a reconnect, or out of
       credits -- so a broken automation is visible in the list rather than only
@@ -1045,6 +1047,7 @@ components:
         schedule-editor,
         model-row,
         connection-health-badge,
+        plan-skip-notice,
         runs-modal,
       ]
     states:
@@ -1052,12 +1055,14 @@ components:
         viewing,
         editing-prompt,
         editing-schedule,
+        schedule-below-plan-minimum,
         loading-runs,
         no-runs-yet,
         delivery-expired,
         provider-connected,
         provider-unusable,
         provider-checking,
+        plan-skipped-events,
       ]
     variants: [full-screen]
     behavior: >-
@@ -1067,6 +1072,18 @@ components:
       shows the humanized cron with the SAME schedule-builder editor the rows
       use (plus the next fire time), or a trigger's plain-language event with
       its live activation chip (event bindings change via chat, not here).
+      The editor takes the VIEWER's own Free minimum interval on any routine
+      (SDK routineScheduleFloor: saving re-stamps the routine's creator to the
+      saver, whose plan the runs are judged on), bound to the SDK's one rule
+      (scheduleFloorRule: a cron's smallest REAL gap between fires, the same
+      rule the save check and the host's write gate run). The editor only
+      asks that rule: the custom minutes count offers exactly the counts it
+      accepts (a step restarts at the top of the hour, so on Free 16-19,
+      23-29 and 46-59 are not offered), minus and plus step between them,
+      plus past the top moves to 1 hour, a typed count it refuses snaps up on
+      blur with Save disabled until then, a preset it refuses is hidden (none
+      at 15), and a hint names the minimum. An existing shorter schedule
+      still reads as it is, with Save disabled until changed.
       The model row ALWAYS names the resolved pair -- provider + model, e.g.
       "Claude - Opus 5" -- whether the routine is pinned or follows the agent;
       an unpinned routine adds a quiet line saying so. Picking pins it (the fire
@@ -1086,7 +1103,16 @@ components:
       deadline explanation with guidance to try running the routine again;
       clicking an entry closes the modal and opens that run's chat in the shell panel
       (closing the chat returns to this screen). "Open chat" reaches the
-      routine's setup chat the same way.
+      routine's setup chat the same way. A trigger routine whose runs the
+      Free plan refused in the last 24 hours shows a notice on the screen AND
+      at the top of the Runs modal: how many runs were skipped and why (SDK
+      triggerPlanSkipNotice). The gateway judges the CREATOR's plan, so the
+      creator on Free sees the reason (the minimum interval, the one-routine
+      limit, or routines paused while away) with Upgrade to Plus, Choose
+      routine for the limit, and Resume first while still paused; on Plus it
+      is hidden. A routine naming no creator (an Agent Store install or an
+      import) is the viewer's own, as for the connection badge. Anyone else
+      sees a read-only line that it ran on its creator's Free plan.
     a11y: >-
       the screen title and sections are real headings; the prompt textarea is
       labeled; run rows are buttons whose accessible name carries the outcome,

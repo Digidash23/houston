@@ -44,6 +44,7 @@ export { RoutinesGridList } from "./routines-grid-list";
 export { formatRunDuration, formatRunStart } from "./run-history";
 export type { ScheduleBuilderProps } from "./schedule-builder";
 export { ScheduleBuilder } from "./schedule-builder";
+export type { ScheduleFloor } from "./schedule-floor";
 export { cronSummary, presetSummary } from "./schedule-summary";
 export type { TimezonePickerProps } from "./timezone-picker";
 export { TimezonePicker } from "./timezone-picker";

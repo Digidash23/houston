@@ -10,6 +10,10 @@
  * for itself whether that hides a control or is a failure.
  */
 
+import {
+  parseTriggerPlanSkipped,
+  type TriggerStatusItem,
+} from "@houston/wire-types";
 import { type HttpScope, httpRequest } from "../http";
 import type {
   AgentAssignment,
@@ -17,7 +21,6 @@ import type {
   AgentModelChoiceInfo,
   AgentSettings,
   AgentSettingsUpdate,
-  TriggerStatusItem,
 } from "./policy-types";
 
 /**
@@ -142,7 +145,10 @@ export async function setAgentModelChoice(
  *
  * One agent's per-routine trigger status (C9). A gateway that does not serve
  * triggers answers 404 like any other failure; the caller reads that as
- * "triggers unsupported here" and hides the badge.
+ * "triggers unsupported here" and hides the badge. An item's plan_skipped
+ * counts the routine's events the Free plan refused in the last 24 hours (why,
+ * how many, and when the last one was), so a routine that "did not run" on an
+ * event can be explained.
  * @param agentSlugOrId The agent this acts on, by the id or slug listAgents
  *   returns. Read it from listAgents rather than writing the name the user
  *   says.
@@ -156,5 +162,14 @@ export async function agentTriggerStatus(
     scope,
     `/v1/agents/${encodeURIComponent(agentSlugOrId)}/trigger-status`,
   );
-  return ((await res.json()) as { items: TriggerStatusItem[] }).items;
+  const { items } = (await res.json()) as { items: TriggerStatusItem[] };
+  return items.map(withParsedPlanSkip);
+}
+
+/** Drops a `plan_skipped` this client cannot explain; the rest passes as is. */
+function withParsedPlanSkip(item: TriggerStatusItem): TriggerStatusItem {
+  if (item.plan_skipped === undefined) return item;
+  const { plan_skipped, ...rest } = item;
+  const parsed = parseTriggerPlanSkipped(plan_skipped);
+  return parsed ? { ...rest, plan_skipped: parsed } : rest;
 }

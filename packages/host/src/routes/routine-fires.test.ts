@@ -13,6 +13,7 @@ import {
   turnBusyError,
 } from "../channel/fire-error";
 import { MemoryCredentialStore } from "../credentials/store";
+import type { FireTurnOptions } from "../fire-turn-options";
 import { CloudPaths } from "../paths";
 import type {
   ChannelCtx,
@@ -52,8 +53,7 @@ class SpyChannel implements RuntimeChannel {
     conversationId: string,
     text: string,
     pin?: TurnPin,
-    actingUser?: string,
-    actingAs?: string,
+    { actingUser, actingAs }: FireTurnOptions = {},
   ) {
     if (this.refusal) throw this.refusal;
     this.fired.push({ conversationId, text, pin, actingUser, actingAs });

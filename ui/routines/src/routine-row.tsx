@@ -33,6 +33,7 @@ import { clickOpensRow, keyOpensRow } from "./routine-row-open-intent";
 import { RoutineRowStatus } from "./routine-row-status";
 import { RoutineRowSummary } from "./routine-row-summary";
 import { RoutineRowTitle } from "./routine-row-title";
+import type { ScheduleFloor } from "./schedule-floor";
 import type { Routine, RoutineRun, TriggerStatusItem } from "./types";
 
 export interface RoutineRowProps {
@@ -65,6 +66,9 @@ export interface RoutineRowProps {
   labels?: RoutineRowLabels;
   /** Schedule-builder labels, threaded to the inline schedule editor. */
   scheduleLabels?: ScheduleLabels;
+  /** A plan's minimum interval for the inline schedule editor, with its rule
+   *  (memoized). Absent = no limit. */
+  scheduleFloor?: ScheduleFloor;
   /** Schedule-summary + next-run labels, threaded to the cron/time formatters. */
   scheduleSummaryLabels?: ScheduleSummaryLabels;
   nextFireLabels?: NextFireLabels;
@@ -95,6 +99,7 @@ export function RoutineRow({
   onScheduleChange,
   labels = DEFAULT_ROW_LABELS,
   scheduleLabels = DEFAULT_SCHEDULE_LABELS,
+  scheduleFloor,
   scheduleSummaryLabels = DEFAULT_SCHEDULE_SUMMARY_LABELS,
   nextFireLabels = DEFAULT_NEXT_FIRE_LABELS,
   triggerLabels = DEFAULT_TRIGGER_LABELS,
@@ -155,6 +160,7 @@ export function RoutineRow({
           onScheduleChange={onScheduleChange}
           labels={labels}
           scheduleLabels={scheduleLabels}
+          scheduleFloor={scheduleFloor}
           scheduleSummaryLabels={scheduleSummaryLabels}
           triggerLabels={triggerLabels}
           triggerStatus={triggerStatus}

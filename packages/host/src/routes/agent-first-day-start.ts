@@ -14,6 +14,7 @@ import type {
   FirstDayStartInput,
   FirstDayStartResult,
   HoustonEvent,
+  TurnLimits,
 } from "@houston/protocol";
 import { isTurnBusyIn } from "../channel/fire-error";
 import type { Agent, Workspace } from "../domain/types";
@@ -60,6 +61,8 @@ export interface FirstDayStartDeps {
   /** Whose name the first turn works in: a bare sub, or the gateway token. */
   actingUser: string | undefined;
   actingAs: string | undefined;
+  /** The plan limits the first turn runs under (gateway-stamped). */
+  limits?: TurnLimits | undefined;
   emit: ((event: HoustonEvent) => void) | undefined;
 }
 

@@ -1,4 +1,4 @@
-import type { FirstDayStartInput } from "@houston/protocol";
+import { type FirstDayStartInput, parseTurnLimits } from "@houston/protocol";
 import { routineActorFor } from "../auth/acting";
 import { channelFor, DEFAULT_PATHS, noChannel } from "./agent-authz";
 import { startFirstDay } from "./agent-first-day-start";
@@ -58,7 +58,8 @@ defineRoute({
     req,
     res,
   }) {
-    const parsed = parseFirstDayStart(await readJson(req));
+    const body = await readJson(req);
+    const parsed = parseFirstDayStart(body);
     if (!parsed.ok) return json(res, 400, { error: parsed.error });
     if (!deps.vfs)
       return json(res, 503, { error: "agent data not configured" });
@@ -78,6 +79,9 @@ defineRoute({
         // The same acting policy a routine fire follows (auth/acting.ts).
         actingUser: routineActorFor(deps, req, userId),
         actingAs,
+        // The gateway's plan stamp, trusted only behind it: the first turn's
+        // routine saves are held to the person's floor.
+        limits: deps.gatewayFronted ? parseTurnLimits(body.limits) : undefined,
         emit,
       },
       parsed.input,

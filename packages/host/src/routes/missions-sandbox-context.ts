@@ -71,5 +71,6 @@ export async function missionsContext(
       ? (actingAuthorFromHeader(turn?.actingAs) ?? undefined)
       : undefined,
     actingAs: deps.gatewayFronted ? turn?.actingAs : undefined,
+    ...(deps.gatewayFronted && turn?.limits ? { limits: turn.limits } : {}),
   };
 }

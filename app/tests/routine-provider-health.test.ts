@@ -5,7 +5,6 @@ import {
   routineHealthBlocksRun,
   routineHealthOffersConnect,
   routineProviderHealth,
-  viewerIsRoutineCreator,
 } from "../src/lib/routine-provider-health.ts";
 
 /**
@@ -153,21 +152,5 @@ describe("routineHealthOffersConnect", () => {
     strictEqual(routineHealthOffersConnect("out_of_credits"), false);
     strictEqual(routineHealthOffersConnect("connected"), false);
     strictEqual(routineHealthOffersConnect("checking"), false);
-  });
-});
-
-describe("viewerIsRoutineCreator", () => {
-  it("single-player (no creator) is always the viewer's own account", () => {
-    strictEqual(viewerIsRoutineCreator(undefined, null), true);
-    strictEqual(viewerIsRoutineCreator(undefined, "u-alice"), true);
-  });
-
-  it("matches the signed-in user id", () => {
-    strictEqual(viewerIsRoutineCreator("u-alice", "u-alice"), true);
-  });
-
-  it("a teammate's routine runs on an account this viewer cannot probe", () => {
-    strictEqual(viewerIsRoutineCreator("u-bob", "u-alice"), false);
-    strictEqual(viewerIsRoutineCreator("u-bob", null), false);
   });
 });

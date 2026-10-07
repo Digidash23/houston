@@ -6,7 +6,6 @@
  */
 
 import type { Routine, RoutineUpdate } from "@houston/engine-adapter";
-import { freeScheduleAllowed } from "@houston/sdk";
 import { Button, Textarea } from "@houston-ai/core";
 import {
   cronSummary,
@@ -16,8 +15,8 @@ import {
 } from "@houston-ai/routines";
 import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { usePlan } from "../../hooks/queries/use-plan";
 import { useRoutineLabels } from "../../hooks/use-routine-labels";
+import { useRoutineScheduleFloor } from "../../hooks/use-routine-schedule-floor";
 import type { Agent } from "../../lib/types";
 import { RoutineModelRow } from "./routine-model-row";
 
@@ -51,7 +50,7 @@ export function RoutineScreenSections({
 }: Props) {
   const { t } = useTranslation("routines");
   const { t: planT } = useTranslation("plan");
-  const { data: plan } = usePlan();
+  const floor = useRoutineScheduleFloor();
   const [shortInterval, setShortInterval] = useState(false);
   const labels = useRoutineLabels();
 
@@ -125,8 +124,11 @@ export function RoutineScreenSections({
                 labels.schedule.summary,
                 labels.locale,
               )}
+              // The editor never offers a pick under the plan's floor; the
+              // check below stays as the backstop for anything else.
+              scheduleFloor={floor}
               onScheduleChange={(_routineId, cron) => {
-                const allowed = freeScheduleAllowed(cron, plan);
+                const allowed = !floor || floor.allows(cron);
                 setShortInterval(!allowed);
                 if (allowed) onSave({ schedule: cron });
               }}
@@ -134,9 +136,9 @@ export function RoutineScreenSections({
               scheduleLabels={labels.schedule}
               locale={labels.locale}
             />
-            {shortInterval && (
+            {shortInterval && floor && (
               <p className="text-xs text-warning-ink">
-                {planT("shortInterval")}
+                {planT("shortInterval", { minutes: floor.minutes })}
               </p>
             )}
           </div>

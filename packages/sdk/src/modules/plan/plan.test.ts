@@ -5,12 +5,8 @@ import { HoustonSdk } from "../../sdk";
 import { memoryKv } from "../../test-ports";
 import { messageLimitRefusal } from "../turns/turn-errors";
 import { PlanCommand } from "./index";
-import {
-  freeScheduleAllowed,
-  planDialog,
-  presenceDue,
-  usagePercent,
-} from "./model";
+import { planDialog, presenceDue, usagePercent } from "./model";
+import { routineScheduleFloor, scheduleFloorAllows } from "./schedule-floor";
 
 const summary = {
   plan: "free" as const,
@@ -139,8 +135,9 @@ describe("personal plan decisions", () => {
   it("throttles presence and refuses short Free intervals", () => {
     expect(presenceDue(100, 600_099)).toBe(false);
     expect(presenceDue(100, 600_100)).toBe(true);
-    expect(freeScheduleAllowed("*/5 * * * *", summary)).toBe(false);
-    expect(freeScheduleAllowed("*/15 * * * *", summary)).toBe(true);
+    const floor = routineScheduleFloor(summary);
+    expect(scheduleFloorAllows("*/5 * * * *", floor)).toBe(false);
+    expect(scheduleFloorAllows("*/15 * * * *", floor)).toBe(true);
   });
 });
 
