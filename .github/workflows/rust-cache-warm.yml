@@ -37,10 +37,12 @@ on:
       - app/src-tauri/tauri.conf.json
       - crates/*/Cargo.toml
       - .github/workflows/rust-cache-warm.yml
-  # Weekly, so a new stable rustc is warmed before the next tag needs it. A run
-  # whose exact key already exists stops after the lookup.
+  # Weekly, so a new stable rustc is warmed before the next tag needs it.
+  # Friday 05:23 UTC: Rust stable ships on Thursdays, so a new compiler is
+  # warmed before the next cut. A run whose exact key already exists stops
+  # after the lookup.
   schedule:
-    - cron: "23 5 * * 1"
+    - cron: "23 5 * * 5"
   workflow_dispatch:
 
 permissions:
