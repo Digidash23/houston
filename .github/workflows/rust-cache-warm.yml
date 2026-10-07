@@ -42,11 +42,6 @@ on:
   schedule:
     - cron: "23 5 * * 1"
   workflow_dispatch:
-  # TEMPORARY validation trigger for the PR that adds this file. Removed before
-  # merge.
-  pull_request:
-    paths:
-      - .github/workflows/rust-cache-warm.yml
 
 permissions:
   contents: read
@@ -214,38 +209,3 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ steps.lookup.outputs.cache-primary-key }}
-
-      # TEMPORARY validation for the PR that adds this file, removed before
-      # merge: throw the build away, restore the cache through restore-keys the
-      # way a release leg does, rebuild, and count the crates cargo compiles.
-      - name: "Validation: wipe the build and the cargo registry"
-        if: ${{ github.event_name == 'pull_request' && steps.lookup.outputs.cache-hit != 'true' }}
-        run: rm -rf target ~/.cargo/registry ~/.cargo/git
-
-      - name: "Validation: restore the cache like a release leg"
-        if: ${{ github.event_name == 'pull_request' && steps.lookup.outputs.cache-hit != 'true' }}
-        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        with:
-          fail-on-cache-miss: true
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: rust-release-${{ matrix.leg }}-${{ steps.toolchain.outputs.cachekey }}-tag-run
-          restore-keys: rust-release-${{ matrix.leg }}-${{ steps.toolchain.outputs.cachekey }}-
-
-      - name: "Validation: rebuild and count compiled crates"
-        if: ${{ github.event_name == 'pull_request' && steps.lookup.outputs.cache-hit != 'true' }}
-        run: |
-          set -euo pipefail
-          IFS=',' read -ra TRIPLES <<< "$RUST_TARGETS"
-          for TRIPLE in "${TRIPLES[@]}"; do
-            scripts/build-host-sidecar.sh "$TRIPLE" > /dev/null
-          done
-          (cd app && npm run tauri build -- --target "$TAURI_TARGET" --no-bundle) 2>&1 | tee "$RUNNER_TEMP/rebuild.log"
-          COMPILED=$(grep -c 'Compiling ' "$RUNNER_TEMP/rebuild.log" || true)
-          grep 'Compiling ' "$RUNNER_TEMP/rebuild.log" || true
-          echo "::notice::${LEG}: rebuild from the restored cache compiled ${COMPILED} crates"
-          # Only the workspace members (and their build scripts) should rebuild.
-          [ "$COMPILED" -le 8 ]
