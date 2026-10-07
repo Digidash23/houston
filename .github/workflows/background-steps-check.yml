@@ -72,3 +72,23 @@ jobs:
 
       - name: Wait for one step
         wait: single
+
+      # A failing background step must fail the wait that includes it. The
+      # wait's continue-on-error keeps this check green so the next step can
+      # assert the outcome.
+      - name: Background step that fails
+        id: fails
+        background: true
+        run: exit 1
+
+      - name: Wait for the failing step
+        id: wait-fails
+        continue-on-error: true
+        wait: fails
+
+      - name: The wait reported the failure
+        env:
+          OUTCOME: ${{ steps.wait-fails.outcome }}
+        run: |
+          echo "wait outcome: $OUTCOME"
+          [ "$OUTCOME" = failure ]
