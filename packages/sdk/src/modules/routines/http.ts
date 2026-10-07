@@ -83,7 +83,8 @@ export async function createRoutine(
  *   (cron, or `@every <N>m` / `@every <N>h`). `enabled: true` resumes a paused routine, including one
  *   the engine paused itself after repeated account or model failures
  *   (`auto_paused`); fix what `auto_paused.reason` names first, or the next
- *   runs fail the same way.
+ *   runs fail the same way. When `auto_paused.cause` is `no_model`, the
+ *   routine has no model: set its `provider` and `model` to a connected one.
  * @assistant group:routines
  * @assistant confirm: money. A schedule edit retargets recurring spend, changing how often the agent runs and is billed from then on.
  * @assistant unschematized: a trigger binding carries the outside app's own event config, whose shape belongs to that app.

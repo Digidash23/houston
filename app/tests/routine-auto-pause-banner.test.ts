@@ -94,6 +94,25 @@ describe("RoutineAutoPauseBanner", () => {
     );
   });
 
+  it("asks a routine with no model to choose one, naming no provider", () => {
+    const html = text(
+      render({
+        ...base,
+        enabled: false,
+        auto_paused: {
+          reason: "model_unavailable",
+          provider: "",
+          cause: "no_model",
+          failures: 10,
+          at: "2026-09-29T11:00:00.000Z",
+        },
+      }),
+    );
+    ok(html.includes(routines.details.autoPause.chooseModel), html);
+    ok(html.includes(routines.details.autoPause.resume), html);
+    ok(!html.includes("undefined"), html);
+  });
+
   it("asks to sign in again when the gateway signed the reader's account out", () => {
     const html = text(
       render(paused("creator_not_connected"), "needs_reconnect"),

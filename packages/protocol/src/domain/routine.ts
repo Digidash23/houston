@@ -7,6 +7,7 @@ import type {
 } from "./routine-failure";
 
 export type {
+  RoutineAccountFailureCode,
   RoutineAutoPause,
   RoutineDeliveryFailure,
   RoutineDeliveryFailureCode,

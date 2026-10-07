@@ -8,8 +8,8 @@
  */
 
 import type {
+  RoutineAccountFailureCode,
   RoutineAutoPause,
-  RoutineRunFailureCode,
 } from "@houston/protocol";
 import {
   failureCodeForReader,
@@ -26,26 +26,40 @@ export type RoutinePauseRemedy =
   /** The account works but has no credits left: add some or change plan. */
   | "add_credits"
   /** The account cannot run the routine's model: pick another model. */
-  | "change_model";
+  | "change_model"
+  /** The routine names no model and nothing it could fall back on is
+   *  connected: choose a model for it. */
+  | "choose_model";
 
 /** Whose account the remedy is about. */
 export type RoutinePauseAccount = "creator" | "team";
 
-export interface RoutinePauseNotice {
-  remedy: RoutinePauseRemedy;
-  /** Present for the connect and reconnect remedies; the other two name no account. */
-  account?: RoutinePauseAccount;
-  /** The provider id the failed runs needed (e.g. "anthropic"). */
-  provider: string;
+interface PauseCounts {
   /** How many runs in a row failed before the pause. */
   failures: number;
   /** ISO time of the pause. */
   pausedAt: string;
 }
 
+export type RoutinePauseNotice = PauseCounts &
+  (
+    | {
+        remedy: Exclude<RoutinePauseRemedy, "choose_model">;
+        /** Present for the connect and reconnect remedies; the other two name no account. */
+        account?: RoutinePauseAccount;
+        /** The provider id the failed runs needed (e.g. "anthropic"). */
+        provider: string;
+      }
+    /** The routine has no model to name a provider for. */
+    | { remedy: "choose_model" }
+  );
+
 const REMEDY: Record<
-  RoutineRunFailureCode,
-  { remedy: RoutinePauseRemedy; account?: RoutinePauseAccount }
+  RoutineAccountFailureCode,
+  {
+    remedy: Exclude<RoutinePauseRemedy, "choose_model">;
+    account?: RoutinePauseAccount;
+  }
 > = {
   creator_not_connected: { remedy: "connect_account", account: "creator" },
   team_not_connected: { remedy: "connect_account", account: "team" },
@@ -68,16 +82,22 @@ export function routinePauseNotice(
 ): RoutinePauseNotice | null {
   const pause = routine.auto_paused;
   if (routine.enabled || !pause) return null;
+  const counts = { failures: pause.failures, pausedAt: pause.at };
+  // Read before `reason`: a no-model pause carries an account reason only so
+  // older clients can render it (`RoutineAutoPause.cause`).
+  if (pause.cause === "no_model") return { remedy: "choose_model", ...counts };
   const reason = failureCodeForReader(
     { code: pause.reason, provider: pause.provider },
     reader,
   );
-  const { remedy, account } = REMEDY[reason];
+  // A host newer than this client may record a reason it has no fix for:
+  // reading it as no notice beats a screen that throws.
+  const fix = reason === "no_model" ? undefined : REMEDY[reason];
+  if (!fix) return null;
   return {
-    remedy,
-    ...(account ? { account } : {}),
+    remedy: fix.remedy,
+    ...(fix.account ? { account: fix.account } : {}),
     provider: pause.provider,
-    failures: pause.failures,
-    pausedAt: pause.at,
+    ...counts,
   };
 }
