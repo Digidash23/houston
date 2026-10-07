@@ -316,7 +316,10 @@ export class ProxyChannel implements RuntimeChannel {
       this.stopTurnLogCapture(ctx.agent.id, conversationId);
       throw isDialFailure(error)
         ? error
-        : new TurnDeliveryUncertainError(error);
+        : new TurnDeliveryUncertainError(
+            error,
+            this.opts.launcher.isClosed?.() ?? false,
+          );
     }
     if (!res.ok) {
       this.stopTurnLogCapture(ctx.agent.id, conversationId);

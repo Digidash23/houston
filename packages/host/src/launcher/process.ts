@@ -159,6 +159,10 @@ export class ProcessLauncher implements RuntimeLauncher {
     return this.running.has(agentId) ? "running" : "asleep";
   }
 
+  isClosed(): boolean {
+    return this.closed;
+  }
+
   /** Kill every running runtime - called on supervisor shutdown so a restart
    *  doesn't orphan child processes (which would hold ports + the agent dir). */
   shutdownAll(): void {

@@ -206,6 +206,12 @@ export interface RuntimeLauncher {
    * id (pods) need no latch.
    */
   hold?(agentId: AgentId): () => void;
+  /**
+   * Whether shutdown has latched this launcher: it spawns nothing again and
+   * every runtime it held has been sent SIGTERM. Optional: a launcher with no
+   * shutdown latch is never closed.
+   */
+  isClosed?(): boolean;
 }
 
 /** The (workspace, agent) pair every channel operation is scoped to. */
