@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createRoutine } from "@houston/domain";
 import type { ChatMessage } from "@houston/runtime-client";
 import { LocalDirStore } from "@houston/runtime-client/object-sync";
 import { afterEach, expect, test } from "vitest";
@@ -672,4 +673,66 @@ test("a credentialed turn that fails after persisting still publishes its user r
 
   expect(requests.map((r) => r.url.split("/").at(-1))).toEqual(["user"]);
   expect(errorMessage(raw)).toBe("provider exploded");
+});
+
+test("an unconnected routine run ends on the no-provider message alone", async () => {
+  const objects = seedStandingLayout();
+  const routine = createRoutine(
+    {
+      name: "Digest",
+      prompt: "Summarize the inbox",
+      schedule: "0 9 * * *",
+      chat_mode: "per_run",
+      provider: "openai-codex",
+    },
+    "r1",
+    "2026-09-29T10:00:00.000Z",
+  );
+  objects.set(
+    "workspaces/Main/Helper/.houston/routines/routines.json",
+    new TextEncoder().encode(JSON.stringify([routine])),
+  );
+  const requests: TranscriptRequest[] = [];
+  const pool = poolFetch(objects, requests);
+  // The run history doc route: empty until this run's rows land.
+  const docs = new Map<string, unknown>();
+  const fetchImpl: typeof fetch = async (input, init) => {
+    const url = String(input);
+    if (!new URL(url).pathname.startsWith("/v1/pod/docs/"))
+      return pool(input, init);
+    if (init?.method !== "PUT") {
+      const doc = docs.get(url);
+      return doc === undefined
+        ? Response.json({ error: "document not found" }, { status: 404 })
+        : Response.json({ doc, revision: 1 });
+    }
+    const { doc } = JSON.parse(String(init.body)) as { doc: unknown };
+    docs.set(url, doc);
+    return Response.json({ doc, revision: 1 });
+  };
+  const raw = await runClaimedTurn(
+    {
+      runTurn: async () => {
+        throw new Error("an unconnected turn must not run the session");
+      },
+      poolStoreUrl: "https://pool.example",
+      fetchImpl,
+      heartbeatIntervalMs: 60_000,
+    },
+    turnBody({
+      credential: null,
+      text: "",
+      routine: { id: "r1" },
+      conversationId: "routine-r1-turn.7",
+    }),
+  );
+
+  expect(requests).toHaveLength(0);
+  // The run row still settles on the no-provider error, typed.
+  const rows = [...docs.values()].flat() as { id: string }[];
+  expect(rows.findLast((r) => r.id === "turn.7")).toMatchObject({
+    status: "error",
+    failure: { code: "creator_not_connected", provider: "openai-codex" },
+  });
+  expect(errorMessage(raw)).toBe(NO_PROVIDER);
 });

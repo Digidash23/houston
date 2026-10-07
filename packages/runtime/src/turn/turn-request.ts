@@ -56,6 +56,18 @@ export function turnSessionRequest(
 }
 
 /**
+ * A turn dispatched with no credential never runs: it ends in
+ * unconnectedTurnOutcome. Keyed on the credential alone, never on the
+ * provider: the gateway also withholds the credential for a custom provider
+ * it proved absent.
+ */
+export function turnIsUnconnected(
+  turn: Pick<TurnRequest, "credential">,
+): boolean {
+  return !turn.credential;
+}
+
+/**
  * A turn with no credential: echo the user's message, then fail with the
  * reconnect instruction (the workspace is not connected yet). The echo is
  * not persisted, so it has no transcript row behind it.

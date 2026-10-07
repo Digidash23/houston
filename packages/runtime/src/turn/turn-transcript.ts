@@ -3,6 +3,7 @@ import type { TranscriptTurnWrite } from "@houston/runtime-client";
 import { loadConversation } from "../store/conversation-file";
 import type { TurnServerDeps } from "./server-types";
 import type { TurnFilesystem } from "./turn-filesystem";
+import { turnIsUnconnected } from "./turn-request";
 import { poolIdentity } from "./turn-store";
 import { putTranscriptRow } from "./turn-transcript-http";
 import { turnRow } from "./turn-transcript-row";
@@ -157,9 +158,8 @@ class HttpTurnTranscript implements TurnTranscript {
 }
 
 /**
- * Create a claim-authorized transcript publisher for one real pool turn. A
- * turn with no credential never runs (executeReadyTurn answers it with
- * unconnectedTurnOutcome): its echoed user frame has no persisted message
+ * Create a claim-authorized transcript publisher for one real pool turn. An
+ * unconnected turn gets none: its echoed user frame has no persisted message
  * behind it, so publishing would fail its terminal frame on a transcript it
  * never wrote, or re-PUT a row an earlier attempt persisted.
  */
@@ -169,7 +169,7 @@ export function createTurnTranscript(
   filesystem: TurnFilesystem,
 ): TurnTranscript | null {
   const baseUrl = deps.poolStoreUrl ?? process.env.HOUSTON_POOL_STORE_URL;
-  if (turn.shadow || !turn.credential) return null;
+  if (turn.shadow || turnIsUnconnected(turn)) return null;
   if (!baseUrl || !turn.claim || !turn.hostToken) return null;
   const { org, agent } = poolIdentity(turn.gcsPrefix);
   return new HttpTurnTranscript({

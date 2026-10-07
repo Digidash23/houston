@@ -9,7 +9,11 @@ import type { TurnFilesystem } from "./turn-filesystem";
 import type { createTurnLog } from "./turn-log";
 import { landedMissionTitle } from "./turn-mission-title-outcome";
 import { remoteActivityReader } from "./turn-mission-title-remote";
-import { turnSessionRequest, unconnectedTurnOutcome } from "./turn-request";
+import {
+  turnIsUnconnected,
+  turnSessionRequest,
+  unconnectedTurnOutcome,
+} from "./turn-request";
 import { RoutineTurnError } from "./turn-routine";
 import { finishRoutineTurn } from "./turn-routine-finish";
 import { routinePhaseTurn, startRoutineRun } from "./turn-routine-start";
@@ -68,7 +72,7 @@ export async function executeReadyTurn(input: {
   }
 
   let outcome: TurnOutcome;
-  if (!input.turn.credential) {
+  if (turnIsUnconnected(input.turn)) {
     outcome = unconnectedTurnOutcome(input.turn, input.turnId, input.emit);
   } else {
     try {
