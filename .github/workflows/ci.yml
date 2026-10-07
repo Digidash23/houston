@@ -203,8 +203,9 @@ jobs:
 
   app:
     # Every check here is short and independent of the others, so they share
-    # one install and run concurrently. Each lane keeps its commands in their
-    # original order; a failing lane fails the job when the group ends.
+    # one install and one job. They run in sequence: on a 4-vCPU runner the
+    # four lanes are CPU-bound, and running them as a `parallel:` group took
+    # 4.2 min against a 4.1 min sequential sum.
     name: App · Web unit · Agent Store (typecheck · tests · builds)
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -220,29 +221,28 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - parallel:
-          - name: Unit tests (app)
-            run: pnpm --filter houston-app test
+      - name: Unit tests (app)
+        run: pnpm --filter houston-app test
 
-          # The desktop bundle resolves the engine adapter through a Vite alias
-          # that cannot see `@houston/app/*`. Only this build catches an adapter
-          # import the web build resolves fine (every Tauri release build failed
-          # on one while PR CI stayed green).
-          - name: Desktop bundle (typecheck + vite build)
-            run: pnpm --filter houston-app build
+      # The desktop bundle resolves the engine adapter through a Vite alias
+      # that cannot see `@houston/app/*`. Only this build catches an adapter
+      # import the web build resolves fine (every Tauri release build failed
+      # on one while PR CI stayed green).
+      - name: Desktop bundle (typecheck + vite build)
+        run: pnpm --filter houston-app build
 
-          - name: Web (typecheck · e2e harness typecheck · unit tests)
-            run: |
-              set -euo pipefail
-              pnpm --filter houston-web typecheck
-              pnpm --filter houston-web typecheck:e2e
-              pnpm --filter houston-web test
+      - name: Web (typecheck · e2e harness typecheck · unit tests)
+        run: |
+          set -euo pipefail
+          pnpm --filter houston-web typecheck
+          pnpm --filter houston-web typecheck:e2e
+          pnpm --filter houston-web test
 
-          - name: Agent Store (contract + app typecheck · tests · DB-less build)
-            run: |
-              set -euo pipefail
-              pnpm --filter @houston/agentstore-contract typecheck
-              pnpm --filter @houston/agentstore-contract test
-              pnpm --filter houston-agentstore typecheck
-              pnpm --filter houston-agentstore test
-              pnpm --filter houston-agentstore build
+      - name: Agent Store (contract + app typecheck · tests · DB-less build)
+        run: |
+          set -euo pipefail
+          pnpm --filter @houston/agentstore-contract typecheck
+          pnpm --filter @houston/agentstore-contract test
+          pnpm --filter houston-agentstore typecheck
+          pnpm --filter houston-agentstore test
+          pnpm --filter houston-agentstore build
