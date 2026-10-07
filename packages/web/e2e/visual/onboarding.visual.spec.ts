@@ -34,9 +34,12 @@ test("first-run language gate", async ({ page }) => {
   });
   await page.goto("/");
 
+  // First paint waits on the dev server's module graph: on a loaded CI runner
+  // the gate has landed past the default 10 s, the boot allowance the other
+  // visual specs give their first screen.
   await expect(
     page.getByRole("heading", { name: "Choose your language" }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 20_000 });
   // The picker's three language buttons anchor a fully-painted card.
   await expect(page.getByRole("button", { name: "English" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Português" })).toBeVisible();
