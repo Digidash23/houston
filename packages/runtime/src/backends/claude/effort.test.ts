@@ -2,8 +2,8 @@ import { expect, test } from "vitest";
 import type { ThinkingLevel } from "../types";
 import { toSdkEffort } from "./effort";
 
-// Every model the anthropic provider offers (Sonnet 5.5, Opus 5.5, Fable 5.1)
-// is always-thinking — pi lists neither `off` nor `minimal` for them — so a
+// Every model the anthropic provider offers (Sonnet 5.5, Opus 5.5, Fable 5.1,
+// Haiku 5.5) thinks by default — pi lists neither `off` nor `minimal` for them — so a
 // stored `minimal` must never ask the SDK to disable thinking.
 test("minimal keeps thinking on at the lowest effort", () => {
   expect(toSdkEffort("minimal")).toEqual({

@@ -96,12 +96,12 @@ test("curated providers keep their configured defaults (no regression)", () => {
 });
 
 test("an agent saved on an unoffered Claude id reports the default it runs", () => {
-  // Haiku has no lineup model: a saved turn falls back to the provider default,
-  // so the status row (and every choice list built from it) must name that
-  // default, never a model a pinned turn would refuse.
+  // An id with no Claude family has no lineup model: a saved turn falls back
+  // to the provider default, so the status row (and every choice list built
+  // from it) must name that default, never a model a pinned turn would refuse.
   providers.setSettings({
     activeProvider: "anthropic",
-    model: "claude-haiku-4-5",
+    model: "claude-2.1",
   });
   const m = providers.resolveModel(null, "anthropic") as { id?: string };
   expect(m.id).toBe("claude-sonnet-5-5");
@@ -125,5 +125,17 @@ test("an agent saved on a retired Claude id runs and reports its family's lineup
     "claude-sonnet-5-5",
     "claude-opus-5-5",
     "claude-fable-5-1",
+    "claude-haiku-5-5",
   ]);
+});
+
+test("an agent saved on Haiku 4.5 runs and reports Haiku 5.5", () => {
+  providers.setSettings({
+    activeProvider: "anthropic",
+    model: "claude-haiku-4-5",
+  });
+  const m = providers.resolveModel(null, "anthropic") as { id?: string };
+  expect(m.id).toBe("claude-haiku-5-5");
+  const row = providers.listProviders().find((p) => p.id === "anthropic");
+  expect(row?.activeModel).toBe("claude-haiku-5-5");
 });

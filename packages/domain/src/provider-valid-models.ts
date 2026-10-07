@@ -23,6 +23,7 @@ export const VALID_MODELS: Partial<Record<ProviderId, ReadonlySet<string>>> = {
   // model instead of running as itself.
   anthropic: new Set([
     "claude-fable-5-1",
+    "claude-haiku-5-5",
     "claude-opus-5-5",
     "claude-sonnet-5-5",
   ]),

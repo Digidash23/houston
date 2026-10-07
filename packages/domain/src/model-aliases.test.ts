@@ -13,6 +13,7 @@ test("the Claude lineup is exactly what the anthropic provider runs", () => {
     "claude-sonnet-5-5",
     "claude-opus-5-5",
     "claude-fable-5-1",
+    "claude-haiku-5-5",
   ]);
   expect(new Set(Object.values(ANTHROPIC_LINEUP))).toEqual(
     VALID_MODELS.anthropic,
@@ -53,14 +54,32 @@ test("Sonnet and Fable ids land in their own family", () => {
     expect(anthropicLineupModel(id), id).toBe("claude-fable-5-1");
 });
 
+test("a Haiku id lands on Haiku 5.5, never up a tier", () => {
+  for (const id of [
+    "haiku",
+    "claude-haiku-latest",
+    "claude-haiku-4-5",
+    "claude-haiku-4-5-20251001",
+    "claude-3-5-haiku-20241022",
+  ])
+    expect(anthropicLineupModel(id), id).toBe("claude-haiku-5-5");
+  expect(legacyModelAlias("anthropic", "claude-haiku-4-5")).toBe(
+    "claude-haiku-5-5",
+  );
+  // Copilot's dotted Haiku row is Copilot's own, untouched.
+  expect(
+    legacyModelAlias("github-copilot", "claude-haiku-4.5"),
+  ).toBeUndefined();
+});
+
 test("a lineup id resolves to itself", () => {
   for (const id of Object.values(ANTHROPIC_LINEUP))
     expect(anthropicLineupModel(id)).toBe(id);
 });
 
 test("an id with no family in the lineup maps nowhere", () => {
-  // Haiku is not re-tiered into another family; the caller's ladder decides.
-  for (const id of ["haiku", "claude-haiku-4-5", "claude-2.1", "gpt-5.5"])
+  // Not re-tiered into another family; the caller's ladder decides.
+  for (const id of ["claude-2.1", "claude-instant-1.2", "gpt-5.5"])
     expect(anthropicLineupModel(id), id).toBeUndefined();
   expect(MODEL_ALIASES.anthropic).toBeUndefined();
 });
