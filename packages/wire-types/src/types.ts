@@ -29,6 +29,7 @@ export type {
   FirstDayStartInput,
   FirstDayStartResult,
   GrantableOperation,
+  RoutineAccountFailureCode,
   RoutineAutoPause,
   RoutineDeliveryFailure,
   RoutineDeliveryFailureCode,

@@ -348,6 +348,15 @@ function connectedProviderIds(): ProviderId[] {
  * provider connected for the saved pick, so the turn must surface the reconnect
  * card rather than silently switching.
  */
+/**
+ * The agent's saved provider whether or not it is connected; null when nothing
+ * is saved. `activeProvider` answers null for a logged-out saved provider too,
+ * and a refusal must tell that apart from an agent that never picked one.
+ */
+export function savedActiveProvider(): ProviderId | null {
+  return loadSettings().activeProvider ?? null;
+}
+
 export function activeProvider(): ProviderId | null {
   return pickActiveProvider(
     loadSettings().activeProvider,
