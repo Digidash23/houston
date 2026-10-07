@@ -25,6 +25,7 @@ interface Props {
   effects: PlanSkipEffects;
   onLeave?: () => void;
   layout?: "row" | "stacked";
+  surface?: "card" | "inline";
   className?: string;
 }
 
@@ -33,6 +34,7 @@ export function RoutinePlanSkipNoticeControls({
   effects,
   onLeave,
   layout,
+  surface,
   className,
 }: Props) {
   const onAction = (action: TriggerPlanSkipAction) => {
@@ -57,6 +59,7 @@ export function RoutinePlanSkipNoticeControls({
       onAction={onAction}
       pending={effects.resuming ? "resume" : null}
       layout={layout}
+      surface={surface}
       className={className}
     />
   );

@@ -33,6 +33,7 @@ interface Props {
    *  hosting dialog can close first. */
   onLeave?: () => void;
   layout?: "row" | "stacked";
+  surface?: "card" | "inline";
   className?: string;
 }
 
@@ -41,6 +42,7 @@ export function RoutinePlanSkipNotice({
   routine,
   onLeave,
   layout,
+  surface,
   className,
 }: Props) {
   const routineIds = useMemo(() => [routine.id], [routine.id]);
@@ -81,6 +83,7 @@ export function RoutinePlanSkipNotice({
       }}
       onLeave={onLeave}
       layout={layout}
+      surface={surface}
       className={className}
     />
   );

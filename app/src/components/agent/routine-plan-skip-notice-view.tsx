@@ -9,8 +9,9 @@ import type {
   TriggerPlanSkipAction,
   TriggerPlanSkipNotice,
 } from "@houston/sdk";
-import { Button, cn } from "@houston-ai/core";
+import { Button } from "@houston-ai/core";
 import { useTranslation } from "react-i18next";
+import { RoutineNoticeCard } from "./routine-notice-card";
 
 interface Props {
   notice: TriggerPlanSkipNotice;
@@ -21,6 +22,8 @@ interface Props {
    *  routine screen); `stacked` keeps them under it at every width (the
    *  narrow runs dialog). */
   layout?: "row" | "stacked";
+  /** `inline` inside a dialog that already frames it (the runs dialog). */
+  surface?: "card" | "inline";
   /** Width and spacing from the mount. */
   className?: string;
 }
@@ -30,6 +33,7 @@ export function RoutinePlanSkipNoticeView({
   onAction,
   pending = null,
   layout = "row",
+  surface = "card",
   className,
 }: Props) {
   const { t } = useTranslation("plan");
@@ -64,47 +68,32 @@ export function RoutinePlanSkipNoticeView({
   };
 
   return (
-    <div
-      role="status"
+    <RoutineNoticeCard
       data-testid="routine-plan-skip-notice"
       data-reason={notice.reason}
-      className={cn(
-        "flex w-full flex-col gap-3 rounded-lg border border-line bg-card px-4 py-3",
-        layout === "row" && "md:flex-row md:items-center md:gap-4",
-        className,
-      )}
-    >
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <p className="flex items-start gap-1.5 text-sm font-medium text-ink">
-          {/* h-5 = text-sm's line height: the dot centres on the first line
-              when the title wraps. */}
-          <span aria-hidden className="flex h-5 shrink-0 items-center">
-            <span className="size-1.5 rounded-full bg-warning" />
-          </span>
-          {t("triggerSkipped.title", { count: notice.count })}
-        </p>
-        <p className="text-sm text-ink-muted">{body()}</p>
-      </div>
-      {notice.actions.length > 0 && (
-        <div
-          className={cn(
-            "flex flex-wrap gap-2 self-start",
-            layout === "row" && "md:shrink-0 md:self-center",
-          )}
-        >
-          {notice.actions.map((action) => (
-            <Button
-              key={action}
-              variant="secondary"
-              size="sm"
-              disabled={pending === action}
-              onClick={() => onAction(action)}
-            >
-              {label(action)}
-            </Button>
-          ))}
-        </div>
-      )}
-    </div>
+      tone={notice.reason === "inactive_resumed" ? "info" : "warning"}
+      heading={t("triggerSkipped.title", { count: notice.count })}
+      body={body()}
+      surface={surface}
+      layout={layout}
+      className={className}
+      actions={
+        notice.actions.length > 0 &&
+        notice.actions.map((action) => (
+          <Button
+            key={action}
+            // The way out (Upgrade, Resume) is the filled pill, like the
+            // sidebar's Upgrade chip; choosing a routine is the quiet one.
+            variant={action === "keep_routine" ? "secondary" : "default"}
+            size="sm"
+            className="active:scale-[0.96]"
+            disabled={pending === action}
+            onClick={() => onAction(action)}
+          >
+            {label(action)}
+          </Button>
+        ))
+      }
+    />
   );
 }

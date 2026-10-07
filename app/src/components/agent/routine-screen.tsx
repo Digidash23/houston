@@ -139,6 +139,7 @@ export function RoutineScreen({
             routine={routine}
             onLeave={() => setRunsOpen(false)}
             layout="stacked"
+            surface="inline"
           />
         }
         runs={allRuns?.filter((run) => run.routine_id === routine.id)}

@@ -15,6 +15,11 @@ paused); on Plus the notice is hidden. A routine with no recorded creator
 sees a read-only line that it ran on its creator's Free plan. Before, a
 skipped run left no trace and the routine looked broken.
 
+The notice and the auto-pause banner share one frame: the status glyph sits
+in its own column so the title and body keep one left edge when they wrap, a
+hairline card on the routine screen and a recessed panel inside the Runs
+modal, and the way out (Upgrade, Resume) is the filled pill.
+
 The schedule editor (routine screen and list rows) no longer offers a
 schedule under the Free minimum interval to a person on Free, on any
 routine (saving makes them the routine's creator, whose plan the runs are
