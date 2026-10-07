@@ -38,6 +38,13 @@ const nextConfig: NextConfig = {
     "@houston-ai/core",
     "@houston-ai/store",
   ],
+  experimental: {
+    // Keep the fetch cache (the 60s catalog revalidate) in memory only. On
+    // disk Next never deletes entries, and every distinct gateway URL is a
+    // new file, so random search queries could fill the pod's disk until
+    // kubelet evicts it. The in-memory cache is an LRU capped at 50MB.
+    isrFlushToDisk: false,
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
