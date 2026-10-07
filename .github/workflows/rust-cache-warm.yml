@@ -1,0 +1,251 @@
+# Release Rust cache warmer
+#
+# release.yml runs on tag pushes, and a cache saved from a tag ref is readable
+# only by re-runs of that same tag, so every release used to compile the whole
+# Rust dependency graph from scratch (~680 crates per macOS arch). Caches saved
+# on main are readable by every tag. This workflow compiles each release leg's
+# dependencies on main and saves them; release.yml only restores (never saves).
+#
+# A restored cache is only useful if cargo considers it fresh, so each leg here
+# must build exactly the way its release.yml leg does:
+#   - same rustc: both install stable through dtolnay/rust-toolchain, and the
+#     key carries its `cachekey` (a hash of the rustc version), so a new stable
+#     gets a new cache instead of a useless restore;
+#   - same targets, and the same `tauri build --target <t>` invocation (the
+#     tauri CLI adds crate features, so a plain `cargo build` would not match);
+#     `--no-bundle` skips only the bundling that follows the cargo build;
+#   - same `path:` list, byte for byte: it is part of the cache version, so a
+#     restore with a different list finds nothing.
+# The workspace members (houston-app, houston-local-model-bridge) are pruned
+# before saving: a release always recompiles them because the release commit
+# bumps their version.
+#
+# The key includes the Cargo manifests and the Tauri config (which drives the
+# tauri crate's features), so any change to them warms a new cache. Tags never
+# match the key exactly (the release commit rewrites Cargo.lock), so they
+# restore the newest cache for the same rustc through `restore-keys`.
+
+name: Rust cache warm
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Cargo.lock
+      - Cargo.toml
+      - app/src-tauri/Cargo.toml
+      - app/src-tauri/tauri.conf.json
+      - crates/*/Cargo.toml
+      - .github/workflows/rust-cache-warm.yml
+  # Weekly, so a new stable rustc is warmed before the next tag needs it. A run
+  # whose exact key already exists stops after the lookup.
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+  # TEMPORARY validation trigger for the PR that adds this file. Removed before
+  # merge.
+  pull_request:
+    paths:
+      - .github/workflows/rust-cache-warm.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-cache-warm-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Same values as release.yml's workflow env.
+  BUN_VERSION: "1.3.10"
+  NODE_OPTIONS: --max-old-space-size=4096
+
+jobs:
+  warm:
+    name: Warm (${{ matrix.leg }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - leg: macos-universal
+            runner: macos-latest
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            tauri-target: universal-apple-darwin
+          - leg: windows-x86_64
+            runner: windows-latest
+            rust-targets: x86_64-pc-windows-msvc
+            tauri-target: x86_64-pc-windows-msvc
+          - leg: windows-aarch64
+            runner: windows-11-arm
+            rust-targets: aarch64-pc-windows-msvc
+            tauri-target: aarch64-pc-windows-msvc
+          - leg: linux-x86_64
+            runner: ubuntu-latest
+            rust-targets: x86_64-unknown-linux-gnu
+            tauri-target: x86_64-unknown-linux-gnu
+    defaults:
+      run:
+        shell: bash
+    env:
+      LEG: ${{ matrix.leg }}
+      RUST_TARGETS: ${{ matrix.rust-targets }}
+      TAURI_TARGET: ${{ matrix.tauri-target }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Rust
+        id: toolchain
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
+        with:
+          toolchain: stable
+          targets: ${{ matrix.rust-targets }}
+
+      - name: Look up an existing cache for this exact key
+        id: lookup
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          lookup-only: true
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: rust-release-${{ matrix.leg }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'app/src-tauri/Cargo.toml', 'app/src-tauri/tauri.conf.json', 'crates/*/Cargo.toml') }}
+
+      - name: Setup pnpm
+        if: ${{ steps.lookup.outputs.cache-hit != 'true' }}
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: Setup Node.js
+        if: ${{ steps.lookup.outputs.cache-hit != 'true' }}
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 20
+          package-manager-cache: false
+
+      - name: Install dependencies
+        if: ${{ steps.lookup.outputs.cache-hit != 'true' }}
+        run: pnpm install
+
+      - name: Setup Bun
+        if: ${{ steps.lookup.outputs.cache-hit != 'true' }}
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install Tauri Linux system dependencies
+        if: ${{ steps.lookup.outputs.cache-hit != 'true' && runner.os == 'Linux' }}
+        run: ./scripts/ci/install-tauri-linux-deps.sh
+
+      # Same as release.yml's macOS step: the sidecar script stages the Claude
+      # binary for both arches, and pnpm only installs the runner-native one.
+      - name: Force-install both macOS Claude SDK platform packages
+        if: ${{ steps.lookup.outputs.cache-hit != 'true' && runner.os == 'macOS' }}
+        run: |
+          set -euo pipefail
+          SDK_VER=$(jq -r '.dependencies["@anthropic-ai/claude-agent-sdk"] // .optionalDependencies["@anthropic-ai/claude-agent-sdk"] // ""' packages/runtime/package.json)
+          if [ -z "$SDK_VER" ] || [ "$SDK_VER" = "null" ]; then
+            echo "::error::@anthropic-ai/claude-agent-sdk is not pinned in packages/runtime/package.json"
+            exit 1
+          fi
+          pnpm add -w \
+            "@anthropic-ai/claude-agent-sdk-darwin-arm64@$SDK_VER" \
+            "@anthropic-ai/claude-agent-sdk-darwin-x64@$SDK_VER" \
+            --force
+          git checkout HEAD -- package.json pnpm-lock.yaml
+
+      # A release-profile build.rs refuses to run without a fresh host sidecar
+      # and Claude binary for each target, so stage the real ones. The whisper
+      # sidecar is optional to build.rs and is skipped here.
+      - name: Compile host sidecar
+        if: ${{ steps.lookup.outputs.cache-hit != 'true' }}
+        run: |
+          set -euo pipefail
+          IFS=',' read -ra TRIPLES <<< "$RUST_TARGETS"
+          for TRIPLE in "${TRIPLES[@]}"; do
+            scripts/build-host-sidecar.sh "$TRIPLE"
+          done
+
+      # tauri-action runs `npm run tauri build -- <args>` in app/, so this is
+      # the same CLI and cargo invocation minus bundling and signing.
+      - name: Build Tauri app (no bundle)
+        if: ${{ steps.lookup.outputs.cache-hit != 'true' }}
+        working-directory: app
+        run: npm run tauri build -- --target "$TAURI_TARGET" --no-bundle
+
+      # Keep only cargo's per-profile deps/, build/ and .fingerprint/ dirs, minus
+      # the workspace members. Everything else under target/ (sidecar binaries,
+      # the lipo output, copied external binaries, the app binary) is rebuilt
+      # by every release anyway and would only inflate the cache.
+      - name: Prune target dir to third-party build artifacts
+        if: ${{ steps.lookup.outputs.cache-hit != 'true' }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob dotglob
+          for entry in target/*; do
+            if [ "$entry" != target/release ] && [ ! -d "$entry/release" ]; then
+              rm -rf "$entry"
+            fi
+          done
+          for profile in target/release target/*/release; do
+            [ -d "$profile" ] || continue
+            for entry in "$profile"/*; do
+              case "${entry##*/}" in
+                deps | build | .fingerprint) ;;
+                *) rm -rf "$entry" ;;
+              esac
+            done
+            rm -rf "$profile"/deps/*houston* "$profile"/build/houston-* "$profile"/.fingerprint/houston-*
+          done
+          du -sh target/*/ target/*/release/* ~/.cargo/registry/index ~/.cargo/registry/cache 2>/dev/null || true
+
+      - name: Save Rust build cache
+        if: ${{ steps.lookup.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ steps.lookup.outputs.cache-primary-key }}
+
+      # TEMPORARY validation for the PR that adds this file, removed before
+      # merge: throw the build away, restore the cache through restore-keys the
+      # way a release leg does, rebuild, and count the crates cargo compiles.
+      - name: "Validation: wipe the build and the cargo registry"
+        if: ${{ github.event_name == 'pull_request' && steps.lookup.outputs.cache-hit != 'true' }}
+        run: rm -rf target ~/.cargo/registry ~/.cargo/git
+
+      - name: "Validation: restore the cache like a release leg"
+        if: ${{ github.event_name == 'pull_request' && steps.lookup.outputs.cache-hit != 'true' }}
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          fail-on-cache-miss: true
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: rust-release-${{ matrix.leg }}-${{ steps.toolchain.outputs.cachekey }}-tag-run
+          restore-keys: rust-release-${{ matrix.leg }}-${{ steps.toolchain.outputs.cachekey }}-
+
+      - name: "Validation: rebuild and count compiled crates"
+        if: ${{ github.event_name == 'pull_request' && steps.lookup.outputs.cache-hit != 'true' }}
+        run: |
+          set -euo pipefail
+          IFS=',' read -ra TRIPLES <<< "$RUST_TARGETS"
+          for TRIPLE in "${TRIPLES[@]}"; do
+            scripts/build-host-sidecar.sh "$TRIPLE" > /dev/null
+          done
+          (cd app && npm run tauri build -- --target "$TAURI_TARGET" --no-bundle) 2>&1 | tee "$RUNNER_TEMP/rebuild.log"
+          COMPILED=$(grep -c 'Compiling ' "$RUNNER_TEMP/rebuild.log" || true)
+          grep 'Compiling ' "$RUNNER_TEMP/rebuild.log" || true
+          echo "::notice::${LEG}: rebuild from the restored cache compiled ${COMPILED} crates"
+          # Only the workspace members (and their build scripts) should rebuild.
+          [ "$COMPILED" -le 8 ]
