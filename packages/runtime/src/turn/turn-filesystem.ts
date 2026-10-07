@@ -7,6 +7,7 @@ import {
   type ObjectStore,
   startHydrate,
 } from "@houston/runtime-client/object-sync";
+import { watchDeferredFiles } from "./turn-deferred-watch";
 import { startLazyTurnFilesystem } from "./turn-filesystem-lazy";
 import type {
   TurnFilesystem,
@@ -76,6 +77,8 @@ export async function startTurnFilesystem(opts: {
   filter?: HydrateOptions["filter"];
   /** Eager trees only: keep these out of `hydrated` (`workspaceReady`). */
   defer?: HydrateOptions["defer"];
+  deferredReadTimeoutMs?: number;
+  deferredParallel?: number;
   lazy?: boolean;
   admit?: (relativePath: string) => boolean;
   allowLegacyLayout?: boolean;
@@ -118,6 +121,12 @@ export async function startTurnFilesystem(opts: {
       keepMergeBase: true,
       ...(opts.filter ? { filter: opts.filter } : {}),
       ...(opts.defer ? { defer: opts.defer } : {}),
+      ...(opts.deferredReadTimeoutMs !== undefined
+        ? { deferredReadTimeoutMs: opts.deferredReadTimeoutMs }
+        : {}),
+      ...(opts.deferredParallel !== undefined
+        ? { deferredParallel: opts.deferredParallel }
+        : {}),
       priority: (rel) =>
         turnHydrationPriorityIncludes(
           layout?.dataRel,
@@ -143,14 +152,10 @@ export async function startTurnFilesystem(opts: {
       );
     }
     if (opts.timings) opts.timings.t_startup_files = performance.now();
-    const workspaceReady = opts.defer
-      ? started.deferred.then(
-          () => undefined,
-          (error: unknown) => {
-            throw turnHydrationError(error);
-          },
-        )
+    const watched = opts.defer
+      ? watchDeferredFiles(started.deferred, started.abort, opts.timings)
       : undefined;
+    const workspaceReady = watched?.workspaceReady;
     const filesystem: TurnFilesystem = {
       ...layout,
       storeRoot,
@@ -160,7 +165,7 @@ export async function startTurnFilesystem(opts: {
       skippedObjects: started.skippedObjects,
       generationAware: started.listed.generationAware,
       immediateWrites: new Set(),
-      ...(workspaceReady ? { workspaceReady } : {}),
+      ...(watched ? watched : {}),
     };
     const hydrated = started.done.then(
       () => filesystem,

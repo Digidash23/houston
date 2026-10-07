@@ -44,6 +44,7 @@ export {
   PrefetchedObjectStore,
   parsePrefetchedObjects,
 } from "./prefetched-store";
+export { StoreReadTimeoutError } from "./read-timeout";
 export { fetchWithRetry } from "./retry";
 export { mergeRoutineRunArrays } from "./routine-runs-merge";
 export type {

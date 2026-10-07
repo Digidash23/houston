@@ -20,10 +20,13 @@ export interface TurnFilesystem extends TurnLayout {
   generationAware: boolean;
   /** Tool-call-time CAS writes already durable before the final sync pass. */
   immediateWrites: Set<string>;
-  /** Objects hydration deferred past `hydrated` (turn-deferred-uploads.ts).
+  /** Objects hydration deferred past `hydrated` (turn-deferred-files.ts).
    *  Absent when nothing was deferred. Every tool, the turn's file-change
    *  snapshot and the final sync wait for it. */
   workspaceReady?: Promise<void>;
+  /** The prompt is over: stop the deferred download if it has not landed,
+   *  and sync as after a failed one (turn-deferred-watch.ts). */
+  abandonDeferred?: () => void;
 }
 
 export interface TurnFilesystemPreparation {

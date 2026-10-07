@@ -3,7 +3,8 @@ import {
   type SyncResult,
   syncBack,
 } from "@houston/runtime-client/object-sync";
-import { deferredUpload } from "./turn-deferred-uploads";
+import { deferredWorkspaceFile } from "./turn-deferred-files";
+import { DeferredFilesAbandonedError } from "./turn-deferred-watch";
 import type { TurnFilesystem } from "./turn-filesystem";
 import { claimedTurnIncludes } from "./turn-filesystem-scope";
 
@@ -12,7 +13,7 @@ function withoutDeferred(
   deferredFailed: boolean,
 ): (rel: string) => boolean {
   return deferredFailed
-    ? (rel) => !deferredUpload(rel) && include(rel)
+    ? (rel) => !deferredWorkspaceFile(rel) && include(rel)
     : include;
 }
 
@@ -39,14 +40,15 @@ export async function syncTurnFilesystem(opts: {
     try {
       await opts.filesystem.workspaceReady;
     } catch (error) {
-      // No tool ran (the gate refused them all), so nothing under uploads/
-      // is the turn's: one that landed before the failure but never reached
-      // the manifest must not read as a new file to upload.
+      // No tool ran (the gate refused them all, or the prompt ended before
+      // any asked), so nothing in the deferred folders is the turn's: one
+      // that landed before the stop but never reached the manifest must not
+      // read as a new file to upload. The failure itself was reported once.
       deferredFailed = true;
-      console.warn(
-        `[turn] syncing without the deferred uploads conversation=${opts.conversationId}:`,
-        error instanceof Error ? error.message : String(error),
-      );
+      if (!(error instanceof DeferredFilesAbandonedError))
+        console.warn(
+          `[turn] syncing without the deferred files conversation=${opts.conversationId}`,
+        );
     }
   }
   const result = await syncBack(

@@ -1,11 +1,16 @@
-import { expect, test } from "vitest";
-import { TurnFireError, turnBusyError } from "../channel/fire-error";
+import { afterEach, expect, test, vi } from "vitest";
+import {
+  TurnDeliveryUncertainError,
+  TurnFireError,
+  turnBusyError,
+} from "../channel/fire-error";
 import { LauncherClosedError } from "../ports";
 import {
   decodeFireOutcome,
   encodeFireOutcome,
   FIRE_IN_FLIGHT,
   isRetryableFireError,
+  reportUnfiredFire,
   unfiredOutcome,
 } from "./fire-outcome";
 import { RoutineBusyError, RoutineRunUnrecordedError } from "./run";
@@ -52,6 +57,78 @@ test("only where-it-ran failures are retryable", () => {
   expect(
     isRetryableFireError(new TurnFireError("runtime 409", 409, null)),
   ).toBe(false);
+});
+
+const reset = () =>
+  Object.assign(new TypeError("fetch failed"), {
+    cause: { code: "ECONNRESET" },
+  });
+
+test("a lost turn POST is retryable only once the host's drain stopped the runtime", () => {
+  expect(isRetryableFireError(new TurnDeliveryUncertainError(reset()))).toBe(
+    false,
+  );
+  const drained = new TurnDeliveryUncertainError(reset(), true);
+  expect(isRetryableFireError(drained)).toBe(true);
+  expect(drained.message).not.toContain("may have started");
+});
+
+test("a runtime refusing new turns while it drains is retryable", () => {
+  const draining = new TurnFireError(
+    'runtime 503: {"error":"engine unavailable","detail":"the agent is restarting"}',
+    503,
+    null,
+  );
+  expect(isRetryableFireError(draining)).toBe(true);
+  expect(
+    isRetryableFireError(new TurnFireError("runtime 502: bad", 502, null)),
+  ).toBe(false);
+});
+
+afterEach(() => vi.restoreAllMocks());
+
+// On the host only console.error reaches Sentry: a fault must go out there,
+// an expected state stays a warning breadcrumb.
+test.each([
+  ["an unexpected throw", "error", new Error("boom"), false],
+  [
+    "a runtime 5xx",
+    "error",
+    new TurnFireError("runtime 500: x", 500, null),
+    false,
+  ],
+  ["a lost turn POST", "error", new TurnDeliveryUncertainError(reset()), false],
+  [
+    "a creator with nothing connected",
+    "warn",
+    new TurnFireError("runtime 409", 409, "no_provider"),
+    false,
+  ],
+  ["a taken turn slot", "warn", turnBusyError(null), false],
+  ["a busy routine", "warn", new RoutineBusyError("r"), false],
+  ["a draining host", "warn", new LauncherClosedError(), true],
+  [
+    "a lost turn POST during the drain",
+    "warn",
+    new TurnDeliveryUncertainError(reset(), true),
+    true,
+  ],
+  [
+    "an unrecorded run",
+    "error",
+    new RoutineRunUnrecordedError(new Error("disk full")),
+    true,
+  ],
+] as const)("%s is reported at %s level", (_name, level, error, deferred) => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const err = vi.spyOn(console, "error").mockImplementation(() => {});
+  reportUnfiredFire("r1", error, deferred);
+  const [used, unused] = level === "error" ? [err, warn] : [warn, err];
+  expect(used).toHaveBeenCalledTimes(1);
+  expect(String(used.mock.calls[0]?.[0])).toContain(
+    "[routine-fires] routine r1",
+  );
+  expect(unused).not.toHaveBeenCalled();
 });
 
 test("busy refusals are busy, everything else failed with its code", () => {

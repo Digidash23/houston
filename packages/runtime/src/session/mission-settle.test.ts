@@ -46,7 +46,7 @@ test("posts the settle payload with the sandbox bearer", async () => {
     return new Response(null, { status: 200 });
   };
 
-  reportMissionSettle("conv-1", "needs_you", null, { fetchImpl });
+  reportMissionSettle("conv-1", "needs_you", null, undefined, { fetchImpl });
   await settled(() => calls.length === 1);
 
   expect(calls[0]?.url).toBe(
@@ -71,7 +71,7 @@ test("a transient network drop retries and succeeds silently", async () => {
     return new Response(null, { status: 200 });
   };
 
-  reportMissionSettle("conv-2", "error", null, {
+  reportMissionSettle("conv-2", "error", null, undefined, {
     fetchImpl,
     retryDelaysMs: [0, 0],
   });
@@ -88,7 +88,7 @@ test("a settle that fails every attempt logs WARN, never console.error", async (
     throw new TypeError("fetch failed");
   };
 
-  reportMissionSettle("conv-3", "error", null, {
+  reportMissionSettle("conv-3", "error", null, undefined, {
     fetchImpl,
     retryDelaysMs: [0, 0],
   });
@@ -107,8 +107,29 @@ test("no control plane configured means no request at all", async () => {
     return new Response(null, { status: 200 });
   };
 
-  reportMissionSettle("conv-4", "needs_you", null, { fetchImpl });
+  reportMissionSettle("conv-4", "needs_you", null, undefined, { fetchImpl });
   await new Promise((resolve) => setImmediate(resolve));
 
   expect(attempts).toBe(0);
+});
+
+test("carries the turn's model-call report as model_calls", async () => {
+  const bodies: unknown[] = [];
+  const fetchImpl: typeof fetch = async (_url, init) => {
+    bodies.push(JSON.parse(String(init?.body)));
+    return new Response(null, { status: 200 });
+  };
+  const report = {
+    v: 1 as const,
+    turnId: "turn-5",
+    backend: "pi" as const,
+    startupMs: { pre_prompt: 12 },
+    calls: [],
+    droppedCalls: 0,
+  };
+
+  reportMissionSettle("conv-5", "needs_you", null, report, { fetchImpl });
+  await settled(() => bodies.length === 1);
+
+  expect(bodies[0]).toMatchObject({ model_calls: report });
 });

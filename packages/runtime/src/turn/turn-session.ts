@@ -4,12 +4,12 @@ import { newUsedTokenCapture } from "../auth/used-token";
 import { config } from "../config";
 import { framePrompt } from "../session/attribution";
 import { newInteractionHolder } from "../session/interaction";
-import { snapshotWhenReady } from "./turn-deferred-uploads";
+import { snapshotWhenReady } from "./turn-deferred-files";
 import { recordPooledRoutineCarry } from "./turn-routine-context";
 import { openTurnBackendSession } from "./turn-session-backend";
 import { runInTurnContext } from "./turn-session-context";
 import { handleTurnSessionFailure } from "./turn-session-failure";
-import { newTurnFrames } from "./turn-session-frames";
+import { modelCallsOutcome, newTurnFrames } from "./turn-session-frames";
 import { promptTurnSession } from "./turn-session-prompt";
 import type { RunTurnDeps } from "./turn-session-startup";
 import { finishSuccessfulTurn } from "./turn-session-success";
@@ -124,6 +124,7 @@ export async function runTurn(
       () =>
         promptTurnSession({
           session,
+          backendId: opened.backendId,
           turn,
           prompt:
             (replay?.text ?? "") + framePrompt(text, author, priorAuthors),
@@ -135,7 +136,11 @@ export async function runTurn(
             deps.firstByteDeadlineMs ?? config.turnFirstByteDeadlineMs,
           emit,
         }),
-    ).finally(() => unsubTitle?.());
+    ).finally(() => {
+      unsubTitle?.();
+      // Before the snapshot below waits on files no tool asked for.
+      directories.abandonDeferred?.();
+    });
     const outcome = finishSuccessfulTurn({
       beforeFiles: await beforeFiles,
       providerError: frames.providerError,
@@ -161,10 +166,14 @@ export async function runTurn(
     const missionTitle = await title?.settle(
       frames.providerError !== undefined,
     );
-    return missionTitle ? { ...outcome, missionTitle } : outcome;
+    return {
+      ...outcome,
+      ...(missionTitle ? { missionTitle } : {}),
+      ...modelCallsOutcome(frames, turnId),
+    };
   } catch (error) {
     title?.abandon();
-    return handleTurnSessionFailure({
+    const failed = handleTurnSessionFailure({
       error,
       signal,
       providerError: frames.providerError,
@@ -181,6 +190,7 @@ export async function runTurn(
       usedTokens,
       emit,
     });
+    return { ...failed, ...modelCallsOutcome(frames, turnId) };
   } finally {
     // A routine run records what it left its session holding, before the
     // caller's sync-back ships the conversation file (turn-routine-context.ts).

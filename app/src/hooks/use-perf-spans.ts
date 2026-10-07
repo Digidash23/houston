@@ -2,7 +2,7 @@ import { subscribeFirstResponses } from "@houston/engine-adapter";
 import { useEffect, useRef } from "react";
 import { analytics } from "../lib/analytics";
 import { bakedUrl } from "../lib/baked-url";
-import { osLaunchT0Ms } from "../lib/os-bridge";
+import { osIsTauri, osLaunchT0Ms } from "../lib/os-bridge";
 import {
   perfSpanEventProps,
   perfSpanNeedsMemberships,
@@ -13,7 +13,7 @@ import {
   type PerfSpanTransport,
   perfSpans,
 } from "../lib/perf-spans";
-import { currentPlatformOs } from "../lib/platform";
+import { currentPlatformOs, metricsPlatform } from "../lib/platform";
 import { useWorkspaceStore } from "../stores/workspaces";
 import { useOrgs } from "./queries/use-spaces";
 import { useCapabilities } from "./use-capabilities";
@@ -60,6 +60,7 @@ export function usePerfSpans(): void {
       },
     };
     const ingest = CLIENT_METRICS_URL;
+    const platform = metricsPlatform(osIsTauri(), currentPlatformOs);
     if (ingest) {
       transport.send = async (spans: PerfSpanObservation[]) => {
         const token = tokenRef.current;
@@ -78,7 +79,7 @@ export function usePerfSpans(): void {
           body: JSON.stringify({
             spans: spans.map((s) => ({
               ...s,
-              platform: currentPlatformOs,
+              platform,
               appVersion: APP_VERSION,
             })),
           }),

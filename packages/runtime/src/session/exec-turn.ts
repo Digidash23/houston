@@ -72,6 +72,10 @@ import {
   runWithInteractionCapture,
 } from "./interaction";
 import { reportMissionSettle } from "./mission-settle";
+import {
+  collectStandingTurnCalls,
+  type TurnStartupMarks,
+} from "./model-call-report";
 import { switchNeedsCompaction } from "./provider-switch";
 import { replayForConversation } from "./routine-replay";
 import {
@@ -212,8 +216,12 @@ export async function execTurn(
   recorded: RecordedUserTurn,
   pin?: TurnPin,
   acting?: ActingContext,
+  startup?: TurnStartupMarks,
 ): Promise<CleanTurn | null> {
   const { author, priorAuthors } = recorded;
+  const enteredAt = performance.now();
+  // Per-call timings for the turn's settle report (model-call-report.ts).
+  let modelCalls: ReturnType<typeof collectStandingTurnCalls> | undefined;
   // Set only on the clean-`done` path: the model the reply came from, which the
   // after-turn mission title reuses (turn-start.ts).
   let clean: CleanTurn | null = null;
@@ -291,6 +299,12 @@ export async function execTurn(
   // runs while a request is out and its response has not opened.
   let unsubPhase: (() => void) | undefined;
   const subscribeSession = () => {
+    modelCalls = collectStandingTurnCalls(
+      conv.session,
+      conv.backendId,
+      enteredAt,
+      startup,
+    );
     unsubLiveness = conv.session.subscribeLiveness?.(() => watchdog.touch());
     unsubPhase = conv.session.subscribeModelPhase?.((phase) =>
       watchdog.onPhase(phase),
@@ -651,6 +665,7 @@ export async function execTurn(
     // model round-trip only — tools run inside prompt() and re-arm/suspend it as
     // they start/end; the finally disarms it whether prompt() resolves or throws.
     watchdog.arm();
+    modelCalls?.notePrompt();
     try {
       await runWithActingContext(acting, () =>
         runWithConversationId(id, () =>
@@ -821,6 +836,7 @@ export async function execTurn(
       id,
       providerError ? "error" : "needs_you",
       providerError || stopped ? null : (pendingInteraction ?? null),
+      modelCalls?.report(turnId),
     );
   } catch (err) {
     // Persist the failure even when nothing streamed: a thrown turn (bad pin,
@@ -932,7 +948,7 @@ export async function execTurn(
     // The thrown-failure twin of the clean path's report above: an
     // agent-started mission's card must reach `error` even with no client
     // observing this conversation.
-    reportMissionSettle(id, "error", null);
+    reportMissionSettle(id, "error", null, modelCalls?.report(turnId));
   } finally {
     // A routine run records what it left its session holding, for the next
     // run's budget (routine-session-reset.ts). No-op for any other chat.
@@ -955,6 +971,7 @@ export async function execTurn(
     unsubLiveness?.();
     unsubPhase?.();
     unsubMessageStart?.();
+    modelCalls?.stop();
     // PRODUCT-1355 (layer 3): a turn that died on a REVOKED token leaves a
     // Claude session whose next spawn would 401 identically — evict it so the
     // user's next attempt after reconnecting rebuilds on the fresh credential.

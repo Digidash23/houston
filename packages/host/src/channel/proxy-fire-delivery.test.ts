@@ -51,18 +51,26 @@ beforeAll(async () => {
 
 afterAll(() => resetting.close());
 
-function channelAt(baseUrl: string): ProxyChannel {
+/** A launcher whose shutdown latch is set: the host is draining. */
+class ClosedLauncher extends FakeLauncher {
+  isClosed(): boolean {
+    return true;
+  }
+}
+
+function channelAt(baseUrl: string, closed = false): ProxyChannel {
+  const Launcher = closed ? ClosedLauncher : FakeLauncher;
   return new ProxyChannel({
-    launcher: new FakeLauncher({ baseUrl, token: "sbx" }),
+    launcher: new Launcher({ baseUrl, token: "sbx" }),
     proxy: { forward },
     credentials: new MemoryCredentialStore(),
     forwardActingHeader: true,
   });
 }
 
-async function fireError(baseUrl: string): Promise<unknown> {
+async function fireError(baseUrl: string, closed = false): Promise<unknown> {
   try {
-    await channelAt(baseUrl).fireTurn(ctx, "routine-c1", "run it");
+    await channelAt(baseUrl, closed).fireTurn(ctx, "routine-c1", "run it");
   } catch (err) {
     return err;
   }
@@ -80,6 +88,15 @@ test("a connection lost after the request is never redelivered", async () => {
   expect(err).toBeInstanceOf(TurnDeliveryUncertainError);
   expect(isRetryableFireError(err)).toBe(false);
   expect((err as Error).message).toContain("the turn may have started");
+});
+
+// The drain had already sent the runtime SIGTERM: it refuses new turns, so a
+// POST that never got its 202 never started one.
+test("a connection lost while the host drains is redelivered", async () => {
+  const err = await fireError(resettingUrl, true);
+  expect(err).toBeInstanceOf(TurnDeliveryUncertainError);
+  expect((err as TurnDeliveryUncertainError).hostShuttingDown).toBe(true);
+  expect(isRetryableFireError(err)).toBe(true);
 });
 
 test("only dial-time codes count as a dial failure", () => {

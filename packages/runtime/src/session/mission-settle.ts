@@ -1,4 +1,4 @@
-import type { PendingInteraction } from "@houston/protocol";
+import type { ModelCallReport, PendingInteraction } from "@houston/protocol";
 import { fetchWithRetry } from "@houston/runtime-client/object-sync";
 import { config } from "../config";
 
@@ -26,11 +26,16 @@ export interface MissionSettleOptions {
  * breadcrumb, never a console.error — the pod↔control-plane socket dropping
  * is connectivity, not a Houston fault, and it self-heals when the user opens
  * the mission (settle-from-history).
+ *
+ * `modelCalls` rides along because this is the one report every turn end
+ * sends: a managed host forwards it to the gateway's per-call latency
+ * metrics (protocol model-call-report.ts).
  */
 export function reportMissionSettle(
   conversationId: string,
   status: "needs_you" | "error",
   pendingInteraction: PendingInteraction | null,
+  modelCalls?: ModelCallReport,
   opts: MissionSettleOptions = {},
 ): void {
   if (!config.controlPlaneUrl || !config.sandboxToken) return;
@@ -53,6 +58,7 @@ export function reportMissionSettle(
         conversation_id: conversationId,
         status,
         pending_interaction: pendingInteraction,
+        ...(modelCalls ? { model_calls: modelCalls } : {}),
       }),
     },
     opts.retryDelaysMs ? { delaysMs: opts.retryDelaysMs } : {},

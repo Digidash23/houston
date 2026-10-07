@@ -5,11 +5,7 @@ import type { KeyboardEvent } from "react";
 import { SidebarGroupHeader } from "./sidebar-group-header";
 import type { SidebarGroupView } from "./sidebar-groups";
 import { SidebarItemRow } from "./sidebar-item-row";
-import {
-  sidebarBlockGap,
-  sidebarMemberGuide,
-  sidebarRowNeighbour,
-} from "./sidebar-paint";
+import { sidebarBlockGap, sidebarRowNeighbour } from "./sidebar-paint";
 import type { SidebarItem } from "./sidebar-props";
 import type { SidebarRowContext } from "./sidebar-row-context";
 import {
@@ -107,7 +103,6 @@ export function SidebarTreeRowView({
         "relative touch-manipulation",
         sidebarRowNeighbour,
         member && "sidebar-disclosure-in",
-        inGroup && sidebarMemberGuide,
         opensBlock && sidebarBlockGap,
         sortable.isDragging && "opacity-40",
       )}

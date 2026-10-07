@@ -6,6 +6,7 @@ import {
 import { DEFAULT_EXCLUDES, excluded } from "./hydrate-excludes";
 import { assertListedWithinCap, HydrateLimitError } from "./hydrate-limit";
 import type { ObjectStore } from "./object-store";
+import { withReadTimeout } from "./read-timeout";
 
 export { DEFAULT_EXCLUDES, excluded } from "./hydrate-excludes";
 export { HydrateLimitError } from "./hydrate-limit";
@@ -48,8 +49,9 @@ export interface StartedHydration {
   done: Promise<void>;
   /** Resolves after `done` and every `opts.defer` object has landed. */
   deferred: Promise<void>;
-  /** Stop admitting downloads and cancel adapters that support AbortSignal. */
-  abort: () => void;
+  /** Stop admitting downloads and cancel adapters that support AbortSignal.
+   *  `reason` becomes the rejection of whatever has not landed yet. */
+  abort: (reason?: unknown) => void;
 }
 
 /** List once, hydrate priority inputs, then start the remaining downloads. */
@@ -116,14 +118,20 @@ export async function startHydrate(
       controller.abort(error);
     },
   };
-  const download = (batch: HydrateEntry[]) =>
+  const download = (batch: HydrateEntry[], later = false) =>
     downloadHydrationEntries({
-      store,
+      store:
+        later && opts.deferredReadTimeoutMs !== undefined
+          ? withReadTimeout(store, opts.deferredReadTimeoutMs)
+          : store,
       destDir,
       entries: batch,
       manifest,
       maxBytes,
-      concurrency,
+      concurrency: (later && opts.deferredParallel) || concurrency,
+      ...(later && opts.deferredParallel
+        ? { batchParallel: opts.deferredParallel }
+        : {}),
       state,
       keepMergeBase: opts.keepMergeBase === true,
       signal: controller.signal,
@@ -159,8 +167,9 @@ export async function startHydrate(
     done,
     // After `done`, so a deferred object never takes bandwidth from the set
     // the caller is blocked on.
-    deferred: later.length ? done.then(() => download(later)) : done,
-    abort: () => state.fail(new Error("hydration aborted before cleanup")),
+    deferred: later.length ? done.then(() => download(later, true)) : done,
+    abort: (reason) =>
+      state.fail(reason ?? new Error("hydration aborted before cleanup")),
   };
 }
 

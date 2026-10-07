@@ -4,10 +4,12 @@ import type { WireEvent } from "@houston/runtime-client";
 import type {
   CompactionOutcome,
   HarnessSession,
+  HarnessTimingEvent,
   ModelPhase,
   ResolvedModel,
   ThinkingLevel,
 } from "../types";
+import { createPiCallTimer } from "./model-calls";
 import { createWireTranslator } from "./wire";
 
 /**
@@ -79,6 +81,18 @@ export class PiSession implements HarnessSession {
         e.type === "compaction_start"
       )
         listener({ phase: "idle" });
+    });
+  }
+
+  /** One timing per answered request (`createPiCallTimer`); pi is in-process,
+   *  so there is no harness start cost to report. */
+  subscribeModelCalls(
+    listener: (event: HarnessTimingEvent) => void,
+  ): () => void {
+    const timer = createPiCallTimer();
+    return this.session.subscribe((e) => {
+      const call = timer(e);
+      if (call) listener({ type: "call", call });
     });
   }
 
