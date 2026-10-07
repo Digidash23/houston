@@ -12,7 +12,8 @@ import { remoteActivityReader } from "./turn-mission-title-remote";
 import { turnSessionRequest, unconnectedTurnOutcome } from "./turn-request";
 import { RoutineTurnError } from "./turn-routine";
 import { finishRoutineTurn } from "./turn-routine-finish";
-import { startRoutineRun } from "./turn-routine-start";
+import { routinePhaseTurn, startRoutineRun } from "./turn-routine-start";
+import { unconnectedRoutineTurn } from "./turn-routine-unconnected";
 import type { makeTurnSandboxFetch } from "./turn-sandbox";
 import { runTurn, type TurnOutcome } from "./turn-session";
 import type { TurnSessionStartupTask } from "./turn-session-startup";
@@ -49,14 +50,7 @@ export async function executeReadyTurn(input: {
         ...input,
         nowIso: new Date().toISOString(),
       });
-      effectiveTurn = {
-        ...input.turn,
-        text: routinePhase.text,
-        ...(routinePhase.provider ? { provider: routinePhase.provider } : {}),
-        ...(routinePhase.model ? { model: routinePhase.model } : {}),
-        ...(routinePhase.effort ? { effort: routinePhase.effort } : {}),
-        mode: "auto",
-      };
+      effectiveTurn = routinePhaseTurn(input.turn, routinePhase);
     } catch (error) {
       const code =
         error instanceof RoutineTurnError ? error.code : "routine_error";
@@ -143,9 +137,11 @@ export async function executeReadyTurn(input: {
       phase: routinePhase,
       conversationId: input.turn.conversationId,
       ...(outcome.error ? { turnError: outcome.error } : {}),
-      ...(!input.turn.credential && effectiveTurn.provider
-        ? { unconnectedProvider: effectiveTurn.provider }
-        : {}),
+      unconnected: unconnectedRoutineTurn(
+        input.turn,
+        effectiveTurn.provider,
+        input.filesystem.dataDir,
+      ),
     });
     const failed = finished.error;
     if (failed)

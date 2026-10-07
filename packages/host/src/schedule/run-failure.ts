@@ -1,4 +1,5 @@
 import type { ProviderError, RoutineRunFailure } from "@houston/protocol";
+import { TurnFireError } from "../channel/fire-error";
 import { sentenceProviderName } from "../providers";
 
 // The classification is pure and shared with the pooled worker's settle.
@@ -16,8 +17,19 @@ export { routineRunFailure } from "@houston/domain";
  * it verbatim, matching the existing run-row copy.
  */
 
+/**
+ * The runtime refused the fire because nothing usable is connected for the
+ * identity the routine runs as. Not transient: the next fire fails the same
+ * way until a person connects an account or picks a model.
+ */
+export function isUnconnectedRefusal(err: unknown): err is TurnFireError {
+  return err instanceof TurnFireError && err.code === "no_provider";
+}
+
 /** The run-row sentence for a typed failure. */
 export function routineRunFailureSummary(failure: RoutineRunFailure): string {
+  if (failure.code === "no_model")
+    return "This routine has no model chosen, and the AI account it would use isn't connected.";
   const name = sentenceProviderName(failure.provider);
   switch (failure.code) {
     case "creator_not_connected":

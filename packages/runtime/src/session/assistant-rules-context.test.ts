@@ -108,7 +108,11 @@ test("the rules pin who Houston is and where its work runs", () => {
 });
 
 test("the rules stay short and leak no internals beyond tool names", () => {
-  const rules = forAssistant().split(RULES_HEADING)[1] ?? "";
+  // Read with the API served: that is the longest the rules ever get.
+  const rules =
+    (buildAssistantRulesSection("coordinator", {}) ?? "").split(
+      RULES_HEADING,
+    )[1] ?? "";
   expect(rules.split("\n").length).toBeLessThanOrEqual(20);
   for (const banned of [".houston", ".assistant", "JSON", "HTTP", "schema"]) {
     expect(rules).not.toContain(banned);
@@ -152,4 +156,91 @@ test("the capability list is read as this deployment's own, not Houston's in gen
   expect(rules).toContain(
     "anything it does not return is something this app cannot do",
   );
+});
+
+const SERVED = {};
+const DESKTOP = {
+  HOUSTON_ASSISTANT_UNSERVED: "listApiKeys,createApiKey,revokeApiKey",
+};
+const rulesOn = (env: NodeJS.ProcessEnv): string =>
+  (buildAssistantRulesSection("coordinator", env) ?? "").split(
+    RULES_HEADING,
+  )[1] ?? "";
+
+test("connecting an employee to the person's own code happens right in the chat", () => {
+  // The Houston API is how a person's code, automation or other AI assistant
+  // starts work with an employee. The manager explains it, then queues the two
+  // cards that do the job inline: a key, then THAT employee's details.
+  const rules = rulesOn(SERVED);
+  expect(rules).toContain("through the Houston API");
+  expect(rules).toContain("another AI agent or assistant");
+  // A key first unless they have one: the card's prompt reads the key from
+  // their environment, so it is useless without one.
+  expect(rules).toContain(
+    "unless they say they already have an API key, call request_hands_on with apiKeys first",
+  );
+  expect(rules).toContain(
+    "that card lets them create and copy a key right in this chat, and you never see it",
+  );
+  expect(rules).toContain(
+    "then with agentApiAccess and that employee's id from listAgents as agent",
+  );
+  expect(rules).toContain(
+    "that card shows the employee's Agent ID, Organization ID and a ready prompt for their AI agent, right in this chat",
+  );
+  // The prompt names the gateway address, which the manager cannot know.
+  expect(rules).toContain("Never write that prompt yourself");
+  // Its details are its managers' alone.
+  expect(rules).toContain(
+    "when listAgents gives their access to that employee as anything but manager, tell them to ask that employee's manager instead",
+  );
+  expect(rules).toContain("https://gethouston.ai/developers");
+  // A key is a secret: it never passes through a chat turn in either direction.
+  expect(rules).toContain(
+    "Never create, show, ask for or relay an API key in chat",
+  );
+});
+
+test("the API is the one named exception to keeping things non-technical", () => {
+  // The non-technical rule bans identifiers; stating the IDs or explaining
+  // headers and protocols to someone who asks would contradict it unless the
+  // rules reconcile the two out loud, and say where each ID is read from.
+  const rules = rulesOn(SERVED);
+  expect(rules).toContain(
+    "This is the one exception to keeping things non-technical",
+  );
+  expect(rules).toContain(
+    "the Agent ID is the id listAgents returns, the Organization ID is the slug getOrg returns",
+  );
+  expect(rules).toContain("when a technical person asks how the API works");
+  for (const concept of [
+    "Authorization header",
+    "x-houston-org",
+    "REST",
+    "MCP",
+    "A2A",
+  ])
+    expect(rules).toContain(concept);
+});
+
+test("a deployment without the API never hears of it", () => {
+  // A desktop host stamps the API-key operations unserved: pitching the API
+  // there would queue cards for a screen that does not exist.
+  const rules = rulesOn(DESKTOP);
+  expect(rules).not.toContain("Houston API");
+  expect(rules).not.toContain("agentApiAccess");
+  expect(rules).not.toContain("x-houston-org");
+  // The rest of the rules stand untouched.
+  expect(rules).toContain("not technical");
+  expect(rules).toContain("request_hands_on");
+  // An unrelated unserved operation leaves the API in.
+  expect(rulesOn({ HOUSTON_ASSISTANT_UNSERVED: "createOrg" })).toContain(
+    "agentApiAccess",
+  );
+});
+
+test("no other company's product is named to the person", () => {
+  for (const env of [SERVED, DESKTOP])
+    for (const name of ["Claude Code", "Cursor", "ChatGPT", "Codex"])
+      expect(rulesOn(env)).not.toContain(name);
 });

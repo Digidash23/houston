@@ -17,6 +17,7 @@ export function burnRoutineFireInstant(
   routineId: string,
   fireAt: Date,
   ttlSec: number,
+  value = "1",
 ): Promise<boolean> {
-  return lock.setNx(routineFireLockKey(routineId, fireAt), "1", ttlSec);
+  return lock.setNx(routineFireLockKey(routineId, fireAt), value, ttlSec);
 }

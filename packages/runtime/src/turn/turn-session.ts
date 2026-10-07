@@ -4,6 +4,7 @@ import { newUsedTokenCapture } from "../auth/used-token";
 import { config } from "../config";
 import { framePrompt } from "../session/attribution";
 import { newInteractionHolder } from "../session/interaction";
+import { snapshotWhenReady } from "./turn-deferred-uploads";
 import { recordPooledRoutineCarry } from "./turn-routine-context";
 import { openTurnBackendSession } from "./turn-session-backend";
 import { runInTurnContext } from "./turn-session-context";
@@ -11,11 +12,8 @@ import { handleTurnSessionFailure } from "./turn-session-failure";
 import { newTurnFrames } from "./turn-session-frames";
 import { promptTurnSession } from "./turn-session-prompt";
 import type { RunTurnDeps } from "./turn-session-startup";
-import {
-  captureWorkspaceSnapshot,
-  finishSuccessfulTurn,
-} from "./turn-session-success";
-import { startPooledTurnTitle } from "./turn-session-title";
+import { finishSuccessfulTurn } from "./turn-session-success";
+import { armPooledTurnTitle, type PooledTurnTitle } from "./turn-session-title";
 import type {
   TurnDirectories,
   TurnOutcome,
@@ -76,6 +74,7 @@ export async function runTurn(
   // before the prompt and persisted on the reply, like the standing server's.
   let compaction: ChatMessage["compaction"];
   let routineResetBase: number | undefined;
+  let title: PooledTurnTitle | null = null;
   try {
     const opened = await openTurnBackendSession({
       directories,
@@ -92,12 +91,28 @@ export async function runTurn(
     // Snapshot the hydrated workspace so the turn's created/modified files can
     // be surfaced as a `file_changes` frame. The per-turn root is exclusive to
     // this request, so the diff is attributable by construction. Best-effort.
-    const beforeFiles = captureWorkspaceSnapshot(workspaceDir);
+    const beforeFiles = snapshotWhenReady(
+      workspaceDir,
+      directories.workspaceReady,
+    );
 
     // A fresh per-turn holder for whatever the model ends up waiting on the user
     // for (ask_user); established for the prompt's async subtree so the tool
     // records into it. Read after prompt() resolves, returned on the outcome.
     const interaction = newInteractionHolder();
+    // A new mission's title starts when the model's response opens, so it
+    // runs beside the reply (turn-session-title.ts).
+    title = armPooledTurnTitle({
+      turn,
+      deps,
+      directories,
+      model,
+      modelRuntime,
+    });
+    const startTitle = title?.start;
+    const unsubTitle = startTitle
+      ? session.subscribeAssistantMessageStart?.(() => startTitle())
+      : undefined;
     // The context a standing runtime holds around its prompt (exec-turn.ts).
     await runInTurnContext(
       {
@@ -120,17 +135,9 @@ export async function runTurn(
             deps.firstByteDeadlineMs ?? config.turnFirstByteDeadlineMs,
           emit,
         }),
-    );
-    const finishTitle = startPooledTurnTitle({
-      turn,
-      deps,
-      directories,
-      model,
-      modelRuntime,
-      failed: frames.providerError !== undefined,
-    });
+    ).finally(() => unsubTitle?.());
     const outcome = finishSuccessfulTurn({
-      beforeFiles,
+      beforeFiles: await beforeFiles,
       providerError: frames.providerError,
       workspaceDir,
       mode,
@@ -149,9 +156,14 @@ export async function runTurn(
     // (exec-turn.ts); the caller writes it to the store (turn-ledger.ts).
     if (frames.usage)
       outcome.spend = { provider: model.provider, usage: frames.usage };
-    const missionTitle = await finishTitle?.();
+    // The card write lands after the turn's own writes, as before; only the
+    // title call itself overlaps the reply.
+    const missionTitle = await title?.settle(
+      frames.providerError !== undefined,
+    );
     return missionTitle ? { ...outcome, missionTitle } : outcome;
   } catch (error) {
+    title?.abandon();
     return handleTurnSessionFailure({
       error,
       signal,

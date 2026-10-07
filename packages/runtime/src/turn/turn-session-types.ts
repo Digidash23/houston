@@ -82,6 +82,8 @@ export interface TurnDirectories {
   workspaceDir: string;
   dataDir: string;
   turnRoot: string;
+  /** Hydration deferred past the prompt (turn-deferred-uploads.ts). */
+  workspaceReady?: Promise<void>;
 }
 
 export type TurnRunner = (

@@ -15,6 +15,14 @@ vi.mock("../session/chat", () => ({
   setLiveTurnMode: vi.fn(),
 }));
 
+// The agent's saved provider, as settings.json would hold it (never the real
+// data dir of the machine running the tests).
+const settings = vi.hoisted(() => ({ saved: null as string | null }));
+vi.mock("../ai/providers", async (original) => ({
+  ...(await original<typeof import("../ai/providers")>()),
+  savedActiveProvider: () => settings.saved,
+}));
+
 const { handleConversationRoute } = await import("./conversation-routes");
 
 function req(body: unknown): IncomingMessage {
@@ -54,6 +62,7 @@ async function post(body: unknown) {
 }
 
 beforeEach(() => {
+  settings.saved = null;
   chat.ensuredProvider = null;
   chat.ensureProviderForTurn.mockClear();
   chat.runTurn.mockClear();
@@ -67,6 +76,21 @@ test("unpinned no-provider keeps the 409 no_provider contract", async () => {
     body: {
       error: "No provider connected. Connect an AI provider first.",
       code: "no_provider",
+    },
+  });
+  expect(chat.runTurn).not.toHaveBeenCalled();
+});
+
+test("the 409 names the agent's saved provider when it is logged out (PRODUCT-1982)", async () => {
+  settings.saved = "anthropic";
+  const out = await post({ text: "hello" });
+
+  expect(out).toEqual({
+    status: 409,
+    body: {
+      error: "No provider connected. Connect an AI provider first.",
+      code: "no_provider",
+      provider: "anthropic",
     },
   });
   expect(chat.runTurn).not.toHaveBeenCalled();

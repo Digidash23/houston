@@ -34,6 +34,12 @@
          up the current release, and an offline cache would only serve stale
          chunks against a live host. -->
     <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- Tab icon. Without it the browser asks for /favicon.ico, the SPA
+         rewrite answers with index.html, and the tab shows a blank globe.
+         The SVG carries its own prefers-color-scheme rule (dark helmet on a
+         light tab strip, white on a dark one); website/src/favicon.svg and
+         agentstore/src/app/icon.svg are the same file. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />

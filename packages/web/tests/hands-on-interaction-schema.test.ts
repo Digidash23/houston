@@ -31,6 +31,20 @@ test("the activity schema and wire parser accept every hands-on screen", () => {
   }
 });
 
+test("an errand on one employee's screen persists the employee it names", () => {
+  const step = {
+    kind: "hands_on",
+    id: "h1",
+    surface: "agentApiAccess",
+    agentId: "agent-7",
+  };
+  expect(validate(activity(step)), JSON.stringify(validate.errors)).toBe(true);
+  expect(isInteractionStep(step)).toBe(true);
+  // An empty id names no one: both halves refuse it.
+  expect(validate(activity({ ...step, agentId: "" }))).toBe(false);
+  expect(isInteractionStep({ ...step, agentId: "" })).toBe(false);
+});
+
 test.each([
   undefined,
   "",

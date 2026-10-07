@@ -3,6 +3,7 @@ import {
   loadRoutineRuns,
   loadRoutines,
   routineAutoPause,
+  routineAutoPauseLogTail,
   saveRoutines,
   upsertById,
   withDocLock,
@@ -54,7 +55,7 @@ export async function pauseFailingRoutines(
   );
   for (const routine of paused) {
     console.info(
-      `[routine-auto-pause] paused ${agent.id}/${routine.id} after ${routine.auto_paused?.failures} runs: ${routine.auto_paused?.reason} (${routine.auto_paused?.provider})`,
+      `[routine-auto-pause] paused ${agent.id}/${routine.id} after ${routineAutoPauseLogTail(routine.auto_paused)}`,
     );
   }
   if (paused.length > 0) {

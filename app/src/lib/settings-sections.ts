@@ -63,22 +63,34 @@ export function settingsSectionFromDeepLink(
   }
 }
 
-/** Billing exists only where the deployment serves the personal plan (C19). */
+/** The capability flags that decide whether a section exists here. */
+type SectionCapabilities =
+  | { plan?: boolean; apiKeys?: boolean }
+  | null
+  | undefined;
+
+/**
+ * Billing exists only where the deployment serves the personal plan (C19);
+ * API keys only where it serves the public API (C9: the hosted gateway, which
+ * desktop and web both reach once signed in).
+ */
 export function settingsSectionAvailable(
   section: SettingsSectionId,
-  capabilities: { plan?: boolean } | null | undefined,
+  capabilities: SectionCapabilities,
 ): boolean {
-  return section !== "plan" || capabilities?.plan === true;
+  if (section === "plan") return capabilities?.plan === true;
+  if (section === "apiKeys") return capabilities?.apiKeys === true;
+  return true;
 }
 
 /**
  * Where a link to `section` lands: a section this deployment does not serve
- * (Billing without the plan capability) lands on the Settings index instead of
- * a blank screen.
+ * (Billing without the plan capability, API keys without the public API) lands
+ * on the Settings index instead of a blank screen.
  */
 export function settingsLandingSection(
   section: SettingsSectionId,
-  capabilities: { plan?: boolean } | null | undefined,
+  capabilities: SectionCapabilities,
 ): SettingsSectionId | null {
   return settingsSectionAvailable(section, capabilities) ? section : null;
 }

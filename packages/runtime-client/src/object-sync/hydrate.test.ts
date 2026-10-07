@@ -748,6 +748,81 @@ test("startHydrate lands priority files before filtering the bulk", async () => 
   ]);
 });
 
+test("startHydrate keeps deferred objects out of done and fetches them after it", async () => {
+  const { storeRoot, store, work } = setup();
+  seed(storeRoot, PREFIX, {
+    "workspace/notes.txt": "eager",
+    "workspace/uploads/photo.png": "deferred",
+  });
+  let releaseEager: () => void = () => undefined;
+  const eagerGate = new Promise<void>((resolve) => {
+    releaseEager = resolve;
+  });
+  let releaseDeferred: () => void = () => undefined;
+  const deferredGate = new Promise<void>((resolve) => {
+    releaseDeferred = resolve;
+  });
+  const requested: string[] = [];
+  const gated: ObjectStore = {
+    list: (prefix) => store.list(prefix),
+    manifest: (prefix) => store.manifest(prefix),
+    download: async (key, destination) => {
+      requested.push(key.slice(PREFIX.length + 1));
+      await (key.endsWith("photo.png") ? deferredGate : eagerGate);
+      await store.download(key, destination);
+    },
+    upload: (source, key, options) => store.upload(source, key, options),
+    delete: (key, options) => store.delete(key, options),
+  };
+
+  const started = await startHydrate(gated, PREFIX, work, {
+    defer: (rel) => rel.startsWith("workspace/uploads/"),
+  });
+  await Promise.resolve();
+  // The deferred object waits for the eager set instead of sharing its pipe.
+  expect(requested).toEqual(["workspace/notes.txt"]);
+  releaseEager();
+  await started.done;
+  expect(existsSync(join(work, "workspace", "notes.txt"))).toBe(true);
+  expect(existsSync(join(work, "workspace", "uploads", "photo.png"))).toBe(
+    false,
+  );
+  expect([...started.manifest.keys()]).toEqual(["workspace/notes.txt"]);
+  releaseDeferred();
+  await started.deferred;
+  expect(
+    readFileSync(join(work, "workspace", "uploads", "photo.png"), "utf8"),
+  ).toBe("deferred");
+  expect([...started.manifest.keys()].sort()).toEqual([
+    "workspace/notes.txt",
+    "workspace/uploads/photo.png",
+  ]);
+});
+
+test("a deferring hydrate refuses an over-cap listing before downloading the bulk", async () => {
+  const { storeRoot, store, work } = setup();
+  seed(storeRoot, PREFIX, {
+    "workspace/notes.txt": "eager",
+    "workspace/uploads/photo.png": "0123456789",
+  });
+  await expect(
+    startHydrate(store, PREFIX, work, {
+      maxBytes: 12,
+      defer: (rel) => rel.startsWith("workspace/uploads/"),
+    }),
+  ).rejects.toMatchObject({ name: "HydrateLimitError", observedBytes: 15 });
+  expect(existsSync(join(work, "workspace", "notes.txt"))).toBe(false);
+});
+
+test("hydrate without a defer predicate resolves deferred with done", async () => {
+  const { storeRoot, store, work } = setup();
+  seed(storeRoot, PREFIX, { "workspace/uploads/photo.png": "x" });
+  const started = await startHydrate(store, PREFIX, work);
+  expect(started.deferred).toBe(started.done);
+  await started.deferred;
+  expect(started.manifest.has("workspace/uploads/photo.png")).toBe(true);
+});
+
 test("startHydrate aborts in-flight downloads before settlement", async () => {
   const { storeRoot, store, work } = setup();
   seed(storeRoot, PREFIX, { "workspace/late.txt": "late" });

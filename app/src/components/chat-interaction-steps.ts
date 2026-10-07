@@ -3,7 +3,7 @@ import type {
   ChatInteractionCardProps,
   ChatInteractionStep,
 } from "@houston-ai/chat";
-import { handsOnScreenKey } from "../lib/hands-on-navigation";
+import { handsOnScreenLabel } from "../lib/hands-on-screens";
 import type { ApprovalCardCopy } from "../lib/interaction-approval-labels";
 import { localizeApprovalQuestion } from "../lib/interaction-approval-labels";
 import type { NonPlanReadyStep } from "../lib/plan-ready";
@@ -50,9 +50,19 @@ export function mapInteractionSteps(args: {
   approvalCopy: ApprovalCardCopy;
   resolveBrand: ReturnType<typeof useToolkitBrandResolver>;
   resolveProviderName: (providerId: string) => string;
+  /** Names the employee an errand on one employee's screen belongs to;
+   *  `undefined` while the roster cannot. */
+  resolveAgentName: (agentId: string) => string | undefined;
   t: InteractionT;
 }): ChatInteractionStep[] {
-  const { steps, approvalCopy, resolveBrand, resolveProviderName, t } = args;
+  const {
+    steps,
+    approvalCopy,
+    resolveBrand,
+    resolveProviderName,
+    resolveAgentName,
+    t,
+  } = args;
   return steps.map((step) => {
     // A custom step's title is user-facing, so it carries the provider's
     // display name; the raw wire id never reaches a surface.
@@ -63,13 +73,19 @@ export function mapInteractionSteps(args: {
         title: resolveProviderName(step.provider),
       };
     // A hands-on errand rides the same generic custom step: the app owns every
-    // pixel of its body, so ui/chat needs nothing but its id.
-    if (step.kind === "hands_on")
+    // pixel of its body, so ui/chat needs nothing but its id. The surface is
+    // off the wire, so a screen this build does not know still gets a title.
+    if (step.kind === "hands_on") {
+      const label = handsOnScreenLabel(step, resolveAgentName);
       return {
         kind: "custom",
         id: step.id,
-        title: t(`chat:${handsOnScreenKey(step.surface)}`),
+        title:
+          "name" in label
+            ? t(`chat:${label.key}`, { name: label.name })
+            : t(`chat:${label.key}`),
       };
+    }
     if (step.kind !== "question") return step;
     const question = localizeApprovalQuestion(step, approvalCopy);
     return step.toolkit

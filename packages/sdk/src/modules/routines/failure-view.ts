@@ -47,6 +47,7 @@ export function failureCodeForReader(
   failure: RoutineRunFailure,
   reader?: RoutineReaderAccount,
 ): RoutineRunFailureCode {
+  if (failure.code === "no_model") return failure.code;
   const signedOut = SIGNED_OUT[failure.code];
   if (
     !signedOut ||

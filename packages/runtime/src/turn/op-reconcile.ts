@@ -1,4 +1,4 @@
-import { loadRoutineRuns } from "@houston/domain";
+import { loadRoutineRuns, routineAutoPauseLogTail } from "@houston/domain";
 import type { HoustonEvent } from "@houston/protocol";
 import {
   type ObjectStore,
@@ -143,7 +143,7 @@ async function pauseAfterSync(input: {
       });
       if (!paused) continue;
       console.info(
-        `[routine-auto-pause] paused ${paused.id} after ${paused.auto_paused?.failures} runs: ${paused.auto_paused?.reason} (${paused.auto_paused?.provider})`,
+        `[routine-auto-pause] paused ${paused.id} after ${routineAutoPauseLogTail(paused.auto_paused)}`,
       );
       events.push({
         type: "RoutinesChanged",
