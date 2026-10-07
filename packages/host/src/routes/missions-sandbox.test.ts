@@ -1,6 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { docKey, saveActivities } from "@houston/domain";
-import type { Activity, HoustonEvent, TurnMode } from "@houston/protocol";
+import type {
+  Activity,
+  HoustonEvent,
+  ModelCallReport,
+  TurnMode,
+} from "@houston/protocol";
 import { beforeEach, expect, test } from "vitest";
 import { ACTING_AS_HEADER } from "../auth/acting";
 import type { Agent, Workspace } from "../domain/types";
@@ -117,6 +122,7 @@ async function call(
     /** An acting token the RUNTIME puts on its own loopback call (S16). */
     spoofedActingAs?: string;
     gatewayFronted?: boolean;
+    modelCallReports?: (report: ModelCallReport) => void;
   } = {},
 ) {
   const headers: Record<string, string> = {
@@ -146,6 +152,9 @@ async function call(
       channels: { local: channel },
       ...(opts.gatewayFronted ? { gatewayFronted: true } : {}),
       ...(connectedProviders === null ? {} : { credentials }),
+      ...(opts.modelCallReports
+        ? { modelCallReports: opts.modelCallReports }
+        : {}),
     },
     method,
     path,
@@ -876,4 +885,42 @@ test("the after-turn title lands only while the card shows its fallback", async 
     conversation_id: "activity-m-1",
   });
   expect(bad.status).toBe(400);
+});
+
+test("settle hands a well-formed model-call report to the sink, any mission", async () => {
+  const reports: ModelCallReport[] = [];
+  const modelCalls = {
+    v: 1,
+    turnId: "turn-9",
+    backend: "pi",
+    startupMs: { session_build: 3, pre_prompt: 40 },
+    calls: [
+      {
+        provider: "openai-codex",
+        model: "gpt-6-luna",
+        ttfbMs: 900,
+        firstTokenMs: 300,
+        inputTokens: 100,
+        cacheReadTokens: 4000,
+        cacheWriteTokens: 0,
+        outputTokens: 20,
+      },
+    ],
+    droppedCalls: 0,
+  };
+  const sink = { modelCallReports: (r: ModelCallReport) => reports.push(r) };
+  // A user mission's settle changes no card, yet its timings still count.
+  await call(
+    "POST",
+    "/sandbox/missions/settle",
+    { conversation_id: "c1", status: "needs_you", model_calls: modelCalls },
+    sink,
+  );
+  await call(
+    "POST",
+    "/sandbox/missions/settle",
+    { conversation_id: "c1", status: "error", model_calls: { v: 9 } },
+    sink,
+  );
+  expect(reports).toEqual([modelCalls]);
 });

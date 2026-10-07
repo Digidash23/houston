@@ -8,6 +8,7 @@ import {
   type newInteractionHolder,
   runWithInteractionCapture,
 } from "../session/interaction";
+import { collectModelCalls } from "../session/model-call-report";
 import { collectTurnFrames, type TurnFrames } from "./turn-session-frames";
 import type { TurnSessionRequest } from "./turn-session-types";
 import { guardTurnStall } from "./turn-stall-guard";
@@ -20,6 +21,8 @@ import { guardTurnStall } from "./turn-stall-guard";
  */
 export async function promptTurnSession(input: {
   session: HarnessSession;
+  /** The harness backend's id, naming the report's backend. */
+  backendId: string;
   turn: TurnSessionRequest;
   prompt: string;
   frames: TurnFrames;
@@ -48,6 +51,8 @@ export async function promptTurnSession(input: {
     emit,
     stall.admit,
   );
+  const modelCalls = collectModelCalls(session, input.backendId);
+  frames.modelCalls = modelCalls;
   const onAbort = () => void session.abort();
   turn.signal?.addEventListener("abort", onAbort, { once: true });
   try {
@@ -68,6 +73,7 @@ export async function promptTurnSession(input: {
     stall.disarm();
     turn.signal?.removeEventListener("abort", onAbort);
     unsubscribe();
+    modelCalls.stop();
   }
   // A user's cancel wins over the watchdog: the claim's release is that
   // turn's terminal surface, and a stall card on top would double-settle it.

@@ -1,4 +1,4 @@
-import type { TurnMode } from "@houston/protocol";
+import type { ModelCallTiming, TurnMode } from "@houston/protocol";
 import type { WireEvent } from "@houston/runtime-client";
 import type { PiThinkingLevel } from "../ai/effort";
 import type { ProvidedContext } from "../session/workspace-context";
@@ -56,6 +56,14 @@ export type ModelPhase =
   | { phase: "idle" };
 
 /**
+ * A timing the harness observed: one finished model call, or (Claude only) the
+ * CLI's spawn-to-init cost for the query that runs the turn.
+ */
+export type HarnessTimingEvent =
+  | { type: "call"; call: ModelCallTiming }
+  | { type: "harness_init"; ms: number };
+
+/**
  * One live conversation session against a backend. `prompt` resolves at turn end;
  * a provider failure arrives as a `provider_error` WireEvent on the stream, never
  * a throw. `dispose` is idempotent.
@@ -93,6 +101,13 @@ export interface HarnessSession {
    * quiet-stream window applies.
    */
   subscribeModelPhase?(listener: (phase: ModelPhase) => void): () => void;
+  /**
+   * Subscribe to per-call timings (`HarnessTimingEvent`), the source of the
+   * turn's model-call report. Optional: a backend without it reports no calls.
+   */
+  subscribeModelCalls?(
+    listener: (event: HarnessTimingEvent) => void,
+  ): () => void;
   /** Run one turn; resolves at turn end. Provider errors surface as WireEvents. */
   prompt(text: string): Promise<void>;
   /** Abort the in-flight turn (the user's Stop), then settle. */

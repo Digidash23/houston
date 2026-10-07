@@ -194,6 +194,7 @@ export async function executeReadyTurn(input: {
       input.turn.missionTitle
         ? landedMissionTitle(outcome.missionTitle, durable.sync)
         : undefined,
+      outcome.modelCalls,
     ),
   );
   await input.turnLog?.flush();

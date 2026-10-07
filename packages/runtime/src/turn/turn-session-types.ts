@@ -1,5 +1,5 @@
 import type { AssistantRuntimeRole } from "@houston/domain/assistant-role";
-import type { TurnMode } from "@houston/protocol";
+import type { ModelCallReport, TurnMode } from "@houston/protocol";
 import type {
   ChatMessage,
   PendingInteraction,
@@ -24,6 +24,8 @@ export interface TurnOutcome {
   missionTitle?: InTreeMissionTitle;
   /** What the turn spent, for the agent's token ledger (turn-ledger.ts). */
   spend?: { provider: string; usage: TokenUsage };
+  /** Per-call timings for the terminal frame (turn-terminal.ts). */
+  modelCalls?: ModelCallReport;
 }
 
 /** Per-turn model/effort pin. Absent means inherit the agent setting. */

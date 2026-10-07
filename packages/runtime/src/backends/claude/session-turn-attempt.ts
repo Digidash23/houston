@@ -1,9 +1,10 @@
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { WireEvent } from "@houston/runtime-client";
 import { markTurnOnce } from "../../turn/turn-network-marks";
-import type { ThinkingLevel } from "../types";
+import type { HarnessTimingEvent, ThinkingLevel } from "../types";
 import { toSdkEffort } from "./effort";
 import { classifyText } from "./errors";
+import { createClaudeCallTimer } from "./model-calls";
 import { hasSessionId, isAssistantMessageStart } from "./sdk-message-shapes";
 import type { ClaudeSessionDeps, TurnAuth } from "./session-deps";
 import { houstonToolServerLost } from "./tool-server-lost";
@@ -50,6 +51,7 @@ export interface TurnAttemptState {
   tickLiveness(): void;
   /** One model round-trip beginning, for the turn's finish marks. */
   emitAssistantMessageStart(): void;
+  emitTiming(e: HarnessTimingEvent): void;
 }
 
 /** The per-attempt inputs: the prompt, the resume id to try, the turn's env. */
@@ -101,10 +103,12 @@ export async function runTurnAttempt(
   let succeeded = false;
   const danglingResume = (message: string): boolean =>
     resume !== undefined && DANGLING_RESUME_RE.test(message);
+  const timer = createClaudeCallTimer();
   try {
     for await (const msg of state.deps.query({ prompt: text, options })) {
       if (state.isAborting()) break;
       state.tickLiveness();
+      for (const timing of timer(msg)) state.emitTiming(timing);
       if (msg.type === "system" && msg.subtype === "init")
         markTurnOnce("t_claude_init");
       else markTurnOnce("t_claude_first_message");
