@@ -24,6 +24,9 @@ export interface TurnFilesystem extends TurnLayout {
    *  Absent when nothing was deferred. Every tool, the turn's file-change
    *  snapshot and the final sync wait for it. */
   workspaceReady?: Promise<void>;
+  /** The prompt is over: stop the deferred download if it has not landed,
+   *  and sync as after a failed one (turn-deferred-watch.ts). */
+  abandonDeferred?: () => void;
 }
 
 export interface TurnFilesystemPreparation {

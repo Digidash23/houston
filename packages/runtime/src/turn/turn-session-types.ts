@@ -84,6 +84,8 @@ export interface TurnDirectories {
   turnRoot: string;
   /** Hydration deferred past the prompt (turn-deferred-files.ts). */
   workspaceReady?: Promise<void>;
+  /** Called once the prompt ends or is stopped (turn-deferred-watch.ts). */
+  abandonDeferred?: () => void;
 }
 
 export type TurnRunner = (

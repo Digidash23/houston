@@ -1,5 +1,9 @@
 import type { ObjectStore } from "@houston/runtime-client/object-sync";
 import { deferredWorkspaceFile } from "./turn-deferred-files";
+import {
+  DEFERRED_PARALLEL,
+  DEFERRED_READ_TIMEOUT_MS,
+} from "./turn-deferred-watch";
 import { startTurnFilesystem } from "./turn-filesystem";
 import { ownClaudeFlagsOnly, ownConversationOnly } from "./turn-hot-set";
 import type { TurnRequest } from "./types";
@@ -41,6 +45,8 @@ export function startTurnRequestFilesystem(input: {
           ),
           excludes: CLAIMED_TURN_EXCLUDES,
           defer: deferredWorkspaceFile,
+          deferredReadTimeoutMs: DEFERRED_READ_TIMEOUT_MS,
+          deferredParallel: DEFERRED_PARALLEL,
         }
       : { filter: ownClaudeFlagsOnly(input.turn.actingAs?.userId) }),
     timings: input.timings,

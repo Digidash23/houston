@@ -1,3 +1,4 @@
+import { TOOL_GATE_DENY_AFTER_MS } from "../backends/claude/tool-gate-hook";
 import type { PiBackendDeps } from "../backends/pi/backend";
 import type { FileSnapshot } from "../session/file-changes";
 import { captureWorkspaceSnapshot } from "./turn-session-success";
@@ -31,15 +32,26 @@ export function deferredWorkspaceFile(rel: string): boolean {
   );
 }
 
-/** Hold a tool until the deferred objects land; a failed download refuses it. */
+/**
+ * Hold a tool until the deferred objects land; a failed download refuses it,
+ * and so does the deadline Claude's tool gate uses (tool-gate-hook.ts).
+ */
 export async function awaitDeferredFiles(
   ready: Promise<void> | undefined,
   signal?: AbortSignal,
+  deadlineMs: number = TOOL_GATE_DENY_AFTER_MS,
 ): Promise<void> {
   if (!ready) return;
   const stop = signal ? abortion(signal) : undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(
+      () => reject(new Error("the agent's files are still loading")),
+      deadlineMs,
+    );
+  });
   try {
-    await (stop ? Promise.race([ready, stop.stopped]) : ready);
+    await Promise.race([ready, late, ...(stop ? [stop.stopped] : [])]);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(
@@ -47,6 +59,7 @@ export async function awaitDeferredFiles(
       { cause: error },
     );
   } finally {
+    clearTimeout(timer);
     // pi hands every tool call of a prompt the same signal.
     stop?.dispose();
   }
@@ -94,13 +107,8 @@ export function snapshotWhenReady(
   if (!ready) return Promise.resolve(captureWorkspaceSnapshot(workspaceDir));
   return ready.then(
     () => captureWorkspaceSnapshot(workspaceDir),
-    (error: unknown) => {
-      // The tools already refuse with this failure; the diff is best-effort.
-      console.warn(
-        "[turn] file snapshot skipped, deferred uploads failed:",
-        error instanceof Error ? error.message : String(error),
-      );
-      return null;
-    },
+    // No tool ran (they all wait on `ready`), so there is no diff to take;
+    // a failure was already reported once (turn-deferred-watch.ts).
+    () => null,
   );
 }

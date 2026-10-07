@@ -51,6 +51,8 @@ test("files in the agent's own non-hidden folders are deferred", () => {
   expect(f("workspaces/Personal/Bob/reports/q3.xlsx")).toBe(true);
   expect(f("workspaces/Personal/Bob/notes/uploads/a.md")).toBe(true);
   expect(f("workspaces/Personal/Bob/skills/a/SKILL.md")).toBe(true);
+  expect(f("workspaces/Personal/Bob/reports/.x.md")).toBe(true);
+  expect(f("workspaces/Personal/Bob/Contratación/oferta.pdf")).toBe(true);
 });
 
 test("runtime inputs stay on the prompt's critical path", () => {
@@ -269,4 +271,11 @@ test("a failed deferral syncs no upload that landed outside the manifest", async
   });
   expect(synced.uploaded).toEqual([]);
   expect(synced.deleted).toEqual([]);
+});
+
+test("a tool still waiting at the deadline is refused, as on Claude", async () => {
+  const never = new Promise<void>(() => undefined);
+  await expect(awaitDeferredFiles(never, undefined, 20)).rejects.toThrow(
+    /still loading/,
+  );
 });
