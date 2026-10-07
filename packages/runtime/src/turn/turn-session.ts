@@ -4,7 +4,7 @@ import { newUsedTokenCapture } from "../auth/used-token";
 import { config } from "../config";
 import { framePrompt } from "../session/attribution";
 import { newInteractionHolder } from "../session/interaction";
-import { snapshotWhenReady } from "./turn-deferred-uploads";
+import { snapshotWhenReady } from "./turn-deferred-files";
 import { recordPooledRoutineCarry } from "./turn-routine-context";
 import { openTurnBackendSession } from "./turn-session-backend";
 import { runInTurnContext } from "./turn-session-context";

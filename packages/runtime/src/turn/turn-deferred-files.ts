@@ -5,26 +5,34 @@ import { captureWorkspaceSnapshot } from "./turn-session-success";
 type TurnTool = PiBackendDeps["customTools"][number];
 
 /**
- * Chat attachments (`<agent>/uploads/**`, host turn/attachments.ts) are
- * permanent agent context: every file ever dropped on a chat stays, readable
- * from any later conversation, and most are images that do not compress.
- * Only a turn's tools read them, so a claimed turn hydrates them behind the
- * prompt: the model starts while they download, and every tool waits for
- * them. The gateway leaves the same objects out of the turn's inlined
- * prefetch (cloud internal/pooldispatch/prefetch.go), so they never sit on
- * the upload the first token waits for.
+ * The agent's own files: anything under a non-hidden folder of the agent
+ * directory (`workspaces/<ws>/<agent>/<dir>/**`, `<dir>` not starting with
+ * `.`). That covers chat attachments (`uploads/`, host turn/attachments.ts)
+ * and every document the person or the agent made, which together are most
+ * of a large agent's bytes. No runtime input lives there: the prompt and the
+ * harness read the agent's root context files (CLAUDE.md, AGENTS.md) and its
+ * hidden folders (`.houston/`, `.agents/`, `.claude/`), which stay on the
+ * critical path. Only a turn's tools read these files, so a claimed turn
+ * hydrates them behind the prompt: the model starts while they download, and
+ * every tool, the file-change snapshot and the final sync wait for them. The
+ * gateway leaves the same objects out of the turn's inlined prefetch (cloud
+ * internal/pooldispatch/prefetch.go), so they never sit on the upload the
+ * worker's answer waits for. Keep the two predicates identical.
  */
-export function deferredUpload(rel: string): boolean {
+export function deferredWorkspaceFile(rel: string): boolean {
   const segments = rel.split("/");
+  const dir = segments[3];
   return (
     segments.length > 4 &&
     segments[0] === "workspaces" &&
-    segments[3] === "uploads"
+    dir !== undefined &&
+    dir !== "" &&
+    !dir.startsWith(".")
   );
 }
 
 /** Hold a tool until the deferred objects land; a failed download refuses it. */
-export async function awaitDeferredUploads(
+export async function awaitDeferredFiles(
   ready: Promise<void> | undefined,
   signal?: AbortSignal,
 ): Promise<void> {
@@ -35,7 +43,7 @@ export async function awaitDeferredUploads(
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `The agent's uploaded files did not load for this turn (${detail}), so its tools cannot run. Ask the user to send the message again.`,
+      `The agent's files did not load for this turn (${detail}), so its tools cannot run. Ask the user to send the message again.`,
       { cause: error },
     );
   } finally {
@@ -66,7 +74,7 @@ export function gateTurnTools(
   return tools.map((tool) => ({
     ...tool,
     async execute(toolCallId, params, signal, onUpdate, ctx) {
-      await awaitDeferredUploads(ready, signal);
+      await awaitDeferredFiles(ready, signal);
       return tool.execute(toolCallId, params, signal, onUpdate, ctx);
     },
   }));

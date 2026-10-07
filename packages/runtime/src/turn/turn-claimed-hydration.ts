@@ -1,5 +1,5 @@
 import type { ObjectStore } from "@houston/runtime-client/object-sync";
-import { deferredUpload } from "./turn-deferred-uploads";
+import { deferredWorkspaceFile } from "./turn-deferred-files";
 import { startTurnFilesystem } from "./turn-filesystem";
 import { ownClaudeFlagsOnly, ownConversationOnly } from "./turn-hot-set";
 import type { TurnRequest } from "./types";
@@ -40,7 +40,7 @@ export function startTurnRequestFilesystem(input: {
             input.turn.actingAs?.userId,
           ),
           excludes: CLAIMED_TURN_EXCLUDES,
-          defer: deferredUpload,
+          defer: deferredWorkspaceFile,
         }
       : { filter: ownClaudeFlagsOnly(input.turn.actingAs?.userId) }),
     timings: input.timings,

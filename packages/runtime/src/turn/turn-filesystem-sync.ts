@@ -3,7 +3,7 @@ import {
   type SyncResult,
   syncBack,
 } from "@houston/runtime-client/object-sync";
-import { deferredUpload } from "./turn-deferred-uploads";
+import { deferredWorkspaceFile } from "./turn-deferred-files";
 import type { TurnFilesystem } from "./turn-filesystem";
 import { claimedTurnIncludes } from "./turn-filesystem-scope";
 
@@ -12,7 +12,7 @@ function withoutDeferred(
   deferredFailed: boolean,
 ): (rel: string) => boolean {
   return deferredFailed
-    ? (rel) => !deferredUpload(rel) && include(rel)
+    ? (rel) => !deferredWorkspaceFile(rel) && include(rel)
     : include;
 }
 
