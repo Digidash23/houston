@@ -93,8 +93,9 @@ jobs:
     # dev process serves every worker's page boots): 4 workers blew expect
     # budgets outright (run 30596416439), and even 2 workers left the heavy
     # signed-in specs flaking on animation transients (run 30597930896).
-    # Typecheck + unit tests ride shard 1 only.
-    name: Web (typecheck + unit + UI tests)
+    # The web typecheck and unit tests run in the App job, so no shard carries
+    # extra work and the slowest slice alone sets the wall clock.
+    name: Web (UI tests)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -147,18 +148,6 @@ jobs:
       - name: Smoke-launch Chromium (host dependency check)
         timeout-minutes: 2
         run: pnpm --filter houston-web exec node -e "require('@playwright/test').chromium.launch().then((b) => b.close())"
-
-      - name: Typecheck (web)
-        if: ${{ matrix.shard == 1 }}
-        run: pnpm --filter houston-web typecheck
-
-      - name: Typecheck (e2e harness)
-        if: ${{ matrix.shard == 1 }}
-        run: pnpm --filter houston-web typecheck:e2e
-
-      - name: Unit tests (web)
-        if: ${{ matrix.shard == 1 }}
-        run: pnpm --filter houston-web test
 
       - name: UI tests (Playwright)
         run: pnpm --filter houston-web test:e2e --shard=${{ matrix.shard }}/6
@@ -213,7 +202,12 @@ jobs:
           retention-days: 14
 
   app:
-    name: App (node:test unit tests)
+    # Every check here is short and independent of the others, so they share
+    # one install and one job. They run in sequence: on a 4-vCPU runner the
+    # four lanes are CPU-bound, and running them as a `parallel:` group took
+    # 4.2 min against a 4.1 min sequential sum. `!cancelled()` keeps a failure
+    # in one lane from hiding the others, as separate jobs never did.
+    name: App · Web unit · Agent Store (typecheck · tests · builds)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -233,38 +227,26 @@ jobs:
 
       # The desktop bundle resolves the engine adapter through a Vite alias
       # that cannot see `@houston/app/*`. Only this build catches an adapter
-      # import the web build resolves fine (every Tauri release build failed on
-      # one while PR CI stayed green).
+      # import the web build resolves fine (every Tauri release build failed
+      # on one while PR CI stayed green).
       - name: Desktop bundle (typecheck + vite build)
+        if: ${{ !cancelled() }}
         run: pnpm --filter houston-app build
 
-  agentstore:
-    name: Agent Store (contract + app typecheck · tests · DB-less build)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
+      - name: Web (typecheck · e2e harness typecheck · unit tests)
+        if: ${{ !cancelled() }}
+        run: |
+          set -euo pipefail
+          pnpm --filter houston-web typecheck
+          pnpm --filter houston-web typecheck:e2e
+          pnpm --filter houston-web test
 
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Typecheck (contract)
-        run: pnpm --filter @houston/agentstore-contract typecheck
-
-      - name: Unit + contract tests (contract)
-        run: pnpm --filter @houston/agentstore-contract test
-
-      - name: Typecheck (agentstore)
-        run: pnpm --filter houston-agentstore typecheck
-
-      - name: Unit tests (agentstore)
-        run: pnpm --filter houston-agentstore test
-
-      - name: Build (agentstore, no database)
-        run: pnpm --filter houston-agentstore build
+      - name: Agent Store (contract + app typecheck · tests · DB-less build)
+        if: ${{ !cancelled() }}
+        run: |
+          set -euo pipefail
+          pnpm --filter @houston/agentstore-contract typecheck
+          pnpm --filter @houston/agentstore-contract test
+          pnpm --filter houston-agentstore typecheck
+          pnpm --filter houston-agentstore test
+          pnpm --filter houston-agentstore build
