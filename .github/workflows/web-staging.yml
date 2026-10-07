@@ -120,9 +120,9 @@ jobs:
         env:
           SENTRY_ORG: houston-cd
           SENTRY_PROJECT: houston-app
+          RELEASE: ${{ steps.webversion.outputs.release }}
         run: |
           set -euo pipefail
-          RELEASE="${{ steps.webversion.outputs.release }}"
           # Lockfile-pinned sentry-cli (app's @sentry/cli devDep), same binary
           # the release jobs use — not an unpinned get-cli download.
           SENTRY_CLI="app/node_modules/.bin/sentry-cli"

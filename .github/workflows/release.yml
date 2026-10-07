@@ -227,7 +227,7 @@ jobs:
               COMPARE=""
             else
               RANGE="$PREV_TAG..HEAD"
-              COMPARE="**Full changelog**: https://github.com/${{ github.repository }}/compare/$PREV_TAG...${GITHUB_REF_NAME}"
+              COMPARE="**Full changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/$PREV_TAG...${GITHUB_REF_NAME}"
             fi
 
             section() {
@@ -361,7 +361,7 @@ jobs:
             --draft \
             "${PRERELEASE[@]}"
 
-          echo "::notice::Empty draft release \"$TITLE\" created at https://github.com/${{ github.repository }}/releases/tag/$GITHUB_REF_NAME — macOS + Windows builds will upload artifacts in parallel."
+          echo "::notice::Empty draft release \"$TITLE\" created at https://github.com/${GITHUB_REPOSITORY}/releases/tag/$GITHUB_REF_NAME — macOS + Windows builds will upload artifacts in parallel."
 
       # Hand release-notes.md to downstream jobs (Slack notifier in
       # finalize, updater-manifest builder in build-macos) without each of
@@ -790,13 +790,15 @@ jobs:
           echo "  .sig:        $SIG"
 
       - name: Verify .app signing and notarization
+        env:
+          ARTIFACT_APP: ${{ steps.artifacts.outputs.app }}
         run: |
-          node scripts/ci/assert-no-frpc.mjs "${{ steps.artifacts.outputs.app }}"
+          node scripts/ci/assert-no-frpc.mjs "${ARTIFACT_APP}"
           echo "=== Code signature ==="
-          codesign -vvv --deep --strict "${{ steps.artifacts.outputs.app }}"
+          codesign -vvv --deep --strict "${ARTIFACT_APP}"
 
           echo "=== Notarization staple ==="
-          xcrun stapler validate "${{ steps.artifacts.outputs.app }}"
+          xcrun stapler validate "${ARTIFACT_APP}"
 
       # The host sidecar is a single universal Mach-O in Contents/MacOS/ (same
       # externalBin name the Rust engine used). tauri-action's deep sign reaches
@@ -804,8 +806,10 @@ jobs:
       # valid signature, Developer ID (not ad-hoc → Gatekeeper), hardened runtime,
       # and both arch slices.
       - name: Verify host sidecar signing
+        env:
+          ARTIFACT_APP: ${{ steps.artifacts.outputs.app }}
         run: |
-          APP="${{ steps.artifacts.outputs.app }}"
+          APP="${ARTIFACT_APP}"
 
           # Tauri strips the triple suffix on bundle; fall back to glob if it doesn't.
           SIDECAR="$APP/Contents/MacOS/houston-engine"
@@ -865,8 +869,10 @@ jobs:
       # as the host sidecar — a broken signature would fail launch/notarization:
       # valid signature, Developer ID (Gatekeeper), hardened runtime, both arches.
       - name: Verify Claude Code binary signing
+        env:
+          ARTIFACT_APP: ${{ steps.artifacts.outputs.app }}
         run: |
-          APP="${{ steps.artifacts.outputs.app }}"
+          APP="${ARTIFACT_APP}"
 
           # Tauri strips the triple suffix on bundle; fall back to glob if it doesn't.
           CLAUDE="$APP/Contents/MacOS/claude"
@@ -935,6 +941,7 @@ jobs:
           # vars live here.
           SENTRY_ORG: houston-cd
           SENTRY_PROJECT: houston-app
+          ARTIFACT_APP: ${{ steps.artifacts.outputs.app }}
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#cloud-}"; VERSION="${VERSION#v}"
@@ -974,7 +981,7 @@ jobs:
           # linked Mach-O, so `dsymutil` packs them into a standalone .dSYM (the
           # DIF Sentry symbolicates against). The app's per-arch .o still live
           # under target/{aarch64,x86_64}-apple-darwin/release/deps.
-          APP="${{ steps.artifacts.outputs.app }}"
+          APP="${ARTIFACT_APP}"
           # The bundled executable is named after the Cargo binary
           # (`houston-app`), NOT the productName ("Houston").
           APP_EXE="$APP/Contents/MacOS/houston-app"
@@ -1011,8 +1018,10 @@ jobs:
       # notarize. Done here so notarization sees the final bytes — any
       # post-notarize edit would invalidate the staple.
       - name: Rename DMG volume to "Houston Installer"
+        env:
+          ARTIFACT_DMG: ${{ steps.artifacts.outputs.dmg }}
         run: |
-          ./scripts/rename-dmg-volume.sh "${{ steps.artifacts.outputs.dmg }}" "Houston Installer"
+          ./scripts/rename-dmg-volume.sh "${ARTIFACT_DMG}" "Houston Installer"
 
       # rename-dmg-volume.sh rebuilds the DMG (hdiutil convert), which strips
       # the Developer ID signature tauri-action applied to the original .dmg.
@@ -1024,16 +1033,19 @@ jobs:
       - name: Re-sign DMG after volume rename
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          ARTIFACT_DMG: ${{ steps.artifacts.outputs.dmg }}
         run: |
-          DMG="${{ steps.artifacts.outputs.dmg }}"
+          DMG="${ARTIFACT_DMG}"
           codesign --force --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$DMG"
           echo "=== Re-signed DMG with Developer ID ==="
           codesign -vvv "$DMG"
 
       - name: Notarize DMG
         timeout-minutes: 90
+        env:
+          ARTIFACT_DMG: ${{ steps.artifacts.outputs.dmg }}
         run: |
-          DMG="${{ steps.artifacts.outputs.dmg }}"
+          DMG="${ARTIFACT_DMG}"
           KEY=~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
 
           for attempt in 1 2 3; do
@@ -1058,8 +1070,10 @@ jobs:
           done
 
       - name: Verify complete signing chain
+        env:
+          ARTIFACT_DMG: ${{ steps.artifacts.outputs.dmg }}
         run: |
-          DMG="${{ steps.artifacts.outputs.dmg }}"
+          DMG="${ARTIFACT_DMG}"
 
           echo "=== 1. DMG code signature ==="
           codesign -vvv "$DMG"
@@ -1092,10 +1106,13 @@ jobs:
       # updater manifest or Sentry upload — see the job header). Prod flavor only.
       - name: Generate checksums
         if: ${{ matrix.flavor != 'staging' }}
+        env:
+          ARTIFACT_DMG: ${{ steps.artifacts.outputs.dmg }}
+          ARTIFACT_TAR: ${{ steps.artifacts.outputs.tar }}
         run: |
           shasum -a 256 \
-            "${{ steps.artifacts.outputs.dmg }}" \
-            "${{ steps.artifacts.outputs.tar }}" \
+            "${ARTIFACT_DMG}" \
+            "${ARTIFACT_TAR}" \
             > checksums-sha256.txt
           cat checksums-sha256.txt
 
@@ -1115,6 +1132,9 @@ jobs:
       # auto-update, so it produces no manifest fragment for finalize to merge.
       - name: Generate updater manifest
         if: ${{ matrix.flavor != 'staging' }}
+        env:
+          ARTIFACT_TAR: ${{ steps.artifacts.outputs.tar }}
+          ARTIFACT_SIG: ${{ steps.artifacts.outputs.sig }}
         run: |
           VERSION="${GITHUB_REF_NAME#cloud-}"; VERSION="${VERSION#v}"
           # Channel-specific updater manifest name so the cloud + local feeds
@@ -1126,9 +1146,9 @@ jobs:
             *)       MANIFEST="latest.json" ;;
           esac
           echo "MANIFEST=$MANIFEST" >> "$GITHUB_ENV"
-          TAR_NAME=$(basename "${{ steps.artifacts.outputs.tar }}")
-          SIG=$(cat "${{ steps.artifacts.outputs.sig }}")
-          URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$TAR_NAME"
+          TAR_NAME=$(basename "${ARTIFACT_TAR}")
+          SIG=$(cat "${ARTIFACT_SIG}")
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/$TAR_NAME"
 
           # Four keys required. We ship ONE universal tarball that runs on
           # both Apple Silicon and Intel, so every platform key points at the
@@ -1185,16 +1205,19 @@ jobs:
         if: ${{ matrix.flavor != 'staging' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARTIFACT_DMG: ${{ steps.artifacts.outputs.dmg }}
+          ARTIFACT_TAR: ${{ steps.artifacts.outputs.tar }}
+          ARTIFACT_SIG: ${{ steps.artifacts.outputs.sig }}
         run: |
           gh release upload "$GITHUB_REF_NAME" \
-            "${{ steps.artifacts.outputs.dmg }}" \
-            "${{ steps.artifacts.outputs.tar }}" \
-            "${{ steps.artifacts.outputs.sig }}" \
+            "${ARTIFACT_DMG}" \
+            "${ARTIFACT_TAR}" \
+            "${ARTIFACT_SIG}" \
             "$MANIFEST" \
             checksums-sha256.txt \
             --clobber
 
-          echo "::notice::macOS artifacts uploaded to draft https://github.com/${{ github.repository }}/releases/tag/$GITHUB_REF_NAME"
+          echo "::notice::macOS artifacts uploaded to draft https://github.com/${GITHUB_REPOSITORY}/releases/tag/$GITHUB_REF_NAME"
 
       # Staging flavor only: upload EXACTLY the DMG, renamed so it's unmistakable
       # in the draft's asset list — no tarball, no .sig, no manifest, no checksums
@@ -1206,14 +1229,15 @@ jobs:
         if: ${{ matrix.flavor == 'staging' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARTIFACT_DMG: ${{ steps.artifacts.outputs.dmg }}
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#cloud-}"; VERSION="${VERSION#v}"
-          SRC="${{ steps.artifacts.outputs.dmg }}"
+          SRC="${ARTIFACT_DMG}"
           DEST="$(dirname "$SRC")/Houston_staging_${VERSION}_universal.dmg"
           mv "$SRC" "$DEST"
           gh release upload "$GITHUB_REF_NAME" "$DEST" --clobber
-          echo "::notice::Staging QA DMG (Houston_staging_${VERSION}_universal.dmg) uploaded to draft https://github.com/${{ github.repository }}/releases/tag/$GITHUB_REF_NAME — it talks to the staging gateway and is NOT in any updater manifest."
+          echo "::notice::Staging QA DMG (Houston_staging_${VERSION}_universal.dmg) uploaded to draft https://github.com/${GITHUB_REPOSITORY}/releases/tag/$GITHUB_REF_NAME — it talks to the staging gateway and is NOT in any updater manifest."
 
   # ============================================================================
   # Windows MSI build — runs IN PARALLEL with build-macos. Both jobs only
@@ -1479,13 +1503,16 @@ jobs:
 
       - name: Verify MSI and bundled executable signatures
         shell: pwsh
-        run: ./scripts/ci/verify-windows-release.ps1 -Installer "${{ steps.artifacts-windows.outputs.msi }}"
+        env:
+          ARTIFACT_MSI: ${{ steps.artifacts-windows.outputs.msi }}
+        run: ./scripts/ci/verify-windows-release.ps1 -Installer "$env:ARTIFACT_MSI"
 
       - name: Verify upgrade removes retired client and preserves saved settings
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./scripts/ci/verify-windows-upgrade.ps1 -Installer "${{ steps.artifacts-windows.outputs.msi }}" -Architecture "${{ matrix.arch }}"
+          ARTIFACT_MSI: ${{ steps.artifacts-windows.outputs.msi }}
+        run: ./scripts/ci/verify-windows-upgrade.ps1 -Installer "$env:ARTIFACT_MSI" -Architecture "${{ matrix.arch }}"
 
       # Sentry upload (Windows): Rust debug symbols for the Tauri app binary
       # and matrix-arch houston-engine.exe. MSVC emits PDBs alongside both
@@ -1554,6 +1581,8 @@ jobs:
       - name: Upload Windows MSI + updater signature to draft release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARTIFACT_MSI: ${{ steps.artifacts-windows.outputs.msi }}
+          ARTIFACT_MSI_SIG: ${{ steps.artifacts-windows.outputs.sig }}
         shell: bash
         run: |
           set -euo pipefail
@@ -1564,11 +1593,11 @@ jobs:
           # `--clobber` lets us re-run the workflow without renaming
           # the artifact if a prior partial upload left one in place.
           gh release upload "$GITHUB_REF_NAME" \
-            "${{ steps.artifacts-windows.outputs.msi }}" \
-            "${{ steps.artifacts-windows.outputs.sig }}" \
+            "${ARTIFACT_MSI}" \
+            "${ARTIFACT_MSI_SIG}" \
             --clobber
 
-          echo "::notice::Windows MSI + .sig uploaded to draft https://github.com/${{ github.repository }}/releases/tag/$GITHUB_REF_NAME"
+          echo "::notice::Windows MSI + .sig uploaded to draft https://github.com/${GITHUB_REPOSITORY}/releases/tag/$GITHUB_REF_NAME"
 
   # ============================================================================
   # Linux desktop build — x86_64 AppImage. Runs IN PARALLEL with the mac and
@@ -1759,9 +1788,10 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          ARTIFACT_APPIMAGE: ${{ steps.artifacts-linux.outputs.appimage }}
         run: |
           set -euo pipefail
-          APPIMAGE="${{ steps.artifacts-linux.outputs.appimage }}"
+          APPIMAGE="${ARTIFACT_APPIMAGE}"
           (cd app && pnpm tauri signer sign "$GITHUB_WORKSPACE/$APPIMAGE")
           test -s "$APPIMAGE.sig" \
             || { echo "::error::updater signature missing for $APPIMAGE"; exit 1; }
@@ -1799,23 +1829,26 @@ jobs:
           fi
 
       - name: Generate checksums
+        env:
+          ARTIFACT_APPIMAGE: ${{ steps.artifacts-linux.outputs.appimage }}
         run: |
           sha256sum \
-            "${{ steps.artifacts-linux.outputs.appimage }}" \
+            "${ARTIFACT_APPIMAGE}" \
             > checksums-linux-sha256.txt
           cat checksums-linux-sha256.txt
 
       - name: Upload Linux artifacts to draft release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARTIFACT_APPIMAGE: ${{ steps.artifacts-linux.outputs.appimage }}
         run: |
           gh release upload "$GITHUB_REF_NAME" \
-            "${{ steps.artifacts-linux.outputs.appimage }}" \
-            "${{ steps.artifacts-linux.outputs.appimage }}.sig" \
+            "${ARTIFACT_APPIMAGE}" \
+            "${ARTIFACT_APPIMAGE}.sig" \
             checksums-linux-sha256.txt \
             --clobber
 
-          echo "::notice::Linux AppImage uploaded to draft https://github.com/${{ github.repository }}/releases/tag/$GITHUB_REF_NAME"
+          echo "::notice::Linux AppImage uploaded to draft https://github.com/${GITHUB_REPOSITORY}/releases/tag/$GITHUB_REF_NAME"
 
   # ============================================================================
   # Web client — Firebase Hosting.
@@ -1944,9 +1977,10 @@ jobs:
         env:
           SENTRY_ORG: houston-cd
           SENTRY_PROJECT: houston-app
+          WEB_RELEASE: ${{ steps.webversion.outputs.release }}
         run: |
           set -euo pipefail
-          RELEASE="${{ steps.webversion.outputs.release }}"
+          RELEASE="${WEB_RELEASE}"
           # Lockfile-pinned sentry-cli (app's @sentry/cli devDep), same binary the
           # desktop jobs use — not an unpinned get-cli download.
           SENTRY_CLI="app/node_modules/.bin/sentry-cli"
@@ -1981,7 +2015,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload "$GITHUB_REF_NAME" web-dist.tar.gz --clobber
-          echo "::notice::web-dist.tar.gz uploaded to draft https://github.com/${{ github.repository }}/releases/tag/$GITHUB_REF_NAME — web-promote.yml deploys these exact bytes to production on publish."
+          echo "::notice::web-dist.tar.gz uploaded to draft https://github.com/${GITHUB_REPOSITORY}/releases/tag/$GITHUB_REF_NAME — web-promote.yml deploys these exact bytes to production on publish."
 
   # ============================================================================
   # Stitch the parallel mac + win + linux builds into one finished draft
@@ -2006,8 +2040,9 @@ jobs:
     needs: [build-macos, build-windows, build-linux]
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # No `actions/checkout` step on this job — finalize doesn't need the
-    # source tree, just `gh` + `jq` + `curl`. Without a git remote,
+    # No full `actions/checkout` on this job — finalize doesn't need the
+    # source tree (only a sparse read of the sentry-cli pin), just `gh` +
+    # `jq` + `curl`. Without a git remote,
     # though, `gh` can't infer which repo it's operating on, so we set
     # GH_REPO at the job level. Every `gh` invocation in the steps
     # below picks it up automatically without each step having to pass
@@ -2027,6 +2062,21 @@ jobs:
         with:
           name: release-notes
 
+      # Only the two files that pin sentry-cli: the version (app's @sentry/cli
+      # devDep) and its integrity hash (pnpm-lock.yaml). No full install. Its
+      # own path: checkout empties the directory it clones into, which would
+      # delete the release-notes.md downloaded above.
+      - name: Checkout sentry-cli pin
+        if: ${{ env.SENTRY_AUTH_TOKEN != '' }}
+        uses: actions/checkout@v6
+        with:
+          path: sentry-cli-pin
+          persist-credentials: false
+          sparse-checkout: |
+            app/package.json
+            pnpm-lock.yaml
+          sparse-checkout-cone-mode: false
+
       # Finalize the Sentry release exactly once, here, AFTER both build jobs
       # have uploaded all source maps + debug files for every arch. It used to
       # live in build-macos, which finalized while the parallel Windows jobs
@@ -2042,10 +2092,29 @@ jobs:
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#cloud-}"; VERSION="${VERSION#v}"
           RELEASE="houston-app@${VERSION}"
-          # This job has no source tree / node_modules, so use the standalone
-          # CLI. Pin it to the same major the app's @sentry/cli devDep tracks.
-          curl -sL https://sentry.io/get-cli/ | SENTRY_CLI_VERSION="3.5.0" bash
-          sentry-cli releases finalize "$RELEASE"
+          # Same sentry-cli the build jobs run from app/node_modules: fetch the
+          # platform package at the app's pinned version and refuse it unless
+          # its tarball matches the pnpm-lock.yaml integrity hash.
+          CLI_VERSION=$(jq -r '.devDependencies["@sentry/cli"]' sentry-cli-pin/app/package.json)
+          PKG="@sentry/cli-linux-x64@${CLI_VERSION}"
+          INTEGRITY=$(grep -A1 -F "  '${PKG}':" sentry-cli-pin/pnpm-lock.yaml \
+            | sed -n 's/.*integrity: \(sha512-[A-Za-z0-9+/=]*\).*/\1/p' | head -n1)
+          if [ -z "$INTEGRITY" ]; then
+            echo "::error::${PKG} not found in pnpm-lock.yaml"
+            exit 1
+          fi
+          CLI_DIR=$(mktemp -d)
+          curl -fsSL -o "$CLI_DIR/cli.tgz" \
+            "https://registry.npmjs.org/@sentry/cli-linux-x64/-/cli-linux-x64-${CLI_VERSION}.tgz"
+          ACTUAL="sha512-$(openssl dgst -sha512 -binary "$CLI_DIR/cli.tgz" | base64 | tr -d '\n')"
+          if [ "$ACTUAL" != "$INTEGRITY" ]; then
+            echo "::error::${PKG} integrity mismatch (lockfile ${INTEGRITY}, downloaded ${ACTUAL})"
+            exit 1
+          fi
+          tar -xzf "$CLI_DIR/cli.tgz" -C "$CLI_DIR" package/bin/sentry-cli
+          SENTRY_CLI="$CLI_DIR/package/bin/sentry-cli"
+          "$SENTRY_CLI" --version
+          "$SENTRY_CLI" releases finalize "$RELEASE"
           echo "::notice::Finalized Sentry release $RELEASE"
 
       # Pull `latest.json` (mac entries), all Windows `*.msi.sig`, and the
@@ -2095,7 +2164,7 @@ jobs:
           cp "$tmpdir/$MANIFEST" "$tmpdir/latest.next.json"
           for SIG_FILE in "${sigs[@]}"; do
             MSI_NAME=$(basename "$SIG_FILE" .sig)
-            MSI_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$MSI_NAME"
+            MSI_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/$MSI_NAME"
             MSI_SIG=$(cat "$SIG_FILE")
 
             case "$MSI_NAME" in
@@ -2124,7 +2193,7 @@ jobs:
 
           for SIG_FILE in "${appimage_sigs[@]}"; do
             APPIMAGE_NAME=$(basename "$SIG_FILE" .sig)
-            APPIMAGE_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$APPIMAGE_NAME"
+            APPIMAGE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/$APPIMAGE_NAME"
             APPIMAGE_SIG=$(cat "$SIG_FILE")
 
             echo "  + linux-x86_64 ← $APPIMAGE_NAME"
@@ -2220,7 +2289,7 @@ jobs:
             --arg release_url "$RELEASE_URL" \
             --arg staging_dmg "$STAGING_DMG" \
             --arg prod_dmg "$PROD_DMG" \
-            --arg run_url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --arg run_url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
             --rawfile notes release-notes.md \
             '{event: $event, version: $version, tag: $tag, release_url: $release_url,
               staging_dmg: $staging_dmg, prod_dmg: $prod_dmg, run_url: $run_url, notes: $notes}' \
@@ -2264,7 +2333,7 @@ jobs:
           # and which shows the notes + installer assets (HOU-972). Fall back
           # to the tag URL only if the lookup fails.
           RELEASE_URL=$(gh release view "$GITHUB_REF_NAME" --json url --jq .url 2>/dev/null) \
-            || RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${GITHUB_REF_NAME}"
+            || RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
 
           # First ~700 chars of the release-notes body, skipping the leading "## Houston X.Y.Z" header line.
           NOTES_PREVIEW=$(tail -n +2 release-notes.md | head -c 700)

@@ -43,10 +43,10 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Promote latest-cloud.json to the cloud-latest release
+        env:
+          TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
-          TAG="${{ github.event.release.tag_name }}"
-
           gh release download "$TAG" --pattern 'latest-cloud.json' --dir .
           if [ ! -s latest-cloud.json ]; then
             echo "::error::latest-cloud.json missing from release $TAG — was the release workflow's finalize job green?"
@@ -60,7 +60,7 @@ jobs:
           # commit to tag; which one is irrelevant — only its assets are read.
           if ! gh release view cloud-latest --json id --jq .id >/dev/null 2>&1; then
             gh release create cloud-latest \
-              --target "${{ github.sha }}" \
+              --target "$GITHUB_SHA" \
               --prerelease \
               --title "Houston Cloud updater pointer" \
               --notes "Machine-managed rolling release: hosts the current cloud channel's updater manifest (\`latest-cloud.json\`). Cloud desktop apps poll this fixed tag for auto-updates. Do not edit or delete — it is rewritten on every \`cloud-v*\` publish by the cloud-updater-manifest workflow."
