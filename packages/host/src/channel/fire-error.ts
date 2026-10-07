@@ -71,3 +71,40 @@ export function errorCodeFrom(body: string): string | null {
   }
   return null;
 }
+
+/**
+ * undici's dial-time failure codes: the connection never opened, so the
+ * request provably never left. Every other `fetch failed` (a reset, a socket
+ * closed mid-exchange) can follow a request the server already received.
+ */
+const DIAL_FAILURE_CODES: ReadonlySet<string> = new Set([
+  "ECONNREFUSED",
+  "UND_ERR_CONNECT_TIMEOUT",
+]);
+
+/** Whether a fetch failed before its connection opened. */
+export function isDialFailure(err: unknown): boolean {
+  const code = (err as { cause?: { code?: unknown } } | null)?.cause?.code;
+  return (
+    err instanceof TypeError &&
+    err.message === "fetch failed" &&
+    typeof code === "string" &&
+    DIAL_FAILURE_CODES.has(code)
+  );
+}
+
+/**
+ * The turn POST failed after its connection opened: the runtime may have
+ * accepted the message and be running the turn. Never redeliver it: a second
+ * fire would start a second, concurrent run (a routine that sends email would
+ * send it twice).
+ */
+export class TurnDeliveryUncertainError extends Error {
+  constructor(readonly reason: unknown) {
+    const code = (reason as { cause?: { code?: unknown } } | null)?.cause?.code;
+    super(
+      `the runtime connection failed mid-request${typeof code === "string" ? ` (${code})` : ""}; the turn may have started`,
+    );
+    this.name = "TurnDeliveryUncertainError";
+  }
+}

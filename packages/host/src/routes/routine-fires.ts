@@ -1,8 +1,20 @@
+import type { ServerResponse } from "node:http";
 import { loadRoutines } from "@houston/domain";
 import { ACTING_AS_HEADER, actingSubFromHeader } from "../auth/acting";
-import { burnRoutineFireInstant } from "../schedule/fire-lock";
+import {
+  burnRoutineFireInstant,
+  routineFireLockKey,
+} from "../schedule/fire-lock";
+import {
+  decodeFireOutcome,
+  encodeFireOutcome,
+  FIRE_IN_FLIGHT,
+  type FireOutcome,
+  isRetryableFireError,
+  unfiredOutcome,
+} from "../schedule/fire-outcome";
 import { ChannelRoutineFirer } from "../schedule/firer";
-import { fireRoutineRun, RoutineBusyError } from "../schedule/run";
+import { fireRoutineRun } from "../schedule/run";
 import { authorizeAgent, DEFAULT_PATHS } from "./agent-authz";
 import { json, readJson } from "./http";
 import { defineRoute } from "./registry";
@@ -26,6 +38,37 @@ function parseBody(raw: unknown): RoutineFireBody | null {
   const fireAt = new Date(body.fireAt);
   if (Number.isNaN(fireAt.getTime())) return null;
   return { routineId: body.routineId, fireAt, actingAs: body.actingAs };
+}
+
+/**
+ * What the pod answers the control plane for one delivered instant, always
+ * with HTTP 200. `busy` and `failed` are terminal. `deduped` marks the replay
+ * of an instant this host already settled: it carries the recorded outcome
+ * (and, for `fired`, when that attempt started), or plain `fired` when there
+ * is none to replay. Every `result` here is one an older control plane
+ * already settles correctly; the extra fields are ignored there.
+ */
+type RoutineFireReply =
+  | { result: "no_routine" }
+  | { result: "fired"; deduped?: true; startedAt?: string }
+  | { result: "busy"; deduped?: true }
+  | { result: "failed"; deduped?: true; code: string | null; error: string };
+
+const reply = (res: ServerResponse, body: RoutineFireReply) =>
+  json(res, 200, body);
+
+/** The drain shape (server.ts): the control plane retries a 503. */
+const unavailable = (res: ServerResponse, detail: string) =>
+  json(
+    res,
+    503,
+    { error: "engine unavailable", detail },
+    { "Retry-After": "2" },
+  );
+
+/** A fresh fire's answer: a fired one's start is only for replays. */
+function freshReply(outcome: FireOutcome): RoutineFireReply {
+  return outcome.result === "fired" ? { result: "fired" } : outcome;
 }
 
 /**
@@ -71,7 +114,7 @@ defineRoute({
         candidate.schedule &&
         !candidate.trigger,
     );
-    if (!routine) return json(res, 200, { result: "no_routine" });
+    if (!routine) return reply(res, { result: "no_routine" });
 
     // Pods do not hold the gateway HMAC key. On this pod-token-authenticated
     // internal route, match the strongest existing trusted-gateway pattern:
@@ -87,14 +130,36 @@ defineRoute({
         error: "routine fire delivery not configured",
       });
 
-    const fresh = await burnRoutineFireInstant(
-      deps.routineFireLock,
+    const ledger = deps.routineFireLock;
+    const ttl = deps.routineFireDedupTtlSec ?? 3600;
+    const key = routineFireLockKey(routine.id, body.fireAt);
+    const burned = await burnRoutineFireInstant(
+      ledger,
       routine.id,
       body.fireAt,
-      deps.routineFireDedupTtlSec ?? 3600,
+      ttl,
+      FIRE_IN_FLIGHT,
     );
-    if (!fresh) return json(res, 200, { result: "fired", deduped: true });
+    if (!burned) {
+      const recorded = decodeFireOutcome(await ledger.get(key));
+      // The first delivery is still firing (a slow cold boot outlasts the
+      // control plane's call; a second replica can deliver the same row):
+      // its outcome is unknown, so the redelivery waits rather than settle.
+      if (recorded?.result === "pending")
+        return unavailable(
+          res,
+          "this instant's first delivery is still firing",
+        );
+      return reply(
+        res,
+        recorded
+          ? { ...recorded, deduped: true }
+          : { result: "fired", deduped: true },
+      );
+    }
 
+    const startedAt = new Date().toISOString();
+    let outcome: FireOutcome;
     try {
       await fireRoutineRun(
         {
@@ -109,10 +174,25 @@ defineRoute({
         authz.agent,
         routine,
       );
-      json(res, 200, { result: "fired" });
+      outcome = { result: "fired", startedAt };
     } catch (error) {
-      if (!(error instanceof RoutineBusyError)) throw error;
-      json(res, 200, { result: "busy" });
+      if (isRetryableFireError(error)) {
+        // Unburn so the redelivery (to this host, its replacement pod, or the
+        // agent's new id) fires the instant instead of replaying a miss.
+        await ledger.del(key);
+        const detail = error instanceof Error ? error.message : String(error);
+        console.warn(
+          `[routine-fires] routine ${routine.id} fire deferred: ${detail}`,
+        );
+        return unavailable(res, detail);
+      }
+      outcome = unfiredOutcome(error);
+      if (outcome.result === "failed")
+        console.warn(
+          `[routine-fires] routine ${routine.id} fire failed (${outcome.code ?? "uncoded"}): ${outcome.error}`,
+        );
     }
+    await ledger.set(key, encodeFireOutcome(outcome), ttl);
+    reply(res, freshReply(outcome));
   },
 });
