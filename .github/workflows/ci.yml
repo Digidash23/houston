@@ -29,15 +29,21 @@ jobs:
     # packages/web against the in-process fake host, so their inputs are the
     # web package's pnpm closure (`pnpm --filter "houston-web..."`: app/src,
     # ui/*, every packages/* member except runtime, code-sandbox and
-    # agentstore-client, which nothing on the web side imports; the fake host
-    # pulls two host modules in and never spawns a runtime), plus the files
-    # that shape the install and this workflow. A PR outside that set (the
-    # Tauri shell, runtime-only, docs, scripts, other workflows: 19 of the 80
-    # PRs merged before this job existed) skips the 7 jobs it cannot fail.
+    # agentstore-client, which none of the Playwright inputs import; the
+    # fake host pulls two host modules in and never spawns a runtime. The
+    # web UNIT tests do import one runtime module, and they run in the
+    # ungated App job), plus the files that shape the install and this
+    # workflow. A PR outside that set (the Tauri shell, runtime-only, docs,
+    # scripts, other workflows: 19 of the 80 PRs merged before this job
+    # existed) skips the 7 jobs it cannot fail.
     # Pushes to main and manual dispatches always run everything, so the
     # daily cut's "main is green" guard keeps seeing the full set.
     # The TS checks, unit and App jobs do not depend on this job and run on
     # every PR.
+    # Two limits of the API path: the PR file listing stops at 3,000 files,
+    # so a PR larger than that could skip the suites; and a merge_group
+    # event (if a merge queue is ever enabled) is not a pull_request, so it
+    # would need a checkout plus `base` for the action, or to run everything.
     name: Changed paths
     runs-on: ubuntu-latest
     timeout-minutes: 5
