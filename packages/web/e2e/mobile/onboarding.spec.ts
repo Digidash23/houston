@@ -1,4 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
+import { evictMidClosing, holdClosingSave } from "../support/closing-save";
 import { expect, test } from "../support/fixtures";
 import {
   answerCompanySize,
@@ -18,7 +19,6 @@ import {
   finishOnboarding,
   HIRE_ONE_MORE,
   hireStarterTeam,
-  holdClosingSave,
   roster,
   STARTER_ROLES,
   starterTeam,
@@ -165,13 +165,15 @@ test("the starter team's buttons are sized for the thumb", async ({
   await expectLatestLinesClearOfStep(page);
 });
 
-test("a reload mid-onboarding resumes on the step the user left", async ({
+test("a tab evicted mid-onboarding resumes on the step the user left", async ({
   page,
   request,
 }) => {
   // Phones evict a background tab: leaving to fetch a sign-in code and coming
-  // back reloads the app. The run must re-enter on the step it stood on, never
-  // at the start with the work so far forgotten, and never in the app early.
+  // back reopens the app from nothing. The run must re-enter on the step it
+  // stood on, never at the start with the work so far forgotten, and never in
+  // the app early. (A plain reload on the connect step is also covered: no
+  // save is in flight there.)
   test.setTimeout(90_000);
   await resetToFirstRun(request);
   await openManagerOnboarding(page);
@@ -184,12 +186,14 @@ test("a reload mid-onboarding resumes on the step the user left", async ({
   // holds the person on the team step across a reload.
   await connectAi(page, "tap");
   await answerSurvey(page, "tap");
-  // Held so the reload lands on the closing, before onboarding finishes.
+  // Held so the eviction lands on the closing, before onboarding finishes.
   const release = await holdClosingSave(request);
   await hireStarterTeam(page, null, "tap", STARTER_ROLES);
-  await page.reload();
+  const resumed = await evictMidClosing(page);
   await release();
-  await expect(teamNext(page)).toBeVisible();
-  await expect(roster(page).locator('li[data-status="hired"]')).toHaveCount(3);
-  await expect(navBar(page)).toHaveCount(0);
+  await expect(teamNext(resumed)).toBeVisible();
+  await expect(roster(resumed).locator('li[data-status="hired"]')).toHaveCount(
+    3,
+  );
+  await expect(navBar(resumed)).toHaveCount(0);
 });

@@ -10,13 +10,7 @@
  * run resumed with AI Employees already hired first offers "Hire one more"
  * or "That's my team".
  */
-import { FAKE_HOST_URL } from "@houston/fake-host";
-import {
-  type APIRequestContext,
-  expect,
-  type Locator,
-  type Page,
-} from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { prefilledName } from "./employee-name";
 import {
   GOAL_ANSWER,
@@ -180,25 +174,4 @@ export async function finishOnboarding(page: Page): Promise<void> {
   await expect(managerOnboarding(page)).toHaveCount(0);
   await expect(teamCard(chat)).toBeVisible();
   await expect(goalCard(chat)).toBeVisible();
-}
-
-/**
- * Hold the closing's save: onboarding finishes only once its conversation is
- * written into the manager's chat, so a held import keeps the person inside
- * onboarding, on the closing, for as long as a spec needs (a reload there).
- * Held by the fake host, never by the browser: a reload cancels a slow
- * request cleanly, but a request the browser pauses outlives it and stalls the
- * reloaded page. The returned release lets every held save through.
- */
-export async function holdClosingSave(
-  request: APIRequestContext,
-): Promise<() => Promise<void>> {
-  await request.post(`${FAKE_HOST_URL}/__test__/hold-imports`, {
-    data: { hold: true },
-  });
-  return async () => {
-    await request.post(`${FAKE_HOST_URL}/__test__/hold-imports`, {
-      data: { hold: false },
-    });
-  };
 }

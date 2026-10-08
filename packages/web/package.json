@@ -11,6 +11,8 @@
     "typecheck": "node ../../scripts/check-desktop-native.mjs && tsgo --noEmit",
     "typecheck:e2e": "tsgo --noEmit -p e2e/tsconfig.json",
     "test": "vitest run ./tests ./src --testTimeout=30000",
+    "e2e:build": "tsx e2e/support/build-bundles.ts",
+    "e2e:serve": "tsx e2e/support/serve-bundle.ts",
     "test:e2e": "tsx e2e/support/run-locked.ts playwright test --project chromium --project mobile --project auth --fail-on-flaky-tests",
     "test:e2e:webkit": "playwright test --config playwright.webkit.config.ts --fail-on-flaky-tests",
     "test:e2e:ui": "playwright test --ui",

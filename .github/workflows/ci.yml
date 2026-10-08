@@ -177,15 +177,12 @@ jobs:
         run: pnpm --filter "@houston/${PACKAGE}" test
 
   web:
-    # The UI suite is split across runners with Playwright's native --shard,
-    # ONE worker per runner: the shards run concurrently, so the wall clock is
-    # one shard's slice of the suite instead of the whole serial run, while
-    # each test still executes in the exact single-worker environment the
-    # suite has always been stable in on this hardware. Higher density was
-    # tried and starves renders on the 4-vCPU runner (one single-threaded vite
-    # dev process serves every worker's page boots): 4 workers blew expect
-    # budgets outright (run 30596416439), and even 2 workers left the heavy
-    # signed-in specs flaking on animation transients (run 30597930896).
+    # The UI suite is split across runners with Playwright's native --shard.
+    # Each shard builds the web bundles and runs three workers against them
+    # behind `vite preview`; why a prebuilt bundle and not the dev server, and
+    # why three, is in packages/web/e2e/support/serve-mode.ts. The build runs
+    # per shard (under a minute): a build job plus an artifact round trip
+    # would put more than that on every shard's critical path.
     # The web typecheck and unit tests run in the App job, so no shard carries
     # extra work and the slowest slice alone sets the wall clock.
     #
@@ -257,6 +254,10 @@ jobs:
         timeout-minutes: 2
         run: pnpm --filter houston-web exec node -e "require('@playwright/test').chromium.launch().then((b) => b.close())"
 
+      # Both web servers' bundles (identity off and on), built concurrently.
+      - name: Build web bundles (e2e)
+        run: pnpm --filter houston-web e2e:build
+
       - name: UI tests (Playwright)
         run: pnpm --filter houston-web test:e2e --shard=${{ matrix.shard }}/${{ strategy.job-total }}
 
@@ -297,7 +298,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # Browsers ship in the image (PLAYWRIGHT_BROWSERS_PATH) — no install step.
+      # The committed `-linux` baselines were recorded against the vite dev
+      # server, so this job keeps serving from it (the functional shards
+      # moved to the prebuilt bundle; packages/web/e2e/support/serve-mode.ts).
       - name: Visual tests (Playwright)
+        env:
+          HOUSTON_E2E_SERVE: dev
         run: pnpm --filter houston-web test:visual
 
       - name: Upload Playwright report
