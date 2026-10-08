@@ -8,6 +8,7 @@ import type { SdkConfig } from "../../ports";
 import { ScopeStore } from "../../store";
 import { memoryKv } from "../../test-ports";
 import { classifyImportFailure } from "./conversation-import-abort";
+import { RESEND_AFTER_MS } from "./conversation-import-hold";
 import { PENDING_IMPORTS_KEY } from "./conversation-import-outbox";
 import { createConversationImports } from "./conversation-imports";
 
@@ -66,8 +67,28 @@ function harness(opts: { unloading: boolean } = { unloading: false }) {
   page = fakePage(opts.unloading);
   const stored = new Map<string, string>();
   const sent: Array<{ agentId: string; id: string; importId: string }> = [];
-  /** What the runtime answers next: a count, or an error to throw. */
-  const answers: Array<number | Error> = [];
+  /** What the runtime answers next: a count, an error to throw, or a
+   *  promise of a count the test settles itself (a slow send). */
+  const answers: Array<number | Error | Promise<number>> = [];
+  /** The hold's own resend timers, fired by hand. */
+  const timers: Array<{ id: number; fn: () => void; ms: number }> = [];
+  let nextTimer = 1;
+  const clock = {
+    now: () => 0,
+    setTimeout: (fn: () => void, ms: number) => {
+      const id = nextTimer++;
+      timers.push({ id, fn, ms });
+      return id;
+    },
+    clearTimeout: (id: number) => {
+      const at = timers.findIndex((t) => t.id === id);
+      if (at >= 0) timers.splice(at, 1);
+    },
+  };
+  /** Let every armed resend timer lapse. */
+  const elapse = () => {
+    for (const t of timers.splice(0)) t.fn();
+  };
   const commands = new Map<string, CommandHandler>();
   const store = new ScopeStore();
   const clientFor = (agentId: string) =>
@@ -76,6 +97,8 @@ function harness(opts: { unloading: boolean } = { unloading: false }) {
         sent.push({ agentId, id, importId: body.importId });
         const next = answers.shift() ?? body.messages.length;
         if (next instanceof Error) throw next;
+        if (next instanceof Promise)
+          return next.then((n) => ({ ok: true, imported: n }));
         return { ok: true, imported: next };
       },
     }) as unknown as HoustonEngineClient;
@@ -87,6 +110,7 @@ function harness(opts: { unloading: boolean } = { unloading: false }) {
         logger,
         storage: memoryKv(stored),
         pageLifecycle: page.lifecycle,
+        clock,
       } as unknown as SdkConfig["ports"],
       reactivity: false,
     },
@@ -97,7 +121,16 @@ function harness(opts: { unloading: boolean } = { unloading: false }) {
   };
   const imports = createConversationImports(ctx);
   const owed = () => JSON.parse(stored.get(PENDING_IMPORTS_KEY) ?? "[]");
-  return { imports, sent, answers, stored, owed, commands };
+  return { imports, sent, answers, stored, owed, commands, timers, elapse };
+}
+
+/** A promise the test settles by hand: a send that is still on the wire. */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
 }
 
 describe("importMessages", () => {
@@ -188,6 +221,65 @@ describe("importMessages", () => {
     expect(h.sent).toHaveLength(1);
   });
 
+  test("a resend that gets no answer stays held and settles on the next live", async () => {
+    const h = harness({ unloading: true });
+    h.answers.push(
+      new TypeError("Failed to fetch"),
+      new TypeError("Failed to fetch"),
+    );
+    const held = h.imports.importMessages(
+      "assistant",
+      "ws/.assistant",
+      request,
+    );
+    expect(await stateOf(held)).toBe("pending");
+    // The 2 s fallback fired on a page still leaving: the resend dies too.
+    page.live();
+    expect(await stateOf(held)).toBe("pending");
+    expect(h.sent).toHaveLength(2);
+    expect(h.owed()).toHaveLength(1);
+    page.live();
+    expect(await stateOf(held)).toBe('resolved:{"ok":true,"imported":2}');
+    expect(h.sent).toHaveLength(3);
+  });
+
+  test("a pagehide followed by nothing: the hold's own timer still resends", async () => {
+    // iOS backgrounds the tab (pagehide) and brings it back with no pageshow:
+    // the port's flag stays up, but a timer that fires is a page that is alive.
+    const h = harness({ unloading: true });
+    h.answers.push(new TypeError("Failed to fetch"));
+    const held = h.imports.importMessages(
+      "assistant",
+      "ws/.assistant",
+      request,
+    );
+    expect(await stateOf(held)).toBe("pending");
+    expect(h.timers.map((t) => t.ms)).toEqual([RESEND_AFTER_MS]);
+    h.elapse();
+    expect(await stateOf(held)).toBe('resolved:{"ok":true,"imported":2}');
+    expect(h.sent).toHaveLength(2);
+    expect(h.timers).toHaveLength(0);
+  });
+
+  test("two lives during one slow resend send once", async () => {
+    const h = harness({ unloading: true });
+    const slow = deferred<number>();
+    h.answers.push(new TypeError("Failed to fetch"), slow.promise);
+    const held = h.imports.importMessages(
+      "assistant",
+      "ws/.assistant",
+      request,
+    );
+    expect(await stateOf(held)).toBe("pending");
+    page.live();
+    page.live();
+    h.elapse();
+    expect(h.sent).toHaveLength(2);
+    slow.resolve(2);
+    expect(await stateOf(held)).toBe('resolved:{"ok":true,"imported":2}');
+    expect(h.sent).toHaveLength(2);
+  });
+
   test("asking again for a held import joins the hold instead of sending twice", async () => {
     const h = harness({ unloading: true });
     h.answers.push(new TypeError("Failed to fetch"));
@@ -242,6 +334,32 @@ describe("importMessages", () => {
 });
 
 describe("retryPendingImports", () => {
+  test("blocks on a held entry and resolves with it once the page is live", async () => {
+    const h = harness({ unloading: true });
+    h.answers.push(new TypeError("Failed to fetch"));
+    const held = h.imports.importMessages(
+      "assistant",
+      "ws/.assistant",
+      request,
+    );
+    expect(await stateOf(held)).toBe("pending");
+    const retry = h.imports.retryPendingImports("ws/.assistant");
+    expect(await stateOf(retry)).toBe("pending");
+    page.live();
+    await expect(retry).resolves.toEqual({
+      landed: [
+        {
+          agentId: "ws/.assistant",
+          conversationId: "assistant",
+          importId: "onboarding:first_run",
+          imported: 2,
+        },
+      ],
+      failures: [],
+    });
+    expect(h.sent).toHaveLength(2);
+  });
+
   test("sends every owed import again and crosses off the ones that land", async () => {
     const h = harness();
     h.answers.push(new Error("offline"));

@@ -1,28 +1,41 @@
 import type { PageLifecycle } from "@houston/sdk";
 
-/** The events that drive the flag, on whatever stands in for `window`. */
+/** The events that drive the flag, on whatever stands in for the page. */
 export interface PageLifecycleTarget {
   addEventListener(
-    type: "beforeunload" | "pagehide" | "pageshow",
+    type: "beforeunload" | "pagehide" | "pageshow" | "visibilitychange",
     handler: () => void,
   ): void;
+  /** Whether the document is on screen right now (`visibilityState`). */
+  isVisible(): boolean;
 }
 
-/** How long a `beforeunload` counts as "leaving" when no `pagehide` follows:
- *  a prompt the person declined, a download or a `mailto:` link cancels the
- *  navigation and the page stays. Chromium aborts a reload's requests within
- *  a few ms of `pagehide`; nothing legitimate waits this long between the
- *  two. */
+/** How long a `beforeunload` counts as "leaving" when no `pagehide` follows.
+ *  A declined prompt, a download or a `mailto:` link cancels the navigation
+ *  and the page stays. The gap between `beforeunload` and `pagehide` on a
+ *  real navigation is the NEXT page's network time, so a slow reload can
+ *  outlast this and `live` then fires on a page that is leaving after all;
+ *  the SDK's hold tolerates that (a resend with no answer stays held and
+ *  tries again on its own timer), so this only has to be right most of the
+ *  time, not always. */
 export const UNLOAD_CANCELLED_AFTER_MS = 2_000;
 
-/** The page, when there is one. A unit test's bare `window` stub has no
- *  event surface and counts as no page. */
+/** The real page, when there is one: `window` for the events (the document's
+ *  `visibilitychange` bubbles to it), `document` for the visibility. A unit
+ *  test's bare `window` stub has no event surface and counts as no page. */
 export function pageTargetOf(candidate: unknown): PageLifecycleTarget | null {
-  return typeof candidate === "object" &&
-    candidate !== null &&
-    typeof (candidate as PageLifecycleTarget).addEventListener === "function"
-    ? (candidate as PageLifecycleTarget)
-    : null;
+  if (
+    typeof candidate !== "object" ||
+    candidate === null ||
+    typeof (candidate as Window).addEventListener !== "function"
+  )
+    return null;
+  const w = candidate as Window;
+  return {
+    addEventListener: (type, handler) => w.addEventListener(type, handler),
+    isVisible: () =>
+      typeof document === "undefined" || document.visibilityState === "visible",
+  };
 }
 
 /**
@@ -34,7 +47,9 @@ export function pageTargetOf(candidate: unknown): PageLifecycleTarget | null {
  * either event is early enough there). `pagehide` marks it too, for the
  * browsers that raise no `beforeunload` for a tab going to the background
  * (iOS). The page is live again, and `onLive` listeners run, on `pageshow`
- * (a back/forward-cache restore of the same document) and when a
+ * (a back/forward-cache restore of the same document), on a
+ * `visibilitychange` back to visible (iOS raised `pagehide` for the
+ * background and may raise no `pageshow` on the way back), and when a
  * `beforeunload` saw no `pagehide` within {@link UNLOAD_CANCELLED_AFTER_MS}:
  * the navigation was cancelled and the page lives on. A page that never
  * looked like leaving never reports live. No page at all (SSR, tests): never
@@ -67,6 +82,9 @@ export function createPageLifecycle(
   target?.addEventListener("beforeunload", () => leaving(false));
   target?.addEventListener("pagehide", () => leaving(true));
   target?.addEventListener("pageshow", live);
+  target?.addEventListener("visibilitychange", () => {
+    if (target.isVisible()) live();
+  });
   return {
     isUnloading: () => unloading,
     onLive: (listener) => {

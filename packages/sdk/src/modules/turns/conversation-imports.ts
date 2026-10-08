@@ -40,7 +40,12 @@ export function createConversationImports(ctx: ModuleContext) {
       .importMessages(entry.conversationId, entry.request);
   const lifecycle = ctx.config.ports.pageLifecycle;
   const holds = lifecycle
-    ? createConversationImportHold(lifecycle, send, outbox.settle)
+    ? createConversationImportHold(
+        lifecycle,
+        ctx.config.ports.clock,
+        send,
+        outbox.settle,
+      )
     : null;
 
   /**

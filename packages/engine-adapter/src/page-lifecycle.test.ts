@@ -8,8 +8,10 @@ import {
 
 function fakeWindow() {
   const handlers = new Map<string, () => void>();
+  let visible = true;
   const target: PageLifecycleTarget = {
     addEventListener: (type, handler) => void handlers.set(type, handler),
+    isVisible: () => visible,
   };
   const timers: Array<{ fn: () => void; ms: number; live: boolean }> = [];
   const schedule = (fn: () => void, ms: number) => {
@@ -28,6 +30,10 @@ function fakeWindow() {
     lifecycle,
     fire: (type: "beforeunload" | "pagehide" | "pageshow") =>
       handlers.get(type)?.(),
+    setVisible: (v: boolean) => {
+      visible = v;
+      handlers.get("visibilitychange")?.();
+    },
     /** Run every live timer, as if its delay elapsed. */
     elapse: () => {
       for (const t of timers.splice(0)) if (t.live) t.fn();
@@ -89,6 +95,23 @@ describe("createPageLifecycle", () => {
     expect(w.lives()).toBe(1);
   });
 
+  test("a tab backgrounded (pagehide) that comes back visible with no pageshow is live again", () => {
+    const w = fakeWindow();
+    w.setVisible(false);
+    w.fire("pagehide");
+    expect(w.lifecycle.isUnloading()).toBe(true);
+    w.setVisible(true);
+    expect(w.lifecycle.isUnloading()).toBe(false);
+    expect(w.lives()).toBe(1);
+  });
+
+  test("going hidden, or a visibilitychange on a page that never left, reports nothing", () => {
+    const w = fakeWindow();
+    w.setVisible(false);
+    w.setVisible(true);
+    expect(w.lives()).toBe(0);
+  });
+
   test("a pageshow on a page that never left reports nothing", () => {
     const w = fakeWindow();
     w.fire("pageshow");
@@ -121,7 +144,13 @@ describe("pageTargetOf", () => {
   });
 
   test("anything with addEventListener is the page", () => {
-    const target = { addEventListener: () => {} };
-    expect(pageTargetOf(target)).toBe(target);
+    const seen: string[] = [];
+    const target = pageTargetOf({
+      addEventListener: (type: string) => void seen.push(type),
+    });
+    target?.addEventListener("pagehide", () => {});
+    expect(seen).toEqual(["pagehide"]);
+    // No `document` under vitest's node environment: visible by default.
+    expect(target?.isVisible()).toBe(true);
   });
 });
