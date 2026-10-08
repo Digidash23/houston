@@ -25,6 +25,11 @@ export type {
   ManifestObjectStore,
   ObjectMetadata,
 } from "./object-manifest";
+export {
+  InvalidObjectPrefixError,
+  isObjectPrefix,
+  underObjectPrefix,
+} from "./object-prefix";
 export type {
   ObjectStore,
   ReadOptions,

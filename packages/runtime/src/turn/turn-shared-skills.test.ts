@@ -7,9 +7,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type {
-  ObjectMetadata,
-  ObjectStore,
+import {
+  InvalidObjectPrefixError,
+  isObjectPrefix,
+  type ObjectMetadata,
+  type ObjectStore,
+  underObjectPrefix,
 } from "@houston/runtime-client/object-sync";
 import { beforeEach, expect, test, vi } from "vitest";
 import {
@@ -31,9 +34,12 @@ function sharedStore(files: Record<string, string>) {
   const downloads: string[] = [];
   const store: ObjectStore = {
     list: async () => Object.keys(files),
-    manifest: async (prefix = "") =>
-      Object.keys(files)
-        .filter((key) => key.startsWith(prefix))
+    // Every store reads a prefix as a directory, and pod-store refuses one
+    // that is not a clean key (`skills/` included).
+    manifest: async (prefix = "") => {
+      if (!isObjectPrefix(prefix)) throw new InvalidObjectPrefixError(prefix);
+      return Object.keys(files)
+        .filter((key) => underObjectPrefix(key, prefix))
         .map(
           (key): ObjectMetadata => ({
             key,
@@ -41,7 +47,8 @@ function sharedStore(files: Record<string, string>) {
             md5: "",
             updated: "",
           }),
-        ),
+        );
+    },
     download: async (key, dest) => {
       downloads.push(key);
       mkdirSync(join(dest, ".."), { recursive: true });
@@ -138,14 +145,41 @@ test("a failed listing runs the turn without shared skills, and says so", async 
   );
 });
 
-test("a claimed turn reads its OWN org's shared prefix with its turn token", async () => {
+test("a claimed turn reads its OWN org's shared skills through pod-store's manifest", async () => {
   const requests: Array<{ url: string; headers: Headers }> = [];
+  const objects: Record<string, string> = {
+    "skills/invoices/SKILL.md": "---\nname: invoices\n---\n",
+    "skills-old/invoices/SKILL.md": "stale",
+  };
+  // pod-store's contract: `?prefix=` must be a clean key (400 otherwise), and
+  // an older pod-store matches it as a raw string, siblings included.
   const fetchImpl = (async (
     url: string | URL | Request,
     init?: RequestInit,
   ) => {
-    requests.push({ url: String(url), headers: new Headers(init?.headers) });
-    return Response.json({ objects: [] });
+    const parsed = new URL(String(url));
+    requests.push({
+      url: parsed.toString(),
+      headers: new Headers(init?.headers),
+    });
+    if (parsed.pathname.endsWith("/manifest")) {
+      const prefix = parsed.searchParams.get("prefix") ?? "";
+      if (!isObjectPrefix(prefix)) {
+        return Response.json(
+          { error: "invalid object prefix" },
+          { status: 400 },
+        );
+      }
+      return Response.json({
+        objects: Object.keys(objects)
+          .filter((key) => key.startsWith(prefix))
+          .map((key) => ({ key, size: 1, md5: "m", updated: "u" })),
+      });
+    }
+    const key = decodeURIComponent(parsed.pathname.split("/objects/")[1] ?? "");
+    return new Response(objects[key] ?? "", {
+      status: key in objects ? 200 : 404,
+    });
   }) as typeof fetch;
   const store = turnSharedSkillsStore(
     {
@@ -160,17 +194,23 @@ test("a claimed turn reads its OWN org's shared prefix with its turn token", asy
     },
     { poolStoreUrl: "https://gateway.test/", fetchImpl },
   );
+  const dest = snapshotDir();
 
-  await store?.manifest?.("skills/");
+  await snapshotTurnSharedSkills(store, dest, workspaceEnabling("invoices"));
 
-  expect(requests).toHaveLength(1);
+  expect(console.error).not.toHaveBeenCalled();
   expect(requests[0]?.url).toBe(
-    "https://gateway.test/v1/pod/store/org-a/shared/manifest?prefix=skills%2F",
+    "https://gateway.test/v1/pod/store/org-a/shared/manifest?prefix=skills",
   );
   expect(requests[0]?.headers.get("authorization")).toBe(
     "Bearer turn-v1.token-for-org-a-agent-1",
   );
   expect(requests[0]?.headers.get("x-houston-agent")).toBe("agent-1");
+  expect(requests.map((request) => request.url)).not.toContainEqual(
+    expect.stringContaining("skills-old"),
+  );
+  expect(readdirSync(dest)).toEqual(["invoices"]);
+  expect(existsSync(join(dest, "invoices", "SKILL.md"))).toBe(true);
 });
 
 test("an unclaimed turn has no shared store to read", () => {

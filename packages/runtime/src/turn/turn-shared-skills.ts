@@ -29,7 +29,8 @@ import type { TurnRequest } from "./types";
  * alone, and an edit made here would silently vanish with the turn.
  */
 
-const SKILLS_PREFIX = "skills/";
+/** A store prefix names a directory, never with a trailing slash: pod-store refuses `skills/`. */
+const SKILLS_DIR = "skills";
 /** Parallel reads per turn: a large skill folder must not open a request per file at once. */
 const DOWNLOADS_AT_ONCE = 8;
 /** How long the snapshot may hold the prompt back before the turn runs without it. */
@@ -60,8 +61,8 @@ export function turnSharedSkillsStore(
 
 /** The skill folder a shared key belongs to, or null for anything else. */
 function skillOf(key: string): string | null {
-  if (!key.startsWith(SKILLS_PREFIX)) return null;
-  const segments = key.slice(SKILLS_PREFIX.length).split("/");
+  if (!key.startsWith(`${SKILLS_DIR}/`)) return null;
+  const segments = key.slice(SKILLS_DIR.length + 1).split("/");
   if (segments.length < 2 || segments.some((s) => s === "" || s === ".."))
     return null;
   return segments[0] ?? null;
@@ -95,7 +96,7 @@ export async function snapshotTurnSharedSkills(
     if (enabled.size === 0) return;
     const root = resolve(dest);
     const listed: ObjectMetadata[] = await Promise.race([
-      store.manifest(SKILLS_PREFIX, { signal: stop.signal }),
+      store.manifest(SKILLS_DIR, { signal: stop.signal }),
       new Promise<never>((_resolve, reject) =>
         stop.signal.addEventListener(
           "abort",
@@ -113,7 +114,7 @@ export async function snapshotTurnSharedSkills(
     const reader = async () => {
       for (let next = queue.shift(); next; next = queue.shift()) {
         stop.signal.throwIfAborted();
-        const rel = next.key.slice(SKILLS_PREFIX.length).split("/");
+        const rel = next.key.slice(SKILLS_DIR.length + 1).split("/");
         const file = resolve(root, ...rel);
         if (!file.startsWith(`${root}${sep}`)) continue;
         await mkdir(dirname(file), { recursive: true, mode: 0o755 });

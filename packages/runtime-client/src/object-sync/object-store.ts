@@ -11,7 +11,7 @@ import type { ObjectMetadata } from "./object-manifest";
  * LocalDirStore keeps the synchronization contract testable against real files.
  */
 export interface ObjectStore {
-  /** All keys under a prefix (prefix itself excluded; no delimiter semantics). */
+  /** All keys under a directory prefix, recursively (`object-prefix.ts`). */
   list(prefix: string): Promise<string[]>;
   manifest?(
     prefix?: string,
