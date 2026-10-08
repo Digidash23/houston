@@ -70,7 +70,9 @@ runs:
 
     - name: Compile Houston host sidecar
       shell: bash
-      run: ${{ inputs.compile-command }}
+      env:
+        COMPILE_COMMAND: ${{ inputs.compile-command }}
+      run: eval "$COMPILE_COMMAND"
 
     # This step (and the compile/prepare steps around it) read build config from
     # AMBIENT env — POSTHOG/SUPABASE/LINEAR/SENTRY, and on Linux
@@ -87,7 +89,9 @@ runs:
 
     - name: Prepare Actions artifact
       shell: bash
-      run: ${{ inputs.prepare-command }}
+      env:
+        PREPARE_COMMAND: ${{ inputs.prepare-command }}
+      run: eval "$PREPARE_COMMAND"
 
     - name: Upload Actions artifact
       uses: actions/upload-artifact@v7

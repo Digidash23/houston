@@ -9,7 +9,8 @@
  */
 
 import { DEFAULT_NEXT_FIRE_LABELS, type NextFireLabels } from "./labels";
-import { describeNextFire, nextFire } from "./next-fire";
+import { nextFire } from "./next-fire";
+import { describeNextFire } from "./next-fire-describe";
 import type { Routine } from "./types";
 import { useNow } from "./use-now";
 

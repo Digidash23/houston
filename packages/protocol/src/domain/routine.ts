@@ -7,6 +7,7 @@ import type {
 } from "./routine-failure";
 
 export type {
+  RoutineAccountFailureCode,
   RoutineAutoPause,
   RoutineDeliveryFailure,
   RoutineDeliveryFailureCode,
@@ -70,8 +71,8 @@ export interface Routine {
   name: string;
   prompt: string;
   /**
-   * Cron expression that wakes this routine. Absent on trigger routines —
-   * exactly one of `schedule` / `trigger` is set (enforced in normalizeRoutines).
+   * Cron, or `@every <N>m|h` (a true epoch interval, N not dividing 60 / 24).
+   * Absent on trigger routines; normalizeRoutines keeps exactly one of the two.
    */
   schedule?: string;
   /** External-event wake binding. Absent on cron routines (see `schedule`). */
@@ -113,7 +114,7 @@ export interface Routine {
 export interface NewRoutine {
   name: string;
   prompt: string;
-  /** Cron expression; supply this OR `trigger`, never both. */
+  /** Cron or `@every <N>m|h` interval; supply this OR `trigger`, never both. */
   schedule?: string;
   /** External-event wake binding; supply this OR `schedule`, never both. */
   trigger?: RoutineTriggerBinding;
@@ -134,7 +135,7 @@ export interface NewRoutine {
 export interface RoutineUpdate {
   name?: string;
   prompt?: string;
-  /** Switch to (or edit) a cron wake; a real value clears any `trigger`. */
+  /** Switch to (or edit) a cron/`@every` wake; a real value clears any `trigger`. */
   schedule?: string;
   /** Switch to (or edit) an event wake; a real value clears any `schedule`.
    *  `null` clears only the trigger (pair with `schedule` to move a routine

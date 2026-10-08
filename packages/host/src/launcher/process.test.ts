@@ -500,8 +500,10 @@ test("ensureAwake during shutdownAllAndWait's drain is REFUSED, never respawned 
   };
   const launcher = new ProcessLauncher(opts(spawner));
   await launcher.ensureAwake(agent("polled"));
+  expect(launcher.isClosed()).toBe(false);
 
   const shutdown = launcher.shutdownAllAndWait(5_000);
+  expect(launcher.isClosed()).toBe(true);
   // Arrives mid-drain (child alive, live-set already cleared).
   await expect(launcher.ensureAwake(agent("polled"))).rejects.toBeInstanceOf(
     LauncherClosedError,
@@ -520,6 +522,7 @@ test("shutdownAll (the sync variant) latches the launcher the same way", async (
   const launcher = new ProcessLauncher(opts(spawner));
   await launcher.ensureAwake(agent("a"));
   launcher.shutdownAll();
+  expect(launcher.isClosed()).toBe(true);
   expect(killed).toEqual([5000]);
   await expect(launcher.ensureAwake(agent("b"))).rejects.toBeInstanceOf(
     LauncherClosedError,
@@ -626,4 +629,31 @@ test("rename refusal uses agent-facing punctuation without an em dash", async ()
     }),
   ).rejects.toThrow("agent 'agent' is being renamed - retry with its new id");
   release();
+});
+
+// An engine roll drains the pod while a routine fire is booting its runtime:
+// the drain kills the child, and the fire must read that as the drain (503,
+// retried on the replacement pod), not as a broken runtime (settled failed).
+test("a boot killed by the drain fails as the drain, not as a crash", async () => {
+  let exitCb: (() => void) | undefined;
+  const spawner: RuntimeSpawner = {
+    spawn() {
+      return {
+        port: 5000,
+        kill: () => setTimeout(() => exitCb?.(), 0),
+        onExit: (cb) => {
+          exitCb = cb;
+        },
+      };
+    },
+  };
+  const launcher = new ProcessLauncher(
+    opts(spawner, { waitHealthy: () => new Promise(() => {}) }),
+  );
+
+  const boot = launcher.ensureAwake(agent("booting"));
+  await new Promise((r) => setTimeout(r, 0));
+  if (!exitCb) throw new Error("spawn never registered onExit");
+  launcher.shutdownAll();
+  await expect(boot).rejects.toBeInstanceOf(LauncherClosedError);
 });

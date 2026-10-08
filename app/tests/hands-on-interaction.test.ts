@@ -7,6 +7,14 @@ import {
   interactionNotificationBodyKey,
 } from "../src/lib/active-interaction.ts";
 import { handsOnSurfaceReachable } from "../src/lib/hands-on-gates.ts";
+import {
+  apiKeyNameAgentId,
+  handsOnAgentSettings,
+  handsOnManagerOnly,
+  handsOnScreenLabel,
+  inlineHandsOn,
+  resolveHandsOnAgent,
+} from "../src/lib/hands-on-screens.ts";
 import { finalHandsOnNames } from "../src/lib/interaction-outcomes.ts";
 import { composeInteractionReply } from "../src/lib/interaction-reply.ts";
 import { resolvePlanReadyOverride } from "../src/lib/plan-ready.ts";
@@ -148,9 +156,9 @@ test("the card keeps no state across the navigation it triggers", () => {
     !card.includes("useState"),
     "the outcome log behind the stepper is the memory",
   );
-  ok(card.includes("openHandsOnSurface(surface as HandsOnSurface)"));
+  ok(card.includes("openHandsOnSurface(surface as HandsOnSurface"));
   ok(
-    card.includes("handsOnSurfaceReachable(surface, gates)"),
+    card.includes("handsOnSurfaceReachable(surface, gates"),
     "a screen this person cannot open never gets a button",
   );
 });
@@ -160,6 +168,7 @@ const gates = (over: Partial<SurfaceGates> = {}): SurfaceGates => ({
   showBilling: true,
   showWorkspaceDanger: true,
   showAiModels: true,
+  showApiKeys: true,
   manageWorkspaceSkills: true,
   showAssistant: true,
   ready: true,
@@ -174,6 +183,8 @@ test("an errand to a screen this person does not hold offers no way in", () => {
     ["billing", { showBilling: false }],
     ["billing", { showOrganization: false }],
     ["orgDanger", { showWorkspaceDanger: false }],
+    ["apiKeys", { showApiKeys: false }],
+    ["agentApiAccess", { showApiKeys: false }],
   ] as const satisfies [HandsOnSurface, Partial<SurfaceGates>][])
     strictEqual(handsOnSurfaceReachable(surface, gates(denied)), false);
   // The rest is ordinary work anyone in the space can finish.
@@ -189,6 +200,130 @@ test("an errand to a screen this person does not hold offers no way in", () => {
       ),
       true,
     );
+});
+
+test("an employee's API access needs the API and that employee's Settings", () => {
+  // Its Settings are drawn for the employee's managers alone: anyone else
+  // would be sent to a screen nothing draws.
+  strictEqual(handsOnSurfaceReachable("agentApiAccess", gates(), true), true);
+  strictEqual(handsOnSurfaceReachable("agentApiAccess", gates(), false), false);
+  strictEqual(
+    handsOnSurfaceReachable(
+      "agentApiAccess",
+      gates({ showApiKeys: false }),
+      true,
+    ),
+    false,
+  );
+  // Undecided (the roster still loading) never reads as missing.
+  strictEqual(handsOnSurfaceReachable("agentApiAccess", gates()), true);
+  // Only that screen reads the employee: the rest stay as they were.
+  strictEqual(handsOnSurfaceReachable("files", gates(), false), true);
+});
+
+const ana = { id: "a1", name: "Ana", access: "manager" } as const;
+const bo = { id: "a2", name: "Bo", access: "user" } as const;
+const settled = { loaded: true, loading: false, agents: [ana, bo] };
+const loadingRoster = { loaded: false, loading: true, agents: [] };
+const member = { multiplayer: true, role: "user" } as unknown as Parameters<
+  typeof handsOnAgentSettings
+>[1];
+
+test("an employee's screen opens only for the employee the step names", () => {
+  deepStrictEqual(resolveHandsOnAgent("a1", settled), {
+    kind: "found",
+    agent: ana,
+  });
+  // No fallback to the employee on screen: that would hand the person some
+  // other employee's IDs to paste into their code.
+  deepStrictEqual(resolveHandsOnAgent(undefined, settled), { kind: "absent" });
+  // Once the roster has settled, an id it lacks is gone, not loading.
+  deepStrictEqual(resolveHandsOnAgent("gone", settled), { kind: "absent" });
+  deepStrictEqual(resolveHandsOnAgent("gone", loadingRoster), {
+    kind: "pending",
+  });
+  deepStrictEqual(resolveHandsOnAgent("gone", { ...settled, loading: true }), {
+    kind: "pending",
+  });
+});
+
+test("an employee's API access opens for its managers alone", () => {
+  const open = (
+    agentId: string | undefined,
+    roster: Parameters<typeof resolveHandsOnAgent>[1] = settled,
+  ) =>
+    handsOnSurfaceReachable(
+      "agentApiAccess",
+      gates(),
+      handsOnAgentSettings(resolveHandsOnAgent(agentId, roster), member),
+    );
+  strictEqual(open("a1"), true);
+  // Its Settings are drawn for its managers only.
+  strictEqual(open("a2"), false);
+  strictEqual(open(undefined), false);
+  strictEqual(open("gone"), false);
+  // Only "still loading" reads as reachable.
+  strictEqual(open("gone", loadingRoster), true);
+});
+
+test("an employee's screen is titled with that employee", () => {
+  const names = (id: string) => settled.agents.find((a) => a.id === id)?.name;
+  // Two cards for two employees never read the same.
+  deepStrictEqual(
+    handsOnScreenLabel({ surface: "agentApiAccess", agentId: "a1" }, names),
+    { key: "interaction.handsOnAgentApiAccessFor", name: "Ana" },
+  );
+  // A name the roster cannot resolve yet keeps the plain screen name.
+  deepStrictEqual(
+    handsOnScreenLabel({ surface: "agentApiAccess", agentId: "x" }, names),
+    { key: "interaction.handsOnScreens.agentApiAccess" },
+  );
+  // Other screens are no one's, whatever the step carries.
+  deepStrictEqual(
+    handsOnScreenLabel({ surface: "files", agentId: "a1" }, names),
+    { key: "interaction.handsOnScreens.files" },
+  );
+  // A screen a newer engine named still gets a title, never a crash.
+  deepStrictEqual(handsOnScreenLabel({ surface: "newScreen" }, names), {
+    key: "interaction.handsOnUnknownScreen",
+  });
+});
+
+test("a key minted beside an employee's API access defaults to that employee", () => {
+  // The key belongs to the person; the employee only suggests its name.
+  strictEqual(
+    apiKeyNameAgentId([
+      { kind: "hands_on", id: "h1", surface: "apiKeys" },
+      { kind: "hands_on", id: "h2", surface: "agentApiAccess", agentId: "a1" },
+    ]),
+    "a1",
+  );
+  strictEqual(
+    apiKeyNameAgentId([{ kind: "hands_on", id: "h1", surface: "apiKeys" }]),
+    undefined,
+  );
+  // Another screen carrying an id says nothing about the key.
+  strictEqual(
+    apiKeyNameAgentId([
+      { kind: "hands_on", id: "h1", surface: "files", agentId: "a1" },
+    ]),
+    undefined,
+  );
+});
+
+test("only the AI Manager's chat runs the API errands in place", () => {
+  // A mint form under a mission agent's own words, beside a box that talks to
+  // that agent, would be a phishing kit in Houston's chrome.
+  strictEqual(inlineHandsOn("apiKeys", true), "apiKey");
+  strictEqual(inlineHandsOn("agentApiAccess", true), "agentApi");
+  strictEqual(inlineHandsOn("apiKeys", false), null);
+  strictEqual(inlineHandsOn("agentApiAccess", false), null);
+  for (const surface of ["files", "billing", "routineWebhook", "orgDanger"])
+    strictEqual(inlineHandsOn(surface, true), null);
+  // The client agrees with the runtime: one employee's API access is the
+  // Manager's alone to hand over.
+  strictEqual(handsOnManagerOnly("agentApiAccess"), true);
+  strictEqual(handsOnManagerOnly("apiKeys"), false);
 });
 
 test("an unsettled gate never calls a screen missing", () => {

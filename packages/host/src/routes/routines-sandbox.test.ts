@@ -1,6 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { loadRoutines, saveActivities, saveRoutines } from "@houston/domain";
-import type { Activity, HoustonEvent, Routine } from "@houston/protocol";
+import type {
+  Activity,
+  HoustonEvent,
+  Routine,
+  TurnLimits,
+} from "@houston/protocol";
 import { beforeEach, expect, test } from "vitest";
 import type { Agent, Workspace } from "../domain/types";
 import { LocalPaths } from "../paths";
@@ -84,6 +89,8 @@ async function save(
     spoofedActingAs?: string;
     gatewayFronted?: boolean;
     triggersEnabled?: boolean;
+    /** The plan limits the host recorded on the authoring turn. */
+    limits?: TurnLimits;
   } = {},
 ) {
   const headers: Record<string, string> = {
@@ -98,7 +105,7 @@ async function save(
       agent.id,
       opts.conversationId ?? "activity-1",
       "execute",
-      { actingAs: opts.actingAs },
+      { actingAs: opts.actingAs, limits: opts.limits },
       opts.pin,
     );
   const { res, captured } = fakeRes();
@@ -326,4 +333,66 @@ test("an update never re-pins: a routine that follows the agent keeps following 
   const [routine] = await onDisk();
   expect(routine?.prompt).toBe("Summarize only unread email.");
   expect(routine?.provider).toBeNull();
+});
+
+test("a turn under a plan floor cannot save a routine that fires more often", async () => {
+  const r = await save(
+    { ...BASE, schedule: "*/5 * * * *" },
+    {
+      gatewayFronted: true,
+      actingAs: actingToken(),
+      limits: { routineMinIntervalMinutes: 15 },
+    },
+  );
+  expect(r).toMatchObject({
+    status: 400,
+    body: {
+      code: "plan_min_interval",
+      minIntervalMinutes: 15,
+      error: expect.stringContaining("at most once every 15 minutes"),
+    },
+  });
+  expect(await onDisk()).toEqual([]);
+  expect(events).toEqual([]);
+});
+
+test("the same turn may save at the floor, and an update is held to it too", async () => {
+  const opts = {
+    gatewayFronted: true,
+    actingAs: actingToken(),
+    limits: { routineMinIntervalMinutes: 15 },
+  };
+  const created = await save({ ...BASE, schedule: "*/15 * * * *" }, opts);
+  expect(created.status).toBe(201);
+  const id = (created.body as Routine).id;
+  const tightened = await save({ id, schedule: "*/5 * * * *" }, opts);
+  expect(tightened).toMatchObject({
+    status: 400,
+    body: { code: "plan_min_interval" },
+  });
+  expect((await onDisk())[0]?.schedule).toBe("*/15 * * * *");
+});
+
+test("a turn with no recorded limits keeps any cadence", async () => {
+  const r = await save(
+    { ...BASE, schedule: "*/5 * * * *" },
+    { gatewayFronted: true, actingAs: actingToken() },
+  );
+  expect(r.status).toBe(201);
+});
+
+test("limits the runtime puts in the save body itself are ignored", async () => {
+  // Only the host's record of the turn carries limits; the runtime's request
+  // could name any, so a floor there is neither honored nor saved.
+  const r = await save(
+    {
+      ...BASE,
+      schedule: "*/5 * * * *",
+      limits: { routineMinIntervalMinutes: 60 },
+    },
+    { gatewayFronted: true, actingAs: actingToken() },
+  );
+  expect(r.status).toBe(201);
+  expect(await onDisk()).toHaveLength(1);
+  expect((await onDisk())[0]).not.toHaveProperty("limits");
 });

@@ -51,7 +51,7 @@ export const SaveRoutineParams = Type.Object({
   schedule: Type.Optional(
     Type.String({
       description:
-        "A cron expression that wakes the task. Supply this OR 'trigger', never both and never neither.",
+        "When the task wakes: a cron expression, or '@every <N>m' / '@every <N>h' for 'every N minutes/hours' when N doesn't divide 60 (or 24) evenly, e.g. '@every 16m' or '@every 5h'; use cron otherwise. Never combine units (write '@every 90m', not '@every 1h30m'). Supply this OR 'trigger', never both and never neither.",
     }),
   ),
   trigger: Type.Optional(TriggerParam),

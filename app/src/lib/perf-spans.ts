@@ -1,7 +1,7 @@
 /**
- * Client UX timing spans (HOU-1011). Measures the four cold-journey timings —
- * app open → board cards painted, card click → chat painted, message send →
- * first agent output, app open → first output of the session — and ships them
+ * Client UX timing spans (HOU-1011). Measures app open → board cards painted,
+ * card click → chat painted, and for every sent turn send → first visible text
+ * and send → first visible activity (thinking, a tool call, or text), and ships them
  * to the gateway's `/v1/client-metrics` ingest (Prometheus histograms behind
  * grafana.gethouston.ai) plus a PostHog mirror for per-user drill-down. Only
  * the mirror carries the hosted org slug and the send's outcome: the gateway
@@ -18,13 +18,14 @@
  */
 
 import type { FirstResponse, FirstResponseOutcome } from "@houston/sdk";
+import { turnSpans } from "./perf-span-marks";
 import { OrgHistory } from "./perf-span-org-history";
 
 export type PerfSpanName =
   | "app_to_board"
   | "card_click_to_chat"
   | "send_to_first_response"
-  | "app_to_first_response";
+  | "send_to_first_activity";
 
 export interface PerfSpanObservation {
   span: PerfSpanName;
@@ -53,15 +54,6 @@ export interface PerfSpanTransport {
 
 /** A card click older than this is stale (user wandered off) — never completed. */
 const PENDING_TTL_MS = 60_000;
-/**
- * The outcomes the gateway's time-to-first-text histogram may hold: a real
- * first text, and a timeout as a censored one (it lands past the last bucket,
- * exactly where its true value would). A failure is not a time to first text.
- */
-const SHIPPED_OUTCOMES: ReadonlySet<FirstResponseOutcome> = new Set([
-  "first_text",
-  "timeout",
-]);
 const FLUSH_DELAY_MS = 5_000;
 
 export class PerfSpans {
@@ -122,17 +114,17 @@ export class PerfSpans {
   }
 
   /**
-   * A sent turn's first response, as the SDK paired it: `send_to_first_response`
-   * with its outcome, and the once-per-session `app_to_first_response` on the
-   * first real text. Tagged with the org the turn was SENT in.
+   * A sent turn's first response, as the SDK paired it:
+   * `send_to_first_response` with its outcome, and `send_to_first_activity`
+   * when the turn showed anything (or timed out showing nothing, censored like
+   * a text timeout). Which outcomes ship to the gateway: `perf-span-marks.ts`.
+   * Tagged with the org the turn was SENT in.
    */
   turnResponded(response: FirstResponse): void {
-    const { outcome, sentAt, at } = response;
+    const { outcome, sentAt } = response;
     const tags: PerfSpanTags = { orgSlug: this.orgs.at(sentAt), outcome };
-    const ship = SHIPPED_OUTCOMES.has(outcome);
-    this.observe("send_to_first_response", at - sentAt, tags, ship);
-    if (outcome === "first_text")
-      this.observeOnce("app_to_first_response", at - this.t0Ms, tags);
+    for (const { span, ms, ship } of turnSpans(response))
+      this.observe(span, ms, tags, ship);
   }
 
   /** Ship anything queued now (page-hide, tests). */

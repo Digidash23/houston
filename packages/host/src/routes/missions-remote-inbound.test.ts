@@ -5,11 +5,12 @@ import {
   saveActivities,
   saveConfig,
 } from "@houston/domain";
-import type { Activity, HoustonEvent } from "@houston/protocol";
+import type { Activity, HoustonEvent, TurnLimits } from "@houston/protocol";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { ACTING_AS_HEADER } from "../auth/acting";
 import { assistantCallHeaders } from "../auth/assistant-call";
 import type { Agent, Workspace } from "../domain/types";
+import type { FireTurnOptions } from "../fire-turn-options";
 import { conversationKey, LocalPaths } from "../paths";
 import type { RuntimeChannel, TurnPin } from "../ports";
 import type { ControlPlaneDeps } from "../server";
@@ -40,7 +41,15 @@ let ws: Workspace;
 let agent: Agent;
 let root: string;
 let events: HoustonEvent[];
-let fired: { agentId: string; cid: string; text: string; pin?: TurnPin }[];
+let fired: {
+  agentId: string;
+  cid: string;
+  text: string;
+  pin?: TurnPin;
+  limits?: TurnLimits;
+}[];
+/** Whether the call arrives behind the gateway (the managed pod). */
+let fronted: boolean;
 
 const channel = {
   async fireTurn(
@@ -48,8 +57,15 @@ const channel = {
     cid: string,
     text: string,
     pin?: TurnPin,
+    opts: FireTurnOptions = {},
   ): Promise<void> {
-    fired.push({ agentId: ctx.agent.id, cid, text, pin });
+    fired.push({
+      agentId: ctx.agent.id,
+      cid,
+      text,
+      pin,
+      ...(opts.limits ? { limits: opts.limits } : {}),
+    });
   },
 } as unknown as RuntimeChannel;
 
@@ -93,7 +109,7 @@ async function call(
     vfs,
     paths,
     channels: { local: channel },
-    gatewayFronted: true,
+    gatewayFronted: fronted,
     events: {
       emit: (_userId: string, event: HoustonEvent) => events.push(event),
     },
@@ -243,6 +259,7 @@ beforeEach(async () => {
   vfs = new MemoryVfs();
   events = [];
   fired = [];
+  fronted = true;
   ws = await store.getOrCreatePersonalWorkspace("alice");
   agent = await store.createAgent({ workspaceId: ws.id, name: "Dobby" });
   root = paths.agentRoot(ws, agent);
@@ -599,4 +616,20 @@ test("off the gateway, the dispatcher's loopback proof marks the manager", async
     gatewayFronted: false,
   });
   expect(row?.started_by).toBe("houston");
+});
+
+test.each([
+  [true, { routineMinIntervalMinutes: 15 }],
+  [false, undefined],
+])("the gateway's plan stamp on a start rides the child turn (fronted: %s)", async (behindGateway, expected) => {
+  fronted = behindGateway;
+  const r = await call("POST", "missions/start", {
+    title: "Watch the inbox",
+    prompt: "Set up a check.",
+    origin: ORIGIN,
+    limits: { routineMinIntervalMinutes: 15 },
+  });
+  expect(r.status).toBe(201);
+  expect(fired).toHaveLength(1);
+  expect(fired[0]?.limits).toEqual(expected);
 });

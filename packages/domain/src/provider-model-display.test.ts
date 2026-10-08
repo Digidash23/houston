@@ -53,13 +53,15 @@ test("an anthropic display name resolves to the exact lineup id it names", () =>
     "Opus 5.5": "claude-opus-5-5",
     "opus 5.5": "claude-opus-5-5",
     "Fable 5.1": "claude-fable-5-1",
+    "Haiku 5.5": "claude-haiku-5-5",
+    haiku: "claude-haiku-5-5",
   };
   for (const [spoken, id] of Object.entries(cases)) {
     expect(resolveSpokenModel("anthropic", spoken)?.id).toBe(id);
   }
   // A retired model's name resolves to nothing: the caller refuses with the
   // lineup rather than pinning a model the provider no longer runs.
-  for (const spoken of ["Opus 4.8", "Sonnet 4.6", "Haiku"])
+  for (const spoken of ["Opus 4.8", "Sonnet 4.6", "Haiku 4.5"])
     expect(resolveSpokenModel("anthropic", spoken)).toBeNull();
 });
 

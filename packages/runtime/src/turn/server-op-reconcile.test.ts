@@ -585,3 +585,33 @@ test("a shared chat's lost card comes back carrying its newest run", async () =>
   expect(board).toHaveLength(1);
   expect(board[0]?.routine_run_id).toBe("t2");
 });
+
+test("a dead turn of a since-deleted routine settles its running row as cancelled", async () => {
+  const orphan: RoutineRun = {
+    id: "t1",
+    routine_id: "gone",
+    status: "running",
+    session_key: "routine-gone",
+    started_at: new Date(STARTED).toISOString(),
+  };
+  const w = await worker({
+    runs: [orphan, finishedRun],
+    chats: { "routine-gone": [userOf("t1", STARTED)] },
+  });
+
+  const json = await w.reconcile({
+    conversationId: "routine-gone",
+    abandoned: {
+      turnId: "t1",
+      startedAt: orphan.started_at,
+      routine: true,
+    },
+  });
+
+  expect(json.status, JSON.stringify(json)).toBe(200);
+  expect(w.runs().find((r) => r.id === "t1")).toMatchObject({
+    status: "cancelled",
+    summary: "This run's routine was deleted.",
+  });
+  expect(w.runs().find((r) => r.id === "p0")).toEqual(finishedRun);
+});

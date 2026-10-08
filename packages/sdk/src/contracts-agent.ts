@@ -128,7 +128,9 @@ export {
 } from "./modules/providers";
 // ===== Routines module contract ========================================
 export {
+  isPlanMinIntervalRefusal,
   type NewRoutine,
+  planMinIntervalRefusal,
   type Routine,
   type RoutinePauseAccount,
   type RoutinePauseNotice,
@@ -144,6 +146,7 @@ export {
   routineFailureCode,
   routineFirePin,
   routinePauseNotice,
+  viewerIsRoutineCreator,
   type WebhookKeyReveal,
 } from "./modules/routines";
 // ===== Skills module contract ==========================================

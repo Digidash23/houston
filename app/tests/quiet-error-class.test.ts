@@ -271,15 +271,24 @@ describe("showErrorToast routes the quiet classes to their own surfaces", () => 
       ),
     );
     ok(body.includes("showEngineWakingToast(command, message, originalError)"));
+    // The other classes are handed to their own surfaces before any capture.
+    const handoff = body.indexOf(
+      "surfaceQuietState(quiet, command, message, originalError)",
+    );
+    ok(handoff !== -1 && handoff < body.indexOf("sentryCapture("));
+    const rest = readFileSync(
+      join(import.meta.dirname, "../src/lib/quiet-state-surface.ts"),
+      "utf8",
+    );
     // PRODUCT-1833: the three bridge classes share one report-only branch.
     for (const kind of [
       "bridge_unsupported",
       "bridge_no_agent",
       "bridge_state",
     ])
-      ok(body.includes(`case "${kind}":`), `${kind} is a report-only class`);
+      ok(rest.includes(`case "${kind}":`), `${kind} is a report-only class`);
     ok(
-      body.includes("reportQuietError(quiet, command, message, originalError)"),
+      rest.includes("reportQuietError(quiet, command, message, originalError)"),
     );
   });
 });

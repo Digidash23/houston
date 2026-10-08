@@ -18,6 +18,16 @@ export {
   type EditableProfileCustom,
   type EditableProfileUpdate,
 } from "./modules/account";
+export {
+  apiStartMissionRequest,
+  apiTryKeyRequest,
+} from "./modules/account/api-examples";
+export {
+  type ApiSetupPromptInput,
+  apiSetupPrompt,
+  HOUSTON_API_DOCS,
+  HOUSTON_API_KEY_ENV,
+} from "./modules/account/api-setup-prompt";
 // ===== Appearance module contract ======================================
 // The vocabulary and its rules are also published as `@houston/sdk/appearance`,
 // for a surface's pre-paint path: it resolves a theme before any kernel exists.
@@ -115,7 +125,6 @@ export {
   stripeCurrencyDecimals,
 } from "./modules/plan/format";
 export {
-  freeScheduleAllowed,
   planComposerMode,
   planDialog,
   planLaunchRefreshDelay,

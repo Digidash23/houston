@@ -8,11 +8,11 @@ import {
   agentStore,
   docTargetFor,
   holdFirstGet,
-  landOp,
   PREFIX,
   podDocs,
   seed,
 } from "./turn-views.test-support";
+import { landOp } from "./turn-views-op.test-support";
 
 /**
  * The gateway serves a sleeping agent's custom integrations list from the

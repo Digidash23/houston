@@ -43,6 +43,12 @@ export function reportError(
     return;
   }
   const quiet = classifyQuietError(originalError);
+  // A routine save under the saver's plan floor: the plan's info toast is the
+  // whole surface (`plan-min-interval.ts`) and nothing broke, so no capture.
+  if (quiet === "plan_min_interval") {
+    console.debug(`[report:${command}] refused under the plan's routine floor`);
+    return;
+  }
   if (quiet) {
     reportQuietError(quiet, command, message, originalError);
     return;

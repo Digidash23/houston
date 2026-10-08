@@ -1,4 +1,7 @@
-import type { TurnMode } from "@houston/protocol";
+import type { TurnLimits, TurnMode } from "@houston/protocol";
+import type { LiveTurnPin } from "./live-turn-pin";
+
+export { type LiveTurnPin, liveTurnPin } from "./live-turn-pin";
 
 /**
  * WHICH CONVERSATION EACH AGENT IS WORKING IN, held by the host.
@@ -63,36 +66,20 @@ export interface LiveTurn {
    * connected (PRODUCT-1849). Absent when the send named nothing.
    */
   readonly pin?: LiveTurnPin;
+  /**
+   * The plan limits the gateway stamped on the request that started this turn
+   * (`limits` on the body). A routine the agent saves during it is held to
+   * them (routines-sandbox.ts). Only recorded where a trusted gateway fronts
+   * the request; absent = no limit.
+   */
+  readonly limits?: TurnLimits;
 }
 
-/** The provider pair a turn was started with, exactly as the send named it. */
-export interface LiveTurnPin {
-  provider: string;
-  model?: string;
-  effort?: string;
-}
-
-/**
- * A programmatic fire's TurnPin (ports.ts) as the live-turn record keeps it:
- * `null`/empty fields are absent, a pin with no provider is no pin at all.
- */
-export function liveTurnPin(pin?: {
-  provider?: string | null;
-  model?: string | null;
-  effort?: string | null;
-}): LiveTurnPin | undefined {
-  if (!pin?.provider) return undefined;
-  return {
-    provider: pin.provider,
-    ...(pin.model ? { model: pin.model } : {}),
-    ...(pin.effort ? { effort: pin.effort } : {}),
-  };
-}
-
-/** The identity a turn acts as, as its starter knew it. */
-export interface LiveTurnIdentity {
+/** Who a turn acts as and what limits it runs under, as its starter knew it. */
+export interface LiveTurnFacts {
   actingAs?: string | undefined;
   actingUser?: string | undefined;
+  limits?: TurnLimits | undefined;
 }
 
 /**
@@ -124,7 +111,7 @@ class LiveTurnRegistry {
     agentId: string,
     conversationId: string,
     mode: TurnMode,
-    identity: LiveTurnIdentity = {},
+    facts: LiveTurnFacts = {},
     pin?: LiveTurnPin,
   ): void {
     let byConversation = this.turns.get(agentId);
@@ -140,9 +127,10 @@ class LiveTurnRegistry {
       turn: {
         conversationId,
         mode,
-        ...(identity.actingAs ? { actingAs: identity.actingAs } : {}),
-        ...(identity.actingUser ? { actingUser: identity.actingUser } : {}),
+        ...(facts.actingAs ? { actingAs: facts.actingAs } : {}),
+        ...(facts.actingUser ? { actingUser: facts.actingUser } : {}),
         ...(pin ? { pin } : {}),
+        ...(facts.limits ? { limits: facts.limits } : {}),
       },
     });
     while (byConversation.size > MAX_TURNS_PER_AGENT) {

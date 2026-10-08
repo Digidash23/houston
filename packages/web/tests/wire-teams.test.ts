@@ -130,6 +130,32 @@ describe("the delegated per-agent policy", () => {
     expectGatewayHeaders(calls[0]);
   });
 
+  test("trigger status carries the Free plan's skipped events, dropping unknown codes", async () => {
+    const skipped = {
+      code: "plan_min_interval",
+      count: 21,
+      last_at: "2026-10-05T19:43:49Z",
+    };
+    stubFetch(() =>
+      json(200, {
+        items: [
+          { routine_id: "r1", status: "active", plan_skipped: skipped },
+          {
+            routine_id: "r2",
+            status: "active",
+            plan_skipped: { ...skipped, code: "plan_new_rule" },
+          },
+        ],
+      }),
+    );
+
+    await expect(client().agentTriggerStatus("a1")).resolves.toEqual([
+      { routine_id: "r1", status: "active", plan_skipped: skipped },
+      { routine_id: "r2", status: "active" },
+    ]);
+    expect(calls[0].url).toBe(`${BASE}/v1/agents/a1/trigger-status`);
+  });
+
   test("a 404 hides the model picker and the trigger badge, nothing else", async () => {
     stubFetch(() => json(404, { error: "not found" }));
 

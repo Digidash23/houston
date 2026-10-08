@@ -1,4 +1,5 @@
 import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
+import { planFloorRefusal } from "@houston/host/src/routes/routine-write-gates";
 import { afterEach, expect, test } from "vitest";
 import { runWithActingContext } from "../acting-context";
 import { runWithConversationId } from "../conversation-context";
@@ -113,6 +114,22 @@ test("relays the mission-depth refusal as actionable text", async () => {
   await expect(
     run({ name: "Daily", prompt: "p", schedule: "0 9 * * *" }),
   ).rejects.toThrow(error);
+});
+
+test("relays the plan-floor refusal whole, so the agent can offer a slower cadence", async () => {
+  // The host's own body, exactly as it answers: the relay keeps 300 chars.
+  const body = planFloorRefusal("*/5 * * * *", 1440);
+  if (!body) throw new Error("expected a refusal");
+  mockFetch(() => ({ status: 400, body }));
+  await expect(
+    run({ name: "Inbox", prompt: "p", schedule: "*/5 * * * *" }),
+  ).rejects.toThrow(body.error);
+});
+
+test("tells the agent a save can be refused under the person's plan", () => {
+  expect(tool.description).toContain(
+    "A save can be refused because it runs more often than this person's plan allows",
+  );
 });
 
 /**

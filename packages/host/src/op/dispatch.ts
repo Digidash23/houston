@@ -35,6 +35,9 @@ export interface AgentOpRequest {
    *  card it creates is stamped `started_by` (PRODUCT-1928). */
   startedBy?: MissionStarter;
   triggersEnabled: boolean;
+  /** The acting person's plan floor (the op envelope's `limits`): a routine
+   *  write is held to it, as the pod holds a gateway-stamped one. */
+  routineFloorMinutes?: number;
   /** Raw query string (files routes take `?path=`), no leading `?`. */
   query?: string;
 }
@@ -141,6 +144,9 @@ export async function dispatchAgentOp(opts: {
           ? { startedBy: opts.request.startedBy }
           : {}),
         triggersEnabled: opts.request.triggersEnabled,
+        ...(opts.request.routineFloorMinutes
+          ? { routineFloorMinutes: opts.request.routineFloorMinutes }
+          : {}),
         ...(opts.agentDir ? { agentDir: opts.agentDir } : {}),
         ...(opts.customIntegrations
           ? { customIntegrations: opts.customIntegrations }

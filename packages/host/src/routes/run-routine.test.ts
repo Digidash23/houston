@@ -3,6 +3,7 @@ import { loadRoutineRuns } from "@houston/domain";
 import type { Capabilities, Routine, RoutineRun } from "@houston/protocol";
 import { beforeEach, expect, test } from "vitest";
 import { MemoryCredentialStore } from "../credentials/store";
+import type { FireTurnOptions } from "../fire-turn-options";
 import type {
   ChannelCtx,
   RuntimeChannel,
@@ -44,8 +45,7 @@ class SpyChannel implements RuntimeChannel {
     conversationId: string,
     text: string,
     pin?: TurnPin,
-    actingUser?: string,
-    actingAs?: string,
+    { actingUser, actingAs }: FireTurnOptions = {},
   ): Promise<void> {
     this.fired.push({ conversationId, text, pin, actingUser, actingAs });
     if (this.throwMessage) throw new Error(this.throwMessage);

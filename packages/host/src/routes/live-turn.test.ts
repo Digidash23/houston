@@ -134,3 +134,17 @@ test("a fire's TurnPin becomes a live-turn pin only when it names a provider", (
     liveTurnPin({ provider: "anthropic", model: null, effort: "high" }),
   ).toEqual({ provider: "anthropic", effort: "high" });
 });
+
+test("the plan limits ride the turn they were recorded with", () => {
+  liveTurns.start(AGENT, "conv-1", "execute", {
+    limits: { routineMinIntervalMinutes: 15 },
+  });
+  liveTurns.start(AGENT, "conv-2", "execute", { limits: undefined });
+  expect(liveTurns.get(AGENT, "conv-1")?.limits).toEqual({
+    routineMinIntervalMinutes: 15,
+  });
+  expect(liveTurns.get(AGENT, "conv-2")).toEqual({
+    conversationId: "conv-2",
+    mode: "execute",
+  });
+});

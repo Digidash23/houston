@@ -5,14 +5,16 @@ import {
   sidebarRowType,
   sidebarSheetRowClasses,
 } from "@houston-ai/layout";
-import { CircleAlert, Gauge, type LucideIcon, Sparkles } from "lucide-react";
+import { CircleAlert, Gauge, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { usePlan } from "../../hooks/queries/use-plan";
 import type { NavMode } from "../../lib/nav-stack";
 import { useUIStore } from "../../stores/ui";
 
-const GLYPH: Record<PlanUpgradeView["status"], LucideIcon> = {
-  free: Sparkles,
+/** Plain Free draws no glyph beside its words; the icon rail, which has
+ *  nothing else to draw, falls back to the usage gauge. */
+const GLYPH: Record<PlanUpgradeView["status"], LucideIcon | null> = {
+  free: null,
   preview: Gauge,
   nearLimit: Gauge,
   limit: CircleAlert,
@@ -68,6 +70,7 @@ export function PlanUpgradeRow({
   const status = t(`sidebar.${view.status}`, { percent: view.percent });
   const name = t("sidebar.label", { status });
   const Icon = GLYPH[view.status];
+  const RailIcon = Icon ?? Gauge;
   const tone = TONE[view.status];
   const open = () => {
     openSettings("plan", { nav });
@@ -85,7 +88,7 @@ export function PlanUpgradeRow({
     return (
       <button {...attrs} className={sidebarSheetRowClasses}>
         <span className="flex size-5 shrink-0 items-center justify-center">
-          <Icon aria-hidden="true" className={cn("size-5", tone)} />
+          {Icon && <Icon aria-hidden="true" className={cn("size-5", tone)} />}
         </span>
         <span className="min-w-0 flex-1 truncate tabular-nums">{status}</span>
         <UpgradeChip label={t("sidebar.upgrade")} />
@@ -101,7 +104,7 @@ export function PlanUpgradeRow({
               {...attrs}
               className={cn(RAIL_PILL, "size-8 shrink-0 justify-center")}
             >
-              <Icon aria-hidden="true" className={cn("size-4", tone)} />
+              <RailIcon aria-hidden="true" className={cn("size-4", tone)} />
             </button>
           </TooltipTrigger>
           <TooltipContent side="right" sideOffset={8}>
@@ -117,7 +120,9 @@ export function PlanUpgradeRow({
         {...attrs}
         className={cn(RAIL_PILL, "min-h-8 w-full min-w-0 gap-2 py-1 pr-1 pl-3")}
       >
-        <Icon aria-hidden="true" className={cn("size-4 shrink-0", tone)} />
+        {Icon && (
+          <Icon aria-hidden="true" className={cn("size-4 shrink-0", tone)} />
+        )}
         <span
           className={cn(
             "min-w-0 flex-1 truncate text-left tabular-nums",

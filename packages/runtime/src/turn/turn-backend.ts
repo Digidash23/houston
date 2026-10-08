@@ -19,6 +19,7 @@ import type { WorkspaceGuardOptions } from "../session/tools/fs-guard";
 import { makeScrubbedBashTool } from "../session/tools/scrubbed-bash";
 import { turnAuthStore } from "./turn-auth-store";
 import { turnCompactions } from "./turn-compactions";
+import { awaitDeferredFiles, gateTurnTools } from "./turn-deferred-files";
 import { POOLED_TURN_TRANSPORT } from "./turn-pi-transport";
 import type { TurnDirectories, TurnSessionRequest } from "./turn-session";
 import { turnSharedSkillsDir } from "./turn-shared-skills";
@@ -88,7 +89,7 @@ export function createTurnBackend(
   provider: string,
   deps: TurnBackendDeps,
 ): HarnessBackend {
-  const { workspaceDir, dataDir, turnRoot } = deps.directories;
+  const { workspaceDir, dataDir, turnRoot, workspaceReady } = deps.directories;
   const commonTools = buildTurnCommonTools(
     deps.turn,
     deps.codeSandbox,
@@ -109,6 +110,9 @@ export function createTurnBackend(
       role: deps.turn.role ?? null,
       layout: turnClaudeLayout(turnRoot, dataDir, deps.turn.conversationId),
       compactions: turnCompactions(dataDir),
+      ...(workspaceReady
+        ? { beforeTool: () => awaitDeferredFiles(workspaceReady) }
+        : {}),
       // SAFETY: these are the same pi ToolDefinition objects the MCP bridge
       // accepts; only their heterogeneous schema generics need widening.
       tools: commonTools as unknown as BridgedPiTool[],
@@ -161,13 +165,16 @@ export function createTurnBackend(
     sharedSkillsDir: turnSharedSkillsDir(turnRoot),
     role: deps.turn.role ?? null,
     tools: deps.toolSelection.toolNames,
-    customTools: [
-      ...makeClampedFileTools(workspaceDir, deps.fileGuard ?? {}),
-      ...commonTools,
-      ...(deps.toolSelection.toolNames.includes("bash")
-        ? [makeScrubbedBashTool(workspaceDir)]
-        : []),
-    ],
+    customTools: gateTurnTools(
+      [
+        ...makeClampedFileTools(workspaceDir, deps.fileGuard ?? {}),
+        ...commonTools,
+        ...(deps.toolSelection.toolNames.includes("bash")
+          ? [makeScrubbedBashTool(workspaceDir)]
+          : []),
+      ],
+      workspaceReady,
+    ),
   });
 }
 

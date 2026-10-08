@@ -251,6 +251,7 @@ test("a status PATCH landing after the title's read keeps both the title and the
   expect(frame.data.missionTitle).toEqual({
     outcome: "written",
     ms: expect.any(Number),
+    waitMs: expect.any(Number),
     mergeAttempts: 1,
   });
 });
@@ -266,6 +267,7 @@ test("a worker clock behind the gateway's still lands the title in one upload", 
   expect(frame.data.missionTitle).toEqual({
     outcome: "written",
     ms: expect.any(Number),
+    waitMs: expect.any(Number),
   });
 });
 
@@ -326,5 +328,6 @@ test("a board rewritten while it uploads cannot vouch for the title", async () =
   expect(frame.data.missionTitle).toEqual({
     outcome: "unverified",
     ms: expect.any(Number),
+    waitMs: expect.any(Number),
   });
 });

@@ -1,5 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { HoustonEvent } from "@houston/protocol";
+import type {
+  HoustonEvent,
+  ModelCallReport,
+  TurnLimits,
+} from "@houston/protocol";
 import type { Agent, Workspace, WorkspaceRuntime } from "../domain/types";
 import type { EventHub } from "../events/hub";
 import type { WorkspacePaths } from "../paths";
@@ -57,6 +61,11 @@ export interface MissionsDeps {
    * deployment that keeps no central store — then no pin is refused for status.
    */
   credentials?: CredentialStore;
+  /**
+   * Where a turn's model-call report goes when the runtime's settle carries one
+   * (telemetry/model-call-report.ts). Absent off a managed pod: dropped.
+   */
+  modelCallReports?: (report: ModelCallReport) => void;
 }
 
 /**
@@ -88,6 +97,11 @@ export interface MissionsCtx {
    * with it — the same token routes/credential.ts serves that member's rows by.
    */
   actingAs?: string;
+  /**
+   * The calling turn's plan limits (gateway only), handed to the mission it
+   * starts so the child's routine saves meet the same floor.
+   */
+  limits?: TurnLimits;
 }
 
 defineRouteFamily({

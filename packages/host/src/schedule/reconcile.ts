@@ -7,6 +7,7 @@ import {
   saveRoutineRuns,
   upsertById,
 } from "@houston/domain";
+import type { Routine, RoutineRun } from "@houston/protocol";
 import type { Agent, Workspace } from "../domain/types";
 import type { EventHub } from "../events/hub";
 import type { WorkspacePaths } from "../paths";
@@ -48,8 +49,11 @@ export interface ReconcileScope {
  * Complete an agent's 'running' routine runs by reading each run's conversation:
  * the agent's reply classifies the run silent vs surfaced (per runner.rs), a
  * surfaced run gets a board Activity, and a run with no reply past the timeout
- * is marked errored (never stuck 'running'). Idempotent + multi-replica safe:
- * a per-run setNx lock arbitrates, and a terminal run is never revisited.
+ * is marked errored (never stuck 'running'). A run whose routine is gone
+ * settles too, once its turn is over (reconcile-decide.ts): a `running` row
+ * holds the host's busy probe, so skipping it kept an engine awake forever.
+ * Idempotent + multi-replica safe: a per-run setNx lock arbitrates, and a
+ * terminal run is never revisited.
  *
  * The runs file is RE-READ just before saving and an update lands only when its
  * row is still `running` in the fresh copy: a user cancel that raced this sweep
@@ -74,14 +78,20 @@ export async function reconcileAgentRuns(
   );
   if (running.length === 0) return;
 
-  const { items: routines } = await loadRoutines(deps.vfs, root);
+  const { items: routines, diagnostics } = await loadRoutines(deps.vfs, root);
   const runIds = new Set(runs.map((r) => r.id));
   const nowMs = deps.now().getTime();
   const updates: RunUpdate[] = [];
-  const candidates = running.flatMap((run) => {
-    const routine = routines.find((item) => item.id === run.routine_id);
-    return routine ? [{ run, routine }] : [];
-  });
+  // A routines.json the reader had to repair (not an array, an entry dropped
+  // as malformed) can hide a live routine: its missing ids prove nothing, so
+  // orphans wait until the file reads clean again.
+  const candidates = running.flatMap(
+    (run): { run: RoutineRun; routine: Routine | null }[] => {
+      const routine = routines.find((item) => item.id === run.routine_id);
+      if (routine) return [{ run, routine }];
+      return diagnostics.length === 0 ? [{ run, routine: null }] : [];
+    },
+  );
   const replies = await loadRunReplies(
     deps,
     ws,

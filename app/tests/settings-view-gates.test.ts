@@ -118,6 +118,46 @@ describe("the About me screen", () => {
   });
 });
 
+/**
+ * The API-keys row came back after HOU-806 hid it: the index lists it and the
+ * section mounts it behind the same capability gate, so a deployment without
+ * the public API shows neither the row nor a deep-linked blank screen.
+ */
+describe("Settings > API keys", () => {
+  const index = read("../src/components/settings/settings-index.tsx");
+  const body = read("../src/components/settings/settings-section-body.tsx");
+
+  it("draws the row behind the public-API gate", () => {
+    ok(index.includes('settingsSectionAvailable("apiKeys", capabilities)'));
+    ok(index.includes('onSelect("apiKeys")'));
+  });
+
+  it("mounts the section behind the same gate", () => {
+    ok(body.includes('settingsSectionAvailable("apiKeys", capabilities)'));
+    ok(body.includes("<ApiKeysSection />"));
+  });
+
+  it("gives every AI Employee's Settings an API access screen", () => {
+    const manage = read(
+      "../src/components/agent-settings/agent-settings-manage.tsx",
+    );
+    const card = read("../src/components/agent-settings/agent-api-access.tsx");
+    // The row and the screen behind it share one gate, so a host without
+    // the public API never reads `/v1/orgs` for it.
+    ok(manage.includes("apiKeysSupported(useCapabilities().capabilities)"));
+    ok(manage.includes("apiAvailable && apiFor === agent.id"));
+    ok(manage.includes("<AgentApiAccess agent={agent} onBack="));
+    ok(card.includes('openSettings("apiKeys")'));
+  });
+
+  it("shows the open organization's ID, the one value no key can look up", () => {
+    const section = read("../src/components/settings/sections/api-keys.tsx");
+    const spaceId = read("../src/components/settings/sections/api-org-id.tsx");
+    ok(section.includes("<ApiOrgId />"));
+    ok(spaceId.includes("connectOrgSlug(workspace?.id, orgs)"));
+  });
+});
+
 describe("the Admin screen", () => {
   it("keeps Admin mounted pending its gate, then admits or removes it", () => {
     strictEqual(

@@ -6,6 +6,7 @@ import {
   RevokedRefillBlockedError,
   sharedRevocationTombstones,
 } from "../credentials/revocation-tombstones";
+import type { FireTurnOptions } from "../fire-turn-options";
 import {
   ApiKeyRejectedError,
   type CaptureResult,
@@ -21,7 +22,12 @@ import { LOCAL_PLACEHOLDER_KEY, OPENAI_COMPATIBLE } from "../providers";
 import { liveTurnPin, liveTurns } from "../routes/live-turn";
 import { MAX_JSON_BYTES, readBody } from "../routes/read-body";
 import { captureRuntimeCredential } from "./capture-credential";
-import { errorCodeFrom, TurnFireError } from "./fire-error";
+import {
+  errorCodeFrom,
+  isDialFailure,
+  TurnDeliveryUncertainError,
+  TurnFireError,
+} from "./fire-error";
 import { wakeForDispatch } from "./probe-wake";
 
 /**
@@ -257,8 +263,7 @@ export class ProxyChannel implements RuntimeChannel {
     conversationId: string,
     text: string,
     pin?: TurnPin,
-    actingUser?: string,
-    actingAs?: string,
+    { actingUser, actingAs, limits }: FireTurnOptions = {},
   ): Promise<void> {
     // A turn begins here for every programmatic fire (a routine, a trigger, a
     // mission's first turn): the host records which conversation this agent is
@@ -268,10 +273,7 @@ export class ProxyChannel implements RuntimeChannel {
       ctx.agent.id,
       conversationId,
       normalizeTurnMode(pin?.mode),
-      {
-        actingAs,
-        actingUser,
-      },
+      { actingAs, actingUser, limits },
       liveTurnPin(pin),
     );
     // Wake the standing runtime and POST the routine's prompt as a normal
@@ -309,7 +311,12 @@ export class ProxyChannel implements RuntimeChannel {
       );
     } catch (error) {
       this.stopTurnLogCapture(ctx.agent.id, conversationId);
-      throw error;
+      throw isDialFailure(error)
+        ? error
+        : new TurnDeliveryUncertainError(
+            error,
+            this.opts.launcher.isClosed?.() ?? false,
+          );
     }
     if (!res.ok) {
       this.stopTurnLogCapture(ctx.agent.id, conversationId);
@@ -318,6 +325,7 @@ export class ProxyChannel implements RuntimeChannel {
         `runtime ${res.status}: ${body}`,
         res.status,
         errorCodeFrom(body),
+        TurnFireError.providerIn(body),
       );
     }
   }

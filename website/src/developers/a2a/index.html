@@ -4,12 +4,12 @@ activeDoc: a2a
 lang: en
 ---
 {% extends "base.njk" %}
-{% block title %}Agent2Agent (A2A) — Houston API{% endblock %}
+{% block title %}Agent2Agent (A2A) · Houston API{% endblock %}
 {% block meta %}
 <meta name="description" content="Connect any A2A-capable agent to Houston. Fetch the agent card, send messages over JSON-RPC, stream results, and manage tasks with message/send, message/stream, tasks/get, and tasks/cancel.">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://gethouston.ai/developers/a2a/">
-<meta property="og:title" content="Agent2Agent (A2A) — Houston API">
+<meta property="og:title" content="Agent2Agent (A2A) · Houston API">
 <meta property="og:description" content="Point any A2A-capable agent (LangGraph, CrewAI, ADK) at your Houston agent.">
 <meta property="og:site_name" content="Houston">
 <meta name="twitter:card" content="summary_large_image">
@@ -61,13 +61,39 @@ lang: en
           <span class="method get">GET</span>
           <span class="path">/a2a/<b>:org</b>/<b>:agent</b>/.well-known/agent-card.json</span>
         </div>
-        <div class="codeblock"><pre><code>{% raw %}curl {% endraw %}{{ api.gatewayUrl }}{% raw %}/a2a/acme/revenue-manager/.well-known/agent-card.json \
+        <div class="codeblock"><pre><code>{% raw %}curl {% endraw %}{{ api.gatewayUrl }}{% raw %}/a2a/8c41e7a0d39b2f16/3f9a1c07b2e84d65/.well-known/agent-card.json \
   -H "Authorization: Bearer hst_9f2c1a7b4e8d0364f1a2b3c4d5e6f7089f2c1a7b4e8d0364f1a2b3c4d5e6f708"{% endraw %}</code></pre></div>
         <p>
-          Feed that card URL to your A2A client. <code>:org</code> is your
-          organization slug and <code>:agent</code> is the agent slug (the
-          same one the REST API uses).
+          Feed that card URL to your A2A client. The card's <code>url</code>
+          field is the JSON-RPC endpoint below.
         </p>
+        <ul>
+          <li>
+            <code>:agent</code> is the agent slug, the agent's <code>id</code>
+            from <a class="link" href="/developers/missions/#agents"><code>GET /agents</code></a>
+            (16 hex characters, the same slug the REST API uses).
+          </li>
+          <li>
+            <code>:org</code> is the <strong>Organization ID</strong> of the
+            organization the agent lives in, shown in the Houston app under
+            <code>Settings → API keys</code> and in the agent's
+            <code>Settings → API access</code> while that organization is open
+            (also 16 hex characters).
+          </li>
+        </ul>
+        <p>
+          <code>:org</code> must match the organization your request acts in, or the
+          gateway answers <code>403</code> with
+          <code>{ "error": "org mismatch" }</code>. Without a header, a request
+          acts in your personal organization. For an agent in a team
+          organization, put its Organization ID in the path
+          <strong>and</strong> send it as
+          <code>x-houston-org</code> on every request, card fetch included
+          (see <a class="link" href="/developers/#organizations">Organizations</a>):
+        </p>
+        <div class="codeblock"><pre><code>{% raw %}curl {% endraw %}{{ api.gatewayUrl }}{% raw %}/a2a/8c41e7a0d39b2f16/3f9a1c07b2e84d65/.well-known/agent-card.json \
+  -H "Authorization: Bearer hst_9f2c1a7b4e8d0364f1a2b3c4d5e6f7089f2c1a7b4e8d0364f1a2b3c4d5e6f708" \
+  -H "x-houston-org: 8c41e7a0d39b2f16"{% endraw %}</code></pre></div>
 
         <h2 id="endpoint">The JSON-RPC endpoint</h2>
         <div class="endpoint">
@@ -83,9 +109,13 @@ lang: en
         <h2 id="send">message/send</h2>
         <p>
           Send a message to the agent and open a task. The response contains
-          the task, whose <code>status.state</code> you then poll or stream.
+          the task, whose <code>status.state</code> you then poll with
+          <code>tasks/get</code> or follow with <code>message/stream</code>.
+          The task <code>id</code> is the Houston mission id and
+          <code>contextId</code> is its conversation id, both 32 hex
+          characters. Only text parts are read.
         </p>
-        <div class="codeblock"><pre><code>{% raw %}curl -X POST {% endraw %}{{ api.gatewayUrl }}{% raw %}/a2a/acme/revenue-manager \
+        <div class="codeblock"><pre><code>{% raw %}curl -X POST {% endraw %}{{ api.gatewayUrl }}{% raw %}/a2a/8c41e7a0d39b2f16/3f9a1c07b2e84d65 \
   -H "Authorization: Bearer hst_9f2c1a7b4e8d0364f1a2b3c4d5e6f7089f2c1a7b4e8d0364f1a2b3c4d5e6f708" \
   -H "Content-Type: application/json" \
   -d '{
@@ -105,20 +135,28 @@ lang: en
   "jsonrpc": "2.0",
   "id": "1",
   "result": {
+    "id": "a7f3c91e0b2d4856e19c3f70b4a2d8e5",
+    "contextId": "5d0e8b3a6c1f4927b8e2a4c6d9f01b37",
+    "status": { "state": "working", "timestamp": "2026-07-12T09:31:07Z" },
     "kind": "task",
-    "id": "task_5f2c1a7b4e",
-    "contextId": "ctx_8d0364f1a2",
-    "status": { "state": "working" }
+    "history": []
   }
 }{% endraw %}</code></pre></div>
 
         <h2 id="stream">message/stream</h2>
         <p>
-          Same call, but the response is a Server-Sent Events stream of task
-          and status updates that ends when the task reaches a terminal state.
-          Use this for live progress.
+          Same call, but the response is a Server-Sent Events stream. Each
+          event is a JSON-RPC response: first the task, then
+          <code>artifact-update</code> events carrying the agent's text as it
+          is written, and finally a <code>status-update</code> with
+          <code>"final": true</code>, after which the stream closes. Use this
+          for live progress. Honor each update's <code>append</code> flag:
+          <code>true</code> adds its text to the end of the result, and
+          <code>false</code> replaces the whole result (Houston sends one when
+          it resyncs the text written so far). Concatenating every event
+          blindly can duplicate text.
         </p>
-        <div class="codeblock"><pre><code>{% raw %}curl -N -X POST {% endraw %}{{ api.gatewayUrl }}{% raw %}/a2a/acme/revenue-manager \
+        <div class="codeblock"><pre><code>{% raw %}curl -N -X POST {% endraw %}{{ api.gatewayUrl }}{% raw %}/a2a/8c41e7a0d39b2f16/3f9a1c07b2e84d65 \
   -H "Authorization: Bearer hst_9f2c1a7b4e8d0364f1a2b3c4d5e6f7089f2c1a7b4e8d0364f1a2b3c4d5e6f708" \
   -H "Content-Type: application/json" \
   -d '{
@@ -135,19 +173,28 @@ lang: en
 
         <h2 id="multiturn">Multi-turn with taskId</h2>
         <p>
-          To continue an existing task, for example to answer a follow-up
-          question the agent asked, send another message with the same
-          <code>taskId</code>. Houston routes it to the same running mission
-          instead of starting a new one.
+          To continue an existing task, for example to answer a question the
+          agent asked, send another message and set <code>taskId</code>
+          <strong>on the message</strong> (<code>params.message.taskId</code>).
+          Houston adds the message as a new turn in the same mission and
+          conversation instead of starting a new one.
+        </p>
+        <p>
+          This works on finished tasks too. A follow-up on a
+          <code>completed</code>, <code>failed</code>, or
+          <code>canceled</code> task puts it back to <code>working</code> and
+          clears the previous result. While the agent is still working on a
+          turn, a follow-up is refused with <code>-32000</code> (agent busy);
+          send it once the current turn ends.
         </p>
         <div class="codeblock"><pre><code>{% raw %}{
   "jsonrpc": "2.0",
   "id": "2",
   "method": "message/send",
   "params": {
-    "taskId": "task_5f2c1a7b4e",
     "message": {
       "role": "user",
+      "taskId": "a7f3c91e0b2d4856e19c3f70b4a2d8e5",
       "parts": [ { "kind": "text", "text": "Yes, include Porto too." } ]
     }
   }
@@ -159,14 +206,38 @@ lang: en
   "jsonrpc": "2.0",
   "id": "3",
   "method": "tasks/get",
-  "params": { "id": "task_5f2c1a7b4e" }
+  "params": { "id": "a7f3c91e0b2d4856e19c3f70b4a2d8e5" }
 }{% endraw %}</code></pre></div>
-        <p>Cancel a running task:</p>
+        <p>
+          A completed task carries the agent's final text as
+          <code>artifacts[0]</code>, named <code>result</code>.
+          <code>history</code> is always an empty array; read the
+          conversation in the Houston app.
+        </p>
+        <div class="codeblock"><pre><code>{% raw %}{
+  "jsonrpc": "2.0",
+  "id": "3",
+  "result": {
+    "id": "a7f3c91e0b2d4856e19c3f70b4a2d8e5",
+    "contextId": "5d0e8b3a6c1f4927b8e2a4c6d9f01b37",
+    "status": { "state": "completed", "timestamp": "2026-07-12T09:34:51Z" },
+    "kind": "task",
+    "artifacts": [
+      {
+        "artifactId": "a7f3c91e0b2d4856e19c3f70b4a2d8e5-result",
+        "name": "result",
+        "parts": [ { "kind": "text", "text": "Market pulse for Lisbon is ready..." } ]
+      }
+    ],
+    "history": []
+  }
+}{% endraw %}</code></pre></div>
+        <p>Cancel a running task. The response is the task in the <code>canceled</code> state:</p>
         <div class="codeblock"><pre><code>{% raw %}{
   "jsonrpc": "2.0",
   "id": "4",
   "method": "tasks/cancel",
-  "params": { "id": "task_5f2c1a7b4e" }
+  "params": { "id": "a7f3c91e0b2d4856e19c3f70b4a2d8e5" }
 }{% endraw %}</code></pre></div>
 
         <h2 id="states">Task states</h2>
@@ -178,32 +249,49 @@ lang: en
           <thead><tr><th>A2A task state</th><th>Houston mission</th><th>Meaning</th></tr></thead>
           <tbody>
             <tr><td><code>working</code></td><td>running</td><td>The agent is actively working.</td></tr>
-            <tr><td><code>completed</code></td><td>completed</td><td>Terminal. The result is attached to the task.</td></tr>
-            <tr><td><code>failed</code></td><td>failed</td><td>Terminal. The mission errored.</td></tr>
-            <tr><td><code>canceled</code></td><td>canceled</td><td>Terminal. The task was canceled.</td></tr>
+            <tr><td><code>completed</code></td><td>completed</td><td>Terminal. The result is in <code>artifacts[0]</code>.</td></tr>
+            <tr><td><code>failed</code></td><td>failed</td><td>Terminal. The mission errored. A follow-up message can restart it.</td></tr>
+            <tr><td><code>canceled</code></td><td>canceled</td><td>Terminal. The task was canceled. A follow-up message can restart it.</td></tr>
           </tbody>
         </table>
         </div>
 
         <h2 id="errors">Error codes</h2>
         <p>
-          Alongside the standard JSON-RPC errors, Houston returns the A2A
-          task errors:
+          JSON-RPC errors come back as HTTP <code>200</code> with an
+          <code>error</code> object. Besides the standard codes
+          (<code>-32700</code> parse error, <code>-32600</code> invalid
+          request, <code>-32601</code> method not found, <code>-32603</code>
+          internal error), Houston returns:
         </p>
         <div class="table-scroll">
         <table class="fields-table">
-          <thead><tr><th>Code</th><th>Name</th><th>When</th></tr></thead>
+          <thead><tr><th>Code</th><th>Message</th><th>When</th></tr></thead>
           <tbody>
-            <tr><td><code>-32001</code></td><td>TaskNotFound</td><td>No task exists for the given <code>id</code>.</td></tr>
-            <tr><td><code>-32002</code></td><td>TaskNotCancelable</td><td>The task already reached a terminal state and cannot be canceled.</td></tr>
+            <tr><td><code>-32001</code></td><td><code>task not found</code></td><td>No task with that id exists for this agent in this organization.</td></tr>
+            <tr><td><code>-32002</code></td><td><code>task is not cancelable</code></td><td>The task already reached a terminal state.</td></tr>
+            <tr><td><code>-32000</code></td><td><code>the agent is busy with another turn</code></td><td>The agent is already running a turn. Retry once it finishes.</td></tr>
+            <tr><td><code>-32029</code></td><td><code>message limit reached</code></td><td>Your plan's message limit is reached. <code>error.data</code> carries <code>code</code> (<code>message_limit</code>), <code>limit</code>, and <code>resetsAt</code>.</td></tr>
+            <tr><td><code>-32602</code></td><td><code>agent not found</code></td><td>No agent with that slug exists in this organization.</td></tr>
+            <tr><td><code>-32602</code></td><td>varies</td><td>No AI provider is connected, so the agent cannot run. <code>error.data.code</code> is <code>no_provider</code>.</td></tr>
+            <tr><td><code>-32602</code></td><td>varies</td><td>Invalid params, for example an empty message (<code>missing 'input'</code>) or a missing <code>id</code>.</td></tr>
           </tbody>
         </table>
         </div>
         <div class="codeblock"><pre><code>{% raw %}{
   "jsonrpc": "2.0",
   "id": "4",
-  "error": { "code": -32002, "message": "Task cannot be canceled" }
+  "error": { "code": -32002, "message": "task is not cancelable" }
 }{% endraw %}</code></pre></div>
+        <p>
+          A few failures happen before JSON-RPC and use HTTP status codes:
+          <code>401</code> for a missing or invalid key, <code>403</code>
+          <code>org mismatch</code> when <code>:org</code> is not the organization the
+          request acts in, <code>403</code> <code>not_member</code> when
+          <code>x-houston-org</code> names an organization you are not in, and
+          <code>404</code> for a malformed agent slug or an agent card for an
+          agent that does not exist.
+        </p>
 
         <div class="pager">
           <a href="/developers/missions/">

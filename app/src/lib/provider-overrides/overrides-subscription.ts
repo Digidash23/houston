@@ -55,6 +55,9 @@ export const SUBSCRIPTION_OVERRIDES: Record<string, ProviderOverride> = {
         description:
           "Most capable. Uses up your Claude limits faster than Opus.",
       },
+      "claude-haiku-5-5": {
+        description: "Fastest and lightest. Good for quick, simple tasks.",
+      },
     },
   },
   "github-copilot": {

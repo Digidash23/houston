@@ -1,9 +1,6 @@
 import { cn } from "@houston-ai/core";
 import { sidebarRowHeight } from "./sidebar-geometry";
-import {
-  sidebarRowButtonClasses as c,
-  sidebarMemberGuide,
-} from "./sidebar-paint";
+import { sidebarRowButtonClasses as c } from "./sidebar-paint";
 import { type SidebarTreeRow, treeRowKey } from "./sidebar-tree";
 
 /**
@@ -58,7 +55,6 @@ export function SidebarEmptyGroupHint({
         "relative flex items-center text-xs text-ink-muted",
         sidebarRowHeight,
         c.depthChild,
-        sidebarMemberGuide,
       )}
     >
       <span className="min-w-0 truncate">{label}</span>

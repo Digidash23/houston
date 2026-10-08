@@ -2,7 +2,9 @@ import type { Server } from "node:http";
 import { loadRoutineRuns, saveRoutines } from "@houston/domain";
 import type { Capabilities, Routine } from "@houston/protocol";
 import { beforeEach, expect, test } from "vitest";
+import { TurnFireError } from "../channel/fire-error";
 import { MemoryCredentialStore } from "../credentials/store";
+import type { FireTurnOptions } from "../fire-turn-options";
 import type { ChannelCtx, RuntimeChannel, TokenVerifier } from "../ports";
 import { type ControlPlaneDeps, createControlPlaneServer } from "../server";
 import { MemoryWorkspaceStore } from "../store/memory";
@@ -30,15 +32,19 @@ class SpyChannel implements RuntimeChannel {
     actingUser?: string;
     actingAs?: string;
   }[] = [];
+  /** When set, every fire is refused with it (after counting the attempt). */
+  refusal: Error | null = null;
+  attempts = 0;
   async dispatch() {}
   async fireTurn(
     _ctx: ChannelCtx,
     conversationId: string,
     text: string,
     _pin?: unknown,
-    actingUser?: string,
-    actingAs?: string,
+    { actingUser, actingAs }: FireTurnOptions = {},
   ) {
+    this.attempts++;
+    if (this.refusal) throw this.refusal;
     this.fired.push({ conversationId, text, actingUser, actingAs });
   }
   async cancelTurn() {
@@ -208,6 +214,34 @@ test("a redelivery of the same event is deduped: acked, no second run", async ()
   const res = await post(ev);
   expect(await res.json()).toEqual({ result: "fired", event_ids: ["e1"] });
   expect(channel.fired).toHaveLength(1);
+});
+
+test("a fire refused for no provider consumes its event: a redelivery adds no second errored run", async () => {
+  await seedRoutine(routine());
+  channel.refusal = new TurnFireError(
+    'runtime 409: {"code":"no_provider"}',
+    409,
+    "no_provider",
+  );
+  const ev = [
+    { id: "e1", routine_id: "r1", trigger_slug: "GMAIL_NEW", payload: {} },
+  ];
+  for (let i = 0; i < 3; i++) {
+    const res = await post(ev);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ result: "fired", event_ids: ["e1"] });
+  }
+  expect(channel.attempts).toBe(1);
+  const ws = await store.getOrCreatePersonalWorkspace("alice");
+  const agent = (await store.listAgents(ws.id))[0];
+  if (!agent) throw new Error("no agent");
+  const { items } = await loadRoutineRuns(vfs, workspaceRoot(ws, agent));
+  // One event, one errored row toward the auto-pause streak (PRODUCT-1982).
+  expect(items).toHaveLength(1);
+  expect(items[0]).toMatchObject({
+    status: "error",
+    failure: { code: "no_model" },
+  });
 });
 
 test("a busy routine (new event, run in flight) → busy AND releases the lock", async () => {

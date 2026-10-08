@@ -1,0 +1,351 @@
+{
+  "$comment": "Shared table for the @every schedule form: packages/domain/src/schedule-interval.ts, its ui/routines twin and the cloud scheduler all assert against it. 'next' is the first fire strictly after 'after' on the UTC epoch grid (null = invalid). Schedules are trimmed first, a leading U+FEFF included. Keep the two repo copies byte-identical.",
+  "canonical": [
+    {
+      "every": 1,
+      "unit": "minutes",
+      "schedule": "* * * * *"
+    },
+    {
+      "every": 5,
+      "unit": "minutes",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "every": 15,
+      "unit": "minutes",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "every": 16,
+      "unit": "minutes",
+      "schedule": "@every 16m"
+    },
+    {
+      "every": 30,
+      "unit": "minutes",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "every": 45,
+      "unit": "minutes",
+      "schedule": "@every 45m"
+    },
+    {
+      "every": 60,
+      "unit": "minutes",
+      "schedule": "0 * * * *"
+    },
+    {
+      "every": 90,
+      "unit": "minutes",
+      "schedule": "@every 90m"
+    },
+    {
+      "every": 120,
+      "unit": "minutes",
+      "schedule": "0 */2 * * *"
+    },
+    {
+      "every": 300,
+      "unit": "minutes",
+      "schedule": "@every 300m"
+    },
+    {
+      "every": 1440,
+      "unit": "minutes",
+      "schedule": "0 */24 * * *"
+    },
+    {
+      "every": 1,
+      "unit": "hours",
+      "schedule": "0 * * * *"
+    },
+    {
+      "every": 2,
+      "unit": "hours",
+      "schedule": "0 */2 * * *"
+    },
+    {
+      "every": 5,
+      "unit": "hours",
+      "schedule": "@every 5h"
+    },
+    {
+      "every": 8,
+      "unit": "hours",
+      "schedule": "0 */8 * * *"
+    },
+    {
+      "every": 24,
+      "unit": "hours",
+      "schedule": "0 */24 * * *"
+    },
+    {
+      "every": 48,
+      "unit": "hours",
+      "schedule": "@every 48h"
+    },
+    {
+      "every": 168,
+      "unit": "hours",
+      "schedule": "@every 168h"
+    }
+  ],
+  "parse": [
+    {
+      "schedule": "@every 16m",
+      "interval": {
+        "every": 16,
+        "unit": "minutes"
+      }
+    },
+    {
+      "schedule": "@every 5h",
+      "interval": {
+        "every": 5,
+        "unit": "hours"
+      }
+    },
+    {
+      "schedule": " @every 90m ",
+      "interval": {
+        "every": 90,
+        "unit": "minutes"
+      }
+    },
+    {
+      "schedule": "@every 16m ",
+      "interval": {
+        "every": 16,
+        "unit": "minutes"
+      }
+    },
+    {
+      "schedule": "  @every 5h",
+      "interval": {
+        "every": 5,
+        "unit": "hours"
+      }
+    },
+    {
+      "schedule": "\t@every 45m\n",
+      "interval": {
+        "every": 45,
+        "unit": "minutes"
+      }
+    },
+    {
+      "schedule": "\ufeff@every 16m",
+      "interval": {
+        "every": 16,
+        "unit": "minutes"
+      }
+    },
+    {
+      "schedule": "@every 10080m",
+      "interval": {
+        "every": 10080,
+        "unit": "minutes"
+      }
+    },
+    {
+      "schedule": "@every 168h",
+      "interval": {
+        "every": 168,
+        "unit": "hours"
+      }
+    },
+    {
+      "schedule": "@every 10081m",
+      "interval": null
+    },
+    {
+      "schedule": "@every 169h",
+      "interval": null
+    },
+    {
+      "schedule": "@every 99999m",
+      "interval": null
+    },
+    {
+      "schedule": "@every 100000m",
+      "interval": null
+    },
+    {
+      "schedule": "@every 0m",
+      "interval": null
+    },
+    {
+      "schedule": "@every 016m",
+      "interval": null
+    },
+    {
+      "schedule": "@every 1h30m",
+      "interval": null
+    },
+    {
+      "schedule": " @every 1h30m ",
+      "interval": null
+    },
+    {
+      "schedule": "@every 16",
+      "interval": null
+    },
+    {
+      "schedule": "@every 16 m",
+      "interval": null
+    },
+    {
+      "schedule": "@every -5m",
+      "interval": null
+    },
+    {
+      "schedule": "@every 1.5h",
+      "interval": null
+    },
+    {
+      "schedule": "@every 16s",
+      "interval": null
+    },
+    {
+      "schedule": "@every 2d",
+      "interval": null
+    },
+    {
+      "schedule": "@EVERY 16m",
+      "interval": null
+    },
+    {
+      "schedule": "@every16m",
+      "interval": null
+    },
+    {
+      "schedule": "*/16 * * * *",
+      "interval": null
+    },
+    {
+      "schedule": "",
+      "interval": null
+    }
+  ],
+  "canonicalize": [
+    {
+      "schedule": "@every 30m",
+      "canonical": "*/30 * * * *"
+    },
+    {
+      "schedule": "@every 2h",
+      "canonical": "0 */2 * * *"
+    },
+    {
+      "schedule": "@every 60m",
+      "canonical": "0 * * * *"
+    },
+    {
+      "schedule": "@every 120m",
+      "canonical": "0 */2 * * *"
+    },
+    {
+      "schedule": "@every 1440m",
+      "canonical": "0 */24 * * *"
+    },
+    {
+      "schedule": "@every 24h",
+      "canonical": "0 */24 * * *"
+    },
+    {
+      "schedule": " @every 16m ",
+      "canonical": "@every 16m"
+    },
+    {
+      "schedule": "@every 5h",
+      "canonical": "@every 5h"
+    },
+    {
+      "schedule": "*/16 * * * *",
+      "canonical": "*/16 * * * *"
+    },
+    {
+      "schedule": "@every 1h30m",
+      "canonical": "@every 1h30m"
+    }
+  ],
+  "next": [
+    {
+      "schedule": "@every 16m",
+      "after": "2026-06-12T12:48:00.000Z",
+      "next": "2026-06-12T13:04:00.000Z"
+    },
+    {
+      "schedule": "@every 16m",
+      "after": "2026-06-12T12:50:10.000Z",
+      "next": "2026-06-12T13:04:00.000Z"
+    },
+    {
+      "schedule": "@every 16m",
+      "after": "2026-06-12T13:04:00.000Z",
+      "next": "2026-06-12T13:20:00.000Z"
+    },
+    {
+      "schedule": "\ufeff@every 16m",
+      "after": "2026-06-12T12:48:00.000Z",
+      "next": "2026-06-12T13:04:00.000Z"
+    },
+    {
+      "schedule": "@every 5h",
+      "after": "2026-06-12T00:00:00.000Z",
+      "next": "2026-06-12T01:00:00.000Z"
+    },
+    {
+      "schedule": "@every 5h",
+      "after": "2026-06-12T01:00:00.000Z",
+      "next": "2026-06-12T06:00:00.000Z"
+    },
+    {
+      "schedule": "@every 1m",
+      "after": "1970-01-01T00:00:00.000Z",
+      "next": "1970-01-01T00:01:00.000Z"
+    },
+    {
+      "schedule": "@every 10080m",
+      "after": "2026-06-12T00:00:00.000Z",
+      "next": "2026-06-18T00:00:00.000Z"
+    },
+    {
+      "schedule": "@every 16m",
+      "after": "1969-12-31T23:50:00.000Z",
+      "next": "1970-01-01T00:00:00.000Z"
+    },
+    {
+      "schedule": "@every 16m",
+      "after": "1969-12-31T23:44:00.000Z",
+      "next": "1970-01-01T00:00:00.000Z"
+    },
+    {
+      "schedule": "@every 16m",
+      "after": "1969-12-31T23:30:00.000Z",
+      "next": "1969-12-31T23:44:00.000Z"
+    },
+    {
+      "schedule": "@every 7m",
+      "after": "1969-12-31T23:59:59.999Z",
+      "next": "1970-01-01T00:00:00.000Z"
+    },
+    {
+      "schedule": "@every 3h",
+      "after": "1969-12-31T20:00:00.000Z",
+      "next": "1969-12-31T21:00:00.000Z"
+    },
+    {
+      "schedule": "@every 1h30m",
+      "after": "2026-06-12T00:00:00.000Z",
+      "next": null
+    },
+    {
+      "schedule": "@every 0m",
+      "after": "2026-06-12T00:00:00.000Z",
+      "next": null
+    }
+  ]
+}

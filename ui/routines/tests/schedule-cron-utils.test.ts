@@ -7,9 +7,9 @@ import {
   type ScheduleOptions,
 } from "../src/schedule-cron-utils.ts";
 import {
-  cronToInterval,
-  intervalToCron,
+  intervalToSchedule,
   type ScheduleInterval,
+  scheduleToInterval,
 } from "../src/schedule-interval-utils.ts";
 import { cronSummary } from "../src/schedule-summary.ts";
 
@@ -139,83 +139,89 @@ describe("cronSummary", () => {
   });
 });
 
-describe("intervalToCron", () => {
+describe("intervalToSchedule", () => {
   it("builds every-N-minute crons", () => {
     assert.equal(
-      intervalToCron({ every: 1, unit: "minutes" }, "09:00"),
+      intervalToSchedule({ every: 1, unit: "minutes" }, "09:00"),
       "* * * * *",
     );
     assert.equal(
-      intervalToCron({ every: 5, unit: "minutes" }, "09:00"),
+      intervalToSchedule({ every: 5, unit: "minutes" }, "09:00"),
       "*/5 * * * *",
     );
   });
   it("builds every-N-hour crons", () => {
     assert.equal(
-      intervalToCron({ every: 1, unit: "hours" }, "09:00"),
+      intervalToSchedule({ every: 1, unit: "hours" }, "09:00"),
       "0 * * * *",
     );
     assert.equal(
-      intervalToCron({ every: 2, unit: "hours" }, "09:00"),
+      intervalToSchedule({ every: 2, unit: "hours" }, "09:00"),
       "0 */2 * * *",
     );
   });
   it("builds every-N-day crons honoring the time of day", () => {
     assert.equal(
-      intervalToCron({ every: 1, unit: "days" }, "08:30"),
+      intervalToSchedule({ every: 1, unit: "days" }, "08:30"),
       "30 8 * * *",
     );
     assert.equal(
-      intervalToCron({ every: 3, unit: "days" }, "08:30"),
+      intervalToSchedule({ every: 3, unit: "days" }, "08:30"),
       "30 8 */3 * *",
     );
   });
   it("builds every-N-month crons on a day of month", () => {
     assert.equal(
-      intervalToCron({ every: 1, unit: "months", dayOfMonth: 15 }, "09:00"),
+      intervalToSchedule({ every: 1, unit: "months", dayOfMonth: 15 }, "09:00"),
       "0 9 15 * *",
     );
     assert.equal(
-      intervalToCron({ every: 2, unit: "months", dayOfMonth: 1 }, "07:00"),
+      intervalToSchedule({ every: 2, unit: "months", dayOfMonth: 1 }, "07:00"),
       "0 7 1 */2 *",
     );
   });
   it("clamps the count to at least 1", () => {
     assert.equal(
-      intervalToCron({ every: 0, unit: "minutes" }, "09:00"),
+      intervalToSchedule({ every: 0, unit: "minutes" }, "09:00"),
       "* * * * *",
     );
   });
 });
 
-describe("cronToInterval", () => {
+describe("scheduleToInterval", () => {
   it("parses interval crons back into structured intervals", () => {
-    assert.deepEqual(cronToInterval("* * * * *"), {
+    assert.deepEqual(scheduleToInterval("* * * * *"), {
       every: 1,
       unit: "minutes",
     });
-    assert.deepEqual(cronToInterval("*/5 * * * *"), {
+    assert.deepEqual(scheduleToInterval("*/5 * * * *"), {
       every: 5,
       unit: "minutes",
     });
-    assert.deepEqual(cronToInterval("0 * * * *"), { every: 1, unit: "hours" });
-    assert.deepEqual(cronToInterval("0 */2 * * *"), {
+    assert.deepEqual(scheduleToInterval("0 * * * *"), {
+      every: 1,
+      unit: "hours",
+    });
+    assert.deepEqual(scheduleToInterval("0 */2 * * *"), {
       every: 2,
       unit: "hours",
     });
-    assert.deepEqual(cronToInterval("30 8 * * *"), { every: 1, unit: "days" });
-    assert.deepEqual(cronToInterval("30 8 */3 * *"), {
+    assert.deepEqual(scheduleToInterval("30 8 * * *"), {
+      every: 1,
+      unit: "days",
+    });
+    assert.deepEqual(scheduleToInterval("30 8 */3 * *"), {
       every: 3,
       unit: "days",
     });
   });
   it("parses monthly crons", () => {
-    assert.deepEqual(cronToInterval("0 9 15 * *"), {
+    assert.deepEqual(scheduleToInterval("0 9 15 * *"), {
       every: 1,
       unit: "months",
       dayOfMonth: 15,
     });
-    assert.deepEqual(cronToInterval("0 7 1 */2 *"), {
+    assert.deepEqual(scheduleToInterval("0 7 1 */2 *"), {
       every: 2,
       unit: "months",
       dayOfMonth: 1,
@@ -223,12 +229,12 @@ describe("cronToInterval", () => {
   });
   it("returns null for crons the picker can't represent", () => {
     // Weekly day lists/ranges belong to the Weekly preset, not the custom picker.
-    assert.equal(cronToInterval("0 9 * * 1,3,5"), null);
-    assert.equal(cronToInterval("0 9 * * 1-5"), null);
-    assert.equal(cronToInterval("0 9 1-3 * *"), null); // day-of-month range
-    assert.equal(cronToInterval("not a cron"), null);
+    assert.equal(scheduleToInterval("0 9 * * 1,3,5"), null);
+    assert.equal(scheduleToInterval("0 9 * * 1-5"), null);
+    assert.equal(scheduleToInterval("0 9 1-3 * *"), null); // day-of-month range
+    assert.equal(scheduleToInterval("not a cron"), null);
   });
-  it("round-trips through intervalToCron", () => {
+  it("round-trips through intervalToSchedule", () => {
     const cases: ScheduleInterval[] = [
       { every: 1, unit: "minutes" },
       { every: 15, unit: "minutes" },
@@ -238,9 +244,9 @@ describe("cronToInterval", () => {
       { every: 3, unit: "months", dayOfMonth: 1 },
     ];
     for (const interval of cases) {
-      const cron = intervalToCron(interval, "07:45");
+      const cron = intervalToSchedule(interval, "07:45");
       assert.deepEqual(
-        cronToInterval(cron),
+        scheduleToInterval(cron),
         interval,
         `${JSON.stringify(interval)} -> ${cron}`,
       );

@@ -139,6 +139,30 @@ describe("per-agent policy", () => {
       { method: "GET", url: `${BASE}/v1/agents/a1/trigger-status`, body: null },
     ]);
   });
+
+  it("keeps a plan skip it can explain and drops one it cannot", async () => {
+    const skipped = {
+      code: "plan_min_interval" as const,
+      count: 21,
+      last_at: "2026-10-05T19:43:49Z",
+    };
+    const { sdk } = ok({
+      items: [
+        { routine_id: "r1", status: "active", plan_skipped: skipped },
+        {
+          routine_id: "r2",
+          status: "active",
+          plan_skipped: { ...skipped, code: "plan_future_rule" },
+        },
+        { routine_id: "r3", status: "error", detail: "x", plan_skipped: null },
+      ],
+    });
+    expect(await sdk.teams.agentTriggerStatus("a1")).toEqual([
+      { routine_id: "r1", status: "active", plan_skipped: skipped },
+      { routine_id: "r2", status: "active" },
+      { routine_id: "r3", status: "error", detail: "x" },
+    ]);
+  });
 });
 
 describe("what the module refuses to soften", () => {

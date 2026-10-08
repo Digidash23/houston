@@ -21,9 +21,10 @@ export interface SdkEffort {
  * - `medium` / `high` — reasoning ON at the matching effort.
  * - `xhigh` — pi's ceiling → the SDK's maximum effort (`max`).
  *
- * Reasoning is never disabled: every model the anthropic provider offers
- * (Sonnet 5.5, Opus 5.5, Fable 5.1) is always-thinking, and pi lists neither
- * `off` nor `minimal` for them, so `minimal` takes the lowest level they run.
+ * Reasoning is never disabled: Houston never turns thinking off on the
+ * anthropic lineup (Sonnet 5.5, Opus 5.5, Fable 5.1, Haiku 5.5), and pi lists
+ * neither `off` nor `minimal` for them, so `minimal` takes the lowest level
+ * they run.
  */
 export function toSdkEffort(level: ThinkingLevel): SdkEffort {
   switch (level) {

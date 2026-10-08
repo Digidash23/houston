@@ -1,3 +1,4 @@
+import { AZURE_OPENAI } from "../ai/azure-openai";
 import { providerDefaultModel, safeGetModel } from "../ai/providers";
 import { untrackedFetch } from "./turn-network-marks";
 
@@ -33,7 +34,6 @@ const NOT_WARMED = new Set([
   "xiaomi",
   "github-copilot",
 ]);
-const AZURE_OPENAI = "azure-openai-responses";
 
 /** The URL whose origin a turn on this provider and model calls, or undefined
  *  when nothing in this process can warm it. */

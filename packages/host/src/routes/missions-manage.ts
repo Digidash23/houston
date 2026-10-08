@@ -6,7 +6,10 @@ import {
   saveActivities,
   upsertById,
 } from "@houston/domain";
-import type { PendingInteraction } from "@houston/protocol";
+import {
+  type PendingInteraction,
+  parseModelCallReport,
+} from "@houston/protocol";
 import { assistantRuntimeRole } from "../launcher/assistant-role";
 import { withDocLock } from "./doc-lock";
 import { json, readJson } from "./http";
@@ -144,6 +147,8 @@ export async function handleMissionSettle(
   // /sandbox write arriving after the work finished is refused as out-of-turn
   // rather than served against a turn that is no longer running.
   liveTurns.end(ctx.agent.id, cid);
+  const modelCalls = parseModelCallReport(body.model_calls);
+  if (modelCalls) ctx.deps.modelCallReports?.(modelCalls);
   const settled = await withDocLock(`${ctx.root}#activity`, async () => {
     const { items } = await loadActivities(ctx.vfs, ctx.root);
     const current = items.find((a) => missionConversationKey(a) === cid);

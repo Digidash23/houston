@@ -7,16 +7,12 @@ import {
 } from "@houston/domain";
 import type { Activity, AgentConfig, Capabilities } from "@houston/protocol";
 import { MemoryCredentialStore } from "../credentials/store";
-import type {
-  ChannelCtx,
-  RuntimeChannel,
-  TokenVerifier,
-  TurnPin,
-} from "../ports";
+import type { TokenVerifier } from "../ports";
 import { workspaceRoot } from "../routes/agent-data";
 import { type ControlPlaneDeps, createControlPlaneServer } from "../server";
 import { MemoryWorkspaceStore } from "../store/memory";
 import { MemoryVfs } from "../vfs";
+import { SpyChannel } from "./first-day-spy-channel";
 
 /**
  * A control-plane host serving `POST /agents/:agentId/first-day` over memory
@@ -28,53 +24,6 @@ const verifier: TokenVerifier = {
     return bearer.startsWith("tok:") ? { userId: bearer.slice(4) } : null;
   },
 };
-
-export interface Fired {
-  conversationId: string;
-  text: string;
-  pin?: TurnPin;
-  actingUser?: string;
-}
-
-export class SpyChannel implements RuntimeChannel {
-  fired: Fired[] = [];
-  /** What every fire throws, after recording it; a string becomes an Error. */
-  failWith: string | Error | null = null;
-  /** Holds every fire until released, to overlap two starts deterministically. */
-  gate: Promise<void> | null = null;
-  async dispatch() {}
-  async fireTurn(
-    _ctx: ChannelCtx,
-    conversationId: string,
-    text: string,
-    pin?: TurnPin,
-    actingUser?: string,
-  ): Promise<void> {
-    if (this.gate) await this.gate;
-    this.fired.push({ conversationId, text, pin, actingUser });
-    if (this.failWith === null) return;
-    throw typeof this.failWith === "string"
-      ? new Error(this.failWith)
-      : this.failWith;
-  }
-  async cancelTurn() {
-    return false;
-  }
-  async busy() {
-    return false;
-  }
-  async runtimeStatus() {
-    return "running" as const;
-  }
-  async teardown() {}
-  async captureCredential() {
-    return { ok: true as const, provider: "openai-codex" };
-  }
-  async forgetCredential() {}
-  async saveApiKeyCredential() {}
-  async saveClaudeOAuthCredential() {}
-  async saveCustomEndpoint() {}
-}
 
 const CAPS: Capabilities = {
   profile: "cloud",
@@ -117,7 +66,9 @@ export interface FirstDayHost {
   close(): Promise<void>;
 }
 
-export async function bootFirstDayHost(): Promise<FirstDayHost> {
+export async function bootFirstDayHost(
+  opts: { gatewayFronted?: boolean } = {},
+): Promise<FirstDayHost> {
   const store = new MemoryWorkspaceStore();
   const vfs = new MemoryVfs();
   const channel = new SpyChannel();
@@ -129,6 +80,7 @@ export async function bootFirstDayHost(): Promise<FirstDayHost> {
     channels: { gke: channel },
     vfs,
     capabilities: CAPS,
+    ...(opts.gatewayFronted ? { gatewayFronted: true } : {}),
   };
   const server: Server = createControlPlaneServer(deps);
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));

@@ -1,4 +1,3 @@
-import { minFireGapMinutes } from "@houston/domain";
 import type { PlanSummary } from "@houston/wire-types";
 
 /** The visible usage is always a percentage, including malformed older responses. */
@@ -72,14 +71,4 @@ export function presenceDue(
   now: number,
 ): boolean {
   return lastReportedAt === null || now - lastReportedAt >= 600_000;
-}
-
-/** Cosmetic Free schedule gate; the gateway evaluates real fire times. */
-export function freeScheduleAllowed(
-  cron: string,
-  plan: PlanSummary | undefined,
-): boolean {
-  if (plan?.plan !== "free") return true;
-  const gap = minFireGapMinutes(cron);
-  return gap === null || gap >= (plan.routines?.minIntervalMinutes ?? 15);
 }

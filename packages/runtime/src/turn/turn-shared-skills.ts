@@ -142,6 +142,25 @@ export async function snapshotTurnSharedSkills(
 }
 
 /**
+ * The pooled turn's snapshot, after hydration (it reads the agent's own
+ * skills manifest) and after the worker answered: it never throws, so it
+ * cannot refuse the turn, and only the prompt waits for it.
+ */
+export async function snapshotPooledTurnSharedSkills(
+  deps: { sharedSkillsStore?: typeof turnSharedSkillsStore },
+  turn: Pick<TurnRequest, "gcsPrefix" | "claim" | "hostToken">,
+  storeConfig: TurnStoreConfig,
+  at: { root: string; workspaceDir: string; timings: Record<string, number> },
+): Promise<void> {
+  await snapshotTurnSharedSkills(
+    (deps.sharedSkillsStore ?? turnSharedSkillsStore)(turn, storeConfig),
+    turnSharedSkillsDir(at.root),
+    at.workspaceDir,
+  );
+  at.timings.t_shared_skills = performance.now();
+}
+
+/**
  * Half a skill folder is worse than none: the loader would offer a skill whose
  * reference files never arrived. The directory itself stays, since the file
  * guard was built on it.

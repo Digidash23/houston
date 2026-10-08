@@ -1,4 +1,5 @@
 import type { ChatInteractionCardProps } from "@houston-ai/chat";
+import { apiKeyNameAgentId } from "../lib/hands-on-screens";
 import type { NonPlanReadyStep } from "../lib/plan-ready";
 import { ChatConnectInteractionCard } from "./chat-connect-interaction-card";
 import { ChatCredentialInteractionCard } from "./chat-credential-interaction-card";
@@ -42,6 +43,9 @@ export function interactionStepCards(args: {
             key={step.id}
             stepId={step.id}
             surface={request.surface}
+            targetAgentId={request.agentId}
+            keyNameAgentId={apiKeyNameAgentId(steps)}
+            managerChat={accountScope}
             reason={request.reason}
             onFinished={(name) => {
               outcomes.handsOn.set(step.id, { name, finished: true });

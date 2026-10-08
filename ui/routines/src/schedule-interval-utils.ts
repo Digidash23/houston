@@ -1,12 +1,18 @@
 /**
  * Friendly "Repeat every N …" interval helpers for the custom branch of
  * ScheduleBuilder. Keeps the non-technical interval model and its mapping to and
- * from cron expressions in one place, separate from the preset cron logic.
+ * from schedule strings (cron, or the `@every` interval form) in one place,
+ * separate from the preset cron logic.
  *
  * Units: minutes / hours / days (run on an interval) and months (a day-of-month,
  * every N months). Weekly-on-chosen-days lives in the Weekly preset, not here.
  */
 import { parseTime } from "./schedule-format.ts";
+import {
+  everySchedule,
+  MAX_INTERVAL_MINUTES,
+  parseEverySchedule,
+} from "./schedule-interval-form.ts";
 
 /** Unit for the friendly "Repeat every N …" custom-interval picker. */
 export type IntervalUnit = "minutes" | "hours" | "days" | "months";
@@ -19,12 +25,38 @@ export interface ScheduleInterval {
 }
 
 /**
- * Build a cron expression from a friendly interval.
- * - minutes/hours: run around the clock (`*​/N`).
+ * The largest count each unit takes: minutes and hours stop at the 7-day
+ * interval cap; days and months at the largest cron step their field accepts
+ * (croner refuses `*​/32` days and `*​/13` months).
+ */
+export function intervalCountMax(unit: IntervalUnit): number {
+  switch (unit) {
+    case "minutes":
+      return MAX_INTERVAL_MINUTES;
+    case "hours":
+      return MAX_INTERVAL_MINUTES / 60;
+    case "days":
+      return 31;
+    case "months":
+      return 12;
+  }
+}
+
+/** A positive whole count no larger than the unit's maximum. */
+export function intervalCountAllowed(every: number, unit: IntervalUnit) {
+  return (
+    Number.isInteger(every) && every >= 1 && every <= intervalCountMax(unit)
+  );
+}
+
+/**
+ * Build a schedule string from a friendly interval.
+ * - minutes/hours: a true interval around the clock; cron `*​/N` when N divides
+ *   the hour (or day), else `@every Nm` / `@every Nh`.
  * - days: `*​/N` in the day-of-month field, at a fixed time.
  * - months: a fixed day-of-month, every N months (`*​/N` in the month field).
  */
-export function intervalToCron(
+export function intervalToSchedule(
   interval: ScheduleInterval,
   time: string,
 ): string {
@@ -32,9 +64,8 @@ export function intervalToCron(
   const { hour, minute } = parseTime(time);
   switch (interval.unit) {
     case "minutes":
-      return every === 1 ? "* * * * *" : `*/${every} * * * *`;
     case "hours":
-      return every === 1 ? "0 * * * *" : `0 */${every} * * *`;
+      return everySchedule(every, interval.unit);
     case "days":
       return every === 1
         ? `${minute} ${hour} * * *`
@@ -52,12 +83,15 @@ export function intervalToCron(
 }
 
 /**
- * Parse a cron expression back into a friendly interval, when it maps cleanly
- * onto one. Returns `null` for anything the picker can't represent, so the
- * caller can keep the raw cron untouched instead of misrepresenting it.
+ * Parse a schedule (cron or `@every`) back into a friendly interval, when it
+ * maps cleanly onto one. Returns `null` for anything the picker can't
+ * represent, so the caller can keep the raw schedule untouched instead of
+ * misrepresenting it. A legacy `*​/16` still reads back as 16 minutes.
  */
-export function cronToInterval(cron: string): ScheduleInterval | null {
-  const parts = cron.trim().split(/\s+/);
+export function scheduleToInterval(schedule: string): ScheduleInterval | null {
+  const every = parseEverySchedule(schedule);
+  if (every) return every;
+  const parts = schedule.trim().split(/\s+/);
   if (parts.length !== 5) return null;
   const [min, hour, dom, month, dow] = parts;
   const numericTime = /^\d+$/.test(min) && /^\d+$/.test(hour);

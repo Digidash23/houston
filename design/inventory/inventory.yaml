@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 123
+version: 127
 
 components:
   - id: agent-delegation-settings
@@ -582,9 +582,26 @@ components:
       on. Nothing can observe such an errand, so the card never claims to detect
       completion: "Open {screen}" navigates to the screen (tearing this card
       down and rebuilding it on return, so it holds no state), and "Done" beside
-      it plus the shared decline are the two honest answers. The composed reply
-      states which happened ("Opened {screen} and finished there." / "Skipped
-      opening {screen}.") so the agent is never left guessing, and the errand's
+      it plus the shared decline are the two honest answers. In the AI
+      Manager's chat ONLY, the two API errands are done INLINE, never by
+      navigating (a mission chat keeps the navigating API-keys card, and an
+      employee's API access reads as unavailable there). The API-key card always
+      shows the fixed line that the key is shown once and the Manager never sees
+      it, apart from the agent's reason; it names a key (defaulting to the
+      employee a sibling API access step names) once capabilities have loaded,
+      creates it and reveals the secret once with Copy and the "only time you'll
+      see this key" warning, with the inline key-limit notice and a quiet link to
+      manage keys in Settings before a key is shown. Done waits out a mint in
+      flight. Once the key is shown the card is locked: Done is the only way out
+      (no decline, no free-text row, no pager or dismiss, Esc does nothing). The
+      secret stays in the card's own state, is blocked from session replay, and
+      never reaches the reply, a message, the parked card or a cache. The API
+      access card ("API access for {employee}") shows that employee's "Copy
+      prompt for AI agent" button with its hint and its Agent ID and
+      Organization ID rows with copy buttons, the same block as the employee's
+      API access screen, with Done and the shared decline. The composed reply
+      states which happened ("Finished {screen}." / "Skipped {screen}.") so the
+      agent is never left guessing, and the errand's
       free-text decline relays the person's "do this instead" like every other
       step's. The card's in-progress state (the step it stands on, the answers
       already given, what each connect / sign-in / key / errand step ended up
@@ -595,7 +612,7 @@ components:
       actually runs on that conversation, whoever started it (this person, a
       routine, a teammate or another device), or the card is dismissed. A send
       the server refuses keeps it.
-    a11y: one step announced at a time, its question read as the modal title; option rows are role=radio in a radiogroup, keyboard-selectable by the left number badge's position digit and visible at rest (no hover gate), showing label + optional Recommended chip only (no description); the free-text escape field (a bordered text input with a leading pencil adornment, no embedded control) is always present on question steps and follows the fixed footer on signin/connect/credential steps; the pager's Back/Forward chevrons, collapse chevron, and dismiss X are labeled icon buttons; collapsed cards retain one muted, truncated context line; the footer's unified decline is a labeled button with an Esc keycap hint on every kind, and signin/connect add a labeled filled CTA (Enter fires it, Esc declines); a hands-on step adds TWO labeled footer buttons beside that decline, an outline "Done" confirm and a filled "Open" CTA carrying the return-key glyph (Enter opens the screen the card's title names), both absent when the screen is unrecognised or not this person's to open, so the decline is the only way on. While collapsed, step shortcuts are inert; while a turn runs, every action except the collapse chevron is disabled. The "N of M" pager copy is visible text.
+    a11y: one step announced at a time, its question read as the modal title; option rows are role=radio in a radiogroup, keyboard-selectable by the left number badge's position digit and visible at rest (no hover gate), showing label + optional Recommended chip only (no description); the free-text escape field (a bordered text input with a leading pencil adornment, no embedded control) is always present on question steps and follows the fixed footer on signin/connect/credential steps; the pager's Back/Forward chevrons, collapse chevron, and dismiss X are labeled icon buttons; collapsed cards retain one muted, truncated context line; the footer's unified decline is a labeled button with an Esc keycap hint on every kind, and signin/connect add a labeled filled CTA (Enter fires it, Esc declines); a hands-on step adds TWO labeled footer buttons beside that decline, an outline "Done" confirm and a filled "Open" CTA carrying the return-key glyph (Enter opens the screen the card's title names), both absent when the screen is unrecognised or not this person's to open, so the decline is the only way on; the Manager's inline API-key card instead pairs an outline "Done" with a filled "Create key" submit (Enter in the labeled "Key name" field creates), then a filled "Done" alone once the key is shown, and the inline API access card has a single filled "Done" beside the decline. While collapsed, step shortcuts are inert; while a turn runs, every action except the collapse chevron is disabled. The "N of M" pager copy is visible text.
     since: 4
 
   - id: interaction-approval-card
@@ -997,6 +1014,8 @@ components:
       The inline edit panel authors the wake mechanism: where the deployment
       supports event triggers it offers a plain-language "When should this
       happen?" choice (schedule / app event); otherwise it is schedule-only.
+      The inline schedule editor honors the plan's minimum interval the same
+      way the routine screen's does (no pick under it on Free).
       A row also carries a WARNING chip when the AI account the routine would
       run on is unusable -- not connected, needing a reconnect, or out of
       credits -- so a broken automation is visible in the list rather than only
@@ -1028,6 +1047,7 @@ components:
         schedule-editor,
         model-row,
         connection-health-badge,
+        plan-skip-notice,
         runs-modal,
       ]
     states:
@@ -1035,12 +1055,14 @@ components:
         viewing,
         editing-prompt,
         editing-schedule,
+        schedule-below-plan-minimum,
         loading-runs,
         no-runs-yet,
         delivery-expired,
         provider-connected,
         provider-unusable,
         provider-checking,
+        plan-skipped-events,
       ]
     variants: [full-screen]
     behavior: >-
@@ -1050,6 +1072,18 @@ components:
       shows the humanized cron with the SAME schedule-builder editor the rows
       use (plus the next fire time), or a trigger's plain-language event with
       its live activation chip (event bindings change via chat, not here).
+      The editor takes the VIEWER's own Free minimum interval on any routine
+      (SDK routineScheduleFloor: saving re-stamps the routine's creator to the
+      saver, whose plan the runs are judged on), bound to the SDK's one rule
+      (scheduleFloorRule: a cron's smallest REAL gap between fires, the same
+      rule the save check and the host's write gate run). The editor only
+      asks that rule: the custom minutes count starts at the lowest count it
+      accepts (on Free, 15; an uneven count saves as a true interval,
+      `@every 16m`, that runs exactly that far apart, so every count above it
+      is accepted too), minus stops there, a typed count below it snaps up on
+      blur with Save disabled until then, a preset it refuses is hidden (none
+      at 15), and a hint names the minimum. An existing shorter schedule
+      still reads as it is, with Save disabled until changed.
       The model row ALWAYS names the resolved pair -- provider + model, e.g.
       "Claude - Opus 5" -- whether the routine is pinned or follows the agent;
       an unpinned routine adds a quiet line saying so. Picking pins it (the fire
@@ -1069,7 +1103,16 @@ components:
       deadline explanation with guidance to try running the routine again;
       clicking an entry closes the modal and opens that run's chat in the shell panel
       (closing the chat returns to this screen). "Open chat" reaches the
-      routine's setup chat the same way.
+      routine's setup chat the same way. A trigger routine whose runs the
+      Free plan refused in the last 24 hours shows a notice on the screen AND
+      at the top of the Runs modal: how many runs were skipped and why (SDK
+      triggerPlanSkipNotice). The gateway judges the CREATOR's plan, so the
+      creator on Free sees the reason (the minimum interval, the one-routine
+      limit, or routines paused while away) with Upgrade to Plus, Choose
+      routine for the limit, and Resume first while still paused; on Plus it
+      is hidden. A routine naming no creator (an Agent Store install or an
+      import) is the viewer's own, as for the connection badge. Anyone else
+      sees a read-only line that it ran on its creator's Free plan.
     a11y: >-
       the screen title and sections are real headings; the prompt textarea is
       labeled; run rows are buttons whose accessible name carries the outcome,
@@ -1294,7 +1337,7 @@ components:
   - id: sidebar-team-block
     title: Sidebar group block
     purpose: A personal folder in the AI Employees rail.
-    anatomy: [header-row, group-glyph, group-name, disclosure-caret, rollup-badge, folder-menu, agent-rows, member-guide, empty-hint]
+    anatomy: [header-row, group-glyph, group-name, disclosure-caret, rollup-badge, folder-menu, agent-rows, empty-hint]
     states: [resting, expanded, collapsed, collapsed-rollup, menu-open, drop-target, empty, renaming]
     variants: [named-group]
     behavior: >-
@@ -1303,7 +1346,7 @@ components:
       offers Rename, Icon & color, Move to another space where available, and
       Delete group. Agent rows follow the group's stored order. Agents
       outside every folder share the header's left edge; members step 20px
-      in, and a 1px line runs down them under the header's glyph. A folder
+      in, with no line down the folder or between its members. A folder
       header, and a root employee right after a folder, start 12px below the
       row above, so a folder visibly ends where its members do. SidebarLayout order
       interleaves root employees and folders, with new employees at the start.
@@ -1325,7 +1368,8 @@ components:
       list: 64px around a 40px portrait, 12px from every edge of its pill,
       the name in semibold over a muted line of up to two lines with its badge
       at the end, and a hairline under the text that drops away around a
-      hovered or selected row and under the list's last row. On the collapsed
+      hovered or selected row, under the list's last row and under every
+      folder member. On the collapsed
       icon rail it is a 36px square around a 24px avatar, so the avatar and
       its running ring fit inside the square.
     a11y: >-
@@ -2199,6 +2243,31 @@ components:
       Real labeled buttons, a read-only labeled command input, status messages,
       and a focus-managed disconnect confirmation. All controls remain visible.
     since: 94
+
+  - id: api-keys-settings
+    title: API keys settings
+    purpose: Let a person mint and revoke the personal keys apps use to start work with their AI Employees, and read the open organization's ID.
+    anatomy: [section-header, docs-link, org-id-row, copy-action, key-list, key-row, create-action, create-dialog, one-time-reveal, revoke-confirmation]
+    states: [loading, empty, listed, error, creating, key-limit, revealed, org-id-loading, unavailable]
+    variants: [phone, desktop]
+    behavior: >-
+      Listed in Settings only where the deployment serves the public API (the
+      hosted gateway, on desktop and web). The docs link opens the developer docs
+      in the browser. The Organization ID row shows the slug API callers send as
+      x-houston-org for the organization open in the app, with a copy action; it hides
+      when the organization list cannot load. A new key's secret is shown once in the
+      create dialog and never cached, beside a "Try your key" curl
+      with that key filled in. Revoke asks for confirmation. Reaching the
+      20-key limit is said inline instead of reported as a bug. Each AI
+      Employee's Settings also has an "API access" row that opens its own
+      screen (back control to Settings): the employee's Agent ID and the
+      Organization ID with copy actions, a row into Settings > API keys, a
+      row opening the developer docs, and a copyable example request that
+      starts a task with that employee.
+    a11y: >-
+      Real labeled buttons for docs, copy, create and revoke; a focus-managed
+      create dialog and revoke confirmation. All controls remain visible.
+    since: 124
 
   - id: personal-plan-dialogs
     title: Personal plan dialogs

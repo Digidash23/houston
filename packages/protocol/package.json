@@ -39,6 +39,10 @@
       "types": "./src/domain/file-refusal.ts",
       "import": "./src/domain/file-refusal.ts"
     },
+    "./plan-min-interval": {
+      "types": "./src/plan-min-interval.ts",
+      "import": "./src/plan-min-interval.ts"
+    },
     "./interaction": {
       "types": "./src/domain/interaction.ts",
       "import": "./src/domain/interaction.ts"

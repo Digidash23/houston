@@ -7,7 +7,7 @@ import {
   interp,
   type ScheduleSummaryLabels,
 } from "../src/labels.ts";
-import { describeNextFire } from "../src/next-fire.ts";
+import { describeNextFire } from "../src/next-fire-describe.ts";
 import { cronSummary, presetSummary } from "../src/schedule-summary.ts";
 
 describe("chat-first label contract", () => {

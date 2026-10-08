@@ -3,6 +3,68 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v127 - 2026-10-07
+
+A trigger routine says when a Free plan skipped its runs. The routine screen
+and the top of its Runs modal show how many runs were skipped in the last 24
+hours and that the Free plan caused it: a run limit, the one routine Free
+keeps running, or routines paused while its creator was away. The creator
+gets what fixes it (Upgrade to Plus, Choose routine, Resume first while
+paused); on Plus the notice is hidden. A routine with no recorded creator
+(an Agent Store install or an import) counts as the viewer's own. A teammate
+sees a read-only line that it ran on its creator's Free plan. Before, a
+skipped run left no trace and the routine looked broken.
+
+The notice and the auto-pause banner share one frame: the status glyph sits
+in its own column so the title and body keep one left edge when they wrap, a
+hairline card on the routine screen and a recessed panel inside the Runs
+modal, and the way out (Upgrade, Resume) is the filled pill.
+
+The schedule editor (routine screen and list rows) no longer offers a
+schedule under the Free minimum interval to a person on Free, on any
+routine (saving makes them the routine's creator, whose plan the runs are
+judged on). Every pick is judged by its real gap between runs, the plan's
+own rule from the SDK. An uneven minutes count saves as a true interval
+that runs exactly that many minutes apart, so its real gap is the count
+itself. On Free the custom minutes count therefore accepts any count of 15
+or more, 16 and 17 included, and nothing below it: minus stops at 15, a
+typed count under it snaps up to 15 on blur and keeps Save disabled until
+it does, presets it refuses are hidden (none at 15), and a hint under the
+count names the limit. The save check and the engine use the same rule.
+An existing shorter schedule still shows as it is, with Save disabled until
+it is changed. A save the engine still refuses shows the plan's copy naming
+its own limit. Before, the editor offered every minute and only the save was
+refused.
+
+## v126 - 2026-10-07
+
+Folders on the desktop rail drop their lines. The 1px guide down a folder's
+members is gone, and so is the hairline between members. Members keep their
+20px step in, and root employees keep their hairlines. Phones have no rail.
+
+## v125 - 2026-10-05
+
+The AI Manager's two API errands work right in its chat card instead of
+sending the person to another screen, on desktop and phone. The API-key card
+names a key (the employee's name when one is in play), creates it and shows the
+secret once with Copy and the one-time warning, under a fixed line that the
+Manager never sees it; once shown, Done is the only way out. A quiet link still
+leads to Settings > API keys. The API access card shows the employee's ready
+prompt button, Agent ID and Organization ID with copy buttons. Mission chats
+keep the API-keys card that opens the screen. Errand replies now read
+"Finished {screen}." / "Skipped {screen}.", and the secret never reaches the
+conversation.
+
+## v124 - 2026-10-05
+
+Settings lists API keys again wherever the deployment serves the public API,
+on desktop and web. The screen links the developer docs, lists keys, mints
+one with a one-time reveal and revokes with a confirmation. A new Organization ID row
+above the keys shows the ID apps send to reach the open organization, with a copy
+button, on desktop and phone. Each AI Employee's Settings gains an "API
+access" row opening a screen with its Agent ID, the Organization ID, a way into
+API keys and the developer docs.
+
 ## v123 - 2026-10-05
 
 An open folder on the desktop rail with no AI Employees shows a muted "Drag an

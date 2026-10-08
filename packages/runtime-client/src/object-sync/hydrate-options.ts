@@ -28,6 +28,24 @@ export interface HydrateOptions {
   /** Download these candidates before filtering the non-priority objects. */
   priority?: (rel: string) => boolean;
   /**
+   * Admitted objects kept out of `done`: they start downloading once `done`
+   * resolves and land in `deferred`. A caller that defers must observe
+   * `deferred`, or its rejection goes unhandled.
+   */
+  defer?: (rel: string) => boolean;
+  /**
+   * Deferred objects only: one store read (an object, or a batch) gives up
+   * after this long, failing `deferred` instead of hanging whoever waits on
+   * it. Absent = no deadline, like the critical set.
+   */
+  deferredReadTimeoutMs?: number;
+  /**
+   * Deferred objects only: store reads in flight at once, batched or not
+   * (default: the critical set's). They download beside whatever the caller
+   * started on `done`, so a lower cap bounds the buffered batch bytes.
+   */
+  deferredParallel?: number;
+  /**
    * Keep the board's hydrated bytes in the manifest as its three-way merge
    * base (`SyncBackOptions.workerMerge`). Off for the standing store sync.
    */

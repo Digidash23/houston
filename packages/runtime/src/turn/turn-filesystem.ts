@@ -1,14 +1,18 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { FsVfs, type Vfs } from "@houston/host/src/vfs";
+import { FsVfs } from "@houston/host/src/vfs";
 import {
   DEFAULT_EXCLUDES,
-  type HydrateManifest,
   type HydrateOptions,
   type ObjectStore,
   startHydrate,
 } from "@houston/runtime-client/object-sync";
+import { watchDeferredFiles } from "./turn-deferred-watch";
 import { startLazyTurnFilesystem } from "./turn-filesystem-lazy";
+import type {
+  TurnFilesystem,
+  TurnFilesystemPreparation,
+} from "./turn-filesystem-types";
 import { turnHydrationError } from "./turn-hydration-error";
 import {
   resolveListedLayout,
@@ -25,40 +29,13 @@ export {
   turnSessionScopeIncludes,
 } from "./turn-filesystem-scope";
 export { syncTurnFilesystem } from "./turn-filesystem-sync";
+export type {
+  TurnFilesystem,
+  TurnFilesystemPreparation,
+} from "./turn-filesystem-types";
 
 /** Maximum hydrated bytes accepted by a pooled turn. */
 export const TURN_HYDRATE_MAX_BYTES = 2 * 1024 * 1024 * 1024;
-
-/** Hydrated manifest paired with the resolved on-disk layout. */
-export interface TurnFilesystem extends TurnLayout {
-  storeRoot: string;
-  /** Sync-back ownership: objects on disk (and, lazily, objects owned
-   *  without a download). A lazy tree grows this as handlers read. */
-  manifest: HydrateManifest;
-  /** Reads rooted at `storeRoot`: the real tree when hydrated, the
-   *  store-backed overlay when lazy. Readers that may touch an object the
-   *  op did not materialize (doc republish) go through this, never `fs`. */
-  vfs: Vfs;
-  /** Remote objects the lazy listing knows about (diagnostics). */
-  listedObjects: number;
-  skippedObjects: number;
-  /** The store's generation capability as the LISTING showed it. A filtered
-   *  or lazy manifest may be empty and cannot answer this on its own. */
-  generationAware: boolean;
-  /** Tool-call-time CAS writes already durable before the final sync pass. */
-  immediateWrites: Set<string>;
-}
-
-export interface TurnFilesystemPreparation {
-  filesystem: TurnFilesystem;
-  hydrated: Promise<TurnFilesystem>;
-  /** Attached immediately so a later synchronous setup failure cannot leave
-   *  the rejecting hydration promise unobserved. */
-  settled: Promise<
-    { ok: true; filesystem: TurnFilesystem } | { ok: false; error: unknown }
-  >;
-  abortHydration: () => void;
-}
 
 /** Hydrate an isolated store tree and resolve its layout. Claimed turns use
  *  the pool's 2 GiB cap; unclaimed turns keep hydrate's default. */
@@ -98,6 +75,10 @@ export async function startTurnFilesystem(opts: {
   maxBytes?: number;
   excludes?: string[];
   filter?: HydrateOptions["filter"];
+  /** Eager trees only: keep these out of `hydrated` (`workspaceReady`). */
+  defer?: HydrateOptions["defer"];
+  deferredReadTimeoutMs?: number;
+  deferredParallel?: number;
   lazy?: boolean;
   admit?: (relativePath: string) => boolean;
   allowLegacyLayout?: boolean;
@@ -139,6 +120,13 @@ export async function startTurnFilesystem(opts: {
       excludes,
       keepMergeBase: true,
       ...(opts.filter ? { filter: opts.filter } : {}),
+      ...(opts.defer ? { defer: opts.defer } : {}),
+      ...(opts.deferredReadTimeoutMs !== undefined
+        ? { deferredReadTimeoutMs: opts.deferredReadTimeoutMs }
+        : {}),
+      ...(opts.deferredParallel !== undefined
+        ? { deferredParallel: opts.deferredParallel }
+        : {}),
       priority: (rel) =>
         turnHydrationPriorityIncludes(
           layout?.dataRel,
@@ -156,12 +144,18 @@ export async function startTurnFilesystem(opts: {
       },
     });
     if (!layout) {
+      started.abort();
+      await Promise.allSettled([started.deferred]);
       throw new TurnSetupError(
         "layout_unexpected",
         "turn layout did not resolve from the store listing",
       );
     }
     if (opts.timings) opts.timings.t_startup_files = performance.now();
+    const watched = opts.defer
+      ? watchDeferredFiles(started.deferred, started.abort, opts.timings)
+      : undefined;
+    const workspaceReady = watched?.workspaceReady;
     const filesystem: TurnFilesystem = {
       ...layout,
       storeRoot,
@@ -171,6 +165,7 @@ export async function startTurnFilesystem(opts: {
       skippedObjects: started.skippedObjects,
       generationAware: started.listed.generationAware,
       immediateWrites: new Set(),
+      ...(watched ? watched : {}),
     };
     const hydrated = started.done.then(
       () => filesystem,
@@ -178,8 +173,8 @@ export async function startTurnFilesystem(opts: {
         throw turnHydrationError(error);
       },
     );
-    const settled = hydrated.then(
-      (result) => ({ ok: true as const, filesystem: result }),
+    const settled = Promise.all([hydrated, workspaceReady]).then(
+      () => ({ ok: true as const, filesystem }),
       (error: unknown) => ({ ok: false as const, error }),
     );
     return {

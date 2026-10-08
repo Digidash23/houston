@@ -13,6 +13,7 @@ import {
   createRoutineChecked,
   updateRoutineChecked,
 } from "@houston/host/src/routes/routine-write";
+import type { TurnLimits } from "@houston/protocol";
 import type { ObjectStore } from "@houston/runtime-client/object-sync";
 import { mutateTurnDocument } from "./turn-doc-cas";
 import type { TurnFilesystem } from "./turn-filesystem";
@@ -25,6 +26,8 @@ export interface TurnWriteRoutesDeps {
   workspaceId: string;
   conversationId: string;
   actingAs?: { userId: string; name?: string };
+  /** The acting person's plan limits; a routine save is held to its floor. */
+  limits?: TurnLimits;
 }
 
 const json = (status: number, body: unknown): Response =>
@@ -55,6 +58,8 @@ async function saveRoutine(
   const creating = typeof id !== "string" || id === "";
   const stableId = creating ? randomUUID() : id;
   const nowIso = new Date().toISOString();
+  const minIntervalMinutes = deps.limits?.routineMinIntervalMinutes;
+  const floor = minIntervalMinutes ? { minIntervalMinutes } : {};
   // Turn requests do not carry the account timezone, and the agent-scoped
   // store cannot read account preferences. Pooled cron validation therefore
   // keeps the null-zone fallback until dispatch includes that context.
@@ -74,6 +79,7 @@ async function saveRoutine(
               nowIso,
               id: stableId,
               createdBy: deps.actingAs?.userId,
+              ...floor,
             },
           )
         : updateRoutineChecked(
@@ -86,12 +92,14 @@ async function saveRoutine(
               triggersEnabled: true,
               nowIso,
               actorSub: deps.actingAs?.userId,
+              ...floor,
             },
           ),
   });
   if ("notFound" in result)
     return json(404, { error: `no routine with id '${id}'` });
-  if ("error" in result) return json(400, { error: result.error });
+  // A plan-floor refusal carries its code and minutes beside the reason.
+  if ("error" in result) return json(400, result);
   return json(creating ? 201 : 200, result.routine);
 }
 
