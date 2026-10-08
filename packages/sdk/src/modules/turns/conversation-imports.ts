@@ -75,7 +75,11 @@ export function createConversationImports(ctx: ModuleContext) {
     await outbox.owe(entry);
     let result: ConversationImportResult;
     try {
-      result = await send(entry);
+      // Spelled out, not `send(entry)`: the parity extractor routes this
+      // method to its host route by reading the client call here.
+      result = await ctx
+        .clientFor(agentId)
+        .importMessages(conversationId, request);
     } catch (err) {
       await outbox.settle(entry, err);
       if (
