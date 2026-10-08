@@ -270,7 +270,8 @@
       "gemini-3_5-flash": "Rápido y capaz. La mejor opción por defecto.",
       "gemini-3_1-flash-lite": "Ligero y veloz para tareas más simples.",
       "gemma-4-26b-a4b-it": "Modelo abierto Gemma de Google. Rápido y eficiente.",
-      "gemma-4-31b-it": "Modelo abierto Gemma de Google. Más capaz."
+      "gemma-4-31b-it": "Modelo abierto Gemma de Google. Más capaz.",
+      "mistral-large-4": "El modelo más capaz de Mistral. Contexto largo y razonamiento."
     },
     "connectMore": "Conectar otra IA…"
   },

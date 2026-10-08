@@ -132,8 +132,8 @@ describe("a stored retired Claude id reads as its family's lineup model", () => 
 });
 
 /**
- * pi 1.0.4's `anthropic` catalog (with Houston's Haiku 5.5 backport): every row, in pi's order, under pi's
- * own display names ("(latest)" suffixes included, which fold to the same
+ * pi 1.1.0's `anthropic` catalog: every row, in pi's order, under pi's own
+ * display names ("(latest)" suffixes included, which fold to the same
  * cross-provider key as their dated twins). The picker was reported missing
  * Sonnet 5.5 against a catalog that served it; this proves the data path keeps
  * it, first, against the catalog exactly as the host serves it.

@@ -270,7 +270,8 @@
       "gemini-3_5-flash": "Fast and capable. Best default.",
       "gemini-3_1-flash-lite": "Lightweight and quick for simpler tasks.",
       "gemma-4-26b-a4b-it": "Google's open Gemma model. Fast and efficient.",
-      "gemma-4-31b-it": "Google's open Gemma model. More capable."
+      "gemma-4-31b-it": "Google's open Gemma model. More capable.",
+      "mistral-large-4": "Mistral's most capable model. Long context, reasoning."
     },
     "connectMore": "Connect another AI…"
   },

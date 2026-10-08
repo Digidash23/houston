@@ -97,12 +97,17 @@ export const MODEL_ALIASES: Partial<
   // `mimo-v2.6-flash-free` in pi 0.87.1: the same free tier (zero cost,
   // text+image, 200k window), so the map holds the tier.
   opencode: { "mimo-v2.5-free": "mimo-v2.6-flash-free" },
-  // Each row is a model pi 0.99.1 dropped from OpenCode Go, mapped to its
-  // successor in the same price tier.
+  // Each row is a model pi dropped from OpenCode Go, mapped to its successor.
+  // 0.99.1 dropped the glm, kimi and qwen rows, each to the same price tier.
+  // 1.1.0 dropped the free `space-bunny-free` preview: `space-bunny` is the
+  // same model (same 1M window and output cap) out of preview, so a pin on it
+  // now draws plan usage. It is still the cheapest runnable home; with no row
+  // the pin would fall to glm-5.2, which costs about 9x more.
   "opencode-go": {
     "glm-5.1": "glm-5.2",
     "kimi-k2.6": "kimi-k2.7-code",
     "qwen3.7-max": "qwen3.8-max",
+    "space-bunny-free": "space-bunny",
   },
 };
 
