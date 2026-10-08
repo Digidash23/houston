@@ -485,12 +485,23 @@ test("routines stay readable but every write path refuses the routines store", (
     file,
     alias,
     ".houston/routines/new.json",
+    // The flat pre-v0.4 file: the boot layout migration moves it into the
+    // store when the store holds no document yet.
+    ".houston/routines.json",
   ]) {
     expect(() => guard.clampWrite(path), path).toThrow(refusal);
   }
   expect(() => guard.assertWritable(file)).toThrow(refusal);
-  expect(() => guard.clampWrite(".houston/activity/activity.json")).toThrow(
-    "Your board is changed with the mission tools, not by editing files.",
+  for (const path of [
+    ".houston/activity/activity.json",
+    ".houston/activity.json",
+  ]) {
+    expect(() => guard.clampWrite(path), path).toThrow(
+      "Your board is changed with the mission tools, not by editing files.",
+    );
+  }
+  expect(guard.clampWrite(".houston/routines.md")).toBe(
+    join(workspace, ".houston", "routines.md"),
   );
 });
 

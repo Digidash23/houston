@@ -1,6 +1,5 @@
 import { loadRoutineRuns } from "@houston/domain";
 import type { ChannelCtx } from "../ports";
-import { CreatorCheckedFirer } from "../schedule/creator-access";
 import { ChannelRoutineFirer } from "../schedule/firer";
 import { EXTERNAL_FIRE_GRACE_MS, Scheduler } from "../schedule/scheduler";
 import { UsageSampler } from "../usage/sampler";
@@ -37,11 +36,7 @@ export function createHostDaemons(
     vfs,
     paths,
     lock: bus,
-    // Off the gateway this host is the access authority, so it rechecks the
-    // routine's creator at fire time; behind it the gateway does.
-    firer: opts.gatewayFronted
-      ? new ChannelRoutineFirer({ local: channel })
-      : new CreatorCheckedFirer(new ChannelRoutineFirer({ local: channel })),
+    firer: new ChannelRoutineFirer({ local: channel }),
     events,
     replyReader: transcriptShadow,
     mode: opts.routineSchedulerMode ?? "local",

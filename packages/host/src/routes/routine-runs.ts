@@ -4,7 +4,6 @@ import type { Agent, Workspace } from "../domain/types";
 import type { WorkspacePaths } from "../paths";
 import type { RuntimeChannel } from "../ports";
 import { cancelRoutineRun } from "../schedule/cancel";
-import { CreatorCheckedFirer } from "../schedule/creator-access";
 import { ChannelRoutineFirer } from "../schedule/firer";
 import { fireRoutineRun, RoutineBusyError } from "../schedule/run";
 import type { Vfs } from "../vfs";
@@ -94,15 +93,10 @@ defineRoute({
     // badge said "connected" and the run failed "creator has no account
     // connected". Scheduled fires never had this gap (the control plane
     // mints the creator's token for them).
-    const channelFirer = new ChannelRoutineFirer(
+    const firer = new ChannelRoutineFirer(
       deps.channels,
       trustedActingAs(deps, req),
     );
-    // Off the gateway the run acts as the routine's creator, so it is held to
-    // the same creator check as a scheduled fire (schedule/creator-access.ts).
-    const firer = deps.gatewayFronted
-      ? channelFirer
-      : new CreatorCheckedFirer(channelFirer);
     try {
       const { runId } = await fireRoutineRun(
         {

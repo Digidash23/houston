@@ -5,7 +5,6 @@ import type { Agent, Workspace } from "../domain/types";
 import type { EventHub } from "../events/hub";
 import type { WorkspacePaths } from "../paths";
 import type { Vfs } from "../vfs";
-import { RoutineCreatorRefusedError } from "./creator-access";
 import { burnRoutineFireInstant, type FireLock } from "./fire-lock";
 import { type ReconcileDeps, reconcileAgentRuns } from "./reconcile";
 import { fireRoutineRun, RoutineBusyError } from "./run";
@@ -166,14 +165,6 @@ async function fireRoutine(
     // routine's history), so a warning breadcrumb suffices here.
     if (err instanceof TurnFireError && err.code === "no_provider") {
       console.warn(`[scheduler] routine ${routine.id} skipped: ${err.message}`);
-      return;
-    }
-    // The creator lost access to the agent: the errored run carries the
-    // remedy, and the log carries the access check's reason.
-    if (err instanceof RoutineCreatorRefusedError) {
-      console.warn(
-        `[scheduler] routine ${routine.id} refused: its creator cannot use agent ${agent.id} (${err.reason})`,
-      );
       return;
     }
     console.error(
