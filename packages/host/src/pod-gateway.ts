@@ -1,3 +1,5 @@
+import { captureFencingToken } from "@houston/runtime-client/object-sync";
+
 export interface PodGatewayConfig {
   baseUrl: string;
   orgSlug: string;
@@ -36,6 +38,8 @@ export function capturePodFence(
   response: Response,
 ): void {
   if (!response.ok) return;
-  const token = response.headers.get("X-Houston-Fencing-Token");
-  if (token) gateway.fence.token = token;
+  captureFencingToken(
+    gateway.fence,
+    response.headers.get("X-Houston-Fencing-Token"),
+  );
 }

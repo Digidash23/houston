@@ -52,9 +52,9 @@ interface WindowOverride {
  *   the variant loses nothing, while a served row WITHOUT the ceiling pins the
  *   bar at 100% and compacts at 258k on a chat the provider would carry on.
  *
- * `anthropic` carries no row: its lineup (Sonnet 5.5, Opus 5.5, Fable 5.1)
- * runs a native 1M window on every plan, Pro included, with no `[1m]` variant
- * and no usage credits, so pi's flat 1M stands.
+ * `anthropic` carries no row: its lineup (Sonnet 5.5, Opus 5.5, Fable 5.1,
+ * Haiku 5.5) runs a native 1M window on every plan, Pro included, with no
+ * `[1m]` variant and no usage credits, so pi's flat 1M stands.
  *
  * Every row here names a model the domain catalog still lists
  * (`@houston/domain` `VALID_MODELS`); a model the catalog drops is a row no

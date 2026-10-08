@@ -10,9 +10,29 @@ export class TurnFireError extends Error {
     message: string,
     readonly status: number,
     readonly code: string | null,
+    /**
+     * The provider the refusal names, when its body named one: the 409
+     * `no_provider` gate names the agent's SAVED provider (logged out, login
+     * expired) so a routine run can say which account to reconnect.
+     */
+    readonly provider: string | null = null,
   ) {
     super(message);
     this.name = "TurnFireError";
+  }
+
+  /** The `provider` field of a runtime error body, when it is JSON with one. */
+  static providerIn(body: string): string | null {
+    try {
+      const parsed: unknown = JSON.parse(body);
+      if (parsed && typeof parsed === "object" && "provider" in parsed) {
+        const provider = (parsed as { provider: unknown }).provider;
+        if (typeof provider === "string" && provider) return provider;
+      }
+    } catch {
+      // Not JSON: no provider named; the message keeps the verbatim body.
+    }
+    return null;
   }
 }
 
@@ -70,4 +90,54 @@ export function errorCodeFrom(body: string): string | null {
     // caller still gets the verbatim body in the error message.
   }
   return null;
+}
+
+/**
+ * undici's dial-time failure codes: the connection never opened, so the
+ * request provably never left. Every other `fetch failed` (a reset, a socket
+ * closed mid-exchange) can follow a request the server already received.
+ */
+const DIAL_FAILURE_CODES: ReadonlySet<string> = new Set([
+  "ECONNREFUSED",
+  "UND_ERR_CONNECT_TIMEOUT",
+]);
+
+/** Whether a fetch failed before its connection opened. */
+export function isDialFailure(err: unknown): boolean {
+  const code = (err as { cause?: { code?: unknown } } | null)?.cause?.code;
+  return (
+    err instanceof TypeError &&
+    err.message === "fetch failed" &&
+    typeof code === "string" &&
+    DIAL_FAILURE_CODES.has(code)
+  );
+}
+
+/**
+ * The turn POST failed after its connection opened: the runtime may have
+ * accepted the message and be running the turn. Never redeliver it: a second
+ * fire would start a second, concurrent run (a routine that sends email would
+ * send it twice). The one exception is `hostShuttingDown`.
+ */
+export class TurnDeliveryUncertainError extends Error {
+  constructor(
+    readonly reason: unknown,
+    /**
+     * The host's launcher had shut down when the POST failed, so the drain had
+     * already sent the runtime SIGTERM. From then on the runtime refuses new
+     * turns, and a turn it accepted earlier answered 202 at once and holds the
+     * process up until it ends. A POST still unanswered when the connection
+     * dies never started a turn that outlives the runtime: safe to redeliver.
+     */
+    readonly hostShuttingDown = false,
+  ) {
+    const code = (reason as { cause?: { code?: unknown } } | null)?.cause?.code;
+    const where = typeof code === "string" ? ` (${code})` : "";
+    super(
+      hostShuttingDown
+        ? `the runtime connection failed mid-request${where} while the host shut down; retry shortly`
+        : `the runtime connection failed mid-request${where}; the turn may have started`,
+    );
+    this.name = "TurnDeliveryUncertainError";
+  }
 }

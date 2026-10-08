@@ -10,6 +10,9 @@ import {
 export const INTERRUPTED_RUN_SUMMARY =
   "The routine was interrupted before it finished.";
 
+/** The run-row sentence for a run whose routine was deleted. */
+export const ORPHANED_RUN_SUMMARY = "This run's routine was deleted.";
+
 /** One sweep's decision for a run, applied only if the row is still `running`. */
 export interface RunUpdate {
   run: RoutineRun;
@@ -29,6 +32,12 @@ export interface RunUpdate {
  * What a sweep does with one running run: leave it in flight, record a
  * resume (no completion lock: the resumed turn's real reply must still win it
  * on a later sweep), or settle it (one replica owns that, under the lock).
+ *
+ * A run whose routine is gone (deleted mid-run, often by the agent itself
+ * for a one-shot routine) waits on the same
+ * clock as any other run, so a turn still in flight is never cut short. Once
+ * its turn is over it settles `cancelled`: nothing is left to classify its
+ * reply against, and a row left `running` holds its engine busy forever.
  */
 export type RunDecision =
   | { kind: "wait" }
@@ -37,7 +46,8 @@ export type RunDecision =
 
 export function decideRun(input: {
   run: RoutineRun;
-  routine: Routine;
+  /** null when the run's routine no longer exists. */
+  routine: Routine | null;
   reply: ChatMessage | null;
   nowMs: number;
   nowIso: string;
@@ -47,6 +57,8 @@ export function decideRun(input: {
   runIds: ReadonlySet<string>;
 }): RunDecision {
   const { run, routine, nowIso } = input;
+  const end = (ended: RoutineRun): RunDecision =>
+    settle(routine ? ended : orphaned(run, nowIso));
   // In a shared chat a reply stamped with another run's turn is that run's,
   // never this one's; a dead pooled turn is answered by its own id or not at
   // all.
@@ -59,7 +71,7 @@ export function decideRun(input: {
   // A dead turn's only reply is its interruption line (or none at all): the
   // run is over, and waiting out the timeout would only delay saying so.
   if (input.abandoned && (!reply || reply.interrupted !== undefined)) {
-    return settle({
+    return end({
       ...run,
       status: "error",
       summary: INTERRUPTED_RUN_SUMMARY,
@@ -79,7 +91,7 @@ export function decideRun(input: {
     (!reply || resumedReply !== null) &&
     input.nowMs - clockStartMs > ROUTINE_RUN_TIMEOUT_MS;
   if (timedOut) {
-    return settle({
+    return end({
       ...run,
       status: "error",
       summary: "The routine timed out without a response.",
@@ -104,7 +116,7 @@ export function decideRun(input: {
     // to a reader whose OWN account is connected. Everything else keeps the
     // verbatim provider text.
     const failure = routineRunFailure(reply.providerError);
-    return settle({
+    return end({
       ...run,
       status: "error",
       summary: failure
@@ -115,6 +127,7 @@ export function decideRun(input: {
     });
   }
 
+  if (!routine) return settle(orphaned(run, nowIso));
   const done = completeRoutineRun(run, routine, reply.content, nowIso);
   return {
     kind: "settle",
@@ -124,6 +137,13 @@ export function decideRun(input: {
     },
   };
 }
+
+const orphaned = (run: RoutineRun, nowIso: string): RoutineRun => ({
+  ...run,
+  status: "cancelled",
+  summary: ORPHANED_RUN_SUMMARY,
+  completed_at: nowIso,
+});
 
 const settle = (run: RoutineRun): RunDecision => ({
   kind: "settle",

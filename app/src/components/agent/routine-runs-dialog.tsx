@@ -13,12 +13,16 @@ import {
 } from "@houston-ai/core";
 import { RoutineRunList, type RunStatus } from "@houston-ai/routines";
 import { Loader2 } from "lucide-react";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { providerName } from "../../lib/providers";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Drawn above the history: why runs may be missing (the Free plan's
+   *  skipped events). Mounts only while the dialog is open. */
+  notice?: ReactNode;
   /** Newest-first runs of ONE routine; undefined while loading. */
   runs: RoutineRun[] | undefined;
   runsLoading: boolean;
@@ -33,6 +37,7 @@ interface Props {
 export function RoutineRunsDialog({
   open,
   onOpenChange,
+  notice,
   runs,
   runsLoading,
   locale,
@@ -47,6 +52,7 @@ export function RoutineRunsDialog({
         <DialogHeader>
           <DialogTitle>{t("details.runsTitle")}</DialogTitle>
         </DialogHeader>
+        {notice}
         <div className="max-h-[60dvh] min-h-0 overflow-y-auto">
           {runsLoading ? (
             <p className="flex items-center gap-2 px-1 py-2 text-sm text-ink-muted">
@@ -80,7 +86,10 @@ export function RoutineRunsHistory({
   // template-literal key would compile past a typo the locale validator can't
   // see. `undefined` keeps the run's own summary.
   const failureSummary = (run: RoutineRun): string | undefined => {
-    const provider = run.failure ? providerName(run.failure.provider) : "";
+    const provider =
+      run.failure && "provider" in run.failure
+        ? providerName(run.failure.provider)
+        : "";
     // An account the gateway signed out reads as "sign in again", not as
     // never connected (the SDK's `routineFailureCode` with the reader).
     switch (routineFailureCode(run, readerFor)) {
@@ -98,6 +107,8 @@ export function RoutineRunsHistory({
         return t("details.failure.outOfCredits", { provider });
       case "model_unavailable":
         return t("details.failure.modelUnavailable", { provider });
+      case "no_model":
+        return t("details.failure.noModel");
     }
   };
 

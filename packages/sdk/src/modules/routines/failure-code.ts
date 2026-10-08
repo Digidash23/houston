@@ -20,5 +20,6 @@ export function routineFailureCode(
 ): RoutineDeliveryFailureCode | RoutineRunFailureCode | undefined {
   if (run.delivery_failure) return run.delivery_failure.code;
   if (!run.failure) return undefined;
+  if (run.failure.code === "no_model") return run.failure.code;
   return failureCodeForReader(run.failure, readerFor?.(run.failure.provider));
 }

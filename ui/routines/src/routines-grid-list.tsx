@@ -40,6 +40,7 @@ export function RoutinesGridList({
   labels = DEFAULT_GRID_LABELS,
   rowLabels = DEFAULT_ROW_LABELS,
   scheduleLabels,
+  scheduleFloor,
   scheduleSummaryLabels = DEFAULT_SCHEDULE_SUMMARY_LABELS,
   nextFireLabels = DEFAULT_NEXT_FIRE_LABELS,
   triggerLabels = DEFAULT_TRIGGER_LABELS,
@@ -80,6 +81,7 @@ export function RoutinesGridList({
         }
         labels={rowLabels}
         scheduleLabels={scheduleLabels}
+        scheduleFloor={scheduleFloor}
         scheduleSummaryLabels={scheduleSummaryLabels}
         nextFireLabels={nextFireLabels}
         triggerLabels={triggerLabels}

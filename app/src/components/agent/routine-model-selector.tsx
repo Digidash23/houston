@@ -19,6 +19,7 @@ import { useRoutineModelResolution } from "../../hooks/use-routine-model-resolut
 import { genericErrorDescription } from "../../lib/error-report";
 import { providerModelLabel } from "../../lib/model-labels";
 import { toCanonicalProviderId } from "../../lib/provider-overrides";
+import { toastRoutineWriteFailure } from "../../lib/routine-write-failure";
 import type { Agent } from "../../lib/types";
 import { useUIStore } from "../../stores/ui";
 import { ChatModelSelector } from "../chat-model-selector";
@@ -44,11 +45,11 @@ export function RoutineModelSelector({ agent, routine, bordered }: Props) {
       { agentPath: agent.folderPath, routineId: routine.id, updates },
       {
         onError: (err) =>
-          addToast({
-            title: t("toasts.modelError"),
-            description: genericErrorDescription("set_routine_model", err),
-            variant: "error",
-          }),
+          toastRoutineWriteFailure(
+            err,
+            { title: t("toasts.modelError"), command: "set_routine_model" },
+            { addToast, describe: genericErrorDescription },
+          ),
       },
     );
 

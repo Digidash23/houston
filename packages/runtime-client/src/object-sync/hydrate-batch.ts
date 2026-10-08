@@ -6,7 +6,7 @@ import type { HydrateDownloadState, HydrateEntry } from "./hydrate-download";
 import type { ObjectStore } from "./object-store";
 import { keepsMergeBase } from "./sync-back-doc-merge";
 
-/** Keys per batched read, and batched reads in flight at once. */
+/** Keys per batched read, and batched reads in flight at once by default. */
 const BATCH_KEYS = 128;
 const BATCH_PARALLEL = 4;
 
@@ -26,6 +26,8 @@ export async function hydrateBatched(opts: {
   keepMergeBase?: boolean;
   signal: AbortSignal;
   limitError: (observedBytes: number) => Error;
+  /** Batched reads in flight at once (default 4). */
+  batchParallel?: number;
 }): Promise<HydrateEntry[]> {
   const chunks: HydrateEntry[][] = [];
   for (let index = 0; index < opts.entries.length; index += BATCH_KEYS) {
@@ -46,7 +48,12 @@ export async function hydrateBatched(opts: {
     }
   };
   await Promise.all(
-    Array.from({ length: Math.min(BATCH_PARALLEL, chunks.length) }, worker),
+    Array.from(
+      {
+        length: Math.min(opts.batchParallel ?? BATCH_PARALLEL, chunks.length),
+      },
+      worker,
+    ),
   );
   if (opts.state.failed) throw opts.state.firstError;
   return fallback;

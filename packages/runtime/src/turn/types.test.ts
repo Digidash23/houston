@@ -21,6 +21,17 @@ test("parseTurnRequest accepts an explicit auto mode", () => {
   expect(parseTurnRequest({ ...BASE, mode: "auto" }).mode).toBe("auto");
 });
 
+test("parseTurnRequest carries the gateway's plan limits, and only valid ones", () => {
+  expect(
+    parseTurnRequest({ ...BASE, limits: { routineMinIntervalMinutes: 15 } })
+      .limits,
+  ).toEqual({ routineMinIntervalMinutes: 15 });
+  expect(parseTurnRequest(BASE).limits).toBeUndefined();
+  // A garbled stamp is no limit, never a failed turn.
+  for (const limits of ["15", { routineMinIntervalMinutes: 0 }, [15]])
+    expect(parseTurnRequest({ ...BASE, limits }).limits).toBeUndefined();
+});
+
 test("parseTurnRequest never trusts the wire — an unknown mode is execute", () => {
   expect(parseTurnRequest({ ...BASE, mode: "execute" }).mode).toBe("execute");
   expect(parseTurnRequest({ ...BASE, mode: "PLAN" }).mode).toBe("execute");

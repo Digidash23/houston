@@ -8,11 +8,12 @@ import { routinePinnedPair } from "../src/lib/routine-pinned-pair.ts";
 // reads one model and is billed for another.
 describe("routinePinnedPair", () => {
   it("names the pinned provider's default when the fire path drops the model", () => {
-    // Haiku has no lineup model on `anthropic`: the fired turn keeps the
-    // PROVIDER pin and runs that provider's model, never the agent's own —
-    // so the screen names Claude, not whatever lab the agent is on.
+    // An id with no Claude family has no lineup model on `anthropic`: the
+    // fired turn keeps the PROVIDER pin and runs that provider's model, never
+    // the agent's own, so the screen names Claude, not whatever lab the agent
+    // is on.
     deepStrictEqual(
-      routinePinnedPair({ provider: "anthropic", model: "claude-haiku-4-5" }),
+      routinePinnedPair({ provider: "anthropic", model: "claude-2.1" }),
       { provider: "anthropic", model: DEFAULT_MODEL.anthropic },
     );
     // A finite-catalog id no table maps drops the same way.
@@ -31,6 +32,10 @@ describe("routinePinnedPair", () => {
     deepStrictEqual(
       routinePinnedPair({ provider: "anthropic", model: "claude-opus-4-8" }),
       { provider: "anthropic", model: "claude-opus-5-5" },
+    );
+    deepStrictEqual(
+      routinePinnedPair({ provider: "anthropic", model: "claude-haiku-4-5" }),
+      { provider: "anthropic", model: "claude-haiku-5-5" },
     );
     deepStrictEqual(
       routinePinnedPair({ provider: "openai-codex", model: "gpt-5.4-mini" }),

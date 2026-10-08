@@ -135,8 +135,13 @@ export async function startMission(
       },
       // Integration calls in the child act as the human driving the parent
       // turn (gateway only) — the same acting hand-off a routine firing does.
-      target.author?.user_id,
-      target.actingAs,
+      // The child also runs under the parent turn's plan limits, so a routine
+      // it saves is held to the same floor as one saved in the parent chat.
+      {
+        actingUser: target.author?.user_id,
+        actingAs: target.actingAs,
+        limits: target.limits,
+      },
     );
   } catch (err) {
     // The mission never started: leave no orphan card stuck on Running.

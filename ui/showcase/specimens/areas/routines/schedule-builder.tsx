@@ -1,5 +1,5 @@
 import { cn } from "@houston-ai/core";
-import type { SchedulePreset } from "@houston-ai/routines";
+import type { ScheduleFloor, SchedulePreset } from "@houston-ai/routines";
 import { ScheduleBuilder } from "@houston-ai/routines";
 import { storeSurface, storeType } from "@houston-ai/store";
 import { useState } from "react";
@@ -15,6 +15,25 @@ import {
 import { builderProps } from "./schedule-builder-parts";
 
 /**
+ * A stand-in for the plan rule the app binds (the SDK's real-gap rule): a
+ * minute step restarts at the top of the hour, so `*\/16` fires :48 then :00,
+ * while `@every 16m` runs exactly 16 apart.
+ */
+const FREE_FLOOR: ScheduleFloor = {
+  minutes: 15,
+  allows: (cron) => {
+    const every = cron.match(/^@every (\d+)(m|h)$/);
+    if (every) return Number(every[1]) * (every[2] === "h" ? 60 : 1) >= 15;
+    const step = cron.match(/^\*\/(\d+) \* \* \* \*$/);
+    if (cron === "* * * * *") return false;
+    if (!step) return true;
+    const n = Number(step[1]);
+    const last = Math.floor(59 / n) * n;
+    return (last === 0 ? 60 : Math.min(n, 60 - last)) >= 15;
+  },
+};
+
+/**
  * The builder is controlled, so every example owns the cron it edits — and
  * prints it, because the generated expression is the thing under review.
  */
@@ -22,10 +41,12 @@ function Builder({
   cron,
   presets,
   locale,
+  floor,
 }: {
   cron: string;
   presets?: SchedulePreset[];
   locale?: string;
+  floor?: ScheduleFloor;
 }) {
   const [value, setValue] = useState(cron);
   return (
@@ -35,6 +56,7 @@ function Builder({
         onChange={setValue}
         presets={presets}
         locale={locale}
+        floor={floor}
       />
       <code className={cn(storeType.meta, "block font-mono")}>{value}</code>
     </div>
@@ -81,6 +103,9 @@ function ScheduleBuilderSpecimen() {
         <SpecimenRow label="Custom in months — reveals day of month and time">
           <Builder cron="0 9 15 */3 *" />
         </SpecimenRow>
+        <SpecimenRow label="15-minute floor — an existing 5-minute schedule">
+          <Builder cron="*/5 * * * *" floor={FREE_FLOOR} />
+        </SpecimenRow>
       </SpecimenSection>
 
       <SpecimenProps items={builderProps} />
@@ -95,6 +120,7 @@ function ScheduleBuilderSpecimen() {
           "text-action-text",
           "text-ink",
           "text-ink-muted",
+          "text-warning-ink",
         ]}
       />
     </SpecimenPage>

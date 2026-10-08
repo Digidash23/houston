@@ -1,4 +1,5 @@
 export { mergeActivityArrays } from "./activity-merge";
+export { captureFencingToken } from "./fencing-token";
 export { fileSha256 } from "./file-hash";
 export type { HttpObjectStoreOptions } from "./http-store";
 export { HttpObjectStore } from "./http-store";
@@ -43,6 +44,7 @@ export {
   PrefetchedObjectStore,
   parsePrefetchedObjects,
 } from "./prefetched-store";
+export { StoreReadTimeoutError } from "./read-timeout";
 export { fetchWithRetry } from "./retry";
 export { mergeRoutineRunArrays } from "./routine-runs-merge";
 export type {
@@ -62,3 +64,9 @@ export {
 export { trustedBase, withMergeBase } from "./sync-back-merge-base";
 export type { ConflictBackoff } from "./sync-back-merge-retry";
 export { jitteredConflictBackoff } from "./sync-back-merge-retry";
+export type {
+  LeaseHolderState,
+  WriteLeaseProbeOptions,
+  WriteLeaseVerdict,
+} from "./write-lease-probe";
+export { createWriteLeaseProbe } from "./write-lease-probe";

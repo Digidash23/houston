@@ -45,7 +45,7 @@ export interface ModelOption {
   /**
    * Reasoning-effort levels this model accepts, ordered low→high. Omitted
    * or empty means the model has no effort control and the picker hides the
-   * effort row (e.g. Haiku).
+   * effort row (e.g. Haiku 4.5).
    */
   effortLevels?: readonly EffortLevel[];
   /**

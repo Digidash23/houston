@@ -351,3 +351,25 @@ test("every agent learns the AI Manager is Houston, in BOTH mirrors", () => {
       /Houston(shows|detects|combines|messages|records|attaches|asks|runs|reports|says)/,
     );
 });
+
+test("a turn that needs tools opens with one plain sentence, in BOTH mirrors (PRODUCT-1979)", () => {
+  // At least 60% of turns ran tools before any text, and the user saw nothing
+  // for about 22 s against about 8 s for turns that answered straight away.
+  // One sentence before the first work tool puts text on screen after one
+  // model call instead of several. The whole bullet is pinned so the mirrors
+  // cannot drift.
+  const rust = readFileSync(
+    fileURLToPath(
+      new URL(
+        "../../../app/src-tauri/src/houston_prompt/base.rs",
+        import.meta.url,
+      ),
+    ),
+    "utf8",
+  );
+  const bullet = norm(
+    '- When a turn needs tools to do the work (looking something up, reading files, running something, acting on an app), write one short sentence to the user before the first of those calls, saying in plain words what you are about to do, for example "Let me check your inbox for that invoice." Tools can take a while, and this line tells the user right away that you are on it. One sentence only: no file names, commands, or tool names. Write it once per turn; the status updates for long work still apply. Skip it when you answer without work tools, when the user asked for only a bare answer, and before `ask_user`, `request_connection`, `request_credential`, `suggest_actions`, or `suggest_reusable`, which follow their own rules.',
+  );
+  expect(norm(houstonSystemPrompt())).toContain(bullet);
+  expect(norm(rust)).toContain(bullet);
+});

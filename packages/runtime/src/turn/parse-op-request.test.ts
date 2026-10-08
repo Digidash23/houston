@@ -292,3 +292,29 @@ test("custom OAuth kinds and callback envelope validate every input", () => {
     ).toThrow();
   }
 });
+
+test("the envelope's plan limits ride the op, and only valid ones", () => {
+  const base = {
+    workspaceId: "w1",
+    agentId: "a1",
+    gcsPrefix: "ws/w1/a1",
+    hostToken: "ht",
+    claim: { id: "c", bootId: "b", token: "t", heartbeatUrl: "http://x/hb" },
+    op: {
+      kind: "route",
+      method: "PATCH",
+      rest: "routines/r1",
+      contentType: "application/json",
+      body: "{}",
+    },
+  };
+  expect(
+    parseOpRequest({ ...base, limits: { routineMinIntervalMinutes: 15 } })
+      .limits,
+  ).toEqual({ routineMinIntervalMinutes: 15 });
+  expect(parseOpRequest(base)).not.toHaveProperty("limits");
+  // A garbled stamp is no limit, never a failed op.
+  expect(
+    parseOpRequest({ ...base, limits: { routineMinIntervalMinutes: "15" } }),
+  ).not.toHaveProperty("limits");
+});

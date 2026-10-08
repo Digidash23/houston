@@ -1,5 +1,10 @@
 import type { IncomingMessage } from "node:http";
-import type { ActivityContributor, MissionStarter } from "@houston/protocol";
+import {
+  type ActivityContributor,
+  type MissionStarter,
+  parseRoutineFloorHeader,
+  ROUTINE_FLOOR_HEADER,
+} from "@houston/protocol";
 import { actingAuthorFor, routineActorFor } from "../auth/acting";
 import { isAssistantRequest } from "../auth/assistant-call";
 import type { UserId } from "../domain/types";
@@ -32,6 +37,26 @@ export interface AgentDataCaller {
   /** `houston` when the AI Manager made this request: a card it creates is
    *  stamped `started_by` (PRODUCT-1928). Absent for everyone else. */
   startedBy?: MissionStarter;
+  /**
+   * The acting person's plan floor for a routine save (minutes between
+   * fires), from the gateway-stamped `x-houston-routine-floor`. Read only
+   * where a gateway fronts every request: off it the header is client input.
+   */
+  routineFloorMinutes?: number;
+}
+
+/**
+ * The writer's plan floor the gateway stamped on this routine write
+ * (`x-houston-routine-floor`), or undefined. Trusted only where a gateway
+ * fronts every request: off it the header is client input.
+ */
+export function trustedRoutineFloor(
+  deps: { gatewayFronted?: boolean },
+  req: IncomingMessage,
+): number | undefined {
+  return deps.gatewayFronted
+    ? parseRoutineFloorHeader(req.headers[ROUTINE_FLOOR_HEADER])
+    : undefined;
 }
 
 /** The caller facts of one routed request, each read from what the host
@@ -47,10 +72,12 @@ export function agentDataCaller(
 ): AgentDataCaller {
   const createdBy = routineActorFor(deps, req, userId);
   const author = actingAuthorFor(deps, req);
+  const routineFloorMinutes = trustedRoutineFloor(deps, req);
   return {
     ...(createdBy ? { createdBy } : {}),
     ...(author ? { author } : {}),
     triggersEnabled: deps.triggersEnabled ?? false,
     ...(isAssistantRequest(deps, req) ? { startedBy: "houston" as const } : {}),
+    ...(routineFloorMinutes ? { routineFloorMinutes } : {}),
   };
 }

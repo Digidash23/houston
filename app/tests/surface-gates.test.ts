@@ -179,6 +179,19 @@ describe("surfaceGatesFor", () => {
     strictEqual("showSkills" in gates, false, "no Skills screen to gate");
   });
 
+  it("offers API keys only where the deployment serves the public API", () => {
+    const at = (capabilities: unknown) =>
+      surfaceGatesFor({
+        capabilities: capabilities as never,
+        isTeam: false,
+        assistant: present,
+        capabilitiesLoading: false,
+      }).showApiKeys;
+    strictEqual(at({ apiKeys: true }), true);
+    strictEqual(at({}), false);
+    strictEqual(at(null), false);
+  });
+
   it("keeps the skill acts that reach every employee to the space owner", () => {
     // Share to workspace, Enable for all and Delete for all edit every
     // employee's skills at once: that is the owner's call, not a manager's.

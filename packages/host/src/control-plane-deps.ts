@@ -19,7 +19,8 @@ import type { AssistantSandboxDeps } from "./routes/assistant-sandbox-deps";
 import type { CredentialServeHealer } from "./routes/credential-healer";
 import type { CustomIntegrationDeps } from "./routes/custom-integrations";
 import type { IntegrationDeps } from "./routes/integrations";
-import type { FireLock } from "./schedule/fire-lock";
+import type { MissionsDeps } from "./routes/missions-sandbox";
+import type { FireOutcomeLedger } from "./schedule/fire-outcome";
 import type { TranscriptShadow } from "./transcripts/http-shadow";
 import type { TriggerEventLock } from "./triggers/fire";
 import type { Vfs } from "./vfs";
@@ -143,7 +144,7 @@ export interface ControlPlaneDeps {
    */
   triggerLock?: TriggerEventLock;
   /** Shared scheduled-instant lock for local scans and CP-delivered fires. */
-  routineFireLock?: FireLock;
+  routineFireLock?: FireOutcomeLedger;
   /** Scheduled-instant lock TTL. Managed pods use 24h; other profiles 1h. */
   routineFireDedupTtlSec?: number;
   /** File-authoritative transcript writes mirrored through the sandbox facade. */
@@ -157,6 +158,8 @@ export interface ControlPlaneDeps {
    * edge and this host never sets on itself.
    */
   triggersEnabled?: boolean;
+  /** Turn-end model-call reports, forwarded to the gateway (managed pods). */
+  modelCallReports?: MissionsDeps["modelCallReports"];
   corsOrigin?: string;
   /**
    * Prometheus exposition for GET /metrics (HOU-1011): the boot-span ledger,
@@ -166,6 +169,14 @@ export interface ControlPlaneDeps {
   metrics?: { render(): Promise<string>; contentType: string };
   /** Managed-store write-fence state; absent on desktop and self-host. */
   storeFenced?: () => boolean;
+  /**
+   * Whether an agent-data write acknowledged now can still persist: asks the
+   * store's lease check (store-sync/write-fence.ts). Absent on desktop and
+   * self-host, where nothing fences.
+   */
+  storeWritable?: () => Promise<boolean>;
+  /** Ship an acknowledged write to the store now (store-sync/daemon.ts). */
+  storeSyncAfterWrite?: () => void;
   /**
    * Materialize a synthetic (dot-named) agent's directory — the personal
    * assistant's home (routes/assistant.ts). Local filesystem profiles only;

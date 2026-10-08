@@ -3,8 +3,19 @@ import {
   type SyncResult,
   syncBack,
 } from "@houston/runtime-client/object-sync";
+import { deferredWorkspaceFile } from "./turn-deferred-files";
+import { DeferredFilesAbandonedError } from "./turn-deferred-watch";
 import type { TurnFilesystem } from "./turn-filesystem";
 import { claimedTurnIncludes } from "./turn-filesystem-scope";
+
+function withoutDeferred(
+  include: (rel: string) => boolean,
+  deferredFailed: boolean,
+): (rel: string) => boolean {
+  return deferredFailed
+    ? (rel) => !deferredWorkspaceFile(rel) && include(rel)
+    : include;
+}
 
 /** Sync a turn, limiting a claimed writer to its granted turn-owned files. */
 export async function syncTurnFilesystem(opts: {
@@ -22,6 +33,24 @@ export async function syncTurnFilesystem(opts: {
   merges: SyncResult["merges"];
   manifest: SyncResult["manifest"];
 }> {
+  // A deferred upload landing mid-walk would read as a file the turn wrote.
+  // One that never landed is in no manifest, so its absence deletes nothing.
+  let deferredFailed = false;
+  if (opts.filesystem.workspaceReady) {
+    try {
+      await opts.filesystem.workspaceReady;
+    } catch (error) {
+      // No tool ran (the gate refused them all, or the prompt ended before
+      // any asked), so nothing in the deferred folders is the turn's: one
+      // that landed before the stop but never reached the manifest must not
+      // read as a new file to upload. The failure itself was reported once.
+      deferredFailed = true;
+      if (!(error instanceof DeferredFilesAbandonedError))
+        console.warn(
+          `[turn] syncing without the deferred files conversation=${opts.conversationId}`,
+        );
+    }
+  }
   const result = await syncBack(
     opts.store,
     opts.prefix,
@@ -37,10 +66,13 @@ export async function syncTurnFilesystem(opts: {
       workerMerge: true,
       ...(opts.claimed
         ? {
-            include: claimedTurnIncludes(
-              opts.filesystem.dataRel,
-              opts.filesystem.workspaceRel,
-              opts.conversationId,
+            include: withoutDeferred(
+              claimedTurnIncludes(
+                opts.filesystem.dataRel,
+                opts.filesystem.workspaceRel,
+                opts.conversationId,
+              ),
+              deferredFailed,
             ),
           }
         : {}),

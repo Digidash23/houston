@@ -1,5 +1,11 @@
 import type { Routine } from "@houston/protocol";
 import { expect, test } from "vitest";
+import {
+  routinePrompt,
+  routineRunPreamble,
+  routineTriggerPrompt,
+  SUPPRESSION_INSTRUCTION,
+} from "./routine-prompt";
 import { createRoutine } from "./routines";
 import {
   completeRoutineRun,
@@ -10,10 +16,6 @@ import {
   nextRun,
   pruneRoutineRuns,
   responseIsSilent,
-  routinePrompt,
-  routineRunPreamble,
-  routineTriggerPrompt,
-  SUPPRESSION_INSTRUCTION,
   validateSchedule,
 } from "./schedule";
 

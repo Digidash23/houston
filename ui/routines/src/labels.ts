@@ -56,18 +56,8 @@ export interface ScheduleSummaryLabels {
   everyNMonths: string;
 }
 
-/** Relative + absolute "next run" phrasing. `{m}`/`{h}`/`{d}`/`{day}`/`{time}`. */
-export interface NextFireLabels {
-  lessThanMinute: string;
-  inMinutes: string;
-  inHoursMinutes: string;
-  inDaysHours: string;
-  inDays: string;
-  today: string;
-  tomorrow: string;
-  soon: string;
-  at: string;
-}
+// The "next run" phrasing contract lives beside this file (size budget).
+export type { NextFireLabels } from "./labels-next-fire.ts";
 
 /** Schedule builder + picker-field labels. */
 export interface ScheduleLabels {
@@ -93,8 +83,16 @@ export interface ScheduleLabels {
   increase: string;
   /** Validation summary shown when the custom interval count is empty/invalid. */
   enterNumber: string;
+  /** Validation summary when the count is over its unit's maximum.
+   *  `{max}` is that maximum, `{unit}` the plural unit name. */
+  maxInterval: string;
   /** Validation summary shown when the Weekly preset has no day selected. */
   pickDay: string;
+  /**
+   * Hint under the minutes count when the builder has a `floor` (e.g. a
+   * plan's limit). `{minutes}` is the floor's minimum.
+   */
+  minIntervalHint: string;
   /** Accessible names for the time picker's hour / minute / AM-PM columns. */
   timePicker: { hour: string; minute: string; period: string };
   summary: ScheduleSummaryLabels;
@@ -157,38 +155,6 @@ export interface RoutineRowLabels {
   deleteCancel: string;
 }
 
-/** Human copy for each live trigger status (C9). Never technical. */
-export interface TriggerStatusLabels {
-  active: string;
-  pending: string;
-  paused_disconnected: string;
-  paused_revoked: string;
-  error: string;
-}
-
-/**
- * What an event-trigger routine says once it exists: the plain-language "wakes
- * on an event" summary fallback and the live status badge (incl. its one-click
- * recovery). All human, never "webhook"/"schema"/"instance". Picking the app and
- * choosing the exact event now happen in the setup chat, not a wizard form, so
- * this carries no picker/config-form copy.
- */
-export interface TriggerLabels {
-  /** Generic "wakes on an event" fallback, shown when an event-driven routine
-   *  has no humanized event summary yet. */
-  wakeEvent: string;
-  /** Status badge + its one-click recovery. */
-  status: TriggerStatusLabels;
-  /** Muted chip shown while a trigger routine has no status data yet — never a
-   *  healthy look. Never reads as "off" either; the status is simply unknown. */
-  statusUnknown: string;
-  /** Idle line for an active trigger routine that has not fired yet (no runs). */
-  waitingFirstEvent: string;
-  reconnect: string;
-  statusDisconnectedHint: string;
-  statusRevokedHint: string;
-}
-
 // English default values, co-located in a sibling file to keep this one small.
 export {
   DEFAULT_GRID_LABELS,
@@ -198,3 +164,4 @@ export {
   DEFAULT_SCHEDULE_SUMMARY_LABELS,
   DEFAULT_TRIGGER_LABELS,
 } from "./labels-default.ts";
+export type { TriggerLabels, TriggerStatusLabels } from "./labels-trigger.ts";

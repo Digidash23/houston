@@ -195,6 +195,39 @@
       "description": "\"{{name}}\" vai parar de funcionar imediatamente. Qualquer ferramenta que a use perderá o acesso. Isso não pode ser desfeito.",
       "confirm": "Revogar",
       "cancel": "Cancelar"
+    },
+    "orgId": {
+      "title": "ID da organização",
+      "description": "Os apps enviam este ID para trabalhar com os funcionários de IA de {{org}}. Suas chaves funcionam em todas as organizações das quais você participa, então troque para outra para ver o ID dela.",
+      "descriptionNoName": "Os apps enviam este ID para trabalhar com os funcionários de IA desta organização. Suas chaves funcionam em todas as organizações das quais você participa, então troque para outra para ver o ID dela.",
+      "copyFailed": "Não foi possível copiar o ID da organização"
+    },
+    "idRow": {
+      "copy": "Copiar",
+      "copied": "Copiado",
+      "loading": "Carregando…"
+    },
+    "agentAccess": {
+      "title": "Acesso via API",
+      "rowDescription": "Conecte outros apps e assistentes de IA a {{name}}",
+      "intro": "Outros apps e assistentes de IA podem iniciar tarefas com {{name}} pela API do Houston. Eles precisam destes IDs e de uma das suas chaves de API.",
+      "copyPrompt": "Copiar prompt para agente de IA",
+      "promptCopied": "Prompt copiado",
+      "promptCopyFailed": "Não foi possível copiar o prompt",
+      "promptHint": "Cole no seu agente ou assistente de IA. Ele não inclui nenhuma chave, então o agente vai pedir uma. As chaves são criadas em Chaves de API.",
+      "agentId": "ID do agente",
+      "agentIdCopyFailed": "Não foi possível copiar o ID do agente",
+      "keysRow": "Chaves de API",
+      "keysRowDescription": "Crie as chaves que seus apps usam para iniciar tarefas com {{name}}",
+      "docsRow": "Documentação para desenvolvedores",
+      "docsRowDescription": "Como trabalhar com {{name}} a partir do seu próprio código"
+    },
+    "example": {
+      "tryTitle": "Teste sua chave",
+      "tryHint": "Rode isto em um terminal. Ele lista seus funcionários de IA, assim você vê a chave funcionando.",
+      "missionTitle": "Exemplo de requisição",
+      "missionHint": "Inicia uma tarefa com {{name}}. Antes, defina HOUSTON_API_KEY com uma das suas chaves de API.",
+      "copyFailed": "Não foi possível copiar o exemplo"
     }
   },
   "channels": {
@@ -227,5 +260,6 @@
     "refresh": "Atualizar conexões",
     "notConfigured": "As conexões do Slack ainda não estão prontas para este espaço do Houston. Peça ao administrador do Houston para concluir a configuração do Slack e atualize.",
     "unsupported": "Os canais não estão disponíveis nesta instalação do Houston."
-  }
+  },
+  "advancedBadge": "Avançado"
 }

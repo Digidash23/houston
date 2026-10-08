@@ -1,10 +1,9 @@
-import { freeScheduleAllowed } from "@houston/sdk";
 import { useTranslation } from "react-i18next";
 import {
   useRoutineWritesForAnyAgent,
   useUpdateActivityForAnyAgent,
 } from "../../../hooks/queries";
-import { usePlan } from "../../../hooks/queries/use-plan";
+import { useRoutineScheduleFloor } from "../../../hooks/use-routine-schedule-floor";
 import { analytics } from "../../../lib/analytics";
 import { genericErrorDescription } from "../../../lib/error-report";
 import type { Agent } from "../../../lib/types";
@@ -30,7 +29,7 @@ export interface TeamRoutineActions {
 export function useTeamRoutineActions(agent: Agent): TeamRoutineActions {
   const { t } = useTranslation("routines");
   const { t: planT } = useTranslation("plan");
-  const { data: plan } = usePlan();
+  const floor = useRoutineScheduleFloor();
   const addToast = useUIStore((s) => s.addToast);
   const { update, remove, runNow, cancelRun } = useRoutineWritesForAnyAgent();
   const updateActivity = useUpdateActivityForAnyAgent();
@@ -42,8 +41,9 @@ export function useTeamRoutineActions(agent: Agent): TeamRoutineActions {
     // Inline cron edit from the row: the same update route every other routine
     // write uses (`schedule` clears any trigger binding server-side).
     onScheduleChange: (routineId, cron) => {
-      if (!freeScheduleAllowed(cron, plan)) {
-        addToast({ title: planT("shortInterval") });
+      // The same floor (and rule) the row editor got: the saver's own plan.
+      if (floor && !floor.allows(cron)) {
+        addToast({ title: planT("shortInterval", { minutes: floor.minutes }) });
         return;
       }
       update.mutate({ agentPath, routineId, updates: { schedule: cron } });

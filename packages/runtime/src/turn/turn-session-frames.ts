@@ -7,7 +7,8 @@ import type {
 } from "@houston/runtime-client";
 import type { HarnessSession } from "../backends/types";
 import type { newInteractionHolder } from "../session/interaction";
-import type { TurnSessionRequest } from "./turn-session-types";
+import type { ModelCallCollector } from "../session/model-call-report";
+import type { TurnOutcome, TurnSessionRequest } from "./turn-session-types";
 
 /** What a pooled turn accumulates from its session's wire stream. */
 export interface TurnFrames {
@@ -21,6 +22,8 @@ export interface TurnFrames {
    * so the inline card survives a reload of this cloud conversation.
    */
   providerError?: ProviderError;
+  /** The turn's per-call timings, attached when the prompt starts. */
+  modelCalls?: ModelCallCollector;
 }
 
 export function newTurnFrames(): TurnFrames {
@@ -70,4 +73,13 @@ export function collectTurnFrames(
     unsub();
     unsubMessageStart?.();
   };
+}
+
+/** The outcome field carrying the frames' model-call report, when any. */
+export function modelCallsOutcome(
+  frames: TurnFrames,
+  turnId: string,
+): Pick<TurnOutcome, "modelCalls"> {
+  const modelCalls = frames.modelCalls?.report(turnId);
+  return modelCalls ? { modelCalls } : {};
 }

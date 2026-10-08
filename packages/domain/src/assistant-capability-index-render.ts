@@ -71,6 +71,7 @@ const HANDS_ON_ERRANDS: Readonly<Record<HandsOnSurface, string>> = {
   files: "files on their device",
   routineWebhook: "a routine's webhook",
   orgDanger: "destroying a shared space",
+  agentApiAccess: "connecting an AI Employee to their own code",
 };
 
 /** One card the index names: the tool, and the errand it runs in plain words. */

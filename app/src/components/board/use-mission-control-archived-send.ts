@@ -53,6 +53,7 @@ export function useMissionControlArchivedSend({
         await tauriChat.send(agentPath, prompt, sessionKey, {
           providerOverride: pin.provider,
           modelOverride: pin.model,
+          effortOverride: pin.effort,
           modeOverride: DEFAULT_TURN_MODE,
           mentions,
         });

@@ -16,6 +16,7 @@ import type {
   WorkspaceId,
   WorkspaceRuntime,
 } from "./domain/types";
+import type { FireTurnOptions } from "./fire-turn-options";
 
 /**
  * The control plane's outward dependencies, as interfaces ("ports"). Each has at
@@ -206,6 +207,12 @@ export interface RuntimeLauncher {
    * id (pods) need no latch.
    */
   hold?(agentId: AgentId): () => void;
+  /**
+   * Whether shutdown has latched this launcher: it spawns nothing again and
+   * every runtime it held has been sent SIGTERM. Optional: a launcher with no
+   * shutdown latch is never closed.
+   */
+  isClosed?(): boolean;
 }
 
 /** The (workspace, agent) pair every channel operation is scoped to. */
@@ -262,18 +269,15 @@ export interface RuntimeChannel {
    * turn is ACCEPTED; throws when it can't be started (busy / quota / transport)
    * so the caller records an errored run instead of a silent miss.
    *
-   * `pin` carries the routine's provider/model/effort/mode overrides.
-   * `actingUser` is the local routine creator's bare `sub`. `actingAs` is a
-   * gateway-minted C2 token for an externally scheduled fire and replaces the
-   * bare header. Both are absent for legacy creator-less local routines.
+   * `pin` carries the routine's provider/model/effort/mode overrides; `opts`
+   * who the turn acts as and its limits ({@link FireTurnOptions}).
    */
   fireTurn(
     ctx: ChannelCtx,
     conversationId: string,
     text: string,
     pin?: TurnPin,
-    actingUser?: string,
-    actingAs?: string,
+    opts?: FireTurnOptions,
   ): Promise<void>;
   /**
    * Abort the in-flight turn on a conversation — the "stop this routine run"

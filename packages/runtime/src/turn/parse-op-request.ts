@@ -1,5 +1,6 @@
 import { ACTING_VIA_ASSISTANT } from "@houston/host/src/auth/acting";
 import { validDisplayName } from "@houston/host/src/auth/agent-name-header";
+import { parseTurnLimits, type TurnLimits } from "@houston/protocol";
 import type { ServedCredential } from "../auth/auth-file";
 import { type AgentOp, ID, parseAgentOp, str } from "./op-grammar";
 import { customOAuthCallbackUrl } from "./op-grammar-custom-oauth";
@@ -40,6 +41,9 @@ export interface OpRequest {
   credential: ServedCredential | null;
   triggersEnabled: boolean;
   customOAuthCallbackUrl?: string;
+  /** The acting person's plan limits, stamped by the gateway like a turn's:
+   *  a routine write this op makes is held to their floor. */
+  limits?: TurnLimits;
   op: AgentOp;
 }
 
@@ -91,6 +95,8 @@ export function parseOpRequest(body: unknown): OpRequest {
   const raw = b.op as Record<string, unknown> | undefined;
   if (!raw || typeof raw !== "object") throw new Error("invalid 'op'");
   const agentName = validDisplayName(b.agentName);
+  // A garbled stamp is no limit, never a failed op (parseTurnLimits).
+  const limits = parseTurnLimits(b.limits);
   return {
     workspaceId: str(b.workspaceId, "workspaceId"),
     agentId,
@@ -110,6 +116,7 @@ export function parseOpRequest(body: unknown): OpRequest {
 
     credential,
     triggersEnabled: b.triggersEnabled === true,
+    ...(limits ? { limits } : {}),
     ...(b.customOAuthCallbackUrl !== undefined
       ? {
           customOAuthCallbackUrl: customOAuthCallbackUrl(

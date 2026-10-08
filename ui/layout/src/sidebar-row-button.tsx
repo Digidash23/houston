@@ -149,7 +149,10 @@ export function SidebarRowButton({
           // at the end.
           <span
             data-person-text=""
-            className={cn(c.personText, active && c.personTextBare)}
+            className={cn(
+              c.personText,
+              (active || depth === "child") && c.personTextBare,
+            )}
           >
             <span className={c.personLine}>
               <span className={c.personName}>{label}</span>

@@ -1,3 +1,4 @@
+import type { ModelCallReport } from "@houston/protocol";
 import type { ChatMessage } from "@houston/runtime-client";
 import {
   appendAssistantMessage,
@@ -20,7 +21,8 @@ import { reportMissionSettle } from "./mission-settle";
  * cross-backend rebuild, a routine reset) that was to ride this prompt. No
  * backend saw it, so it is re-armed for the next turn. `providerSwitch` and
  * `compaction`: boundaries the setup already crossed, kept so the divider
- * survives a reload.
+ * survives a reload. `modelCalls`: the turn's call report, sent with the
+ * settle like every other turn end's (model-call-report.ts).
  */
 export function settleStoppedBeforePrompt(
   id: string,
@@ -29,6 +31,7 @@ export function settleStoppedBeforePrompt(
     replayedHistory: boolean;
     providerSwitch: ChatMessage["providerSwitch"];
     compaction: ChatMessage["compaction"];
+    modelCalls: ModelCallReport | undefined;
   },
 ): void {
   if (setup.replayedHistory) stampSessionReplay(id);
@@ -39,5 +42,5 @@ export function settleStoppedBeforePrompt(
     turnId,
   });
   // Same settle as a stop mid-prompt: back to the user, no interaction.
-  reportMissionSettle(id, "needs_you", null);
+  reportMissionSettle(id, "needs_you", null, setup.modelCalls);
 }

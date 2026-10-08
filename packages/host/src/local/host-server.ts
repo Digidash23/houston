@@ -7,6 +7,7 @@ import { refreshViewsOnEvents } from "../docs/view-warm";
 import { storeSyncRunsLock } from "../schedule/runs-lock";
 import { type ControlPlaneDeps, createControlPlaneServer } from "../server";
 import { StoreSyncDaemon } from "../store-sync";
+import { createModelCallForwarder } from "../telemetry/model-call-report";
 import { FsVfs } from "../vfs";
 import { managedBridgeCapability } from "./bridge-capability";
 import type { createHostBase } from "./host-base";
@@ -91,6 +92,7 @@ export function createHostServer(
         // FsWatcher below already watches this subtree for reactivity. Avoid a
         // second, redundant inotify watch over it (HOU-1237).
         watchExcludeDirs: [opts.workspacesRoot],
+        onFenceLost: opts.onStoreFenceLost,
         log: severityLog,
       })
     : undefined;
@@ -149,7 +151,16 @@ export function createHostServer(
     // non-public route: timings aren't secrets, but there is no reason to
     // widen the unauthenticated surface for them.
     metrics: { render: () => boot.render(), contentType: boot.contentType },
+    // Per-turn model-call timings ride the runtime's settle report; a managed
+    // pod forwards them to the gateway's metrics (same quadruple as usage).
+    modelCallReports: opts.usageReporting
+      ? createModelCallForwarder({ report: opts.usageReporting })
+      : undefined,
     storeFenced: syncDaemon ? () => syncDaemon.fenced : undefined,
+    storeWritable: syncDaemon ? () => syncDaemon.writable() : undefined,
+    storeSyncAfterWrite: syncDaemon
+      ? () => syncDaemon.syncAfterWrite()
+      : undefined,
     storeSyncFlush: syncDaemon ? () => syncDaemon.flush() : undefined,
     addressedAgent: docProjector
       ? (agentId) => {

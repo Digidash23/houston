@@ -4,7 +4,8 @@
  * as a ghost button with a small pencil glyph. Clicking opens a Popover holding
  * the full ScheduleBuilder (seeded with the routine's current cron) over a
  * compact Save / Cancel footer. Save commits the edited cron and closes; Cancel
- * discards the draft.
+ * discards the draft. With a `scheduleFloor` the builder emits "" for a pick
+ * the floor's rule refuses, and Save stays disabled until the pick is allowed.
  *
  * It re-enables pointer events and sits above the row-click button, so editing
  * the schedule never opens the routine's chat. Split out of RoutineRow to keep
@@ -25,6 +26,7 @@ import {
   type ScheduleLabels,
 } from "./labels";
 import { ScheduleBuilder } from "./schedule-builder";
+import type { ScheduleFloor } from "./schedule-floor";
 
 export interface RoutineRowScheduleEditProps {
   routineId: string;
@@ -43,6 +45,8 @@ export interface RoutineRowScheduleEditProps {
    * bordered field with the summary and a visible pencil (PRODUCT-1208).
    */
   variant?: "row" | "field";
+  /** A plan's minimum interval and its rule (memoized). Absent = no limit. */
+  scheduleFloor?: ScheduleFloor;
 }
 
 export function RoutineRowScheduleEdit({
@@ -54,19 +58,32 @@ export function RoutineRowScheduleEdit({
   scheduleLabels = DEFAULT_SCHEDULE_LABELS,
   locale = "en-US",
   variant = "row",
+  scheduleFloor,
 }: RoutineRowScheduleEditProps) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(cron);
+  // The schedule the editor opened on. Save compares the draft against THIS,
+  // not the live prop: if the agent changes the schedule while the editor is
+  // open, Save without edits must not write the old value back over it.
+  const [openedWith, setOpenedWith] = useState(cron);
 
   // Reseed the draft from the live cron every time the popover opens, so a
   // previously cancelled edit never leaks into the next one.
   const handleOpenChange = (next: boolean) => {
-    if (next) setDraft(cron);
+    if (next) {
+      setDraft(cron);
+      setOpenedWith(cron);
+    }
     setOpen(next);
   };
 
+  // The builder hands back "" for an invalid pick (a cleared or over-cap
+  // count, Weekly with no day, a pick under the floor), so Save stays
+  // disabled until it is valid. An untouched builder hands back nothing, so an
+  // existing schedule under the floor is judged here too.
+  const valid = draft.trim() !== "" && (scheduleFloor?.allows(draft) ?? true);
   const save = () => {
-    if (draft !== cron) onScheduleChange(routineId, draft);
+    if (valid && draft !== openedWith) onScheduleChange(routineId, draft);
     setOpen(false);
   };
 
@@ -116,12 +133,13 @@ export function RoutineRowScheduleEdit({
           onChange={setDraft}
           labels={scheduleLabels}
           locale={locale}
+          floor={scheduleFloor}
         />
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
             {labels.cancel}
           </Button>
-          <Button size="sm" onClick={save}>
+          <Button size="sm" onClick={save} disabled={!valid}>
             {labels.save}
           </Button>
         </div>

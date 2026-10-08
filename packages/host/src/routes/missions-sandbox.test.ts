@@ -1,9 +1,16 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { docKey, saveActivities } from "@houston/domain";
-import type { Activity, HoustonEvent, TurnMode } from "@houston/protocol";
+import type {
+  Activity,
+  HoustonEvent,
+  ModelCallReport,
+  TurnLimits,
+  TurnMode,
+} from "@houston/protocol";
 import { beforeEach, expect, test } from "vitest";
 import { ACTING_AS_HEADER } from "../auth/acting";
 import type { Agent, Workspace } from "../domain/types";
+import type { FireTurnOptions } from "../fire-turn-options";
 import { LocalPaths } from "../paths";
 import type {
   CredentialStore,
@@ -38,7 +45,12 @@ let ws: Workspace;
 let agent: Agent;
 let root: string;
 let events: HoustonEvent[];
-let fired: { cid: string; text: string; pin?: TurnPin }[];
+let fired: {
+  cid: string;
+  text: string;
+  pin?: TurnPin;
+  limits?: TurnLimits;
+}[];
 let fireError: Error | null;
 /** Which providers the host's central credential store holds a row for, or
  *  null for a deployment that has no store to judge with. */
@@ -67,9 +79,15 @@ const channel = {
     cid: string,
     text: string,
     pin?: TurnPin,
+    opts: FireTurnOptions = {},
   ): Promise<void> {
     if (fireError) throw fireError;
-    fired.push({ cid, text, pin });
+    fired.push({
+      cid,
+      text,
+      pin,
+      ...(opts.limits ? { limits: opts.limits } : {}),
+    });
   },
 } as unknown as RuntimeChannel;
 
@@ -117,6 +135,9 @@ async function call(
     /** An acting token the RUNTIME puts on its own loopback call (S16). */
     spoofedActingAs?: string;
     gatewayFronted?: boolean;
+    /** The plan limits the host recorded on the parent turn. */
+    limits?: TurnLimits;
+    modelCallReports?: (report: ModelCallReport) => void;
   } = {},
 ) {
   const headers: Record<string, string> = {
@@ -131,6 +152,7 @@ async function call(
   if (opts.conversationId)
     liveTurns.start(agent.id, opts.conversationId, opts.mode ?? "execute", {
       actingAs: opts.actingAs,
+      limits: opts.limits,
     });
   else liveTurns.forget(agent.id);
   const { res, captured } = fakeRes();
@@ -146,6 +168,9 @@ async function call(
       channels: { local: channel },
       ...(opts.gatewayFronted ? { gatewayFronted: true } : {}),
       ...(connectedProviders === null ? {} : { credentials }),
+      ...(opts.modelCallReports
+        ? { modelCallReports: opts.modelCallReports }
+        : {}),
     },
     method,
     path,
@@ -876,4 +901,62 @@ test("the after-turn title lands only while the card shows its fallback", async 
     conversation_id: "activity-m-1",
   });
   expect(bad.status).toBe(400);
+});
+
+test.each([
+  [true, { routineMinIntervalMinutes: 15 }],
+  [false, undefined],
+])("the child turn runs under its parent's plan limits behind the gateway (fronted: %s)", async (fronted, expected) => {
+  const r = await call(
+    "POST",
+    "/sandbox/missions/start",
+    { title: "t", prompt: "p" },
+    {
+      conversationId: "conv-parent",
+      gatewayFronted: fronted,
+      actingAs: actingToken("alice-sub", "Alice"),
+      limits: { routineMinIntervalMinutes: 15 },
+    },
+  );
+  expect(r.status).toBe(201);
+  expect(fired).toHaveLength(1);
+  expect(fired[0]?.limits).toEqual(expected);
+});
+
+test("settle hands a well-formed model-call report to the sink, any mission", async () => {
+  const reports: ModelCallReport[] = [];
+  const modelCalls = {
+    v: 1,
+    turnId: "turn-9",
+    backend: "pi",
+    startupMs: { session_build: 3, pre_prompt: 40 },
+    calls: [
+      {
+        provider: "openai-codex",
+        model: "gpt-6-luna",
+        ttfbMs: 900,
+        firstTokenMs: 300,
+        inputTokens: 100,
+        cacheReadTokens: 4000,
+        cacheWriteTokens: 0,
+        outputTokens: 20,
+      },
+    ],
+    droppedCalls: 0,
+  };
+  const sink = { modelCallReports: (r: ModelCallReport) => reports.push(r) };
+  // A user mission's settle changes no card, yet its timings still count.
+  await call(
+    "POST",
+    "/sandbox/missions/settle",
+    { conversation_id: "c1", status: "needs_you", model_calls: modelCalls },
+    sink,
+  );
+  await call(
+    "POST",
+    "/sandbox/missions/settle",
+    { conversation_id: "c1", status: "error", model_calls: { v: 9 } },
+    sink,
+  );
+  expect(reports).toEqual([modelCalls]);
 });

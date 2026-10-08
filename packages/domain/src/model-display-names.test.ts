@@ -93,8 +93,7 @@ test("saying a tier name lands on that tier's lineup model", () => {
     "claude-sonnet-5-5",
   );
   expect(resolveSpokenModel("anthropic", "fable")?.id).toBe("claude-fable-5-1");
-  // Haiku is not in the Claude lineup, so there is nothing to land on.
-  expect(resolveSpokenModel("anthropic", "haiku")).toBeNull();
+  expect(resolveSpokenModel("anthropic", "haiku")?.id).toBe("claude-haiku-5-5");
 });
 
 test("the table is keyed by pi's canonical provider ids", () => {

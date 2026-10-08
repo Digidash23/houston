@@ -2,7 +2,11 @@ import type { HandsOnSurface } from "@houston/protocol";
 import { useUIStore } from "../stores/ui.ts";
 import { openHome } from "./home-nav.ts";
 import { openAdmin } from "./open-admin.ts";
-import { currentWorkingAgentId, openAgentSection } from "./open-agent.ts";
+import {
+  currentWorkingAgentId,
+  openAgentApiAccess,
+  openAgentSection,
+} from "./open-agent.ts";
 
 /**
  * Where each hands-on errand actually LIVES in the app.
@@ -14,10 +18,20 @@ import { currentWorkingAgentId, openAgentSection } from "./open-agent.ts";
  * the rail themselves would.
  *
  * Files and routine webhooks open for the current employee, or the first
- * employee in sidebar order when none is selected.
+ * employee in sidebar order when none is selected. An employee's API access
+ * opens for the employee the step names, never a stand-in: the card offers no
+ * Open without one (`hands-on-screens.ts`), and home is the last resort.
  */
-export function openHandsOnSurface(surface: HandsOnSurface): void {
+export function openHandsOnSurface(
+  surface: HandsOnSurface,
+  stepAgentId?: string,
+): void {
   const ui = useUIStore.getState();
+  if (surface === "agentApiAccess") {
+    if (stepAgentId) openAgentApiAccess(stepAgentId);
+    else openHome();
+    return;
+  }
   if (surface === "apiKeys") {
     ui.openSettings("apiKeys");
     return;
@@ -37,19 +51,4 @@ export function openHandsOnSurface(surface: HandsOnSurface): void {
     return;
   }
   openAgentSection(agentId, surface === "files" ? "files" : "routines");
-}
-
-/** The chat-namespace key naming each screen in the person's own words. */
-const SCREEN_KEYS = {
-  apiKeys: "interaction.handsOnScreens.apiKeys",
-  billing: "interaction.handsOnScreens.billing",
-  files: "interaction.handsOnScreens.files",
-  routineWebhook: "interaction.handsOnScreens.routineWebhook",
-  orgDanger: "interaction.handsOnScreens.orgDanger",
-} as const satisfies Record<HandsOnSurface, string>;
-
-export function handsOnScreenKey(
-  surface: HandsOnSurface,
-): (typeof SCREEN_KEYS)[HandsOnSurface] {
-  return SCREEN_KEYS[surface];
 }

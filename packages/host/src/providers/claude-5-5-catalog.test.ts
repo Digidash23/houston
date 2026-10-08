@@ -3,16 +3,18 @@ import { buildProviderCatalog } from "./pi-catalog";
 
 /**
  * Claude Opus 5.5 and Sonnet 5.5 ship natively in pi-ai's baked Anthropic
- * catalog as of 0.99.1. They are the newest headline rows, and a pi bump that
- * dropped or reshaped either would silently strip it from `GET /v1/catalog` —
- * the exact failure that shipped a picker with no models once before.
+ * catalog as of 0.99.1; Haiku 5.5 rides Houston's pi-ai 1.0.4 patch until pi
+ * ships it. They are the newest headline rows, and a pi bump that dropped or
+ * reshaped one would silently strip it from `GET /v1/catalog` — the exact
+ * failure that shipped a picker with no models once before.
  */
 const ROWS = [
   { id: "claude-opus-5-5", name: "Claude Opus 5.5" },
   { id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5" },
+  { id: "claude-haiku-5-5", name: "Claude Haiku 5.5" },
 ] as const;
 
-test("GET /v1/catalog advertises Claude Opus 5.5 and Sonnet 5.5 under anthropic", () => {
+test("GET /v1/catalog advertises Claude Opus, Sonnet and Haiku 5.5 under anthropic", () => {
   const anthropic = buildProviderCatalog().find((p) => p.id === "anthropic");
   expect(anthropic).toBeDefined();
   for (const { id, name } of ROWS) {

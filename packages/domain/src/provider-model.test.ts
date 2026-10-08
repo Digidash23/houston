@@ -29,6 +29,7 @@ const PI_MODELS: Record<string, Set<string>> = {
   // offers.
   anthropic: new Set([
     "claude-fable-5-1",
+    "claude-haiku-5-5",
     "claude-opus-5-5",
     "claude-sonnet-5-5",
   ]),
@@ -138,15 +139,24 @@ test("every retired Claude id stays in its own family", () => {
   }
 });
 
-test("a Haiku id has no lineup model and falls to the default, said out loud", () => {
-  // Haiku was never in the picker and nothing maps it into another family, so
-  // it takes the ordinary unknown-model path: the default, with a diagnostic.
-  for (const stored of ["haiku", "claude-haiku-4-5"]) {
+test("a Haiku id runs on Haiku 5.5, within its own family", () => {
+  for (const stored of [
+    "haiku",
+    "claude-haiku-4-5",
+    "claude-haiku-4-5-20251001",
+  ]) {
     const r = migrateProviderModel("anthropic", stored);
-    expect(r.model, stored).toBe(DEFAULT_MODEL.anthropic);
-    expect(r.diagnostics, stored).toHaveLength(1);
+    expect(r.model, stored).toBe("claude-haiku-5-5");
+    expect(r.diagnostics, stored).toEqual([]);
     assertValid(r, `anthropic/${stored}`);
   }
+});
+
+test("an id with no Claude family falls to the default, said out loud", () => {
+  const r = migrateProviderModel("anthropic", "claude-2.1");
+  expect(r.model).toBe(DEFAULT_MODEL.anthropic);
+  expect(r.diagnostics).toHaveLength(1);
+  assertValid(r, "anthropic/claude-2.1");
 });
 
 test("CLI-era codex model ids map to the closest current tier", () => {

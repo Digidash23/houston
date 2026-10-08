@@ -23,11 +23,7 @@ import {
   type TurnSessionStartupTask,
 } from "./turn-session-startup";
 import { answerTurnSetupFailure } from "./turn-setup-failure";
-import {
-  snapshotTurnSharedSkills,
-  turnSharedSkillsDir,
-  turnSharedSkillsStore,
-} from "./turn-shared-skills";
+import { snapshotPooledTurnSharedSkills } from "./turn-shared-skills";
 import { poolIdentity, resolveTurnStore } from "./turn-store";
 import { createTurnTranscript } from "./turn-transcript";
 import type { TurnRequest } from "./types";
@@ -138,17 +134,16 @@ export async function executeTurn(
       await reportAbandonedTurnStartup(startup);
       throw error;
     }
-    // Needs the agent's own skills manifest, so after hydration.
-    if (!turn.shadow)
-      await snapshotTurnSharedSkills(
-        (deps.sharedSkillsStore ?? turnSharedSkillsStore)(turn, storeConfig),
-        turnSharedSkillsDir(root),
-        filesystem.workspaceDir,
-      );
-
+    // Setup can no longer refuse the turn: answer (the gateway's 202) now.
     const sse = openSSE(res);
     closeSse = sse.close;
     timings.t_sse_open = performance.now();
+    if (!turn.shadow)
+      await snapshotPooledTurnSharedSkills(deps, turn, storeConfig, {
+        root,
+        workspaceDir: filesystem.workspaceDir,
+        timings,
+      });
     const turnLog = createTurnLog(deps, turn);
     const transcript = createTurnTranscript(
       deps,

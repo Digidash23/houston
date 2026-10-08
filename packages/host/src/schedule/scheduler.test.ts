@@ -191,9 +191,9 @@ test("a no-provider 409 fire records the errored run but logs a warning, not an 
   );
   expect(items).toHaveLength(1);
   expect((items[0] as RoutineRun).status).toBe("error");
-  // Unpinned routine: there is no provider to name, so the row keeps the
-  // runtime's verbatim message and stays untyped (PRODUCT-1475).
-  expect((items[0] as RoutineRun).failure).toBeUndefined();
+  // Unpinned routine: there is no provider to name, so the row says the
+  // routine has no model (PRODUCT-1982) and counts toward the auto-pause.
+  expect((items[0] as RoutineRun).failure).toEqual({ code: "no_model" });
 });
 
 test("a no-provider 409 on a PINNED routine names the provider the creator must connect", async () => {

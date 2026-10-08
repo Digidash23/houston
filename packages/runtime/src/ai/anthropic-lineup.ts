@@ -12,8 +12,8 @@ import {
  * A turn never fails on a retired Claude id: agent configs, missions, routines
  * and turn bodies written before the lineup moved carry ids like
  * `claude-opus-4-8`, and each runs on its own family's lineup model (Opus stays
- * Opus). Only an id with no family in the lineup (Haiku) meets the ordinary
- * not-offered path.
+ * Opus, Haiku 4.5 runs on Haiku 5.5). Only an id with no family in the lineup
+ * (`claude-2.1`) meets the ordinary not-offered path.
  */
 
 export const ANTHROPIC_PROVIDER_ID = "anthropic";

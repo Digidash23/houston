@@ -24,6 +24,7 @@ import {
 } from "./labels";
 import { RoutineRowScheduleEdit } from "./routine-row-schedule-edit";
 import { RoutineTriggerStatus } from "./routine-trigger-status";
+import type { ScheduleFloor } from "./schedule-floor";
 import { cronSummary } from "./schedule-summary";
 import type { Routine, RoutineRun, TriggerStatusItem } from "./types";
 
@@ -33,6 +34,7 @@ export interface RoutineRowSummaryProps {
   onScheduleChange?: (routineId: string, cron: string) => void;
   labels?: RoutineRowLabels;
   scheduleLabels?: ScheduleLabels;
+  scheduleFloor?: ScheduleFloor;
   scheduleSummaryLabels?: ScheduleSummaryLabels;
   triggerLabels?: TriggerLabels;
   triggerStatus?: TriggerStatusItem;
@@ -47,6 +49,7 @@ export function RoutineRowSummary({
   onScheduleChange,
   labels = DEFAULT_ROW_LABELS,
   scheduleLabels = DEFAULT_SCHEDULE_LABELS,
+  scheduleFloor,
   scheduleSummaryLabels = DEFAULT_SCHEDULE_SUMMARY_LABELS,
   triggerLabels = DEFAULT_TRIGGER_LABELS,
   triggerStatus,
@@ -89,6 +92,7 @@ export function RoutineRowSummary({
         onScheduleChange={onScheduleChange}
         labels={labels}
         scheduleLabels={scheduleLabels}
+        scheduleFloor={scheduleFloor}
         locale={locale}
       />
     );

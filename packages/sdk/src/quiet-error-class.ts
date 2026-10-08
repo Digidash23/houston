@@ -20,6 +20,9 @@
 import type { BridgeQuietClass } from "@houston/sdk/local-model-bridge/quiet";
 
 /** Doubles as the Sentry fingerprint, so the value is the issue's identity.
+ *  `plan_min_interval` is a routine save refused under the saver's plan floor
+ *  (`@houston/sdk/routines/plan-floor-quiet`): a business state with its own
+ *  plan copy, which every reporting path skips outright (nothing to triage).
  *  `release_host_unavailable` is the updater's release host answering a
  *  transient status for its whole retry budget (PRODUCT-1811); it is only
  *  ever named by the download report path, never by a classifier. */
@@ -28,7 +31,8 @@ export type QuietErrorClass =
   | "offline"
   | BridgeQuietClass
   | "release_host_unavailable"
-  | "no_url_handler";
+  | "no_url_handler"
+  | "plan_min_interval";
 
 /**
  * The burst-gate key a quiet-class report collapses on.

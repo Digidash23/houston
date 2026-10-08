@@ -9,10 +9,15 @@ import type { TurnFilesystem } from "./turn-filesystem";
 import type { createTurnLog } from "./turn-log";
 import { landedMissionTitle } from "./turn-mission-title-outcome";
 import { remoteActivityReader } from "./turn-mission-title-remote";
-import { turnSessionRequest, unconnectedTurnOutcome } from "./turn-request";
+import {
+  turnIsUnconnected,
+  turnSessionRequest,
+  unconnectedTurnOutcome,
+} from "./turn-request";
 import { RoutineTurnError } from "./turn-routine";
 import { finishRoutineTurn } from "./turn-routine-finish";
-import { startRoutineRun } from "./turn-routine-start";
+import { routinePhaseTurn, startRoutineRun } from "./turn-routine-start";
+import { unconnectedRoutineTurn } from "./turn-routine-unconnected";
 import type { makeTurnSandboxFetch } from "./turn-sandbox";
 import { runTurn, type TurnOutcome } from "./turn-session";
 import type { TurnSessionStartupTask } from "./turn-session-startup";
@@ -49,14 +54,7 @@ export async function executeReadyTurn(input: {
         ...input,
         nowIso: new Date().toISOString(),
       });
-      effectiveTurn = {
-        ...input.turn,
-        text: routinePhase.text,
-        ...(routinePhase.provider ? { provider: routinePhase.provider } : {}),
-        ...(routinePhase.model ? { model: routinePhase.model } : {}),
-        ...(routinePhase.effort ? { effort: routinePhase.effort } : {}),
-        mode: "auto",
-      };
+      effectiveTurn = routinePhaseTurn(input.turn, routinePhase);
     } catch (error) {
       const code =
         error instanceof RoutineTurnError ? error.code : "routine_error";
@@ -74,7 +72,7 @@ export async function executeReadyTurn(input: {
   }
 
   let outcome: TurnOutcome;
-  if (!input.turn.credential) {
+  if (turnIsUnconnected(input.turn)) {
     outcome = unconnectedTurnOutcome(input.turn, input.turnId, input.emit);
   } else {
     try {
@@ -134,6 +132,8 @@ export async function executeReadyTurn(input: {
     }
   }
 
+  // Any path that never prompted (unconnected, a setup failure) is over too.
+  input.filesystem.abandonDeferred?.();
   let afterSync: Awaited<ReturnType<typeof finishRoutineTurn>>["afterSync"];
   if (routinePhase) {
     const finished = await finishRoutineTurn({
@@ -143,9 +143,11 @@ export async function executeReadyTurn(input: {
       phase: routinePhase,
       conversationId: input.turn.conversationId,
       ...(outcome.error ? { turnError: outcome.error } : {}),
-      ...(!input.turn.credential && effectiveTurn.provider
-        ? { unconnectedProvider: effectiveTurn.provider }
-        : {}),
+      unconnected: unconnectedRoutineTurn(
+        input.turn,
+        effectiveTurn.provider,
+        input.filesystem.dataDir,
+      ),
     });
     const failed = finished.error;
     if (failed)
@@ -192,6 +194,7 @@ export async function executeReadyTurn(input: {
       input.turn.missionTitle
         ? landedMissionTitle(outcome.missionTitle, durable.sync)
         : undefined,
+      outcome.modelCalls,
     ),
   );
   await input.turnLog?.flush();

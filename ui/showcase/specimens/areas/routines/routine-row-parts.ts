@@ -82,6 +82,11 @@ export const rowProps: readonly SpecimenProp[] = [
     note: "Threaded to the pure cron, next-run and trigger formatters.",
   },
   {
+    name: "scheduleFloor",
+    type: "ScheduleFloor",
+    note: "Threaded to the inline schedule editor as its `floor`: no pick the rule refuses, Save disabled while one is shown. Absent = no limit.",
+  },
+  {
     name: "locale",
     type: "string",
     note: 'Defaults to `"en-US"`. Day names and clock format come from `Intl`.',

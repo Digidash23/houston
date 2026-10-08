@@ -43,6 +43,10 @@
       "types": "./src/local-model-bridge/unsupported.ts",
       "import": "./src/local-model-bridge/unsupported.ts"
     },
+    "./routines/plan-floor-quiet": {
+      "types": "./src/modules/routines/plan-floor-quiet.ts",
+      "import": "./src/modules/routines/plan-floor-quiet.ts"
+    },
     "./quiet-error-class": {
       "types": "./src/quiet-error-class.ts",
       "import": "./src/quiet-error-class.ts"

@@ -58,6 +58,11 @@ export { routineFailureCode } from "./failure-code";
 export type { RoutineReaderAccount } from "./failure-view";
 export { type RoutinePin, routineFirePin } from "./fire-pin";
 export { RoutinesHttpError } from "./http";
+export {
+  isPlanMinIntervalRefusal,
+  planMinIntervalRefusal,
+} from "./plan-floor-quiet";
+export { viewerIsRoutineCreator } from "./routine-creator";
 export type {
   NewRoutine,
   Routine,

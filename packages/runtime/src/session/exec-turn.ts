@@ -72,6 +72,10 @@ import {
   runWithInteractionCapture,
 } from "./interaction";
 import { reportMissionSettle } from "./mission-settle";
+import {
+  collectStandingTurnCalls,
+  type TurnStartupMarks,
+} from "./model-call-report";
 import { switchNeedsCompaction } from "./provider-switch";
 import { replayForConversation } from "./routine-replay";
 import {
@@ -214,11 +218,15 @@ export async function execTurn(
   recorded: RecordedUserTurn,
   pin?: TurnPin,
   acting?: ActingContext,
+  startup?: TurnStartupMarks,
 ): Promise<CleanTurn | null> {
   const { author, priorAuthors } = recorded;
   // Every frame this turn publishes goes through here: once the user stops
   // the turn, nothing more of it reaches the stream (turn-frame-gate.ts).
   const emit = turnFramePublisher(conv, id, turnId);
+  const enteredAt = performance.now();
+  // Per-call timings for the turn's settle report (model-call-report.ts).
+  let modelCalls: ReturnType<typeof collectStandingTurnCalls> | undefined;
   // Set only on the clean-`done` path: the model the reply came from, which the
   // after-turn mission title reuses (turn-start.ts).
   let clean: CleanTurn | null = null;
@@ -296,6 +304,12 @@ export async function execTurn(
   // runs while a request is out and its response has not opened.
   let unsubPhase: (() => void) | undefined;
   const subscribeSession = () => {
+    modelCalls = collectStandingTurnCalls(
+      conv.session,
+      conv.backendId,
+      enteredAt,
+      startup,
+    );
     unsubLiveness = conv.session.subscribeLiveness?.(() => watchdog.touch());
     unsubPhase = conv.session.subscribeModelPhase?.((phase) =>
       watchdog.onPhase(phase),
@@ -407,6 +421,7 @@ export async function execTurn(
       replayedHistory,
       providerSwitch,
       compaction,
+      modelCalls: modelCalls?.report(turnId),
     });
     return true;
   };
@@ -661,6 +676,7 @@ export async function execTurn(
     // model round-trip only — tools run inside prompt() and re-arm/suspend it as
     // they start/end; the finally disarms it whether prompt() resolves or throws.
     watchdog.arm();
+    modelCalls?.notePrompt();
     try {
       await runWithActingContext(acting, () =>
         runWithConversationId(id, () =>
@@ -829,6 +845,7 @@ export async function execTurn(
       id,
       providerError ? "error" : "needs_you",
       providerError || stopped ? null : (pendingInteraction ?? null),
+      modelCalls?.report(turnId),
     );
   } catch (err) {
     // Persist the failure even when nothing streamed: a thrown turn (bad pin,
@@ -935,7 +952,7 @@ export async function execTurn(
     // The thrown-failure twin of the clean path's report above: an
     // agent-started mission's card must reach `error` even with no client
     // observing this conversation.
-    reportMissionSettle(id, "error", null);
+    reportMissionSettle(id, "error", null, modelCalls?.report(turnId));
   } finally {
     // Detach first, while the stop marker below still gates this turn's
     // frames. Undefined only if resolveModel/switchBackendIfNeeded threw
@@ -944,6 +961,7 @@ export async function execTurn(
     unsubLiveness?.();
     unsubPhase?.();
     unsubMessageStart?.();
+    modelCalls?.stop();
     // A routine run records what it left its session holding, for the next
     // run's budget (routine-session-reset.ts). No-op for any other chat.
     recordRoutineCarry(id, turnId, routineReset);

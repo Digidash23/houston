@@ -465,6 +465,23 @@ test("a hands-on errand survives the wire guard and keeps its optional reason", 
     expect(isInteractionStep(malformed)).toBe(false);
 });
 
+test("an errand on ONE employee's screen carries that employee, additively", () => {
+  const step = {
+    kind: "hands_on",
+    id: "h1",
+    surface: "agentApiAccess",
+    agentId: "agent-7",
+    reason: "Copy the setup prompt for your coding tool.",
+  };
+  expect(parsePendingInteraction({ steps: [step] })).toEqual({ steps: [step] });
+  // Optional: the other screens are no one's. A step that lacks it still
+  // parses; the app then offers no way in rather than guessing an employee.
+  const { agentId: _omitted, ...withoutAgent } = step;
+  expect(isInteractionStep(withoutAgent)).toBe(true);
+  for (const agentId of ["", 7, null])
+    expect(isInteractionStep({ ...step, agentId })).toBe(false);
+});
+
 test("the hands-on vocabulary is closed and its guard agrees with the union", () => {
   // The app navigates by these names; a screen it cannot open must never reach
   // a card, so the tool refuses anything outside the list at the source.
@@ -474,6 +491,7 @@ test("the hands-on vocabulary is closed and its guard agrees with the union", ()
     "files",
     "routineWebhook",
     "orgDanger",
+    "agentApiAccess",
   ]);
   for (const surface of HANDS_ON_SURFACES)
     expect(isHandsOnSurface(surface)).toBe(true);
