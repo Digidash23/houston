@@ -65,6 +65,9 @@ env:
 
 jobs:
   build:
+    # Reads RELEASE_CUT_TOKEN / CLOUD_DISPATCH_TOKEN from this environment, which
+    # admits main and the release tag patterns only (no feature-branch dispatch).
+    environment: release-tokens
     name: Build & push code-sandbox
     runs-on: ubuntu-latest
     timeout-minutes: 30

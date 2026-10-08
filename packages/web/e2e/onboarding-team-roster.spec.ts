@@ -1,12 +1,14 @@
+import { ASSISTANT_AGENT_ID, FAKE_HOST_URL } from "@houston/fake-host";
 import type { Route } from "@playwright/test";
+import { evictMidClosing, holdClosingSave } from "./support/closing-save";
 import { expect, test } from "./support/fixtures";
 import { managerOnboarding, reachTeamStep } from "./support/manager-onboarding";
 import {
   afterHire,
+  CLOSING_LINES,
   finishOnboarding,
   goalCard,
   hireStarterTeam,
-  holdClosingSave,
   roster,
   STARTER_ROLES,
   starterTeam,
@@ -20,8 +22,8 @@ import { agentRow } from "./support/team-nav";
  * The starter team's hire in the AI Manager's chat: each card named for its
  * job and open to a new name, "Hire my team" creating everyone behind the
  * person and waiting for every hire to land before the Manager closes. A
- * hire that failed says so on its card and offers Retry; a reload
- * after the team is hired resumes on it.
+ * hire that failed says so on its card and offers Retry; a tab evicted
+ * after the team is hired resumes on it, and so does a reload (PRODUCT-2040).
  */
 
 test("renamed cards hire under the names given", async ({ page, request }) => {
@@ -35,13 +37,53 @@ test("renamed cards hire under the names given", async ({ page, request }) => {
   for (const name of names) await expect(agentRow(page, name)).toBeVisible();
 });
 
-test("a reload after the team is hired resumes on it, and That's my team closes", async ({
+test("a tab evicted after the team is hired resumes on it, and That's my team closes", async ({
   page,
   request,
 }) => {
   // Hiring flips the zero-agent first-run signal; the pending onboarding stage
   // is what holds the person on the team step until they finish it. The
-  // closing's save is held so the reload lands before onboarding finishes.
+  // closing's save is held so the eviction lands before onboarding finishes.
+  await resetToFirstRun(request);
+  await openManagerOnboarding(page);
+  await reachTeamStep(page);
+  const release = await holdClosingSave(request);
+  await hireStarterTeam(page, null, "click", STARTER_ROLES);
+
+  const resumed = await evictMidClosing(page);
+  await release();
+  await expect(
+    managerOnboarding(resumed).getByText(
+      "You already have 3 AI Employees on your team. Let's pick up where you left off.",
+    ),
+  ).toBeVisible();
+  await expect(teamNext(resumed)).toBeVisible();
+  await expect(roster(resumed).locator('li[data-status="hired"]')).toHaveCount(
+    3,
+  );
+
+  await afterHire(resumed, TEAM_DONE_CHOICE);
+  // The resumed run finishes into the manager's real chat, on the goal card.
+  // Its team card is not checked here: after a reload mid-closing the chat
+  // can open without the conversation above the goal card (PRODUCT-1960).
+  const chat = resumed.getByTestId("assistant-chat");
+  await expect(chat).toBeVisible({ timeout: 15_000 });
+  await expect(managerOnboarding(resumed)).toHaveCount(0);
+  await expect(goalCard(chat)).toBeVisible();
+  for (const name of STARTER_ROLES)
+    await expect(agentRow(resumed, name)).toBeVisible();
+});
+
+test("a reload after the team is hired resumes on it", async ({
+  page,
+  request,
+}) => {
+  // PRODUCT-2040. A reload aborts the held import. The closing used to read
+  // the abort as a failed import and finish onboarding from the dying page,
+  // so `onboarding_completed` landed and the reload opened the app with an
+  // empty manager chat; the SDK now names that abort and the closing does not
+  // finish on it. Deterministic against the prebuilt bundle, where the dying
+  // page always got its handler in; the dev server's slower reload never did.
   await resetToFirstRun(request);
   await openManagerOnboarding(page);
   await reachTeamStep(page);
@@ -50,24 +92,26 @@ test("a reload after the team is hired resumes on it, and That's my team closes"
 
   await page.reload();
   await release();
-  await expect(
-    managerOnboarding(page).getByText(
-      "You already have 3 AI Employees on your team. Let's pick up where you left off.",
-    ),
-  ).toBeVisible();
   await expect(teamNext(page)).toBeVisible();
   await expect(roster(page).locator('li[data-status="hired"]')).toHaveCount(3);
 
+  // The resumed closing finishes into the real chat, and the manager's history
+  // holds the closing exactly once: the interrupted import and the resumed one
+  // share an importId, which the runtime writes once. Read off the host, not
+  // the screen (PRODUCT-1960: the chat can open without re-seeding).
   await afterHire(page, TEAM_DONE_CHOICE);
-  // The resumed run finishes into the manager's real chat, on the goal card.
-  // Its team card is not checked here: after a reload mid-closing the chat
-  // can open without the conversation above the goal card (PRODUCT-1960).
   const chat = page.getByTestId("assistant-chat");
   await expect(chat).toBeVisible({ timeout: 15_000 });
-  await expect(managerOnboarding(page)).toHaveCount(0);
   await expect(goalCard(chat)).toBeVisible();
-  for (const name of STARTER_ROLES)
-    await expect(agentRow(page, name)).toBeVisible();
+  const history = await request.get(
+    `${FAKE_HOST_URL}/agents/${ASSISTANT_AGENT_ID}/conversations/assistant/messages?limit=120`,
+  );
+  const { messages } = (await history.json()) as {
+    messages: { role: string; content: string }[];
+  };
+  expect(
+    messages.filter((m) => m.content.includes(CLOSING_LINES[0])),
+  ).toHaveLength(1);
 });
 
 test("a hire that failed says so on its card, and Retry lands it", async ({

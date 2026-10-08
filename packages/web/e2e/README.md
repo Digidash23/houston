@@ -51,6 +51,8 @@ e2e/
     create-agent.ts # the rail's "+" and the guided brief behind it (the
                     # Agents home has a "New AI Employee" control)
     fixtures.ts     # the `test`/`expect` used by specs (resets the host per test)
+    build-bundles.ts # builds the two web bundles CI serves (see CI below)
+    closing-save.ts # hold the first-run closing's save; evict the tab mid-closing
     global-setup.ts # warms the vite dev server once before the suite (see CI below)
     identity.ts     # sign the harness in as a known user (see Signed-in specs below)
     machine-lock.ts # the machine-wide ONE-suite lock (an atomic mkdir in tmpdir,
@@ -73,6 +75,8 @@ e2e/
     run-locked.ts   # run a full Playwright suite under the machine lock — the
                     # `test:e2e` / `test:visual` entry point
     seed.ts         # localStorage + window.__HOUSTON_CP__ primed before any app script
+    serve-mode.ts   # `dev` (vite dev servers) or `bundle` (prebuilt, CI); bundle dirs
+    serve-bundle.ts # `bundle` mode's web server: vite preview over one built bundle
     settings-nav.ts # the rail's anchorless rows (Admin + its sections and
                     # Analytics lenses), Settings, and the account menu's
                     # screens (Profile, About me)
@@ -248,28 +252,36 @@ per-worktree `HOUSTON_E2E_FAKE_HOST_PORT` bases ≥ 32 apart so worker slots
 can't overlap.
 
 **CI.** The web job shards the suite across runners (`test:e2e --shard=N/6`,
-see `.github/workflows/ci.yml`) with ONE worker per shard: one single-threaded
-vite dev process serves every worker's page boots, and on a 4-vCPU runner
-concurrent workers starve renders — 4 workers blew expect budgets outright,
-and even 2 left the signed-in specs flaking on stuck-animation transients
-(duplicate `AnimatePresence` card ghosts). Throughput comes from the shards;
-each test runs at the single-worker density the suite has always been stable
-at.
+see `.github/workflows/ci.yml`), three workers per shard, against a PREBUILT
+bundle: the two web servers are `vite preview` over `dist/e2e/shell` and
+`dist/e2e/sign-in`, built by `pnpm --filter houston-web e2e:build`. That is the
+`bundle` serve mode in `support/serve-mode.ts`, which also holds the history of
+why the dev server could not take more than one worker per shard. Every local
+run uses `dev` (the vite dev servers); `HOUSTON_E2E_SERVE=bundle` after an
+`e2e:build` reproduces CI, and `serve-bundle.ts` warns when the bundle was built
+at another commit.
+
+The build is a DEVELOPMENT-mode `vite build`, so it keeps every
+`import.meta.env.DEV` branch, the React dev runtime and the dev-only test hooks
+the suite relies on; `support/build-bundles.ts` lists them. A spec cannot pass
+under one serve mode and fail under the other.
 
 vite dev compiles modules on demand, and Playwright only waits for the dev
 server's port to open, not for it to compile. `support/global-setup.ts` boots the
 shell once before the timed suite so the first test doesn't eat vite's cold
 compile inside its 10s assertion budget — that cold start used to time out the
 first test, which then passed on retry: a "flaky" green that silently hid a real
-failure. `test:e2e` also runs with `--fail-on-flaky-tests`, so a test that only
-passes on retry now fails the run (non-zero exit) instead of going green. Locally
-`retries: 0`, so a failure is just a failure and the flag is a no-op.
+failure. In `bundle` mode the same boots take seconds and double as a smoke that
+both bundles serve a working app. `test:e2e` also runs with
+`--fail-on-flaky-tests`, so a test that only passes on retry fails the run
+(non-zero exit) instead of going green. Locally `retries: 0`, so a failure is
+just a failure and the flag is a no-op.
 
-**Two vite servers, two dep-optimizer caches.** The run boots TWO vite servers
-from this same package — the identity-off shell (`:1430`) and the identity-on
-sign-in server (`:1435`, the `auth` project). Vite's default cacheDir is
-`node_modules/.vite`, so both would share ONE dep-optimizer output dir and, on a
-cold CI cache, race: each cold-optimizes and rewrites `deps/` under the other,
+**Two vite servers, two dep-optimizer caches (`dev` mode).** The run boots TWO
+vite servers from this same package — the identity-off shell (`:1430`) and the
+identity-on sign-in server (`:1435`, the `auth` project). Vite's default cacheDir
+is `node_modules/.vite`, so both would share ONE dep-optimizer output dir and, on
+a cold cache, race: each cold-optimizes and rewrites `deps/` under the other,
 invalidating chunks mid-navigation so the second server's page reloads into a
 broken optimize state and never settles (the sign-in button never appears;
 global-setup times out — passed locally where the cache was already warm).

@@ -30,6 +30,11 @@
 # which ref pattern (branches vs tags) matched — it can't be tag-exempt at
 # the trigger level.
 #
+# Only admins can create engine-pod-v* tags (repo tag ruleset): a tag push runs the
+# tagged commit's own workflow file, so whoever can create the tag picks the
+# code that rolls prod. ship-train.yml's version labels live under label/ and
+# never match this trigger.
+#
 # Publishes two tags per build:
 #   engine-pod:<git-sha>  — immutable, by-digest reference used for the roll.
 #   engine-pod:poc        — moving pointer to the latest POC build (convenience).
@@ -65,6 +70,9 @@ env:
 
 jobs:
   build:
+    # Reads RELEASE_CUT_TOKEN / CLOUD_DISPATCH_TOKEN from this environment, which
+    # admits main and the release tag patterns only (no feature-branch dispatch).
+    environment: release-tokens
     name: Build & push engine-pod
     runs-on: ubuntu-latest
     timeout-minutes: 30

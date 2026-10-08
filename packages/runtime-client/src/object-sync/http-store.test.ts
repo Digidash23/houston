@@ -126,7 +126,7 @@ test("manifest forwards cancellation to the HTTP request", async () => {
   });
   const controller = new AbortController();
 
-  const listing = store.manifest("skills/", { signal: controller.signal });
+  const listing = store.manifest("skills", { signal: controller.signal });
   controller.abort(new Error("turn moved on"));
 
   await expect(listing).rejects.toThrow("turn moved on");

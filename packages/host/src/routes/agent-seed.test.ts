@@ -59,11 +59,13 @@ test("writeAgentSeeds is a no-op when nothing is supplied", async () => {
   expect(await vfs.readText("Work/A/CLAUDE.md")).toBeNull();
 });
 
-test("writeAgentSeeds stamps the creator on seeded routines that carry none", async () => {
+test("writeAgentSeeds stamps the creating actor on every seeded routine", async () => {
   const vfs = new MemoryVfs();
   const routines = [
     { id: "r1", name: "Brief", prompt: "p", schedule: "0 9 * * *" },
-    { id: "r2", name: "Kept", prompt: "p", created_by: "someone-else" },
+    // A creator named by the client is never kept: the routine would fire as
+    // that person.
+    { id: "r2", name: "Forged", prompt: "p", created_by: "someone-else" },
   ];
   await writeAgentSeeds(
     vfs,
@@ -78,8 +80,44 @@ test("writeAgentSeeds stamps the creator on seeded routines that carry none", as
   ) as { created_by?: string }[];
   expect(written.map((r) => r.created_by)).toEqual([
     "creator-sub",
-    "someone-else",
+    "creator-sub",
   ]);
+});
+
+test("writeAgentSeeds stamps a routines doc the readers salvage (a BOM) too", async () => {
+  const vfs = new MemoryVfs();
+  const doc = `\uFEFF${JSON.stringify([{ id: "r1", name: "n", prompt: "p", created_by: "someone-else" }])}`;
+  await writeAgentSeeds(
+    vfs,
+    "Work/A",
+    { seeds: { ".houston/routines/routines.json": doc } },
+    "creator-sub",
+  );
+  const text =
+    (await vfs.readText("Work/A/.houston/routines/routines.json")) ?? "";
+  expect(JSON.parse(text)).toEqual([
+    { id: "r1", name: "n", prompt: "p", created_by: "creator-sub" },
+  ]);
+});
+
+test("writeAgentSeeds stamps the flat legacy routines doc the layout migration moves", async () => {
+  const vfs = new MemoryVfs();
+  await writeAgentSeeds(
+    vfs,
+    "Work/A",
+    {
+      seeds: {
+        ".houston/routines.json": JSON.stringify([
+          { id: "r1", name: "n", prompt: "p", created_by: "someone-else" },
+        ]),
+      },
+    },
+    "creator-sub",
+  );
+  const written = JSON.parse(
+    (await vfs.readText("Work/A/.houston/routines.json")) ?? "",
+  ) as { created_by?: string }[];
+  expect(written.map((r) => r.created_by)).toEqual(["creator-sub"]);
 });
 
 test("writeAgentSeeds leaves non-routine seeds and malformed routine docs verbatim", async () => {
@@ -105,15 +143,18 @@ test("writeAgentSeeds leaves non-routine seeds and malformed routine docs verbat
   );
 });
 
-test("writeAgentSeeds leaves routines untouched when no creator is known", async () => {
+test("writeAgentSeeds drops a client-named creator when no actor is known", async () => {
   const vfs = new MemoryVfs();
-  const doc = JSON.stringify([{ id: "r1", name: "n", prompt: "p" }]);
+  const doc = JSON.stringify([
+    { id: "r1", name: "n", prompt: "p", created_by: "someone-else" },
+  ]);
   await writeAgentSeeds(vfs, "Work/A", {
     seeds: { ".houston/routines/routines.json": doc },
   });
-  expect(await vfs.readText("Work/A/.houston/routines/routines.json")).toBe(
-    doc,
-  );
+  const written = JSON.parse(
+    (await vfs.readText("Work/A/.houston/routines/routines.json")) ?? "",
+  ) as Record<string, unknown>[];
+  expect(written).toEqual([{ id: "r1", name: "n", prompt: "p" }]);
 });
 
 test("asSeedRecord accepts a string map and rejects non-string values", () => {

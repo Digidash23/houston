@@ -23,6 +23,62 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    # Decides whether the Playwright jobs below (the web shards and the
+    # visual suite) run on this PR. Those suites drive app/src through
+    # packages/web against the in-process fake host, so their inputs are the
+    # web package's pnpm closure (`pnpm --filter "houston-web..."`: app/src,
+    # ui/*, every packages/* member except runtime, code-sandbox and
+    # agentstore-client, which none of the Playwright inputs import; the
+    # fake host pulls two host modules in and never spawns a runtime. The
+    # web UNIT tests do import one runtime module, and they run in the
+    # ungated App job), plus the files that shape the install and this
+    # workflow. A PR outside that set (the Tauri shell, runtime-only, docs,
+    # scripts, other workflows: 19 of the 80 PRs merged before this job
+    # existed) skips the 7 jobs it cannot fail.
+    # Pushes to main and manual dispatches always run everything, so the
+    # daily cut's "main is green" guard keeps seeing the full set.
+    # The TS checks, unit and App jobs do not depend on this job and run on
+    # every PR.
+    # Two limits of the API path: the PR file listing stops at 3,000 files,
+    # so a PR larger than that could skip the suites; and a merge_group
+    # event (if a merge queue is ever enabled) is not a pull_request, so it
+    # would need a checkout plus `base` for the action, or to run everything.
+    name: Changed paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      web: ${{ github.event_name != 'pull_request' || steps.filter.outputs.web == 'true' }}
+    steps:
+      # On pull_request the action lists the PR's files through the API, so
+      # no checkout is needed. A pattern starting with `!` excludes; a file
+      # has to match one plain pattern and no excluded one.
+      - name: Match the PR's files against the web suites' inputs
+        if: github.event_name == 'pull_request'
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          predicate-quantifier: some-with-excludes
+          filters: |
+            web:
+              - 'app/**'
+              - '!app/src-tauri/**'
+              - 'ui/**'
+              - 'packages/**'
+              - '!packages/runtime/**'
+              - '!packages/code-sandbox/**'
+              - '!packages/agentstore-client/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - '.npmrc'
+              - 'patches/**'
+              - 'tsconfig.json'
+              - '.github/workflows/ci.yml'
+
   checks:
     name: TS checks (lint · typecheck · contract tests)
     runs-on: ubuntu-latest
@@ -52,6 +108,9 @@ jobs:
       - name: AppImage sidecar repair regression test
         run: scripts/test/repair-linux-appimage-sidecar.test.sh
 
+      - name: macOS notarize script regression test
+        run: scripts/test/notarize-dmg.test.sh
+
       - name: Parity check (cross-surface component inventory)
         run: pnpm check:parity
 
@@ -72,30 +131,79 @@ jobs:
           node --check dist/runtime/main.mjs
           node --check dist/host/main.mjs
 
+      # The host and runtime suites run in the `unit` matrix below; what is
+      # left here sums to about 30 s.
       - name: Unit + contract tests (Vitest)
         run: |
           set -euo pipefail
           pnpm --filter @houston/domain test
-          pnpm --filter @houston/host test
-          pnpm --filter @houston/runtime test
           pnpm --filter @houston/code-sandbox test
           pnpm --filter @houston/engine-adapter test
           pnpm --filter @houston/wire-types test
-          pnpm exec vitest run scripts/check-parity.test.mjs scripts/publish-starter-agents.test.mjs scripts/lib/release-train.test.mjs scripts/gen-manychat-openapi.test.mjs scripts/sdk-parity scripts/assistant-catalog/tests
+          pnpm exec vitest run scripts/check-parity.test.mjs scripts/publish-starter-agents.test.mjs scripts/lib/release-train.test.mjs scripts/ci/updater-signature.test.mjs scripts/ci/tar-entries.test.mjs scripts/gen-manychat-openapi.test.mjs scripts/sdk-parity scripts/assistant-catalog/tests
+
+  unit:
+    # The Vitest step used to run six packages one after another in the TS
+    # checks job: 6.2 min p50 and growing (4.2 min two weeks earlier). Two
+    # packages were almost all of it, runtime 204 s and host 123 s against
+    # about 30 s for the other four plus the scripts suite (run 37781633940).
+    # Each gets its own runner here, so the TS checks job no longer sits at
+    # the edge of the Playwright shards' time, and the two suites keep
+    # growing without moving the wall clock. Same commands, same arguments.
+    name: Unit tests (${{ matrix.package }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [runtime, host]
+    steps:
+      # Same actions the sibling jobs run, at the commits their `v4` tags
+      # resolve to today, pinned. The suites never push, so the token is not
+      # kept in the checkout.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Vitest
+        env:
+          PACKAGE: ${{ matrix.package }}
+        run: pnpm --filter "@houston/${PACKAGE}" test
 
   web:
-    # The UI suite is split across runners with Playwright's native --shard,
-    # ONE worker per runner: the shards run concurrently, so the wall clock is
-    # one shard's slice of the suite instead of the whole serial run, while
-    # each test still executes in the exact single-worker environment the
-    # suite has always been stable in on this hardware. Higher density was
-    # tried and starves renders on the 4-vCPU runner (one single-threaded vite
-    # dev process serves every worker's page boots): 4 workers blew expect
-    # budgets outright (run 30596416439), and even 2 workers left the heavy
-    # signed-in specs flaking on animation transients (run 30597930896).
+    # The UI suite is split across runners with Playwright's native --shard.
+    # Each shard builds the web bundles and runs three workers against them
+    # behind `vite preview`; why a prebuilt bundle and not the dev server, and
+    # why three, is in packages/web/e2e/support/serve-mode.ts. The build runs
+    # per shard (under a minute): a build job plus an artifact round trip
+    # would put more than that on every shard's critical path.
     # The web typecheck and unit tests run in the App job, so no shard carries
     # extra work and the slowest slice alone sets the wall clock.
+    #
+    # Shard count: each shard pays about 1 min of checkout, install and
+    # browser cache before its slice, and the org is on the plan with 20
+    # concurrent jobs, shared with the cloud repo (peak 21 running jobs and
+    # 20 min queue waits on the evening of 2026-10-07 when four PRs ran at
+    # once). A full run of this workflow takes the list length plus 6 jobs;
+    # runs that skip the Playwright jobs (see `changes`) take 6. Twelve
+    # shards were measured on PR #1737 (slowest shard 7.9 min against 12.6
+    # at six) and rejected: once a runner serves a prebuilt bundle to more
+    # than one worker the slice is a few minutes and the fixed cost
+    # dominates, while the extra runners queue every other PR. The list is
+    # the ONLY place the count lives: `--shard` reads its total from
+    # `strategy.job-total`.
     name: Web (UI tests)
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -149,8 +257,12 @@ jobs:
         timeout-minutes: 2
         run: pnpm --filter houston-web exec node -e "require('@playwright/test').chromium.launch().then((b) => b.close())"
 
+      # Both web servers' bundles (identity off and on), built concurrently.
+      - name: Build web bundles (e2e)
+        run: pnpm --filter houston-web e2e:build
+
       - name: UI tests (Playwright)
-        run: pnpm --filter houston-web test:e2e --shard=${{ matrix.shard }}/6
+        run: pnpm --filter houston-web test:e2e --shard=${{ matrix.shard }}/${{ strategy.job-total }}
 
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
@@ -170,6 +282,8 @@ jobs:
     # image tag MUST track `@playwright/test` in packages/web/package.json — bump
     # both together, then regenerate baselines in the same image (see
     # packages/web/e2e/README.md → Visual regression → Platforms).
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     container:
@@ -187,7 +301,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # Browsers ship in the image (PLAYWRIGHT_BROWSERS_PATH) — no install step.
+      # The committed `-linux` baselines were recorded against the vite dev
+      # server, so this job keeps serving from it (the functional shards
+      # moved to the prebuilt bundle; packages/web/e2e/support/serve-mode.ts).
       - name: Visual tests (Playwright)
+        env:
+          HOUSTON_E2E_SERVE: dev
         run: pnpm --filter houston-web test:visual
 
       - name: Upload Playwright report

@@ -63,6 +63,25 @@ test("hydration reads inlined objects from memory and only misses from the store
   expect(calls).toEqual(["batch notes.md", "manifest"]);
 });
 
+test("the prefetched listing reads a prefix as a directory, like every store", async () => {
+  const inner: ObjectStore = {
+    list: async () => [],
+    download: async () => undefined,
+    upload: async () => undefined,
+    delete: async () => undefined,
+  };
+  const prefetched = parsePrefetchedObjects({
+    manifest: [meta("skills/a/SKILL.md", 1), meta("skills-old/a/SKILL.md", 1)],
+  });
+  if (!prefetched) throw new Error("prefetch did not parse");
+
+  const listed = await new PrefetchedObjectStore(inner, prefetched).manifest(
+    "skills",
+  );
+
+  expect(listed.map((object) => object.key)).toEqual(["skills/a/SKILL.md"]);
+});
+
 test("a malformed prefetch is dropped, never fatal", () => {
   expect(parsePrefetchedObjects({ manifest: "nope" })).toBeUndefined();
   expect(parsePrefetchedObjects(null)).toBeUndefined();

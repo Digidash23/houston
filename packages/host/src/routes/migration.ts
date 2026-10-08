@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { HoustonEvent } from "@houston/protocol";
+import { routineActorFor } from "../auth/acting";
 import type { Agent, Workspace } from "../domain/types";
 import type { WorkspacePaths } from "../paths";
 import { CloudPaths } from "../paths";
@@ -43,7 +44,13 @@ async function readBodyCapped(
 }
 
 export async function handleMigration(
-  deps: { vfs?: Vfs; paths?: WorkspacePaths; agentDir?: string },
+  deps: {
+    vfs?: Vfs;
+    paths?: WorkspacePaths;
+    agentDir?: string;
+    /** The verified actor, stamped as imported routines' `created_by`. */
+    routineCreatedBy?: string;
+  },
   ctx: { workspace: Workspace; agent: Agent },
   method: string,
   rest: string,
@@ -90,6 +97,7 @@ export async function handleMigration(
         agentDir: synthesize ? deps.agentDir : undefined,
         bytes,
         overwrite: url.searchParams.get("overwrite") === "1",
+        routineCreatedBy: deps.routineCreatedBy,
       });
       for (const type of events) emit?.({ type, agentPath: ctx.agent.id });
       json(res, 200, result);
@@ -157,7 +165,7 @@ defineRouteFamily({
   phase: "agent",
   classification: "sdk",
   source: "packages/host/src/routes/migration.ts",
-  handler: async ({ deps, authz, method, path, req, res, emit }) => {
+  handler: async ({ deps, authz, userId, method, path, req, res, emit }) => {
     await handleMigration(
       {
         vfs: deps.vfs,
@@ -165,6 +173,8 @@ defineRouteFamily({
         // Anchors re-synthesized pi sessions on a deployment with a real
         // on-disk tree; absent in cloud, where nothing replays them.
         agentDir: deps.agentDir?.(authz.workspace, authz.agent),
+        // The importer, by the same actor policy as the routine write routes.
+        routineCreatedBy: routineActorFor(deps, req, userId),
       },
       authz,
       method,

@@ -43,3 +43,23 @@ export function isServedDocument(rel: string): boolean {
     return INTERNAL_DOCUMENT_PREFIXES.some((prefix) => rel.startsWith(prefix));
   }
 }
+
+/**
+ * Served documents this route reads but never writes. A routine fires as the
+ * user its `created_by` names, and only the routine routes stamp that field
+ * from the verified acting identity; a raw write would take it from the body.
+ * So routine edits go through those routes (the runtime's file tools refuse
+ * the same directory, `fs-guard.ts`).
+ */
+const READ_ONLY_DOCUMENT_PREFIXES: readonly string[] = [".houston/routines/"];
+
+/** The refusal a write of a read-only document answers (403). */
+export const READ_ONLY_DOCUMENT_REFUSAL = {
+  error: "routines are saved through the routines routes, not as a file",
+  code: "path_not_allowed",
+} as const;
+
+/** True when `rel` is served for reading only (see above). */
+export function isReadOnlyDocument(rel: string): boolean {
+  return READ_ONLY_DOCUMENT_PREFIXES.some((prefix) => rel.startsWith(prefix));
+}

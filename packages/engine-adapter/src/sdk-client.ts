@@ -25,6 +25,7 @@ import { createDevicePrefsStore } from "./client/device-prefs";
 // The barrel, never `cp/transient-retry` directly: the web suite mocks
 // `./control-plane` wholesale and a submodule import would bypass the mock.
 import { transientRetryFetch } from "./control-plane";
+import { sharedPageLifecycle } from "./page-lifecycle";
 
 /** Namespace for every SDK-owned `localStorage` key, so nothing the SDK
  *  persists can collide with the adapter's existing browser state. */
@@ -131,6 +132,10 @@ export function createEngineSdk(opts: EngineSdkOptions): HoustonSdk {
         clearTimeout: (id) => clearTimeout(id),
       },
       logger: webLogger,
+      // So a write the browser aborted on reload reads as "we left", not as a
+      // failed save (`turns.importMessages`, PRODUCT-2040). Shared: this runs
+      // on every bearer rotation and per space.
+      pageLifecycle: sharedPageLifecycle(),
     },
   });
 }

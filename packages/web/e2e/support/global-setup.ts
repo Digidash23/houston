@@ -15,6 +15,11 @@
  * test then runs against an already-warm dev server. globalSetup runs after the
  * webServer is up and before any worker starts, so the warm-up is complete before
  * the first assertion's clock begins.
+ *
+ * In `bundle` serve mode (CI; see ./serve-mode.ts) there is no compile to
+ * absorb and the same boots take seconds. They stay: a bundle that does not
+ * reach the shell, or a sign-in server that does not reach SignInScreen, fails
+ * here with one clear error instead of as every spec on every worker.
  */
 import { chromium, type FullConfig } from "@playwright/test";
 import { AUTH_WEB_URL, WEB_URL } from "../config";

@@ -8,10 +8,8 @@ import { expect, test } from "vitest";
 import { piModelIds } from "./pi-catalog";
 
 /**
- * Claude Haiku 5.5 shipped 2026-10-07, after pi-ai 1.0.4 was cut, so Houston
- * carries its `chat:claude-haiku-5-5` row as a local backport in the pi-ai
- * patch (patches/@earendil-works__pi-ai@1.0.4.patch, anthropic.json). DROP the
- * row from the patch when a pi bump ships it natively; the guard stays, as for
+ * Claude Haiku 5.5 ships natively in pi-ai's anthropic catalog as of 1.1.0
+ * (Houston carried it as a pi-ai patch row on 1.0.4). The guard stays, as for
  * Fable 5.1 and Opus 5.
  */
 type ModelId = Parameters<typeof getModel>[1];
@@ -36,14 +34,14 @@ test("Haiku 5.5 reasons like the rest of the 5.5 lineup", () => {
   // Adaptive thinking only, always on: same levels as Sonnet 5.5.
   expect(m.thinkingLevelMap).toEqual(s.thinkingLevelMap);
   expect(getSupportedThinkingLevels(m)).toEqual(getSupportedThinkingLevels(s));
-  // Only the default temperature is accepted, and the model is not listed as
-  // taking mid-conversation tool changes.
+  // Only the default temperature is accepted. Mid-conversation effort, system
+  // messages and tool changes all apply, as on Sonnet 5.5.
   expect(m.compat).toMatchObject({
     forceAdaptiveThinking: true,
     supportsTemperature: false,
     supportsMidConvoEffort: true,
     supportsMidConvoSystemMessages: true,
-    supportsMidConvoToolChanges: false,
+    supportsMidConvoToolChanges: true,
   });
 });
 

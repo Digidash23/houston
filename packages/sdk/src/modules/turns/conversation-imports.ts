@@ -11,7 +11,12 @@ import type {
   ConversationImportResult,
 } from "@houston/protocol";
 import type { ModuleContext } from "../../module-context";
-import { createConversationImportOutbox } from "./conversation-import-outbox";
+import { classifyImportFailure } from "./conversation-import-abort";
+import { createConversationImportHold } from "./conversation-import-hold";
+import {
+  createConversationImportOutbox,
+  type PendingConversationImport,
+} from "./conversation-import-outbox";
 import { asAgentInput, asImportInput } from "./turn-inputs";
 
 /** Which import, into which chat. */
@@ -29,6 +34,20 @@ export interface ConversationImportRetry {
 
 export function createConversationImports(ctx: ModuleContext) {
   const outbox = createConversationImportOutbox(ctx);
+  const send = (entry: PendingConversationImport) =>
+    ctx
+      .clientFor(entry.agentId)
+      .importMessages(entry.conversationId, entry.request);
+  const lifecycle = ctx.config.ports.pageLifecycle;
+  const holds = lifecycle
+    ? createConversationImportHold(
+        lifecycle,
+        ctx.config.ports.clock,
+        ctx.config.ports.logger,
+        send,
+        outbox.settle,
+      )
+    : null;
 
   /**
    * Writes lines said somewhere else into a chat as its real history.
@@ -38,7 +57,11 @@ export function createConversationImports(ctx: ModuleContext) {
    * The import is written down on this device before it is sent, so one that
    * fails is sent again by retryPendingImports; `importId` names it, and an
    * import that already landed writes nothing (`imported: 0`). Answers 409
-   * while a turn holds the chat.
+   * while a turn holds the chat. An import the PAGE abandoned (the browser
+   * aborted it because the document was leaving) is held, not failed: the
+   * promise settles once the page is live again and the import was sent
+   * again, and a page that really left never settles it (the import is still
+   * owed; the next load sends it).
    * @param conversationId The chat the lines go into.
    * @param agentId The agent this acts on, by the id listAgents returns. An
    *   agent's name is not its id, so read the id from listAgents first.
@@ -53,14 +76,24 @@ export function createConversationImports(ctx: ModuleContext) {
     request: ConversationImportRequest,
   ): Promise<ConversationImportResult> => {
     const entry = { agentId, conversationId, request };
+    const joined = holds?.pending(entry);
+    if (joined) return joined;
     await outbox.owe(entry);
     let result: ConversationImportResult;
     try {
+      // Spelled out, not `send(entry)`: the parity extractor routes this
+      // method to its host route by reading the client call here.
       result = await ctx
         .clientFor(agentId)
         .importMessages(conversationId, request);
     } catch (err) {
       await outbox.settle(entry, err);
+      if (
+        holds &&
+        lifecycle &&
+        classifyImportFailure(err, lifecycle.isUnloading()) === "aborted"
+      )
+        return holds.hold(entry);
       throw err;
     }
     await outbox.settle(entry);

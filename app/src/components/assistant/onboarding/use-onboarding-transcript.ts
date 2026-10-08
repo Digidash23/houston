@@ -17,6 +17,15 @@ import type { ScriptCopy } from "./use-script-copy";
  *
  * Finishing never waits on a failure. The import is reported and stays owed
  * on this device, and {@link useOwedTranscriptRetry} sends it on the next load.
+ * An import the PAGE abandoned (a reload during the save aborts it) is not a
+ * failure to finish on. The dying page used to finish anyway, stamping
+ * `onboarding_completed` so the reload opened the app with an empty manager
+ * chat (PRODUCT-2040). The SDK now HOLDS such an import (`turns.importMessages`
+ * does not settle): on a page that really left nothing more happens here, the
+ * stage stays pending, the import stays owed, and the next load resumes on the
+ * closing and sends it. On a page that turns out to be live after all (a
+ * back/forward-cache restore, a cancelled navigation) the SDK sends it again
+ * and the save settles, so the finish below runs exactly once, late.
  *
  * A conversation finishes once: a second `done` (a double press, an ending
  * that finishes on its own) is ignored. `then` runs once the conversation is
@@ -35,7 +44,8 @@ export function useFinishWithTranscript(
   const started = useRef(false);
   const pending = useRef<{ then?: () => void } | null>(null);
 
-  /** Never rejects: every failure is reported here or by the facade. */
+  /** Never rejects: every failure is reported here or by the facade. Does
+   *  not settle while the SDK holds an import the page abandoned. */
   const save = async (): Promise<void> => {
     if (!handle) {
       // A deployment with no manager owes nothing. One whose discovery failed

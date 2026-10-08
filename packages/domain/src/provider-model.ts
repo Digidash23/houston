@@ -115,7 +115,7 @@ function mapProvider(
  * A provider's OWN catalog default, or `""` when DEFAULT_MODEL has no entry for
  * it. Never another provider's model: the table is `Partial` over an open
  * ProviderId, so a floor keyed on DEFAULT_PROVIDER answered every uncurated
- * provider (groq, mistral, xai, …) with Codex's id — and this result is
+ * provider (groq, together, xai, …) with Codex's id — and this result is
  * PERSISTED, so a Groq agent's stored model became an OpenAI one.
  *
  * `""` is the honest "no opinion": the runtime's own ladder (the domain pick if
