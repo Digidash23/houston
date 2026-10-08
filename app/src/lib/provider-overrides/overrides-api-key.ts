@@ -37,6 +37,11 @@ export const API_KEY_OVERRIDES: Record<string, ProviderOverride> = {
     cost: "Free tier, then pay as you go",
     installUrl: "https://mistral.ai",
     apiKeyUrl: "https://console.mistral.ai/api-keys",
+    models: {
+      "mistral-large-4": {
+        description: "Mistral's most capable model. Long context, reasoning.",
+      },
+    },
   },
   xai: {
     name: "xAI",

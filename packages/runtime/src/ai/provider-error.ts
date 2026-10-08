@@ -3,6 +3,7 @@ import { toDisplayProviderId } from "@houston/domain/provider-dialect";
 import type { AuthFailureCause, ProviderError } from "@houston/runtime-client";
 import { servedScopeFor } from "../auth/served-scope";
 import { AZURE_OPENAI } from "./azure-openai";
+import { isRetriedServerFailure } from "./provider-error-busy";
 
 /**
  * Classify a failed model request into a typed `ProviderError` so the chat can
@@ -738,6 +739,7 @@ function isServerError(lower: string, status: number | null): boolean {
     // these keep the verdict when the body is truncated (HOU-1156).
     lower.includes("got status: unavailable") ||
     lower.includes("experiencing high demand") ||
+    isRetriedServerFailure(lower) ||
     // Gemini's malformed-generation finish reasons — MALFORMED_FUNCTION_CALL
     // (the model emitted an unparseable tool call) and MALFORMED_RESPONSE (a
     // newer value the SDK enum doesn't even carry yet) — arrive flattened as

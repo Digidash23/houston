@@ -379,12 +379,12 @@ test("a stored Codex model the subscription no longer serves migrates to one it 
 });
 
 test("a provider with no catalog default never inherits another provider's model", () => {
-  // DEFAULT_MODEL is Partial over an OPEN ProviderId: twelve shipped providers
-  // (groq, cerebras, mistral, xai, …) have no entry. A universal floor keyed on
+  // DEFAULT_MODEL is Partial over an OPEN ProviderId: many shipped providers
+  // (groq, cerebras, together, xai, …) have no entry. A universal floor keyed on
   // DEFAULT_PROVIDER rewrote every one of them to Codex's id and PERSISTED it —
   // a Groq agent whose stored model became an OpenAI one.
   expect(DEFAULT_MODEL.groq).toBeUndefined();
-  for (const provider of ["groq", "cerebras", "mistral", "xai", "fireworks"]) {
+  for (const provider of ["groq", "cerebras", "together", "xai", "fireworks"]) {
     const r = migrateProviderModel(provider, undefined);
     expect(r.provider, provider).toBe(provider);
     expect(r.model, provider).toBe("");
@@ -401,6 +401,13 @@ test("an absent model that GAINS the provider's default says so", () => {
   expect(r.model).toBe(DEFAULT_MODEL.anthropic);
   expect(r.diagnostics).toHaveLength(1);
   expect(r.diagnostics[0]?.message).toContain(String(DEFAULT_MODEL.anthropic));
+});
+
+test("a Mistral config with no model gains Mistral Large 4, not pi's first row", () => {
+  const r = migrateProviderModel("mistral", undefined);
+  expect(r.provider).toBe("mistral");
+  expect(r.model).toBe("mistral-large-4");
+  expect(r.diagnostics).toHaveLength(1);
 });
 
 test("nothing is gained, so nothing is reported, when the provider has no default", () => {

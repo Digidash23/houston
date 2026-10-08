@@ -34,6 +34,11 @@ afterEach(() => {
   rmSync(settingsFile, { force: true });
 });
 
+test("an uncurated provider with a domain default starts on it, not pi's first row", () => {
+  // pi lists Codestral first for Mistral; the domain table picks Mistral Large 4.
+  expect(providers.modelFor("mistral")).toBe("mistral-large-4");
+});
+
 test("setApiKey accepts an uncurated pi provider's key; it then selects and resolves", () => {
   // The connect gate now treats a pi non-OAuth provider as api-key, so the paste
   // persists instead of 502-ing on an unknown provider.
