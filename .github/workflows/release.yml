@@ -1541,7 +1541,10 @@ jobs:
               exit 1
             fi
           done
-          # Restored from cache or just installed: either way it must run.
+          # Restored from cache or just installed: either way it must be on
+          # PATH (~/.cargo/bin) and run.
+          command -v artifact-signing-cli > /dev/null \
+            || { echo "::error::artifact-signing-cli not on PATH — the cache restore or the install step failed."; exit 1; }
           artifact-signing-cli --help > /dev/null
           OVERLAY="$RUNNER_TEMP/windows-signing.conf.json"
           node -e '
