@@ -19,12 +19,18 @@
 # the codex/composio/git-bash staging the Rust path needed is gone. Ships macOS
 # (universal DMG) + Windows (x64/arm64 MSI) + Linux (x64 AppImage).
 #
-# Signing chain (macOS):
-#   1. tauri-action builds, signs, notarizes, and staples the .app
-#   2. tauri-action creates and signs the DMG (but does NOT notarize it — known Tauri gap)
-#   3. This workflow notarizes and staples the DMG (with retry)
-#   4. Full verification: .app signature, .app notarization, DMG signature, DMG notarization,
-#      .app-inside-DMG integrity check
+# Signing chain (macOS), one Apple notarization per DMG:
+#   1. tauri-action builds and signs the .app (no notarization: the APPLE_API_*
+#      notary credentials are withheld from it), then builds and signs the DMG
+#      and the updater .app.tar.gz from that signed .app
+#   2. This workflow renames the DMG volume, re-signs it, and notarizes the DMG
+#      (with retry). Apple issues a ticket for the DMG and for every signed
+#      bundle inside it, so one submission covers the .app too
+#   3. Staples the DMG and the standalone .app, then rebuilds the updater
+#      tarball from the stapled .app and re-signs it with the updater key
+#   4. Full verification: DMG signature + staple + Gatekeeper, the .app inside
+#      the DMG, and the .app inside the updater tarball (signature, staple,
+#      Gatekeeper, updater signature against the pubkey in tauri.conf.json)
 #   5. All artifacts uploaded to a draft GitHub Release (publish manually after QA)
 #
 # Required secrets:
@@ -409,10 +415,11 @@ jobs:
     needs: prep
     name: Build macOS (${{ matrix.flavor }})
     runs-on: macos-latest
-    # Two Apple notarizations (the .app inside the Tauri build, then the DMG)
-    # each wait on Apple's queue, which has taken 13-45 min on a bad night
-    # (2026-10-06). 60 min left no room for both after a ~20 min compile.
-    timeout-minutes: 180
+    # Budget: a cold-cache leg reaches the notarize step in about 30 min (a
+    # warm one in 12-15), the notarize step caps itself at 90 min (Apple's
+    # queue took 13-45 min on 2026-10-06), and the steps after it take about
+    # 5 min. 30 + 90 + 5 = 125, so 150 never kills a leg Apple accepted.
+    timeout-minutes: 150
     strategy:
       # fail-fast=false so a staging-leg failure never kills the prod DMG that
       # actually ships (mirrors build-windows). macos_flavors is ["prod"] on the
@@ -739,7 +746,10 @@ jobs:
             app/src-tauri/binaries/claude-universal-apple-darwin
 
       # Build only — no release creation (no tagName).
-      # tauri-action handles certificate import, code signing, .app notarization + stapling.
+      # tauri-action handles certificate import and code signing. It does NOT
+      # notarize: the bundler notarizes only when it sees APPLE_API_KEY +
+      # APPLE_API_ISSUER + APPLE_API_KEY_PATH, and the build step below
+      # deliberately omits them. The DMG notarization later covers the .app.
       #
       # `--target universal-apple-darwin` produces one .app / .dmg whose
       # binaries are fat (arm64 + x86_64). Tauri invokes cargo twice under
@@ -805,9 +815,9 @@ jobs:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_KEY_PATH: ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
+          # No APPLE_API_ISSUER / APPLE_API_KEY / APPLE_API_KEY_PATH here: with
+          # them the bundler would notarize the .app on its own and Apple's
+          # queue would be waited on twice per leg (see the header).
           POSTHOG_KEY: ${{ secrets.POSTHOG_KEY }}
           POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
@@ -857,16 +867,15 @@ jobs:
           echo "  .app.tar.gz: $TAR"
           echo "  .sig:        $SIG"
 
-      - name: Verify .app signing and notarization
+      # Notarization and stapling come later (Notarize DMG); the staple is
+      # checked in the two verification steps after it.
+      - name: Verify .app signing
         env:
           ARTIFACT_APP: ${{ steps.artifacts.outputs.app }}
         run: |
           node scripts/ci/assert-no-frpc.mjs "${ARTIFACT_APP}"
           echo "=== Code signature ==="
           codesign -vvv --deep --strict "${ARTIFACT_APP}"
-
-          echo "=== Notarization staple ==="
-          xcrun stapler validate "${ARTIFACT_APP}"
 
       # The host sidecar is a single universal Mach-O in Contents/MacOS/ (same
       # externalBin name the Rust engine used). tauri-action's deep sign reaches
@@ -1060,18 +1069,21 @@ jobs:
           fi
           # dsymutil is best-effort: a miss should warn, never abort the
           # release (the upload then falls back to executable-only, no worse
-          # than the pre-dSYM behavior).
-          dsymutil "$APP_EXE" -o "$APP_EXE.dSYM" \
+          # than the pre-dSYM behavior). The dSYM goes OUTSIDE the .app: the
+          # updater tarball is rebuilt from this .app after notarization, and
+          # an extra file in Contents/MacOS would break its code seal.
+          DSYM="$RUNNER_TEMP/houston-app.dSYM"
+          dsymutil "$APP_EXE" -o "$DSYM" \
             || echo "::warning::dsymutil failed for the app binary — native app frames may stay unresolved"
           # Executable (code-id) always uploads. The dSYM (DWARF) joins only
           # when present, checked + warned so a bad dSYM can't fail the release.
           UPLOAD=( "$APP_EXE" )
-          if [ -d "$APP_EXE.dSYM" ]; then
-            "$SENTRY_CLI" debug-files check "$APP_EXE.dSYM" \
-              || echo "::warning::debug-files check failed for $APP_EXE.dSYM — native frames may not resolve to file:line"
-            UPLOAD+=( "$APP_EXE.dSYM" )
+          if [ -d "$DSYM" ]; then
+            "$SENTRY_CLI" debug-files check "$DSYM" \
+              || echo "::warning::debug-files check failed for $DSYM — native frames may not resolve to file:line"
+            UPLOAD+=( "$DSYM" )
           else
-            echo "::warning::missing dSYM $APP_EXE.dSYM — native app frames may stay unresolved"
+            echo "::warning::missing dSYM $DSYM — native app frames may stay unresolved"
           fi
           # sentry-cli recurses into the .dSYM bundle. --include-sources bundles
           # the referenced source files (Houston's own Rust + cargo-registry
@@ -1108,39 +1120,83 @@ jobs:
           echo "=== Re-signed DMG with Developer ID ==="
           codesign -vvv "$DMG"
 
-      - name: Notarize DMG
+      # The leg's ONE Apple submission. Apple answers it with a ticket for the
+      # DMG and one for every signed bundle inside it, keyed by cdhash. The
+      # standalone .app is the same signed bundle tauri copied into the DMG,
+      # so its ticket exists too and stapler can attach it; that stapled .app
+      # is what the updater tarball ships. The .app INSIDE the DMG stays
+      # unstapled: stapling it would change the DMG's bytes and void the
+      # DMG's own ticket. The stapled DMG carries the ticket that covers it
+      # (Apple's guidance: notarize and staple the outermost container), and
+      # the verification below checks Gatekeeper accepts it as notarized.
+      #
+      # Retry rules (upload only without an id, wait on the same id until an
+      # 85 min deadline, fail at once on Invalid/Rejected, staple retries)
+      # live in the script; scripts/test/notarize-dmg.test.sh covers them.
+      - name: Notarize DMG, staple the DMG and the .app
         timeout-minutes: 90
         env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           ARTIFACT_DMG: ${{ steps.artifacts.outputs.dmg }}
+          ARTIFACT_APP: ${{ steps.artifacts.outputs.app }}
+        run: scripts/ci/notarize-dmg.sh "${ARTIFACT_DMG}" "${ARTIFACT_APP}"
+
+      # tauri-action built and signed Houston.app.tar.gz before notarization,
+      # so it holds the unstapled .app. Rebuild it from the stapled .app and
+      # sign it again with the updater key; the manifest step below reads the
+      # new .sig. Layout matches the bundler's: one top-level `Houston.app/`
+      # entry (tauri-plugin-updater drops that first path component when it
+      # unpacks). COPYFILE_DISABLE + --no-mac-metadata + --no-xattrs keep
+      # bsdtar from adding AppleDouble `._*` entries or xattr headers the
+      # bundler's tarball never had. Staging ships no tarball, so it skips this.
+      - name: Rebuild and re-sign the updater tarball from the stapled .app
+        if: ${{ matrix.flavor != 'staging' }}
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          ARTIFACT_APP: ${{ steps.artifacts.outputs.app }}
+          ARTIFACT_TAR: ${{ steps.artifacts.outputs.tar }}
+          ARTIFACT_SIG: ${{ steps.artifacts.outputs.sig }}
         run: |
-          DMG="${ARTIFACT_DMG}"
-          KEY=~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
+          set -euo pipefail
+          APP_NAME=$(basename "${ARTIFACT_APP}")
+          BUNDLER="$RUNNER_TEMP/updater-bundler.txt"
+          REBUILT_LIST="$RUNNER_TEMP/updater-rebuilt.txt"
 
-          for attempt in 1 2 3; do
-            echo "=== Attempt $attempt/3 ==="
-            if xcrun notarytool submit "$DMG" \
-                --key-id "${{ secrets.APPLE_API_KEY }}" \
-                --key "$KEY" \
-                --issuer "${{ secrets.APPLE_API_ISSUER }}" \
-                --wait; then
-              echo "Notarization succeeded"
-              xcrun stapler staple "$DMG"
-              exit 0
-            fi
+          node scripts/ci/tar-entries.mjs "${ARTIFACT_TAR}" | LC_ALL=C sort > "$BUNDLER"
+          REBUILT="$RUNNER_TEMP/$(basename "${ARTIFACT_TAR}")"
+          COPYFILE_DISABLE=1 tar --no-mac-metadata --no-xattrs -czf "$REBUILT" \
+            -C "$(dirname "${ARTIFACT_APP}")" "$APP_NAME"
+          node scripts/ci/tar-entries.mjs "$REBUILT" | LC_ALL=C sort > "$REBUILT_LIST"
 
-            if [ "$attempt" -eq 3 ]; then
-              echo "::error::DMG notarization failed after 3 attempts"
-              exit 1
-            fi
+          # Same entries as the bundler's tarball (type, mode, path, link
+          # target) plus exactly one: the stapled ticket. Comparing types, not
+          # just names, rejects a hardlink entry, which the updater's tar
+          # crate would resolve against the wrong directory on users' Macs.
+          ADDED=$(LC_ALL=C comm -13 "$BUNDLER" "$REBUILT_LIST")
+          REMOVED=$(LC_ALL=C comm -23 "$BUNDLER" "$REBUILT_LIST")
+          STAPLE=$(printf '^file\t[0-7]{4}\t%s/Contents/CodeResources\t$' "$APP_NAME")
+          if ! grep -qE "$STAPLE" <<<"$ADDED" \
+            || [ "$(wc -l <<<"$ADDED")" -ne 1 ] || [ -n "$REMOVED" ]; then
+            echo "::error::Rebuilt updater tarball differs from the bundler's beyond the staple"
+            echo "--- added ---"; echo "$ADDED"
+            echo "--- removed ---"; echo "$REMOVED"
+            exit 1
+          fi
 
-            echo "Retrying in 30s..."
-            sleep 30
-          done
+          mv "$REBUILT" "${ARTIFACT_TAR}"
+          rm -f "${ARTIFACT_SIG}"
+          app/node_modules/.bin/tauri signer sign "${ARTIFACT_TAR}"
+          node scripts/ci/verify-updater-signature.mjs \
+            "${ARTIFACT_TAR}" "${ARTIFACT_SIG}" app/src-tauri/tauri.conf.json
 
       - name: Verify complete signing chain
         env:
           ARTIFACT_DMG: ${{ steps.artifacts.outputs.dmg }}
+          ARTIFACT_APP: ${{ steps.artifacts.outputs.app }}
         run: |
+          set -euo pipefail
           DMG="${ARTIFACT_DMG}"
 
           echo "=== 1. DMG code signature ==="
@@ -1150,25 +1206,68 @@ jobs:
           xcrun stapler validate "$DMG"
 
           echo "=== 3. DMG Gatekeeper assessment ==="
-          spctl -a -t open --context context:primary-signature -vv "$DMG" \
-            || echo "::warning::spctl returned non-zero (common on CI — not a real issue if steps 1-2 passed)"
+          scripts/ci/assert-gatekeeper-notarized.sh -vvv -t install "$DMG"
 
           echo "=== 4. .app inside DMG ==="
           MOUNT=$(mktemp -d)
           hdiutil attach "$DMG" -mountpoint "$MOUNT" -nobrowse -quiet
+          trap 'hdiutil detach "$MOUNT" -quiet || hdiutil detach "$MOUNT" -force -quiet' EXIT
 
-          INNER_APP=$(ls -d "$MOUNT/"*.app 2>/dev/null | head -1)
+          INNER_APP=$(find "$MOUNT" -maxdepth 1 -name '*.app' -print -quit)
           if [ -z "$INNER_APP" ]; then
             echo "::error::No .app found inside DMG"
-            hdiutil detach "$MOUNT" -quiet || true
             exit 1
           fi
 
           codesign -vvv --deep --strict "$INNER_APP"
-          xcrun stapler validate "$INNER_APP"
-          hdiutil detach "$MOUNT" -quiet
+          scripts/ci/assert-gatekeeper-notarized.sh -vvv "$INNER_APP"
+
+          # The DMG's .app and the stapled .app the updater tarball is built
+          # from must be the same notarized code.
+          cdhash() { codesign -dvvv "$1" 2>&1 | grep '^CDHash=' || true; }
+          INNER_CDHASH=$(cdhash "$INNER_APP")
+          STAPLED_CDHASH=$(cdhash "${ARTIFACT_APP}")
+          echo "DMG .app:     $INNER_CDHASH"
+          echo "stapled .app: $STAPLED_CDHASH"
+          if [ -z "$INNER_CDHASH" ] || [ "$INNER_CDHASH" != "$STAPLED_CDHASH" ]; then
+            echo "::error::The .app inside the DMG is not the .app that was stapled"
+            exit 1
+          fi
 
           echo "=== All checks passed ==="
+
+      # What existing installs download through the in-app updater: unpack
+      # the tarball as shipped and check the .app inside it end to end.
+      - name: Verify the updater tarball
+        if: ${{ matrix.flavor != 'staging' }}
+        env:
+          ARTIFACT_APP: ${{ steps.artifacts.outputs.app }}
+          ARTIFACT_TAR: ${{ steps.artifacts.outputs.tar }}
+          ARTIFACT_SIG: ${{ steps.artifacts.outputs.sig }}
+        run: |
+          set -euo pipefail
+          APP_NAME=$(basename "${ARTIFACT_APP}")
+          OUT=$(mktemp -d)
+          tar -xzf "${ARTIFACT_TAR}" -C "$OUT"
+          TOP=$(ls -A "$OUT")
+          if [ "$TOP" != "$APP_NAME" ]; then
+            echo "::error::Updater tarball must hold exactly one top-level $APP_NAME, found: $TOP"
+            exit 1
+          fi
+          APP="$OUT/$APP_NAME"
+
+          echo "=== 1. Code signature ==="
+          codesign -vvv --deep --strict "$APP"
+
+          echo "=== 2. Notarization staple ==="
+          xcrun stapler validate "$APP"
+
+          echo "=== 3. Gatekeeper assessment ==="
+          scripts/ci/assert-gatekeeper-notarized.sh -vvv "$APP"
+
+          echo "=== 4. Updater signature (pubkey from tauri.conf.json) ==="
+          node scripts/ci/verify-updater-signature.mjs \
+            "${ARTIFACT_TAR}" "${ARTIFACT_SIG}" app/src-tauri/tauri.conf.json
 
       # Staging is a QA-only DMG: it must never enter the checksums file (nor any
       # updater manifest or Sentry upload — see the job header). Prod flavor only.
