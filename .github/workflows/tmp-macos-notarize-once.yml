@@ -259,9 +259,10 @@ jobs:
       run: |
         set -euo pipefail
         case "$FLAVOR" in prod) WANT="cloud-latest/latest-cloud.json" ;; staging) WANT="staging-noop/latest-staging.json" ;; esac
-        strings -a "${ARTIFACT_APP}/Contents/MacOS/houston-app" | grep -F "releases/" | grep -F ".json" | sort -u
-        strings -a "${ARTIFACT_APP}/Contents/MacOS/houston-app" | grep -qF "$WANT"
-        if strings -a "${ARTIFACT_APP}/Contents/MacOS/houston-app" | grep -qF "releases/latest/download/latest.json"; then echo "::error::local feed baked in"; exit 1; fi
+        strings -a "${ARTIFACT_APP}/Contents/MacOS/houston-app" > "$RUNNER_TEMP/app-strings.txt"
+        grep -F "releases/" "$RUNNER_TEMP/app-strings.txt" | grep -F ".json" | sort -u
+        grep -qF "$WANT" "$RUNNER_TEMP/app-strings.txt"
+        if grep -qF "releases/latest/download/latest.json" "$RUNNER_TEMP/app-strings.txt"; then echo "::error::local feed baked in"; exit 1; fi
         echo "baked endpoint OK for $FLAVOR: $WANT"
     - name: Verify .app signing
       env:
