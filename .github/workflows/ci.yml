@@ -33,7 +33,7 @@ jobs:
     # pulls two host modules in and never spawns a runtime), plus the files
     # that shape the install and this workflow. A PR outside that set (the
     # Tauri shell, runtime-only, docs, scripts, other workflows: 19 of the 80
-    # PRs merged before this job existed) skips 13 jobs it cannot fail.
+    # PRs merged before this job existed) skips the 7 jobs it cannot fail.
     # Pushes to main and manual dispatches always run everything, so the
     # daily cut's "main is green" guard keeps seeing the full set.
     # The TS checks, unit and App jobs do not depend on this job and run on
@@ -71,6 +71,7 @@ jobs:
               - '.npmrc'
               - 'patches/**'
               - 'tsconfig.json'
+              - '.github/workflows/ci.yml'
 
   checks:
     name: TS checks (lint · typecheck · contract tests)
@@ -182,15 +183,18 @@ jobs:
     # The web typecheck and unit tests run in the App job, so no shard carries
     # extra work and the slowest slice alone sets the wall clock.
     #
-    # Shard count: the whole suite is about 62 min of Playwright time (6
-    # shards at 10.3 min p50), so each shard's slice is that divided by the
-    # list below, plus about 1 min of checkout, install and browser cache per
-    # runner. The org is on the plan with 20 concurrent jobs, shared with the
-    # cloud repo (peak 21 running jobs and 20 min queue waits on the evening
-    # of 2026-10-07 when four PRs ran at once); a full run of this workflow
-    # takes the list length plus 6 jobs, and runs that skip the Playwright
-    # jobs (see `changes`) take 6. The list is the ONLY place the count lives:
-    # `--shard` reads its total from `strategy.job-total`.
+    # Shard count: each shard pays about 1 min of checkout, install and
+    # browser cache before its slice, and the org is on the plan with 20
+    # concurrent jobs, shared with the cloud repo (peak 21 running jobs and
+    # 20 min queue waits on the evening of 2026-10-07 when four PRs ran at
+    # once). A full run of this workflow takes the list length plus 6 jobs;
+    # runs that skip the Playwright jobs (see `changes`) take 6. Twelve
+    # shards were measured on PR #1737 (slowest shard 7.9 min against 12.6
+    # at six) and rejected: once a runner serves a prebuilt bundle to more
+    # than one worker the slice is a few minutes and the fixed cost
+    # dominates, while the extra runners queue every other PR. The list is
+    # the ONLY place the count lives: `--shard` reads its total from
+    # `strategy.job-total`.
     name: Web (UI tests)
     needs: changes
     if: needs.changes.outputs.web == 'true'
@@ -199,7 +203,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        shard: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@v4
 

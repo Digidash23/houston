@@ -1,1 +1,0 @@
-temporary: proves one file in a closure package turns the web suites on
