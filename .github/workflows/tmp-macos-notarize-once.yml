@@ -1,0 +1,894 @@
+# TEMPORARY: runs release.yml's macOS legs as the cloud channel (prod +
+# staging) on this PR with real signing and notarization, publishes nothing,
+# then checks first launch with Apple's servers blocked. Generated from
+# release.yml; deleted before the PR is ready.
+name: TEMP macOS notarize-once check
+'on':
+  pull_request:
+    branches:
+    - main
+permissions:
+  contents: read
+concurrency:
+  group: tmp-macos-notarize-once-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  BUN_VERSION: 1.3.10
+  NODE_OPTIONS: --max-old-space-size=4096
+jobs:
+  build-macos:
+    name: TEMP cloud macOS leg (${{ matrix.flavor }})
+    runs-on: macos-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor:
+        - prod
+        - staging
+    env:
+      SENTRY_AUTH_TOKEN: ${{ matrix.flavor != 'staging' && 'stub-no-upload' || '' }}
+      IS_CLOUD: ${{ true }}
+      VITE_HOSTED_ENGINE_URL: ${{ true && (matrix.flavor == 'staging' && secrets.HOSTED_ENGINE_URL_STAGING || secrets.HOSTED_ENGINE_URL) || '' }}
+      VITE_HOSTED_ENGINE_AUTH: ${{ true && 'oauth' || '' }}
+      HOUSTON_INTEGRATIONS_URL: ${{ true && (matrix.flavor == 'staging' && secrets.HOSTED_ENGINE_URL_STAGING || secrets.HOSTED_ENGINE_URL) || '' }}
+      VITE_AGENTSTORE_GATEWAY_URL: ${{ matrix.flavor == 'staging' && secrets.HOSTED_ENGINE_URL_STAGING || secrets.HOSTED_ENGINE_URL }}
+      VITE_AGENTSTORE_SITE_URL: ${{ matrix.flavor == 'staging' && 'https://staging-agents.gethouston.ai' || 'https://agents.gethouston.ai' }}
+      VITE_CLIENT_METRICS_GATEWAY_URL: ${{ matrix.flavor == 'staging' && secrets.HOSTED_ENGINE_URL_STAGING || secrets.HOSTED_ENGINE_URL }}
+      CHECK_REF_NAME: cloud-v0.0.0-notarize-check
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+        fetch-tags: true
+    - name: Setup Rust (universal macOS targets)
+      id: toolchain
+      uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067
+      with:
+        toolchain: stable
+        targets: aarch64-apple-darwin,x86_64-apple-darwin
+    - name: Restore Rust build cache (warmed on main)
+      uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25
+      with:
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: rust-release-macos-universal-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'app/src-tauri/Cargo.toml', 'app/src-tauri/tauri.conf.json', 'crates/*/Cargo.toml') }}
+        restore-keys: rust-release-macos-universal-${{ steps.toolchain.outputs.cachekey }}-
+    - name: Build + lipo universal whisper-cli dictation sidecar (aarch64 + x86_64)
+      id: whisper
+      background: true
+      run: |
+        set -euo pipefail
+        for TRIPLE in aarch64-apple-darwin x86_64-apple-darwin; do
+          echo "=== building whisper-cli for $TRIPLE ==="
+          scripts/build-whisper.sh "$TRIPLE"
+          test -x "target/whisper/whisper-cli-$TRIPLE" \
+            || { echo "::error::whisper-cli missing for $TRIPLE"; exit 1; }
+        done
+        mkdir -p app/src-tauri/binaries
+        echo "=== Lipo universal whisper-cli ==="
+        lipo -create \
+          target/whisper/whisper-cli-aarch64-apple-darwin \
+          target/whisper/whisper-cli-x86_64-apple-darwin \
+          -output app/src-tauri/binaries/whisper-cli-universal-apple-darwin
+        chmod +x app/src-tauri/binaries/whisper-cli-universal-apple-darwin
+        lipo -info app/src-tauri/binaries/whisper-cli-universal-apple-darwin
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v6
+    - name: Setup Node.js
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+      with:
+        node-version: 20
+        package-manager-cache: false
+    - name: Install dependencies
+      run: pnpm install
+    - name: Write Apple API key to disk
+      run: |
+        mkdir -p ~/.appstoreconnect/private_keys
+        echo "${{ secrets.APPLE_API_KEY_CONTENT }}" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ env.BUN_VERSION }}
+    - name: Import Apple Developer ID (keychain for DMG re-signing)
+      env:
+        APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+        APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      run: |
+        set -euo pipefail
+        KEYCHAIN_PATH="$RUNNER_TEMP/houston-presign.keychain-db"
+        KEYCHAIN_PWD=$(openssl rand -base64 32)
+
+        security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+        security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+        security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+
+        CERT_FILE="$RUNNER_TEMP/houston-cert.p12"
+        echo "$APPLE_CERTIFICATE" | base64 --decode > "$CERT_FILE"
+        security import "$CERT_FILE" -P "$APPLE_CERTIFICATE_PASSWORD" \
+          -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+        security set-key-partition-list -S apple-tool:,apple: \
+          -s -k "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+
+        # Add our keychain to the user search list so codesign finds the
+        # identity without needing --keychain on every call. We keep the
+        # existing user keychains in the list so tauri-action's own
+        # cert-import (which targets the default login keychain) still
+        # works unchanged.
+        USER_KEYCHAINS=$(security list-keychains -d user | sed 's/[" ]//g' | tr '\n' ' ')
+        security list-keychains -d user -s "$KEYCHAIN_PATH" $USER_KEYCHAINS
+
+        rm -f "$CERT_FILE"
+    - name: Force-install both macOS Claude SDK platform packages (universal lipo)
+      run: |
+        set -euo pipefail
+        # The SDK is pinned under optionalDependencies (the platform binaries
+        # are optional per-arch packages), so read both blocks. Fail hard if
+        # the pin is absent — a null version would silently `pnpm add …@null`.
+        SDK_VER=$(jq -r '.dependencies["@anthropic-ai/claude-agent-sdk"] // .optionalDependencies["@anthropic-ai/claude-agent-sdk"] // ""' packages/runtime/package.json)
+        if [ -z "$SDK_VER" ] || [ "$SDK_VER" = "null" ]; then
+          echo "ERROR: @anthropic-ai/claude-agent-sdk is not pinned in packages/runtime/package.json (.dependencies or .optionalDependencies)" >&2
+          exit 1
+        fi
+        echo "Claude Agent SDK version pinned by packages/runtime: $SDK_VER"
+        pnpm add -w \
+          "@anthropic-ai/claude-agent-sdk-darwin-arm64@$SDK_VER" \
+          "@anthropic-ai/claude-agent-sdk-darwin-x64@$SDK_VER" \
+          --force
+        # `pnpm add -w` rewrites the root package.json + pnpm-lock.yaml, both
+        # of which are host-sidecar freshness-guard inputs (build.rs
+        # SIDECAR_INPUT_PATHS). The edit only needs to land the two platform
+        # packages in node_modules/.pnpm so build-host-sidecar.sh can cp the
+        # per-arch `claude` binary out of the store; it reads the store
+        # directly and never re-installs, so restoring the manifests here
+        # leaves the packages in place while giving the release-build
+        # staleness guard the clean tree it requires.
+        git checkout HEAD -- package.json pnpm-lock.yaml
+    - name: Compile Houston host sidecar + stage claude (aarch64 + x86_64) + lipo universal
+      run: |
+        set -euo pipefail
+        for TRIPLE in aarch64-apple-darwin x86_64-apple-darwin; do
+          echo "=== Bun-compiling host sidecar + staging claude for $TRIPLE ==="
+          scripts/build-host-sidecar.sh "$TRIPLE"
+          test -x "target/host-sidecar/houston-host-$TRIPLE" \
+            || { echo "::error::host sidecar missing for $TRIPLE"; exit 1; }
+          test -x "target/host-sidecar/claude-$TRIPLE" \
+            || { echo "::error::claude binary missing for $TRIPLE"; exit 1; }
+        done
+
+        mkdir -p app/src-tauri/binaries
+
+        echo "=== Lipo universal host sidecar ==="
+        lipo -create \
+          target/host-sidecar/houston-host-aarch64-apple-darwin \
+          target/host-sidecar/houston-host-x86_64-apple-darwin \
+          -output app/src-tauri/binaries/houston-engine-universal-apple-darwin
+        chmod +x app/src-tauri/binaries/houston-engine-universal-apple-darwin
+        lipo -info app/src-tauri/binaries/houston-engine-universal-apple-darwin
+
+        echo "=== Lipo universal claude binary ==="
+        lipo -create \
+          target/host-sidecar/claude-aarch64-apple-darwin \
+          target/host-sidecar/claude-x86_64-apple-darwin \
+          -output app/src-tauri/binaries/claude-universal-apple-darwin
+        chmod +x app/src-tauri/binaries/claude-universal-apple-darwin
+        lipo -info app/src-tauri/binaries/claude-universal-apple-darwin
+
+        ls -la \
+          target/host-sidecar/houston-host-aarch64-apple-darwin \
+          target/host-sidecar/houston-host-x86_64-apple-darwin \
+          target/host-sidecar/claude-aarch64-apple-darwin \
+          target/host-sidecar/claude-x86_64-apple-darwin \
+          app/src-tauri/binaries/houston-engine-universal-apple-darwin \
+          app/src-tauri/binaries/claude-universal-apple-darwin
+    - name: Point updater at cloud manifest (prod cloud flavor)
+      if: ${{ env.IS_CLOUD == 'true' && matrix.flavor == 'prod' }}
+      run: bash scripts/ci/point-updater-at-cloud-manifest.sh
+    - name: Neutralize updater (staging flavor)
+      if: ${{ matrix.flavor == 'staging' }}
+      run: bash scripts/ci/point-updater-at-staging-noop.sh
+    - name: Wait for the whisper-cli build
+      wait: whisper
+    - name: Build Tauri app (universal)
+      uses: tauri-apps/tauri-action@v0
+      with:
+        projectPath: app
+        args: --target universal-apple-darwin
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+        APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        POSTHOG_KEY: ${{ secrets.POSTHOG_KEY }}
+        POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
+        FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+        FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
+        FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        GOOGLE_DESKTOP_CLIENT_ID: ${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
+        GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
+        LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        LINEAR_TEAM_ID: ${{ secrets.LINEAR_TEAM_ID }}
+        SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+    - name: Locate build artifacts
+      id: artifacts
+      run: |
+        # Cargo workspace: target dir is at workspace root, not per-crate.
+        # Universal builds emit under `target/universal-apple-darwin/release/bundle/`
+        # (NOT `target/release/bundle/` — that path is only populated by a
+        # default-triple build).
+        BUNDLE="target/universal-apple-darwin/release/bundle"
+
+        APP=$(ls -d "$BUNDLE/macos/"*.app 2>/dev/null | head -1)
+        DMG=$(ls -t "$BUNDLE/dmg/"*.dmg 2>/dev/null | head -1)
+        TAR=$(ls -t "$BUNDLE/macos/"*.app.tar.gz 2>/dev/null | head -1)
+        SIG=$(ls -t "$BUNDLE/macos/"*.app.tar.gz.sig 2>/dev/null | head -1)
+
+        missing=()
+        [ -e "$APP" ] || missing+=(".app")
+        [ -f "$DMG" ] || missing+=(".dmg")
+        [ -f "$TAR" ] || missing+=(".app.tar.gz")
+        [ -f "$SIG" ] || missing+=(".app.tar.gz.sig")
+
+        if [ ${#missing[@]} -gt 0 ]; then
+          echo "::error::Missing build artifacts: ${missing[*]}"
+          echo "--- Bundle contents ---"
+          ls -laR "$BUNDLE" || true
+          exit 1
+        fi
+
+        echo "app=$APP" >> "$GITHUB_OUTPUT"
+        echo "dmg=$DMG" >> "$GITHUB_OUTPUT"
+        echo "tar=$TAR" >> "$GITHUB_OUTPUT"
+        echo "sig=$SIG" >> "$GITHUB_OUTPUT"
+
+        echo "Artifacts:"
+        echo "  .app:        $APP"
+        echo "  .dmg:        $DMG"
+        echo "  .app.tar.gz: $TAR"
+        echo "  .sig:        $SIG"
+    - name: 'TEMP: the baked updater endpoint matches the flavor'
+      env:
+        ARTIFACT_APP: ${{ steps.artifacts.outputs.app }}
+        FLAVOR: ${{ matrix.flavor }}
+      run: |
+        set -euo pipefail
+        case "$FLAVOR" in prod) WANT="cloud-latest/latest-cloud.json" ;; staging) WANT="staging-noop/latest-staging.json" ;; esac
+        strings -a "${ARTIFACT_APP}/Contents/MacOS/houston-app" | grep -F "releases/" | grep -F ".json" | sort -u
+        strings -a "${ARTIFACT_APP}/Contents/MacOS/houston-app" | grep -qF "$WANT"
+        if strings -a "${ARTIFACT_APP}/Contents/MacOS/houston-app" | grep -qF "releases/latest/download/latest.json"; then echo "::error::local feed baked in"; exit 1; fi
+        echo "baked endpoint OK for $FLAVOR: $WANT"
+    - name: Verify .app signing
+      env:
+        ARTIFACT_APP: ${{ steps.artifacts.outputs.app }}
+      run: |
+        node scripts/ci/assert-no-frpc.mjs "${ARTIFACT_APP}"
+        echo "=== Code signature ==="
+        codesign -vvv --deep --strict "${ARTIFACT_APP}"
+    - name: Verify host sidecar signing
+      env:
+        ARTIFACT_APP: ${{ steps.artifacts.outputs.app }}
+      run: |
+        APP="${ARTIFACT_APP}"
+
+        # Tauri strips the triple suffix on bundle; fall back to glob if it doesn't.
+        SIDECAR="$APP/Contents/MacOS/houston-engine"
+        if [ ! -f "$SIDECAR" ]; then
+          SIDECAR=$(find "$APP/Contents" -type f -name 'houston-engine*' ! -name '*.dSYM*' | head -1)
+        fi
+
+        if [ -z "$SIDECAR" ] || [ ! -x "$SIDECAR" ]; then
+          echo "::error::engine sidecar missing or not executable inside .app"
+          echo "--- .app contents ---"
+          find "$APP/Contents" -type f | head -50
+          exit 1
+        fi
+        echo "Sidecar: $SIDECAR"
+
+        echo "=== 1. Signature valid ==="
+        codesign -vvv "$SIDECAR"
+
+        echo "=== 2. Signed with Developer ID (not ad-hoc) ==="
+        AUTH=$(codesign -dvv "$SIDECAR" 2>&1 | grep '^Authority=' | head -1)
+        echo "$AUTH"
+        if ! echo "$AUTH" | grep -q 'Developer ID Application'; then
+          echo "::error::sidecar not signed with Developer ID — Gatekeeper will kill it on first launch"
+          codesign -dvv "$SIDECAR" 2>&1 || true
+          exit 1
+        fi
+
+        echo "=== 3. Hardened runtime enabled ==="
+        FLAGS=$(codesign -dv "$SIDECAR" 2>&1 | grep -E '^CodeDirectory.*flags=' | head -1)
+        echo "$FLAGS"
+        if ! echo "$FLAGS" | grep -q 'runtime'; then
+          echo "::error::sidecar missing hardened runtime flag — required for notarization + subprocess execution"
+          codesign -dv "$SIDECAR" 2>&1 || true
+          exit 1
+        fi
+
+        echo "=== 4. Universal (fat) binary — both arm64 + x86_64 ==="
+        LIPO=$(lipo -info "$SIDECAR" 2>&1 || true)
+        echo "$LIPO"
+        if ! echo "$LIPO" | grep -q 'arm64'; then
+          echo "::error::sidecar missing arm64 slice — Apple Silicon users will fail to launch"
+          exit 1
+        fi
+        if ! echo "$LIPO" | grep -q 'x86_64'; then
+          echo "::error::sidecar missing x86_64 slice — Intel Mac users will fail to launch (regression to v0.x universal rollout)"
+          exit 1
+        fi
+
+        echo "=== Sidecar checks passed ==="
+    - name: Verify Claude Code binary signing
+      env:
+        ARTIFACT_APP: ${{ steps.artifacts.outputs.app }}
+      run: |
+        APP="${ARTIFACT_APP}"
+
+        # Tauri strips the triple suffix on bundle; fall back to glob if it doesn't.
+        CLAUDE="$APP/Contents/MacOS/claude"
+        if [ ! -f "$CLAUDE" ]; then
+          CLAUDE=$(find "$APP/Contents" -type f -name 'claude*' ! -name '*.dSYM*' | head -1)
+        fi
+
+        if [ -z "$CLAUDE" ] || [ ! -x "$CLAUDE" ]; then
+          echo "::error::Claude Code binary missing or not executable inside .app"
+          echo "--- .app contents ---"
+          find "$APP/Contents" -type f | head -50
+          exit 1
+        fi
+        echo "Claude binary: $CLAUDE"
+
+        echo "=== 1. Signature valid ==="
+        codesign -vvv "$CLAUDE"
+
+        echo "=== 2. Signed with Developer ID (not ad-hoc) ==="
+        AUTH=$(codesign -dvv "$CLAUDE" 2>&1 | grep '^Authority=' | head -1)
+        echo "$AUTH"
+        if ! echo "$AUTH" | grep -q 'Developer ID Application'; then
+          echo "::error::claude binary not signed with Developer ID — Gatekeeper will kill it on first launch"
+          codesign -dvv "$CLAUDE" 2>&1 || true
+          exit 1
+        fi
+
+        echo "=== 3. Hardened runtime enabled ==="
+        FLAGS=$(codesign -dv "$CLAUDE" 2>&1 | grep -E '^CodeDirectory.*flags=' | head -1)
+        echo "$FLAGS"
+        if ! echo "$FLAGS" | grep -q 'runtime'; then
+          echo "::error::claude binary missing hardened runtime flag — required for notarization + subprocess execution"
+          codesign -dv "$CLAUDE" 2>&1 || true
+          exit 1
+        fi
+
+        echo "=== 4. Universal (fat) binary — both arm64 + x86_64 ==="
+        LIPO=$(lipo -info "$CLAUDE" 2>&1 || true)
+        echo "$LIPO"
+        if ! echo "$LIPO" | grep -q 'arm64'; then
+          echo "::error::claude binary missing arm64 slice — Apple Silicon users can't run claude auth login"
+          exit 1
+        fi
+        if ! echo "$LIPO" | grep -q 'x86_64'; then
+          echo "::error::claude binary missing x86_64 slice — Intel Mac users can't run claude auth login"
+          exit 1
+        fi
+
+        echo "=== Claude binary checks passed ==="
+    - name: 'TEMP: stub sentry-cli (no upload)'
+      run: |
+        printf '#!/bin/sh\necho "sentry-cli stub (no upload): $*"\n' > app/node_modules/.bin/sentry-cli
+        chmod +x app/node_modules/.bin/sentry-cli
+    - name: Upload source maps + Rust debug symbols to Sentry
+      if: ${{ env.SENTRY_AUTH_TOKEN != '' }}
+      env:
+        SENTRY_ORG: houston-cd
+        SENTRY_PROJECT: houston-app
+        ARTIFACT_APP: ${{ steps.artifacts.outputs.app }}
+      run: |
+        set -euo pipefail
+        VERSION="${CHECK_REF_NAME#cloud-}"; VERSION="${VERSION#v}"
+        RELEASE="houston-app@${VERSION}"
+
+        # Use the sentry-cli pinned in app/package.json (devDep @sentry/cli)
+        # via the pnpm-linked bin, NOT `curl get-cli | bash` (which installs
+        # an unpinned latest, drifting from the version that ran
+        # `sourcemaps inject` at build time). The bin shim works on both the
+        # macOS runner and the Windows git-bash runner, so the per-OS PATH
+        # workaround is no longer needed.
+        SENTRY_CLI="app/node_modules/.bin/sentry-cli"
+        "$SENTRY_CLI" --version
+
+        echo "=== 1. Create release ${RELEASE} ==="
+        # Idempotent + guards the parallel race with the Windows job, which
+        # also creates this release. Finalize happens once, last, in the
+        # `finalize` job after every arch has uploaded.
+        "$SENTRY_CLI" releases new "$RELEASE"
+        "$SENTRY_CLI" releases set-commits --auto "$RELEASE" || \
+          echo "::warning::set-commits --auto failed (likely shallow clone or first release); continuing"
+
+        echo "=== 2. Upload Vite source maps ==="
+        # Debug IDs are injected at BUILD time (the app's beforeBuildCommand
+        # runs scripts/sentry-inject.mjs after `pnpm build`, before cargo
+        # embeds the frontend), so the shipped bundle and this map share
+        # identical byte offsets and the same Debug ID. Do NOT inject here — a
+        # post-package inject shifts offsets and every in-app JS frame fails to
+        # symbolicate (Sentry error `js_invalid_sourcemap_location`).
+        "$SENTRY_CLI" sourcemaps upload --release "$RELEASE" app/dist
+
+        echo "=== 3. Upload Rust debug info (Tauri app binary, dSYM) ==="
+        # Only the Tauri app SHELL is native now — the engine is the
+        # bun-compiled host sidecar (a self-contained binary with no Rust
+        # debug info to upload). macOS gotcha: `debug = "line-tables-only"`
+        # keeps DWARF line tables in the per-object (.o) files, NOT in the
+        # linked Mach-O, so `dsymutil` packs them into a standalone .dSYM (the
+        # DIF Sentry symbolicates against). The app's per-arch .o still live
+        # under target/{aarch64,x86_64}-apple-darwin/release/deps.
+        APP="${ARTIFACT_APP}"
+        # The bundled executable is named after the Cargo binary
+        # (`houston-app`), NOT the productName ("Houston").
+        APP_EXE="$APP/Contents/MacOS/houston-app"
+        if [ ! -x "$APP_EXE" ]; then
+          echo "::error::Tauri app executable missing at $APP_EXE"
+          find "$APP/Contents/MacOS" -maxdepth 1 -type f -print || true
+          exit 1
+        fi
+        # dsymutil is best-effort: a miss should warn, never abort the
+        # release (the upload then falls back to executable-only, no worse
+        # than the pre-dSYM behavior). The dSYM goes OUTSIDE the .app: the
+        # updater tarball is rebuilt from this .app after notarization, and
+        # an extra file in Contents/MacOS would break its code seal.
+        DSYM="$RUNNER_TEMP/houston-app.dSYM"
+        dsymutil "$APP_EXE" -o "$DSYM" \
+          || echo "::warning::dsymutil failed for the app binary — native app frames may stay unresolved"
+        # Executable (code-id) always uploads. The dSYM (DWARF) joins only
+        # when present, checked + warned so a bad dSYM can't fail the release.
+        UPLOAD=( "$APP_EXE" )
+        if [ -d "$DSYM" ]; then
+          "$SENTRY_CLI" debug-files check "$DSYM" \
+            || echo "::warning::debug-files check failed for $DSYM — native frames may not resolve to file:line"
+          UPLOAD+=( "$DSYM" )
+        else
+          echo "::warning::missing dSYM $DSYM — native app frames may stay unresolved"
+        fi
+        # sentry-cli recurses into the .dSYM bundle. --include-sources bundles
+        # the referenced source files (Houston's own Rust + cargo-registry
+        # crates present in this checkout) so native stack traces show inline
+        # CODE context, not just file:line. The repo is open source, so there's
+        # no exposure concern — this brings native to parity with the JS source
+        # maps (which already inline sourcesContent).
+        "$SENTRY_CLI" debug-files upload --include-sources "${UPLOAD[@]}"
+    - name: Rename DMG volume to "Houston Installer"
+      env:
+        ARTIFACT_DMG: ${{ steps.artifacts.outputs.dmg }}
+      run: |
+        ./scripts/rename-dmg-volume.sh "${ARTIFACT_DMG}" "Houston Installer"
+    - name: Re-sign DMG after volume rename
+      env:
+        APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        ARTIFACT_DMG: ${{ steps.artifacts.outputs.dmg }}
+      run: |
+        DMG="${ARTIFACT_DMG}"
+        codesign --force --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$DMG"
+        echo "=== Re-signed DMG with Developer ID ==="
+        codesign -vvv "$DMG"
+    - name: Notarize DMG, staple the DMG and the .app
+      timeout-minutes: 90
+      env:
+        APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+        APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        ARTIFACT_DMG: ${{ steps.artifacts.outputs.dmg }}
+        ARTIFACT_APP: ${{ steps.artifacts.outputs.app }}
+      run: scripts/ci/notarize-dmg.sh "${ARTIFACT_DMG}" "${ARTIFACT_APP}"
+    - name: Rebuild and re-sign the updater tarball from the stapled .app
+      if: ${{ matrix.flavor != 'staging' }}
+      env:
+        TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        ARTIFACT_APP: ${{ steps.artifacts.outputs.app }}
+        ARTIFACT_TAR: ${{ steps.artifacts.outputs.tar }}
+        ARTIFACT_SIG: ${{ steps.artifacts.outputs.sig }}
+      run: |
+        set -euo pipefail
+        APP_NAME=$(basename "${ARTIFACT_APP}")
+        BUNDLER="$RUNNER_TEMP/updater-bundler.txt"
+        REBUILT_LIST="$RUNNER_TEMP/updater-rebuilt.txt"
+
+        node scripts/ci/tar-entries.mjs "${ARTIFACT_TAR}" | LC_ALL=C sort > "$BUNDLER"
+        REBUILT="$RUNNER_TEMP/$(basename "${ARTIFACT_TAR}")"
+        COPYFILE_DISABLE=1 tar --no-mac-metadata --no-xattrs -czf "$REBUILT" \
+          -C "$(dirname "${ARTIFACT_APP}")" "$APP_NAME"
+        node scripts/ci/tar-entries.mjs "$REBUILT" | LC_ALL=C sort > "$REBUILT_LIST"
+
+        # Same entries as the bundler's tarball (type, mode, path, link
+        # target) plus exactly one: the stapled ticket. Comparing types, not
+        # just names, rejects a hardlink entry, which the updater's tar
+        # crate would resolve against the wrong directory on users' Macs.
+        ADDED=$(LC_ALL=C comm -13 "$BUNDLER" "$REBUILT_LIST")
+        REMOVED=$(LC_ALL=C comm -23 "$BUNDLER" "$REBUILT_LIST")
+        STAPLE=$(printf '^file\t[0-7]{4}\t%s/Contents/CodeResources\t$' "$APP_NAME")
+        if ! grep -qE "$STAPLE" <<<"$ADDED" \
+          || [ "$(wc -l <<<"$ADDED")" -ne 1 ] || [ -n "$REMOVED" ]; then
+          echo "::error::Rebuilt updater tarball differs from the bundler's beyond the staple"
+          echo "--- added ---"; echo "$ADDED"
+          echo "--- removed ---"; echo "$REMOVED"
+          exit 1
+        fi
+
+        mv "$REBUILT" "${ARTIFACT_TAR}"
+        rm -f "${ARTIFACT_SIG}"
+        app/node_modules/.bin/tauri signer sign "${ARTIFACT_TAR}"
+        node scripts/ci/verify-updater-signature.mjs \
+          "${ARTIFACT_TAR}" "${ARTIFACT_SIG}" app/src-tauri/tauri.conf.json
+    - name: Verify complete signing chain
+      env:
+        ARTIFACT_DMG: ${{ steps.artifacts.outputs.dmg }}
+        ARTIFACT_APP: ${{ steps.artifacts.outputs.app }}
+      run: |
+        set -euo pipefail
+        DMG="${ARTIFACT_DMG}"
+
+        echo "=== 1. DMG code signature ==="
+        codesign -vvv "$DMG"
+
+        echo "=== 2. DMG notarization staple ==="
+        xcrun stapler validate "$DMG"
+
+        echo "=== 3. DMG Gatekeeper assessment ==="
+        scripts/ci/assert-gatekeeper-notarized.sh -vvv -t install "$DMG"
+
+        echo "=== 4. .app inside DMG ==="
+        MOUNT=$(mktemp -d)
+        hdiutil attach "$DMG" -mountpoint "$MOUNT" -nobrowse -quiet
+        trap 'hdiutil detach "$MOUNT" -quiet || hdiutil detach "$MOUNT" -force -quiet' EXIT
+
+        INNER_APP=$(find "$MOUNT" -maxdepth 1 -name '*.app' -print -quit)
+        if [ -z "$INNER_APP" ]; then
+          echo "::error::No .app found inside DMG"
+          exit 1
+        fi
+
+        codesign -vvv --deep --strict "$INNER_APP"
+        scripts/ci/assert-gatekeeper-notarized.sh -vvv "$INNER_APP"
+
+        # The DMG's .app and the stapled .app the updater tarball is built
+        # from must be the same notarized code.
+        cdhash() { codesign -dvvv "$1" 2>&1 | grep '^CDHash=' || true; }
+        INNER_CDHASH=$(cdhash "$INNER_APP")
+        STAPLED_CDHASH=$(cdhash "${ARTIFACT_APP}")
+        echo "DMG .app:     $INNER_CDHASH"
+        echo "stapled .app: $STAPLED_CDHASH"
+        if [ -z "$INNER_CDHASH" ] || [ "$INNER_CDHASH" != "$STAPLED_CDHASH" ]; then
+          echo "::error::The .app inside the DMG is not the .app that was stapled"
+          exit 1
+        fi
+
+        echo "=== All checks passed ==="
+    - name: Verify the updater tarball
+      if: ${{ matrix.flavor != 'staging' }}
+      env:
+        ARTIFACT_APP: ${{ steps.artifacts.outputs.app }}
+        ARTIFACT_TAR: ${{ steps.artifacts.outputs.tar }}
+        ARTIFACT_SIG: ${{ steps.artifacts.outputs.sig }}
+      run: |
+        set -euo pipefail
+        APP_NAME=$(basename "${ARTIFACT_APP}")
+        OUT=$(mktemp -d)
+        tar -xzf "${ARTIFACT_TAR}" -C "$OUT"
+        TOP=$(ls -A "$OUT")
+        if [ "$TOP" != "$APP_NAME" ]; then
+          echo "::error::Updater tarball must hold exactly one top-level $APP_NAME, found: $TOP"
+          exit 1
+        fi
+        APP="$OUT/$APP_NAME"
+
+        echo "=== 1. Code signature ==="
+        codesign -vvv --deep --strict "$APP"
+
+        echo "=== 2. Notarization staple ==="
+        xcrun stapler validate "$APP"
+
+        echo "=== 3. Gatekeeper assessment ==="
+        scripts/ci/assert-gatekeeper-notarized.sh -vvv "$APP"
+
+        echo "=== 4. Updater signature (pubkey from tauri.conf.json) ==="
+        node scripts/ci/verify-updater-signature.mjs \
+          "${ARTIFACT_TAR}" "${ARTIFACT_SIG}" app/src-tauri/tauri.conf.json
+    - name: Generate checksums
+      if: ${{ matrix.flavor != 'staging' }}
+      env:
+        ARTIFACT_DMG: ${{ steps.artifacts.outputs.dmg }}
+        ARTIFACT_TAR: ${{ steps.artifacts.outputs.tar }}
+      run: |
+        shasum -a 256 \
+          "${ARTIFACT_DMG}" \
+          "${ARTIFACT_TAR}" \
+          > checksums-sha256.txt
+        cat checksums-sha256.txt
+    - name: 'TEMP: write updater notes (no prep job)'
+      if: ${{ matrix.flavor != 'staging' }}
+      run: |
+        printf "TEMP check build, never published\n" > update-notes.txt
+    - name: Generate updater manifest
+      if: ${{ matrix.flavor != 'staging' }}
+      env:
+        ARTIFACT_TAR: ${{ steps.artifacts.outputs.tar }}
+        ARTIFACT_SIG: ${{ steps.artifacts.outputs.sig }}
+      run: |
+        VERSION="${CHECK_REF_NAME#cloud-}"; VERSION="${VERSION#v}"
+        # Channel-specific updater manifest name so the cloud + local feeds
+        # stay distinct release assets (the cloud app's baked endpoint points
+        # at latest-cloud.json — see point-updater-at-cloud-manifest.sh).
+        # Exported so the upload + finalize steps agree on the filename.
+        case "$CHECK_REF_NAME" in
+          cloud-*) MANIFEST="latest-cloud.json" ;;
+          *)       MANIFEST="latest.json" ;;
+        esac
+        echo "MANIFEST=$MANIFEST" >> "$GITHUB_ENV"
+        TAR_NAME=$(basename "${ARTIFACT_TAR}")
+        SIG=$(cat "${ARTIFACT_SIG}")
+        URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${CHECK_REF_NAME}/$TAR_NAME"
+
+        # Four keys required. We ship ONE universal tarball that runs on
+        # both Apple Silicon and Intel, so every platform key points at the
+        # same URL + signature:
+        #   - darwin-aarch64 / darwin-aarch64-app  (Apple Silicon)
+        #   - darwin-x86_64  / darwin-x86_64-app   (Intel)
+        # Tauri updater checks the `-app` suffix first, then falls back to
+        # generic; Intel users on older Houston installs hit `darwin-x86_64`
+        # and need it present or they never see the update prompt.
+        jq -n \
+          --arg v "$VERSION" \
+          --arg sig "$SIG" \
+          --arg url "$URL" \
+          --arg date "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" \
+          --rawfile notes update-notes.txt \
+          '{
+            version: $v,
+            notes: $notes,
+            pub_date: $date,
+            platforms: {
+              "darwin-aarch64": {
+                signature: $sig,
+                url: $url
+              },
+              "darwin-aarch64-app": {
+                signature: $sig,
+                url: $url
+              },
+              "darwin-x86_64": {
+                signature: $sig,
+                url: $url
+              },
+              "darwin-x86_64-app": {
+                signature: $sig,
+                url: $url
+              }
+            }
+          }' > "$MANIFEST"
+
+        echo "$MANIFEST:"
+        cat "$MANIFEST"
+    - name: 'TEMP: keep the shipped prod files for download (1 day)'
+      if: ${{ matrix.flavor != 'staging' }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: macos-notarize-once-check
+        retention-days: 1
+        path: |
+          ${{ steps.artifacts.outputs.dmg }}
+          ${{ steps.artifacts.outputs.tar }}
+          ${{ steps.artifacts.outputs.sig }}
+          latest-cloud.json
+          checksums-sha256.txt
+  verify:
+    name: TEMP verify downloaded artifacts
+    needs: build-macos
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+    - name: Download
+      uses: actions/download-artifact@v8
+      with:
+        name: macos-notarize-once-check
+        path: dl
+    - name: TEMP verify downloaded artifacts
+      run: |
+        set -euo pipefail
+        find dl -type f -exec ls -la {} +
+        DMG=$(find dl -name '*.dmg' -print -quit)
+        TAR=$(find dl -name '*.app.tar.gz' -print -quit)
+        SIG="$TAR.sig"
+        echo "=== DMG ==="
+        codesign --verify --strict -vvv "$DMG"
+        xcrun stapler validate "$DMG"
+        scripts/ci/assert-gatekeeper-notarized.sh -vvv -t install "$DMG"
+        scripts/ci/assert-gatekeeper-notarized.sh -vvv -t open --context context:primary-signature "$DMG"
+        MOUNT=$(mktemp -d)
+        hdiutil attach "$DMG" -mountpoint "$MOUNT" -nobrowse -readonly -quiet
+        trap 'hdiutil detach "$MOUNT" -force -quiet' EXIT
+        INNER="$MOUNT/Houston.app"
+        EXTRACTED=$(mktemp -d)/Houston.app
+        ditto "$INNER" "$EXTRACTED"
+        codesign --verify --deep --strict -vvv "$EXTRACTED"
+        scripts/ci/assert-gatekeeper-notarized.sh -vvv "$EXTRACTED"
+        echo "inner .app staple (expected: none, the DMG ticket covers it):"
+        xcrun stapler validate "$EXTRACTED" || echo "not stapled, as designed"
+        echo "=== Updater tarball ==="
+        tar -tzf "$TAR" | awk -F/ '{print $1}' | sort -u
+        if tar -tzf "$TAR" | grep -E '(^|/)\._'; then echo "::error::AppleDouble entries in tarball"; exit 1; fi
+        U=$(mktemp -d)
+        tar -xzf "$TAR" -C "$U"
+        codesign --verify --deep --strict -vvv "$U/Houston.app"
+        xcrun stapler validate "$U/Houston.app"
+        scripts/ci/assert-gatekeeper-notarized.sh -vvv "$U/Houston.app"
+        node scripts/ci/verify-updater-signature.mjs "$TAR" "$SIG" app/src-tauri/tauri.conf.json
+        echo "=== Manifest carries the new signature ==="
+        M=$(find dl -name 'latest*.json' -print -quit); echo "manifest: $M"
+        for p in darwin-aarch64 darwin-aarch64-app darwin-x86_64 darwin-x86_64-app; do
+          test "$(jq -r --arg p "$p" '.platforms[$p].signature' "$M")" = "$(cat "$SIG")"
+        done
+        echo "manifest signature == .sig for all four darwin keys"
+        echo "=== cdhash: DMG .app == updater .app ==="
+        A=$(codesign -dvvv "$EXTRACTED" 2>&1 | grep '^CDHash=')
+        B=$(codesign -dvvv "$U/Houston.app" 2>&1 | grep '^CDHash=')
+        echo "$A / $B"; test "$A" = "$B"
+        echo "=== checksums file matches the shipped bytes ==="
+        (cd dl && shasum -a 256 -c checksums-sha256.txt)
+        echo ALL OK
+  offline-flow:
+    name: TEMP offline first launch (spctl on the DMG, then copy)
+    needs: build-macos
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+    - name: Download
+      uses: actions/download-artifact@v8
+      with:
+        name: macos-notarize-once-check
+        path: dl
+    - name: TEMP offline first launch (spctl on the DMG, then copy)
+      run: |
+        set -euo pipefail
+        DMG=$(find dl -name '*.dmg' -print -quit)
+        TAR=$(find dl -name '*.app.tar.gz' -print -quit)
+        echo "=== Cut this runner off from Apple: pf drop to 17.0.0.0/8 + Apple v6, hosts entries ==="
+        printf 'block drop out quick inet from any to 17.0.0.0/8\nblock drop out quick inet6 from any to 2620:149::/32\nblock drop out quick inet6 from any to 2403:300::/32\n' | sudo pfctl -f - 2>&1 | grep -v ALTQ || true
+        sudo pfctl -E 2>&1 | tail -1 || true
+        for h in api.apple-cloudkit.com ocsp.apple.com ocsp2.apple.com gateway.icloud.com crl.apple.com; do
+          echo "0.0.0.0 $h" | sudo tee -a /etc/hosts >/dev/null
+        done
+        sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder || true
+        for u in https://api.apple-cloudkit.com https://17.248.201.70 https://ocsp2.apple.com; do
+          if curl -s -m 8 -o /dev/null "$u"; then echo "::error::$u still reachable, not offline"; exit 1; fi
+          echo "unreachable: $u"
+        done
+        curl -s -m 8 -o /dev/null https://github.com && echo "github.com still reachable (runner link intact)"
+        quarantine() { xattr -w com.apple.quarantine "0083;$(printf %x "$(date +%s)");Safari;" "$1"; }
+        assess() { spctl -a -vvv "$@" 2>&1 || true; }
+        echo "=== Positive control: the stapled updater .app, offline ==="
+        U=$(mktemp -d); tar -xzf "$TAR" -C "$U"; quarantine "$U/Houston.app"
+        xcrun stapler validate "$U/Houston.app" || true
+        assess "$U/Houston.app"
+        echo "=== User flow, offline: downloaded DMG, open it, drag the app out, first launch ==="
+        quarantine "$DMG"
+        echo "--- Gatekeeper on opening the DMG ---"
+        assess -t open --context context:primary-signature "$DMG"
+        MOUNT=$(mktemp -d)
+        hdiutil attach "$DMG" -mountpoint "$MOUNT" -nobrowse -readonly -quiet
+        xattr -l "$MOUNT/Houston.app" | head -3 || true
+        DEST=$(mktemp -d)/Applications
+        mkdir -p "$DEST"
+        ditto "$MOUNT/Houston.app" "$DEST/Houston.app"
+        hdiutil detach "$MOUNT" -quiet || true
+        echo "--- quarantine on the copied app ---"
+        xattr -p com.apple.quarantine "$DEST/Houston.app" || { echo "no quarantine propagated; adding it as a browser download would"; quarantine "$DEST/Houston.app"; }
+        echo "--- Gatekeeper on first launch of the copied app ---"
+        RESULT=$(assess "$DEST/Houston.app")
+        echo "$RESULT"
+        echo "::notice title=offline user flow::$(echo "$RESULT" | tr '\n' ' ')"
+  offline-open:
+    name: TEMP offline first launch (open the DMG with DiskImageMounter)
+    needs: build-macos
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+    - name: Download
+      uses: actions/download-artifact@v8
+      with:
+        name: macos-notarize-once-check
+        path: dl
+    - name: TEMP offline first launch (open the DMG with DiskImageMounter)
+      run: |
+        set -euo pipefail
+        DMG=$(find dl -name '*.dmg' -print -quit)
+        TAR=$(find dl -name '*.app.tar.gz' -print -quit)
+        echo "=== Cut this runner off from Apple: pf drop to 17.0.0.0/8 + Apple v6, hosts entries ==="
+        printf 'block drop out quick inet from any to 17.0.0.0/8\nblock drop out quick inet6 from any to 2620:149::/32\nblock drop out quick inet6 from any to 2403:300::/32\n' | sudo pfctl -f - 2>&1 | grep -v ALTQ || true
+        sudo pfctl -E 2>&1 | tail -1 || true
+        for h in api.apple-cloudkit.com ocsp.apple.com ocsp2.apple.com gateway.icloud.com crl.apple.com; do
+          echo "0.0.0.0 $h" | sudo tee -a /etc/hosts >/dev/null
+        done
+        sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder || true
+        for u in https://api.apple-cloudkit.com https://17.248.201.70 https://ocsp2.apple.com; do
+          if curl -s -m 8 -o /dev/null "$u"; then echo "::error::$u still reachable, not offline"; exit 1; fi
+          echo "unreachable: $u"
+        done
+        curl -s -m 8 -o /dev/null https://github.com && echo "github.com still reachable (runner link intact)"
+        quarantine() { xattr -w com.apple.quarantine "0083;$(printf %x "$(date +%s)");Safari;" "$1"; }
+        assess() { spctl -a -vvv "$@" 2>&1 || true; }
+        echo "=== User flow via Finder's mounter, offline: open the downloaded DMG, drag the app out ==="
+        quarantine "$DMG"
+        open "$DMG"
+        VOL=""
+        for _ in $(seq 1 60); do
+          VOL=$(find /Volumes -maxdepth 2 -name Houston.app -print -quit 2>/dev/null || true)
+          [ -n "$VOL" ] && break
+          sleep 2
+        done
+        if [ -z "$VOL" ]; then
+          echo "::notice title=offline open flow::DiskImageMounter did not mount the DMG within 120 s"
+          ls /Volumes; exit 0
+        fi
+        echo "mounted: $VOL"
+        xattr -l "$VOL" | head -3 || true
+        DEST=$(mktemp -d)/Applications
+        mkdir -p "$DEST"
+        ditto "$VOL" "$DEST/Houston.app"
+        hdiutil detach "$(dirname "$VOL")" -force -quiet || true
+        xattr -p com.apple.quarantine "$DEST/Houston.app" || { echo "no quarantine propagated; adding it"; quarantine "$DEST/Houston.app"; }
+        RESULT=$(assess "$DEST/Houston.app")
+        echo "$RESULT"
+        echo "::notice title=offline open flow::$(echo "$RESULT" | tr '\n' ' ')"
+  offline-control:
+    name: TEMP offline control (app copied from an unassessed DMG)
+    needs: build-macos
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+    - name: Download
+      uses: actions/download-artifact@v8
+      with:
+        name: macos-notarize-once-check
+        path: dl
+    - name: TEMP offline control (app copied from an unassessed DMG)
+      run: |
+        set -euo pipefail
+        DMG=$(find dl -name '*.dmg' -print -quit)
+        TAR=$(find dl -name '*.app.tar.gz' -print -quit)
+        echo "=== Cut this runner off from Apple: pf drop to 17.0.0.0/8 + Apple v6, hosts entries ==="
+        printf 'block drop out quick inet from any to 17.0.0.0/8\nblock drop out quick inet6 from any to 2620:149::/32\nblock drop out quick inet6 from any to 2403:300::/32\n' | sudo pfctl -f - 2>&1 | grep -v ALTQ || true
+        sudo pfctl -E 2>&1 | tail -1 || true
+        for h in api.apple-cloudkit.com ocsp.apple.com ocsp2.apple.com gateway.icloud.com crl.apple.com; do
+          echo "0.0.0.0 $h" | sudo tee -a /etc/hosts >/dev/null
+        done
+        sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder || true
+        for u in https://api.apple-cloudkit.com https://17.248.201.70 https://ocsp2.apple.com; do
+          if curl -s -m 8 -o /dev/null "$u"; then echo "::error::$u still reachable, not offline"; exit 1; fi
+          echo "unreachable: $u"
+        done
+        curl -s -m 8 -o /dev/null https://github.com && echo "github.com still reachable (runner link intact)"
+        quarantine() { xattr -w com.apple.quarantine "0083;$(printf %x "$(date +%s)");Safari;" "$1"; }
+        assess() { spctl -a -vvv "$@" 2>&1 || true; }
+        echo "=== Control, offline: copy the app out of a DMG nobody assessed, first launch ==="
+        MOUNT=$(mktemp -d)
+        hdiutil attach "$DMG" -mountpoint "$MOUNT" -nobrowse -readonly -quiet
+        DEST=$(mktemp -d)/Applications
+        mkdir -p "$DEST"
+        ditto "$MOUNT/Houston.app" "$DEST/Houston.app"
+        hdiutil detach "$MOUNT" -quiet || true
+        quarantine "$DEST/Houston.app"
+        RESULT=$(assess "$DEST/Houston.app")
+        echo "$RESULT"
+        echo "::notice title=offline control::$(echo "$RESULT" | tr '\n' ' ')"
