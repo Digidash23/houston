@@ -13,7 +13,7 @@ import type { CatalogProvider } from "@houston/protocol";
  * model it runs as — the gateway's clamp and the app both read the field, on
  * this provider only.
  *
- * A row with no family in the lineup (Haiku) is dropped: nothing runs it, and
+ * A row with no family in the lineup (e.g. `claude-2.1`) is dropped: nothing runs it, and
  * listing it would let a ceiling or picker offer a model no turn can run here.
  * Every other provider's Claude rows are that provider's own and untouched.
  */

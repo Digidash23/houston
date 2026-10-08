@@ -19,7 +19,12 @@ import { resolvePersonalModelPin } from "../src/lib/model-selector-lock.ts";
 // What the picker can offer per provider once hydrated: anthropic shows only
 // its lineup; its retired rows are hidden but still carry `runsAs`.
 const visible: Record<string, string[]> = {
-  anthropic: ["claude-sonnet-5-5", "claude-opus-5-5", "claude-fable-5-1"],
+  anthropic: [
+    "claude-sonnet-5-5",
+    "claude-opus-5-5",
+    "claude-fable-5-1",
+    "claude-haiku-5-5",
+  ],
   opencode: ["claude-opus-5", "claude-opus-5-5"],
   openrouter: ["anthropic/claude-opus-5", "anthropic/claude-haiku-4.5"],
 };
@@ -27,6 +32,7 @@ const runsAsRows: Record<string, Record<string, string>> = {
   anthropic: {
     "claude-opus-5": "claude-opus-5-5",
     "claude-sonnet-5": "claude-sonnet-5-5",
+    "claude-haiku-4-5": "claude-haiku-5-5",
   },
 };
 
@@ -142,7 +148,7 @@ describe("a retired anthropic entry never widens another provider", () => {
 });
 
 describe("a Haiku-only ceiling", () => {
-  it("admits no lineup model and runs on the catalogued owner", () => {
+  it("runs anthropic's Haiku 5.5, not OpenRouter", () => {
     deepStrictEqual(
       resolvePersonalModelPin(
         null,
@@ -151,11 +157,7 @@ describe("a Haiku-only ceiling", () => {
         null,
         claudeOnly,
       ),
-      {
-        provider: "openrouter",
-        model: "anthropic/claude-haiku-4.5",
-        effort: "high",
-      },
+      { provider: "anthropic", model: "claude-haiku-5-5", effort: "high" },
     );
   });
 });

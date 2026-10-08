@@ -44,20 +44,22 @@ test("retired Claude rows run as their own family's lineup model", () => {
   ]);
 });
 
-test("lineup rows carry no runsAs and Haiku rows are dropped", () => {
+test("lineup rows carry no runsAs and a row outside every family is dropped", () => {
   const shaped = withAnthropicLineup(
     anthropic([
       "claude-haiku-4-5",
       "claude-sonnet-5-5",
-      "claude-haiku-4-5-20251001",
+      "claude-2.1",
+      "claude-haiku-5-5",
       "claude-fable-5-1",
     ]),
   );
-  expect(shaped.models.map((m) => m.id)).toEqual([
-    "claude-sonnet-5-5",
-    "claude-fable-5-1",
+  expect(shaped.models.map((m) => [m.id, m.runsAs])).toEqual([
+    ["claude-haiku-4-5", "claude-haiku-5-5"],
+    ["claude-sonnet-5-5", undefined],
+    ["claude-haiku-5-5", undefined],
+    ["claude-fable-5-1", undefined],
   ]);
-  expect(shaped.models.every((m) => !("runsAs" in m))).toBe(true);
 });
 
 test("GET /v1/catalog shapes anthropic and leaves every other provider alone", () => {
@@ -67,7 +69,8 @@ test("GET /v1/catalog shapes anthropic and leaves every other provider alone", (
   const byId = new Map(claude?.models.map((m) => [m.id, m]));
   expect(byId.get("claude-opus-5")?.runsAs).toBe("claude-opus-5-5");
   expect(byId.get("claude-opus-5-5")?.runsAs).toBeUndefined();
-  expect(claude?.models.some((m) => m.id.includes("haiku"))).toBe(false);
+  expect(byId.get("claude-haiku-4-5")?.runsAs).toBe("claude-haiku-5-5");
+  expect(byId.get("claude-haiku-5-5")?.runsAs).toBeUndefined();
   for (const provider of catalog) {
     if (provider.id === ANTHROPIC_PROVIDER_ID) continue;
     expect(
@@ -75,7 +78,7 @@ test("GET /v1/catalog shapes anthropic and leaves every other provider alone", (
       provider.id,
     ).toBe(false);
   }
-  // Other providers keep their own Claude Haiku rows.
+  // Other providers keep their own Claude Haiku rows, unmapped.
   expect(
     catalog.some(
       (p) =>
