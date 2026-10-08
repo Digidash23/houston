@@ -71,7 +71,6 @@ jobs:
               - '.npmrc'
               - 'patches/**'
               - 'tsconfig.json'
-              - '.github/workflows/ci.yml'
 
   checks:
     name: TS checks (lint · typecheck · contract tests)
