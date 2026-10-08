@@ -1,3 +1,4 @@
+import { type RunsAsLookup, runnableEntry } from "./ceiling-match.ts";
 import type { ModelPin } from "./model-selector-lock.ts";
 
 /**
@@ -10,6 +11,8 @@ export interface CeilingResolver {
   offers: (provider: string, model: string) => boolean;
   /** Which catalogued provider offers `model`, or `null` when none does. */
   providerFor: (model: string) => string | null;
+  /** The model `provider`'s own row for a retired `model` runs as. */
+  runsAs: RunsAsLookup;
   /** Provider ids the acting user is CONFIRMED connected to, registry order. */
   connected: readonly string[];
 }
@@ -25,12 +28,14 @@ export interface CeilingResolver {
  * OpenRouter" card they could not act on (PRODUCT-1657). So the pick prefers
  * what can actually run:
  *
- *  1. an entry the fallback's own provider offers (it is already the
+ *  1. an entry the fallback's own provider runs (it is already the
  *     connection-resolved composer provider);
- *  2. else an entry offered by any connected provider, in registry order;
+ *  2. else an entry any connected provider runs, in registry order;
  *  3. else the first entry on its catalogued provider — nothing connected can
  *     run this ceiling, and the resulting card names the provider truthfully.
  *
+ * An entry a provider runs as another model (a retired Claude id on anthropic,
+ * `runsAs`) is pinned as that model, mirroring the gateway's forced pick.
  * Effort always carries over from the fallback: activities and ceilings have no
  * effort field.
  */
@@ -39,21 +44,35 @@ export function pickCeilingPin(
   fallback: ModelPin,
   resolver: CeilingResolver,
 ): ModelPin {
-  const own = ceiling.find((model) =>
-    resolver.offers(fallback.provider, model),
-  );
-  if (own !== undefined) return { ...fallback, model: own };
+  const own = firstRunnable(ceiling, fallback.provider, resolver);
+  if (own !== null) return { ...fallback, model: own };
   for (const provider of resolver.connected) {
-    const model = ceiling.find((candidate) =>
-      resolver.offers(provider, candidate),
-    );
-    if (model !== undefined)
-      return { provider, model, effort: fallback.effort };
+    const model = firstRunnable(ceiling, provider, resolver);
+    if (model !== null) return { provider, model, effort: fallback.effort };
   }
   const first = ceiling[0];
+  const provider = resolver.providerFor(first) ?? fallback.provider;
   return {
-    provider: resolver.providerFor(first) ?? fallback.provider,
-    model: first,
+    provider,
+    model: resolver.runsAs(provider, first) ?? first,
     effort: fallback.effort,
   };
+}
+
+/** The model `provider` runs for the first ceiling entry it can run at all. */
+function firstRunnable(
+  ceiling: readonly string[],
+  provider: string,
+  resolver: CeilingResolver,
+): string | null {
+  for (const entry of ceiling) {
+    const model = runnableEntry(
+      provider,
+      entry,
+      resolver.offers,
+      resolver.runsAs,
+    );
+    if (model !== null) return model;
+  }
+  return null;
 }

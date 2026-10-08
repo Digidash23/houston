@@ -29,6 +29,7 @@ import {
   modelSelectorDecision,
   resolvePersonalModelPin,
 } from "../lib/model-selector-lock";
+import { catalogRunsAs } from "../lib/providers";
 import { routinePinnedPair } from "../lib/routine-pinned-pair";
 import type { Agent } from "../lib/types";
 import { useAgentConfig, useAgentModelChoice } from "./queries";
@@ -44,6 +45,7 @@ import { useCapabilities } from "./use-capabilities";
 const GATEWAY_CEILING_RESOLVER: CeilingResolver = {
   offers: providerOffersModel,
   providerFor: providerForModel,
+  runsAs: catalogRunsAs,
   connected: [],
 };
 
