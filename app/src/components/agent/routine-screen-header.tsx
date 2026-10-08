@@ -86,12 +86,7 @@ export function RoutineScreenHeader({
         )}
         <div className="flex w-full flex-wrap items-center gap-2 pl-9 md:w-auto md:flex-nowrap md:pl-0">
           {routine.trigger && (
-            <RoutineActivationChip
-              agentId={agent.id}
-              routineId={routine.id}
-              trigger={routine.trigger}
-              createdBy={routine.created_by}
-            />
+            <RoutineActivationChip agentId={agent.id} routine={routine} />
           )}
           <Button variant="secondary" size="sm" onClick={onOpenRuns}>
             <History className="size-4" />

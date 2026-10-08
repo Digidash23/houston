@@ -8,8 +8,9 @@
  * secret. A host too old to mint returns null — surfaced as an honest toast.
  *
  * Only the routine's creator may mint or rotate (the SDK's `webhookKeyAccess`,
- * the gateway's own rule): everyone else still sees whether a webhook exists,
- * with one line saying who can create its address instead of the actions.
+ * the gateway's own rule; the space owner for a routine naming no creator):
+ * everyone else still sees whether a webhook exists, with one line naming who
+ * can change its address instead of the actions.
  */
 
 import type {
@@ -69,9 +70,11 @@ export function WebhookActivationChip({
   const dialog = (
     <WebhookKeyDialog onClose={() => setRevealed(null)} revealed={revealed} />
   );
-  const creatorOnly = view.showCreatorOnly && (
-    <span className="max-w-[15rem] text-right text-ink-muted text-xs">
-      {t("webhook.creatorOnly")}
+  const notice = view.notice && (
+    <span className="max-w-[15rem] text-left text-ink-muted text-xs md:text-right">
+      {view.notice === "owner_only"
+        ? t("webhook.ownerOnly")
+        : t("webhook.creatorOnly")}
     </span>
   );
 
@@ -89,7 +92,7 @@ export function WebhookActivationChip({
   if (view.active) {
     return (
       <>
-        <span className="inline-flex flex-wrap items-center justify-end gap-2">
+        <span className="inline-flex flex-wrap items-center justify-start gap-2 md:justify-end">
           <span className="inline-flex items-center gap-1.5 font-medium text-success text-xs">
             <CheckCircle2 className="size-3.5 shrink-0" />
             {t("webhook.active")}
@@ -104,7 +107,7 @@ export function WebhookActivationChip({
               {t("webhook.rotate")}
             </Button>
           )}
-          {creatorOnly}
+          {notice}
         </span>
         <ConfirmDialog
           cancelLabel={t("webhook.rotateConfirm.cancel")}
@@ -134,7 +137,7 @@ export function WebhookActivationChip({
   }
 
   // No key yet and nothing this viewer can do about it: say who can.
-  if (creatorOnly) return creatorOnly;
+  if (notice) return notice;
 
   return (
     <span className="inline-flex items-center gap-1.5 font-medium text-ink-muted text-xs">

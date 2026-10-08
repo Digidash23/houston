@@ -19,14 +19,16 @@ describe("webhookKeyAccess: the gateway's creator-only mint rule", () => {
   it("a routine naming a creator is that person's alone, whatever the role", () => {
     const base = { createdBy: "u-alice", ownsSpace: true };
     expect(webhookKeyAccess({ ...base, viewerId: "u-alice" })).toBe("allowed");
-    expect(webhookKeyAccess({ ...base, viewerId: "u-bob" })).toBe("refused");
+    expect(webhookKeyAccess({ ...base, viewerId: "u-bob" })).toBe(
+      "not_creator",
+    );
     expect(
       webhookKeyAccess({
         createdBy: "u-alice",
         viewerId: "u-bob",
         ownsSpace: false,
       }),
-    ).toBe("refused");
+    ).toBe("not_creator");
   });
 
   it("waits for the session before judging a named creator", () => {
@@ -56,7 +58,7 @@ describe("webhookKeyAccess: the gateway's creator-only mint rule", () => {
     ).toBe("allowed");
     expect(
       webhookKeyAccess({ createdBy: "", viewerId: "u-bob", ownsSpace: false }),
-    ).toBe("refused");
+    ).toBe("not_owner");
     expect(
       webhookKeyAccess({
         createdBy: undefined,

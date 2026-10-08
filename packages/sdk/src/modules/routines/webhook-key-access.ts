@@ -28,20 +28,27 @@ export interface WebhookKeyViewer {
 }
 
 /**
- * `allowed`: the gateway would accept this viewer's mint. `refused`: it
- * would answer `not_creator`. `unknown`: the session or the space role has
- * not loaded, so a surface offers nothing yet rather than flash the wrong
- * state.
+ * `allowed`: the gateway would accept this viewer's mint. `not_creator`:
+ * the routine names someone else, who alone may mint. `not_owner`: the
+ * routine names no creator, so only the space owner may mint, and the viewer
+ * is not the owner. `unknown`: the session or the space role has not loaded,
+ * so a surface offers nothing yet rather than flash the wrong state. The two
+ * refusals are told apart because a surface names who CAN mint, and that
+ * person differs.
  */
-export type WebhookKeyAccess = "allowed" | "refused" | "unknown";
+export type WebhookKeyAccess =
+  | "allowed"
+  | "not_creator"
+  | "not_owner"
+  | "unknown";
 
 export function webhookKeyAccess(viewer: WebhookKeyViewer): WebhookKeyAccess {
   if (viewer.createdBy) {
     if (!viewer.viewerId) return "unknown";
-    return viewer.createdBy === viewer.viewerId ? "allowed" : "refused";
+    return viewer.createdBy === viewer.viewerId ? "allowed" : "not_creator";
   }
   if (viewer.ownsSpace === undefined) return "unknown";
-  return viewer.ownsSpace ? "allowed" : "refused";
+  return viewer.ownsSpace ? "allowed" : "not_owner";
 }
 
 /** The gateway's code for a mint by someone other than the routine's creator. */

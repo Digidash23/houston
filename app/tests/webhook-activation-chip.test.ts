@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
 import { webhookChipView } from "../src/components/agent/webhook-chip-view.ts";
 import { classifyQuietError } from "../src/lib/quiet-error-class.ts";
+import { webhookKeyOwnership } from "../src/lib/webhook-key-ownership.ts";
 import { showWebhookNotCreatorToast } from "../src/lib/webhook-not-creator-toast.ts";
 import en from "../src/locales/en/routines.json" with { type: "json" };
 import es from "../src/locales/es/routines.json" with { type: "json" };
@@ -42,41 +43,116 @@ afterEach(drain);
 describe("webhookChipView: who sees which action", () => {
   it("the creator gets create or rotate by state", () => {
     const needs = webhookChipView("needs_key", "allowed");
-    ok(needs.showCreate && !needs.showRotate && !needs.showCreatorOnly);
+    ok(needs.showCreate && !needs.showRotate && needs.notice === null);
     const active = webhookChipView("active", "allowed");
-    ok(active.active && active.showRotate && !active.showCreatorOnly);
+    ok(active.active && active.showRotate && active.notice === null);
   });
 
-  it("anyone else still sees the state, with the creator-only line and no action", () => {
-    const needs = webhookChipView("needs_key", "refused");
+  it("anyone else still sees the state, with a line naming who can, and no action", () => {
+    const needs = webhookChipView("needs_key", "not_creator");
     deepStrictEqual(
-      [needs.showCreate, needs.showRotate, needs.showCreatorOnly],
-      [false, false, true],
+      [needs.showCreate, needs.showRotate, needs.notice],
+      [false, false, "creator_only"],
     );
-    const active = webhookChipView("active", "refused");
+    const active = webhookChipView("active", "not_creator");
     deepStrictEqual(
-      [active.active, active.showRotate, active.showCreatorOnly],
-      [true, false, true],
+      [active.active, active.showRotate, active.notice],
+      [true, false, "creator_only"],
     );
+    // A routine naming no creator is the space owner's: the line says so.
+    strictEqual(webhookChipView("needs_key", "not_owner").notice, "owner_only");
+    strictEqual(webhookChipView("active", "not_owner").notice, "owner_only");
   });
 
   it("while access is unknown nothing is offered and nothing is claimed", () => {
     for (const state of ["needs_key", "active"] as const) {
       const view = webhookChipView(state, "unknown");
-      ok(!view.showCreate && !view.showRotate && !view.showCreatorOnly);
+      ok(!view.showCreate && !view.showRotate && view.notice === null);
     }
     strictEqual(webhookChipView("active", "unknown").active, true);
   });
 
   it("checking and alert states never carry an action or the line", () => {
-    for (const access of ["allowed", "refused", "unknown"] as const) {
+    for (const access of [
+      "allowed",
+      "not_creator",
+      "not_owner",
+      "unknown",
+    ] as const) {
       ok(webhookChipView("checking", access).checking);
       ok(webhookChipView("alert", access).alert);
       for (const state of ["checking", "alert"] as const) {
         const view = webhookChipView(state, access);
-        ok(!view.showCreate && !view.showRotate && !view.showCreatorOnly);
+        ok(!view.showCreate && !view.showRotate && view.notice === null);
       }
     }
+  });
+});
+
+describe("webhookKeyOwnership: whether the viewer owns the space, or unknown", () => {
+  const team = "org:0123456789abcdef";
+  it("is unknown while capabilities load, failed to load, or no space is active", () => {
+    const caps = { multiplayer: true, role: "owner" as const };
+    strictEqual(
+      webhookKeyOwnership({
+        capabilities: caps,
+        capabilitiesLoading: true,
+        workspaceId: team,
+      }),
+      undefined,
+    );
+    strictEqual(
+      webhookKeyOwnership({
+        capabilities: null,
+        capabilitiesLoading: false,
+        workspaceId: team,
+      }),
+      undefined,
+    );
+    strictEqual(
+      webhookKeyOwnership({
+        capabilities: caps,
+        capabilitiesLoading: false,
+        workspaceId: null,
+      }),
+      undefined,
+    );
+  });
+
+  it("in a team space only the owner role owns it", () => {
+    for (const [role, owns] of [
+      ["owner", true],
+      ["admin", false],
+      ["user", false],
+    ] as const)
+      strictEqual(
+        webhookKeyOwnership({
+          capabilities: { multiplayer: true, spaces: true, role },
+          capabilitiesLoading: false,
+          workspaceId: team,
+        }),
+        owns,
+        role,
+      );
+  });
+
+  it("a personal space and a single-player host are the viewer's own", () => {
+    strictEqual(
+      webhookKeyOwnership({
+        capabilities: { multiplayer: true, spaces: true, role: "user" },
+        capabilitiesLoading: false,
+        workspaceId: "personal",
+      }),
+      true,
+    );
+    strictEqual(
+      webhookKeyOwnership({
+        capabilities: { multiplayer: false },
+        capabilitiesLoading: false,
+        workspaceId: "personal",
+      }),
+      true,
+    );
   });
 });
 
@@ -88,15 +164,21 @@ describe("the chip binds the SDK's rule and the three locales carry the copy", (
       chip.includes("webhookChipView(webhookActivationState(status), access)"),
     );
     ok(chip.includes("view.showCreate") && chip.includes("view.showRotate"));
-    ok(chip.includes('t("webhook.creatorOnly")'));
+    ok(
+      chip.includes('t("webhook.creatorOnly")') &&
+        chip.includes('t("webhook.ownerOnly")'),
+    );
     const hook = read("hooks/use-webhook-key-access.ts");
-    ok(hook.includes("webhookKeyAccess({") && hook.includes("isSpaceOwner("));
-    // Both mounts hand the chip the routine's creator.
-    for (const rel of [
-      "components/agent/routine-screen-header.tsx",
-      "components/agent/routine-setup-chat.tsx",
-    ])
-      ok(read(rel).includes("createdBy={routine.created_by}"), rel);
+    ok(
+      hook.includes("webhookKeyAccess({") &&
+        hook.includes("webhookKeyOwnership({"),
+    );
+    // The parent chip hands the webhook chip the routine's creator.
+    ok(
+      read("components/agent/routine-activation-chip.tsx").includes(
+        "createdBy={routine.created_by}",
+      ),
+    );
   });
 
   it("en, es and pt all carry the line and the toast, without em dashes", () => {
@@ -130,6 +212,11 @@ describe("the not_creator refusal is a quiet expected class", () => {
     const toasts = useUIStore.getState().toasts;
     strictEqual(toasts.length, 1);
     strictEqual(toasts[0]?.variant, "info");
+    // The authored copy, not the gateway's error text.
+    ok(
+      toasts[0]?.title === en.webhook.creatorOnlyTitle ||
+        toasts[0]?.title === "routines:webhook.creatorOnlyTitle",
+    );
     const surface = read("lib/quiet-state-surface.ts");
     const at = surface.indexOf('case "webhook_not_creator":');
     ok(at !== -1, "the quiet surface owns the class");

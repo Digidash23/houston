@@ -1,6 +1,6 @@
 import type { Activity, Routine } from "@houston/engine-adapter";
 import { ChatInput } from "@houston-ai/chat";
-import { Loader2, X } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { type ReactNode, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -9,6 +9,7 @@ import { useUIStore } from "../../stores/ui";
 import { useBoardLabels } from "../board/use-board-labels";
 import { RoutineActivationChip } from "./routine-activation-chip";
 import { RoutineSetupChatBoard } from "./routine-setup-chat-board";
+import { RoutineSetupChatClose } from "./routine-setup-chat-close";
 
 interface Props {
   /** The agent that owns this routine — its chat runs against that agent's
@@ -103,16 +104,7 @@ export function RoutineSetupChat({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
-  const closeButton = (
-    <button
-      type="button"
-      onClick={onClose}
-      aria-label={t("chat.close")}
-      className="size-7 flex items-center justify-center rounded-md text-ink-muted hover:text-ink hover:bg-hover/50 transition-colors shrink-0"
-    >
-      <X className="size-4" strokeWidth={1.75} />
-    </button>
-  );
+  const closeButton = <RoutineSetupChatClose onClose={onClose} />;
 
   // No activity yet. A slim header (same shape + close as the panel's) keeps the
   // panel dismissable while it settles. Portaled into the shell panel like the
@@ -181,12 +173,7 @@ export function RoutineSetupChat({
   // checking -> activating -> active, or an alert with the reason + Reconnect.
   const panelActions =
     kind === "routine" && routine?.trigger ? (
-      <RoutineActivationChip
-        agentId={agent.id}
-        routineId={routine.id}
-        trigger={routine.trigger}
-        createdBy={routine.created_by}
-      />
+      <RoutineActivationChip agentId={agent.id} routine={routine} />
     ) : undefined;
 
   // The board renders its detail panel straight into the shell panel via
