@@ -5,9 +5,9 @@ import {
   installRuntimeLogging,
   loggerOptionsForMode,
 } from "./observability/logging";
-import { anyTurnRunning } from "./session/bus";
 import { beginDrain } from "./session/drain";
 import { drainTurnsThenExit } from "./session/graceful-shutdown";
+import { turnsInFlight } from "./session/turn-inflight-count";
 import {
   beginWorkerShutdown,
   type WorkerRegistration,
@@ -268,7 +268,7 @@ function shutdown(signal: string) {
     drainTurnsThenExit({
       server,
       drainMs: config.shutdownDrainMs,
-      anyTurnRunning,
+      turnsInFlight,
       exit: exitNow,
       log: logger,
     });

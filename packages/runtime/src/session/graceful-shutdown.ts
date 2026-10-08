@@ -22,7 +22,8 @@ export interface GracefulShutdownDeps {
   server: DrainableServer;
   /** How long a still-running turn may hold the process (HOUSTON_RUNTIME_DRAIN_MS). */
   drainMs: number;
-  anyTurnRunning: () => boolean;
+  /** Turns the runtime still holds (session/turn-inflight-count.ts). */
+  turnsInFlight: () => number;
   /** Final exit: flushes and calls process.exit. Invoked exactly once. */
   exit: () => void | Promise<void>;
   log: {
@@ -43,7 +44,8 @@ export const DRAIN_SETTLE_MS = 500;
 export function drainTurnsThenExit(deps: GracefulShutdownDeps): void {
   const now = deps.now ?? Date.now;
   const deadline = now() + deps.drainMs;
-  if (deps.anyTurnRunning()) {
+  const turnRunning = () => deps.turnsInFlight() > 0;
+  if (turnRunning()) {
     deps.log.info("runtime draining: holding in-flight turns until they end", {
       drainMs: deps.drainMs,
     });
@@ -52,11 +54,11 @@ export function drainTurnsThenExit(deps: GracefulShutdownDeps): void {
   // once the host has dropped its connections, and an unref'd settle timer
   // would let Node exit naturally before `exit` flushed the logs.
   const tick = () => {
-    if (deps.anyTurnRunning() && now() < deadline) {
+    if (turnRunning() && now() < deadline) {
       setTimeout(tick, DRAIN_POLL_MS);
       return;
     }
-    if (deps.anyTurnRunning()) {
+    if (turnRunning()) {
       deps.log.warn(
         "runtime drain deadline reached with a turn still running; exiting",
         { drainMs: deps.drainMs },

@@ -39,10 +39,8 @@ vi.mock("../session/chat", () => ({
   setLiveTurnMode: vi.fn(),
 }));
 
-const bus = vi.hoisted(() => ({ running: new Set<string>() }));
 vi.mock("../session/bus", () => ({
   evict: vi.fn(),
-  isTurnRunning: (id: string) => bus.running.has(id),
   publish: vi.fn(),
 }));
 
@@ -82,7 +80,6 @@ function post(path: string, body: unknown) {
 }
 
 beforeEach(() => {
-  bus.running.clear();
   store.truncateConversation.mockClear();
   store.markConversationStopped.mockClear();
   chat.disposeConversation.mockClear();
