@@ -68,3 +68,16 @@ test("this client reads the same pause as 'choose a model', naming no provider",
     pausedAt: NOW,
   });
 });
+
+// PRODUCT-2050: cloud writes `creator_no_access` rows to every client version.
+// An old client hands the code it does not know to a switch with no case for
+// it, which falls back to the run's own summary; it must not throw first.
+test("an old client reads a creator-access row as an unnamed code", () => {
+  const refused = wire<Parameters<typeof main.routineFailureCode>[0]>({
+    ...runs[0],
+    failure: undefined,
+    delivery_failure: { code: "creator_no_access" },
+  });
+  expect(() => main.routineFailureCode(refused)).not.toThrow();
+  expect(main.routineFailureCode(refused)).toBe("creator_no_access");
+});

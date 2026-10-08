@@ -142,7 +142,8 @@
       "outOfCredits": "A conta {{provider}} está sem créditos.",
       "modelUnavailable": "A conta {{provider}} não pode usar o modelo desta rotina.",
       "noModel": "Esta rotina não tem um modelo escolhido e a conta de IA que ela usaria não está conectada.",
-      "poolDeliveryExpired": "Esta execução não pôde iniciar a tempo e foi ignorada. Você pode executar a rotina novamente."
+      "poolDeliveryExpired": "Esta execução não pôde iniciar a tempo e foi ignorada. Você pode executar a rotina novamente.",
+      "creatorNoAccess": "Esta rotina foi criada por alguém que não pode mais usar este funcionário de IA. Pause a rotina e retome-a para que ela seja executada como você."
     },
     "autoPause": {
       "chip": "Pausada",

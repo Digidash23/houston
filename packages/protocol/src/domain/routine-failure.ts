@@ -36,8 +36,17 @@ export type RoutineRunFailure =
     }
   | { code: "no_model" };
 
-/** Delivery failures never contribute to credential auto-pause streaks. */
-export type RoutineDeliveryFailureCode = "pool_delivery_expired";
+/**
+ * Why cloud never started a fire. Delivery failures never contribute to
+ * credential auto-pause streaks. `pool_delivery_expired`: no worker took the
+ * fire before its deadline; running it again is the remedy.
+ * `creator_no_access`: the person the routine runs as can no longer use the
+ * agent; any save of the routine (pausing and resuming it included) makes
+ * the saver its creator.
+ */
+export type RoutineDeliveryFailureCode =
+  | "pool_delivery_expired"
+  | "creator_no_access";
 
 export interface RoutineDeliveryFailure {
   code: RoutineDeliveryFailureCode;
