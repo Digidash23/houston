@@ -415,10 +415,11 @@ jobs:
     needs: prep
     name: Build macOS (${{ matrix.flavor }})
     runs-on: macos-latest
-    # The one Apple notarization (the DMG) waits on Apple's queue, which has
-    # taken 13-45 min on a bad night (2026-10-06). The Notarize step caps
-    # itself at 90 min; this leaves room for it after a ~20 min compile.
-    timeout-minutes: 120
+    # Budget: a cold-cache leg reaches the notarize step in about 30 min (a
+    # warm one in 12-15), the notarize step caps itself at 90 min (Apple's
+    # queue took 13-45 min on 2026-10-06), and the steps after it take about
+    # 5 min. 30 + 90 + 5 = 125, so 150 never kills a leg Apple accepted.
+    timeout-minutes: 150
     strategy:
       # fail-fast=false so a staging-leg failure never kills the prod DMG that
       # actually ships (mirrors build-windows). macos_flavors is ["prod"] on the
@@ -1129,11 +1130,9 @@ jobs:
       # (Apple's guidance: notarize and staple the outermost container), and
       # the verification below checks Gatekeeper accepts it as notarized.
       #
-      # Submit once, then wait on that submission id. A dropped connection
-      # retries the wait, not the upload, so the DMG keeps its place in
-      # Apple's queue; only a failed upload (no id) is resubmitted. An
-      # Invalid/Rejected verdict fails at once: it is Apple's answer for these
-      # exact bytes. The step's 90 min cap bounds a slow queue.
+      # Retry rules (upload only without an id, wait on the same id until an
+      # 85 min deadline, fail at once on Invalid/Rejected, staple retries)
+      # live in the script; scripts/test/notarize-dmg.test.sh covers them.
       - name: Notarize DMG, staple the DMG and the .app
         timeout-minutes: 90
         env:
@@ -1141,72 +1140,7 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           ARTIFACT_DMG: ${{ steps.artifacts.outputs.dmg }}
           ARTIFACT_APP: ${{ steps.artifacts.outputs.app }}
-        run: |
-          set -euo pipefail
-          KEY="$HOME/.appstoreconnect/private_keys/AuthKey_${APPLE_API_KEY}.p8"
-          notary() {
-            xcrun notarytool "$@" --key-id "$APPLE_API_KEY" --key "$KEY" --issuer "$APPLE_API_ISSUER"
-          }
-          json_field() { jq -r --arg f "$1" '.[$f] // empty' "$2" 2>/dev/null || true; }
-
-          ID=""
-          for attempt in 1 2 3; do
-            echo "=== Upload attempt $attempt/3 ==="
-            SUBMIT="$RUNNER_TEMP/notary-submit-$attempt.json"
-            notary submit "${ARTIFACT_DMG}" --output-format json > "$SUBMIT" \
-              || echo "notarytool submit exited $?"
-            cat "$SUBMIT"; echo
-            ID=$(json_field id "$SUBMIT")
-            if [ -n "$ID" ]; then break; fi
-            if [ "$attempt" -lt 3 ]; then
-              echo "Upload failed, retrying in 30s..."
-              sleep 30
-            fi
-          done
-          if [ -z "$ID" ]; then
-            echo "::error::Could not upload the DMG to Apple's notary service after 3 attempts"
-            exit 1
-          fi
-
-          STATUS=""
-          for attempt in 1 2 3 4 5; do
-            echo "=== Waiting on submission $ID (attempt $attempt/5) ==="
-            WAIT="$RUNNER_TEMP/notary-wait-$attempt.json"
-            notary wait "$ID" --output-format json > "$WAIT" \
-              || echo "notarytool wait exited $?"
-            cat "$WAIT"; echo
-            STATUS=$(json_field status "$WAIT")
-            case "$STATUS" in
-              Accepted) break ;;
-              Invalid|Rejected)
-                notary log "$ID" || echo "::warning::could not fetch the notary log for $ID"
-                echo "::error::Apple returned $STATUS for the DMG; the notary log above names the offending files"
-                exit 1
-                ;;
-            esac
-            if [ "$attempt" -lt 5 ]; then
-              echo "No verdict yet, waiting again in 30s..."
-              sleep 30
-            fi
-          done
-          if [ "$STATUS" != "Accepted" ]; then
-            echo "::error::No notarization verdict for submission $ID"
-            exit 1
-          fi
-
-          xcrun stapler staple "${ARTIFACT_DMG}"
-
-          # The .app's ticket comes from the same submission; allow a short
-          # lag between the Accepted verdict and the ticket being fetchable.
-          for attempt in 1 2 3 4 5; do
-            if xcrun stapler staple "${ARTIFACT_APP}"; then
-              exit 0
-            fi
-            echo "No ticket for the .app yet (attempt $attempt/5), retrying in 15s..."
-            sleep 15
-          done
-          echo "::error::Could not staple the .app: no ticket for it after the DMG notarization"
-          exit 1
+        run: scripts/ci/notarize-dmg.sh "${ARTIFACT_DMG}" "${ARTIFACT_APP}"
 
       # tauri-action built and signed Houston.app.tar.gz before notarization,
       # so it holds the unstapled .app. Rebuild it from the stapled .app and
@@ -1226,21 +1160,25 @@ jobs:
           ARTIFACT_SIG: ${{ steps.artifacts.outputs.sig }}
         run: |
           set -euo pipefail
-          export LC_ALL=C
-          listing() { tar -tzf "$1" | sed 's:/$::' | sort; }
           APP_NAME=$(basename "${ARTIFACT_APP}")
+          BUNDLER="$RUNNER_TEMP/updater-bundler.txt"
+          REBUILT_LIST="$RUNNER_TEMP/updater-rebuilt.txt"
 
-          listing "${ARTIFACT_TAR}" > "$RUNNER_TEMP/updater-bundler.txt"
+          node scripts/ci/tar-entries.mjs "${ARTIFACT_TAR}" | LC_ALL=C sort > "$BUNDLER"
           REBUILT="$RUNNER_TEMP/$(basename "${ARTIFACT_TAR}")"
           COPYFILE_DISABLE=1 tar --no-mac-metadata --no-xattrs -czf "$REBUILT" \
             -C "$(dirname "${ARTIFACT_APP}")" "$APP_NAME"
-          listing "$REBUILT" > "$RUNNER_TEMP/updater-rebuilt.txt"
+          node scripts/ci/tar-entries.mjs "$REBUILT" | LC_ALL=C sort > "$REBUILT_LIST"
 
-          # Same entries as the bundler's tarball plus exactly one: the
-          # stapled ticket at Contents/CodeResources.
-          ADDED=$(comm -13 "$RUNNER_TEMP/updater-bundler.txt" "$RUNNER_TEMP/updater-rebuilt.txt")
-          REMOVED=$(comm -23 "$RUNNER_TEMP/updater-bundler.txt" "$RUNNER_TEMP/updater-rebuilt.txt")
-          if [ "$ADDED" != "$APP_NAME/Contents/CodeResources" ] || [ -n "$REMOVED" ]; then
+          # Same entries as the bundler's tarball (type, mode, path, link
+          # target) plus exactly one: the stapled ticket. Comparing types, not
+          # just names, rejects a hardlink entry, which the updater's tar
+          # crate would resolve against the wrong directory on users' Macs.
+          ADDED=$(LC_ALL=C comm -13 "$BUNDLER" "$REBUILT_LIST")
+          REMOVED=$(LC_ALL=C comm -23 "$BUNDLER" "$REBUILT_LIST")
+          STAPLE=$(printf '^file\t[0-7]{4}\t%s/Contents/CodeResources\t$' "$APP_NAME")
+          if ! grep -qE "$STAPLE" <<<"$ADDED" \
+            || [ "$(wc -l <<<"$ADDED")" -ne 1 ] || [ -n "$REMOVED" ]; then
             echo "::error::Rebuilt updater tarball differs from the bundler's beyond the staple"
             echo "--- added ---"; echo "$ADDED"
             echo "--- removed ---"; echo "$REMOVED"
