@@ -1,0 +1,3 @@
+# Scripts run under bash on every runner, and hashFiles() keys the release
+# caches on their bytes; LF on Windows too keeps the hashes equal across OSes.
+*.sh text eol=lf
