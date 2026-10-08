@@ -535,7 +535,9 @@ test("local scan and the pod route burn the same instant key", async () => {
 });
 
 test("external mode leaves trigger delivery and run-now operational", async () => {
-  const scheduled = routine();
+  // Off the gateway, run-now acts as the routine's creator, who must be able
+  // to use the agent here (schedule/creator-access.ts): the workspace owner.
+  const scheduled = routine({ created_by: "alice" });
   const triggered = routine({
     id: "triggered",
     schedule: undefined,

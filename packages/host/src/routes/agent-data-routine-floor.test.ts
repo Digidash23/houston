@@ -182,107 +182,19 @@ test("a garbled stamp is no floor, never a failed write", async () => {
 
 const ROUTINES_DOC = ".houston/routines/routines.json";
 
-const putDoc = (base: string, items: unknown[], floor?: string) =>
-  fetch(`${base}/agents/${agentId}/agentfile/${ROUTINES_DOC}`, {
-    method: "PUT",
-    headers: headers(floor),
-    body: JSON.stringify({ content: JSON.stringify(items) }),
-  });
-
-const readDoc = async (base: string): Promise<Routine[]> => {
-  const res = await fetch(
-    `${base}/agents/${agentId}/agentfile/${ROUTINES_DOC}`,
-    {
-      headers: headers(),
-    },
-  );
-  return JSON.parse(((await res.json()) as { content: string }).content);
-};
-
-const docRoutine = (id: string, schedule: string, enabled = true) => ({
-  id,
-  name: `Routine ${id}`,
-  prompt: "Do it",
-  schedule,
-  enabled,
-});
-
-test("a raw routines-document write behind the gateway judges each changed routine", async () => {
-  // A stored fast routine the person never touches in this write.
-  const old = docRoutine("old-fast", "*/5 * * * *");
-  expect((await putDoc(fronted, [old])).status).toBe(200);
-  const stored = await readDoc(fronted);
-
-  const added = await putDoc(
-    fronted,
-    [...stored, docRoutine("new-fast", "*/10 * * * *")],
-    "15",
-  );
-  expect(added.status).toBe(400);
-  expect(await refusalOf(added)).toMatchObject({ code: "plan_min_interval" });
-  expect(await readDoc(fronted)).toEqual(stored);
-
-  // Untouched, disabled and at-floor entries all pass.
-  const ok = await putDoc(
-    fronted,
-    [
-      ...stored,
-      docRoutine("paused-fast", "*/5 * * * *", false),
-      docRoutine("at-floor", "*/15 * * * *"),
-    ],
-    "15",
-  );
-  expect(ok.status).toBe(200);
-
-  // Rewording the old fast routine is refused: its schedule must move first.
-  const reworded = await putDoc(
-    fronted,
-    [{ ...old, prompt: "Do it better" }],
-    "15",
-  );
-  expect(reworded.status).toBe(400);
-  expect(await refusalOf(reworded)).toMatchObject({
-    error: expect.stringContaining("already runs more often"),
-  });
-});
-
-test("off the gateway a raw routines write ignores the header", async () => {
-  const res = await putDoc(local, [docRoutine("x", "*/5 * * * *")], "15");
-  expect(res.status).toBe(200);
-});
-
-const rawDoc = (
-  base: string,
-  content: string,
-  method = "PUT",
-  floor?: string,
-) =>
-  fetch(`${base}/agents/${agentId}/agentfile/${ROUTINES_DOC}`, {
-    method,
-    headers: headers(floor),
-    body: JSON.stringify({ content }),
-  });
-
-test("a BOM'd routines doc is read like every reader reads it: a fast entry is refused", async () => {
-  expect((await putDoc(fronted, [])).status).toBe(200);
-  const bommed = `\uFEFF${JSON.stringify([docRoutine("bom-fast", "*/5 * * * *")])}`;
-  const res = await rawDoc(fronted, bommed, "PUT", "15");
-  expect(res.status).toBe(400);
-  expect(await res.json()).toMatchObject({ code: "plan_min_interval" });
-});
-
-test("a corrupt stored routines doc never blocks the write that repairs it", async () => {
-  // No floor on this write: the corrupt bytes land as they would on any pod.
-  expect((await rawDoc(fronted, "{ not json at all")).status).toBe(200);
-  const res = await putDoc(fronted, [docRoutine("good", "0 9 * * *")], "15");
-  expect(res.status).toBe(200);
-  expect((await readDoc(fronted)).map((r) => r.id)).toEqual(["good"]);
-});
-
-test("the POST write of the routines doc is held to the floor too", async () => {
-  const fast = JSON.stringify([docRoutine("post-fast", "*/5 * * * *")]);
-  const refused = await rawDoc(fronted, fast, "POST", "15");
-  expect(refused.status).toBe(400);
-  const slow = JSON.stringify([docRoutine("post-slow", "*/30 * * * *")]);
-  expect((await rawDoc(fronted, slow, "POST", "15")).status).toBe(200);
+test("a raw routines-document write is refused on and off the gateway", async () => {
+  for (const base of [fronted, local]) {
+    for (const method of ["PUT", "POST"]) {
+      const res = await fetch(
+        `${base}/agents/${agentId}/agentfile/${ROUTINES_DOC}`,
+        {
+          method,
+          headers: headers("15"),
+          body: JSON.stringify({ content: "[]" }),
+        },
+      );
+      expect(res.status).toBe(403);
+      expect(await res.json()).toMatchObject({ code: "path_not_allowed" });
+    }
+  }
 });

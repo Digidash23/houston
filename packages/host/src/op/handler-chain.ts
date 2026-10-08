@@ -94,7 +94,6 @@ const OP_HANDLERS: Record<OpGroup, OpHandler> = {
       req,
       res,
       deps.emit,
-      deps.routineFloorMinutes,
     ),
   "skills-manifest": (deps, method, rest, req, res) =>
     handleSkillsManifest(
@@ -150,8 +149,17 @@ const OP_HANDLERS: Record<OpGroup, OpHandler> = {
     handlePortableExport(deps, deps.ctx, method, rest, req, res),
   // agentDir: a transcript chunk synthesizes its pi sessions on the worker's
   // own tree (turn/op-route.ts), unless the import asked `sessions=0`.
+  // routineCreatedBy: the op's verified actor stamps imported routines.
   migration: (deps, method, rest, req, res) =>
-    handleMigration(deps, deps.ctx, method, rest, req, res, deps.emit),
+    handleMigration(
+      { ...deps, routineCreatedBy: deps.actingSub },
+      deps.ctx,
+      method,
+      rest,
+      req,
+      res,
+      deps.emit,
+    ),
 };
 
 /**

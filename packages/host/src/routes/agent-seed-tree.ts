@@ -14,7 +14,7 @@ import { type AgentSeed, writeAgentSeeds } from "./agent-seed";
  * The pod's `POST /agents` and the pool worker's `seed` op both run this, so
  * an agent seeded while asleep holds exactly the files its pod would have
  * written. `routineCreatedBy` is the acting identity stamped as `created_by`
- * on seeded routines that carry none (see stampRoutineSeedCreator).
+ * on every seeded routine (see stampRoutineCreator).
  */
 export async function seedAgentTree(
   deps: { store: WorkspaceStore; vfs: Vfs },

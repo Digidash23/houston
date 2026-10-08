@@ -1,3 +1,4 @@
+import { jsonDoc, parseJsonDoc } from "@houston/domain";
 import type { Vfs } from "../vfs";
 
 /**
@@ -25,38 +26,63 @@ export interface AgentSeed {
   seeds?: Record<string, string>;
 }
 
-/** The agent-layout routines doc, relative to the agent root — the ONE seed
- *  key whose entries carry per-routine acting identity (`created_by`). */
-const ROUTINES_SEED_KEY = ".houston/routines/routines.json";
+/**
+ * The routines documents a client-supplied tree may carry, relative to the
+ * agent root: the family file, and its flat pre-v0.4 twin that the boot layout
+ * migration moves into place. Their entries carry per-routine acting identity
+ * (`created_by`).
+ */
+const ROUTINE_DOC_KEYS: ReadonlySet<string> = new Set([
+  ".houston/routines/routines.json",
+  ".houston/routines.json",
+]);
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
 /**
- * Stamp `created_by` onto seeded routines that carry none. Seeded routines
- * (builtin templates, portable installs — which strip the exporter's identity
- * on pack) bypass createRoutine, so without this they are born authorless, and
- * the control-plane fire planner treats an authorless routine as not fireable.
- * Entries that already name a creator keep it. Malformed JSON or a non-array
- * doc is stored verbatim: normalizeRoutines reports it on the first read, and
- * inventing structure here would mask that diagnostic.
+ * Stamp `created_by` on every routine of a client-supplied routines document
+ * (seeds: builtin templates, portable installs; a migration import). A routine
+ * fires as the user its `created_by` names, so the value is the server's to
+ * set, never the body's: each entry takes the verified actor of the write, and
+ * with no actor the field is dropped (the control-plane fire planner treats an
+ * authorless routine as not fireable) rather than kept. The doc is read the way
+ * every reader reads it (`parseJsonDoc`: a BOM or trailing bytes do not hide an
+ * entry). A doc no reader can parse, or one that is not an array, holds no
+ * routine and is stored verbatim: normalizeRoutines reports it on the first
+ * read, and inventing structure here would mask that diagnostic.
  */
-export function stampRoutineSeedCreator(content: string, sub: string): string {
+export function stampRoutineCreator(
+  content: string,
+  actor: string | undefined,
+): string {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(content);
+    parsed = parseJsonDoc(content, "routines.json");
   } catch {
     return content;
   }
   if (!Array.isArray(parsed)) return content;
-  let changed = false;
   const stamped = parsed.map((entry) => {
     if (!isRecord(entry)) return entry;
-    if (typeof entry.created_by === "string" && entry.created_by) return entry;
-    changed = true;
-    return { ...entry, created_by: sub };
+    const { created_by: _fromClient, ...routine } = entry;
+    return actor ? { ...routine, created_by: actor } : routine;
   });
-  return changed ? `${JSON.stringify(stamped, null, 2)}\n` : content;
+  return jsonDoc(stamped);
+}
+
+/**
+ * An imported file's bytes as they are written: a routines document is client
+ * input like a seed, so it is stamped the same way (stampRoutineCreator).
+ */
+export function importedFileBytes(
+  rel: string,
+  data: Uint8Array,
+  actor: string | undefined,
+): Buffer {
+  const bytes = Buffer.from(data);
+  if (!ROUTINE_DOC_KEYS.has(rel)) return bytes;
+  return Buffer.from(stampRoutineCreator(bytes.toString("utf8"), actor));
 }
 
 /**
@@ -76,7 +102,7 @@ export async function writeAgentSeeds(
   root: string,
   { claudeMd, seeds }: AgentSeed,
   // The verified acting identity of the create (C2), stamped as `created_by`
-  // on seeded routines that carry none — see stampRoutineSeedCreator.
+  // on every seeded routine — see stampRoutineCreator.
   routineCreatedBy?: string,
 ): Promise<void> {
   if (claudeMd !== undefined) {
@@ -85,10 +111,9 @@ export async function writeAgentSeeds(
   for (const [key, content] of Object.entries(seeds ?? {})) {
     const safe = safeSeedKey(key);
     if (!safe) throw new Error(`unsafe seed path: ${key}`);
-    const body =
-      safe === ROUTINES_SEED_KEY && routineCreatedBy
-        ? stampRoutineSeedCreator(content, routineCreatedBy)
-        : content;
+    const body = ROUTINE_DOC_KEYS.has(safe)
+      ? stampRoutineCreator(content, routineCreatedBy)
+      : content;
     await vfs.writeText(`${root}/${safe}`, body);
   }
 }
