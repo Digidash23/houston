@@ -1,5 +1,6 @@
 import { writeAtomically } from "./http-store-batch";
 import { type ObjectMetadata, parseObjectManifest } from "./object-manifest";
+import { underObjectPrefix } from "./object-prefix";
 import type {
   BatchReadEntry,
   BatchReadOutcome,
@@ -69,8 +70,8 @@ export class PrefetchedObjectStore implements ObjectStore {
   async manifest(prefix = ""): Promise<ObjectMetadata[]> {
     if (!this.manifestServed) {
       this.manifestServed = true;
-      return this.prefetched.manifest.filter(
-        (object) => !prefix || object.key.startsWith(prefix),
+      return this.prefetched.manifest.filter((object) =>
+        underObjectPrefix(object.key, prefix),
       );
     }
     if (this.inner.manifest) return this.inner.manifest(prefix);
