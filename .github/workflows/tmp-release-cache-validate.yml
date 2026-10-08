@@ -24,7 +24,7 @@ jobs:
 
   restore:
     needs: warm
-    name: Restore (${{ matrix.leg }}${{ matrix.variant && format(', {0}', matrix.variant) || '' }})
+    name: Restore (${{ matrix.leg }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
     strategy:
@@ -36,45 +36,13 @@ jobs:
             host-triple: aarch64-apple-darwin
             whisper-bin: target/whisper/whisper-cli-aarch64-apple-darwin
           - leg: windows-x86_64
-            variant: store
             runner: windows-latest
             host-triple: x86_64-pc-windows-msvc
             whisper-bin: target/whisper/whisper-cli-x86_64-pc-windows-msvc.exe
-            pnpm-store: true
-          - leg: windows-x86_64
-            variant: store-defender
-            runner: windows-latest
-            host-triple: x86_64-pc-windows-msvc
-            whisper-bin: target/whisper/whisper-cli-x86_64-pc-windows-msvc.exe
-            pnpm-store: true
-            defender: true
           - leg: windows-aarch64
-            variant: store
             runner: windows-11-arm
             host-triple: aarch64-pc-windows-msvc
             whisper-bin: target/whisper/whisper-cli-aarch64-pc-windows-msvc.exe
-            pnpm-store: true
-          - leg: windows-aarch64
-            variant: store-noverify
-            runner: windows-11-arm
-            host-triple: aarch64-pc-windows-msvc
-            whisper-bin: target/whisper/whisper-cli-aarch64-pc-windows-msvc.exe
-            pnpm-store: true
-            no-verify: true
-          - leg: windows-aarch64
-            variant: store-defender
-            runner: windows-11-arm
-            host-triple: aarch64-pc-windows-msvc
-            whisper-bin: target/whisper/whisper-cli-aarch64-pc-windows-msvc.exe
-            pnpm-store: true
-            defender: true
-          - leg: windows-aarch64
-            variant: cold-defender
-            runner: windows-11-arm
-            host-triple: aarch64-pc-windows-msvc
-            whisper-bin: target/whisper/whisper-cli-aarch64-pc-windows-msvc.exe
-            pnpm-store: false
-            defender: true
           - leg: linux-x86_64
             runner: ubuntu-latest
             host-triple: x86_64-unknown-linux-gnu
@@ -139,40 +107,6 @@ jobs:
           node-version: 20
           package-manager-cache: false
 
-      - name: Locate the pnpm store
-        id: pnpm-store
-        if: ${{ runner.os == 'Windows' }}
-        run: |
-          set -euo pipefail
-          STORE=$(pnpm store path)
-          echo "pnpm store: $STORE"
-          echo "path=$STORE" >> "$GITHUB_OUTPUT"
-
-      # Experiment: exclude the workspace, the store and the temp dir from
-      # Windows Defender real-time scanning before pnpm creates ~100k files.
-      - name: Exclude the checkout from Defender real-time scanning
-        if: ${{ matrix.defender }}
-        shell: pwsh
-        env:
-          PNPM_STORE: ${{ steps.pnpm-store.outputs.path }}
-        run: |
-          Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE", "$env:PNPM_STORE", "$env:RUNNER_TEMP"
-          (Get-MpPreference).ExclusionPath
-
-      # Experiment: skip pnpm's per-file hashing of reused store packages.
-      - name: Disable pnpm store integrity verification
-        if: ${{ matrix.no-verify }}
-        run: echo "verify-store-integrity=false" >> .npmrc
-
-      - name: Restore pnpm store (warmed on main)
-        id: pnpm-cache
-        if: ${{ matrix.pnpm-store }}
-        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        with:
-          path: ${{ steps.pnpm-store.outputs.path }}
-          key: pnpm-store-${{ matrix.leg }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: pnpm-store-${{ matrix.leg }}-
-
       - name: Install dependencies
         run: pnpm install
 
@@ -195,15 +129,12 @@ jobs:
         env:
           WHISPER_MATCHED: ${{ steps.whisper-cache.outputs.cache-matched-key }}
           SIGNING_MATCHED: ${{ steps.signing-cli-cache.outputs.cache-matched-key }}
-          PNPM_MATCHED: ${{ steps.pnpm-cache.outputs.cache-matched-key }}
-          PNPM_STORE_RESTORED: ${{ matrix.pnpm-store }}
           WHISPER_BUILT: ${{ steps.whisper.outcome }}
           SIGNING_BUILT: ${{ steps.signing-cli.outcome }}
         run: |
           set -euo pipefail
           echo "whisper matched: ${WHISPER_MATCHED:-<none>} (build step: $WHISPER_BUILT)"
           echo "signing matched: ${SIGNING_MATCHED:-<none>} (install step: $SIGNING_BUILT)"
-          echo "pnpm matched:    ${PNPM_MATCHED:-<none>}"
           [ -n "$WHISPER_MATCHED" ] || { echo "::error::whisper-cli cache missed"; exit 1; }
           [ "$WHISPER_BUILT" != "success" ] || { echo "::error::whisper-cli build ran despite the cache"; exit 1; }
           test -x "$WHISPER_BIN" || { echo "::error::$WHISPER_BIN missing"; exit 1; }
@@ -213,10 +144,6 @@ jobs:
             [ -n "$SIGNING_MATCHED" ] || { echo "::error::artifact-signing-cli cache missed"; exit 1; }
             [ "$SIGNING_BUILT" != "success" ] || { echo "::error::artifact-signing-cli install ran despite the cache"; exit 1; }
             artifact-signing-cli --help | head -3
-            if [ "$PNPM_STORE_RESTORED" = "true" ]; then
-              [ -n "$PNPM_MATCHED" ] || { echo "::error::pnpm store cache missed"; exit 1; }
-            fi
-            du -sh "$(pnpm store path)"
           fi
           if [ "$RUNNER_OS" = "macOS" ]; then
             for TRIPLE in aarch64-apple-darwin x86_64-apple-darwin; do

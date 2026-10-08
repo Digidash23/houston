@@ -8,8 +8,8 @@
 #
 #   rust      the Rust dependency graph of each release leg (~680 crates per
 #             macOS arch), see the job for the matching rules;
-#   sidecars  the whisper-cli dictation sidecar (every leg), the
-#             artifact-signing-cli binary and the pnpm store (Windows legs).
+#   sidecars  the whisper-cli dictation sidecar (every leg) and the
+#             artifact-signing-cli binary (Windows legs).
 #
 # Each cache has its own key and its own "stop if the exact key exists" lookup,
 # so a push that touches only one input rebuilds only that cache.
@@ -41,8 +41,16 @@
 #     image only, never over the recipe.
 #   signing-cli-<leg>-<hash of scripts/ci/install-artifact-signing-cli.sh>-<rustc>
 #     The script holds the crate version pin. Tags fall back over rustc only.
-#   pnpm-store-<leg>-<hash of pnpm-lock.yaml>
-#     Tags fall back to the newest store for the leg; pnpm fetches the rest.
+# The script hashes differ between Windows and the other runners: the Windows
+# checkout converts the scripts to CRLF (git autocrlf), and hashFiles hashes
+# the bytes on disk. Each OS is consistent with itself, which is all a key
+# needs; do not compare a Windows key to a macOS one.
+#
+# Not cached, measured on PR #1739: the pnpm store for the Windows legs. On
+# windows-11-arm the 445 MB restore took 2 min and the install still took
+# 4 min after it (the runner's disk limits both the fetch and the link
+# phase, with or without Defender scanning), so a cold install is as fast.
+# On windows-latest it saved about 40 s for a 464 MB cache per lockfile change.
 #
 # `workflow_call` exists so a PR can run this workflow on its own ref and then
 # restore from it in a follow-up job (caches on a PR ref are invisible to tags).
@@ -60,7 +68,6 @@ on:
       - crates/*/Cargo.toml
       - scripts/build-whisper.sh
       - scripts/ci/install-artifact-signing-cli.sh
-      - pnpm-lock.yaml
       - .github/workflows/release-cache-warm.yml
   # Weekly, so a new stable rustc (and a new runner image) is warmed before the
   # next tag needs it. Friday 05:23 UTC: Rust stable ships on Thursdays, so a
@@ -238,10 +245,8 @@ jobs:
             target/
           key: ${{ steps.lookup.outputs.cache-primary-key }}
 
-  # The whisper-cli sidecar on every leg; artifact-signing-cli and the pnpm
-  # store on the Windows legs (the Linux leg restores CI's pnpm cache from
-  # main, and the macOS install is 1.3 min). Each cache stops at its own
-  # lookup when the exact key already exists.
+  # The whisper-cli sidecar on every leg; artifact-signing-cli on the Windows
+  # legs. Each cache stops at its own lookup when the exact key already exists.
   sidecars:
     name: Warm sidecars (${{ matrix.leg }})
     runs-on: ${{ matrix.runner }}
@@ -307,8 +312,8 @@ jobs:
           path: target/whisper/
           key: ${{ steps.whisper-lookup.outputs.cache-primary-key }}
 
-      # Windows only from here: the Authenticode signing CLI and the pnpm store.
-      # Same toolchain action as release.yml, so the rustc `cachekey` matches.
+      # Windows only from here: the Authenticode signing CLI. Same toolchain
+      # action as release.yml, so the rustc `cachekey` matches.
       - name: Setup Rust
         id: toolchain
         if: ${{ runner.os == 'Windows' }}
@@ -335,50 +340,3 @@ jobs:
         with:
           path: ~/.cargo/bin/artifact-signing-cli.exe
           key: ${{ steps.signing-lookup.outputs.cache-primary-key }}
-
-      - name: Setup pnpm
-        if: ${{ runner.os == 'Windows' }}
-        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-
-      - name: Setup Node.js
-        if: ${{ runner.os == 'Windows' }}
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        with:
-          node-version: 20
-          package-manager-cache: false
-
-      # pnpm keeps one store per drive and picks it from the project's drive
-      # (D:\.pnpm-store on windows-latest), so ask pnpm from the checkout rather
-      # than hardcode a path. release.yml does the same, and the path string is
-      # part of the cache version, so both sides must resolve the same one.
-      - name: Locate the pnpm store
-        id: pnpm-store
-        if: ${{ runner.os == 'Windows' }}
-        run: |
-          set -euo pipefail
-          STORE=$(pnpm store path)
-          echo "pnpm store: $STORE"
-          echo "path=$STORE" >> "$GITHUB_OUTPUT"
-
-      - name: Look up the pnpm store cache for this exact key
-        id: pnpm-lookup
-        if: ${{ runner.os == 'Windows' }}
-        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        with:
-          lookup-only: true
-          path: ${{ steps.pnpm-store.outputs.path }}
-          key: pnpm-store-${{ matrix.leg }}-${{ hashFiles('pnpm-lock.yaml') }}
-
-      - name: Install dependencies (fills the store)
-        if: ${{ runner.os == 'Windows' && steps.pnpm-lookup.outputs.cache-hit != 'true' }}
-        run: |
-          set -euo pipefail
-          pnpm install --frozen-lockfile
-          du -sh "$(pnpm store path)"
-
-      - name: Save the pnpm store cache
-        if: ${{ runner.os == 'Windows' && steps.pnpm-lookup.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        with:
-          path: ${{ steps.pnpm-store.outputs.path }}
-          key: ${{ steps.pnpm-lookup.outputs.cache-primary-key }}

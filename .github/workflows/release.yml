@@ -1412,7 +1412,9 @@ jobs:
       # target, built on main by release-cache-warm.yml. The key is the build
       # script's hash (whisper.cpp version, tarball SHA256, every compiler flag)
       # plus the runner image (the MSVC/ClangCL toolchain); `restore-keys` falls
-      # back over the image only, never over the script.
+      # back over the image only, never over the script. The Windows checkout
+      # is CRLF, so the script hashes here differ from the macOS/Linux ones;
+      # the warm job runs on the same runners and sees the same bytes.
       - name: Read runner image version
         id: image
         shell: bash
@@ -1456,35 +1458,15 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
 
-      # No setup-node pnpm cache: one saved here would be scoped to this tag.
-      # The store is restored by hand below from the cache warmed on main.
+      # No pnpm cache, as in build-macos: it would be scoped to this tag. A
+      # store warmed on main was measured on PR #1739 and does not pay: on
+      # windows-11-arm the restore took 2 min and the install still 4 min
+      # after it (the runner's disk limits both the fetch and the link phase).
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 20
           package-manager-cache: false
-
-      # pnpm keeps one store per drive and picks it from the project's drive,
-      # so ask pnpm from the checkout (release-cache-warm.yml does the same; the
-      # path string is part of the cache version). A cold install on
-      # windows-11-arm took 3.5 to 6 min on every tag; with the store restored
-      # pnpm links from it and fetches only what a lockfile change added, so
-      # `restore-keys` falls back to the newest store for the leg.
-      - name: Locate the pnpm store
-        id: pnpm-store
-        shell: bash
-        run: |
-          set -euo pipefail
-          STORE=$(pnpm store path)
-          echo "pnpm store: $STORE"
-          echo "path=$STORE" >> "$GITHUB_OUTPUT"
-
-      - name: Restore pnpm store (warmed on main)
-        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        with:
-          path: ${{ steps.pnpm-store.outputs.path }}
-          key: pnpm-store-windows-${{ matrix.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: pnpm-store-windows-${{ matrix.arch }}-
 
       - name: Install dependencies
         run: pnpm install
