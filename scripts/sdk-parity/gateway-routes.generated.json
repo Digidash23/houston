@@ -96,6 +96,14 @@
     "reason": "an engine pod reads its agent-scoped custom-integration secrets with the injected pod token, keeping pods outside GCP IAM"
   },
   {
+    "pattern": "/v1/pod/model-calls/",
+    "methods": [
+      "*"
+    ],
+    "classification": "internal-sandbox",
+    "reason": "an engine pod reports per-turn model call timings with its injected host token"
+  },
+  {
     "pattern": "/v1/pod/shared-endpoint/",
     "methods": [
       "*"
@@ -1021,6 +1029,21 @@
   },
   {
     "pattern": "/v1/channels/slack/link",
+    "methods": [
+      "POST"
+    ],
+    "classification": "sdk"
+  },
+  {
+    "pattern": "/v1/channels/whatsapp/events",
+    "methods": [
+      "POST"
+    ],
+    "classification": "infra",
+    "reason": "Kapso's WhatsApp message webhook, authenticated by its HMAC-SHA256 signature over the raw body; no Houston client calls it"
+  },
+  {
+    "pattern": "/v1/channels/whatsapp/link",
     "methods": [
       "POST"
     ],

@@ -13,6 +13,14 @@ interface ChannelCall {
   body: unknown;
 }
 
+interface MockChannelsOptions {
+  /** Slack's provider entry reports a finished admin setup. */
+  slackConfigured?: boolean;
+  /** WhatsApp's provider entry reports a finished admin setup. */
+  whatsappConfigured?: boolean;
+  holdFirstListUntilRedeemed?: boolean;
+}
+
 /**
  * The gateway, recorded rather than asserted: an expectation thrown inside a
  * route handler fails the request instead of the test, so every claim about
@@ -20,8 +28,11 @@ interface ChannelCall {
  */
 async function mockChannels(
   page: Page,
-  configured = true,
-  holdFirstListUntilRedeemed = false,
+  {
+    slackConfigured = true,
+    whatsappConfigured = true,
+    holdFirstListUntilRedeemed = false,
+  }: MockChannelsOptions = {},
 ) {
   const calls: ChannelCall[] = [];
   const connections = [
@@ -74,11 +85,24 @@ async function mockChannels(
         },
       });
     }
+    if (path.endsWith("/whatsapp/link")) {
+      return route.fulfill({
+        json: {
+          code: "ABCDEFGH234567AB",
+          expiresAt: new Date(Date.now() + 600_000).toISOString(),
+          phoneNumber: "+15550001111",
+          url: "https://wa.me/15550001111?text=connect+ABCDEFGH234567AB",
+        },
+      });
+    }
     // The list is answered NOW; holding the first answer until the ticket is
     // redeemed models a read the server served before a write the browser saw
     // land first.
     const json = structuredClone({
-      providers: [{ id: "slack", name: "Slack", configured }],
+      providers: [
+        { id: "slack", name: "Slack", configured: slackConfigured },
+        { id: "whatsapp", name: "WhatsApp", configured: whatsappConfigured },
+      ],
       connections,
     });
     const hold = holdFirstListUntilRedeemed && !listed;
@@ -127,7 +151,9 @@ test("Channels provides an existing-installation command and confirms disconnect
     page.getByText("Ada · Houston team", { exact: true }),
   ).toHaveCount(0);
   await expect(
-    page.getByText("Connect Slack to message Houston directly."),
+    page
+      .getByText("Connect a messaging account to message Houston directly.")
+      .first(),
   ).toBeVisible();
   expect(calls).toEqual([
     { method: "POST", path: "/v1/channels/slack/link", body: {} },
@@ -139,10 +165,47 @@ test("Channels provides an existing-installation command and confirms disconnect
   ]);
 });
 
+test("WhatsApp shows its prefilled message, QR code, and open action", async ({
+  page,
+}) => {
+  const calls = await mockChannels(page);
+  await openChannels(page);
+  await page.getByRole("button", { name: "Connect WhatsApp" }).click();
+  await expect(
+    page.getByRole("img", {
+      name: "QR code to open WhatsApp with your connection message",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "WhatsApp connection command" }),
+  ).toHaveValue("connect ABCDEFGH234567AB");
+  await expect(
+    page.getByRole("button", { name: "Open WhatsApp" }),
+  ).toBeVisible();
+  await expect(page.getByText("Waiting for your message…")).toBeVisible();
+  expect(calls).toEqual([
+    { method: "POST", path: "/v1/channels/whatsapp/link", body: {} },
+  ]);
+});
+
+test("unconfigured WhatsApp keeps its own guidance while Slack remains connectable", async ({
+  page,
+}) => {
+  await mockChannels(page, { whatsappConfigured: false });
+  await openChannels(page);
+  await expect(page.getByText(/finish setting up WhatsApp/)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Connect WhatsApp" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Connect Slack" }),
+  ).toBeVisible();
+});
+
 test("unconfigured Slack gives setup guidance while retaining disconnect", async ({
   page,
 }) => {
-  await mockChannels(page, false);
+  await mockChannels(page, { slackConfigured: false });
   await openChannels(page);
   await expect(page.getByText(/Ask your Houston administrator/)).toBeVisible();
   await expect(
@@ -191,7 +254,7 @@ test("a ticket redeemed during the first list read still shows its connection", 
 }) => {
   // The first list read was answered before the redemption and arrives after
   // it: the redemption must trigger a read of its own, not ride the stale one.
-  await mockChannels(page, true, true);
+  await mockChannels(page, { holdFirstListUntilRedeemed: true });
   await signInAsViewer(page);
   await page.goto(`${AUTH_WEB_URL}/?settings=channels&slack=${TICKET}`);
   await expect(page.getByText("Ada · Personal", { exact: true })).toBeVisible();

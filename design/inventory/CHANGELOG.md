@@ -3,6 +3,12 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v128 - 2026-10-08
+
+Messaging channels settings shows separate Slack and WhatsApp provider cards.
+WhatsApp pairing offers a phone button and a desktop QR code for the prefilled
+message, with a copyable command and connection waiting state.
+
 ## v127 - 2026-10-07
 
 A trigger routine says when a Free plan skipped its runs. The routine screen

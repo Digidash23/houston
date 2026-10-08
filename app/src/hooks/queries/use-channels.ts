@@ -71,6 +71,16 @@ export function useChannelActions() {
       ),
     gcTime: 0,
   });
+  const linkWhatsApp = useMutation({
+    mutationFn: () =>
+      inChannelWorkspace(spaceId, (_assert, signal) =>
+        tauriChannels.linkWhatsApp(signal),
+      ),
+    gcTime: 0,
+  });
+  const openWhatsApp = useMutation({
+    mutationFn: (url: string) => tauriChannels.openWhatsApp(url),
+  });
   /**
    * Redeem the callback ticket. This is what BINDS the Slack account to the
    * signed-in user, so it runs from the app with its own credential rather than
@@ -90,5 +100,13 @@ export function useChannelActions() {
       ),
     onSuccess: invalidateHere,
   });
-  return { connect, reopen, complete, link, disconnect };
+  return {
+    connect,
+    reopen,
+    complete,
+    link,
+    linkWhatsApp,
+    openWhatsApp,
+    disconnect,
+  };
 }

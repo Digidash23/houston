@@ -2067,6 +2067,8 @@ export const tauriChannels = {
     channelCall("connect_slack", () => getEngine().connectSlack(signal)),
   linkSlack: (signal?: AbortSignal) =>
     channelCall("link_slack", () => getEngine().linkSlack(signal)),
+  linkWhatsApp: (signal?: AbortSignal) =>
+    channelCall("link_whatsapp", () => getEngine().linkWhatsApp(signal)),
   completeSlack: (ticket: string, signal?: AbortSignal) =>
     channelCall("complete_slack", () =>
       getEngine().completeSlack(ticket, signal),
@@ -2078,4 +2080,6 @@ export const tauriChannels = {
   /** Open the authorization page; a popup blocker's refusal is the answer. */
   openSlack: (url: string) =>
     channelCall("open_slack", () => tauriSystem.openUrl(url)),
+  openWhatsApp: (url: string) =>
+    channelCall("open_whatsapp", () => tauriSystem.openUrl(url)),
 };
