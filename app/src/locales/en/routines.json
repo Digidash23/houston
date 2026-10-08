@@ -277,6 +277,9 @@
     "rotate": "New key",
     "unsupportedTitle": "Update needed",
     "unsupportedBody": "Creating a webhook address needs the latest version of Houston.",
+    "creatorOnly": "Only the person who made this routine can create its webhook address.",
+    "creatorOnlyTitle": "Only the creator can do this",
+    "creatorOnlyBody": "Only the person who made this routine can create or change its webhook address.",
     "dialog": {
       "title": "Your webhook address",
       "subtitle": "Send a request to this address to wake the routine.",

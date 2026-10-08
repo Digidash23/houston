@@ -6,6 +6,10 @@
  * always-visible "New key" (rotate) action. Both mint through the same reveal
  * dialog; rotating asks for confirmation first, since it invalidates the old
  * secret. A host too old to mint returns null — surfaced as an honest toast.
+ *
+ * Only the routine's creator may mint or rotate (the SDK's `webhookKeyAccess`,
+ * the gateway's own rule): everyone else still sees whether a webhook exists,
+ * with one line saying who can create its address instead of the actions.
  */
 
 import type {
@@ -16,21 +20,31 @@ import { AsyncButton, Button, ConfirmDialog } from "@houston-ai/core";
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useWebhookKeyAccess } from "../../hooks/use-webhook-key-access";
 import { showExpectedStateToast } from "../../lib/error-toast";
 import { tauriRoutines } from "../../lib/tauri";
 import { webhookActivationState } from "./routine-trigger-maps";
+import { webhookChipView } from "./webhook-chip-view";
 import { WebhookKeyDialog } from "./webhook-key-dialog";
 
 interface Props {
   agentId: string;
   routineId: string;
+  /** The routine's `created_by`; absent when it names no creator. */
+  createdBy: string | undefined;
   status: TriggerStatusItem | undefined;
 }
 
-export function WebhookActivationChip({ agentId, routineId, status }: Props) {
+export function WebhookActivationChip({
+  agentId,
+  routineId,
+  createdBy,
+  status,
+}: Props) {
   const { t } = useTranslation("routines");
   const [revealed, setRevealed] = useState<WebhookKeyReveal | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const access = useWebhookKeyAccess(createdBy);
 
   const mint = useCallback(async () => {
     try {
@@ -51,12 +65,17 @@ export function WebhookActivationChip({ agentId, routineId, status }: Props) {
     }
   }, [agentId, routineId, t]);
 
-  const state = webhookActivationState(status);
+  const view = webhookChipView(webhookActivationState(status), access);
   const dialog = (
     <WebhookKeyDialog onClose={() => setRevealed(null)} revealed={revealed} />
   );
+  const creatorOnly = view.showCreatorOnly && (
+    <span className="max-w-[15rem] text-right text-ink-muted text-xs">
+      {t("webhook.creatorOnly")}
+    </span>
+  );
 
-  if (state === "needs_key") {
+  if (view.showCreate) {
     return (
       <>
         <AsyncButton onClick={mint} size="sm">
@@ -67,22 +86,25 @@ export function WebhookActivationChip({ agentId, routineId, status }: Props) {
     );
   }
 
-  if (state === "active") {
+  if (view.active) {
     return (
       <>
-        <span className="inline-flex items-center gap-2">
+        <span className="inline-flex flex-wrap items-center justify-end gap-2">
           <span className="inline-flex items-center gap-1.5 font-medium text-success text-xs">
             <CheckCircle2 className="size-3.5 shrink-0" />
             {t("webhook.active")}
           </span>
-          <Button
-            className="-mr-2"
-            onClick={() => setConfirmOpen(true)}
-            size="sm"
-            variant="ghost"
-          >
-            {t("webhook.rotate")}
-          </Button>
+          {view.showRotate && (
+            <Button
+              className="-mr-2"
+              onClick={() => setConfirmOpen(true)}
+              size="sm"
+              variant="ghost"
+            >
+              {t("webhook.rotate")}
+            </Button>
+          )}
+          {creatorOnly}
         </span>
         <ConfirmDialog
           cancelLabel={t("webhook.rotateConfirm.cancel")}
@@ -102,7 +124,7 @@ export function WebhookActivationChip({ agentId, routineId, status }: Props) {
     );
   }
 
-  if (state === "alert") {
+  if (view.alert) {
     return (
       <span className="inline-flex max-w-[15rem] items-center gap-1.5 text-right font-medium text-warning text-xs">
         <AlertTriangle className="size-3.5 shrink-0" />
@@ -110,6 +132,9 @@ export function WebhookActivationChip({ agentId, routineId, status }: Props) {
       </span>
     );
   }
+
+  // No key yet and nothing this viewer can do about it: say who can.
+  if (creatorOnly) return creatorOnly;
 
   return (
     <span className="inline-flex items-center gap-1.5 font-medium text-ink-muted text-xs">

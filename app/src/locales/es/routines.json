@@ -277,6 +277,9 @@
     "rotate": "Nueva clave",
     "unsupportedTitle": "Actualización necesaria",
     "unsupportedBody": "Crear una dirección de webhook necesita la última versión de Houston.",
+    "creatorOnly": "Solo la persona que creó esta rutina puede crear su dirección de webhook.",
+    "creatorOnlyTitle": "Solo el creador puede hacer esto",
+    "creatorOnlyBody": "Solo la persona que creó esta rutina puede crear o cambiar su dirección de webhook.",
     "dialog": {
       "title": "Tu dirección de webhook",
       "subtitle": "Envía una solicitud a esta dirección para activar la rutina.",

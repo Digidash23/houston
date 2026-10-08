@@ -18,6 +18,7 @@
 import { bridgeQuietClass } from "@houston/sdk/local-model-bridge/quiet";
 import type { QuietErrorClass } from "@houston/sdk/quiet-error-class";
 import { isPlanMinIntervalRefusal } from "@houston/sdk/routines/plan-floor-quiet";
+import { isWebhookKeyNotCreatorRefusal } from "@houston/sdk/routines/webhook-key-access";
 import { isEngineWakingError } from "./engine-waking-error.ts";
 import { isNetworkTransportError } from "./network-transport-error.ts";
 import { isNoBrowserFailure } from "./url-open-failure.ts";
@@ -41,10 +42,16 @@ export type { QuietErrorClass } from "@houston/sdk/quiet-error-class";
  * `plan_min_interval` is a routine save the engine refused under the saver's
  * plan floor (the SDK's `isPlanMinIntervalRefusal`): a business state with the
  * plan's own copy, so every reporting path skips it outright.
+ *
+ * `webhook_not_creator` is a webhook-key mint or rotate the gateway refused
+ * because the caller is not the routine's creator (the SDK's
+ * `isWebhookKeyNotCreatorRefusal`): the chip already hides the action for
+ * them, so this covers a stale routine row, with authored copy and no report.
  */
 export function classifyQuietError(err: unknown): QuietErrorClass | null {
   if (isNoBrowserFailure(err)) return "no_url_handler";
   if (isPlanMinIntervalRefusal(err)) return "plan_min_interval";
+  if (isWebhookKeyNotCreatorRefusal(err)) return "webhook_not_creator";
   const bridge = bridgeQuietClass(err);
   if (bridge) return bridge;
   if (isEngineWakingError(err)) return "engine_waking";

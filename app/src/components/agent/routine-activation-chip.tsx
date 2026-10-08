@@ -32,9 +32,17 @@ interface Props {
    *  incoming-webhook binding needs the mint/rotate flow, a Composio binding
    *  the connect/reconnect health. */
   trigger: RoutineTriggerBinding;
+  /** The routine's `created_by`: a webhook routine's key is its creator's
+   *  alone to mint or rotate. Absent when the routine names no creator. */
+  createdBy: string | undefined;
 }
 
-export function RoutineActivationChip({ agentId, routineId, trigger }: Props) {
+export function RoutineActivationChip({
+  agentId,
+  routineId,
+  trigger,
+  createdBy,
+}: Props) {
   const { t } = useTranslation("routines");
   const setViewMode = useUIStore((s) => s.setViewMode);
 
@@ -53,6 +61,7 @@ export function RoutineActivationChip({ agentId, routineId, trigger }: Props) {
     return (
       <WebhookActivationChip
         agentId={agentId}
+        createdBy={createdBy}
         routineId={routineId}
         status={status}
       />

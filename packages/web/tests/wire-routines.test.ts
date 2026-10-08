@@ -1,5 +1,9 @@
 import { HoustonClient } from "@houston/engine-adapter/client";
-import { planMinIntervalRefusal, routinePauseNotice } from "@houston/sdk";
+import {
+  isWebhookKeyNotCreatorRefusal,
+  planMinIntervalRefusal,
+  routinePauseNotice,
+} from "@houston/sdk";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { createWireCapture, json, ORG } from "./support/wire-capture";
 
@@ -362,6 +366,34 @@ test("mintRoutineWebhookKey percent-encodes both spliced ids", async () => {
 test("a gateway that does not serve webhook keys (404) degrades to null", async () => {
   stubFetch(json(404, { error: "not found" }));
   await expect(client().mintRoutineWebhookKey("a1", "r1")).resolves.toBeNull();
+});
+
+test("a mint by someone other than the creator (403 not_creator) is the typed refusal", async () => {
+  stubFetch(
+    json(403, {
+      error:
+        "only the routine's creator can create or rotate its webhook address",
+      code: "not_creator",
+    }),
+  );
+  const failure = await client()
+    .mintRoutineWebhookKey("a1", "r1")
+    .then(
+      () => null,
+      (err: unknown) => err,
+    );
+  expect(failure).toMatchObject({ name: "HoustonEngineError", status: 403 });
+  // The SDK names it: an expected state with its own copy, never a report.
+  expect(isWebhookKeyNotCreatorRefusal(failure)).toBe(true);
+  // Any other 403 (a foreign agent, say) stays an ordinary failure.
+  stubFetch(json(403, { error: "not assigned", code: "not_assigned" }));
+  const other = await client()
+    .mintRoutineWebhookKey("a1", "r1")
+    .then(
+      () => null,
+      (err: unknown) => err,
+    );
+  expect(isWebhookKeyNotCreatorRefusal(other)).toBe(false);
 });
 
 test("every other mint failure still surfaces", async () => {

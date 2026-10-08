@@ -25,14 +25,19 @@ import type { BridgeQuietClass } from "@houston/sdk/local-model-bridge/quiet";
  *  plan copy, which every reporting path skips outright (nothing to triage).
  *  `release_host_unavailable` is the updater's release host answering a
  *  transient status for its whole retry budget (PRODUCT-1811); it is only
- *  ever named by the download report path, never by a classifier. */
+ *  ever named by the download report path, never by a classifier.
+ *  `webhook_not_creator` is a webhook-key mint or rotate the gateway refused
+ *  because the caller is not the routine's creator
+ *  (`@houston/sdk/routines/webhook-key-access`): an expected state with its
+ *  own copy, which every reporting path skips outright. */
 export type QuietErrorClass =
   | "engine_waking"
   | "offline"
   | BridgeQuietClass
   | "release_host_unavailable"
   | "no_url_handler"
-  | "plan_min_interval";
+  | "plan_min_interval"
+  | "webhook_not_creator";
 
 /**
  * The burst-gate key a quiet-class report collapses on.
