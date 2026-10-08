@@ -6,6 +6,7 @@ import { downloadHttpObject, readHttpManifest } from "./http-store-read";
 import { uploadHttpObject } from "./http-store-write";
 import { storeWriteHeaders } from "./http-store-write-headers";
 import type { ObjectMetadata } from "./object-manifest";
+import { InvalidObjectPrefixError, isObjectPrefix } from "./object-prefix";
 import type {
   ObjectStore,
   ReadOptions,
@@ -64,6 +65,7 @@ export class HttpObjectStore implements ObjectStore {
   }
 
   async manifest(prefix = "", opts?: ReadOptions): Promise<ObjectMetadata[]> {
+    if (!isObjectPrefix(prefix)) throw new InvalidObjectPrefixError(prefix);
     const query = prefix ? `?prefix=${encodeURIComponent(prefix)}` : "";
     return readHttpManifest(
       (signal) =>

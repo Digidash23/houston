@@ -1,6 +1,7 @@
 import { downloadFile } from "./http-store-download";
 import { objectStoreResponseError } from "./http-store-errors";
 import { type ObjectMetadata, parseObjectManifest } from "./object-manifest";
+import { underObjectPrefix } from "./object-prefix";
 import type { ReadResult } from "./object-store";
 import { withOperationSignal } from "./operation-signal";
 
@@ -22,7 +23,7 @@ export function readHttpManifest(
     return parseObjectManifest(
       await response.json(),
       "object store GET manifest",
-    ).filter((object) => !prefix || object.key.startsWith(prefix));
+    ).filter((object) => underObjectPrefix(object.key, prefix));
   });
 }
 
