@@ -530,28 +530,51 @@ jobs:
       # The whisper.cpp dictation sidecar (whisper-cli, MIT) for both arches.
       # release-cache-warm.yml builds it on main; the key is the build script's
       # hash (whisper.cpp version, tarball SHA256, every compiler flag) plus the
-      # runner image (the Xcode toolchain). `restore-keys` falls back over the
-      # image only, never over the script: a whisper bump always rebuilds.
+      # runner image OS and version (the Xcode toolchain). `restore-keys` falls
+      # back over the image version only, never over the OS release or the
+      # script: a whisper bump always rebuilds.
       - name: Read runner image version
         id: image
-        run: echo "version=${ImageOS}-${ImageVersion}" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "os=${ImageOS}" >> "$GITHUB_OUTPUT"
+          echo "version=${ImageVersion}" >> "$GITHUB_OUTPUT"
 
       - name: Restore whisper-cli (warmed on main)
         id: whisper-cache
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: target/whisper/
-          key: whisper-cli-macos-universal-${{ hashFiles('scripts/build-whisper.sh') }}-${{ steps.image.outputs.version }}
-          restore-keys: whisper-cli-macos-universal-${{ hashFiles('scripts/build-whisper.sh') }}-
+          key: whisper-cli-macos-universal-${{ hashFiles('scripts/build-whisper.sh') }}-${{ steps.image.outputs.os }}-${{ steps.image.outputs.version }}
+          restore-keys: whisper-cli-macos-universal-${{ hashFiles('scripts/build-whisper.sh') }}-${{ steps.image.outputs.os }}-
 
-      # Cache miss only (an exact or fallback match restored both slices).
+      # A restored binary ships inside the signed app, and anything running on
+      # main can write a cache under this prefix, so it is used only once its
+      # provenance attestation names release-cache-warm.yml on refs/heads/main.
+      # Otherwise it is discarded and built below (the warning is the signal).
+      - name: Verify whisper-cli provenance (cache hit only)
+        id: whisper-verify
+        if: ${{ steps.whisper-cache.outputs.cache-matched-key != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if scripts/ci/verify-cache-provenance.sh target/whisper/whisper-cli-*; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Restored whisper-cli failed provenance verification; discarding it and building from source."
+            rm -rf target/whisper
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Cache miss, or a restored binary that failed verification (then the
+      # verify step is skipped or says ok=false, and both slices are rebuilt).
       # Runs in the background from here: it needs only the checkout and the
       # Xcode toolchain, so it overlaps the dependency install and sidecar
       # steps below. `wait: whisper` before the Tauri build is where a failure
       # here fails the job.
       - name: Build whisper-cli dictation sidecar (aarch64 + x86_64)
         id: whisper
-        if: ${{ steps.whisper-cache.outputs.cache-matched-key == '' }}
+        if: ${{ steps.whisper-verify.outputs.ok != 'true' }}
         background: true
         run: |
           set -euo pipefail
@@ -1408,39 +1431,79 @@ jobs:
           key: signing-cli-windows-${{ matrix.arch }}-${{ hashFiles('scripts/ci/install-artifact-signing-cli.sh') }}-${{ steps.toolchain.outputs.cachekey }}
           restore-keys: signing-cli-windows-${{ matrix.arch }}-${{ hashFiles('scripts/ci/install-artifact-signing-cli.sh') }}-
 
+      # The restored CLI receives the Azure credentials, and anything running
+      # on main can write a cache under this prefix, so it is used only once
+      # its provenance attestation names release-cache-warm.yml on
+      # refs/heads/main. Otherwise it is discarded and installed below.
+      - name: Verify artifact-signing-cli provenance (cache hit only)
+        id: signing-cli-verify
+        if: ${{ steps.signing-cli-cache.outputs.cache-matched-key != '' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if scripts/ci/verify-cache-provenance.sh ~/.cargo/bin/artifact-signing-cli.exe; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Restored artifact-signing-cli failed provenance verification; discarding it and installing from crates.io."
+            rm -f ~/.cargo/bin/artifact-signing-cli.exe
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # The whisper.cpp dictation sidecar (whisper-cli, MIT) for the matrix
       # target, built on main by release-cache-warm.yml. The key is the build
       # script's hash (whisper.cpp version, tarball SHA256, every compiler flag)
-      # plus the runner image (the MSVC/ClangCL toolchain); `restore-keys` falls
-      # back over the image only, never over the script. The Windows checkout
-      # is CRLF, so the script hashes here differ from the macOS/Linux ones;
-      # the warm job runs on the same runners and sees the same bytes.
+      # plus the runner image OS and version (the MSVC/ClangCL toolchain);
+      # `restore-keys` falls back over the image version only, never over the
+      # OS release or the script.
       - name: Read runner image version
         id: image
         shell: bash
-        run: echo "version=${ImageOS}-${ImageVersion}" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "os=${ImageOS}" >> "$GITHUB_OUTPUT"
+          echo "version=${ImageVersion}" >> "$GITHUB_OUTPUT"
 
       - name: Restore whisper-cli (warmed on main)
         id: whisper-cache
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: target/whisper/
-          key: whisper-cli-windows-${{ matrix.arch }}-${{ hashFiles('scripts/build-whisper.sh') }}-${{ steps.image.outputs.version }}
-          restore-keys: whisper-cli-windows-${{ matrix.arch }}-${{ hashFiles('scripts/build-whisper.sh') }}-
+          key: whisper-cli-windows-${{ matrix.arch }}-${{ hashFiles('scripts/build-whisper.sh') }}-${{ steps.image.outputs.os }}-${{ steps.image.outputs.version }}
+          restore-keys: whisper-cli-windows-${{ matrix.arch }}-${{ hashFiles('scripts/build-whisper.sh') }}-${{ steps.image.outputs.os }}-
 
-      # Cache miss only. `cargo install` compiles ~230 crates (2.5-3.5 min on
-      # x64, up to 6 on arm64), so it runs in the background from here,
-      # overlapping the whisper build, the pnpm install and the sidecar
-      # compile. It starts after the Rust cache restore so the two never write
-      # ~/.cargo/registry at the same time.
+      # Same provenance gate as the signing CLI: whisper-cli ships inside the
+      # signed MSI.
+      - name: Verify whisper-cli provenance (cache hit only)
+        id: whisper-verify
+        if: ${{ steps.whisper-cache.outputs.cache-matched-key != '' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if scripts/ci/verify-cache-provenance.sh target/whisper/whisper-cli-*; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Restored whisper-cli failed provenance verification; discarding it and building from source."
+            rm -rf target/whisper
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Cache miss, or a restored CLI that failed verification. `cargo install`
+      # compiles ~230 crates (2.5-3.5 min on x64, up to 6 on arm64), so it
+      # runs in the background from here, overlapping the whisper build, the
+      # pnpm install and the sidecar compile. It starts after the Rust cache
+      # restore so the two never write ~/.cargo/registry at the same time.
       - name: Install artifact-signing-cli
         id: signing-cli
-        if: ${{ env.AZURE_CLIENT_SECRET != '' && steps.signing-cli-cache.outputs.cache-matched-key == '' }}
+        if: ${{ env.AZURE_CLIENT_SECRET != '' && steps.signing-cli-verify.outputs.ok != 'true' }}
         background: true
         shell: bash
         run: scripts/ci/install-artifact-signing-cli.sh
 
-      # Cache miss only. build.rs::stage_whisper_sidecar copies
+      # Cache miss, or a restored binary that failed verification.
+      # build.rs::stage_whisper_sidecar copies
       # target/whisper/whisper-cli-<target>.exe to the externalBin name
       # binaries/whisper-cli-<target>.exe (same pattern as the host sidecar). CPU-only,
       # self-contained (static), pinned to the AVX2 (Haswell 2013+) baseline on
@@ -1450,7 +1513,7 @@ jobs:
       # here fails the job.
       - name: Build whisper-cli dictation sidecar (${{ matrix.target }})
         id: whisper
-        if: ${{ steps.whisper-cache.outputs.cache-matched-key == '' }}
+        if: ${{ steps.whisper-verify.outputs.ok != 'true' }}
         background: true
         shell: bash
         run: scripts/build-whisper.sh ${{ matrix.target }}
@@ -1835,20 +1898,41 @@ jobs:
       # miss build the real CPU-only (GGML_NATIVE=OFF), self-contained binary
       # before bundling. The `test -x` gate FAILS the release rather than
       # shipping the placeholder.
+      # Linux whisper-cli links glibc and libstdc++ dynamically, so the
+      # fallback stays within the same ImageOS (ubuntu24): a build from a newer
+      # Ubuntu would need a newer GLIBC than the rest of the AppImage.
       - name: Read runner image version
         id: image
-        run: echo "version=${ImageOS}-${ImageVersion}" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "os=${ImageOS}" >> "$GITHUB_OUTPUT"
+          echo "version=${ImageVersion}" >> "$GITHUB_OUTPUT"
 
       - name: Restore whisper-cli (warmed on main)
         id: whisper-cache
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: target/whisper/
-          key: whisper-cli-linux-x86_64-${{ hashFiles('scripts/build-whisper.sh') }}-${{ steps.image.outputs.version }}
-          restore-keys: whisper-cli-linux-x86_64-${{ hashFiles('scripts/build-whisper.sh') }}-
+          key: whisper-cli-linux-x86_64-${{ hashFiles('scripts/build-whisper.sh') }}-${{ steps.image.outputs.os }}-${{ steps.image.outputs.version }}
+          restore-keys: whisper-cli-linux-x86_64-${{ hashFiles('scripts/build-whisper.sh') }}-${{ steps.image.outputs.os }}-
+
+      # Same provenance gate as build-windows: the binary ships in the AppImage.
+      - name: Verify whisper-cli provenance (cache hit only)
+        id: whisper-verify
+        if: ${{ steps.whisper-cache.outputs.cache-matched-key != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if scripts/ci/verify-cache-provenance.sh target/whisper/whisper-cli-*; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Restored whisper-cli failed provenance verification; discarding it and building from source."
+            rm -rf target/whisper
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build whisper-cli dictation sidecar (x86_64-unknown-linux-gnu)
-        if: ${{ steps.whisper-cache.outputs.cache-matched-key == '' }}
+        if: ${{ steps.whisper-verify.outputs.ok != 'true' }}
         run: scripts/build-whisper.sh x86_64-unknown-linux-gnu
 
       - name: Verify whisper-cli dictation sidecar

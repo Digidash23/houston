@@ -34,17 +34,25 @@
 # restore the newest cache for the same rustc through `restore-keys`.
 #
 # Sidecar keys (release.yml restores with the same layout):
-#   whisper-cli-<leg>-<hash of scripts/build-whisper.sh>-<runner image>
+#   whisper-cli-<leg>-<hash of scripts/build-whisper.sh>-<ImageOS>-<ImageVersion>
 #     The script holds the whisper.cpp version, its tarball SHA256 and every
 #     compiler flag, so its hash is the build recipe. The runner image stands
 #     for the C++ toolchain (Xcode, MSVC/ClangCL, gcc). Tags fall back over the
-#     image only, never over the recipe.
+#     image VERSION only (`...-<ImageOS>-`), never over the OS release or the
+#     recipe: on Linux whisper-cli links glibc and libstdc++ dynamically, so a
+#     build from a newer Ubuntu would need a newer GLIBC than the rest of the
+#     app and dictation would die on older distros.
 #   signing-cli-<leg>-<hash of scripts/ci/install-artifact-signing-cli.sh>-<rustc>
 #     The script holds the crate version pin. Tags fall back over rustc only.
-# The script hashes differ between Windows and the other runners: the Windows
-# checkout converts the scripts to CRLF (git autocrlf), and hashFiles hashes
-# the bytes on disk. Each OS is consistent with itself, which is all a key
-# needs; do not compare a Windows key to a macOS one.
+#
+# Provenance: whisper-cli ships inside the signed app and the signing CLI
+# receives the Azure credentials, and anything that runs on main can write a
+# cache under these prefixes (CI's `pnpm install` runs npm lifecycle scripts
+# on every main push). So the sidecars job attests each binary with
+# actions/attest-build-provenance, and a release leg only uses a restored
+# file after `gh attestation verify` ties it to this workflow on
+# refs/heads/main (scripts/ci/verify-cache-provenance.sh); otherwise it
+# discards the file and builds from source.
 #
 # Not cached, measured on PR #1739: the pnpm store for the Windows legs. On
 # windows-11-arm the 445 MB restore took 2 min and the install still took
@@ -251,6 +259,11 @@ jobs:
     name: Warm sidecars (${{ matrix.leg }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
+    # Only this job signs anything.
+    permissions:
+      contents: read # checkout
+      id-token: write # Sigstore OIDC identity for the provenance attestations
+      attestations: write # store the attestations on the repo
     strategy:
       fail-fast: false
       matrix:
@@ -278,13 +291,15 @@ jobs:
         with:
           persist-credentials: false
 
-      # GitHub-hosted runners export ImageOS and ImageVersion (e.g.
-      # win25-20260929.1.0). They stand for the C++ toolchain whisper.cpp is
-      # compiled with; the `env` context does not see runner-set variables, so
-      # read them in a step.
+      # GitHub-hosted runners export ImageOS (e.g. win25, ubuntu24, macos26)
+      # and ImageVersion (e.g. 20260929.1.0). They stand for the C++ toolchain
+      # whisper.cpp is compiled with; the `env` context does not see runner-set
+      # variables, so read them in a step.
       - name: Read runner image version
         id: image
-        run: echo "version=${ImageOS}-${ImageVersion}" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "os=${ImageOS}" >> "$GITHUB_OUTPUT"
+          echo "version=${ImageVersion}" >> "$GITHUB_OUTPUT"
 
       - name: Look up the whisper-cli cache for this exact key
         id: whisper-lookup
@@ -292,7 +307,7 @@ jobs:
         with:
           lookup-only: true
           path: target/whisper/
-          key: whisper-cli-${{ matrix.leg }}-${{ hashFiles('scripts/build-whisper.sh') }}-${{ steps.image.outputs.version }}
+          key: whisper-cli-${{ matrix.leg }}-${{ hashFiles('scripts/build-whisper.sh') }}-${{ steps.image.outputs.os }}-${{ steps.image.outputs.version }}
 
       # Same script and triples as the release leg; the release step lipos the
       # two macOS slices after restoring them.
@@ -304,6 +319,12 @@ jobs:
             scripts/build-whisper.sh "$TRIPLE"
           done
           ls -la target/whisper/
+
+      - name: Attest whisper-cli provenance
+        if: ${{ steps.whisper-lookup.outputs.cache-hit != 'true' }}
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: target/whisper/whisper-cli-*
 
       - name: Save the whisper-cli cache
         if: ${{ steps.whisper-lookup.outputs.cache-hit != 'true' }}
@@ -333,6 +354,19 @@ jobs:
       - name: Install artifact-signing-cli
         if: ${{ runner.os == 'Windows' && steps.signing-lookup.outputs.cache-hit != 'true' }}
         run: scripts/ci/install-artifact-signing-cli.sh
+
+      # The attest action takes a native path; cygpath turns ~/.cargo/... into
+      # the C:\Users\...\.cargo\... form.
+      - name: Locate the installed artifact-signing-cli
+        id: signing-path
+        if: ${{ runner.os == 'Windows' && steps.signing-lookup.outputs.cache-hit != 'true' }}
+        run: echo "path=$(cygpath -w ~/.cargo/bin/artifact-signing-cli.exe)" >> "$GITHUB_OUTPUT"
+
+      - name: Attest artifact-signing-cli provenance
+        if: ${{ runner.os == 'Windows' && steps.signing-lookup.outputs.cache-hit != 'true' }}
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ steps.signing-path.outputs.path }}
 
       - name: Save the artifact-signing-cli cache
         if: ${{ runner.os == 'Windows' && steps.signing-lookup.outputs.cache-hit != 'true' }}
