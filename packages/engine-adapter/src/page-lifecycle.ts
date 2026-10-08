@@ -9,10 +9,21 @@ export interface PageLifecycleTarget {
 }
 
 /** How long a `beforeunload` counts as "leaving" when no `pagehide` follows:
- *  a prompt the person declined, or a download, cancels the navigation and
- *  the page stays. Chromium aborts a reload's requests within a few ms of
- *  `pagehide`; nothing legitimate waits this long between the two. */
+ *  a prompt the person declined, a download or a `mailto:` link cancels the
+ *  navigation and the page stays. Chromium aborts a reload's requests within
+ *  a few ms of `pagehide`; nothing legitimate waits this long between the
+ *  two. */
 export const UNLOAD_CANCELLED_AFTER_MS = 2_000;
+
+/** The page, when there is one. A unit test's bare `window` stub has no
+ *  event surface and counts as no page. */
+export function pageTargetOf(candidate: unknown): PageLifecycleTarget | null {
+  return typeof candidate === "object" &&
+    candidate !== null &&
+    typeof (candidate as PageLifecycleTarget).addEventListener === "function"
+    ? (candidate as PageLifecycleTarget)
+    : null;
+}
 
 /**
  * The SDK's {@link PageLifecycle} port over the real page.
@@ -22,13 +33,17 @@ export const UNLOAD_CANCELLED_AFTER_MS = 2_000;
  * which fires at commit (Chromium and WebKit abort them after `pagehide`, so
  * either event is early enough there). `pagehide` marks it too, for the
  * browsers that raise no `beforeunload` for a tab going to the background
- * (iOS). `pageshow` (a back/forward-cache restore of the same document) marks
- * it back, as does a `beforeunload` that no `pagehide` follows within
- * {@link UNLOAD_CANCELLED_AFTER_MS}: the navigation was cancelled and the page
- * lives on. No page at all (SSR, tests): never unloading.
+ * (iOS). The page is live again, and `onLive` listeners run, on `pageshow`
+ * (a back/forward-cache restore of the same document) and when a
+ * `beforeunload` saw no `pagehide` within {@link UNLOAD_CANCELLED_AFTER_MS}:
+ * the navigation was cancelled and the page lives on. A page that never
+ * looked like leaving never reports live. No page at all (SSR, tests): never
+ * unloading, never live.
  */
 export function createPageLifecycle(
-  target: PageLifecycleTarget | null = realWindow(),
+  target: PageLifecycleTarget | null = pageTargetOf(
+    typeof window === "undefined" ? null : window,
+  ),
   schedule: (fn: () => void, ms: number) => () => void = (fn, ms) => {
     const id = setTimeout(fn, ms);
     return () => clearTimeout(id);
@@ -36,33 +51,29 @@ export function createPageLifecycle(
 ): PageLifecycle {
   let unloading = false;
   let cancelTimer: (() => void) | null = null;
+  const listeners = new Set<() => void>();
+  const live = () => {
+    cancelTimer?.();
+    cancelTimer = null;
+    if (!unloading) return;
+    unloading = false;
+    for (const listener of [...listeners]) listener();
+  };
   const leaving = (settled: boolean) => {
     unloading = true;
     cancelTimer?.();
-    cancelTimer = settled
-      ? null
-      : schedule(() => {
-          unloading = false;
-          cancelTimer = null;
-        }, UNLOAD_CANCELLED_AFTER_MS);
+    cancelTimer = settled ? null : schedule(live, UNLOAD_CANCELLED_AFTER_MS);
   };
   target?.addEventListener("beforeunload", () => leaving(false));
   target?.addEventListener("pagehide", () => leaving(true));
-  target?.addEventListener("pageshow", () => {
-    cancelTimer?.();
-    cancelTimer = null;
-    unloading = false;
-  });
-  return { isUnloading: () => unloading };
-}
-
-/** The page, when there is one. A unit test's bare `window` stub has no
- *  event surface and counts as no page. */
-function realWindow(): PageLifecycleTarget | null {
-  return typeof window !== "undefined" &&
-    typeof window.addEventListener === "function"
-    ? window
-    : null;
+  target?.addEventListener("pageshow", live);
+  return {
+    isUnloading: () => unloading,
+    onLive: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
 }
 
 let shared: PageLifecycle | null = null;

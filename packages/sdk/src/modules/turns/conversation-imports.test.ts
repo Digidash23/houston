@@ -7,10 +7,7 @@ import type { ModuleContext } from "../../module-context";
 import type { SdkConfig } from "../../ports";
 import { ScopeStore } from "../../store";
 import { memoryKv } from "../../test-ports";
-import {
-  ConversationImportAbortedError,
-  classifyImportFailure,
-} from "./conversation-import-abort";
+import { classifyImportFailure } from "./conversation-import-abort";
 import { PENDING_IMPORTS_KEY } from "./conversation-import-outbox";
 import { createConversationImports } from "./conversation-imports";
 
@@ -28,7 +25,45 @@ const request: ConversationImportRequest = {
   ],
 };
 
-function harness(page: { unloading: boolean } = { unloading: false }) {
+/** A page the test drives: leaving or not, and "live again" on demand. */
+function fakePage(unloading = false) {
+  const listeners = new Set<() => void>();
+  return {
+    unloading,
+    lifecycle: {
+      isUnloading: () => page.unloading,
+      onLive: (listener: () => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    },
+    /** The page is live after all: the flag drops, listeners run. */
+    live() {
+      page.unloading = false;
+      for (const listener of listeners) listener();
+    },
+  };
+}
+let page = fakePage();
+
+/** Settled with its result, rejected, or still pending after a turn. */
+async function stateOf<T>(p: Promise<T>): Promise<string> {
+  const pending = Symbol("pending");
+  const outcome = await Promise.race([
+    p.then(
+      (v) => ({ v }),
+      (e: unknown) => ({ e }),
+    ),
+    new Promise<typeof pending>((r) => setTimeout(() => r(pending), 20)),
+  ]);
+  if (outcome === pending) return "pending";
+  return "v" in outcome
+    ? `resolved:${JSON.stringify(outcome.v)}`
+    : `rejected:${String((outcome.e as Error).message)}`;
+}
+
+function harness(opts: { unloading: boolean } = { unloading: false }) {
+  page = fakePage(opts.unloading);
   const stored = new Map<string, string>();
   const sent: Array<{ agentId: string; id: string; importId: string }> = [];
   /** What the runtime answers next: a count, or an error to throw. */
@@ -51,7 +86,7 @@ function harness(page: { unloading: boolean } = { unloading: false }) {
       ports: {
         logger,
         storage: memoryKv(stored),
-        pageLifecycle: { isUnloading: () => page.unloading },
+        pageLifecycle: page.lifecycle,
       } as unknown as SdkConfig["ports"],
       reactivity: false,
     },
@@ -102,27 +137,77 @@ describe("importMessages", () => {
     expect(h.stored.has(PENDING_IMPORTS_KEY)).toBe(false);
   });
 
-  test("an import the page left mid-flight is aborted, not failed, and stays owed", async () => {
+  test("an import the page left mid-flight is held: pending, still owed, sent once more when the page is live", async () => {
     // A reload aborts the fetch; the browser reports it like a dead network.
     const h = harness({ unloading: true });
-    const dropped = new TypeError("Failed to fetch");
-    h.answers.push(dropped);
-    const rejection = h.imports.importMessages(
+    h.answers.push(new TypeError("Failed to fetch"));
+    const held = h.imports.importMessages(
       "assistant",
       "ws/.assistant",
       request,
     );
-    await expect(rejection).rejects.toBeInstanceOf(
-      ConversationImportAbortedError,
-    );
-    await expect(rejection).rejects.toMatchObject({
-      name: "AbortError",
-      reason: "unload",
-      cause: dropped,
-    });
+    expect(await stateOf(held)).toBe("pending");
     expect(h.owed()).toEqual([
       { agentId: "ws/.assistant", conversationId: "assistant", request },
     ]);
+    expect(h.sent).toHaveLength(1);
+
+    // The navigation was cancelled (or the document came back from the
+    // back/forward cache): the import goes out again and the hold settles.
+    page.live();
+    expect(await stateOf(held)).toBe('resolved:{"ok":true,"imported":2}');
+    expect(h.sent).toHaveLength(2);
+    expect(h.stored.has(PENDING_IMPORTS_KEY)).toBe(false);
+  });
+
+  test("a held import whose resend the host refuses settles with that refusal", async () => {
+    const h = harness({ unloading: true });
+    const busy = new EngineError(409, '{"error":"turn running"}');
+    h.answers.push(new TypeError("Failed to fetch"), busy);
+    const held = h.imports.importMessages(
+      "assistant",
+      "ws/.assistant",
+      request,
+    );
+    expect(await stateOf(held)).toBe("pending");
+    page.live();
+    expect(await stateOf(held)).toBe(`rejected:${busy.message}`);
+    expect(h.owed()).toHaveLength(1);
+  });
+
+  test("a page that really left never settles the hold; the import stays owed for the next load", async () => {
+    const h = harness({ unloading: true });
+    h.answers.push(new TypeError("Failed to fetch"));
+    const held = h.imports.importMessages(
+      "assistant",
+      "ws/.assistant",
+      request,
+    );
+    expect(await stateOf(held)).toBe("pending");
+    expect(h.owed()).toHaveLength(1);
+    expect(h.sent).toHaveLength(1);
+  });
+
+  test("asking again for a held import joins the hold instead of sending twice", async () => {
+    const h = harness({ unloading: true });
+    h.answers.push(new TypeError("Failed to fetch"));
+    const first = h.imports.importMessages(
+      "assistant",
+      "ws/.assistant",
+      request,
+    );
+    expect(await stateOf(first)).toBe("pending");
+    const second = h.imports.importMessages(
+      "assistant",
+      "ws/.assistant",
+      request,
+    );
+    expect(await stateOf(second)).toBe("pending");
+    page.live();
+    expect(await stateOf(first)).toBe('resolved:{"ok":true,"imported":2}');
+    expect(await stateOf(second)).toBe('resolved:{"ok":true,"imported":2}');
+    // One send before the hold, one resend after it: the second ask sent nothing.
+    expect(h.sent).toHaveLength(2);
   });
 
   test("a host answer during unload is still that answer", async () => {
@@ -253,14 +338,12 @@ test("the commands validate their payload before anything is sent", async () => 
 
 describe("classifyImportFailure", () => {
   test("reads the page and the error", () => {
-    const abort = Object.assign(new Error("cancelled"), { name: "AbortError" });
     expect(classifyImportFailure(new TypeError("Failed to fetch"), true)).toBe(
       "aborted",
     );
     expect(classifyImportFailure(new TypeError("Failed to fetch"), false)).toBe(
       "failed",
     );
-    expect(classifyImportFailure(abort, false)).toBe("aborted");
     expect(classifyImportFailure(new EngineError(503, "waking"), true)).toBe(
       "failed",
     );

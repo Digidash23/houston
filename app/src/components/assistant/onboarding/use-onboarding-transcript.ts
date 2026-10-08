@@ -1,13 +1,7 @@
-import { isConversationImportAborted } from "@houston/sdk";
 import { useEffect, useRef, useState } from "react";
 import { useAssistant } from "../../../hooks/use-assistant";
 import { tauriConversationImports } from "../../../lib/conversation-import-facade";
 import { logAndReportError } from "../../../lib/error-report";
-import {
-  afterClosingSave,
-  resumeOnPageRestore,
-  type SaveOutcome,
-} from "../../../lib/manager-onboarding/closing-save-flow";
 import type { ScriptLine } from "../../../lib/manager-onboarding/script";
 import {
   type OnboardingConversation,
@@ -23,15 +17,15 @@ import type { ScriptCopy } from "./use-script-copy";
  *
  * Finishing never waits on a failure. The import is reported and stays owed
  * on this device, and {@link useOwedTranscriptRetry} sends it on the next load.
- * One exception: an import the PAGE abandoned (a reload during the save aborts
- * it; the SDK names that `ConversationImportAbortedError`, PRODUCT-2040) is not
- * a failure to finish on. The dying page used to finish anyway, stamping
+ * An import the PAGE abandoned (a reload during the save aborts it) is not a
+ * failure to finish on. The dying page used to finish anyway, stamping
  * `onboarding_completed` so the reload opened the app with an empty manager
- * chat. Now it holds: the stage stays pending, the import stays owed, and the
- * next load resumes on the closing and sends it. Should the SAME page come
- * back instead (a back/forward-cache restore), the held save re-runs by
- * itself (closing-save-flow.ts), since nothing on the closing can be pressed
- * twice.
+ * chat (PRODUCT-2040). The SDK now HOLDS such an import (`turns.importMessages`
+ * does not settle): on a page that really left nothing more happens here, the
+ * stage stays pending, the import stays owed, and the next load resumes on the
+ * closing and sends it. On a page that turns out to be live after all (a
+ * back/forward-cache restore, a cancelled navigation) the SDK sends it again
+ * and the save settles, so the finish below runs exactly once, late.
  *
  * A conversation finishes once: a second `done` (a double press, an ending
  * that finishes on its own) is ignored. `then` runs once the conversation is
@@ -50,8 +44,9 @@ export function useFinishWithTranscript(
   const started = useRef(false);
   const pending = useRef<{ then?: () => void } | null>(null);
 
-  /** Never rejects: every failure is reported here or by the facade. */
-  const save = async (): Promise<SaveOutcome> => {
+  /** Never rejects: every failure is reported here or by the facade. Does
+   *  not settle while the SDK holds an import the page abandoned. */
+  const save = async (): Promise<void> => {
     if (!handle) {
       // A deployment with no manager owes nothing. One whose discovery failed
       // has no address to owe the conversation to.
@@ -62,7 +57,7 @@ export function useFinishWithTranscript(
             `the AI Manager's address is unknown, so the ${conversation} onboarding was not saved`,
           ),
         );
-      return "unsaved";
+      return;
     }
     try {
       await tauriConversationImports.send(
@@ -70,30 +65,16 @@ export function useFinishWithTranscript(
         handle.conversation,
         onboardingTranscript(conversation, lines, copy),
       );
-      return "saved";
-    } catch (err) {
-      // An abort is the page leaving: nothing to surface, nothing to finish.
-      // Anything else the facade surfaced, and it stays owed for the next load.
-      return isConversationImportAborted(err) ? "aborted" : "failed";
+    } catch {
+      // The facade surfaced it, and it stays owed for the next load.
     }
   };
 
-  const stopRestore = useRef<(() => void) | null>(null);
-  useEffect(() => () => stopRestore.current?.(), []);
-
   const run = (then?: () => void) => {
-    void save().then((outcome) => {
-      afterClosingSave(outcome, {
-        finish: () => {
-          setSaving(false);
-          then?.();
-          finish();
-        },
-        hold: () => {
-          stopRestore.current?.();
-          stopRestore.current = resumeOnPageRestore(window, () => run(then));
-        },
-      });
+    void save().then(() => {
+      setSaving(false);
+      then?.();
+      finish();
     });
   };
 

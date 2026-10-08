@@ -14,7 +14,7 @@ import { EngineError } from "@houston/runtime-client";
 import type { ModuleContext } from "../../module-context";
 
 /** One import this device owes a conversation, and the chat it goes into. */
-interface PendingConversationImport {
+export interface PendingConversationImport {
   agentId: string;
   conversationId: string;
   request: ConversationImportRequest;

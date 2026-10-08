@@ -62,17 +62,27 @@ export interface SdkLogger {
 }
 
 /**
- * Whether the page the SDK runs in is going away. A browser aborts every
- * in-flight request when its document unloads (a reload, a navigation), and
- * those rejections look like a dead network: a `TypeError` with no response.
- * The SDK reads this port to tell "the host never answered because we left"
- * from "the host never answered" (see `turns.importMessages`). A host with no
- * page (an SSR worker, a test) omits it, and no request is ever an unload.
+ * Whether the page the SDK runs in is going away, and when it is back. A
+ * browser aborts every in-flight request when its document unloads (a reload,
+ * a navigation), and those rejections look like a dead network: a `TypeError`
+ * with no response. The SDK reads this port to tell "the host never answered
+ * because we left" from "the host never answered", holds such a write, and
+ * sends it again when the page turns out to be live after all (see
+ * `turns.importMessages`). A host with no page (an SSR worker, a test) omits
+ * it, and no request is ever an unload.
  */
 export interface PageLifecycle {
   /** True once the page started to leave (`beforeunload` or `pagehide`),
    *  false again if it stayed or came back. */
   isUnloading(): boolean;
+  /**
+   * Call `listener` each time a page that looked like it was leaving is live
+   * again: the same document restored from the back/forward cache, or a
+   * `beforeunload` that no unload followed (a download, a `mailto:` link, a
+   * prompt the person declined). Never for a page that was not leaving.
+   * Returns the way to stop listening.
+   */
+  onLive(listener: () => void): () => void;
 }
 
 /**
