@@ -28,9 +28,7 @@ export const UNLOAD_CANCELLED_AFTER_MS = 2_000;
  * lives on. No page at all (SSR, tests): never unloading.
  */
 export function createPageLifecycle(
-  target: PageLifecycleTarget | null = typeof window === "undefined"
-    ? null
-    : window,
+  target: PageLifecycleTarget | null = realWindow(),
   schedule: (fn: () => void, ms: number) => () => void = (fn, ms) => {
     const id = setTimeout(fn, ms);
     return () => clearTimeout(id);
@@ -56,6 +54,15 @@ export function createPageLifecycle(
     unloading = false;
   });
   return { isUnloading: () => unloading };
+}
+
+/** The page, when there is one. A unit test's bare `window` stub has no
+ *  event surface and counts as no page. */
+function realWindow(): PageLifecycleTarget | null {
+  return typeof window !== "undefined" &&
+    typeof window.addEventListener === "function"
+    ? window
+    : null;
 }
 
 let shared: PageLifecycle | null = null;
