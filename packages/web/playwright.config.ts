@@ -7,8 +7,25 @@ import {
   WEB_PORT,
   WEB_URL,
 } from "./e2e/config";
+import {
+  assertBundleBuilt,
+  type BundleName,
+  resolveServeMode,
+} from "./e2e/support/serve-mode";
 
 const DESKTOP_VIEWPORT = { width: 1440, height: 900 } as const;
+
+// `dev` (vite dev servers, every local run) or `bundle` (prebuilt output behind
+// `vite preview`, CI's default). See e2e/support/serve-mode.ts for the why.
+const serveMode = resolveServeMode();
+
+/** The command behind each web `webServer` entry below. In `bundle` mode the
+ *  env the entry carries (port, Firebase key) was consumed at build time, so
+ *  the two servers differ only in which directory they serve. */
+function webServerCommand(bundle: BundleName, port: number): string {
+  if (serveMode === "dev") return "pnpm dev";
+  return `pnpm preview --outDir ${assertBundleBuilt(bundle)} --port ${port} --strictPort`;
+}
 
 // Pin the resolved (possibly worktree-derived) ports into our own env before
 // workers spawn: workers inherit them verbatim instead of re-deriving, so a
@@ -30,27 +47,31 @@ process.env.HOUSTON_E2E_WEB_PORT ??= String(WEB_PORT);
 export default defineConfig({
   testDir: "./e2e",
   testMatch: "**/*.spec.ts",
-  // Warm the vite dev server before the timed suite so the first test doesn't
-  // pay vite's cold on-demand compile inside its assertion budget (see
-  // e2e/support/global-setup.ts).
+  // Boot the shell on both web servers once before the timed suite: in `dev`
+  // mode that absorbs vite's cold on-demand compile outside any assertion
+  // budget, in `bundle` mode it is a seconds-long smoke that both bundles serve
+  // a booting app (see e2e/support/global-setup.ts).
   globalSetup: "./e2e/support/global-setup.ts",
   fullyParallel: true,
-  // CI runners (ubuntu-latest) have 4 vCPUs, and page boots are served by ONE
-  // single-threaded vite dev process — at 4 workers renders starve past the
-  // 10s expect budget (run 30596416439: 14 timing failures), and even at 2
-  // the heavy signed-in specs flake on animation transients (run
-  // 30597930896: stuck AnimatePresence exit ghosts duplicate kanban cards).
-  // CI therefore runs ONE worker per runner — the density the suite has
-  // always been stable at — and gets its throughput from sharding across
-  // runners (ci.yml `--shard`).
+  // CI runners (ubuntu-latest) have 4 vCPUs. While the dev server served the
+  // shards, ONE single-threaded vite process took every worker's page boot, and
+  // density cost correctness: 4 workers starved renders past the 10s expect
+  // budget (run 30596416439: 14 timing failures), 2 left the heavy signed-in
+  // specs flaking on animation transients (run 30597930896: stuck
+  // AnimatePresence exit ghosts duplicating kanban cards), so CI ran one worker
+  // per shard. In `bundle` mode `vite preview` serves static files and the
+  // runner's cores go to the browsers, so each shard runs three workers; the
+  // suite proved stable at that density across repeated full runs on the PR
+  // that introduced it. Sharding across runners (ci.yml `--shard`) still sets
+  // the wall clock.
   //
   // Locally the cap is 4, NOT Playwright's half-the-cores default: a worker is
   // a full Chromium, and nine of them own an 18-core Mac outright — on a
   // machine hosting many agent worktrees the review-phase suite must leave the
   // iteration sessions their cores (the suite also holds the machine-wide lock,
   // so capped throughput only stretches a phase where wall time is cheap).
-  // HOUSTON_E2E_WORKERS overrides for a dedicated box.
-  workers: process.env.CI ? 1 : Number(process.env.HOUSTON_E2E_WORKERS || 4),
+  // HOUSTON_E2E_WORKERS overrides either default.
+  workers: Number(process.env.HOUSTON_E2E_WORKERS || (process.env.CI ? 3 : 4)),
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   timeout: 30_000,
@@ -154,8 +175,9 @@ export default defineConfig({
       // the default web root (see packages/web/src/main.tsx). Identity must be
       // explicitly OFF here: loadEnv also reads the developer's ambient env,
       // and an installed Firebase key would otherwise turn the entire
-      // functional project into the sign-in surface.
-      command: "pnpm dev",
+      // functional project into the sign-in surface. (In `bundle` mode the
+      // same env went into `e2e:build`; see e2e/support/build-bundles.ts.)
+      command: webServerCommand("shell", WEB_PORT),
       port: WEB_PORT,
       env: {
         HOUSTON_E2E_WEB_PORT: String(WEB_PORT),
@@ -171,7 +193,7 @@ export default defineConfig({
       // `isIdentityConfigured()` is true and `SignInScreen` renders. Only the
       // `auth` project points here (baseURL = AUTH_WEB_URL). HOUSTON_E2E_WEB_PORT
       // moves vite's own `server.port` (vite.config.ts) to AUTH_WEB_PORT.
-      command: "pnpm dev",
+      command: webServerCommand("sign-in", AUTH_WEB_PORT),
       port: AUTH_WEB_PORT,
       env: {
         HOUSTON_E2E_WEB_PORT: String(AUTH_WEB_PORT),

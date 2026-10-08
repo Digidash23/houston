@@ -178,14 +178,18 @@ jobs:
 
   web:
     # The UI suite is split across runners with Playwright's native --shard,
-    # ONE worker per runner: the shards run concurrently, so the wall clock is
-    # one shard's slice of the suite instead of the whole serial run, while
-    # each test still executes in the exact single-worker environment the
-    # suite has always been stable in on this hardware. Higher density was
-    # tried and starves renders on the 4-vCPU runner (one single-threaded vite
-    # dev process serves every worker's page boots): 4 workers blew expect
-    # budgets outright (run 30596416439), and even 2 workers left the heavy
-    # signed-in specs flaking on animation transients (run 30597930896).
+    # and each shard runs three workers against a PREBUILT bundle served by
+    # `vite preview` (packages/web/e2e/support/serve-mode.ts). While the vite
+    # dev server served the shards, one single-threaded process took every
+    # worker's page boot and density cost correctness on the 4-vCPU runner:
+    # 4 workers blew expect budgets outright (run 30596416439), 2 left the
+    # heavy signed-in specs flaking on animation transients (run
+    # 30597930896), so each shard ran one worker and a Playwright step took
+    # 9-13 min. Static files cost the runner nothing per request, so the
+    # cores go to the browsers. The build is a development-mode `vite build`
+    # (same import.meta.env.DEV branches and dev-only test hooks as the dev
+    # server) and runs per shard: about a minute, less than a build job plus
+    # artifact round trip would add to every shard's critical path.
     # The web typecheck and unit tests run in the App job, so no shard carries
     # extra work and the slowest slice alone sets the wall clock.
     #
@@ -256,6 +260,10 @@ jobs:
       - name: Smoke-launch Chromium (host dependency check)
         timeout-minutes: 2
         run: pnpm --filter houston-web exec node -e "require('@playwright/test').chromium.launch().then((b) => b.close())"
+
+      # Both web servers' bundles (identity off and on), built concurrently.
+      - name: Build web bundles (e2e)
+        run: pnpm --filter houston-web e2e:build
 
       - name: UI tests (Playwright)
         run: pnpm --filter houston-web test:e2e --shard=${{ matrix.shard }}/${{ strategy.job-total }}

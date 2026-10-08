@@ -51,6 +51,7 @@ e2e/
     create-agent.ts # the rail's "+" and the guided brief behind it (the
                     # Agents home has a "New AI Employee" control)
     fixtures.ts     # the `test`/`expect` used by specs (resets the host per test)
+    build-bundles.ts # builds the two web bundles CI serves (see CI below)
     global-setup.ts # warms the vite dev server once before the suite (see CI below)
     identity.ts     # sign the harness in as a known user (see Signed-in specs below)
     machine-lock.ts # the machine-wide ONE-suite lock (an atomic mkdir in tmpdir,
@@ -73,6 +74,7 @@ e2e/
     run-locked.ts   # run a full Playwright suite under the machine lock — the
                     # `test:e2e` / `test:visual` entry point
     seed.ts         # localStorage + window.__HOUSTON_CP__ primed before any app script
+    serve-mode.ts   # `dev` (vite dev servers) or `bundle` (prebuilt, CI); bundle dirs
     settings-nav.ts # the rail's anchorless rows (Admin + its sections and
                     # Analytics lenses), Settings, and the account menu's
                     # screens (Profile, About me)
@@ -248,22 +250,39 @@ per-worktree `HOUSTON_E2E_FAKE_HOST_PORT` bases ≥ 32 apart so worker slots
 can't overlap.
 
 **CI.** The web job shards the suite across runners (`test:e2e --shard=N/6`,
-see `.github/workflows/ci.yml`) with ONE worker per shard: one single-threaded
-vite dev process serves every worker's page boots, and on a 4-vCPU runner
-concurrent workers starve renders — 4 workers blew expect budgets outright,
-and even 2 left the signed-in specs flaking on stuck-animation transients
-(duplicate `AnimatePresence` card ghosts). Throughput comes from the shards;
-each test runs at the single-worker density the suite has always been stable
-at.
+see `.github/workflows/ci.yml`), three workers per shard, against a PREBUILT
+bundle. The two web servers are `vite preview` over `dist/e2e/shell` and
+`dist/e2e/sign-in`, built by `pnpm --filter houston-web e2e:build`
+(`support/build-bundles.ts`). That is the `bundle` serve mode in
+`support/serve-mode.ts`; every local run uses `dev` (the vite dev servers) and
+`HOUSTON_E2E_SERVE=bundle` reproduces CI after an `e2e:build`.
+
+Why a bundle: the dev server is one single-threaded process serving every
+worker's page boot, and on a 4-vCPU runner density cost correctness. 4 workers
+blew expect budgets outright, and 2 left the signed-in specs flaking on
+stuck-animation transients (duplicate `AnimatePresence` card ghosts), so CI ran
+one worker per shard and a Playwright step took 9 to 13 minutes. Static files
+cost the runner nothing per request, so the cores go to the browsers.
+
+Why a DEVELOPMENT-mode build (`NODE_ENV=development vite build`), not a
+production one: the suite relies on dev behavior. `update-pill.spec.ts` drives
+the dev-only `__HOUSTON_UPDATE_PREVIEW__` harness (tree-shaken out of production
+builds), `skills-react-clean.spec.ts` asserts no React dev warnings (a
+production bundle emits none, so the check would pass vacuously), and
+`error-toast.ts` suppresses Sentry in dev. The bundle keeps every
+`import.meta.env.DEV` branch the dev server has, so a spec cannot pass under one
+serve mode and fail under the other.
 
 vite dev compiles modules on demand, and Playwright only waits for the dev
 server's port to open, not for it to compile. `support/global-setup.ts` boots the
 shell once before the timed suite so the first test doesn't eat vite's cold
 compile inside its 10s assertion budget — that cold start used to time out the
 first test, which then passed on retry: a "flaky" green that silently hid a real
-failure. `test:e2e` also runs with `--fail-on-flaky-tests`, so a test that only
-passes on retry now fails the run (non-zero exit) instead of going green. Locally
-`retries: 0`, so a failure is just a failure and the flag is a no-op.
+failure. In `bundle` mode the same boots take seconds and double as a smoke that
+both bundles serve a working app. `test:e2e` also runs with
+`--fail-on-flaky-tests`, so a test that only passes on retry fails the run
+(non-zero exit) instead of going green. Locally `retries: 0`, so a failure is
+just a failure and the flag is a no-op.
 
 **Two vite servers, two dep-optimizer caches.** The run boots TWO vite servers
 from this same package — the identity-off shell (`:1430`) and the identity-on
