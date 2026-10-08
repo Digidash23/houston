@@ -1,13 +1,12 @@
 import type { Route } from "@playwright/test";
+import { evictMidClosing, holdClosingSave } from "./support/closing-save";
 import { expect, test } from "./support/fixtures";
 import { managerOnboarding, reachTeamStep } from "./support/manager-onboarding";
 import {
   afterHire,
-  evictMidClosing,
   finishOnboarding,
   goalCard,
   hireStarterTeam,
-  holdClosingSave,
   roster,
   STARTER_ROLES,
   starterTeam,
@@ -15,6 +14,7 @@ import {
   teamNext,
 } from "./support/manager-team";
 import { openManagerOnboarding, resetToFirstRun } from "./support/onboarding";
+import { resolveServeMode } from "./support/serve-mode";
 import { agentRow } from "./support/team-nav";
 
 /**
@@ -22,7 +22,8 @@ import { agentRow } from "./support/team-nav";
  * job and open to a new name, "Hire my team" creating everyone behind the
  * person and waiting for every hire to land before the Manager closes. A
  * hire that failed says so on its card and offers Retry; a tab evicted
- * after the team is hired resumes on it.
+ * after the team is hired resumes on it, and so should a reload
+ * (PRODUCT-2040, pinned failing below).
  */
 
 test("renamed cards hire under the names given", async ({ page, request }) => {
@@ -36,7 +37,7 @@ test("renamed cards hire under the names given", async ({ page, request }) => {
   for (const name of names) await expect(agentRow(page, name)).toBeVisible();
 });
 
-test("a reload after the team is hired resumes on it, and That's my team closes", async ({
+test("a tab evicted after the team is hired resumes on it, and That's my team closes", async ({
   page,
   request,
 }) => {
@@ -71,6 +72,32 @@ test("a reload after the team is hired resumes on it, and That's my team closes"
   await expect(goalCard(chat)).toBeVisible();
   for (const name of STARTER_ROLES)
     await expect(agentRow(resumed, name)).toBeVisible();
+});
+
+test("a reload after the team is hired resumes on it", async ({
+  page,
+  request,
+}) => {
+  // PRODUCT-2040. A reload aborts the held import; the closing treats the
+  // abort as a failed import and finishes onboarding from the dying page, so
+  // `onboarding_completed` lands and the reload opens the app with an empty
+  // manager chat. Deterministic against the prebuilt bundle (CI); the dev
+  // server's slower reload tears the page down before that handler runs, so
+  // there the spec passes. Make it a plain passing spec with the fix.
+  test.fail(
+    resolveServeMode() === "bundle",
+    "PRODUCT-2040: the closing finishes onboarding on an aborted import",
+  );
+  await resetToFirstRun(request);
+  await openManagerOnboarding(page);
+  await reachTeamStep(page);
+  const release = await holdClosingSave(request);
+  await hireStarterTeam(page, null, "click", STARTER_ROLES);
+
+  await page.reload();
+  await release();
+  await expect(teamNext(page)).toBeVisible();
+  await expect(roster(page).locator('li[data-status="hired"]')).toHaveCount(3);
 });
 
 test("a hire that failed says so on its card, and Retry lands it", async ({

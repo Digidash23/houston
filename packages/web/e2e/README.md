@@ -52,6 +52,7 @@ e2e/
                     # Agents home has a "New AI Employee" control)
     fixtures.ts     # the `test`/`expect` used by specs (resets the host per test)
     build-bundles.ts # builds the two web bundles CI serves (see CI below)
+    closing-save.ts # hold the first-run closing's save; evict the tab mid-closing
     global-setup.ts # warms the vite dev server once before the suite (see CI below)
     identity.ts     # sign the harness in as a known user (see Signed-in specs below)
     machine-lock.ts # the machine-wide ONE-suite lock (an atomic mkdir in tmpdir,
@@ -252,27 +253,18 @@ can't overlap.
 
 **CI.** The web job shards the suite across runners (`test:e2e --shard=N/6`,
 see `.github/workflows/ci.yml`), three workers per shard, against a PREBUILT
-bundle. The two web servers are `vite preview` over `dist/e2e/shell` and
-`dist/e2e/sign-in`, built by `pnpm --filter houston-web e2e:build`
-(`support/build-bundles.ts`). That is the `bundle` serve mode in
-`support/serve-mode.ts`; every local run uses `dev` (the vite dev servers) and
-`HOUSTON_E2E_SERVE=bundle` reproduces CI after an `e2e:build`.
+bundle: the two web servers are `vite preview` over `dist/e2e/shell` and
+`dist/e2e/sign-in`, built by `pnpm --filter houston-web e2e:build`. That is the
+`bundle` serve mode in `support/serve-mode.ts`, which also holds the history of
+why the dev server could not take more than one worker per shard. Every local
+run uses `dev` (the vite dev servers); `HOUSTON_E2E_SERVE=bundle` after an
+`e2e:build` reproduces CI, and `serve-bundle.ts` warns when the bundle was built
+at another commit.
 
-Why a bundle: the dev server is one single-threaded process serving every
-worker's page boot, and on a 4-vCPU runner density cost correctness. 4 workers
-blew expect budgets outright, and 2 left the signed-in specs flaking on
-stuck-animation transients (duplicate `AnimatePresence` card ghosts), so CI ran
-one worker per shard and a Playwright step took 9 to 13 minutes. Static files
-cost the runner nothing per request, so the cores go to the browsers.
-
-Why a DEVELOPMENT-mode build (`NODE_ENV=development vite build`), not a
-production one: the suite relies on dev behavior. `update-pill.spec.ts` drives
-the dev-only `__HOUSTON_UPDATE_PREVIEW__` harness (tree-shaken out of production
-builds), `skills-react-clean.spec.ts` asserts no React dev warnings (a
-production bundle emits none, so the check would pass vacuously), and
-`error-toast.ts` suppresses Sentry in dev. The bundle keeps every
-`import.meta.env.DEV` branch the dev server has, so a spec cannot pass under one
-serve mode and fail under the other.
+The build is a DEVELOPMENT-mode `vite build`, so it keeps every
+`import.meta.env.DEV` branch, the React dev runtime and the dev-only test hooks
+the suite relies on; `support/build-bundles.ts` lists them. A spec cannot pass
+under one serve mode and fail under the other.
 
 vite dev compiles modules on demand, and Playwright only waits for the dev
 server's port to open, not for it to compile. `support/global-setup.ts` boots the
@@ -285,11 +277,11 @@ both bundles serve a working app. `test:e2e` also runs with
 (non-zero exit) instead of going green. Locally `retries: 0`, so a failure is
 just a failure and the flag is a no-op.
 
-**Two vite servers, two dep-optimizer caches.** The run boots TWO vite servers
-from this same package — the identity-off shell (`:1430`) and the identity-on
-sign-in server (`:1435`, the `auth` project). Vite's default cacheDir is
-`node_modules/.vite`, so both would share ONE dep-optimizer output dir and, on a
-cold CI cache, race: each cold-optimizes and rewrites `deps/` under the other,
+**Two vite servers, two dep-optimizer caches (`dev` mode).** The run boots TWO
+vite servers from this same package — the identity-off shell (`:1430`) and the
+identity-on sign-in server (`:1435`, the `auth` project). Vite's default cacheDir
+is `node_modules/.vite`, so both would share ONE dep-optimizer output dir and, on
+a cold cache, race: each cold-optimizes and rewrites `deps/` under the other,
 invalidating chunks mid-navigation so the second server's page reloads into a
 broken optimize state and never settles (the sign-in button never appears;
 global-setup times out — passed locally where the cache was already warm).

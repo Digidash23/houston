@@ -177,19 +177,12 @@ jobs:
         run: pnpm --filter "@houston/${PACKAGE}" test
 
   web:
-    # The UI suite is split across runners with Playwright's native --shard,
-    # and each shard runs three workers against a PREBUILT bundle served by
-    # `vite preview` (packages/web/e2e/support/serve-mode.ts). While the vite
-    # dev server served the shards, one single-threaded process took every
-    # worker's page boot and density cost correctness on the 4-vCPU runner:
-    # 4 workers blew expect budgets outright (run 30596416439), 2 left the
-    # heavy signed-in specs flaking on animation transients (run
-    # 30597930896), so each shard ran one worker and a Playwright step took
-    # 9-13 min. Static files cost the runner nothing per request, so the
-    # cores go to the browsers. The build is a development-mode `vite build`
-    # (same import.meta.env.DEV branches and dev-only test hooks as the dev
-    # server) and runs per shard: about a minute, less than a build job plus
-    # artifact round trip would add to every shard's critical path.
+    # The UI suite is split across runners with Playwright's native --shard.
+    # Each shard builds the web bundles and runs three workers against them
+    # behind `vite preview`; why a prebuilt bundle and not the dev server, and
+    # why three, is in packages/web/e2e/support/serve-mode.ts. The build runs
+    # per shard (under a minute): a build job plus an artifact round trip
+    # would put more than that on every shard's critical path.
     # The web typecheck and unit tests run in the App job, so no shard carries
     # extra work and the slowest slice alone sets the wall clock.
     #

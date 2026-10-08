@@ -51,17 +51,10 @@ export default defineConfig({
   // a booting app (see e2e/support/global-setup.ts).
   globalSetup: "./e2e/support/global-setup.ts",
   fullyParallel: true,
-  // CI runners (ubuntu-latest) have 4 vCPUs. While the dev server served the
-  // shards, ONE single-threaded vite process took every worker's page boot, and
-  // density cost correctness: 4 workers starved renders past the 10s expect
-  // budget (run 30596416439: 14 timing failures), 2 left the heavy signed-in
-  // specs flaking on animation transients (run 30597930896: stuck
-  // AnimatePresence exit ghosts duplicating kanban cards), so CI ran one worker
-  // per shard. In `bundle` mode `vite preview` serves static files and the
-  // runner's cores go to the browsers, so each shard runs three workers; the
-  // suite proved stable at that density across repeated full runs on the PR
-  // that introduced it. Sharding across runners (ci.yml `--shard`) still sets
-  // the wall clock.
+  // CI runners (ubuntu-latest) have 4 vCPUs: three workers per shard against
+  // the prebuilt bundle (e2e/support/serve-mode.ts has the history of why not
+  // more, and why not against the dev server). Sharding across runners
+  // (ci.yml `--shard`) still sets the wall clock.
   //
   // Locally the cap is 4, NOT Playwright's half-the-cores default: a worker is
   // a full Chromium, and nine of them own an 18-core Mac outright — on a

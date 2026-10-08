@@ -6,16 +6,22 @@ import path from "node:path";
  *
  * - `dev`: two `vite` dev servers transform modules on demand. No build step,
  *   HMR, the mode every local run uses.
- * - `bundle`: `vite build` once per server (see build-bundles.ts), then
- *   `vite preview` serves the static output. The dev server is ONE
- *   single-threaded process serving every worker's page boot, and on a 4-vCPU
- *   CI runner that starved concurrent Chromiums past the 10s expect budget
- *   (run 30596416439) and left the signed-in specs flaking on animation
- *   transients at two workers (run 30597930896). A static file server costs
- *   the runner nothing per request, so CI runs several workers per shard.
+ * - `bundle`: `vite build` once per server (see build-bundles.ts, which also
+ *   says why the build is a development-mode one), then `vite preview` serves
+ *   the static output. CI's default, three workers per shard.
  *
- * CI defaults to `bundle`; `HOUSTON_E2E_SERVE=bundle` reproduces a CI run
- * locally (build first: `pnpm --filter houston-web e2e:build`).
+ * History, kept here once. The dev server is ONE single-threaded process
+ * serving every worker's page boot, and on a 4-vCPU CI runner density cost
+ * correctness: 4 workers starved renders past the 10s expect budget (run
+ * 30596416439, 14 timing failures) and 2 left the heavy signed-in specs
+ * flaking on animation transients (run 30597930896, stuck AnimatePresence
+ * exit ghosts duplicating kanban cards), so CI ran one worker per shard and a
+ * Playwright step took 9 to 13 min. A static file server costs the runner
+ * nothing per request, so the cores go to the browsers: 2 to 4 min per shard
+ * at three workers.
+ *
+ * `HOUSTON_E2E_SERVE=bundle` reproduces a CI run locally (build first:
+ * `pnpm --filter houston-web e2e:build`).
  */
 export type ServeMode = "dev" | "bundle";
 
@@ -48,6 +54,10 @@ const BUNDLE_ROOT = path.resolve(import.meta.dirname, "../../dist/e2e");
 export function bundleDir(name: BundleName): string {
   return path.join(BUNDLE_ROOT, name);
 }
+
+/** Written into each bundle by build-bundles.ts: the git HEAD it was built
+ *  at, so serve-bundle.ts can warn when a local run serves a stale build. */
+export const STAMP_FILE = ".git-head";
 
 /** Fail at server start (serve-bundle.ts), with the remedy, instead of
  *  letting `vite preview` report a missing directory. Not at config load:

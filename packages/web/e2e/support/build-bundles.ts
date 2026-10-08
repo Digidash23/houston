@@ -1,6 +1,8 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
+import { writeFileSync } from "node:fs";
+import path from "node:path";
 import { AUTH_WEB_PORT, FAKE_FIREBASE_API_KEY, WEB_PORT } from "../config";
-import { type BundleName, bundleDir } from "./serve-mode";
+import { type BundleName, bundleDir, STAMP_FILE } from "./serve-mode";
 
 /**
  * Build the two web bundles the `bundle` serve mode serves (serve-mode.ts).
@@ -74,9 +76,25 @@ function build(spec: BundleSpec): Promise<void> {
   });
 }
 
+/** The commit the bundles are built at, for serve-bundle.ts's stale warning.
+ *  No git (an exported tree): no stamp, no warning. */
+function gitHead(): string | null {
+  try {
+    return execFileSync("git", ["rev-parse", "HEAD"], {
+      encoding: "utf8",
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
 async function main(): Promise<void> {
   const started = Date.now();
   await Promise.all(BUNDLES.map(build));
+  const head = gitHead();
+  if (head)
+    for (const b of BUNDLES)
+      writeFileSync(path.join(bundleDir(b.name), STAMP_FILE), `${head}\n`);
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
   console.log(
     `e2e bundles built in ${seconds}s: ${BUNDLES.map((b) => bundleDir(b.name)).join(", ")}`,
