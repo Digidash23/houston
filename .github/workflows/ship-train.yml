@@ -69,6 +69,9 @@ env:
 
 jobs:
   promote:
+    # Reads RELEASE_CUT_TOKEN / CLOUD_DISPATCH_TOKEN, which live only in this
+    # environment: it admits main and the release tag patterns, nothing else.
+    environment: release-tokens
     # Cloud channel drafts only: local `v*` and manual `engine-pod-v*` release
     # publishes are not trains, and `cloud-latest` is the machine-managed
     # updater pointer (cloud- prefixed but never a train).
@@ -185,6 +188,9 @@ jobs:
           echo "::notice::Train ${VERSION} shipped: desktop updater flipped by cloud-updater-manifest.yml, prod engine rolling to engine-pod@${DIGEST} (sha ${TRAIN_SHA}), label engine-pod-v${VERSION} stamped."
 
   promote-agentstore:
+    # Reads RELEASE_CUT_TOKEN / CLOUD_DISPATCH_TOKEN, which live only in this
+    # environment: it admits main and the release tag patterns, nothing else.
+    environment: release-tokens
     # Same gate as promote: cloud channel drafts only.
     if: >-
       startsWith(github.event.release.tag_name, 'cloud-v') &&

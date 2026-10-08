@@ -94,6 +94,9 @@ concurrency:
 
 jobs:
   cut:
+    # Reads RELEASE_CUT_TOKEN / CLOUD_DISPATCH_TOKEN, which live only in this
+    # environment: it admits main and the release tag patterns, nothing else.
+    environment: release-tokens
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
