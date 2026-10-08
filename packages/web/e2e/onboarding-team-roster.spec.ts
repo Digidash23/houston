@@ -1,9 +1,11 @@
+import { ASSISTANT_AGENT_ID, FAKE_HOST_URL } from "@houston/fake-host";
 import type { Route } from "@playwright/test";
 import { evictMidClosing, holdClosingSave } from "./support/closing-save";
 import { expect, test } from "./support/fixtures";
 import { managerOnboarding, reachTeamStep } from "./support/manager-onboarding";
 import {
   afterHire,
+  CLOSING_LINES,
   finishOnboarding,
   goalCard,
   hireStarterTeam,
@@ -92,6 +94,24 @@ test("a reload after the team is hired resumes on it", async ({
   await release();
   await expect(teamNext(page)).toBeVisible();
   await expect(roster(page).locator('li[data-status="hired"]')).toHaveCount(3);
+
+  // The resumed closing finishes into the real chat, and the manager's history
+  // holds the closing exactly once: the interrupted import and the resumed one
+  // share an importId, which the runtime writes once. Read off the host, not
+  // the screen (PRODUCT-1960: the chat can open without re-seeding).
+  await afterHire(page, TEAM_DONE_CHOICE);
+  const chat = page.getByTestId("assistant-chat");
+  await expect(chat).toBeVisible({ timeout: 15_000 });
+  await expect(goalCard(chat)).toBeVisible();
+  const history = await request.get(
+    `${FAKE_HOST_URL}/agents/${ASSISTANT_AGENT_ID}/conversations/assistant/messages?limit=120`,
+  );
+  const { messages } = (await history.json()) as {
+    messages: { role: string; content: string }[];
+  };
+  expect(
+    messages.filter((m) => m.content.includes(CLOSING_LINES[0])),
+  ).toHaveLength(1);
 });
 
 test("a hire that failed says so on its card, and Retry lands it", async ({

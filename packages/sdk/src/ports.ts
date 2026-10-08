@@ -70,7 +70,8 @@ export interface SdkLogger {
  * page (an SSR worker, a test) omits it, and no request is ever an unload.
  */
 export interface PageLifecycle {
-  /** True from the page's `pagehide` on. */
+  /** True once the page started to leave (`beforeunload` or `pagehide`),
+   *  false again if it stayed or came back. */
   isUnloading(): boolean;
 }
 

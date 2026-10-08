@@ -103,7 +103,10 @@ export function createConversationImportOutbox(ctx: ModuleContext) {
     });
   }
 
-  /** Write the import down before it is sent. */
+  /** Write the import down before it is sent. The same (agent, conversation,
+   *  importId) replaces what was owed: a resumed onboarding closing owes a
+   *  SHORTER transcript under the id the interrupted one used, and this drops
+   *  the fuller record (PRODUCT-2042, a known gap left as it was). */
   const owe = (entry: PendingConversationImport) =>
     edit((list) => [
       ...list.filter((other) => !sameImport(other, entry)),

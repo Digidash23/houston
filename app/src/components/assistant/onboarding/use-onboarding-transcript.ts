@@ -3,6 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import { useAssistant } from "../../../hooks/use-assistant";
 import { tauriConversationImports } from "../../../lib/conversation-import-facade";
 import { logAndReportError } from "../../../lib/error-report";
+import {
+  afterClosingSave,
+  resumeOnPageRestore,
+  type SaveOutcome,
+} from "../../../lib/manager-onboarding/closing-save-flow";
 import type { ScriptLine } from "../../../lib/manager-onboarding/script";
 import {
   type OnboardingConversation,
@@ -22,8 +27,11 @@ import type { ScriptCopy } from "./use-script-copy";
  * it; the SDK names that `ConversationImportAbortedError`, PRODUCT-2040) is not
  * a failure to finish on. The dying page used to finish anyway, stamping
  * `onboarding_completed` so the reload opened the app with an empty manager
- * chat. Now it does nothing: the stage stays pending, the import stays owed,
- * and the next load resumes on the closing and sends it.
+ * chat. Now it holds: the stage stays pending, the import stays owed, and the
+ * next load resumes on the closing and sends it. Should the SAME page come
+ * back instead (a back/forward-cache restore), the held save re-runs by
+ * itself (closing-save-flow.ts), since nothing on the closing can be pressed
+ * twice.
  *
  * A conversation finishes once: a second `done` (a double press, an ending
  * that finishes on its own) is ignored. `then` runs once the conversation is
@@ -31,10 +39,6 @@ import type { ScriptCopy } from "./use-script-copy";
  * manager's address is still being discovered waits for discovery to answer,
  * so the conversation is not lost to a slow first load.
  */
-/** How the closing's save ended. `aborted` is the one outcome that does not
- *  finish: the page left mid-save (see the hook's doc). */
-type SaveOutcome = "saved" | "unsaved" | "failed" | "aborted";
-
 export function useFinishWithTranscript(
   conversation: OnboardingConversation,
   lines: readonly ScriptLine[],
@@ -74,18 +78,22 @@ export function useFinishWithTranscript(
     }
   };
 
+  const stopRestore = useRef<(() => void) | null>(null);
+  useEffect(() => () => stopRestore.current?.(), []);
+
   const run = (then?: () => void) => {
     void save().then((outcome) => {
-      if (outcome === "aborted") {
-        // The page is going away. Should it survive (a back/forward-cache
-        // restore), it is a page on the closing that can be finished again.
-        started.current = false;
-        setSaving(false);
-        return;
-      }
-      setSaving(false);
-      then?.();
-      finish();
+      afterClosingSave(outcome, {
+        finish: () => {
+          setSaving(false);
+          then?.();
+          finish();
+        },
+        hold: () => {
+          stopRestore.current?.();
+          stopRestore.current = resumeOnPageRestore(window, () => run(then));
+        },
+      });
     });
   };
 
