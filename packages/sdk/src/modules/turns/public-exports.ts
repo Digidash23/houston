@@ -17,6 +17,12 @@ export {
 } from "./attachments";
 export type { DismissInteractionOutcome } from "./conversation-controls";
 export {
+  ConversationImportAbortedError,
+  classifyImportFailure,
+  type ImportFailureKind,
+  isConversationImportAborted,
+} from "./conversation-import-abort";
+export {
   type TurnPrewarmInput,
   TurnsHttpError,
 } from "./conversation-prewarm";

@@ -62,6 +62,19 @@ export interface SdkLogger {
 }
 
 /**
+ * Whether the page the SDK runs in is going away. A browser aborts every
+ * in-flight request when its document unloads (a reload, a navigation), and
+ * those rejections look like a dead network: a `TypeError` with no response.
+ * The SDK reads this port to tell "the host never answered because we left"
+ * from "the host never answered" (see `turns.importMessages`). A host with no
+ * page (an SSR worker, a test) omits it, and no request is ever an unload.
+ */
+export interface PageLifecycle {
+  /** True from the page's `pagehide` on. */
+  isUnloading(): boolean;
+}
+
+/**
  * The full set of capabilities the SDK depends on. The host constructs these
  * once and hands them to {@link SdkConfig}. `fetch` matches the platform
  * `fetch` signature exactly so the runtime-client can be driven by it.
@@ -95,6 +108,8 @@ export interface SdkPorts {
   clock: Clock;
   /** Structured logging sink. */
   logger: SdkLogger;
+  /** The page's unload signal, when there is a page. See {@link PageLifecycle}. */
+  pageLifecycle?: PageLifecycle;
 }
 
 /**

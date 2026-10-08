@@ -1,3 +1,4 @@
+import { isConversationImportAborted } from "@houston/sdk";
 import { useEffect, useRef, useState } from "react";
 import { useAssistant } from "../../../hooks/use-assistant";
 import { tauriConversationImports } from "../../../lib/conversation-import-facade";
@@ -17,6 +18,12 @@ import type { ScriptCopy } from "./use-script-copy";
  *
  * Finishing never waits on a failure. The import is reported and stays owed
  * on this device, and {@link useOwedTranscriptRetry} sends it on the next load.
+ * One exception: an import the PAGE abandoned (a reload during the save aborts
+ * it; the SDK names that `ConversationImportAbortedError`, PRODUCT-2040) is not
+ * a failure to finish on. The dying page used to finish anyway, stamping
+ * `onboarding_completed` so the reload opened the app with an empty manager
+ * chat. Now it does nothing: the stage stays pending, the import stays owed,
+ * and the next load resumes on the closing and sends it.
  *
  * A conversation finishes once: a second `done` (a double press, an ending
  * that finishes on its own) is ignored. `then` runs once the conversation is
@@ -24,6 +31,10 @@ import type { ScriptCopy } from "./use-script-copy";
  * manager's address is still being discovered waits for discovery to answer,
  * so the conversation is not lost to a slow first load.
  */
+/** How the closing's save ended. `aborted` is the one outcome that does not
+ *  finish: the page left mid-save (see the hook's doc). */
+type SaveOutcome = "saved" | "unsaved" | "failed" | "aborted";
+
 export function useFinishWithTranscript(
   conversation: OnboardingConversation,
   lines: readonly ScriptLine[],
@@ -36,7 +47,7 @@ export function useFinishWithTranscript(
   const pending = useRef<{ then?: () => void } | null>(null);
 
   /** Never rejects: every failure is reported here or by the facade. */
-  const save = async (): Promise<void> => {
+  const save = async (): Promise<SaveOutcome> => {
     if (!handle) {
       // A deployment with no manager owes nothing. One whose discovery failed
       // has no address to owe the conversation to.
@@ -47,7 +58,7 @@ export function useFinishWithTranscript(
             `the AI Manager's address is unknown, so the ${conversation} onboarding was not saved`,
           ),
         );
-      return;
+      return "unsaved";
     }
     try {
       await tauriConversationImports.send(
@@ -55,13 +66,23 @@ export function useFinishWithTranscript(
         handle.conversation,
         onboardingTranscript(conversation, lines, copy),
       );
-    } catch {
-      // The facade surfaced it, and it stays owed for the next load.
+      return "saved";
+    } catch (err) {
+      // An abort is the page leaving: nothing to surface, nothing to finish.
+      // Anything else the facade surfaced, and it stays owed for the next load.
+      return isConversationImportAborted(err) ? "aborted" : "failed";
     }
   };
 
   const run = (then?: () => void) => {
-    void save().then(() => {
+    void save().then((outcome) => {
+      if (outcome === "aborted") {
+        // The page is going away. Should it survive (a back/forward-cache
+        // restore), it is a page on the closing that can be finished again.
+        started.current = false;
+        setSaving(false);
+        return;
+      }
       setSaving(false);
       then?.();
       finish();

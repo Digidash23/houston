@@ -11,6 +11,10 @@ import type {
   ConversationImportResult,
 } from "@houston/protocol";
 import type { ModuleContext } from "../../module-context";
+import {
+  ConversationImportAbortedError,
+  classifyImportFailure,
+} from "./conversation-import-abort";
 import { createConversationImportOutbox } from "./conversation-import-outbox";
 import { asAgentInput, asImportInput } from "./turn-inputs";
 
@@ -38,7 +42,9 @@ export function createConversationImports(ctx: ModuleContext) {
    * The import is written down on this device before it is sent, so one that
    * fails is sent again by retryPendingImports; `importId` names it, and an
    * import that already landed writes nothing (`imported: 0`). Answers 409
-   * while a turn holds the chat.
+   * while a turn holds the chat. Rejects with `ConversationImportAbortedError`
+   * when the page unloaded before the host answered: the import is still
+   * owed, and the caller must not treat it as a failed save.
    * @param conversationId The chat the lines go into.
    * @param agentId The agent this acts on, by the id listAgents returns. An
    *   agent's name is not its id, so read the id from listAgents first.
@@ -61,6 +67,9 @@ export function createConversationImports(ctx: ModuleContext) {
         .importMessages(conversationId, request);
     } catch (err) {
       await outbox.settle(entry, err);
+      const unloading = ctx.config.ports.pageLifecycle?.isUnloading() ?? false;
+      if (classifyImportFailure(err, unloading) === "aborted")
+        throw new ConversationImportAbortedError(err);
       throw err;
     }
     await outbox.settle(entry);

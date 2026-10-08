@@ -14,7 +14,6 @@ import {
   teamNext,
 } from "./support/manager-team";
 import { openManagerOnboarding, resetToFirstRun } from "./support/onboarding";
-import { resolveServeMode } from "./support/serve-mode";
 import { agentRow } from "./support/team-nav";
 
 /**
@@ -22,8 +21,7 @@ import { agentRow } from "./support/team-nav";
  * job and open to a new name, "Hire my team" creating everyone behind the
  * person and waiting for every hire to land before the Manager closes. A
  * hire that failed says so on its card and offers Retry; a tab evicted
- * after the team is hired resumes on it, and so should a reload
- * (PRODUCT-2040, pinned failing below).
+ * after the team is hired resumes on it, and so does a reload (PRODUCT-2040).
  */
 
 test("renamed cards hire under the names given", async ({ page, request }) => {
@@ -78,16 +76,12 @@ test("a reload after the team is hired resumes on it", async ({
   page,
   request,
 }) => {
-  // PRODUCT-2040. A reload aborts the held import; the closing treats the
-  // abort as a failed import and finishes onboarding from the dying page, so
-  // `onboarding_completed` lands and the reload opens the app with an empty
-  // manager chat. Deterministic against the prebuilt bundle (CI); the dev
-  // server's slower reload tears the page down before that handler runs, so
-  // there the spec passes. Make it a plain passing spec with the fix.
-  test.fail(
-    resolveServeMode() === "bundle",
-    "PRODUCT-2040: the closing finishes onboarding on an aborted import",
-  );
+  // PRODUCT-2040. A reload aborts the held import. The closing used to read
+  // the abort as a failed import and finish onboarding from the dying page,
+  // so `onboarding_completed` landed and the reload opened the app with an
+  // empty manager chat; the SDK now names that abort and the closing does not
+  // finish on it. Deterministic against the prebuilt bundle, where the dying
+  // page always got its handler in; the dev server's slower reload never did.
   await resetToFirstRun(request);
   await openManagerOnboarding(page);
   await reachTeamStep(page);
