@@ -3,6 +3,7 @@ import { expect, test } from "./support/fixtures";
 import { managerOnboarding, reachTeamStep } from "./support/manager-onboarding";
 import {
   afterHire,
+  evictMidClosing,
   finishOnboarding,
   goalCard,
   hireStarterTeam,
@@ -20,7 +21,7 @@ import { agentRow } from "./support/team-nav";
  * The starter team's hire in the AI Manager's chat: each card named for its
  * job and open to a new name, "Hire my team" creating everyone behind the
  * person and waiting for every hire to land before the Manager closes. A
- * hire that failed says so on its card and offers Retry; a reload
+ * hire that failed says so on its card and offers Retry; a tab evicted
  * after the team is hired resumes on it.
  */
 
@@ -41,33 +42,35 @@ test("a reload after the team is hired resumes on it, and That's my team closes"
 }) => {
   // Hiring flips the zero-agent first-run signal; the pending onboarding stage
   // is what holds the person on the team step until they finish it. The
-  // closing's save is held so the reload lands before onboarding finishes.
+  // closing's save is held so the eviction lands before onboarding finishes.
   await resetToFirstRun(request);
   await openManagerOnboarding(page);
   await reachTeamStep(page);
   const release = await holdClosingSave(request);
   await hireStarterTeam(page, null, "click", STARTER_ROLES);
 
-  await page.reload();
+  const resumed = await evictMidClosing(page);
   await release();
   await expect(
-    managerOnboarding(page).getByText(
+    managerOnboarding(resumed).getByText(
       "You already have 3 AI Employees on your team. Let's pick up where you left off.",
     ),
   ).toBeVisible();
-  await expect(teamNext(page)).toBeVisible();
-  await expect(roster(page).locator('li[data-status="hired"]')).toHaveCount(3);
+  await expect(teamNext(resumed)).toBeVisible();
+  await expect(roster(resumed).locator('li[data-status="hired"]')).toHaveCount(
+    3,
+  );
 
-  await afterHire(page, TEAM_DONE_CHOICE);
+  await afterHire(resumed, TEAM_DONE_CHOICE);
   // The resumed run finishes into the manager's real chat, on the goal card.
   // Its team card is not checked here: after a reload mid-closing the chat
   // can open without the conversation above the goal card (PRODUCT-1960).
-  const chat = page.getByTestId("assistant-chat");
+  const chat = resumed.getByTestId("assistant-chat");
   await expect(chat).toBeVisible({ timeout: 15_000 });
-  await expect(managerOnboarding(page)).toHaveCount(0);
+  await expect(managerOnboarding(resumed)).toHaveCount(0);
   await expect(goalCard(chat)).toBeVisible();
   for (const name of STARTER_ROLES)
-    await expect(agentRow(page, name)).toBeVisible();
+    await expect(agentRow(resumed, name)).toBeVisible();
 });
 
 test("a hire that failed says so on its card, and Retry lands it", async ({

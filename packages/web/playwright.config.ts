@@ -7,11 +7,7 @@ import {
   WEB_PORT,
   WEB_URL,
 } from "./e2e/config";
-import {
-  assertBundleBuilt,
-  type BundleName,
-  resolveServeMode,
-} from "./e2e/support/serve-mode";
+import { type BundleName, resolveServeMode } from "./e2e/support/serve-mode";
 
 const DESKTOP_VIEWPORT = { width: 1440, height: 900 } as const;
 
@@ -20,11 +16,13 @@ const DESKTOP_VIEWPORT = { width: 1440, height: 900 } as const;
 const serveMode = resolveServeMode();
 
 /** The command behind each web `webServer` entry below. In `bundle` mode the
- *  env the entry carries (port, Firebase key) was consumed at build time, so
- *  the two servers differ only in which directory they serve. */
+ *  env the entry carries (port, Firebase key) was consumed at build time
+ *  (e2e/support/build-bundles.ts), so the two servers differ only in which
+ *  directory they serve; a missing build fails at server start with the
+ *  remedy (e2e/support/serve-bundle.ts). */
 function webServerCommand(bundle: BundleName, port: number): string {
   if (serveMode === "dev") return "pnpm dev";
-  return `pnpm preview --outDir ${assertBundleBuilt(bundle)} --port ${port} --strictPort`;
+  return `pnpm e2e:serve ${bundle} ${port}`;
 }
 
 // Pin the resolved (possibly worktree-derived) ports into our own env before

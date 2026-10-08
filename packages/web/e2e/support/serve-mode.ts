@@ -49,8 +49,9 @@ export function bundleDir(name: BundleName): string {
   return path.join(BUNDLE_ROOT, name);
 }
 
-/** Fail at config load, with the remedy, instead of letting `vite preview`
- *  report a missing directory halfway through server start-up. */
+/** Fail at server start (serve-bundle.ts), with the remedy, instead of
+ *  letting `vite preview` report a missing directory. Not at config load:
+ *  `playwright test --list` runs in CI with nothing built. */
 export function assertBundleBuilt(name: BundleName): string {
   const dir = bundleDir(name);
   if (!existsSync(path.join(dir, "index.html"))) {

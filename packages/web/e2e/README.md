@@ -75,6 +75,7 @@ e2e/
                     # `test:e2e` / `test:visual` entry point
     seed.ts         # localStorage + window.__HOUSTON_CP__ primed before any app script
     serve-mode.ts   # `dev` (vite dev servers) or `bundle` (prebuilt, CI); bundle dirs
+    serve-bundle.ts # `bundle` mode's web server: vite preview over one built bundle
     settings-nav.ts # the rail's anchorless rows (Admin + its sections and
                     # Analytics lenses), Settings, and the account menu's
                     # screens (Profile, About me)

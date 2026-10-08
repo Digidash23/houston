@@ -24,6 +24,7 @@ import {
   managerStep,
 } from "./manager-onboarding";
 import { type PressMode, press } from "./mobile-nav";
+import { seedPage } from "./seed";
 
 /** The resumed run's two answers, and the starter team's add button. */
 export const HIRE_ONE_MORE = "Hire one more";
@@ -201,4 +202,26 @@ export async function holdClosingSave(
       data: { hold: false },
     });
   };
+}
+
+/**
+ * Leave the closing the way a phone evicts a background tab: the document
+ * goes with its in-flight requests and none of its handlers run again, then a
+ * fresh tab opens on the same origin (same localStorage, same host). The
+ * returned page is the one to keep asserting on; the old one is closed.
+ *
+ * Not `page.reload()`: Chromium aborts the old document's fetches at commit
+ * but still runs their rejection handlers, and the closing finishes onboarding
+ * on a failed import (use-onboarding-transcript.ts: the import stays owed,
+ * finishing never waits), so the dying page stamped `onboarding_completed` and
+ * the reload landed in the app. The dev server happened to win that race; the
+ * prebuilt bundle CI serves lost it every time.
+ */
+export async function evictMidClosing(page: Page): Promise<Page> {
+  const url = page.url();
+  const fresh = await page.context().newPage();
+  await seedPage(fresh);
+  await page.close();
+  await fresh.goto(url);
+  return fresh;
 }
