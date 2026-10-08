@@ -76,27 +76,20 @@ test("an op's routine edit is held to the floor the envelope carries", async () 
   expect(saved.status).toBe(200);
 });
 
-test("an op's raw routines-document write is judged routine by routine", async () => {
-  // A stored FAST routine the write leaves untouched: it passes, which only
-  // holds if the stored doc was loaded and compared.
-  const agent = await agentStore([
-    routine("r1", "Morning brief"),
-    { ...routine("r0", "Old fast"), schedule: "*/5 * * * *" },
-  ]);
+test("an op's raw routines-document write is refused; routines change through their routes", async () => {
+  const agent = await agentStore([routine("r1", "Morning brief")]);
   const stored = await storedRoutines(agent);
-  const write = (items: unknown[]) =>
-    applyRoute(
-      agent,
-      {
-        method: "PUT",
-        rest: "agentfile/.houston/routines/routines.json",
-        body: { content: JSON.stringify(items) },
-      },
-      { limits: LIMITS },
-    );
-  const fast = { ...routine("r2", "Inbox"), schedule: "*/5 * * * *" };
-  expect((await write([...stored, fast])).status).toBe(400);
-  expect((await write([...stored, { ...fast, enabled: false }])).status).toBe(
-    200,
+  const forged = { ...routine("r2", "Inbox"), created_by: "someone-else" };
+  const res = await applyRoute(
+    agent,
+    {
+      method: "PUT",
+      rest: "agentfile/.houston/routines/routines.json",
+      body: { content: JSON.stringify([...stored, forged]) },
+    },
+    { limits: LIMITS },
   );
+  expect(res.status).toBe(403);
+  expect(JSON.parse(res.body)).toMatchObject({ code: "path_not_allowed" });
+  expect(await storedRoutines(agent)).toEqual(stored);
 });

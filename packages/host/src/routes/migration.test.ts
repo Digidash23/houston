@@ -79,13 +79,18 @@ async function call(
   method: string,
   rest: string,
   body: Buffer | unknown,
-  opts: { agentDir?: string; url?: string } = {},
+  opts: { agentDir?: string; url?: string; routineCreatedBy?: string } = {},
 ) {
   const events: HoustonEvent[] = [];
   const { res, captured } = fakeRes();
   const raw = Buffer.isBuffer(body) ? body : Buffer.from(JSON.stringify(body));
   const handled = await handleMigration(
-    { vfs, paths, agentDir: opts.agentDir },
+    {
+      vfs,
+      paths,
+      agentDir: opts.agentDir,
+      routineCreatedBy: opts.routineCreatedBy,
+    },
     { workspace: ws, agent },
     method,
     rest,
@@ -259,6 +264,48 @@ test("import skips existing entries (idempotent resume); overwrite=1 replaces", 
   );
   expect((forced.body as { written: number }).written).toBe(1);
   expect(await vfs.readText(`${ROOT}/CLAUDE.md`)).toBe("new");
+});
+
+test("imported routines are stamped with the importer, never the archive's creator", async () => {
+  const doc = JSON.stringify([
+    { id: "r1", name: "n", prompt: "p", schedule: "0 9 * * *" },
+    {
+      id: "r2",
+      name: "n",
+      prompt: "p",
+      schedule: "0 9 * * *",
+      created_by: "owner-sub",
+    },
+  ]);
+  const vfs = new MemoryVfs();
+  const r = await call(
+    vfs,
+    "POST",
+    "migration/import",
+    zipOf({ ".houston/routines/routines.json": doc }),
+    { routineCreatedBy: "importer-sub" },
+  );
+  expect(r.status).toBe(200);
+  const stored = JSON.parse(
+    (await vfs.readText(`${ROOT}/.houston/routines/routines.json`)) ?? "",
+  ) as { created_by?: string }[];
+  expect(stored.map((routine) => routine.created_by)).toEqual([
+    "importer-sub",
+    "importer-sub",
+  ]);
+
+  // No verified actor: the archive's creator is dropped, not kept.
+  const bare = new MemoryVfs();
+  await call(
+    bare,
+    "POST",
+    "migration/import",
+    zipOf({ ".houston/routines/routines.json": doc }),
+  );
+  const kept = JSON.parse(
+    (await bare.readText(`${ROOT}/.houston/routines/routines.json`)) ?? "",
+  ) as Record<string, unknown>[];
+  expect(kept.every((routine) => !("created_by" in routine))).toBe(true);
 });
 
 test("import rejects a non-zip body with 400", async () => {

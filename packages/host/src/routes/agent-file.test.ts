@@ -87,14 +87,43 @@ test("PUT CLAUDE.md emits ContextChanged (was mis-classified as FilesChanged)", 
   ]);
 });
 
-test("PUT a routines file emits RoutinesChanged", async () => {
-  const r = await call("PUT", ".houston/routines/routines.json", {
-    content: "[]",
-  });
-  expect(r.status).toBe(200);
-  expect(r.events).toEqual([
-    { type: "RoutinesChanged", agentPath: "Personal/Helper" },
+test("a raw routines write is refused and writes nothing: routines change through their routes", async () => {
+  const key = `${paths.agentRoot(ws, agent)}/.houston/routines/routines.json`;
+  const stored = JSON.stringify([
+    {
+      id: "r1",
+      name: "n",
+      prompt: "p",
+      schedule: "0 9 * * *",
+      created_by: "alice",
+    },
   ]);
+  await shared.vfs.writeText(key, stored);
+  const forged = JSON.stringify([
+    {
+      id: "r1",
+      name: "n",
+      prompt: "p",
+      schedule: "0 9 * * *",
+      created_by: "mallory",
+    },
+  ]);
+  for (const method of ["PUT", "POST"]) {
+    for (const rel of [
+      ".houston/routines/routines.json",
+      ".houston/routines/other.json",
+    ]) {
+      const r = await call(method, rel, { content: forged });
+      expect(r.status).toBe(403);
+      expect(r.body).toMatchObject({ code: "path_not_allowed" });
+      expect(r.events).toEqual([]);
+    }
+  }
+  expect(await shared.vfs.readText(key)).toBe(stored);
+  // Reading it stays open.
+  const read = await call("GET", ".houston/routines/routines.json");
+  expect(read.status).toBe(200);
+  expect(read.body).toEqual({ content: stored });
 });
 
 test("PUT a skills file emits SkillsChanged (previously silent)", async () => {
@@ -210,7 +239,6 @@ const SERVED_PATHS = [
   ".houston/activity/activity.json",
   ".houston/config/config.json",
   ".houston/learnings/learnings.json",
-  ".houston/routines/routines.json",
   ".agents/skills/summarize/SKILL.md",
 ];
 

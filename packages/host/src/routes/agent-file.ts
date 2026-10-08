@@ -7,9 +7,11 @@ import type { Vfs } from "../vfs";
 import { hostOwnedApprovalCards } from "./activity-approval-cards";
 import { DEFAULT_PATHS } from "./agent-authz";
 import { writeSurfaceConfigText } from "./agent-config-write";
-import { trustedRoutineFloor } from "./agent-data-caller";
-import { routinesDocFloorRefusal } from "./agent-file-routines-floor";
-import { isServedDocument } from "./agent-file-scope";
+import {
+  isReadOnlyDocument,
+  isServedDocument,
+  READ_ONLY_DOCUMENT_REFUSAL,
+} from "./agent-file-scope";
 import { agentRest } from "./agent-rest";
 import { json, methodNotAllowed, readJson } from "./http";
 import { defineRoute } from "./registry";
@@ -86,7 +88,6 @@ defineRoute({
       req,
       res,
       emit,
-      trustedRoutineFloor(deps, req),
     ),
 });
 
@@ -99,8 +100,6 @@ export async function handleAgentFile(
   req: IncomingMessage,
   res: ServerResponse,
   emit?: (event: HoustonEvent) => void,
-  /** The writer's gateway-stamped plan floor, held to on a routines write. */
-  routineFloorMinutes?: number,
 ): Promise<boolean> {
   const m = rest.match(/^agentfile\/(.+)$/);
   if (!m) return false;
@@ -137,23 +136,16 @@ export async function handleAgentFile(
     return true;
   }
   if (method === "PUT" || method === "POST") {
+    if (isReadOnlyDocument(rel)) {
+      json(res, 403, READ_ONLY_DOCUMENT_REFUSAL);
+      return true;
+    }
     const body = await readJson(req);
     if (typeof body.content !== "string") {
       json(res, 400, { error: "missing 'content'" });
       return true;
     }
     const root = paths.agentRoot(ctx.workspace, ctx.agent);
-    const refusal = await routinesDocFloorRefusal(
-      vfs,
-      root,
-      rel,
-      body.content,
-      routineFloorMinutes,
-    );
-    if (refusal) {
-      json(res, 400, refusal);
-      return true;
-    }
     if (rel === docKey("", "config").slice(1))
       await writeSurfaceConfigText(vfs, root, key, body.content);
     else await vfs.writeText(key, body.content);

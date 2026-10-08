@@ -6,7 +6,7 @@ import { unzipSync } from "fflate";
 import { importedHistoryNote, messageFor } from "../migrate/reconstruct";
 import type { StoredConversation } from "../migrate/types";
 import type { Vfs } from "../vfs";
-import { safeSeedKey } from "./agent-seed";
+import { importedFileBytes, safeSeedKey } from "./agent-seed";
 import {
   classifyMigrationPath,
   MAX_IMPORT_ENTRIES,
@@ -89,6 +89,8 @@ export async function applyMigrationArchive(opts: {
   agentDir?: string;
   bytes: Buffer;
   overwrite: boolean;
+  /** The verified importer, stamped as each routine's `created_by`. */
+  routineCreatedBy?: string;
 }): Promise<{
   result: MigrationImportResult;
   events: Set<AgentFileChangeEvent["type"]>;
@@ -154,7 +156,10 @@ export async function applyMigrationArchive(opts: {
       }
       continue;
     }
-    await opts.vfs.writeBytes(key, Buffer.from(data));
+    await opts.vfs.writeBytes(
+      key,
+      importedFileBytes(rel, data, opts.routineCreatedBy),
+    );
     result.written++;
     const eventType = migrationEventType(rel);
     if (eventType) events.add(eventType);

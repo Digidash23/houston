@@ -165,7 +165,10 @@ export class WorkspaceGuard {
 
   private assertProtectedWritable(proven: string): void {
     for (const { family, refusal } of PROTECTED_WRITES) {
-      if (contains(proven, join(this.root, ".houston", family)))
+      const store = join(this.root, ".houston", family);
+      // The flat pre-v0.4 file too: the boot layout migration moves it into
+      // the store when the store holds no document yet.
+      if (contains(proven, store) || proven === `${store}.json`)
         throw new refusal();
     }
     for (const { canonical, lexical } of this.readOnlyBoundaries) {
