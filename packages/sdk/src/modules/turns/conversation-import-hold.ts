@@ -1,5 +1,5 @@
 import type { ConversationImportResult } from "@houston/protocol";
-import type { Clock, PageLifecycle } from "../../ports";
+import type { Clock, PageLifecycle, SdkLogger } from "../../ports";
 import { classifyImportFailure } from "./conversation-import-abort";
 import type { PendingConversationImport } from "./conversation-import-outbox";
 
@@ -20,8 +20,10 @@ import type { PendingConversationImport } from "./conversation-import-outbox";
  * The hold only ever opens on a page that was leaving, so a resend that gets
  * no answer from the host (a transport drop, which is also what the browser
  * reports for a request the leaving page aborted) stays held and tries again
- * on the next timer; only the host's own answer settles it. One hold per
- * import: a second ask for the same (agent, conversation, importId) joins
+ * on the next timer; only the host's own answer settles it. The timer backs
+ * off, doubling to a cap, so a live page that went offline is not asked
+ * every three seconds for good, and resets when the port says live. One hold
+ * per import: a second ask for the same (agent, conversation, importId) joins
  * the first, and one resend in flight at a time.
  */
 export type ImportSender = (
@@ -32,6 +34,8 @@ export type ImportSender = (
  *  a reload's commit has aborted the page (nothing legitimate runs on it
  *  after that), short enough that a person who stayed is not kept waiting. */
 export const RESEND_AFTER_MS = 3_000;
+/** Each resend with no answer doubles the wait, up to this. */
+export const RESEND_MAX_MS = 30_000;
 
 interface Held {
   entry: PendingConversationImport;
@@ -40,6 +44,8 @@ interface Held {
   reject: (err: unknown) => void;
   sending: boolean;
   timer: number | null;
+  /** The next timer's wait: {@link RESEND_AFTER_MS}, doubled per no-answer. */
+  delayMs: number;
 }
 
 const keyOf = (e: PendingConversationImport): string =>
@@ -48,6 +54,7 @@ const keyOf = (e: PendingConversationImport): string =>
 export function createConversationImportHold(
   lifecycle: PageLifecycle,
   clock: Clock,
+  logger: SdkLogger,
   send: ImportSender,
   /** Cross the import off or keep it owed, as the outbox does after a send. */
   settle: (
@@ -65,7 +72,26 @@ export function createConversationImportHold(
     h.timer = clock.setTimeout(() => {
       h.timer = null;
       void resend(h);
-    }, RESEND_AFTER_MS);
+    }, h.delayMs);
+    h.delayMs = Math.min(h.delayMs * 2, RESEND_MAX_MS);
+  };
+
+  /** The outbox write after a send must never take the hold down with it:
+   *  the import's fate is known regardless, and `sending` has to reset. The
+   *  failure is reported through the SDK's log port, never dropped. */
+  const settleSafely = async (
+    entry: PendingConversationImport,
+    failure?: unknown,
+  ): Promise<void> => {
+    try {
+      await settle(entry, failure);
+    } catch (err) {
+      logger.error("conversation import outbox write failed after a resend", {
+        importId: entry.request.importId,
+        conversationId: entry.conversationId,
+        error: String(err),
+      });
+    }
   };
 
   const release = (h: Held) => {
@@ -84,13 +110,11 @@ export function createConversationImportHold(
       clock.clearTimeout(h.timer);
       h.timer = null;
     }
+    let result: ConversationImportResult;
     try {
-      const result = await send(h.entry);
-      await settle(h.entry);
-      release(h);
-      h.resolve(result);
+      result = await send(h.entry);
     } catch (err) {
-      await settle(h.entry, err);
+      await settleSafely(h.entry, err);
       // Only the host's answer settles a hold; no answer means try again.
       if (classifyImportFailure(err, true) === "aborted") {
         h.sending = false;
@@ -99,11 +123,19 @@ export function createConversationImportHold(
       }
       release(h);
       h.reject(err);
+      return;
     }
+    await settleSafely(h.entry);
+    release(h);
+    h.resolve(result);
   };
 
   const onLive = () => {
-    for (const h of [...held.values()]) void resend(h);
+    for (const h of [...held.values()]) {
+      // The page is known live: back to the short wait.
+      h.delayMs = RESEND_AFTER_MS;
+      void resend(h);
+    }
   };
 
   /** Hold `entry`; resolves or rejects with the eventual resend's answer. */
@@ -125,6 +157,7 @@ export function createConversationImportHold(
       reject,
       sending: false,
       timer: null,
+      delayMs: RESEND_AFTER_MS,
     };
     held.set(keyOf(entry), h);
     stopListening ??= lifecycle.onLive(onLive);

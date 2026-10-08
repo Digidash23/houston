@@ -43,6 +43,7 @@ export function createConversationImports(ctx: ModuleContext) {
     ? createConversationImportHold(
         lifecycle,
         ctx.config.ports.clock,
+        ctx.config.ports.logger,
         send,
         outbox.settle,
       )

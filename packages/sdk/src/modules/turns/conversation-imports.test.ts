@@ -8,7 +8,7 @@ import type { SdkConfig } from "../../ports";
 import { ScopeStore } from "../../store";
 import { memoryKv } from "../../test-ports";
 import { classifyImportFailure } from "./conversation-import-abort";
-import { RESEND_AFTER_MS } from "./conversation-import-hold";
+import { RESEND_AFTER_MS, RESEND_MAX_MS } from "./conversation-import-hold";
 import { PENDING_IMPORTS_KEY } from "./conversation-import-outbox";
 import { createConversationImports } from "./conversation-imports";
 
@@ -102,13 +102,35 @@ function harness(opts: { unloading: boolean } = { unloading: false }) {
         return { ok: true, imported: next };
       },
     }) as unknown as HoustonEngineClient;
-  const logger = { debug() {}, info() {}, warn() {}, error() {} };
+  const logged: string[] = [];
+  const logger = {
+    debug() {},
+    info() {},
+    warn() {},
+    error(msg: string) {
+      logged.push(msg);
+    },
+  };
+  /** When set, every outbox write fails (storage full, blocked). */
+  const storageFails = { now: false };
+  const kv = memoryKv(stored);
+  const storage = {
+    ...kv,
+    set: async (key: string, value: string) => {
+      if (storageFails.now) throw new Error("storage full");
+      return kv.set(key, value);
+    },
+    delete: async (key: string) => {
+      if (storageFails.now) throw new Error("storage full");
+      return kv.delete(key);
+    },
+  };
   const ctx: ModuleContext = {
     config: {
       baseUrl: "http://x",
       ports: {
         logger,
-        storage: memoryKv(stored),
+        storage,
         pageLifecycle: page.lifecycle,
         clock,
       } as unknown as SdkConfig["ports"],
@@ -121,7 +143,18 @@ function harness(opts: { unloading: boolean } = { unloading: false }) {
   };
   const imports = createConversationImports(ctx);
   const owed = () => JSON.parse(stored.get(PENDING_IMPORTS_KEY) ?? "[]");
-  return { imports, sent, answers, stored, owed, commands, timers, elapse };
+  return {
+    imports,
+    sent,
+    answers,
+    stored,
+    owed,
+    commands,
+    timers,
+    elapse,
+    logged,
+    storageFails,
+  };
 }
 
 /** A promise the test settles by hand: a send that is still on the wire. */
@@ -259,6 +292,111 @@ describe("importMessages", () => {
     expect(await stateOf(held)).toBe('resolved:{"ok":true,"imported":2}');
     expect(h.sent).toHaveLength(2);
     expect(h.timers).toHaveLength(0);
+  });
+
+  test("resends with no answer back off, doubling to a cap", async () => {
+    const h = harness({ unloading: true });
+    const drop = () => new TypeError("Failed to fetch");
+    h.answers.push(drop(), drop(), drop(), drop(), drop());
+    const held = h.imports.importMessages(
+      "assistant",
+      "ws/.assistant",
+      request,
+    );
+    expect(await stateOf(held)).toBe("pending");
+    const waits: number[] = [];
+    for (let i = 0; i < 4; i += 1) {
+      waits.push(h.timers[0]?.ms ?? -1);
+      h.elapse();
+      await stateOf(held);
+    }
+    expect(waits).toEqual([3_000, 6_000, 12_000, 24_000]);
+    expect(h.timers[0]?.ms).toBe(RESEND_MAX_MS);
+  });
+
+  test("a live resets the wait to the short one", async () => {
+    const h = harness({ unloading: true });
+    const drop = () => new TypeError("Failed to fetch");
+    h.answers.push(drop(), drop(), drop(), drop());
+    const held = h.imports.importMessages(
+      "assistant",
+      "ws/.assistant",
+      request,
+    );
+    expect(await stateOf(held)).toBe("pending");
+    h.elapse();
+    await stateOf(held);
+    h.elapse();
+    await stateOf(held);
+    expect(h.timers[0]?.ms).toBe(12_000);
+    page.live(); // answer #4: another drop, but the wait is short again
+    await stateOf(held);
+    expect(h.timers[0]?.ms).toBe(RESEND_AFTER_MS);
+  });
+
+  test("an outbox write that fails after a landed resend still settles the caller, and is logged", async () => {
+    const h = harness({ unloading: true });
+    h.answers.push(new TypeError("Failed to fetch"));
+    const held = h.imports.importMessages(
+      "assistant",
+      "ws/.assistant",
+      request,
+    );
+    expect(await stateOf(held)).toBe("pending");
+    h.storageFails.now = true;
+    h.elapse();
+    expect(await stateOf(held)).toBe('resolved:{"ok":true,"imported":2}');
+    expect(h.logged).toEqual([
+      "conversation import outbox write failed after a resend",
+    ]);
+    expect(h.timers).toHaveLength(0);
+    // The write failed, so the entry is still written down as owed: the next
+    // load's retry sends it and the runtime answers `imported: 0`.
+    expect(h.owed()).toHaveLength(1);
+  });
+
+  test("an outbox write that fails after a refused resend still rejects the caller, and is logged", async () => {
+    // A resend with no answer writes nothing (the entry stays owed as it is),
+    // so the only failing write on the rejection path is the cross-off after
+    // a final refusal.
+    const h = harness({ unloading: true });
+    const gone = new EngineError(404, '{"error":"agent not found"}');
+    h.answers.push(new TypeError("Failed to fetch"), gone);
+    const held = h.imports.importMessages(
+      "assistant",
+      "ws/.assistant",
+      request,
+    );
+    expect(await stateOf(held)).toBe("pending");
+    h.storageFails.now = true;
+    h.elapse();
+    expect(await stateOf(held)).toBe(`rejected:${gone.message}`);
+    expect(h.logged).toEqual([
+      "conversation import outbox write failed after a resend",
+    ]);
+    expect(h.timers).toHaveLength(0);
+  });
+
+  test("a resend with no answer whose outbox write cannot happen leaves the hold able to resend", async () => {
+    const h = harness({ unloading: true });
+    h.answers.push(
+      new TypeError("Failed to fetch"),
+      new TypeError("Failed to fetch"),
+    );
+    const held = h.imports.importMessages(
+      "assistant",
+      "ws/.assistant",
+      request,
+    );
+    expect(await stateOf(held)).toBe("pending");
+    h.storageFails.now = true;
+    h.elapse();
+    expect(await stateOf(held)).toBe("pending");
+    expect(h.timers).toHaveLength(1);
+    h.storageFails.now = false;
+    h.elapse();
+    expect(await stateOf(held)).toBe('resolved:{"ok":true,"imported":2}');
+    expect(h.sent).toHaveLength(3);
   });
 
   test("two lives during one slow resend send once", async () => {
