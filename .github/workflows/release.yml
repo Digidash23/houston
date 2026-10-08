@@ -1129,9 +1129,11 @@ jobs:
       # (Apple's guidance: notarize and staple the outermost container), and
       # the verification below checks Gatekeeper accepts it as notarized.
       #
-      # An Invalid/Rejected verdict fails at once: it is Apple's answer for
-      # these exact bytes, so a resubmit would only wait in the queue again.
-      # Transport errors and timeouts retry.
+      # Submit once, then wait on that submission id. A dropped connection
+      # retries the wait, not the upload, so the DMG keeps its place in
+      # Apple's queue; only a failed upload (no id) is resubmitted. An
+      # Invalid/Rejected verdict fails at once: it is Apple's answer for these
+      # exact bytes. The step's 90 min cap bounds a slow queue.
       - name: Notarize DMG, staple the DMG and the .app
         timeout-minutes: 90
         env:
@@ -1145,33 +1147,50 @@ jobs:
           notary() {
             xcrun notarytool "$@" --key-id "$APPLE_API_KEY" --key "$KEY" --issuer "$APPLE_API_ISSUER"
           }
+          json_field() { jq -r --arg f "$1" '.[$f] // empty' "$2" 2>/dev/null || true; }
+
+          ID=""
+          for attempt in 1 2 3; do
+            echo "=== Upload attempt $attempt/3 ==="
+            SUBMIT="$RUNNER_TEMP/notary-submit-$attempt.json"
+            notary submit "${ARTIFACT_DMG}" --output-format json > "$SUBMIT" \
+              || echo "notarytool submit exited $?"
+            cat "$SUBMIT"; echo
+            ID=$(json_field id "$SUBMIT")
+            if [ -n "$ID" ]; then break; fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Upload failed, retrying in 30s..."
+              sleep 30
+            fi
+          done
+          if [ -z "$ID" ]; then
+            echo "::error::Could not upload the DMG to Apple's notary service after 3 attempts"
+            exit 1
+          fi
 
           STATUS=""
-          for attempt in 1 2 3; do
-            echo "=== Attempt $attempt/3 ==="
-            RESULT="$RUNNER_TEMP/notarize-$attempt.json"
-            notary submit "${ARTIFACT_DMG}" --wait --output-format json > "$RESULT" \
-              || echo "notarytool submit exited $?"
-            cat "$RESULT"; echo
-            STATUS=$(jq -r '.status // empty' "$RESULT" 2>/dev/null) || STATUS=""
+          for attempt in 1 2 3 4 5; do
+            echo "=== Waiting on submission $ID (attempt $attempt/5) ==="
+            WAIT="$RUNNER_TEMP/notary-wait-$attempt.json"
+            notary wait "$ID" --output-format json > "$WAIT" \
+              || echo "notarytool wait exited $?"
+            cat "$WAIT"; echo
+            STATUS=$(json_field status "$WAIT")
             case "$STATUS" in
               Accepted) break ;;
               Invalid|Rejected)
-                ID=$(jq -r '.id // empty' "$RESULT")
-                if [ -n "$ID" ]; then
-                  notary log "$ID" || echo "::warning::could not fetch the notary log for $ID"
-                fi
+                notary log "$ID" || echo "::warning::could not fetch the notary log for $ID"
                 echo "::error::Apple returned $STATUS for the DMG; the notary log above names the offending files"
                 exit 1
                 ;;
             esac
-            if [ "$attempt" -lt 3 ]; then
-              echo "Retrying in 30s..."
+            if [ "$attempt" -lt 5 ]; then
+              echo "No verdict yet, waiting again in 30s..."
               sleep 30
             fi
           done
           if [ "$STATUS" != "Accepted" ]; then
-            echo "::error::DMG notarization failed after 3 attempts"
+            echo "::error::No notarization verdict for submission $ID"
             exit 1
           fi
 
@@ -1267,7 +1286,7 @@ jobs:
 
           # The DMG's .app and the stapled .app the updater tarball is built
           # from must be the same notarized code.
-          cdhash() { codesign -dvvv "$1" 2>&1 | grep '^CDHash='; }
+          cdhash() { codesign -dvvv "$1" 2>&1 | grep '^CDHash=' || true; }
           INNER_CDHASH=$(cdhash "$INNER_APP")
           STAPLED_CDHASH=$(cdhash "${ARTIFACT_APP}")
           echo "DMG .app:     $INNER_CDHASH"

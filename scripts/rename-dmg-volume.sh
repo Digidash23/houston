@@ -18,9 +18,9 @@
 #     icon positions, Applications symlink, and .DS_Store layout that
 #     tauri-bundler injected).
 #   - Resulting DMG is unsigned (the rename invalidates the original
-#     code-signature). On CI the existing `Notarize DMG` step re-notarizes
-#     and staples after rename, which re-signs implicitly. For local runs
-#     you can skip signing; Gatekeeper will warn on first open.
+#     code-signature). On CI the release workflow re-signs it right after
+#     the rename and then notarizes and staples it. For local runs you can
+#     skip signing; Gatekeeper will warn on first open.
 
 set -euo pipefail
 
