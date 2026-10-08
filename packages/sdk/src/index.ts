@@ -93,6 +93,7 @@ export type {
   Clock,
   KeyValueStore,
   LogFields,
+  PageLifecycle,
   SdkConfig,
   SdkLogger,
   SdkPorts,

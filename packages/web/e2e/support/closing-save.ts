@@ -32,11 +32,10 @@ export async function holdClosingSave(
  * fresh tab opens on the same origin (same localStorage, same host). The
  * returned page is the one to keep asserting on; the old one is closed.
  *
- * Not `page.reload()`. A reload aborts the held import but still runs its
- * rejection handler, and the closing finishes onboarding on a failed import
- * (PRODUCT-2040), so the dying page stamps `onboarding_completed` and the
- * reload opens the app. The reload spec in onboarding-team-roster.spec.ts pins
- * that bug; these two helpers model the eviction the resume specs describe.
+ * Not `page.reload()`: a reload aborts the held import but still runs its
+ * rejection handler on the dying page, a different path (PRODUCT-2040, the
+ * reload spec in onboarding-team-roster.spec.ts covers it). This helper models
+ * the eviction the resume specs describe.
  */
 export async function evictMidClosing(page: Page): Promise<Page> {
   const url = page.url();
