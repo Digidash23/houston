@@ -509,12 +509,12 @@ jobs:
           toolchain: stable
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
-      # Read-only. rust-cache-warm.yml compiles this leg's dependencies on
+      # Read-only. release-cache-warm.yml compiles this leg's dependencies on
       # main, where every tag can read the cache; a cache saved from a tag ref
       # would be readable only by that tag, so release runs never save. The
       # exact key never matches (the release commit rewrites Cargo.lock), so
       # restore-keys picks the newest main cache built by the same rustc. The
-      # `path` list and key layout must stay identical to rust-cache-warm.yml:
+      # `path` list and key layout must stay identical to release-cache-warm.yml:
       # the path list is part of the cache version.
       - name: Restore Rust build cache (warmed on main)
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
@@ -527,37 +527,38 @@ jobs:
           key: rust-release-macos-universal-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'app/src-tauri/Cargo.toml', 'app/src-tauri/tauri.conf.json', 'crates/*/Cargo.toml') }}
           restore-keys: rust-release-macos-universal-${{ steps.toolchain.outputs.cachekey }}-
 
-      # Build the whisper.cpp dictation sidecar (whisper-cli, MIT) for both arches
-      # and lipo a universal fat binary, mirroring the host sidecar below.
-      # build.rs::stage_whisper_sidecar also stages per-arch copies during tauri's
-      # per-arch cargo runs, but the `--target universal-apple-darwin` bundle ships
-      # this fat binary at binaries/whisper-cli-universal-apple-darwin. The `test -x`
-      # gate FAILS the release if a whisper build breaks, so we never ship the
-      # loud-fail placeholder instead of a working local-dictation binary.
-      #
+      # The whisper.cpp dictation sidecar (whisper-cli, MIT) for both arches.
+      # release-cache-warm.yml builds it on main; the key is the build script's
+      # hash (whisper.cpp version, tarball SHA256, every compiler flag) plus the
+      # runner image (the Xcode toolchain). `restore-keys` falls back over the
+      # image only, never over the script: a whisper bump always rebuilds.
+      - name: Read runner image version
+        id: image
+        run: echo "version=${ImageOS}-${ImageVersion}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore whisper-cli (warmed on main)
+        id: whisper-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: target/whisper/
+          key: whisper-cli-macos-universal-${{ hashFiles('scripts/build-whisper.sh') }}-${{ steps.image.outputs.version }}
+          restore-keys: whisper-cli-macos-universal-${{ hashFiles('scripts/build-whisper.sh') }}-
+
+      # Cache miss only (an exact or fallback match restored both slices).
       # Runs in the background from here: it needs only the checkout and the
       # Xcode toolchain, so it overlaps the dependency install and sidecar
       # steps below. `wait: whisper` before the Tauri build is where a failure
       # here fails the job.
-      - name: Build + lipo universal whisper-cli dictation sidecar (aarch64 + x86_64)
+      - name: Build whisper-cli dictation sidecar (aarch64 + x86_64)
         id: whisper
+        if: ${{ steps.whisper-cache.outputs.cache-matched-key == '' }}
         background: true
         run: |
           set -euo pipefail
           for TRIPLE in aarch64-apple-darwin x86_64-apple-darwin; do
             echo "=== building whisper-cli for $TRIPLE ==="
             scripts/build-whisper.sh "$TRIPLE"
-            test -x "target/whisper/whisper-cli-$TRIPLE" \
-              || { echo "::error::whisper-cli missing for $TRIPLE"; exit 1; }
           done
-          mkdir -p app/src-tauri/binaries
-          echo "=== Lipo universal whisper-cli ==="
-          lipo -create \
-            target/whisper/whisper-cli-aarch64-apple-darwin \
-            target/whisper/whisper-cli-x86_64-apple-darwin \
-            -output app/src-tauri/binaries/whisper-cli-universal-apple-darwin
-          chmod +x app/src-tauri/binaries/whisper-cli-universal-apple-darwin
-          lipo -info app/src-tauri/binaries/whisper-cli-universal-apple-darwin
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -746,6 +747,28 @@ jobs:
 
       - name: Wait for the whisper-cli build
         wait: whisper
+
+      # Lipo a universal fat binary from the two slices (restored or just
+      # built), mirroring the host sidecar above. build.rs::stage_whisper_sidecar
+      # also stages per-arch copies during tauri's per-arch cargo runs, but the
+      # `--target universal-apple-darwin` bundle ships this fat binary at
+      # binaries/whisper-cli-universal-apple-darwin. The `test -x` gate FAILS
+      # the release if a slice is missing, so we never ship the loud-fail
+      # placeholder instead of a working local-dictation binary.
+      - name: Lipo universal whisper-cli dictation sidecar
+        run: |
+          set -euo pipefail
+          for TRIPLE in aarch64-apple-darwin x86_64-apple-darwin; do
+            test -x "target/whisper/whisper-cli-$TRIPLE" \
+              || { echo "::error::whisper-cli missing for $TRIPLE"; exit 1; }
+          done
+          mkdir -p app/src-tauri/binaries
+          lipo -create \
+            target/whisper/whisper-cli-aarch64-apple-darwin \
+            target/whisper/whisper-cli-x86_64-apple-darwin \
+            -output app/src-tauri/binaries/whisper-cli-universal-apple-darwin
+          chmod +x app/src-tauri/binaries/whisper-cli-universal-apple-darwin
+          lipo -info app/src-tauri/binaries/whisper-cli-universal-apple-darwin
 
       - name: Build Tauri app (universal)
         uses: tauri-apps/tauri-action@v0
@@ -1356,8 +1379,8 @@ jobs:
           toolchain: stable
           targets: ${{ matrix.target }}
 
-      # Read-only restore of the cache rust-cache-warm.yml builds on main (see
-      # build-macos). Keep `path` identical to rust-cache-warm.yml.
+      # Read-only restore of the cache release-cache-warm.yml builds on main (see
+      # build-macos). Keep `path` identical to release-cache-warm.yml.
       - name: Restore Rust build cache (warmed on main)
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
@@ -1370,53 +1393,98 @@ jobs:
           restore-keys: rust-release-windows-${{ matrix.arch }}-${{ steps.toolchain.outputs.cachekey }}-
 
       # Authenticode signing via Azure Artifact Signing. Production builds
-      # require the signing credentials. `cargo install` compiles ~230 crates
-      # (2.5-3.5 min), so it runs in the background from here, overlapping the
-      # whisper build, the pnpm install and the sidecar compile. It starts
-      # after the Rust cache restore so the two never write ~/.cargo/registry
-      # at the same time. Pinned — bump deliberately. Needs the .NET runtime +
-      # Windows SDK signtool, both preinstalled on GitHub's windows-latest AND
-      # windows-11-arm runners.
+      # require the signing credentials. release-cache-warm.yml installs the
+      # CLI on main (scripts/ci/install-artifact-signing-cli.sh holds the
+      # version pin; the key is that script's hash plus the rustc that built
+      # it, and `restore-keys` falls back over rustc only). Needs the .NET
+      # runtime + Windows SDK signtool, both preinstalled on GitHub's
+      # windows-latest AND windows-11-arm runners.
+      - name: Restore artifact-signing-cli (warmed on main)
+        id: signing-cli-cache
+        if: ${{ env.AZURE_CLIENT_SECRET != '' }}
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.cargo/bin/artifact-signing-cli.exe
+          key: signing-cli-windows-${{ matrix.arch }}-${{ hashFiles('scripts/ci/install-artifact-signing-cli.sh') }}-${{ steps.toolchain.outputs.cachekey }}
+          restore-keys: signing-cli-windows-${{ matrix.arch }}-${{ hashFiles('scripts/ci/install-artifact-signing-cli.sh') }}-
+
+      # The whisper.cpp dictation sidecar (whisper-cli, MIT) for the matrix
+      # target, built on main by release-cache-warm.yml. The key is the build
+      # script's hash (whisper.cpp version, tarball SHA256, every compiler flag)
+      # plus the runner image (the MSVC/ClangCL toolchain); `restore-keys` falls
+      # back over the image only, never over the script.
+      - name: Read runner image version
+        id: image
+        shell: bash
+        run: echo "version=${ImageOS}-${ImageVersion}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore whisper-cli (warmed on main)
+        id: whisper-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: target/whisper/
+          key: whisper-cli-windows-${{ matrix.arch }}-${{ hashFiles('scripts/build-whisper.sh') }}-${{ steps.image.outputs.version }}
+          restore-keys: whisper-cli-windows-${{ matrix.arch }}-${{ hashFiles('scripts/build-whisper.sh') }}-
+
+      # Cache miss only. `cargo install` compiles ~230 crates (2.5-3.5 min on
+      # x64, up to 6 on arm64), so it runs in the background from here,
+      # overlapping the whisper build, the pnpm install and the sidecar
+      # compile. It starts after the Rust cache restore so the two never write
+      # ~/.cargo/registry at the same time.
       - name: Install artifact-signing-cli
         id: signing-cli
-        if: ${{ env.AZURE_CLIENT_SECRET != '' }}
+        if: ${{ env.AZURE_CLIENT_SECRET != '' && steps.signing-cli-cache.outputs.cache-matched-key == '' }}
         background: true
         shell: bash
-        run: |
-          set -euo pipefail
-          cargo install artifact-signing-cli --version 0.11.0 --locked
-          artifact-signing-cli --help > /dev/null
+        run: scripts/ci/install-artifact-signing-cli.sh
 
-      # Build the whisper.cpp dictation sidecar (whisper-cli, MIT) for the matrix
-      # target BEFORE tauri build. build.rs::stage_whisper_sidecar copies
+      # Cache miss only. build.rs::stage_whisper_sidecar copies
       # target/whisper/whisper-cli-<target>.exe to the externalBin name
       # binaries/whisper-cli-<target>.exe (same pattern as the host sidecar). CPU-only,
       # self-contained (static), pinned to the AVX2 (Haswell 2013+) baseline on
       # x86-64 — older CPUs are gated in-app (dictation/cpu.rs), never crashed.
-      # The `test -x` gate FAILS the release rather than shipping the loud-fail
-      # placeholder. Runs in the background (it needs only the checkout and the
-      # MSVC toolchain); the wait before the signing overlay is where a failure
+      # Runs in the background (it needs only the checkout and the MSVC
+      # toolchain); the wait before the signing overlay is where a failure
       # here fails the job.
       - name: Build whisper-cli dictation sidecar (${{ matrix.target }})
         id: whisper
+        if: ${{ steps.whisper-cache.outputs.cache-matched-key == '' }}
         background: true
         shell: bash
-        run: |
-          set -euo pipefail
-          scripts/build-whisper.sh ${{ matrix.target }}
-          test -x "target/whisper/whisper-cli-${{ matrix.target }}.exe" \
-            || { echo "::error::whisper-cli missing for ${{ matrix.target }}"; exit 1; }
-          ls -lah target/whisper/whisper-cli-${{ matrix.target }}.exe
+        run: scripts/build-whisper.sh ${{ matrix.target }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
 
-      # No pnpm cache, as in build-macos: it would be scoped to this tag.
+      # No setup-node pnpm cache: one saved here would be scoped to this tag.
+      # The store is restored by hand below from the cache warmed on main.
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 20
           package-manager-cache: false
+
+      # pnpm keeps one store per drive and picks it from the project's drive,
+      # so ask pnpm from the checkout (release-cache-warm.yml does the same; the
+      # path string is part of the cache version). A cold install on
+      # windows-11-arm took 3.5 to 6 min on every tag; with the store restored
+      # pnpm links from it and fetches only what a lockfile change added, so
+      # `restore-keys` falls back to the newest store for the leg.
+      - name: Locate the pnpm store
+        id: pnpm-store
+        shell: bash
+        run: |
+          set -euo pipefail
+          STORE=$(pnpm store path)
+          echo "pnpm store: $STORE"
+          echo "path=$STORE" >> "$GITHUB_OUTPUT"
+
+      - name: Restore pnpm store (warmed on main)
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-windows-${{ matrix.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-windows-${{ matrix.arch }}-
 
       - name: Install dependencies
         run: pnpm install
@@ -1451,11 +1519,23 @@ jobs:
         shell: bash
         run: bash scripts/ci/point-updater-at-cloud-manifest.sh
 
-      # A wait always runs and takes no `if:`. When the signing credentials are
-      # absent the signing-cli step is skipped, the wait passes, and the overlay
-      # step below fails the build with the named error.
+      # A wait always runs and takes no `if:`. A step skipped by its `if:` (the
+      # cache hit, or the signing credentials are absent) lets the wait pass;
+      # the checks below and the overlay step are where a missing result fails
+      # the build with a named error.
       - name: Wait for artifact-signing-cli and the whisper-cli build
         wait: [signing-cli, whisper]
+
+      # The `test -x` gate FAILS the release rather than shipping the loud-fail
+      # placeholder build.rs stages when whisper-cli is absent. Runs after the
+      # wait so it covers both the restored and the freshly built binary.
+      - name: Verify whisper-cli dictation sidecar
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x "target/whisper/whisper-cli-${{ matrix.target }}.exe" \
+            || { echo "::error::whisper-cli missing for ${{ matrix.target }}"; exit 1; }
+          ls -lah target/whisper/whisper-cli-${{ matrix.target }}.exe
 
       # Tauri config overlay that turns on `bundle.windows.signCommand`.
       # An overlay (not tauri.conf.json) so local `pnpm tauri build` on dev
@@ -1479,6 +1559,8 @@ jobs:
               exit 1
             fi
           done
+          # Restored from cache or just installed: either way it must run.
+          artifact-signing-cli --help > /dev/null
           OVERLAY="$RUNNER_TEMP/windows-signing.conf.json"
           node -e '
             const cmd = `artifact-signing-cli -e ${process.env.AZURE_SIGNING_ENDPOINT} -a ${process.env.AZURE_SIGNING_ACCOUNT} -c ${process.env.AZURE_SIGNING_PROFILE} %1`;
@@ -1704,8 +1786,8 @@ jobs:
           toolchain: stable
           targets: x86_64-unknown-linux-gnu
 
-      # Read-only restore of the cache rust-cache-warm.yml builds on main (see
-      # build-macos). Keep `path` identical to rust-cache-warm.yml.
+      # Read-only restore of the cache release-cache-warm.yml builds on main (see
+      # build-macos). Keep `path` identical to release-cache-warm.yml.
       - name: Restore Rust build cache (warmed on main)
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
@@ -1761,15 +1843,32 @@ jobs:
       - name: Disable in-build updater artifacts (signed post-repair instead)
         run: bash scripts/ci/configure-ts-engine-unsigned.sh
 
-      # Build the whisper.cpp dictation sidecar (whisper-cli, MIT). The
-      # exit-1 placeholder build.rs stages when whisper-cli is absent is not an ELF
-      # and would abort linuxdeploy's ldd pass, so build the real CPU-only
-      # (GGML_NATIVE=OFF), self-contained binary before bundling. The `test -x`
-      # gate FAILS the release rather than shipping the placeholder.
+      # The whisper.cpp dictation sidecar (whisper-cli, MIT), built on main by
+      # release-cache-warm.yml (key: build script hash plus runner image, see
+      # build-windows). The exit-1 placeholder build.rs stages when whisper-cli
+      # is absent is not an ELF and would abort linuxdeploy's ldd pass, so on a
+      # miss build the real CPU-only (GGML_NATIVE=OFF), self-contained binary
+      # before bundling. The `test -x` gate FAILS the release rather than
+      # shipping the placeholder.
+      - name: Read runner image version
+        id: image
+        run: echo "version=${ImageOS}-${ImageVersion}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore whisper-cli (warmed on main)
+        id: whisper-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: target/whisper/
+          key: whisper-cli-linux-x86_64-${{ hashFiles('scripts/build-whisper.sh') }}-${{ steps.image.outputs.version }}
+          restore-keys: whisper-cli-linux-x86_64-${{ hashFiles('scripts/build-whisper.sh') }}-
+
       - name: Build whisper-cli dictation sidecar (x86_64-unknown-linux-gnu)
+        if: ${{ steps.whisper-cache.outputs.cache-matched-key == '' }}
+        run: scripts/build-whisper.sh x86_64-unknown-linux-gnu
+
+      - name: Verify whisper-cli dictation sidecar
         run: |
           set -euo pipefail
-          scripts/build-whisper.sh x86_64-unknown-linux-gnu
           test -x target/whisper/whisper-cli-x86_64-unknown-linux-gnu \
             || { echo "::error::whisper-cli missing for x86_64-unknown-linux-gnu"; exit 1; }
 

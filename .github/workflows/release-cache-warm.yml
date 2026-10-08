@@ -1,0 +1,384 @@
+# Release cache warmer
+#
+# release.yml runs on tag pushes, and a cache saved from a tag ref is readable
+# only by re-runs of that same tag, so every release used to rebuild everything
+# from scratch. Caches saved on main are readable by every tag. This workflow
+# builds, on main, the parts of a release leg that do not change between tags,
+# and saves them; release.yml only restores (never saves). Two jobs:
+#
+#   rust      the Rust dependency graph of each release leg (~680 crates per
+#             macOS arch), see the job for the matching rules;
+#   sidecars  the whisper-cli dictation sidecar (every leg), the
+#             artifact-signing-cli binary and the pnpm store (Windows legs).
+#
+# Each cache has its own key and its own "stop if the exact key exists" lookup,
+# so a push that touches only one input rebuilds only that cache.
+#
+# Rust: a restored cache is only useful if cargo considers it fresh, so each leg
+# here must build exactly the way its release.yml leg does:
+#   - same rustc: both install stable through dtolnay/rust-toolchain, and the
+#     key carries its `cachekey` (a hash of the rustc version), so a new stable
+#     gets a new cache instead of a useless restore;
+#   - same targets, and the same `tauri build --target <t>` invocation (the
+#     tauri CLI adds crate features, so a plain `cargo build` would not match);
+#     `--no-bundle` skips only the bundling that follows the cargo build;
+#   - same `path:` list, byte for byte: it is part of the cache version, so a
+#     restore with a different list finds nothing.
+# The workspace members (houston-app, houston-local-model-bridge) are pruned
+# before saving: a release always recompiles them because the release commit
+# bumps their version.
+#
+# The Rust key includes the Cargo manifests and the Tauri config (which drives
+# the tauri crate's features), so any change to them warms a new cache. Tags
+# never match the key exactly (the release commit rewrites Cargo.lock), so they
+# restore the newest cache for the same rustc through `restore-keys`.
+#
+# Sidecar keys (release.yml restores with the same layout):
+#   whisper-cli-<leg>-<hash of scripts/build-whisper.sh>-<runner image>
+#     The script holds the whisper.cpp version, its tarball SHA256 and every
+#     compiler flag, so its hash is the build recipe. The runner image stands
+#     for the C++ toolchain (Xcode, MSVC/ClangCL, gcc). Tags fall back over the
+#     image only, never over the recipe.
+#   signing-cli-<leg>-<hash of scripts/ci/install-artifact-signing-cli.sh>-<rustc>
+#     The script holds the crate version pin. Tags fall back over rustc only.
+#   pnpm-store-<leg>-<hash of pnpm-lock.yaml>
+#     Tags fall back to the newest store for the leg; pnpm fetches the rest.
+#
+# `workflow_call` exists so a PR can run this workflow on its own ref and then
+# restore from it in a follow-up job (caches on a PR ref are invisible to tags).
+
+name: Release cache warm
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Cargo.lock
+      - Cargo.toml
+      - app/src-tauri/Cargo.toml
+      - app/src-tauri/tauri.conf.json
+      - crates/*/Cargo.toml
+      - scripts/build-whisper.sh
+      - scripts/ci/install-artifact-signing-cli.sh
+      - pnpm-lock.yaml
+      - .github/workflows/release-cache-warm.yml
+  # Weekly, so a new stable rustc (and a new runner image) is warmed before the
+  # next tag needs it. Friday 05:23 UTC: Rust stable ships on Thursdays, so a
+  # new compiler is warmed before the next cut. A job whose exact key already
+  # exists stops after the lookup.
+  schedule:
+    - cron: "23 5 * * 5"
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-cache-warm-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Same values as release.yml's workflow env.
+  BUN_VERSION: "1.3.10"
+  NODE_OPTIONS: --max-old-space-size=4096
+
+jobs:
+  rust:
+    name: Warm Rust (${{ matrix.leg }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - leg: macos-universal
+            runner: macos-latest
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            tauri-target: universal-apple-darwin
+          - leg: windows-x86_64
+            runner: windows-latest
+            rust-targets: x86_64-pc-windows-msvc
+            tauri-target: x86_64-pc-windows-msvc
+          - leg: windows-aarch64
+            runner: windows-11-arm
+            rust-targets: aarch64-pc-windows-msvc
+            tauri-target: aarch64-pc-windows-msvc
+          - leg: linux-x86_64
+            runner: ubuntu-latest
+            rust-targets: x86_64-unknown-linux-gnu
+            tauri-target: x86_64-unknown-linux-gnu
+    defaults:
+      run:
+        shell: bash
+    env:
+      LEG: ${{ matrix.leg }}
+      RUST_TARGETS: ${{ matrix.rust-targets }}
+      TAURI_TARGET: ${{ matrix.tauri-target }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Rust
+        id: toolchain
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
+        with:
+          toolchain: stable
+          targets: ${{ matrix.rust-targets }}
+
+      - name: Look up an existing cache for this exact key
+        id: lookup
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          lookup-only: true
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: rust-release-${{ matrix.leg }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'app/src-tauri/Cargo.toml', 'app/src-tauri/tauri.conf.json', 'crates/*/Cargo.toml') }}
+
+      - name: Setup pnpm
+        if: ${{ steps.lookup.outputs.cache-hit != 'true' }}
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: Setup Node.js
+        if: ${{ steps.lookup.outputs.cache-hit != 'true' }}
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 20
+          package-manager-cache: false
+
+      - name: Install dependencies
+        if: ${{ steps.lookup.outputs.cache-hit != 'true' }}
+        run: pnpm install
+
+      - name: Setup Bun
+        if: ${{ steps.lookup.outputs.cache-hit != 'true' }}
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install Tauri Linux system dependencies
+        if: ${{ steps.lookup.outputs.cache-hit != 'true' && runner.os == 'Linux' }}
+        run: ./scripts/ci/install-tauri-linux-deps.sh
+
+      # Same as release.yml's macOS step: the sidecar script stages the Claude
+      # binary for both arches, and pnpm only installs the runner-native one.
+      - name: Force-install both macOS Claude SDK platform packages
+        if: ${{ steps.lookup.outputs.cache-hit != 'true' && runner.os == 'macOS' }}
+        run: |
+          set -euo pipefail
+          SDK_VER=$(jq -r '.dependencies["@anthropic-ai/claude-agent-sdk"] // .optionalDependencies["@anthropic-ai/claude-agent-sdk"] // ""' packages/runtime/package.json)
+          if [ -z "$SDK_VER" ] || [ "$SDK_VER" = "null" ]; then
+            echo "::error::@anthropic-ai/claude-agent-sdk is not pinned in packages/runtime/package.json"
+            exit 1
+          fi
+          pnpm add -w \
+            "@anthropic-ai/claude-agent-sdk-darwin-arm64@$SDK_VER" \
+            "@anthropic-ai/claude-agent-sdk-darwin-x64@$SDK_VER" \
+            --force
+          git checkout HEAD -- package.json pnpm-lock.yaml
+
+      # A release-profile build.rs refuses to run without a fresh host sidecar
+      # and Claude binary for each target, so stage the real ones. The whisper
+      # sidecar is optional to build.rs and is skipped here.
+      - name: Compile host sidecar
+        if: ${{ steps.lookup.outputs.cache-hit != 'true' }}
+        run: |
+          set -euo pipefail
+          IFS=',' read -ra TRIPLES <<< "$RUST_TARGETS"
+          for TRIPLE in "${TRIPLES[@]}"; do
+            scripts/build-host-sidecar.sh "$TRIPLE"
+          done
+
+      # tauri-action runs `npm run tauri build -- <args>` in app/, so this is
+      # the same CLI and cargo invocation minus bundling and signing.
+      - name: Build Tauri app (no bundle)
+        if: ${{ steps.lookup.outputs.cache-hit != 'true' }}
+        working-directory: app
+        run: npm run tauri build -- --target "$TAURI_TARGET" --no-bundle
+
+      # Keep only cargo's per-profile deps/, build/ and .fingerprint/ dirs, minus
+      # the workspace members. Everything else under target/ (sidecar binaries,
+      # the lipo output, copied external binaries, the app binary) is rebuilt
+      # by every release anyway and would only inflate the cache.
+      - name: Prune target dir to third-party build artifacts
+        if: ${{ steps.lookup.outputs.cache-hit != 'true' }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob dotglob
+          for entry in target/*; do
+            if [ "$entry" != target/release ] && [ ! -d "$entry/release" ]; then
+              rm -rf "$entry"
+            fi
+          done
+          for profile in target/release target/*/release; do
+            [ -d "$profile" ] || continue
+            for entry in "$profile"/*; do
+              case "${entry##*/}" in
+                deps | build | .fingerprint) ;;
+                *) rm -rf "$entry" ;;
+              esac
+            done
+            rm -rf "$profile"/deps/*houston* "$profile"/build/houston-* "$profile"/.fingerprint/houston-*
+          done
+          du -sh target/*/ target/*/release/* ~/.cargo/registry/index ~/.cargo/registry/cache 2>/dev/null || true
+
+      - name: Save Rust build cache
+        if: ${{ steps.lookup.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ steps.lookup.outputs.cache-primary-key }}
+
+  # The whisper-cli sidecar on every leg; artifact-signing-cli and the pnpm
+  # store on the Windows legs (the Linux leg restores CI's pnpm cache from
+  # main, and the macOS install is 1.3 min). Each cache stops at its own
+  # lookup when the exact key already exists.
+  sidecars:
+    name: Warm sidecars (${{ matrix.leg }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - leg: macos-universal
+            runner: macos-latest
+            whisper-triples: aarch64-apple-darwin x86_64-apple-darwin
+          - leg: windows-x86_64
+            runner: windows-latest
+            whisper-triples: x86_64-pc-windows-msvc
+          - leg: windows-aarch64
+            runner: windows-11-arm
+            whisper-triples: aarch64-pc-windows-msvc
+          - leg: linux-x86_64
+            runner: ubuntu-latest
+            whisper-triples: x86_64-unknown-linux-gnu
+    defaults:
+      run:
+        shell: bash
+    env:
+      WHISPER_TRIPLES: ${{ matrix.whisper-triples }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      # GitHub-hosted runners export ImageOS and ImageVersion (e.g.
+      # win25-20260929.1.0). They stand for the C++ toolchain whisper.cpp is
+      # compiled with; the `env` context does not see runner-set variables, so
+      # read them in a step.
+      - name: Read runner image version
+        id: image
+        run: echo "version=${ImageOS}-${ImageVersion}" >> "$GITHUB_OUTPUT"
+
+      - name: Look up the whisper-cli cache for this exact key
+        id: whisper-lookup
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          lookup-only: true
+          path: target/whisper/
+          key: whisper-cli-${{ matrix.leg }}-${{ hashFiles('scripts/build-whisper.sh') }}-${{ steps.image.outputs.version }}
+
+      # Same script and triples as the release leg; the release step lipos the
+      # two macOS slices after restoring them.
+      - name: Build whisper-cli
+        if: ${{ steps.whisper-lookup.outputs.cache-hit != 'true' }}
+        run: |
+          set -euo pipefail
+          for TRIPLE in $WHISPER_TRIPLES; do
+            scripts/build-whisper.sh "$TRIPLE"
+          done
+          ls -la target/whisper/
+
+      - name: Save the whisper-cli cache
+        if: ${{ steps.whisper-lookup.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: target/whisper/
+          key: ${{ steps.whisper-lookup.outputs.cache-primary-key }}
+
+      # Windows only from here: the Authenticode signing CLI and the pnpm store.
+      # Same toolchain action as release.yml, so the rustc `cachekey` matches.
+      - name: Setup Rust
+        id: toolchain
+        if: ${{ runner.os == 'Windows' }}
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
+        with:
+          toolchain: stable
+
+      - name: Look up the artifact-signing-cli cache for this exact key
+        id: signing-lookup
+        if: ${{ runner.os == 'Windows' }}
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          lookup-only: true
+          path: ~/.cargo/bin/artifact-signing-cli.exe
+          key: signing-cli-${{ matrix.leg }}-${{ hashFiles('scripts/ci/install-artifact-signing-cli.sh') }}-${{ steps.toolchain.outputs.cachekey }}
+
+      - name: Install artifact-signing-cli
+        if: ${{ runner.os == 'Windows' && steps.signing-lookup.outputs.cache-hit != 'true' }}
+        run: scripts/ci/install-artifact-signing-cli.sh
+
+      - name: Save the artifact-signing-cli cache
+        if: ${{ runner.os == 'Windows' && steps.signing-lookup.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.cargo/bin/artifact-signing-cli.exe
+          key: ${{ steps.signing-lookup.outputs.cache-primary-key }}
+
+      - name: Setup pnpm
+        if: ${{ runner.os == 'Windows' }}
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: Setup Node.js
+        if: ${{ runner.os == 'Windows' }}
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 20
+          package-manager-cache: false
+
+      # pnpm keeps one store per drive and picks it from the project's drive
+      # (D:\.pnpm-store on windows-latest), so ask pnpm from the checkout rather
+      # than hardcode a path. release.yml does the same, and the path string is
+      # part of the cache version, so both sides must resolve the same one.
+      - name: Locate the pnpm store
+        id: pnpm-store
+        if: ${{ runner.os == 'Windows' }}
+        run: |
+          set -euo pipefail
+          STORE=$(pnpm store path)
+          echo "pnpm store: $STORE"
+          echo "path=$STORE" >> "$GITHUB_OUTPUT"
+
+      - name: Look up the pnpm store cache for this exact key
+        id: pnpm-lookup
+        if: ${{ runner.os == 'Windows' }}
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          lookup-only: true
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ matrix.leg }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install dependencies (fills the store)
+        if: ${{ runner.os == 'Windows' && steps.pnpm-lookup.outputs.cache-hit != 'true' }}
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          du -sh "$(pnpm store path)"
+
+      - name: Save the pnpm store cache
+        if: ${{ runner.os == 'Windows' && steps.pnpm-lookup.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ steps.pnpm-lookup.outputs.cache-primary-key }}
