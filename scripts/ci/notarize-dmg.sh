@@ -40,9 +40,8 @@ remaining() { echo $((DEADLINE - SECONDS)); }
 
 # Sleeps BASE * 2^(n-1) seconds, capped at MAX and at the time left.
 backoff() {
-  local delay=$((BASE * (1 << ($1 - 1 < 6 ? $1 - 1 : 6))))
+  local delay=$((BASE * (1 << ($1 - 1 < 6 ? $1 - 1 : 6)))) left
   [ "$delay" -gt "$MAX" ] && delay="$MAX"
-  local left
   left=$(remaining)
   [ "$delay" -gt "$left" ] && delay="$left"
   [ "$delay" -gt 0 ] && sleep "$delay"
@@ -92,14 +91,19 @@ while :; do
   backoff "$attempt"
 done
 
+# Staple retries do NOT share the deadline, so a verdict that lands just
+# before it still gets every retry. They wait a flat BASE between tries:
+# ticket lag is seconds, and 2 targets x 4 waits x 15 s = 2 min stays inside
+# the 5 min between the deadline and the step cap.
 staple() {
-  local n
-  for n in $(seq 1 "$STAPLE_ATTEMPTS"); do
+  local n=0
+  while [ "$n" -lt "$STAPLE_ATTEMPTS" ]; do
+    n=$((n + 1))
     if xcrun stapler staple "$1"; then
       return 0
     fi
     echo "No ticket for $1 yet (attempt $n/$STAPLE_ATTEMPTS)"
-    [ "$n" -lt "$STAPLE_ATTEMPTS" ] && backoff "$n"
+    [ "$n" -lt "$STAPLE_ATTEMPTS" ] && sleep "$BASE"
   done
   echo "::error::Could not staple $1: Apple accepted submission $ID but its ticket never became fetchable"
   return 1

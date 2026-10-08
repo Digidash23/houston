@@ -22,6 +22,7 @@ case "$1 $2" in
   *) echo "fake xcrun: unexpected $*" >&2; exit 99 ;;
 esac
 echo "$queue" >>"$FAKE/calls"
+echo "$*" >>"$FAKE/argv"
 file="$FAKE/$queue"
 line=$(head -n 1 "$file")
 if [ "$(wc -l <"$file")" -gt 1 ]; then tail -n +2 "$file" >"$file.next" && mv "$file.next" "$file"; fi
@@ -49,7 +50,7 @@ scenario() {
   done
   local got=0
   PATH="$TMP/bin:$PATH" APPLE_API_KEY=k APPLE_API_ISSUER=i APPLE_API_KEY_PATH=/dev/null \
-    NOTARY_DEADLINE_SECONDS="$deadline" NOTARY_RETRY_BASE_SECONDS=0 NOTARY_STAPLE_ATTEMPTS=3 \
+    NOTARY_DEADLINE_SECONDS="$deadline" NOTARY_RETRY_BASE_SECONDS="${BASE:-0}" NOTARY_STAPLE_ATTEMPTS=3 \
     "$NOTARIZE" "$TMP/Houston.dmg" "$TMP/Houston.app" >"$FAKE/out" 2>&1 || got=$?
   if [ "$got" -ne "$want" ]; then
     echo "FAIL $name: exit $got, want $want"
@@ -86,6 +87,12 @@ expect_calls flaky submit 2
 expect_calls flaky wait 4
 expect_calls flaky staple-Houston.dmg 2
 expect_calls flaky staple-Houston.app 1
+# Every wait is on the submission id, with the time left as its timeout.
+if grep "^notarytool wait" "$TMP/flaky/argv" | grep -vqE '^notarytool wait abc-123 --timeout [0-9]+ '; then
+  echo "FAIL flaky: a wait was not on abc-123 with --timeout"
+  grep "^notarytool wait" "$TMP/flaky/argv"
+  exit 1
+fi
 
 # Apple's verdict on these bytes: no retry, the log is printed, nothing stapled.
 scenario invalid 1 60 "submit=0 $ID" "wait=0 $INVALID" "log=0 {\"issues\":[]}"
@@ -99,6 +106,18 @@ expect_out invalid "Apple returned Invalid"
 scenario deadline 1 2 "submit=0 $ID" "wait=1 -"
 expect_calls deadline submit 1
 expect_out deadline "No notarization verdict for submission abc-123 before the deadline"
+
+# Real backoff sleeps are capped at the deadline: base 1 s, deadline 4 s,
+# Apple never answers. Sleeps 1 + 2 + 1 (capped) and stops at about 4 s;
+# without the cap the third sleep is 4 s and it stops at about 7 s.
+START=$SECONDS
+BASE=1 scenario capped 1 4 "submit=0 $ID" "wait=1 -"
+ELAPSED=$((SECONDS - START))
+if [ "$ELAPSED" -lt 3 ] || [ "$ELAPSED" -gt 5 ]; then
+  echo "FAIL capped: took ${ELAPSED}s, want about 4"
+  exit 1
+fi
+expect_out capped "before the deadline"
 
 # The .app ticket never appears: fail after the staple retries.
 scenario no-app-ticket 1 60 "submit=0 $ID" "wait=0 $ACCEPTED" \

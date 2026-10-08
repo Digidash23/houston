@@ -78,6 +78,7 @@ export async function listTarEntries(chunks) {
         if (pending.kind === "x") {
           const pax = paxRecords(data);
           if (pax.path !== undefined) next.path = pax.path;
+          if (pax.size !== undefined) next.size = Number(pax.size);
           if (pax.linkpath !== undefined) next.link = pax.linkpath;
         } else if (pending.kind === "L") {
           next.path = data.toString("utf8").replace(/\0+$/, "");
@@ -94,7 +95,7 @@ export async function listTarEntries(chunks) {
         return;
       }
       const flag = String.fromCharCode(block[156]);
-      const size = octal(block, 124, 12);
+      const size = next.size ?? octal(block, 124, 12);
       if (flag === "x" || flag === "L" || flag === "K" || flag === "g") {
         pending = { kind: flag, size };
         continue;
@@ -121,6 +122,8 @@ export async function listTarEntries(chunks) {
     consume();
   }
   consume();
+  if (!ended)
+    throw new Error("tar archive ends without its end-of-archive block");
   return entries.sort();
 }
 

@@ -59,11 +59,15 @@ describe("listTarEntries", () => {
   });
 
   it("reports a multiply-linked file as a hardlink entry", async () => {
+    const plain = await archive("plain-again");
     const entries = await archive("hardlinked", (app) =>
       linkSync(join(app, "Contents/Info.plist"), join(app, "Contents/copy")),
     );
     const hardlinks = entries.filter((entry) => entry.startsWith("hardlink"));
     expect(hardlinks).toHaveLength(1);
     expect(hardlinks[0]).toMatch(/\tX\.app\/Contents\/(copy|Info\.plist)$/);
+    // Exactly one more entry than the same tree without the link: the parser
+    // stayed aligned on the headers after the hardlink.
+    expect(entries).toHaveLength(plain.length + 1);
   });
 });
