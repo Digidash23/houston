@@ -19,8 +19,12 @@ describe("isAcceptedStatus", () => {
     assert.equal(isAcceptedStatus(299), true);
   });
 
-  it("accepts an absent status (completed send, no explicit HTTP status)", () => {
-    assert.equal(isAcceptedStatus(undefined), true);
+  it("rejects an absent status: the rate-limited / queue-overflow `{}`", () => {
+    // createTransport.send resolves `{}` without sending anything when the
+    // category is rate-limited or the buffer is full (H-009 review).
+    const dropped: { statusCode?: number } = {};
+    assert.equal(isAcceptedStatus(dropped.statusCode), false);
+    assert.equal(isAcceptedStatus(undefined), false);
   });
 
   it("rejects 4xx / 5xx (rate-limited, rejected, server error)", () => {

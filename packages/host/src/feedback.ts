@@ -6,10 +6,9 @@
  * not hold a Linear key, so the control plane fronts the same flow: the web
  * shim posts the identical payload here and this module formats + files it.
  * Title/description formatting mirrors bug_report/format.rs so web and desktop
- * reports read the same in the Linear queue.
+ * reports read the same in the Linear queue; the sender is `feedback-linear.ts`.
  */
 
-const LINEAR_API_URL = "https://api.linear.app/graphql";
 const MAX_ERROR_CHARS = 6_000;
 const MAX_LOG_CHARS = 8_000;
 
@@ -39,7 +38,7 @@ export interface FeedbackSender {
 const collapseWhitespace = (s: string): string =>
   s.split(/\s+/).filter(Boolean).join(" ");
 
-const truncateChars = (s: string, max: number): string =>
+export const truncateChars = (s: string, max: number): string =>
   s.length <= max ? s : `${s.slice(0, Math.max(0, max - 3))}...`;
 
 const truncateStart = (s: string, max: number): string =>
@@ -96,101 +95,47 @@ export function formatIssueDescription(
   return d;
 }
 
-// ---------------------------------------------------------------------------
-// Linear sender (port of bug_report/linear.rs)
-// ---------------------------------------------------------------------------
-
-const ISSUE_CREATE_MUTATION = `
-mutation HoustonBugReportCreate($input: IssueCreateInput!) {
-  issueCreate(input: $input) {
-    success
-    issue { id identifier url }
+/**
+ * The intake refusing a report, typed (H-009, HOUSTON-APP-5FT).
+ * `intake_unavailable` is Linear refusing EVERY report on our side (the
+ * workspace's plan issue cap, a rate limit, an outage): the route answers it
+ * `503 {code: "intake_unavailable"}` and the app delivers the report through
+ * its fallback. Anything else is `other`, a real failure.
+ */
+export class FeedbackIntakeError extends Error {
+  constructor(
+    message: string,
+    readonly kind: "intake_unavailable" | "other",
+  ) {
+    super(message);
+    this.name = "FeedbackIntakeError";
   }
 }
-`;
 
-const LABEL_QUERY = `
-query HoustonBugReportLabel($teamId: String!, $labelName: String!) {
-  team(id: $teamId) {
-    labels(first: 10, filter: { name: { eq: $labelName } }) {
-      nodes { id name }
-    }
-  }
-}
-`;
+/** Linear's plan cap ("usage limit exceeded", "exceeded the free issue
+ *  limit") and its rate limiter (code `RATELIMITED`), matched lowercase over
+ *  an error's message and every string in its `extensions`. */
+const INTAKE_LIMIT = /usage[ _]limit|issue limit|ratelimited|rate limit/i;
 
-export interface LinearFeedbackConfig {
-  apiKey: string;
-  teamId: string;
-  labelName: string;
-  apiUrl?: string;
+export function isIntakeLimitRefusal(error: {
+  message?: unknown;
+  extensions?: unknown;
+}): boolean {
+  const texts = [error.message];
+  if (error.extensions && typeof error.extensions === "object")
+    texts.push(...Object.values(error.extensions));
+  return texts.some((t) => typeof t === "string" && INTAKE_LIMIT.test(t));
 }
 
-export class LinearFeedbackSender implements FeedbackSender {
-  constructor(private readonly cfg: LinearFeedbackConfig) {}
-
-  private async graphql<T>(query: string, variables: unknown): Promise<T> {
-    const res = await fetch(this.cfg.apiUrl ?? LINEAR_API_URL, {
-      method: "POST",
-      headers: {
-        Authorization: this.cfg.apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ query, variables }),
-    });
-    if (!res.ok) {
-      const body = (await res.text().catch(() => "")).trim();
-      throw new Error(
-        `Linear API failed: ${res.status}${body ? ` ${truncateChars(body, 160)}` : ""}`,
-      );
-    }
-    const parsed = (await res.json()) as {
-      data?: T;
-      errors?: { message: string }[];
-    };
-    if (parsed.errors?.length) {
-      throw new Error(
-        `Linear API returned GraphQL errors: ${parsed.errors.map((e) => e.message).join("; ")}`,
-      );
-    }
-    if (!parsed.data)
-      throw new Error("Linear API response did not include data");
-    return parsed.data;
-  }
-
-  private async resolveLabelId(): Promise<string> {
-    const data = await this.graphql<{
-      team: { labels: { nodes: { id: string; name: string }[] } } | null;
-    }>(LABEL_QUERY, { teamId: this.cfg.teamId, labelName: this.cfg.labelName });
-    if (!data.team)
-      throw new Error(`Linear team not found: ${this.cfg.teamId}`);
-    const label = data.team.labels.nodes.find(
-      (l) => l.name === this.cfg.labelName,
-    );
-    if (!label)
-      throw new Error(`Linear bug label not found: ${this.cfg.labelName}`);
-    return label.id;
-  }
-
-  async send(payload: FeedbackPayload, userId: string): Promise<string | null> {
-    const labelId = await this.resolveLabelId();
-    const data = await this.graphql<{
-      issueCreate: {
-        success: boolean;
-        issue: { id: string; identifier: string | null } | null;
-      } | null;
-    }>(ISSUE_CREATE_MUTATION, {
-      input: {
-        teamId: this.cfg.teamId,
-        title: formatIssueTitle(payload),
-        description: formatIssueDescription(payload, userId),
-        labelIds: [labelId],
-      },
-    });
-    if (!data.issueCreate?.success)
-      throw new Error("Linear issue creation failed");
-    return data.issueCreate.issue?.identifier ?? null;
-  }
+/** A non-2xx Linear answer: 429 and 5xx refuse everyone; a 400 body can
+ *  still name the quota. */
+export function httpRefusalKind(
+  status: number,
+  body: string,
+): FeedbackIntakeError["kind"] {
+  return status === 429 || status >= 500 || INTAKE_LIMIT.test(body)
+    ? "intake_unavailable"
+    : "other";
 }
 
 /** Parse + bound the untrusted request body into a FeedbackPayload, or throw. */

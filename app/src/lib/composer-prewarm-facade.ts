@@ -14,6 +14,7 @@
 
 import type { Capabilities } from "@houston/engine-adapter";
 import { createComposerPrewarm } from "./composer-prewarm";
+import { describeError } from "./describe-error";
 import { getEngine } from "./engine";
 import { reportError } from "./error-report";
 import { queryClient } from "./query-client";
@@ -35,6 +36,5 @@ export const composerPrewarm = createComposerPrewarm({
   capabilities: () =>
     queryClient.getQueryData<Capabilities>(queryKeys.capabilities()),
   // `engineCall` already wrote the log line, so this is the Sentry half only.
-  report: (command, err) =>
-    reportError(command, err instanceof Error ? err.message : String(err), err),
+  report: (command, err) => reportError(command, describeError(err), err),
 });

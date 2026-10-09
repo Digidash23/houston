@@ -20,6 +20,7 @@ mod loopback_util;
 mod notification;
 mod notification_settings;
 mod oauth_loopback;
+mod powershell_path;
 // Pure decision logic compiles and tests everywhere; only the Win32 probes
 // are Windows-only.
 #[cfg_attr(not(target_os = "windows"), allow(dead_code))]

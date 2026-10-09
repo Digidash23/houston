@@ -111,6 +111,9 @@ jobs:
       - name: macOS notarize script regression test
         run: scripts/test/notarize-dmg.test.sh
 
+      - name: Ship train scripts regression test
+        run: scripts/test/ship-train-scripts.test.sh
+
       - name: Parity check (cross-surface component inventory)
         run: pnpm check:parity
 

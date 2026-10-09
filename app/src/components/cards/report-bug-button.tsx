@@ -4,7 +4,8 @@
  * The repo's no-silent-failures policy asks every user-visible failure to carry
  * a report path, and there can only be one of them: one payload shape (the
  * command tag, the diagnostic, the log tail `reportBug` bundles), one pending
- * look, one pair of result toasts. It started life inside the provider-error
+ * look, one pair of result toasts, one delivery rule (`submitBugReport`: Linear,
+ * then the Sentry feedback fallback). It started life inside the provider-error
  * cards and moved here the moment a second surface needed it (the team
  * sections' "we could not read these agents" strip), because a copied version
  * is how one of them quietly stops sending logs.
@@ -15,7 +16,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { reportBug } from "../../lib/bug-report";
+import { submitBugReport } from "../../lib/bug-report";
 import { getCurrentUserEmail } from "../../lib/current-user";
 import { logAndReportError } from "../../lib/error-report";
 import { useUIStore } from "../../stores/ui";
@@ -36,11 +37,27 @@ export function ReportBugButton({
   const addToast = useUIStore((s) => s.addToast);
   const workspaceName = useWorkspaceStore((s) => s.current?.name);
   const [sending, setSending] = useState(false);
+  const toast = (delivered: boolean) =>
+    addToast({
+      title: t(
+        delivered
+          ? "shell:reportBug.reportSuccessTitle"
+          : "shell:reportBug.reportErrorTitle",
+      ),
+      description: t(
+        delivered
+          ? "shell:reportBug.reportSuccessDescription"
+          : "shell:reportBug.reportErrorDescription",
+      ),
+      variant: delivered ? "success" : "error",
+    });
   const send = async () => {
     if (sending) return;
     setSending(true);
     try {
-      await reportBug({
+      // Reports every channel failure itself; `none` = Linear AND the
+      // fallback both failed, the only case that earns a "try again".
+      const outcome = await submitBugReport({
         command,
         error: details || "(no detail)",
         timestamp: new Date().toISOString(),
@@ -48,22 +65,12 @@ export function ReportBugButton({
         userEmail: getCurrentUserEmail(),
         workspaceName,
       });
-      addToast({
-        title: t("shell:reportBug.reportSuccessTitle"),
-        description: t("shell:reportBug.reportSuccessDescription"),
-        variant: "success",
-      });
+      toast(outcome.delivered !== "none");
     } catch (err) {
-      // The surfaces own their copy, so this can't go through
-      // genericErrorDescription — but the reason still has to reach the log and
-      // Sentry: a bug report that fails to send is exactly the failure we would
-      // otherwise never hear about.
-      logAndReportError("report_bug", err);
-      addToast({
-        title: t("shell:reportBug.reportErrorTitle"),
-        description: t("shell:reportBug.reportErrorDescription"),
-        variant: "error",
-      });
+      // Not a channel failure (those settle as `none`): a bug in the
+      // submit path itself, which must still reach us.
+      logAndReportError(command, err);
+      toast(false);
     } finally {
       setSending(false);
     }

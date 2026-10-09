@@ -211,3 +211,26 @@ test("anthropicServedVerdict: other providers and unanswered probes teach nothin
     anthropicServedVerdict({ id: "anthropic", state: "error", detail: "x" }),
   ).toBeUndefined();
 });
+
+test("a typed account block is final immediately: the provider's verdict, not a blip (H-005)", async () => {
+  const warns = vi.spyOn(console, "warn").mockImplementation(() => {});
+  try {
+    let calls = 0;
+    const attempt = async (id: string): Promise<ServeProbe> => {
+      calls++;
+      return {
+        id,
+        state: "error",
+        detail: "502: provider account blocked",
+        blocked: true,
+      };
+    };
+    const probe = await probeProvider("github-copilot", attempt, 0);
+    expect(probe.state).toBe("error");
+    expect(probe.state === "error" && probe.blocked).toBe(true);
+    expect(calls).toBe(1);
+    expect(warns).not.toHaveBeenCalled();
+  } finally {
+    warns.mockRestore();
+  }
+});

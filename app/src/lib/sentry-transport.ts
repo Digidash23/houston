@@ -29,13 +29,15 @@ export type EnvelopeLike = readonly [
 ];
 
 /**
- * Sentry accepted the event iff the transport response is a 2xx — or carries no
- * status code at all, which the fetch transport reports for a completed send
- * with no explicit HTTP status. A rejected send (network error / timeout) never
- * reaches this with a status; the caller treats that as not-accepted.
+ * Sentry accepted the event iff the transport response carries a 2xx. An
+ * ABSENT status is not acceptance: @sentry/core's `createTransport.send`
+ * answers `{}` WITHOUT sending when the envelope's category is rate-limited
+ * or its buffer is full (`queue_overflow`), while the fetch transport stamps
+ * `statusCode` on every send that reached Sentry. A rejected send (network
+ * error / timeout) never reaches this; the caller treats it as not-accepted.
  */
 export function isAcceptedStatus(statusCode: number | undefined): boolean {
-  return statusCode === undefined || (statusCode >= 200 && statusCode < 300);
+  return statusCode !== undefined && statusCode >= 200 && statusCode < 300;
 }
 
 /** Pull the event id from an envelope header, if present. */

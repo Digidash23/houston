@@ -302,6 +302,11 @@
   "sendBusy": "The agent is still busy with another message. Send yours again in a moment.",
   "computeBusy": "It's too busy right now to start your message. Send it again in a few minutes.",
   "sendWaitingBusy": "Things are busy right now. Still trying to send your message.",
+  "agentSetup": {
+    "tooLarge": "This agent has too much saved to start right now, so this message wasn't sent. We've been notified and are working on it.",
+    "failed": "Your agent couldn't get ready for this message. Send it again in a moment.",
+    "unconfirmed": "We couldn't confirm your agent got this message. Check back in a few minutes, and if there's still no reply, send it again."
+  },
   "engineRestart": {
     "sayContinue": "Your agent had to restart. Say continue and it will pick up where it left off.",
     "resuming": "Your agent was interrupted by a restart and is picking up where it left off."

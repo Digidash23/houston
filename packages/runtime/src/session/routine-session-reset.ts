@@ -12,7 +12,11 @@ import type { Conversation } from "./conversation-record";
 import { clearNativeSessionState } from "./native-session-state";
 import type { ReplayPreamble } from "./replay-transcript";
 import { carryAfterRun } from "./routine-carry";
-import { isRoutineConversation, planRoutineContext } from "./routine-context";
+import {
+  isRoutineConversation,
+  planRoutineContext,
+  type RoutineTurnKind,
+} from "./routine-context";
 import {
   ROUTINE_REPLAY_TAIL,
   renderRoutineReplay,
@@ -48,6 +52,7 @@ export async function resetRoutineSessionIfNeeded(
   prompt: string,
   model: ResolvedModel,
   mode: TurnMode,
+  kind: RoutineTurnKind,
 ): Promise<RoutineSessionReset | null> {
   // Checked before the history read: every other turn skips parsing the file.
   if (!isRoutineConversation(conversationId)) return null;
@@ -58,7 +63,13 @@ export async function resetRoutineSessionIfNeeded(
     model.contextWindow,
     0,
   );
-  const plan = planRoutineContext(conversationId, transcript, turnId, window);
+  const plan = planRoutineContext(
+    conversationId,
+    transcript,
+    turnId,
+    window,
+    kind,
+  );
   if (!plan.reset && !conv.sessionRebuildPending) return null;
   console.info(
     plan.reset

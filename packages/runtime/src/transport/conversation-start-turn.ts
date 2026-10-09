@@ -13,6 +13,7 @@ import { parseMissionTitle } from "../session/mission-title";
 import { engineUnavailable } from "./engine-unavailable";
 import { json, type RouteContext, readJson } from "./http-helpers";
 import {
+  isRoutineFire,
   queuedCardAnswer,
   refuseNonCardOwner,
   sendAnswerer,
@@ -187,6 +188,7 @@ export async function handleStartTurn(ctx: RouteContext, id: string) {
         {
           missionTitle: parseMissionTitle(missionTitle),
           ...queuedCardAnswer(answerer, () => releaseAdmission(id, admission)),
+          routineFire: isRoutineFire(ctx.req.headers),
         },
       ),
     ),

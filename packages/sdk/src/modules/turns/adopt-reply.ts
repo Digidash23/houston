@@ -1,5 +1,6 @@
 import { isPendingInteraction } from "@houston/protocol";
 import type { ChatMessage } from "@houston/runtime-client";
+import { finishResumed } from "./finish-resumed";
 import {
   ENGINE_RESTART_MESSAGE,
   ENGINE_RESUMED_MESSAGE,
@@ -8,7 +9,6 @@ import {
 import {
   finishErr,
   finishOk,
-  finishResumed,
   push,
   settleProviderErrorCard,
   type TurnState,

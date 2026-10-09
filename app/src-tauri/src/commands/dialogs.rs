@@ -92,7 +92,7 @@ if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {{
         powershell_escape(default_name),
         powershell_escape(filter),
     );
-    let output = Command::new("powershell")
+    let output = Command::new(crate::powershell_path::windows_powershell())
         .args(["-NoProfile", "-Sta", "-Command", &script])
         .creation_flags(crate::child_guard::CREATE_NO_WINDOW)
         .output()
@@ -151,7 +151,7 @@ if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {{
 "#,
         powershell_escape(filter),
     );
-    let output = Command::new("powershell")
+    let output = Command::new(crate::powershell_path::windows_powershell())
         .args(["-NoProfile", "-Sta", "-Command", &script])
         .creation_flags(crate::child_guard::CREATE_NO_WINDOW)
         .output()

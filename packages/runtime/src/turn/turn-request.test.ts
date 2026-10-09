@@ -102,3 +102,20 @@ test("only grant scopes and the sandbox closure reach the pi request", () => {
   expect(JSON.stringify(turn)).not.toContain("grant-secret");
   expect(JSON.stringify(turn)).not.toContain("host-secret");
 });
+
+test("only a routine fire is marked one; a person's send in its chat is not", () => {
+  const fire = turnSessionRequest(
+    { ...base, conversationId: "routine-r1", routine: { id: "r1" } },
+    "t1",
+    emit,
+    signal,
+  );
+  const chat = turnSessionRequest(
+    { ...base, conversationId: "routine-r1" },
+    "t1",
+    emit,
+    signal,
+  );
+  expect(fire.routineFire).toBe(true);
+  expect(chat.routineFire).toBeUndefined();
+});

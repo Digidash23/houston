@@ -1,4 +1,8 @@
-import { type FeedbackPayload, parseFeedbackPayload } from "../feedback";
+import {
+  FeedbackIntakeError,
+  type FeedbackPayload,
+  parseFeedbackPayload,
+} from "../feedback";
 import { json, readJson } from "./http";
 import { BodyTooLargeError } from "./read-body";
 import { defineRoute } from "./registry";
@@ -32,6 +36,18 @@ defineRoute({
         error: err instanceof Error ? err.message : String(err),
       });
     }
-    json(res, 200, { id: await deps.feedback.send(payload, userId) });
+    try {
+      json(res, 200, { id: await deps.feedback.send(payload, userId) });
+    } catch (err) {
+      // Linear refusing everyone on our side (its plan cap, H-009): a typed
+      // 503 the app reads as "deliver through the fallback". Anything else
+      // stays a real failure for the top-level handler.
+      if (
+        err instanceof FeedbackIntakeError &&
+        err.kind === "intake_unavailable"
+      )
+        return json(res, 503, { error: err.message, code: err.kind });
+      throw err;
+    }
   },
 });
