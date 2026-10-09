@@ -1,14 +1,17 @@
 //! The shell's own download + install commands over the updater plugin's
 //! `Update` resource (PRODUCT-1727). `check()` stays with the plugin; the
-//! download runs through `update_fetch` (resume + backoff, which the plugin's
-//! single-shot request lacks), the bytes are verified against the release
-//! signature exactly as the plugin would, then staged in the resource table
-//! until the frontend asks for the install.
+//! download runs through `update_fetch` into a persisted partial under the
+//! app cache dir (resume + backoff within a call AND across calls, which the
+//! plugin's single-shot request lacks), the finished file is verified against
+//! the release signature exactly as the plugin would (`update_verify`), then
+//! staged in the resource table until the frontend asks for the install.
 
-use super::update_failure::{DownloadFailure, DownloadFailureKind};
+use super::update_failure::DownloadFailure;
 use super::update_fetch::{fetch_with_resume, DownloadEvent};
-use minisign_verify::{PublicKey, Signature};
+use super::update_partial::PartialDownload;
+use super::update_verify::admit_release;
 use reqwest::header::{HeaderValue, ACCEPT};
+use std::path::PathBuf;
 use std::time::Duration;
 use tauri::ipc::Channel;
 use tauri::{Manager, Resource, ResourceId, Runtime, Webview};
@@ -41,23 +44,6 @@ fn client_for(update: &Update) -> Result<reqwest::Client, DownloadFailure> {
         .map_err(|e| DownloadFailure::other(format!("build download client: {e}")))
 }
 
-/// The plugin's minisign check, on the same pubkey it reads from
-/// `tauri.conf.json` (`plugins.updater.pubkey`).
-fn verify_signature(data: &[u8], release_signature: &str, pubkey_b64: &str) -> Result<(), String> {
-    use base64::Engine;
-    let decode = |value: &str| {
-        base64::engine::general_purpose::STANDARD
-            .decode(value)
-            .map_err(|e| e.to_string())
-            .and_then(|bytes| String::from_utf8(bytes).map_err(|e| e.to_string()))
-    };
-    let public_key = PublicKey::decode(&decode(pubkey_b64)?).map_err(|e| e.to_string())?;
-    let signature = Signature::decode(&decode(release_signature)?).map_err(|e| e.to_string())?;
-    public_key
-        .verify(data, &signature, true)
-        .map_err(|e| e.to_string())
-}
-
 fn updater_pubkey<R: Runtime>(webview: &Webview<R>) -> Result<String, DownloadFailure> {
     webview
         .config()
@@ -68,6 +54,17 @@ fn updater_pubkey<R: Runtime>(webview: &Webview<R>) -> Result<String, DownloadFa
         .and_then(|key| key.as_str())
         .map(str::to_string)
         .ok_or_else(|| DownloadFailure::other("updater pubkey missing from tauri.conf.json"))
+}
+
+/// `<app cache dir>/updates`: where a half-downloaded release waits for the
+/// next poll. A cache dir on purpose: the OS may purge it, and a purge only
+/// costs a restart from zero.
+fn partials_dir<R: Runtime>(webview: &Webview<R>) -> Result<PathBuf, DownloadFailure> {
+    let cache = webview
+        .path()
+        .app_cache_dir()
+        .map_err(|e| DownloadFailure::other(format!("resolve app cache dir: {e}")))?;
+    Ok(cache.join("updates"))
 }
 
 fn take_update<R: Runtime>(
@@ -82,8 +79,10 @@ fn take_update<R: Runtime>(
 }
 
 /// Download the release the plugin's `check()` found (`rid` is its `Update`
-/// resource), resuming across drops, verify its signature, and stage the
-/// bytes. Resolves with the staged resource id for `install_update`.
+/// resource), resuming across drops and across calls, verify its signature,
+/// and stage the bytes. Resolves with the staged resource id for
+/// `install_update`. A rejection for a dropped link leaves the partial on
+/// disk; the next call picks it up where it stopped.
 #[tauri::command(rename_all = "snake_case")]
 pub async fn download_update<R: Runtime>(
     webview: Webview<R>,
@@ -97,24 +96,24 @@ pub async fn download_update<R: Runtime>(
     if !headers.contains_key(ACCEPT) {
         headers.insert(ACCEPT, HeaderValue::from_static("application/octet-stream"));
     }
-    let bytes = fetch_with_resume(&client, &update.download_url, &headers, |event| {
-        // Progress callback with no UI thread: a closed channel only means
-        // the webview went away mid-download, and the result still returns.
-        if let Err(e) = on_event.send(event) {
-            tracing::warn!("[updater] progress channel closed: {e}");
-        }
-    })
+    let dir = partials_dir(&webview)?;
+    let mut partial = PartialDownload::open(&dir, &update.version, update.download_url.as_str())
+        .map_err(|e| DownloadFailure::other(format!("open partial download: {e}")))?;
+    fetch_with_resume(
+        &client,
+        &update.download_url,
+        &headers,
+        &mut partial,
+        |event| {
+            // Progress callback with no UI thread: a closed channel only means
+            // the webview went away mid-download, and the result still returns.
+            if let Err(e) = on_event.send(event) {
+                tracing::warn!("[updater] progress channel closed: {e}");
+            }
+        },
+    )
     .await?;
-    if let Err(message) = verify_signature(&bytes, &update.signature, &pubkey) {
-        return Err(DownloadFailure {
-            kind: DownloadFailureKind::Signature,
-            message: format!("release signature did not verify: {message}"),
-            received: bytes.len() as u64,
-            total: Some(bytes.len() as u64),
-            attempts: 0,
-            status: None,
-        });
-    }
+    let bytes = admit_release(partial, &update.signature, &pubkey).await?;
     Ok(webview.resources_table().add(StagedUpdate(bytes)))
 }
 
@@ -138,28 +137,4 @@ pub async fn install_update<R: Runtime>(
         .resources_table()
         .close(bytes_rid)
         .map_err(|e| format!("release staged buffer: {e}"))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::verify_signature;
-
-    const PUBKEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJDQTdCMzc1MURERDRFQkQKUldTOVR0MGRkYk9uTEE4SUNnNElWZzVEN3QvcFQzczl6Y2NTMUpLSXJYZkxyK2g5azk4UHpRdmcK";
-
-    #[test]
-    fn rejects_a_signature_that_does_not_verify() {
-        // Minisign-shaped text that is not a signature over these bytes.
-        let signature = base64::Engine::encode(
-            &base64::engine::general_purpose::STANDARD,
-            "untrusted comment: signature from tauri secret key\nRUS9Tt0ddbOnLNz8OJ/uxxZ7Z2XCvOfOPq+3pf+F4v2tGZJ5EbFqGhRp1yfy/LjrnNmnQ/4DUfL1x6jOSK2E1c1aILtmv0BYWQY=\ntrusted comment: timestamp:1\nO/A8d4Gk1e3G4pVUQFLHwQ4YwjQ8G9x8qz6uJ3+2OMZbjqPjVtKk8jsY0Y3tmBh8gQ7hFbHDd6i5a4Jj+8XCDQ==\n",
-        );
-        assert!(verify_signature(b"not the release", &signature, PUBKEY).is_err());
-    }
-
-    #[test]
-    fn rejects_a_signature_that_is_not_minisign() {
-        let signature =
-            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, "garbage");
-        assert!(verify_signature(b"bytes", &signature, PUBKEY).is_err());
-    }
 }

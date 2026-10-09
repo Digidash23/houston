@@ -109,7 +109,9 @@ export function useUpdateMachine() {
 
   /** Fetch the release into the shell's staging buffer; true once it can
    *  be installed. A failure is reported (once per version), never shown:
-   *  the next check finds the release again and the download re-runs. */
+   *  the next check finds the release again and the download re-runs, and
+   *  the shell carries on from the bytes it kept on disk rather than from
+   *  zero, so a link that drops every few minutes still gets there. */
   const download = useCallback(async (): Promise<boolean> => {
     const update = updateRef.current;
     const info = infoRef.current;

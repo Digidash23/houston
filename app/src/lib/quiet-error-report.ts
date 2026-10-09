@@ -51,7 +51,15 @@ export function reportQuietError(
         ...(agent ? { agent_id: agent } : {}),
         ...(status !== null ? { http_status: String(status) } : {}),
       },
-      extra: { command, agent_id: agent, http_status: status, body },
+      // The caller's context rides as extras so one issue's events stay
+      // tellable apart (the byte position of a release download, say).
+      extra: {
+        command,
+        agent_id: agent,
+        http_status: status,
+        body,
+        ...context,
+      },
     });
   }
   if (kind !== "engine_waking" || !agent) return;
