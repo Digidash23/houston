@@ -658,10 +658,9 @@ export function useAgentChatPanel({
   // CTA into the AI Hub, and returns by itself once a provider connects (the
   // status query is invalidated on ProviderLoginComplete).
   const connectAiComposer = useConnectAiComposer({
-    connectedCount: authedProviders.length,
-    checkingCount: unconfirmedProviders.length,
-    statusesLoading: providerStatusesLoading,
-    statusesError: providerStatusesError,
+    statuses: providerStatuses,
+    isLoading: providerStatusesLoading,
+    isError: providerStatusesError,
   });
 
   // This conversation's reactive feed — the SDK conversation VM, the app's one

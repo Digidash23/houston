@@ -1,5 +1,6 @@
 import { useUIStore } from "../stores/ui";
 import { analytics, classifyAnalyticsError } from "./analytics";
+import { showFirstDayNoProviderToast } from "./first-day-no-provider-toast";
 import i18n from "./i18n";
 import { surfacePlanMinInterval } from "./plan-min-interval";
 import type { QuietErrorClass } from "./quiet-error-class";
@@ -36,6 +37,12 @@ export function surfaceQuietState(
       // A business state: only the routine's creator may mint its address,
       // and the chip's own line says so. Nothing to report.
       showWebhookNotCreatorToast();
+      return true;
+    case "first_day_no_provider":
+      // A business state: the first day waits for a connected AI. The raw
+      // reason stays in the log line; nothing to report.
+      console.info(`[toast:${command}] ${message}`);
+      showFirstDayNoProviderToast(originalError);
       return true;
     case "no_url_handler":
       // Same remedy copy `openExternalUrl` shows; a rejection that reached

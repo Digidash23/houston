@@ -30,6 +30,10 @@ import type { BridgeQuietClass } from "@houston/sdk/local-model-bridge/quiet";
  *  because the caller is not the routine's creator
  *  (`@houston/sdk/routines/webhook-key-access`): an expected state with its
  *  own copy, which every reporting path skips outright.
+ *  `first_day_no_provider` is a first-day start refused because the person
+ *  has no AI connected (`@houston/sdk/agents/first-day-refusal`): an expected
+ *  state whose surface offers the connect flow, skipped by every reporting
+ *  path.
  *  `storage_full` is the device's disk refusing the updater's release
  *  download: the device's state, not a bug, named only by the download report
  *  path and never retried for that release in the session.
@@ -50,6 +54,7 @@ export type QuietErrorClass =
   | "no_url_handler"
   | "plan_min_interval"
   | "webhook_not_creator"
+  | "first_day_no_provider"
   | "bug_intake_unavailable"
   | "upload_interrupted";
 

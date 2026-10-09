@@ -32,6 +32,7 @@ import {
 } from "./types";
 
 export type { FirstDayStartInput, FirstDayStartResult } from "./first-day";
+export * from "./first-day-refusal";
 export { AgentsHttpError } from "./http";
 export type { AgentsAccount, AgentsLibrary } from "./library";
 export { isAgentNameReserved, isAgentNameTaken } from "./refusals";

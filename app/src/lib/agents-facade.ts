@@ -17,8 +17,11 @@ import type {
   FirstDayStartInput,
   FirstDayStartResult,
 } from "@houston/engine-adapter";
-import { isAgentNameReserved, isAgentNameTaken } from "@houston/sdk";
-import { isFirstDayNotPendingError } from "./agent-first-day-model";
+import {
+  isAgentNameReserved,
+  isAgentNameTaken,
+  isFirstDayNotPending,
+} from "@houston/sdk";
 import { blockWriteWhileWarmingById } from "./agent-warming-guard";
 import { getEngine } from "./engine";
 import { engineCall } from "./tauri";
@@ -97,7 +100,7 @@ export const tauriAgents = {
       "start_first_day",
       () => getEngine().startFirstDay(agentPath, input),
       { agentId: agentPath },
-      { silence: isFirstDayNotPendingError },
+      { silence: isFirstDayNotPending },
     ),
   rename: (workspaceId: string, id: string, newName: string) => {
     // A rename dispatches into the agent's engine — held while it warms up.
