@@ -35,6 +35,7 @@ export function turnSessionRequest(
     displayText: turn.displayText,
     mentions: turn.mentions,
     ...(turn.missionTitle ? { missionTitle: turn.missionTitle } : {}),
+    ...(turn.routine ? { routineFire: true } : {}),
     author: turn.actingAs,
     ...(claudePlan ? { claudePlan } : {}),
     ...(turn.grant ? { grant: { scopes: turn.grant.scopes } } : {}),

@@ -50,6 +50,12 @@ export interface TurnSessionRequest {
   mentions?: ChatMessage["mentions"];
   /** A new mission's first send: title its card after the reply. */
   missionTitle?: MissionTitleRequest;
+  /**
+   * This turn is a routine's own fire (`TurnRequest.routine`), not a person
+   * chatting in the routine's chat. Only fires are held to the routine
+   * context budget (session/routine-context.ts).
+   */
+  routineFire?: boolean;
   /** Fresh read of the stored board doc, for a card hydration missed. */
   readRemoteActivity?: RemoteActivityReader;
   author?: MessageAuthor;
