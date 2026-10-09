@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
 # Usage: write-train-json.sh <out-file>
 # Renders train.json: what train cloud-v<VERSION> shipped. For the engine and
-# the agentstore it records the image promoted to prod (sha, digest, image ref)
-# and whether the matching label/ tag could be stamped. ship-train.yml uploads
+# the agentstore it records the image the train resolved to (sha, digest,
+# image ref), whether its prod dispatch actually went out (`dispatched`; job
+# outputs survive a failed job, so a resolved image is NOT proof of a roll) and
+# whether the matching label/ tag could be stamped. ship-train.yml uploads
 # it as a release asset, so the train -> image mapping exists even when a label
 # push is refused.
 #
 # Env, required: TAG, VERSION, REGISTRY.
 # Env, optional (an empty *_SHA makes that half `null`: its image never resolved):
 #   BASE_SHA, RUN_URL
-#   ENGINE_SHA, ENGINE_DIGEST, ENGINE_LABEL_STAMPED, ENGINE_LABEL_REASON
-#   AGENTSTORE_SHA, AGENTSTORE_DIGEST, AGENTSTORE_LABEL_STAMPED, AGENTSTORE_LABEL_REASON
+#   ENGINE_SHA, ENGINE_DIGEST, ENGINE_DISPATCHED, ENGINE_LABEL_STAMPED, ENGINE_LABEL_REASON
+#   AGENTSTORE_SHA, AGENTSTORE_DIGEST, AGENTSTORE_DISPATCHED, AGENTSTORE_LABEL_STAMPED,
+#   AGENTSTORE_LABEL_REASON
+# *_DISPATCHED is `true` only when the promote step wrote it; anything else
+# (unset, the step failed or never ran) renders as false.
 # *_LABEL_STAMPED is the stamp script's outcome (true | unchanged | false);
 # both `true` and `unchanged` mean the label exists at this sha.
 set -euo pipefail
@@ -24,16 +29,17 @@ OUT="$1"
 : "${VERSION:?VERSION is required}"
 : "${REGISTRY:?REGISTRY is required}"
 
-half() { # <image repo> <label> <sha> <digest> <stamped> <reason>
+half() { # <image repo> <label> <sha> <digest> <dispatched> <stamped> <reason>
   if [ -z "$3" ]; then
     echo null
     return
   fi
   jq -n --arg repo "$1" --arg label "$2" --arg sha "$3" --arg digest "$4" \
-    --arg stamped "$5" --arg reason "$6" '{
+    --arg dispatched "$5" --arg stamped "$6" --arg reason "$7" '{
       sha: $sha,
       digest: $digest,
       image: ($repo + "@" + $digest),
+      dispatched: ($dispatched == "true"),
       label: {
         name: $label,
         stamped: ($stamped == "true" or $stamped == "unchanged"),
@@ -43,9 +49,11 @@ half() { # <image repo> <label> <sha> <digest> <stamped> <reason>
 }
 
 ENGINE=$(half "${REGISTRY}/engine-pod" "label/engine-pod-v${VERSION}" \
-  "${ENGINE_SHA:-}" "${ENGINE_DIGEST:-}" "${ENGINE_LABEL_STAMPED:-}" "${ENGINE_LABEL_REASON:-}")
+  "${ENGINE_SHA:-}" "${ENGINE_DIGEST:-}" "${ENGINE_DISPATCHED:-}" \
+  "${ENGINE_LABEL_STAMPED:-}" "${ENGINE_LABEL_REASON:-}")
 AGENTSTORE=$(half "${REGISTRY}/agentstore" "label/agentstore-v${VERSION}" \
-  "${AGENTSTORE_SHA:-}" "${AGENTSTORE_DIGEST:-}" "${AGENTSTORE_LABEL_STAMPED:-}" "${AGENTSTORE_LABEL_REASON:-}")
+  "${AGENTSTORE_SHA:-}" "${AGENTSTORE_DIGEST:-}" "${AGENTSTORE_DISPATCHED:-}" \
+  "${AGENTSTORE_LABEL_STAMPED:-}" "${AGENTSTORE_LABEL_REASON:-}")
 
 jq -n \
   --arg tag "$TAG" \

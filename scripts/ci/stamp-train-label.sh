@@ -5,13 +5,14 @@
 #
 # A train label is cosmetic: train.json on the release is the record of what
 # shipped (see ship-train.yml). So this script NEVER fails the train: every
-# refusal is a ::warning:: plus exit 0, and only a usage error exits non-zero.
+# refusal is an annotation plus exit 0, and only a usage error exits non-zero.
 #
 # Outcome, appended to $GITHUB_OUTPUT when set as `stamped=` and `reason=`:
 #   true       created and pushed now
 #   unchanged  already points at <commit> (release re-published)
 #   false      left alone: the label exists at ANOTHER commit (a train label
-#              never moves), or the remote refused the push. The known refusal:
+#              never moves; reported as ::error::), or the remote refused the
+#              push (::warning::). The known refusal:
 #              GITHUB_TOKEN has no `workflows` permission, and GitHub rejects
 #              any ref push whose target commit's .github/workflows/* differ
 #              from the default branch's, which is every image commit older
@@ -33,10 +34,14 @@ emit() { # <stamped> <reason>
   fi
 }
 
-# One line, no newlines or `%`: GitHub parses annotation messages literally.
+# The stored reason is one raw line (it lands in $GITHUB_OUTPUT and train.json).
 one_line() {
-  sed -e 's/^remote: //' -e 's/^[[:space:]]*//' -e 's/%/%25/g' \
+  tr -d '\r' | sed -e 's/^remote: //' -e 's/^[[:space:]]*//' \
     | grep -v '^$' | tr '\n' ' ' | sed -e 's/ *$//'
+}
+# Annotations only: GitHub reads `%` as an escape in ::warning::/::error:: text.
+annotate() { # <level> <message>
+  printf '::%s::%s\n' "$1" "$(printf '%s' "$2" | sed -e 's/%/%25/g')"
 }
 
 if EXISTING=$(git rev-parse -q --verify "refs/tags/${LABEL}^{commit}" 2>/dev/null); then
@@ -46,7 +51,9 @@ if EXISTING=$(git rev-parse -q --verify "refs/tags/${LABEL}^{commit}" 2>/dev/nul
     exit 0
   fi
   REASON="${LABEL} already exists at ${EXISTING}, but this train resolves to ${TARGET}; a train label never moves"
-  echo "::warning::${REASON}. Left untouched, investigate before re-tagging."
+  # An error, not a warning: this is drift or a squatted label, never the
+  # known permission refusal. Still exit 0: the train already shipped.
+  annotate error "${REASON}. Left untouched, investigate before re-tagging."
   emit false "$REASON"
   exit 0
 fi
@@ -56,7 +63,7 @@ git config user.email "release-bot@users.noreply.github.com"
 
 if ! TAG_LOG=$(git tag -a "$LABEL" -m "$MESSAGE" "$TARGET" 2>&1); then
   REASON=$(printf '%s\n' "$TAG_LOG" | one_line || true)
-  echo "::warning::${LABEL} not created at ${TARGET}: ${REASON}"
+  annotate warning "${LABEL} not created at ${TARGET}: ${REASON}"
   emit false "$REASON"
   exit 0
 fi
@@ -71,6 +78,6 @@ printf '%s\n' "$PUSH_LOG"
 # Drop the local tag so a retry in the same checkout starts clean.
 git tag -d "$LABEL" >/dev/null 2>&1 || true
 REASON=$(printf '%s\n' "$PUSH_LOG" | one_line || true)
-echo "::warning::${LABEL} not stamped at ${TARGET}: ${REASON}"
+annotate warning "${LABEL} not stamped at ${TARGET}: ${REASON}"
 emit false "$REASON"
 exit 0

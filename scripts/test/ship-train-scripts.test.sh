@@ -80,7 +80,7 @@ else
   bad "moved label exited non-zero: $LOG"
 fi
 assert_str "moved label stamped=false" "$(output_value "$TMP/moved.out" stamped)" false
-assert_contains "moved label warns" "$LOG" "::warning::"
+assert_contains "moved label is an ::error:: annotation (drift or squat)" "$LOG" "::error::"
 assert_contains "moved label names both commits" "$(output_value "$TMP/moved.out" reason)" "$OLD"
 assert_str "moved label left untouched on the remote" \
   "$(git -C "$TMP/fresh.git" rev-parse 'refs/tags/label/agentstore-v9.9.9^{commit}')" "$OLD"
@@ -89,7 +89,7 @@ assert_str "moved label left untouched on the remote" \
 make_repo refused
 cat > "$TMP/refused.git/hooks/pre-receive" <<'EOF'
 #!/usr/bin/env bash
-echo "refusing to allow a GitHub App to create or update workflow .github/workflows/ci.yml without workflows permission" >&2
+printf 'refusing to allow a GitHub App to create or update workflow .github/workflows/ci.yml without workflows permission (100%% sure)\r\n' >&2
 exit 1
 EOF
 chmod +x "$TMP/refused.git/hooks/pre-receive"
@@ -105,6 +105,12 @@ assert_contains "refused push warns with the remote's reason" "$LOG" \
   "::warning::label/agentstore-v9.9.9 not stamped at ${OLD}: "
 assert_contains "refused push reason carries the remote message" \
   "$(output_value "$TMP/refused.out" reason)" "without workflows permission"
+assert_contains "stored reason keeps % raw" "$(output_value "$TMP/refused.out" reason)" "(100% sure)"
+assert_str "stored reason has no %25 escape" \
+  "$(grep -c '%25' "$TMP/refused.out" || true)" 0
+assert_str "stored outputs are two lines, no CR (stamped= and reason=)" \
+  "$(tr -d -c '\n' < "$TMP/refused.out" | wc -c | tr -d ' '):$(grep -c $'\r' "$TMP/refused.out" || true)" "2:0"
+assert_contains "annotation escapes % for GitHub" "$LOG" "(100%25 sure)"
 if git -C "$TMP/refused.git" rev-parse -q --verify refs/tags/label/agentstore-v9.9.9 >/dev/null; then
   bad "refused push left a tag on the remote"
 else
@@ -130,9 +136,9 @@ export TAG=cloud-v9.9.9 VERSION=9.9.9 REGISTRY=us-east1-docker.pkg.dev/acme/hous
 export BASE_SHA=1111111111111111111111111111111111111111
 export RUN_URL=https://github.com/acme/houston/actions/runs/1
 export ENGINE_SHA=2222222222222222222222222222222222222222 ENGINE_DIGEST=sha256:aaaa
-export ENGINE_LABEL_STAMPED=true ENGINE_LABEL_REASON=pushed
+export ENGINE_DISPATCHED=true ENGINE_LABEL_STAMPED=true ENGINE_LABEL_REASON=pushed
 export AGENTSTORE_SHA=3333333333333333333333333333333333333333 AGENTSTORE_DIGEST=sha256:bbbb
-export AGENTSTORE_LABEL_STAMPED=false
+export AGENTSTORE_DISPATCHED=true AGENTSTORE_LABEL_STAMPED=false
 export AGENTSTORE_LABEL_REASON="refusing to allow a GitHub App to create or update workflow"
 
 bash "$WRITE" "$TMP/train.json"
@@ -143,6 +149,7 @@ assert_str "base sha" "$(jq -r .base_sha "$TMP/train.json")" "$BASE_SHA"
 assert_str "run url" "$(jq -r .run_url "$TMP/train.json")" "$RUN_URL"
 assert_str "engine sha" "$(jq -r .engine.sha "$TMP/train.json")" "$ENGINE_SHA"
 assert_str "engine image" "$(jq -r .engine.image "$TMP/train.json")" "$REGISTRY/engine-pod@sha256:aaaa"
+assert_str "engine dispatched" "$(jq -r .engine.dispatched "$TMP/train.json")" true
 assert_str "engine label name" "$(jq -r .engine.label.name "$TMP/train.json")" label/engine-pod-v9.9.9
 assert_str "engine label stamped" "$(jq -r .engine.label.stamped "$TMP/train.json")" true
 assert_str "agentstore image" "$(jq -r .agentstore.image "$TMP/train.json")" "$REGISTRY/agentstore@sha256:bbbb"
@@ -152,13 +159,24 @@ assert_str "agentstore label reason" "$(jq -r .agentstore.label.reason "$TMP/tra
 assert_str "recorded_at is UTC ISO-8601" \
   "$(jq -r .recorded_at "$TMP/train.json" | grep -cE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$')" 1
 
+# A resolved image whose dispatch step failed or never ran (job outputs
+# survive a failed job) must read dispatched=false, never as promoted.
+AGENTSTORE_DISPATCHED='' AGENTSTORE_LABEL_STAMPED='' AGENTSTORE_LABEL_REASON='' \
+  bash "$WRITE" "$TMP/train-undispatched.json"
+assert_str "undispatched half keeps its resolved image" \
+  "$(jq -r .agentstore.sha "$TMP/train-undispatched.json")" "$AGENTSTORE_SHA"
+assert_str "undispatched half reads dispatched=false" \
+  "$(jq -r .agentstore.dispatched "$TMP/train-undispatched.json")" false
+assert_str "a non-true dispatched value is false" \
+  "$(AGENTSTORE_DISPATCHED=yes bash "$WRITE" "$TMP/train-yes.json" && jq -r .agentstore.dispatched "$TMP/train-yes.json")" false
+
 # An unchanged label (release re-published) still counts as stamped.
 ENGINE_LABEL_STAMPED=unchanged bash "$WRITE" "$TMP/train-unchanged.json"
 assert_str "unchanged label counts as stamped" "$(jq -r .engine.label.stamped "$TMP/train-unchanged.json")" true
 
 # A half whose image never resolved is null, not a half-filled object.
-AGENTSTORE_SHA='' AGENTSTORE_DIGEST='' AGENTSTORE_LABEL_STAMPED='' AGENTSTORE_LABEL_REASON='' \
-  bash "$WRITE" "$TMP/train-half.json"
+AGENTSTORE_SHA='' AGENTSTORE_DIGEST='' AGENTSTORE_DISPATCHED='' AGENTSTORE_LABEL_STAMPED='' \
+  AGENTSTORE_LABEL_REASON='' bash "$WRITE" "$TMP/train-half.json"
 assert_str "unresolved agentstore half is null" "$(jq -r .agentstore "$TMP/train-half.json")" null
 assert_str "engine half survives" "$(jq -r .engine.digest "$TMP/train-half.json")" sha256:aaaa
 assert_str "empty base sha is null" \
