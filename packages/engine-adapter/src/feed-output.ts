@@ -1,11 +1,13 @@
-import type {
-  BoardStatus,
-  FeedOutput,
-  PendingInteraction,
-  SessionStatusValue,
+import {
+  type BoardStatus,
+  type FeedOutput,
+  isTurnSetupNotice,
+  type PendingInteraction,
+  type SessionStatusValue,
 } from "@houston/sdk";
 import { emitEvent } from "./bus";
 import { isEngineWakingError } from "./engine-waking-error";
+import { reportAdapterError } from "./error-sink";
 import { publishFirstResponse } from "./first-responses";
 import { isNetworkTransportError } from "./network-transport-error";
 import { toOldProvider } from "./synthetic";
@@ -40,6 +42,20 @@ function remapProvider(item: unknown): unknown {
 }
 
 /**
+ * A turn that failed before it could start (the SDK's setup notices) is
+ * unexpected: the line in the chat is the person's whole surface, and this
+ * report is ours. Nothing else is decided here.
+ */
+function reportSetupFailure(item: unknown): void {
+  const it = item as { feed_type?: string; notice?: unknown };
+  if (it.feed_type === "system_message" && isTurnSetupNotice(it.notice))
+    reportAdapterError(
+      "turn_setup_failed",
+      new Error(`turn setup failed: ${it.notice}`),
+    );
+}
+
+/**
  * Build a bus-backed FeedOutput. `setActivityStatus` is the board-card persist
  * seam (localStorage in standalone web, the control plane in cloud); a failure
  * surfaces in the feed as a system message rather than hanging the card in
@@ -56,6 +72,7 @@ export function createBusFeedOutput(
 ): FeedOutput {
   return {
     pushFeedItem(agentPath, sessionKey, item) {
+      reportSetupFailure(item);
       emitEvent("FeedItem", {
         agent_path: agentPath,
         session_key: sessionKey,

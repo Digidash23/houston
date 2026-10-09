@@ -92,9 +92,9 @@ function pickedFor(runs: readonly ToolRun[]): GoalStaff | null {
 
 /** The turn is over: it settled, failed on a provider error, the chat
  *  wrote why it stopped (a send lost or refused, a stream that died), or the
- *  person wrote again. A restart notice is not an end: the turn resumes. A
- *  `send_busy` or `compute_busy` notice is: the held send was refused for
- *  good. */
+ *  person wrote again. A restart notice is not an end: the turn resumes.
+ *  Every other notice is (a held send refused for good, a turn that failed
+ *  before it could start). */
 function turnEnded(items: readonly FeedItem[]): boolean {
   return items.some(
     (item) =>
@@ -102,9 +102,8 @@ function turnEnded(items: readonly FeedItem[]): boolean {
       item.feed_type === "provider_error" ||
       item.feed_type === "user_message" ||
       (item.feed_type === "system_message" &&
-        (item.notice === undefined ||
-          item.notice === "send_busy" ||
-          item.notice === "compute_busy")),
+        item.notice !== "engine_restart" &&
+        item.notice !== "engine_resumed"),
   );
 }
 

@@ -118,16 +118,28 @@ export function durableTerminalFrame(
   );
 }
 
+/**
+ * The setup frame's `message`: a client that knows no setup code shows it
+ * verbatim, so it is a neutral sentence and never the bare code (H-003).
+ */
+export const TURN_SETUP_FAILED_MESSAGE =
+  "Your agent couldn't get ready for this message. Send it again in a moment.";
+
 /** Build the internal typed error frame for pre-provider setup failures. */
 export function turnSetupErrorFrame(
   error: TurnSetupError,
   turnId: string,
 ): WireFrame {
   // SAFETY: setup error codes are internal to the pool dispatcher and retain
-  // the public error frame's required message field.
+  // the public error frame's required message field. Readers (the gateway,
+  // the SDK) key on `code`, never on the message.
   return {
     type: "error",
-    data: { message: error.code, code: error.code, detail: error.message },
+    data: {
+      message: TURN_SETUP_FAILED_MESSAGE,
+      code: error.code,
+      detail: error.message,
+    },
     turnId,
   } as WireFrame;
 }

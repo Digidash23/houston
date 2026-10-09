@@ -4,7 +4,11 @@ import type { TerminalBoardStatus } from "./feed-output";
 import { PreAcceptTurn } from "./pre-accept-turn";
 import { PresettlePoll } from "./presettle-poll";
 import { SendHoldState } from "./send-hold-state";
-import { presettleFromHistory, reloadAndSettle } from "./settle-from-history";
+import {
+  type PresettleVerdict,
+  presettleFromHistory,
+  reloadAndSettle,
+} from "./settle-from-history";
 import type { EngineNoticeKind } from "./turn-errors";
 import { applyTurnFrame } from "./turn-frames";
 import { classifyFrame, classifyRunningSync } from "./turn-identity";
@@ -15,6 +19,7 @@ import {
   push,
   type TurnState,
 } from "./turn-settle";
+import { setupSettle } from "./turn-setup-error";
 import type { TurnSinkOptions } from "./turn-sink-options";
 
 export type { TurnSinkOptions } from "./turn-sink-options";
@@ -72,6 +77,7 @@ export class TurnSink {
         !this.s.settled &&
         !this.muted,
       check: () => this.presettleCheck(),
+      gone: () => this.settleGone(),
     });
     this.s = newTurnState(o.agentPath, o.sessionKey, o.output, {
       provider: o.provider,
@@ -121,7 +127,7 @@ export class TurnSink {
   mute(): void {
     this.muted = true;
     this.poll.cancel();
-    this.preAccept.clear(); // a muted sink claims nothing; release what it kept
+    this.preAccept.release(); // a muted sink claims nothing; release what it kept
   }
   /**
    * Turn mode: the send returned 202 — its turn id is authoritative. A pool
@@ -152,7 +158,7 @@ export class TurnSink {
     // The re-send of a held message may have landed: frames are ours again.
     this.held.release();
     // No 202 will name a turn now: nothing kept can be claimed.
-    this.preAccept.clear();
+    this.preAccept.release();
     this.accepted = true;
     // If the engine did accept it and the turn already finished, the pre-settled
     // poll can settle it conclusively — faster than the ambiguous-send verdict
@@ -470,8 +476,8 @@ export class TurnSink {
   }
 
   /** One conclusive-only history settle for the pre-settled poll. */
-  private async presettleCheck(): Promise<boolean> {
-    const settled = await presettleFromHistory(
+  private async presettleCheck(): Promise<PresettleVerdict> {
+    const verdict = await presettleFromHistory(
       this.s,
       this.o.reloadHistory,
       this.s.turnId,
@@ -479,11 +485,19 @@ export class TurnSink {
       () => this.sawRunning || this.muted,
       (turnId) => this.adoptTurnId(turnId),
     );
-    if (settled) {
+    if (verdict === "settled") {
       this.settling = true;
       this.o.stop();
     }
-    return settled;
+    return verdict;
+  }
+
+  /** The poll's bound: the accepted turn never persisted its conversation. */
+  private settleGone(): void {
+    const { message, notice } = setupSettle("agent_setup_failed");
+    finishErr(this.s, message, notice);
+    this.settling = true;
+    this.o.stop();
   }
 
   /**
@@ -510,6 +524,6 @@ export class TurnSink {
   dispose(): void {
     this.muted = true;
     this.poll.cancel();
-    this.preAccept.clear();
+    this.preAccept.release();
   }
 }

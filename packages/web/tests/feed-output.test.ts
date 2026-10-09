@@ -1,3 +1,4 @@
+import { setAdapterErrorSink } from "@houston/engine-adapter";
 import { bus } from "@houston/engine-adapter/bus";
 import { createBusFeedOutput } from "@houston/engine-adapter/feed-output";
 import { expect, test } from "vitest";
@@ -190,4 +191,29 @@ test("a non-waking 502 on the board persist still surfaces in the feed", async (
   stop();
 
   expect(systemMessages(events)).toHaveLength(1);
+});
+
+test("a turn that failed before it could start is reported, its line still emitted", () => {
+  const reports: Array<{ source: string; error: unknown }> = [];
+  setAdapterErrorSink((source, error) => reports.push({ source, error }));
+  const { events, stop } = collect();
+  const out = createBusFeedOutput(async () => {});
+
+  out.pushFeedItem("Houston/Bo", "c1", {
+    feed_type: "system_message",
+    data: "Your agent couldn't get ready for this message.",
+    notice: "agent_setup_failed",
+  });
+  out.pushFeedItem("Houston/Bo", "c1", {
+    feed_type: "system_message",
+    data: "Your agent had to restart.",
+    notice: "engine_restart",
+  });
+  stop();
+  setAdapterErrorSink((source, error) => console.error(`[${source}]`, error));
+
+  expect(reports).toHaveLength(1);
+  expect(reports[0].source).toBe("turn_setup_failed");
+  expect(String(reports[0].error)).toContain("agent_setup_failed");
+  expect(events.filter((e) => e.type === "FeedItem")).toHaveLength(2);
 });

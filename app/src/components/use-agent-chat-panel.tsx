@@ -2153,6 +2153,10 @@ export function useAgentChatPanel({
         return <SystemNote text={t("chat:sendBusy")} />;
       if (msg.notice === "compute_busy")
         return <SystemNote text={t("chat:computeBusy")} />;
+      if (msg.notice === "agent_too_large")
+        return <SystemNote text={t("chat:agentSetup.tooLarge")} />;
+      if (msg.notice === "agent_setup_failed")
+        return <SystemNote text={t("chat:agentSetup.failed")} />;
       return undefined;
     },
     [

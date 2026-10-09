@@ -181,4 +181,19 @@ describe("goalProgress when the turn fails before the manager answers", () => {
       reason: null,
     });
   });
+
+  it("fails on a turn that could not get ready to start", () => {
+    for (const notice of ["agent_too_large", "agent_setup_failed"] as const) {
+      const setup: FeedItem = {
+        feed_type: "system_message",
+        data: "Your agent couldn't get ready for this message.",
+        notice,
+      };
+      deepStrictEqual(goalProgress([setup]), {
+        phase: "failed",
+        staff: null,
+        reason: null,
+      });
+    }
+  });
 });

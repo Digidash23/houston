@@ -78,6 +78,12 @@ export type {
 } from "./turn-inputs";
 export { isTurnRunningRejection } from "./turn-running";
 export {
+  AGENT_SETUP_FAILED_MESSAGE,
+  AGENT_TOO_LARGE_MESSAGE,
+  isTurnSetupNotice,
+  type TurnSetupNotice,
+} from "./turn-setup-error";
+export {
   type StreamTurnOptions,
   streamTurn,
   type TurnWirePin,

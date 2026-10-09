@@ -1,11 +1,16 @@
+import type { PresettleVerdict } from "./settle-from-history";
+import { PRESETTLED_GONE_MS } from "./stream-tuning";
+
 /**
  * What the pre-settled poll needs from its turn sink. `canArm`: the send was
  * accepted, no stream evidence arrived and no settle is underway. `check`:
- * one conclusive-only history settle; true when it settled the turn.
+ * one conclusive-only history settle. `gone`: the conversation stayed not
+ * found for {@link PRESETTLED_GONE_MS}; the host settles the turn as failed.
  */
 export interface PresettleHost {
   canArm(): boolean;
-  check(): Promise<boolean>;
+  check(): Promise<PresettleVerdict>;
+  gone(): void;
 }
 
 /**
@@ -25,6 +30,8 @@ export interface PresettleHost {
  */
 export class PresettlePoll {
   private timer: ReturnType<typeof setTimeout> | undefined;
+  /** When the reloads started answering "conversation not found" in a row. */
+  private goneSince: number | undefined;
 
   constructor(
     /** Absent disables the poll (observer mode). */
@@ -57,10 +64,20 @@ export class PresettlePoll {
    * WRONGLY error a healthy slow turn (its history ends on our trailing user
    * message). Inconclusive re-arms the poll; any stream evidence in the interim
    * cancels it, and the reconnect budget still owns a genuinely lost stream.
+   * A conversation that stays not found is bounded: the healthy stream would
+   * otherwise keep the poll reading 404 until the person leaves (H-003).
    */
   private async fire(): Promise<void> {
     if (!this.host.canArm()) return;
-    if (await this.host.check()) return;
+    const verdict = await this.host.check();
+    if (verdict === "settled") return;
+    if (verdict === "gone") {
+      this.goneSince ??= Date.now();
+      if (Date.now() - this.goneSince >= PRESETTLED_GONE_MS) {
+        if (this.host.canArm()) this.host.gone();
+        return;
+      }
+    } else this.goneSince = undefined;
     // Inconclusive: the turn hasn't proven it finished. Re-arm and keep the
     // stream as the authority (frames cancel the poll; the budget owns loss).
     this.arm();

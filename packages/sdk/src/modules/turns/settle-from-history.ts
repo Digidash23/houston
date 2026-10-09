@@ -1,4 +1,4 @@
-import type { ChatMessage } from "@houston/runtime-client";
+import { type ChatMessage, EngineError } from "@houston/runtime-client";
 import { adoptReply } from "./adopt-reply";
 import { conclusiveReply, turnReply } from "./conclusive-reply";
 import { finishErr, finishOk, push, type TurnState } from "./turn-settle";
@@ -75,8 +75,10 @@ export function settleFromHistory(
  * for our exact `turnId`, or (legacy, no ids) a trailing assistant message the
  * `guard` accepts as ours — and returns `true` iff it did. Inconclusive (a
  * trailing USER message, a guard reject, a failed reload, or live evidence that
- * arrived mid-reload) returns `false` and settles nothing: the poll re-arms and
- * the stream stays the authority.
+ * arrived mid-reload) returns `pending` and settles nothing: the poll re-arms
+ * and the stream stays the authority. A reload the server answers 404 returns
+ * `gone`: the conversation does not exist (yet), and the poll bounds how long
+ * that may last (`PRESETTLED_GONE_MS`).
  */
 export async function presettleFromHistory(
   s: TurnState,
@@ -85,24 +87,27 @@ export async function presettleFromHistory(
   guard: (messages: ChatMessage[]) => boolean,
   hasEvidence: () => boolean,
   onAdoptTurnId?: (turnId: string) => void,
-): Promise<boolean> {
+): Promise<PresettleVerdict> {
   let messages: ChatMessage[];
   try {
     messages = await reloadHistory();
-  } catch {
-    // A speculative background reload — swallow and re-arm, never surface noise
-    // on every poll tick. A genuinely lost stream is owned by the reconnect
-    // budget, which settles the turn on its own.
-    return false;
+  } catch (e) {
+    // A speculative background reload: never surface noise on every poll
+    // tick. A genuinely lost stream is owned by the reconnect budget.
+    if (s.settled || hasEvidence()) return "pending";
+    return e instanceof EngineError && e.status === 404 ? "gone" : "pending";
   }
   // Live evidence landed while we were reloading, or another path already
   // settled: the stream now owns the turn — never settle from a stale poll.
-  if (s.settled || hasEvidence()) return false;
+  if (s.settled || hasEvidence()) return "pending";
   const reply = conclusiveReply(messages, turnId, guard);
-  if (!reply) return false;
+  if (!reply) return "pending";
   adoptReply(s, reply, onAdoptTurnId);
-  return true;
+  return "settled";
 }
+
+/** One pre-settled poll tick's outcome (see {@link presettleFromHistory}). */
+export type PresettleVerdict = "settled" | "pending" | "gone";
 
 /**
  * Refetch history and settle from it (`settleFromHistory`), then stop the

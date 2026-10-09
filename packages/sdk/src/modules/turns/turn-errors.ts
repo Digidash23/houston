@@ -171,12 +171,16 @@ export const ENGINE_RESUMED_MESSAGE =
  * against. `send_busy`: a send held behind a running turn past its whole
  * budget (`turn-running.ts`). `compute_busy`: a send the cloud's shared
  * compute had no room for past its whole budget (`send-busy.ts`).
+ * `agent_too_large` / `agent_setup_failed`: a turn that failed before any
+ * provider work (`turn-setup-error.ts`).
  */
 export type EngineNoticeKind =
   | "engine_restart"
   | "engine_resumed"
   | "send_busy"
-  | "compute_busy";
+  | "compute_busy"
+  | "agent_too_large"
+  | "agent_setup_failed";
 
 /**
  * Whether a turn's terminal error is the user pressing Stop — the verbatim

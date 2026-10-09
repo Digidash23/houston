@@ -21,6 +21,8 @@ export type {
 // a host (the web engine-adapter) can drive it with its OWN FeedOutput. The
 // typed facade is still reached through `sdk.turns`.
 export {
+  AGENT_SETUP_FAILED_MESSAGE,
+  AGENT_TOO_LARGE_MESSAGE,
   type AttachmentRef,
   type AttachmentsOperation,
   AttachmentTooLargeError,
@@ -56,6 +58,7 @@ export {
   isNotConnectedError,
   isStoppedByUser,
   isTurnRunningRejection,
+  isTurnSetupNotice,
   MultiplexFeedOutput,
   messageLimitRefusal,
   observeConversation,
@@ -83,6 +86,7 @@ export {
   type TurnPrewarmInput,
   type TurnSendInput,
   type TurnSetModeInput,
+  type TurnSetupNotice,
   TurnsHttpError,
   type TurnTruncateInput,
   type TurnWirePin,
