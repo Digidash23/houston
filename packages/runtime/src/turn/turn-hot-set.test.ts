@@ -41,6 +41,32 @@ test("admits the turn's own conversation state, nothing of the others", () => {
   expect(ownConversationOnly("a b")(encoded, listed(encoded), root)).toBe(true);
 });
 
+test("admits the turn's own archive segments, never another conversation's", () => {
+  // A shared routine chat's archive grows without bound (H-010: 54+ MiB of
+  // segments); a turn in any OTHER chat of the agent must not download it.
+  const root = rootWithSessions();
+  const admit = ownConversationOnly("c1");
+  for (const runtime of [standing, "data"]) {
+    const own = `${runtime}/conversations/c1.archive/1.json`;
+    const other = `${runtime}/conversations/routine-r1.archive/7.json`;
+    const prefixTwin = `${runtime}/conversations/c10.archive/1.json`;
+    const listing = listed(own, other, prefixTwin);
+    expect(admit(own, listing, root)).toBe(true);
+    expect(admit(other, listing, root)).toBe(false);
+    expect(admit(prefixTwin, listing, root)).toBe(false);
+  }
+  const encoded = `${standing}/conversations/a%20b.archive/2.json`;
+  expect(ownConversationOnly("a b")(encoded, listed(encoded), root)).toBe(true);
+  // Anything deeper or oddly named under conversations/ is not a segment of
+  // this chat either.
+  expect(
+    admit(`${standing}/conversations/c1.archive/deep/2.json`, listed(), root),
+  ).toBe(false);
+  expect(admit(`${standing}/conversations/c1/1.json`, listed(), root)).toBe(
+    false,
+  );
+});
+
 test("hydrates the conversation's own markers, never another's", () => {
   const root = rootWithSessions();
   const admit = ownConversationOnly("c1");
