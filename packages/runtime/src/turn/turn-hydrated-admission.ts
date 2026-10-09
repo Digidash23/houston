@@ -1,6 +1,9 @@
 import type { ServerResponse } from "node:http";
 import { dirname, join, posix } from "node:path";
-import { ObjectNotFoundError } from "@houston/runtime-client/object-sync";
+import {
+  ObjectNotFoundError,
+  type ReadResult,
+} from "@houston/runtime-client/object-sync";
 import { loadConversation } from "../store/conversation-file";
 import {
   notInteractionOwnerBody,
@@ -11,6 +14,7 @@ import type {
   TurnFilesystem,
   TurnFilesystemPreparation,
 } from "./turn-filesystem";
+import { turnHydrationError } from "./turn-hydration-error";
 import { TurnSetupError } from "./turn-layout";
 import {
   reportAbandonedTurnStartup,
@@ -64,8 +68,10 @@ export async function refuseHydratedTurn(input: {
 /**
  * The conversation as the store holds it under this turn's claim. A prefetched
  * turn hydrated bytes the gateway read BEFORE it held the claim, so the card
- * the previous turn ended on can be missing from them: read the object again,
- * past the prefetch, into a scratch directory beside the tree.
+ * the previous turn ended on can be missing from them. The object is read
+ * again, past the prefetch, unless the store confirms it is still at the
+ * hydrated generation; a store that cannot confirm sends it in full. A read
+ * failure is answered like a failure during hydration.
  */
 async function claimedMessages(
   turn: TurnRequest,
@@ -73,23 +79,28 @@ async function claimedMessages(
   resolved: ResolvedTurnStore,
 ) {
   const file = `${encodeURIComponent(turn.conversationId)}.json`;
-  if (!turn.prefetch || !resolved.live)
-    return (
-      loadConversation(
-        join(filesystem.dataDir, "conversations"),
-        turn.conversationId,
-      )?.messages ?? []
-    );
+  const hydrated = () =>
+    loadConversation(
+      join(filesystem.dataDir, "conversations"),
+      turn.conversationId,
+    )?.messages ?? [];
+  if (!turn.prefetch || !resolved.live) return hydrated();
   const scratch = join(dirname(filesystem.storeRoot), "card-owner");
   const key = posix.join(filesystem.dataRel, "conversations", file);
+  const held = filesystem.manifest.get(key)?.generation;
+  const live = resolved.live;
+  const read = (destFile: string) => {
+    const at = resolved.prefix ? posix.join(resolved.prefix, key) : key;
+    const opts = held ? { ifGenerationNotMatch: held } : undefined;
+    return live.downloadVersioned
+      ? live.downloadVersioned(at, destFile, opts)
+      : live.download(at, destFile).then(() => ({}) as ReadResult);
+  };
   try {
-    await resolved.live.download(
-      resolved.prefix ? posix.join(resolved.prefix, key) : key,
-      join(scratch, file),
-    );
+    if ((await read(join(scratch, file))).notModified) return hydrated();
   } catch (error) {
     if (error instanceof ObjectNotFoundError) return [];
-    throw error;
+    throw turnHydrationError(error);
   }
   return loadConversation(scratch, turn.conversationId)?.messages ?? [];
 }

@@ -78,7 +78,16 @@ async function pooledTurn(
   conversationId: string,
   extra: Record<string, unknown>,
   seed: (put: (rel: string, content: string) => void) => void = () => {},
-  options: { stalePrefetch?: boolean } = {},
+  options: {
+    stalePrefetch?: boolean;
+    /** The conversation object's generation in the store under the claim;
+     *  the prefetch carries generation 1. */
+    storeGeneration?: string;
+    /** Fail every live read of the conversation object with this status. */
+    failRead?: number;
+    /** Fail every live read of the agent's CLAUDE.md with this status. */
+    failHydration?: number;
+  } = {},
 ) {
   const pool = fakePoolStore("ws/org/agent");
   pool.put(`${AGENT}/CLAUDE.md`, "# Probe\n");
@@ -94,10 +103,35 @@ async function pooledTurn(
   pool.put(conversationKey, cardConversation(conversationId));
   seed(pool.put);
   const turnlog: string[] = [];
+  const reads = { full: 0, notModified: 0 };
   const fetchImpl = (async (input: unknown, init?: RequestInit) => {
     if (String(input).includes("/v1/pod/turnlog/")) {
       turnlog.push(String(init?.body));
       return new Response(null, { status: 204 });
+    }
+    const path = decodeURIComponent(new URL(String(input)).pathname);
+    if (options.failHydration && path.endsWith(`/objects/${AGENT}/CLAUDE.md`))
+      return new Response("denied", { status: options.failHydration });
+    if (
+      (init?.method ?? "GET") === "GET" &&
+      path.endsWith(`/objects/${conversationKey}`)
+    ) {
+      if (options.failRead)
+        return new Response("denied", { status: options.failRead });
+      const generation = options.storeGeneration ?? "1";
+      const condition = new Headers(init?.headers).get(
+        "X-Houston-If-Generation-Not-Match",
+      );
+      if (condition === generation) {
+        reads.notModified++;
+        return new Response(null, { status: 304 });
+      }
+      reads.full++;
+      const live = await pool.fetchImpl(input as string, init);
+      return new Response(await live.arrayBuffer(), {
+        status: live.status,
+        headers: { "X-Houston-Generation": generation },
+      });
     }
     return pool.fetchImpl(input as string, init);
   }) as typeof fetch;
@@ -143,6 +177,7 @@ async function pooledTurn(
     text: await res.text(),
     runTurn,
     turnlog,
+    reads,
     pool,
     conversationKey,
   };
@@ -232,10 +267,11 @@ test("the card is read under the claim, not from bytes prefetched before it", as
     "c1",
     { actingAs: { userId: OTHER } },
     undefined,
-    { stalePrefetch: true },
+    { stalePrefetch: true, storeGeneration: "2" },
   );
 
   expect(out.res.status).toBe(403);
+  expect(out.reads.full).toBe(1);
   expect(out.runTurn).not.toHaveBeenCalled();
   expect(out.turnlog).toEqual([]);
 });
@@ -245,9 +281,53 @@ test("a prefetched turn from the card's own person runs", async () => {
     "c1",
     { actingAs: { userId: OWNER } },
     undefined,
-    { stalePrefetch: true },
+    { stalePrefetch: true, storeGeneration: "2" },
   );
 
   expect(out.res.status).toBe(200);
   expect(out.runTurn).toHaveBeenCalledOnce();
+});
+
+test("an unchanged generation is not read again: the prefetched bytes decide", async () => {
+  // The store's bytes carry a card, but its generation is the prefetched one:
+  // the worker trusts what it hydrated and skips the body.
+  const out = await pooledTurn(
+    "c1",
+    { actingAs: { userId: OTHER } },
+    undefined,
+    { stalePrefetch: true, storeGeneration: "1" },
+  );
+
+  expect(out.reads).toEqual({ full: 0, notModified: 1 });
+  expect(out.res.status).toBe(200);
+  expect(out.runTurn).toHaveBeenCalledOnce();
+});
+
+test("a store failure on the fresh read is answered like one during hydration", async () => {
+  const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    const fresh = await pooledTurn(
+      "c1",
+      { actingAs: { userId: OTHER } },
+      undefined,
+      { stalePrefetch: true, storeGeneration: "2", failRead: 403 },
+    );
+    const hydrating = await pooledTurn(
+      "c2",
+      { actingAs: { userId: OTHER } },
+      undefined,
+      { failHydration: 403 },
+    );
+
+    for (const out of [fresh, hydrating]) {
+      expect(out.res.status).toBe(500);
+      expect(JSON.parse(out.text)).toMatchObject({
+        error: expect.stringContaining("failed (403)"),
+      });
+      expect(out.runTurn).not.toHaveBeenCalled();
+      expect(out.turnlog).toEqual([]);
+    }
+  } finally {
+    errorLog.mockRestore();
+  }
 });
