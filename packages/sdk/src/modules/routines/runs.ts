@@ -22,8 +22,11 @@ import type { RoutineRun, WebhookKeyReveal } from "./types";
  *
  * An `error` run says why in `failure` (the account or model it needed is
  * unusable: fix that, or the routine pauses itself after repeated runs) or in
- * `delivery_failure` (it never started in time; nothing to fix, run it again
- * with runRoutineNow); any other failure tells its story in `summary` only.
+ * `delivery_failure` (it never started: `pool_delivery_expired` means it ran
+ * out of time, so run it again with runRoutineNow; `creator_no_access` means
+ * the person it runs as can no longer use the agent, and any updateRoutine
+ * call, even one that changes nothing, makes the caller that person); any
+ * other failure tells its story in `summary` only.
  * @param agentId The agent this acts on, by the id listAgents returns. An
  *   agent's name is not its id, so read the id from listAgents first.
  * @assistant group:routines

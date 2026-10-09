@@ -24,6 +24,14 @@ test("the protocol row from cloud validates with a delivery failure", () => {
   expect(validate([run]), JSON.stringify(validate.errors)).toBe(true);
 });
 
+test("the schema accepts a fire refused for its creator's access", () => {
+  const refused = {
+    ...legacy,
+    delivery_failure: { code: "creator_no_access" as const },
+  } satisfies RoutineRun & WireRoutineRun;
+  expect(validate([refused]), JSON.stringify(validate.errors)).toBe(true);
+});
+
 test("the schema accepts existing account failures and resumed runs", () => {
   expect(
     validate([

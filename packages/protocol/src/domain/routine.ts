@@ -180,9 +180,11 @@ export interface RoutineRun {
    */
   failure?: RoutineRunFailure;
   /**
-   * Cloud could not hand the fire to a worker before its max age, so the run
-   * never started. Written by the control plane, never by the engine; it is
-   * never paired with `failure` and never feeds the auto-pause streak.
+   * Cloud never started the run: no worker took the fire before its max age,
+   * or the routine's creator can no longer use the agent. Written by the
+   * control plane, never by the engine; it is never paired with `failure` and
+   * never feeds the auto-pause streak. A client that does not know the code
+   * shows `summary`.
    */
   delivery_failure?: RoutineDeliveryFailure;
   /**
