@@ -90,10 +90,12 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
               connect.mutate();
             }}
             onOpen={(url) => reopen.mutate(url)}
-            onLink={() => {
-              watch("slack");
-              link.mutate();
-            }}
+            // The code lives longer than the default window; watch it all.
+            onLink={() =>
+              link.mutate(undefined, {
+                onSuccess: (minted) => watch("slack", minted.expiresAt),
+              })
+            }
             onDisconnect={setTarget}
           />
         );

@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   CHANNEL_WATCH_MS,
   CHANNEL_WATCH_POLL_MS,
+  type ChannelWatches,
   channelWatchActive,
   channelWatchLanded,
   channelWatchPollMs,
+  pruneLandedWatches,
   startChannelWatch,
+  watchChannel,
 } from "./watch";
 
 const now = 1_000_000;
@@ -14,14 +17,14 @@ const whatsapp = (id: string) => ({ id, provider: "whatsapp" as const });
 
 describe("watching for a connection made outside this tab", () => {
   it("polls nothing when no hand-off is outstanding", () => {
-    expect(channelWatchActive(null, [], now)).toBe(false);
-    expect(channelWatchPollMs([null, undefined], [], now)).toBe(false);
+    expect(channelWatchActive(undefined, [], now)).toBe(false);
+    expect(channelWatchPollMs({}, [], now)).toBe(false);
   });
 
   it("polls while the connection the user went to make has not arrived", () => {
     const watch = startChannelWatch("slack", [slack("a")], now);
     expect(channelWatchActive(watch, [slack("a")], now)).toBe(true);
-    expect(channelWatchPollMs([watch], [slack("a")], now)).toBe(
+    expect(channelWatchPollMs({ slack: watch }, [slack("a")], now)).toBe(
       CHANNEL_WATCH_POLL_MS,
     );
     expect(
@@ -48,6 +51,14 @@ describe("watching for a connection made outside this tab", () => {
     expect(channelWatchLanded(watch, landed)).toBe(true);
   });
 
+  it("lands on a NEW connection even after an old one was disconnected", () => {
+    // Counting would miss this: one gone and one new leaves the count as it was.
+    const watch = startChannelWatch("whatsapp", [whatsapp("old")], now);
+    expect(channelWatchLanded(watch, [])).toBe(false);
+    expect(channelWatchActive(watch, [], now)).toBe(true);
+    expect(channelWatchLanded(watch, [whatsapp("new")])).toBe(true);
+  });
+
   it("keeps watching until a code that outlives the default window expires", () => {
     // A WhatsApp code lives ten minutes and is scanned on ANOTHER device, so
     // this window never regains focus: the watch has to cover the whole code.
@@ -71,16 +82,51 @@ describe("watching for a connection made outside this tab", () => {
   });
 
   it("polls while ANY provider's watch is outstanding", () => {
-    const slackWatch = startChannelWatch("slack", [], now);
-    const whatsAppWatch = startChannelWatch("whatsapp", [], now);
+    const watches: ChannelWatches = {
+      slack: startChannelWatch("slack", [], now),
+      whatsapp: startChannelWatch("whatsapp", [], now),
+    };
     const list = [slack("a")];
-    expect(channelWatchPollMs([slackWatch, whatsAppWatch], list, now)).toBe(
-      CHANNEL_WATCH_POLL_MS,
-    );
-    expect(channelWatchPollMs([slackWatch], list, now)).toBe(false);
+    expect(channelWatchPollMs(watches, list, now)).toBe(CHANNEL_WATCH_POLL_MS);
+    expect(channelWatchPollMs({ slack: watches.slack }, list, now)).toBe(false);
   });
 
   it("is not landed while nothing is watched", () => {
-    expect(channelWatchLanded(null, [whatsapp("a")])).toBe(false);
+    expect(channelWatchLanded(undefined, [whatsapp("a")])).toBe(false);
+  });
+});
+
+describe("the per-provider watch record", () => {
+  it("starting one provider's watch leaves the other's clock alone", () => {
+    const first = watchChannel({}, "whatsapp", [], now);
+    const both = watchChannel(first, "slack", [], now + 60_000);
+    expect(both.whatsapp).toBe(first.whatsapp);
+    expect(both.slack?.until).toBe(now + 60_000 + CHANNEL_WATCH_MS);
+  });
+
+  it("restarting a provider's watch replaces it", () => {
+    const expiresAt = new Date(now + 10 * 60_000).toISOString();
+    const first = watchChannel({}, "whatsapp", [], now);
+    const again = watchChannel(first, "whatsapp", [], now, expiresAt);
+    expect(again.whatsapp?.until).toBe(now + 10 * 60_000);
+  });
+
+  it("ends exactly the watches whose connection landed, and names them", () => {
+    const watches = watchChannel(
+      watchChannel({}, "slack", [], now),
+      "whatsapp",
+      [],
+      now,
+    );
+    const pruned = pruneLandedWatches(watches, [whatsapp("w")]);
+    expect(pruned.landed).toEqual(["whatsapp"]);
+    expect(pruned.watches).toEqual({ slack: watches.slack });
+  });
+
+  it("returns the same record when nothing landed", () => {
+    const watches = watchChannel({}, "slack", [slack("a")], now);
+    const pruned = pruneLandedWatches(watches, [slack("a")]);
+    expect(pruned.landed).toEqual([]);
+    expect(pruned.watches).toBe(watches);
   });
 });

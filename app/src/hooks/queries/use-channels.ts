@@ -1,5 +1,5 @@
 import {
-  type ChannelWatch,
+  type ChannelWatches,
   channelWatchPollMs,
 } from "@houston/sdk/channels/watch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,9 +15,7 @@ import { inChannelWorkspace } from "../channel-workspace-scope";
  * `watches` are the hand-offs the Channels section has outstanding, one per
  * provider at most; the nav row reads availability only and never polls.
  */
-export function useChannels(
-  watches: readonly (ChannelWatch | undefined)[] = [],
-) {
+export function useChannels(watches: ChannelWatches = {}) {
   const spaceId = useWorkspaceStore((s) => s.current?.id);
   return useQuery({
     queryKey: queryKeys.channels(spaceId),
