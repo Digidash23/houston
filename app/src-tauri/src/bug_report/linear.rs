@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
+use super::failure::BugReportFailure;
 use super::format::{format_issue_description, format_issue_title};
 use super::linear_graphql::post_graphql;
 use super::BugReportPayload;
@@ -30,14 +32,22 @@ query HoustonBugReportLabel($teamId: String!, $labelName: String!) {
 }
 "#;
 
+/// Bounds each Linear call. A hung Linear lands as `Other` after this, so the
+/// frontend's fallback still runs while the person waits on the spinner.
+pub(super) const LINEAR_REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
+
 pub(super) async fn send_bug_report_to(
     api_url: &str,
     api_key: &str,
     team_id: &str,
     label_name: &str,
     payload: &BugReportPayload,
-) -> Result<Option<String>, String> {
-    let client = reqwest::Client::new();
+    timeout: Duration,
+) -> Result<Option<String>, BugReportFailure> {
+    let client = reqwest::Client::builder()
+        .timeout(timeout)
+        .build()
+        .map_err(|e| BugReportFailure::other(format!("Linear client build failed: {e}")))?;
     let label_id = resolve_label_id(&client, api_url, api_key, team_id, label_name).await?;
 
     let data = post_graphql::<LinearIssueCreateData, _>(
@@ -50,17 +60,17 @@ pub(super) async fn send_bug_report_to(
         },
     )
     .await?;
-    let issue_create = data
-        .issue_create
-        .ok_or_else(|| "Linear API response did not include issueCreate data".to_string())?;
+    let issue_create = data.issue_create.ok_or_else(|| {
+        BugReportFailure::other("Linear API response did not include issueCreate data")
+    })?;
 
     if !issue_create.success {
-        return Err("Linear issue creation failed".to_string());
+        return Err(BugReportFailure::other("Linear issue creation failed"));
     }
 
-    let issue = issue_create
-        .issue
-        .ok_or_else(|| "Linear issue creation succeeded without issue data".to_string())?;
+    let issue = issue_create.issue.ok_or_else(|| {
+        BugReportFailure::other("Linear issue creation succeeded without issue data")
+    })?;
 
     tracing::info!(
         issue_id = %issue.id,
@@ -78,7 +88,7 @@ async fn resolve_label_id(
     api_key: &str,
     team_id: &str,
     label_name: &str,
-) -> Result<String, String> {
+) -> Result<String, BugReportFailure> {
     let data = post_graphql::<LinearLabelData, _>(
         client,
         api_url,
@@ -92,7 +102,7 @@ async fn resolve_label_id(
     .await?;
     let labels = data
         .team
-        .ok_or_else(|| format!("Linear team not found: {team_id}"))?
+        .ok_or_else(|| BugReportFailure::other(format!("Linear team not found: {team_id}")))?
         .labels
         .nodes;
 
@@ -100,7 +110,7 @@ async fn resolve_label_id(
         .into_iter()
         .find(|label| label.name == label_name)
         .map(|label| label.id)
-        .ok_or_else(|| format!("Linear bug label not found: {label_name}"))
+        .ok_or_else(|| BugReportFailure::other(format!("Linear bug label not found: {label_name}")))
 }
 
 #[derive(Serialize)]

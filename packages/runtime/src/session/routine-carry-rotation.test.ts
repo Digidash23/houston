@@ -99,12 +99,14 @@ test("the next run resets on both paths even when rotation archived the whole pr
     "Export everything.",
     MODEL,
     "auto",
+    "fire",
   );
   const pooled = resetPooledRoutineContext({
     dataDir: config.dataDir,
     conversationId: id,
     turnId: "now",
     windowTokens: 200_000,
+    kind: "fire",
   });
 
   expect(standing?.preTokens).toBe(152_000);
@@ -125,12 +127,14 @@ test("a rotated chat with no recorded carry resets on both paths rather than gue
     "Export everything.",
     MODEL,
     "auto",
+    "fire",
   );
   const pooled = resetPooledRoutineContext({
     dataDir: config.dataDir,
     conversationId: id,
     turnId: "now",
     windowTokens: 200_000,
+    kind: "fire",
   });
   expect(standing).not.toBeNull();
   expect(pooled).not.toBeNull();

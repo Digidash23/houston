@@ -4,6 +4,7 @@ import { readAgentModelOverrides } from "../lib/agent-model-overrides";
 import { buildAiGenerationProps } from "../lib/ai-generation";
 import { analytics, classifyAnalyticsError } from "../lib/analytics";
 import { subscribeHoustonEvents } from "../lib/events";
+import { sessionFailureEvents } from "../lib/session-failure-analytics";
 import { tauriConfig } from "../lib/tauri";
 
 /** What the `final_result` feed frame carries (ui/chat FeedEntry). */
@@ -102,18 +103,18 @@ export function useAnalyticsSubscriber() {
         }
 
         case "SessionStatus": {
-          const { status, error } = p.data;
-          if (status === "completed") {
+          if (p.data.status === "completed") {
             analytics.track("session_completed");
           }
-          if (status === "error" && error) {
-            const error_kind = classifyAnalyticsError(error);
-            analytics.track("session_failed", { error_kind });
-            analytics.track("app_error_shown", {
-              source: "session",
-              error_kind,
-            });
-          }
+          // The SDK's typed error class decides what a failure counts as
+          // (`session-failure-analytics.ts`); the copy alone classified
+          // every cause as `unknown`.
+          if (p.data.status === "error")
+            for (const { event, props } of sessionFailureEvents(
+              p.data,
+              Date.now(),
+            ))
+              analytics.track(event, props);
           break;
         }
 

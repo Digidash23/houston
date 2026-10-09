@@ -11,6 +11,14 @@ import type {
   QuotaScope,
 } from "./provider-error-parts";
 
+/**
+ * The `code` the gateway's credential serve, the host's own sandbox serve and
+ * the pool's send refusal all carry for a provider that blocks the account
+ * behind an intact credential (`billing_locked` in AuthFailureCause). One
+ * constant so the host, the runtime's serve probe and the SDK read one string.
+ */
+export const PROVIDER_ACCOUNT_BLOCKED_CODE = "provider_account_blocked";
+
 export type {
   AuthFailureCause,
   ModelUnavailableReason,

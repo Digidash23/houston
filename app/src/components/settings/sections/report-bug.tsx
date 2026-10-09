@@ -1,11 +1,15 @@
 import { Button } from "@houston-ai/core";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { reportBug } from "../../../lib/bug-report";
+import { submitBugReport } from "../../../lib/bug-report";
 import { getCurrentUserEmail } from "../../../lib/current-user";
-import { genericErrorDescription } from "../../../lib/error-report";
+import { logAndReportError } from "../../../lib/error-report";
 import { useUIStore } from "../../../stores/ui";
 import { useWorkspaceStore } from "../../../stores/workspaces";
+
+/** Under the fallback feedback's 6,000-char message bound, so a report
+ *  never arrives cut. */
+const REPORT_MAX_CHARS = 5_000;
 
 export function ReportBugSection() {
   const { t } = useTranslation("settings");
@@ -16,20 +20,36 @@ export function ReportBugSection() {
 
   const canSend = description.trim().length > 0 && !sending;
 
+  // Keeps their text: they should never have to type it again.
+  const showFailure = () =>
+    addToast({
+      title: t("reportBug.toasts.errorTitle"),
+      description: t("reportBug.toasts.errorBody"),
+      variant: "error",
+    });
+
   const handleSend = async () => {
     const trimmed = description.trim();
     if (!trimmed) return;
     setSending(true);
     try {
-      const issueId = await reportBug({
+      // `submitBugReport` never rejects for a channel failure and reports
+      // every one itself; `none` means Linear AND the fallback both failed.
+      const outcome = await submitBugReport({
         command: "manual_report",
-        error: trimmed,
+        error: "(no error: written by the person in Settings > Report bug)",
+        userMessage: trimmed,
         workspaceName: currentWorkspace?.name,
         userEmail: getCurrentUserEmail(),
         timestamp: new Date().toISOString(),
         appVersion: __APP_VERSION__,
       });
+      if (outcome.delivered === "none") {
+        showFailure();
+        return;
+      }
       setDescription("");
+      const issueId = outcome.delivered === "linear" ? outcome.issueId : null;
       addToast({
         title: t("reportBug.toasts.successTitle"),
         description: issueId
@@ -37,12 +57,11 @@ export function ReportBugSection() {
           : t("reportBug.toasts.successBody"),
         variant: "success",
       });
-    } catch (e) {
-      addToast({
-        title: t("reportBug.toasts.errorTitle"),
-        description: genericErrorDescription("manual_report", e),
-        variant: "error",
-      });
+    } catch (err) {
+      // Not a channel failure (those settle as `none`): a bug in the
+      // submit path itself, which must still reach us.
+      logAndReportError("manual_report", err);
+      showFailure();
     } finally {
       setSending(false);
     }
@@ -69,6 +88,7 @@ export function ReportBugSection() {
           onChange={(e) => setDescription(e.target.value)}
           placeholder={t("reportBug.placeholder")}
           rows={5}
+          maxLength={REPORT_MAX_CHARS}
           className="w-full rounded-xl border border-line bg-card px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-focus transition-all resize-y"
         />
       </div>

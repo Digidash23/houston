@@ -59,7 +59,13 @@ test("the carry line is half the window, capped at 100k tokens", () => {
 test("a routine chat under its carry line keeps its session", () => {
   const messages = [...run("r1", used(99_000, 500)), current()];
   expect(
-    planRoutineContext(ROUTINE, { messages, rotated: false }, "now", 200_000),
+    planRoutineContext(
+      ROUTINE,
+      { messages, rotated: false },
+      "now",
+      200_000,
+      "fire",
+    ),
   ).toEqual({
     reset: false,
   });
@@ -68,7 +74,13 @@ test("a routine chat under its carry line keeps its session", () => {
 test("a routine chat at its carry line resets, measured with the last reply", () => {
   const messages = [...run("r1", used(99_600, 400)), current()];
   expect(
-    planRoutineContext(ROUTINE, { messages, rotated: false }, "now", 200_000),
+    planRoutineContext(
+      ROUTINE,
+      { messages, rotated: false },
+      "now",
+      200_000,
+      "fire",
+    ),
   ).toEqual({
     reset: true,
     carriedTokens: 100_000,
@@ -76,10 +88,54 @@ test("a routine chat at its carry line resets, measured with the last reply", ()
   });
 });
 
+test("a person chatting in a routine chat is not held to the fire budget", () => {
+  // A tool-heavy reply left 106k in a 1M window: a fire resets, a chat turn
+  // keeps its session and leaves the rest to the ordinary autocompact.
+  const messages = [...run("r1", used(106_000, 300)), current()];
+  const transcript = { messages, rotated: false };
+  expect(
+    planRoutineContext(ROUTINE, transcript, "now", 1_000_000, "chat"),
+  ).toEqual({ reset: false });
+  expect(
+    planRoutineContext(ROUTINE, transcript, "now", 1_000_000, "fire"),
+  ).toMatchObject({ reset: true, carriedTokens: 106_300 });
+});
+
+test("a chat turn after an overflow, or over an unmeasured history, still resets", () => {
+  const overflowed = [
+    ...run("r1", { content: "", providerError: overflow(200_000) }),
+    current(),
+  ];
+  expect(
+    planRoutineContext(
+      ROUTINE,
+      { messages: overflowed, rotated: false },
+      "now",
+      1_000_000,
+      "chat",
+    ),
+  ).toMatchObject({ reset: true, windowTokens: 200_000 });
+  expect(
+    planRoutineContext(
+      ROUTINE,
+      { messages: [current()], rotated: true },
+      "now",
+      1_000_000,
+      "chat",
+    ),
+  ).toMatchObject({ reset: true, carriedTokens: null });
+});
+
 test("an ordinary chat never resets, however full", () => {
   const messages = [...run("r1", used(190_000)), current()];
   expect(
-    planRoutineContext("chat-1", { messages, rotated: false }, "now", 200_000),
+    planRoutineContext(
+      "chat-1",
+      { messages, rotated: false },
+      "now",
+      200_000,
+      "fire",
+    ),
   ).toEqual({
     reset: false,
   });
@@ -96,6 +152,7 @@ test("a run that overflowed resets the next one, sized by the window it named", 
     { messages, rotated: false },
     "now",
     1_000_000,
+    "fire",
   );
   expect(plan).toMatchObject({ reset: true, windowTokens: 128_000 });
 });
@@ -120,6 +177,7 @@ test("runs newer than the last measurement are added as an estimate", () => {
     { messages, rotated: false },
     "now",
     200_000,
+    "fire",
   );
   expect(plan).toMatchObject({ reset: true });
   expect(plan.reset && plan.carriedTokens).toBeGreaterThan(100_000);
@@ -132,12 +190,24 @@ test("a provider that reports no usage is measured by the transcript itself", ()
     current(),
   ];
   expect(
-    planRoutineContext(ROUTINE, { messages, rotated: false }, "now", 64_000),
+    planRoutineContext(
+      ROUTINE,
+      { messages, rotated: false },
+      "now",
+      64_000,
+      "fire",
+    ),
   ).toMatchObject({
     reset: true,
   });
   expect(
-    planRoutineContext(ROUTINE, { messages, rotated: false }, "now", 1_000_000),
+    planRoutineContext(
+      ROUTINE,
+      { messages, rotated: false },
+      "now",
+      1_000_000,
+      "fire",
+    ),
   ).toEqual({
     reset: false,
   });
@@ -154,7 +224,13 @@ test("thousands of short runs without usage are measured over the whole chat", (
     );
   messages.push(current());
   expect(
-    planRoutineContext(ROUTINE, { messages, rotated: false }, "now", 64_000),
+    planRoutineContext(
+      ROUTINE,
+      { messages, rotated: false },
+      "now",
+      64_000,
+      "fire",
+    ),
   ).toMatchObject({
     reset: true,
   });
@@ -167,7 +243,13 @@ test("CJK runs without usage are not undercounted at four characters a token", (
   ];
   // ~9.8k characters: 2.5k tokens at 4 chars a token, ~9.8k as CJK really is.
   expect(
-    planRoutineContext(ROUTINE, { messages, rotated: false }, "now", 16_384),
+    planRoutineContext(
+      ROUTINE,
+      { messages, rotated: false },
+      "now",
+      16_384,
+      "fire",
+    ),
   ).toMatchObject({
     reset: true,
   });
@@ -184,7 +266,13 @@ test("the walk stops at the last compaction: older fills no longer apply", () =>
     current(),
   ];
   expect(
-    planRoutineContext(ROUTINE, { messages, rotated: false }, "now", 200_000),
+    planRoutineContext(
+      ROUTINE,
+      { messages, rotated: false },
+      "now",
+      200_000,
+      "fire",
+    ),
   ).toEqual({
     reset: false,
   });
@@ -197,7 +285,13 @@ test("the walk stops at a /clear: the cleared turns are not in context", () => {
     current(),
   ];
   expect(
-    planRoutineContext(ROUTINE, { messages, rotated: false }, "now", 200_000),
+    planRoutineContext(
+      ROUTINE,
+      { messages, rotated: false },
+      "now",
+      200_000,
+      "fire",
+    ),
   ).toEqual({
     reset: false,
   });
@@ -217,6 +311,7 @@ test("the recorded carry of the newest run decides, even with nothing else live"
     { messages: [current()], carry: record("r9", 150_000), rotated: true },
     "now",
     200_000,
+    "fire",
   );
   expect(plan).toEqual({
     reset: true,
@@ -231,6 +326,7 @@ test("a recorded overflow of the newest run resets even with nothing else live",
     { messages: [current()], carry: record("r9", 20_000, true), rotated: true },
     "now",
     200_000,
+    "fire",
   );
   expect(plan).toMatchObject({ reset: true });
 });
@@ -249,6 +345,7 @@ test("runs newer than the recorded one are estimated on top of it", () => {
     },
     "now",
     200_000,
+    "fire",
   );
   expect(plan).toMatchObject({ reset: true });
 });
@@ -260,6 +357,7 @@ test("a rotated chat with no record and nothing measured live resets", () => {
       { messages: [current()], rotated: true },
       "now",
       200_000,
+      "fire",
     ),
   ).toEqual({ reset: true, carriedTokens: null, windowTokens: 200_000 });
 });

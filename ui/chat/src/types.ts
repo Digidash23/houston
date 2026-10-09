@@ -55,7 +55,10 @@ export type SystemNoticeKind =
   | "engine_restart"
   | "engine_resumed"
   | "send_busy"
-  | "compute_busy";
+  | "compute_busy"
+  | "agent_too_large"
+  | "agent_setup_failed"
+  | "turn_unconfirmed";
 
 /**
  * A row the host draws itself, placed in the log like any message. `kind`
@@ -357,6 +360,10 @@ export type AuthFailureCause =
   // environment (Anthropic's `oauth_org_not_allowed`). Reconnecting does NOT
   // heal it; the card's action points at using an API key instead.
   | "org_policy_blocked"
+  // The provider blocks the account behind an intact credential (GitHub
+  // Copilot with billing locked). Reconnecting does NOT heal it; the card's
+  // action points at the AI Models page to pick another AI.
+  | "billing_locked"
   | "unknown";
 
 export type RunStatus =

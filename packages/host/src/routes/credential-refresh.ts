@@ -1,3 +1,4 @@
+import { ProviderAccountBlockedError } from "../credentials/account-blocked";
 import { disconnectRejectedCredential } from "../credentials/disconnect";
 import { RefreshRejectedError } from "../credentials/oauth-token-exchange";
 import { isExpiring } from "../credentials/refresh";
@@ -27,12 +28,15 @@ import type {
 const SERVE_VALIDITY_SKEW_MS = 6 * 60 * 1000;
 
 /**
- * What the serve should hand out: a credential good for this turn, or the
- * store's authoritative "not connected" and the message to carry it.
+ * What the serve should hand out: a credential good for this turn, the
+ * store's authoritative "not connected" and the message to carry it, or the
+ * provider's block on the account behind a credential that is intact but
+ * cannot be minted into a live token right now.
  */
 export type ServeCandidate =
   | { cred: WorkspaceCredential }
-  | { notConnected: string };
+  | { notConnected: string }
+  | { blocked: ProviderAccountBlockedError };
 
 /**
  * Bring a credential up to the serve margin, centrally. Only this process
@@ -66,6 +70,14 @@ export async function refreshedForServe(
       }),
     };
   } catch (err) {
+    if (err instanceof ProviderAccountBlockedError) {
+      // The account is blocked at the provider (GitHub Copilot: billing
+      // locked); the stored token is valid. Serve its remaining lifetime
+      // best-effort, as for any failed refresh; once it is dead, the typed
+      // answer says WHY, so nothing reads it as a sign-out (H-005).
+      if (!isExpiring(cred, 0)) return { cred };
+      return { blocked: err };
+    }
     if (err instanceof CredentialGoneError) {
       // The user disconnected the provider while this refresh was queued.
       // Nothing was refreshed and nothing was written; the store's answer is

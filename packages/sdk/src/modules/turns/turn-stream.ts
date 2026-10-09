@@ -12,6 +12,7 @@ import type { PersonStop } from "./person-stop";
 import { randomNonce } from "./random-nonce";
 import { computeBusyRefusal } from "./send-busy";
 import { observerSettled } from "./send-hold";
+import { refusedResendItem, settleRefusedSend } from "./send-refusal-item";
 import { armHandoffStop, sendUntilAccepted } from "./send-wait";
 import {
   type ActiveStream,
@@ -28,10 +29,9 @@ import {
 import {
   engineVerdictMessage,
   isAmbiguousSendFailure,
-  messageLimitRefusal,
   STOPPED_BY_USER,
 } from "./turn-errors";
-import { isTurnRunningRejection, sendRefusal } from "./turn-running";
+import { isTurnRunningRejection } from "./turn-running";
 import { TurnSink } from "./turn-sink";
 import type { FeedAuthor, FeedMention } from "./vm-output";
 
@@ -350,31 +350,7 @@ export async function streamTurn(
       registry.endSend(key);
       // The resend was rejected before it reached the engine — fail its
       // optimistic bubble (the observed turn keeps rendering unaffected).
-      const limit = messageLimitRefusal(e);
-      output.pushFeedItem(
-        agentPath,
-        sessionKey,
-        limit
-          ? {
-              feed_type: "provider_error",
-              data: {
-                kind: "plan_message_limit",
-                provider: "",
-                resets_at: limit.resetsAt,
-                message: limit.error,
-              },
-              fails_pending: true,
-            }
-          : (() => {
-              const refusal = sendRefusal(e);
-              return {
-                feed_type: "system_message" as const,
-                data: refusal.message,
-                ...(refusal.notice ? { notice: refusal.notice } : {}),
-                fails_pending: true,
-              };
-            })(),
-      );
+      output.pushFeedItem(agentPath, sessionKey, refusedResendItem(e));
       firstResponse.resolve("error");
       return; // the observer keeps rendering the running turn
     }
@@ -510,14 +486,7 @@ export async function streamTurn(
     // handler: settle with the engine's plain message so the spinner stops
     // and the reason surfaces. Every settle aborts after it, so an abort with
     // nothing settled is a teardown: a late refusal then settles nothing.
-    if (!sink.settled && !ac.signal.aborted) {
-      const limit = messageLimitRefusal(e);
-      if (limit) sink.planLimit(limit);
-      else {
-        const refusal = sendRefusal(e);
-        sink.fail(refusal.message, refusal.notice);
-      }
-    }
+    if (!sink.settled && !ac.signal.aborted) settleRefusedSend(sink, e);
   } finally {
     if (sendVerdict !== undefined) clearTimeout(sendVerdict);
     sink.dispose(); // clear any armed pre-settled poll — the stream is done

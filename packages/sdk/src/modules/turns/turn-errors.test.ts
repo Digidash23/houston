@@ -1,5 +1,6 @@
 import { EngineError, FatalResumeError } from "@houston/runtime-client";
 import { describe, expect, it, vi } from "vitest";
+import { providerAccountBlockedRefusal } from "./account-blocked-refusal";
 import {
   ENGINE_RESTART_MESSAGE,
   ENGINE_RESUMED_MESSAGE,
@@ -134,6 +135,63 @@ describe("engine-restart copy", () => {
   it("asks for nothing when the engine is already picking the turn back up", () => {
     expect(ENGINE_RESUMED_MESSAGE).toBe(
       "Your agent was interrupted by a restart and is picking up where it left off.",
+    );
+  });
+});
+
+// H-005: the gateway refuses a send over a credential whose provider blocks
+// the ACCOUNT (GitHub Copilot, billing locked) with 409 + a typed code. Read
+// by code, never by the sentence, and never confused with "not connected".
+describe("providerAccountBlockedRefusal", () => {
+  const blocked = {
+    error:
+      "The github-copilot account is blocked by the provider. Fix it there, or connect another AI.",
+    code: "provider_account_blocked",
+    provider: "github-copilot",
+  };
+
+  it("reads the typed 409 from an engine error body", () => {
+    expect(
+      providerAccountBlockedRefusal(
+        new EngineError(409, JSON.stringify(blocked)),
+      ),
+    ).toEqual({
+      code: "provider_account_blocked",
+      error: blocked.error,
+      provider: "github-copilot",
+    });
+  });
+
+  it("unwraps a fatal stream refusal", () => {
+    expect(
+      providerAccountBlockedRefusal(
+        new FatalResumeError(new EngineError(409, JSON.stringify(blocked))),
+      ),
+    ).not.toBeNull();
+  });
+
+  it("ignores the not-connected refusal, other statuses and raw errors", () => {
+    expect(
+      providerAccountBlockedRefusal(
+        new EngineError(
+          409,
+          JSON.stringify({
+            error: "No provider connected.",
+            code: "no_provider",
+          }),
+        ),
+      ),
+    ).toBeNull();
+    expect(
+      providerAccountBlockedRefusal(
+        new EngineError(502, JSON.stringify(blocked)),
+      ),
+    ).toBeNull();
+    expect(
+      providerAccountBlockedRefusal(new EngineError(409, "turn running")),
+    ).toBeNull();
+    expect(providerAccountBlockedRefusal(new TypeError("Load failed"))).toBe(
+      null,
     );
   });
 });

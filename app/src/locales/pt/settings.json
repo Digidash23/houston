@@ -128,7 +128,8 @@
       "successTitle": "Recebido, reporte registrado.",
       "successBody": "O centro de controle já está trabalhando na correção.",
       "successBodyWithId": "O centro de controle já está trabalhando na correção. Referência: {{id}}",
-      "errorTitle": "Não foi possível enviar o reporte"
+      "errorTitle": "Não foi possível enviar o reporte",
+      "errorBody": "Sua mensagem continua aqui. Tente enviar de novo em instantes."
     }
   },
   "migration": {
