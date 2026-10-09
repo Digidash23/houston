@@ -3,6 +3,7 @@ import {
   FatalResumeError,
   streamEventsResumable,
 } from "@houston/runtime-client";
+import { TurnBoardWrites } from "./board-writes";
 import type { FeedOutput } from "./feed-output";
 import {
   type ActiveStream,
@@ -46,11 +47,14 @@ export function observeConversation(
   const entry: ActiveStream = { kind: "observer", dispose: () => ac.abort() };
   registry.set(key, entry);
 
+  // An observed turn's early hand-back and its settle, in order.
+  const board = new TurnBoardWrites(output, agentPath, sessionKey);
   const sink = new TurnSink({
     agentPath,
     sessionKey,
     output,
     mode: "observer",
+    board,
     stop: () => ac.abort(),
     reloadHistory: async () => (await engine.getHistory(sessionKey)).messages,
     // LEGACY fallback (no turn ids anywhere): trust history's trailing reply
@@ -105,12 +109,7 @@ export function observeConversation(
     } finally {
       registry.release(key, entry);
     }
-    if (sink.terminal)
-      await output.persistBoardStatus(
-        agentPath,
-        sessionKey,
-        sink.terminal,
-        sink.terminalInteraction,
-      );
+    // The sink queued the settle write the moment it settled.
+    await board.settled;
   })();
 }

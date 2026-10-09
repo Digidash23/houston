@@ -32,39 +32,47 @@ export function LearningsContent({
   showHelper = true,
 }: {
   entries: LearningEntry[];
-  onAdd: (text: string) => Promise<unknown>;
-  onRemove: (index: number) => Promise<unknown>;
-  onUpdate: (id: string, text: string) => Promise<unknown>;
+  /** Each write paints before it lands and owns its own failure toast, so
+   *  none of them is awaited: the editor closes on the commit. An add or edit
+   *  resolving `false` was refused, and its editor reopens with the text. */
+  onAdd: (text: string) => Promise<boolean>;
+  onRemove: (id: string) => void;
+  onUpdate: (id: string, text: string) => Promise<boolean>;
   layout?: "full" | "section";
   /** False when the mounting page hero already carries this helper copy. */
   showHelper?: boolean;
 }) {
   const { t } = useTranslation("agents");
-  const [drafts, setDrafts] = useState<string[]>([]);
+  // A draft's `text` is empty for a new one, or what the user typed when the
+  // host refused that add (the card reopens holding it).
+  const [drafts, setDrafts] = useState<{ id: string; text: string }[]>([]);
   const [pendingRemove, setPendingRemove] = useState<LearningEntry | null>(
     null,
   );
   const draftCounterRef = useRef(0);
 
-  const addDraft = () => {
+  const addDraft = (text = "") => {
     draftCounterRef.current += 1;
-    setDrafts((prev) => [`draft-${draftCounterRef.current}`, ...prev]);
+    const id = `draft-${draftCounterRef.current}`;
+    setDrafts((prev) => [{ id, text }, ...prev]);
   };
 
   const removeDraft = (localId: string) => {
-    setDrafts((prev) => prev.filter((id) => id !== localId));
+    setDrafts((prev) => prev.filter((d) => d.id !== localId));
   };
 
-  const handleSaveDraft = async (localId: string, text: string) => {
-    await onAdd(text);
+  const handleSaveDraft = (localId: string, text: string) => {
     removeDraft(localId);
+    void onAdd(text).then((landed) => {
+      if (!landed) addDraft(text);
+    });
   };
 
-  const handleConfirmRemove = async () => {
+  const handleConfirmRemove = () => {
     if (!pendingRemove) return;
-    const idx = pendingRemove.index;
+    const { id } = pendingRemove;
     setPendingRemove(null);
-    await onRemove(idx);
+    onRemove(id);
   };
 
   if (entries.length === 0 && drafts.length === 0) {
@@ -74,7 +82,7 @@ export function LearningsContent({
           <EmptyTitle>{t("learnings.emptyTitle")}</EmptyTitle>
           <EmptyDescription>{t("learnings.emptyDescription")}</EmptyDescription>
         </EmptyHeader>
-        <Button onClick={addDraft}>
+        <Button onClick={() => addDraft()}>
           <Plus className="size-4" />
           {t("learnings.addLearning")}
         </Button>
@@ -94,20 +102,23 @@ export function LearningsContent({
             {t("learnings.helper")}
           </p>
         )}
-        <Button size="sm" onClick={addDraft} className="shrink-0">
+        <Button size="sm" onClick={() => addDraft()} className="shrink-0">
           <Plus className="size-3.5" />
           {t("learnings.addLearning")}
         </Button>
       </div>
 
       <div className="flex flex-col gap-3">
-        {drafts.map((localId) => (
+        {drafts.map((draft) => (
           <LearningCard
-            key={localId}
-            initialText=""
+            key={draft.id}
+            initialText={draft.text}
             isDraft
-            onSave={(text) => handleSaveDraft(localId, text)}
-            onCancel={() => removeDraft(localId)}
+            onSave={(text) => {
+              handleSaveDraft(draft.id, text);
+              return undefined;
+            }}
+            onCancel={() => removeDraft(draft.id)}
           />
         ))}
         {entries.map((entry) => (

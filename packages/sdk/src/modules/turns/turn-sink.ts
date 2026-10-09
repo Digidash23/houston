@@ -78,6 +78,7 @@ export class TurnSink {
       provider: o.provider,
       prompt: o.prompt,
       firstResponse: o.firstResponse,
+      board: o.board,
     });
   }
 

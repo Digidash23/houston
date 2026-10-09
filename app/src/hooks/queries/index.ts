@@ -1,8 +1,6 @@
 export {
   activityQueryOptions,
   useActivity,
-  useBulkDeleteActivity,
-  useCreateActivity,
   useUpdateActivityForAnyAgent,
 } from "./use-activity";
 export { useAgentConfig } from "./use-agent-config";
@@ -32,14 +30,8 @@ export {
   useCustomIntegrationScope,
   useCustomTransportAgentId,
 } from "./use-custom-transport";
-export {
-  useCreateFolder,
-  useDeleteFile,
-  useFiles,
-  useMoveFile,
-  useRenameFile,
-  useUploadFiles,
-} from "./use-files";
+export { type FileWrites, useFileWrites } from "./use-file-writes";
+export { useFiles, useUploadFiles } from "./use-files";
 export { useInstructions, useSaveInstructions } from "./use-instructions";
 export {
   useDisconnectIntegration,
@@ -48,12 +40,7 @@ export {
   useIntegrationToolkits,
 } from "./use-integrations";
 export { useAcceptInvite, useDeclineInvite } from "./use-invites";
-export {
-  useAddLearning,
-  useLearnings,
-  useRemoveLearning,
-  useUpdateLearning,
-} from "./use-learnings";
+export { useLearnings, useLearningWrites } from "./use-learnings";
 export {
   MY_EDITABLE_PROFILE_KEY,
   useMyEditableProfile,

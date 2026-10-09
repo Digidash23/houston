@@ -13,6 +13,10 @@ import {
 } from "../store/conversation-file";
 import { importConversationMessagesAt } from "../store/conversation-import";
 import { truncateConversationMutationAt } from "../store/conversation-truncate";
+import {
+  notInteractionOwnerBody,
+  refusesInteractionAnswer,
+} from "../store/interaction-owner";
 import type { ConversationOp } from "./op-grammar-conversation";
 import type { OpResult } from "./op-result";
 import { conversationScope, engineAgentId } from "./op-scope";
@@ -22,6 +26,7 @@ import type { TurnFilesystem } from "./turn-filesystem";
 export async function applyConversationOp(
   op: ConversationOp,
   fs: TurnFilesystem,
+  actingUserId?: string,
 ): Promise<OpResult> {
   const { conversationId: cid, action } = op;
   const dir = join(fs.dataDir, "conversations");
@@ -87,6 +92,23 @@ export async function applyConversationOp(
       decline: true,
     };
   }
+  // While a card is live, only the person it is for may answer, dismiss,
+  // import into, or truncate the conversation. Read from the rows when the
+  // gateway sent them (they win), and before the snapshot is written, so a
+  // refusal leaves the tree untouched. Delete (above) is not card-gated: it
+  // drops history and session, the way out of a card whose person is gone.
+  if (
+    (action === "dismiss-interaction" ||
+      action === "import" ||
+      action === "truncate") &&
+    refusesInteractionAnswer(
+      op.transcript !== undefined
+        ? (op.transcript?.messages ?? [])
+        : (loadConversation(dir, cid)?.messages ?? []),
+      actingUserId,
+    )
+  )
+    return answer(403, notInteractionOwnerBody);
   if (op.transcript !== undefined) {
     // Rows win at database authority. Keep runtime-only fields from the file,
     // but never carry a lagging archive index into the canonical row snapshot.

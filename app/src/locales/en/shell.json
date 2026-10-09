@@ -399,7 +399,11 @@
     "search": "Search",
     "firstDay": "Start their first day",
     "working": "Working…",
-    "newAgent": "New"
+    "newAgent": "New",
+    "layoutSaveFailed": {
+      "title": "Couldn't save your sidebar",
+      "description": "It's back the way it was. Try again in a moment."
+    }
   },
   "accountMenu": {
     "profile": "Profile",

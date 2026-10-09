@@ -66,6 +66,7 @@ import {
   type FileSnapshot,
   snapshotWorkspace,
 } from "./file-changes";
+import { recoverFollowUpActions } from "./follow-up-pass";
 import {
   newInteractionHolder,
   planReadyFallback,
@@ -77,6 +78,7 @@ import {
   type TurnStartupMarks,
 } from "./model-call-report";
 import { switchNeedsCompaction } from "./provider-switch";
+import { subscribeFinishMarks } from "./reply-complete";
 import { replayForConversation } from "./routine-replay";
 import {
   type RoutineSessionReset,
@@ -296,9 +298,9 @@ export async function execTurn(
   // heredoc, 30k+ output tokens) was wire-silent past the stall window and got
   // aborted mid-generation as "stopped responding" (PRODUCT-1632, Bedrock).
   let unsubLiveness: (() => void) | undefined;
-  // The backend's assistant message-start signal, feeding the turn's finish
-  // marks so an offer tool can tell whether the message carrying it already
-  // holds the closing message (turn-finish.ts).
+  // The turn's finish marks' feeds (reply-complete.ts): message starts, so an
+  // offer tool can tell whether its message holds the closing reply, and the
+  // reply beats behind `reply_complete`.
   let unsubMessageStart: (() => void) | undefined;
   // The backend's round-trip boundaries: the watchdog's first-response window
   // runs while a request is out and its response has not opened.
@@ -314,10 +316,12 @@ export async function execTurn(
     unsubPhase = conv.session.subscribeModelPhase?.((phase) =>
       watchdog.onPhase(phase),
     );
-    unsubMessageStart = conv.session.subscribeAssistantMessageStart?.(() => {
-      interaction.finish.noteAssistantMessageStart();
-      watchdog.onResponseStart();
-    });
+    unsubMessageStart = subscribeFinishMarks(
+      conv.session,
+      interaction.finish,
+      emit,
+      () => watchdog.onResponseStart(),
+    );
     unsub = conv.session.subscribe((wire: WireEvent) => {
       if (wire.type === "text") {
         assistantText += wire.data;
@@ -699,6 +703,20 @@ export async function execTurn(
     } finally {
       watchdog.disarm();
     }
+    // A clean reply with no suggest_actions call gets one hidden forced pass
+    // (follow-up-pass.ts). Before `stopped` is read, so a Stop during the
+    // pass still settles this turn as stopped.
+    await recoverFollowUpActions({
+      session: conv.session,
+      interaction,
+      conversationId: id,
+      turnId,
+      planMode: mode === "plan" || liveMode.current === "plan",
+      assistantText,
+      failed:
+        Boolean(providerError || stalled) || conv.stoppedTurnId === turnId,
+      isStopped: () => conv.stoppedTurnId === turnId,
+    });
     // Did the user STOP this turn? cancelTurn marks `conv.stoppedTurnId` before
     // aborting, and pi routes the aborted turn down the usage path (prompt()
     // resolves clean, no provider_error), so this marker is the only trace. Used

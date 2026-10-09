@@ -1,7 +1,8 @@
 /** `.houston/learnings/learnings.json` — persistent lessons the agent has recorded. */
 
 import schema from "@houston-ai/agent-schemas/learnings.schema.json";
-import { newId, now, readAgentJson, writeAgentJson } from "./agent-file";
+import { serialQueue } from "../lib/serial-queue";
+import { readAgentJson, writeAgentJson } from "./agent-file";
 
 /** WHO taught a learning. Mirrors the protocol's `ActivityContributor`. */
 export interface LearningAuthor {
@@ -29,54 +30,55 @@ export interface Learning {
 const NAME = "learnings";
 const s = schema as unknown as Parameters<typeof readAgentJson>[2];
 
+/**
+ * Every write is a read-modify-write of the whole file, and the Memory tab no
+ * longer waits for one to land before offering the next (writes are painted
+ * optimistically). Two in flight together would each write the list they
+ * read, dropping the other's change, so writes queue per agent.
+ */
+const queued = serialQueue();
+
 export async function list(agentPath: string): Promise<Learning[]> {
   return readAgentJson<Learning[]>(agentPath, NAME, s, []);
 }
 
 /**
- * Add a learning the USER typed in the Memory tab.
- *
- * `taughtBy` is provenance, passed in by the caller (see `useAddLearning`) and
- * stamped ONLY in multiplayer — a single-player file has one author by
- * definition, so it stays free of identity keys and byte-identical in shape to
- * what earlier versions wrote. No mission is stamped here: a learning typed in
- * settings did not come from one.
+ * Add a learning the USER typed in the Memory tab, built whole by the caller
+ * (`newLearning`, `lib/learning-optimistic.ts`) so the row painted before the
+ * write lands is the row the file ends up holding, id included.
  */
-export async function add(
-  agentPath: string,
-  text: string,
-  taughtBy?: LearningAuthor,
-): Promise<Learning> {
-  const items = await list(agentPath);
-  const learning: Learning = {
-    id: newId(),
-    text,
-    created_at: now(),
-    ...(taughtBy ? { taught_by: taughtBy } : {}),
-  };
-  await writeAgentJson(agentPath, NAME, s, [...items, learning]);
-  return learning;
+export function add(agentPath: string, learning: Learning): Promise<void> {
+  return queued(agentPath, async () => {
+    const items = await list(agentPath);
+    await writeAgentJson(agentPath, NAME, s, [...items, learning]);
+  });
 }
 
-export async function update(
+export function update(
   agentPath: string,
   id: string,
   text: string,
-): Promise<Learning> {
-  const items = await list(agentPath);
-  const idx = items.findIndex((l) => l.id === id);
-  if (idx === -1) throw new Error(`Learning not found: ${id}`);
-  const updated: Learning = { ...items[idx], text };
-  const next = [...items];
-  next[idx] = updated;
-  await writeAgentJson(agentPath, NAME, s, next);
-  return updated;
+): Promise<void> {
+  return queued(agentPath, async () => {
+    const items = await list(agentPath);
+    const idx = items.findIndex((l) => l.id === id);
+    if (idx === -1) throw new Error(`Learning not found: ${id}`);
+    const next = [...items];
+    next[idx] = { ...items[idx], text };
+    await writeAgentJson(agentPath, NAME, s, next);
+  });
 }
 
-export async function remove(agentPath: string, id: string): Promise<void> {
-  const items = await list(agentPath);
-  const next = items.filter((l) => l.id !== id);
-  if (next.length === items.length)
-    throw new Error(`Learning not found: ${id}`);
-  await writeAgentJson(agentPath, NAME, s, next);
+/**
+ * Removing a learning the file no longer holds is a success: the user wanted
+ * it gone and it is. It happens when a remove queued behind the same
+ * learning's add that the host refused, or behind another surface's delete.
+ */
+export function remove(agentPath: string, id: string): Promise<void> {
+  return queued(agentPath, async () => {
+    const items = await list(agentPath);
+    const next = items.filter((l) => l.id !== id);
+    if (next.length === items.length) return;
+    await writeAgentJson(agentPath, NAME, s, next);
+  });
 }

@@ -399,7 +399,11 @@
     "search": "Buscar",
     "firstDay": "Comece o primeiro dia",
     "working": "Trabalhando…",
-    "newAgent": "Novo"
+    "newAgent": "Novo",
+    "layoutSaveFailed": {
+      "title": "Não foi possível salvar sua barra lateral",
+      "description": "Ela voltou a ser como era. Tente de novo em instantes."
+    }
   },
   "accountMenu": {
     "profile": "Perfil",

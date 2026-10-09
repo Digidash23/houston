@@ -32,6 +32,7 @@ export {
   type PrewarmCapabilities,
 } from "./draft-prewarm";
 export {
+  type BoardPersistOptions,
   type BoardStatus,
   type FeedOutput,
   MultiplexFeedOutput,

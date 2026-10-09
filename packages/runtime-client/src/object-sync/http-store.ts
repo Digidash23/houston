@@ -94,15 +94,15 @@ export class HttpObjectStore implements ObjectStore {
     opts?: ReadOptions,
   ): Promise<ReadResult> {
     return downloadHttpObject(
-      (signal) =>
+      (signal, condition) =>
         this.fetch(this.objectUrl(key), {
-          headers: this.authHeaders(),
+          headers: { ...this.authHeaders(), ...condition },
           signal,
         }),
       (response) => this.captureFence(response),
       key,
       destFile,
-      opts?.signal,
+      opts,
     );
   }
 

@@ -25,7 +25,6 @@ export function PeopleRosterRow({
   isSelf,
   editable,
   focused,
-  busy,
   onRole,
   onRemove,
 }: {
@@ -33,8 +32,6 @@ export function PeopleRosterRow({
   isSelf: boolean;
   editable: boolean;
   focused: boolean;
-  /** Which of the row's writes is in flight. */
-  busy: { role: boolean; remove: boolean };
   onRole: (role: OrgRole) => void;
   onRemove: () => void;
 }) {
@@ -84,7 +81,6 @@ export function PeopleRosterRow({
       {editable ? (
         <Select
           value={member.role}
-          disabled={busy.role}
           onValueChange={(value) => onRole(value as OrgRole)}
         >
           <SelectTrigger
@@ -110,7 +106,6 @@ export function PeopleRosterRow({
         <Button
           variant="ghost"
           className="rounded-full text-danger hover:text-danger"
-          disabled={busy.remove}
           aria-label={t("people.roster.removeLabel", { name })}
           onClick={onRemove}
         >

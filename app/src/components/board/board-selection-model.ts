@@ -18,10 +18,11 @@ export interface BoardSelectionModel {
    *  bar's "Clear", never this. */
   selectAll: (ids: string[]) => void;
   clear: () => void;
-  /** Move every selected card to `status` (a bulk move target). */
-  move: (status: string) => Promise<void>;
+  /** Move every selected card to `status` (a bulk move target). These three
+   *  paint now and write behind the click; a refusal surfaces on its own. */
+  move: (status: string) => void;
   /** Archive every selected card. */
-  archive: () => Promise<void>;
+  archive: () => void;
   /** Delete every selected card. */
-  remove: () => Promise<void>;
+  remove: () => void;
 }

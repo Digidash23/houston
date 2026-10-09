@@ -6,7 +6,6 @@ import {
   useSetMyProfile,
 } from "../../hooks/queries/use-my-editable-profile";
 import { useMyProfile } from "../../hooks/use-my-profile";
-import { useUIStore } from "../../stores/ui";
 import { SettingsCard } from "../settings/settings-row";
 import { AccountPage } from "./account-page";
 import { ProfilePhotoRow } from "./profile-photo";
@@ -26,12 +25,12 @@ function nameErrorKey(trimmed: string): "nameEmpty" | "nameTooLong" | null {
  * by its `key` whenever that saved name changes, so the field re-syncs to server
  * truth without an effect that could overwrite what the user is mid-way through
  * typing. Validation is inline under the field (a toast would scroll away from
- * the thing it is talking about); the save failure path is owned by `call()` in
- * `lib/tauri.ts`, so only SUCCESS is announced here.
+ * the thing it is talking about). The save is optimistic: the new name becomes
+ * the saved name at once (remounting this form on it), and a refusal puts the
+ * old one back with its own toast (`useSetMyProfile`).
  */
 function ProfileNameForm({ savedName }: { savedName: string }) {
   const { t } = useTranslation("settings");
-  const addToast = useUIStore((s) => s.addToast);
   const setProfile = useSetMyProfile();
   const fieldId = useId();
   const errorId = useId();
@@ -40,17 +39,22 @@ function ProfileNameForm({ savedName }: { savedName: string }) {
 
   const trimmed = value.trim();
   const errorKey = nameErrorKey(trimmed);
-  const pending = setProfile.isPending;
   const showError = touched && errorKey !== null;
-  const canSave = !pending && errorKey === null && trimmed !== savedName.trim();
+  const canSave = errorKey === null && trimmed !== savedName.trim();
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setTouched(true);
     if (!canSave) return;
-    setProfile.mutate(
+    void setProfile(
       { displayName: trimmed },
-      { onSuccess: () => addToast({ title: t("profile.toasts.saved") }) },
+      {
+        saved: t("profile.toasts.saved"),
+        failure: {
+          title: t("writeFailed.profileName.title"),
+          description: t("writeFailed.profileName.description"),
+        },
+      },
     );
   };
 
@@ -64,7 +68,6 @@ function ProfileNameForm({ savedName }: { savedName: string }) {
           id={fieldId}
           value={value}
           maxLength={NAME_MAX_CHARS}
-          disabled={pending}
           placeholder={t("profile.name.placeholder")}
           aria-invalid={showError || undefined}
           aria-describedby={showError ? errorId : undefined}
@@ -79,7 +82,7 @@ function ProfileNameForm({ savedName }: { savedName: string }) {
           disabled={!canSave}
           data-testid="profile-name-save"
         >
-          {pending ? t("profile.saving") : t("profile.save")}
+          {t("profile.save")}
         </Button>
       </div>
       {showError ? (
