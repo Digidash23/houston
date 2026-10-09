@@ -15,7 +15,7 @@ function harness(overrides: Partial<GracefulShutdownDeps> = {}) {
   const deps: GracefulShutdownDeps = {
     server,
     drainMs: 480_000,
-    anyTurnRunning: () => running,
+    turnsInFlight: () => (running ? 1 : 0),
     exit,
     log,
     ...overrides,
@@ -98,7 +98,7 @@ test("the listener keeps answering while a turn drains (the host probes /busy th
   drainTurnsThenExit({
     server,
     drainMs: 10_000,
-    anyTurnRunning: () => running,
+    turnsInFlight: () => (running ? 1 : 0),
     exit,
     log: { info: () => {}, warn: () => {} },
   });

@@ -44,6 +44,14 @@ export interface CatalogModelEntry {
    * `getSupportedThinkingLevels`, so it honors levels a model marks unsupported.
    */
   thinkingLevels?: string[];
+  /**
+   * Present only on a RETIRED row: the model id a turn on this id runs on THIS
+   * provider (the `anthropic` provider runs one model per Claude family, so its
+   * `claude-opus-5` row carries `runsAs: "claude-opus-5-5"`). An allowed-models
+   * ceiling naming this id admits the `runsAs` model on this provider only;
+   * the gateway's clamp and the app read it identically.
+   */
+  runsAs?: string;
 }
 
 /** One provider and its full model list. */

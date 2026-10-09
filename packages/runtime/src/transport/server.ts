@@ -6,12 +6,12 @@ import {
   actingFromHeaders,
   runWithActingContext,
 } from "../session/acting-context";
-import { anyTurnRunning } from "../session/bus";
 import { runTurn } from "../session/chat";
 import { isDraining } from "../session/drain";
 import { resumeInterruptedTurns } from "../session/resume-interrupted-turns";
 import type { ResumeRequest } from "../session/resume-request";
 import { settleInterruptedTurns } from "../session/settle-interrupted-turns";
+import { turnsInFlight } from "../session/turn-inflight-count";
 import { handleConversationRoute } from "./conversation-routes";
 import { applyCors } from "./cors";
 import { handleGenerateRoute } from "./generate-route";
@@ -36,11 +36,12 @@ async function handle(ctx: RouteContext) {
     return;
   }
   if (ctx.method === "GET" && ctx.path === "/busy") {
-    // A draining runtime reads busy until it exits: the host's activity
-    // probe must never call a pod idle while a turn is still finishing. A
-    // sign-in waiting on its user is reported apart: it is not a turn.
+    // Turn lifecycle, never the event stream (turn-inflight-count.ts). A
+    // draining runtime reads busy until it exits: the host's activity probe
+    // must never call a pod idle while a turn is still finishing. A sign-in
+    // waiting on its user is reported apart: it is not a turn.
     json(ctx.res, 200, {
-      busy: anyTurnRunning() || isDraining(),
+      busy: turnsInFlight() > 0 || isDraining(),
       loginPending: loginPending(),
     });
     return;

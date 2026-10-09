@@ -1,4 +1,3 @@
-import { isTurnRunning } from "./bus";
 import { conversations } from "./conversation-cache";
 
 /**
@@ -84,13 +83,14 @@ export function conversationCommandInFlight(id: string): boolean {
  * Whether a command must be refused right now — the mirror of the above, plus
  * the same posture the edit-and-resend rewind takes (`truncate-turn.ts`):
  * neither may rewrite a conversation's context behind a turn that is accepted,
- * queued, or executing on it.
+ * queued, or executing on it. Lifecycle only, never the event stream: a frame
+ * published after a turn's terminal one leaves the stream reading running,
+ * and the conversation must not refuse every command on that account.
  */
 export function conversationCommandBusy(id: string): boolean {
   return (
     commandsInFlight.has(id) ||
     heldTurns.has(id) ||
-    isTurnRunning(id) ||
     (conversations.get(id)?.pending ?? 0) > 0
   );
 }
