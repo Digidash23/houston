@@ -1,12 +1,11 @@
 import type { ChatMessage } from "@houston/runtime-client";
-import { canonicalPinProvider, isProvider } from "../ai/providers";
 import {
   logTurnTarget,
   resolveTurnTarget,
   type TurnPinSource,
   turnTargetIsRunnable,
 } from "../ai/turn-diagnostic";
-import { serveModeOn, syncServedCredentialSafe } from "../auth/serve";
+import { syncServedCredentialSafe } from "../auth/serve";
 import { config } from "../config";
 import type { ActingContext } from "./acting-context";
 import { publish } from "./bus";
@@ -19,17 +18,14 @@ import {
 } from "./exec-turn";
 import type { MissionTitleRequest } from "./mission-title";
 import { titleMissionAfterTurn } from "./mission-title-report";
-import {
-  connectedProviderForTurn,
-  pinnedProviderUnavailable,
-} from "./provider-gate";
+import { connectedProviderForTurn } from "./provider-gate";
 import {
   type CardAnswer,
   refuseQueuedCardAnswer,
-  reportPinnedProviderUnavailable,
   reportTurnStartFailure,
   type TurnStartFailure,
 } from "./turn-start-failure";
+import { inTurnOrder, refusePinnedProvider } from "./turn-start-order";
 import { withWorkdirLock } from "./workdir-lock";
 import type { ProvidedContext } from "./workspace-context";
 
@@ -100,18 +96,7 @@ export async function runTurn(
     displayText,
     mentions,
   };
-  const canonicalPinnedProvider = pin?.provider
-    ? canonicalPinProvider(pin.provider)
-    : undefined;
-  if (
-    serveModeOn() &&
-    canonicalPinnedProvider &&
-    isProvider(canonicalPinnedProvider) &&
-    (await pinnedProviderUnavailable(canonicalPinnedProvider))
-  ) {
-    reportPinnedProviderUnavailable(failure, canonicalPinnedProvider);
-    return;
-  }
+  if (await refusePinnedProvider(failure, pin, options?.cardAnswer)) return;
   // The message route already synced the credential and confirmed a provider via
   // ensureProviderForTurn. Re-check here as a cheap guard for the narrow window
   // where the provider is logged out mid-turn: getConversation returns a CACHED
@@ -134,7 +119,9 @@ export async function runTurn(
   try {
     conv = await getConversation(id, pin, context);
   } catch (err) {
-    reportTurnStartFailure(failure, err, pin);
+    await inTurnOrder(failure, options?.cardAnswer, () =>
+      reportTurnStartFailure(failure, err, pin),
+    );
     return;
   }
   const startup = {

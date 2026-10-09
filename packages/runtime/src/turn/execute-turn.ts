@@ -2,7 +2,10 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import type { WireFrame } from "@houston/runtime-client";
 import { openSSE } from "../transport/sse";
-import { startClaimHeartbeat } from "./claim-heartbeat";
+import {
+  type ClaimHeartbeat,
+  startTurnClaimHeartbeat,
+} from "./claim-heartbeat";
 import { executeReadyTurn } from "./execute-ready-turn";
 import { executeShadowTurn } from "./execute-shadow-turn";
 import type { TurnServerDeps } from "./server-types";
@@ -48,7 +51,7 @@ export async function executeTurn(
   if (!turn.claim) req.on("close", () => abort.abort());
   turn.liveMode = { current: turn.mode ?? "execute" };
   const turnId = turn.turnId ?? crypto.randomUUID();
-  let heartbeat: ReturnType<typeof startClaimHeartbeat> | null = null;
+  let heartbeat: ClaimHeartbeat | null = null;
   let turnSandbox: ReturnType<typeof makeTurnSandboxFetch> | null = null;
   let preparation: TurnFilesystemPreparation | undefined;
   let startup: TurnSessionStartupTask | undefined;
@@ -61,21 +64,7 @@ export async function executeTurn(
       fetchImpl: deps.fetchImpl,
     };
     const resolved = resolveTurnStore(turn, deps.store, storeConfig);
-    heartbeat =
-      turn.claim && turn.hostToken
-        ? startClaimHeartbeat({
-            claim: turn.claim,
-            hostToken: turn.hostToken,
-            onFenced: () => abort.abort(),
-            onMode: (mode) => {
-              if (turn.liveMode) turn.liveMode.current = mode;
-            },
-            ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
-            ...(deps.heartbeatIntervalMs
-              ? { intervalMs: deps.heartbeatIntervalMs }
-              : {}),
-          })
-        : null;
+    heartbeat = startTurnClaimHeartbeat(turn, abort, deps);
     preparation = await startTurnRequestFilesystem({
       store: resolved.store,
       prefix: resolved.prefix,
@@ -128,6 +117,7 @@ export async function executeTurn(
     const refused = await refuseHydratedTurn({
       turn,
       preparation,
+      resolved,
       sandbox: turnSandbox,
       startup,
       timings,

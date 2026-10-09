@@ -58,18 +58,25 @@ vi.mock("../session/conversation-cache", async (original) => {
     getConversation: async (id: string) => {
       const conv = fake.get(id) ?? { queue: Promise.resolve(), pending: 0 };
       fake.set(id, conv);
+      // In the real cache too: a turn that fails before it builds a session
+      // finds the running turn's queue there.
+      real.conversations.set(
+        id,
+        conv as unknown as Parameters<typeof real.conversations.set>[1],
+      );
       return conv;
     },
   };
 });
+const serve = vi.hoisted(() => ({ pinUnavailable: false }));
 vi.mock("../session/provider-gate", async (original) => ({
   ...(await original<typeof import("../session/provider-gate")>()),
   connectedProviderForTurn: async () => "openai",
-  pinnedProviderUnavailable: async () => false,
+  pinnedProviderUnavailable: async () => serve.pinUnavailable,
 }));
 vi.mock("../auth/serve", async (original) => ({
   ...(await original<typeof import("../auth/serve")>()),
-  serveModeOn: () => false,
+  serveModeOn: () => serve.pinUnavailable,
   syncServedCredentialSafe: async () => {},
 }));
 const held = vi.hoisted(() => ({ turns: [] as Promise<void>[] }));
@@ -134,11 +141,12 @@ function send(
   text: string,
   nonce: string,
   headers: Record<string, string> = {},
+  extra: Record<string, unknown> = {},
 ) {
   const out: { status?: number; body?: { turnId?: string; code?: string } } =
     {};
   const req = Readable.from([
-    Buffer.from(JSON.stringify({ text, nonce })),
+    Buffer.from(JSON.stringify({ text, nonce, ...extra })),
   ]) as IncomingMessage;
   req.headers = { "x-houston-acting-as": token(sub), ...headers };
   const res = {
@@ -162,19 +170,35 @@ function send(
 /** A's first send is running; `second` is admitted behind it; A's turn then ends on A's card. */
 async function raceBehindCard(
   id: string,
-  second: { sub: string; headers?: Record<string, string> },
+  second: {
+    sub: string;
+    headers?: Record<string, string>;
+    body?: Record<string, unknown>;
+  },
 ) {
   write(id, settled);
   let release = () => {};
   exec.first = new Promise<void>((resolve) => {
     release = resolve;
   });
-  exec.onFirst = () => write(id, cardForA);
+  // A's turn ends: its message and its card land after whatever is there.
+  exec.onFirst = () =>
+    write(id, [
+      ...JSON.parse(readFileSync(file(id), "utf8")).messages,
+      ...cardForA.slice(settled.length),
+    ]);
   const frames: WireFrame[] = [];
   const unsubscribe = subscribe(id, (frame) => frames.push(frame));
   expect((await send(id, A, "send it", `${id}-a`)).status).toBe(202);
   await vi.waitFor(() => expect(exec.executed).toEqual(["send it"]));
-  const admitted = await send(id, second.sub, "yes", `${id}-2`, second.headers);
+  const admitted = await send(
+    id,
+    second.sub,
+    "yes",
+    `${id}-2`,
+    second.headers,
+    second.body,
+  );
   expect(admitted.status).toBe(202);
   release();
   await Promise.all(held.turns);
@@ -183,6 +207,7 @@ async function raceBehindCard(
 }
 
 beforeEach(() => {
+  serve.pinUnavailable = false;
   exec.recorded = [];
   exec.executed = [];
   held.turns = [];
@@ -232,4 +257,49 @@ test("a routine fire queued behind the card still runs", async () => {
   });
 
   expect(exec.executed).toEqual(["send it", "yes"]);
+});
+
+test("a send that fails before it runs records nothing over someone else's card", async () => {
+  // B's turn is pinned to a provider this workspace has no credential for: a
+  // turn that fails before it runs writes its message and an error reply, and
+  // a reply written after A's card would retire it.
+  serve.pinUnavailable = true;
+  const { frames, turnId } = await raceBehindCard("q4", {
+    sub: B,
+    body: { provider: "anthropic" },
+  });
+
+  expect(exec.recorded).toEqual(["send it"]);
+  expect(JSON.parse(readFileSync(file("q4"), "utf8")).messages).toEqual(
+    cardForA,
+  );
+  expect(
+    frames
+      .filter((frame) => frame.turnId === turnId)
+      .map(({ type, data }) => ({ type, data })),
+  ).toEqual([
+    {
+      type: "error",
+      data: {
+        message: "not_interaction_owner",
+        code: "not_interaction_owner",
+      },
+    },
+  ]);
+});
+
+test("a failing send with no card in the way still records its failure", async () => {
+  serve.pinUnavailable = true;
+  write("q5", settled);
+  expect(
+    (await send("q5", B, "yes", "q5-b", {}, { provider: "anthropic" })).status,
+  ).toBe(202);
+  await Promise.all(held.turns);
+
+  const messages = JSON.parse(readFileSync(file("q5"), "utf8")).messages;
+  expect(messages).toHaveLength(4);
+  expect(messages.at(-1)).toMatchObject({
+    role: "assistant",
+    providerError: { kind: "unauthenticated" },
+  });
 });

@@ -165,6 +165,7 @@ async function handleConversationRoot(ctx: RouteContext, id: string) {
     return;
   }
   if (ctx.method === "DELETE") {
+    // Not card-gated: delete is the way out of a card whose person is gone.
     await disposeConversation(id, { deleteSessions: true });
     // Drop the event channel with the transcript: any outstanding resume
     // cursor for a deleted conversation is unserviceable by definition, so a

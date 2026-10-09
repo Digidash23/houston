@@ -95,7 +95,8 @@ export async function applyConversationOp(
   // While a card is live, only the person it is for may answer, dismiss,
   // import into, or truncate the conversation. Read from the rows when the
   // gateway sent them (they win), and before the snapshot is written, so a
-  // refusal leaves the tree untouched.
+  // refusal leaves the tree untouched. Delete (above) is not card-gated: it
+  // drops history and session, the way out of a card whose person is gone.
   if (
     (action === "dismiss-interaction" ||
       action === "import" ||

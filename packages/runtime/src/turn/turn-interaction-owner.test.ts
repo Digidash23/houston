@@ -53,15 +53,44 @@ const cardConversation = (id: string) =>
     ],
   });
 
+const noCardConversation = (id: string) =>
+  JSON.stringify({
+    ...JSON.parse(cardConversation(id)),
+    messages: JSON.parse(cardConversation(id)).messages.slice(0, 1),
+  });
+
+/** The listing and bytes the gateway inlines into a turn, read right now. */
+async function prefetchOf(pool: ReturnType<typeof fakePoolStore>) {
+  const base = `${POOL_STORE_URL}/v1/pod/store/org/agent`;
+  const { objects: manifest } = (await (
+    await pool.fetchImpl(`${base}/manifest`)
+  ).json()) as { objects: { key: string }[] };
+  const objects: Record<string, { data: string; generation: string }> = {};
+  for (const { key } of manifest)
+    objects[key] = {
+      data: Buffer.from(pool.read(key)).toString("base64"),
+      generation: "1",
+    };
+  return { manifest, objects };
+}
+
 async function pooledTurn(
   conversationId: string,
   extra: Record<string, unknown>,
   seed: (put: (rel: string, content: string) => void) => void = () => {},
+  options: { stalePrefetch?: boolean } = {},
 ) {
   const pool = fakePoolStore("ws/org/agent");
   pool.put(`${AGENT}/CLAUDE.md`, "# Probe\n");
   pool.put(`${AGENT}/.houston/activity/activity.json`, "[]");
   const conversationKey = `${RUNTIME}/conversations/${conversationId}.json`;
+  let prefetch: unknown;
+  if (options.stalePrefetch) {
+    // The gateway read the agent's files before it held the claim: its bytes
+    // predate the card the previous turn ended on.
+    pool.put(conversationKey, noCardConversation(conversationId));
+    prefetch = await prefetchOf(pool);
+  }
   pool.put(conversationKey, cardConversation(conversationId));
   seed(pool.put);
   const turnlog: string[] = [];
@@ -105,6 +134,7 @@ async function pooledTurn(
         bootId: "boot",
         heartbeatUrl: HEARTBEAT_URL,
       },
+      ...(prefetch ? { prefetch } : {}),
       ...extra,
     }),
   });
@@ -192,6 +222,31 @@ test("the AI Manager acting for another member is refused", async () => {
 
 test("a turn with no acting identity is never refused", async () => {
   const out = await pooledTurn("c1", {});
+
+  expect(out.res.status).toBe(200);
+  expect(out.runTurn).toHaveBeenCalledOnce();
+});
+
+test("the card is read under the claim, not from bytes prefetched before it", async () => {
+  const out = await pooledTurn(
+    "c1",
+    { actingAs: { userId: OTHER } },
+    undefined,
+    { stalePrefetch: true },
+  );
+
+  expect(out.res.status).toBe(403);
+  expect(out.runTurn).not.toHaveBeenCalled();
+  expect(out.turnlog).toEqual([]);
+});
+
+test("a prefetched turn from the card's own person runs", async () => {
+  const out = await pooledTurn(
+    "c1",
+    { actingAs: { userId: OWNER } },
+    undefined,
+    { stalePrefetch: true },
+  );
 
   expect(out.res.status).toBe(200);
   expect(out.runTurn).toHaveBeenCalledOnce();
