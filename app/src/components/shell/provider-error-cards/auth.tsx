@@ -22,6 +22,7 @@ import {
   authCauseBodyKey,
   resolveAuthCardPresentation,
 } from "./auth-presentation";
+import { unhealableCause } from "./auth-unhealable";
 import { ReconnectDialog } from "./reconnect-dialog";
 import { providerLabel } from "./shared";
 import { useProviderLogin } from "./use-provider-login";
@@ -44,9 +45,9 @@ export function UnauthenticatedCard({
     hasFailedPrompt: !!error.failed_prompt,
     hasRetry: !!onRetry,
     causeBodyKey: authCauseBodyKey(error.cause),
-    // Org-policy block (PRODUCT-1393): reconnecting cannot heal it, so the
-    // card's action opens the AI Hub (connect with an API key) instead.
-    orgPolicyBlocked: error.cause === "org_policy_blocked",
+    // A policy block (PRODUCT-1393) or a blocked account (H-005): reconnecting
+    // cannot heal either, so the card's action opens the AI Hub instead.
+    unhealable: unhealableCause(error.cause),
   });
 
   // Map the resolved button spec to its live handler + pending state. The

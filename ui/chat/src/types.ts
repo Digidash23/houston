@@ -357,6 +357,10 @@ export type AuthFailureCause =
   // environment (Anthropic's `oauth_org_not_allowed`). Reconnecting does NOT
   // heal it; the card's action points at using an API key instead.
   | "org_policy_blocked"
+  // The provider blocks the account behind an intact credential (GitHub
+  // Copilot with billing locked). Reconnecting does NOT heal it; the card's
+  // action points at the AI Models page to pick another AI.
+  | "account_blocked"
   | "unknown";
 
 export type RunStatus =

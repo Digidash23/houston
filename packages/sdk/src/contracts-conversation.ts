@@ -62,6 +62,7 @@ export {
   type PendingInteraction,
   PREWARM_REFRESH_MS,
   type PrewarmCapabilities,
+  providerAccountBlockedRefusal,
   type QueuedMessageVM,
   SEND_IN_FLIGHT_MESSAGE,
   type SendWaitReason,

@@ -5,6 +5,10 @@ import {
 } from "@houston/protocol";
 import type { HoustonEngineClient } from "@houston/runtime-client";
 import { streamEventsResumable } from "@houston/runtime-client";
+import {
+  accountBlockedCard,
+  providerAccountBlockedRefusal,
+} from "./account-blocked-refusal";
 import type { FeedOutput } from "./feed-output";
 import { FirstResponseClock } from "./first-response";
 import type { PersonStop } from "./person-stop";
@@ -348,6 +352,7 @@ export async function streamTurn(
       // The resend was rejected before it reached the engine — fail its
       // optimistic bubble (the observed turn keeps rendering unaffected).
       const limit = messageLimitRefusal(e);
+      const blocked = providerAccountBlockedRefusal(e);
       output.pushFeedItem(
         agentPath,
         sessionKey,
@@ -362,15 +367,21 @@ export async function streamTurn(
               },
               fails_pending: true,
             }
-          : (() => {
-              const refusal = sendRefusal(e);
-              return {
-                feed_type: "system_message" as const,
-                data: refusal.message,
-                ...(refusal.notice ? { notice: refusal.notice } : {}),
+          : blocked
+            ? {
+                feed_type: "provider_error",
+                data: accountBlockedCard(blocked, undefined),
                 fails_pending: true,
-              };
-            })(),
+              }
+            : (() => {
+                const refusal = sendRefusal(e);
+                return {
+                  feed_type: "system_message" as const,
+                  data: refusal.message,
+                  ...(refusal.notice ? { notice: refusal.notice } : {}),
+                  fails_pending: true,
+                };
+              })(),
       );
       firstResponse.resolve("error");
       return; // the observer keeps rendering the running turn
@@ -508,7 +519,9 @@ export async function streamTurn(
     // nothing settled is a teardown: a late refusal then settles nothing.
     if (!sink.settled && !ac.signal.aborted) {
       const limit = messageLimitRefusal(e);
+      const blocked = providerAccountBlockedRefusal(e);
       if (limit) sink.planLimit(limit);
+      else if (blocked) sink.accountBlocked(blocked);
       else {
         const refusal = sendRefusal(e);
         sink.fail(refusal.message, refusal.notice);
