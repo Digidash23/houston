@@ -29,7 +29,11 @@ import type { BridgeQuietClass } from "@houston/sdk/local-model-bridge/quiet";
  *  `webhook_not_creator` is a webhook-key mint or rotate the gateway refused
  *  because the caller is not the routine's creator
  *  (`@houston/sdk/routines/webhook-key-access`): an expected state with its
- *  own copy, which every reporting path skips outright. */
+ *  own copy, which every reporting path skips outright.
+ *  `first_day_no_provider` is a first-day start refused because the person
+ *  has no AI connected (`@houston/sdk/agents/first-day-refusal`): an expected
+ *  state whose surface offers the connect flow, skipped by every reporting
+ *  path. */
 export type QuietErrorClass =
   | "engine_waking"
   | "offline"
@@ -37,7 +41,8 @@ export type QuietErrorClass =
   | "release_host_unavailable"
   | "no_url_handler"
   | "plan_min_interval"
-  | "webhook_not_creator";
+  | "webhook_not_creator"
+  | "first_day_no_provider";
 
 /**
  * The burst-gate key a quiet-class report collapses on.

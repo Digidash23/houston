@@ -113,7 +113,14 @@
     "explain": "{{name}} vai fazer algumas perguntas para aprender o trabalho.",
     "compactTitle": "O primeiro dia de {{name}} ainda não começou",
     "bannerTitle": "Sua equipe está pronta. Escolha um funcionário de IA para começar o primeiro dia dele.",
-    "bannerExplain": "Cada um vai fazer algumas perguntas para aprender o trabalho."
+    "bannerExplain": "Cada um vai fazer algumas perguntas para aprender o trabalho.",
+    "connectAi": "Conecte uma IA para começar",
+    "bannerNeedsAi": "Primeiro conecte uma IA como Claude ou ChatGPT. Depois eles podem começar.",
+    "noProvider": {
+      "title": "Conecte sua IA primeiro",
+      "body": "Seu funcionário de IA precisa de uma IA como Claude ou ChatGPT para trabalhar. Conecte uma e depois comece o primeiro dia.",
+      "action": "Conectar IA"
+    }
   },
   "writeFailed": {
     "delete": "Não foi possível excluir \"{{title}}\"",

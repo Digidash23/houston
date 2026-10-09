@@ -31,6 +31,10 @@
       "types": "./src/first-day.ts",
       "import": "./src/first-day.ts"
     },
+    "./agents/first-day-refusal": {
+      "types": "./src/modules/agents/first-day-refusal.ts",
+      "import": "./src/modules/agents/first-day-refusal.ts"
+    },
     "./mission-started-by": {
       "types": "./src/modules/activities/started-by.ts",
       "import": "./src/modules/activities/started-by.ts"

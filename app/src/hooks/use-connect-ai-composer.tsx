@@ -1,8 +1,8 @@
 /**
- * Wires the connect-AI composer replacement: reads the remaining world signals
- * (catalog, capabilities, active space), applies the pure rule
- * (`shouldReplaceComposerWithConnectAi`), and returns the node the chat panel
- * hands to `composerOverride` in `replace` mode.
+ * Wires the connect-AI composer replacement: the shared gate
+ * (`useConnectAiDecision`, the same one the first-day start button reads)
+ * decides, and this returns the node the chat panel hands to
+ * `composerOverride` in `replace` mode.
  *
  * The connection counts come in as PROPS rather than being re-derived here: the
  * chat panel already computes them from the ONE shared derivation
@@ -15,16 +15,12 @@
  * no manual wiring.
  */
 
-import { type ReactNode, useCallback, useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 import { ChatConnectAiEmptyState } from "../components/chat-connect-ai-empty-state.tsx";
-import { pickerEmptyState } from "../components/chat-model-selector-labels.ts";
-import { shouldReplaceComposerWithConnectAi } from "../lib/composer-connect-ai.ts";
-import { isTeamWorkspace } from "../lib/space-id.ts";
-import { AI_HUB_VIEW_ID } from "../lib/top-level-views.ts";
-import { useUIStore } from "../stores/ui";
-import { useWorkspaceStore } from "../stores/workspaces";
-import { useCapabilities } from "./use-capabilities";
-import { useProviderCatalog } from "./use-provider-catalog";
+import {
+  type ConnectAiScanSignals,
+  useConnectAiDecision,
+} from "./use-connect-ai-gate";
 
 export interface ConnectAiComposer {
   /** True while the empty state stands in for the composer. */
@@ -33,55 +29,19 @@ export interface ConnectAiComposer {
   node: ReactNode | null;
 }
 
-export function useConnectAiComposer(opts: {
-  /** Providers confirmed connected. */
-  connectedCount: number;
-  /** Providers whose probe is still inconclusive. */
-  checkingCount: number;
-  /** `useProviderStatuses().isLoading`. */
-  statusesLoading: boolean;
-  /** `useProviderStatuses().isError`. */
-  statusesError: boolean;
-}): ConnectAiComposer {
-  const { connectedCount, checkingCount, statusesLoading, statusesError } =
-    opts;
-  const { capabilities, isLoading: capabilitiesLoading } = useCapabilities();
-  const { isReady: catalogReady } = useProviderCatalog();
-  const workspaceId = useWorkspaceStore((s) => s.current?.id ?? null);
-  const setViewMode = useUIStore((s) => s.setViewMode);
-
-  // Same decision the picker's empty state makes, from the same helper: which
-  // story to tell, and whether this viewer may act on it at all.
-  const { variant, canConnect } = pickerEmptyState({
-    teamSpace: workspaceId ? isTeamWorkspace(workspaceId) : false,
-    capabilities,
-    capabilitiesLoaded: !capabilitiesLoading,
-  });
-
-  const active = shouldReplaceComposerWithConnectAi({
-    statusesLoading,
-    statusesError,
-    connectedCount,
-    checkingCount,
-    catalogReady,
-    capabilitiesLoaded: !capabilitiesLoading,
-  });
-
-  const goToAiHub = useCallback(
-    () => setViewMode(AI_HUB_VIEW_ID),
-    [setViewMode],
-  );
-
+export function useConnectAiComposer(
+  opts: ConnectAiScanSignals,
+): ConnectAiComposer {
+  const { active, variant, canConnect, connect } = useConnectAiDecision(opts);
   const node = useMemo<ReactNode | null>(
     () =>
       active ? (
         <ChatConnectAiEmptyState
           variant={variant}
-          onConnect={canConnect ? goToAiHub : undefined}
+          onConnect={canConnect ? connect : undefined}
         />
       ) : null,
-    [active, variant, canConnect, goToAiHub],
+    [active, variant, canConnect, connect],
   );
-
   return { active, node };
 }

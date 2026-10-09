@@ -1,6 +1,7 @@
 import type { FirstDayStartResult } from "@houston/protocol";
 import { AUTO_CONTINUE_MARKER } from "@houston/protocol";
 import { afterEach, beforeEach, expect, test } from "vitest";
+import { TurnFireError } from "../channel/fire-error";
 import {
   bootFirstDayHost,
   type FirstDayHost,
@@ -117,6 +118,39 @@ test("a failed first turn keeps the first day pending and leaves no card (C8)", 
   );
   expect(await host.firstDay()).toBe("pending");
   expect(await host.setupTasks()).toHaveLength(0);
+
+  host.channel.failWith = null;
+  expect((await host.start(id)).status).toBe(201);
+  expect(await host.setupTasks()).toHaveLength(1);
+});
+
+test("a first turn refused for no connected AI answers its own code and stays pending", async () => {
+  const id = await host.hire(PENDING);
+  host.channel.failWith = new TurnFireError(
+    'runtime 409: {"error":"No provider connected","code":"no_provider"}',
+    409,
+    "no_provider",
+  );
+  const res = await host.start(id);
+  expect(res.status).toBe(409);
+  const body = (await res.json()) as Record<string, unknown>;
+  expect(body.code).toBe("first_day_no_provider");
+  expect(body).not.toHaveProperty("provider");
+  expect(await host.firstDay()).toBe("pending");
+  expect(await host.setupTasks()).toHaveLength(0);
+
+  // A saved provider that is signed out is named, so the surface can say which.
+  host.channel.failWith = new TurnFireError(
+    "runtime 409",
+    409,
+    "no_provider",
+    "anthropic",
+  );
+  const named = await host.start(id);
+  expect(await named.json()).toMatchObject({
+    code: "first_day_no_provider",
+    provider: "anthropic",
+  });
 
   host.channel.failWith = null;
   expect((await host.start(id)).status).toBe(201);

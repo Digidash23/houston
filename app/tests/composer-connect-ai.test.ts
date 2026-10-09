@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   type ConnectAiComposerSignals,
+  providerConnectionCounts,
   shouldReplaceComposerWithConnectAi,
   shouldShowConnectAiEmptyState,
 } from "../src/lib/composer-connect-ai.ts";
@@ -178,4 +179,42 @@ test("a pending provider connection stays reachable with no AI connected", () =>
     true,
   );
   assert.equal(shouldShowConnectAiEmptyState(false, null), false);
+});
+
+test("the counts come off the one connection derivation", () => {
+  assert.deepEqual(
+    providerConnectionCounts({
+      anthropic: { cli_installed: true, auth_state: "authenticated" },
+      openai: { cli_installed: true, auth_state: "unauthenticated" },
+      gemini: { cli_installed: true, auth_state: "unknown" },
+      legacy: { cli_installed: true, authenticated: true },
+    }),
+    { connectedCount: 2, checkingCount: 1 },
+  );
+  assert.deepEqual(providerConnectionCounts({}), {
+    connectedCount: 0,
+    checkingCount: 0,
+  });
+});
+
+/**
+ * The first-day start button is the other way to fire a turn. With no AI
+ * connected it used to fire one anyway, and the refusal reached Sentry as a
+ * bug (HOUSTON-APP-5H4). It reads the composer's own gate, never a second one.
+ */
+test("the first-day start button and banner read the composer's gate", () => {
+  const gate = read("../src/hooks/use-connect-ai-gate.ts");
+  assert.ok(gate.includes("shouldReplaceComposerWithConnectAi("));
+  assert.ok(gate.includes("providerConnectionCounts(statuses)"));
+  const composer = read("../src/hooks/use-connect-ai-composer.tsx");
+  assert.ok(composer.includes("useConnectAiDecision(opts)"));
+  for (const file of [
+    "../src/components/first-day/first-day-cta.tsx",
+    "../src/components/first-day/first-day-banner.tsx",
+  ]) {
+    const src = read(file);
+    assert.ok(src.includes("useConnectAiGate()"), file);
+    assert.ok(src.includes("gate.connect"), file);
+    assert.ok(src.includes('t("firstDay.connectAi")'), file);
+  }
 });

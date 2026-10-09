@@ -11,6 +11,10 @@
     ".": {
       "types": "./src/index.ts",
       "import": "./src/index.ts"
+    },
+    "./first-day-refusal": {
+      "types": "./src/first-day-refusal.ts",
+      "import": "./src/first-day-refusal.ts"
     }
   },
   "files": [

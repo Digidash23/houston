@@ -10,13 +10,13 @@ import type {
   Activity,
   ActivityContributor,
   AgentConfig,
-  FirstDayRefusalCode,
+  FirstDayRefusal,
   FirstDayStartInput,
   FirstDayStartResult,
   HoustonEvent,
   TurnLimits,
 } from "@houston/protocol";
-import { isTurnBusyIn } from "../channel/fire-error";
+import { isTurnBusyIn, TurnFireError } from "../channel/fire-error";
 import type { Agent, Workspace } from "../domain/types";
 import type { RuntimeChannel } from "../ports";
 import type { Vfs } from "../vfs";
@@ -68,7 +68,7 @@ export interface FirstDayStartDeps {
 
 export type FirstDayStartAnswer =
   | { ok: true; status: 200 | 201; result: FirstDayStartResult }
-  | { ok: false; status: 409; code: FirstDayRefusalCode; error: string };
+  | ({ ok: false; status: 409 } & FirstDayRefusal);
 
 export function startFirstDay(
   deps: FirstDayStartDeps,
@@ -116,6 +116,16 @@ async function run(
     if (!existing) await dropTask(deps, task.id);
     else if (isTurnBusyIn(err, missionConversationKey(task)))
       return recordAndAnswer(deps, task, config, role);
+    // No AI connected for the first turn: an expected state with a code of
+    // its own, so the surface offers the connect flow instead of an error.
+    if (err instanceof TurnFireError && err.code === "no_provider")
+      return {
+        ok: false,
+        status: 409,
+        code: "first_day_no_provider",
+        error: err.message,
+        ...(err.provider ? { provider: err.provider } : {}),
+      };
     const reason = err instanceof Error ? err.message : String(err);
     return {
       ok: false,

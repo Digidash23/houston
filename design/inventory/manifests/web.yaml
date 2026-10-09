@@ -13,7 +13,7 @@
 
 surface: web
 enforced: true
-inventoryVersion: 127
+inventoryVersion: 128
 
 components:
   manager-avatar:

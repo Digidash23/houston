@@ -113,7 +113,14 @@
     "explain": "{{name}} will ask you a few questions to learn the job.",
     "compactTitle": "{{name}}'s first day hasn't started yet",
     "bannerTitle": "Your team is ready. Pick an AI Employee and start their first day.",
-    "bannerExplain": "Each one will ask you a few questions to learn the job."
+    "bannerExplain": "Each one will ask you a few questions to learn the job.",
+    "connectAi": "Connect AI to start",
+    "bannerNeedsAi": "Connect an AI like Claude or ChatGPT first. Then they can start.",
+    "noProvider": {
+      "title": "Connect your AI first",
+      "body": "Your AI Employee needs an AI like Claude or ChatGPT to work. Connect one, then start the first day.",
+      "action": "Connect AI"
+    }
   },
   "writeFailed": {
     "delete": "Couldn't delete \"{{title}}\"",

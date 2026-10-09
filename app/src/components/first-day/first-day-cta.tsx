@@ -1,5 +1,6 @@
 import {
   AsyncButton,
+  Button,
   cn,
   Empty,
   EmptyContent,
@@ -11,13 +12,16 @@ import {
   resolveAgentColor,
 } from "@houston-ai/core";
 import { useTranslation } from "react-i18next";
+import { useConnectAiGate } from "../../hooks/use-connect-ai-gate";
 import type { Agent } from "../../lib/types";
 import { startFirstDay } from "./start-first-day";
 
 /**
  * The one "Start {{name}}'s first day" button. It holds its own busy state and
  * drops repeat presses; the setup task's chat opens beside the board once the
- * task exists, and the recorded start takes every start button away.
+ * task exists, and the recorded start takes every start button away. With no
+ * AI connected (the composer's own gate) the first turn could not run, so the
+ * button leads to the AI Hub instead and turns back once an AI connects.
  */
 export function FirstDayStartButton({
   agent,
@@ -27,6 +31,17 @@ export function FirstDayStartButton({
   className?: string;
 }) {
   const { t } = useTranslation("board");
+  const gate = useConnectAiGate();
+  if (gate.active && gate.canConnect)
+    return (
+      <Button
+        data-first-day-connect-ai={agent.folderPath}
+        className={cn("active:scale-[0.96]", className)}
+        onClick={gate.connect}
+      >
+        {t("firstDay.connectAi")}
+      </Button>
+    );
   return (
     <AsyncButton
       data-first-day-start={agent.folderPath}
