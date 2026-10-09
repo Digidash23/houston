@@ -24,21 +24,35 @@ describe("describeError", () => {
     strictEqual(describeError({ message: "gone" }), "gone");
   });
 
-  it("serializes an object without a message, never [object Object]", () => {
-    strictEqual(describeError({ code: 7 }), '{"code":7}');
+  it("summarizes an object without a message, never [object Object]", () => {
+    strictEqual(
+      describeError({ code: 7, status: 409, detail: "secret@example.com" }),
+      "object {code: 7, status: 409} keys: code, status, detail",
+    );
   });
 
-  it("caps a long serialization", () => {
-    const out = describeError({ blob: "x".repeat(5000) });
-    strictEqual(out.length <= 501, true);
+  it("never copies values outside the scalar whitelist", () => {
+    const out = describeError({ email: "person@example.com", token: "abc" });
+    strictEqual(out, "object keys: email, token");
+  });
+
+  it("clips a long whitelisted string and caps the key list", () => {
+    const out = describeError({ name: "x".repeat(500) });
+    strictEqual(out, `object {name: ${"x".repeat(80)}…} keys: name`);
+    const many = Object.fromEntries(
+      Array.from({ length: 20 }, (_, i) => [`k${i}`, i]),
+    );
+    strictEqual(describeError(many).endsWith(", …"), true);
   });
 
   it("survives a circular object", () => {
-    const loop: Record<string, unknown> = { a: 1 };
+    const loop: Record<string, unknown> = { code: "E1" };
     loop.self = loop;
-    const out = describeError(loop);
-    strictEqual(out.includes("[object Object]"), false);
-    strictEqual(out.includes("a"), true);
+    strictEqual(describeError(loop), "object {code: E1} keys: code, self");
+  });
+
+  it("names an empty object", () => {
+    strictEqual(describeError({}), "object");
   });
 
   it("stringifies primitives and nullish values", () => {

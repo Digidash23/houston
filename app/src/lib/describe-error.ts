@@ -2,7 +2,11 @@
 // Dependency-free so it is node-testable directly
 // (app/tests/error-report-describe.test.ts).
 
-const MAX_SERIALIZED = 500;
+// Short scalar fields safe to name in a report title. Anything else is only
+// listed by key: arbitrary payloads can carry personal data into Sentry.
+const SCALAR_FIELDS = ["kind", "code", "status", "name"] as const;
+const MAX_FIELD = 80;
+const MAX_KEYS = 12;
 
 /**
  * The diagnostic a rejection carries, whatever its shape. The shell's typed
@@ -10,7 +14,8 @@ const MAX_SERIALIZED = 500;
  * `String(obj)` is "[object Object]": every report of one read exactly that
  * and lost the OS text (HOUSTON-APP-53A). An object with a string `message`
  * reads as `kind: message` when it also has a string `kind`; any other object
- * is serialized, capped, and a circular one falls back to its keys.
+ * is summarized as a few whitelisted scalar fields plus its key names, never
+ * serialized whole.
  */
 export function describeError(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -22,12 +27,25 @@ export function describeError(err: unknown): string {
       ? `${raw.kind}: ${raw.message}`
       : raw.message;
   }
-  try {
-    const json = JSON.stringify(err);
-    return json.length > MAX_SERIALIZED
-      ? `${json.slice(0, MAX_SERIALIZED)}…`
-      : json;
-  } catch {
-    return `unserializable object with keys: ${Object.keys(raw).join(", ")}`;
-  }
+  return summarize(raw);
+}
+
+function summarize(raw: Record<string, unknown>): string {
+  const fields = SCALAR_FIELDS.flatMap((field) => {
+    const value = raw[field];
+    if (typeof value === "string") return [`${field}: ${clip(value)}`];
+    if (typeof value === "number" || typeof value === "boolean") {
+      return [`${field}: ${value}`];
+    }
+    return [];
+  });
+  const keys = Object.keys(raw);
+  const listed = keys.slice(0, MAX_KEYS).join(", ");
+  const more = keys.length > MAX_KEYS ? ", …" : "";
+  const head = fields.length > 0 ? `object {${fields.join(", ")}}` : "object";
+  return keys.length > 0 ? `${head} keys: ${listed}${more}` : head;
+}
+
+function clip(value: string): string {
+  return value.length > MAX_FIELD ? `${value.slice(0, MAX_FIELD)}…` : value;
 }

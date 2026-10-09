@@ -6,6 +6,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { tauriAgentDelegation } from "../../lib/delegation-facade";
+import { describeError } from "../../lib/describe-error";
 import { reportError } from "../../lib/error-report";
 import { queryKeys } from "../../lib/query-keys";
 
@@ -45,7 +46,7 @@ export function useAgentDelegation(agentId: string, enabled: boolean) {
         }
         return stored;
       } catch (error) {
-        reportError("get_agent_delegation", String(error), error);
+        reportError("get_agent_delegation", describeError(error), error);
         throw error;
       }
     },
@@ -71,7 +72,7 @@ export function useSetAgentDelegation(agentId: string) {
     onError: (error, { id }) => {
       const state = states.get(agentId);
       if (state?.latest === id) qc.setQueryData(key, state.confirmed);
-      reportError("set_agent_delegation", String(error), error);
+      reportError("set_agent_delegation", describeError(error), error);
     },
     onSettled: () => {
       const state = states.get(agentId);

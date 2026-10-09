@@ -1,14 +1,15 @@
 //! The typed failure the shell's file commands (`save_file.rs`, the reveal
-//! in `os.rs`, `portable.rs`) reject with, and the write helper that keeps
-//! a locked destination from failing at all.
+//! in `os.rs`) reject with, and the write helper that keeps a locked
+//! destination from failing at all.
 //!
 //! Before PRODUCT-1732 these commands rejected with the raw OS string, in
 //! the OS language ("El proceso no tiene acceso al archivo porque está
 //! siendo utilizado por otro proceso. (os error 32)"), and the frontend
 //! filed every one as a Sentry bug. They are user states with a remedy:
 //! the destination is open in Excel, the folder is protected, the disk is
-//! full, the chosen folder is gone. The frontend classifies `kind` (`app/src/lib/file-op-failure.ts`)
-//! into authored expected-state copy; only `other` is still reported.
+//! full, the chosen folder is gone. The frontend classifies `kind`
+//! (`app/src/lib/file-op-failure.ts`) into authored expected-state copy;
+//! only `other` is still reported.
 
 use serde::Serialize;
 use std::io;
@@ -24,7 +25,8 @@ pub enum FileOpFailureKind {
     Permission,
     DiskFull,
     /// The chosen folder no longer exists (os error 3 / 2): an unplugged or
-    /// offline drive, a folder deleted while the dialog was open.
+    /// offline drive, a folder deleted while the dialog was open. Only
+    /// `write_with_fallback` mints it, after checking the folder is gone.
     NotFound,
     Other,
 }
@@ -70,7 +72,6 @@ fn classify(err: &io::Error) -> FileOpFailureKind {
     match err.kind() {
         io::ErrorKind::PermissionDenied => FileOpFailureKind::Permission,
         io::ErrorKind::StorageFull => FileOpFailureKind::DiskFull,
-        io::ErrorKind::NotFound => FileOpFailureKind::NotFound,
         _ => FileOpFailureKind::Other,
     }
 }
@@ -138,7 +139,11 @@ pub async fn write_with_fallback(
         _ => false,
     };
     if !refused_existing {
-        return Err(FileOpFailure::from_io("Failed to save file", &first));
+        let mut failure = FileOpFailure::from_io("Failed to save file", &first);
+        if first.kind() == io::ErrorKind::NotFound && parent_is_gone(target).await {
+            failure.kind = FileOpFailureKind::NotFound;
+        }
+        return Err(failure);
     }
     let sibling = free_sibling(target);
     tokio::fs::write(&sibling, bytes).await.map_err(|err| {
@@ -149,6 +154,34 @@ pub async fn write_with_fallback(
         file_name: file_name_of(&sibling),
         renamed_from: Some(file_name_of(target)),
     })
+}
+
+/// Whether `target`'s folder no longer exists. A NotFound with the folder
+/// still present (a filter driver, Controlled Folder Access, a OneDrive
+/// placeholder refusing the create) is not the user's state to fix, so it
+/// stays `Other` and reports.
+async fn parent_is_gone(target: &Path) -> bool {
+    match target.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => {
+            !tokio::fs::try_exists(parent).await.unwrap_or(true)
+        }
+        _ => false,
+    }
+}
+
+/// Where a dialog-less save lands: a free name inside `dir`, the OS download
+/// folder, created first. The `not_found` copy tells the person to pick a
+/// folder "like Downloads", so a missing Downloads folder must never reach
+/// it: create it, and a failure to is a bug that reports as `Other`.
+#[cfg_attr(any(target_os = "macos", target_os = "windows"), allow(dead_code))]
+pub async fn prepare_download_target(dir: &Path, name: &str) -> Result<PathBuf, FileOpFailure> {
+    tokio::fs::create_dir_all(dir)
+        .await
+        .map_err(|err| FileOpFailure {
+            kind: FileOpFailureKind::Other,
+            message: format!("Failed to create the download folder: {err}"),
+        })?;
+    Ok(free_sibling(&dir.join(name)))
 }
 
 #[cfg(test)]
