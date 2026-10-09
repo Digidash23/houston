@@ -3,7 +3,7 @@
  * shown in the setup chat's one header right where the user just created it. It
  * answers "is it working?" without a wall of text: a compact chip while it
  * settles (checking -> activating -> active), and an alert block with the human
- * reason plus a one-click Reconnect when it needs the user.
+ * reason plus a one-click Reconnect when reconnecting is what fixes it.
  *
  * It reads the same per-agent trigger-status query the Routines grid does
  * (shared cache), so opening the chat right after creation streams the live
@@ -14,13 +14,14 @@
  */
 
 import type { Routine } from "@houston/engine-adapter";
-import { Button, cn } from "@houston-ai/core";
-import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+import { cn } from "@houston-ai/core";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useAgentTriggerStatus } from "../../hooks/queries/use-triggers";
 import { useUIStore } from "../../stores/ui";
 import { INTEGRATIONS_VIEW_ID } from "../integrations-view/id";
+import { RoutineActivationAlert } from "./routine-activation-alert";
 import { triggerActivationKind } from "./routine-trigger-maps";
 import { useTriggerStatusTimeouts } from "./use-trigger-status-timeouts";
 import { WebhookActivationChip } from "./webhook-activation-chip";
@@ -66,43 +67,8 @@ export function RoutineActivationChip({ agentId, routine }: Props) {
 
   const kind = triggerActivationKind(status);
 
-  if (kind === "alert") {
-    const state = status?.status;
-    const label =
-      state === "paused_disconnected"
-        ? t("trigger.status.paused_disconnected")
-        : state === "paused_revoked"
-          ? t("trigger.status.paused_revoked")
-          : t("trigger.status.error");
-    const detail =
-      status?.detail ??
-      (state === "paused_disconnected"
-        ? t("trigger.statusDisconnectedHint")
-        : state === "paused_revoked"
-          ? t("trigger.statusRevokedHint")
-          : undefined);
-    return (
-      <div className="flex flex-col items-end gap-0.5 max-w-[15rem]">
-        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-warning">
-          <AlertTriangle className="size-3.5 shrink-0" />
-          {label}
-        </span>
-        {detail && (
-          <p className="text-xs text-ink-muted text-right line-clamp-2">
-            {detail}
-          </p>
-        )}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onReconnect}
-          className="-mr-2"
-        >
-          {t("trigger.reconnect")}
-        </Button>
-      </div>
-    );
-  }
+  if (kind === "alert")
+    return <RoutineActivationAlert status={status} onReconnect={onReconnect} />;
 
   const label =
     kind === "active"
