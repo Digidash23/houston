@@ -10,6 +10,7 @@ import { startTurnRequestFilesystem } from "./turn-claimed-hydration";
 import { cleanupTurn } from "./turn-cleanup";
 import { writeTurnCredential } from "./turn-credential";
 import type { TurnFilesystemPreparation } from "./turn-filesystem";
+import { refuseHydratedTurn } from "./turn-hydrated-admission";
 import { TurnSetupError } from "./turn-layout";
 import { createTurnLog } from "./turn-log";
 import { setActiveTurnTimings } from "./turn-network-marks";
@@ -18,7 +19,6 @@ import { prepareTurnRoot } from "./turn-root";
 import type { makeTurnSandboxFetch } from "./turn-sandbox";
 import { createTurnSandbox } from "./turn-sandbox-startup";
 import {
-  reportAbandonedTurnStartup,
   startTurnSession,
   type TurnSessionStartupTask,
 } from "./turn-session-startup";
@@ -125,15 +125,15 @@ export async function executeTurn(
       );
     }
 
-    try {
-      await preparation.hydrated;
-      timings.t_hydrated = performance.now();
-      const refused = await turnSandbox?.admission();
-      if (refused) throw new TurnSetupError("message_refused", refused);
-    } catch (error) {
-      await reportAbandonedTurnStartup(startup);
-      throw error;
-    }
+    const refused = await refuseHydratedTurn({
+      turn,
+      preparation,
+      sandbox: turnSandbox,
+      startup,
+      timings,
+      res,
+    });
+    if (refused) return;
     // Setup can no longer refuse the turn: answer (the gateway's 202) now.
     const sse = openSSE(res);
     closeSse = sse.close;

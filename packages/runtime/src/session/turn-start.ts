@@ -24,6 +24,8 @@ import {
   pinnedProviderUnavailable,
 } from "./provider-gate";
 import {
+  type CardAnswer,
+  refuseQueuedCardAnswer,
   reportPinnedProviderUnavailable,
   reportTurnStartFailure,
   type TurnStartFailure,
@@ -81,7 +83,11 @@ export async function runTurn(
    * so a restart that kills the resume too settles it and stops — one
    * automatic resume per interrupted turn (PRODUCT-1785).
    */
-  options?: { resumeOf?: string; missionTitle?: MissionTitleRequest },
+  options?: {
+    resumeOf?: string;
+    missionTitle?: MissionTitleRequest;
+    cardAnswer?: CardAnswer;
+  },
 ): Promise<void> {
   // Mint the turn's wire identity up front so even a turn that fails before
   // executing (the guards below) terminates under one id.
@@ -148,6 +154,7 @@ export async function runTurn(
   // have its session disposed by a concurrent conversation's eviction sweep.
   conv.pending++;
   const run = conv.queue.then(() => {
+    if (refuseQueuedCardAnswer(id, turnId, options?.cardAnswer)) return null;
     // Persist + announce the user message BEFORE taking the workdir lock, so a
     // brand-new conversation's message is durable and visible (GET /messages)
     // the instant the turn is accepted — even while ANOTHER conversation holds

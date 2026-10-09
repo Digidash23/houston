@@ -19,6 +19,7 @@ import { handleConversationImport } from "./conversation-import-route";
 import { handleStartTurn } from "./conversation-start-turn";
 import { handleConversationEvents } from "./events-route";
 import { json, type RouteContext, readJson } from "./http-helpers";
+import { refuseNonCardOwner } from "./interaction-owner-gate";
 
 export async function handleConversationRoute(
   ctx: RouteContext,
@@ -88,6 +89,7 @@ export async function handleConversationRoute(
       json(res, 409, { error: "turn running" });
       return true;
     }
+    if (refuseNonCardOwner(ctx, id)) return true;
     markConversationStopped(id);
     json(res, 200, { ok: true });
     return true;
@@ -117,6 +119,7 @@ export async function handleConversationRoute(
       json(res, 400, { error: "missing 'turnId'" });
       return true;
     }
+    if (refuseNonCardOwner(ctx, id)) return true;
     const result = await truncateConversationTurn(id, turnId);
     if (result === "busy") json(res, 409, { error: "turn running" });
     else if (result === "not_found")
