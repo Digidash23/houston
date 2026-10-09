@@ -16,16 +16,22 @@ export function osCurrentAppBundlePath(): Promise<string> {
 /** Download the release the updater plugin's `check()` found, through the
  * shell's own resumable client (retry with backoff, `Range` resume across a
  * dropped stream), verify its signature, and stage the bytes. `rid` is the
- * plugin's `Update` resource id. Progress arrives in the plugin's own event
- * shape. Resolves with the staged-bytes resource id for `osInstallUpdate`;
+ * plugin's `Update` resource id; `attempts` is this call's budget (the
+ * partial survives the call either way). Progress arrives in the plugin's own
+ * event shape. Resolves with the staged-bytes resource id for `osInstallUpdate`;
  * rejects with the shell's typed failure (`update-download-failure.ts`). */
 export function osDownloadUpdate(
   rid: number,
+  attempts: number,
   onEvent: (event: DownloadEvent) => void,
 ): Promise<number> {
   const channel = new Channel<DownloadEvent>();
   channel.onmessage = onEvent;
-  return invokeNative<number>("download_update", { rid, on_event: channel });
+  return invokeNative<number>("download_update", {
+    rid,
+    attempts,
+    on_event: channel,
+  });
 }
 
 /** Install a release staged by `osDownloadUpdate`. On Windows the installer
