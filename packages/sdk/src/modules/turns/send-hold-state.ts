@@ -14,9 +14,10 @@ export const isTerminal = (
  * settles nothing, and counts that turn's end as the re-send trigger. Once a
  * send was held, the stream carried another turn while ours had no id, so
  * only our own nonce echo binds our turn. The sink never adopts a turn id it
- * saw before our send was accepted, and never adopts a stray terminal frame. The pool's 202
- * carries no turn id, and the previous turn's late `done` would otherwise
- * settle ours with its empty reply. A turn that fails before echoing is left
+ * saw before our send was accepted, and never adopts a stray terminal frame:
+ * a 202 without a turn id (older servers) could not tell them apart, and the
+ * previous turn's late `done` would otherwise settle ours with its empty
+ * reply. A 202 that names its turn binds it directly (`sendAccepted`). A turn that fails before echoing is left
  * to the pre-settled poll, which settles only on our own persisted reply.
  */
 export class SendHoldState {

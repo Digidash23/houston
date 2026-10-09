@@ -172,7 +172,8 @@ export const ENGINE_RESUMED_MESSAGE =
  * budget (`turn-running.ts`). `compute_busy`: a send the cloud's shared
  * compute had no room for past its whole budget (`send-busy.ts`).
  * `agent_too_large` / `agent_setup_failed`: a turn that failed before any
- * provider work (`turn-notices.ts`).
+ * provider work; `turn_unconfirmed`: an accepted turn we never saw again
+ * (`turn-notices.ts`).
  */
 export type EngineNoticeKind =
   | "engine_restart"
@@ -180,7 +181,8 @@ export type EngineNoticeKind =
   | "send_busy"
   | "compute_busy"
   | "agent_too_large"
-  | "agent_setup_failed";
+  | "agent_setup_failed"
+  | "turn_unconfirmed";
 
 /**
  * Whether a turn's terminal error is the user pressing Stop — the verbatim

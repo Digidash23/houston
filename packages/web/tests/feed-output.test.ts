@@ -204,12 +204,14 @@ test("a turn that failed before it could start is reported by cause, its line st
     data: "Your agent couldn't get ready for this message.",
     notice: "agent_setup_failed",
     cause: "layout_unexpected",
+    turnId: "t1",
   });
   out.pushFeedItem("Houston/Bo", "c1", {
     feed_type: "system_message",
-    data: "Your agent couldn't get ready for this message.",
-    notice: "agent_setup_failed",
+    data: "We couldn't confirm your agent got this message.",
+    notice: "turn_unconfirmed",
     cause: "gone",
+    turnId: "t2",
   });
   out.pushFeedItem("Houston/Bo", "c1", {
     feed_type: "system_message",
@@ -224,5 +226,8 @@ test("a turn that failed before it could start is reported by cause, its line st
     "turn_gone_after_accept",
   ]);
   expect(String(reports[0].error)).toContain("layout_unexpected");
+  // The message stays per cause (reports group by it); ids ride as fields.
+  expect(reports[0].error).toMatchObject({ turnId: "t1", sessionKey: "c1" });
+  expect(reports[1].error).toMatchObject({ turnId: "t2", sessionKey: "c1" });
   expect(events.filter((e) => e.type === "FeedItem")).toHaveLength(3);
 });

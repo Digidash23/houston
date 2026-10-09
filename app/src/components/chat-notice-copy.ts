@@ -14,6 +14,7 @@ export const NOTICE_COPY = {
   compute_busy: "chat:computeBusy",
   agent_too_large: "chat:agentSetup.tooLarge",
   agent_setup_failed: "chat:agentSetup.failed",
+  turn_unconfirmed: "chat:agentSetup.unconfirmed",
 } as const satisfies Record<EngineNoticeKind & SystemNoticeKind, string>;
 
 // The chat's notice kinds and the SDK's must stay the same set.

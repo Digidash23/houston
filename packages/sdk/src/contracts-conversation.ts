@@ -79,6 +79,7 @@ export {
   type TerminalBoardStatus,
   TURN_DIED_MESSAGE,
   TURN_FAILED_MESSAGE,
+  TURN_UNCONFIRMED_MESSAGE,
   type TurnAttachmentsSaveInput,
   type TurnAttachmentsSaveResult,
   type TurnConversationInput,

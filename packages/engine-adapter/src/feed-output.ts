@@ -60,7 +60,7 @@ export function createBusFeedOutput(
     pushFeedItem(agentPath, sessionKey, item) {
       // A turn the SDK settled as failed before it could start: the chat line
       // is the person's whole surface, the report is ours.
-      const report = turnFailureReport(item);
+      const report = turnFailureReport(item, sessionKey);
       if (report) reportAdapterError(report.source, report.error);
       emitEvent("FeedItem", {
         agent_path: agentPath,

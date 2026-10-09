@@ -29,7 +29,8 @@ export interface TurnSetupFailure {
   detail?: string;
 }
 
-const CODES: readonly string[] = [
+/** Every {@link TurnSetupCode}, for exhaustiveness checks. */
+export const TURN_SETUP_CODES: readonly TurnSetupCode[] = [
   "hydrate_over_cap",
   "layout_unexpected",
   "agent_not_migrated",
@@ -38,7 +39,8 @@ const CODES: readonly string[] = [
 ];
 
 const asCode = (value: unknown): TurnSetupCode | null =>
-  typeof value === "string" && CODES.includes(value)
+  typeof value === "string" &&
+  (TURN_SETUP_CODES as readonly string[]).includes(value)
     ? (value as TurnSetupCode)
     : null;
 

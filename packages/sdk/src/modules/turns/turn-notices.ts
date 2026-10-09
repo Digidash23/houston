@@ -16,15 +16,22 @@ export type TurnSetupNotice = Extract<
 /** `hydrate_over_cap`: the agent holds more than a worker can open. A retry
  *  cannot help, and the report already reached us. */
 export const AGENT_TOO_LARGE_MESSAGE =
-  "This agent has too much saved to start right now. We've been notified and are working on it, so there's nothing you need to do.";
+  "This agent has too much saved to start right now, so this message wasn't sent. We've been notified and are working on it.";
 
 /**
  * Every other setup failure: nothing ran and nothing was saved, so sending
- * again cannot repeat work. Also the line for a turn whose conversation never
- * appeared long after its 202 (`gone`, see `PRESETTLED_GONE_MS`).
+ * again cannot repeat work.
  */
 export const AGENT_SETUP_FAILED_MESSAGE =
   "Your agent couldn't get ready for this message. Send it again in a moment.";
+
+/**
+ * An accepted turn whose conversation never appeared long after its 202
+ * (`PRESETTLED_GONE_MS`) and whose end never reached us. We do not know it
+ * failed, so the line never says to resend right away.
+ */
+export const TURN_UNCONFIRMED_MESSAGE =
+  "We couldn't confirm your agent got this message. Check back in a few minutes, and if there's still no reply, send it again.";
 
 const MESSAGES: Record<TurnSetupNotice, string> = {
   agent_too_large: AGENT_TOO_LARGE_MESSAGE,
@@ -55,29 +62,46 @@ export function finishSetupError(s: TurnState, data: unknown): boolean {
  * appeared. Not proof that nothing was saved, so the bubble keeps its state.
  */
 export function finishGone(s: TurnState): void {
-  finishErr(s, AGENT_SETUP_FAILED_MESSAGE, "agent_setup_failed", "gone");
+  finishErr(s, TURN_UNCONFIRMED_MESSAGE, "turn_unconfirmed", "gone");
 }
+
+/** Which notices are ours to report, and under which source. */
+const REPORTED: Partial<Record<EngineNoticeKind, string>> = {
+  agent_too_large: "turn_setup_failed",
+  agent_setup_failed: "turn_setup_failed",
+  turn_unconfirmed: "turn_gone_after_accept",
+};
 
 /**
  * The report a pushed feed item calls for, or null. A setup failure and a
  * lost terminal are unexpected: the chat line is the person's whole surface
- * (no toast), and this report is ours. Split by source and cause.
+ * (no toast), and this report is ours. The message names only the cause, so
+ * reports group by it; the turn and conversation ride as error fields.
  */
 export function turnFailureReport(
   item: unknown,
+  sessionKey?: string,
 ): { source: string; error: Error } | null {
-  const it = item as { feed_type?: unknown; notice?: unknown; cause?: unknown };
-  if (it.feed_type !== "system_message") return null;
-  if (it.notice !== "agent_too_large" && it.notice !== "agent_setup_failed")
-    return null;
+  const it = item as {
+    feed_type?: unknown;
+    notice?: EngineNoticeKind;
+    cause?: unknown;
+    turnId?: unknown;
+  };
+  if (it.feed_type !== "system_message" || it.notice === undefined) return null;
+  const source = REPORTED[it.notice];
+  if (!source) return null;
   const cause = typeof it.cause === "string" ? it.cause : it.notice;
-  return cause === "gone"
-    ? {
-        source: "turn_gone_after_accept",
-        error: new Error("turn conversation still not found after its 202"),
-      }
-    : {
-        source: "turn_setup_failed",
-        error: new Error(`turn setup failed: ${cause}`),
-      };
+  const error = new Error(
+    source === "turn_gone_after_accept"
+      ? "turn conversation still not found after its 202"
+      : `turn setup failed: ${cause}`,
+  );
+  return {
+    source,
+    error: Object.assign(error, {
+      ...(typeof it.turnId === "string" ? { turnId: it.turnId } : {}),
+      ...(sessionKey ? { sessionKey } : {}),
+    }),
+  };
 }

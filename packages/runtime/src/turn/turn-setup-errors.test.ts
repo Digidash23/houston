@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { LocalDirStore } from "@houston/runtime-client/object-sync";
+import { TURN_SETUP_CODES } from "@houston/wire-types";
 import { afterEach, expect, test, vi } from "vitest";
 import { createTurnServer } from "./server";
 import type { TurnRunner } from "./turn-session";
@@ -87,4 +88,10 @@ test("every setup message is a sentence, and over-cap never advises a retry", ()
     expect(message, code).not.toContain(code);
   // A retry cannot shrink the agent: cloud stores this line on missions.
   expect(TURN_SETUP_MESSAGES.hydrate_over_cap).not.toMatch(/again/i);
+});
+
+test("the runtime's setup codes are exactly the ones clients parse", () => {
+  expect(Object.keys(TURN_SETUP_MESSAGES).sort()).toEqual(
+    [...TURN_SETUP_CODES].sort(),
+  );
 });

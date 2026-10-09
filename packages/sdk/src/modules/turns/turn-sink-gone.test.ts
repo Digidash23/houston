@@ -1,9 +1,11 @@
 import type { ChatMessage } from "@houston/runtime-client";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { noticeEndsTurn } from "./notice-ends-turn";
 import {
   PRESETTLED_GONE_MAX_POLL_MS,
   PRESETTLED_GONE_MS,
 } from "./stream-tuning";
+import { TURN_UNCONFIRMED_MESSAGE } from "./turn-notices";
 import {
   idleSync,
   makeSink,
@@ -42,7 +44,10 @@ test("a conversation still not found long after the 202 settles as lost, then po
   // Only this client's stream closes; nothing is cancelled server-side.
   expect(stopped()).toBe(true);
   const [line] = systemLines(items);
-  expect(line).toMatchObject({ notice: "agent_setup_failed", cause: "gone" });
+  // Its own line: we do not know the message failed, so no "send it again".
+  expect(line).toMatchObject({ notice: "turn_unconfirmed", cause: "gone" });
+  expect(line.data).toBe(TURN_UNCONFIRMED_MESSAGE);
+  expect(noticeEndsTurn("turn_unconfirmed")).toBe(true);
   // Not proof that nothing was saved: the bubble keeps its state.
   expect(line.fails_pending).toBeUndefined();
   const calls = reload.mock.calls.length;

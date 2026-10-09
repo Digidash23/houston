@@ -80,6 +80,7 @@ export type {
 export {
   AGENT_SETUP_FAILED_MESSAGE,
   AGENT_TOO_LARGE_MESSAGE,
+  TURN_UNCONFIRMED_MESSAGE,
   type TurnSetupNotice,
   turnFailureReport,
 } from "./turn-notices";

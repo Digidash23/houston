@@ -35,7 +35,7 @@ describe("send-busy chat copy", () => {
   // A turn that failed before it could start settles with the typed
   // `agent_too_large` / `agent_setup_failed` notice (H-003), rendered by kind.
   it("authors the setup-failure lines in every shipped language", () => {
-    for (const key of ["tooLarge", "failed"] as const) {
+    for (const key of ["tooLarge", "failed", "unconfirmed"] as const) {
       strictEqual(typeof en.agentSetup[key], "string");
       strictEqual(en.agentSetup[key] === "", false);
       for (const bundle of [en, es, pt])
