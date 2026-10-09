@@ -14,7 +14,6 @@ import { withToolCallLog } from "./tool-call-log";
 import { buildToolSelection } from "./tool-selection";
 import { makeAskUserTool } from "./tools/ask-user";
 import { makeBrowserTool } from "./tools/browser/tool";
-import { loopbackOrigins } from "./tools/browser/url-policy";
 import { makeClampedFileTools } from "./tools/clamped-fs";
 import { makeIdTokenProvider } from "./tools/gcp-id-token";
 import { makePlanReadyTool } from "./tools/plan-ready";
@@ -109,10 +108,7 @@ const bashTool = toolSelection.toolNames.includes("bash")
   : null;
 /** Shared with the Claude backend so both providers browse with one policy. */
 export const browserToolOptions = toolSelection.toolNames.includes("browser")
-  ? {
-      workspaceDir: config.workspaceDir,
-      blockedOrigins: loopbackOrigins(config.port),
-    }
+  ? { workspaceDir: config.workspaceDir }
   : undefined;
 // One runtime serves one workspace, so a limiter built once here IS the
 // per-workspace budget (turn mode builds the tool per turn and shares its own).

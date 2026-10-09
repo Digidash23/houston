@@ -1,17 +1,22 @@
-import type { Browser, BrowserContext, Page } from "playwright-core";
+import type { Browser } from "playwright-core";
 import { launchBrowser } from "./launch";
-import { readableState, saveState } from "./state-store";
+import { type BrowserTab, openTab } from "./open-tab";
+import { saveState } from "./state-store";
 
-/** One conversation's window onto the web: its own cookies, its current page. */
-export interface BrowserTab {
-  context: BrowserContext;
-  page: Page;
+export type { BrowserTab } from "./open-tab";
+
+/** A conversation's place in the pool; its calls run one at a time. */
+interface Slot {
   statePath: string;
+  tab: Promise<BrowserTab> | null;
+  chain: Promise<void>;
+  pending: number;
+  lastUsed: number;
 }
 
 export interface BrowserPoolOptions {
   launch?: () => Promise<Browser>;
-  /** How long an untouched browser stays up before it is closed. */
+  /** How long an untouched conversation keeps its context open. */
   idleMs?: number;
 }
 
@@ -19,15 +24,16 @@ export const BROWSER_IDLE_MS = 5 * 60_000;
 
 /**
  * ONE browser per runtime process, launched on the first call, and one
- * BrowserContext per conversation so two chats never share a page. Each new
- * context starts from the workspace's saved sign-ins; the tool saves after
- * every action that can change them, so an idle close or a process exit loses
- * nothing that was already saved.
+ * BrowserContext per conversation so two chats never share a page. Calls for
+ * one conversation run in order, so a `close` or an idle sweep never lands in
+ * the middle of an action. A context untouched for `idleMs` is saved and
+ * closed, and the browser goes with the last one. A browser that crashed, or
+ * a page the site closed, is replaced on the next call.
  */
 export class BrowserPool {
   private browser: Promise<Browser> | null = null;
-  private readonly tabs = new Map<string, Promise<BrowserTab>>();
-  private idleTimer: NodeJS.Timeout | null = null;
+  private readonly slots = new Map<string, Slot>();
+  private sweepTimer: NodeJS.Timeout | null = null;
   private readonly launch: () => Promise<Browser>;
   private readonly idleMs: number;
 
@@ -36,91 +42,128 @@ export class BrowserPool {
     this.idleMs = options.idleMs ?? BROWSER_IDLE_MS;
   }
 
-  /** The tab for `key`, opening the browser and the context as needed. */
-  tab(key: string, statePath: string): Promise<BrowserTab> {
-    this.touch();
-    const existing = this.tabs.get(key);
-    if (existing) return existing;
-    const opened = this.openTab(statePath);
-    this.tabs.set(key, opened);
-    // A failed open must not stick: the next call tries again.
-    opened.catch(() => this.tabs.delete(key));
-    return opened;
+  /** Run `fn` on `key`'s tab after every earlier call for `key` has finished. */
+  run<T>(
+    key: string,
+    statePath: string,
+    fn: (tab: BrowserTab) => Promise<T>,
+  ): Promise<T> {
+    const slot = this.slots.get(key) ?? this.newSlot(key, statePath);
+    return this.enqueue(slot, async () => fn(await this.liveTab(slot)));
   }
 
   /** Save and close one conversation's context; the browser stays up. */
   async closeTab(key: string): Promise<void> {
-    const pending = this.tabs.get(key);
-    if (!pending) return;
-    this.tabs.delete(key);
-    const tab = await pending;
-    await saveState(tab.context, tab.statePath);
-    await tab.context.close();
+    const slot = this.slots.get(key);
+    if (slot) await this.enqueue(slot, () => this.dispose(slot));
   }
 
   /** Save every context and close the browser. Safe to call twice. */
   async shutdown(): Promise<void> {
-    if (this.idleTimer) clearTimeout(this.idleTimer);
-    this.idleTimer = null;
-    const keys = [...this.tabs.keys()];
+    if (this.sweepTimer) clearTimeout(this.sweepTimer);
+    this.sweepTimer = null;
+    const keys = [...this.slots.keys()];
     const results = await Promise.allSettled(keys.map((k) => this.closeTab(k)));
-    const browser = this.browser;
-    this.browser = null;
-    if (browser) await (await browser).close();
+    for (const key of keys) this.slots.delete(key);
+    await this.closeBrowser();
     for (const result of results)
       if (result.status === "rejected")
-        console.error(
-          "[browser] saving sign-ins on close failed",
-          result.reason,
-        );
+        console.error("[browser] saving sign-ins failed", result.reason);
   }
 
-  private touch(): void {
-    if (this.idleTimer) clearTimeout(this.idleTimer);
-    this.idleTimer = setTimeout(() => {
-      this.shutdown().catch((error: unknown) =>
+  private newSlot(key: string, statePath: string): Slot {
+    const slot: Slot = {
+      statePath,
+      tab: null,
+      chain: Promise.resolve(),
+      pending: 0,
+      lastUsed: Date.now(),
+    };
+    this.slots.set(key, slot);
+    return slot;
+  }
+
+  private enqueue<T>(slot: Slot, fn: () => Promise<T>): Promise<T> {
+    slot.pending += 1;
+    const result = slot.chain.then(fn);
+    const done = () => {
+      slot.pending -= 1;
+      slot.lastUsed = Date.now();
+      this.armSweep();
+    };
+    slot.chain = result.then(done, done);
+    return result;
+  }
+
+  private async liveTab(slot: Slot): Promise<BrowserTab> {
+    // A failed open already reached its own caller as a refusal; here it only
+    // means "open again".
+    const tab = await slot.tab?.catch(() => undefined);
+    if (tab?.context.browser()?.isConnected()) {
+      if (tab.page.isClosed())
+        tab.page = tab.context.pages().at(-1) ?? (await tab.context.newPage());
+      return tab;
+    }
+    // Never opened, failed to open, or its browser is gone: open afresh.
+    const opened = this.ensureBrowser().then((browser) =>
+      openTab(browser, slot.statePath),
+    );
+    slot.tab = opened;
+    return opened;
+  }
+
+  private async dispose(slot: Slot): Promise<void> {
+    const pending = slot.tab;
+    slot.tab = null;
+    const tab = await pending?.catch(() => undefined);
+    if (!tab?.context.browser()?.isConnected()) return;
+    try {
+      await saveState(tab);
+    } finally {
+      await tab.context.close();
+    }
+  }
+
+  private armSweep(): void {
+    if (this.sweepTimer) return;
+    this.sweepTimer = setTimeout(() => {
+      this.sweepTimer = null;
+      this.sweep().catch((error: unknown) =>
         console.error("[browser] idle close failed", error),
       );
     }, this.idleMs);
     // The idle close must never be what keeps a finished process alive.
-    this.idleTimer.unref();
+    this.sweepTimer.unref();
   }
 
-  private async openTab(statePath: string): Promise<BrowserTab> {
-    const browser = await this.ensureBrowser();
-    const storageState = await readableState(statePath);
-    const context = await browser.newContext({
-      ...(storageState ? { storageState } : {}),
-      viewport: { width: 1280, height: 800 },
-    });
-    context.setDefaultTimeout(15_000);
-    context.setDefaultNavigationTimeout(30_000);
-    const tab: BrowserTab = {
-      context,
-      page: await context.newPage(),
-      statePath,
-    };
-    // A link that opens a new window becomes the page the model is on.
-    context.on("page", (page) => {
-      tab.page = page;
-    });
-    return tab;
+  private async sweep(): Promise<void> {
+    const cutoff = Date.now() - this.idleMs;
+    const idle = [...this.slots].filter(
+      ([, slot]) => slot.pending === 0 && slot.lastUsed <= cutoff,
+    );
+    await Promise.all(idle.map(([key]) => this.closeTab(key)));
+    for (const [key, slot] of idle)
+      if (slot.pending === 0 && !slot.tab) this.slots.delete(key);
+    if (this.slots.size === 0) await this.closeBrowser();
+    else this.armSweep();
+  }
+
+  private async closeBrowser(): Promise<void> {
+    const browser = this.browser;
+    // Cleared before awaiting, so a call arriving now launches a fresh one.
+    this.browser = null;
+    // A launch that failed was the refusal of the call that started it.
+    await (await browser?.catch(() => undefined))?.close();
   }
 
   private ensureBrowser(): Promise<Browser> {
     if (!this.browser) {
       const launching = this.launch();
       this.browser = launching;
-      launching.then(
-        (browser) =>
-          browser.on("disconnected", () => {
-            if (this.browser === launching) this.browser = null;
-            this.tabs.clear();
-          }),
-        () => {
-          if (this.browser === launching) this.browser = null;
-        },
-      );
+      const forget = () => {
+        if (this.browser === launching) this.browser = null;
+      };
+      launching.then((browser) => browser.on("disconnected", forget), forget);
     }
     return this.browser;
   }

@@ -40,11 +40,15 @@ async function isPasswordField(page: Page, ref: string): Promise<boolean> {
 }
 
 /** Refuse a page a redirect carried somewhere the browser may not be. */
-async function guardLanding(
-  page: Page,
-  blocked: readonly string[],
-): Promise<void> {
-  if (landedSafely(page.url(), blocked)) return;
+async function guardLanding(page: Page): Promise<void> {
+  const url = page.url();
+  if (landedSafely(url)) return;
+  // Chromium's own error page: the network fence (launch.ts) or plain DNS.
+  if (url.startsWith("chrome-error:"))
+    throw new BrowserToolError(
+      "page_error",
+      "That page did not load. Check the address, or try again.",
+    );
   await page.goto("about:blank");
   throw new BrowserToolError(
     "url_refused",
@@ -54,16 +58,40 @@ async function guardLanding(
 
 const text = (value: string): TextContent => ({ type: "text", text: value });
 
+/**
+ * A load that failed commits Chromium's error page a moment later, and a goto
+ * issued before that is "interrupted" by it. Waiting for it here keeps one
+ * failed page from failing the model's next `open` too.
+ */
+async function goto(page: Page, href: string): Promise<void> {
+  try {
+    await page.goto(href, { waitUntil: "domcontentloaded" });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("net::ERR_"))
+      await errorPageCommitted(page);
+    throw error;
+  }
+}
+
+async function errorPageCommitted(page: Page): Promise<void> {
+  try {
+    await page.waitForURL((url) => url.protocol === "chrome-error:", {
+      timeout: 2_000,
+    });
+  } catch (error) {
+    if (!(error instanceof Error && error.name === "TimeoutError")) throw error;
+  }
+}
+
 /** Run one action on the conversation's current page and describe the result. */
 export async function runBrowserAction(
   tab: BrowserTab,
   action: Exclude<BrowserAction, { action: "close" }>,
-  blocked: readonly string[],
 ): Promise<ActionOutcome> {
   const page = tab.page;
   const withSnapshot = async (lead: string, mutated = true) => {
     await settle(tab.page);
-    await guardLanding(tab.page, blocked);
+    await guardLanding(tab.page);
     return {
       content: [text(`${lead}\n\n${await pageSnapshot(tab.page)}`)],
       mutated,
@@ -71,8 +99,8 @@ export async function runBrowserAction(
   };
   switch (action.action) {
     case "open": {
-      const url = checkBrowserUrl(action.url, blocked);
-      await page.goto(url.href, { waitUntil: "domcontentloaded" });
+      const url = checkBrowserUrl(action.url);
+      await goto(page, url.href);
       return withSnapshot(`Opened ${url.href}.`);
     }
     case "snapshot":

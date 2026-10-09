@@ -9,10 +9,48 @@ export interface LaunchCandidate {
 
 type BrowserEnv = Record<string, string | undefined>;
 
-/** `--disable-dev-shm-usage` always (containers ship a 64 MB /dev/shm), plus extras. */
-export function launchArgs(env: BrowserEnv): string[] {
+/**
+ * Names that resolve to nowhere inside the browser. The "any address" forms
+ * reach this machine on macOS and Linux, and `.internal` / `metadata` name a
+ * cloud's metadata server and cluster services.
+ */
+const UNRESOLVABLE = ["0.0.0.0", "::", "metadata", "*.internal"];
+
+/**
+ * The network fence, enforced by Chromium on EVERY request: subresources,
+ * fetches from page scripts, workers, and each hop of a redirect, which a
+ * Playwright route never sees. All traffic bypasses the proxy (`*`) except
+ * what `<-loopback>` takes back out (127/8, ::1, localhost, *.localhost,
+ * 169.254/16, fe80::/10), which goes to a proxy that refuses the connection.
+ * NOT covered: a public name whose DNS answer is loopback.
+ */
+export function networkFenceArgs(extraHostRules: readonly string[] = []) {
+  const rules = [
+    ...extraHostRules,
+    ...UNRESOLVABLE.map((host) => `MAP ${host} ~NOTFOUND`),
+  ];
+  return [
+    "--proxy-server=http://127.0.0.1:9",
+    "--proxy-bypass-list=*;<-loopback>",
+    `--host-resolver-rules=${rules.join(", ")}`,
+  ];
+}
+
+/**
+ * The fence, `--disable-dev-shm-usage` (containers ship a 64 MB /dev/shm),
+ * then the operator's extras. `extraHostRules` is the tests' seam for naming
+ * a local fixture server.
+ */
+export function launchArgs(
+  env: BrowserEnv,
+  extraHostRules: readonly string[] = [],
+): string[] {
   const extra = (env.HOUSTON_BROWSER_ARGS ?? "").split(/\s+/).filter(Boolean);
-  return ["--disable-dev-shm-usage", ...extra];
+  return [
+    ...networkFenceArgs(extraHostRules),
+    "--disable-dev-shm-usage",
+    ...extra,
+  ];
 }
 
 /**
@@ -22,8 +60,11 @@ export function launchArgs(env: BrowserEnv): string[] {
  * 2. Playwright's own chromium headless shell, when it was installed.
  * 3. The person's installed Chrome, then Edge (desktop).
  */
-export function launchCandidates(env: BrowserEnv): LaunchCandidate[] {
-  const base = { headless: true, args: launchArgs(env) };
+export function launchCandidates(
+  env: BrowserEnv,
+  extraHostRules: readonly string[] = [],
+): LaunchCandidate[] {
+  const base = { headless: true, args: launchArgs(env, extraHostRules) };
   const exe = env.HOUSTON_BROWSER_EXECUTABLE?.trim();
   return [
     ...(exe
@@ -49,10 +90,11 @@ export const NO_BROWSER_MESSAGE =
  */
 export async function launchBrowser(
   env: BrowserEnv = process.env,
+  extraHostRules: readonly string[] = [],
 ): Promise<Browser> {
   const { chromium } = await import("playwright-core");
   const failures: string[] = [];
-  for (const candidate of launchCandidates(env)) {
+  for (const candidate of launchCandidates(env, extraHostRules)) {
     try {
       const browser = await chromium.launch(candidate.options);
       console.info(`[browser] launched ${candidate.label}`);

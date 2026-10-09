@@ -1,5 +1,4 @@
 import type { PiBackendDeps } from "../backends/pi/backend";
-import { config } from "../config";
 import {
   buildToolSelection,
   type CodeExecutionMode,
@@ -8,7 +7,6 @@ import {
 import { makeAskUserTool } from "../session/tools/ask-user";
 import { BROWSER_TOOL_NAME } from "../session/tools/browser/name";
 import { makeBrowserTool } from "../session/tools/browser/tool";
-import { loopbackOrigins } from "../session/tools/browser/url-policy";
 import { credentialTools } from "../session/tools/credential-tools";
 import { makeIntegrationTools } from "../session/tools/integrations";
 import { makePlanReadyTool } from "../session/tools/plan-ready";
@@ -144,10 +142,5 @@ export function buildTurnBrowserTool(
   workspaceDir: string,
 ): PiBackendDeps["customTools"] {
   if (!selection.toolNames.includes(BROWSER_TOOL_NAME)) return [];
-  return [
-    makeBrowserTool({
-      workspaceDir,
-      blockedOrigins: loopbackOrigins(config.port),
-    }),
-  ];
+  return [makeBrowserTool({ workspaceDir })];
 }

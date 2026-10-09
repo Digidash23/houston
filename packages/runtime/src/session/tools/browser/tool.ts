@@ -22,8 +22,6 @@ import { browserStatePath, saveState } from "./state-store";
 export interface BrowserToolOptions {
   /** The agent's workspace; its sign-ins live under `.houston/browser/`. */
   workspaceDir: string;
-  /** Origins the page may never reach (this runtime's own listener). */
-  blockedOrigins?: readonly string[];
   pool?: BrowserPool;
 }
 
@@ -44,7 +42,6 @@ const DESCRIPTION = [
  */
 export function makeBrowserTool({
   workspaceDir,
-  blockedOrigins = [],
   pool = sharedBrowserPool,
 }: BrowserToolOptions) {
   const statePath = browserStatePath(workspaceDir);
@@ -74,16 +71,26 @@ export function makeBrowserTool({
             details: { ok: true, action: action.action },
           };
         }
-        const tab = await pool.tab(key, statePath);
-        const outcome = await runBrowserAction(tab, action, blockedOrigins);
-        if (outcome.mutated) await saveState(tab.context, statePath);
-        return {
-          content: outcome.content,
-          details: { ok: true, action: action.action, url: tab.page.url() },
-        };
+        return await pool.run(key, statePath, async (tab) => {
+          const outcome = await runBrowserAction(tab, action);
+          if (outcome.mutated) await saveState(tab);
+          return {
+            content: outcome.content,
+            details: { ok: true, action: action.action, url: tab.page.url() },
+          };
+        });
       } catch (error) {
         if (error instanceof BrowserToolError)
           return browserFailure(error.code, error.message);
+        // The network fence (launch.ts) refusing a hop to this machine.
+        if (
+          error instanceof Error &&
+          error.message.includes("net::ERR_PROXY_CONNECTION_FAILED")
+        )
+          return browserFailure(
+            "url_refused",
+            "That page sent the browser to an address on this computer, so it was stopped.",
+          );
         if (error instanceof Error && isPageFailure(error))
           return browserFailure("page_error", firstLine(error.message));
         throw error;

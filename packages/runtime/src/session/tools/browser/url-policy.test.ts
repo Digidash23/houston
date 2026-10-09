@@ -1,12 +1,10 @@
 import { describe, expect, test } from "vitest";
 import { BrowserToolError } from "./errors";
-import { checkBrowserUrl, landedSafely, loopbackOrigins } from "./url-policy";
-
-const own = loopbackOrigins(4317);
+import { checkBrowserUrl, isBlockedHost, landedSafely } from "./url-policy";
 
 function code(raw: string): string {
   try {
-    checkBrowserUrl(raw, own);
+    checkBrowserUrl(raw);
   } catch (error) {
     expect(error).toBeInstanceOf(BrowserToolError);
     return (error as BrowserToolError).code;
@@ -16,11 +14,11 @@ function code(raw: string): string {
 
 describe("checkBrowserUrl", () => {
   test("web pages pass, and a bare host gets https", () => {
-    expect(checkBrowserUrl("https://example.com/a?b=1", own).href).toBe(
+    expect(checkBrowserUrl("https://example.com/a?b=1").href).toBe(
       "https://example.com/a?b=1",
     );
-    expect(checkBrowserUrl("http://example.com", own).protocol).toBe("http:");
-    expect(checkBrowserUrl("example.com/login", own).href).toBe(
+    expect(checkBrowserUrl("http://example.com").protocol).toBe("http:");
+    expect(checkBrowserUrl("example.com/login").href).toBe(
       "https://example.com/login",
     );
   });
@@ -37,12 +35,38 @@ describe("checkBrowserUrl", () => {
       expect(code(raw)).toBe("url_refused");
   });
 
-  test("this runtime's own listener is refused on every loopback name", () => {
-    expect(code("http://127.0.0.1:4317/conversations")).toBe("url_refused");
-    expect(code("http://localhost:4317")).toBe("url_refused");
-    expect(code("http://[::1]:4317/")).toBe("url_refused");
-    // Another local port is the person's own business (a dev server).
-    expect(code("http://127.0.0.1:3000")).toBe("allowed");
+  test("this machine is refused on every port and spelling", () => {
+    for (const raw of [
+      "http://127.0.0.1:4317/conversations",
+      "http://127.0.0.1:4318/v1/agents",
+      "http://127.0.0.1:3000",
+      "http://127.8.9.10/",
+      "http://localhost:11434/api/pull",
+      "http://app.localhost/",
+      "http://[::1]:4317/",
+      "http://[::ffff:127.0.0.1]/",
+      "http://2130706433/",
+      "http://0.0.0.0:4318/",
+      "http://[::]/",
+    ])
+      expect(code(raw), raw).toBe("url_refused");
+  });
+
+  test("cloud metadata and cluster-internal names are refused", () => {
+    for (const raw of [
+      "http://169.254.169.254/computeMetadata/v1/",
+      "http://metadata.google.internal/",
+      "http://metadata/",
+      "http://[fe80::1]/",
+      "http://[::ffff:169.254.169.254]/",
+    ])
+      expect(code(raw), raw).toBe("url_refused");
+  });
+
+  test("ordinary hosts that merely look local pass", () => {
+    expect(isBlockedHost("localhost.example.com")).toBe(false);
+    expect(isBlockedHost("127.example.com")).toBe(false);
+    expect(isBlockedHost("8.8.8.8")).toBe(false);
   });
 
   test("an empty or unparseable address is an invalid action", () => {
@@ -53,10 +77,11 @@ describe("checkBrowserUrl", () => {
 
 describe("landedSafely", () => {
   test("a redirect onto a refused page is caught", () => {
-    expect(landedSafely("https://example.com/home", own)).toBe(true);
-    expect(landedSafely("about:blank", own)).toBe(true);
-    expect(landedSafely("http://localhost:4317/v1", own)).toBe(false);
-    expect(landedSafely("file:///etc/hosts", own)).toBe(false);
-    expect(landedSafely("chrome-error://chromewebdata/", own)).toBe(false);
+    expect(landedSafely("https://example.com/home")).toBe(true);
+    expect(landedSafely("about:blank")).toBe(true);
+    expect(landedSafely("http://localhost:4317/v1")).toBe(false);
+    expect(landedSafely("http://169.254.169.254/")).toBe(false);
+    expect(landedSafely("file:///etc/hosts")).toBe(false);
+    expect(landedSafely("chrome-error://chromewebdata/")).toBe(false);
   });
 });

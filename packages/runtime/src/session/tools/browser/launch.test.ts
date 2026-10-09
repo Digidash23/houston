@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { launchArgs, launchCandidates } from "./launch";
+import { launchArgs, launchCandidates, networkFenceArgs } from "./launch";
 
 test("a baked executable is tried first, then the headless shell, Chrome, Edge", () => {
   const candidates = launchCandidates({
@@ -25,9 +25,25 @@ test("without a baked executable the list starts at the headless shell", () => {
   );
 });
 
-test("shared memory is always off; extra args come from the environment", () => {
-  expect(launchArgs({})).toEqual(["--disable-dev-shm-usage"]);
+test("the network fence leads, then shared memory off, then the operator's extras", () => {
+  const fence = [
+    "--proxy-server=http://127.0.0.1:9",
+    "--proxy-bypass-list=*;<-loopback>",
+    "--host-resolver-rules=MAP 0.0.0.0 ~NOTFOUND, MAP :: ~NOTFOUND, MAP metadata ~NOTFOUND, MAP *.internal ~NOTFOUND",
+  ];
+  expect(launchArgs({})).toEqual([...fence, "--disable-dev-shm-usage"]);
   expect(
     launchArgs({ HOUSTON_BROWSER_ARGS: " --disable-http2  --lang=es " }),
-  ).toEqual(["--disable-dev-shm-usage", "--disable-http2", "--lang=es"]);
+  ).toEqual([
+    ...fence,
+    "--disable-dev-shm-usage",
+    "--disable-http2",
+    "--lang=es",
+  ]);
+});
+
+test("a fixture host rule is added ahead of the fence's own rules", () => {
+  expect(networkFenceArgs(["MAP site.test 127.0.0.1"])[2]).toBe(
+    "--host-resolver-rules=MAP site.test 127.0.0.1, MAP 0.0.0.0 ~NOTFOUND, MAP :: ~NOTFOUND, MAP metadata ~NOTFOUND, MAP *.internal ~NOTFOUND",
+  );
 });
