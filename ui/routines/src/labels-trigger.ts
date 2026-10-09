@@ -34,8 +34,4 @@ export interface TriggerLabels {
   reconnect: string;
   statusDisconnectedHint: string;
   statusRevokedHint: string;
-  /** The app no longer offers the routine's event: edit it, pick another. */
-  statusTriggerGoneHint: string;
-  /** The app refused the setup on its side; it is retried automatically. */
-  statusConfigRejectedHint: string;
 }

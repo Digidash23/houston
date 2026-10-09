@@ -35,25 +35,11 @@ export type TriggerStatusState =
   | "paused_revoked"
   | "error";
 
-/**
- * Why a degraded binding is degraded. `trigger_type_gone` (with `error`): the
- * app no longer offers the event, so only editing the routine fixes it;
- * `config_rejected` (with `error`): the app refused the setup on its side and
- * it is retried automatically; `needs_reauth` (with `paused_disconnected`):
- * the account must be reconnected; `rejected` (with `error`): any other refusal.
- */
-export type TriggerStatusReason =
-  | "trigger_type_gone"
-  | "config_rejected"
-  | "needs_reauth"
-  | "rejected";
-
 /** One routine's trigger status. */
 export interface TriggerStatusItem {
   routine_id: string;
   status: TriggerStatusState;
   detail?: string;
-  reason?: TriggerStatusReason;
 }
 
 /** A connectable account for a toolkit, offered when the user has more than one. */

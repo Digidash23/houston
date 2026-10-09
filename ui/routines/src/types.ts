@@ -177,6 +177,5 @@ export type {
   TriggerApp,
   TriggerAppAccount,
   TriggerStatusItem,
-  TriggerStatusReason,
   TriggerStatusState,
 } from "./trigger-types";

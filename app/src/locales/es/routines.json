@@ -262,7 +262,7 @@
     "statusDisconnectedHint": "La cuenta conectada se desconectó.",
     "statusRevokedHint": "Esta app se desactivó para este empleado de IA.",
     "statusTriggerGoneHint": "La app ya no ofrece este evento. Edita esta rutina y elige otro evento.",
-    "statusConfigRejectedHint": "La app todavía no puede aceptar este evento. Seguimos intentando de nuestro lado; no tienes que hacer nada.",
+    "statusConfigRejectedHint": "La app rechazó la configuración de este evento. Seguiremos intentando; si no empieza a funcionar, edita la configuración de la rutina.",
     "rowSummary": "Se activa con un evento en {{app}}",
     "loadFailed": "No se pudieron cargar los activadores de eventos",
     "webhookRowSummary": "Se activa cuando llaman a su dirección de webhook"

@@ -22,22 +22,15 @@ export function triggerBadgeState(
 }
 
 /**
- * The human detail line for a status. A reason the person must act on (or
- * must be told to stop acting on) wins with authored copy, because the host's
- * `detail` is English and would name the wrong remedy; otherwise the host's
- * own `detail` when present, else a standing hint for the paused states.
- * Shown always (never hover-gated) so an error or a disconnected account
- * explains itself in place.
+ * The human detail line for a status: the host's own `detail` when present,
+ * else a standing hint for the paused states. Shown always (never hover-gated)
+ * so an error or a disconnected account explains itself in place.
  */
 export function triggerStatusDetail(
   status: TriggerStatusItem | undefined,
   labels: TriggerLabels,
 ): string | undefined {
   if (!status) return undefined;
-  if (status.status === "error" && status.reason === "trigger_type_gone")
-    return labels.statusTriggerGoneHint;
-  if (status.status === "error" && status.reason === "config_rejected")
-    return labels.statusConfigRejectedHint;
   if (status.detail) return status.detail;
   if (status.status === "paused_disconnected")
     return labels.statusDisconnectedHint;

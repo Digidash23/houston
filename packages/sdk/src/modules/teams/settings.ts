@@ -150,11 +150,13 @@ export async function setAgentModelChoice(
  * counts the routine's events the Free plan refused in the last 24 hours (why,
  * how many, and when the last one was), so a routine that "did not run" on an
  * event can be explained. An item's reason says why a binding that is not
- * working is stuck: trigger_type_gone (the app no longer offers that event, so
- * the routine must be edited to pick another), config_rejected (the app
- * refused the setup on its side and it is retried on its own), needs_reauth
- * (the account must be reconnected) or rejected (any other refusal);
- * triggerRemedy turns it into what the person should do.
+ * working is stuck: trigger_type_gone (the app no longer offers that event;
+ * it is retried only about daily, then weekly, and right away once the
+ * routine is edited to pick another event), config_rejected (the app refused
+ * the setup; it is retried automatically, and if it keeps failing the
+ * routine's settings need editing), needs_reauth (the account must be
+ * reconnected) or rejected (any other refusal); triggerRemedy turns it into
+ * what the person should do.
  * @param agentSlugOrId The agent this acts on, by the id or slug listAgents
  *   returns. Read it from listAgents rather than writing the name the user
  *   says.

@@ -6,17 +6,12 @@ import {
   triggerBadgeState,
   triggerStatusDetail,
 } from "../src/trigger-status-view.ts";
-import type {
-  TriggerStatusItem,
-  TriggerStatusReason,
-  TriggerStatusState,
-} from "../src/types.ts";
+import type { TriggerStatusItem, TriggerStatusState } from "../src/types.ts";
 
 const item = (
   status: TriggerStatusState,
   detail?: string,
-  reason?: TriggerStatusReason,
-): TriggerStatusItem => ({ routine_id: "r1", status, detail, reason });
+): TriggerStatusItem => ({ routine_id: "r1", status, detail });
 
 describe("triggerBadgeState", () => {
   it("resolves absent status to the muted 'unknown' fallback, never nothing", () => {
@@ -60,40 +55,6 @@ describe("triggerStatusDetail", () => {
     assert.equal(
       triggerStatusDetail(item("paused_revoked"), DEFAULT_TRIGGER_LABELS),
       DEFAULT_TRIGGER_LABELS.statusRevokedHint,
-    );
-  });
-  it("says to pick another event, not the host's English, when the event is gone", () => {
-    assert.equal(
-      triggerStatusDetail(
-        item("error", "Trigger type GMAIL_X not found", "trigger_type_gone"),
-        DEFAULT_TRIGGER_LABELS,
-      ),
-      DEFAULT_TRIGGER_LABELS.statusTriggerGoneHint,
-    );
-  });
-  it("says there is nothing to do while the app's own refusal is retried", () => {
-    assert.equal(
-      triggerStatusDetail(
-        item("error", "Missing webhook secret", "config_rejected"),
-        DEFAULT_TRIGGER_LABELS,
-      ),
-      DEFAULT_TRIGGER_LABELS.statusConfigRejectedHint,
-    );
-  });
-  it("keeps the host's detail for an error with no reason or a generic one", () => {
-    assert.equal(
-      triggerStatusDetail(
-        item("error", "Delivery is failing."),
-        DEFAULT_TRIGGER_LABELS,
-      ),
-      "Delivery is failing.",
-    );
-    assert.equal(
-      triggerStatusDetail(
-        item("error", "Refused.", "rejected"),
-        DEFAULT_TRIGGER_LABELS,
-      ),
-      "Refused.",
     );
   });
   it("has no detail for active/pending without a host detail", () => {

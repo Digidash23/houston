@@ -52,7 +52,7 @@ describe("activationAlertView", () => {
     );
   });
 
-  it("says there is nothing to do while the app's refusal is retried", () => {
+  it("asks to check the settings when the app refused the setup", () => {
     deepStrictEqual(
       activationAlertView(
         item("error", { reason: "config_rejected", detail: "Missing secret" }),

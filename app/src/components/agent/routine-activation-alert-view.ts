@@ -1,5 +1,9 @@
 import type { TriggerStatusItem } from "@houston/engine-adapter";
 import { triggerRemedy } from "@houston/sdk";
+import {
+  remedyHintKey,
+  type TriggerRemedyHintKey,
+} from "./trigger-remedy-detail";
 
 /** The headline for a trigger binding that needs attention. */
 export type ActivationAlertLabelKey =
@@ -11,8 +15,7 @@ export type ActivationAlertLabelKey =
 export type ActivationAlertHintKey =
   | "trigger.statusDisconnectedHint"
   | "trigger.statusRevokedHint"
-  | "trigger.statusTriggerGoneHint"
-  | "trigger.statusConfigRejectedHint";
+  | TriggerRemedyHintKey;
 
 export type ActivationAlertDetail =
   | { kind: "hint"; key: ActivationAlertHintKey }
@@ -28,9 +31,10 @@ export interface ActivationAlertView {
 
 /**
  * What the routine screen's alert block says, from the SDK's `triggerRemedy`.
- * A dead event or a refusal the app retries on its own gets authored copy
- * instead of the host's English `detail`, which names no remedy, and never a
- * Reconnect, which would not help. Pure, so it unit-tests under bare node.
+ * An event the app no longer offers, or a setup it refused, gets the authored
+ * remedy copy (`remedyHintKey`, the same mapping the grid uses) instead of the
+ * host's English `detail`, and never a Reconnect, which would not help. Pure,
+ * so it unit-tests under bare node.
  */
 export function activationAlertView(
   status: TriggerStatusItem | undefined,
@@ -54,10 +58,8 @@ function alertDetail(
   status: TriggerStatusItem | undefined,
   remedy: ReturnType<typeof triggerRemedy>,
 ): ActivationAlertDetail {
-  if (remedy === "pick_another_event")
-    return { kind: "hint", key: "trigger.statusTriggerGoneHint" };
-  if (remedy === "wait_for_provider")
-    return { kind: "hint", key: "trigger.statusConfigRejectedHint" };
+  const remedyKey = remedyHintKey(remedy);
+  if (remedyKey) return { kind: "hint", key: remedyKey };
   if (status?.detail) return { kind: "server", text: status.detail };
   if (status?.status === "paused_disconnected")
     return { kind: "hint", key: "trigger.statusDisconnectedHint" };

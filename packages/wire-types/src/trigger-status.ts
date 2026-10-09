@@ -26,14 +26,17 @@ export type TriggerStatusState =
 export const TRIGGER_STATUS_REASONS = [
   /**
    * With `error`. The outside app no longer offers this event (a retired or
-   * renamed trigger type). The gateway never retries until the routine is
-   * edited; reconnecting the account does not help, picking another event does.
+   * renamed trigger type). The gateway retries rarely (about daily, backing
+   * off to weekly), so a passing catalog miss cannot kill the binding, and
+   * immediately once the routine is edited to a different event. Reconnecting
+   * the account does not help; picking another event does.
    */
   "trigger_type_gone",
   /**
-   * With `error`. The provider refused the trigger's configuration on its own
-   * side (its platform config, e.g. a missing secret). The gateway retries
-   * with backoff from 30 minutes up to 24 hours; nothing for the person to do.
+   * With `error`. The provider refused the trigger's setup (any bad-request
+   * answer: its own platform config, e.g. a missing secret, or settings the
+   * person chose). The gateway retries with backoff from 30 minutes up to 24
+   * hours; if it never starts working, the routine's settings need editing.
    */
   "config_rejected",
   /** With `paused_disconnected`. The connected account must be reauthorized. */

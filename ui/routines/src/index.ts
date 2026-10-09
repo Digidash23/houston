@@ -73,7 +73,6 @@ export type {
   TriggerApp,
   TriggerAppAccount,
   TriggerStatusItem,
-  TriggerStatusReason,
   TriggerStatusState,
 } from "./types";
 export { SCHEDULE_PRESET_LABELS } from "./types";

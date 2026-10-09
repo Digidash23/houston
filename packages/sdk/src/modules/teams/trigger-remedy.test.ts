@@ -33,9 +33,9 @@ describe("triggerRemedy", () => {
     );
   });
 
-  it("asks for nothing while the app's own setup refusal is retried", () => {
+  it("asks to check the settings when the app refused the setup", () => {
     expect(triggerRemedy(item("error", "config_rejected"))).toBe(
-      "wait_for_provider",
+      "check_settings",
     );
   });
 
