@@ -363,3 +363,122 @@ test("refreshNow abandons the save when clearSession fired mid-flight (sign-out 
 
   setSessionSink(() => {});
 });
+
+// A securetoken answer shaped like the real one: a three-part JWT whose `exp`
+// claim is what the gateway judges. `expOffsetS` is relative to now.
+function jwtExpiringIn(expOffsetS: number, tag: string): string {
+  const nowS = Math.floor(Date.now() / 1000);
+  const enc = (o: unknown) =>
+    Buffer.from(JSON.stringify(o)).toString("base64url");
+  return `${enc({ alg: "RS256", kid: tag })}.${enc({
+    sub: "uid-1",
+    iat: nowS + expOffsetS - 3600,
+    exp: nowS + expOffsetS,
+    tag,
+  })}.sig`;
+}
+
+function tokenResponse(idToken: string): Response {
+  return new Response(
+    JSON.stringify({
+      id_token: idToken,
+      refresh_token: "refresh-2",
+      expires_in: "3600",
+    }),
+    { status: 200, headers: { "content-type": "application/json" } },
+  );
+}
+
+test("refreshNow never hands out a token already expired by its own claims: it mints again", async () => {
+  // Field shape (HOUSTON-APP-5HZ): the proactive timer's securetoken request
+  // went out, the laptop slept, and the webview delivered the buffered answer
+  // on wake. `expires_in` is counted from the moment the answer is READ, so
+  // the session looked an hour fresh while the token's `exp` was 27 minutes
+  // in the past. Every joiner of that in-flight run replayed it and the
+  // gateway refused each one. The run must notice and mint once more.
+  await seedSession();
+  const { refreshNow, setSessionSink } = await import(
+    "../src/lib/identity/refresh.ts"
+  );
+  const { loadSession } = await import("../src/lib/identity/session-store.ts");
+  const sinkUpdates: (Session | null)[] = [];
+  setSessionSink((s) => sinkUpdates.push(s));
+
+  const sleptOut = jwtExpiringIn(-1_621, "slept");
+  const fresh = jwtExpiringIn(3_600, "fresh");
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls += 1;
+    return tokenResponse(calls === 1 ? sleptOut : fresh);
+  }) as typeof fetch;
+
+  assert.equal(await refreshNow(), fresh);
+  assert.equal(calls, 2, "expected exactly one extra mint");
+  const stored = await loadSession();
+  assert.equal(stored?.idToken, fresh);
+  assert.deepEqual(
+    sinkUpdates.map((s) => s?.idToken),
+    [fresh],
+    "the expired token must never be broadcast",
+  );
+  setSessionSink(() => {});
+});
+
+test("joiners of a pre-sleep in-flight refresh receive the re-minted token (one extra request)", async () => {
+  await seedSession();
+  const { refreshNow } = await import("../src/lib/identity/refresh.ts");
+
+  const sleptOut = jwtExpiringIn(-5_221, "slept");
+  const fresh = jwtExpiringIn(3_600, "fresh");
+  let releaseFirst: () => void = () => {};
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls += 1;
+    if (calls === 1) {
+      await new Promise<void>((r) => {
+        releaseFirst = r;
+      });
+      return tokenResponse(sleptOut);
+    }
+    return tokenResponse(fresh);
+  }) as typeof fetch;
+
+  const timerRun = refreshNow(); // the proactive timer, before the sleep
+  await new Promise((r) => setTimeout(r, 5));
+  const wakeReplay = refreshNow(); // the 401 recovery on wake, joining it
+  releaseFirst();
+
+  assert.equal(await timerRun, fresh);
+  assert.equal(await wakeReplay, fresh);
+  assert.equal(calls, 2);
+});
+
+test("the stored expiresAt never outlives the token's own exp claim", async () => {
+  // `expires_in` is relative to when the answer was read; `exp` is absolute.
+  // After a sleep the two disagree by the length of the sleep, and the timer
+  // must schedule off the honest one or it waits an hour on a dead token.
+  await seedSession();
+  const { refreshNow } = await import("../src/lib/identity/refresh.ts");
+  const { loadSession } = await import("../src/lib/identity/session-store.ts");
+
+  const shortLived = jwtExpiringIn(900, "short"); // 15 min left, not slept out
+  globalThis.fetch = (async () => tokenResponse(shortLived)) as typeof fetch;
+
+  await refreshNow();
+  const stored = await loadSession();
+  assert.ok(stored);
+  const remainingMs = stored.expiresAt - Date.now();
+  assert.ok(
+    remainingMs <= 900_000 && remainingMs > 800_000,
+    `expiresAt must follow exp (~900 s), got ${remainingMs} ms`,
+  );
+});
+
+test("isSleptOut judges a token by its exp claim with a safety margin", async () => {
+  const { isSleptOut } = await import("../src/lib/identity/refresh-mint.ts");
+  const now = Date.now();
+  assert.equal(isSleptOut("not-a-jwt", now), false, "undecodable = trusted");
+  assert.equal(isSleptOut(jwtExpiringIn(3_600, "a"), now), false);
+  assert.equal(isSleptOut(jwtExpiringIn(30, "b"), now), true, "inside margin");
+  assert.equal(isSleptOut(jwtExpiringIn(-1, "c"), now), true, "expired");
+});

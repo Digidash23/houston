@@ -70,3 +70,20 @@ export function decodeIdTokenClaims(idToken: string): IdTokenClaims | null {
   }
   return claims as IdTokenClaims;
 }
+
+/**
+ * The token's own `exp` as epoch milliseconds, or null when it carries none or
+ * is not a JWT at all. Quiet on purpose (no log): the refresh path asks this of
+ * every minted token, and an undecodable one is simply trusted, not reported.
+ */
+export function idTokenExpiresAtMs(idToken: string): number | null {
+  const parts = idToken.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const claims: unknown = JSON.parse(base64UrlDecode(parts[1]));
+    const exp = (claims as { exp?: unknown } | null)?.exp;
+    return typeof exp === "number" && Number.isFinite(exp) ? exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
