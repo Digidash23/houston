@@ -1,4 +1,8 @@
-import type { QueryClient, QueryKey } from "@tanstack/react-query";
+import {
+  hashKey,
+  type QueryClient,
+  type QueryKey,
+} from "@tanstack/react-query";
 import { holdPatchesAcrossRefetch } from "./optimistic-hold";
 
 /**
@@ -91,6 +95,23 @@ export function runOptimisticWrite<T>(
   // Reverse order: a later patch of this write that hit the same entry
   // snapshotted it AFTER an earlier one painted.
   const rollback = () => {
+    // An entry with no paint-time data (a first load landed mid-write, or it
+    // was created after the paint) has nothing to revert to: the hold kept
+    // the paint over it, so only a refetch can undo it. Exact, so the
+    // success path's narrower refresh policy is not widened.
+    for (const { patch, before } of snapshots) {
+      const reverted = new Set(
+        before
+          .filter(([, data]) => data !== undefined)
+          .map(([k]) => hashKey(k)),
+      );
+      for (const query of qc
+        .getQueryCache()
+        .findAll({ queryKey: patch.queryKey })) {
+        if (reverted.has(query.queryHash)) continue;
+        void qc.invalidateQueries({ queryKey: query.queryKey, exact: true });
+      }
+    }
     for (const { patch, before } of [...snapshots].reverse()) {
       for (const [queryKey, data] of before) {
         if (patch.revert) {

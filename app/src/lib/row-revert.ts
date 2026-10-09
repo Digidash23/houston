@@ -14,6 +14,9 @@ export interface RowRevert<R> {
   added?: (row: R) => boolean;
   /** How a touched row still listed comes back; defaults to its paint-time self. */
   restore?: (current: R, before: R) => R;
+  /** `false` for edits: a touched row gone from `current` was removed by
+   *  someone else mid-write, not by this write, so it stays gone. */
+  reinsert?: boolean;
 }
 
 /**
@@ -68,6 +71,7 @@ export function revertRows<R>(
       next.push(row);
     }
   }
+  if (spec.reinsert === false) return changed ? next : current;
   const listed = new Set(next.map(keyOf));
   before.forEach((row, i) => {
     const key = keyOf(row);

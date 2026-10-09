@@ -262,3 +262,90 @@ describe("a refused mission write undoes only its own rows", () => {
     strictEqual(a1.title, "Renamed");
   });
 });
+
+const failure = { title: "", description: "" };
+
+/** A write the test refuses by hand, after arranging what landed mid-write. */
+function pending(
+  qc: QueryClient,
+  patches: ReturnType<typeof missionEditPatches>,
+) {
+  let fail!: (err: Error) => void;
+  const done = runOptimisticWrite(
+    {
+      qc,
+      command: "t",
+      patches,
+      write: () =>
+        new Promise<void>((_, rej) => {
+          fail = rej;
+        }),
+      failure,
+    },
+    () => {},
+  );
+  return async () => {
+    fail(new Error("no"));
+    await done;
+  };
+}
+
+describe("refused mission writes", () => {
+  it("leaves a card someone else deleted mid-edit gone", async () => {
+    const qc = seeded();
+    const refuse = pending(
+      qc,
+      missionEditPatches({ [ALICE]: ["a1"] }, { title: "New" }, T),
+    );
+    const key = queryKeys.allConversations([ALICE, BOB]);
+    qc.setQueryData(key, [row("a2", ALICE), row("b1", BOB)]);
+    await refuse();
+    deepStrictEqual(ids(qc.getQueryData(key)), ["a2", "b1"]);
+  });
+
+  it("keeps a question already back on the card when a move reverts", () => {
+    const [own] = missionEditPatches(
+      { [ALICE]: ["a1"] },
+      { status: "done" },
+      T,
+    );
+    const raised = {
+      steps: [{ kind: "question", id: "q2", question: "Now?" }],
+    };
+    const old = {
+      steps: [{ kind: "question", id: "q1", question: "Before?" }],
+    };
+    const [kept] = own.revert?.(
+      [activity("a1", { status: "done", pending_interaction: raised })],
+      [activity("a1", { pending_interaction: old })],
+    ) as Record<string, unknown>[];
+    deepStrictEqual(
+      [kept.status, kept.pending_interaction],
+      ["needs_you", raised],
+    );
+    const [restored] = own.revert?.(
+      [activity("a1", { status: "done" })],
+      [activity("a1", { pending_interaction: old })],
+    ) as Record<string, unknown>[];
+    deepStrictEqual(restored.pending_interaction, old);
+  });
+
+  it("refetches an aggregate whose first load landed mid-write", async () => {
+    const qc = new QueryClient();
+    const key = queryKeys.allConversations([ALICE]);
+    let landFirst!: (rows: unknown) => void;
+    const first = qc.fetchQuery({
+      queryKey: key,
+      queryFn: () =>
+        new Promise((res) => {
+          landFirst = res;
+        }),
+    });
+    const refuse = pending(qc, missionRemovalPatches({ [ALICE]: ["a1"] }));
+    landFirst([row("a1", ALICE)]);
+    await first;
+    deepStrictEqual(ids(qc.getQueryData(key)), []);
+    await refuse();
+    strictEqual(qc.getQueryState(key)?.isInvalidated, true);
+  });
+});

@@ -117,8 +117,18 @@ export function missionEditPatches(
   // another field of the same card stays. A move to done also strips the
   // card's blocking steps (`applyActivityPatch`).
   const edited = [...Object.keys(fields), "updated_at"];
-  const ownEdited =
-    edit.status === undefined ? edited : [...edited, "pending_interaction"];
+  // A move may have stripped the card's question; it comes back only if the
+  // card still has none, so one the agent raised mid-write survives.
+  const restoreOwn = (row: Activity, old: Activity): Activity => {
+    const next = restoreFields(row, old, edited);
+    if (
+      edit.status !== undefined &&
+      row.pending_interaction === undefined &&
+      old.pending_interaction !== undefined
+    )
+      next.pending_interaction = old.pending_interaction;
+    return next;
+  };
   return [
     ...[...sets].map(
       ([agentPath, ids]): OptimisticPatch<Activity[]> => ({
@@ -133,7 +143,8 @@ export function missionEditPatches(
           revertRows(rows, before, {
             keyOf: activityKey,
             touched: (row) => ids.has(row.id),
-            restore: (row, old) => restoreFields(row, old, ownEdited),
+            restore: restoreOwn,
+            reinsert: false,
           }),
       }),
     ),
@@ -153,6 +164,7 @@ export function missionEditPatches(
           keyOf: aggregateKey,
           touched: (row) => owns(sets, row),
           restore: (row, old) => restoreFields(row, old, edited),
+          reinsert: false,
         }),
     },
   ];
