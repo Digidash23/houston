@@ -1,12 +1,16 @@
 import {
   routineAutoPauseLogTail,
+  routineSnoozeLogTail,
   unconnectedRoutineFailure,
 } from "@houston/domain";
-import type { RoutineRunFailure } from "@houston/protocol";
+import type { RoutineRun, RoutineRunFailure } from "@houston/protocol";
 import type { ObjectStore } from "@houston/runtime-client/object-sync";
 import { type TurnFilesystem, turnRoutineRunsKey } from "./turn-filesystem";
 import { type RoutinePhase, settleRoutineTurn } from "./turn-routine";
-import { autoPauseRoutineTurn } from "./turn-routine-auto-pause";
+import {
+  autoPauseRoutineTurn,
+  snoozeRoutineTurn,
+} from "./turn-routine-auto-pause";
 
 /** A settled routine turn: an error for the outcome, and its pending pause. */
 export interface FinishedRoutineTurn {
@@ -60,7 +64,17 @@ export async function finishRoutineTurn(opts: {
       error: `routine settle failed: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
-  if (!settled?.failure) return {};
+  if (!settled) return {};
+  // A usage limit snoozes on this run alone, durable row or not: the failure
+  // is the proof, and the snooze is what spares the next fire. A run that
+  // answered lifts a hold the routine carried when the turn hydrated.
+  const answered = settled.status === "silent" || settled.status === "surfaced";
+  if (
+    settled.failure?.code === "usage_limit" ||
+    (answered && opts.phase.routine.snoozed)
+  )
+    return { afterSync: () => snoozeNow(opts, settled) };
+  if (!settled.failure) return {};
   const runsKey = turnRoutineRunsKey(opts.filesystem.workspaceRel);
   return {
     afterSync: async (landed) => {
@@ -69,6 +83,37 @@ export async function finishRoutineTurn(opts: {
       return pauseIfEarned(opts);
     },
   };
+}
+
+async function snoozeNow(
+  opts: {
+    store: ObjectStore;
+    prefix: string;
+    filesystem: TurnFilesystem;
+    phase: RoutinePhase;
+  },
+  run: RoutineRun,
+): Promise<string | undefined> {
+  try {
+    const changed = await snoozeRoutineTurn({
+      store: opts.store,
+      prefix: opts.prefix,
+      filesystem: opts.filesystem,
+      routineId: opts.phase.routine.id,
+      run,
+      actingSub: opts.phase.actingSub,
+      nowIso: new Date().toISOString(),
+    });
+    if (changed)
+      console.info(
+        changed.snoozed
+          ? `[routine-snooze] snoozed ${changed.id}: ${routineSnoozeLogTail(changed.snoozed)}`
+          : `[routine-snooze] lifted ${changed.id}: a run answered`,
+      );
+    return undefined;
+  } catch (error) {
+    return `routine snooze failed: ${error instanceof Error ? error.message : String(error)}`;
+  }
 }
 
 async function pauseIfEarned(opts: {

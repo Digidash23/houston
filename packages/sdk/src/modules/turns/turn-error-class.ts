@@ -72,6 +72,7 @@ const PROVIDER_ERROR_KINDS: Record<ProviderError["kind"], true> = {
   provider_internal: true,
   malformed_response: true,
   network_unreachable: true,
+  usage_limit_paused: true,
   unknown: true,
 };
 

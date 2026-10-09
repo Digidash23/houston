@@ -585,6 +585,13 @@ test("external mode leaves trigger delivery and run-now operational", async () =
   });
   expect(runNow.status).toBe(200);
   expect(channel.fired).toHaveLength(2);
+  // Only the hand-pressed row is marked manual: it ran as the presser, so it
+  // never moves the creator's snooze (domain snoozeAfterRun).
+  const rows = await runs();
+  expect(rows.filter((r) => r.manual === true)).toHaveLength(1);
+  expect(
+    rows.find((r) => r.routine_id === "triggered")?.manual,
+  ).toBeUndefined();
 });
 
 // A redelivery while the first delivery is still firing (a cold boot slower
