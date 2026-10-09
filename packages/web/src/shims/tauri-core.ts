@@ -19,7 +19,7 @@
  * app/src/lib/desktop-native-commands.ts must appear here, keychain aside).
  */
 
-import { gatewayAuthFetch } from "@houston/engine-adapter/cp/fetch";
+import { reportBugViaGateway } from "../report-bug-intake";
 
 /** Mirror of `@tauri-apps/api`'s `isTauri()` — always false in the web build. */
 export function isTauri(): boolean {
@@ -166,36 +166,11 @@ export async function invoke<T = unknown>(
 
     case "report_bug": {
       // Cloud mode: the control plane fronts the same Linear intake the desktop
-      // reaches via Tauri (POST /feedback, Supabase-authed). Outside cloud mode
-      // there is nowhere to send it, so fall through to the desktop-only error.
+      // reaches via Tauri. Outside cloud mode there is nowhere to send it, so
+      // fall through to the desktop-only error.
       const cp = window.__HOUSTON_CP__ ? window.__HOUSTON_ENGINE__ : undefined;
       if (!cp?.baseUrl) return notAvailable(cmd);
-      // Same transport as every other control-plane call: the bearer is read
-      // LIVE per attempt and a 401 triggers one single-flight session refresh
-      // plus a replay, so a report filed after the tab idled past token expiry
-      // still lands instead of failing as "unauthorized" (HOU-818). A blank or
-      // absent token is just the empty-bearer case that refresh path handles.
-      //
-      // NO org getter, so no `x-houston-org`: the gateway's ResolveOrg 403s
-      // `not_member` on a stale selector, and `/feedback` never reads the org
-      // anyway. Pinning the active space would mean a user removed from their
-      // team could no longer tell us anything — the exact moment they most
-      // need to. `X-Houston-App-Version` still rides along (build identity).
-      const gatewayFetch = gatewayAuthFetch(cp.token);
-      const res = await gatewayFetch(
-        `${cp.baseUrl.replace(/\/+$/, "")}/feedback`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(args?.payload ?? {}),
-        },
-      );
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error || `feedback failed (${res.status})`);
-      }
-      const out = (await res.json()) as { id: string | null };
-      return out.id as T;
+      return (await reportBugViaGateway(cp, args?.payload)) as T;
     }
 
     // ── Harmless no-ops (feature simply absent on web) ──────────────────

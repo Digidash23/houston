@@ -66,12 +66,7 @@ export class TurnSink {
   private readonly onStarted: Array<() => void> = [];
 
   constructor(private readonly o: TurnSinkOptions) {
-    this.s = newTurnState(o.agentPath, o.sessionKey, o.output, {
-      provider: o.provider,
-      prompt: o.prompt,
-      firstResponse: o.firstResponse,
-      board: o.board,
-    });
+    this.s = newTurnState(o.agentPath, o.sessionKey, o.output, o);
     this.poll = sinkPresettlePoll({
       s: this.s,
       o,

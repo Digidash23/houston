@@ -1,11 +1,8 @@
 import * as Sentry from "@sentry/browser";
+import { confirmDelivery, recordDelivery } from "./sentry-delivery";
 import { currentClientDeployment } from "./sentry-deployment";
 import { sentrySendInDevEnabled } from "./sentry-dev";
-import {
-  eventIdFromEnvelope,
-  isAcceptedStatus,
-  resolveCapturedEventId,
-} from "./sentry-transport";
+import { eventIdFromEnvelope, isAcceptedStatus } from "./sentry-transport";
 
 // __SENTRY_DSN__ baked at build time by Vite (see vite.config.ts). Empty
 // string in dev / forks → init bails, every capture is a silent no-op.
@@ -47,22 +44,6 @@ function resolveEnvironment(): string {
     typeof window !== "undefined" ? window.__HOUSTON_DEPLOY_ENV__ : undefined;
   if (injected) return injected;
   return import.meta.env.DEV ? "development" : "production";
-}
-
-// Per-event delivery outcome recorded by the confirming transport (below) and
-// read+cleared by captureException: true once Sentry accepts the event with a
-// 2xx. Bounded so it can't grow unboundedly from envelopes captured outside
-// captureException (some envelope types carry no header event_id; the SDK's
-// own GlobalHandlers integration is stripped — see initSentry).
-const deliveryAccepted = new Map<string, boolean>();
-const MAX_TRACKED_DELIVERIES = 64;
-
-function recordDelivery(eventId: string, accepted: boolean): void {
-  if (deliveryAccepted.size >= MAX_TRACKED_DELIVERIES) {
-    const oldest = deliveryAccepted.keys().next().value;
-    if (oldest !== undefined) deliveryAccepted.delete(oldest);
-  }
-  deliveryAccepted.set(eventId, accepted);
 }
 
 /**
@@ -162,14 +143,7 @@ export async function captureException(
     normalized,
     context || extra ? { tags: context, extra } : undefined,
   );
-  const flushed = await Sentry.flush(5000);
-  // By the time flush resolves, the wrapper's send() has run for this envelope
-  // and recorded its outcome. The exact microtask ordering isn't guaranteed, so
-  // a missing entry is treated as not-accepted — worst case a real send shows no
-  // green toast (conservative), never a false "report sent".
-  const accepted = deliveryAccepted.get(eventId) === true;
-  deliveryAccepted.delete(eventId);
-  return resolveCapturedEventId(eventId, flushed, accepted);
+  return confirmDelivery(eventId);
 }
 
 /**

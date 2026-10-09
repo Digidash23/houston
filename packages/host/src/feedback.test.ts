@@ -1,12 +1,13 @@
 import { createServer, type Server } from "node:http";
 import { expect, test } from "vitest";
 import {
+  FeedbackIntakeError,
   type FeedbackPayload,
   formatIssueDescription,
   formatIssueTitle,
-  LinearFeedbackSender,
   parseFeedbackPayload,
 } from "./feedback";
+import { LinearFeedbackSender } from "./feedback-linear";
 
 /**
  * The web build's "Send feedback" intake. Formatting mirrors the desktop's
@@ -156,6 +157,72 @@ test("LinearFeedbackSender surfaces GraphQL errors instead of swallowing", async
   await new Promise<void>((r) => stub.close(() => r()));
 });
 
+async function stubLinear(
+  status: number,
+  body: unknown,
+): Promise<{ apiUrl: string; close: () => Promise<void> }> {
+  const stub: Server = createServer((_req, res) => {
+    res.writeHead(status, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(body));
+  });
+  await new Promise<void>((r) => stub.listen(0, "127.0.0.1", () => r()));
+  const addr = stub.address();
+  return {
+    apiUrl: `http://127.0.0.1:${typeof addr === "object" && addr ? addr.port : 0}`,
+    close: () => new Promise<void>((r) => stub.close(() => r())),
+  };
+}
+
+async function refusalOf(status: number, body: unknown) {
+  const linear = await stubLinear(status, body);
+  const sender = new LinearFeedbackSender({
+    apiKey: "k",
+    teamId: "t",
+    labelName: "User Bug",
+    apiUrl: linear.apiUrl,
+  });
+  const err = await sender.send(payload, "u").catch((e: unknown) => e);
+  await linear.close();
+  return err as FeedbackIntakeError;
+}
+
+// H-009 / HOUSTON-APP-5FT: the workspace at its plan's issue cap answers every
+// create with this GraphQL error. It must come back typed so the route can
+// answer the 503 the app reads as "deliver through the fallback".
+test("a Linear usage-limit refusal is a typed intake_unavailable", async () => {
+  const err = await refusalOf(200, {
+    errors: [
+      {
+        message: "usage limit exceeded",
+        extensions: { type: "usage limit exceeded", userError: true },
+      },
+    ],
+  });
+  expect(err).toBeInstanceOf(FeedbackIntakeError);
+  expect(err.kind).toBe("intake_unavailable");
+  expect(err.message).toBe(
+    "Linear API returned GraphQL errors: usage limit exceeded",
+  );
+});
+
+test("a rate limit or outage is intake_unavailable, a bad team is other", async () => {
+  expect((await refusalOf(429, {})).kind).toBe("intake_unavailable");
+  expect((await refusalOf(502, {})).kind).toBe("intake_unavailable");
+  expect(
+    (
+      await refusalOf(200, {
+        errors: [
+          { message: "RATELIMITED_X", extensions: { code: "RATELIMITED" } },
+        ],
+      })
+    ).kind,
+  ).toBe("intake_unavailable");
+  expect(
+    (await refusalOf(200, { errors: [{ message: "team not found" }] })).kind,
+  ).toBe("other");
+  expect((await refusalOf(401, { error: "bad key" })).kind).toBe("other");
+});
+
 // ---------------------------------------------------------------------------
 // Route-level: POST /feedback on the control-plane server
 // ---------------------------------------------------------------------------
@@ -293,4 +360,31 @@ test("POST /feedback requires auth, 503s unconfigured, files when wired", async 
 
   await wired.close();
   await unwired.close();
+});
+
+test("POST /feedback answers an intake refusal as a typed 503", async () => {
+  const refused = await listen(
+    routeDeps({
+      async send() {
+        throw new FeedbackIntakeError(
+          "Linear API returned GraphQL errors: usage limit exceeded",
+          "intake_unavailable",
+        );
+      },
+    }),
+  );
+  const res = await fetch(`${refused.base}/feedback`, {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer tok:alice",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ command: "manual_report", userMessage: "hi" }),
+  });
+  expect(res.status).toBe(503);
+  expect(await res.json()).toEqual({
+    error: "Linear API returned GraphQL errors: usage limit exceeded",
+    code: "intake_unavailable",
+  });
+  await refused.close();
 });

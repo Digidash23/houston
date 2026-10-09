@@ -1,5 +1,6 @@
 import { afterEach, expect, test, vi } from "vitest";
 import { LocalModelBridgeController } from "./controller";
+import { BridgeDisposedError } from "./errors";
 import type {
   LocalBridgeJournal,
   LocalBridgeNativeEvent,
@@ -168,11 +169,46 @@ test("disposed controller cannot revive a previous identity", async () => {
   const h = harness();
   await h.controller.connect(input);
   await h.controller.dispose();
-  await expect(h.controller.connect(input)).rejects.toThrow("disposed");
-  await expect(h.controller.resume()).rejects.toThrow("disposed");
-  await expect(h.controller.reconnect()).rejects.toThrow("disposed");
-  await expect(h.controller.wake()).rejects.toThrow("disposed");
-  await expect(h.controller.disconnect()).rejects.toThrow("disposed");
+  for (const op of [
+    h.controller.connect(input),
+    h.controller.resume(),
+    h.controller.reconnect(),
+    h.controller.disconnect(),
+  ])
+    await expect(op).rejects.toBeInstanceOf(BridgeDisposedError);
+});
+// HOUSTON-APP-5HX: `app-activated` / `online` / `visibilitychange` wake the
+// bridge, and a space or agent switch invalidates the binding. The two race on
+// every switch while a bridge is open; the losing wake is superseded, not
+// failed, so it resolves and reports nothing.
+test("a wake after disposal resolves quietly and does nothing", async () => {
+  const h = harness();
+  await h.controller.connect(input);
+  const checks = vi.mocked(h.ports.management.status).mock.calls.length;
+  await h.controller.dispose();
+  await expect(h.controller.wake()).resolves.toBeUndefined();
+  expect(h.ports.management.status).toHaveBeenCalledTimes(checks);
+  expect(h.ports.report).not.toHaveBeenCalled();
+});
+test("a wake invalidated mid-check resolves quietly and reports nothing", async () => {
+  const h = harness();
+  await h.controller.connect(input);
+  vi.mocked(h.ports.management.status).mockImplementationOnce(
+    (_id, signal) =>
+      new Promise((_resolve, reject) => {
+        signal?.addEventListener("abort", () =>
+          reject(new DOMException("The operation was aborted.", "AbortError")),
+        );
+      }),
+  );
+  const checks = vi.mocked(h.ports.management.status).mock.calls.length;
+  const waking = h.controller.wake();
+  await vi.waitFor(() =>
+    expect(h.ports.management.status).toHaveBeenCalledTimes(checks + 1),
+  );
+  await h.controller.dispose();
+  await expect(waking).resolves.toBeUndefined();
+  expect(h.ports.report).not.toHaveBeenCalled();
 });
 test("late callbacks cannot change a newer generation", async () => {
   const h = harness();

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { describeError } from "../lib/describe-error";
 import { logAndReportError } from "../lib/error-report";
 import { showErrorToast } from "../lib/error-toast";
 import {
@@ -116,7 +117,7 @@ export function useTeamMoveFlow(source: TeamMoveSource, open: boolean) {
       try {
         result = await moveTeamAgent(agent, target, moveWire);
       } catch (error) {
-        showErrorToast("move_team_agent", String(error), error);
+        showErrorToast("move_team_agent", describeError(error), error);
         setState((current) => teamAgentMoveFailed(current, "unknown"));
         return;
       }
@@ -152,7 +153,7 @@ export function useTeamMoveFlow(source: TeamMoveSource, open: boolean) {
         suppressToasts: () => mounted.current,
       });
     } catch (error) {
-      showErrorToast("move_team_folder", String(error), error);
+      showErrorToast("move_team_folder", describeError(error), error);
       setState(teamPostscriptFailed);
     } finally {
       ownsClaim.current = false;
