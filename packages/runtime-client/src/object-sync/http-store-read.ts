@@ -2,7 +2,7 @@ import { downloadFile } from "./http-store-download";
 import { objectStoreResponseError } from "./http-store-errors";
 import { type ObjectMetadata, parseObjectManifest } from "./object-manifest";
 import { underObjectPrefix } from "./object-prefix";
-import type { ReadResult } from "./object-store";
+import type { ReadOptions, ReadResult } from "./object-store";
 import { withOperationSignal } from "./operation-signal";
 
 type CaptureResponse = (response: Response) => void;
@@ -27,16 +27,28 @@ export function readHttpManifest(
   });
 }
 
+/** A GET given its signal and the not-modified condition headers, if any. */
+type ConditionalRequest = (
+  signal: AbortSignal | undefined,
+  condition: Record<string, string>,
+) => Promise<Response>;
+
 export function downloadHttpObject(
-  request: SignalledRequest,
+  request: ConditionalRequest,
   capture: CaptureResponse,
   key: string,
   destFile: string,
-  signal?: AbortSignal,
+  opts?: ReadOptions,
 ): Promise<ReadResult> {
-  return withOperationSignal(signal, async (own) => {
-    const response = await request(own);
+  return withOperationSignal(opts?.signal, async (own) => {
+    const held = opts?.ifGenerationNotMatch;
+    const response = await request(
+      own,
+      held ? { "X-Houston-If-Generation-Not-Match": held } : {},
+    );
     capture(response);
+    if (response.status === 304 && held)
+      return { generation: held, notModified: true };
     if (!response.ok) {
       throw await objectStoreResponseError(response, "GET", key);
     }
