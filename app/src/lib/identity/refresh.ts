@@ -66,7 +66,7 @@ async function doRefresh(): Promise<string | null> {
   const session = await loadSession();
   if (!session) return null;
   try {
-    // Never a token already expired by its own claims (a pre-sleep answer
+    // Never a token that outlived its lifetime in flight (a pre-sleep answer
     // delivered on wake): `./refresh-mint.ts` mints once more in that case,
     // inside this same single-flight run, so every joiner gets the live one.
     const refreshed = await mintUsableIdToken(session.refreshToken);

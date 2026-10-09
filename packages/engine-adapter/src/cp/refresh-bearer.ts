@@ -73,10 +73,31 @@ async function refreshBearer(): Promise<string | null> {
 export async function refreshUsableBearer(): Promise<string | null> {
   const fresh = await refreshBearer();
   if (!fresh || !isBearerExpiredByClaims(fresh)) return fresh;
-  // Sentry scrubs any breadcrumb containing "auth", so this prefix must not.
-  console.warn(
-    "[gateway-bearer] the refresher handed back a bearer already expired by its claims; " +
-      `discarded ${formatBearerDescription(describeBearer(fresh))}, asking once more`,
-  );
+  if (noteDiscarded(fresh)) {
+    // Sentry scrubs any breadcrumb containing "auth", so this prefix must not.
+    console.warn(
+      "[gateway-bearer] the refresher handed back a bearer already expired by its claims; " +
+        `discarded ${formatBearerDescription(describeBearer(fresh))}, asking once more`,
+    );
+  }
   return refreshLiveToken();
+}
+
+/** Bearers already discarded for their claims: N joiners of one refresh all
+ *  see the same answer in one flush, and the breadcrumb is written once per
+ *  bearer, not once per joiner. Bounded like the rejected-bearer memory. */
+const DISCARDED_LIMIT = 8;
+const discarded: string[] = [];
+
+/** Record a discard; true when this bearer had not been discarded before. */
+function noteDiscarded(bearer: string): boolean {
+  if (discarded.includes(bearer)) return false;
+  discarded.push(bearer);
+  if (discarded.length > DISCARDED_LIMIT) discarded.shift();
+  return true;
+}
+
+/** Test seam. */
+export function resetDiscardedBearers(): void {
+  discarded.length = 0;
 }

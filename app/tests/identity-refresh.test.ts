@@ -364,10 +364,34 @@ test("refreshNow abandons the save when clearSession fired mid-flight (sign-out 
   setSessionSink(() => {});
 });
 
-// A securetoken answer shaped like the real one: a three-part JWT whose `exp`
-// claim is what the gateway judges. `expOffsetS` is relative to now.
+// The client's clock, steerable per test: a sleep is a jump of the wall clock
+// while a request is in flight, and nothing else about the machine changes.
+const realNow = Date.now;
+let clockOffsetMs = 0;
+beforeEach(() => {
+  clockOffsetMs = 0;
+  Date.now = () => realNow() + clockOffsetMs;
+});
+afterEach(() => {
+  Date.now = realNow;
+});
+
+function tokenResponse(idToken: string, expiresIn = "3600"): Response {
+  return new Response(
+    JSON.stringify({
+      id_token: idToken,
+      refresh_token: `${idToken}-refresh`,
+      expires_in: expiresIn,
+    }),
+    { status: 200, headers: { "content-type": "application/json" } },
+  );
+}
+
+/** A securetoken answer shaped like the real one: a JWT whose `exp` claim is
+ *  `expOffsetS` from the real clock. The app never reads it; it is here so the
+ *  clock-skew test carries the token a skewed client actually holds. */
 function jwtExpiringIn(expOffsetS: number, tag: string): string {
-  const nowS = Math.floor(Date.now() / 1000);
+  const nowS = Math.floor(realNow() / 1000);
   const enc = (o: unknown) =>
     Buffer.from(JSON.stringify(o)).toString("base64url");
   return `${enc({ alg: "RS256", kid: tag })}.${enc({
@@ -378,24 +402,14 @@ function jwtExpiringIn(expOffsetS: number, tag: string): string {
   })}.sig`;
 }
 
-function tokenResponse(idToken: string): Response {
-  return new Response(
-    JSON.stringify({
-      id_token: idToken,
-      refresh_token: "refresh-2",
-      expires_in: "3600",
-    }),
-    { status: 200, headers: { "content-type": "application/json" } },
-  );
-}
-
-test("refreshNow never hands out a token already expired by its own claims: it mints again", async () => {
+test("refreshNow never hands out a token that outlived its lifetime in flight: it mints again", async () => {
   // Field shape (HOUSTON-APP-5HZ): the proactive timer's securetoken request
-  // went out, the laptop slept, and the webview delivered the buffered answer
-  // on wake. `expires_in` is counted from the moment the answer is READ, so
-  // the session looked an hour fresh while the token's `exp` was 27 minutes
-  // in the past. Every joiner of that in-flight run replayed it and the
-  // gateway refused each one. The run must notice and mint once more.
+  // went out, the laptop slept 87 minutes, and the webview delivered the
+  // buffered answer on wake. `expires_in` is counted from the moment the
+  // answer is READ, so the session looked an hour fresh while the token had
+  // expired 27 minutes earlier. Every joiner of that in-flight run replayed
+  // it and the gateway refused each one. The run must notice and mint again,
+  // with the refresh token the stale answer carried.
   await seedSession();
   const { refreshNow, setSessionSink } = await import(
     "../src/lib/identity/refresh.ts"
@@ -404,21 +418,24 @@ test("refreshNow never hands out a token already expired by its own claims: it m
   const sinkUpdates: (Session | null)[] = [];
   setSessionSink((s) => sinkUpdates.push(s));
 
-  const sleptOut = jwtExpiringIn(-1_621, "slept");
-  const fresh = jwtExpiringIn(3_600, "fresh");
   let calls = 0;
-  globalThis.fetch = (async () => {
+  const bodies: string[] = [];
+  globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
     calls += 1;
-    return tokenResponse(calls === 1 ? sleptOut : fresh);
+    bodies.push(String(init?.body));
+    if (calls === 1) clockOffsetMs += 5_221_000; // the sleep, mid-request
+    return tokenResponse(calls === 1 ? "slept" : "fresh");
   }) as typeof fetch;
 
-  assert.equal(await refreshNow(), fresh);
+  assert.equal(await refreshNow(), "fresh");
   assert.equal(calls, 2, "expected exactly one extra mint");
+  assert.match(bodies[1], /refresh_token=slept-refresh/);
   const stored = await loadSession();
-  assert.equal(stored?.idToken, fresh);
+  assert.equal(stored?.idToken, "fresh");
+  assert.equal(stored?.refreshToken, "fresh-refresh");
   assert.deepEqual(
     sinkUpdates.map((s) => s?.idToken),
-    [fresh],
+    ["fresh"],
     "the expired token must never be broadcast",
   );
   setSessionSink(() => {});
@@ -428,8 +445,6 @@ test("joiners of a pre-sleep in-flight refresh receive the re-minted token (one 
   await seedSession();
   const { refreshNow } = await import("../src/lib/identity/refresh.ts");
 
-  const sleptOut = jwtExpiringIn(-5_221, "slept");
-  const fresh = jwtExpiringIn(3_600, "fresh");
   let releaseFirst: () => void = () => {};
   let calls = 0;
   globalThis.fetch = (async () => {
@@ -438,47 +453,122 @@ test("joiners of a pre-sleep in-flight refresh receive the re-minted token (one 
       await new Promise<void>((r) => {
         releaseFirst = r;
       });
-      return tokenResponse(sleptOut);
+      return tokenResponse("slept");
     }
-    return tokenResponse(fresh);
+    return tokenResponse("fresh");
   }) as typeof fetch;
 
   const timerRun = refreshNow(); // the proactive timer, before the sleep
   await new Promise((r) => setTimeout(r, 5));
+  clockOffsetMs += 5_221_000; // the sleep
   const wakeReplay = refreshNow(); // the 401 recovery on wake, joining it
   releaseFirst();
 
-  assert.equal(await timerRun, fresh);
-  assert.equal(await wakeReplay, fresh);
+  assert.equal(await timerRun, "fresh");
+  assert.equal(await wakeReplay, "fresh");
   assert.equal(calls, 2);
 });
 
-test("the stored expiresAt never outlives the token's own exp claim", async () => {
-  // `expires_in` is relative to when the answer was read; `exp` is absolute.
-  // After a sleep the two disagree by the length of the sleep, and the timer
-  // must schedule off the honest one or it waits an hour on a dead token.
+test("a second mint that fails offline rethrows as network and keeps the stored session", async () => {
+  // Wake with the radio still down: the stale answer is discarded, the
+  // re-mint cannot reach securetoken. That is the transient contract
+  // (HOU-1106): rethrow, keep the session, no sign-out, no stuck in-flight.
+  await seedSession();
+  const { refreshNow } = await import("../src/lib/identity/refresh.ts");
+  const { loadSession } = await import("../src/lib/identity/session-store.ts");
+  const { isIdentityError } = await import("../src/lib/identity/errors.ts");
+
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls += 1;
+    if (calls === 1) {
+      clockOffsetMs += 5_221_000;
+      return tokenResponse("slept");
+    }
+    throw new TypeError("Load failed");
+  }) as typeof fetch;
+
+  await assert.rejects(refreshNow(), (e: unknown) => {
+    assert.ok(isIdentityError(e));
+    assert.equal(e.code, "network");
+    return true;
+  });
+  assert.equal(calls, 2);
+  assert.deepEqual(await loadSession(), SESSION, "old token kept for retry");
+  // The latch released: the next call starts a fresh run, not a dead promise.
+  globalThis.fetch = (async () => tokenResponse("later")) as typeof fetch;
+  assert.equal(await refreshNow(), "later");
+});
+
+test("the stored expiresAt is dated from the request's send, never its read", async () => {
+  // A 10-minute request (no sleep-out: 50 minutes remain) must not be stored
+  // as a full hour: the timer would otherwise plan 10 minutes past expiry.
   await seedSession();
   const { refreshNow } = await import("../src/lib/identity/refresh.ts");
   const { loadSession } = await import("../src/lib/identity/session-store.ts");
 
-  const shortLived = jwtExpiringIn(900, "short"); // 15 min left, not slept out
-  globalThis.fetch = (async () => tokenResponse(shortLived)) as typeof fetch;
+  globalThis.fetch = (async () => {
+    clockOffsetMs += 600_000;
+    return tokenResponse("fresh");
+  }) as typeof fetch;
 
   await refreshNow();
   const stored = await loadSession();
   assert.ok(stored);
   const remainingMs = stored.expiresAt - Date.now();
   assert.ok(
-    remainingMs <= 900_000 && remainingMs > 800_000,
-    `expiresAt must follow exp (~900 s), got ${remainingMs} ms`,
+    remainingMs <= 3_000_000 && remainingMs > 2_990_000,
+    `expected ~3000 s left, got ${remainingMs} ms`,
   );
 });
 
-test("isSleptOut judges a token by its exp claim with a safety margin", async () => {
-  const { isSleptOut } = await import("../src/lib/identity/refresh-mint.ts");
-  const now = Date.now();
-  assert.equal(isSleptOut("not-a-jwt", now), false, "undecodable = trusted");
-  assert.equal(isSleptOut(jwtExpiringIn(3_600, "a"), now), false);
-  assert.equal(isSleptOut(jwtExpiringIn(30, "b"), now), true, "inside margin");
-  assert.equal(isSleptOut(jwtExpiringIn(-1, "c"), now), true, "expired");
+test("a client clock an hour ahead of Google's refreshes once, not in a loop", async () => {
+  // The token this client holds reads as expired by its own `exp` (the
+  // reviewer's repro: +3400 s). Staleness is judged by the client's own clock
+  // and the request duration only, so the timer sees a full lifetime and
+  // waits; the 30 s reschedule floor backs that up. Exactly one mint in the
+  // window, where judging by claims produced dozens.
+  const { saveSession } = await import("../src/lib/identity/session-store.ts");
+  await saveSession({ ...SESSION, expiresAt: Date.now() }); // due now
+  const { startProactiveRefresh, stopProactiveRefresh } = await import(
+    "../src/lib/identity/refresh-timer.ts"
+  );
+
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls += 1;
+    return tokenResponse(jwtExpiringIn(-3_400, `skewed-${calls}`));
+  }) as typeof fetch;
+
+  startProactiveRefresh();
+  await new Promise((r) => setTimeout(r, 80));
+  stopProactiveRefresh();
+
+  assert.equal(calls, 1, `expected one refresh, got ${calls}`);
+});
+
+test("expiresAtFromSend and isSleptOut judge by wall-clock duration only", async () => {
+  const { expiresAtFromSend, isSleptOut, MIN_REMAINING_MS } = await import(
+    "../src/lib/identity/refresh-mint.ts"
+  );
+  const minted = { idToken: "t", refreshToken: "r", expiresAt: 0 };
+  // Read 5221 s after send, lifetime 3600 s from the read.
+  const readAt = 5_221_000;
+  const slept = expiresAtFromSend(
+    0,
+    { ...minted, expiresAt: readAt + 3_600_000 },
+    readAt,
+  );
+  assert.equal(slept, 3_600_000);
+  assert.equal(isSleptOut(slept, readAt), true, "expired 1621 s before read");
+  // Read 200 ms after send: a full lifetime less 200 ms.
+  const quick = expiresAtFromSend(
+    0,
+    { ...minted, expiresAt: 200 + 3_600_000 },
+    200,
+  );
+  assert.equal(isSleptOut(quick, 200), false);
+  // The margin is inclusive.
+  assert.equal(isSleptOut(MIN_REMAINING_MS, 0), true);
+  assert.equal(isSleptOut(MIN_REMAINING_MS + 1, 0), false);
 });

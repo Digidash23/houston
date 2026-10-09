@@ -1,6 +1,10 @@
 import { SIGNED_OUT_ERROR } from "../client/errors";
 import { hasSessionRefresher } from "../session-refresh";
-import { inControlPlaneMode, refreshUsableBearer } from "./refresh-bearer";
+import {
+  inControlPlaneMode,
+  refreshUsableBearer,
+  resetDiscardedBearers,
+} from "./refresh-bearer";
 import { resetRejectedMints, settleRejectedMint } from "./rejected-mint";
 
 export { inControlPlaneMode };
@@ -54,6 +58,7 @@ export function wasBearerRejected(bearer: string): boolean {
 export function resetRejectedBearers(): void {
   rejectedBearers.length = 0;
   resetRejectedMints();
+  resetDiscardedBearers();
 }
 
 /** The local answer for a hosted call attempted with no session: the same 401

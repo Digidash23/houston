@@ -474,5 +474,7 @@ test("N joiners handed one slept-out bearer share ONE extra refresh", async () =
   expect(calls.slice(3).map(bearerOf)).toEqual(
     Array(3).fill(`Bearer ${fresh}`),
   );
+  // One breadcrumb per discarded bearer, not one per joiner.
+  expect(warn).toHaveBeenCalledTimes(1);
   warn.mockRestore();
 });
