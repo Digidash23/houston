@@ -1,3 +1,4 @@
+import { bus } from "@houston/engine-adapter/bus";
 import { HoustonClient } from "@houston/engine-adapter/client";
 import { CHAT_OPEN_WINDOW } from "@houston/engine-adapter/history-window";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -384,6 +385,124 @@ test("a send the shared compute had no room for goes out again byte-identical", 
   );
   expect(sends[1].body).toBe(sends[0].body);
   expectGatewayHeaders(sends[1]);
+});
+
+// ---- the gateway's typed provider refusals ----
+
+const BLOCKED = {
+  error:
+    "Your GitHub Copilot account is blocked by the provider. Fix it there, or connect another AI.",
+  code: "provider_account_blocked",
+  provider: "github-copilot",
+};
+
+/** Every FeedItem event the adapter emits for `sessionKey`, as pushed. */
+function collectFeed(sessionKey: string): {
+  items: Array<Record<string, unknown>>;
+  stop: () => void;
+} {
+  const items: Array<Record<string, unknown>> = [];
+  const stop = bus.on((event) => {
+    const e = event as {
+      type?: string;
+      data?: { session_key?: string; item?: Record<string, unknown> };
+    };
+    if (
+      e.type === "FeedItem" &&
+      e.data?.session_key === sessionKey &&
+      e.data.item
+    )
+      items.push(e.data.item);
+  });
+  return { items, stop };
+}
+
+test("a send the gateway refused as provider_account_blocked settles as the billing_locked card, not a sign-in", async () => {
+  // H-005: the credential is intact but GitHub locked the account's billing.
+  // The 409 carries the typed code; the SDK reads the code (never the
+  // sentence) and settles the fresh send as the `unauthenticated` card with
+  // cause `billing_locked`, carrying the refused prompt for "Send again".
+  // Nothing is re-sent: a retry would read the same refusal.
+  let posts = 0;
+  stubRouted((call: Call) => {
+    if (call.url.endsWith("/events")) return new Response("", { status: 200 });
+    if (call.method === "POST" && call.url.endsWith("/messages")) {
+      posts++;
+      return json(409, BLOCKED);
+    }
+    return json(200, { ok: true, messages: [] });
+  });
+  const feed = collectFeed("activity-blocked");
+  try {
+    await client().startSession(AGENT, {
+      sessionKey: "activity-blocked",
+      prompt: "the weekly numbers, please",
+      provider: "copilot",
+    });
+    const card = await vi.waitUntil(
+      () => feed.items.find((item) => item.feed_type === "provider_error"),
+      { timeout: 5_000 },
+    );
+    expect(card).toMatchObject({
+      feed_type: "provider_error",
+      fails_pending: true,
+      data: {
+        kind: "unauthenticated",
+        cause: "billing_locked",
+        failed_prompt: "the weekly numbers, please",
+        message: BLOCKED.error,
+      },
+    });
+    // The adapter maps the engine id to the desktop's provider name on the
+    // way out, like every provider_error card.
+    expect((card.data as { provider: string }).provider).not.toBe("");
+    await new Promise((r) => setTimeout(r, 300));
+    expect(posts).toBe(1);
+  } finally {
+    feed.stop();
+  }
+});
+
+test("a held message's re-send refused as provider_account_blocked lands the billing_locked card on the feed", async () => {
+  // The handoff path: the first send meets 409 turn running, the SDK holds
+  // it and re-sends once the running turn settles; the re-send is refused
+  // with the typed code. The observed turn keeps rendering, so the refusal
+  // lands as its own card, failing the optimistic bubble, and no third send
+  // follows.
+  let posts = 0;
+  stubRouted((call: Call) => {
+    if (call.url.endsWith("/events")) return new Response("", { status: 200 });
+    if (call.method === "POST" && call.url.endsWith("/messages"))
+      return ++posts === 1
+        ? json(409, { error: "turn running" })
+        : json(409, BLOCKED);
+    return json(200, { ok: true, messages: [] });
+  });
+  const feed = collectFeed("activity-held-blocked");
+  try {
+    await client().startSession(AGENT, {
+      sessionKey: "activity-held-blocked",
+      prompt: "and one more thing",
+    });
+    const card = await vi.waitUntil(
+      () => feed.items.find((item) => item.feed_type === "provider_error"),
+      { timeout: 5_000 },
+    );
+    expect(card).toMatchObject({
+      feed_type: "provider_error",
+      fails_pending: true,
+      data: {
+        kind: "unauthenticated",
+        cause: "billing_locked",
+        message: BLOCKED.error,
+      },
+    });
+    expect(posts).toBe(2);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(posts).toBe(2);
+  } finally {
+    feed.stop();
+  }
 });
 
 test("Stop on a message still waiting for room ends it: the cancel goes out, no re-send follows", async () => {

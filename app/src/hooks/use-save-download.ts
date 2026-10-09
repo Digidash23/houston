@@ -1,8 +1,13 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { genericErrorDescription } from "../lib/error-report";
+import { describeError } from "../lib/describe-error";
+import { reportError } from "../lib/error-report";
 import { showExpectedStateToast } from "../lib/error-toast";
-import { planFileOpFailure } from "../lib/file-op-failure";
+import {
+  type FileOpFailurePlan,
+  planFileOpFailure,
+} from "../lib/file-op-failure";
+import i18n from "../lib/i18n";
 import { logger } from "../lib/logger";
 import { osRevealPath } from "../lib/os-bridge";
 import { saveBlob } from "../lib/save-blob";
@@ -17,9 +22,11 @@ import { useUIStore } from "../stores/ui";
  * policy: no silent failures), a cancelled save dialog stays quiet.
  *
  * The shell rejects typed (`file-op-failure.ts`): the destination open in
- * another program, a protected folder, a full disk are states the user can
- * fix and read as informational copy with no report; only `other` is a bug
- * (PRODUCT-1732). The raw OS diagnostic always reaches the frontend log.
+ * another program, a protected folder, a full disk, a folder that is gone
+ * are states the user can fix and read as informational copy with no report;
+ * only `other` is a bug (PRODUCT-1732). The raw OS diagnostic always reaches
+ * the frontend log, and the report title reads `kind: message`
+ * (HOUSTON-APP-53A was "[object Object]").
  */
 export function useSaveDownload(): (name: string, blob: Blob) => Promise<void> {
   const { t } = useTranslation("agents");
@@ -58,7 +65,7 @@ export function useSaveDownload(): (name: string, blob: Blob) => Promise<void> {
                 addToast({
                   variant: "error",
                   title: t("files.toasts.revealFailed"),
-                  description: genericErrorDescription("reveal_download", err),
+                  description: reportFailure("reveal_download", plan, err),
                 });
               });
             },
@@ -80,10 +87,23 @@ export function useSaveDownload(): (name: string, blob: Blob) => Promise<void> {
         addToast({
           variant: "error",
           title: t("files.toasts.saveFailedTitle"),
-          description: genericErrorDescription("save_download", err),
+          description: reportFailure("save_download", plan, err),
         });
       }
     },
     [addToast, t],
   );
+}
+
+/** Report a failure the user cannot act on and return the generic toast
+ *  body. The title is the typed failure, readable; the raw rejection stays
+ *  the original error so stacks, quiet classes and the reported-once mark
+ *  still see the real object. The caller already wrote the log line. */
+function reportFailure(
+  command: string,
+  plan: FileOpFailurePlan,
+  err: unknown,
+): string {
+  reportError(command, describeError(plan.failure), err);
+  return i18n.t("shell:errorToast.genericDescription");
 }

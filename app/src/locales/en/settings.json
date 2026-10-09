@@ -128,7 +128,8 @@
       "successTitle": "Roger that, report received.",
       "successBody": "Mission control is on it, deploying a fix.",
       "successBodyWithId": "Mission control is on it, deploying a fix. Reference: {{id}}",
-      "errorTitle": "Couldn't send report"
+      "errorTitle": "Couldn't send report",
+      "errorBody": "Your message is still here. Try sending it again in a moment."
     }
   },
   "migration": {

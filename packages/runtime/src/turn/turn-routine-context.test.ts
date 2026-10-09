@@ -137,6 +137,7 @@ async function fire(
       signal: undefined,
       turnId,
       mode: "auto",
+      routineFire: true,
     },
     deps,
   );

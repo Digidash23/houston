@@ -52,7 +52,7 @@ const ENDED_INSTRUCTION =
 
 /** The result when the model called the tool before writing anything visible. */
 const NEEDS_MESSAGE_INSTRUCTION =
-  "Your suggestion was recorded. The app will show the user a dismissible card offering to save this work. Do not repeat the suggestion in plain text and do not ask about it again. You called this before writing anything the user can read, so this did NOT end your turn: write your closing message now, with suggest_actions, then end.";
+  "Your suggestion was recorded. The app will show the user a dismissible card offering to save this work. Do not repeat the suggestion in plain text and do not ask about it again. You called this before writing anything the user can read in this message, so this did NOT end your turn. Write your closing message now, with suggest_actions, then end. The user never sees your reasoning or tool results: if what you prepared for them exists only there, write it out in full and do not call it 'above'; if you already wrote it earlier in this turn, do not repeat it.";
 
 /** The reusable-suggestion tool (execute + auto; never plan). */
 export function makeSuggestReusableTool() {

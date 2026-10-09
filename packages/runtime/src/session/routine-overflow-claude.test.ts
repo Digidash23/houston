@@ -140,6 +140,21 @@ const lastAssistant = (id: string) =>
     ?.messages.filter((m) => m.role === "assistant")
     .at(-1);
 
+/** A routine fire, as the host's firer sends it (ROUTINE_FIRE_HEADER). */
+const fireRoutine = (id: string) =>
+  runTurn(
+    id,
+    PROMPT,
+    undefined,
+    PIN,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    { routineFire: true },
+  );
+
 beforeEach(() => {
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.spyOn(console, "info").mockImplementation(() => {});
@@ -151,7 +166,7 @@ test("a routine run whose shared chat outgrew the window starts fresh and fits",
   seedRoutineChat(id, 40, 191_000);
   seedSdkSession(api, id, 191_000);
 
-  await runTurn(id, PROMPT, undefined, PIN);
+  await fireRoutine(id);
 
   const first = api.calls.at(-1);
   // The overgrown SDK session is never resumed again...
@@ -177,10 +192,10 @@ test("the run after a reset resumes the fresh session with nothing replayed", as
   seedRoutineChat(id, 40, 191_000);
   seedSdkSession(api, id, 191_000);
 
-  await runTurn(id, PROMPT, undefined, PIN);
+  await fireRoutine(id);
   // A fresh process (idle eviction, pod restart) must resume it from disk too.
   await disposeConversation(id);
-  await runTurn(id, PROMPT, undefined, PIN);
+  await fireRoutine(id);
 
   const second = api.calls.at(-1);
   expect(second?.resume).toBe("sim-1");
@@ -195,7 +210,7 @@ test("a routine chat still inside its budget keeps resuming its session", async 
   seedRoutineChat(id, 5, 40_000);
   seedSdkSession(api, id, 40_000);
 
-  await runTurn(id, PROMPT, undefined, PIN);
+  await fireRoutine(id);
 
   expect(api.calls.at(-1)?.resume).toBe("sim-old");
   expect(api.calls.at(-1)?.prompt).toBe(PROMPT);
@@ -222,11 +237,23 @@ test("a routine whose last run overflowed recovers on the next fire", async () =
   });
   seedSdkSession(api, id, 204_000);
 
-  await runTurn(id, PROMPT, undefined, PIN);
+  await fireRoutine(id);
 
   expect(api.calls.at(-1)?.resume).toBeUndefined();
   expect(api.calls.at(-1)?.refused).toBe(false);
   expect(lastAssistant(id)?.providerError).toBeUndefined();
+});
+
+test("a person chatting in a routine's chat past the fire budget keeps the session", async () => {
+  const id = "routine-person-chatting";
+  const api = useSimulatedApi();
+  seedRoutineChat(id, 40, 150_000);
+  seedSdkSession(api, id, 150_000);
+
+  await runTurn(id, "Draft the follow-up email.", undefined, PIN);
+
+  expect(api.calls.at(-1)?.resume).toBe("sim-old");
+  expect(lastAssistant(id)?.compaction).toBeUndefined();
 });
 
 test("an ordinary chat is left on its session, whatever its size", async () => {
@@ -247,7 +274,7 @@ test("every routine run records the context it left its session holding", async 
   seedRoutineChat(id, 5, 40_000);
   seedSdkSession(api, id, 40_000);
 
-  await runTurn(id, PROMPT, undefined, PIN);
+  await fireRoutine(id);
 
   const call = api.calls.at(-1);
   const turnId = lastAssistant(id)?.turnId;

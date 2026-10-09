@@ -1,5 +1,7 @@
 // The turns module's public surface beyond `createTurnsModule`, re-exported
 // by `index.ts`.
+
+export { providerAccountBlockedRefusal } from "./account-blocked-refusal";
 export {
   type AttachmentRef,
   buildAttachmentText,
@@ -60,6 +62,15 @@ export {
   type StreamTuning,
   streamKey,
 } from "./stream-registry";
+export {
+  isSessionStatusOrigin,
+  isTurnErrorClass,
+  type SessionStatusDetail,
+  type SessionStatusOrigin,
+  type TurnErrorClass,
+  type TurnErrorDisposition,
+  turnErrorDisposition,
+} from "./turn-error-class";
 export {
   ENGINE_RESTART_MESSAGE,
   ENGINE_RESUMED_MESSAGE,

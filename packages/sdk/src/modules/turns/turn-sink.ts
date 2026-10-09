@@ -1,5 +1,6 @@
 import type { PendingInteraction, WireFrame } from "@houston/runtime-client";
-import type { MessageLimitRefusal } from "@houston/wire-types";
+import type { MessageLimitRefusal, ProviderRefusal } from "@houston/wire-types";
+import { finishAccountBlocked } from "./account-blocked-refusal";
 import type { TerminalBoardStatus } from "./feed-output";
 import { PreAcceptTurn } from "./pre-accept-turn";
 import type { PresettlePoll } from "./presettle-poll";
@@ -65,12 +66,7 @@ export class TurnSink {
   private readonly onStarted: Array<() => void> = [];
 
   constructor(private readonly o: TurnSinkOptions) {
-    this.s = newTurnState(o.agentPath, o.sessionKey, o.output, {
-      provider: o.provider,
-      prompt: o.prompt,
-      firstResponse: o.firstResponse,
-      board: o.board,
-    });
+    this.s = newTurnState(o.agentPath, o.sessionKey, o.output, o);
     this.poll = sinkPresettlePoll({
       s: this.s,
       o,
@@ -174,6 +170,11 @@ export class TurnSink {
   }
   planLimit(refusal: MessageLimitRefusal): void {
     finishPlanLimit(this.s, refusal);
+  }
+  /** The send was refused because the provider blocks the account behind an
+   *  intact credential: settle as the `billing_locked` reconnect card. */
+  accountBlocked(refusal: ProviderRefusal): void {
+    finishAccountBlocked(this.s, refusal);
   }
   /**
    * Verdict on an ambiguous send: settle as an error UNLESS evidence arrived

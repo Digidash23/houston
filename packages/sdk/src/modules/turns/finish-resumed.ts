@@ -1,5 +1,6 @@
 import { setReplyPhase } from "./reply-phase";
 import { invisibleFinal, push, type TurnState } from "./turn-settle";
+import { emitStatus } from "./turn-state";
 
 /**
  * Settle a turn the ENGINE interrupted and is ALREADY running again by itself
@@ -20,5 +21,5 @@ export function finishResumed(s: TurnState, msg: string): void {
   push(s, { feed_type: "system_message", data: msg, notice: "engine_resumed" });
   s.firstResponse?.resolve("interrupted", s.turnId);
   invisibleFinal(s);
-  s.output.sessionStatus(s.agentPath, s.sessionKey, "completed");
+  emitStatus(s, "completed");
 }
