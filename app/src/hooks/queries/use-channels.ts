@@ -1,9 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   type ChannelWatch,
-  channelWatchActive,
-  type SlackAuthorization,
-} from "../../lib/channel-handoff";
+  channelWatchPollMs,
+} from "@houston/sdk/channels/watch";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { SlackAuthorization } from "../../lib/channel-handoff";
 import { queryKeys } from "../../lib/query-keys";
 import { refetchAfterWrite } from "../../lib/refetch-after-write";
 import { tauriChannels } from "../../lib/tauri";
@@ -12,10 +12,12 @@ import { inChannelWorkspace } from "../channel-workspace-scope";
 
 /**
  * The endpoint describes availability; absent deployments expose no nav row.
- * `watch` is the hand-off the Channels section has outstanding, if any; the nav
- * row reads availability only and never polls.
+ * `watches` are the hand-offs the Channels section has outstanding, one per
+ * provider at most; the nav row reads availability only and never polls.
  */
-export function useChannels(watch: ChannelWatch | null = null) {
+export function useChannels(
+  watches: readonly (ChannelWatch | undefined)[] = [],
+) {
   const spaceId = useWorkspaceStore((s) => s.current?.id);
   return useQuery({
     queryKey: queryKeys.channels(spaceId),
@@ -28,16 +30,13 @@ export function useChannels(watch: ChannelWatch | null = null) {
     retry: false,
     refetchOnWindowFocus: "always",
     // A connection is made on the gateway, never in this tab, so nothing here
-    // is told when it lands: poll while a hand-off is outstanding, and stop the
-    // moment it arrives (or the person is plainly not coming back).
+    // is told when it lands: the SDK's watch policy says when to poll.
     refetchInterval: (query) =>
-      channelWatchActive(
-        watch,
-        query.state.data?.connections.length ?? 0,
+      channelWatchPollMs(
+        watches,
+        query.state.data?.connections ?? [],
         Date.now(),
-      )
-        ? 5_000
-        : false,
+      ),
   });
 }
 
@@ -78,9 +77,6 @@ export function useChannelActions() {
       ),
     gcTime: 0,
   });
-  const openWhatsApp = useMutation({
-    mutationFn: (url: string) => tauriChannels.openWhatsApp(url),
-  });
   /**
    * Redeem the callback ticket. This is what BINDS the Slack account to the
    * signed-in user, so it runs from the app with its own credential rather than
@@ -106,7 +102,6 @@ export function useChannelActions() {
     complete,
     link,
     linkWhatsApp,
-    openWhatsApp,
     disconnect,
   };
 }

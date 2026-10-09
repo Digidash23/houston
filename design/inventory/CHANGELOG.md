@@ -6,8 +6,10 @@ Every `version` bump in `inventory.yaml` needs a matching entry here (enforced b
 ## v128 - 2026-10-08
 
 Messaging channels settings shows separate Slack and WhatsApp provider cards.
-WhatsApp pairing offers a phone button and a desktop QR code for the prefilled
-message, with a copyable command and connection waiting state.
+WhatsApp pairing offers a full-width phone link and a desktop QR code (dark on
+a light tile in every theme) for the prefilled message, with a copyable command
+and a waiting state that lasts as long as the code and clears once the
+connection lands.
 
 ## v127 - 2026-10-07
 

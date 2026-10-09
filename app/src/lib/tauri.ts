@@ -2080,6 +2080,4 @@ export const tauriChannels = {
   /** Open the authorization page; a popup blocker's refusal is the answer. */
   openSlack: (url: string) =>
     channelCall("open_slack", () => tauriSystem.openUrl(url)),
-  openWhatsApp: (url: string) =>
-    channelCall("open_whatsapp", () => tauriSystem.openUrl(url)),
 };

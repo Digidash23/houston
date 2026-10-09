@@ -13,7 +13,6 @@ export type ChannelCall =
   | "open_slack"
   | "link_slack"
   | "link_whatsapp"
-  | "open_whatsapp"
   | "complete_slack"
   | "disconnect_channel";
 
