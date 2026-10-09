@@ -44,6 +44,7 @@ export {
   type FirstResponseOutcome,
 } from "./first-response";
 export { type FeedFrame, historyToFeed } from "./history";
+export { noticeEndsTurn } from "./notice-ends-turn";
 export { observeConversation } from "./observe-stream";
 export {
   COMPUTE_BUSY_MESSAGE,
@@ -86,6 +87,13 @@ export type {
   TurnSetModeInput,
   TurnTruncateInput,
 } from "./turn-inputs";
+export {
+  AGENT_SETUP_FAILED_MESSAGE,
+  AGENT_TOO_LARGE_MESSAGE,
+  TURN_UNCONFIRMED_MESSAGE,
+  type TurnSetupNotice,
+  turnFailureReport,
+} from "./turn-notices";
 export { isTurnRunningRejection } from "./turn-running";
 export {
   type StreamTurnOptions,

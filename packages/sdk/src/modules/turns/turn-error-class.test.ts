@@ -17,6 +17,9 @@ test("names every class and refuses anything else", () => {
     "turn_died",
     "send_lost",
     "stream_lost",
+    "agent_too_large",
+    "agent_setup_failed",
+    "turn_unconfirmed",
     "unexplained",
     "engine_verdict",
     "provider_rate_limited",
@@ -46,12 +49,17 @@ test("disposes each class once, for every surface", () => {
     "provider_malformed_response",
   ] as const)
     expect(turnErrorDisposition(cls), cls).toBe("handled");
-  // The unclassified provider card is generic copy over a raw excerpt.
+  // The unclassified provider card is generic copy over a raw excerpt; a setup
+  // failure and a turn lost after its 202 are authored lines over our own
+  // fault, reported as bugs, so they count as errors shown too.
   for (const cls of [
     "provider_unknown",
     "turn_died",
     "send_lost",
     "stream_lost",
+    "agent_too_large",
+    "agent_setup_failed",
+    "turn_unconfirmed",
     "unexplained",
     "engine_verdict",
   ] as const)

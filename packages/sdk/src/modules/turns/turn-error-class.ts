@@ -21,6 +21,19 @@ import type { ProviderError } from "@houston/runtime-client";
  * - `send_lost`: the send failed at the transport level and nothing proved
  *   the turn started.
  * - `stream_lost`: the resumable stream exhausted its reconnect budget.
+ * - `agent_too_large` / `agent_setup_failed`: a pooled turn that failed before
+ *   any provider work (H-003, the `TurnSetupFailure` codes): the agent holds
+ *   more than a worker can open / any other setup code. Two classes, not one
+ *   `setup_failed`: the first is unretryable and sized by the agent's data,
+ *   the second is a transient worker fault, so they are fixed, and counted,
+ *   apart. Both are `failure`: the line is authored, but the cause is ours
+ *   (the SDK already reports each one, `turnFailureReport`), so a surface
+ *   counts them as errors shown, never as handled states.
+ * - `turn_unconfirmed`: an accepted turn whose conversation never appeared
+ *   and whose end never reached us (the pre-settled poll's bound). Its own
+ *   class rather than `unexplained`: nothing failed that we know of, so a
+ *   dashboard must tell "lost after the 202" from "threw". Also `failure`
+ *   (reported as `turn_gone_after_accept`).
  * - `unexplained`: the turn failed with no engine verdict (a transport drop,
  *   a thrown bug); the raw cause is in the frontend log.
  * - `engine_verdict`: the engine's own error copy (a wire `error` frame, a
@@ -41,6 +54,9 @@ const TURN_ERROR_CLASSES = [
   "turn_died",
   "send_lost",
   "stream_lost",
+  "agent_too_large",
+  "agent_setup_failed",
+  "turn_unconfirmed",
   "unexplained",
   "engine_verdict",
 ] as const;

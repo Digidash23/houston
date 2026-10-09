@@ -7,6 +7,7 @@ import { LocalDirStore } from "@houston/runtime-client/object-sync";
 import { afterEach, expect, test, vi } from "vitest";
 import { createTurnServer } from "./server";
 import type { TurnRunner } from "./turn-session";
+import { TURN_SETUP_MESSAGES } from "./turn-terminal";
 
 const servers: Server[] = [];
 afterEach(() => {
@@ -121,7 +122,10 @@ test("a setup failure posts a terminal error frame to the turnlog first", async 
   const expected = {
     type: "error",
     seq: 7,
-    data: { message: "layout_unexpected", code: "layout_unexpected" },
+    data: {
+      message: TURN_SETUP_MESSAGES.layout_unexpected,
+      code: "layout_unexpected",
+    },
   };
   expect(runTurn).not.toHaveBeenCalled();
   expect(frames.at(-1)).toMatchObject(expected);
@@ -147,7 +151,10 @@ test("a claimed turn over a flat-layout agent fails setup before any provider wo
   expect(runTurn).not.toHaveBeenCalled();
   expect(frames.at(-1)).toMatchObject({
     type: "error",
-    data: { message: "agent_not_migrated", code: "agent_not_migrated" },
+    data: {
+      message: TURN_SETUP_MESSAGES.agent_not_migrated,
+      code: "agent_not_migrated",
+    },
   });
 });
 

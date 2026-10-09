@@ -13,6 +13,13 @@ import {
   TURN_DIED_MESSAGE,
   TURN_FAILED_MESSAGE,
 } from "./turn-errors";
+import {
+  AGENT_SETUP_FAILED_MESSAGE,
+  AGENT_TOO_LARGE_MESSAGE,
+  finishGone,
+  finishSetupError,
+  TURN_UNCONFIRMED_MESSAGE,
+} from "./turn-notices";
 import { SEND_BUSY_MESSAGE } from "./turn-running";
 import {
   finishErr,
@@ -62,6 +69,9 @@ test.each([
   [TURN_DIED_MESSAGE, undefined, "turn_died"],
   [SEND_LOST_MESSAGE, undefined, "send_lost"],
   [STREAM_LOST_MESSAGE, undefined, "stream_lost"],
+  [AGENT_TOO_LARGE_MESSAGE, "agent_too_large", "agent_too_large"],
+  [AGENT_SETUP_FAILED_MESSAGE, "agent_setup_failed", "agent_setup_failed"],
+  [TURN_UNCONFIRMED_MESSAGE, "turn_unconfirmed", "turn_unconfirmed"],
   [TURN_FAILED_MESSAGE, undefined, "unexplained"],
   ["Model refused the request.", undefined, "engine_verdict"],
 ] as const)("finishErr(%j, %j) stamps %s", (msg, notice, errorClass) => {
@@ -70,6 +80,35 @@ test.each([
   expect(detail).toEqual({ origin: "sent", errorClass });
   // The copy is untouched: a Stop still carries no text, a failure its line.
   expect(error).toBe(errorClass === "stopped" ? undefined : msg);
+});
+
+test("the setup settles class by code, the lost-after-202 bound as unconfirmed", () => {
+  const { statuses, output } = recorder();
+  finishSetupError(newTurnState("Houston/Bo", "c1", output), {
+    code: "hydrate_over_cap",
+    detail: "12 MiB",
+  });
+  finishSetupError(newTurnState("Houston/Bo", "c2", output), {
+    code: "layout_unexpected",
+  });
+  finishGone(newTurnState("Houston/Bo", "c3", output));
+  expect(statuses.map((s) => [s[0], s[1], s[2]])).toEqual([
+    [
+      "error",
+      AGENT_TOO_LARGE_MESSAGE,
+      { origin: "sent", errorClass: "agent_too_large" },
+    ],
+    [
+      "error",
+      AGENT_SETUP_FAILED_MESSAGE,
+      { origin: "sent", errorClass: "agent_setup_failed" },
+    ],
+    [
+      "error",
+      TURN_UNCONFIRMED_MESSAGE,
+      { origin: "sent", errorClass: "turn_unconfirmed" },
+    ],
+  ]);
 });
 
 test("a not-connected refusal settles as the provider card's class", () => {

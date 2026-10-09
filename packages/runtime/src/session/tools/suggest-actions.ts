@@ -1,5 +1,6 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { type Static, Type } from "typebox";
+import { Value } from "typebox/value";
 import { currentTurnFinish, recordSuggestActions } from "../interaction";
 
 /**
@@ -48,6 +49,35 @@ const SuggestActionsParams = Type.Object({
   ),
 });
 type SuggestActionsParams = Static<typeof SuggestActionsParams>;
+type SuggestedAction = SuggestActionsParams["actions"][number];
+
+/** Why `actions` cannot become bubbles, or null when they can. */
+export function suggestActionsProblem(
+  actions: readonly SuggestedAction[],
+): string | null {
+  if (
+    actions.some(
+      (action) =>
+        !action.id.trim() || !action.label.trim() || !action.message.trim(),
+    )
+  )
+    return "suggest_actions needs non-empty ids, labels, and messages.";
+  if (
+    new Set(actions.map((action) => action.id.trim())).size !== actions.length
+  )
+    return "suggest_actions needs unique action ids.";
+  return null;
+}
+
+/**
+ * Raw call arguments as usable actions, or null. A forced call's arguments
+ * never pass pi's tool validation (the tool does not run), so the schema and
+ * the rules above are checked here.
+ */
+export function parseSuggestedActions(args: unknown): SuggestedAction[] | null {
+  if (!Value.Check(SuggestActionsParams, args)) return null;
+  return suggestActionsProblem(args.actions) ? null : args.actions;
+}
 
 /** The result when the closing message is already written: the turn ends here. */
 const ENDED_INSTRUCTION =
@@ -69,20 +99,8 @@ export function makeSuggestActionsTool() {
     executionMode: "sequential",
     async execute(_id: string, params: SuggestActionsParams) {
       const actions = params.actions;
-      if (
-        actions.some(
-          (action) =>
-            !action.id.trim() || !action.label.trim() || !action.message.trim(),
-        )
-      )
-        throw new Error(
-          "suggest_actions needs non-empty ids, labels, and messages.",
-        );
-      if (
-        new Set(actions.map((action) => action.id.trim())).size !==
-        actions.length
-      )
-        throw new Error("suggest_actions needs unique action ids.");
+      const problem = suggestActionsProblem(actions);
+      if (problem) throw new Error(problem);
       recordSuggestActions({ actions });
       const finish = currentTurnFinish();
       if (!finish?.closingMessageSeen)

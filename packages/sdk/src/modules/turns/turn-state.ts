@@ -151,6 +151,11 @@ const NOTICE_CLASS: Record<EngineNoticeKind, TurnErrorClass | null> = {
   engine_resumed: null,
   send_busy: "send_busy",
   compute_busy: "compute_busy",
+  // The H-003 setup notices and the lost-after-202 bound class as themselves
+  // (`turn-error-class.ts` says why each is its own `failure` class).
+  agent_too_large: "agent_too_large",
+  agent_setup_failed: "agent_setup_failed",
+  turn_unconfirmed: "turn_unconfirmed",
 };
 
 /**
