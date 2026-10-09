@@ -117,7 +117,7 @@
       "slug": "habilidad"
     },
     "disconnectChannel": {
-      "connectionId": "Cuenta de mensajería"
+      "connectionId": "cuenta de mensajería"
     },
     "integrations.disconnect": {
       "toolkit": "app"

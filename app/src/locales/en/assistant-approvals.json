@@ -117,7 +117,7 @@
       "slug": "skill"
     },
     "disconnectChannel": {
-      "connectionId": "Messaging account"
+      "connectionId": "messaging account"
     },
     "integrations.disconnect": {
       "toolkit": "app"
