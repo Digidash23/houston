@@ -1,3 +1,4 @@
+import { STORE_ROOT_PACKAGE_EXCLUDES } from "@houston/runtime-client/object-sync";
 import type { AgentOp } from "./op-grammar";
 
 /** Reserved claim key for agent-level writes (gateway + pod-store agree). */
@@ -16,9 +17,11 @@ export const AGENT_IMPORT_CLAIM_ID = "agent-import";
 const ROUTE_OP_EXCLUDES = ["workspaces/*/*/.houston/runtime/"];
 /** A settings op reads/writes the runtime dir's small files only: skip the
  *  bulk (history, user files); the small .houston docs keep the layout real.
- *  A model-picker click must not pay a big agent's hydrate. A credential op
- *  needs nothing but the agent directory to exist. */
+ *  A model-picker click must not pay a big agent's hydrate, nor a store-root
+ *  package store. A credential op needs nothing but the agent directory to
+ *  exist. */
 const SETTINGS_OP_EXCLUDES = [
+  ...STORE_ROOT_PACKAGE_EXCLUDES,
   "workspaces/*/*/.houston/runtime/conversations/",
   "workspaces/*/*/.houston/runtime/sessions/",
   "workspaces/*/*/files/",

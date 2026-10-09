@@ -1,119 +1,17 @@
-import type {
-  PendingInteraction,
-  ProviderError,
-  TokenUsage,
-} from "@houston/runtime-client";
+import type { ProviderError } from "@houston/runtime-client";
 import type { MessageLimitRefusal } from "@houston/wire-types";
-import type { FeedOutput, TerminalBoardStatus } from "./feed-output";
-import type { FirstResponseClock } from "./first-response";
-import { setReplyPhase, settleCard, type TurnReplyState } from "./reply-phase";
+import { settleCard } from "./reply-phase";
+import { providerErrorClass } from "./turn-error-class";
 import type { EngineNoticeKind } from "./turn-errors";
 import { isNotConnectedError, isStoppedByUser } from "./turn-errors";
+import { emitStatus, type TurnState, turnErrorClass } from "./turn-state";
 
 /**
- * The turn state + live-frame settles. The lost-terminal-frame settle path
- * (history reload) lives in settle-from-history.ts.
+ * The live-frame settles. The turn state they drive is turn-state.ts; the
+ * lost-terminal-frame settle path (history reload) is settle-from-history.ts.
  */
 
-/** One streamed turn's accumulation + settle state (owned by TurnSink). */
-export interface TurnState extends TurnReplyState {
-  agentPath: string;
-  sessionKey: string;
-  /** Where every FeedItem / SessionStatus for this turn is emitted. */
-  output: FeedOutput;
-  /**
-   * The provider this chat INTENDED to run on (the composer's pick, in the
-   * caller's id dialect). The runtime can't name one in its not-connected
-   * refusal — nothing is connected — so the reconnect card is labeled with
-   * this instead. Null when the caller had no pick (observer mode, no
-   * per-turn switch): the surface falls back to the chat's own provider.
-   */
-  provider: string | null;
-  /** The turn's prompt — carried on the not-connected card so "Send again"
-   *  can resend the exact text the runtime refused (it was never delivered). */
-  prompt: string | null;
-  /**
-   * OUR turn's wire id, once known (nonce-matched echo / attaching sync — the
-   * sink owns adoption; see `turn-identity.ts`). Every {@link push} stamps it
-   * on the item so the VM fold can dedupe re-delivered turn content by
-   * identity (HOU-1214). Undefined until adopted (and forever on legacy
-   * servers that stamp no turn ids — those keep the append-only fold).
-   */
-  turnId: string | undefined;
-  text: string;
-  thinking: string;
-  /**
-   * How many of this turn's `tool_call` feed items were already pushed (live
-   * frames + sync replay) — the dedup cursor a running `sync`'s tool replay
-   * starts from, so a resync never doubles a tool row (HOU-717).
-   */
-  toolsSeen: number;
-  /** Same cursor for `tool_result` pushes. */
-  toolResultsSeen: number;
-  usage: TokenUsage | null;
-  settled: boolean;
-  terminal: TerminalBoardStatus | null;
-  /**
-   * The interaction the turn ended on (ask_user / request_connection, or a pure
-   * offer from suggest_actions / suggest_reusable), captured from the clean
-   * `done` wire frame; `null` when the turn settled without one. It does NOT
-   * decide the board status — a clean finish always settles `needs_you` (see
-   * {@link finishOk}) — it rides the terminal board persist so the card can
-   * render its composer-replacing question/connect card or its suggestion
-   * bubbles. Handled non-success settles (user Stop, provider error) never set
-   * it.
-   */
-  pendingInteraction: PendingInteraction | null;
-  /**
-   * Whether the send was ever confirmed to REACH the engine — the send returned
-   * 202, our nonce echo came back, or the turn produced any frame / running
-   * sync. The sink sets it; the settles read it. An error settle with
-   * `delivered === false` means the message provably never landed (lost /
-   * rejected / refused), so its optimistic bubble is failed rather than
-   * confirmed. An AMBIGUOUS transport failure does NOT set it — only the
-   * verdict window's independent evidence does.
-   */
-  delivered: boolean;
-  /**
-   * Turn mode only: the clock this turn's first response reports through (see
-   * `first-response.ts`). Fed by {@link push} (the first visible text) and by
-   * every settle below (how a turn with no text ended). Absent for an observer.
-   */
-  firstResponse?: FirstResponseClock;
-}
-
-export function newTurnState(
-  agentPath: string,
-  sessionKey: string,
-  output: FeedOutput,
-  send?: {
-    provider?: string;
-    prompt?: string;
-    firstResponse?: FirstResponseClock;
-    board?: TurnReplyState["board"];
-  },
-): TurnState {
-  return {
-    agentPath,
-    sessionKey,
-    output,
-    provider: send?.provider ?? null,
-    prompt: send?.prompt ?? null,
-    turnId: undefined,
-    text: "",
-    thinking: "",
-    toolsSeen: 0,
-    toolResultsSeen: 0,
-    usage: null,
-    settled: false,
-    terminal: null,
-    pendingInteraction: null,
-    delivered: false,
-    firstResponse: send?.firstResponse,
-    replyComplete: false,
-    board: send?.board,
-  };
-}
+export { newTurnState, type TurnState } from "./turn-state";
 
 /** Emit one FeedItem for this turn's session — the sink and settles share it.
  *  Stamps the turn's id (once adopted) so the VM fold dedupes re-delivered
@@ -127,7 +25,8 @@ export const push = (s: TurnState, item: object): void => {
   s.firstResponse?.pushed(item, s.turnId);
 };
 
-const invisibleFinal = (s: TurnState) =>
+/** A final_result with nothing in it: stops the progress line. */
+export const invisibleFinal = (s: TurnState) =>
   push(s, {
     feed_type: "final_result",
     data: { result: "", cost_usd: null, duration_ms: null, usage: null },
@@ -157,7 +56,7 @@ export function finishOk(s: TurnState): void {
   });
   s.firstResponse?.resolve("no_text", s.turnId);
   settleCard(s, "needs_you");
-  s.output.sessionStatus(s.agentPath, s.sessionKey, "completed");
+  emitStatus(s, "completed");
 }
 
 /**
@@ -178,6 +77,8 @@ export function finishErr(
   s: TurnState,
   msg: string,
   notice?: EngineNoticeKind,
+  /** Why, for reports only (a setup code, `gone`): never rendered. */
+  cause?: string,
 ): void {
   if (s.settled) return;
   if (isNotConnectedError(msg)) {
@@ -204,6 +105,7 @@ export function finishErr(
     feed_type: "system_message",
     data: msg,
     ...(notice ? { notice } : {}),
+    ...(cause ? { cause } : {}),
     ...(failsSend ? { fails_pending: true } : {}),
   });
   s.firstResponse?.resolve(
@@ -217,11 +119,11 @@ export function finishErr(
   if (isStoppedByUser(msg)) {
     invisibleFinal(s);
     settleCard(s, "needs_you");
-    s.output.sessionStatus(s.agentPath, s.sessionKey, "error");
+    emitStatus(s, "error", undefined, "stopped");
     return;
   }
   settleCard(s, "error");
-  s.output.sessionStatus(s.agentPath, s.sessionKey, "error", msg);
+  emitStatus(s, "error", msg, turnErrorClass(msg, notice));
 }
 
 /** A gateway plan refusal is a handled, typed card; the send never reached the engine. */
@@ -235,28 +137,6 @@ export function finishPlanLimit(
     resets_at: refusal.resetsAt,
     message: refusal.error,
   });
-}
-
-/**
- * Settle a turn the ENGINE interrupted and is ALREADY running again by itself
- * (`interrupted.resumed`, PRODUCT-1785). Neither of the other settles fits: the
- * turn did not succeed, and it did not fail either — a second turn is on its
- * way with the same work. So: finalize whatever streamed, push the pause line,
- * stop the progress indicator, and leave `terminal` NULL so the board card
- * keeps its `running` status. Handing the card back to the user (`needs_you`)
- * or reddening it (`error`) would both lie about an agent that is still working.
- */
-export function finishResumed(s: TurnState, msg: string): void {
-  if (s.settled) return;
-  // An early hand-back is taken back: the card stays running for the resume.
-  if (s.replyComplete) setReplyPhase(s, false);
-  s.settled = true;
-  if (s.thinking) push(s, { feed_type: "thinking", data: s.thinking });
-  if (s.text) push(s, { feed_type: "assistant_text", data: s.text });
-  push(s, { feed_type: "system_message", data: msg, notice: "engine_resumed" });
-  s.firstResponse?.resolve("interrupted", s.turnId);
-  invisibleFinal(s);
-  s.output.sessionStatus(s.agentPath, s.sessionKey, "completed");
 }
 
 /**
@@ -294,5 +174,5 @@ export function settleProviderErrorCard(
   s.firstResponse?.resolve("error", s.turnId);
   invisibleFinal(s);
   settleCard(s, "needs_you");
-  s.output.sessionStatus(s.agentPath, s.sessionKey, "error");
+  emitStatus(s, "error", undefined, providerErrorClass(err.kind));
 }

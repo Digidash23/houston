@@ -66,6 +66,7 @@ import {
   type FileSnapshot,
   snapshotWorkspace,
 } from "./file-changes";
+import { recoverFollowUpActions } from "./follow-up-pass";
 import {
   newInteractionHolder,
   planReadyFallback,
@@ -129,6 +130,9 @@ export interface TurnPin {
 export interface RecordedUserTurn {
   author: MessageAuthor | undefined;
   priorAuthors: ReadonlyArray<MessageAuthor | undefined>;
+  /** The host fired this turn for a routine run (turn-start.ts sets it from
+   *  the message route). Only fires are held to the routine context budget. */
+  routineFire?: boolean;
 }
 
 const errMessage = (err: unknown) =>
@@ -454,10 +458,10 @@ export async function execTurn(
     const mode = liveMode.current;
     const providerChanged = model.provider !== conv.provider;
     const modelChanged = model.id !== conv.model;
-    // ROUTINE CONTEXT BUDGET: a routine chat whose previous run ended past its
-    // carry line (or overflowed) starts THIS run on a fresh session carrying a
-    // bounded transcript of recent runs, instead of resuming a session that no
-    // longer fits (routine-context.ts). Runs before the switches below: the
+    // ROUTINE CONTEXT BUDGET: a routine FIRE whose previous run ended past its
+    // carry line (or any turn after an overflow) starts on a fresh session
+    // carrying a bounded transcript of recent runs, instead of resuming a
+    // session that no longer fits (routine-context.ts). Runs before the switches below: the
     // fresh session is already on the right backend and mode, so they no-op.
     routineReset = await resetRoutineSessionIfNeeded(
       conv,
@@ -466,6 +470,7 @@ export async function execTurn(
       text,
       model,
       mode,
+      recorded.routineFire ? "fire" : "chat",
     );
     // COMPLIANCE GATE: when this turn's model crosses a BACKEND boundary
     // (openai/pi → anthropic/Claude SDK, or the reverse), REBUILD the session on
@@ -702,6 +707,20 @@ export async function execTurn(
     } finally {
       watchdog.disarm();
     }
+    // A clean reply with no suggest_actions call gets one hidden forced pass
+    // (follow-up-pass.ts). Before `stopped` is read, so a Stop during the
+    // pass still settles this turn as stopped.
+    await recoverFollowUpActions({
+      session: conv.session,
+      interaction,
+      conversationId: id,
+      turnId,
+      planMode: mode === "plan" || liveMode.current === "plan",
+      assistantText,
+      failed:
+        Boolean(providerError || stalled) || conv.stoppedTurnId === turnId,
+      isStopped: () => conv.stoppedTurnId === turnId,
+    });
     // Did the user STOP this turn? cancelTurn marks `conv.stoppedTurnId` before
     // aborting, and pi routes the aborted turn down the usage path (prompt()
     // resolves clean, no provider_error), so this marker is the only trace. Used

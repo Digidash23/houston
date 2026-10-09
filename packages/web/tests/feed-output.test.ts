@@ -1,3 +1,4 @@
+import { setAdapterErrorSink } from "@houston/engine-adapter";
 import { bus } from "@houston/engine-adapter/bus";
 import { createBusFeedOutput } from "@houston/engine-adapter/feed-output";
 import { expect, test } from "vitest";
@@ -17,6 +18,8 @@ type BusEvent = {
     item?: { feed_type?: string; data?: unknown };
     status?: string;
     error?: string;
+    error_class?: string;
+    origin?: string;
   };
 };
 
@@ -77,10 +80,50 @@ test("sessionStatus emits a SessionStatus event", () => {
   stop();
 
   const status = events.find((e) => e.type === "SessionStatus");
-  expect(status?.data).toMatchObject({
+  expect(status?.data).toEqual({
+    agent_path: "Houston/Bo",
     session_key: "c1",
     status: "error",
     error: "boom",
+  });
+});
+
+// The SDK's typed cause and origin ride the event additively (`error_class`,
+// `origin`): present exactly when the SDK stamped them, absent otherwise, so
+// the analytics subscriber reads the cause instead of guessing it off copy.
+test("sessionStatus carries the SDK's error class and origin when stamped", () => {
+  const { events, stop } = collect();
+  const out = createBusFeedOutput(async () => {});
+  out.sessionStatus(
+    "Houston/Bo",
+    "c1",
+    "error",
+    "The turn ended unexpectedly",
+    {
+      origin: "observed",
+      errorClass: "turn_died",
+    },
+  );
+  out.sessionStatus("Houston/Bo", "c1", "completed", undefined, {
+    origin: "sent",
+  });
+  stop();
+
+  const [failed, completed] = events.filter((e) => e.type === "SessionStatus");
+  expect(failed?.data).toEqual({
+    agent_path: "Houston/Bo",
+    session_key: "c1",
+    status: "error",
+    error: "The turn ended unexpectedly",
+    error_class: "turn_died",
+    origin: "observed",
+  });
+  expect(completed?.data).toEqual({
+    agent_path: "Houston/Bo",
+    session_key: "c1",
+    status: "completed",
+    error: undefined,
+    origin: "sent",
   });
 });
 
@@ -190,4 +233,43 @@ test("a non-waking 502 on the board persist still surfaces in the feed", async (
   stop();
 
   expect(systemMessages(events)).toHaveLength(1);
+});
+
+test("a turn that failed before it could start is reported by cause, its line still emitted", () => {
+  const reports: Array<{ source: string; error: unknown }> = [];
+  setAdapterErrorSink((source, error) => reports.push({ source, error }));
+  const { events, stop } = collect();
+  const out = createBusFeedOutput(async () => {});
+
+  out.pushFeedItem("Houston/Bo", "c1", {
+    feed_type: "system_message",
+    data: "Your agent couldn't get ready for this message.",
+    notice: "agent_setup_failed",
+    cause: "layout_unexpected",
+    turnId: "t1",
+  });
+  out.pushFeedItem("Houston/Bo", "c1", {
+    feed_type: "system_message",
+    data: "We couldn't confirm your agent got this message.",
+    notice: "turn_unconfirmed",
+    cause: "gone",
+    turnId: "t2",
+  });
+  out.pushFeedItem("Houston/Bo", "c1", {
+    feed_type: "system_message",
+    data: "Your agent had to restart.",
+    notice: "engine_restart",
+  });
+  stop();
+  setAdapterErrorSink((source, error) => console.error(`[${source}]`, error));
+
+  expect(reports.map((r) => r.source)).toEqual([
+    "turn_setup_failed",
+    "turn_gone_after_accept",
+  ]);
+  expect(String(reports[0].error)).toContain("layout_unexpected");
+  // The message stays per cause (reports group by it); ids ride as fields.
+  expect(reports[0].error).toMatchObject({ turnId: "t1", sessionKey: "c1" });
+  expect(reports[1].error).toMatchObject({ turnId: "t2", sessionKey: "c1" });
+  expect(events.filter((e) => e.type === "FeedItem")).toHaveLength(3);
 });
