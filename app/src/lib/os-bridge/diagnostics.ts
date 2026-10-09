@@ -36,9 +36,12 @@ export async function osReportBug(payload: unknown): Promise<string | null> {
   try {
     return await invokeNative<string | null>("report_bug", { payload });
   } catch (err) {
-    // The shell rejects with a plain `{kind, message}` (bug_report/failure.rs).
-    // An Error is the web shim's, already typed or carrying its own class
-    // (signed out, offline), so it passes through untouched.
+    // The desktop shell rejects with a plain `{kind, message}` object
+    // (bug_report/failure.rs), wrapped here. An Error came from the web shim
+    // instead: its `FeedbackIntakeError` (kind + HTTP status), a signed-out or
+    // transport error with its own quiet class, or the desktop-only refusal.
+    // It passes through untouched so that class survives; `toBugReportFailure`
+    // still reads `kind` off it when present.
     if (err instanceof Error) throw err;
     throw new BugReportError(toBugReportFailure(err));
   }

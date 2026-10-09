@@ -52,6 +52,7 @@ pub async fn report_bug(payload: BugReportPayload) -> Result<Option<String>, Bug
         &config.team_id,
         &config.label_name,
         &payload,
+        linear::LINEAR_REQUEST_TIMEOUT,
     )
     .await
 }

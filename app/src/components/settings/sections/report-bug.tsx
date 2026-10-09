@@ -7,6 +7,10 @@ import { logAndReportError } from "../../../lib/error-report";
 import { useUIStore } from "../../../stores/ui";
 import { useWorkspaceStore } from "../../../stores/workspaces";
 
+/** Under the fallback feedback's 6,000-char message bound, so a report
+ *  never arrives cut. */
+const REPORT_MAX_CHARS = 5_000;
+
 export function ReportBugSection() {
   const { t } = useTranslation("settings");
   const addToast = useUIStore((s) => s.addToast);
@@ -84,6 +88,7 @@ export function ReportBugSection() {
           onChange={(e) => setDescription(e.target.value)}
           placeholder={t("reportBug.placeholder")}
           rows={5}
+          maxLength={REPORT_MAX_CHARS}
           className="w-full rounded-xl border border-line bg-card px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-focus transition-all resize-y"
         />
       </div>

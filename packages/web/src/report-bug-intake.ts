@@ -29,39 +29,47 @@ export async function reportBugViaGateway(
   });
   if (!res.ok) {
     const body = await readRefusal(res);
-    const message = body.error || `feedback failed (${res.status})`;
+    const message =
+      body.error ||
+      `feedback failed (${res.status})${body.unreadable ? `: ${body.unreadable}` : ""}`;
     // The same typed rejection the desktop shell's `report_bug` answers
     // (H-009): Linear refusing every report on our side, its plan's issue cap
     // above all. The app delivers the report through its fallback instead.
-    if (body.code === "intake_unavailable") {
-      throw new FeedbackIntakeError(message, "intake_unavailable");
-    }
-    throw new FeedbackIntakeError(message, "other");
+    const kind =
+      body.code === "intake_unavailable" ? "intake_unavailable" : "other";
+    throw new FeedbackIntakeError(message, kind, res.status);
   }
   const out = (await res.json()) as { id: string | null };
   return out.id;
 }
 
 /** Carries `kind` the way the shell's `{kind, message}` rejection does, so
- *  the app's `toBugReportFailure` reads both surfaces the same. */
+ *  the app's `toBugReportFailure` reads both surfaces the same, and the HTTP
+ *  `status`, which the report layer's status-based classification reads. */
 export class FeedbackIntakeError extends Error {
   constructor(
     message: string,
     readonly kind: "intake_unavailable" | "other",
+    readonly status: number,
   ) {
     super(message);
     this.name = "FeedbackIntakeError";
   }
 }
 
+/** The refusal's JSON body. A non-JSON body (a proxy's HTML page) answers
+ *  `unreadable` instead, which rides the thrown error's message: that error
+ *  is reported by `submitBugReport`, so the parse failure reaches us there.
+ *  Not reported from here: the report layer reaches this shim through
+ *  os-bridge, so importing it would close a module cycle. */
 async function readRefusal(
   res: Response,
-): Promise<{ error?: string; code?: string }> {
+): Promise<{ error?: string; code?: string; unreadable?: string }> {
   try {
     return (await res.json()) as { error?: string; code?: string };
   } catch (err) {
-    // A non-JSON refusal (a proxy's HTML page): the status still names it.
-    console.warn(`[report_bug] unreadable /feedback refusal: ${String(err)}`);
-    return {};
+    return {
+      unreadable: `unreadable refusal body: ${err instanceof Error ? err.message : String(err)}`,
+    };
   }
 }

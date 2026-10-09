@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 use super::failure::BugReportFailure;
 use super::format::{format_issue_description, format_issue_title};
@@ -31,14 +32,22 @@ query HoustonBugReportLabel($teamId: String!, $labelName: String!) {
 }
 "#;
 
+/// Bounds each Linear call. A hung Linear lands as `Other` after this, so the
+/// frontend's fallback still runs while the person waits on the spinner.
+pub(super) const LINEAR_REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
+
 pub(super) async fn send_bug_report_to(
     api_url: &str,
     api_key: &str,
     team_id: &str,
     label_name: &str,
     payload: &BugReportPayload,
+    timeout: Duration,
 ) -> Result<Option<String>, BugReportFailure> {
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(timeout)
+        .build()
+        .map_err(|e| BugReportFailure::other(format!("Linear client build failed: {e}")))?;
     let label_id = resolve_label_id(&client, api_url, api_key, team_id, label_name).await?;
 
     let data = post_graphql::<LinearIssueCreateData, _>(

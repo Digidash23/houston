@@ -1,5 +1,5 @@
 import { type BugReportOutcome, deliverBugReport } from "./bug-report-delivery";
-import { logAndReportError } from "./error-report";
+import { logAndReportError, reportError } from "./error-report";
 import { osReadRecentLogs, osReportBug } from "./os-bridge";
 import { reportQuietError } from "./quiet-error-report";
 import { captureBugReportFeedback } from "./sentry-feedback";
@@ -27,8 +27,13 @@ async function getRecentLogs(
   try {
     return await osReadRecentLogs(lines);
   } catch (err) {
-    // The report still goes without logs; the read failure is logged.
-    console.warn(`[bug_report] could not read recent logs: ${String(err)}`);
+    // The report still goes, saying its logs are missing; why they are
+    // missing reaches us on its own.
+    reportError(
+      "read_recent_logs",
+      err instanceof Error ? err.message : String(err),
+      err,
+    );
     return { backend: "(unavailable)", frontend: "(unavailable)" };
   }
 }

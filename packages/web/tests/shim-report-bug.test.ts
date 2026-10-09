@@ -199,6 +199,7 @@ test("report_bug rethrows the gateway's intake refusal typed", async () => {
   expect(err).toBeInstanceOf(Error);
   expect(err).toMatchObject({
     kind: "intake_unavailable",
+    status: 503,
     message: "Linear API returned GraphQL errors: usage limit exceeded",
   });
 });
@@ -209,6 +210,7 @@ test("report_bug types any other refusal as other", async () => {
 
   await expect(invoke("report_bug", { payload: {} })).rejects.toMatchObject({
     kind: "other",
+    status: 503,
     message: "feedback intake not configured",
   });
 });
