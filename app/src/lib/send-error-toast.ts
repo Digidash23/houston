@@ -2,6 +2,7 @@ import { useUIStore } from "../stores/ui";
 import { logAndReportError } from "./error-report";
 import { showExpectedStateToast } from "./error-toast";
 import i18n from "./i18n";
+import { sendFailureAlreadyExplained } from "./send-failure-explained";
 import { isStaleAttachmentError } from "./stale-attachment";
 
 /**
@@ -21,6 +22,10 @@ import { isStaleAttachmentError } from "./stale-attachment";
  * Every other failure shows authored copy only: the raw error (an
  * `EngineError` quoting an HTTP status, a JSON body, a cluster hostname) goes
  * to the frontend log and Sentry via `logAndReportError`, never into the toast.
+ *
+ * A failure whose own toast already says the send failed (an interrupted
+ * upload) is logged only; see
+ * `sendFailureAlreadyExplained` for why it is not every told-user error.
  */
 export function showSendFailedToast(err: unknown): void {
   if (isStaleAttachmentError(err)) {
@@ -31,6 +36,7 @@ export function showSendFailedToast(err: unknown): void {
     return;
   }
   logAndReportError("send_message", err);
+  if (sendFailureAlreadyExplained(err)) return;
   useUIStore.getState().addToast({
     title: i18n.t("chat:errors.sessionStart"),
     variant: "error",

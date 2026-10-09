@@ -47,6 +47,11 @@ export type {
   ProjectFile,
 } from "./types";
 export { FilesCommand } from "./types";
+export {
+  isUploadInterruptedError,
+  UploadInterruptedError,
+  type UploadRoute,
+} from "./upload-interrupted";
 
 /** The typed facade for an agent's workspace files. Every call throws on a non-2xx. */
 export interface FilesModule {

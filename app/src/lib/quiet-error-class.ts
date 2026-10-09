@@ -16,6 +16,7 @@
 // Dependency-free subpath: the app's node:test entry points cannot load the
 // SDK root (it pulls @houston/domain, whose extensionless imports node rejects).
 import { isFirstDayNoProvider } from "@houston/sdk/agents/first-day-refusal";
+import { isUploadInterruptedError } from "@houston/sdk/files/upload-interrupted";
 import { bridgeQuietClass } from "@houston/sdk/local-model-bridge/quiet";
 import type { QuietErrorClass } from "@houston/sdk/quiet-error-class";
 import { isPlanMinIntervalRefusal } from "@houston/sdk/routines/plan-floor-quiet";
@@ -59,6 +60,11 @@ export type { QuietErrorClass } from "@houston/sdk/quiet-error-class";
  * side (Linear's plan cap, HOUSTON-APP-5FT). `submitBugReport` reports it
  * itself and delivers the report through the fallback; this catches any other
  * path that reports the typed rejection, so it can never file a per-user bug.
+ *
+ * `upload_interrupted` is an upload the transport cut before any answer (the
+ * SDK's `isUploadInterruptedError`). It used to read as offline while the
+ * rest of the app answered fine (HOUSTON-APP-5CG: the edge proxy cut slow
+ * uploads at 60 s), so it is checked before the offline class.
  */
 export function classifyQuietError(err: unknown): QuietErrorClass | null {
   if (isNoBrowserFailure(err)) return "no_url_handler";
@@ -69,6 +75,7 @@ export function classifyQuietError(err: unknown): QuietErrorClass | null {
   const bridge = bridgeQuietClass(err);
   if (bridge) return bridge;
   if (isEngineWakingError(err)) return "engine_waking";
+  if (isUploadInterruptedError(err)) return "upload_interrupted";
   if (isNetworkTransportError(err)) return "offline";
   return null;
 }

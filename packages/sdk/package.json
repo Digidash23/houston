@@ -55,6 +55,14 @@
       "types": "./src/modules/routines/webhook-key-access.ts",
       "import": "./src/modules/routines/webhook-key-access.ts"
     },
+    "./files/upload-interrupted": {
+      "types": "./src/modules/files/upload-interrupted.ts",
+      "import": "./src/modules/files/upload-interrupted.ts"
+    },
+    "./transport-failure": {
+      "types": "./src/transport-failure.ts",
+      "import": "./src/transport-failure.ts"
+    },
     "./quiet-error-class": {
       "types": "./src/quiet-error-class.ts",
       "import": "./src/quiet-error-class.ts"

@@ -40,7 +40,11 @@ import type { BridgeQuietClass } from "@houston/sdk/local-model-bridge/quiet";
  *  `bug_intake_unavailable` is the bug-report intake (Linear) refusing every
  *  report on our side, its plan's issue cap above all (HOUSTON-APP-5FT): the
  *  report itself still arrives through the fallback feedback, so the refusal
- *  is one counted warning, never a per-user bug. */
+ *  is one counted warning, never a per-user bug.
+ *  `upload_interrupted` is an upload the transport cut before any answer
+ *  (`files/upload-interrupted`): a person's action, so it gets copy naming
+ *  the upload rather than the offline notice, and its own issue so a proxy
+ *  cutting slow uploads is never hidden among network drops again. */
 export type QuietErrorClass =
   | "engine_waking"
   | "offline"
@@ -51,7 +55,8 @@ export type QuietErrorClass =
   | "plan_min_interval"
   | "webhook_not_creator"
   | "first_day_no_provider"
-  | "bug_intake_unavailable";
+  | "bug_intake_unavailable"
+  | "upload_interrupted";
 
 /**
  * The burst-gate key a quiet-class report collapses on.

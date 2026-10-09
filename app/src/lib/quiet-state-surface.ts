@@ -1,4 +1,5 @@
 import { useUIStore } from "../stores/ui";
+import { analytics, classifyAnalyticsError } from "./analytics";
 import { showFirstDayNoProviderToast } from "./first-day-no-provider-toast";
 import i18n from "./i18n";
 import { surfacePlanMinInterval } from "./plan-min-interval";
@@ -54,6 +55,25 @@ export function surfaceQuietState(
         variant: "info",
       });
       return true;
+    case "upload_interrupted": {
+      // The person's own upload: copy naming it, never the offline notice,
+      // and its own fingerprint so a cut upload is never a network drop. No
+      // burst gate: each upload is one action (its batch loop stops at the
+      // first failure), and `showSendFailedToast` relies on this toast
+      // showing every time, so a quick retry is never left silent.
+      console.error(`[toast:${command}] ${message}`);
+      reportQuietError("upload_interrupted", command, message, originalError);
+      analytics.track("app_error_shown", {
+        source: command,
+        error_kind: classifyAnalyticsError(message),
+      });
+      useUIStore.getState().addToast({
+        title: i18n.t("shell:errorToast.uploadInterruptedTitle"),
+        description: i18n.t("shell:errorToast.uploadInterruptedDescription"),
+        variant: "info",
+      });
+      return true;
+    }
     default:
       return false;
   }

@@ -458,6 +458,8 @@
     "genericDescription": "Something unexpected went wrong. Please try again.",
     "offlineTitle": "Connection lost",
     "offlineDescription": "We can't connect right now. Check your internet connection and try again.",
+    "uploadInterruptedTitle": "Upload didn't finish",
+    "uploadInterruptedDescription": "Your files didn't finish uploading. Check your connection and try again. Large files can take a few minutes on a slow connection.",
     "engineWakingTitle": "Your AI Employee is waking up",
     "engineWakingDescription": "It usually takes about 20 seconds. You don't need to send your message again.",
     "updateStuckTitle": "Updates can't reach you",

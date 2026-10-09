@@ -2,8 +2,10 @@ import { deepStrictEqual, ok, strictEqual } from "node:assert";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { UploadInterruptedError } from "@houston/sdk/files/upload-interrupted";
 import { BridgeStateError } from "@houston/sdk/local-model-bridge/errors";
 import { NoAgentForProviderWriteError } from "@houston/sdk/no-agent-provider-write-error";
+import { isNetworkTransportError } from "../src/lib/network-transport-error.ts";
 import {
   agentKeyOf,
   classifyQuietError,
@@ -59,6 +61,20 @@ describe("classifyQuietError", () => {
       null,
     );
     strictEqual(classifyQuietError(new TypeError("x is not a function")), null);
+  });
+
+  // HOUSTON-APP-5CG: an upload the edge proxy cut at 60 s read as offline while
+  // every other read answered. Its transport message is "Failed to fetch" too,
+  // so the class must not fall through to offline.
+  it("names an interrupted upload its own class, never offline", () => {
+    const cut = new UploadInterruptedError(
+      "attachments",
+      6_000_000,
+      60_000,
+      "Failed to fetch",
+    );
+    strictEqual(classifyQuietError(cut), "upload_interrupted");
+    strictEqual(isNetworkTransportError(cut), false);
   });
 
   // PRODUCT-1735: a client's status-0 wrapper around a thrown fetch is the

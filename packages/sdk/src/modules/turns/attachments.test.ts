@@ -31,7 +31,11 @@ function ctxWith(
     return responder(call);
   }) as unknown as typeof fetch;
   const ctx = {
-    config: { baseUrl, ports: { fetch: fetchImpl } },
+    config: {
+      baseUrl,
+      // The upload times its request, so the stub carries the clock port.
+      ports: { fetch: fetchImpl, clock: { now: () => 0 } },
+    },
     authExpiry: { notifyExpired: () => {} },
   } as unknown as ModuleContext;
   return { ctx, calls };
