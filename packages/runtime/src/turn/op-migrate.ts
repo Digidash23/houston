@@ -13,6 +13,7 @@ import type { DocDeps, OpClaimTurn } from "./op-republish";
 import type { OpRequest } from "./parse-op-request";
 import type { TurnServerDeps } from "./server-types";
 import { prepareTurnFilesystem } from "./turn-filesystem";
+import { TurnSetupError } from "./turn-layout";
 
 /** The worker's HTTP answer to `/op` for a migrate. */
 export interface MigrateReply {
@@ -91,17 +92,31 @@ export async function executeMigrateOp(
       version: AGENT_STORE_MIGRATION_VERSION,
     });
   }
-  const filesystem = await prepareTurnFilesystem({
-    store,
-    prefix,
-    root: input.root,
-    claimed: true,
-    allowLegacyLayout: true,
-    filter: migrateHydrateFilter,
-    ...(input.deps.maxHydrateBytes !== undefined
-      ? { maxBytes: input.deps.maxHydrateBytes }
-      : {}),
-  });
+  let filesystem: Awaited<ReturnType<typeof prepareTurnFilesystem>>;
+  try {
+    filesystem = await prepareTurnFilesystem({
+      store,
+      prefix,
+      root: input.root,
+      claimed: true,
+      allowLegacyLayout: true,
+      filter: migrateHydrateFilter,
+      ...(input.deps.maxHydrateBytes !== undefined
+        ? { maxBytes: input.deps.maxHydrateBytes }
+        : {}),
+    });
+  } catch (error) {
+    // The store itself refuses the run (two complete agent trees under the
+    // prefix, a tree over the hydration cap): no retry over the same objects
+    // changes that, so the gateway reads the code and waits for the store to
+    // change instead of spending a sandbox per retry. Anything else stays a
+    // bare failure the gateway retries.
+    if (!(error instanceof TurnSetupError)) throw error;
+    console.error(
+      `[op] migrate refused by the store code=${error.code} prefix=${prefix}: ${error.message}`,
+    );
+    return failed(error.code, { error: error.message });
+  }
   const log = (line: string, error?: unknown) =>
     error === undefined
       ? console.log(`[op] migrate ${line}`)
