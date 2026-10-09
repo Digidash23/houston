@@ -1,131 +1,21 @@
-import type { Page } from "@playwright/test";
+import {
+  mockChannels,
+  openChannels,
+  SLACK_CONNECTION,
+  WHATSAPP_CODES,
+} from "./support/channels";
 import { expect, test } from "./support/fixtures";
 import { AUTH_WEB_URL, signInAsViewer } from "./support/identity";
-import { openSettings } from "./support/settings-nav";
 
 test.use({ baseURL: AUTH_WEB_URL });
 
 const TICKET = "Tk7-ticket.value_~9";
-
-interface ChannelCall {
-  method: string;
-  path: string;
-  body: unknown;
-}
-
-interface MockChannelsOptions {
-  /** Slack's provider entry reports a finished admin setup. */
-  slackConfigured?: boolean;
-  /** WhatsApp's provider entry reports a finished admin setup. */
-  whatsappConfigured?: boolean;
-  holdFirstListUntilRedeemed?: boolean;
-}
-
-/**
- * The gateway, recorded rather than asserted: an expectation thrown inside a
- * route handler fails the request instead of the test, so every claim about
- * what the app sent is made from the test body, after the UI settled.
- */
-async function mockChannels(
-  page: Page,
-  {
-    slackConfigured = true,
-    whatsappConfigured = true,
-    holdFirstListUntilRedeemed = false,
-  }: MockChannelsOptions = {},
-) {
-  const calls: ChannelCall[] = [];
-  const connections = [
-    {
-      id: "connection-1",
-      provider: "slack",
-      accountLabel: "Ada · Houston team",
-      spaceId: "personal",
-      createdAt: "2026-09-08T12:00:00Z",
-    },
-  ];
-  let bound: (typeof connections)[number] | null = null;
-  let listed = false;
-  let redeemed = () => {};
-  const redemption = new Promise<void>((resolve) => {
-    redeemed = resolve;
-  });
-  await page.route("**/v1/channels**", async (route) => {
-    const request = route.request();
-    const path = new URL(request.url()).pathname;
-    const method = request.method();
-    if (method !== "GET")
-      calls.push({ method, path, body: request.postDataJSON() ?? null });
-    if (method === "DELETE") {
-      connections.splice(0);
-      return route.fulfill({ status: 204 });
-    }
-    if (path.endsWith("/slack/complete")) {
-      // One ticket, one binding: redeeming again binds nothing new, and the
-      // test asserts the app never asked twice.
-      if (!bound) {
-        bound = {
-          id: "connection-2",
-          provider: "slack",
-          accountLabel: "Ada · Personal",
-          spaceId: "personal",
-          createdAt: "2026-09-08T12:30:00Z",
-        };
-        connections.push(bound);
-      }
-      await route.fulfill({ json: { connection: bound } });
-      redeemed();
-      return;
-    }
-    if (path.endsWith("/slack/link")) {
-      return route.fulfill({
-        json: {
-          code: "ABCD-1234",
-          expiresAt: new Date(Date.now() + 600_000).toISOString(),
-        },
-      });
-    }
-    if (path.endsWith("/whatsapp/link")) {
-      return route.fulfill({
-        json: {
-          code: "ABCDEFGH234567AB",
-          expiresAt: new Date(Date.now() + 600_000).toISOString(),
-          phoneNumber: "+15550001111",
-          url: "https://wa.me/15550001111?text=connect+ABCDEFGH234567AB",
-        },
-      });
-    }
-    // The list is answered NOW; holding the first answer until the ticket is
-    // redeemed models a read the server served before a write the browser saw
-    // land first.
-    const json = structuredClone({
-      providers: [
-        { id: "slack", name: "Slack", configured: slackConfigured },
-        { id: "whatsapp", name: "WhatsApp", configured: whatsappConfigured },
-      ],
-      connections,
-    });
-    const hold = holdFirstListUntilRedeemed && !listed;
-    listed = true;
-    if (hold) await redemption;
-    return route.fulfill({ json });
-  });
-  return calls;
-}
-
-async function openChannels(page: Page) {
-  await signInAsViewer(page);
-  await openSettings(page);
-  await page.getByRole("button", { name: /^Channels/ }).click();
-  await expect(
-    page.getByRole("heading", { name: "Channels", exact: true }),
-  ).toBeVisible();
-}
+const WAITING = "Waiting for your message…";
 
 test("Channels provides an existing-installation command and confirms disconnect", async ({
   page,
 }) => {
-  const calls = await mockChannels(page);
+  const { calls } = await mockChannels(page);
   await openChannels(page);
   await expect(
     page.getByText("Ada · Houston team", { exact: true }),
@@ -168,24 +58,152 @@ test("Channels provides an existing-installation command and confirms disconnect
 test("WhatsApp shows its prefilled message, QR code, and open action", async ({
   page,
 }) => {
-  const calls = await mockChannels(page);
+  const { calls } = await mockChannels(page);
   await openChannels(page);
   await page.getByRole("button", { name: "Connect WhatsApp" }).click();
-  await expect(
-    page.getByRole("img", {
-      name: "QR code to open WhatsApp with your connection message",
-    }),
-  ).toBeVisible();
+  const qr = page.getByRole("img", {
+    name: "QR code to open WhatsApp with your connection message",
+  });
+  await expect(qr).toBeVisible();
+  // The code the phone scans is the very link the button opens.
+  await expect(qr).toHaveAttribute("data-qr-value", WHATSAPP_CODES[0].url);
   await expect(
     page.getByRole("textbox", { name: "WhatsApp connection command" }),
-  ).toHaveValue("connect ABCDEFGH234567AB");
+  ).toHaveValue(`connect ${WHATSAPP_CODES[0].code}`);
   await expect(
-    page.getByRole("button", { name: "Open WhatsApp" }),
+    page.getByText("Or send this message to +15550001111:"),
   ).toBeVisible();
-  await expect(page.getByText("Waiting for your message…")).toBeVisible();
+  // A real link, so no popup blocker stands between the click and WhatsApp.
+  const open = page.getByRole("link", { name: "Open WhatsApp" });
+  await expect(open).toBeVisible();
+  await expect(open).toHaveAttribute("href", WHATSAPP_CODES[0].url);
+  await expect(open).toHaveAttribute("target", "_blank");
+  await expect(open).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(page.getByText(WAITING)).toBeVisible();
   expect(calls).toEqual([
     { method: "POST", path: "/v1/channels/whatsapp/link", body: {} },
   ]);
+});
+
+test("an expired WhatsApp code says so and a new one replaces it", async ({
+  page,
+}) => {
+  const { calls } = await mockChannels(page, {
+    whatsAppCodeTtlMs: [1_500, 600_000],
+  });
+  await openChannels(page);
+  await page.getByRole("button", { name: "Connect WhatsApp" }).click();
+  await expect(
+    page.getByRole("textbox", { name: "WhatsApp connection command" }),
+  ).toHaveValue(`connect ${WHATSAPP_CODES[0].code}`);
+  await expect(
+    page.getByText("This code has expired. Get a new code to connect."),
+  ).toBeVisible();
+  // Nothing left to send: no QR, no link, no wait, and no dangling "Or".
+  await expect(page.getByRole("img", { name: /^QR code/ })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Open WhatsApp" })).toHaveCount(
+    0,
+  );
+  await expect(page.getByText(WAITING)).toHaveCount(0);
+  await expect(
+    page.getByText("Send this message to +15550001111:", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Get a new connection code" }).click();
+  await expect(
+    page.getByRole("textbox", { name: "WhatsApp connection command" }),
+  ).toHaveValue(`connect ${WHATSAPP_CODES[1].code}`);
+  await expect(
+    page.getByRole("link", { name: "Open WhatsApp" }),
+  ).toHaveAttribute("href", WHATSAPP_CODES[1].url);
+  await expect(page.getByText(WAITING)).toBeVisible();
+  expect(calls).toEqual([
+    { method: "POST", path: "/v1/channels/whatsapp/link", body: {} },
+    { method: "POST", path: "/v1/channels/whatsapp/link", body: {} },
+  ]);
+});
+
+test("a WhatsApp connection landing ends the wait and clears the spent code", async ({
+  page,
+}) => {
+  const { connections } = await mockChannels(page);
+  await openChannels(page);
+  await page.getByRole("button", { name: "Connect WhatsApp" }).click();
+  await expect(page.getByText(WAITING)).toBeVisible();
+  // The person sends the message from their phone: the gateway binds it and
+  // nothing tells this tab, so the list's own poll has to find it.
+  connections.push({
+    id: "connection-wa",
+    provider: "whatsapp",
+    accountLabel: "•••• 1111",
+    spaceId: "personal",
+    createdAt: "2026-09-08T13:00:00Z",
+  });
+  await expect(page.getByText("•••• 1111", { exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByText(WAITING)).toHaveCount(0);
+  await expect(
+    page.getByRole("textbox", { name: "WhatsApp connection command" }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("img", { name: /^QR code/ })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Connect WhatsApp" }),
+  ).toBeVisible();
+});
+
+test("disconnecting a WhatsApp connection names WhatsApp", async ({ page }) => {
+  const { calls } = await mockChannels(page, {
+    connections: [
+      SLACK_CONNECTION,
+      {
+        id: "connection-wa",
+        provider: "whatsapp",
+        accountLabel: "•••• 1111",
+        spaceId: "personal",
+        createdAt: "2026-09-08T13:00:00Z",
+      },
+    ],
+  });
+  await openChannels(page);
+  await expect(page.getByText("•••• 1111", { exact: true })).toBeVisible();
+  await page
+    .getByRole("button", { name: "Disconnect", exact: true })
+    .nth(1)
+    .click();
+  const confirmation = page.getByRole("alertdialog");
+  await expect(
+    confirmation.getByRole("heading", { name: "Disconnect WhatsApp?" }),
+  ).toBeVisible();
+  await expect(confirmation).toContainText(
+    "•••• 1111 will stop getting replies from Houston in WhatsApp.",
+  );
+  await confirmation
+    .getByRole("button", { name: "Disconnect", exact: true })
+    .click();
+  await expect(page.getByText("•••• 1111", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByText("Ada · Houston team", { exact: true }),
+  ).toBeVisible();
+  expect(calls).toEqual([
+    {
+      method: "DELETE",
+      path: "/v1/channels/connections/connection-wa",
+      body: null,
+    },
+  ]);
+});
+
+test("a deployment that lists no known provider says channels are unavailable", async ({
+  page,
+}) => {
+  await mockChannels(page, { connections: [] });
+  await page.route("**/v1/channels", (route) =>
+    route.fulfill({ json: { providers: [], connections: [] } }),
+  );
+  await openChannels(page);
+  await expect(
+    page.getByText("Channels are unavailable on this Houston installation."),
+  ).toBeVisible();
 });
 
 test("unconfigured WhatsApp keeps its own guidance while Slack remains connectable", async ({
@@ -230,7 +248,7 @@ test("public callback opens Channels after authenticated reload", async ({
 test("the callback ticket is redeemed once and leaves the address bar", async ({
   page,
 }) => {
-  const calls = await mockChannels(page);
+  const { calls } = await mockChannels(page);
   await signInAsViewer(page);
   await page.goto(`${AUTH_WEB_URL}/?settings=channels&slack=${TICKET}`);
   await expect(page.getByText("Ada · Personal", { exact: true })).toBeVisible();
