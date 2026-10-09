@@ -1,5 +1,6 @@
 import { STORE_ROOT_PACKAGE_EXCLUDES } from "@houston/runtime-client/object-sync";
 import type { AgentOp } from "./op-grammar";
+import { deferredWorkspaceFile } from "./turn-deferred-rule";
 
 /** Reserved claim key for agent-level writes (gateway + pod-store agree). */
 export const AGENT_OPS_CLAIM_ID = "agent-ops";
@@ -27,6 +28,15 @@ const SETTINGS_OP_EXCLUDES = [
   "workspaces/*/*/files/",
   "workspaces/*/*/uploads/",
 ];
+/** The agent's own folders (`workspaces/<ws>/<agent>/<dir>/`, the deferred
+ *  rule) are most of a heavy agent's bytes and no settings or credential op
+ *  reads one: they stay LISTED, so the layout and the agent-exists check
+ *  resolve from the listing as before, and are never downloaded. A filter,
+ *  not an exclude: the exclude patterns cannot say "every folder except the
+ *  hidden ones". A filtered object never enters the manifest, so its
+ *  absence can never read as a delete. */
+const settingsOpDownloads = (rel: string): boolean =>
+  !deferredWorkspaceFile(rel);
 
 /** A `POST migration/import` route op (parseOpRequest proved the rest
  *  decodes and is an op route). */
@@ -62,13 +72,17 @@ export function importListed(rel: string): boolean {
  * downloaded on first read — a Files listing or a one-file read costs one
  * round-trip, not the agent's size, and a rename fetches its one
  * conversation. The runtime tree is never listed for routes, except the
- * transcripts a migration import must see. A settings op needs the runtime
- * dir minus the bulk. A credential op touches no file at all (the gateway's
- * store is the only write); it still hydrates the layout so the
+ * transcripts a migration import must see. A settings op reads the runtime
+ * dir's small files from the real filesystem (never through the vfs, so it
+ * cannot be lazy): it hydrates the runtime dir minus the bulk and downloads
+ * none of the agent's own folders. A credential op touches no file at all
+ * (the gateway's store is the only write); it still lists the layout so the
  * agent-exists check holds.
  */
 export function opTreeOptions(op: AgentOp): {
   excludes?: string[];
+  /** Eager trees only: listed objects to download (the rest stay listed). */
+  filter?: (rel: string) => boolean;
   lazy?: boolean;
   admit?: (rel: string) => boolean;
 } {
@@ -83,7 +97,7 @@ export function opTreeOptions(op: AgentOp): {
       return { lazy: true };
     case "settings":
     case "credential":
-      return { excludes: SETTINGS_OP_EXCLUDES };
+      return { excludes: SETTINGS_OP_EXCLUDES, filter: settingsOpDownloads };
     default:
       return {};
   }

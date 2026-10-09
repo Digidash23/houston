@@ -20,6 +20,7 @@ import { RoutinePlanSkipNotice } from "./routine-plan-skip-notice";
 import { RoutineRunsDialog } from "./routine-runs-dialog";
 import { RoutineScreenHeader } from "./routine-screen-header";
 import { RoutineScreenSections } from "./routine-screen-sections";
+import { RoutineSnoozeBanner } from "./routine-snooze-banner";
 
 interface Props {
   agent: Agent;
@@ -109,6 +110,7 @@ export function RoutineScreen({
           resuming={updateRoutine.isPending}
           readerFor={readerFor}
         />
+        <RoutineSnoozeBanner routine={routine} />
         <RoutineScreenSections
           agent={agent}
           routine={routine}
