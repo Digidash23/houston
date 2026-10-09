@@ -40,8 +40,8 @@ export class TriggerRoutineFirer implements RoutineFirer {
       routineTriggerPrompt(job.routine, this.events),
       { ...pin, effort: job.routine.effort },
       this.actingAs
-        ? { actingAs: this.actingAs }
-        : { actingUser: job.routine.created_by },
+        ? { actingAs: this.actingAs, routine: true }
+        : { actingUser: job.routine.created_by, routine: true },
     );
   }
 }

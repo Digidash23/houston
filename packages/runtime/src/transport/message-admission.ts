@@ -102,6 +102,14 @@ export function trackAdmission(
   return input ? turn.finally(() => admissions.settle(id, input.nonce)) : turn;
 }
 
+/** Release a reservation whose turn was refused before recording anything. */
+export function releaseAdmission(
+  id: string,
+  input: MessageAdmissionInput | undefined,
+): void {
+  if (input) admissions.release(id, input.nonce);
+}
+
 function replyAdmission(
   ctx: RouteContext,
   id: string,

@@ -5,6 +5,7 @@ import type { Agent, Workspace } from "../domain/types";
 import type { FireTurnOptions } from "../fire-turn-options";
 import type { ChannelCtx, RuntimeChannel, TurnPin } from "../ports";
 import { startTestFetchServer } from "../testing/fetch-server";
+import { TriggerRoutineFirer } from "../triggers/trigger-firer";
 import { ChannelRoutineFirer } from "./firer";
 import type { FiringJob } from "./scheduler";
 
@@ -54,6 +55,7 @@ function recordingChannel(): RuntimeChannel & {
     text: string;
     pin?: TurnPin;
     actingUser?: string;
+    routine?: true;
   }[];
 } {
   const calls: {
@@ -61,6 +63,7 @@ function recordingChannel(): RuntimeChannel & {
     text: string;
     pin?: TurnPin;
     actingUser?: string;
+    routine?: true;
   }[] = [];
   return {
     calls,
@@ -70,9 +73,9 @@ function recordingChannel(): RuntimeChannel & {
       cid: string,
       text: string,
       pin?: TurnPin,
-      { actingUser }: FireTurnOptions = {},
+      { actingUser, routine }: FireTurnOptions = {},
     ) {
-      calls.push({ cid, text, pin, actingUser });
+      calls.push({ cid, text, pin, actingUser, routine });
     },
     async cancelTurn() {
       return false;
@@ -107,6 +110,8 @@ test("ChannelRoutineFirer routes the prompt to the workspace's channel", async (
       text: expect.stringContaining("Write the daily report"),
       pin: { provider: null, model: null, effort: undefined, mode: "auto" },
       actingUser: undefined,
+      // Marks the request so the runtime tells a routine run from a person.
+      routine: true,
     },
   ]);
   // The framing is what stops a "every hour, …" prompt from reading as a
@@ -126,6 +131,12 @@ test("ChannelRoutineFirer threads the routine creator as the turn's acting user 
     }),
   );
   expect(cloudrun.calls[0]?.actingUser).toBe("sub-alice");
+});
+
+test("a trigger-woken run is marked as a routine run too", async () => {
+  const cloudrun = recordingChannel();
+  await new TriggerRoutineFirer({ cloudrun }, [], "acting-v1.p.s").fire(job());
+  expect(cloudrun.calls[0]?.routine).toBe(true);
 });
 
 test("ChannelRoutineFirer carries provider/model/effort plus autopilot mode", async () => {
