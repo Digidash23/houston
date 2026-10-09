@@ -3,6 +3,7 @@ import i18n from "./i18n";
 import { surfacePlanMinInterval } from "./plan-min-interval";
 import type { QuietErrorClass } from "./quiet-error-class";
 import { reportQuietError } from "./quiet-error-report";
+import { showWebhookNotCreatorToast } from "./webhook-not-creator-toast";
 
 /**
  * The quiet classes (PRODUCT-1735) `showErrorToast` hands off besides offline
@@ -30,6 +31,11 @@ export function surfaceQuietState(
       // A business state: the plan's copy naming the refusal's floor, and
       // nothing to report.
       return surfacePlanMinInterval(originalError);
+    case "webhook_not_creator":
+      // A business state: only the routine's creator may mint its address,
+      // and the chip's own line says so. Nothing to report.
+      showWebhookNotCreatorToast();
+      return true;
     case "no_url_handler":
       // Same remedy copy `openExternalUrl` shows; a rejection that reached
       // this surface skipped that seam (a raw `osOpenUrl` caller).

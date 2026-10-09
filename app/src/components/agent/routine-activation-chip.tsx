@@ -13,7 +13,7 @@
  * hand-off the grid's row badge uses.
  */
 
-import type { RoutineTriggerBinding } from "@houston/engine-adapter";
+import type { Routine } from "@houston/engine-adapter";
 import { Button, cn } from "@houston-ai/core";
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { useCallback, useMemo } from "react";
@@ -27,16 +27,18 @@ import { WebhookActivationChip } from "./webhook-activation-chip";
 
 interface Props {
   agentId: string;
-  routineId: string;
-  /** The routine's wake binding, so the chip renders the right surface: an
+  /** The trigger-bound routine. Its wake binding picks the surface (an
    *  incoming-webhook binding needs the mint/rotate flow, a Composio binding
-   *  the connect/reconnect health. */
-  trigger: RoutineTriggerBinding;
+   *  the connect/reconnect health) and its `created_by` decides who may mint
+   *  a webhook key. Renders nothing for a schedule-only routine. */
+  routine: Routine;
 }
 
-export function RoutineActivationChip({ agentId, routineId, trigger }: Props) {
+export function RoutineActivationChip({ agentId, routine }: Props) {
   const { t } = useTranslation("routines");
   const setViewMode = useUIStore((s) => s.setViewMode);
+  const routineId = routine.id;
+  const trigger = routine.trigger;
 
   const routineIds = useMemo(() => [routineId], [routineId]);
   const statusQuery = useAgentTriggerStatus(agentId, true, routineIds);
@@ -47,12 +49,15 @@ export function RoutineActivationChip({ agentId, routineId, trigger }: Props) {
     setViewMode(INTEGRATIONS_VIEW_ID);
   }, [setViewMode]);
 
+  if (!trigger) return null;
+
   // An incoming-webhook routine has its own mint/rotate surface — no external
   // account to connect, so the Composio health path below never applies.
   if (trigger.kind === "webhook") {
     return (
       <WebhookActivationChip
         agentId={agentId}
+        createdBy={routine.created_by}
         routineId={routineId}
         status={status}
       />
