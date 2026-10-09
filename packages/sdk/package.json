@@ -82,6 +82,10 @@
     "./draft-typing": {
       "types": "./src/modules/turns/draft-typing.ts",
       "import": "./src/modules/turns/draft-typing.ts"
+    },
+    "./turns/turn-error-class": {
+      "types": "./src/modules/turns/turn-error-class.ts",
+      "import": "./src/modules/turns/turn-error-class.ts"
     }
   },
   "files": [

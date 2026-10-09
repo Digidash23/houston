@@ -143,6 +143,14 @@ export function isNotConnectedError(message: string): boolean {
 export const STOPPED_BY_USER = "Stopped by user";
 
 /**
+ * A turn that died without persisting a reply: the same copy the host's
+ * dead-pump reaper stamps on the terminal `error` frame it synthesizes
+ * (`packages/host/src/turn/relay-dialect.ts` TURN_DIED_MESSAGE), so the
+ * surface reads identically whether the server or this client detected it.
+ */
+export const TURN_DIED_MESSAGE = "The turn ended unexpectedly";
+
+/**
  * The line for a turn the ENGINE died on (a pod OOM-killed mid-turn, the
  * desktop force-quit): the runtime's boot settle stamps the dead turn's reply
  * `interrupted` (`ChatMessage.interrupted`), and both the lost-terminal settle

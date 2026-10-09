@@ -2,7 +2,7 @@ import { isOfferToolName } from "@houston/protocol";
 import type { WireFrame } from "@houston/runtime-client";
 import type { TurnCardWrites } from "./board-writes";
 import type { TerminalBoardStatus } from "./feed-output";
-import type { TurnState } from "./turn-settle";
+import type { TurnState } from "./turn-state";
 
 /** The turn state's reply phase (`TurnState` extends it). */
 export interface TurnReplyState {

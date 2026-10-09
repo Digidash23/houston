@@ -63,12 +63,22 @@ export function createBusFeedOutput(
         item: remapProvider(item),
       });
     },
-    sessionStatus(agentPath, sessionKey, status: SessionStatusValue, error) {
+    sessionStatus(
+      agentPath,
+      sessionKey,
+      status: SessionStatusValue,
+      error,
+      detail,
+    ) {
+      // `error_class` / `origin` are additive and only present when the SDK
+      // stamped them; a consumer written for the bare shape reads nothing new.
       emitEvent("SessionStatus", {
         agent_path: agentPath,
         session_key: sessionKey,
         status,
         error,
+        ...(detail?.errorClass ? { error_class: detail.errorClass } : {}),
+        ...(detail?.origin ? { origin: detail.origin } : {}),
       });
     },
     firstResponse(agentPath, sessionKey, response) {
