@@ -142,7 +142,8 @@
       "outOfCredits": "La cuenta de {{provider}} se quedó sin créditos.",
       "modelUnavailable": "La cuenta de {{provider}} no puede usar el modelo de esta rutina.",
       "noModel": "Esta rutina no tiene un modelo elegido y la cuenta de IA que usaría no está conectada.",
-      "poolDeliveryExpired": "Esta ejecución no pudo iniciar a tiempo y se omitió. Puedes ejecutar la rutina de nuevo."
+      "poolDeliveryExpired": "Esta ejecución no pudo iniciar a tiempo y se omitió. Puedes ejecutar la rutina de nuevo.",
+      "creatorNoAccess": "Esta rutina la creó alguien que ya no puede usar este empleado de IA. Pausa la rutina y reanúdala para que se ejecute como tú."
     },
     "autoPause": {
       "chip": "En pausa",
@@ -277,6 +278,10 @@
     "rotate": "Nueva clave",
     "unsupportedTitle": "Actualización necesaria",
     "unsupportedBody": "Crear una dirección de webhook necesita la última versión de Houston.",
+    "creatorOnly": "Solo la persona que creó esta rutina puede crear o cambiar su dirección de webhook.",
+    "ownerOnly": "Solo el dueño de este espacio puede crear o cambiar la dirección de webhook de esta rutina.",
+    "creatorOnlyTitle": "No puedes cambiar esta dirección de webhook",
+    "creatorOnlyBody": "Solo la persona que creó esta rutina puede crear o cambiar su dirección de webhook. Si la rutina no tiene creador, solo puede hacerlo el dueño de este espacio.",
     "dialog": {
       "title": "Tu dirección de webhook",
       "subtitle": "Envía una solicitud a esta dirección para activar la rutina.",

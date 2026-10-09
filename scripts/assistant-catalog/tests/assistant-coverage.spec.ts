@@ -217,8 +217,10 @@ describe("acknowledgements", () => {
   });
 });
 
+// The extraction builds the whole TypeScript program inside the test body,
+// which takes close to vitest's 5 s default on a CI runner (about 4.8 s).
 describe("the live engine adapter", () => {
-  it("passes the coverage gate", () => {
+  it("passes the coverage gate", { timeout: 30_000 }, () => {
     expect(coverageViolations(extractCatalog(realOptions).annotations)).toEqual(
       [],
     );

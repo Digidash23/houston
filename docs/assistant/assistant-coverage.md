@@ -168,7 +168,7 @@ Each one ends the agent's turn and asks the user before it runs, and states what
 - `createRoutine`: money. A routine keeps firing on its own schedule once it exists, spending model budget on every run until someone stops it.
 - `deleteRoutine`: irreversible. The schedule and the instructions it ran are gone, and the routine has to be written again from scratch.
 - `keepRoutine`: Other Free routines stay saved but stop firing.
-- `mintRoutineWebhookKey`: irreversible. Minting again invalidates the key already in use, so whatever calls this routine from outside stops working.
+- `mintRoutineWebhookKey`: irreversible. Minting again invalidates the key already in use, so whatever calls this routine from outside stops working. Only the person who created the routine can do this (the space owner when the routine has no creator); anyone else is refused.
 - `resumeRoutines`: Paused routines can start firing again.
 - `runRoutineNow`: money. It starts a real run right now, which spends model budget and does whatever the routine instructs.
 - `updateRoutine`: money. A schedule edit retargets recurring spend, changing how often the agent runs and is billed from then on.

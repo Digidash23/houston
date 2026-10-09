@@ -22,8 +22,11 @@ import type { RoutineRun, WebhookKeyReveal } from "./types";
  *
  * An `error` run says why in `failure` (the account or model it needed is
  * unusable: fix that, or the routine pauses itself after repeated runs) or in
- * `delivery_failure` (it never started in time; nothing to fix, run it again
- * with runRoutineNow); any other failure tells its story in `summary` only.
+ * `delivery_failure` (it never started: `pool_delivery_expired` means it ran
+ * out of time, so run it again with runRoutineNow; `creator_no_access` means
+ * the person it runs as can no longer use the agent, and any updateRoutine
+ * call, even one that changes nothing, makes the caller that person); any
+ * other failure tells its story in `summary` only.
  * @param agentId The agent this acts on, by the id listAgents returns. An
  *   agent's name is not its id, so read the id from listAgents first.
  * @assistant group:routines
@@ -100,7 +103,10 @@ export async function cancelRoutineRun(
  * @param agentId The agent this acts on, by the id listAgents returns. An
  *   agent's name is not its id, so read the id from listAgents first.
  * @param routineId The routine, by the id listRoutines returns.
- * @assistant group:routines confirm: irreversible. Minting again invalidates the key already in use, so whatever calls this routine from outside stops working.
+ * Only the routine's creator may mint or rotate (the space owner, for a
+ * routine naming no creator); anyone else is refused with `not_creator`, which
+ * {@link isWebhookKeyNotCreatorRefusal} names and `webhookKeyAccess` predicts.
+ * @assistant group:routines confirm: irreversible. Minting again invalidates the key already in use, so whatever calls this routine from outside stops working. Only the person who created the routine can do this (the space owner when the routine has no creator); anyone else is refused.
  * @assistant hidden: returns a secret; the webhook key is revealed once and calling again rotates it.
  * @assistant hands: request_hands_on(routineWebhook)
  */

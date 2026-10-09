@@ -95,6 +95,8 @@ export function RoutineRunsHistory({
     switch (routineFailureCode(run, readerFor)) {
       case "pool_delivery_expired":
         return t("details.failure.poolDeliveryExpired");
+      case "creator_no_access":
+        return t("details.failure.creatorNoAccess");
       case "creator_not_connected":
         return t("details.failure.creatorNotConnected", { provider });
       case "team_not_connected":

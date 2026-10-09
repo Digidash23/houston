@@ -18,6 +18,10 @@ import type {
   CatalogProvider,
   ProviderCatalog,
 } from "@houston/protocol";
+import {
+  ANTHROPIC_PROVIDER_ID,
+  withAnthropicLineup,
+} from "./anthropic-catalog";
 import { BEDROCK_PROVIDER_ID, invokableBedrockModels } from "./bedrock-catalog";
 import { piOAuthProviders } from "./pi-oauth";
 import { QWEN_PROVIDER_ID, qwenModels } from "./qwen-dashscope";
@@ -139,9 +143,10 @@ function providerDisplayName(
  * every provider's public :443 endpoint, so a hosted user sees the full catalog
  * too. Deterministic — no clock, no IO.
  *
- * The one per-provider shaping is Bedrock, whose pi-ai list is mostly ids
- * Bedrock itself refuses (see ./bedrock-catalog); the catalog is the RUNNABLE
- * set, so those never reach a picker.
+ * Two providers are shaped. Bedrock's pi-ai list is mostly ids Bedrock itself
+ * refuses (see ./bedrock-catalog); the catalog is the RUNNABLE set, so those
+ * never reach a picker. Anthropic runs one model per Claude family, so its
+ * retired rows name the lineup model they run as (see ./anthropic-catalog).
  */
 export function buildProviderCatalog(): ProviderCatalog {
   const oauthProviders = piOAuthProviders();
@@ -156,17 +161,18 @@ export function buildProviderCatalog(): ProviderCatalog {
     // A provider whose baked catalog holds no chat model (pi 0.99's `typesafe`
     // ships only classifier rows) has nothing a picker could run.
     if (models.length === 0) continue;
+    const provider = piProviderToCatalog(
+      id,
+      id === "minimax"
+        ? withMinimaxTokenPlan(models)
+        : id === BEDROCK_PROVIDER_ID
+          ? invokableBedrockModels(models)
+          : models,
+      oauthIds.has(id),
+      providerDisplayName(id, oauthNames),
+    );
     catalog.push(
-      piProviderToCatalog(
-        id,
-        id === "minimax"
-          ? withMinimaxTokenPlan(models)
-          : id === BEDROCK_PROVIDER_ID
-            ? invokableBedrockModels(models)
-            : models,
-        oauthIds.has(id),
-        providerDisplayName(id, oauthNames),
-      ),
+      id === ANTHROPIC_PROVIDER_ID ? withAnthropicLineup(provider) : provider,
     );
   }
   // Houston's qwen extension provider (DashScope international pay-as-you-go)

@@ -19,6 +19,7 @@ import {
 import type { MissionTitleRequest } from "./mission-title";
 import { titleMissionAfterTurn } from "./mission-title-report";
 import { connectedProviderForTurn } from "./provider-gate";
+import { withTurnInFlight } from "./turn-inflight-count";
 import {
   type CardAnswer,
   refuseQueuedCardAnswer,
@@ -61,9 +62,16 @@ export async function ensureProviderForTurn(
 /**
  * Start a turn for a conversation. Turns on the same conversation are
  * serialized (ordered resume). Never rejects — failures surface as `error`
- * events on the conversation's stream.
+ * events on the conversation's stream. Counted in flight from this call (the
+ * route has already answered 202) until it settles, so `GET /busy` and the
+ * shutdown drain never read an accepted turn as idle while it is still
+ * syncing a credential or building its session, its message not yet on disk.
  */
-export async function runTurn(
+export const runTurn = (
+  ...args: Parameters<typeof runAcceptedTurn>
+): Promise<void> => withTurnInFlight(() => runAcceptedTurn(...args));
+
+async function runAcceptedTurn(
   id: string,
   text: string,
   nonce?: string,

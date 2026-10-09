@@ -142,7 +142,8 @@
       "outOfCredits": "The {{provider}} account is out of credits.",
       "modelUnavailable": "The {{provider}} account can't use the model this routine runs on.",
       "noModel": "This routine has no model chosen, and the AI account it would use isn't connected.",
-      "poolDeliveryExpired": "This run couldn't start in time and was skipped. You can run the routine again."
+      "poolDeliveryExpired": "This run couldn't start in time and was skipped. You can run the routine again.",
+      "creatorNoAccess": "This routine was set up by someone who can no longer use this AI Employee. Pause the routine and resume it to run it as you."
     },
     "autoPause": {
       "chip": "Paused",
@@ -277,6 +278,10 @@
     "rotate": "New key",
     "unsupportedTitle": "Update needed",
     "unsupportedBody": "Creating a webhook address needs the latest version of Houston.",
+    "creatorOnly": "Only the person who created this routine can create or change its webhook address.",
+    "ownerOnly": "Only the owner of this space can create or change this routine's webhook address.",
+    "creatorOnlyTitle": "You can't change this webhook address",
+    "creatorOnlyBody": "Only the person who created this routine can create or change its webhook address. If the routine has no creator, only the owner of this space can.",
     "dialog": {
       "title": "Your webhook address",
       "subtitle": "Send a request to this address to wake the routine.",

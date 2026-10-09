@@ -877,7 +877,7 @@ export interface RoutineRun {
   /** Typed reason an `error` run failed on the account or model it needed.
    *  Other failures after a run starts carry their story in `summary`. */
   failure?: RoutineRunFailure;
-  /** The run never started before its delivery deadline. */
+  /** Cloud never started the run (deadline passed, or the creator lost access). */
   delivery_failure?: RoutineDeliveryFailure;
   /** The engine restarted and is repeating this run. */
   resumed?: true;

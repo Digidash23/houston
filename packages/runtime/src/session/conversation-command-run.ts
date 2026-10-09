@@ -12,6 +12,7 @@ import type { ConversationCommand } from "./conversation-command";
 import { beginConversationCommand } from "./conversation-command-gate";
 import { isAssistantConversation } from "./durable-facts";
 import { compactWithFactHarvest } from "./durable-facts-harvest";
+import { holdTurnInFlight } from "./turn-inflight-count";
 import { withWorkdirLock } from "./workdir-lock";
 
 /**
@@ -78,10 +79,13 @@ export async function runConversationCommand(
   });
   // Keep the queue chain alive past a failed command, and pin the session
   // against idle/LRU eviction for as long as this command owns the queue.
+  // Counted like a turn whether or not a session is live: a `/compact` is a
+  // model call, and the runtime reads busy until it settles.
   if (conv) {
     conv.queue = run.catch(() => {});
     conv.pending++;
   }
+  const releaseInFlight = holdTurnInFlight();
   try {
     await run;
     publish(id, { type: "done", data: null, turnId });
@@ -89,6 +93,7 @@ export async function runConversationCommand(
     publish(id, { type: "error", data: { message: errMessage(err) }, turnId });
   } finally {
     if (conv) conv.pending--;
+    releaseInFlight();
     settle();
   }
 }

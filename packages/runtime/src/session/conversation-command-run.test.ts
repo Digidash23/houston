@@ -55,6 +55,7 @@ const { conversationCommandInFlight } = await import(
   "./conversation-command-gate"
 );
 const { withWorkdirLock } = await import("./workdir-lock");
+const { turnsInFlight } = await import("./turn-inflight-count");
 const { config } = await import("../config");
 const {
   appendAssistantMessage,
@@ -337,11 +338,14 @@ test("the conversation is held for the command's whole life", async () => {
   expect(conversationCommandInFlight(ASSISTANT_CONVERSATION_ID)).toBe(true);
   // Pinned like a queued turn, so no eviction sweep can take the session.
   expect(conv.pending).toBe(1);
+  // ...and counted like one, so the runtime reads busy while it works.
+  expect(turnsInFlight()).toBe(1);
 
   releaseHarvest();
   await command;
   expect(conversationCommandInFlight(ASSISTANT_CONVERSATION_ID)).toBe(false);
   expect(conv.pending).toBe(0);
+  expect(turnsInFlight()).toBe(0);
 });
 
 test("a failed command releases the conversation instead of wedging it", async () => {
@@ -352,6 +356,7 @@ test("a failed command releases the conversation instead of wedging it", async (
 
   expect(conversationCommandInFlight(id)).toBe(false);
   expect(conv.pending).toBe(0);
+  expect(turnsInFlight()).toBe(0);
   // The queue chain survives its failure: the next turn still runs.
   await expect(conv.queue).resolves.toBeUndefined();
 });
