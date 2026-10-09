@@ -2,206 +2,115 @@
 //!
 //! `tauri-plugin-updater` fetches a release in ONE streamed request with no
 //! retry: a 300 MB `Houston.app.tar.gz` on a flaky link dies mid-body as
-//! "error decoding response body" and the whole download starts over on the
-//! next poll. This loop keeps the bytes it already has and asks the server
-//! for the rest with a `Range` header (GitHub release assets answer 206),
-//! backing off between attempts. A server that ignores the range (answers
-//! 200) restarts the buffer, so the caller's progress tally is reset by a
-//! fresh `Started` event. A transient status from the release host (a 504
-//! from GitHub's asset CDN mid-roll, PRODUCT-1811) is retried the same way,
-//! keeping the bytes already received. Pure over a `reqwest::Client` so the
-//! tests can run it against a local socket.
+//! "error decoding response body". This loop streams into a persisted partial
+//! (`update_partial`) and asks the server for the rest with `Range` +
+//! `If-Range` (GitHub release assets answer 206), backing off between
+//! attempts. A budget that runs out KEEPS the file: the next call (the
+//! 5-minute poll, the device coming back online) carries on from where it
+//! stopped instead of from byte 0, which is the difference between a link that
+//! drops every 100 MB finishing a 330 MB asset and never finishing it. A
+//! server that answers a full body (200: it ignored the range, or the asset
+//! was re-published and the validator no longer matches) restarts the file,
+//! and the caller's tally with it through a fresh `Started` event. A transient
+//! status from the release host (a 504 from GitHub's asset CDN mid-roll,
+//! PRODUCT-1811) is retried the same way. Pure over a `reqwest::Client` so
+//! the tests run it against a local socket.
 
-pub use super::update_failure::{DownloadEvent, DownloadFailure, DownloadFailureKind};
-use futures_util::StreamExt;
-use reqwest::header::{HeaderMap, RANGE};
-use reqwest::{Client, StatusCode, Url};
+use super::update_attempt::{attempt, AttemptOutcome};
+pub use super::update_failure::{DownloadEvent, DownloadFailure};
+use super::update_partial::PartialDownload;
+use reqwest::header::HeaderMap;
+use reqwest::{Client, Url};
 use std::time::Duration;
 
-/// Attempts per download: the first request plus three resumes.
-pub const DOWNLOAD_ATTEMPTS: u32 = 4;
+/// The most attempts one call makes: the first request plus four resumes.
+/// A caller that must not keep the user waiting (the launch-time install
+/// behind its overlay) asks for fewer; the partial survives either way.
+pub const DOWNLOAD_ATTEMPTS: u32 = 5;
 
-/// Backoff before resume attempt `attempt` (1-based, the retries only).
+/// Backoff before each resume, in seconds. The old 1/3/9 s ladder waited 13 s
+/// in total, shorter than an ordinary wifi hiccup; this one waits past a
+/// minute before leaving the rest to the next call.
+const RETRY_DELAYS_SECS: [u64; 4] = [3, 10, 30, 60];
+
+/// Backoff before resume attempt `attempt` (1-based, the retries only),
+/// capped at the last rung.
 pub fn retry_delay(attempt: u32) -> Duration {
-    Duration::from_secs(3u64.pow(attempt.saturating_sub(1)))
+    let index = (attempt.saturating_sub(1) as usize).min(RETRY_DELAYS_SECS.len() - 1);
+    Duration::from_secs(RETRY_DELAYS_SECS[index])
 }
 
-fn classify(err: &reqwest::Error) -> DownloadFailureKind {
-    if err.is_connect() || err.is_timeout() || err.is_request() || err.is_body() || err.is_decode()
-    {
-        DownloadFailureKind::Network
-    } else {
-        DownloadFailureKind::Other
-    }
+/// A caller's attempt budget, held to `1..=DOWNLOAD_ATTEMPTS`.
+pub fn attempt_budget(requested: Option<u32>) -> u32 {
+    requested
+        .unwrap_or(DOWNLOAD_ATTEMPTS)
+        .clamp(1, DOWNLOAD_ATTEMPTS)
 }
 
-/// A status the release host answers while it is briefly unable to serve:
-/// the request may succeed a moment later, so it is retried, and a budget
-/// spent on it reports as the host being unavailable, not as a bug.
-fn is_transient_status(status: StatusCode) -> bool {
-    matches!(
-        status,
-        StatusCode::REQUEST_TIMEOUT
-            | StatusCode::TOO_EARLY
-            | StatusCode::TOO_MANY_REQUESTS
-            | StatusCode::INTERNAL_SERVER_ERROR
-            | StatusCode::BAD_GATEWAY
-            | StatusCode::SERVICE_UNAVAILABLE
-            | StatusCode::GATEWAY_TIMEOUT
-    )
-}
-
-fn failure(
-    kind: DownloadFailureKind,
-    message: String,
-    received: usize,
-    total: Option<u64>,
-) -> DownloadFailure {
-    DownloadFailure {
-        kind,
-        message,
-        received: received as u64,
-        total,
-        attempts: 0,
-        status: None,
-    }
-}
-
-fn status_failure(status: StatusCode, received: usize, total: Option<u64>) -> DownloadFailure {
-    let kind = if is_transient_status(status) {
-        DownloadFailureKind::Upstream
-    } else {
-        DownloadFailureKind::Http
-    };
-    DownloadFailure {
-        status: Some(status.as_u16()),
-        ..failure(
-            kind,
-            format!("Download request failed with status: {status}"),
-            received,
-            total,
-        )
-    }
-}
-
-enum AttemptOutcome {
-    Done,
-    Retry(DownloadFailure),
-}
-
-/// Stream `url` into `buffer`, resuming from its current length. Emits
-/// `Started` on a fresh (or restarted) body and `Progress` per chunk.
-async fn attempt(
-    client: &Client,
-    url: &Url,
-    headers: &HeaderMap,
-    buffer: &mut Vec<u8>,
-    total: &mut Option<u64>,
-    on_event: &mut (dyn FnMut(DownloadEvent) + Send),
-) -> Result<AttemptOutcome, DownloadFailure> {
-    let mut request = client.get(url.clone()).headers(headers.clone());
-    let resuming = !buffer.is_empty();
-    if resuming {
-        request = request.header(RANGE, format!("bytes={}-", buffer.len()));
-    }
-    let response = match request.send().await {
-        Ok(response) => response,
-        Err(err) => {
-            return Ok(AttemptOutcome::Retry(failure(
-                classify(&err),
-                err.to_string(),
-                buffer.len(),
-                *total,
-            )))
-        }
-    };
-    match response.status() {
-        StatusCode::PARTIAL_CONTENT if resuming => {}
-        StatusCode::OK => {
-            // A fresh body, or a server that ignored the range: start over.
-            buffer.clear();
-            *total = response.content_length();
-            on_event(DownloadEvent::Started {
-                content_length: *total,
-            });
-        }
-        status if is_transient_status(status) => {
-            return Ok(AttemptOutcome::Retry(status_failure(
-                status,
-                buffer.len(),
-                *total,
-            )))
-        }
-        status => return Err(status_failure(status, buffer.len(), *total)),
-    }
-    let mut stream = response.bytes_stream();
-    while let Some(chunk) = stream.next().await {
-        match chunk {
-            Ok(chunk) => {
-                on_event(DownloadEvent::Progress {
-                    chunk_length: chunk.len(),
-                });
-                buffer.extend_from_slice(&chunk);
-            }
-            Err(err) => {
-                return Ok(AttemptOutcome::Retry(failure(
-                    classify(&err),
-                    err.to_string(),
-                    buffer.len(),
-                    *total,
-                )))
-            }
-        }
-    }
-    if let Some(total) = *total {
-        if (buffer.len() as u64) < total {
-            // The server closed the stream early without an error frame.
-            return Ok(AttemptOutcome::Retry(failure(
-                DownloadFailureKind::Network,
-                format!("stream ended at {} of {total} bytes", buffer.len()),
-                buffer.len(),
-                Some(total),
-            )));
-        }
-    }
-    Ok(AttemptOutcome::Done)
-}
-
-/// Download `url` in full, resuming across up to `DOWNLOAD_ATTEMPTS` tries.
-/// A dropped stream and a transient status both retry; any other status is
-/// final on the first sight.
+/// Complete `partial` from `url` across up to `attempts` tries. On success
+/// the file at `partial.path()` holds the whole asset, unverified. A dropped
+/// stream and a transient status both retry, and leave the file for the next
+/// call when the budget runs out; any other failure is final and discards it.
+/// The caller's tally is primed with what was already on disk.
 pub async fn fetch_with_resume(
     client: &Client,
     url: &Url,
     headers: &HeaderMap,
+    partial: &mut PartialDownload,
+    attempts: u32,
     mut on_event: impl FnMut(DownloadEvent) + Send,
-) -> Result<Vec<u8>, DownloadFailure> {
-    let mut buffer = Vec::new();
-    let mut total = None;
+) -> Result<(), DownloadFailure> {
+    if partial.len() > 0 {
+        on_event(DownloadEvent::Started {
+            content_length: partial.total(),
+        });
+        on_event(DownloadEvent::Progress {
+            chunk_length: partial.len() as usize,
+        });
+    }
     let mut last: Option<DownloadFailure> = None;
-    for attempt_no in 1..=DOWNLOAD_ATTEMPTS {
+    for attempt_no in 1..=attempts {
         if attempt_no > 1 {
             tokio::time::sleep(retry_delay(attempt_no - 1)).await;
         }
-        match attempt(client, url, headers, &mut buffer, &mut total, &mut on_event).await? {
-            AttemptOutcome::Done => {
-                on_event(DownloadEvent::Finished);
-                return Ok(buffer);
-            }
-            AttemptOutcome::Retry(mut failure) => {
-                failure.attempts = attempt_no;
-                tracing::warn!(
-                    "[updater] download attempt {attempt_no}/{DOWNLOAD_ATTEMPTS} stopped at {}/{} bytes: {}",
-                    failure.received,
-                    failure.total.map_or("?".to_string(), |t| t.to_string()),
-                    failure.message
-                );
-                if !failure.kind.is_retryable() {
-                    return Err(failure);
-                }
-                last = Some(failure);
+        let mut outcome = attempt(client, url, headers, partial, &mut on_event).await;
+        if let Err(e) = partial.settle().await {
+            // Bytes that did not reach the disk cannot be resumed from. A
+            // finished body becomes a failure; an attempt that already failed
+            // keeps its own, more telling, reason and re-reads how much really
+            // landed, so the next resume asks for the right offset. When even
+            // that cannot be known the download is final.
+            tracing::warn!("[updater] flush partial download: {e}");
+            if matches!(outcome, Ok(AttemptOutcome::Done)) {
+                outcome = Err(DownloadFailure::io("flush partial download", &e));
+            } else if let Err(e) = partial.resync_len() {
+                outcome = Err(DownloadFailure::io("measure partial download", &e));
             }
         }
+        let mut failure = match outcome {
+            Ok(AttemptOutcome::Done) => {
+                on_event(DownloadEvent::Finished);
+                return Ok(());
+            }
+            Ok(AttemptOutcome::Retry(failure)) => failure,
+            Err(failure) => failure,
+        };
+        failure.attempts = attempt_no;
+        tracing::warn!(
+            "[updater] download attempt {attempt_no}/{attempts} stopped at {}/{} bytes: {}",
+            failure.received,
+            failure.total.map_or("?".to_string(), |t| t.to_string()),
+            failure.message
+        );
+        if !failure.kind.is_retryable() {
+            if let Err(e) = partial.discard() {
+                // The failure being returned is the one worth reporting; a
+                // partial that will not go is swept at the next open.
+                tracing::warn!("[updater] discard partial download: {e}");
+            }
+            return Err(failure);
+        }
+        last = Some(failure);
     }
     Err(last.unwrap_or_else(|| DownloadFailure::other("download made no attempt")))
 }

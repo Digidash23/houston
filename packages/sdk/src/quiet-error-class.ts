@@ -30,6 +30,9 @@ import type { BridgeQuietClass } from "@houston/sdk/local-model-bridge/quiet";
  *  because the caller is not the routine's creator
  *  (`@houston/sdk/routines/webhook-key-access`): an expected state with its
  *  own copy, which every reporting path skips outright.
+ *  `storage_full` is the device's disk refusing the updater's release
+ *  download: the device's state, not a bug, named only by the download report
+ *  path and never retried for that release in the session.
  *  `bug_intake_unavailable` is the bug-report intake (Linear) refusing every
  *  report on our side, its plan's issue cap above all (HOUSTON-APP-5FT): the
  *  report itself still arrives through the fallback feedback, so the refusal
@@ -39,6 +42,7 @@ export type QuietErrorClass =
   | "offline"
   | BridgeQuietClass
   | "release_host_unavailable"
+  | "storage_full"
   | "no_url_handler"
   | "plan_min_interval"
   | "webhook_not_creator"
