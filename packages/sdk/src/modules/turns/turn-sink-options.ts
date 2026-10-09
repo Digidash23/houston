@@ -1,4 +1,5 @@
 import type { ChatMessage } from "@houston/runtime-client";
+import type { TurnCardWrites } from "./board-writes";
 import type { FeedOutput } from "./feed-output";
 import type { FirstResponseClock } from "./first-response";
 
@@ -50,4 +51,9 @@ export interface TurnSinkOptions {
    * answers anyone's send.
    */
   firstResponse?: FirstResponseClock;
+  /**
+   * The turn's ordered card writes (board-writes.ts): its reply phases
+   * (reply-phase.ts) and its settle, queued the moment it settles.
+   */
+  board?: TurnCardWrites;
 }

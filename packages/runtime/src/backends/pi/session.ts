@@ -6,10 +6,12 @@ import type {
   HarnessSession,
   HarnessTimingEvent,
   ModelPhase,
+  ReplyBeat,
   ResolvedModel,
   ThinkingLevel,
 } from "../types";
 import { createPiCallTimer } from "./model-calls";
+import { createReplyBeatReader } from "./reply-beats";
 import { createWireTranslator } from "./wire";
 
 /**
@@ -53,6 +55,15 @@ export class PiSession implements HarnessSession {
     return this.session.subscribe((e) => {
       if (e.type === "message_start" && e.message.role === "assistant")
         listener();
+    });
+  }
+
+  /** Tool-call opens and clean answer ends (`createReplyBeatReader`). */
+  subscribeReplyBeats(listener: (beat: ReplyBeat) => void): () => void {
+    const read = createReplyBeatReader();
+    return this.session.subscribe((e) => {
+      const beat = read(e);
+      if (beat) listener(beat);
     });
   }
 

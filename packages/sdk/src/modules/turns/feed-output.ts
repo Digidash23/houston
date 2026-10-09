@@ -42,6 +42,19 @@ export type TerminalBoardStatus = "needs_you" | "error";
 export type BoardStatus = "running" | TerminalBoardStatus;
 
 /**
+ * How a board persist relates to the turn's settle. `provisional`: the turn's
+ * reply finished streaming (`reply_complete`) and only its wrap-up remains, so
+ * the card is handed back early (`needs_you`) — or taken back (`running`)
+ * when the turn turned out to carry on. One a later write already overtook is
+ * never sent (board-writes.ts). A board writer writes it like any other; the
+ * conversation VM does NOT fold it into `boardStatus` (that is the "turn
+ * settled" signal), only into `ConversationVM.replyComplete`.
+ */
+export interface BoardPersistOptions {
+  provisional?: boolean;
+}
+
+/**
  * Everything the turn machinery emits for one conversation. An implementation
  * decides where the pushes land (a reactive VM, a UI bus, ...). `pushFeedItem`
  * and `sessionStatus` are fire-and-forget; `persistBoardStatus` is awaited so
@@ -62,13 +75,14 @@ export interface FeedOutput {
    * `pendingInteraction` rides the terminal persist: the interaction a clean
    * turn ended on (what the `needs_you` card renders), or `null` to clear it
    * (turn start, and every settle that carries no interaction). Omitted is
-   * treated as `null`.
+   * treated as `null`. `opts` marks an early write ({@link BoardPersistOptions}).
    */
   persistBoardStatus(
     agentPath: string,
     sessionKey: string,
     status: BoardStatus,
     pendingInteraction?: PendingInteraction | null,
+    opts?: BoardPersistOptions,
   ): Promise<void>;
   /**
    * The server confirmed this conversation is IDLE (an observer attached and
@@ -137,10 +151,17 @@ export class MultiplexFeedOutput implements FeedOutput {
     sessionKey: string,
     status: BoardStatus,
     pendingInteraction?: PendingInteraction | null,
+    opts?: BoardPersistOptions,
   ): Promise<void> {
     await Promise.all(
       this.outputs.map((o) =>
-        o.persistBoardStatus(agentPath, sessionKey, status, pendingInteraction),
+        o.persistBoardStatus(
+          agentPath,
+          sessionKey,
+          status,
+          pendingInteraction,
+          opts,
+        ),
       ),
     );
   }

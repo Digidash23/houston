@@ -12,7 +12,7 @@ import {
 import { DEFAULT_AGENT_PATH } from "../synthetic";
 import { wireTurnPin } from "../turn-pin";
 import { observeConversation, streamTurn } from "../turn-stream";
-import { setActivityStatus } from "./activity-status";
+import { turnCardWriter } from "./activity-status";
 import type { BaseCtor } from "./mixin";
 
 export function ChatSendMixin<TBase extends BaseCtor>(Base: TBase) {
@@ -54,14 +54,7 @@ export function ChatSendMixin<TBase extends BaseCtor>(Base: TBase) {
           engine,
           path,
           req.sessionKey,
-          (status, pendingInteraction) =>
-            setActivityStatus(
-              this.ctx,
-              path,
-              req.sessionKey,
-              status,
-              pendingInteraction,
-            ),
+          turnCardWriter(this.ctx, path, req.sessionKey),
           0,
         );
         return { sessionKey: req.sessionKey };
@@ -80,14 +73,7 @@ export function ChatSendMixin<TBase extends BaseCtor>(Base: TBase) {
         path,
         req.sessionKey,
         req.prompt,
-        (status, pendingInteraction) =>
-          setActivityStatus(
-            this.ctx,
-            path,
-            req.sessionKey,
-            status,
-            pendingInteraction,
-          ),
+        turnCardWriter(this.ctx, path, req.sessionKey),
         {
           provider: req.provider,
           suppressUserBubble: req.suppressUserBubble,
