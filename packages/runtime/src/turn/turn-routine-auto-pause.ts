@@ -8,15 +8,16 @@ import {
   normalizeRoutines,
   parseJsonDoc,
   routineAutoPause,
-  routineSnooze,
   saveRoutines,
+  snoozeAfterRun,
   snoozeRoutine,
+  unsnoozeAfterRun,
   upsertById,
 } from "@houston/domain";
 import {
   atomicTempPath,
   type Routine,
-  type RoutineRunFailure,
+  type RoutineRun,
 } from "@houston/protocol";
 import {
   ObjectNotFoundError,
@@ -62,21 +63,26 @@ export async function autoPauseRoutineTurn(
 }
 
 /**
- * The pooled twin of the standing host's snoozeLimitedRoutines: hold the
- * routine's fires until the plan usage limit its run hit resets (domain
- * `routineSnooze`). The store projects `snoozed.until` from the upload the
- * same way it projects `enabled`, so the cloud planner skips the fires too.
+ * The pooled twin of the standing host's settleRoutineRuns snooze half: hold
+ * the routine's fires until the plan usage limit `run` hit resets (domain
+ * `snoozeAfterRun`), or lift a hold after a run that answered
+ * (`unsnoozeAfterRun`). `actingSub` is the claim's acting user: only a run on
+ * the creator's own account moves the schedule. The store projects
+ * `snoozed.until` from the upload the same way it projects `enabled`, so the
+ * cloud planner honours it too.
  */
 export async function snoozeRoutineTurn(
-  opts: RoutineMutationOpts & {
-    failure: Extract<RoutineRunFailure, { code: "usage_limit" }>;
-  },
+  opts: RoutineMutationOpts & { run: RoutineRun; actingSub?: string | null },
 ): Promise<Routine | null> {
   return mutateRoutine(opts, async (routine) => {
-    const snooze = routineSnooze(opts.failure, opts.nowIso);
-    if (!snooze) return null;
-    if (routine.snoozed && routine.snoozed.until >= snooze.until) return null;
-    return snoozeRoutine(routine, snooze);
+    const snooze = snoozeAfterRun(
+      routine,
+      opts.run,
+      opts.nowIso,
+      opts.actingSub,
+    );
+    if (snooze) return snoozeRoutine(routine, snooze);
+    return unsnoozeAfterRun(routine, opts.run, opts.actingSub);
   });
 }
 

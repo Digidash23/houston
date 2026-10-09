@@ -12,7 +12,6 @@ import {
 } from "./routine-auto-pause";
 import { applyRoutineUpdate, createRoutine } from "./routine-edit";
 import {
-  activeRoutineSnooze,
   routineSnooze,
   routineSnoozeLogTail,
   snoozeRoutine,
@@ -151,23 +150,6 @@ test("snoozing leaves the routine enabled and its edit time alone", () => {
   );
 });
 
-test("the snooze is active until its instant, then inert", () => {
-  const snoozed = snoozeRoutine(routine(), {
-    reason: "usage_limit",
-    provider: "anthropic",
-    model: null,
-    until: RESET,
-    at: NOW,
-  });
-  expect(activeRoutineSnooze(snoozed, new Date(NOW))).toEqual(snoozed.snoozed);
-  expect(activeRoutineSnooze(snoozed, new Date(RESET))).toBeNull();
-  expect(activeRoutineSnooze(routine(), new Date(NOW))).toBeNull();
-  // A disabled routine's snooze is moot: nothing fires either way.
-  expect(
-    activeRoutineSnooze({ ...snoozed, enabled: false }, new Date(NOW)),
-  ).toBeNull();
-});
-
 test("a snoozed routine is not due until its snooze ends", () => {
   const snoozed = snoozeRoutine(routine(), {
     reason: "usage_limit",
@@ -186,8 +168,8 @@ test("a snoozed routine is not due until its snooze ends", () => {
   expect(
     dueAt(snoozed, since, new Date("2026-10-09T12:11:00Z"), "UTC"),
   ).toEqual(new Date("2026-10-09T12:10:00.000Z"));
-  // An instant exactly at the snooze end is skipped too, as in the cloud
-  // planner: the first fire is strictly after it.
+  // An instant exactly at the snooze end fires, as in the cloud planner: the
+  // provider's reset is when requests work again.
   const atEdge = snoozeRoutine(routine(), {
     reason: "usage_limit",
     provider: "anthropic",
@@ -196,7 +178,7 @@ test("a snoozed routine is not due until its snooze ends", () => {
     at: NOW,
   });
   expect(dueAt(atEdge, since, new Date("2026-10-09T12:11:00Z"), "UTC")).toEqual(
-    new Date("2026-10-09T12:10:00.000Z"),
+    new Date("2026-10-09T12:05:00.000Z"),
   );
   // Unsnoozed, the same window fires its first instant.
   expect(

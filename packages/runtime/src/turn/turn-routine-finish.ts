@@ -3,7 +3,7 @@ import {
   routineSnoozeLogTail,
   unconnectedRoutineFailure,
 } from "@houston/domain";
-import type { RoutineRunFailure } from "@houston/protocol";
+import type { RoutineRun, RoutineRunFailure } from "@houston/protocol";
 import type { ObjectStore } from "@houston/runtime-client/object-sync";
 import { type TurnFilesystem, turnRoutineRunsKey } from "./turn-filesystem";
 import { type RoutinePhase, settleRoutineTurn } from "./turn-routine";
@@ -64,14 +64,20 @@ export async function finishRoutineTurn(opts: {
       error: `routine settle failed: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
-  if (!settled?.failure) return {};
-  const failed = settled.failure;
+  if (!settled) return {};
+  // A usage limit snoozes on this run alone, durable row or not: the failure
+  // is the proof, and the snooze is what spares the next fire. A run that
+  // answered lifts a hold the routine carried when the turn hydrated.
+  const answered = settled.status === "silent" || settled.status === "surfaced";
+  if (
+    settled.failure?.code === "usage_limit" ||
+    (answered && opts.phase.routine.snoozed)
+  )
+    return { afterSync: () => snoozeNow(opts, settled) };
+  if (!settled.failure) return {};
   const runsKey = turnRoutineRunsKey(opts.filesystem.workspaceRel);
   return {
     afterSync: async (landed) => {
-      // A usage limit snoozes on this run alone, durable row or not: the
-      // failure is the proof, and the snooze is what spares the next fire.
-      if (failed.code === "usage_limit") return snoozeNow(opts, failed);
       // This run's row is not durable: the next failed run decides instead.
       if (!landed.includes(runsKey)) return undefined;
       return pauseIfEarned(opts);
@@ -86,20 +92,23 @@ async function snoozeNow(
     filesystem: TurnFilesystem;
     phase: RoutinePhase;
   },
-  failure: Extract<RoutineRunFailure, { code: "usage_limit" }>,
+  run: RoutineRun,
 ): Promise<string | undefined> {
   try {
-    const snoozed = await snoozeRoutineTurn({
+    const changed = await snoozeRoutineTurn({
       store: opts.store,
       prefix: opts.prefix,
       filesystem: opts.filesystem,
       routineId: opts.phase.routine.id,
-      failure,
+      run,
+      actingSub: opts.phase.actingSub,
       nowIso: new Date().toISOString(),
     });
-    if (snoozed?.snoozed)
+    if (changed)
       console.info(
-        `[routine-snooze] snoozed ${snoozed.id}: ${routineSnoozeLogTail(snoozed.snoozed)}`,
+        changed.snoozed
+          ? `[routine-snooze] snoozed ${changed.id}: ${routineSnoozeLogTail(changed.snoozed)}`
+          : `[routine-snooze] lifted ${changed.id}: a run answered`,
       );
     return undefined;
   } catch (error) {

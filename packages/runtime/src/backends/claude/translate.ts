@@ -61,7 +61,7 @@ export function createStreamTranslator(cb: TranslatorCallbacks) {
         return onResult(msg);
       case "rate_limit_event":
         lastRateLimit = msg.rate_limit_info ?? null;
-        onRateLimit(msg.rate_limit_info?.resetsAt);
+        onRateLimit(lastRateLimit);
         return [];
       case "system":
         if (msg.subtype === "compact_boundary") {
@@ -131,8 +131,14 @@ export function createStreamTranslator(cb: TranslatorCallbacks) {
     return out;
   }
 
-  function onRateLimit(resetsAt: unknown): void {
-    if (typeof resetsAt !== "number") return;
+  function onRateLimit(info: SDKRateLimitInfo | null): void {
+    // Only a REJECTED window says when requests resume. An allowed or
+    // allowed_warning event's resetsAt is merely when the 5-hour or weekly
+    // window rolls over, days away for a weekly one: taken as a retry wait, it
+    // would turn an ordinary 429 into a multi-day usage limit.
+    lastRateLimitRetry = null;
+    const resetsAt = info?.resetsAt;
+    if (info?.status !== "rejected" || typeof resetsAt !== "number") return;
     // resetsAt is an epoch; values below 1e12 are seconds, above are milliseconds.
     const resetMs = resetsAt < 1e12 ? resetsAt * 1000 : resetsAt;
     lastRateLimitRetry = Math.max(0, Math.ceil((resetMs - Date.now()) / 1000));

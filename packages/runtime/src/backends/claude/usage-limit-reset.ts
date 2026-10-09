@@ -6,7 +6,8 @@
  * - "You've hit your session limit · resets 6pm (UTC)"
  * - "You've hit your weekly limit · resets Oct 13, 5am (America/Bogota)"
  *
- * The wall-clock forms are resolved in the zone they name through Intl, so a
+ * A time-only reset more than five hours out is unknown (see below). The
+ * wall-clock forms are resolved in the zone they name through Intl, so a
  * DST zone gets its real offset. A zone Intl does not know, or anything else
  * unparseable, is an unknown reset (null): a wrong reset is worse than none,
  * since the snooze then waits a bounded hour and learns the truth again.
@@ -30,6 +31,7 @@ const MONTHS = [
   "dec",
 ];
 const DAY_MS = 86_400_000;
+const SESSION_WINDOW_MS = 5 * 60 * 60 * 1000;
 
 export function resetFromText(message: string, nowMs: number): string | null {
   const epoch = EPOCH_FORM.exec(message);
@@ -58,8 +60,20 @@ export function resetFromText(message: string, nowMs: number): string | null {
       at = instantIn(clock, today.year + 1, month, day, hour, minute);
     return new Date(at).toISOString();
   }
-  const at = instantIn(clock, today.year, today.month, today.day, hour, minute);
-  return new Date(at > nowMs ? at : at + DAY_MS).toISOString();
+  // A time with no date is the 5-hour session window's reset, so it lies at
+  // most five hours ahead. One further out (its time passed moments ago and
+  // the sentence means today's, or the clocks disagree) is not trusted: an
+  // unknown reset waits a bounded hour, a wrong one would wait a day.
+  const sameDay = instantIn(
+    clock,
+    today.year,
+    today.month,
+    today.day,
+    hour,
+    minute,
+  );
+  const at = sameDay > nowMs ? sameDay : sameDay + DAY_MS;
+  return at - nowMs <= SESSION_WINDOW_MS ? new Date(at).toISOString() : null;
 }
 
 interface WallClock {

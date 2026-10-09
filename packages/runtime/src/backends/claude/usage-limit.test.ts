@@ -56,10 +56,10 @@ test("the Claude Code limit sentences are usage limits even without an event", (
     kind: "usage_limit_paused",
     resets_at: null,
   });
-  // "resets 6pm (UTC)" at 20:47Z is tomorrow's 18:00Z.
+  // "resets 6pm (UTC)" at 20:47Z is 21 h out: not a 5-hour window, unknown.
   expect(classifyClaudeRateLimit(SESSION, null, {}, NOW)).toMatchObject({
     kind: "usage_limit_paused",
-    resets_at: "2026-10-09T18:00:00.000Z",
+    resets_at: null,
   });
   // Earlier in the day it is today's 18:00Z, minutes included.
   expect(
@@ -163,4 +163,53 @@ test("the older CLI's epoch sentence is a usage limit with that reset", () => {
     kind: "usage_limit_paused",
     resets_at: new Date(1760331600 * 1000).toISOString(),
   });
+});
+
+test("only Claude Code's own limit shapes are usage limits; spend caps are not", () => {
+  for (const text of [
+    "You've hit your session limit · resets 6pm (UTC)",
+    "You've hit your weekly limit · resets Oct 13, 5am (UTC)",
+    "You've reached your Opus limit.",
+    "Claude AI usage limit reached|1760331600",
+  ])
+    expect(usageLimitFromText(text, null, NOW), text).not.toBeNull();
+  for (const text of [
+    "You've reached your maximum budget limit.",
+    "You've reached your monthly spend limit for this organization.",
+    "You've hit your spending limit",
+    "budget limit exceeded",
+    "Rate limit reached for requests",
+  ])
+    expect(usageLimitFromText(text, null, NOW), text).toBeNull();
+});
+
+test("an allowed event's window reset never overrides the sentence's reset", () => {
+  const early = Date.parse("2026-10-08T16:12:00Z");
+  expect(
+    classifyClaudeRateLimit(
+      SESSION,
+      null,
+      {
+        rateLimit: {
+          status: "allowed_warning",
+          resetsAt: Date.parse(RESET) / 1000,
+        },
+      },
+      early,
+    ),
+  ).toMatchObject({ resets_at: "2026-10-08T18:00:00.000Z" });
+});
+
+test("a rejected window reopening within the hour is waited out like a 429", () => {
+  expect(
+    classifyClaudeRateLimit(
+      "429",
+      "m",
+      {
+        rateLimit: { status: "rejected", resetsAt: NOW + 60_000 },
+        retryAfterSeconds: 60,
+      },
+      NOW,
+    ),
+  ).toMatchObject({ kind: "rate_limited", retry_after_seconds: 60 });
 });

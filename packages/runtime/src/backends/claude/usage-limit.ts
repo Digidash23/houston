@@ -39,10 +39,17 @@ export interface ClaudeRateLimitContext {
   retryAfterSeconds?: number | null;
 }
 
-const LIMIT_SENTENCE = /you['’]?ve (?:hit|reached) your [^.\n]{0,40}?limit/i;
-const LIMIT_LINK = /cc_cli_limit_message/i;
-/** Older CLIs: "Claude AI usage limit reached|<epoch seconds>". */
-const LIMIT_EPOCH = /usage limit reached\|\d/i;
+/**
+ * Claude Code's own limit sentences, and only those: "You've hit your session
+ * limit", "You've hit your weekly limit", "You've reached your Fable limit"
+ * (a capitalised model name, so case matters), and the older "Claude AI usage
+ * limit reached|<epoch>". A spend or budget cap ("monthly spend limit",
+ * "maximum budget limit") is not a window that resets by itself and must not
+ * snooze, so the sentence names its kind of limit exactly.
+ */
+const LIMIT_SENTENCE =
+  /[Yy]ou(?:['’]ve| have) (?:hit|reached) your (?:(?:session|weekly|usage) limit|[A-Z][a-z]+(?: \d[\d.]*)? limit)\b/;
+const LIMIT_EPOCH = /\busage limit reached\b/i;
 
 /**
  * Classify a `rate_limit` error: a usage limit when the event says the
@@ -55,15 +62,17 @@ export function classifyClaudeRateLimit(
   ctx: ClaudeRateLimitContext,
   nowMs: number = Date.now(),
 ): ProviderError {
-  const eventReset = resetFromEvent(ctx.rateLimit);
-  if (ctx.rateLimit?.status === "rejected") {
-    return limit(message, model, eventReset ?? resetFromText(message, nowMs));
-  }
+  // Only a rejected event's reset is the instant requests resume; an allowed
+  // event's resetsAt is just when its window rolls over (translate.ts).
+  const rejected = ctx.rateLimit?.status === "rejected";
+  const eventReset = rejected ? resetFromEvent(ctx.rateLimit) : null;
   const fromText = usageLimitFromText(message, model, nowMs);
-  if (fromText) {
-    return eventReset ? { ...fromText, resets_at: eventReset } : fromText;
-  }
+  if (fromText)
+    return { ...fromText, resets_at: eventReset ?? fromText.resets_at };
   const retry = ctx.retryAfterSeconds ?? extractRetryAfterSeconds(message);
+  // A rejected window that reopens within the hour is waited out like a 429.
+  if (rejected && (retry === null || retry > USAGE_LIMIT_MIN_RETRY_SECONDS))
+    return limit(message, model, eventReset ?? resetFromText(message, nowMs));
   if (retry !== null && retry > USAGE_LIMIT_MIN_RETRY_SECONDS) {
     return limit(message, model, new Date(nowMs + retry * 1000).toISOString());
   }
@@ -85,8 +94,7 @@ export function usageLimitFromText(
   model: string | null,
   nowMs: number = Date.now(),
 ): Extract<ProviderError, { kind: "usage_limit_paused" }> | null {
-  if (![LIMIT_SENTENCE, LIMIT_LINK, LIMIT_EPOCH].some((re) => re.test(message)))
-    return null;
+  if (!LIMIT_SENTENCE.test(message) && !LIMIT_EPOCH.test(message)) return null;
   return limit(message, model, resetFromText(message, nowMs));
 }
 

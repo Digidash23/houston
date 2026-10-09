@@ -161,3 +161,58 @@ test("a short rate limit snoozes nothing", async () => {
   const { items: runs } = await loadRoutineRuns(env.vfs, env.root);
   expect(runs[0]?.failure).toBeUndefined();
 });
+
+test("a run that answered lifts the snooze", async () => {
+  const env = await setup(
+    routine({
+      snoozed: {
+        reason: "usage_limit",
+        provider: "anthropic",
+        model: null,
+        until: RESET,
+        at: EDITED.toISOString(),
+      },
+    }),
+  );
+  await env.vfs.writeText(
+    conversationKey(prefixFor(env.ws, env.agent), env.run.session_key),
+    JSON.stringify({
+      messages: [
+        { role: "user", content: "go", ts: STARTED.getTime() + 1 },
+        { role: "assistant", content: "Posted.", ts: STARTED.getTime() + 2 },
+      ],
+    }),
+  );
+  await reconcileAgentRuns(
+    {
+      vfs: env.vfs,
+      paths: new CloudPaths(),
+      lock: new MemoryTurnBus(),
+      events: env.events,
+      now: () => NOW,
+      newId: () => "act-1",
+    },
+    env.ws,
+    env.agent,
+  );
+  const { items: runs } = await loadRoutineRuns(env.vfs, env.root);
+  expect(["silent", "surfaced"]).toContain(runs[0]?.status);
+  const { items } = await loadRoutines(env.vfs, env.root);
+  expect(items[0]?.snoozed).toBeUndefined();
+  expect(items[0]?.updated_at).toBe(EDITED.toISOString());
+});
+
+test("a trigger routine, or one edited after its run started, is never snoozed", async () => {
+  const { schedule: _cron, ...rest } = routine();
+  const trigger = await setup({ ...rest, trigger: { kind: "webhook" } });
+  await failWith(trigger, limited);
+  expect(
+    (await loadRoutines(trigger.vfs, trigger.root)).items[0]?.snoozed,
+  ).toBeUndefined();
+
+  const edited = await setup(routine({ updated_at: NOW.toISOString() }));
+  await failWith(edited, limited);
+  expect(
+    (await loadRoutines(edited.vfs, edited.root)).items[0]?.snoozed,
+  ).toBeUndefined();
+});

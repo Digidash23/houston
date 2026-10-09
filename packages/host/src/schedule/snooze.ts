@@ -1,98 +1,95 @@
 import {
   loadRoutines,
-  routineSnooze,
   routineSnoozeLogTail,
   saveRoutines,
+  snoozeAfterRun,
   snoozeRoutine,
+  unsnoozeAfterRun,
   upsertById,
   withDocLock,
 } from "@houston/domain";
-import type { Routine, RoutineRun, RoutineRunFailure } from "@houston/protocol";
+import type { Routine, RoutineRun } from "@houston/protocol";
 import type { Agent, Workspace } from "../domain/types";
 import type { EventHub } from "../events/hub";
 import type { Vfs } from "../vfs";
 import { pauseFailingRoutines } from "./auto-pause";
 
-interface WallDeps {
+interface SettleDeps {
   vfs: Vfs;
   events?: EventHub;
   now: () => Date;
 }
 
 /**
- * What follows the runs that just settled on a typed wall: a plan usage
- * limit snoozes its routine until the reset right away (domain
- * `routineSnooze`, one run is proof enough), every other wall feeds the
- * auto-pause streak (`pauseFailingRoutines`). Both write the routines doc, so
- * the snooze lands first and the pause reads what it wrote. Callers must not
- * hold the runs queue (the pause takes it).
+ * What follows the runs that just settled: a plan usage limit snoozes its
+ * routine until the reset right away (domain `snoozeAfterRun`, one run is
+ * proof enough), a run that answered lifts a snooze (`unsnoozeAfterRun`),
+ * and every other typed wall feeds the auto-pause streak
+ * (`pauseFailingRoutines`). Both write the routines doc, so the snooze lands
+ * first and the pause reads what it wrote. Callers must not hold the runs
+ * queue (the pause takes it). A standing host always runs a routine as its
+ * creator (schedule/run.ts), so no acting user is compared here.
  */
-export async function settleRoutineWalls(
-  deps: WallDeps,
+export async function settleRoutineRuns(
+  deps: SettleDeps,
   ws: Workspace,
   agent: Agent,
   root: string,
-  walled: readonly RoutineRun[],
+  settled: readonly RoutineRun[],
 ): Promise<void> {
-  const limited = new Map(
-    walled.flatMap((run) =>
-      run.failure?.code === "usage_limit"
-        ? [[run.routine_id, run.failure] as const]
-        : [],
-    ),
-  );
-  if (limited.size > 0)
-    await snoozeLimitedRoutines(deps, ws, agent, root, limited);
-  const streak = walled
+  if (settled.some((r) => r.failure?.code === "usage_limit" || isAnswer(r)))
+    await snoozeOrLift(deps, ws, agent, root, settled);
+  const streak = settled
     .filter((run) => run.failure && run.failure.code !== "usage_limit")
     .map((run) => run.routine_id);
   await pauseFailingRoutines(deps, ws, agent, root, streak);
 }
 
+const isAnswer = (run: RoutineRun) =>
+  run.status === "silent" || run.status === "surfaced";
+
 /**
- * Snooze each routine in `limited` until its failure's reset, under the same
- * per-doc lock as every other routine write (routes/routine-write.ts), so a
- * concurrent edit is never lost. A routine already snoozed past this reset
- * keeps its longer hold.
+ * Snooze or lift each settled run's routine, under the same per-doc lock as
+ * every other routine write (routes/routine-write.ts), so a concurrent edit
+ * is never lost.
  */
-export async function snoozeLimitedRoutines(
-  deps: WallDeps,
+async function snoozeOrLift(
+  deps: SettleDeps,
   ws: Workspace,
   agent: Agent,
   root: string,
-  limited: ReadonlyMap<
-    string,
-    Extract<RoutineRunFailure, { code: "usage_limit" }>
-  >,
-): Promise<Routine[]> {
-  const snoozed = await withDocLock(`${root}#routines`, async () => {
+  settled: readonly RoutineRun[],
+): Promise<void> {
+  const changed = await withDocLock(`${root}#routines`, async () => {
     const { items: routines } = await loadRoutines(deps.vfs, root);
     const nowIso = deps.now().toISOString();
     let next = routines;
     const done: Routine[] = [];
-    for (const [id, failure] of limited) {
-      const routine = routines.find((r) => r.id === id);
-      const snooze = routine ? routineSnooze(failure, nowIso) : null;
-      if (!routine || !snooze) continue;
-      if (routine.snoozed && routine.snoozed.until >= snooze.until) continue;
-      const updated = snoozeRoutine(routine, snooze);
+    for (const run of settled) {
+      const routine = next.find((r) => r.id === run.routine_id);
+      if (!routine) continue;
+      const snooze = snoozeAfterRun(routine, run, nowIso);
+      const updated = snooze
+        ? snoozeRoutine(routine, snooze)
+        : unsnoozeAfterRun(routine, run);
+      if (!updated) continue;
       next = upsertById(next, updated);
       done.push(updated);
     }
     if (done.length > 0) await saveRoutines(deps.vfs, root, next);
     return done;
   });
-  for (const routine of snoozed) {
-    if (routine.snoozed)
-      console.info(
-        `[routine-snooze] snoozed ${agent.id}/${routine.id}: ${routineSnoozeLogTail(routine.snoozed)}`,
-      );
+  for (const routine of changed) {
+    console.info(
+      routine.snoozed
+        ? `[routine-snooze] snoozed ${agent.id}/${routine.id}: ${routineSnoozeLogTail(routine.snoozed)}`
+        : `[routine-snooze] lifted ${agent.id}/${routine.id}: a run answered`,
+    );
   }
-  if (snoozed.length > 0) {
+  if (changed.length > 0) {
     deps.events?.emit(ws.ownerUserId, {
       type: "RoutinesChanged",
       agentPath: agent.id,
     });
   }
-  return snoozed;
 }

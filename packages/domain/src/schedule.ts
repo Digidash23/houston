@@ -79,8 +79,8 @@ export function dueAt(
   // cron scanner. Guard (don't throw) so the scanner skips them by construction.
   if (!routine.schedule) return null;
   // A snoozed routine (its account's plan limit, routine-snooze.ts) skips every
-  // instant at or before the snooze end: the window's left edge moves up to
-  // it, so the first fire strictly after it runs and the skipped ones never
+  // instant before the snooze end: the window's left edge moves up to 1 ms
+  // before it, so a fire exactly at the reset runs and the skipped ones never
   // catch up. The cloud planner applies the same rule to its own fire rows
   // (`snoozed_until` in the schedule snapshot, contract C19).
   const snoozedUntil = routine.snoozed
@@ -88,7 +88,7 @@ export function dueAt(
     : NaN;
   const from =
     Number.isFinite(snoozedUntil) && snoozedUntil > since.getTime()
-      ? new Date(snoozedUntil)
+      ? new Date(snoozedUntil - 1)
       : since;
   const next = nextRun(routine.schedule, timezone, from);
   if (next && next.getTime() <= now.getTime()) return next;

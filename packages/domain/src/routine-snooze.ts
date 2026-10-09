@@ -1,5 +1,6 @@
 import type {
   Routine,
+  RoutineRun,
   RoutineRunFailure,
   RoutineSnooze,
 } from "@houston/protocol";
@@ -24,6 +25,13 @@ import type {
 export const USAGE_LIMIT_UNKNOWN_RESET_MS = 60 * 60 * 1000;
 
 /**
+ * The longest a snooze may hold. Anthropic's longest window is a week; a
+ * reset further out is a misread (an epoch in the wrong unit, a garbled
+ * sentence), and holding a routine for months on one would be silent.
+ */
+export const USAGE_LIMIT_MAX_SNOOZE_MS = 8 * 24 * 60 * 60 * 1000;
+
+/**
  * The snooze a failed run earns, or null when its failure is not a usage
  * limit. `until` is the provider's reset when it is a real future instant,
  * else `now` plus the bounded wait.
@@ -37,13 +45,13 @@ export function routineSnooze(
   const resetMs = failure.resets_at ? Date.parse(failure.resets_at) : NaN;
   const until =
     Number.isFinite(resetMs) && resetMs > nowMs
-      ? new Date(resetMs).toISOString()
-      : new Date(nowMs + USAGE_LIMIT_UNKNOWN_RESET_MS).toISOString();
+      ? new Date(Math.min(resetMs, nowMs + USAGE_LIMIT_MAX_SNOOZE_MS))
+      : new Date(nowMs + USAGE_LIMIT_UNKNOWN_RESET_MS);
   return {
     reason: "usage_limit",
     provider: failure.provider,
     model: failure.model,
-    until,
+    until: until.toISOString(),
     at: nowIso,
   };
 }
@@ -59,15 +67,58 @@ export function snoozeRoutine(
   return { ...routine, snoozed: snooze };
 }
 
-/** The snooze still holding `routine`'s fires at `now`, or null. */
-export function activeRoutineSnooze(
-  routine: Pick<Routine, "enabled" | "snoozed">,
-  now: Date,
+/**
+ * The snooze `run` earns `routine` at `nowIso`, or null when it earns none:
+ *
+ * - only a usage-limit failure snoozes;
+ * - only a scheduled routine: the snooze gates the cron scanners (dueAt, the
+ *   cloud planner), never a trigger routine's external events, so a trigger
+ *   routine is never marked as held;
+ * - only a run on the creator's own account (`actingSub` is the run's acting
+ *   user, or undefined on a path that always runs as the creator): a "Run
+ *   now" on someone else's account says nothing about the schedule's;
+ * - only while the run still describes the routine: an edit after the run
+ *   started, or a model or provider that no longer matches the failure,
+ *   means the limit may not apply any more;
+ * - an existing hold that lasts longer is kept.
+ */
+export function snoozeAfterRun(
+  routine: Routine,
+  run: RoutineRun,
+  nowIso: string,
+  actingSub?: string | null,
 ): RoutineSnooze | null {
-  const snooze = routine.snoozed;
-  if (!routine.enabled || !snooze) return null;
-  const untilMs = Date.parse(snooze.until);
-  return Number.isFinite(untilMs) && untilMs > now.getTime() ? snooze : null;
+  const failure = run.failure;
+  if (failure?.code !== "usage_limit") return null;
+  if (!routine.schedule || !routine.enabled) return null;
+  if (actingSub !== undefined && (routine.created_by ?? null) !== actingSub)
+    return null;
+  if (Date.parse(routine.updated_at) > Date.parse(run.started_at)) return null;
+  if (routine.provider && routine.provider !== failure.provider) return null;
+  if (routine.model && failure.model && routine.model !== failure.model)
+    return null;
+  const snooze = routineSnooze(failure, nowIso);
+  if (!snooze || (routine.snoozed && routine.snoozed.until >= snooze.until))
+    return null;
+  return snooze;
+}
+
+/**
+ * The routine with its snooze lifted after a run that answered (silent or
+ * surfaced) on the creator's account, or null when there is nothing to lift.
+ * The run proved the limit is over; holding on would skip good fires.
+ */
+export function unsnoozeAfterRun(
+  routine: Routine,
+  run: RoutineRun,
+  actingSub?: string | null,
+): Routine | null {
+  if (!routine.snoozed) return null;
+  if (run.status !== "silent" && run.status !== "surfaced") return null;
+  if (actingSub !== undefined && (routine.created_by ?? null) !== actingSub)
+    return null;
+  const { snoozed: _lifted, ...rest } = routine;
+  return rest;
 }
 
 /** The log line's tail for a snooze: "<reason> (<provider> <model>) until <iso>". */

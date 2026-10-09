@@ -697,10 +697,7 @@ test("unmapped messages (system/init, message_start) are dropped", () => {
 test("a rate_limit_event carries retry seconds into a later rate_limit error", () => {
   const event = {
     type: "rate_limit_event",
-    rate_limit_info: {
-      status: "allowed_warning",
-      resetsAt: Date.now() + 60_000,
-    },
+    rate_limit_info: { status: "rejected", resetsAt: Date.now() + 60_000 },
   } as unknown as SDKMessage;
   const err = {
     type: "assistant",
@@ -718,6 +715,40 @@ test("a rate_limit_event carries retry seconds into a later rate_limit error", (
       : null;
   expect(secs).toBeGreaterThanOrEqual(58);
   expect(secs).toBeLessThanOrEqual(60);
+});
+
+test("an allowed_warning on the weekly window leaves a later 429 a plain rate limit", () => {
+  const event = {
+    type: "rate_limit_event",
+    rate_limit_info: {
+      status: "allowed_warning",
+      rateLimitType: "seven_day",
+      resetsAt: Date.now() / 1000 + 4 * 86_400,
+    },
+  } as unknown as SDKMessage;
+  const err = {
+    type: "assistant",
+    error: "rate_limit",
+    message: {
+      role: "assistant",
+      model: "m",
+      content: [{ type: "text", text: "429 Too Many Requests" }],
+    },
+    parent_tool_use_id: null,
+  } as unknown as SDKMessage;
+  const { events } = collect([event, err]);
+  expect(events).toEqual([
+    {
+      type: "provider_error",
+      data: {
+        kind: "rate_limited",
+        provider: "anthropic",
+        model: "m",
+        retry_after_seconds: null,
+        message: "429 Too Many Requests",
+      },
+    },
+  ]);
 });
 
 test("a rejected rate_limit_event makes the later rate_limit a usage limit with its reset", () => {

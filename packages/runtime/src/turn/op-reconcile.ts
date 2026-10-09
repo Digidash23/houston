@@ -1,8 +1,4 @@
-import {
-  loadRoutineRuns,
-  routineAutoPauseLogTail,
-  routineSnoozeLogTail,
-} from "@houston/domain";
+import { loadRoutineRuns, routineAutoPauseLogTail } from "@houston/domain";
 import type { HoustonEvent } from "@houston/protocol";
 import {
   type ObjectStore,
@@ -19,10 +15,7 @@ import type { TurnServerDeps } from "./server-types";
 import { announcedOpEvents } from "./turn-changed-events";
 import { claimedTurnIncludes, type TurnFilesystem } from "./turn-filesystem";
 import { fsTextStore } from "./turn-fs-store";
-import {
-  autoPauseRoutineTurn,
-  snoozeRoutineTurn,
-} from "./turn-routine-auto-pause";
+import { autoPauseRoutineTurn } from "./turn-routine-auto-pause";
 
 type Reply = { status: number; body: Record<string, unknown> };
 
@@ -134,33 +127,29 @@ async function pauseAfterSync(input: {
     fsTextStore(),
     input.filesystem.workspaceDir,
   );
+  // A usage limit is not snoozed here: a reconciled lost turn names no acting
+  // user, and only a run on the creator's own account may hold the schedule
+  // (domain snoozeAfterRun). The next fire that hits the limit snoozes it.
   const walled = runs.filter(
-    (r) => r.session_key === input.op.op.conversationId && r.failure,
+    (r) =>
+      r.session_key === input.op.op.conversationId &&
+      r.failure &&
+      r.failure.code !== "usage_limit",
   );
   const events: HoustonEvent[] = [];
   const failed: string[] = [];
   for (const routineId of new Set(walled.map((r) => r.routine_id))) {
-    const common = {
-      store: input.resolved.store,
-      prefix: input.resolved.prefix,
-      filesystem: input.filesystem,
-      routineId,
-      nowIso: new Date().toISOString(),
-    };
     try {
-      // A usage limit snoozes on the one run; every other wall is a streak.
-      const limit = walled.find(
-        (r) => r.routine_id === routineId && r.failure?.code === "usage_limit",
-      )?.failure;
-      const changed =
-        limit?.code === "usage_limit"
-          ? await snoozeRoutineTurn({ ...common, failure: limit })
-          : await autoPauseRoutineTurn(common);
-      if (!changed) continue;
+      const paused = await autoPauseRoutineTurn({
+        store: input.resolved.store,
+        prefix: input.resolved.prefix,
+        filesystem: input.filesystem,
+        routineId,
+        nowIso: new Date().toISOString(),
+      });
+      if (!paused) continue;
       console.info(
-        changed.snoozed && limit
-          ? `[routine-snooze] snoozed ${changed.id}: ${routineSnoozeLogTail(changed.snoozed)}`
-          : `[routine-auto-pause] paused ${changed.id} after ${routineAutoPauseLogTail(changed.auto_paused)}`,
+        `[routine-auto-pause] paused ${paused.id} after ${routineAutoPauseLogTail(paused.auto_paused)}`,
       );
       events.push({
         type: "RoutinesChanged",
