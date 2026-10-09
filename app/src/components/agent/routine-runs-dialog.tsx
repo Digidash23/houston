@@ -1,6 +1,7 @@
 /** Routine execution history with translated summaries for typed failures. */
 
 import {
+  formatLocalDateTime,
   type RoutineReaderAccount,
   type RoutineRun,
   routineFailureCode,
@@ -111,6 +112,16 @@ export function RoutineRunsHistory({
         return t("details.failure.modelUnavailable", { provider });
       case "no_model":
         return t("details.failure.noModel");
+      case "usage_limit": {
+        const resetsAt =
+          run.failure?.code === "usage_limit" ? run.failure.resets_at : null;
+        return resetsAt && Number.isFinite(Date.parse(resetsAt))
+          ? t("details.failure.usageLimit", {
+              provider,
+              time: formatLocalDateTime(resetsAt, locale),
+            })
+          : t("details.failure.usageLimitNoReset", { provider });
+      }
     }
   };
 

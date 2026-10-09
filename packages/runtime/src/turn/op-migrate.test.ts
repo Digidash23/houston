@@ -37,6 +37,7 @@ async function run(
     fenced?: boolean;
     fetchImpl?: typeof fetch;
     docs?: ReturnType<typeof docRoute>;
+    maxHydrateBytes?: number;
   } = {},
 ) {
   const seed = seedRequest({ name: "Ledger" });
@@ -46,9 +47,13 @@ async function run(
   };
   const docs = opts.docs ?? docRoute();
   const reply = await executeMigrateOp({
-    deps: opts.fetchImpl
-      ? { ...docs.deps, fetchImpl: opts.fetchImpl }
-      : docs.deps,
+    deps: {
+      ...docs.deps,
+      ...(opts.fetchImpl ? { fetchImpl: opts.fetchImpl } : {}),
+      ...(opts.maxHydrateBytes !== undefined
+        ? { maxHydrateBytes: opts.maxHydrateBytes }
+        : {}),
+    },
     op: request,
     turn: { ...request, conversationId: "agent-ops" },
     store: fake.store,
@@ -80,6 +85,33 @@ test("a family file another writer lands mid-migration stays theirs, and the run
   expect(answer.code).toBe("migration_not_durable");
   expect(fake.read(`${AGENT}/.houston/routines/routines.json`)).toBe(racer);
   expect(fake.read(`${AGENT}/.houston/routines.json`)).toBe(FLAT);
+});
+
+/**
+ * A store the migration can never run over answers its stable code (the
+ * gateway stops retrying it until the store changes), never a bare 500 that
+ * reads as a transient failure and costs a sandbox per retry.
+ */
+test("two complete agent trees under one prefix are refused as layout_unexpected", async () => {
+  const fake = legacy();
+  fake.put("workspaces/Personal/Old/CLAUDE.md", "# Old\n");
+
+  const { status, answer } = await run(fake);
+
+  expect(status).toBe(500);
+  expect(answer.code).toBe("layout_unexpected");
+  expect(fake.uploads).toEqual([]);
+});
+
+test("a tree over the hydration cap is refused as hydrate_over_cap", async () => {
+  const fake = legacy();
+  fake.put(`${AGENT}/.houston/backups/snapshot.tgz`, "x".repeat(4096));
+
+  const { status, answer } = await run(fake, { maxHydrateBytes: 1024 });
+
+  expect(status).toBe(500);
+  expect(answer.code).toBe("hydrate_over_cap");
+  expect(fake.uploads).toEqual([]);
 });
 
 test("a custody store that refuses the secrets keeps the plaintext and the run incomplete", async () => {
