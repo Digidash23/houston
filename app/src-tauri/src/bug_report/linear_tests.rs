@@ -1,4 +1,5 @@
-use super::linear::send_bug_report_to;
+use super::failure::BugReportFailureKind;
+use super::linear::{send_bug_report_to, LINEAR_REQUEST_TIMEOUT};
 use super::linear_graphql::{
     linear_graphql_error_message, linear_http_error_message, LinearGraphqlError,
 };
@@ -18,9 +19,11 @@ fn linear_graphql_error_message_summarizes_errors() {
     let errors = vec![
         LinearGraphqlError {
             message: "teamId is invalid".to_string(),
+            extensions: None,
         },
         LinearGraphqlError {
             message: "permission denied".to_string(),
+            extensions: None,
         },
     ];
     assert_eq!(
@@ -48,6 +51,7 @@ async fn send_bug_report_posts_linear_issue_create_mutation() {
         "team-id",
         "User Bug",
         &sample_payload(),
+        LINEAR_REQUEST_TIMEOUT,
     )
     .await
     .expect("send bug report");
@@ -83,15 +87,71 @@ async fn send_bug_report_surfaces_graphql_errors() {
         "team-id",
         "User Bug",
         &sample_payload(),
+        LINEAR_REQUEST_TIMEOUT,
     )
     .await
     .expect_err("GraphQL error should fail");
 
     server.join().expect("join test server");
     assert_eq!(
-        error,
+        error.message,
         "Linear API returned GraphQL errors: teamId is invalid"
     );
+    assert_eq!(error.kind, BugReportFailureKind::Other);
+}
+
+// HOUSTON-APP-5FT: the workspace at its plan's issue cap answers the create
+// with a 200 carrying this GraphQL error. It must come back typed, so the
+// frontend delivers the report through its fallback instead of losing it.
+#[tokio::test]
+async fn send_bug_report_types_the_usage_limit_as_intake_unavailable() {
+    let (url, server) = serve_sequence(vec![
+        (
+            "200 OK",
+            "{\"data\":{\"team\":{\"labels\":{\"nodes\":[{\"id\":\"label-id\",\"name\":\"User Bug\"}]}}}}",
+        ),
+        (
+            "200 OK",
+            "{\"errors\":[{\"message\":\"usage limit exceeded\",\"extensions\":{\"type\":\"usage limit exceeded\",\"userError\":true}}]}",
+        ),
+    ]);
+
+    let error = send_bug_report_to(
+        &url,
+        "test-api-key",
+        "team-id",
+        "User Bug",
+        &sample_payload(),
+        LINEAR_REQUEST_TIMEOUT,
+    )
+    .await
+    .expect_err("usage limit should fail");
+
+    server.join().expect("join test server");
+    assert_eq!(error.kind, BugReportFailureKind::IntakeUnavailable);
+    assert_eq!(
+        error.message,
+        "Linear API returned GraphQL errors: usage limit exceeded"
+    );
+}
+
+#[tokio::test]
+async fn send_bug_report_types_a_rate_limited_answer_as_intake_unavailable() {
+    let (url, server) = serve_sequence(vec![("429 Too Many Requests", "{}")]);
+
+    let error = send_bug_report_to(
+        &url,
+        "test-api-key",
+        "team-id",
+        "User Bug",
+        &sample_payload(),
+        LINEAR_REQUEST_TIMEOUT,
+    )
+    .await
+    .expect_err("429 should fail");
+
+    server.join().expect("join test server");
+    assert_eq!(error.kind, BugReportFailureKind::IntakeUnavailable);
 }
 
 #[tokio::test]
@@ -107,12 +167,46 @@ async fn send_bug_report_fails_when_label_is_missing() {
         "team-id",
         "User Bug",
         &sample_payload(),
+        LINEAR_REQUEST_TIMEOUT,
     )
     .await
     .expect_err("missing label should fail");
 
     server.join().expect("join test server");
-    assert_eq!(error, "Linear bug label not found: User Bug");
+    assert_eq!(error.message, "Linear bug label not found: User Bug");
+    assert_eq!(error.kind, BugReportFailureKind::Other);
+}
+
+// A Linear that accepts the connection and never answers must not hang the
+// report: the client timeout lands it as `other`, so the fallback runs.
+#[tokio::test]
+async fn send_bug_report_times_out_as_other() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind test server");
+    let addr = listener.local_addr().expect("read listener address");
+    let server = std::thread::spawn(move || {
+        let (stream, _) = listener.accept().expect("accept request");
+        std::thread::sleep(std::time::Duration::from_millis(600));
+        drop(stream);
+    });
+
+    let error = send_bug_report_to(
+        &format!("http://{addr}/graphql"),
+        "test-api-key",
+        "team-id",
+        "User Bug",
+        &sample_payload(),
+        std::time::Duration::from_millis(150),
+    )
+    .await
+    .expect_err("a silent Linear should time out");
+
+    server.join().expect("join test server");
+    assert_eq!(error.kind, BugReportFailureKind::Other);
+    assert!(
+        error.message.starts_with("Linear API request failed"),
+        "{}",
+        error.message
+    );
 }
 
 #[tokio::test]
