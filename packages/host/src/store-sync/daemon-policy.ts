@@ -3,6 +3,7 @@ import {
   type LeaseHolderState,
   type LocalWriteLock,
   type ObjectStore,
+  STORE_ROOT_PACKAGE_EXCLUDES,
   type SyncResult,
   syncBack,
   type WriteLeaseVerdict,
@@ -21,15 +22,19 @@ export const DEFAULT_MAX_HYDRATE_BYTES = 9 * 1024 * 1024 * 1024;
  * Chrome download that the prompt already tells the agent to recreate from
  * its setup script. Shipping them cost minutes per sync and hydrate for bytes
  * a fresh pod rebuilds in one command. Excluded on hydrate too, so a replaced
- * pod starts from the setup script rather than a half-synced install.
+ * pod starts from the setup script rather than a half-synced install. A
+ * `**\/name/` entry never matches the workspace or agent folder itself
+ * (hydrate-excludes.ts), so an agent named "Cache" still syncs.
  */
 export const STORE_SYNC_EXCLUDES = [
   "credentials.json",
   "claude-login/.credentials.json",
   "db/",
   "shared-mirror/",
-  // Language toolchains.
+  ...STORE_ROOT_PACKAGE_EXCLUDES,
+  // Language toolchains and package stores.
   "**/node_modules/",
+  "**/.pnpm-store/",
   "**/.venv/",
   "**/venv/",
   "**/__pycache__/",
