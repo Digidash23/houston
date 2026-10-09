@@ -2,6 +2,7 @@ import { githubCopilotProvider } from "@earendil-works/pi-ai/providers/github-co
 import { isApiKeyCredential, type WorkspaceCredential } from "../ports";
 import {
   accountBlockedDetail,
+  mintFailureStatus,
   ProviderAccountBlockedError,
 } from "./account-blocked";
 import {
@@ -109,7 +110,12 @@ export async function refreshCredential(
       // token: typed so the serve neither signs the user out nor serves a
       // dead token that fails the turn as "session expired" (H-005).
       const detail =
-        err instanceof Error ? accountBlockedDetail(err.message) : null;
+        err instanceof Error
+          ? accountBlockedDetail(
+              mintFailureStatus(err.message) ?? 0,
+              err.message,
+            )
+          : null;
       if (detail !== null)
         throw new ProviderAccountBlockedError(cred.provider, detail);
       throw err;

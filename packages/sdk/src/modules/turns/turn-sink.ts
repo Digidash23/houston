@@ -168,7 +168,7 @@ export class TurnSink {
     finishPlanLimit(this.s, refusal);
   }
   /** The send was refused because the provider blocks the account behind an
-   *  intact credential: settle as the `account_blocked` reconnect card. */
+   *  intact credential: settle as the `billing_locked` reconnect card. */
   accountBlocked(refusal: ProviderRefusal): void {
     finishAccountBlocked(this.s, refusal);
   }

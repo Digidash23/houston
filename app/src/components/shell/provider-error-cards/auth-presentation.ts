@@ -1,5 +1,8 @@
 import type { ProviderError } from "@houston-ai/chat";
-import type { UnhealableCause } from "./auth-unhealable";
+import {
+  type UnhealableCause,
+  unhealablePresentation,
+} from "./auth-unhealable.ts";
 
 /**
  * Pure state -> presentation mapping for the inline `UnauthenticatedCard`.
@@ -30,8 +33,8 @@ export function authCauseBodyKey(cause: UnauthCause): string {
       return `${K}.bodyTokenRevoked`;
     case "org_policy_blocked":
       return `${K}.bodyOrgPolicyBlocked`;
-    case "account_blocked":
-      return `${K}.bodyAccountBlocked`;
+    case "billing_locked":
+      return `${K}.bodyBillingLocked`;
     default:
       return `${K}.bodyUnknown`;
   }
@@ -108,15 +111,10 @@ function donePresentation(args: {
  * - `done` without a retry handler: nothing to resume — plain confirmation.
  * - `waiting`: the wait is on the user's browser, so the action is Cancel.
  * - `failed` / `idle`: the Reconnect button relaunches sign-in.
- * - `unhealable` (idle / failed): a cause a sign-in cannot heal. The
- *   provider's org policy blocked subscription access (`org_policy_blocked`,
- *   PRODUCT-1393): the action opens the AI Hub to connect with an API key. The
- *   provider blocks the account behind an intact credential
- *   (`account_blocked`, GitHub Copilot with billing locked, H-005): the action
- *   opens the AI Hub to pick another AI while the person fixes billing at the
- *   provider. Neither card ever offers a reconnect, which can only fail the
- *   same way. A later successful connect still lands the normal `done`
- *   confirmation + auto-resume.
+ * - `unhealable` (idle / failed): a cause a sign-in cannot heal; the card
+ *   comes from `unhealablePresentation` and never offers a reconnect. A
+ *   later successful connect still lands the normal `done` confirmation +
+ *   auto-resume.
  */
 export function resolveAuthCardPresentation(args: {
   phase: LoginPhase;
@@ -161,30 +159,7 @@ export function resolveAuthCardPresentation(args: {
   // idle and failed alike: this card never launches a sign-in (a reconnect
   // can only hit the same wall), so a stray login failure elsewhere must not
   // swap in the "sign-in did not finish" body over the honest one.
-  if (args.unhealable === "org_policy_blocked") {
-    return {
-      variant: "active",
-      titleKey: `${K}.titleOrgPolicy`,
-      bodyKey: `${K}.bodyOrgPolicyBlocked`,
-      button: {
-        kind: "action",
-        labelKey: `${K}.useApiKey`,
-        action: "open_ai_hub",
-      },
-    };
-  }
-  if (args.unhealable === "account_blocked") {
-    return {
-      variant: "active",
-      titleKey: `${K}.titleAccountBlocked`,
-      bodyKey: `${K}.bodyAccountBlocked`,
-      button: {
-        kind: "action",
-        labelKey: `${K}.chooseAnotherAi`,
-        action: "open_ai_hub",
-      },
-    };
-  }
+  if (args.unhealable) return unhealablePresentation(args.unhealable);
 
   if (phase === "waiting") {
     return {

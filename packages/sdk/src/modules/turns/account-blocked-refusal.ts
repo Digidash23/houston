@@ -9,7 +9,7 @@ import { settleProviderErrorCard, type TurnState } from "./turn-settle";
  * The gateway's `provider_account_blocked` send refusal (H-005): the person's
  * credential is intact but the provider blocks the ACCOUNT behind it (GitHub
  * Copilot with billing locked). A sign-in would change nothing, so the turn
- * settles as the `unauthenticated` card with cause `account_blocked`, never
+ * settles as the `unauthenticated` card with cause `billing_locked`, never
  * as a plain failure line and never as "not connected". Read by code, not by
  * the sentence: the error string is a default for surfaces without copy.
  */
@@ -50,7 +50,7 @@ export function accountBlockedCard(
   return {
     kind: "unauthenticated",
     provider: refusal.provider ?? provider ?? "",
-    cause: "account_blocked",
+    cause: "billing_locked",
     message: refusal.error,
   };
 }

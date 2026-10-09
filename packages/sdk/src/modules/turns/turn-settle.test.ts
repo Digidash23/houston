@@ -73,7 +73,7 @@ test("a not-connected refusal fails the optimistic bubble (the send never landed
   expect(card?.fails_pending).toBe(true);
 });
 
-test("a blocked-account refusal settles as the account_blocked card, not a sign-in", () => {
+test("a blocked-account refusal settles as the billing_locked card, not a sign-in", () => {
   // H-005: the provider blocks the account behind an intact credential. The
   // card names the provider the gateway named, carries the refused prompt for
   // "Send again", and never reads as `no_credentials` (a sign-in would change
@@ -89,7 +89,7 @@ test("a blocked-account refusal settles as the account_blocked card, not a sign-
   const card = items.find((i) => i.feed_type === "provider_error");
   expect(card?.data).toMatchObject({
     kind: "unauthenticated",
-    cause: "account_blocked",
+    cause: "billing_locked",
     provider: "github-copilot",
     failed_prompt: "hi",
   });

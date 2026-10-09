@@ -1,3 +1,4 @@
+import { PROVIDER_ACCOUNT_BLOCKED_CODE } from "@houston/protocol";
 import { config } from "../config";
 import { currentCredentialScope } from "../session/acting-context";
 import type { ServedCredential } from "./auth-file";
@@ -19,7 +20,21 @@ import { authFailureActive } from "./credential-health";
 export type ServeProbe =
   | { id: string; state: "served"; cred: ServedCredential }
   | { id: string; state: "not-connected"; notServedHere?: boolean }
-  | { id: string; state: "error"; detail: string; timedOut?: boolean };
+  | {
+      id: string;
+      state: "error";
+      detail: string;
+      timedOut?: boolean;
+      /**
+       * The host's typed `provider_account_blocked` 502: the provider blocks
+       * the account behind an intact credential (GitHub Copilot, billing
+       * locked). The credential stays applied, the retry is skipped (the
+       * answer does not change in 250 ms), and the next sync re-asks. The
+       * AI Models page does not yet read this state; that badge is a
+       * follow-up.
+       */
+      blocked?: true;
+    };
 
 /**
  * Marker the host sets on its /sandbox/credential 404: the credential store's
@@ -147,15 +162,17 @@ async function probeOnce(id: string): Promise<ServeProbe> {
           ? { notServedHere: true }
           : {}),
       };
-    if (!res.ok)
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
       return {
         id,
         state: "error",
-        detail: `${res.status}: ${normalizeProbeDetail(
-          id,
-          await res.text().catch(() => ""),
-        )}`,
+        detail: `${res.status}: ${normalizeProbeDetail(id, body)}`,
+        ...(res.status === 502 && isAccountBlockedBody(body)
+          ? { blocked: true as const }
+          : {}),
       };
+    }
     return {
       id,
       state: "served",
@@ -171,13 +188,26 @@ async function probeOnce(id: string): Promise<ServeProbe> {
   }
 }
 
+/** Whether a serve body is the typed account block (never a parse throw). */
+function isAccountBlockedBody(body: string): boolean {
+  try {
+    return (
+      (JSON.parse(body) as { code?: unknown }).code ===
+      PROVIDER_ACCOUNT_BLOCKED_CODE
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
  * One provider's probe with a single retry. The first failure is a WARN
  * breadcrumb only — the error becomes final (and Sentry-visible via
  * serve-log.ts) when the retry fails too, so a one-off blip never alerts
  * while a persistent gateway outage still does. A TIMED-OUT first attempt is
  * final immediately: it already stalled the sync for 10s, a 250ms-later
- * second stall would not heal it, and the next sync re-probes anyway.
+ * second stall would not heal it, and the next sync re-probes anyway. So is
+ * a typed account block: the provider's verdict, not a blip.
  */
 export async function probeProvider(
   id: string,
@@ -185,7 +215,7 @@ export async function probeProvider(
   retryDelayMs: number = PROBE_RETRY_DELAY_MS,
 ): Promise<ServeProbe> {
   const first = await attempt(id);
-  if (first.state !== "error" || first.timedOut) return first;
+  if (first.state !== "error" || first.timedOut || first.blocked) return first;
   console.warn(
     `[serve] credential ${id} probe failed, retrying once: ${first.detail}`,
   );

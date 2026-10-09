@@ -22,7 +22,7 @@ import {
   authCauseBodyKey,
   resolveAuthCardPresentation,
 } from "./auth-presentation";
-import { unhealableCause } from "./auth-unhealable";
+import { unhealableCause } from "./auth-unhealable.ts";
 import { ReconnectDialog } from "./reconnect-dialog";
 import { providerLabel } from "./shared";
 import { useProviderLogin } from "./use-provider-login";

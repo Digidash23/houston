@@ -8,12 +8,7 @@
  * at the provider. Mirrors the gateway's `credentials.AccountBlockedError`.
  */
 
-/**
- * The `code` on the pod-facing 502 for this state, minted by the gateway's
- * credential serve and by this host's own sandbox serve alike, so the runtime
- * and the pool dispatcher read one shape.
- */
-export const PROVIDER_ACCOUNT_BLOCKED_CODE = "provider_account_blocked";
+export { PROVIDER_ACCOUNT_BLOCKED_CODE } from "@houston/protocol";
 
 /** How many characters of the provider's sentence a surface is handed. */
 const DETAIL_LIMIT = 200;
@@ -30,19 +25,33 @@ export class ProviderAccountBlockedError extends Error {
 }
 
 /**
- * The provider's sentence when `text` (a response body, or a thrown mint
- * error carrying one) names a billing lock; null otherwise. Only "billing" and
- * "locked" together qualify: GitHub also 403s for abuse detection and for an
- * account with no Copilot access, neither of which is this state. Reads
+ * The provider's sentence when a 403 body names a billing lock; null for any
+ * other status or body. Only a 403 saying "billing" and "locked" together
+ * qualifies: GitHub also 403s for abuse detection and for an account with no
+ * Copilot access, and a 401 or 5xx mentioning billing is not this state. Reads
  * GitHub's two shapes, `{"error_details":{"message":…}}` and `{"message":…}`,
  * and falls back to the raw text when the JSON is wrapped in a thrown
  * message's prefix.
  */
-export function accountBlockedDetail(text: string): string | null {
+export function accountBlockedDetail(
+  status: number,
+  text: string,
+): string | null {
+  if (status !== 403) return null;
   const message = providerMessage(text) ?? text;
   const lower = message.toLowerCase();
   if (!lower.includes("billing") || !lower.includes("locked")) return null;
   return message.trim().slice(0, DETAIL_LIMIT);
+}
+
+/**
+ * The status pi-ai's Copilot mint failure carries: it throws
+ * `"<status> <statusText>: <body>"` verbatim. null when the message has no
+ * such prefix (a network failure, an invalid-response throw).
+ */
+export function mintFailureStatus(message: string): number | null {
+  const match = /^(\d{3})\b/.exec(message);
+  return match ? Number(match[1]) : null;
 }
 
 function providerMessage(text: string): string | null {

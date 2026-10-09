@@ -9,7 +9,7 @@
  *    blocks the ACCOUNT behind it (GitHub Copilot with billing locked). A
  *    sign-in would change nothing; the person fixes it at the provider or
  *    picks another AI. Settled as `unauthenticated` with cause
- *    `account_blocked`.
+ *    `billing_locked`.
  *
  * `error` is the gateway's own sentence (a default for surfaces without a
  * dictionary); `provider` names the pi provider id when the gateway knows it.

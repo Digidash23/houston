@@ -38,8 +38,8 @@ describe("authCauseBodyKey", () => {
       "providerError.unauthenticated.bodyOrgPolicyBlocked",
     );
     strictEqual(
-      authCauseBodyKey("account_blocked"),
-      "providerError.unauthenticated.bodyAccountBlocked",
+      authCauseBodyKey("billing_locked"),
+      "providerError.unauthenticated.bodyBillingLocked",
     );
   });
 
@@ -270,13 +270,13 @@ describe("resolveAuthCardPresentation for an org-policy block", () => {
           hasProvider: true,
           hasFailedPrompt: true,
           hasRetry: true,
-          causeBodyKey: authCauseBodyKey("account_blocked"),
-          unhealable: "account_blocked",
+          causeBodyKey: authCauseBodyKey("billing_locked"),
+          unhealable: "billing_locked",
         }),
         {
           variant: "active",
-          titleKey: "providerError.unauthenticated.titleAccountBlocked",
-          bodyKey: "providerError.unauthenticated.bodyAccountBlocked",
+          titleKey: "providerError.unauthenticated.titleBillingLocked",
+          bodyKey: "providerError.unauthenticated.bodyBillingLocked",
           button: {
             kind: "action",
             labelKey: "providerError.unauthenticated.chooseAnotherAi",
@@ -289,7 +289,7 @@ describe("resolveAuthCardPresentation for an org-policy block", () => {
 
   it("unhealableCause names only the causes a sign-in cannot heal", () => {
     strictEqual(unhealableCause("org_policy_blocked"), "org_policy_blocked");
-    strictEqual(unhealableCause("account_blocked"), "account_blocked");
+    strictEqual(unhealableCause("billing_locked"), "billing_locked");
     strictEqual(unhealableCause("token_expired"), undefined);
     strictEqual(unhealableCause("no_credentials"), undefined);
   });

@@ -360,7 +360,7 @@ export type AuthFailureCause =
   // The provider blocks the account behind an intact credential (GitHub
   // Copilot with billing locked). Reconnecting does NOT heal it; the card's
   // action points at the AI Models page to pick another AI.
-  | "account_blocked"
+  | "billing_locked"
   | "unknown";
 
 export type RunStatus =
