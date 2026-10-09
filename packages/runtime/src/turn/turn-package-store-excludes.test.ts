@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { STORE_SYNC_EXCLUDES } from "@houston/host/src/store-sync/daemon-policy";
 import {
-  DEFAULT_EXCLUDES,
   LocalDirStore,
   type ObjectStore,
   STORE_ROOT_PACKAGE_EXCLUDES,
@@ -18,7 +17,7 @@ import { startTurnFilesystem, syncTurnFilesystem } from "./turn-filesystem";
 
 const MiB = 1024 * 1024;
 const PREFIX = "ws/org/agent";
-const AGENT = "workspaces/Personal/Hermes Bridge";
+const AGENT = "workspaces/Personal/Bob";
 const PNPM_STORE = ".pnpm-store/v3/files/00/abc-index.json";
 
 /**
@@ -100,13 +99,6 @@ test("the store sync, a pooled turn and a settings op share the package-store li
   // The gateway's prefetch skips exactly this prefix (cloud
   // prefetch_package_store.go); widening it is a change in both repos.
   expect(STORE_ROOT_PACKAGE_EXCLUDES).toEqual([".pnpm-store/"]);
-});
-
-test("a turn never uploads a path it hydrated without", () => {
-  // syncTurnFilesystem uploads under syncBack's DEFAULT_EXCLUDES. A path
-  // excluded on upload but listed on hydrate would read as deleted.
-  const hydrateExcludes = [...DEFAULT_EXCLUDES, ...CLAIMED_TURN_EXCLUDES];
-  expect(hydrateExcludes).toEqual(expect.arrayContaining(DEFAULT_EXCLUDES));
 });
 
 test("the listed store is over the cap with its package store", async () => {
