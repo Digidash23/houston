@@ -3,7 +3,10 @@ import { accessDigest } from "@houston/protocol/access-digest";
 import { beforeEach, expect, test, vi } from "vitest";
 import { captureRuntimeCredential } from "../channel/capture-credential";
 import { sharedCredentialRefresher } from "../credentials/refresh-coalescer";
-import { RemoteCredentialDeadError } from "../credentials/remote-store";
+import {
+  RemoteCredentialBlockedError,
+  RemoteCredentialDeadError,
+} from "../credentials/remote-store";
 import { MemoryCredentialStore } from "../credentials/store";
 import type { CredentialStore, CredentialVault } from "../ports";
 import { handleSandboxCredential } from "./credential";
@@ -49,6 +52,8 @@ type ServedBody = {
   accountId?: string | null;
   kind?: string;
   error?: string;
+  code?: string;
+  detail?: string;
 };
 
 function mockRes(): {
@@ -885,5 +890,69 @@ test("fresh=1 sheds the store's cached answer before the read (PRODUCT-1515)", a
   expect(invalidated[1]).toEqual({
     provider: "openai-codex",
     actingAs: ACTING,
+  });
+});
+
+test("OpenAI's invalid_refresh_token verdict disconnects the credential (marked 404)", async () => {
+  // OpenAI's answer to a dead refresh token since 2026-10, verbatim from prod
+  // (H-005). Read as transient it kept the dead row, served the expired token
+  // on every serve and the provider still read as connected.
+  const credentials = new MemoryCredentialStore();
+  await credentials.put({
+    workspaceId: "w1",
+    provider: "openai-codex",
+    accessToken: "expired-AT",
+    refreshToken: "rt.dead",
+    expiresAt: 1,
+  });
+  const realFetch = globalThis.fetch;
+  let upstream = 0;
+  globalThis.fetch = (async () => {
+    upstream++;
+    return new Response(
+      '{"error":{"message":"Could not validate your refresh token. Please try signing in again.","type":"invalid_request_error","param":null,"code":"invalid_refresh_token"}}',
+      { status: 401 },
+    );
+  }) as typeof fetch;
+  try {
+    const r = mockRes();
+    expect(await call(credentials, "openai-codex", r)).toBe(true);
+    expect(r.out.status).toBe(404);
+    expect(r.out.headers?.["x-houston-not-connected"]).toBe("1");
+    expect(await credentials.get("w1", "openai-codex")).toBeNull();
+    // The row is gone: the next serve is the plain 404, no second exchange.
+    const again = mockRes();
+    expect(await call(credentials, "openai-codex", again)).toBe(true);
+    expect(again.out.status).toBe(404);
+    expect(upstream).toBe(1);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test("a gateway account-block 502 is relayed typed, never as a sign-out", async () => {
+  // The managed-pod store saw the gateway's `provider_account_blocked` 502
+  // (GitHub Copilot, billing locked). The runtime must get the same typed
+  // answer: no marked 404 (the credential is intact), no 500 (nothing broke).
+  const blocked: CredentialStore = {
+    get: async () => {
+      throw new RemoteCredentialBlockedError(
+        "github-copilot",
+        "Your account's billing is currently locked because recent account charges have failed.",
+      );
+    },
+    put: async () => {},
+    remove: async () => {},
+    removeIfAccess: async () => false,
+  } as unknown as CredentialStore;
+  const r = mockRes();
+  expect(await call(blocked, "github-copilot", r)).toBe(true);
+  expect(r.out.status).toBe(502);
+  expect(r.out.headers?.["x-houston-not-connected"]).toBeUndefined();
+  expect(r.out.headers?.["retry-after"]).toBe("60");
+  expect(r.out.body).toMatchObject({
+    error: "provider account blocked",
+    code: "provider_account_blocked",
+    detail: expect.stringContaining("billing"),
   });
 });

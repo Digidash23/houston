@@ -20,13 +20,27 @@
  *   `oauth_org_not_allowed`, e.g. subscription OAuth denied from datacenter
  *   IPs). The credential itself is not the problem, so reconnecting does NOT
  *   heal it; the remedy is connecting with an API key instead.
+ * - `billing_locked` — the provider blocks the ACCOUNT behind an intact
+ *   credential (GitHub Copilot answering its token mint with 403 "billing is
+ *   currently locked"). Reconnecting does NOT heal it either; the person fixes
+ *   it at the provider or picks another AI. Minted by the SDK from the
+ *   gateway's `provider_account_blocked` send refusal, never by a turn.
  */
+/**
+ * The `code` the gateway's credential serve, the host's own sandbox serve and
+ * the pool's send refusal all carry for a provider that blocks the account
+ * behind an intact credential (`billing_locked` above). One constant so the
+ * host, the runtime's serve probe and the SDK read one string.
+ */
+export const PROVIDER_ACCOUNT_BLOCKED_CODE = "provider_account_blocked";
+
 export type AuthFailureCause =
   | "no_credentials"
   | "token_expired"
   | "token_revoked"
   | "invalid_api_key"
   | "org_policy_blocked"
+  | "billing_locked"
   | "unknown";
 
 /**
