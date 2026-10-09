@@ -18,6 +18,9 @@ test("toolchains and caches inside a workspace never sync", () => {
     `${AGENT}/profile/Default/Cache/data_0`,
     `${AGENT}/profile/Default/Code Cache/js/index`,
     `${AGENT}/profile/Default/GPUCache/index`,
+    // pnpm's store, at the synced root and inside a project.
+    ".pnpm-store/v3/files/00/abc-index.json",
+    `${AGENT}/render/.pnpm-store/v3/files/00/abc`,
   ]) {
     expect(excluded(rel, STORE_SYNC_EXCLUDES), rel).toBe(true);
   }
@@ -35,5 +38,29 @@ test("deliverables, sources and the setup script still sync", () => {
     `${AGENT}/notes/cache-policy.md`,
   ]) {
     expect(excluded(rel, STORE_SYNC_EXCLUDES), rel).toBe(false);
+  }
+});
+
+test("an agent or workspace named like a toolchain still syncs", () => {
+  for (const rel of [
+    "workspaces/Personal/Cache/CLAUDE.md",
+    "workspaces/venv/Bob/.houston/routines/routines.json",
+    "workspaces/Personal/GPUCache/notes.md",
+  ]) {
+    expect(excluded(rel, STORE_SYNC_EXCLUDES), rel).toBe(false);
+  }
+  expect(
+    excluded(
+      "workspaces/venv/Cache/render/node_modules/a.js",
+      STORE_SYNC_EXCLUDES,
+    ),
+  ).toBe(true);
+});
+
+// The any-depth matcher (hydrate-excludes.ts) reads `**/<dir>/` as ONE
+// directory name; any other `**` shape would silently match nothing.
+test("every any-depth exclude names exactly one directory", () => {
+  for (const pattern of STORE_SYNC_EXCLUDES.filter((p) => p.includes("**"))) {
+    expect(pattern, pattern).toMatch(/^\*\*\/[^/*]+\/$/);
   }
 });
