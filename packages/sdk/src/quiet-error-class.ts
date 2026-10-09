@@ -34,6 +34,9 @@ import type { BridgeQuietClass } from "@houston/sdk/local-model-bridge/quiet";
  *  has no AI connected (`@houston/sdk/agents/first-day-refusal`): an expected
  *  state whose surface offers the connect flow, skipped by every reporting
  *  path.
+ *  `storage_full` is the device's disk refusing the updater's release
+ *  download: the device's state, not a bug, named only by the download report
+ *  path and never retried for that release in the session.
  *  `bug_intake_unavailable` is the bug-report intake (Linear) refusing every
  *  report on our side, its plan's issue cap above all (HOUSTON-APP-5FT): the
  *  report itself still arrives through the fallback feedback, so the refusal
@@ -43,6 +46,7 @@ export type QuietErrorClass =
   | "offline"
   | BridgeQuietClass
   | "release_host_unavailable"
+  | "storage_full"
   | "no_url_handler"
   | "plan_min_interval"
   | "webhook_not_creator"

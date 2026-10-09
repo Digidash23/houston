@@ -14,7 +14,6 @@ import type {
   SkillWorkflow,
 } from "@houston/protocol";
 import type { Agent } from "./agents";
-import type { TriggerPlanSkipped } from "./trigger-plan-skip";
 
 export type {
   AgentArrival,
@@ -1675,32 +1674,7 @@ export interface TriggerType {
   payload?: Record<string, unknown>;
 }
 
-/**
- * A trigger routine's live provisioning status (C9). `active` = the Composio
- * instance is provisioned and delivering; `pending` = reconcile in flight;
- * `paused_disconnected` = the connected account was disconnected;
- * `paused_revoked` = the toolkit fell outside the agent's allowlist;
- * `error` = Composio rejected creation or delivery is failing. A `paused_*` or
- * `error` badge carries a human-readable `detail`.
- */
-export type TriggerStatusState =
-  | "active"
-  | "pending"
-  | "paused_disconnected"
-  | "paused_revoked"
-  | "error";
-
-/**
- * One routine's trigger status, from `GET /v1/agents/:slug/trigger-status`.
- * `plan_skipped` counts the routine's events the Free plan refused in the
- * last 24 hours (absent when none); the SDK drops it when it does not parse.
- */
-export interface TriggerStatusItem {
-  routine_id: string;
-  status: TriggerStatusState;
-  detail?: string;
-  plan_skipped?: TriggerPlanSkipped;
-}
+// `TriggerStatusState` / `TriggerStatusItem` live in `./trigger-status`.
 
 /**
  * The one-time reveal from minting (or rotating) a routine's incoming-webhook
