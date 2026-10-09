@@ -2,6 +2,7 @@ import type { Server } from "node:http";
 import { expect, test } from "vitest";
 import { config } from "../config";
 import { evict, publish } from "../session/bus";
+import { holdTurnInFlight } from "../session/turn-inflight-count";
 import { createRuntimeServer } from "./server";
 
 function listen(server: Server): Promise<string> {
@@ -43,26 +44,57 @@ test("generate-agent without a description is a 400, not a model call", async ()
   }
 });
 
-test("GET /busy reports aggregate in-flight turn state without auth", async () => {
+test("GET /busy answers from the turns in flight, without auth", async () => {
   const server = createRuntimeServer();
   const baseUrl = await listen(server);
-  const conversationId = "server-busy-test";
-  try {
-    let res = await fetch(`${baseUrl}/busy`);
+  const busy = async () => {
+    const res = await fetch(`${baseUrl}/busy`);
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({
+    return res.json();
+  };
+  let release = () => {};
+  try {
+    await expect(busy()).resolves.toEqual({
       busy: false,
       loginPending: false,
     });
 
-    publish(conversationId, {
-      type: "user",
-      data: { content: "work", ts: 1 },
-    });
-    res = await fetch(`${baseUrl}/busy`);
-    expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({
+    release = holdTurnInFlight();
+    await expect(busy()).resolves.toEqual({
       busy: true,
+      loginPending: false,
+    });
+    release();
+    await expect(busy()).resolves.toEqual({
+      busy: false,
+      loginPending: false,
+    });
+  } finally {
+    release();
+    await close(server);
+  }
+});
+
+test("GET /busy ignores a stream left reading running with no turn behind it", async () => {
+  // The shape a stopped turn's late frames used to leave behind: a non-terminal
+  // frame after the terminal one, so the stream snapshot reads running forever.
+  const server = createRuntimeServer();
+  const baseUrl = await listen(server);
+  const conversationId = "server-busy-stale-stream";
+  try {
+    publish(conversationId, {
+      type: "error",
+      data: { message: "Stopped by user" },
+      turnId: "t1",
+    });
+    publish(conversationId, {
+      type: "usage",
+      data: { context_tokens: 0, output_tokens: 0, cached_tokens: 0 },
+      turnId: "t1",
+    });
+    const res = await fetch(`${baseUrl}/busy`);
+    await expect(res.json()).resolves.toEqual({
+      busy: false,
       loginPending: false,
     });
   } finally {

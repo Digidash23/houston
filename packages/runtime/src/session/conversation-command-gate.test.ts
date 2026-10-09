@@ -116,3 +116,13 @@ test("a queued turn the route never saw still blocks a command", () => {
   expect(conversationCommandBusy("queued")).toBe(true);
   cache.pending = 0;
 });
+
+test("a stream left reading running with no turn behind it never blocks a command", async () => {
+  // A frame published after a turn's terminal one (a stopped turn unwinding)
+  // leaves the stream snapshot running; the gate reads lifecycle only.
+  const { publish, snapshot } = await import("./bus");
+  publish("stale", { type: "error", data: { message: "stop" }, turnId: "t" });
+  publish("stale", { type: "text", data: "late", turnId: "t" });
+  expect(snapshot("stale").running).toBe(true);
+  expect(conversationCommandBusy("stale")).toBe(false);
+});

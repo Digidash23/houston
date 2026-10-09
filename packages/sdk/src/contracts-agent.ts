@@ -129,6 +129,7 @@ export {
 // ===== Routines module contract ========================================
 export {
   isPlanMinIntervalRefusal,
+  isWebhookKeyNotCreatorRefusal,
   type NewRoutine,
   planMinIntervalRefusal,
   type Routine,
@@ -147,7 +148,10 @@ export {
   routineFirePin,
   routinePauseNotice,
   viewerIsRoutineCreator,
+  type WebhookKeyAccess,
   type WebhookKeyReveal,
+  type WebhookKeyViewer,
+  webhookKeyAccess,
 } from "./modules/routines";
 // ===== Skills module contract ==========================================
 export {

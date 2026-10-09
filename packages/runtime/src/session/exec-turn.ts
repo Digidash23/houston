@@ -89,6 +89,7 @@ import {
   isAbortEcho,
   type StallReason,
 } from "./stall-watchdog";
+import { turnFramePublisher } from "./turn-frame-gate";
 import {
   clearInflightMarker,
   noteInflightTool,
@@ -97,6 +98,7 @@ import {
 import { runWithTurnMode, type TurnModeRef } from "./turn-mode-context";
 import { runWithTurnModel } from "./turn-model-context";
 import { buildTurnResumeInfo } from "./turn-resume-info";
+import { settleStoppedBeforePrompt } from "./turn-stopped-before-prompt";
 import type { ProvidedContext } from "./workspace-context";
 
 /** A turn that ended on a clean `done`, and the model its reply came from. */
@@ -219,6 +221,9 @@ export async function execTurn(
   startup?: TurnStartupMarks,
 ): Promise<CleanTurn | null> {
   const { author, priorAuthors } = recorded;
+  // Every frame this turn publishes goes through here: once the user stops
+  // the turn, nothing more of it reaches the stream (turn-frame-gate.ts).
+  const emit = turnFramePublisher(conv, id, turnId);
   const enteredAt = performance.now();
   // Per-call timings for the turn's settle report (model-call-report.ts).
   let modelCalls: ReturnType<typeof collectStandingTurnCalls> | undefined;
@@ -356,7 +361,7 @@ export async function execTurn(
       // Every event proves the provider is alive → reset the stall clock (the
       // watchdog suspends itself while a tool runs and re-arms when it ends).
       watchdog.onEvent(wire);
-      publish(id, { ...wire, turnId });
+      emit(wire);
     });
   };
 
@@ -408,7 +413,20 @@ export async function execTurn(
   // Held outside the try so the finally records the run's carry (the replay
   // it started from, when it reset) whichever way the turn ended.
   let routineReset: RoutineSessionReset | null = null;
+  // A Stop before the model call ends the turn there (checked once the
+  // workdir lock is held, and again with no await left before prompt()).
+  const stoppedBeforePrompt = (): boolean => {
+    if (conv.stoppedTurnId !== turnId) return false;
+    settleStoppedBeforePrompt(id, turnId, {
+      replayedHistory,
+      providerSwitch,
+      compaction,
+      modelCalls: modelCalls?.report(turnId),
+    });
+    return true;
+  };
   try {
+    if (stoppedBeforePrompt()) return null;
     // Resolve the model for THIS turn from current settings (a routine's
     // provider/model pin wins, else the workspace's active provider/model).
     // Re-resolved every turn so a mid-conversation provider/model switch —
@@ -489,7 +507,7 @@ export async function execTurn(
       // divider and the next run's budget measures from here.
       replayPrefix = routineReset.replay?.text ?? "";
       compaction = { trigger: "proactive", pre_tokens: routineReset.preTokens };
-      publish(id, { type: "context_compacted", data: compaction, turnId });
+      emit({ type: "context_compacted", data: compaction });
     } else if (rebuilt) {
       // Cross-backend rebuild: the new backend cannot read the old backend's
       // session store, so the fresh session carries the conversation over via a
@@ -511,11 +529,7 @@ export async function execTurn(
         summarized: replay?.truncated ?? false,
         pre_tokens: rebuiltPreTokens,
       };
-      publish(id, {
-        type: "provider_switched",
-        data: providerSwitch,
-        turnId,
-      });
+      emit({ type: "provider_switched", data: providerSwitch });
     } else if (sessionWasReset) {
       // Truncation rebuild on the SAME backend: replay the kept transcript
       // into the fresh session. No provider_switched frame — the provider did
@@ -568,11 +582,7 @@ export async function execTurn(
         };
         // Stream the boundary so the chat draws a divider + resets its window
         // estimate; persisted on the assistant message below for reload replay.
-        publish(id, {
-          type: "provider_switched",
-          data: providerSwitch,
-          turnId,
-        });
+        emit({ type: "provider_switched", data: providerSwitch });
       }
       conv.provider = model.provider;
       conv.model = model.id;
@@ -621,10 +631,11 @@ export async function execTurn(
           // Stream the boundary so the chat draws the divider + resets its
           // window estimate; persisted on the assistant message below so the
           // divider survives a history reload.
-          publish(id, { type: "context_compacted", data: compaction, turnId });
+          emit({ type: "context_compacted", data: compaction });
         }
       }
     }
+    if (stoppedBeforePrompt()) return null;
     // Effort: the routine's pin wins, else the agent's saved setting; if neither
     // is set and the model can reason, default to medium so a reasoning model
     // (e.g. an OpenCode toggle model) actually thinks — pi only enables reasoning
@@ -711,7 +722,7 @@ export async function execTurn(
         stalled.windowMs,
         model.provider,
       );
-      publish(id, { type: "provider_error", data: providerError, turnId });
+      emit({ type: "provider_error", data: providerError });
     }
     // A context-overflow rejection names the model's REAL window (llama.cpp's
     // `n_ctx`). For a custom endpoint — whose window Houston can only assume —
@@ -801,8 +812,7 @@ export async function execTurn(
     // Bedrock, OpenCode, custom endpoints). Recorded for every provider; the
     // usage endpoint decides which rows serve it. Never fails the turn.
     if (usage) recordTokenSpend(model.provider, usage);
-    if (fileChanges)
-      publish(id, { type: "file_changes", data: fileChanges, turnId });
+    if (fileChanges) emit({ type: "file_changes", data: fileChanges });
     // Skip the clean `done` when the turn failed: the provider_error frame is the
     // turn's terminal surface (the web adapter settles on it), and a `done` would
     // settle the chat as a clean success — firing the "mission complete"
@@ -820,10 +830,9 @@ export async function execTurn(
       // fingerprint can observe).
       clearProviderMarks(model.provider);
       clean = { model: { provider: model.provider, id: model.id } };
-      publish(id, {
+      emit({
         type: "done",
         data: null,
-        turnId,
         ...(pendingInteraction ? { pendingInteraction } : {}),
       });
     }
@@ -937,19 +946,22 @@ export async function execTurn(
       },
       turnId,
     });
-    if (typed && !providerError)
-      publish(id, { type: "provider_error", data: typed, turnId });
+    if (typed && !providerError) emit({ type: "provider_error", data: typed });
     else if (!typed)
-      publish(id, {
-        type: "error",
-        data: { message: errMessage(err) },
-        turnId,
-      });
+      emit({ type: "error", data: { message: errMessage(err) } });
     // The thrown-failure twin of the clean path's report above: an
     // agent-started mission's card must reach `error` even with no client
     // observing this conversation.
     reportMissionSettle(id, "error", null, modelCalls?.report(turnId));
   } finally {
+    // Detach first, while the stop marker below still gates this turn's
+    // frames. Undefined only if resolveModel/switchBackendIfNeeded threw
+    // before we subscribed (a bad pin) — nothing to tear down in that case.
+    unsub?.();
+    unsubLiveness?.();
+    unsubPhase?.();
+    unsubMessageStart?.();
+    modelCalls?.stop();
     // A routine run records what it left its session holding, for the next
     // run's budget (routine-session-reset.ts). No-op for any other chat.
     recordRoutineCarry(id, turnId, routineReset);
@@ -965,13 +977,6 @@ export async function execTurn(
     conv.stoppedTurnId = undefined;
     // Never leak the stall timer past the turn (no-op if it threw before arming).
     watchdog.disarm();
-    // Undefined only if resolveModel/switchBackendIfNeeded threw before we
-    // subscribed (a bad pin) — nothing to tear down in that case.
-    unsub?.();
-    unsubLiveness?.();
-    unsubPhase?.();
-    unsubMessageStart?.();
-    modelCalls?.stop();
     // PRODUCT-1355 (layer 3): a turn that died on a REVOKED token leaves a
     // Claude session whose next spawn would 401 identically — evict it so the
     // user's next attempt after reconnecting rebuilds on the fresh credential.

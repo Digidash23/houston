@@ -49,6 +49,12 @@ export function reportError(
     console.debug(`[report:${command}] refused under the plan's routine floor`);
     return;
   }
+  // A webhook-key mint by someone other than the routine's creator: the
+  // gateway's expected answer, surfaced by its own copy. Nothing broke.
+  if (quiet === "webhook_not_creator") {
+    console.debug(`[report:${command}] refused: not the routine's creator`);
+    return;
+  }
   if (quiet) {
     reportQuietError(quiet, command, message, originalError);
     return;

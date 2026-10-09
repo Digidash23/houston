@@ -36,7 +36,6 @@ vi.mock("../session/chat", () => ({
 const bus = vi.hoisted(() => ({ evict: vi.fn() }));
 vi.mock("../session/bus", () => ({
   evict: bus.evict,
-  isTurnRunning: () => false,
   publish: vi.fn(),
 }));
 

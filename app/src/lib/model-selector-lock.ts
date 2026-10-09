@@ -22,8 +22,8 @@ import type {
   Capabilities,
 } from "@houston/engine-adapter";
 import { canEditAgentConfig } from "./agent-access.ts";
+import { isModelAllowed } from "./ceiling-match.ts";
 import { type CeilingResolver, pickCeilingPin } from "./ceiling-pin.ts";
-import { decodeModelPickerId } from "./chat-model-picker-ids.ts";
 import { isMultiplayer } from "./org-roles.ts";
 
 export interface ModelSelectorDecision {
@@ -59,42 +59,6 @@ export function modelSelectorDecision(
   return { show: canEditAgentConfig(capabilities, agent), personal: false };
 }
 
-/**
- * Whether `model` is within an agent's allowed-models ceiling.
- * `null`/`undefined` = no ceiling (every model allowed). Used to clamp the
- * picker's option list and to detect the single-allowed-model read-only case.
- */
-export function isModelAllowed(
-  allowedModels: string[] | null | undefined,
-  model: string,
-): boolean {
-  if (allowedModels == null) return true;
-  return allowedModels.includes(model);
-}
-
-/**
- * How many DISTINCT models the allowed-models ceiling removes from the picker's
- * universe. Display-only: the gateway is the sole enforcer of the ceiling, so
- * this count only keeps the clamp honest, surfacing the models it drops instead
- * of hiding them in silence.
- *
- * A model offered by two providers is one hidden model, not two, so the count is
- * over bare model ids. `allowedModels == null` = no ceiling → nothing hidden.
- */
-export function hiddenModelCount(
-  pickerModels: ReadonlyArray<{ id: string }>,
-  allowedModels: string[] | null,
-): number {
-  if (allowedModels == null) return 0;
-  const allowed = new Set(allowedModels);
-  const hidden = new Set<string>();
-  for (const row of pickerModels) {
-    const { model } = decodeModelPickerId(row.id);
-    if (!allowed.has(model)) hidden.add(model);
-  }
-  return hidden.size;
-}
-
 /** A runnable provider/model/effort pin shown on the composer picker. */
 export interface ModelPin {
   provider: string;
@@ -106,9 +70,10 @@ export interface ModelPin {
  * The provider/model/effort the composer should DISPLAY in personal (Teams)
  * mode. The priority mirrors the gateway's per-turn resolution so the picker
  * shows what will actually run:
- *  1. an open mission's pin when its model remains inside the ceiling, carrying
- *     the personal resolution's effort because activities have no effort field;
- *  2. the user's stored `choice` when present AND still inside the ceiling;
+ *  1. an open mission's pin when the ceiling still allows it on its provider
+ *     (`isModelAllowed`, the gateway's rule), carrying the personal
+ *     resolution's effort because activities have no effort field;
+ *  2. the user's stored `choice` when present AND still allowed;
  *  3. else, when a ceiling exists and the shared `fallback` model is outside it,
  *     a ceiling model the user can actually run (`pickCeilingPin`: the
  *     fallback provider's own id first, then any connected provider's, then
@@ -128,8 +93,10 @@ export function resolvePersonalModelPin(
   missionPin: ModelPin | null,
   resolver: CeilingResolver,
 ): ModelPin {
+  const allowed = (pin: { provider: string; model: string }) =>
+    isModelAllowed(allowedModels, pin.provider, pin.model, resolver.runsAs);
   const personalPin =
-    choice && isModelAllowed(allowedModels, choice.model)
+    choice && allowed(choice)
       ? {
           provider: choice.provider,
           model: choice.model,
@@ -140,7 +107,7 @@ export function resolvePersonalModelPin(
           choice?.effort ? { ...fallback, effort: choice.effort } : fallback,
           resolver,
         );
-  if (missionPin && isModelAllowed(allowedModels, missionPin.model)) {
+  if (missionPin && allowed(missionPin)) {
     return {
       provider: missionPin.provider,
       model: missionPin.model,
@@ -163,7 +130,12 @@ function resolveCeilingDefault(
 ): ModelPin {
   return allowedModels != null &&
     allowedModels.length > 0 &&
-    !allowedModels.includes(fallback.model)
+    !isModelAllowed(
+      allowedModels,
+      fallback.provider,
+      fallback.model,
+      resolver.runsAs,
+    )
     ? pickCeilingPin(allowedModels, fallback, resolver)
     : fallback;
 }

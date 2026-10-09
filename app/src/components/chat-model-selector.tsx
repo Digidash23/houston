@@ -10,12 +10,9 @@ import { type ReactNode, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useCapabilities } from "../hooks/use-capabilities";
 import { useChatModelPicker } from "../hooks/use-chat-model-picker";
-import { decodeModelPickerId } from "../lib/chat-model-picker-ids";
-import {
-  hiddenModelCount,
-  isModelAllowed,
-  modelSelectorDecision,
-} from "../lib/model-selector-lock";
+import { clampPickerToCeiling, hiddenModelCount } from "../lib/ceiling-match";
+import { modelSelectorDecision } from "../lib/model-selector-lock";
+import { catalogRunsAs } from "../lib/providers";
 import { ModelTriggerGlyph } from "./chat-model-selector-trigger";
 
 interface ChatModelSelectorProps {
@@ -91,30 +88,25 @@ export function ChatModelSelector({
     onOpenChange,
   });
 
-  // Clamp the pickable set to the agent's allowed-models ceiling (Teams E8).
-  // `allowedModels == null` = no ceiling (every model). Providers left with no
-  // model drop out of the rail. `picker.models` is only built while the popover
-  // is open, so this is an empty-in/empty-out no-op when the picker is closed.
-  const models = useMemo(
+  // Clamp the pickable set to the agent's allowed-models ceiling (Teams E8),
+  // by the gateway's rule. `picker.models` is only built while the popover is
+  // open, so this is an empty-in/empty-out no-op when the picker is closed.
+  const { models, providers } = useMemo(
     () =>
-      allowedModels == null
-        ? picker.models
-        : picker.models.filter((m) =>
-            isModelAllowed(allowedModels, decodeModelPickerId(m.id).model),
-          ),
-    [picker.models, allowedModels],
+      clampPickerToCeiling(
+        picker.models,
+        picker.providers,
+        allowedModels,
+        catalogRunsAs,
+      ),
+    [picker.models, picker.providers, allowedModels],
   );
-  const providers = useMemo(() => {
-    if (allowedModels == null) return picker.providers;
-    const ids = new Set(models.map((m) => m.providerId));
-    return picker.providers.filter((p) => ids.has(p.id));
-  }, [picker.providers, models, allowedModels]);
 
   // How many models the ceiling turns off, surfaced in a quiet picker footer so
   // the clamp above is honest rather than silent. Counted over the full picker
   // universe, not the clamped list.
   const hidden = useMemo(
-    () => hiddenModelCount(picker.models, allowedModels ?? null),
+    () => hiddenModelCount(picker.models, allowedModels ?? null, catalogRunsAs),
     [picker.models, allowedModels],
   );
 
