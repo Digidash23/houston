@@ -16,8 +16,8 @@ import { usePersonFocus } from "./use-person-focus";
  * themselves; admins see those read-only. Other OWNER rows are editable too
  * (multi-owner orgs), with two confirm gates: removing anyone, and granting
  * owner (full org authority). Demoting/removing a sole owner is refused by the
- * gateway's `last_owner` 409, surfaced as a plain informational toast. The role
- * Select and Remove disable while their mutation is in flight. This is
+ * gateway's `last_owner` 409, surfaced as a plain informational toast. Both
+ * writes are optimistic: the row changes on the click. This is
  * membership only: a person's per-agent access is read on that agent's own
  * settings screen, so a row's identity is not a drill-in here. A face on the
  * org chart opens this roster on that person (`usePersonFocus`).
@@ -42,9 +42,9 @@ export function PeopleRoster({
     setPending(null);
     if (!action) return;
     if (action.kind === "remove") {
-      removeMember.mutate(action.member.userId);
+      removeMember(action.member.userId);
     } else {
-      setRole.mutate({ userId: action.member.userId, role: "owner" });
+      setRole(action.member.userId, "owner");
     }
   };
 
@@ -67,17 +67,13 @@ export function PeopleRoster({
                 role: member.role,
               })}
               focused={member.userId === focused}
-              busy={{
-                role: setRole.isPending,
-                remove: removeMember.isPending,
-              }}
               onRole={(role) => {
                 if (role === member.role) return;
                 if (grantsOwner(role, member.role)) {
                   setPending({ kind: "makeOwner", member });
                   return;
                 }
-                setRole.mutate({ userId: member.userId, role });
+                setRole(member.userId, role);
               }}
               onRemove={() => setPending({ kind: "remove", member })}
             />

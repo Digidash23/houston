@@ -2,7 +2,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { analytics } from "../../lib/analytics";
+import { optimisticWrite } from "../../lib/optimistic-write";
 import { queryKeys } from "../../lib/query-keys";
+import { copiesRemoved, skillWriteRefresh } from "../../lib/skill-optimistic";
 import { tauriAgent, tauriSkills } from "../../lib/tauri";
 import type { WorkspaceSkillRow } from "../../lib/workspace-skills";
 import { useUIStore } from "../../stores/ui";
@@ -56,20 +58,38 @@ export function useSkillsViewActions() {
     [addToast, invalidateSkills, t],
   );
 
-  /** Remove the skill from every agent that holds it. */
+  /**
+   * Remove the skill from every agent that holds it. Optimistic: the row
+   * leaves every holder's list at once and the promise resolves before the
+   * host answers, so the editor can leave straight away. A refusal from ANY
+   * holder puts every list back and refetches the truth, with one toast.
+   */
   const deleteSkillEverywhere = useCallback(
     async (row: WorkspaceSkillRow): Promise<void> => {
       const paths = row.agents.map((a) => a.folderPath);
-      const settled = await Promise.allSettled(
-        paths.map((path) => tauriSkills.delete(path, row.slug)),
-      );
-      invalidateSkills(paths);
-      analytics.track("skill_deleted", { skill_slug: row.slug });
-      if (settled.some((r) => r.status === "rejected"))
-        throw new Error("skill delete failed for some agents");
-      addToast({ title: t("global.skillRemoved"), variant: "success" });
+      void optimisticWrite({
+        qc,
+        command: "skill_delete",
+        patches: copiesRemoved(paths, row.slug),
+        write: async () => {
+          const settled = await Promise.allSettled(
+            paths.map((path) => tauriSkills.delete(path, row.slug)),
+          );
+          if (settled.some((r) => r.status === "rejected"))
+            throw new Error("skill delete failed for some agents");
+        },
+        failure: {
+          title: t("global.failure.removeTitle"),
+          description: t("global.failure.removeBody"),
+        },
+        invalidate: skillWriteRefresh(paths, null),
+        onSuccess: () => {
+          analytics.track("skill_deleted", { skill_slug: row.slug });
+          addToast({ title: t("global.skillRemoved"), variant: "success" });
+        },
+      });
     },
-    [addToast, invalidateSkills, t],
+    [addToast, qc, t],
   );
 
   return {

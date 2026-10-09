@@ -80,7 +80,6 @@
     "delete": "Eliminar",
     "clear": "Quitar selección",
     "cancel": "Cancelar",
-    "error": "No se pudieron actualizar las tareas seleccionadas. Inténtalo de nuevo.",
     "confirmMove": {
       "title": "¿Mover tareas?",
       "description_one": "¿Mover {{count}} tarea a {{target}}?",
@@ -108,9 +107,6 @@
     "emptyTitle": "No hay tareas archivadas",
     "emptyDescription": "Las tareas archivadas aparecen aquí. Responde a una para reactivarla."
   },
-  "dnd": {
-    "moveError": "No se pudo mover la tarea. Inténtalo de nuevo."
-  },
   "firstDay": {
     "start": "Comenzar el primer día de {{name}}",
     "heroTitle": "Todo listo para el primer día de {{name}}",
@@ -118,5 +114,19 @@
     "compactTitle": "El primer día de {{name}} aún no comienza",
     "bannerTitle": "Tu equipo está listo. Elige un empleado de IA y comienza su primer día.",
     "bannerExplain": "Cada uno te hará algunas preguntas para aprender el trabajo."
+  },
+  "writeFailed": {
+    "delete": "No se pudo eliminar \"{{title}}\"",
+    "archive": "No se pudo archivar \"{{title}}\"",
+    "move": "No se pudo mover \"{{title}}\"",
+    "rename": "No se pudo cambiar el título de \"{{title}}\"",
+    "backOnBoard": "La tarea volvió al tablero. Inténtalo de nuevo en un momento.",
+    "backInArchive": "La tarea volvió a Archivadas. Inténtalo de nuevo en un momento.",
+    "backWhereItWas": "La tarea volvió a donde estaba. Inténtalo de nuevo en un momento.",
+    "oldName": "La tarea volvió a su título anterior. Inténtalo de nuevo en un momento.",
+    "bulkDelete": "No se pudieron eliminar las tareas seleccionadas",
+    "bulkArchive": "No se pudieron archivar las tareas seleccionadas",
+    "bulkMove": "No se pudieron mover las tareas seleccionadas",
+    "bulkBack": "Las tareas que no cambiaron volvieron a donde estaban. Inténtalo de nuevo en un momento."
   }
 }

@@ -65,7 +65,7 @@ describe("the plan-floor refusal is a quiet expected class", () => {
     );
     const tauri = read("lib/tauri.ts");
     ok(
-      tauri.includes("if (surfacePlanMinInterval(err)) return;"),
+      tauri.includes("if (surfacePlanMinInterval(err)) return true;"),
       "the engine-call layer surfaces it before its bug path",
     );
   });
@@ -117,6 +117,27 @@ describe("the routine screen and model row on a plan-floor refusal", () => {
     }
   });
 
+  it("the warming guard's refusal adds nothing over its own dialog", () => {
+    const toasts: unknown[] = [];
+    const reported: string[] = [];
+    const warming = Object.assign(new Error("almost ready"), {
+      name: "AgentWarmingError",
+    });
+    toastRoutineWriteFailure(
+      warming,
+      { title: "Couldn't save", command: "update_routine" },
+      {
+        addToast: (t) => toasts.push(t),
+        describe: (c) => {
+          reported.push(c);
+          return "generic";
+        },
+      },
+    );
+    deepStrictEqual(toasts, []);
+    deepStrictEqual(reported, []);
+  });
+
   it("any other failure keeps its red toast and one report", () => {
     const toasts: unknown[] = [];
     const reported: string[] = [];
@@ -146,5 +167,11 @@ describe("the routine screen and model row on a plan-floor refusal", () => {
       ok(src.includes("toastRoutineWriteFailure("), rel);
       ok(!/description: genericErrorDescription\(/.test(src), rel);
     }
+    // The Routines list's toggle and inline schedule edit stand down the same
+    // way (its draft discard is an activity write with its own toast).
+    const list = read(
+      "components/team-view/team-routines/use-team-routine-actions.ts",
+    );
+    ok(list.includes("toastRoutineWriteFailure("));
   });
 });

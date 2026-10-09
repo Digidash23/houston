@@ -20,15 +20,15 @@ interface CelebratedItem {
 
 /**
  * Arm the celebration for moving ONE mission to `targetStatus`: measures the
- * card where it sits right now and hands back the burst to fire once the write
- * has landed.
+ * card where it sits right now and hands back the burst to fire with the move.
  *
- * The split is the whole point. The card has to be measured BEFORE the
- * mutation — a successful move re-renders it into the Done column, so a lookup
- * afterwards would either miss the node or read its new home, and the confetti
- * would come from the wrong place. The returned burst must be fired only AFTER
- * the write resolves, so a celebration can never claim a mission finished when
- * the write was rejected.
+ * The split is the whole point. The card has to be measured BEFORE the move
+ * is painted: the optimistic paint re-renders it into the Done column, so a
+ * lookup afterwards would either miss the node or read its new home, and the
+ * confetti would come from the wrong place. The burst fires with that paint,
+ * not when the host confirms: on a waking pod the confirmation lands seconds
+ * after the card already sits in Done, and a burst then reads as unrelated.
+ * A refused write moves the card back and says so in its own toast.
  *
  * A move that isn't a finish (anything but Done, or a mission that ended in
  * `error` — see `celebratesMissionDone`) arms nothing: the returned function is

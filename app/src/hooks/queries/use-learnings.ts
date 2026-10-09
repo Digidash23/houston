@@ -1,6 +1,15 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import type { Learning } from "../../data/learnings";
 import * as learnings from "../../data/learnings";
+import {
+  appendLearning,
+  dropLearning,
+  editLearning,
+  newLearning,
+} from "../../lib/learning-optimistic";
 import type { LearningSourceRow } from "../../lib/learning-provenance";
+import { optimisticWrite } from "../../lib/optimistic-write";
 import { isMultiplayer } from "../../lib/org-roles";
 import { queryKeys } from "../../lib/query-keys";
 import { useCapabilities } from "../use-capabilities";
@@ -28,8 +37,15 @@ export function useLearnings(agentPath: string | undefined) {
   return { data: { entries }, isLoading: q.isLoading };
 }
 
-export function useAddLearning(agentPath: string | undefined) {
+/**
+ * The Memory tab's three writes, optimistic: the row appears, changes or
+ * leaves the instant the user commits, and a refused write puts the list back
+ * with an authored toast (`optimisticWrite`), unless `call()` already
+ * showed copy of its own for it (offline, waking).
+ */
+export function useLearningWrites(agentPath: string | undefined) {
   const qc = useQueryClient();
+  const { t } = useTranslation("agents");
   const { data: session } = useSession();
   const { capabilities } = useCapabilities();
   // WHO is adding this learning by hand. Multiplayer only: in single player the
@@ -42,45 +58,54 @@ export function useAddLearning(agentPath: string | undefined) {
           ...(session.displayName ? { name: session.displayName } : {}),
         }
       : undefined;
-  return useMutation({
-    mutationFn: (text: string) => {
-      if (!agentPath) throw new Error("agentPath required");
-      return learnings.add(agentPath, text, taughtBy);
-    },
-    onSuccess: () => {
-      if (agentPath)
-        qc.invalidateQueries({ queryKey: queryKeys.learnings(agentPath) });
-    },
-  });
-}
 
-export function useRemoveLearning(agentPath: string | undefined) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (index: number) => {
-      if (!agentPath) throw new Error("agentPath required");
-      const all = await learnings.list(agentPath);
-      const target = all[index];
-      if (!target) return;
-      await learnings.remove(agentPath, target.id);
-    },
-    onSuccess: () => {
-      if (agentPath)
-        qc.invalidateQueries({ queryKey: queryKeys.learnings(agentPath) });
-    },
-  });
-}
+  const write = (
+    command: string,
+    apply: (list: Learning[] | undefined) => Learning[] | undefined,
+    run: (path: string) => Promise<void>,
+    failure: "add" | "update" | "remove",
+  ) => {
+    if (!agentPath) return;
+    void optimisticWrite({
+      qc,
+      command,
+      patches: [{ queryKey: queryKeys.learnings(agentPath), apply }],
+      write: () => run(agentPath),
+      failure: {
+        title: t(`learnings.failure.${failure}Title`),
+        description: t(`learnings.failure.${failure}Body`),
+      },
+    });
+  };
 
-export function useUpdateLearning(agentPath: string | undefined) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, text }: { id: string; text: string }) => {
-      if (!agentPath) throw new Error("agentPath required");
-      return learnings.update(agentPath, id, text);
+  return {
+    add: (text: string) => {
+      const learning = newLearning(
+        text,
+        taughtBy,
+        crypto.randomUUID(),
+        new Date().toISOString(),
+      );
+      write(
+        "add_learning",
+        (list) => appendLearning(list, learning),
+        (path) => learnings.add(path, learning),
+        "add",
+      );
     },
-    onSuccess: () => {
-      if (agentPath)
-        qc.invalidateQueries({ queryKey: queryKeys.learnings(agentPath) });
-    },
-  });
+    update: (id: string, text: string) =>
+      write(
+        "update_learning",
+        (list) => editLearning(list, id, text),
+        (path) => learnings.update(path, id, text),
+        "update",
+      ),
+    remove: (id: string) =>
+      write(
+        "remove_learning",
+        (list) => dropLearning(list, id),
+        (path) => learnings.remove(path, id),
+        "remove",
+      ),
+  };
 }

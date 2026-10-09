@@ -32,9 +32,11 @@ export function LearningsContent({
   showHelper = true,
 }: {
   entries: LearningEntry[];
-  onAdd: (text: string) => Promise<unknown>;
-  onRemove: (index: number) => Promise<unknown>;
-  onUpdate: (id: string, text: string) => Promise<unknown>;
+  /** Each write paints before it lands and owns its own failure toast, so
+   *  none of them is awaited: the editor closes on the commit. */
+  onAdd: (text: string) => void;
+  onRemove: (id: string) => void;
+  onUpdate: (id: string, text: string) => void;
   layout?: "full" | "section";
   /** False when the mounting page hero already carries this helper copy. */
   showHelper?: boolean;
@@ -55,16 +57,16 @@ export function LearningsContent({
     setDrafts((prev) => prev.filter((id) => id !== localId));
   };
 
-  const handleSaveDraft = async (localId: string, text: string) => {
-    await onAdd(text);
+  const handleSaveDraft = (localId: string, text: string) => {
+    onAdd(text);
     removeDraft(localId);
   };
 
-  const handleConfirmRemove = async () => {
+  const handleConfirmRemove = () => {
     if (!pendingRemove) return;
-    const idx = pendingRemove.index;
+    const { id } = pendingRemove;
     setPendingRemove(null);
-    await onRemove(idx);
+    onRemove(id);
   };
 
   if (entries.length === 0 && drafts.length === 0) {

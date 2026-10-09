@@ -74,7 +74,15 @@ export function runOptimisticWrite<T>(
     }
   };
 
-  return opts.write().then(
+  let sent: Promise<T>;
+  try {
+    sent = opts.write();
+  } catch (err) {
+    // A guard that throws before any I/O (the warming refusal does) must
+    // still roll the paint back and release the hold.
+    sent = Promise.reject(err);
+  }
+  return sent.then(
     (result) => {
       release();
       refresh();

@@ -9,12 +9,20 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { holdPatchesAcrossRefetch } from "../../lib/optimistic-hold";
+import type { OptimisticPatch } from "../../lib/optimistic-write";
 import { queryKeys } from "../../lib/query-keys";
 import {
   patchRoutineList,
   replaceRoutineInList,
 } from "../../lib/routine-optimistic";
 import { tauriRoutines } from "../../lib/tauri";
+import {
+  type RoutineWriteFor,
+  useRoutineRowWrites,
+} from "./use-routine-row-writes";
+
+export type { RoutineWriteFor };
 
 /**
  * ONE agent's routines query, as options. Both the open routine's chat
@@ -51,16 +59,11 @@ export function useRoutines(agentPath: string | undefined) {
 /**
  * What a routine WRITE leaves behind: that agent's routines list refetched.
  * The host reschedules on the write itself. Shared by `useCreateRoutine` and
- * the any-agent writes so the two can never drift apart on what a write
+ * the any-agent update so the two can never drift apart on what a write
  * invalidates.
  */
 function afterRoutineWrite(qc: QueryClient, agentPath: string): void {
   qc.invalidateQueries({ queryKey: queryKeys.routines(agentPath) });
-}
-
-/** What a RUN write leaves behind: that agent's run list refetched. */
-function afterRunWrite(qc: QueryClient, agentPath: string): void {
-  qc.invalidateQueries({ queryKey: queryKeys.routineRuns(agentPath) });
 }
 
 export function useCreateRoutine(agentPath: string) {
@@ -71,18 +74,12 @@ export function useCreateRoutine(agentPath: string) {
   });
 }
 
-/** A routine write aimed at an agent chosen per call, not per mount. */
-export interface RoutineWriteFor {
-  agentPath: string;
-  routineId: string;
-}
-
 /**
- * The four routine writes a routine ROW can trigger (edit, delete, run now,
- * cancel a run), with the AGENT in the variables instead of in the hook
- * argument, so one binding serves whichever agent a call names (the routine
- * screen, its model selector and the Routines list). Same `call()` toast path and the same invalidation helpers
- * (`afterRoutineWrite` / `afterRunWrite`) as `useCreateRoutine` above.
+ * The routine writes a routine ROW can trigger (edit, delete, run now, stop a
+ * run), with the AGENT in the variables instead of in the hook argument, so
+ * one binding serves whichever agent a call names (the routine screen, its
+ * model selector and the Routines list). Every one paints before the host
+ * answers; delete and the run controls live in `use-routine-row-writes.ts`.
  */
 export function useRoutineWritesForAnyAgent() {
   const qc = useQueryClient();
@@ -91,7 +88,11 @@ export function useRoutineWritesForAnyAgent() {
   // agent's pod may have to wake first), and painting the OLD schedule for
   // that window made a saved time look ignored. The host's applied routine
   // replaces the guess when it lands; a rejected write rolls the cache back
-  // and refetches, and the caller's onError shows the authored toast.
+  // and refetches, and the caller's onError shows the authored toast. Kept on
+  // `useMutation` because each caller titles its own failure (save, model)
+  // through `toastRoutineWriteFailure`, which stands down for the plan floor
+  // and for anything `call()` already explained; the hold below is the same
+  // one `optimisticWrite` uses.
   const update = useMutation({
     mutationFn: ({
       agentPath,
@@ -99,47 +100,33 @@ export function useRoutineWritesForAnyAgent() {
       updates,
     }: RoutineWriteFor & { updates: RoutineUpdate }) =>
       tauriRoutines.update(agentPath, routineId, updates),
-    onMutate: async ({ agentPath, routineId, updates }) => {
-      const key = queryKeys.routines(agentPath);
+    onMutate: ({ agentPath, routineId, updates }) => {
+      const queryKey = queryKeys.routines(agentPath);
       // An in-flight refetch would overwrite the optimistic row with the
       // pre-edit truth the moment it lands.
-      await qc.cancelQueries({ queryKey: key });
-      const previous = qc.getQueryData<Routine[]>(key);
-      qc.setQueryData<Routine[]>(key, (list) =>
-        patchRoutineList(list, routineId, updates, new Date().toISOString()),
-      );
-      return { previous };
+      void qc.cancelQueries({ queryKey });
+      const previous = qc.getQueryData<Routine[]>(queryKey);
+      const nowIso = new Date().toISOString();
+      const patch: OptimisticPatch<Routine[]> = {
+        queryKey,
+        apply: (list) => patchRoutineList(list, routineId, updates, nowIso),
+      };
+      qc.setQueryData<Routine[]>(queryKey, patch.apply);
+      return { previous, release: holdPatchesAcrossRefetch(qc, [patch]) };
     },
     onError: (_err, { agentPath }, context) => {
+      context?.release();
       const key = queryKeys.routines(agentPath);
       if (context?.previous) qc.setQueryData(key, context.previous);
       qc.invalidateQueries({ queryKey: key });
     },
-    onSuccess: (routine, { agentPath }) => {
+    onSuccess: (routine, { agentPath }, context) => {
+      context?.release();
       qc.setQueryData<Routine[]>(queryKeys.routines(agentPath), (list) =>
         replaceRoutineInList(list, routine),
       );
       afterRoutineWrite(qc, agentPath);
     },
   });
-  const remove = useMutation({
-    mutationFn: ({ agentPath, routineId }: RoutineWriteFor) =>
-      tauriRoutines.delete(agentPath, routineId),
-    onSuccess: (_r, { agentPath }) => afterRoutineWrite(qc, agentPath),
-  });
-  const runNow = useMutation({
-    mutationFn: ({ agentPath, routineId }: RoutineWriteFor) =>
-      tauriRoutines.runNow(agentPath, routineId),
-    onSuccess: (_r, { agentPath }) => afterRunWrite(qc, agentPath),
-  });
-  const cancelRun = useMutation({
-    mutationFn: ({
-      agentPath,
-      routineId,
-      runId,
-    }: RoutineWriteFor & { runId: string }) =>
-      tauriRoutines.cancelRun(agentPath, routineId, runId),
-    onSuccess: (_r, { agentPath }) => afterRunWrite(qc, agentPath),
-  });
-  return { update, remove, runNow, cancelRun };
+  return { update, ...useRoutineRowWrites() };
 }

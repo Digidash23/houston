@@ -101,4 +101,73 @@ describe("optimisticWrite", () => {
     });
     deepStrictEqual(qc.getQueryData(KEY), [{ id: "m1" }]);
   });
+
+  it("holds the patch over a direct slice write that lands mid-write", async () => {
+    const qc = seeded();
+    const host = deferred();
+    const done = optimisticWrite({
+      qc,
+      command: "delete_mission",
+      patches: [dropM1],
+      write: () => host.promise,
+      failure,
+    });
+    // How an agent's event refreshes the aggregate (`patchAgentSlice`): a
+    // manual write carrying the host's pre-delete rows.
+    qc.setQueryData<Row[]>(KEY, [{ id: "m1" }, { id: "m2" }, { id: "m3" }]);
+    deepStrictEqual(qc.getQueryData(KEY), [{ id: "m2" }, { id: "m3" }]);
+    host.resolve();
+    await done;
+    qc.setQueryData<Row[]>(KEY, [{ id: "m1" }]);
+    deepStrictEqual(qc.getQueryData(KEY), [{ id: "m1" }]);
+  });
+
+  it("keeps a write still in flight painted when a neighbour rolls back", async () => {
+    const qc = seeded();
+    const first = deferred();
+    const second = deferred();
+    const dropM2 = {
+      queryKey: KEY,
+      apply: (rows: Row[] | undefined) => rows?.filter((r) => r.id !== "m2"),
+    };
+    const a = optimisticWrite({
+      qc,
+      command: "delete_mission",
+      patches: [dropM1],
+      write: () => first.promise,
+      failure,
+    });
+    const b = optimisticWrite({
+      qc,
+      command: "delete_mission",
+      patches: [dropM2],
+      write: () => second.promise,
+      failure,
+    });
+    deepStrictEqual(qc.getQueryData(KEY), []);
+    first.reject(new Error("boom"));
+    await a;
+    // m1 is back; m2's delete is still pending, so it stays gone.
+    deepStrictEqual(qc.getQueryData(KEY), [{ id: "m1" }]);
+    second.resolve();
+    await b;
+    strictEqual(refusals.length, 1);
+  });
+
+  it("rolls back a write that throws before it returns a promise", async () => {
+    const qc = seeded();
+    await optimisticWrite({
+      qc,
+      command: "delete_mission",
+      patches: [dropM1],
+      write: () => {
+        throw new Error("warming");
+      },
+      failure,
+    });
+    deepStrictEqual(qc.getQueryData(KEY), [{ id: "m1" }, { id: "m2" }]);
+    deepStrictEqual(refusals, [
+      { command: "delete_mission", title: failure.title },
+    ]);
+  });
 });

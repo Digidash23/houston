@@ -2,7 +2,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { analytics } from "../../lib/analytics";
+import { optimisticWrite } from "../../lib/optimistic-write";
 import { queryKeys } from "../../lib/query-keys";
+import {
+  manifestsSet,
+  sharedRemoved,
+  skillWriteRefresh,
+} from "../../lib/skill-optimistic";
 import {
   tauriSharedSkills,
   tauriSkills,
@@ -11,14 +17,15 @@ import {
 import type { Agent } from "../../lib/types";
 import type { SharedSkillRow } from "../../lib/workspace-shared-skills";
 import { useUIStore } from "../../stores/ui";
-import { actThenRefresh } from "./skill-act-refresh";
+import { useSharedSkillAssignments } from "./use-shared-skill-assignments";
 
 /**
  * Store-backed skill actions (ADR 0003): content is ONE
  * write to the workspace store, assignment is per-agent manifest toggles
  * (reversible — no copies move), and an agent's divergent copy is an override
- * the row can revert. Write failures toast their real reason through the
- * `call` wrapper; these callbacks re-throw so dialogs stay open.
+ * the row can revert. A content save and a promote re-throw so the editor
+ * keeps the typed work; delete and the assignments
+ * (`use-shared-skill-assignments.ts`) paint first and roll back on refusal.
  */
 export function useSharedSkillsActions(workspaceId: string | null) {
   const { t } = useTranslation("skills");
@@ -76,41 +83,44 @@ export function useSharedSkillsActions(workspaceId: string | null) {
     [addToast, invalidate, setManifestEntry, t, workspaceId],
   );
 
-  /** Enable a store skill for every agent — N explicit manifest writes. */
-  const enableForAll = useCallback(
-    async (row: SharedSkillRow, agents: Agent[]): Promise<void> => {
-      const settled = await Promise.allSettled(
-        agents.map((agent) =>
-          setManifestEntry(agent.folderPath, row.slug, true),
-        ),
-      );
-      invalidate(agents.map((a) => a.folderPath));
-      if (settled.some((r) => r.status === "rejected"))
-        throw new Error("enable failed for some agents");
-      addToast({
-        title: t("global.enabledForAll", { count: agents.length }),
-        variant: "success",
-      });
-    },
-    [addToast, invalidate, setManifestEntry, t],
-  );
-
-  /** Delete the store copy; agents' modified copies stay as their own skills. */
+  /**
+   * Delete the store copy; agents' modified copies stay as their own skills.
+   * Optimistic: the row leaves at once and the promise resolves before the
+   * host answers. A manifest write that failed leaves some employee loading a
+   * deleted skill, so a partial delete is a refusal: everything is painted
+   * back, refetched and toasted, never called a success.
+   */
   const deleteShared = useCallback(
     async (row: SharedSkillRow, agents: Agent[]): Promise<void> => {
       if (workspaceId === null) throw new Error("no workspace");
-      await tauriSharedSkills.delete(workspaceId, row.slug);
       const holders = agents.map((a) => a.folderPath);
-      const settled = await Promise.allSettled(
-        holders.map((path) => setManifestEntry(path, row.slug, false)),
-      );
-      invalidate(holders);
-      analytics.track("skill_deleted", { skill_slug: row.slug });
-      if (settled.some((r) => r.status === "rejected"))
-        throw new Error("delete failed for some agents");
-      addToast({ title: t("global.skillRemoved"), variant: "success" });
+      void optimisticWrite({
+        qc,
+        command: "skill_delete_shared",
+        patches: [
+          sharedRemoved(workspaceId, row.slug),
+          ...manifestsSet(holders, row.slug, false),
+        ],
+        write: async () => {
+          await tauriSharedSkills.delete(workspaceId, row.slug);
+          const settled = await Promise.allSettled(
+            holders.map((path) => setManifestEntry(path, row.slug, false)),
+          );
+          if (settled.some((r) => r.status === "rejected"))
+            throw new Error("delete failed for some agents");
+        },
+        failure: {
+          title: t("global.failure.removeTitle"),
+          description: t("global.failure.removeBody"),
+        },
+        invalidate: skillWriteRefresh(holders, workspaceId),
+        onSuccess: () => {
+          analytics.track("skill_deleted", { skill_slug: row.slug });
+          addToast({ title: t("global.skillRemoved"), variant: "success" });
+        },
+      });
     },
-    [addToast, invalidate, setManifestEntry, t, workspaceId],
+    [addToast, qc, setManifestEntry, t, workspaceId],
   );
 
   /** "Share to workspace": the explicit act that replaced auto-migration. The
@@ -144,49 +154,10 @@ export function useSharedSkillsActions(workspaceId: string | null) {
     [addToast, invalidate, setManifestEntry, t, workspaceId],
   );
 
-  /**
-   * "Disable for this AI Employee": the manifest entry off and the agent's own
-   * shadowing copy dropped. A local copy loads whether or not the manifest
-   * names it, so the two only mean anything together — which is why the order
-   * lives in the SDK and this is a delegate.
-   */
-  const disableForAgent = useCallback(
-    async (row: SharedSkillRow, agent: Agent): Promise<void> => {
-      await actThenRefresh(
-        () => tauriSkillsManifest.disableForAgent(agent.folderPath, row.slug),
-        () => invalidate([agent.folderPath]),
-      );
-      addToast({
-        title: t("global.disabledForAgent", { name: agent.name }),
-        variant: "success",
-      });
-    },
-    [addToast, invalidate, t],
-  );
-
-  /** Back on the store version: the manifest entry switched on, then the
-   *  agent's overriding copy dropped. Deleting the copy first would leave the
-   *  agent with neither version, which is why the order is the SDK's. */
-  const revertOverride = useCallback(
-    async (row: SharedSkillRow, agent: Agent): Promise<void> => {
-      await actThenRefresh(
-        () => tauriSkillsManifest.revertOverride(agent.folderPath, row.slug),
-        () => invalidate([agent.folderPath]),
-      );
-      addToast({
-        title: t("global.overrideReverted", { name: agent.name }),
-        variant: "success",
-      });
-    },
-    [addToast, invalidate, t],
-  );
-
   return {
     applyShared,
-    enableForAll,
     deleteShared,
     promoteToShared,
-    revertOverride,
-    disableForAgent,
+    ...useSharedSkillAssignments(workspaceId),
   };
 }

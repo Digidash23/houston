@@ -2,12 +2,11 @@ import type { KanbanItem } from "@houston-ai/board";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { logAndReportError } from "../../lib/error-report";
 import { armMissionDoneCelebration } from "../../lib/mission-done-celebration";
 import { canDropMission } from "../../lib/mission-selection";
 import { queryKeys } from "../../lib/query-keys";
 import { showStopFailedToast } from "../../lib/stop-error-toast";
-import { tauriActivity, tauriChat } from "../../lib/tauri";
+import { tauriChat } from "../../lib/tauri";
 import type { Agent } from "../../lib/types";
 import { useUIStore } from "../../stores/ui";
 import { missionColumnIdForStatus } from "../mission-board-columns";
@@ -18,6 +17,7 @@ import {
 } from "../mission-control-session";
 import type { useMissionControl } from "../use-mission-control";
 import type { NewConversationArgs, SendOverrides } from "./board-source";
+import { editMission, moveFailure } from "./mission-writes";
 
 /**
  * Mission Control's card/composer actions, routed to the right agent. Create
@@ -113,36 +113,36 @@ export function useMcActions({
   );
 
   // Drag a card onto another column to change its status. The dragged card
-  // stays with its own agent — only its status moves — so this routes the
-  // update to that card's agent path and refreshes both the cross-agent board
-  // and that agent's own board (matching the cross-agent bulk move). The board
-  // only fires this for a column `canDropItem` accepted, so `toColumnId`
-  // doubles as the new status. Failure surfaces as a toast, and the celebration
-  // is armed before the write (measuring the card so the burst comes off it)
-  // and fired after it lands — declining a dragged `error` card, which shares
-  // the Needs you column but is filing, not a win. Full contract in
+  // stays with its own agent, only its status moves, and it lands in the
+  // target column in the same frame as the drop (`editMission`); the refresh
+  // after the write re-reads both the cross-agent board and that agent's own,
+  // as the bulk move does. The board only fires this for a column
+  // `canDropItem` accepted, so `toColumnId` doubles as the new status. The
+  // celebration fires with the drop, like the checkmark's (declining a
+  // dragged `error` card is filing, not a win). Full contract in
   // armMissionDoneCelebration.
   const handleItemMove = useCallback(
-    async (item: KanbanItem, toColumnId: string) => {
+    (item: KanbanItem, toColumnId: string) => {
       const agentPath = item.metadata?.agentPath as string | undefined;
       if (!agentPath) return;
       const celebrate = armMissionDoneCelebration(item, toColumnId);
-      try {
-        await tauriActivity.update(agentPath, item.id, { status: toColumnId });
-        qc.invalidateQueries({ queryKey: queryKeys.allConversations(paths) });
-        qc.invalidateQueries({ queryKey: queryKeys.activity(agentPath) });
-      } catch (err) {
-        logAndReportError("move_mission", err);
-        addToast({
-          title: t("board:dnd.moveError"),
-          variant: "error",
-        });
-        return;
-      }
-      // Outside the try: a throwing celebration must never read as a failed move.
+      void editMission(
+        qc,
+        agentPath,
+        item,
+        { status: toColumnId },
+        {
+          command: "move_mission",
+          failure: moveFailure(item, "move"),
+          refresh: [
+            queryKeys.allConversations(paths),
+            queryKeys.activity(agentPath),
+          ],
+        },
+      );
       celebrate();
     },
-    [qc, paths, addToast, t],
+    [qc, paths],
   );
   // A card can be dropped on a column iff the shared mission rule allows it:
   // only needs_you / done, and never its current section. Agent-agnostic.

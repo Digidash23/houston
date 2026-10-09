@@ -9,6 +9,11 @@ import { JobBriefRows } from "../../context/job-brief-rows";
 import { SettingsGroupTitle } from "../../settings/settings-row";
 import { PageHero } from "../../shell/page-shell";
 
+/** The prose box's signal that a save did not land (see `onSave` below). */
+class InstructionsNotSavedError extends Error {
+  override name = "InstructionsNotSavedError";
+}
+
 /**
  * The agent's Job description (CLAUDE.md), drawn as a FORM in the Settings
  * screen's grammar: the industry and the role as two settings rows of one
@@ -34,14 +39,11 @@ export function AgentAdminInstructions({ agent }: AgentSectionProps) {
     refetch,
     isFetching,
   } = useInstructions(path);
-  const saveInstructions = useSaveInstructions(path);
+  const save = useSaveInstructions(path);
   const text = instructions ?? "";
   const { fields, body } = parseJobDescription(text);
-  // `mutate`, not `mutateAsync`: the write goes through `call()`, which has
-  // already surfaced AND reported any failure, and the row simply keeps
-  // showing what the file still holds.
-  const write = (content: string) =>
-    saveInstructions.mutate({ name: "CLAUDE.md", content });
+  // A row pick paints at once; a refusal puts the old answer back and says so.
+  const write = (content: string) => void save(content);
 
   return (
     <div className="pb-2">
@@ -90,12 +92,12 @@ export function AgentAdminInstructions({ agent }: AgentSectionProps) {
               layout={{ rows: 12 }}
               ariaLabel={t("instructions.specific")}
               content={body}
-              onSave={(next) =>
-                saveInstructions.mutateAsync({
-                  name: "CLAUDE.md",
-                  content: withJobBody(text, next),
-                })
-              }
+              onSave={async (next) => {
+                // The box keeps the typed text and stays dirty only if its
+                // save REJECTS; the refusal is already toasted and reported.
+                if (!(await save(withJobBody(text, next))))
+                  throw new InstructionsNotSavedError();
+              }}
               placeholder={t("instructions.placeholder")}
             />
           </section>

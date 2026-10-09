@@ -60,7 +60,9 @@ interface WorkspaceState {
     options?: EngineCallOptions,
     mode?: WorkspaceDeleteMode,
   ) => Promise<void>;
-  /** Set (or clear, with null) the workspace's UI-locale override. */
+  /** Set (or clear, with null) the workspace's UI-locale override.
+   *  Optimistic: the row carries the new locale at once and gets the old one
+   *  back if the host refuses (the promise then rejects). */
   setLocale: (id: string, locale: string | null) => Promise<void>;
   /** Drop the workspace list back to its initial (loading) state on an identity
    *  change (HOU-903); the incoming account re-loads its own spaces on boot. */
@@ -166,11 +168,20 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     runWorkspaceDelete(id, options, get, set, mode),
 
   setLocale: async (id, locale) => {
-    const updated = await tauriWorkspaces.setLocale(id, locale);
-    set((s) => ({
-      workspaces: s.workspaces.map((w) => (w.id === id ? updated : w)),
-      current: s.current?.id === id ? updated : s.current,
-    }));
+    const swap = (next: (w: Workspace) => Workspace) =>
+      set((s) => ({
+        workspaces: s.workspaces.map((w) => (w.id === id ? next(w) : w)),
+        current: s.current?.id === id ? next(s.current) : s.current,
+      }));
+    const before = get().workspaces.find((w) => w.id === id)?.locale;
+    swap((w) => ({ ...w, locale }));
+    try {
+      const updated = await tauriWorkspaces.setLocale(id, locale);
+      swap(() => updated);
+    } catch (err) {
+      swap((w) => ({ ...w, locale: before }));
+      throw err;
+    }
   },
 
   // Mirrors the initial state (loading: true) so the shell shows its splash, not

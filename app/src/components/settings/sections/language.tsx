@@ -14,6 +14,7 @@ import {
   SUPPORTED_LOCALES,
   type SupportedLocale,
 } from "../../../lib/i18n";
+import { tellOptimisticRefusal } from "../../../lib/optimistic-write";
 import { useUIStore } from "../../../stores/ui";
 import { useWorkspaceStore } from "../../../stores/workspaces";
 import { SettingsControlRow } from "../settings-row";
@@ -34,15 +35,30 @@ export function LanguageSection() {
     : "en";
 
   const handleLocaleChange = async (value: string) => {
-    // Persist the workspace override FIRST so the engine is the source of truth;
-    // if it fails the error surfaces and the UI never switches to an unsaved
-    // language. `current` is guaranteed once a workspace is active; the guard
+    // The language switches at once and the override saves behind it. A
+    // refusal puts the workspace's old locale back, which the locale gate
+    // (`use-locale-preference.ts`) re-applies, and says the change did not
+    // stick. `current` is guaranteed once a workspace is active; the guard
     // just defends the rare unmount race.
     if (!isSupported(value) || !current) return;
-    await setWorkspaceLocale(current.id, value);
+    const previous = currentLocale;
+    // Observed now, so the switch below can never leave it unhandled.
+    const saved = setWorkspaceLocale(current.id, value).then(
+      () => null,
+      (err: unknown) => ({ err }),
+    );
     await changeLocale(value);
     analytics.track("language_changed", { locale: value });
     addToast({ title: t("common:language.toastChanged") });
+    const refused = await saved;
+    if (!refused) return;
+    // The gate re-applies only a workspace or global choice; a workspace with
+    // neither still needs the language it showed put back.
+    await changeLocale(previous);
+    tellOptimisticRefusal("set_workspace_locale", refused.err, {
+      title: t("settings:writeFailed.language.title"),
+      description: t("settings:writeFailed.language.description"),
+    });
   };
 
   return (

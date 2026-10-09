@@ -97,6 +97,7 @@ import {
   isToolkitOauthUnavailableError,
 } from "./toolkit-connect-refusals";
 import type { FileEntry, SkillDetail, SkillSummary, Workspace } from "./types";
+import { markToldUser } from "./user-told-mark";
 
 export { withAttachmentPaths } from "./attachment-message";
 
@@ -143,7 +144,7 @@ async function call<T>(
   try {
     return await fn();
   } catch (err) {
-    await surfaceError(label, err, context, options);
+    if (await surfaceError(label, err, context, options)) markToldUser(err);
     throw err;
   }
 }
@@ -196,15 +197,16 @@ export async function surfaceEngineError(
   context?: Record<string, unknown>,
   options?: Pick<EngineCallOptions, "silence" | "toast">,
 ): Promise<void> {
-  await surfaceError(label, err, context, options);
+  if (await surfaceError(label, err, context, options)) markToldUser(err);
 }
 
+/** Resolves `true` when the user was shown copy of its own for `err`. */
 async function surfaceError(
   label: string,
   err: unknown,
   context?: Record<string, unknown>,
   options?: EngineCallOptions,
-): Promise<void> {
+): Promise<boolean> {
   const message =
     err instanceof Error
       ? err.message
@@ -220,17 +222,17 @@ async function surfaceError(
   // still records every attempt; nothing below this line runs, so a failure
   // that is about to be retried costs the user neither a toast nor a Sentry
   // issue. The caller MUST surface the final error — see `surfaceEngineError`.
-  if (options?.surface === false) return;
+  if (options?.surface === false) return false;
 
   // Expected, explainable engine errors the caller surfaces inline. Logged
   // above for the local log tail, but no red bug toast and no Sentry report.
   // The host emits bare-string / status-only errors, so the matcher is a
   // predicate over the whole error (e.g. `isMissingSkillError`, which reads the
   // `HoustonEngineError` `.status`) rather than a tagged error kind.
-  if (options?.silence?.(err)) return;
+  if (options?.silence?.(err)) return false;
 
-  if (await surfacePlanMessageLimit(err)) return;
-  if (surfacePlanMinInterval(err)) return;
+  if (await surfacePlanMessageLimit(err)) return true;
+  if (surfacePlanMinInterval(err)) return true;
 
   // Expected business state, not a bug: a write into a team whose trial expired
   // (C8 `needs_upgrade`). Surface the real reason as a plain info toast — never
@@ -244,7 +246,7 @@ async function surfaceError(
       i18n.t("teams:degrade.writeBlockedTitle"),
       i18n.t("teams:degrade.writeBlockedBody"),
     );
-    return;
+    return true;
   }
 
   // Expected business state, not a bug: a member-add attempted on the caller's
@@ -257,7 +259,7 @@ async function surfaceError(
       i18n.t("teams:personalSpace.inviteBlockedTitle"),
       i18n.t("teams:personalSpace.inviteBlockedBody"),
     );
-    return;
+    return true;
   }
 
   // Expected business state, not a bug: removing or demoting an org's only
@@ -269,7 +271,7 @@ async function surfaceError(
       i18n.t("teams:people.lastOwner.title"),
       i18n.t("teams:people.lastOwner.body"),
     );
-    return;
+    return true;
   }
 
   // Expected business state, not a bug: a provider write that only an agent's
@@ -282,7 +284,7 @@ async function surfaceError(
       i18n.t("shell:errorToast.noAgentTitle"),
       i18n.t("shell:errorToast.noAgentDescription"),
     );
-    return;
+    return true;
   }
 
   // Expected business state, not a bug: a plain member tried the org-level
@@ -300,7 +302,7 @@ async function surfaceError(
       i18n.t("providers:toast.orgAdminRequiredTitle"),
       i18n.t("providers:toast.orgAdminRequiredBody"),
     );
-    return;
+    return true;
   }
 
   // Expected business state, not a bug: the managed cloud host refusing a
@@ -317,7 +319,7 @@ async function surfaceError(
       i18n.t("providers:openaiCompatible.cloudOnly.title"),
       i18n.t(`providers:${cloudEgressBodyKey(egress)}`),
     );
-    return;
+    return true;
   }
 
   // Aborted requests are expected; `toast: false` callers render their own
@@ -326,7 +328,7 @@ async function surfaceError(
     err instanceof Error ? err.name : undefined,
     options,
   );
-  if (!shouldToast && !shouldCapture) return;
+  if (!shouldToast && !shouldCapture) return false;
 
   // Expected environment state, not a bug: a transport-level network failure
   // (device offline / host unreachable — HOU-1085). A sleep-wake or network
@@ -339,7 +341,7 @@ async function surfaceError(
   if (isNetworkTransportError(err)) {
     const { showConnectivityErrorToast } = await import("./error-toast");
     showConnectivityErrorToast(label, message, err);
-    return;
+    return true;
   }
 
   // Expected environment state, not a bug: the gateway's "engine unavailable"
@@ -355,7 +357,7 @@ async function surfaceError(
   if (isEngineWakingError(err)) {
     const { showEngineWakingToast } = await import("./error-toast");
     showEngineWakingToast(label, message, err, context);
-    return;
+    return true;
   }
 
   const [{ showErrorToast }, { reportError }] = await Promise.all([
@@ -371,6 +373,7 @@ async function surfaceError(
     // toast suppressed but capture wanted: report to Sentry without a toast.
     reportError(label, message, err);
   }
+  return false;
 }
 
 // ─── Workspaces ────────────────────────────────────────────────────────
@@ -947,7 +950,7 @@ export const tauriFiles = {
   },
   rename: (agentPath: string, relativePath: string, newName: string) => {
     blockWriteWhileWarming(agentPath);
-    // A taken name is an expected state: `useRenameFile` shows the calm toast,
+    // A taken name is an expected state: `useFileWrites` shows the calm toast,
     // so the 409 is logged but never filed as a bug.
     return call<void>(
       "rename_file",
@@ -959,7 +962,7 @@ export const tauriFiles = {
   createFolder: (agentPath: string, name: string) => {
     blockWriteWhileWarming(agentPath);
     // A file or folder already carrying that name is an expected state:
-    // `useCreateFolder` shows the calm toast, so the 409 is logged but never
+    // `useFileWrites` shows the calm toast, so the 409 is logged but never
     // filed as a bug.
     return call<void>(
       "create_agent_folder",
@@ -990,7 +993,7 @@ export const tauriFiles = {
   move: (agentPath: string, relPath: string, toDir: string | null) => {
     blockWriteWhileWarming(agentPath);
     // Same expected state as a rename: the destination folder already holds
-    // that name. `useMoveFile` says so in product copy; no bug report.
+    // that name. `useFileWrites` says so in product copy; no bug report.
     return call<void>(
       "move_project_file",
       () => getEngine().moveProjectFile(agentPath, relPath, toDir),

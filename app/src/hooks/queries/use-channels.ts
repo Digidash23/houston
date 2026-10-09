@@ -1,9 +1,16 @@
+import type { ChannelStatus } from "@houston/wire-types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import { channelsWithout } from "../../lib/account-cache-patches";
 import {
   type ChannelWatch,
   channelWatchActive,
   type SlackAuthorization,
 } from "../../lib/channel-handoff";
+import { silenceChannelCall } from "../../lib/channel-silence";
+import { runOptimisticWrite } from "../../lib/optimistic-core";
+import { tellOptimisticRefusal } from "../../lib/optimistic-write";
 import { queryKeys } from "../../lib/query-keys";
 import { refetchAfterWrite } from "../../lib/refetch-after-write";
 import { tauriChannels } from "../../lib/tauri";
@@ -43,6 +50,7 @@ export function useChannels(watch: ChannelWatch | null = null) {
 
 export function useChannelActions() {
   const qc = useQueryClient();
+  const { t } = useTranslation("settings");
   const spaceId = useWorkspaceStore((s) => s.current?.id);
   const invalidateHere = () => {
     if (useWorkspaceStore.getState().current?.id === spaceId) {
@@ -83,12 +91,39 @@ export function useChannelActions() {
       ),
     onSuccess: invalidateHere,
   });
-  const disconnect = useMutation({
-    mutationFn: (id: string) =>
-      inChannelWorkspace(spaceId, (_assert, signal) =>
-        tauriChannels.disconnect(id, signal),
+  /**
+   * Optimistic: the account leaves the card on the click. A refusal the
+   * section answers itself (no channels here, the user moved away) only
+   * rolls back; the refetch shows the truth.
+   */
+  const disconnect = useCallback(
+    (id: string) =>
+      void runOptimisticWrite(
+        {
+          qc,
+          command: "disconnect_channel",
+          patches: [
+            {
+              queryKey: queryKeys.channels(spaceId),
+              apply: (status: ChannelStatus | undefined) =>
+                channelsWithout(status, id),
+            },
+          ],
+          write: () =>
+            inChannelWorkspace(spaceId, (_assert, signal) =>
+              tauriChannels.disconnect(id, signal),
+            ),
+          failure: {
+            title: t("writeFailed.disconnectChannel.title"),
+            description: t("writeFailed.disconnectChannel.description"),
+          },
+        },
+        (command, err, copy) => {
+          if (silenceChannelCall("disconnect_channel", err)) return;
+          tellOptimisticRefusal(command, err, copy);
+        },
       ),
-    onSuccess: invalidateHere,
-  });
+    [qc, spaceId, t],
+  );
   return { connect, reopen, complete, link, disconnect };
 }

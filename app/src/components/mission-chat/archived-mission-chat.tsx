@@ -40,8 +40,8 @@ export function ArchivedMissionChat({
   // instead of stranding a dead composer over it.
   const { handleDelete } = data;
   const onDelete = useCallback(
-    async (item: KanbanItem) => {
-      await handleDelete(item);
+    (item: KanbanItem) => {
+      handleDelete(item);
       if (item.id === missionId) useUIStore.getState().closeMissionChat();
     },
     [handleDelete, missionId],
