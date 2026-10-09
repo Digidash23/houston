@@ -213,3 +213,19 @@ test("a rejected window reopening within the hour is waited out like a 429", () 
     ),
   ).toMatchObject({ kind: "rate_limited", retry_after_seconds: 60 });
 });
+
+test("a rejected window carried past by overage leaves a 429 a plain rate limit", () => {
+  const weekAway = Date.parse(RESET) / 1000;
+  for (const overage of [
+    { isUsingOverage: true },
+    { overageStatus: "allowed" },
+  ])
+    expect(
+      classifyClaudeRateLimit(
+        "429 Too Many Requests",
+        "m",
+        { rateLimit: { status: "rejected", resetsAt: weekAway, ...overage } },
+        NOW,
+      ),
+    ).toMatchObject({ kind: "rate_limited", retry_after_seconds: null });
+});

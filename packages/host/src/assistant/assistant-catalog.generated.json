@@ -16756,6 +16756,17 @@
           "id": {
             "type": "string"
           },
+          "manual": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "const": true,
+                "type": "boolean"
+              }
+            ]
+          },
           "paused_until": {
             "anyOf": [
               {
@@ -17965,6 +17976,17 @@
             },
             "id": {
               "type": "string"
+            },
+            "manual": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "const": true,
+                  "type": "boolean"
+                }
+              ]
             },
             "paused_until": {
               "anyOf": [

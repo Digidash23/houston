@@ -216,3 +216,60 @@ test("a trigger routine, or one edited after its run started, is never snoozed",
     (await loadRoutines(edited.vfs, edited.root)).items[0]?.snoozed,
   ).toBeUndefined();
 });
+
+test("a Run now row neither snoozes nor lifts: it ran as whoever pressed it", async () => {
+  const limitedEnv = await setup(routine());
+  const manualRun = { ...limitedEnv.run, manual: true as const };
+  await saveRoutineRuns(limitedEnv.vfs, limitedEnv.root, [manualRun]);
+  await failWith(limitedEnv, limited);
+  const { items: runs } = await loadRoutineRuns(
+    limitedEnv.vfs,
+    limitedEnv.root,
+  );
+  expect(runs[0]).toMatchObject({
+    manual: true,
+    failure: { code: "usage_limit" },
+  });
+  expect(
+    (await loadRoutines(limitedEnv.vfs, limitedEnv.root)).items[0]?.snoozed,
+  ).toBeUndefined();
+
+  const held = {
+    reason: "usage_limit" as const,
+    provider: "anthropic",
+    model: null,
+    until: RESET,
+    at: EDITED.toISOString(),
+  };
+  const answered = await setup(routine({ snoozed: held }));
+  await saveRoutineRuns(answered.vfs, answered.root, [
+    { ...answered.run, manual: true },
+  ]);
+  await answered.vfs.writeText(
+    conversationKey(
+      prefixFor(answered.ws, answered.agent),
+      answered.run.session_key,
+    ),
+    JSON.stringify({
+      messages: [
+        { role: "user", content: "go", ts: STARTED.getTime() + 1 },
+        { role: "assistant", content: "Posted.", ts: STARTED.getTime() + 2 },
+      ],
+    }),
+  );
+  await reconcileAgentRuns(
+    {
+      vfs: answered.vfs,
+      paths: new CloudPaths(),
+      lock: new MemoryTurnBus(),
+      events: answered.events,
+      now: () => NOW,
+      newId: () => "act-1",
+    },
+    answered.ws,
+    answered.agent,
+  );
+  expect(
+    (await loadRoutines(answered.vfs, answered.root)).items[0]?.snoozed,
+  ).toEqual(held);
+});

@@ -8,6 +8,7 @@ import { isAssistantMessageStart } from "./sdk-message-shapes";
 import { createContentBlockTracker } from "./translate-blocks";
 import type { EventLike } from "./translate-support";
 import { createUsageTracker } from "./translate-usage";
+import { isRejectedWindow } from "./usage-limit";
 
 // Re-exported for tests that assert the pi-parity usage math directly.
 export { normalizeUsage } from "./translate-support";
@@ -135,10 +136,11 @@ export function createStreamTranslator(cb: TranslatorCallbacks) {
     // Only a REJECTED window says when requests resume. An allowed or
     // allowed_warning event's resetsAt is merely when the 5-hour or weekly
     // window rolls over, days away for a weekly one: taken as a retry wait, it
-    // would turn an ordinary 429 into a multi-day usage limit.
+    // would turn an ordinary 429 into a multi-day usage limit. A rejection
+    // that overage carries past blocks nothing either (isRejectedWindow).
     lastRateLimitRetry = null;
     const resetsAt = info?.resetsAt;
-    if (info?.status !== "rejected" || typeof resetsAt !== "number") return;
+    if (!isRejectedWindow(info) || typeof resetsAt !== "number") return;
     // resetsAt is an epoch; values below 1e12 are seconds, above are milliseconds.
     const resetMs = resetsAt < 1e12 ? resetsAt * 1000 : resetsAt;
     lastRateLimitRetry = Math.max(0, Math.ceil((resetMs - Date.now()) / 1000));

@@ -785,3 +785,39 @@ test("a rejected rate_limit_event makes the later rate_limit a usage limit with 
     },
   ]);
 });
+
+test("a rejected event while overage is in use gives a later 429 no wait", () => {
+  const event = {
+    type: "rate_limit_event",
+    rate_limit_info: {
+      status: "rejected",
+      rateLimitType: "seven_day",
+      resetsAt: Date.now() / 1000 + 4 * 86_400,
+      isUsingOverage: true,
+      overageStatus: "allowed",
+    },
+  } as unknown as SDKMessage;
+  const err = {
+    type: "assistant",
+    error: "rate_limit",
+    message: {
+      role: "assistant",
+      model: "m",
+      content: [{ type: "text", text: "429 Too Many Requests" }],
+    },
+    parent_tool_use_id: null,
+  } as unknown as SDKMessage;
+  const { events } = collect([event, err]);
+  expect(events).toEqual([
+    {
+      type: "provider_error",
+      data: {
+        kind: "rate_limited",
+        provider: "anthropic",
+        model: "m",
+        retry_after_seconds: null,
+        message: "429 Too Many Requests",
+      },
+    },
+  ]);
+});

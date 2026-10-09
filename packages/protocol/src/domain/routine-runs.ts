@@ -61,6 +61,12 @@ export interface RoutineRun {
    * knows why the run took longer than the routine usually does.
    */
   resumed?: true;
+  /**
+   * Started by hand ("Run now"), as whoever pressed it, not by the schedule
+   * as the routine's creator. Absent on scheduled runs and on rows written
+   * before the field existed.
+   */
+  manual?: true;
 }
 
 export interface RoutineRunUpdate {

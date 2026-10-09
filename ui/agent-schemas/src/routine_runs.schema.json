@@ -80,6 +80,11 @@
       "resumed": {
         "type": "boolean",
         "const": true
+      },
+      "manual": {
+        "description": "Started by hand (Run now), as whoever pressed it, not by the schedule.",
+        "type": "boolean",
+        "const": true
       }
     },
     "additionalProperties": false

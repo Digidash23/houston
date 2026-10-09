@@ -28,6 +28,9 @@ export const USAGE_LIMIT_MIN_RETRY_SECONDS = 60 * 60;
 /** The `rate_limit_event` fields the classification reads (SDKRateLimitInfo). */
 export interface ClaudeRateLimitInfo {
   status?: string;
+  /** The account is spending overage credit past the window. */
+  isUsingOverage?: boolean;
+  overageStatus?: string;
   /** Epoch of the window's reset: seconds, or milliseconds above 1e12. */
   resetsAt?: number | null;
 }
@@ -64,7 +67,7 @@ export function classifyClaudeRateLimit(
 ): ProviderError {
   // Only a rejected event's reset is the instant requests resume; an allowed
   // event's resetsAt is just when its window rolls over (translate.ts).
-  const rejected = ctx.rateLimit?.status === "rejected";
+  const rejected = isRejectedWindow(ctx.rateLimit);
   const eventReset = rejected ? resetFromEvent(ctx.rateLimit) : null;
   const fromText = usageLimitFromText(message, model, nowMs);
   if (fromText)
@@ -118,4 +121,16 @@ function resetFromEvent(info: ClaudeRateLimitInfo | null | undefined) {
   const at = info?.resetsAt;
   if (typeof at !== "number" || !Number.isFinite(at)) return null;
   return new Date(at < 1e12 ? at * 1000 : at).toISOString();
+}
+
+/**
+ * Whether `info` is a used-up window requests wait on: rejected, and not
+ * carried past by overage. While overage is in use (or allowed) the window's
+ * rejection blocks nothing, so a 429 in that turn is an ordinary rate limit.
+ */
+export function isRejectedWindow(
+  info: ClaudeRateLimitInfo | null | undefined,
+): boolean {
+  if (info?.status !== "rejected") return false;
+  return info.isUsingOverage !== true && info.overageStatus !== "allowed";
 }

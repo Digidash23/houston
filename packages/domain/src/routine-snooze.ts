@@ -4,6 +4,9 @@ import type {
   RoutineRunFailure,
   RoutineSnooze,
 } from "@houston/protocol";
+import { canonicalModelId, canonicalProviderId } from "./provider-model";
+import { isProviderId } from "./provider-model-catalog";
+import { routinePin } from "./routine-pin";
 
 /**
  * Snooze: the engine's hold on a routine whose run hit a plan usage limit
@@ -91,12 +94,9 @@ export function snoozeAfterRun(
   const failure = run.failure;
   if (failure?.code !== "usage_limit") return null;
   if (!routine.schedule || !routine.enabled) return null;
-  if (actingSub !== undefined && (routine.created_by ?? null) !== actingSub)
-    return null;
+  if (!ranAsCreator(routine, run, actingSub)) return null;
   if (Date.parse(routine.updated_at) > Date.parse(run.started_at)) return null;
-  if (routine.provider && routine.provider !== failure.provider) return null;
-  if (routine.model && failure.model && routine.model !== failure.model)
-    return null;
+  if (!pinStillLimited(routine, failure)) return null;
   const snooze = routineSnooze(failure, nowIso);
   if (!snooze || (routine.snoozed && routine.snoozed.until >= snooze.until))
     return null;
@@ -115,10 +115,43 @@ export function unsnoozeAfterRun(
 ): Routine | null {
   if (!routine.snoozed) return null;
   if (run.status !== "silent" && run.status !== "surfaced") return null;
-  if (actingSub !== undefined && (routine.created_by ?? null) !== actingSub)
-    return null;
+  if (!ranAsCreator(routine, run, actingSub)) return null;
   const { snoozed: _lifted, ...rest } = routine;
   return rest;
+}
+
+/**
+ * Whether `run` ran on the creator's own account. With an acting user (the
+ * pooled path) it is compared; without one (the standing host, whose rows do
+ * not record who ran them) only a scheduled fire is known to run as the
+ * creator: a "Run now" ran as whoever pressed it (routes/routine-runs.ts).
+ */
+function ranAsCreator(
+  routine: Routine,
+  run: RoutineRun,
+  actingSub: string | null | undefined,
+): boolean {
+  if (actingSub === undefined) return run.manual !== true;
+  return (routine.created_by ?? null) === actingSub;
+}
+
+/**
+ * Whether the routine still runs on the provider and model the limit names,
+ * read through the same legacy mapping its fires get (routinePin: a Rust-era
+ * "claude" pin is "anthropic", a retired model id maps to its lineup alias).
+ */
+function pinStillLimited(
+  routine: Routine,
+  failure: Extract<RoutineRunFailure, { code: "usage_limit" }>,
+): boolean {
+  const pin = routinePin(routine);
+  const provider = canonicalProviderId(failure.provider) ?? failure.provider;
+  if (pin.provider && pin.provider !== provider) return false;
+  if (!pin.model || !failure.model) return true;
+  const model = isProviderId(provider)
+    ? (canonicalModelId(provider, failure.model) ?? failure.model)
+    : failure.model;
+  return pin.model === model;
 }
 
 /** The log line's tail for a snooze: "<reason> (<provider> <model>) until <iso>". */

@@ -136,3 +136,36 @@ test("a run that answered on the creator's account lifts the snooze", () => {
     unsnoozeAfterRun(routine(), run({ status: "silent", failure: undefined })),
   ).toBeNull();
 });
+
+test("a legacy pin is read through the same mapping its fires get", () => {
+  const fable = run({ failure: { ...LIMIT, model: "claude-fable-5-1" } });
+  // A Rust-era "claude" pin with a bare "fable" alias runs anthropic's Fable.
+  expect(
+    snoozeAfterRun(
+      routine({ provider: "claude", model: "fable" }),
+      fable,
+      NOW,
+      "felipe",
+    ),
+  ).not.toBeNull();
+  // The same legacy pin on another model is no longer behind the limit.
+  expect(
+    snoozeAfterRun(
+      routine({ provider: "claude", model: "sonnet" }),
+      fable,
+      NOW,
+      "felipe",
+    ),
+  ).toBeNull();
+});
+
+test("without an acting user, only a scheduled row counts as the creator's", () => {
+  // The standing host: a "Run now" row ran as whoever pressed it.
+  expect(snoozeAfterRun(routine(), run({ manual: true }), NOW)).toBeNull();
+  const snooze = routineSnooze(LIMIT, NOW);
+  if (!snooze) throw new Error("expected a snooze");
+  const held = snoozeRoutine(routine(), snooze);
+  const answered = run({ status: "silent", failure: undefined });
+  expect(unsnoozeAfterRun(held, { ...answered, manual: true })).toBeNull();
+  expect(unsnoozeAfterRun(held, answered)).not.toBeNull();
+});

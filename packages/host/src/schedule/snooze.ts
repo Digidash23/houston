@@ -27,8 +27,10 @@ interface SettleDeps {
  * and every other typed wall feeds the auto-pause streak
  * (`pauseFailingRoutines`). Both write the routines doc, so the snooze lands
  * first and the pause reads what it wrote. Callers must not hold the runs
- * queue (the pause takes it). A standing host always runs a routine as its
- * creator (schedule/run.ts), so no acting user is compared here.
+ * queue (the pause takes it). A host run row names no acting user: a
+ * scheduled fire runs as the creator, but a "Run now" runs as whoever
+ * pressed it (routes/routine-runs.ts), so a manual row neither snoozes nor
+ * lifts (domain snoozeAfterRun / unsnoozeAfterRun).
  */
 export async function settleRoutineRuns(
   deps: SettleDeps,

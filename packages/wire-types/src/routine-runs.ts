@@ -31,6 +31,8 @@ export interface RoutineRun {
   delivery_failure?: RoutineDeliveryFailure;
   /** The engine restarted and is repeating this run. */
   resumed?: true;
+  /** Started by hand ("Run now"), not by the schedule. */
+  manual?: true;
 }
 
 export interface RoutineRunUpdate {
