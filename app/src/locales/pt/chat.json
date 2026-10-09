@@ -302,6 +302,11 @@
   "sendBusy": "O agente ainda está ocupado com outra mensagem. Envie a sua de novo daqui a pouco.",
   "computeBusy": "Está movimentado demais para começar sua mensagem agora. Envie de novo daqui a alguns minutos.",
   "sendWaitingBusy": "Está tudo muito movimentado agora. Ainda estamos tentando enviar sua mensagem.",
+  "agentSetup": {
+    "tooLarge": "Este agente tem coisas demais salvas para iniciar agora, então esta mensagem não foi enviada. Já fomos avisados e estamos resolvendo.",
+    "failed": "Seu agente não conseguiu se preparar para esta mensagem. Envie de novo daqui a pouco.",
+    "unconfirmed": "Não conseguimos confirmar que seu agente recebeu esta mensagem. Confira de novo em alguns minutos e, se ainda não houver resposta, envie de novo."
+  },
   "engineRestart": {
     "sayContinue": "Seu agente precisou reiniciar. Diga para continuar e ele retomará de onde parou.",
     "resuming": "Seu agente foi interrompido por uma reinicialização e está retomando de onde parou."
