@@ -55,7 +55,10 @@ export type SystemNoticeKind =
   | "engine_restart"
   | "engine_resumed"
   | "send_busy"
-  | "compute_busy";
+  | "compute_busy"
+  | "agent_too_large"
+  | "agent_setup_failed"
+  | "turn_unconfirmed";
 
 /**
  * A row the host draws itself, placed in the log like any message. `kind`
