@@ -6,6 +6,7 @@ import type {
 } from "./tool-selection-types";
 import { ASK_USER_TOOL_NAME } from "./tools/ask-user";
 import { ASSISTANT_TOOL_NAMES } from "./tools/assistant";
+import { BROWSER_TOOL_NAME } from "./tools/browser/name";
 import { CLAMPED_FILE_TOOL_NAMES } from "./tools/clamped-fs";
 import { CUSTOM_INTEGRATION_TOOL_NAMES } from "./tools/custom-integrations";
 import {
@@ -123,6 +124,11 @@ export function buildToolSelection(input: ToolSelectionInput): ToolSelection {
       ? [REQUEST_CONNECTION_TOOL_NAME, REQUEST_CREDENTIAL_TOOL_NAME]
       : []),
     ...executable,
+    // browser acts on the open web (signs in, submits forms), so it shares
+    // bash's reach: execute and auto, never plan (PLAN_MODE_TOOL_NAMES omits
+    // it), and never the coordinator (COORDINATOR_TOOL_NAMES omits it). It
+    // needs no grant: a missing browser is a named refusal at call time.
+    BROWSER_TOOL_NAME,
     ...(input.integrations
       ? [...INTEGRATION_TOOL_NAMES, ...CUSTOM_INTEGRATION_TOOL_NAMES]
       : []),

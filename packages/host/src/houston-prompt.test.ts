@@ -352,6 +352,23 @@ test("every agent learns the AI Manager is Houston, in BOTH mirrors", () => {
     );
 });
 
+test("websites that need signing in go through the browser tool, in BOTH mirrors", () => {
+  const rust = readFileSync(
+    fileURLToPath(
+      new URL(
+        "../../../app/src-tauri/src/houston_prompt/base.rs",
+        import.meta.url,
+      ),
+    ),
+    "utf8",
+  );
+  const paragraph = norm(
+    "When you have the `browser` tool, use it for websites that need signing in or clicking through pages; keep using the shell for plain downloads and page fetches. If a site asks for a password the user has not given you, tell them they need to sign in themselves. Never ask for a password in the chat.",
+  );
+  expect(norm(houstonSystemPrompt())).toContain(paragraph);
+  expect(norm(rust)).toContain(paragraph);
+});
+
 test("a turn that needs tools opens with one plain sentence, in BOTH mirrors (PRODUCT-1979)", () => {
   // At least 60% of turns ran tools before any text, and the user saw nothing
   // for about 22 s against about 8 s for turns that answered straight away.

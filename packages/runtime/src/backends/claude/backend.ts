@@ -77,8 +77,7 @@ export function createClaudeBackend(deps: ClaudeBackendDeps): HarnessBackend {
           deps.sdk ??
           (await loadedClaudeSdk(deps.sdkLoad ?? preloadClaudeSdk()));
         query = sdk.query as ClaudeQuery;
-        // Build the in-process MCP server that exposes Houston's custom tools to
-        // the subprocess. Built here (not at module load) so the optional SDK's
+        // Built here, not at module load, so the optional SDK's
         // `createSdkMcpServer` is only touched once the SDK is confirmed present.
         houstonMcp = buildHoustonMcpServer({
           createSdkMcpServer: sdk.createSdkMcpServer,
@@ -86,6 +85,7 @@ export function createClaudeBackend(deps: ClaudeBackendDeps): HarnessBackend {
           assistant: deps.assistant,
           personalAssistant: deps.personalAssistant,
           tools: deps.tools,
+          browser: deps.browser,
           // The mode does the tool filtering (via `toolNamesForMode`), mirroring
           // the pi path: plan withholds the acting integration tools and keeps
           // only `ask_user`; auto is the inverse — it drops the blocking tools

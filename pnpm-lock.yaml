@@ -600,6 +600,9 @@ importers:
       '@houston/wire-types':
         specifier: workspace:*
         version: link:../wire-types
+      playwright-core:
+        specifier: 1.64.0
+        version: 1.64.0
       tsx:
         specifier: 4.23.0
         version: 4.23.0
@@ -6934,6 +6937,11 @@ packages:
   playwright-core@1.61.1:
     resolution: {integrity: sha512-h7Qlt6m4REp25qvIdvbDtVmD4LqVXfpRxhORv9L0jzETM05p4fuPJ3dKyuSXQxDSbXnmS79HAgi9589lGSpLkg==}
     engines: {node: '>=18'}
+    hasBin: true
+
+  playwright-core@1.64.0:
+    resolution: {integrity: sha512-T9r+MZkTECl2+oUcZ26YgZzTrYidTsIhYYkJix+6iDOymOb1FB2RLLSOxRGnZGv5DStt+aduIVbt+E8WygXYpg==}
+    engines: {node: '>=20'}
     hasBin: true
 
   playwright@1.61.1:
@@ -14483,6 +14491,8 @@ snapshots:
   pkce-challenge@5.0.1: {}
 
   playwright-core@1.61.1: {}
+
+  playwright-core@1.64.0: {}
 
   playwright@1.61.1:
     dependencies:

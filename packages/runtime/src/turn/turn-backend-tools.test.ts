@@ -145,3 +145,24 @@ test("a coordinator turn tells BOTH branches its role", async () => {
   expect(piRole.mock.calls[1]?.[0]).toBeNull();
   expect(claudeRole.mock.calls[1]).toEqual([null, false]);
 });
+
+test("a selected browser reaches BOTH branches; an unselected one neither", async () => {
+  const { createTurnBackend } = await import("./turn-backend");
+  piTools.mockClear();
+  claudeTools.mockClear();
+  const browsing = deps();
+  browsing.toolSelection = {
+    toolNames: ["run_code", "browser"],
+    includeRunCode: true,
+  };
+  createTurnBackend("openai-codex", browsing);
+  createTurnBackend("anthropic", browsing);
+  expect(piTools.mock.calls[0]?.[0]).toContain("browser");
+  expect(claudeTools.mock.calls[0]?.[0]).toContain("browser");
+  // A coordinator's selection never names it (tool-selection.test.ts), so no
+  // object is built for either branch.
+  createTurnBackend("openai-codex", deps());
+  createTurnBackend("anthropic", deps());
+  expect(piTools.mock.calls[1]?.[0]).not.toContain("browser");
+  expect(claudeTools.mock.calls[1]?.[0]).not.toContain("browser");
+});

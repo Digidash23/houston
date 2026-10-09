@@ -1,10 +1,14 @@
 import type { PiBackendDeps } from "../backends/pi/backend";
+import { config } from "../config";
 import {
   buildToolSelection,
   type CodeExecutionMode,
   type ToolSelection,
 } from "../session/tool-selection";
 import { makeAskUserTool } from "../session/tools/ask-user";
+import { BROWSER_TOOL_NAME } from "../session/tools/browser/name";
+import { makeBrowserTool } from "../session/tools/browser/tool";
+import { loopbackOrigins } from "../session/tools/browser/url-policy";
 import { credentialTools } from "../session/tools/credential-tools";
 import { makeIntegrationTools } from "../session/tools/integrations";
 import { makePlanReadyTool } from "../session/tools/plan-ready";
@@ -127,5 +131,23 @@ export function buildTurnCommonTools(
     ...(codeSandbox ? [codeSandbox] : []),
     ...buildTurnHostTools(turn),
     ...buildTurnCoordinatorTools(turn, dataDir),
+  ];
+}
+
+/**
+ * The `browser` tool for this turn's workspace, when the selection admits it
+ * (never a coordinator). Built per turn because the workspace is; the browser
+ * process itself is shared across turns.
+ */
+export function buildTurnBrowserTool(
+  selection: ToolSelection,
+  workspaceDir: string,
+): PiBackendDeps["customTools"] {
+  if (!selection.toolNames.includes(BROWSER_TOOL_NAME)) return [];
+  return [
+    makeBrowserTool({
+      workspaceDir,
+      blockedOrigins: loopbackOrigins(config.port),
+    }),
   ];
 }

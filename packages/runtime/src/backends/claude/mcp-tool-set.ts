@@ -10,6 +10,10 @@ import {
   type AssistantToolOptions,
   makeAssistantTools,
 } from "../../session/tools/assistant";
+import {
+  type BrowserToolOptions,
+  makeBrowserTool,
+} from "../../session/tools/browser/tool";
 import { credentialTools } from "../../session/tools/credential-tools";
 import {
   type IntegrationToolOptions,
@@ -51,6 +55,8 @@ export interface BridgedToolSetInput {
    * drift on what the assistant may do.
    */
   personalAssistant?: boolean;
+  /** The workspace the `browser` tool keeps sign-ins for; absent → no browser. */
+  browser?: BrowserToolOptions;
   /** An already grant-scoped tool set for a disposable turn runtime. */
   tools?: BridgedPiTool[];
   /**
@@ -150,6 +156,9 @@ export function buildBridgedToolSet(
           ]
         : []),
       ...integrationTools(input),
+      // Same reach as bash on the pi path: execute/auto, never plan, never the
+      // coordinator (both clamps below drop it by name).
+      ...(input.browser ? [makeBrowserTool(input.browser)] : []),
       ...credentialTools({
         personalAssistant: input.personalAssistant ?? false,
         ...(input.assistant ? { assistant: input.assistant } : {}),
