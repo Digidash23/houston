@@ -52,6 +52,8 @@ const TOOL_ICONS: Record<string, LucideIcon> = {
   find: FolderSearchIcon,
   ls: FolderIcon,
   run_code: TerminalIcon,
+  // The runtime's own web browser (open, click, fill on real pages).
+  browser: GlobeIcon,
   // Mission-board tools (PRODUCT-1244): the rocket marks a mission launch,
   // the board glyph the check/review/move actions.
   start_mission: RocketIcon,
@@ -122,6 +124,12 @@ export function getToolDetail(name: string, input: unknown): string | null {
       return (inp.query as string | undefined) ?? null;
     case "WebFetch":
       return shortUrl(inp.url as string | undefined);
+    // Only `open` names a page; clicks and fills carry element refs, which
+    // mean nothing to a person reading the log.
+    case "browser":
+      return inp.action === "open"
+        ? shortUrl(inp.url as string | undefined)
+        : null;
     default:
       return null;
   }
