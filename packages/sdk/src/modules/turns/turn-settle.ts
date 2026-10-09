@@ -6,6 +6,7 @@ import type {
 import type { MessageLimitRefusal } from "@houston/wire-types";
 import type { FeedOutput, TerminalBoardStatus } from "./feed-output";
 import type { FirstResponseClock } from "./first-response";
+import { settleCard, type TurnReplyState } from "./reply-phase";
 import type { EngineNoticeKind } from "./turn-errors";
 import { isNotConnectedError, isStoppedByUser } from "./turn-errors";
 
@@ -15,7 +16,7 @@ import { isNotConnectedError, isStoppedByUser } from "./turn-errors";
  */
 
 /** One streamed turn's accumulation + settle state (owned by TurnSink). */
-export interface TurnState {
+export interface TurnState extends TurnReplyState {
   agentPath: string;
   sessionKey: string;
   /** Where every FeedItem / SessionStatus for this turn is emitted. */
@@ -89,6 +90,7 @@ export function newTurnState(
     provider?: string;
     prompt?: string;
     firstResponse?: FirstResponseClock;
+    board?: TurnReplyState["board"];
   },
 ): TurnState {
   return {
@@ -108,6 +110,8 @@ export function newTurnState(
     pendingInteraction: null,
     delivered: false,
     firstResponse: send?.firstResponse,
+    replyComplete: false,
+    board: send?.board,
   };
 }
 
@@ -153,8 +157,8 @@ export function finishOk(s: TurnState): void {
     data: { result: s.text, cost_usd: null, duration_ms: null, usage: s.usage },
   });
   s.firstResponse?.resolve("no_text", s.turnId);
+  settleCard(s, "needs_you");
   s.output.sessionStatus(s.agentPath, s.sessionKey, "completed");
-  s.terminal = "needs_you";
 }
 
 /**
@@ -216,12 +220,12 @@ export function finishErr(
   );
   if (isStoppedByUser(msg)) {
     invisibleFinal(s);
+    settleCard(s, "needs_you");
     s.output.sessionStatus(s.agentPath, s.sessionKey, "error");
-    s.terminal = "needs_you";
     return;
   }
+  settleCard(s, "error");
   s.output.sessionStatus(s.agentPath, s.sessionKey, "error", msg);
-  s.terminal = "error";
 }
 
 /** A gateway plan refusal is a handled, typed card; the send never reached the engine. */
@@ -271,6 +275,6 @@ export function settleProviderErrorCard(
   s.settled = true;
   s.firstResponse?.resolve("error", s.turnId);
   invisibleFinal(s);
+  settleCard(s, "needs_you");
   s.output.sessionStatus(s.agentPath, s.sessionKey, "error");
-  s.terminal = "needs_you";
 }

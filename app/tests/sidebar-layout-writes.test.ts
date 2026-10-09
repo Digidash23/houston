@@ -40,7 +40,7 @@ const report = (command: string) => {
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 /** A server holding one document, whose PUTs complete only when released. */
-function harness(initial: SidebarLayout) {
+function harness(initial: SidebarLayout, rolledBack?: (err: unknown) => void) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   let stored = initial;
   let reads = 0;
@@ -68,6 +68,7 @@ function harness(initial: SidebarLayout) {
       stored = layout;
     },
     report,
+    rolledBack,
   );
   const move = (next: SidebarLayout) => {
     const write = applySidebarLayoutOp(qc, WS, () => next, report);
@@ -183,6 +184,41 @@ describe("sidebar layout writes", () => {
     await Promise.all([first, second]);
     await flush();
     assert.equal(ids(h.qc.getQueryData(key)), "a,b", "server truth after all");
+    h.stop();
+  });
+
+  it("tells the person once, only when their arrangement is undone", async () => {
+    const told: unknown[] = [];
+    const h = harness(agents("a", "b"), (err) => told.push(err));
+    await flush();
+    const first = h.move(agents("b", "a"));
+    const second = h.move(agents("a", "b", "x"));
+    await flush();
+    h.puts[0].done.reject(new Error("first"));
+    await flush();
+    assert.equal(told.length, 0, "a later write still carries the change");
+    const last = new Error("last");
+    h.puts[1].done.reject(last);
+    await Promise.all([first, second]);
+    assert.deepEqual(told, [last]);
+    await flush();
+    h.stop();
+  });
+
+  it("says nothing when a later write lands what an earlier one failed", async () => {
+    const told: unknown[] = [];
+    const h = harness(agents("a", "b"), (err) => told.push(err));
+    await flush();
+    const first = h.move(agents("b", "a"));
+    const second = h.move(agents("b", "a", "x"));
+    await flush();
+    h.puts[0].done.reject(new Error("first"));
+    await flush();
+    h.puts[1].done.resolve(undefined);
+    await Promise.all([first, second]);
+    await flush();
+    assert.equal(told.length, 0);
+    assert.equal(ids(h.qc.getQueryData(key)), "b,a,x");
     h.stop();
   });
 

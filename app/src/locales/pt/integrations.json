@@ -117,8 +117,7 @@
       "description": "Altere como esta integração aparece. Sua conexão continua igual.",
       "website": "Site (opcional)",
       "websiteHelp": "Use o site do app, começando com https://. Esse endereço é usado para o ícone.",
-      "save": "Salvar alterações",
-      "saving": "Salvando..."
+      "save": "Salvar alterações"
     },
     "description": "Conecte uma API ou servidor MCP que não está no catálogo de aplicativos.",
     "empty": "Você ainda não tem integrações personalizadas. Adicione uma para conectar uma ferramenta que não está no catálogo.",
@@ -257,6 +256,20 @@
       "newTo": "Novo no {{name}}? Crie sua conta primeiro e depois volte aqui para conectar.",
       "createAccount": "Criar uma conta do {{name}}",
       "headerRequired": "Informe o ID da subconta para continuar."
+    }
+  },
+  "writeFailed": {
+    "disconnect": {
+      "title": "Não foi possível desconectar o app",
+      "description": "Ele continua conectado. Tente de novo em instantes."
+    },
+    "removeCustom": {
+      "title": "Não foi possível remover a integração",
+      "description": "Ela continua na sua lista. Tente de novo em instantes."
+    },
+    "editCustom": {
+      "title": "Não foi possível salvar suas alterações",
+      "description": "O nome e o site voltaram a ser como eram. Tente de novo em instantes."
     }
   }
 }

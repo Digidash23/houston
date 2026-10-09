@@ -64,15 +64,15 @@ export function AgentSettingsManage({ agent }: { agent: Agent }) {
   const apiFor = useAgentSettingsNav((s) => s.apiAccessFor);
   const setApiFor = useAgentSettingsNav((s) => s.setApiAccessFor);
 
-  // Both writes reject AFTER `call()` has toasted the failure and reported it
-  // to Sentry, so there is exactly one user-visible surface already. Awaiting
-  // them here is what stops that rejection from escaping the handler unhandled;
-  // the catch adds no second surface and hides nothing.
+  // Both writes are optimistic and reject only AFTER `useAgentActions` rolled
+  // the row back and told the person, so there is exactly one surface already.
+  // Awaiting them here is what stops that rejection from escaping the handler
+  // unhandled; the catch adds no second surface and hides nothing.
   const saveIdentityHandled = async (patch: AgentIdentityPatch) => {
     try {
       await saveIdentity(patch);
     } catch {
-      // Already toasted + reported by `call()`.
+      // Already rolled back and told by `useAgentActions`.
     }
   };
   const deleteAgentHandled = async () => {
@@ -80,7 +80,7 @@ export function AgentSettingsManage({ agent }: { agent: Agent }) {
     try {
       await actions.remove(agent.id);
     } catch {
-      // Already toasted + reported by `call()`.
+      // Already rolled back and told by `useAgentActions`.
     }
   };
 

@@ -32,11 +32,31 @@ function remapItem(item: { feed_type: string; data: unknown }): FeedItem {
   return item as FeedItem;
 }
 
+/**
+ * A conversation's status as the loading rollups read it: the VM's session
+ * status, except a running turn whose reply already completed reads
+ * `wrapping_up` (`ConversationVM.replyComplete`) — the turn is still live, but
+ * its Stop ends with the card's hand-back.
+ */
+export type ConversationTurnStatus =
+  | ConversationVM["sessionStatus"]
+  | "wrapping_up";
+
+function turnStatusOf(
+  vm: ConversationVM | undefined,
+): ConversationTurnStatus | undefined {
+  if (vm?.sessionStatus === "running" && vm.replyComplete) return "wrapping_up";
+  return vm?.sessionStatus;
+}
+
 /** The remapped view a component consumes. `feed` is referentially stable per published snapshot. */
 export interface ConversationView {
   feed: FeedItem[];
   running: boolean;
   sessionStatus: ConversationVM["sessionStatus"];
+  /** `sessionStatus`, or `wrapping_up` once a running turn's reply completed
+   *  (see {@link ConversationTurnStatus}): what the loading rollups read. */
+  turnStatus: ConversationTurnStatus;
   boardStatus: ConversationVM["boardStatus"];
   queued: ConversationVM["queued"];
   /** What this conversation ended waiting on the user for (ask_user /
@@ -59,6 +79,7 @@ function toView(vm: ConversationVM): ConversationView {
     feed: vm.feed.map(remapItem),
     running: vm.running,
     sessionStatus: vm.sessionStatus,
+    turnStatus: turnStatusOf(vm) ?? vm.sessionStatus,
     boardStatus: vm.boardStatus,
     queued: vm.queued,
     pendingInteraction: vm.pendingInteraction,
@@ -96,13 +117,12 @@ export function useConversationVm(
 export function useConversationStatus(
   agentPath: string | null | undefined,
   sessionKey: string | null | undefined,
-): ConversationVM["sessionStatus"] | undefined {
+): ConversationTurnStatus | undefined {
   const scope =
     agentPath && sessionKey
       ? conversationScope(agentPath, sessionKey)
       : "conversation/none";
-  return useSdkSnapshot<ConversationVM>(conversationStore, scope)
-    ?.sessionStatus;
+  return turnStatusOf(useSdkSnapshot<ConversationVM>(conversationStore, scope));
 }
 
 /** The conversation's feed (remapped), or [] before anything published. */
@@ -128,18 +148,20 @@ export function getConversationFeed(
 }
 
 /**
- * Synchronous, non-reactive read of a conversation's status — for cross-agent
- * scans (the board's loading rollup) where per-session subscriptions don't
- * fit. `undefined` = nothing published for this conversation yet.
+ * Synchronous, non-reactive read of a conversation's status (see
+ * {@link ConversationTurnStatus}) — for cross-agent scans (the board's loading
+ * rollup) where per-session subscriptions don't fit. `undefined` = nothing
+ * published for this conversation yet.
  */
 export function getConversationStatus(
   agentPath: string,
   sessionKey: string,
-): ConversationVM["sessionStatus"] | undefined {
-  const vm = conversationStore.getSnapshot(
-    conversationScope(agentPath, sessionKey),
-  ) as ConversationVM | undefined;
-  return vm?.sessionStatus;
+): ConversationTurnStatus | undefined {
+  return turnStatusOf(
+    conversationStore.getSnapshot(conversationScope(agentPath, sessionKey)) as
+      | ConversationVM
+      | undefined,
+  );
 }
 
 /**

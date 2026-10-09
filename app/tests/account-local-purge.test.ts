@@ -41,6 +41,7 @@ test("purgeAccountLocalState removes account traces, keeps device keys", () => {
     ["houston.web.agents", "[]"],
     ["houston.web.agentfile:ws/agent", "data"],
     ["houston.pendingAgentMoves", '[{"agentId":"a1"}]'],
+    ["houston.cloudMigration.outcome", "done"],
     // Not ours — never touched.
     ["other-app.key", "keep"],
   ]);
@@ -48,6 +49,7 @@ test("purgeAccountLocalState removes account traces, keeps device keys", () => {
   purgeAccountLocalState(keyedStorage(store));
 
   assert.deepStrictEqual([...store.keys()].sort(), [
+    "houston.cloudMigration.outcome",
     "houston.pendingAgentMoves",
     "houston.web.agentfile:ws/agent",
     "houston.web.agents",

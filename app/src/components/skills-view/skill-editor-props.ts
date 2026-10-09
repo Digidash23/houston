@@ -27,6 +27,12 @@ export interface SharedDialogActions {
    *  with it. */
   onDisableForAgent: (row: SharedSkillRow, agent: Agent) => Promise<void>;
   onEnableAll: (row: SharedSkillRow) => Promise<void>;
+  /** ONE agent starts loading a workspace skill ("Add an existing skill"). */
+  onAddToAgent: (
+    row: SharedSkillRow,
+    agent: Agent,
+    notice: string,
+  ) => Promise<void>;
   /** Move a per-agent (local) row into the store — "Share to workspace". */
   onPromote: (row: SharedSkillRow) => Promise<void>;
 }

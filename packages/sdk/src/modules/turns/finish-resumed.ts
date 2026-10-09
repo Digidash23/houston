@@ -1,3 +1,4 @@
+import { setReplyPhase } from "./reply-phase";
 import { invisibleFinal, push, type TurnState } from "./turn-settle";
 
 /**
@@ -11,6 +12,8 @@ import { invisibleFinal, push, type TurnState } from "./turn-settle";
  */
 export function finishResumed(s: TurnState, msg: string): void {
   if (s.settled) return;
+  // An early hand-back is taken back: the card stays running for the resume.
+  if (s.replyComplete) setReplyPhase(s, false);
   s.settled = true;
   if (s.thinking) push(s, { feed_type: "thinking", data: s.thinking });
   if (s.text) push(s, { feed_type: "assistant_text", data: s.text });

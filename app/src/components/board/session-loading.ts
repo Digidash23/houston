@@ -1,4 +1,4 @@
-import type { ConversationVM } from "@houston/sdk";
+import type { ConversationTurnStatus } from "../../hooks/use-conversation-vm";
 
 /**
  * The per-session loading rollup a chat surface renders as its spinner, derived
@@ -10,8 +10,10 @@ import type { ConversationVM } from "@houston/sdk";
  */
 
 /** A conversation's VM status, or `undefined` when nothing was ever published
- *  for it (a chat with no folded turn or history read yet). */
-export type VmSessionStatus = ConversationVM["sessionStatus"] | undefined;
+ *  for it (a chat with no folded turn or history read yet). `wrapping_up` is a
+ *  running turn whose reply completed: it ends the spinner and the Stop, even
+ *  before its card leaves "running". */
+export type VmSessionStatus = ConversationTurnStatus | undefined;
 
 /**
  * The activity rows behind a chat surface, keyed by session key.
@@ -83,7 +85,10 @@ export function deriveSessionLoading({
   }
   if (rows.present) {
     for (const [key, status] of rows.statusBySession) {
-      if (status === "running" || vmStatus(key) === "running") out[key] = true;
+      const vm = vmStatus(key);
+      // The card's write trails the reply's end; the VM already knows.
+      if (vm === "wrapping_up") continue;
+      if (status === "running" || vm === "running") out[key] = true;
     }
   }
   // The open conversation follows its own turn even when this surface never

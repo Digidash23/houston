@@ -13,10 +13,11 @@ import type {
  * employee's Skills section. A store skill's save is one store write; a copy's
  * save rewrites this employee's copy and no one else's. Delete removes this
  * employee's copy, behind a confirm; deleting a skill for EVERY employee is the
- * menu's own act (`use-workspace-skill-acts.tsx`). Failures are already toasted
- * by the `call` wrapper, so the catches here add no second message; they
- * report the rejection so a failed write is never silent to US, and the
- * surface stays open so the user can retry.
+ * menu's own act (`use-workspace-skill-acts.tsx`). A save failure is already
+ * surfaced by the `call` wrapper, and the editor stays open with the typed
+ * work so the user can retry. Delete is optimistic: the skill leaves the list
+ * and the editor at once, and a refusal puts it back with its own toast; the
+ * catch below only meets a throw before the write starts, and reports it.
  *
  * `onSaved` and `onDeleted` are separate because the editor stays on the skill
  * it just saved and only leaves once the skill is gone.

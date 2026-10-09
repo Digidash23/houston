@@ -101,6 +101,14 @@
     "promoted": "La skill ahora se comparte en tu espacio de trabajo",
     "loadFailedTitle": "No pudimos cargar tus skills",
     "loadFailedDescription": "Algo salió mal al leerlas. Inténtalo de nuevo en un momento.",
-    "retry": "Reintentar"
+    "retry": "Reintentar",
+    "failure": {
+      "removeTitle": "No se pudo eliminar la skill",
+      "removeBody": "No se eliminó por completo. Inténtalo de nuevo en un momento.",
+      "updateTitle": "No se pudo actualizar la skill",
+      "updateBody": "Se deshizo tu cambio. Inténtalo de nuevo en un momento.",
+      "addTitle": "No se pudo agregar la skill",
+      "addBody": "No se agregó. Inténtalo de nuevo en un momento."
+    }
   }
 }

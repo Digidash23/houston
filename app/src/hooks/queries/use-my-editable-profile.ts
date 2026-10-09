@@ -4,13 +4,17 @@ import type {
 } from "@houston/engine-adapter";
 import {
   type UseQueryResult,
-  useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useCallback } from "react";
+import { patchEditableProfile } from "../../lib/editable-profile-patch";
 import { isIdentityConfigured } from "../../lib/identity";
+import type { OptimisticFailureCopy } from "../../lib/optimistic-core";
+import { optimisticWrite } from "../../lib/optimistic-write";
 import { queryKeys } from "../../lib/query-keys";
 import { tauriProfile } from "../../lib/tauri";
+import { useUIStore } from "../../stores/ui";
 import { useSession } from "../use-session";
 import { ORG_PEOPLE_KEY } from "./use-org-people";
 import { USER_PROFILES_KEY } from "./use-user-profiles";
@@ -46,34 +50,61 @@ export function useMyEditableProfile(): UseQueryResult<EditableProfile | null> {
   });
 }
 
+/** What a profile save tells the person: on refusal, and once it landed. */
+export interface ProfileSaveCopy {
+  failure: OptimisticFailureCopy;
+  saved: string;
+}
+
 /**
  * Save the user's own name and/or photo. Per key: a string sets, `null` clears
  * back to the Google value, an omitted key leaves that field untouched — so an
  * editor that only changed the name must send only `displayName`.
  *
- * `onSuccess` seeds the returned profile into this hook's cache (the host's
- * truth, not an optimistic guess) and then invalidates every OTHER cache that
- * paints a face or a name, so the change lands everywhere at once instead of
- * only in the settings form:
+ * Optimistic: the Profile screen shows the new name or picture at once
+ * (`patchEditableProfile`) and the save runs behind it. A refusal (the host's
+ * 400 for a too-long name or an oversized picture included) rolls the screen
+ * back and tells the person with `copy.failure`. Once the host answers, its
+ * profile replaces the guess, and every OTHER cache that paints a face or a
+ * name refreshes so the change lands everywhere:
  * - `USER_PROFILES_KEY` by prefix — the caller's own self-face plus every
  *   teammate face stack (each is `[USER_PROFILES_KEY, ...ids]`);
  * - `ORG_PEOPLE_KEY` — the @mention roster the composer and renderer read;
  * - `queryKeys.org()` — the People roster behind the Permissions/Admin views.
  *
- * Carries no `onError`: `tauriProfile.set` routes through `call()`, which
- * already surfaces the failure as a red toast AND reports it to Sentry once
- * (the host's 400 for a too-long name or an oversized picture included).
- * Adding an `onError` here would double-toast.
+ * The returned save never rejects.
  */
-export function useSetMyProfile() {
+export function useSetMyProfile(): (
+  update: EditableProfileUpdate,
+  copy: ProfileSaveCopy,
+) => Promise<void> {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (update: EditableProfileUpdate) => tauriProfile.set(update),
-    onSuccess: (data) => {
-      qc.setQueryData([MY_EDITABLE_PROFILE_KEY], data);
-      qc.invalidateQueries({ queryKey: [USER_PROFILES_KEY] });
-      qc.invalidateQueries({ queryKey: [ORG_PEOPLE_KEY] });
-      qc.invalidateQueries({ queryKey: queryKeys.org() });
-    },
-  });
+  const addToast = useUIStore((s) => s.addToast);
+  return useCallback(
+    (update, copy) =>
+      optimisticWrite({
+        qc,
+        command: "set_my_profile",
+        patches: [
+          {
+            queryKey: [MY_EDITABLE_PROFILE_KEY],
+            apply: (profile: EditableProfile | null | undefined) =>
+              patchEditableProfile(profile, update),
+          },
+        ],
+        write: () => tauriProfile.set(update),
+        failure: copy.failure,
+        invalidate: [
+          [MY_EDITABLE_PROFILE_KEY],
+          [USER_PROFILES_KEY],
+          [ORG_PEOPLE_KEY],
+          queryKeys.org(),
+        ],
+        onSuccess: (data) => {
+          qc.setQueryData([MY_EDITABLE_PROFILE_KEY], data);
+          addToast({ title: copy.saved });
+        },
+      }),
+    [qc, addToast],
+  );
 }

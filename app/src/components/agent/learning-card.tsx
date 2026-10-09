@@ -21,52 +21,56 @@ export function LearningCard({
    * not the editor's to change).
    */
   provenance?: LearningProvenanceView | null;
-  onSave: (text: string) => Promise<unknown> | unknown;
+  /**
+   * Sent without waiting: the editor closes on the commit (the list already
+   * shows the change). A promise resolving `false` means the write was
+   * refused, and the editor reopens holding what the user typed.
+   */
+  onSave: (text: string) => Promise<boolean> | undefined;
   onDelete?: () => void;
   onCancel?: () => void;
   isDraft?: boolean;
 }) {
+  // Only read while editing; entering the editor loads the current text.
   const [value, setValue] = useState(initialText);
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(Boolean(isDraft));
-  const [saving, setSaving] = useState(false);
+  const editingRef = useRef(editing);
+  editingRef.current = editing;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const canExpand = learningNeedsExpansion(initialText);
-
-  useEffect(() => {
-    setValue(initialText);
-  }, [initialText]);
 
   useEffect(() => {
     if (editing) textareaRef.current?.focus();
   }, [editing]);
 
   const startEditing = () => {
+    setValue(initialText);
     setExpanded(true);
     setEditing(true);
   };
 
-  const save = async () => {
+  const save = () => {
     const trimmed = value.trim();
     if (!trimmed) {
       if (isDraft) onCancel?.();
-      else setValue(initialText);
       setEditing(false);
       return;
     }
-    setSaving(true);
-    try {
-      if (trimmed !== initialText) await onSave(trimmed);
-      setEditing(false);
-      setExpanded(false);
-    } finally {
-      setSaving(false);
-    }
+    setEditing(false);
+    setExpanded(false);
+    if (!isDraft && trimmed === initialText) return;
+    void onSave(trimmed)?.then((landed) => {
+      // Already editing again: what they are typing now wins.
+      if (landed || editingRef.current) return;
+      setValue(trimmed);
+      setExpanded(true);
+      setEditing(true);
+    });
   };
 
   const cancel = () => {
     if (isDraft) onCancel?.();
-    setValue(initialText);
     setEditing(false);
   };
 
@@ -75,12 +79,11 @@ export function LearningCard({
       {editing ? (
         <LearningEditor
           value={value}
-          saving={saving}
           isDraft={isDraft}
           textareaRef={textareaRef}
           onCancel={cancel}
           onChange={setValue}
-          onSave={() => void save()}
+          onSave={save}
         />
       ) : (
         <LearningPreview
@@ -99,7 +102,6 @@ export function LearningCard({
 
 function LearningEditor({
   value,
-  saving,
   isDraft,
   textareaRef,
   onChange,
@@ -107,7 +109,6 @@ function LearningEditor({
   onCancel,
 }: {
   value: string;
-  saving: boolean;
   isDraft?: boolean;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   onChange: (value: string) => void;
@@ -134,13 +135,13 @@ function LearningEditor({
         )}
       />
       <div className="flex justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={onCancel} disabled={saving}>
+        <Button variant="ghost" size="sm" onClick={onCancel}>
           <X className="size-3.5" />
           {t("common:actions.cancel")}
         </Button>
-        <Button size="sm" onClick={onSave} disabled={saving || !value.trim()}>
+        <Button size="sm" onClick={onSave} disabled={!value.trim()}>
           <Check className="size-3.5" />
-          {saving ? t("common:actions.saving") : t("common:actions.save")}
+          {t("common:actions.save")}
         </Button>
       </div>
     </div>

@@ -84,6 +84,7 @@ export function createBusFeedOutput(
       sessionKey,
       status,
       pendingInteraction,
+      opts,
     ) {
       try {
         await setActivityStatus(
@@ -102,6 +103,13 @@ export function createBusFeedOutput(
         // the transcript. Same quiet classes as `tauri.ts` / `reportError`.
         if (isEngineWakingError(e) || isNetworkTransportError(e)) {
           console.warn("[feed-output] board status update deferred:", e);
+          return;
+        }
+        // An early hand-back (or its take-back) is a forecast the settle's
+        // own write follows: the person has nothing to try again, so it is
+        // reported, never put in the transcript.
+        if (opts?.provisional) {
+          reportAdapterError("feed-output.provisional-board-status", e);
           return;
         }
         // The raw cause is dev speak — log it, show product voice (HOU-721).

@@ -261,5 +261,31 @@
     "notConfigured": "Las conexiones de Slack aún no están listas para este espacio de Houston. Pídele a tu administrador de Houston que termine de configurar Slack y actualiza.",
     "unsupported": "Los canales no están disponibles en esta instalación de Houston."
   },
-  "advancedBadge": "Avanzado"
+  "advancedBadge": "Avanzado",
+  "writeFailed": {
+    "revokeApiKey": {
+      "title": "No se pudo revocar la clave",
+      "description": "Sigue funcionando. Inténtalo de nuevo en un momento."
+    },
+    "disconnectChannel": {
+      "title": "No se pudo desconectar la cuenta",
+      "description": "Sigue conectada. Inténtalo de nuevo en un momento."
+    },
+    "language": {
+      "title": "No se pudo cambiar el idioma",
+      "description": "Volvió al idioma que tenías. Inténtalo de nuevo en un momento."
+    },
+    "profileName": {
+      "title": "No se pudo guardar tu nombre",
+      "description": "Tu nombre volvió a como estaba. Inténtalo de nuevo en un momento."
+    },
+    "profilePhoto": {
+      "title": "No se pudo guardar tu foto",
+      "description": "Tu foto volvió a como estaba. Inténtalo de nuevo en un momento."
+    },
+    "deleteWorkspace": {
+      "title": "No se pudo eliminar \"{{name}}\"",
+      "description": "El espacio de trabajo sigue ahí. Inténtalo de nuevo en un momento."
+    }
+  }
 }

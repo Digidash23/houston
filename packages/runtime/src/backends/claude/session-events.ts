@@ -1,5 +1,5 @@
 import type { WireEvent } from "@houston/runtime-client";
-import type { HarnessTimingEvent } from "../types";
+import type { HarnessTimingEvent, ReplyBeat } from "../types";
 
 /**
  * A session's three independent subscriber fan-outs: the translated wire events
@@ -11,6 +11,7 @@ export class SessionEventHub {
   private readonly listeners = new Set<(e: WireEvent) => void>();
   private readonly livenessListeners = new Set<() => void>();
   private readonly messageStartListeners = new Set<() => void>();
+  private readonly replyBeatListeners = new Set<(beat: ReplyBeat) => void>();
   private readonly timingListeners = new Set<(e: HarnessTimingEvent) => void>();
 
   subscribe(listener: (e: WireEvent) => void): () => void {
@@ -44,6 +45,14 @@ export class SessionEventHub {
     };
   }
 
+  /** The main thread's tool-call opens and clean stops (`replyBeatOf`). */
+  subscribeReplyBeats(listener: (beat: ReplyBeat) => void): () => void {
+    this.replyBeatListeners.add(listener);
+    return () => {
+      this.replyBeatListeners.delete(listener);
+    };
+  }
+
   /** Per-call timings and the CLI's spawn-to-init cost (model-calls.ts). */
   subscribeModelCalls(listener: (e: HarnessTimingEvent) => void): () => void {
     this.timingListeners.add(listener);
@@ -68,10 +77,15 @@ export class SessionEventHub {
     for (const l of this.messageStartListeners) l();
   }
 
+  emitReplyBeat(beat: ReplyBeat): void {
+    for (const l of this.replyBeatListeners) l(beat);
+  }
+
   clearListeners(): void {
     this.listeners.clear();
     this.livenessListeners.clear();
     this.messageStartListeners.clear();
+    this.replyBeatListeners.clear();
     this.timingListeners.clear();
   }
 }
@@ -98,6 +112,10 @@ export abstract class SessionEventSubscriptions {
    */
   subscribeAssistantMessageStart(listener: () => void): () => void {
     return this.events.subscribeAssistantMessageStart(listener);
+  }
+
+  subscribeReplyBeats(listener: (beat: ReplyBeat) => void): () => void {
+    return this.events.subscribeReplyBeats(listener);
   }
 
   subscribeModelCalls(listener: (e: HarnessTimingEvent) => void): () => void {

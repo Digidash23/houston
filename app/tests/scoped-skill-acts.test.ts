@@ -1,4 +1,4 @@
-import { deepStrictEqual, ok, rejects, strictEqual } from "node:assert";
+import { deepStrictEqual, ok, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
 import * as surface from "../src/components/skills-view/scoped-skill-actions.ts";
 import {
@@ -6,7 +6,6 @@ import {
   type ScopedSkillAct,
   scopedSkillActions,
 } from "../src/components/skills-view/scoped-skill-actions.ts";
-import { actThenRefresh } from "../src/components/skills-view/skill-act-refresh.ts";
 import type {
   ManagedSkillRow,
   SharedDialogActions,
@@ -64,6 +63,7 @@ function sharedStub(): { shared: SharedDialogActions; calls: string[] } {
       onRevert: async () => void calls.push("revert"),
       onDisableForAgent: async () => void calls.push("disable"),
       onEnableAll: async () => {},
+      onAddToAgent: async () => {},
       onPromote: async () => {},
     },
   };
@@ -195,37 +195,6 @@ describe("running one of those acts", () => {
 
     strictEqual(runs, 0);
     deepStrictEqual(act.pending, []);
-  });
-});
-
-describe("the refresh both acts ride", () => {
-  it("refreshes what the act moved even when the act failed", async () => {
-    // Each act is a manifest write THEN a delete of the employee's copy: a
-    // rejection can still leave the manifest changed, and a list left on the
-    // state from before that write is simply wrong.
-    let refreshed = 0;
-    await rejects(
-      actThenRefresh(
-        async () => {
-          throw new Error("403");
-        },
-        () => {
-          refreshed += 1;
-        },
-      ),
-    );
-    strictEqual(refreshed, 1);
-  });
-
-  it("refreshes after the act that landed whole", async () => {
-    let refreshed = 0;
-    await actThenRefresh(
-      async () => {},
-      () => {
-        refreshed += 1;
-      },
-    );
-    strictEqual(refreshed, 1);
   });
 });
 

@@ -502,6 +502,59 @@ test("subscribeAssistantMessageStart fires per main-thread message_start, never 
   expect(starts).toBe(2);
 });
 
+function streamMsg(event: unknown, parentToolUseId: string | null = null) {
+  return {
+    type: "stream_event",
+    event,
+    session_id: "s",
+    parent_tool_use_id: parentToolUseId,
+  } as unknown as SDKMessage;
+}
+
+test("subscribeReplyBeats reports main-thread tool-call opens and clean stops, after their frames", async () => {
+  const toolOpen = (name: string, parent: string | null = null) =>
+    streamMsg(
+      {
+        type: "content_block_start",
+        index: 1,
+        content_block: { type: "tool_use", id: `id-${name}`, name, input: {} },
+      },
+      parent,
+    );
+  const stop = (stop_reason: string) =>
+    streamMsg({ type: "message_delta", delta: { stop_reason } });
+  const session = make({
+    query: arrayQuery([
+      messageStartMsg(null),
+      textMsg("Done."),
+      toolOpen("mcp__houston__suggest_actions"),
+      toolOpen("Bash", "toolu_sub"), // a subagent's call is not this reply
+      stop("tool_use"),
+      messageStartMsg(null),
+      textMsg("All set."),
+      stop("end_turn"),
+      usageMsg(),
+    ]),
+  });
+  const order: string[] = [];
+  session.subscribe((e) => order.push(e.type));
+  session.subscribeReplyBeats((beat) =>
+    order.push(
+      beat.type === "tool_call_start" ? `beat:${beat.name}` : "beat:answer_end",
+    ),
+  );
+
+  await session.prompt("go");
+
+  expect(order).toEqual([
+    "text",
+    "beat:mcp__houston__suggest_actions",
+    "text",
+    "beat:answer_end",
+    "usage",
+  ]);
+});
+
 // PRODUCT-1706: a resumed session that comes up without Houston's tool server
 // reruns fresh (with the canonical history) instead of letting the model finish
 // a tool-less turn and report the integrations as "missing".
