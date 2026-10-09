@@ -1,10 +1,14 @@
-import { strictEqual } from "node:assert";
+import { ok, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
 import {
+  downloadAttemptBudget,
   FOCUS_RECHECK_MIN_GAP_MS,
+  LAUNCH_DOWNLOAD_ATTEMPTS,
   nextCheckFailureStreak,
+  POLL_DOWNLOAD_ATTEMPTS,
   shouldRecheckOnFocus,
   shouldReportDownloadFailure,
+  shouldSkipDownload,
   UPDATE_CHECK_INTERVAL_MS,
   UPDATE_CHECK_STUCK_THRESHOLD,
   updateCheckJustStuck,
@@ -93,5 +97,33 @@ describe("shouldReportDownloadFailure", () => {
 
   it("reports again when a newer release fails", () => {
     strictEqual(shouldReportDownloadFailure("0.6.17", "0.6.18"), true);
+  });
+});
+
+// The launch-time install holds the user behind an overlay, so it spends a
+// short budget and leaves the rest to the next poll; the shell's partial
+// survives either way, so nothing is lost by stopping early.
+describe("downloadAttemptBudget", () => {
+  it("gives a launch find the first request and one resume", () => {
+    strictEqual(downloadAttemptBudget("launch"), LAUNCH_DOWNLOAD_ATTEMPTS);
+    strictEqual(LAUNCH_DOWNLOAD_ATTEMPTS, 2);
+  });
+
+  it("lets a background poll use the whole ladder", () => {
+    strictEqual(downloadAttemptBudget("poll"), POLL_DOWNLOAD_ATTEMPTS);
+    ok(POLL_DOWNLOAD_ATTEMPTS > LAUNCH_DOWNLOAD_ATTEMPTS);
+  });
+});
+
+// A download the disk refused must not be retried every poll: each retry
+// would fill the disk again and free it again, all session long.
+describe("shouldSkipDownload", () => {
+  it("skips the release the disk refused", () => {
+    strictEqual(shouldSkipDownload("1.0.6", "1.0.6"), true);
+  });
+
+  it("tries a newer release afresh", () => {
+    strictEqual(shouldSkipDownload("1.0.6", "1.0.7"), false);
+    strictEqual(shouldSkipDownload(null, "1.0.6"), false);
   });
 });

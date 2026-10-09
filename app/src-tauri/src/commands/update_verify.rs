@@ -27,9 +27,10 @@ pub fn verify_signature(
 }
 
 /// Read the finished partial, verify it against the release signature and
-/// hand the bytes over. The file is gone afterwards either way: verified
-/// bytes live in the staged resource until the install, and a mismatch must
-/// never be resumed onto (the next poll downloads the asset afresh).
+/// hand the bytes over. Verified bytes live in the staged resource until the
+/// install; a mismatch must never be resumed onto. The file goes either way,
+/// and a file that will not go is logged, not an error: the bytes were
+/// already judged, and the next open sweeps it.
 pub async fn admit_release(
     mut partial: PartialDownload,
     release_signature: &str,
@@ -37,12 +38,12 @@ pub async fn admit_release(
 ) -> Result<Vec<u8>, DownloadFailure> {
     let bytes = tokio::fs::read(partial.path())
         .await
-        .map_err(|e| DownloadFailure::other(format!("read finished download: {e}")))?;
-    partial
-        .discard()
-        .map_err(|e| DownloadFailure::other(format!("remove finished download: {e}")))?;
-    verify_signature(&bytes, release_signature, pubkey_b64)
-        .map_err(|message| DownloadFailure::signature(message, bytes.len() as u64))?;
+        .map_err(|e| DownloadFailure::io("read finished download", &e))?;
+    let verdict = verify_signature(&bytes, release_signature, pubkey_b64);
+    if let Err(e) = partial.discard() {
+        tracing::warn!("[updater] remove finished download: {e}");
+    }
+    verdict.map_err(|message| DownloadFailure::signature(message, bytes.len() as u64))?;
     Ok(bytes)
 }
 

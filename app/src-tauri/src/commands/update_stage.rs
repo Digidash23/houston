@@ -7,19 +7,22 @@
 //! staged in the resource table until the frontend asks for the install.
 
 use super::update_failure::DownloadFailure;
-use super::update_fetch::{fetch_with_resume, DownloadEvent};
-use super::update_partial::PartialDownload;
+use super::update_fetch::{attempt_budget, fetch_with_resume, DownloadEvent};
+use super::update_partial::{OpenError, PartialDownload};
+use super::update_partial_dir::prune_abandoned;
 use super::update_verify::admit_release;
 use reqwest::header::{HeaderValue, ACCEPT};
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use tauri::ipc::Channel;
-use tauri::{Manager, Resource, ResourceId, Runtime, Webview};
+use tauri::{AppHandle, Manager, Resource, ResourceId, Runtime, Webview};
 use tauri_plugin_updater::Update;
 
 /// A silent stall reads as a failure after this long, so it can be resumed
 /// instead of hanging the download for the rest of the session.
 const READ_TIMEOUT: Duration = Duration::from_secs(60);
+
+const PARTIALS_DIR: &str = "updates";
 
 /// The verified release bytes, waiting for `install_update`.
 struct StagedUpdate(Vec<u8>);
@@ -58,13 +61,28 @@ fn updater_pubkey<R: Runtime>(webview: &Webview<R>) -> Result<String, DownloadFa
 
 /// `<app cache dir>/updates`: where a half-downloaded release waits for the
 /// next poll. A cache dir on purpose: the OS may purge it, and a purge only
-/// costs a restart from zero.
-fn partials_dir<R: Runtime>(webview: &Webview<R>) -> Result<PathBuf, DownloadFailure> {
-    let cache = webview
-        .path()
-        .app_cache_dir()
-        .map_err(|e| DownloadFailure::other(format!("resolve app cache dir: {e}")))?;
-    Ok(cache.join("updates"))
+/// costs a restart from zero. When it cannot be resolved or created the
+/// download falls back to the system temp dir rather than not running.
+fn partials_dir<R: Runtime>(app: &impl Manager<R>) -> PathBuf {
+    let preferred = app.path().app_cache_dir().map(|dir| dir.join(PARTIALS_DIR));
+    match preferred.and_then(|dir| {
+        std::fs::create_dir_all(&dir)
+            .map(|()| dir)
+            .map_err(Into::into)
+    }) {
+        Ok(dir) => dir,
+        Err(e) => {
+            tracing::warn!("[updater] app cache dir unavailable, using temp dir: {e}");
+            std::env::temp_dir().join("houston").join(PARTIALS_DIR)
+        }
+    }
+}
+
+/// Startup sweep of partials no poll will finish: the running version's own
+/// (it installed some other way) and anything untouched for a week.
+pub fn prune_abandoned_partials(app: &AppHandle) {
+    let dir = partials_dir(app);
+    prune_abandoned(&dir, env!("CARGO_PKG_VERSION"), SystemTime::now());
 }
 
 fn take_update<R: Runtime>(
@@ -80,13 +98,15 @@ fn take_update<R: Runtime>(
 
 /// Download the release the plugin's `check()` found (`rid` is its `Update`
 /// resource), resuming across drops and across calls, verify its signature,
-/// and stage the bytes. Resolves with the staged resource id for
-/// `install_update`. A rejection for a dropped link leaves the partial on
-/// disk; the next call picks it up where it stopped.
+/// and stage the bytes. `attempts` is the caller's budget for this call
+/// (clamped; the launch-time install asks for a short one). Resolves with the
+/// staged resource id for `install_update`. A rejection for a dropped link
+/// leaves the partial on disk; the next call picks it up where it stopped.
 #[tauri::command(rename_all = "snake_case")]
 pub async fn download_update<R: Runtime>(
     webview: Webview<R>,
     rid: ResourceId,
+    attempts: Option<u32>,
     on_event: Channel<DownloadEvent>,
 ) -> Result<ResourceId, DownloadFailure> {
     let update = take_update(&webview, rid)?;
@@ -96,14 +116,21 @@ pub async fn download_update<R: Runtime>(
     if !headers.contains_key(ACCEPT) {
         headers.insert(ACCEPT, HeaderValue::from_static("application/octet-stream"));
     }
-    let dir = partials_dir(&webview)?;
-    let mut partial = PartialDownload::open(&dir, &update.version, update.download_url.as_str())
-        .map_err(|e| DownloadFailure::other(format!("open partial download: {e}")))?;
+    let dir = partials_dir(&webview);
+    let mut partial =
+        match PartialDownload::open(&dir, &update.version, update.download_url.as_str()) {
+            Ok(partial) => partial,
+            Err(OpenError::InProgress) => {
+                return Err(DownloadFailure::in_progress(&update.version))
+            }
+            Err(OpenError::Io(e)) => return Err(DownloadFailure::io("open partial download", &e)),
+        };
     fetch_with_resume(
         &client,
         &update.download_url,
         &headers,
         &mut partial,
+        attempt_budget(attempts),
         |event| {
             // Progress callback with no UI thread: a closed channel only means
             // the webview went away mid-download, and the result still returns.

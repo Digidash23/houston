@@ -11,18 +11,21 @@ import { toUpdateDownloadError } from "./update-download-failure";
  * every other transport drop does. An `upstream` failure is the release host
  * answering a transient status for the whole budget (a 504 from GitHub's
  * asset CDN mid-roll, PRODUCT-1811): its own quiet class, tagged with the
- * status, so an outage is one counted issue and never a per-user bug. Both
- * carry the bytes on disk against the total as extras, so one person whose
- * link drops every poll reads as one download inching forward, not as a
- * stack of unrelated failures. Any other class (a final HTTP status, a
- * signature that did not verify, a missing resource) is a real error and
- * files as one.
+ * status, so an outage is one counted issue and never a per-user bug. A
+ * `storage_full` failure is the device's disk, its own quiet class too. Each
+ * quiet class carries the bytes on disk against the total as extras, so one
+ * person whose link drops every poll reads as one download inching forward,
+ * not as a stack of unrelated failures. `in_progress` is nothing at all (a
+ * remounted hook asked while the shell was still downloading) and is not
+ * reported. Any other class (a final HTTP status, a signature that did not
+ * verify, a missing resource) is a real error and files as one.
  */
 export function reportUpdateDownloadFailure(
   version: string,
   err: unknown,
 ): void {
   const error = toUpdateDownloadError(err);
+  if (error.kind === "in_progress") return;
   const command = "update_download";
   const message = `download of ${version} ${error.message}`;
   const progress = {
@@ -31,7 +34,7 @@ export function reportUpdateDownloadFailure(
     attempts: error.attempts,
   };
   if (error.kind === "network") {
-    reportQuietError("offline", command, message, error, progress);
+    reportQuietError("offline", command, message, error, undefined, progress);
     return;
   }
   if (error.kind === "upstream") {
@@ -40,6 +43,18 @@ export function reportUpdateDownloadFailure(
       command,
       message,
       error,
+      undefined,
+      progress,
+    );
+    return;
+  }
+  if (error.kind === "storage_full") {
+    reportQuietError(
+      "storage_full",
+      command,
+      message,
+      error,
+      undefined,
       progress,
     );
     return;

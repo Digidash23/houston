@@ -16,14 +16,16 @@
 //! PRODUCT-1811) is retried the same way. Pure over a `reqwest::Client` so
 //! the tests run it against a local socket.
 
-use super::update_attempt::{attempt, io_failure, AttemptOutcome};
+use super::update_attempt::{attempt, AttemptOutcome};
 pub use super::update_failure::{DownloadEvent, DownloadFailure};
 use super::update_partial::PartialDownload;
 use reqwest::header::HeaderMap;
 use reqwest::{Client, Url};
 use std::time::Duration;
 
-/// Attempts per call: the first request plus four resumes.
+/// The most attempts one call makes: the first request plus four resumes.
+/// A caller that must not keep the user waiting (the launch-time install
+/// behind its overlay) asks for fewer; the partial survives either way.
 pub const DOWNLOAD_ATTEMPTS: u32 = 5;
 
 /// Backoff before each resume, in seconds. The old 1/3/9 s ladder waited 13 s
@@ -38,16 +40,24 @@ pub fn retry_delay(attempt: u32) -> Duration {
     Duration::from_secs(RETRY_DELAYS_SECS[index])
 }
 
-/// Complete `partial` from `url` across up to `DOWNLOAD_ATTEMPTS` tries. On
-/// success the file at `partial.path()` holds the whole asset, unverified. A
-/// dropped stream and a transient status both retry, and leave the file for
-/// the next call when the budget runs out; any other failure is final and
-/// discards it. The caller's tally is primed with what was already on disk.
+/// A caller's attempt budget, held to `1..=DOWNLOAD_ATTEMPTS`.
+pub fn attempt_budget(requested: Option<u32>) -> u32 {
+    requested
+        .unwrap_or(DOWNLOAD_ATTEMPTS)
+        .clamp(1, DOWNLOAD_ATTEMPTS)
+}
+
+/// Complete `partial` from `url` across up to `attempts` tries. On success
+/// the file at `partial.path()` holds the whole asset, unverified. A dropped
+/// stream and a transient status both retry, and leave the file for the next
+/// call when the budget runs out; any other failure is final and discards it.
+/// The caller's tally is primed with what was already on disk.
 pub async fn fetch_with_resume(
     client: &Client,
     url: &Url,
     headers: &HeaderMap,
     partial: &mut PartialDownload,
+    attempts: u32,
     mut on_event: impl FnMut(DownloadEvent) + Send,
 ) -> Result<(), DownloadFailure> {
     if partial.len() > 0 {
@@ -59,15 +69,20 @@ pub async fn fetch_with_resume(
         });
     }
     let mut last: Option<DownloadFailure> = None;
-    for attempt_no in 1..=DOWNLOAD_ATTEMPTS {
+    for attempt_no in 1..=attempts {
         if attempt_no > 1 {
             tokio::time::sleep(retry_delay(attempt_no - 1)).await;
         }
-        let outcome = attempt(client, url, headers, partial, &mut on_event).await;
-        partial
-            .settle()
-            .await
-            .map_err(|e| io_failure("flush partial download", e))?;
+        let mut outcome = attempt(client, url, headers, partial, &mut on_event).await;
+        if let Err(e) = partial.settle().await {
+            // Bytes that did not reach the disk cannot be resumed from. Only a
+            // finished body is turned into a failure by this; an attempt that
+            // already failed keeps its own, more telling, reason.
+            tracing::warn!("[updater] flush partial download: {e}");
+            if matches!(outcome, Ok(AttemptOutcome::Done)) {
+                outcome = Err(DownloadFailure::io("flush partial download", &e));
+            }
+        }
         let mut failure = match outcome {
             Ok(AttemptOutcome::Done) => {
                 on_event(DownloadEvent::Finished);
@@ -78,15 +93,17 @@ pub async fn fetch_with_resume(
         };
         failure.attempts = attempt_no;
         tracing::warn!(
-            "[updater] download attempt {attempt_no}/{DOWNLOAD_ATTEMPTS} stopped at {}/{} bytes: {}",
+            "[updater] download attempt {attempt_no}/{attempts} stopped at {}/{} bytes: {}",
             failure.received,
             failure.total.map_or("?".to_string(), |t| t.to_string()),
             failure.message
         );
         if !failure.kind.is_retryable() {
-            partial
-                .discard()
-                .map_err(|e| io_failure("discard partial download", e))?;
+            if let Err(e) = partial.discard() {
+                // The failure being returned is the one worth reporting; a
+                // partial that will not go is swept at the next open.
+                tracing::warn!("[updater] discard partial download: {e}");
+            }
             return Err(failure);
         }
         last = Some(failure);

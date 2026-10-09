@@ -1,4 +1,3 @@
-import { check } from "@tauri-apps/plugin-updater";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { analytics } from "../lib/analytics";
 import { reportError } from "../lib/error-report";
@@ -9,6 +8,12 @@ import {
   osRelaunchAppFromPath,
 } from "../lib/os-bridge";
 import {
+  type AvailableUpdate,
+  type CheckResult,
+  runUpdateCheck,
+} from "../lib/update-check";
+import { updateDownloadOutcome } from "../lib/update-download-failure";
+import {
   applyDownloadEvent,
   type DownloadTally,
   EMPTY_DOWNLOAD_TALLY,
@@ -16,8 +21,9 @@ import {
 import { reportUpdateDownloadFailure } from "../lib/update-download-report";
 import { claimLaunchCheck } from "../lib/update-launch-claim";
 import {
+  downloadAttemptBudget,
   shouldReportDownloadFailure,
-  type UpdateCheckOutcome,
+  shouldSkipDownload,
   type UpdateOrigin,
 } from "../lib/update-policy";
 import {
@@ -28,9 +34,6 @@ import {
 } from "../lib/update-status";
 
 export type { InstallSource, UpdateInfo, UpdateStatus };
-
-type AvailableUpdate = NonNullable<Awaited<ReturnType<typeof check>>>;
-type CheckResult = { outcome: UpdateCheckOutcome; message?: string };
 
 /**
  * The updater state machine: check → available → downloading → downloaded →
@@ -54,7 +57,9 @@ export function useUpdateMachine() {
   const appPathRef = useRef<string | null>(null);
   // Staged release bytes (a shell resource id) once a download landed.
   const bytesRidRef = useRef<number | null>(null);
-  const reportedDownloadFailureRef = useRef<string | null>(null);
+  const reportedRef = useRef<string | null>(null);
+  // The release whose download the disk refused: no retry this session.
+  const gaveUpRef = useRef<string | null>(null);
 
   useEffect(() => {
     statusRef.current = status;
@@ -70,63 +75,45 @@ export function useUpdateMachine() {
     if (busyRef.current || updateCheckBlocked(statusRef.current)) {
       return { outcome: "skipped" };
     }
-
-    try {
-      const update = await check();
-      if (!update) {
-        updateRef.current = null;
-        infoRef.current = null;
-        setStatus({ state: "idle" });
-        return { outcome: "none" };
-      }
-      const info: UpdateInfo = {
-        currentVersion: update.currentVersion,
-        version: update.version,
-        origin,
-      };
-      updateRef.current = update;
-      infoRef.current = info;
-      // `update_offered` fires on the first sighting of a version only.
-      const previous = statusRef.current;
-      if (previous.state === "idle" || previous.info.version !== info.version) {
-        analytics.track("update_offered", {
-          from_version: info.currentVersion,
-          to_version: info.version,
-        });
-      }
-      setStatus({ state: "available", info });
-      return { outcome: "found" };
-    } catch (error) {
-      // Fail-open by design: a launch must never block on the release feed.
-      // The checker counts these to surface a client that NEVER succeeds.
-      console.warn("[updater] check failed", error);
-      return {
-        outcome: "failed",
-        message: error instanceof Error ? error.message : String(error),
-      };
+    const { result, found } = await runUpdateCheck(origin, statusRef.current);
+    if (result.outcome === "none") {
+      updateRef.current = null;
+      infoRef.current = null;
+      setStatus({ state: "idle" });
+    } else if (found) {
+      updateRef.current = found.update;
+      infoRef.current = found.info;
+      setStatus({ state: "available", info: found.info });
     }
+    return result;
   }, []);
 
   /** Fetch the release into the shell's staging buffer; true once it can
    *  be installed. A failure is reported (once per version), never shown:
    *  the next check finds the release again and the download re-runs, and
    *  the shell carries on from the bytes it kept on disk rather than from
-   *  zero, so a link that drops every few minutes still gets there. */
+   *  zero, so a link that drops every few minutes still gets there. A
+   *  release the disk refused is not asked for again this session. */
   const download = useCallback(async (): Promise<boolean> => {
     const update = updateRef.current;
     const info = infoRef.current;
     if (!update || !info || busyRef.current) return false;
     if (statusRef.current.state === "downloaded") return true;
+    if (shouldSkipDownload(gaveUpRef.current, info.version)) return false;
 
     busyRef.current = true;
     let tally: DownloadTally = EMPTY_DOWNLOAD_TALLY;
     try {
       setStatus({ state: "downloading", info, progress: null });
-      bytesRidRef.current = await osDownloadUpdate(update.rid, (event) => {
-        const next = applyDownloadEvent(tally, event);
-        tally = next.tally;
-        setStatus({ state: "downloading", info, progress: next.progress });
-      });
+      bytesRidRef.current = await osDownloadUpdate(
+        update.rid,
+        downloadAttemptBudget(info.origin),
+        (event) => {
+          const next = applyDownloadEvent(tally, event);
+          tally = next.tally;
+          setStatus({ state: "downloading", info, progress: next.progress });
+        },
+      );
       setStatus({ state: "downloaded", info });
       analytics.track("update_downloaded", {
         from_version: info.currentVersion,
@@ -135,11 +122,14 @@ export function useUpdateMachine() {
       });
       return true;
     } catch (error) {
-      console.error("[updater] download failed", error);
-      const reported = reportedDownloadFailureRef.current;
-      if (shouldReportDownloadFailure(reported, info.version)) {
-        reportedDownloadFailureRef.current = info.version;
-        reportUpdateDownloadFailure(info.version, error);
+      const outcome = updateDownloadOutcome(error);
+      if (outcome === "give_up") gaveUpRef.current = info.version;
+      if (outcome !== "skip") {
+        console.error("[updater] download failed", error);
+        if (shouldReportDownloadFailure(reportedRef.current, info.version)) {
+          reportedRef.current = info.version;
+          reportUpdateDownloadFailure(info.version, error);
+        }
       }
       setStatus({ state: "error", info, phase: "download" });
       return false;

@@ -1,9 +1,11 @@
 //! The persisted partial: what survives a reopen, what starts it over, and
 //! what a newer version sweeps away.
 
-use super::{PartialDownload, Sidecar};
+use super::{OpenError, PartialDownload, Sidecar};
+use crate::commands::update_partial_dir::{prune_abandoned, ABANDONED_AFTER};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::time::SystemTime;
 
 /// A fresh, empty directory per test (a dependency-free tempdir).
 pub(crate) fn scratch_dir(tag: &str) -> PathBuf {
@@ -123,4 +125,59 @@ fn the_version_is_sanitised_into_the_file_name() {
         partial.path().file_name().unwrap().to_str().unwrap(),
         "1.0.0_build_7.part"
     );
+}
+
+#[test]
+fn an_unreadable_sidecar_starts_fresh() {
+    let dir = scratch_dir("bad-sidecar");
+    std::fs::write(dir.join("1.0.0.part"), b"12345").unwrap();
+    std::fs::write(dir.join("1.0.0.part.json"), b"{not json").unwrap();
+    let partial = PartialDownload::open(&dir, "1.0.0", URL).unwrap();
+    assert_eq!(partial.len(), 0);
+    assert!(!partial.path().exists());
+    assert!(!dir.join("1.0.0.part.json").exists());
+}
+
+#[test]
+fn a_second_open_of_the_same_partial_is_refused_until_the_first_is_gone() {
+    let dir = scratch_dir("in-flight");
+    let first = PartialDownload::open(&dir, "1.0.0", URL).unwrap();
+    assert!(matches!(
+        PartialDownload::open(&dir, "1.0.0", URL),
+        Err(OpenError::InProgress)
+    ));
+    let other_version = PartialDownload::open(&dir, "1.0.1", URL);
+    assert!(other_version.is_ok(), "the hold is per partial, not global");
+    drop(other_version);
+    drop(first);
+    assert!(PartialDownload::open(&dir, "1.0.0", URL).is_ok());
+}
+
+#[test]
+fn the_startup_sweep_drops_the_running_version_and_week_old_partials() {
+    let dir = scratch_dir("abandoned");
+    // Written directly: an `open` of one version sweeps the others, and this
+    // is the one place three versions must coexist.
+    for version in ["1.0.0", "1.0.1", "1.0.2"] {
+        std::fs::write(dir.join(format!("{version}.part")), version).unwrap();
+        let sidecar = serde_json::to_vec(&sidecar(URL)).unwrap();
+        std::fs::write(dir.join(format!("{version}.part.json")), sidecar).unwrap();
+    }
+    let now = SystemTime::now();
+    let long_ago = now - ABANDONED_AFTER - std::time::Duration::from_secs(60);
+    for name in ["1.0.1.part", "1.0.1.part.json"] {
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(dir.join(name))
+            .unwrap()
+            .set_modified(long_ago)
+            .unwrap();
+    }
+    prune_abandoned(&dir, "1.0.0", now);
+    let mut left: Vec<String> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    left.sort();
+    assert_eq!(left, vec!["1.0.2.part", "1.0.2.part.json"]);
 }

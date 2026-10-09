@@ -27,8 +27,12 @@ pub enum DownloadEvent {
 /// and reported quietly by the frontend. `Upstream` is the release host
 /// answering a transient status (a 5xx, 429, 408: PRODUCT-1811), retried the
 /// same way and reported quietly too. `Http` is any other status, final on
-/// first sight: a 404 is how a leaked staging build surfaces. Everything
-/// else is a bug.
+/// first sight: a 404 is how a leaked staging build surfaces. `InProgress`
+/// is another download of the same release already running in this process
+/// (the frontend skips it, nothing to report). `StorageFull` is the disk the
+/// partial lives on refusing the bytes: quiet, and not retried for that
+/// release this session, or every poll would fill the disk again.
+/// Everything else is a bug.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DownloadFailureKind {
@@ -36,6 +40,8 @@ pub enum DownloadFailureKind {
     Upstream,
     Http,
     Signature,
+    InProgress,
+    StorageFull,
     Other,
 }
 
@@ -140,6 +146,27 @@ impl DownloadFailure {
             status: Some(status.as_u16()),
             ..Self::stopped(DownloadFailureKind::Upstream, message, 0, None)
         }
+    }
+
+    /// A file-system error on the partial: a full disk (or an exhausted
+    /// quota) is its own class, anything else is a bug.
+    pub fn io(context: &str, err: &std::io::Error) -> Self {
+        let kind = match err.kind() {
+            std::io::ErrorKind::StorageFull | std::io::ErrorKind::QuotaExceeded => {
+                DownloadFailureKind::StorageFull
+            }
+            _ => DownloadFailureKind::Other,
+        };
+        Self::stopped(kind, format!("{context}: {err}"), 0, None)
+    }
+
+    pub fn in_progress(version: &str) -> Self {
+        Self::stopped(
+            DownloadFailureKind::InProgress,
+            format!("a download of {version} is already running"),
+            0,
+            None,
+        )
     }
 
     pub fn signature(message: String, len: u64) -> Self {

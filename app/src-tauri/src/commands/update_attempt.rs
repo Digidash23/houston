@@ -12,7 +12,7 @@ use futures_util::StreamExt;
 use reqwest::header::{
     HeaderMap, HeaderValue, CONTENT_RANGE, ETAG, IF_RANGE, LAST_MODIFIED, RANGE,
 };
-use reqwest::{Client, StatusCode, Url};
+use reqwest::{Client, Response, StatusCode, Url};
 
 /// What a later `If-Range` names: a strong `ETag`, else `Last-Modified`. A
 /// weak ETag (`W/"..."`) cannot condition a range request and is skipped.
@@ -25,20 +25,42 @@ fn validator_of(headers: &HeaderMap) -> Option<String> {
         .map(str::to_string)
 }
 
-/// The first byte a 206 body starts at (`Content-Range: bytes N-M/T`).
-fn content_range_start(headers: &HeaderMap) -> Option<u64> {
+/// A 206's `Content-Range: bytes N-M/T`, as (first byte, total). The total
+/// is `None` for the `*` form.
+fn content_range(headers: &HeaderMap) -> Option<(u64, Option<u64>)> {
     let value = headers.get(CONTENT_RANGE)?.to_str().ok()?;
-    value
-        .strip_prefix("bytes ")?
-        .split('-')
-        .next()?
-        .trim()
-        .parse()
-        .ok()
+    let (range, total) = value.strip_prefix("bytes ")?.split_once('/')?;
+    let start = range.split('-').next()?.trim().parse().ok()?;
+    Some((start, total.trim().parse().ok()))
 }
 
-pub(super) fn io_failure(context: &str, err: std::io::Error) -> DownloadFailure {
-    DownloadFailure::other(format!("{context}: {err}"))
+/// Why a 206 cannot be joined to the partial, or `None` when it can. GitHub's
+/// release CDN answers 206 to ANY `If-Range` (observed live), so the
+/// condition alone proves nothing: the answer must name the object the
+/// sidecar does, start where the file ends, and agree on the total.
+fn resume_mismatch(response: &Response, partial: &PartialDownload) -> Option<String> {
+    let headers = response.headers();
+    let offset = partial.len();
+    let validator = validator_of(headers);
+    if partial.validator().is_some() && validator.as_deref() != partial.validator() {
+        return Some(format!(
+            "server now serves {validator:?}, the partial is of {:?}",
+            partial.validator()
+        ));
+    }
+    match content_range(headers) {
+        Some((start, _)) if start != offset => Some(format!(
+            "server resumed at {start}, the partial ends at {offset}"
+        )),
+        Some((_, Some(total))) if partial.total().is_some_and(|known| known != total) => {
+            Some(format!(
+                "server total is {total}, the partial expects {:?}",
+                partial.total()
+            ))
+        }
+        None => Some("server answered 206 without a Content-Range".to_string()),
+        _ => None,
+    }
 }
 
 pub(super) enum AttemptOutcome {
@@ -56,7 +78,7 @@ async fn restart_after(
     partial
         .restart(None)
         .await
-        .map_err(|e| io_failure("reset partial download", e))?;
+        .map_err(|e| DownloadFailure::io("reset partial download", &e))?;
     Ok(AttemptOutcome::Retry(DownloadFailure::range_reset(
         status, message,
     )))
@@ -99,9 +121,7 @@ pub(super) async fn attempt(
     let status = response.status();
     match status {
         StatusCode::PARTIAL_CONTENT if resuming => {
-            let start = content_range_start(response.headers());
-            if start != Some(offset) {
-                let message = format!("server resumed at {start:?}, the partial ends at {offset}");
+            if let Some(message) = resume_mismatch(&response, partial) {
                 return restart_after(partial, status, message).await;
             }
         }
@@ -120,7 +140,7 @@ pub(super) async fn attempt(
             partial
                 .restart(Some(sidecar))
                 .await
-                .map_err(|e| io_failure("restart partial download", e))?;
+                .map_err(|e| DownloadFailure::io("restart partial download", &e))?;
             on_event(DownloadEvent::Started {
                 content_length: partial.total(),
             });
@@ -144,7 +164,7 @@ pub(super) async fn attempt(
         partial
             .append(&chunk)
             .await
-            .map_err(|e| io_failure("write partial download", e))?;
+            .map_err(|e| DownloadFailure::io("write partial download", &e))?;
         on_event(DownloadEvent::Progress {
             chunk_length: chunk.len(),
         });

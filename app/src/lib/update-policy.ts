@@ -99,3 +99,28 @@ export function shouldReportDownloadFailure(
 ): boolean {
   return reportedVersion !== version;
 }
+
+/** Attempts one download call makes before leaving the rest to the next
+ *  poll (the shell keeps the partial either way). The launch-time install
+ *  holds the user behind an overlay, so it gets the first request and one
+ *  resume; a background poll can afford the shell's whole ladder. */
+export const LAUNCH_DOWNLOAD_ATTEMPTS = 2;
+export const POLL_DOWNLOAD_ATTEMPTS = 5;
+
+export function downloadAttemptBudget(origin: UpdateOrigin): number {
+  return origin === "launch"
+    ? LAUNCH_DOWNLOAD_ATTEMPTS
+    : POLL_DOWNLOAD_ATTEMPTS;
+}
+
+/**
+ * A download the disk refused is not retried for that release in this
+ * session: every poll would fill the disk again, fail again, and free it
+ * again. The next release (or the next app start) tries afresh.
+ */
+export function shouldSkipDownload(
+  gaveUpVersion: string | null,
+  version: string,
+): boolean {
+  return gaveUpVersion === version;
+}

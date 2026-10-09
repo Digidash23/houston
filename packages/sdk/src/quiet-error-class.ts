@@ -29,12 +29,16 @@ import type { BridgeQuietClass } from "@houston/sdk/local-model-bridge/quiet";
  *  `webhook_not_creator` is a webhook-key mint or rotate the gateway refused
  *  because the caller is not the routine's creator
  *  (`@houston/sdk/routines/webhook-key-access`): an expected state with its
- *  own copy, which every reporting path skips outright. */
+ *  own copy, which every reporting path skips outright.
+ *  `storage_full` is the device's disk refusing the updater's release
+ *  download: the device's state, not a bug, named only by the download report
+ *  path and never retried for that release in the session. */
 export type QuietErrorClass =
   | "engine_waking"
   | "offline"
   | BridgeQuietClass
   | "release_host_unavailable"
+  | "storage_full"
   | "no_url_handler"
   | "plan_min_interval"
   | "webhook_not_creator";

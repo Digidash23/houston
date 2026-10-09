@@ -306,6 +306,13 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_deep_link::init())
         .setup(move |app| {
+            // Partial release downloads no poll will finish (the running
+            // version's own, a week-old one) go now, before the first check
+            // can open a new one. Off the setup thread: it is disk work.
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                commands::update_stage::prune_abandoned_partials(&handle);
+            });
             // Deep-link handler. Two `houston://` URLs matter today:
             //  - `houston://auth-callback?<query>` — the Apple sign-in return.
             //    Apple rejects `127.0.0.1` redirects, so Apple's callback comes

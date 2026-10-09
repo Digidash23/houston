@@ -1,15 +1,19 @@
 //! `fetch_with_resume` against a scripted HTTP/1.1 server on a local socket:
 //! each connection follows the next step of a script (serve the whole body,
 //! cut it after N bytes, ignore the range, answer a status, re-publish the
-//! asset), records the `Range` and `If-Range` it was asked for, and honours
-//! a range only when the `If-Range` names the object it currently serves, the
-//! way a real origin does. Every `fetch` on the harness is one CALL of the
-//! download (one poll): it reopens the partial from the same directory.
+//! asset, resume under a new validator), records the `Range` and `If-Range`
+//! it was asked for, and honours a range only when the `If-Range` names the
+//! object it currently serves, the way a well-behaved origin does. Every
+//! `fetch` on the harness is one CALL of the download (one poll): it reopens
+//! the partial from the same directory.
 
-use super::{fetch_with_resume, retry_delay, DownloadEvent, DownloadFailure, DOWNLOAD_ATTEMPTS};
+use super::{
+    attempt_budget, fetch_with_resume, retry_delay, DownloadEvent, DownloadFailure,
+    DOWNLOAD_ATTEMPTS,
+};
 use crate::commands::update_failure::DownloadFailureKind;
 use crate::commands::update_partial::tests::scratch_dir;
-use crate::commands::update_partial::{PartialDownload, Sidecar};
+use crate::commands::update_partial::{OpenError, PartialDownload, Sidecar};
 use reqwest::header::HeaderMap;
 use reqwest::{Client, Url};
 use std::path::PathBuf;
@@ -32,6 +36,11 @@ enum Step {
     Status(u16),
     /// The asset was re-published under a new validator: serve it all.
     Republish(&'static str),
+    /// GitHub's CDN: honour the range whatever the `If-Range` said, under a
+    /// new validator, as if the asset had been re-published underneath.
+    StaleResume(&'static str),
+    /// A 206 whose body starts at byte 0 regardless of the range asked.
+    MisalignedResume,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -79,6 +88,7 @@ async fn serve(script: Arc<Mutex<Script>>) -> Url {
                     .map(|r| r.trim_end_matches('-').to_string())
             });
             let if_range = header(&head, "if-range");
+            let asked = range.as_deref().and_then(|r| r.parse::<usize>().ok());
             let (step, etag) = {
                 let mut script = script.lock().unwrap();
                 script.seen.push(Seen {
@@ -90,22 +100,27 @@ async fn serve(script: Arc<Mutex<Script>>) -> Url {
                 } else {
                     script.steps.remove(0)
                 };
-                if let Step::Republish(tag) = step {
+                if let Step::Republish(tag) | Step::StaleResume(tag) = step {
                     script.etag = tag;
                 }
                 (step, script.etag)
             };
             let etag = format!("\"{etag}\"");
             let full = body();
-            let (status, from, cut) = match step {
+            // (status, first byte served, cut, first byte CLAIMED in Content-Range)
+            let (status, from, cut, claimed) = match step {
                 Step::Serve { cut } => {
-                    let asked = range.as_deref().and_then(|r| r.parse::<usize>().ok());
                     let matches = if_range.as_deref().is_none_or(|v| v == etag);
                     let from = if matches { asked.unwrap_or(0) } else { 0 };
-                    (if from > 0 { 206 } else { 200 }, from, cut)
+                    (if from > 0 { 206 } else { 200 }, from, cut, from)
                 }
-                Step::IgnoreRange | Step::Republish(_) => (200, 0, None),
-                Step::Status(code) => (code, 0, Some(0)),
+                Step::StaleResume(_) => {
+                    let from = asked.unwrap_or(0);
+                    (206, from, None, from)
+                }
+                Step::MisalignedResume => (206, 0, None, 0),
+                Step::IgnoreRange | Step::Republish(_) => (200, 0, None, 0),
+                Step::Status(code) => (code, 0, Some(0), 0),
             };
             let payload = &full[from..];
             let mut response = format!(
@@ -114,7 +129,7 @@ async fn serve(script: Arc<Mutex<Script>>) -> Url {
             );
             if status == 206 {
                 response.push_str(&format!(
-                    "Content-Range: bytes {from}-{}/{}\r\n",
+                    "Content-Range: bytes {claimed}-{}/{}\r\n",
                     full.len() - 1,
                     full.len()
                 ));
@@ -153,23 +168,40 @@ impl Harness {
         }
     }
 
-    fn open(&self) -> PartialDownload {
-        PartialDownload::open(&self.dir, VERSION, self.url.as_str()).unwrap()
+    fn try_open(&self) -> Result<PartialDownload, OpenError> {
+        PartialDownload::open(&self.dir, VERSION, self.url.as_str())
     }
 
-    /// One call of the download, the way one poll runs it.
-    async fn fetch(&self) -> (Result<(), DownloadFailure>, Vec<DownloadEvent>) {
-        let mut partial = self.open();
+    fn open(&self) -> PartialDownload {
+        self.try_open().unwrap()
+    }
+
+    /// One call of the download with `attempts`, the way `download_update`
+    /// runs it: the in-flight refusal is the same typed failure.
+    async fn fetch_with(&self, attempts: u32) -> (Result<(), DownloadFailure>, Vec<DownloadEvent>) {
+        let mut partial = match self.try_open() {
+            Ok(partial) => partial,
+            Err(OpenError::InProgress) => {
+                return (Err(DownloadFailure::in_progress(VERSION)), Vec::new())
+            }
+            Err(OpenError::Io(e)) => panic!("open partial: {e}"),
+        };
         let mut events = Vec::new();
         let result = fetch_with_resume(
             &self.client,
             &self.url,
             &HeaderMap::new(),
             &mut partial,
+            attempts,
             |e| events.push(e),
         )
         .await;
         (result, events)
+    }
+
+    /// One call of the download, the way one poll runs it.
+    async fn fetch(&self) -> (Result<(), DownloadFailure>, Vec<DownloadEvent>) {
+        self.fetch_with(DOWNLOAD_ATTEMPTS).await
     }
 
     fn seen(&self) -> Vec<Seen> {
@@ -190,6 +222,13 @@ impl Harness {
 
     fn part(&self) -> Vec<u8> {
         std::fs::read(self.part_path()).unwrap_or_default()
+    }
+
+    /// A first call that spends its whole budget and leaves `kept` bytes.
+    async fn exhaust(&self) -> usize {
+        let (first, _) = self.fetch().await;
+        assert!(first.is_err());
+        1_000 * DOWNLOAD_ATTEMPTS as usize
     }
 }
 
@@ -214,6 +253,12 @@ fn cut_every_attempt(cut: usize) -> Vec<Step> {
     (0..DOWNLOAD_ATTEMPTS)
         .map(|_| Step::Serve { cut: Some(cut) })
         .collect()
+}
+
+fn exhausted_then(step: Step) -> Vec<Step> {
+    let mut steps = cut_every_attempt(1_000);
+    steps.push(step);
+    steps
 }
 
 #[tokio::test(start_paused = true)]
@@ -286,16 +331,32 @@ async fn gives_up_after_the_attempt_budget_and_keeps_the_bytes() {
     );
 }
 
+// The launch-time install holds the user behind an overlay: it asks for a
+// short budget and leaves the rest to the next poll, which resumes.
+#[tokio::test(start_paused = true)]
+async fn a_short_budget_stops_early_and_still_keeps_the_bytes() {
+    let harness = Harness::new(cut_every_attempt(1_000)).await;
+    let (result, _) = harness.fetch_with(2).await;
+    let failure = result.unwrap_err();
+    assert_eq!(failure.attempts, 2);
+    assert_eq!(harness.ranges().len(), 2, "two requests, no more");
+    assert_eq!(harness.part(), body()[..2_000]);
+}
+
+#[test]
+fn the_attempt_budget_is_clamped_to_the_ladder() {
+    assert_eq!(attempt_budget(None), DOWNLOAD_ATTEMPTS);
+    assert_eq!(attempt_budget(Some(0)), 1);
+    assert_eq!(attempt_budget(Some(2)), 2);
+    assert_eq!(attempt_budget(Some(99)), DOWNLOAD_ATTEMPTS);
+}
+
 // The defect this guards against: 13 polls by one user each started a 329 MB
 // asset from byte 0 and each died before the end.
 #[tokio::test(start_paused = true)]
 async fn the_next_call_resumes_from_the_persisted_bytes() {
-    let mut steps = cut_every_attempt(1_000);
-    steps.push(Step::Serve { cut: None });
-    let harness = Harness::new(steps).await;
-    let (first, _) = harness.fetch().await;
-    assert!(first.is_err());
-    let kept = 1_000 * DOWNLOAD_ATTEMPTS as usize;
+    let harness = Harness::new(exhausted_then(Step::Serve { cut: None })).await;
+    let kept = harness.exhaust().await;
 
     let (second, events) = harness.fetch().await;
     second.unwrap();
@@ -325,11 +386,8 @@ async fn the_next_call_resumes_from_the_persisted_bytes() {
 
 #[tokio::test(start_paused = true)]
 async fn a_republished_asset_restarts_the_file() {
-    let mut steps = cut_every_attempt(1_000);
-    steps.push(Step::Republish("v2"));
-    let harness = Harness::new(steps).await;
-    let (first, _) = harness.fetch().await;
-    assert!(first.is_err());
+    let harness = Harness::new(exhausted_then(Step::Republish("v2"))).await;
+    harness.exhaust().await;
 
     let (second, events) = harness.fetch().await;
     second.unwrap();
@@ -348,6 +406,55 @@ async fn a_republished_asset_restarts_the_file() {
         Some("\"v2\""),
         "the sidecar now names the new object"
     );
+}
+
+// GitHub's release CDN answers 206 to any `If-Range`: the condition proves
+// nothing, so a 206 under a validator the sidecar does not name restarts.
+#[tokio::test(start_paused = true)]
+async fn a_206_under_a_new_validator_restarts_the_file() {
+    let harness = Harness::new(exhausted_then(Step::StaleResume("v2"))).await;
+    let kept = harness.exhaust().await;
+
+    let (second, events) = harness.fetch().await;
+    second.unwrap();
+    assert_eq!(
+        harness.part(),
+        body(),
+        "the stale 206 body was never joined"
+    );
+    let seen = harness.seen();
+    assert_eq!(
+        seen[DOWNLOAD_ATTEMPTS as usize].range,
+        Some(kept.to_string())
+    );
+    assert_eq!(
+        seen[DOWNLOAD_ATTEMPTS as usize + 1].range,
+        None,
+        "after the reset the next request asks for a full body"
+    );
+    assert_eq!(started(&events), 2);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_misaligned_206_restarts_the_file() {
+    let harness = Harness::new(exhausted_then(Step::MisalignedResume)).await;
+    harness.exhaust().await;
+
+    let (second, _) = harness.fetch().await;
+    second.unwrap();
+    assert_eq!(harness.part(), body());
+    assert_eq!(harness.seen()[DOWNLOAD_ATTEMPTS as usize + 1].range, None);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_416_restarts_the_file() {
+    let harness = Harness::new(exhausted_then(Step::Status(416))).await;
+    harness.exhaust().await;
+
+    let (second, _) = harness.fetch().await;
+    second.unwrap();
+    assert_eq!(harness.part(), body());
+    assert_eq!(harness.seen()[DOWNLOAD_ATTEMPTS as usize + 1].range, None);
 }
 
 #[tokio::test(start_paused = true)]
@@ -371,6 +478,23 @@ async fn a_completed_partial_needs_no_request() {
     assert_eq!(progressed(&events), body().len());
 }
 
+// The updater hook remounts across the mobile breakpoint, on identity change
+// and on reload while the shell's download keeps running: the second caller
+// is refused instead of appending to the same file.
+#[tokio::test(start_paused = true)]
+async fn a_concurrent_call_on_the_same_version_is_refused() {
+    let harness = Harness::new(Vec::new()).await;
+    let ((first, _), (second, second_events)) = tokio::join!(harness.fetch(), harness.fetch());
+    first.unwrap();
+    let refused = second.unwrap_err();
+    assert_eq!(refused.kind, DownloadFailureKind::InProgress);
+    assert!(second_events.is_empty());
+    assert_eq!(harness.part(), body(), "one writer, one clean file");
+    assert_eq!(harness.seen().len(), 1, "one request in total");
+    let (third, _) = harness.fetch().await;
+    third.unwrap();
+}
+
 #[tokio::test(start_paused = true)]
 async fn an_http_status_is_final_on_first_sight() {
     let harness = Harness::new(vec![Step::Status(404)]).await;
@@ -384,11 +508,8 @@ async fn an_http_status_is_final_on_first_sight() {
 
 #[tokio::test(start_paused = true)]
 async fn a_final_status_on_the_resume_discards_the_partial() {
-    let mut steps = cut_every_attempt(1_000);
-    steps.push(Step::Status(404));
-    let harness = Harness::new(steps).await;
-    let (first, _) = harness.fetch().await;
-    assert!(first.is_err());
+    let harness = Harness::new(exhausted_then(Step::Status(404))).await;
+    harness.exhaust().await;
     assert!(harness.part_path().exists());
 
     let (second, _) = harness.fetch().await;
@@ -443,6 +564,24 @@ async fn a_transient_status_that_never_clears_reports_as_upstream() {
     assert_eq!(failure.received, 0);
     assert!(failure.message.contains("504"), "{}", failure.message);
     assert_eq!(harness.ranges().len() as u32, DOWNLOAD_ATTEMPTS);
+}
+
+#[test]
+fn a_full_disk_is_its_own_class_and_never_retried() {
+    let full = std::io::Error::from(std::io::ErrorKind::StorageFull);
+    let failure = DownloadFailure::io("write partial download", &full);
+    assert_eq!(failure.kind, DownloadFailureKind::StorageFull);
+    assert!(!failure.kind.is_retryable());
+    let quota = std::io::Error::from(std::io::ErrorKind::QuotaExceeded);
+    assert_eq!(
+        DownloadFailure::io("write", &quota).kind,
+        DownloadFailureKind::StorageFull
+    );
+    let other = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+    assert_eq!(
+        DownloadFailure::io("write", &other).kind,
+        DownloadFailureKind::Other
+    );
 }
 
 #[test]
