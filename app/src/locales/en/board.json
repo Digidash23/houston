@@ -80,7 +80,6 @@
     "delete": "Delete",
     "clear": "Clear selection",
     "cancel": "Cancel",
-    "error": "Couldn't update the selected tasks. Please try again.",
     "confirmMove": {
       "title": "Move tasks?",
       "description_one": "Move {{count}} task to {{target}}?",
@@ -108,9 +107,6 @@
     "emptyTitle": "No archived tasks",
     "emptyDescription": "Archived tasks appear here. Reply to one to bring it back."
   },
-  "dnd": {
-    "moveError": "Couldn't move the task. Please try again."
-  },
   "firstDay": {
     "start": "Start {{name}}'s first day",
     "heroTitle": "All set for {{name}}'s first day",
@@ -118,5 +114,19 @@
     "compactTitle": "{{name}}'s first day hasn't started yet",
     "bannerTitle": "Your team is ready. Pick an AI Employee and start their first day.",
     "bannerExplain": "Each one will ask you a few questions to learn the job."
+  },
+  "writeFailed": {
+    "delete": "Couldn't delete \"{{title}}\"",
+    "archive": "Couldn't archive \"{{title}}\"",
+    "move": "Couldn't move \"{{title}}\"",
+    "rename": "Couldn't rename \"{{title}}\"",
+    "backOnBoard": "It's back on the board. Try again in a moment.",
+    "backInArchive": "It's back in Archived. Try again in a moment.",
+    "backWhereItWas": "It's back where it was. Try again in a moment.",
+    "oldName": "It has its old title again. Try again in a moment.",
+    "bulkDelete": "Couldn't delete the selected tasks",
+    "bulkArchive": "Couldn't archive the selected tasks",
+    "bulkMove": "Couldn't move the selected tasks",
+    "bulkBack": "Any task that didn't change is back where it was. Try again in a moment."
   }
 }

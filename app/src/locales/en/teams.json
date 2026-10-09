@@ -593,5 +593,39 @@
   "agentNav": {
     "settingsUnavailable": "We couldn't open this AI Employee's settings",
     "settingsUnavailableBody": "This AI Employee is no longer in this space. It may have been removed or moved."
+  },
+  "writeFailed": {
+    "removeMember": {
+      "title": "Couldn't remove this person",
+      "description": "They're still in the organization. Try again in a moment."
+    },
+    "memberRole": {
+      "title": "Couldn't change the role",
+      "description": "Their role is back to what it was. Try again in a moment."
+    },
+    "revokeInvite": {
+      "title": "Couldn't revoke the invitation",
+      "description": "It's still pending. Try again in a moment."
+    },
+    "declineInvite": {
+      "title": "Couldn't decline the invitation",
+      "description": "It's still waiting for you. Try again in a moment."
+    },
+    "delegation": {
+      "title": "Couldn't save the Teamwork setting",
+      "description": "It's back to what it was. Try again in a moment."
+    },
+    "agentAccess": {
+      "title": "Couldn't update who has access",
+      "description": "Access is back to how it was. Try again in a moment."
+    },
+    "agentApps": {
+      "title": "Couldn't update the apps",
+      "description": "The apps are back to how they were. Try again in a moment."
+    },
+    "agentModels": {
+      "title": "Couldn't update the allowed models",
+      "description": "The models are back to how they were. Try again in a moment."
+    }
   }
 }

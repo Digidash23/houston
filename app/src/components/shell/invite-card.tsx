@@ -24,8 +24,8 @@ import {
  *
  * Both actions route through hooks that own the whole surfacing story (list
  * refresh, workspace reload, expected-state toasts), so the row here has no
- * `catch` of its own: the card disappears when the refreshed list drops the
- * invite.
+ * `catch` of its own: a decline drops the card on the click, an accept when
+ * the refreshed list drops the invite.
  *
  * Accept and Decline EXCLUDE each other through the shared {@link
  * InviteActionLock}, claimed synchronously before either mutation starts.
@@ -45,7 +45,7 @@ export function InviteCard({
   const accept = useAcceptInvite();
   const decline = useDeclineInvite();
   const inviter = inviterDisplayName(invite.invitedBy);
-  const busy = accept.isPending || decline.isPending;
+  const busy = accept.isPending;
 
   /** Run one invite action under the lock; a second click is dropped. */
   const runExclusive = async (act: () => Promise<unknown>) => {
@@ -110,7 +110,7 @@ export function InviteCard({
           className="flex-1 rounded-full"
           disabled={busy}
           aria-label={t("inviteInbox.declineLabel", { team: invite.orgName })}
-          onClick={() => runExclusive(() => decline.mutateAsync(invite.id))}
+          onClick={() => runExclusive(() => decline(invite.id))}
         >
           {t("inviteInbox.decline")}
         </AsyncButton>

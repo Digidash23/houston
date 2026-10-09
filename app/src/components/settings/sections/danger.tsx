@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useSurfaceGates } from "../../../hooks/use-surface-gates";
 import { showExpectedStateToast } from "../../../lib/error-toast";
 import { openHome } from "../../../lib/home-nav";
+import { tellOptimisticRefusal } from "../../../lib/optimistic-write";
 import { tauriOrg } from "../../../lib/tauri";
 import {
   canDeleteOptimistically,
@@ -70,13 +71,23 @@ export function DangerSection() {
     openHome();
   };
 
-  const blockedToast = (
-    failure: Exclude<WorkspaceDeleteFailure, "unknown">,
-  ): void =>
+  // An expected refusal says what to do first; any other one was only
+  // reported by the wire layer, so this is where the person learns the
+  // workspace is still there.
+  const refusedToast = (err: unknown, name: string): void => {
+    const failure: WorkspaceDeleteFailure = classifyWorkspaceDeleteError(err);
+    if (failure === "unknown") {
+      tellOptimisticRefusal("delete_workspace", err, {
+        title: t("writeFailed.deleteWorkspace.title", { name }),
+        description: t("writeFailed.deleteWorkspace.description"),
+      });
+      return;
+    }
     showExpectedStateToast(
       t(`dangerZone.blocked.${failure}.title`),
       t(`dangerZone.blocked.${failure}.body`),
     );
+  };
 
   // Returned to ConfirmDialog, whose async-confirm affordance keeps the dialog
   // open on a "Deleting…" spinner until this settles (or the optimistic switch
@@ -97,25 +108,26 @@ export function DangerSection() {
       );
       if (provablyDeletable) {
         // The rejection handler attaches NOW (an unobserved rejection during
-        // the navigation awaits would fire unhandledrejection); expected
-        // rejections toast after the switch, unknown ones are already
-        // reported by the wire layer, and the store restored the row.
+        // the navigation awaits would fire unhandledrejection); a refusal
+        // toasts after the switch, once the store restored the row.
         const settled = deleteWorkspace(
           id,
           { silence: isExpectedWorkspaceDeleteError },
           "optimistic",
-        ).then(() => null, classifyWorkspaceDeleteError);
+        ).then(
+          () => null,
+          (err: unknown) => ({ err }),
+        );
         await toastAndLandHome(name);
-        const failure = await settled;
-        if (failure !== null && failure !== "unknown") blockedToast(failure);
+        const refused = await settled;
+        if (refused) refusedToast(refused.err, name);
         return;
       }
       try {
         await deleteWorkspace(id, { silence: isExpectedWorkspaceDeleteError });
       } catch (err) {
-        const failure = classifyWorkspaceDeleteError(err);
-        if (failure !== "unknown") blockedToast(failure);
-        return; // unknown: report already surfaced by the wire layer
+        refusedToast(err, name);
+        return;
       }
       await toastAndLandHome(name);
     } finally {

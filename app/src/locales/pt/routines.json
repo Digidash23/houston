@@ -270,7 +270,13 @@
     "timezoneError": "Não foi possível atualizar o fuso horário",
     "discardError": "Não foi possível descartar o rascunho",
     "modelError": "Não foi possível alterar o modelo",
-    "updateError": "Não foi possível salvar a rotina"
+    "updateError": "Não foi possível salvar a rotina",
+    "deleteError": "Não foi possível excluir a rotina",
+    "deleteErrorBody": "Ela voltou para a lista. Tente de novo em instantes.",
+    "runError": "Não foi possível iniciar a rotina",
+    "runErrorBody": "Ela não foi executada. Tente de novo em instantes.",
+    "stopError": "Não foi possível parar a execução",
+    "stopErrorBody": "Ela ainda pode estar em andamento. Tente de novo em instantes."
   },
   "webhook": {
     "createAddress": "Criar endereço de webhook",

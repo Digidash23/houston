@@ -65,7 +65,7 @@ describe("the plan-floor refusal is a quiet expected class", () => {
     );
     const tauri = read("lib/tauri.ts");
     ok(
-      tauri.includes("if (surfacePlanMinInterval(err)) return;"),
+      tauri.includes("if (surfacePlanMinInterval(err)) return true;"),
       "the engine-call layer surfaces it before its bug path",
     );
   });
@@ -117,6 +117,27 @@ describe("the routine screen and model row on a plan-floor refusal", () => {
     }
   });
 
+  it("the warming guard's refusal adds nothing over its own dialog", () => {
+    const toasts: unknown[] = [];
+    const reported: string[] = [];
+    const warming = Object.assign(new Error("almost ready"), {
+      name: "AgentWarmingError",
+    });
+    toastRoutineWriteFailure(
+      warming,
+      { title: "Couldn't save", command: "update_routine" },
+      {
+        addToast: (t) => toasts.push(t),
+        describe: (c) => {
+          reported.push(c);
+          return "generic";
+        },
+      },
+    );
+    deepStrictEqual(toasts, []);
+    deepStrictEqual(reported, []);
+  });
+
   it("any other failure keeps its red toast and one report", () => {
     const toasts: unknown[] = [];
     const reported: string[] = [];
@@ -137,14 +158,28 @@ describe("the routine screen and model row on a plan-floor refusal", () => {
     deepStrictEqual(reported, ["update_routine"]);
   });
 
-  it("both components route their failures through the shared handler", () => {
+  it("the update hook owns the one refusal toast; no caller adds its own", () => {
+    // Per-call `mutate(vars, { onError })` only fires for the observer's latest
+    // mutate while mounted: a second edit or leaving the screen would drop the
+    // first refusal's toast. The hook-level onError fires for every write.
+    const hook = read("hooks/queries/use-routines.ts");
+    const onError = hook.slice(
+      hook.indexOf("onError: (err, { agentPath, kind }"),
+    );
+    ok(onError.indexOf("toastRoutineWriteFailure(") !== -1, "hook toasts");
     for (const rel of [
       "components/agent/routine-screen.tsx",
       "components/agent/routine-model-selector.tsx",
+      "components/team-view/team-routines/use-team-routine-actions.ts",
     ]) {
       const src = read(rel);
-      ok(src.includes("toastRoutineWriteFailure("), rel);
-      ok(!/description: genericErrorDescription\(/.test(src), rel);
+      ok(!src.includes("toastRoutineWriteFailure("), rel);
+      ok(!/\.mutate\([^;]*onError/s.test(src), rel);
     }
+    ok(
+      read("components/agent/routine-model-selector.tsx").includes(
+        'kind: "model"',
+      ),
+    );
   });
 });
