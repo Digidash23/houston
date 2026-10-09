@@ -24,6 +24,7 @@ test("names every class and refuses anything else", () => {
     "engine_verdict",
     "provider_rate_limited",
     providerErrorClass("plan_message_limit"),
+    providerErrorClass("usage_limit_paused"),
   ])
     expect(isTurnErrorClass(cls), cls).toBe(true);
   for (const value of ["provider_", "provider_nope", "unknown", "", 3, null])
@@ -47,6 +48,8 @@ test("disposes each class once, for every surface", () => {
     "provider_plan_message_limit",
     "provider_provider_internal",
     "provider_malformed_response",
+    // A usage limit pauses the routine until its reset with its own card.
+    "provider_usage_limit_paused",
   ] as const)
     expect(turnErrorDisposition(cls), cls).toBe("handled");
   // The unclassified provider card is generic copy over a raw excerpt; a setup

@@ -7,14 +7,19 @@
  * is the viewer — the viewer's `/providers` answer says nothing about anyone
  * else's account (see `useRoutineProviderHealth`). Healthy and still-checking
  * rows render nothing: a list of chips saying "fine" is noise. A routine the
- * engine auto-paused shows a "Paused" chip instead; its screen says why.
+ * engine auto-paused shows a "Paused" chip instead, and one it is holding for
+ * a plan usage limit shows "Paused until <time>"; the screen says why.
  *
  * A component rather than a plain function because it resolves the pair and
  * probes the provider through hooks; the grid's slot takes the rendered node.
  */
 
 import type { Routine } from "@houston/engine-adapter";
-import { routinePauseNotice } from "@houston/sdk";
+import {
+  formatLocalDateTime,
+  routinePauseNotice,
+  routineSnoozeNotice,
+} from "@houston/sdk";
 import { useTranslation } from "react-i18next";
 import { useRoutineModelResolution } from "../../hooks/use-routine-model-resolution";
 import { useRoutineProviderHealth } from "../../hooks/use-routine-provider-health";
@@ -30,22 +35,28 @@ export function RoutineWarningChip({
   agent: Agent;
   routine: Routine;
 }) {
-  const { t } = useTranslation("routines");
+  const { t, i18n } = useTranslation("routines");
   const { provider } = useRoutineModelResolution(agent, routine);
   const { showBadge, health } = useRoutineProviderHealth(
     routine.created_by,
     provider,
   );
-  // The engine paused it after repeated failures: that outranks a live health
-  // probe, since the routine will not run at all until someone resumes it.
-  if (routinePauseNotice(routine))
+  // The engine paused it after repeated failures, or is holding it until a
+  // plan limit resets: either outranks a live health probe, since the routine
+  // will not run until someone resumes it or the hold ends.
+  const held = routineSnoozeNotice(routine);
+  if (routinePauseNotice(routine) || held)
     return (
       <span className="inline-flex items-center gap-1.5 text-xs font-medium text-warning">
         <span
           aria-hidden
           className="size-1.5 shrink-0 rounded-full bg-warning"
         />
-        {t("details.autoPause.chip")}
+        {held
+          ? t("details.snooze.chip", {
+              time: formatLocalDateTime(held.until, i18n.language),
+            })
+          : t("details.autoPause.chip")}
       </span>
     );
   if (!showBadge || !routineHealthBlocksRun(health)) return null;

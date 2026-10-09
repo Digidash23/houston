@@ -232,7 +232,7 @@ export type ProviderError =
   | {
       kind: "usage_limit_paused";
       provider: string;
-      /** Human-readable reset hint (e.g. "3:30 PM" or "5pm (America/Bogota)"); null if unknown. */
+      /** ISO 8601 reset instant (the card formats it in the viewer's zone); null if unknown. */
       resets_at: string | null;
       message: string;
       credential?: ProviderErrorCredential;

@@ -45,6 +45,31 @@ test("the schema accepts existing account failures and resumed runs", () => {
   ).toBe(true);
 });
 
+test("the schema accepts a usage-limit failure with or without a reset", () => {
+  const withReset = {
+    ...legacy,
+    failure: {
+      code: "usage_limit" as const,
+      provider: "anthropic",
+      model: "claude-fable-5",
+      resets_at: "2026-10-13T05:00:00.000Z",
+    },
+  } satisfies RoutineRun & WireRoutineRun;
+  const unknownReset = {
+    ...legacy,
+    failure: {
+      code: "usage_limit" as const,
+      provider: "anthropic",
+      model: null,
+      resets_at: null,
+    },
+  } satisfies RoutineRun & WireRoutineRun;
+  expect(
+    validate([withReset, unknownReset]),
+    JSON.stringify(validate.errors),
+  ).toBe(true);
+});
+
 test.each([
   { delivery_failure: { code: "out_of_credits" } },
   { delivery_failure: {} },
@@ -54,6 +79,8 @@ test.each([
   { failure: { code: "pool_delivery_expired", provider: "anthropic" } },
   { failure: { code: "out_of_credits" } },
   { failure: { code: "unknown", provider: "anthropic" } },
+  { failure: { code: "usage_limit", provider: "anthropic" } },
+  { failure: { code: "usage_limit", provider: "anthropic", resets_at: 5 } },
   { resumed: false },
 ])("the schema rejects malformed run fields %j", (fields) => {
   expect(validate([{ ...run, ...fields }])).toBe(false);
