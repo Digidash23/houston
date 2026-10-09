@@ -410,7 +410,7 @@ export function useMissionControl(agents: Agent[]) {
       // are read synchronously and re-derive on the activity refetch.
       const s =
         sessionKey === activeSessionKey && agentPath === (activeAgentPath ?? "")
-          ? activeVm?.sessionStatus
+          ? activeVm?.turnStatus
           : agentPath
             ? getConversationStatus(agentPath, sessionKey)
             : undefined;
@@ -433,10 +433,10 @@ export function useMissionControl(agents: Agent[]) {
         (item.metadata?.sessionKey as string | undefined) ??
         `activity-${item.id}`;
       const agentPath = pathMapRef.current[item.id];
-      if (
-        item.status === "running" ||
-        vmStatusFor(agentPath, sessionKey) === "running"
-      ) {
+      const vmStatus = vmStatusFor(agentPath, sessionKey);
+      // A completed reply ends the spinner before its card's write lands.
+      if (vmStatus === "wrapping_up") continue;
+      if (item.status === "running" || vmStatus === "running") {
         out[sessionKey] = true;
       }
     }

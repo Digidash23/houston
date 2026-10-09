@@ -133,6 +133,8 @@ export function reduceSnapshot(
     }
     case "usage":
     case "file_changes":
+    // Not terminal: the turn is still running its wrap-up.
+    case "reply_complete":
       return {
         running: true,
         partial: prev.partial,

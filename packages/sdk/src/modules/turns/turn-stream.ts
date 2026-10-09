@@ -5,6 +5,7 @@ import {
 } from "@houston/protocol";
 import type { HoustonEngineClient } from "@houston/runtime-client";
 import { streamEventsResumable } from "@houston/runtime-client";
+import { TurnBoardWrites } from "./board-writes";
 import type { FeedOutput } from "./feed-output";
 import { FirstResponseClock } from "./first-response";
 import type { PersonStop } from "./person-stop";
@@ -207,7 +208,9 @@ export async function streamTurn(
   // activity must reset it) and CLEAR any interaction the prior settle stored
   // (null) — a re-run is no longer waiting on the user. Fire concurrently so it
   // never delays turn start; persistBoardStatus surfaces its own failure.
-  void output.persistBoardStatus(agentPath, sessionKey, "running", null);
+  // Every later write to this card queues behind it (board-writes.ts).
+  const board = new TurnBoardWrites(output, agentPath, sessionKey);
+  void board.persist("running", null);
 
   const key = streamKey(agentPath, sessionKey);
   const nonce = opts.nonce ?? randomNonce();
@@ -416,6 +419,7 @@ export async function streamTurn(
     // our first sync (its frames never replayed) hangs the card without it.
     presettledPollMs: opts.tuning?.presettledPollMs ?? PRESETTLED_POLL_MS,
     firstResponse,
+    board,
   });
   if (sent) sink.sendAccepted();
   // A teardown ends the sink at once: a history reload still out publishes
@@ -525,13 +529,8 @@ export async function streamTurn(
 
   // Persist the terminal board status once the turn settled — awaited, through
   // the cloud-aware seam, so the card actually leaves "running" on the surface
-  // the board reads. An externally disposed stream (logout teardown) settles
+  // the board reads. The sink queued it the moment it settled (reply-phase.ts
+  // `settleCard`). An externally disposed stream (logout teardown) settles
   // nothing and persists nothing: the client is gone.
-  if (sink.terminal)
-    await output.persistBoardStatus(
-      agentPath,
-      sessionKey,
-      sink.terminal,
-      sink.terminalInteraction,
-    );
+  await board.settled;
 }
