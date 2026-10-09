@@ -142,6 +142,8 @@
       "outOfCredits": "The {{provider}} account is out of credits.",
       "modelUnavailable": "The {{provider}} account can't use the model this routine runs on.",
       "noModel": "This routine has no model chosen, and the AI account it would use isn't connected.",
+      "usageLimit": "The {{provider}} plan reached its usage limit. Runs continue after {{time}}.",
+      "usageLimitNoReset": "The {{provider}} plan reached its usage limit. Runs continue once it resets.",
       "poolDeliveryExpired": "This run couldn't start in time and was skipped. You can run the routine again.",
       "creatorNoAccess": "This routine was set up by someone who can no longer use this AI Employee. Pause the routine and resume it to run it as you."
     },
@@ -157,6 +159,12 @@
       "changeModel": "The {{provider}} account can't use this routine's model. Pick a model the account can run, then resume the routine.",
       "chooseModel": "This routine has no model chosen, and the AI account it would use isn't connected. Pick a model in the Model section, then resume the routine.",
       "resume": "Resume"
+    },
+    "snooze": {
+      "chip": "Paused until {{time}}",
+      "title": "Paused until {{time}}",
+      "body": "The {{provider}} plan this routine runs on reached its usage limit. Runs continue by themselves at {{time}}. To keep it running now, pick another model in the Model section.",
+      "bodyWithModel": "The {{provider}} plan reached its limit for {{model}}. Runs continue by themselves at {{time}}. To keep it running now, pick another model in the Model section."
     }
   },
   "row": {

@@ -91,8 +91,12 @@ export function routinePauseNotice(
     reader,
   );
   // A host newer than this client may record a reason it has no fix for:
-  // reading it as no notice beats a screen that throws.
-  const fix = reason === "no_model" ? undefined : REMEDY[reason];
+  // reading it as no notice beats a screen that throws. A usage limit is
+  // never a pause reason (it snoozes, `./snooze`), so it has no remedy here.
+  const fix =
+    reason === "no_model" || reason === "usage_limit"
+      ? undefined
+      : REMEDY[reason];
   if (!fix) return null;
   return {
     remedy: fix.remedy,

@@ -13,6 +13,7 @@ export const VERIFY_TIMEOUT_MS = 20_000;
  */
 export const PROVES_AUTH: ReadonlySet<string> = new Set([
   "rate_limited",
+  "usage_limit_paused",
   "quota_exhausted",
   "model_unavailable",
   "context_overflow",
