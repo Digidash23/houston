@@ -58,9 +58,9 @@ export {
   isNotConnectedError,
   isStoppedByUser,
   isTurnRunningRejection,
-  isTurnSetupNotice,
   MultiplexFeedOutput,
   messageLimitRefusal,
+  noticeEndsTurn,
   observeConversation,
   type PendingInteraction,
   PREWARM_REFRESH_MS,
@@ -91,4 +91,5 @@ export {
   type TurnTruncateInput,
   type TurnWirePin,
   turnErrorMessage,
+  turnFailureReport,
 } from "./modules/turns";

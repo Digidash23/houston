@@ -1,4 +1,5 @@
 import type { WireFrame } from "@houston/runtime-client";
+import { finishSetupError } from "./turn-notices";
 import {
   finishErr,
   finishOk,
@@ -6,7 +7,6 @@ import {
   settleProviderErrorCard,
   type TurnState,
 } from "./turn-settle";
-import { turnSetupSettle } from "./turn-setup-error";
 
 /**
  * Fold ONE of our turn's wire frames into the turn state + feed — content
@@ -90,13 +90,10 @@ export function applyTurnFrame(
       settleProviderErrorCard(s, ev.data);
       stop();
       break;
-    case "error": {
-      const setup = turnSetupSettle(ev.data);
-      if (setup) finishErr(s, setup.message, setup.notice);
-      else finishErr(s, ev.data.message);
+    case "error":
+      if (!finishSetupError(s, ev.data)) finishErr(s, ev.data.message);
       stop();
       break;
-    }
     case "done":
       // A clean terminal frame carries whatever the turn ended on: a blocking
       // ask_user / request_connection / plan_ready, or a pure suggest_actions /

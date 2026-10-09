@@ -172,7 +172,7 @@ export const ENGINE_RESUMED_MESSAGE =
  * budget (`turn-running.ts`). `compute_busy`: a send the cloud's shared
  * compute had no room for past its whole budget (`send-busy.ts`).
  * `agent_too_large` / `agent_setup_failed`: a turn that failed before any
- * provider work (`turn-setup-error.ts`).
+ * provider work (`turn-notices.ts`).
  */
 export type EngineNoticeKind =
   | "engine_restart"

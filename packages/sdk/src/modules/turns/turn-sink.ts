@@ -2,13 +2,10 @@ import type { PendingInteraction, WireFrame } from "@houston/runtime-client";
 import type { MessageLimitRefusal } from "@houston/wire-types";
 import type { TerminalBoardStatus } from "./feed-output";
 import { PreAcceptTurn } from "./pre-accept-turn";
-import { PresettlePoll } from "./presettle-poll";
+import type { PresettlePoll } from "./presettle-poll";
 import { SendHoldState } from "./send-hold-state";
-import {
-  type PresettleVerdict,
-  presettleFromHistory,
-  reloadAndSettle,
-} from "./settle-from-history";
+import { reloadAndSettle } from "./settle-from-history";
+import { sinkPresettlePoll } from "./sink-presettle";
 import type { EngineNoticeKind } from "./turn-errors";
 import { applyTurnFrame } from "./turn-frames";
 import { classifyFrame, classifyRunningSync } from "./turn-identity";
@@ -19,7 +16,6 @@ import {
   push,
   type TurnState,
 } from "./turn-settle";
-import { setupSettle } from "./turn-setup-error";
 import type { TurnSinkOptions } from "./turn-sink-options";
 
 export type { TurnSinkOptions } from "./turn-sink-options";
@@ -69,20 +65,26 @@ export class TurnSink {
   private readonly onStarted: Array<() => void> = [];
 
   constructor(private readonly o: TurnSinkOptions) {
-    this.poll = new PresettlePoll(o.presettledPollMs, {
+    this.s = newTurnState(o.agentPath, o.sessionKey, o.output, {
+      provider: o.provider,
+      prompt: o.prompt,
+      firstResponse: o.firstResponse,
+    });
+    this.poll = sinkPresettlePoll({
+      s: this.s,
+      o,
       canArm: () =>
         this.accepted &&
         !this.sawRunning &&
         !this.settling &&
         !this.s.settled &&
         !this.muted,
-      check: () => this.presettleCheck(),
-      gone: () => this.settleGone(),
-    });
-    this.s = newTurnState(o.agentPath, o.sessionKey, o.output, {
-      provider: o.provider,
-      prompt: o.prompt,
-      firstResponse: o.firstResponse,
+      hasEvidence: () => this.sawRunning || this.muted,
+      adoptTurnId: (turnId) => this.adoptTurnId(turnId),
+      settled: () => {
+        this.settling = true;
+        this.o.stop();
+      },
     });
   }
 
@@ -473,31 +475,6 @@ export class TurnSink {
       (turnId) => this.adoptTurnId(turnId),
       () => !this.muted, // a reload a Stop overtook settles nothing
     );
-  }
-
-  /** One conclusive-only history settle for the pre-settled poll. */
-  private async presettleCheck(): Promise<PresettleVerdict> {
-    const verdict = await presettleFromHistory(
-      this.s,
-      this.o.reloadHistory,
-      this.s.turnId,
-      this.o.historyGuard,
-      () => this.sawRunning || this.muted,
-      (turnId) => this.adoptTurnId(turnId),
-    );
-    if (verdict === "settled") {
-      this.settling = true;
-      this.o.stop();
-    }
-    return verdict;
-  }
-
-  /** The poll's bound: the accepted turn never persisted its conversation. */
-  private settleGone(): void {
-    const { message, notice } = setupSettle("agent_setup_failed");
-    finishErr(this.s, message, notice);
-    this.settling = true;
-    this.o.stop();
   }
 
   /**

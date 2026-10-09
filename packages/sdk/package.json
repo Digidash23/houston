@@ -82,6 +82,10 @@
     "./draft-typing": {
       "types": "./src/modules/turns/draft-typing.ts",
       "import": "./src/modules/turns/draft-typing.ts"
+    },
+    "./notice-ends-turn": {
+      "types": "./src/modules/turns/notice-ends-turn.ts",
+      "import": "./src/modules/turns/notice-ends-turn.ts"
     }
   },
   "files": [

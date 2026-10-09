@@ -1,11 +1,14 @@
 import type { PresettleVerdict } from "./settle-from-history";
-import { PRESETTLED_GONE_MS } from "./stream-tuning";
+import {
+  PRESETTLED_GONE_MAX_POLL_MS,
+  PRESETTLED_GONE_MS,
+} from "./stream-tuning";
 
 /**
  * What the pre-settled poll needs from its turn sink. `canArm`: the send was
  * accepted, no stream evidence arrived and no settle is underway. `check`:
  * one conclusive-only history settle. `gone`: the conversation stayed not
- * found for {@link PRESETTLED_GONE_MS}; the host settles the turn as failed.
+ * found for {@link PRESETTLED_GONE_MS}; the host settles the turn as lost.
  */
 export interface PresettleHost {
   canArm(): boolean;
@@ -32,6 +35,8 @@ export class PresettlePoll {
   private timer: ReturnType<typeof setTimeout> | undefined;
   /** When the reloads started answering "conversation not found" in a row. */
   private goneSince: number | undefined;
+  /** The backed-off interval while history answers 404. */
+  private delay: number | undefined;
 
   constructor(
     /** Absent disables the poll (observer mode). */
@@ -46,14 +51,17 @@ export class PresettlePoll {
     this.timer = setTimeout(() => {
       this.timer = undefined;
       void this.fire();
-    }, this.ms);
+    }, this.delay ?? this.ms);
   }
 
+  /** Stream evidence: the poll stops, and so does the not-found clock. */
   cancel(): void {
     if (this.timer !== undefined) {
       clearTimeout(this.timer);
       this.timer = undefined;
     }
+    this.goneSince = undefined;
+    this.delay = undefined;
   }
 
   /**
@@ -77,7 +85,12 @@ export class PresettlePoll {
         if (this.host.canArm()) this.host.gone();
         return;
       }
-    } else this.goneSince = undefined;
+      const last = this.delay ?? this.ms ?? PRESETTLED_GONE_MAX_POLL_MS;
+      this.delay = Math.min(last * 2, PRESETTLED_GONE_MAX_POLL_MS);
+    } else {
+      this.goneSince = undefined;
+      this.delay = undefined;
+    }
     // Inconclusive: the turn hasn't proven it finished. Re-arm and keep the
     // stream as the authority (frames cancel the poll; the budget owns loss).
     this.arm();

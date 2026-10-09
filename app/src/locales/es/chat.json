@@ -303,7 +303,7 @@
   "computeBusy": "Hay demasiada actividad para empezar tu mensaje ahora. Envíalo de nuevo en unos minutos.",
   "sendWaitingBusy": "Hay mucha actividad en este momento. Seguimos intentando enviar tu mensaje.",
   "agentSetup": {
-    "tooLarge": "Tu agente guarda demasiado para poder iniciar en este momento. Avísale al equipo de Houston y te ayudaremos a hacerle espacio.",
+    "tooLarge": "Este agente tiene demasiado guardado para iniciar ahora. Ya nos llegó el aviso y estamos trabajando en ello, no necesitas hacer nada.",
     "failed": "Tu agente no pudo prepararse para este mensaje. Envíalo de nuevo en un momento."
   },
   "engineRestart": {

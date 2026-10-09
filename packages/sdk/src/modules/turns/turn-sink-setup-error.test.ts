@@ -1,67 +1,20 @@
-import type { WireFrame } from "@houston/runtime-client";
-import { type ChatMessage, EngineError } from "@houston/runtime-client";
+import type { ChatMessage, WireFrame } from "@houston/runtime-client";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import type { FeedOutput } from "./feed-output";
 import { PRESETTLED_GONE_MS } from "./stream-tuning";
-import { TurnSink } from "./turn-sink";
+import {
+  idleSync,
+  makeSink,
+  notFound,
+  setupError,
+  systemLines,
+} from "./turn-sink-setup-fixtures";
 
 /**
  * A pooled turn that fails during setup (H-003) answers with one terminal
  * `error` frame and nothing else: no echo, no running sync, and its
  * conversation is never persisted. That frame can reach the stream a few ms
- * BEFORE the send's 202, and history answers 404 for the conversation.
+ * BEFORE the send's 202.
  */
-
-type Item = { feed_type?: string; data?: unknown; notice?: string };
-
-const POLL_MS = 1_500;
-
-function makeSink(reloadHistory: () => Promise<ChatMessage[]>) {
-  const items: Item[] = [];
-  const statuses: string[] = [];
-  const stop = vi.fn();
-  const output: FeedOutput = {
-    pushFeedItem: (_a, _s, item) => {
-      items.push(item as Item);
-    },
-    sessionStatus: (_a, _s, status) => {
-      statuses.push(status);
-    },
-    persistBoardStatus: async () => {},
-  };
-  const sink = new TurnSink({
-    agentPath: "Houston/Bo",
-    sessionKey: "activity-new",
-    output,
-    mode: "turn",
-    nonce: "our-nonce",
-    prompt: "hi",
-    stop,
-    reloadHistory,
-    historyGuard: () => false,
-    presettledPollMs: POLL_MS,
-  });
-  return { sink, items, statuses, stop };
-}
-
-const idleSync: WireFrame = {
-  type: "sync",
-  data: { running: false, partial: "", seq: 1 },
-  seq: 1,
-};
-const setupError = (turnId: string, code = "hydrate_over_cap"): WireFrame =>
-  ({
-    type: "error",
-    data: { message: code, code, detail: "over the cap" },
-    turnId,
-    seq: 2,
-  }) as WireFrame;
-const notFound = () =>
-  Promise.reject(
-    new EngineError(404, JSON.stringify({ error: "conversation not found" })),
-  );
-const systemLines = (items: Item[]) =>
-  items.filter((i) => i.feed_type === "system_message");
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -72,7 +25,7 @@ afterEach(() => {
 
 test("a setup error that beats the 202 settles the turn the 202 names", async () => {
   const reload = vi.fn(notFound);
-  const { sink, items, statuses, stop } = makeSink(reload);
+  const { sink, items, statuses, stopped } = makeSink(reload);
   sink.onFrame(idleSync);
   sink.onFrame(setupError("t1"));
   expect(sink.settled).toBe(false);
@@ -80,11 +33,16 @@ test("a setup error that beats the 202 settles the turn the 202 names", async ()
   sink.sendAccepted("t1");
 
   expect(sink.settled).toBe(true);
-  expect(stop).toHaveBeenCalled();
+  expect(stopped()).toBe(true);
   expect(statuses).toEqual(["error"]);
   const [line] = systemLines(items);
-  expect(line).toMatchObject({ notice: "agent_too_large" });
-  // The authored default, never the worker's bare code.
+  // Typed, with the code only as the report's cause; nothing was saved, so
+  // the optimistic bubble fails like an undelivered send.
+  expect(line).toMatchObject({
+    notice: "agent_too_large",
+    cause: "hydrate_over_cap",
+    fails_pending: true,
+  });
   expect(String(line.data)).not.toContain("hydrate_over_cap");
   await vi.advanceTimersByTimeAsync(PRESETTLED_GONE_MS * 2);
   expect(reload).not.toHaveBeenCalled();
@@ -93,14 +51,33 @@ test("a setup error that beats the 202 settles the turn the 202 names", async ()
 test("every other setup code settles with the setup-failed notice", () => {
   const { sink, items } = makeSink(notFound);
   sink.onFrame(idleSync);
-  sink.onFrame(setupError("t1", "claim_fenced"));
+  sink.onFrame(setupError("t1", "layout_unexpected"));
   sink.sendAccepted("t1");
   expect(systemLines(items)).toEqual([
-    expect.objectContaining({ notice: "agent_setup_failed" }),
+    expect.objectContaining({
+      notice: "agent_setup_failed",
+      cause: "layout_unexpected",
+    }),
   ]);
 });
 
-test("a kept terminal survives a reconnect's idle resync before the 202", () => {
+test("a fenced claim is no setup failure: the turn may have run, no send-again line", () => {
+  const { sink, items } = makeSink(notFound);
+  sink.onFrame(idleSync);
+  sink.onFrame({
+    type: "error",
+    data: { message: "claim_fenced" },
+    turnId: "t1",
+    seq: 2,
+  });
+  sink.sendAccepted("t1");
+  expect(sink.settled).toBe(true);
+  const [line] = systemLines(items);
+  expect(line.notice).toBeUndefined();
+  expect(line.fails_pending).toBeUndefined();
+});
+
+test("a kept failure survives a reconnect's idle resync before the 202", () => {
   const { sink } = makeSink(notFound);
   sink.onFrame(idleSync);
   sink.onFrame(setupError("t1"));
@@ -113,6 +90,31 @@ test("a kept terminal survives a reconnect's idle resync before the 202", () => 
   expect(sink.settled).toBe(true);
 });
 
+test("a kept running turn's failure survives the resync that drops its frames", () => {
+  const { sink, items } = makeSink(notFound);
+  sink.onFrame({
+    type: "sync",
+    data: { running: true, partial: "Roger", seq: 1, turnId: "t1" },
+    seq: 1,
+  });
+  sink.onFrame({
+    type: "error",
+    data: { message: "The turn ended unexpectedly" },
+    turnId: "t1",
+    seq: 2,
+  });
+  sink.onFrame({
+    type: "sync",
+    data: { running: false, partial: "", seq: 3, resync: true },
+    seq: 3,
+  });
+  sink.sendAccepted("t1");
+  expect(sink.settled).toBe(true);
+  expect(systemLines(items)).toEqual([
+    expect.objectContaining({ data: "The turn ended unexpectedly" }),
+  ]);
+});
+
 test("a held send's setup error that beats its 202 is still claimed", () => {
   const { sink } = makeSink(notFound);
   sink.onFrame(idleSync);
@@ -122,7 +124,7 @@ test("a held send's setup error that beats its 202 is still claimed", () => {
   expect(sink.settled).toBe(true);
 });
 
-test("another turn's terminal is never claimed by a 202 naming ours", () => {
+test("another turn's failure is never claimed by a 202 naming ours", () => {
   const { sink, items } = makeSink(notFound);
   sink.onFrame(idleSync);
   sink.onFrame(setupError("someone-else"));
@@ -132,49 +134,40 @@ test("another turn's terminal is never claimed by a 202 naming ours", () => {
   sink.dispose();
 });
 
-test("a conversation that stays not found after the 202 settles, then polls no more", async () => {
-  const reload = vi.fn(notFound);
-  const { sink, items, stop } = makeSink(reload);
-  sink.onFrame(idleSync);
-  // The setup error never reached this stream at all.
-  sink.sendAccepted("t1");
+test("stop, an ambiguous send and teardown drop the kept failures", () => {
+  for (const end of ["mute", "sendMaybeAccepted", "dispose"] as const) {
+    const { sink, items } = makeSink(notFound);
+    sink.onFrame(idleSync);
+    sink.onFrame(setupError("t1"));
+    sink[end]();
+    sink.sendAccepted("t1");
+    expect(systemLines(items), end).toEqual([]);
+    sink.dispose();
+  }
+});
 
-  await vi.advanceTimersByTimeAsync(PRESETTLED_GONE_MS - POLL_MS);
-  expect(sink.settled).toBe(false);
-  await vi.advanceTimersByTimeAsync(POLL_MS * 2);
-  expect(sink.settled).toBe(true);
-  expect(stop).toHaveBeenCalled();
-  expect(systemLines(items)).toEqual([
-    expect.objectContaining({ notice: "agent_setup_failed" }),
+test("a bare done before the 202 is not claimed: the reply comes from history", async () => {
+  const reply: ChatMessage = {
+    role: "assistant",
+    content: "Here you go",
+    ts: 2,
+    turnId: "t1",
+  } as ChatMessage;
+  const reload = vi.fn(async () => [
+    { role: "user", content: "hi", ts: 1, turnId: "t1" } as ChatMessage,
+    reply,
   ]);
-  const calls = reload.mock.calls.length;
-  await vi.advanceTimersByTimeAsync(PRESETTLED_GONE_MS * 4);
-  expect(reload.mock.calls.length).toBe(calls);
-});
-
-test("a not found that turns into a history restarts the bound", async () => {
-  let gone = true;
-  const reload = vi.fn(() =>
-    gone ? notFound() : Promise.resolve([] as ChatMessage[]),
-  );
-  const { sink } = makeSink(reload);
+  const { sink, items } = makeSink(reload);
   sink.onFrame(idleSync);
-  sink.sendAccepted("t1");
-  await vi.advanceTimersByTimeAsync(PRESETTLED_GONE_MS - POLL_MS);
-  gone = false;
-  await vi.advanceTimersByTimeAsync(POLL_MS * 2);
-  gone = true;
-  await vi.advanceTimersByTimeAsync(PRESETTLED_GONE_MS - POLL_MS * 2);
-  expect(sink.settled).toBe(false);
-  sink.dispose();
-});
+  sink.onFrame({ type: "done", data: null, turnId: "t1", seq: 2 } as WireFrame);
 
-test("a reload that fails for any other reason keeps the turn waiting", async () => {
-  const reload = vi.fn(() => Promise.reject(new TypeError("Load failed")));
-  const { sink } = makeSink(reload);
-  sink.onFrame(idleSync);
   sink.sendAccepted("t1");
-  await vi.advanceTimersByTimeAsync(PRESETTLED_GONE_MS * 2);
+  // An empty done would settle a reply-less turn.
   expect(sink.settled).toBe(false);
-  sink.dispose();
+
+  await vi.advanceTimersByTimeAsync(2_000);
+  expect(sink.settled).toBe(true);
+  expect(
+    items.filter((i) => i.feed_type === "assistant_text").map((i) => i.data),
+  ).toEqual(["Here you go"]);
 });

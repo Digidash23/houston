@@ -21,17 +21,20 @@ describe("parseTurnSetupFailure", () => {
     });
   });
 
-  it("reads a fenced claim, whose message may carry a joined failure", () => {
+  it("never reads a fenced claim as a setup failure: the turn may have run", () => {
+    expect(parseTurnSetupFailure({ message: "claim_fenced" })).toBeNull();
     expect(
       parseTurnSetupFailure({ message: "claim_fenced; sync failed" }),
-    ).toEqual({ code: "claim_fenced" });
+    ).toBeNull();
+    expect(
+      parseTurnSetupFailure({ message: "x", code: "claim_fenced" }),
+    ).toBeNull();
   });
 
   it("knows every setup code", () => {
     for (const code of [
       "hydrate_over_cap",
       "layout_unexpected",
-      "claim_fenced",
       "agent_not_migrated",
       "message_refused",
       "credential_write_failed",

@@ -1,7 +1,7 @@
 import type { ModelCallReport } from "@houston/protocol";
 import type { WireFrame } from "@houston/runtime-client";
 import type { TurnDurabilityResult } from "./turn-durability";
-import type { TurnSetupError } from "./turn-layout";
+import type { TurnSetupCode, TurnSetupError } from "./turn-layout";
 import type { MissionTitleReport } from "./turn-mission-title-outcome";
 import type { TurnOutcome } from "./turn-session";
 import type { TurnSyncReport } from "./turn-sync-report";
@@ -119,11 +119,22 @@ export function durableTerminalFrame(
 }
 
 /**
- * The setup frame's `message`: a client that knows no setup code shows it
- * verbatim, so it is a neutral sentence and never the bare code (H-003).
+ * The setup frame's `message`, per code. A client that knows no setup code
+ * shows it verbatim, and cloud's mission watcher stores it as a mission's
+ * error, so each line is accurate for its code and never the bare code
+ * (H-003). Retry advice only where a retry can help.
  */
-export const TURN_SETUP_FAILED_MESSAGE =
-  "Your agent couldn't get ready for this message. Send it again in a moment.";
+export const TURN_SETUP_MESSAGES: Record<TurnSetupCode, string> = {
+  hydrate_over_cap: "This agent has too much saved to start right now.",
+  layout_unexpected:
+    "Your agent couldn't get ready for this message. Send it again in a moment.",
+  agent_not_migrated:
+    "Your agent is finishing an update. Send your message again in a moment.",
+  message_refused:
+    "This message couldn't be accepted. Send it again as a new message.",
+  credential_write_failed:
+    "Your agent couldn't connect to its AI provider for this message. Send it again in a moment.",
+};
 
 /** Build the internal typed error frame for pre-provider setup failures. */
 export function turnSetupErrorFrame(
@@ -131,12 +142,12 @@ export function turnSetupErrorFrame(
   turnId: string,
 ): WireFrame {
   // SAFETY: setup error codes are internal to the pool dispatcher and retain
-  // the public error frame's required message field. Readers (the gateway,
-  // the SDK) key on `code`, never on the message.
+  // the public error frame's required message field. The gateway's code
+  // readers and the SDK key on `code`; mission records keep the message.
   return {
     type: "error",
     data: {
-      message: TURN_SETUP_FAILED_MESSAGE,
+      message: TURN_SETUP_MESSAGES[error.code],
       code: error.code,
       detail: error.message,
     },

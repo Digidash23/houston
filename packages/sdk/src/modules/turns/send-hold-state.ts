@@ -1,7 +1,8 @@
 import type { WireFrame } from "@houston/runtime-client";
 import { TurnEndCounter } from "./turn-end-counter";
 
-const isTerminal = (
+/** A turn's terminal frame: it ended, cleanly or not. */
+export const isTerminal = (
   ev: WireFrame,
 ): ev is Extract<WireFrame, { type: "done" | "error" | "provider_error" }> =>
   ev.type === "done" || ev.type === "error" || ev.type === "provider_error";

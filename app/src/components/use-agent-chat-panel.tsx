@@ -174,6 +174,7 @@ import { ChatEffortSelector } from "./chat-effort-selector";
 import { chatInteractionStepsNode } from "./chat-interaction-stepper";
 import { ChatModeSelector } from "./chat-mode-selector";
 import { ChatModelSelector } from "./chat-model-selector";
+import { NOTICE_COPY } from "./chat-notice-copy";
 import { ContextCompactedDivider } from "./context-compacted-divider";
 import { ContextIndicator } from "./context-indicator";
 import { DictationSetupDialog } from "./dictation-setup-dialog";
@@ -2142,21 +2143,8 @@ export function useAgentChatPanel({
         );
       }
       if (isProviderAuthMessage(msg.content)) return null;
-      // The engine's restart lines arrive typed (PRODUCT-1785): the same
-      // centered note, in the user's language, chosen by kind and never by the
-      // English default text.
-      if (msg.notice === "engine_restart")
-        return <SystemNote text={t("chat:engineRestart.sayContinue")} />;
-      if (msg.notice === "engine_resumed")
-        return <SystemNote text={t("chat:engineRestart.resuming")} />;
-      if (msg.notice === "send_busy")
-        return <SystemNote text={t("chat:sendBusy")} />;
-      if (msg.notice === "compute_busy")
-        return <SystemNote text={t("chat:computeBusy")} />;
-      if (msg.notice === "agent_too_large")
-        return <SystemNote text={t("chat:agentSetup.tooLarge")} />;
-      if (msg.notice === "agent_setup_failed")
-        return <SystemNote text={t("chat:agentSetup.failed")} />;
+      // Typed system lines (restart, busy, setup) render by kind.
+      if (msg.notice) return <SystemNote text={t(NOTICE_COPY[msg.notice])} />;
       return undefined;
     },
     [

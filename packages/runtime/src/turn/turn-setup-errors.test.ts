@@ -6,7 +6,7 @@ import { LocalDirStore } from "@houston/runtime-client/object-sync";
 import { afterEach, expect, test, vi } from "vitest";
 import { createTurnServer } from "./server";
 import type { TurnRunner } from "./turn-session";
-import { TURN_SETUP_FAILED_MESSAGE } from "./turn-terminal";
+import { TURN_SETUP_MESSAGES } from "./turn-terminal";
 
 const servers: Server[] = [];
 afterEach(() => {
@@ -62,7 +62,10 @@ test("an ambiguous standing tree emits layout_unexpected before provider work", 
   });
   expect(result.frame).toMatchObject({
     type: "error",
-    data: { message: TURN_SETUP_FAILED_MESSAGE, code: "layout_unexpected" },
+    data: {
+      message: TURN_SETUP_MESSAGES.layout_unexpected,
+      code: "layout_unexpected",
+    },
   });
   expect(result.runTurn).not.toHaveBeenCalled();
 });
@@ -71,7 +74,17 @@ test("an over-cap hydrate emits hydrate_over_cap before provider work", async ()
   const result = await run({ "workspace/big.txt": "too large" }, 2);
   expect(result.frame).toMatchObject({
     type: "error",
-    data: { message: TURN_SETUP_FAILED_MESSAGE, code: "hydrate_over_cap" },
+    data: {
+      message: TURN_SETUP_MESSAGES.hydrate_over_cap,
+      code: "hydrate_over_cap",
+    },
   });
   expect(result.runTurn).not.toHaveBeenCalled();
+});
+
+test("every setup message is a sentence, and over-cap never advises a retry", () => {
+  for (const [code, message] of Object.entries(TURN_SETUP_MESSAGES))
+    expect(message, code).not.toContain(code);
+  // A retry cannot shrink the agent: cloud stores this line on missions.
+  expect(TURN_SETUP_MESSAGES.hydrate_over_cap).not.toMatch(/again/i);
 });

@@ -121,14 +121,21 @@ export const SEND_VERDICT_MS = 15_000;
 export const PRESETTLED_POLL_MS = 1_500;
 /**
  * How long the pre-settled poll keeps reading "conversation not found" (404)
- * after an accepted send before it calls the turn over (H-003). A turn
- * persists its conversation with the user message right after its 202, so a
- * conversation still missing this long after has no turn coming: one that
- * failed during setup and whose terminal frame never reached us. Generous
- * against a slow first write; the poll then stops instead of reading 404
- * every 1.5 s until the person leaves.
+ * after an accepted send before it calls the turn lost (H-003). A backstop
+ * only: the kept setup-error frame (`pre-accept-turn.ts`) is the fix, and
+ * this fires only when that frame never reached us at all. Conservative on
+ * purpose: a healthy turn's conversation can stay missing for a while, since
+ * a DB-backed or standing path writes it with the user message right after
+ * the 202, but a file-backed cloud transcript may exist only once the turn's
+ * end-of-turn sync lands, and the turnlog can lag. Any stream frame from the
+ * turn stops the clock.
  */
-export const PRESETTLED_GONE_MS = 30_000;
+export const PRESETTLED_GONE_MS = 120_000;
+/**
+ * While history answers 404, the poll backs off from `PRESETTLED_POLL_MS`,
+ * doubling up to this, instead of reading every 1.5 s.
+ */
+export const PRESETTLED_GONE_MAX_POLL_MS = 15_000;
 /**
  * Copy for a send that provably never landed: the send fetch failed at the
  * transport level AND no evidence of the turn arrived within the verdict

@@ -193,7 +193,7 @@ test("a non-waking 502 on the board persist still surfaces in the feed", async (
   expect(systemMessages(events)).toHaveLength(1);
 });
 
-test("a turn that failed before it could start is reported, its line still emitted", () => {
+test("a turn that failed before it could start is reported by cause, its line still emitted", () => {
   const reports: Array<{ source: string; error: unknown }> = [];
   setAdapterErrorSink((source, error) => reports.push({ source, error }));
   const { events, stop } = collect();
@@ -203,6 +203,13 @@ test("a turn that failed before it could start is reported, its line still emitt
     feed_type: "system_message",
     data: "Your agent couldn't get ready for this message.",
     notice: "agent_setup_failed",
+    cause: "layout_unexpected",
+  });
+  out.pushFeedItem("Houston/Bo", "c1", {
+    feed_type: "system_message",
+    data: "Your agent couldn't get ready for this message.",
+    notice: "agent_setup_failed",
+    cause: "gone",
   });
   out.pushFeedItem("Houston/Bo", "c1", {
     feed_type: "system_message",
@@ -212,8 +219,10 @@ test("a turn that failed before it could start is reported, its line still emitt
   stop();
   setAdapterErrorSink((source, error) => console.error(`[${source}]`, error));
 
-  expect(reports).toHaveLength(1);
-  expect(reports[0].source).toBe("turn_setup_failed");
-  expect(String(reports[0].error)).toContain("agent_setup_failed");
-  expect(events.filter((e) => e.type === "FeedItem")).toHaveLength(2);
+  expect(reports.map((r) => r.source)).toEqual([
+    "turn_setup_failed",
+    "turn_gone_after_accept",
+  ]);
+  expect(String(reports[0].error)).toContain("layout_unexpected");
+  expect(events.filter((e) => e.type === "FeedItem")).toHaveLength(3);
 });
