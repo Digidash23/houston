@@ -11,7 +11,12 @@ import type { WorkspaceCredential } from "../ports";
  * OAuth error codes that condemn the refresh TOKEN itself. `invalid_grant` is
  * RFC 6749's verdict on the grant; `refresh_token_invalidated` is what OpenAI
  * answers when the session was ended server-side (observed — the serve route
- * and its tests have relied on that disconnect since the flow shipped).
+ * and its tests have relied on that disconnect since the flow shipped);
+ * `invalid_refresh_token` is OpenAI's answer to a dead refresh token since
+ * 2026-10 (401, "Could not validate your refresh token. Please try signing in
+ * again."), which read as transient kept the dead row and 502'd every serve
+ * forever (H-005). A code lands here on evidence from the wire, never on a
+ * guess: the serve route DELETES on it.
  *
  * RFC 6749's `invalid_client` is deliberately ABSENT: it condemns the client
  * credentials we send — one hardcoded public client id shared by every install
@@ -22,6 +27,7 @@ import type { WorkspaceCredential } from "../ports";
 const TERMINAL_ERROR_CODES = [
   "invalid_grant",
   "refresh_token_invalidated",
+  "invalid_refresh_token",
 ] as const;
 
 /** The only codes that may sign a user out. */

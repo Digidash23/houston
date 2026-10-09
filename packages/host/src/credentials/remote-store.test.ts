@@ -1,6 +1,11 @@
 import { expect, test } from "vitest";
 import type { CredentialStore, WorkspaceCredential } from "../ports";
-import { RemoteCredentialStore, scopeKeyOf } from "./remote-store";
+import {
+  RemoteCredentialBlockedError,
+  RemoteCredentialDeadError,
+  RemoteCredentialStore,
+  scopeKeyOf,
+} from "./remote-store";
 import { RevocationTombstones } from "./revocation-tombstones";
 
 type FetchCall = { url: string; init?: RequestInit };
@@ -664,4 +669,29 @@ test("a real AIza google key still adopts and stores normally", async () => {
     "PUT",
     "GET",
   ]);
+});
+
+test("a gateway account-block 502 is typed apart from a dead credential (H-005)", async () => {
+  const { fetchImpl, calls } = fakeFetch(() =>
+    json(
+      {
+        error: "provider account blocked",
+        code: "provider_account_blocked",
+        detail:
+          "Your account's billing is currently locked because recent account charges have failed.",
+      },
+      502,
+    ),
+  );
+  const s = store(fetchImpl);
+  const err = await s.get("ws_1", "github-copilot").then(
+    () => null,
+    (e: unknown) => e,
+  );
+  expect(err).toBeInstanceOf(RemoteCredentialBlockedError);
+  expect(err).not.toBeInstanceOf(RemoteCredentialDeadError);
+  expect((err as RemoteCredentialBlockedError).detail).toMatch(/billing/);
+  // Not cached: the next get asks the gateway again (its memo paces upstream).
+  await s.get("ws_1", "github-copilot").catch(() => null);
+  expect(calls).toHaveLength(2);
 });

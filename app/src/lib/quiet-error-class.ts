@@ -20,6 +20,7 @@ import { bridgeQuietClass } from "@houston/sdk/local-model-bridge/quiet";
 import type { QuietErrorClass } from "@houston/sdk/quiet-error-class";
 import { isPlanMinIntervalRefusal } from "@houston/sdk/routines/plan-floor-quiet";
 import { isWebhookKeyNotCreatorRefusal } from "@houston/sdk/routines/webhook-key-access";
+import { isBugIntakeUnavailable } from "./bug-report-failure.ts";
 import { isEngineWakingError } from "./engine-waking-error.ts";
 import { isNetworkTransportError } from "./network-transport-error.ts";
 import { isNoBrowserFailure } from "./url-open-failure.ts";
@@ -53,12 +54,18 @@ export type { QuietErrorClass } from "@houston/sdk/quiet-error-class";
  * no AI connected (the SDK's `isFirstDayNoProvider`): the start button offers
  * the connect flow instead when it can tell, so this covers a stale provider
  * scan, with authored copy and no report.
+ *
+ * `bug_intake_unavailable` is the bug-report intake refusing everyone on our
+ * side (Linear's plan cap, HOUSTON-APP-5FT). `submitBugReport` reports it
+ * itself and delivers the report through the fallback; this catches any other
+ * path that reports the typed rejection, so it can never file a per-user bug.
  */
 export function classifyQuietError(err: unknown): QuietErrorClass | null {
   if (isNoBrowserFailure(err)) return "no_url_handler";
   if (isPlanMinIntervalRefusal(err)) return "plan_min_interval";
   if (isWebhookKeyNotCreatorRefusal(err)) return "webhook_not_creator";
   if (isFirstDayNoProvider(err)) return "first_day_no_provider";
+  if (isBugIntakeUnavailable(err)) return "bug_intake_unavailable";
   const bridge = bridgeQuietClass(err);
   if (bridge) return bridge;
   if (isEngineWakingError(err)) return "engine_waking";

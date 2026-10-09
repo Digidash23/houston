@@ -1,5 +1,6 @@
 import type { WireFrame } from "@houston/runtime-client";
 import { noteReplyPhase } from "./reply-phase";
+import { finishSetupError } from "./turn-notices";
 import {
   finishErr,
   finishOk,
@@ -92,7 +93,7 @@ export function applyTurnFrame(
       stop();
       break;
     case "error":
-      finishErr(s, ev.data.message);
+      if (!finishSetupError(s, ev.data)) finishErr(s, ev.data.message);
       stop();
       break;
     case "done":

@@ -67,7 +67,12 @@ test("before any visible text it records the steps but keeps the turn open and a
   expect(out.terminate).toBeUndefined();
   const text = (out.content[0] as { text: string }).text;
   expect(text).toMatch(/did NOT end your turn/i);
-  expect(text).toMatch(/write your short closing message now/i);
+  // Never "short": the deliverable may exist only in the model's reasoning.
+  expect(text).not.toMatch(/short/i);
+  expect(text).toMatch(/never sees your reasoning or tool results/i);
+  expect(text).toMatch(/exists only there, write it out in full/i);
+  // A deliverable written in an earlier message of the turn is visible.
+  expect(text).toMatch(/already wrote it .* do not repeat it/i);
   expect(text).toMatch(/do not repeat/i);
 });
 

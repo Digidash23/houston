@@ -4,6 +4,7 @@ import {
   runWithUsedTokenCapture,
 } from "../auth/used-token";
 import type { HarnessSession } from "../backends/types";
+import { recoverFollowUpActions } from "../session/follow-up-pass";
 import {
   type newInteractionHolder,
   runWithInteractionCapture,
@@ -68,6 +69,21 @@ export async function promptTurnSession(input: {
       // A prompt that throws after the watchdog cut it is that abort's
       // echo: the turn settles on the stall card below instead.
       if (!stall.stalled()) throw error;
+    });
+    stall.disarm();
+    // Inside the try so the call report still collects the pass's request.
+    await recoverFollowUpActions({
+      session,
+      interaction: input.interaction,
+      conversationId: turn.conversationId,
+      turnId: turn.turnId,
+      planMode: turn.mode === "plan" || turn.liveMode?.current === "plan",
+      assistantText: frames.assistantText,
+      failed:
+        Boolean(frames.providerError) ||
+        stall.stalled() ||
+        turn.signal?.aborted === true,
+      isStopped: () => turn.signal?.aborted === true,
     });
   } finally {
     stall.disarm();

@@ -33,7 +33,11 @@ import type { BridgeQuietClass } from "@houston/sdk/local-model-bridge/quiet";
  *  `first_day_no_provider` is a first-day start refused because the person
  *  has no AI connected (`@houston/sdk/agents/first-day-refusal`): an expected
  *  state whose surface offers the connect flow, skipped by every reporting
- *  path. */
+ *  path.
+ *  `bug_intake_unavailable` is the bug-report intake (Linear) refusing every
+ *  report on our side, its plan's issue cap above all (HOUSTON-APP-5FT): the
+ *  report itself still arrives through the fallback feedback, so the refusal
+ *  is one counted warning, never a per-user bug. */
 export type QuietErrorClass =
   | "engine_waking"
   | "offline"
@@ -42,7 +46,8 @@ export type QuietErrorClass =
   | "no_url_handler"
   | "plan_min_interval"
   | "webhook_not_creator"
-  | "first_day_no_provider";
+  | "first_day_no_provider"
+  | "bug_intake_unavailable";
 
 /**
  * The burst-gate key a quiet-class report collapses on.

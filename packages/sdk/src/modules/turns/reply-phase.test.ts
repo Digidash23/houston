@@ -12,9 +12,10 @@ import {
   type FeedOutput,
   MultiplexFeedOutput,
 } from "./feed-output";
+import { finishResumed } from "./finish-resumed";
 import { setReplyPhase } from "./reply-phase";
 import { StreamRegistry } from "./stream-registry";
-import { finishResumed, newTurnState } from "./turn-settle";
+import { newTurnState } from "./turn-settle";
 import { observeConversation, streamTurn } from "./turn-stream";
 import {
   type ConversationVM,
