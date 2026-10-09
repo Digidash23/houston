@@ -76,6 +76,7 @@ export async function openTurnBackendSession(input: {
     conversationId,
     turnId,
     windowTokens: catalogWindow,
+    kind: turn.routineFire ? "fire" : "chat",
   });
   const harness = backend.id === "anthropic" ? "claude" : "pi";
   const priorHarness = readTurnHarness(directories.dataDir, conversationId);

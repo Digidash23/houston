@@ -91,6 +91,9 @@ async function runAcceptedTurn(
     resumeOf?: string;
     missionTitle?: MissionTitleRequest;
     cardAnswer?: CardAnswer;
+    /** The host fired this message for a routine run (ROUTINE_FIRE_HEADER).
+     *  A boot resume omits it: the fire already applied its budget. */
+    routineFire?: boolean;
   },
 ): Promise<void> {
   // Mint the turn's wire identity up front so even a turn that fails before
@@ -173,6 +176,7 @@ async function runAcceptedTurn(
         ...(options?.resumeOf ? { resumeOf: options.resumeOf } : {}),
       },
     );
+    recorded.routineFire = options?.routineFire === true;
     return withWorkdirLock(config.workspaceDir, () =>
       execTurn(conv, id, turnId, text, recorded, pin, acting, startup),
     );

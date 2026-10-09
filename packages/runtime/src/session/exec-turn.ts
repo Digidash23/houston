@@ -129,6 +129,9 @@ export interface TurnPin {
 export interface RecordedUserTurn {
   author: MessageAuthor | undefined;
   priorAuthors: ReadonlyArray<MessageAuthor | undefined>;
+  /** The host fired this turn for a routine run (turn-start.ts sets it from
+   *  the message route). Only fires are held to the routine context budget. */
+  routineFire?: boolean;
 }
 
 const errMessage = (err: unknown) =>
@@ -454,10 +457,10 @@ export async function execTurn(
     const mode = liveMode.current;
     const providerChanged = model.provider !== conv.provider;
     const modelChanged = model.id !== conv.model;
-    // ROUTINE CONTEXT BUDGET: a routine chat whose previous run ended past its
-    // carry line (or overflowed) starts THIS run on a fresh session carrying a
-    // bounded transcript of recent runs, instead of resuming a session that no
-    // longer fits (routine-context.ts). Runs before the switches below: the
+    // ROUTINE CONTEXT BUDGET: a routine FIRE whose previous run ended past its
+    // carry line (or any turn after an overflow) starts on a fresh session
+    // carrying a bounded transcript of recent runs, instead of resuming a
+    // session that no longer fits (routine-context.ts). Runs before the switches below: the
     // fresh session is already on the right backend and mode, so they no-op.
     routineReset = await resetRoutineSessionIfNeeded(
       conv,
@@ -466,6 +469,7 @@ export async function execTurn(
       text,
       model,
       mode,
+      recorded.routineFire ? "fire" : "chat",
     );
     // COMPLIANCE GATE: when this turn's model crosses a BACKEND boundary
     // (openai/pi → anthropic/Claude SDK, or the reverse), REBUILD the session on

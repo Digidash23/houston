@@ -23,7 +23,22 @@ import { readCarry } from "./routine-carry";
  * No model call is involved, so the reset itself cannot fail the way a
  * summarization can. A chat that stays under the line is untouched and keeps
  * resuming its session with full fidelity.
+ *
+ * The carry line is for FIRES only: it exists so an unattended run does not
+ * re-read hundreds of thousands of tokens on every fire. A person working in
+ * the routine's chat gets the ordinary chat treatment (autocompact near the
+ * window); a turn that crossed 100k is routine for them (the tool definitions
+ * alone are ~50k), and a reset there restarts their session on a short replay.
+ * Only an overflow or an unmeasurable rotated history still resets their
+ * turns, because no autocompact recovers from those. A fire after a long
+ * conversation still resets it: the routine's budget wins on its own runs.
  */
+
+/**
+ * Who started this turn of a routine chat: the routine's own fire (a schedule,
+ * a trigger or Run now) or a person chatting in it.
+ */
+export type RoutineTurnKind = "fire" | "chat";
 
 /** Share of the window the carried context may reach before a run resets. */
 const CARRY_FRACTION = 0.5;
@@ -66,18 +81,22 @@ export type RoutineContextPlan =
  * `currentTurnId` names the run's own, already-recorded, user message. The
  * transcript is the chat's live file plus the carry its last run recorded
  * (routine-carry.ts), identical on the standing server and a pooled worker.
+ * `kind` says whether the carry line applies (see the header).
  */
 export function planRoutineContext(
   conversationId: string,
   transcript: RoutineTranscript,
   currentTurnId: string,
   windowTokens: number,
+  kind: RoutineTurnKind,
 ): RoutineContextPlan {
   if (!isRoutineConversation(conversationId)) return { reset: false };
   const carry = readCarry(transcript, currentTurnId);
   const window = Math.min(windowTokens, carry.namedWindow ?? windowTokens);
   const overLine =
-    carry.tokens !== null && carry.tokens >= routineCarryLine(window);
+    kind === "fire" &&
+    carry.tokens !== null &&
+    carry.tokens >= routineCarryLine(window);
   return carry.unknown || carry.overflowed || overLine
     ? { reset: true, carriedTokens: carry.tokens, windowTokens: window }
     : { reset: false };
