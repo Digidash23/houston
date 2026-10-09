@@ -1,4 +1,9 @@
 import type { PendingInteraction } from "@houston/protocol";
+import {
+  type ProviderConnectionStatus,
+  providerConnectionState,
+  providerIsConnected,
+} from "./provider-connection.ts";
 
 /**
  * The one rule that decides whether the chat composer is replaced by the
@@ -68,4 +73,22 @@ export function shouldShowConnectAiEmptyState(
     emptyStateAvailable &&
     !interaction?.steps.some((step) => step.kind === "provider_connect")
   );
+}
+
+/**
+ * The two counts the rule reads, off a provider scan's statuses, through the
+ * ONE connection derivation (`providerIsConnected` / `providerConnectionState`).
+ * For a surface outside the chat panel (the first-day start button) that has
+ * no per-provider lists of its own to count.
+ */
+export function providerConnectionCounts(
+  statuses: Record<string, ProviderConnectionStatus>,
+): Pick<ConnectAiComposerSignals, "connectedCount" | "checkingCount"> {
+  const values = Object.values(statuses);
+  return {
+    connectedCount: values.filter((s) => providerIsConnected(s)).length,
+    checkingCount: values.filter(
+      (s) => providerConnectionState(s, false) === "checking",
+    ).length,
+  };
 }

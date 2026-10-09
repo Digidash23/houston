@@ -2,7 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SdkPorts } from "../../ports";
 import { HoustonSdk } from "../../sdk";
 import { memoryKv } from "../../test-ports";
-import { AgentsCommand } from "./index";
+import {
+  AgentsCommand,
+  firstDayRefusal,
+  isFirstDayNoProvider,
+  isFirstDayNotPending,
+} from "./index";
 
 /**
  * The first-day lifecycle as the SDK owns it: a new hire is born pending in
@@ -115,6 +120,7 @@ describe("startFirstDay", () => {
   it.each([
     "first_day_not_pending",
     "first_day_not_started",
+    "first_day_no_provider",
   ])("the %s refusal throws once with the host's 409, never retried", async (code) => {
     const h = harness({ status: 409, body: { error: "refused", code } });
     dispose = h.sdk.agents.dispose;
@@ -141,5 +147,66 @@ describe("startFirstDay", () => {
     });
     expect(good).toMatchObject({ ok: true, value: STARTED });
     expect(h.calls[0]?.body).toEqual({});
+  });
+});
+
+describe("the first-day refusal classifiers", () => {
+  it("name the no-provider refusal off the SDK's own error, never retried", async () => {
+    const h = harness({
+      status: 409,
+      body: {
+        error: "No provider connected. Connect an AI provider first.",
+        code: "first_day_no_provider",
+      },
+    });
+    dispose = h.sdk.agents.dispose;
+    const err = await h.sdk.agents.startFirstDay("a1").catch((e: unknown) => e);
+    expect(isFirstDayNoProvider(err)).toBe(true);
+    expect(isFirstDayNotPending(err)).toBe(false);
+    expect(h.calls).toHaveLength(1);
+  });
+
+  it("read the adapter's parsed body and keep the provider it names", () => {
+    const err = Object.assign(new Error("engine error 409"), {
+      status: 409,
+      body: {
+        error: "No provider connected for anthropic. Connect it first.",
+        code: "first_day_no_provider",
+        provider: "anthropic",
+      },
+    });
+    expect(firstDayRefusal(err)).toEqual({
+      code: "first_day_no_provider",
+      error: "No provider connected for anthropic. Connect it first.",
+      provider: "anthropic",
+    });
+    expect(isFirstDayNoProvider(err)).toBe(true);
+  });
+
+  it("tell not-pending apart, and match nothing else", () => {
+    const notPending = {
+      status: 409,
+      body: { error: "x", code: "first_day_not_pending" },
+    };
+    expect(isFirstDayNotPending(notPending)).toBe(true);
+    expect(isFirstDayNoProvider(notPending)).toBe(false);
+    const notStarted = {
+      status: 409,
+      body: { error: "x", code: "first_day_not_started" },
+    };
+    expect(isFirstDayNoProvider(notStarted)).toBe(false);
+    expect(isFirstDayNotPending(notStarted)).toBe(false);
+    // The send path's own code on a first-day route is not this refusal.
+    expect(
+      isFirstDayNoProvider({ status: 409, body: { code: "no_provider" } }),
+    ).toBe(false);
+    expect(
+      isFirstDayNoProvider({
+        status: 500,
+        body: { error: "x", code: "first_day_no_provider" },
+      }),
+    ).toBe(false);
+    expect(isFirstDayNoProvider(new Error("boom"))).toBe(false);
+    expect(isFirstDayNoProvider(null)).toBe(false);
   });
 });

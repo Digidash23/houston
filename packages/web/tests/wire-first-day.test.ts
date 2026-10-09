@@ -1,4 +1,5 @@
 import { HoustonClient } from "@houston/engine-adapter/client";
+import { firstDayRefusal, isFirstDayNoProvider } from "@houston/sdk";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import {
   createWireCapture,
@@ -133,6 +134,7 @@ test("a start pressed while the pod wakes waits it out on the same request", asy
 test.each([
   "first_day_not_pending",
   "first_day_not_started",
+  "first_day_no_provider",
 ])("the %s refusal surfaces as the adapter's engine error, never retried", async (code) => {
   vi.useFakeTimers();
   stubResponses(json(409, { error: "refused", code }));
@@ -145,4 +147,39 @@ test.each([
     status: 409,
   });
   expect(calls).toHaveLength(1);
+});
+
+test("a start with no AI connected (409 first_day_no_provider) is the typed refusal", async () => {
+  stubResponses(
+    json(409, {
+      error: "No provider connected for anthropic. Connect it first.",
+      code: "first_day_no_provider",
+      provider: "anthropic",
+    }),
+  );
+  const failure = await client()
+    .startFirstDay("a1", {})
+    .then(
+      () => null,
+      (err: unknown) => err,
+    );
+  expect(failure).toMatchObject({ name: "HoustonEngineError", status: 409 });
+  // The SDK names it: an expected state the surface turns into its connect
+  // prompt, never a report. The provider it names rides along.
+  expect(isFirstDayNoProvider(failure)).toBe(true);
+  expect(firstDayRefusal(failure)).toEqual({
+    code: "first_day_no_provider",
+    error: "No provider connected for anthropic. Connect it first.",
+    provider: "anthropic",
+  });
+  expect(calls).toHaveLength(1);
+  // Any other refused start stays an ordinary failure.
+  stubResponses(json(409, { error: "refused", code: "first_day_not_started" }));
+  const other = await client()
+    .startFirstDay("a1", {})
+    .then(
+      () => null,
+      (err: unknown) => err,
+    );
+  expect(isFirstDayNoProvider(other)).toBe(false);
 });
