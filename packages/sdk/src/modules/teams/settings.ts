@@ -12,6 +12,7 @@
 
 import {
   parseTriggerPlanSkipped,
+  parseTriggerStatusReason,
   type TriggerStatusItem,
 } from "@houston/wire-types";
 import { type HttpScope, httpRequest } from "../http";
@@ -148,7 +149,12 @@ export async function setAgentModelChoice(
  * "triggers unsupported here" and hides the badge. An item's plan_skipped
  * counts the routine's events the Free plan refused in the last 24 hours (why,
  * how many, and when the last one was), so a routine that "did not run" on an
- * event can be explained.
+ * event can be explained. An item's reason says why a binding that is not
+ * working is stuck: trigger_type_gone (the app no longer offers that event, so
+ * the routine must be edited to pick another), config_rejected (the app
+ * refused the setup on its side and it is retried on its own), needs_reauth
+ * (the account must be reconnected) or rejected (any other refusal);
+ * triggerRemedy turns it into what the person should do.
  * @param agentSlugOrId The agent this acts on, by the id or slug listAgents
  *   returns. Read it from listAgents rather than writing the name the user
  *   says.
@@ -163,13 +169,21 @@ export async function agentTriggerStatus(
     `/v1/agents/${encodeURIComponent(agentSlugOrId)}/trigger-status`,
   );
   const { items } = (await res.json()) as { items: TriggerStatusItem[] };
-  return items.map(withParsedPlanSkip);
+  return items.map(withParsedFields);
 }
 
-/** Drops a `plan_skipped` this client cannot explain; the rest passes as is. */
-function withParsedPlanSkip(item: TriggerStatusItem): TriggerStatusItem {
-  if (item.plan_skipped === undefined) return item;
-  const { plan_skipped, ...rest } = item;
-  const parsed = parseTriggerPlanSkipped(plan_skipped);
-  return parsed ? { ...rest, plan_skipped: parsed } : rest;
+/**
+ * Drops a `plan_skipped` or a `reason` this client cannot explain (a newer
+ * gateway's code); the rest passes as is.
+ */
+function withParsedFields(item: TriggerStatusItem): TriggerStatusItem {
+  const { plan_skipped, reason, ...rest } = item;
+  const skipped =
+    plan_skipped === undefined ? null : parseTriggerPlanSkipped(plan_skipped);
+  const parsedReason = parseTriggerStatusReason(reason);
+  return {
+    ...rest,
+    ...(parsedReason ? { reason: parsedReason } : {}),
+    ...(skipped ? { plan_skipped: skipped } : {}),
+  };
 }

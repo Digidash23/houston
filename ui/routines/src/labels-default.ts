@@ -107,6 +107,10 @@ export const DEFAULT_TRIGGER_LABELS: TriggerLabels = {
   reconnect: "Reconnect",
   statusDisconnectedHint: "The connected account was disconnected.",
   statusRevokedHint: "This app was turned off for this agent.",
+  statusTriggerGoneHint:
+    "This event is no longer offered by the app. Edit this routine and pick a different event.",
+  statusConfigRejectedHint:
+    "The app can't accept this event yet. We keep retrying on our side; there is nothing you need to do.",
 };
 
 export const DEFAULT_ROW_LABELS: RoutineRowLabels = {
