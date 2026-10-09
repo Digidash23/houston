@@ -3,9 +3,13 @@ import { describe, it } from "node:test";
 import type { FileEntry } from "@houston-ai/agent";
 import { QueryClient } from "@tanstack/react-query";
 import {
+  newFolderEdit,
   relocateFileEntry,
+  relocationEdit,
+  removalEdit,
   renamedPath,
   replaceFileEntry,
+  replacementEdit,
   withFolderEntry,
   withoutFileEntries,
 } from "../src/lib/file-list-patches.ts";
@@ -170,5 +174,48 @@ describe("a file delete through the optimistic engine", () => {
     await done;
     assert.deepEqual(paths(qc.getQueryData(key)), paths(listing()));
     assert.deepEqual(told, [err]);
+  });
+});
+
+describe("a refused listing edit undoes only its own entries", () => {
+  const landed = file("fresh.csv");
+
+  it("puts deleted entries back where they were, keeping new arrivals", () => {
+    const edit = removalEdit(["docs"]);
+    const before = listing();
+    const now = [...(edit.apply(before) ?? []), landed];
+    const back = edit.revert(now, before);
+    assert.deepEqual(paths(back), [...(paths(listing()) ?? []), "fresh.csv"]);
+    assert.deepEqual(paths(edit.revert(back, before)), paths(back));
+    assert.equal(edit.revert(undefined, before), undefined);
+  });
+
+  it("moves a renamed folder back with its contents", () => {
+    const edit = relocationEdit("docs", "papers");
+    const before = listing();
+    const back = edit.revert([...(edit.apply(before) ?? []), landed], before);
+    assert.deepEqual(paths(back), [...(paths(listing()) ?? []), "fresh.csv"]);
+  });
+
+  it("restores the occupant a refused replace dropped", () => {
+    const before = [file("a.md"), folder("dest"), file("dest/a.md")];
+    const edit = replacementEdit("a.md", "dest/a.md");
+    const back = edit.revert(edit.apply(before), before);
+    assert.deepEqual(paths(back)?.sort(), ["a.md", "dest", "dest/a.md"]);
+    // The occupant's own entry, not the moved one renamed onto its path.
+    assert.equal(
+      back?.find((f) => f.path === "dest/a.md"),
+      before[2],
+    );
+  });
+
+  it("drops a refused new folder only", () => {
+    const edit = newFolderEdit("drafts", 1);
+    const before = listing();
+    const now = [...(edit.apply(before) ?? []), landed];
+    assert.deepEqual(paths(edit.revert(now, before)), [
+      ...(paths(listing()) ?? []),
+      "fresh.csv",
+    ]);
   });
 });

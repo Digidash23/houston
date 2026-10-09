@@ -177,3 +177,88 @@ describe("a mission delete through the optimistic write", () => {
     deepStrictEqual(refused, ["delete_mission"]);
   });
 });
+
+describe("a refused mission write undoes only its own rows", () => {
+  const ALL = queryKeys.allConversations([ALICE, BOB]);
+  const hang = () => {
+    let reject!: (err: Error) => void;
+    const promise = new Promise<void>((_, rej) => {
+      reject = rej;
+    });
+    return { promise, reject };
+  };
+
+  it("keeps another agent's rows that landed mid-delete", async () => {
+    const qc = seeded();
+    const host = hang();
+    const done = runOptimisticWrite(
+      {
+        qc,
+        command: "delete_mission",
+        patches: missionRemovalPatches({ [ALICE]: ["a1"] }),
+        write: () => host.promise,
+        failure: { title: "t", description: "d" },
+      },
+      () => {},
+    );
+    // Bob's event refreshes his slice of the aggregate (`patchAgentSlice`).
+    qc.setQueryData(ALL, [row("a2", ALICE), row("b1", BOB), row("b2", BOB)]);
+    host.reject(new Error("pod asleep"));
+    await done;
+    deepStrictEqual(ids(qc.getQueryData(ALL)), ["a1", "a2", "b1", "b2"]);
+  });
+
+  it("puts each card of two overlapping refused deletes back", async () => {
+    const qc = seeded();
+    const first = hang();
+    const second = hang();
+    const write = (id: string, host: ReturnType<typeof hang>) =>
+      runOptimisticWrite(
+        {
+          qc,
+          command: "delete_mission",
+          patches: missionRemovalPatches({ [ALICE]: [id] }),
+          write: () => host.promise,
+          failure: { title: "t", description: "d" },
+        },
+        () => {},
+      );
+    const a = write("a1", first);
+    const b = write("a2", second);
+    first.reject(new Error("boom"));
+    await a;
+    second.reject(new Error("boom"));
+    await b;
+    deepStrictEqual(ids(qc.getQueryData(ALL)), ["a1", "a2", "b1"]);
+    deepStrictEqual(ids(qc.getQueryData(queryKeys.activity(ALICE))), [
+      "a1",
+      "a2",
+    ]);
+  });
+
+  it("restores only the edited fields of a refused move", async () => {
+    const qc = seeded();
+    const host = hang();
+    const done = runOptimisticWrite(
+      {
+        qc,
+        command: "update_mission",
+        patches: missionEditPatches({ [ALICE]: ["a1"] }, { status: "done" }, T),
+        write: () => host.promise,
+        failure: { title: "t", description: "d" },
+      },
+      () => {},
+    );
+    // A rename of the same card lands from the host meanwhile.
+    qc.setQueryData(ALL, [
+      { ...row("a1", ALICE), status: "done", title: "Renamed" },
+      row("a2", ALICE),
+      row("b1", BOB),
+    ]);
+    host.reject(new Error("boom"));
+    await done;
+    const [a1] = qc.getQueryData(ALL) as { status: string; title: string }[];
+    strictEqual(a1.status, "needs_you");
+    strictEqual(a1.title, "Renamed");
+  });
+});

@@ -42,6 +42,10 @@ export function useLearnings(agentPath: string | undefined) {
  * leaves the instant the user commits, and a refused write puts the list back
  * with an authored toast (`optimisticWrite`), unless `call()` already
  * showed copy of its own for it (offline, waking).
+ *
+ * Each resolves `true` once the file has the change and `false` when it was
+ * refused, and never rejects: the card that sent it reopens with the typed
+ * text on `false`, so a refusal never costs the user what they wrote.
  */
 export function useLearningWrites(agentPath: string | undefined) {
   const qc = useQueryClient();
@@ -64,9 +68,10 @@ export function useLearningWrites(agentPath: string | undefined) {
     apply: (list: Learning[] | undefined) => Learning[] | undefined,
     run: (path: string) => Promise<void>,
     failure: "add" | "update" | "remove",
-  ) => {
-    if (!agentPath) return;
-    void optimisticWrite({
+  ): Promise<boolean> => {
+    if (!agentPath) return Promise.resolve(false);
+    let landed = false;
+    return optimisticWrite({
       qc,
       command,
       patches: [{ queryKey: queryKeys.learnings(agentPath), apply }],
@@ -75,7 +80,10 @@ export function useLearningWrites(agentPath: string | undefined) {
         title: t(`learnings.failure.${failure}Title`),
         description: t(`learnings.failure.${failure}Body`),
       },
-    });
+      onSuccess: () => {
+        landed = true;
+      },
+    }).then(() => landed);
   };
 
   return {
@@ -86,7 +94,7 @@ export function useLearningWrites(agentPath: string | undefined) {
         crypto.randomUUID(),
         new Date().toISOString(),
       );
-      write(
+      return write(
         "add_learning",
         (list) => appendLearning(list, learning),
         (path) => learnings.add(path, learning),

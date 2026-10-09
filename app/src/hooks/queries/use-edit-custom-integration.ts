@@ -5,18 +5,20 @@ import { customEditPatches } from "../../lib/integration-cache-patches";
 import { optimisticWrite } from "../../lib/optimistic-write";
 import { queryKeys } from "../../lib/query-keys";
 import { tauriIntegrations } from "../../lib/tauri";
+import { useCustomIntegrationScope } from "./use-custom-transport";
 
 /** Rename a custom integration / set its website: every list shows the new
  *  details on Save, and the write follows. */
 export function useEditCustomIntegration(agentId?: string) {
   const qc = useQueryClient();
   const { t } = useTranslation("integrations");
+  const scope = useCustomIntegrationScope();
   return useCallback(
     (input: { slug: string; name: string; website: string }) =>
       void optimisticWrite({
         qc,
         command: "custom_integration_update_details",
-        patches: customEditPatches(input.slug, input),
+        patches: customEditPatches(input.slug, input, { scope, agentId }),
         write: () =>
           tauriIntegrations.customUpdateDetails(
             input.slug,
@@ -32,6 +34,6 @@ export function useEditCustomIntegration(agentId?: string) {
           queryKeys.integrationConnections("custom"),
         ],
       }),
-    [qc, agentId, t],
+    [qc, agentId, scope, t],
   );
 }

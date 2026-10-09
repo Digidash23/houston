@@ -66,3 +66,17 @@ export function restoreAgentRow(
   const at = Math.min(Math.max(index, 0), agents.length);
   return [...agents.slice(0, at), row, ...agents.slice(at)];
 }
+
+/**
+ * The selection after a refused delete of the agent being viewed. The delete
+ * moved the view to `switchedTo`; if the person is still there, the view goes
+ * back to `row`. Null when they moved on since: their own pick stands.
+ */
+export function selectionAfterRefusedDelete(
+  current: Agent | null,
+  switchedTo: Agent | null,
+  row: Agent,
+): Agent | null {
+  if ((current?.id ?? null) !== (switchedTo?.id ?? null)) return null;
+  return current?.id === row.id ? null : row;
+}

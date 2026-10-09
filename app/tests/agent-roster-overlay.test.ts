@@ -4,6 +4,7 @@ import {
   overlayAgentRoster,
   paintAgentRow,
   restoreAgentRow,
+  selectionAfterRefusedDelete,
 } from "../src/lib/agent-roster-overlay.ts";
 import type { Agent } from "../src/lib/types.ts";
 
@@ -88,5 +89,23 @@ describe("restoreAgentRow", () => {
       next.map((a) => a.id),
       ["a", "z"],
     );
+  });
+});
+
+describe("selectionAfterRefusedDelete", () => {
+  it("returns the view to the agent whose delete was refused", () => {
+    const [a, b] = roster();
+    assert.equal(selectionAfterRefusedDelete(b, b, a), a);
+  });
+
+  it("returns it when the delete left no agent to switch to", () => {
+    const [a] = roster();
+    assert.equal(selectionAfterRefusedDelete(null, null, a), a);
+  });
+
+  it("keeps a pick the person made while the delete was in flight", () => {
+    const [a, b, c] = roster();
+    assert.equal(selectionAfterRefusedDelete(c, b, a), null);
+    assert.equal(selectionAfterRefusedDelete(c, null, a), null);
   });
 });

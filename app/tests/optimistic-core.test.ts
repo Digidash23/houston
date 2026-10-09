@@ -5,6 +5,7 @@ import {
   type OptimisticWrite,
   runOptimisticWrite,
 } from "../src/lib/optimistic-core.ts";
+import { revertRows } from "../src/lib/row-revert.ts";
 
 type Row = { id: string };
 const KEY = ["activity", "/agents/a"] as const;
@@ -169,5 +170,95 @@ describe("optimisticWrite", () => {
     deepStrictEqual(refusals, [
       { command: "delete_mission", title: failure.title },
     ]);
+  });
+
+  it("a row-level revert keeps rows that landed mid-write", async () => {
+    const qc = seeded();
+    const host = deferred();
+    const done = optimisticWrite({
+      qc,
+      command: "delete_mission",
+      patches: [
+        {
+          ...dropM1,
+          revert: (rows: Row[] | undefined, before: Row[] | undefined) =>
+            revertRows(rows, before, {
+              keyOf: (r) => r.id,
+              touched: (r) => r.id === "m1",
+            }),
+        },
+      ],
+      write: () => host.promise,
+      failure,
+    });
+    qc.setQueryData<Row[]>(KEY, [{ id: "m2" }, { id: "m3" }]);
+    host.reject(new Error("boom"));
+    await done;
+    deepStrictEqual(qc.getQueryData(KEY), [
+      { id: "m1" },
+      { id: "m2" },
+      { id: "m3" },
+    ]);
+  });
+
+  it("leaves a roster variant's first load running", async () => {
+    const qc = seeded();
+    const VARIANT = ["activity", "/agents/a", "first"] as const;
+    let land!: (rows: Row[]) => void;
+    const loading = qc.fetchQuery({
+      queryKey: VARIANT,
+      queryFn: () =>
+        new Promise<Row[]>((resolve) => {
+          land = resolve;
+        }),
+    });
+    const host = deferred();
+    const done = optimisticWrite({
+      qc,
+      command: "delete_mission",
+      patches: [dropM1],
+      write: () => host.promise,
+      failure,
+    });
+    land([{ id: "m1" }, { id: "m4" }]);
+    deepStrictEqual(await loading, [{ id: "m1" }, { id: "m4" }]);
+    // Landed, with the in-flight delete held over it.
+    deepStrictEqual(qc.getQueryData(VARIANT), [{ id: "m4" }]);
+    host.resolve();
+    await done;
+  });
+
+  it("never rejects when a callback throws, and reports it", async () => {
+    const qc = seeded();
+    const bugs: string[] = [];
+    const run = (fail: boolean) =>
+      runOptimisticWrite(
+        {
+          qc,
+          command: "delete_mission",
+          patches: [dropM1],
+          write: () =>
+            fail ? Promise.reject(new Error("boom")) : Promise.resolve(),
+          failure,
+          onSuccess: () => {
+            throw new Error("success hook");
+          },
+          onError: () => {
+            throw new Error("error hook");
+          },
+        },
+        () => {
+          throw new Error("refusal surface");
+        },
+        (command, err) => bugs.push(`${command}:${(err as Error).message}`),
+      );
+    await run(false);
+    await run(true);
+    deepStrictEqual(bugs, [
+      "delete_mission:success hook",
+      "delete_mission:refusal surface",
+      "delete_mission:error hook",
+    ]);
+    deepStrictEqual(qc.getQueryData(KEY), [{ id: "m2" }]);
   });
 });

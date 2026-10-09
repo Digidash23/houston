@@ -10,6 +10,7 @@
  * descendants with it.
  */
 import type { FileEntry } from "@houston-ai/agent";
+import { type RowRevert, revertRows } from "./row-revert.ts";
 
 const isUnder = (path: string, root: string) =>
   path === root || path.startsWith(`${root}/`);
@@ -97,3 +98,49 @@ export function withFolderEntry(
   };
   return [folder, ...files];
 }
+
+type Listing = FileEntry[] | undefined;
+
+/**
+ * One optimistic listing edit: the paint, and the undo a refusal runs. The
+ * undo puts back only the entries this edit moved or dropped, so entries that
+ * landed while it was in flight (another write, the agent's own) survive.
+ */
+export interface FileListEdit {
+  apply: (files: Listing) => Listing;
+  revert: (files: Listing, before: Listing) => Listing;
+}
+
+const undo =
+  (spec: Omit<RowRevert<FileEntry>, "keyOf">) =>
+  (files: Listing, before: Listing) =>
+    revertRows(files, before, { keyOf: (f) => f.path, ...spec });
+
+export const removalEdit = (paths: readonly string[]): FileListEdit => ({
+  apply: (files) => withoutFileEntries(files, paths),
+  revert: undo({ touched: (f) => paths.some((p) => isUnder(f.path, p)) }),
+});
+
+export const relocationEdit = (from: string, to: string): FileListEdit => ({
+  apply: (files) => relocateFileEntry(files, from, to),
+  revert: undo({
+    touched: (f) => isUnder(f.path, from),
+    added: (f) => isUnder(f.path, to),
+  }),
+});
+
+export const replacementEdit = (
+  from: string,
+  occupant: string,
+): FileListEdit => ({
+  apply: (files) => replaceFileEntry(files, from, occupant),
+  revert: undo({
+    touched: (f) => isUnder(f.path, from) || isUnder(f.path, occupant),
+    added: (f) => isUnder(f.path, occupant),
+  }),
+});
+
+export const newFolderEdit = (path: string, now: number): FileListEdit => ({
+  apply: (files) => withFolderEntry(files, path, now),
+  revert: undo({ touched: () => false, added: (f) => f.path === path }),
+});

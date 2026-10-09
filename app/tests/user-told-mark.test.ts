@@ -46,4 +46,26 @@ describe("user-told mark", () => {
     );
     ok(ladder.trimEnd().endsWith("return false;\n}"));
   });
+
+  it("call() also counts what showErrorToast surfaced or withheld as told", () => {
+    const read = (file: string) =>
+      readFileSync(join(import.meta.dirname, `../src/lib/${file}`), "utf8");
+    const tauri = read("tauri.ts");
+    ok(tauri.includes("return showErrorToast(label, message, err);"));
+    const toast = read("error-toast.ts");
+    const body = toast.slice(toast.indexOf("export function showErrorToast("));
+    ok(body.includes("): boolean {"));
+    // Signed out, warming, offline, waking and a surfaced quiet state.
+    for (const line of [
+      "suppressed: signed-out engine call`);\n    return true;",
+      "while the agent warms up`);\n    return true;",
+      "showConnectivityErrorToast(command, message, originalError);\n    return true;",
+      "showEngineWakingToast(command, message, originalError);\n    return true;",
+      "surfaceQuietState(quiet, command, message, originalError))\n    return true;",
+    ]) {
+      ok(body.includes(line), line);
+    }
+    // The report-only path leaves the caller's copy as the user's surface.
+    ok(body.trimEnd().endsWith("return false;\n}"));
+  });
 });

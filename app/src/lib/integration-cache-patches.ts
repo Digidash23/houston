@@ -1,4 +1,5 @@
 import type {
+  CustomIntegrationScope,
   CustomIntegrationView,
   IntegrationConnection,
 } from "@houston/wire-types";
@@ -51,14 +52,43 @@ export function customWithDetails(
   );
 }
 
-/** Every cache a custom integration shows in: the top-level and per-agent
- *  lists (one key prefix) and the merged connections view (slug = toolkit). */
-export function customRemovalPatches(slug: string): OptimisticPatch[] {
-  return [
-    {
-      queryKey: queryKeys.customIntegrations(),
+/** Where a custom-integration write was sent: the deployment's scope
+ *  (`customIntegrationScope`) and the per-agent route's agent, if any. */
+export interface CustomWriteTarget {
+  scope: CustomIntegrationScope;
+  agentId?: string;
+}
+
+/**
+ * The custom lists that hold an integration written through `target`. A
+ * shared host keeps ONE definitions file, so the top-level list and every
+ * agent's copy are the same list (one key prefix). On a per-agent deployment
+ * only the written agent's list holds it: the shared prefix would also paint
+ * another agent's integration that happens to share the slug. A per-agent
+ * deployment with no agent named has no list to paint (the top-level form
+ * does not reach a pod).
+ */
+export function customListKeys({ scope, agentId }: CustomWriteTarget) {
+  if (scope === "host") return [queryKeys.customIntegrations()];
+  return agentId ? [queryKeys.agentCustomIntegrations(agentId)] : [];
+}
+
+/** Every cache the integration shows in: its lists (`customListKeys`) and,
+ *  on a shared host, the host-level connections view (slug = toolkit). The
+ *  gateway does not serve that view, so a per-agent deployment has none. */
+export function customRemovalPatches(
+  slug: string,
+  target: CustomWriteTarget,
+): OptimisticPatch[] {
+  const lists = customListKeys(target).map(
+    (queryKey): OptimisticPatch => ({
+      queryKey,
       apply: (list: CustomList) => customWithout(list, slug),
-    },
+    }),
+  );
+  if (target.scope !== "host") return lists;
+  return [
+    ...lists,
     {
       queryKey: queryKeys.integrationConnections("custom"),
       apply: (rows: IntegrationConnection[] | undefined) =>
@@ -70,11 +100,10 @@ export function customRemovalPatches(slug: string): OptimisticPatch[] {
 export function customEditPatches(
   slug: string,
   details: { name: string; website: string },
+  target: CustomWriteTarget,
 ): OptimisticPatch[] {
-  return [
-    {
-      queryKey: queryKeys.customIntegrations(),
-      apply: (list: CustomList) => customWithDetails(list, slug, details),
-    },
-  ];
+  return customListKeys(target).map((queryKey) => ({
+    queryKey,
+    apply: (list: CustomList) => customWithDetails(list, slug, details),
+  }));
 }

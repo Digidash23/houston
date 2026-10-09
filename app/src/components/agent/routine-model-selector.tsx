@@ -16,12 +16,9 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useRoutineWritesForAnyAgent } from "../../hooks/queries";
 import { useRoutineModelResolution } from "../../hooks/use-routine-model-resolution";
-import { genericErrorDescription } from "../../lib/error-report";
 import { providerModelLabel } from "../../lib/model-labels";
 import { toCanonicalProviderId } from "../../lib/provider-overrides";
-import { toastRoutineWriteFailure } from "../../lib/routine-write-failure";
 import type { Agent } from "../../lib/types";
-import { useUIStore } from "../../stores/ui";
 import { ChatModelSelector } from "../chat-model-selector";
 
 interface Props {
@@ -34,24 +31,18 @@ interface Props {
 
 export function RoutineModelSelector({ agent, routine, bordered }: Props) {
   const { t } = useTranslation("routines");
-  const addToast = useUIStore((s) => s.addToast);
   const [open, setOpen] = useState(false);
   const { update: updateRoutine } = useRoutineWritesForAnyAgent();
   const { provider, model, followsAgent, allowedModels } =
     useRoutineModelResolution(agent, routine);
 
   const save = (updates: RoutineUpdate) =>
-    updateRoutine.mutate(
-      { agentPath: agent.folderPath, routineId: routine.id, updates },
-      {
-        onError: (err) =>
-          toastRoutineWriteFailure(
-            err,
-            { title: t("toasts.modelError"), command: "set_routine_model" },
-            { addToast, describe: genericErrorDescription },
-          ),
-      },
-    );
+    updateRoutine.mutate({
+      agentPath: agent.folderPath,
+      routineId: routine.id,
+      updates,
+      kind: "model",
+    });
 
   return (
     // The popover content is portaled, so the field-style border (`bordered`)

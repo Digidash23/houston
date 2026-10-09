@@ -1,6 +1,7 @@
 /** `.houston/learnings/learnings.json` — persistent lessons the agent has recorded. */
 
 import schema from "@houston-ai/agent-schemas/learnings.schema.json";
+import { serialQueue } from "../lib/serial-queue";
 import { readAgentJson, writeAgentJson } from "./agent-file";
 
 /** WHO taught a learning. Mirrors the protocol's `ActivityContributor`. */
@@ -33,17 +34,9 @@ const s = schema as unknown as Parameters<typeof readAgentJson>[2];
  * Every write is a read-modify-write of the whole file, and the Memory tab no
  * longer waits for one to land before offering the next (writes are painted
  * optimistically). Two in flight together would each write the list they
- * read, dropping the other's change, so writes queue per agent. The stored
- * tail is the SETTLED one: a rejection reaches its own caller and the next
- * write still runs.
+ * read, dropping the other's change, so writes queue per agent.
  */
-const tails = new Map<string, Promise<void>>();
-function queued<T>(agentPath: string, write: () => Promise<T>): Promise<T> {
-  const result = (tails.get(agentPath) ?? Promise.resolve()).then(write);
-  const settle = () => undefined;
-  tails.set(agentPath, result.then(settle, settle));
-  return result;
-}
+const queued = serialQueue();
 
 export async function list(agentPath: string): Promise<Learning[]> {
   return readAgentJson<Learning[]>(agentPath, NAME, s, []);
@@ -76,12 +69,16 @@ export function update(
   });
 }
 
+/**
+ * Removing a learning the file no longer holds is a success: the user wanted
+ * it gone and it is. It happens when a remove queued behind the same
+ * learning's add that the host refused, or behind another surface's delete.
+ */
 export function remove(agentPath: string, id: string): Promise<void> {
   return queued(agentPath, async () => {
     const items = await list(agentPath);
     const next = items.filter((l) => l.id !== id);
-    if (next.length === items.length)
-      throw new Error(`Learning not found: ${id}`);
+    if (next.length === items.length) return;
     await writeAgentJson(agentPath, NAME, s, next);
   });
 }

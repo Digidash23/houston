@@ -158,20 +158,28 @@ describe("the routine screen and model row on a plan-floor refusal", () => {
     deepStrictEqual(reported, ["update_routine"]);
   });
 
-  it("both components route their failures through the shared handler", () => {
+  it("the update hook owns the one refusal toast; no caller adds its own", () => {
+    // Per-call `mutate(vars, { onError })` only fires for the observer's latest
+    // mutate while mounted: a second edit or leaving the screen would drop the
+    // first refusal's toast. The hook-level onError fires for every write.
+    const hook = read("hooks/queries/use-routines.ts");
+    const onError = hook.slice(
+      hook.indexOf("onError: (err, { agentPath, kind }"),
+    );
+    ok(onError.indexOf("toastRoutineWriteFailure(") !== -1, "hook toasts");
     for (const rel of [
       "components/agent/routine-screen.tsx",
       "components/agent/routine-model-selector.tsx",
+      "components/team-view/team-routines/use-team-routine-actions.ts",
     ]) {
       const src = read(rel);
-      ok(src.includes("toastRoutineWriteFailure("), rel);
-      ok(!/description: genericErrorDescription\(/.test(src), rel);
+      ok(!src.includes("toastRoutineWriteFailure("), rel);
+      ok(!/\.mutate\([^;]*onError/s.test(src), rel);
     }
-    // The Routines list's toggle and inline schedule edit stand down the same
-    // way (its draft discard is an activity write with its own toast).
-    const list = read(
-      "components/team-view/team-routines/use-team-routine-actions.ts",
+    ok(
+      read("components/agent/routine-model-selector.tsx").includes(
+        'kind: "model"',
+      ),
     );
-    ok(list.includes("toastRoutineWriteFailure("));
   });
 });

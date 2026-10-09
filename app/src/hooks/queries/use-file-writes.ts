@@ -1,12 +1,13 @@
-import type { FileEntry } from "@houston-ai/agent";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { logAndReportError } from "../../lib/error-report";
 import {
-  relocateFileEntry,
+  type FileListEdit,
+  newFolderEdit,
+  relocationEdit,
+  removalEdit,
   renamedPath,
-  replaceFileEntry,
-  withFolderEntry,
-  withoutFileEntries,
+  replacementEdit,
 } from "../../lib/file-list-patches";
 import { classifyFileWriteRefusal } from "../../lib/file-write-refusal";
 import i18n from "../../lib/i18n";
@@ -60,7 +61,7 @@ export function useFileWrites(agentPath: string | undefined): FileWrites {
       command: string;
       /** The entry the copy names: the name the write was aiming at. */
       name: string;
-      patch: (files: FileEntry[] | undefined) => FileEntry[] | undefined;
+      edit: FileListEdit;
       // Async so a synchronous refusal (the warming guard throws before any
       // request) still rolls back instead of escaping past the paint.
       write: (path: string) => Promise<unknown>;
@@ -71,9 +72,7 @@ export function useFileWrites(agentPath: string | undefined): FileWrites {
         {
           qc,
           command: step.command,
-          patches: [
-            { queryKey: queryKeys.files(agentPath), apply: step.patch },
-          ],
+          patches: [{ queryKey: queryKeys.files(agentPath), ...step.edit }],
           write: () => step.write(agentPath),
           // Resolved at refusal time instead (`step.failure`): the copy names
           // what actually failed, which a batch only knows once it settles.
@@ -91,6 +90,7 @@ export function useFileWrites(agentPath: string | undefined): FileWrites {
               return tellOptimisticRefusal(command, err, step.failure());
           }
         },
+        logAndReportError,
       );
     };
 
@@ -99,7 +99,7 @@ export function useFileWrites(agentPath: string | undefined): FileWrites {
       return run({
         command: "delete_file",
         name: lastSegment(paths[0] ?? ""),
-        patch: (files) => withoutFileEntries(files, paths),
+        edit: removalEdit(paths),
         // One request per entry, so one refused file never takes its siblings
         // with it; the first refusal speaks for the batch.
         write: async (root) => {
@@ -124,8 +124,7 @@ export function useFileWrites(agentPath: string | undefined): FileWrites {
         run({
           command: "rename_file",
           name: newName,
-          patch: (files) =>
-            relocateFileEntry(files, path, renamedPath(path, newName)),
+          edit: relocationEdit(path, renamedPath(path, newName)),
           write: async (root) => tauriFiles.rename(root, path, newName),
           failure: () =>
             copy("agents:files.failed.rename", { name: lastSegment(path) }),
@@ -134,7 +133,7 @@ export function useFileWrites(agentPath: string | undefined): FileWrites {
         run({
           command: "create_agent_folder",
           name: lastSegment(path),
-          patch: (files) => withFolderEntry(files, path, Date.now()),
+          edit: newFolderEdit(path, Date.now()),
           write: async (root) => tauriFiles.createFolder(root, path),
           failure: () =>
             copy("agents:files.failed.createFolder", {
@@ -145,8 +144,7 @@ export function useFileWrites(agentPath: string | undefined): FileWrites {
         run({
           command: "move_project_file",
           name: lastSegment(path),
-          patch: (files) =>
-            relocateFileEntry(files, path, joinDir(toDir, lastSegment(path))),
+          edit: relocationEdit(path, joinDir(toDir, lastSegment(path))),
           write: async (root) => tauriFiles.move(root, path, toDir),
           failure: () =>
             copy("agents:files.failed.move", { name: lastSegment(path) }),
@@ -155,7 +153,7 @@ export function useFileWrites(agentPath: string | undefined): FileWrites {
         run({
           command: "move_project_file",
           name: lastSegment(path),
-          patch: (files) => replaceFileEntry(files, path, occupant),
+          edit: replacementEdit(path, occupant),
           write: async (root) => {
             await tauriFiles.delete(root, occupant);
             await tauriFiles.move(root, path, toDir);
@@ -167,8 +165,7 @@ export function useFileWrites(agentPath: string | undefined): FileWrites {
         run({
           command: "move_project_file",
           name: newName,
-          patch: (files) =>
-            relocateFileEntry(files, path, joinDir(toDir, newName)),
+          edit: relocationEdit(path, joinDir(toDir, newName)),
           write: async (root) => {
             const renamed = renamedPath(path, newName);
             await tauriFiles.rename(root, path, newName);

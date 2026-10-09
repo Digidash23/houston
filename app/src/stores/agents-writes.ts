@@ -1,5 +1,9 @@
 import type { StoreApi } from "zustand";
-import { type AgentPaint, restoreAgentRow } from "../lib/agent-roster-overlay";
+import {
+  type AgentPaint,
+  restoreAgentRow,
+  selectionAfterRefusedDelete,
+} from "../lib/agent-roster-overlay";
 import { tauriAgents } from "../lib/agents-facade";
 import { prepareAgentDraftForget } from "../lib/forget-agent-drafts";
 import type { Agent } from "../lib/types";
@@ -82,19 +86,22 @@ export function agentWriteActions(
       // the row again after the hold is released.
       invalidateAgentLoads();
       const release = holdAgentDelete(id);
-      let nextCurrent: Agent | null = null;
-      set((s) => {
-        const agents = s.agents.filter((a) => a.id !== id);
-        const current = wasCurrent ? (agents[0] ?? null) : s.current;
-        nextCurrent = current;
-        return { agents, current };
-      });
-      if (wasCurrent && nextCurrent) startAgentSideEffects(nextCurrent);
+      const agents = get().agents.filter((a) => a.id !== id);
+      const switchedTo = wasCurrent ? (agents[0] ?? null) : null;
+      set(wasCurrent ? { agents, current: switchedTo } : { agents });
+      if (switchedTo) startAgentSideEffects(switchedTo);
       try {
         await tauriAgents.delete(workspaceId, id);
       } catch (err) {
-        if (row)
+        if (row) {
           set((s) => ({ agents: restoreAgentRow(s.agents, row, index) }));
+          // The delete moved the view (and the stored "last agent") away;
+          // a refusal moves it back unless the person has moved on since.
+          const back = wasCurrent
+            ? selectionAfterRefusedDelete(get().current, switchedTo, row)
+            : null;
+          if (back) get().setCurrent(find(back.id) ?? back);
+        }
         throw err;
       } finally {
         release();

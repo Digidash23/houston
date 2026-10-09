@@ -7,7 +7,6 @@ import {
 import { useRoutineScheduleFloor } from "../../../hooks/use-routine-schedule-floor";
 import { analytics } from "../../../lib/analytics";
 import { genericErrorDescription } from "../../../lib/error-report";
-import { toastRoutineWriteFailure } from "../../../lib/routine-write-failure";
 import type { Agent } from "../../../lib/types";
 import { useUIStore } from "../../../stores/ui";
 
@@ -22,10 +21,9 @@ export interface TeamRoutineActions {
 }
 
 /**
- * The employee's row actions, every one painted before the host answers. An
- * edit that the host refuses rolls back with the routine screen's own toast
- * (`toastRoutineWriteFailure`, which stands down for the plan floor's copy);
- * delete and the run controls carry theirs in the hook. Discarding a draft is
+ * The employee's row actions, every one painted before the host answers. A
+ * refused edit, delete or run control rolls back with the toast its hook
+ * carries (`useRoutineWritesForAnyAgent`). Discarding a draft is
  * the one awaited write: the activity update throws its own "Activity not
  * found" without going through `call()`, so that one is toasted here.
  */
@@ -38,17 +36,7 @@ export function useTeamRoutineActions(agent: Agent): TeamRoutineActions {
   const updateActivity = useUpdateActivityForAnyAgent();
   const agentPath = agent.folderPath;
   const save = (routineId: string, updates: RoutineUpdate) =>
-    update.mutate(
-      { agentPath, routineId, updates },
-      {
-        onError: (err) =>
-          toastRoutineWriteFailure(
-            err,
-            { title: t("toasts.updateError"), command: "update_routine" },
-            { addToast, describe: genericErrorDescription },
-          ),
-      },
-    );
+    update.mutate({ agentPath, routineId, updates });
 
   return {
     onToggle: (routineId, enabled) => save(routineId, { enabled }),

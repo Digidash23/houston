@@ -21,6 +21,10 @@ import {
   runWorkspaceDelete,
   type WorkspaceDeleteMode,
 } from "./workspace-delete";
+import {
+  type LocaleWriteOutcome,
+  workspaceLocaleWrites,
+} from "./workspace-locale-writes";
 import { applyRefreshPlan } from "./workspace-refresh-apply";
 
 interface WorkspaceState {
@@ -61,15 +65,25 @@ interface WorkspaceState {
     mode?: WorkspaceDeleteMode,
   ) => Promise<void>;
   /** Set (or clear, with null) the workspace's UI-locale override.
-   *  Optimistic: the row carries the new locale at once and gets the old one
-   *  back if the host refuses (the promise then rejects). */
-  setLocale: (id: string, locale: string | null) => Promise<void>;
+   *  Optimistic and sequenced per workspace (`workspace-locale-writes.ts`):
+   *  only the newest pick swaps in or rolls back, and its refusal rejects. */
+  setLocale: (id: string, locale: string | null) => Promise<LocaleWriteOutcome>;
   /** Drop the workspace list back to its initial (loading) state on an identity
    *  change (HOU-903); the incoming account re-loads its own spaces on boot. */
   reset: () => void;
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
+  setLocale: workspaceLocaleWrites({
+    read: (id) => get().workspaces.find((w) => w.id === id)?.locale,
+    swap: (id, next) =>
+      set((s) => ({
+        workspaces: s.workspaces.map((w) => (w.id === id ? next(w) : w)),
+        current: s.current?.id === id ? next(s.current) : s.current,
+      })),
+    write: (id, locale) => tauriWorkspaces.setLocale(id, locale),
+  }),
+
   workspaces: [],
   current: null,
   // Start "not settled" so App.tsx renders the loading splash on first paint
@@ -166,23 +180,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   delete: (id, options, mode = "server-first") =>
     runWorkspaceDelete(id, options, get, set, mode),
-
-  setLocale: async (id, locale) => {
-    const swap = (next: (w: Workspace) => Workspace) =>
-      set((s) => ({
-        workspaces: s.workspaces.map((w) => (w.id === id ? next(w) : w)),
-        current: s.current?.id === id ? next(s.current) : s.current,
-      }));
-    const before = get().workspaces.find((w) => w.id === id)?.locale;
-    swap((w) => ({ ...w, locale }));
-    try {
-      const updated = await tauriWorkspaces.setLocale(id, locale);
-      swap(() => updated);
-    } catch (err) {
-      swap((w) => ({ ...w, locale: before }));
-      throw err;
-    }
-  },
 
   // Mirrors the initial state (loading: true) so the shell shows its splash, not
   // a stale list, until the incoming account's loadWorkspaces() resolves. The

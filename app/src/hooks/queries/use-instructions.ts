@@ -2,7 +2,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { optimisticWrite } from "../../lib/optimistic-write";
 import { queryKeys } from "../../lib/query-keys";
+import { serialQueue } from "../../lib/serial-queue";
 import { tauriAgent } from "../../lib/tauri";
+
+/** Writes queue per agent: each one sends the WHOLE file, so a row pick and a
+ *  prose blur sent together must land in the order made, or the older file
+ *  would win on the host while the newer one is painted. */
+const queued = serialQueue();
 
 /** One agent's instructions (its CLAUDE.md). Shared so every reader of an
  *  agent's job description hits the same cache entry and invalidation. A
@@ -46,7 +52,10 @@ export function useSaveInstructions(agentPath: string | undefined) {
       patches: [
         { queryKey: queryKeys.instructions(agentPath), apply: () => content },
       ],
-      write: async () => tauriAgent.writeFile(agentPath, "CLAUDE.md", content),
+      write: () =>
+        queued(agentPath, async () =>
+          tauriAgent.writeFile(agentPath, "CLAUDE.md", content),
+        ),
       failure: {
         title: t("instructions.saveErrorTitle"),
         description: t("instructions.saveErrorBody"),

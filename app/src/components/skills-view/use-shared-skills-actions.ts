@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { analytics } from "../../lib/analytics";
 import { optimisticWrite } from "../../lib/optimistic-write";
 import { queryKeys } from "../../lib/query-keys";
+import { throwFirstRefusal } from "../../lib/settled-refusal";
 import {
   manifestsSet,
   sharedRemoved,
@@ -106,8 +107,7 @@ export function useSharedSkillsActions(workspaceId: string | null) {
           const settled = await Promise.allSettled(
             holders.map((path) => setManifestEntry(path, row.slug, false)),
           );
-          if (settled.some((r) => r.status === "rejected"))
-            throw new Error("delete failed for some agents");
+          throwFirstRefusal(settled);
         },
         failure: {
           title: t("global.failure.removeTitle"),

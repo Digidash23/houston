@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { analytics } from "../../lib/analytics";
 import { optimisticWrite } from "../../lib/optimistic-write";
 import { queryKeys } from "../../lib/query-keys";
+import { throwFirstRefusal } from "../../lib/settled-refusal";
 import { copiesRemoved, skillWriteRefresh } from "../../lib/skill-optimistic";
 import { tauriAgent, tauriSkills } from "../../lib/tauri";
 import type { WorkspaceSkillRow } from "../../lib/workspace-skills";
@@ -75,8 +76,7 @@ export function useSkillsViewActions() {
           const settled = await Promise.allSettled(
             paths.map((path) => tauriSkills.delete(path, row.slug)),
           );
-          if (settled.some((r) => r.status === "rejected"))
-            throw new Error("skill delete failed for some agents");
+          throwFirstRefusal(settled);
         },
         failure: {
           title: t("global.failure.removeTitle"),

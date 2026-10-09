@@ -3,19 +3,22 @@ import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { customRemovalPatches } from "../../lib/integration-cache-patches";
 import { optimisticWrite } from "../../lib/optimistic-write";
+import { queryKeys } from "../../lib/query-keys";
 import { tauriIntegrations } from "../../lib/tauri";
+import { useCustomIntegrationScope } from "./use-custom-transport";
 
 /** Remove a custom integration entirely (definition + secret + tools). The
- *  row leaves every list on the click; the write follows. */
+ *  row leaves every list that holds it on the click; the write follows. */
 export function useRemoveCustomIntegration(agentId?: string) {
   const qc = useQueryClient();
   const { t } = useTranslation("integrations");
+  const scope = useCustomIntegrationScope();
   return useCallback(
     (slug: string) =>
       void optimisticWrite({
         qc,
         command: "custom_integration_remove",
-        patches: customRemovalPatches(slug),
+        patches: customRemovalPatches(slug, { scope, agentId }),
         write: () =>
           agentId
             ? tauriIntegrations.customRemoveForAgent(agentId, slug)
@@ -24,7 +27,11 @@ export function useRemoveCustomIntegration(agentId?: string) {
           title: t("writeFailed.removeCustom.title"),
           description: t("writeFailed.removeCustom.description"),
         },
+        invalidate: [
+          queryKeys.customIntegrations(),
+          queryKeys.integrationConnections("custom"),
+        ],
       }),
-    [qc, agentId, t],
+    [qc, agentId, scope, t],
   );
 }

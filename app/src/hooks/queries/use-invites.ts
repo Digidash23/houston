@@ -4,6 +4,7 @@ import type { TFunction } from "i18next";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { analytics } from "../../lib/analytics";
+import { logAndReportError } from "../../lib/error-report";
 import { showExpectedStateToast } from "../../lib/error-toast";
 import {
   classifyInviteError,
@@ -116,6 +117,7 @@ export function useDeclineInvite() {
           isExpectedInviteError(err)
             ? showInviteFailure(t, err)
             : tellOptimisticRefusal(command, err, copy),
+        logAndReportError,
       ),
     [qc, t],
   );

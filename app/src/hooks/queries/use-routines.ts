@@ -9,6 +9,8 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { genericErrorDescription } from "../../lib/error-report";
 import { holdPatchesAcrossRefetch } from "../../lib/optimistic-hold";
 import type { OptimisticPatch } from "../../lib/optimistic-write";
 import { queryKeys } from "../../lib/query-keys";
@@ -16,13 +18,23 @@ import {
   patchRoutineList,
   replaceRoutineInList,
 } from "../../lib/routine-optimistic";
+import { toastRoutineWriteFailure } from "../../lib/routine-write-failure";
 import { tauriRoutines } from "../../lib/tauri";
+import { useUIStore } from "../../stores/ui";
 import {
   type RoutineWriteFor,
   useRoutineRowWrites,
 } from "./use-routine-row-writes";
 
 export type { RoutineWriteFor };
+
+/** Which edit a refused update undoes: it picks the refusal toast's title. */
+export type RoutineUpdateKind = "save" | "model";
+
+const UPDATE_FAILURE = {
+  save: { titleKey: "toasts.updateError", command: "update_routine" },
+  model: { titleKey: "toasts.modelError", command: "set_routine_model" },
+} as const;
 
 /**
  * ONE agent's routines query, as options. Both the open routine's chat
@@ -83,23 +95,28 @@ export function useCreateRoutine(agentPath: string) {
  */
 export function useRoutineWritesForAnyAgent() {
   const qc = useQueryClient();
+  const { t } = useTranslation("routines");
   // Optimistic (PRODUCT-1706): the row and the screen paint the edit the
   // instant it is sent. On the hosted profile a write can take seconds (the
   // agent's pod may have to wake first), and painting the OLD schedule for
   // that window made a saved time look ignored. The host's applied routine
   // replaces the guess when it lands; a rejected write rolls the cache back
-  // and refetches, and the caller's onError shows the authored toast. Kept on
-  // `useMutation` because each caller titles its own failure (save, model)
-  // through `toastRoutineWriteFailure`, which stands down for the plan floor
-  // and for anything `call()` already explained; the hold below is the same
-  // one `optimisticWrite` uses.
+  // and refetches. Kept on `useMutation` (not `optimisticWrite`) because the
+  // plan floor's refusal must stand down too (`toastRoutineWriteFailure`); the
+  // hold below is the same one `optimisticWrite` uses.
+  // The refusal toast lives HERE, never in a per-call `mutate(vars, { onError })`:
+  // TanStack fires per-call callbacks only for the observer's latest mutate
+  // while it is mounted, so a second edit (or leaving the screen) before the
+  // first one's refusal would roll it back in silence.
   const update = useMutation({
     mutationFn: ({
       agentPath,
       routineId,
       updates,
-    }: RoutineWriteFor & { updates: RoutineUpdate }) =>
-      tauriRoutines.update(agentPath, routineId, updates),
+    }: RoutineWriteFor & {
+      updates: RoutineUpdate;
+      kind?: RoutineUpdateKind;
+    }) => tauriRoutines.update(agentPath, routineId, updates),
     onMutate: ({ agentPath, routineId, updates }) => {
       const queryKey = queryKeys.routines(agentPath);
       // An in-flight refetch would overwrite the optimistic row with the
@@ -114,11 +131,20 @@ export function useRoutineWritesForAnyAgent() {
       qc.setQueryData<Routine[]>(queryKey, patch.apply);
       return { previous, release: holdPatchesAcrossRefetch(qc, [patch]) };
     },
-    onError: (_err, { agentPath }, context) => {
+    onError: (err, { agentPath, kind }, context) => {
       context?.release();
       const key = queryKeys.routines(agentPath);
       if (context?.previous) qc.setQueryData(key, context.previous);
       qc.invalidateQueries({ queryKey: key });
+      const failure = UPDATE_FAILURE[kind ?? "save"];
+      toastRoutineWriteFailure(
+        err,
+        { title: t(failure.titleKey), command: failure.command },
+        {
+          addToast: useUIStore.getState().addToast,
+          describe: genericErrorDescription,
+        },
+      );
     },
     onSuccess: (routine, { agentPath }, context) => {
       context?.release();

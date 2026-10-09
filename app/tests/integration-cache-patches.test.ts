@@ -79,7 +79,7 @@ describe("integration cache patches", () => {
     );
   });
 
-  it("a removal paints every list (top-level, per agent, connections) at once", async () => {
+  it("on a shared host a removal paints every list (top-level, per agent, connections) at once", async () => {
     const qc = new QueryClient();
     qc.setQueryData(queryKeys.customIntegrations(), [custom("acme")]);
     qc.setQueryData(queryKeys.agentCustomIntegrations("ag1"), [custom("acme")]);
@@ -91,7 +91,10 @@ describe("integration cache patches", () => {
       {
         qc,
         command: "custom_integration_remove",
-        patches: customRemovalPatches("acme"),
+        patches: customRemovalPatches("acme", {
+          scope: "host",
+          agentId: "ag1",
+        }),
         write: () => new Promise<void>((resolve) => (release = resolve)),
         failure: { title: "t", description: "d" },
       },
@@ -118,7 +121,11 @@ describe("integration cache patches", () => {
       {
         qc,
         command: "custom_integration_update_details",
-        patches: customEditPatches("acme", { name: "New", website: "" }),
+        patches: customEditPatches(
+          "acme",
+          { name: "New", website: "" },
+          { scope: "agent", agentId: "ag1" },
+        ),
         write: () => Promise.reject(new Error("invalid_details")),
         failure: { title: "t", description: "d" },
       },
@@ -138,5 +145,73 @@ describe("integration cache patches", () => {
       "ACME",
     );
     deepStrictEqual(refused, ["custom_integration_update_details"]);
+  });
+
+  it("on a per-agent deployment a removal paints only that agent's list", async () => {
+    const qc = new QueryClient();
+    qc.setQueryData(queryKeys.customIntegrations(), [custom("acme")]);
+    qc.setQueryData(queryKeys.agentCustomIntegrations("ag1"), [custom("acme")]);
+    // Another agent's pod holds its OWN "acme": it must stay listed.
+    qc.setQueryData(queryKeys.agentCustomIntegrations("ag2"), [custom("acme")]);
+    const rows = [conn("acme", "acme")];
+    qc.setQueryData(queryKeys.integrationConnections("custom"), rows);
+    let release!: () => void;
+    const done = runOptimisticWrite(
+      {
+        qc,
+        command: "custom_integration_remove",
+        patches: customRemovalPatches("acme", {
+          scope: "agent",
+          agentId: "ag1",
+        }),
+        write: () => new Promise<void>((resolve) => (release = resolve)),
+        failure: { title: "t", description: "d" },
+      },
+      () => undefined,
+    );
+    deepStrictEqual(
+      qc.getQueryData(queryKeys.agentCustomIntegrations("ag1")),
+      [],
+    );
+    deepStrictEqual(
+      qc
+        .getQueryData<CustomIntegrationView[]>(
+          queryKeys.agentCustomIntegrations("ag2"),
+        )
+        ?.map((i) => i.slug),
+      ["acme"],
+    );
+    strictEqual(
+      qc.getQueryData(queryKeys.integrationConnections("custom")),
+      rows,
+    );
+    release();
+    await done;
+  });
+
+  it("on a per-agent deployment an edit renames only that agent's copy", () => {
+    const qc = new QueryClient();
+    qc.setQueryData(queryKeys.agentCustomIntegrations("ag1"), [custom("acme")]);
+    qc.setQueryData(queryKeys.agentCustomIntegrations("ag2"), [custom("acme")]);
+    for (const patch of customEditPatches(
+      "acme",
+      { name: "New", website: "" },
+      { scope: "agent", agentId: "ag1" },
+    ))
+      qc.setQueriesData({ queryKey: patch.queryKey }, patch.apply);
+    const name = (agentId: string) =>
+      qc.getQueryData<CustomIntegrationView[]>(
+        queryKeys.agentCustomIntegrations(agentId),
+      )?.[0]?.name;
+    strictEqual(name("ag1"), "New");
+    strictEqual(name("ag2"), "ACME");
+  });
+
+  it("a per-agent deployment with no agent named paints nothing", () => {
+    deepStrictEqual(customRemovalPatches("acme", { scope: "agent" }), []);
+    deepStrictEqual(
+      customEditPatches("acme", { name: "N", website: "" }, { scope: "agent" }),
+      [],
+    );
   });
 });

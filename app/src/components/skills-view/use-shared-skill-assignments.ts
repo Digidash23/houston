@@ -3,6 +3,7 @@ import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import type { OptimisticPatch } from "../../lib/optimistic-write";
 import { optimisticWrite } from "../../lib/optimistic-write";
+import { throwFirstRefusal } from "../../lib/settled-refusal";
 import {
   copiesRemoved,
   manifestsSet,
@@ -72,8 +73,7 @@ export function useSharedSkillAssignments(workspaceId: string | null) {
               tauriSkillsManifest.setEnabled(path, row.slug, true),
             ),
           );
-          if (settled.some((r) => r.status === "rejected"))
-            throw new Error("enable failed for some agents");
+          throwFirstRefusal(settled);
         },
         failure: "update",
         notice: t("global.enabledForAll", { count: agents.length }),

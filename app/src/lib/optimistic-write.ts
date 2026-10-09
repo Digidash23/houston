@@ -37,5 +37,5 @@ export function tellOptimisticRefusal(
  * background (full contract in `optimistic-core.ts`).
  */
 export function optimisticWrite<T>(opts: OptimisticWrite<T>): Promise<void> {
-  return runOptimisticWrite(opts, tellOptimisticRefusal);
+  return runOptimisticWrite(opts, tellOptimisticRefusal, logAndReportError);
 }

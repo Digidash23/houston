@@ -13,6 +13,7 @@ import type { Activity } from "../data/activity.ts";
 import { applyActivityPatch } from "../data/activity-bulk.ts";
 import type { OptimisticPatch } from "./optimistic-core.ts";
 import { queryKeys } from "./query-keys.ts";
+import { restoreFields, revertRows } from "./row-revert.ts";
 
 /** Mission ids by the agent that owns them (`groupIdsByAgent`'s shape). */
 export type MissionGroups = Readonly<Record<string, readonly string[]>>;
@@ -27,6 +28,10 @@ interface AggregateRow {
   id: string;
   agent_path: string;
 }
+
+const activityKey = (row: Activity) => row.id;
+// Mission ids are per agent: two agents' rows can share one.
+const aggregateKey = (row: AggregateRow) => `${row.agent_path}\u0000${row.id}`;
 
 function idSets(groups: MissionGroups): Map<string, ReadonlySet<string>> {
   return new Map(
@@ -69,12 +74,25 @@ export function missionRemovalPatches(
       ([agentPath, ids]): OptimisticPatch<Activity[]> => ({
         queryKey: queryKeys.activity(agentPath),
         apply: (rows) => dropMatching(rows, (row) => ids.has(row.id)),
+        revert: (rows, before) =>
+          revertRows(rows, before, {
+            keyOf: activityKey,
+            touched: (row) => ids.has(row.id),
+          }),
       }),
     ),
     {
       queryKey: queryKeys.allConversations([]),
       apply: (rows: AggregateRow[] | undefined) =>
         dropMatching(rows, (row) => owns(sets, row)),
+      revert: (
+        rows: AggregateRow[] | undefined,
+        before: AggregateRow[] | undefined,
+      ) =>
+        revertRows(rows, before, {
+          keyOf: aggregateKey,
+          touched: (row) => owns(sets, row),
+        }),
     },
   ];
 }
@@ -95,6 +113,12 @@ export function missionEditPatches(
   const fields = Object.fromEntries(
     Object.entries(edit).filter(([, value]) => value !== undefined),
   );
+  // A refusal restores only what this edit wrote: a teammate's change to
+  // another field of the same card stays. A move to done also strips the
+  // card's blocking steps (`applyActivityPatch`).
+  const edited = [...Object.keys(fields), "updated_at"];
+  const ownEdited =
+    edit.status === undefined ? edited : [...edited, "pending_interaction"];
   return [
     ...[...sets].map(
       ([agentPath, ids]): OptimisticPatch<Activity[]> => ({
@@ -105,6 +129,12 @@ export function missionEditPatches(
             (row) => ids.has(row.id),
             (row) => applyActivityPatch(row, edit, timestamp),
           ),
+        revert: (rows, before) =>
+          revertRows(rows, before, {
+            keyOf: activityKey,
+            touched: (row) => ids.has(row.id),
+            restore: (row, old) => restoreFields(row, old, ownEdited),
+          }),
       }),
     ),
     {
@@ -115,6 +145,15 @@ export function missionEditPatches(
           (row) => owns(sets, row),
           (row) => ({ ...row, ...fields, updated_at: timestamp }),
         ),
+      revert: (
+        rows: AggregateRow[] | undefined,
+        before: AggregateRow[] | undefined,
+      ) =>
+        revertRows(rows, before, {
+          keyOf: aggregateKey,
+          touched: (row) => owns(sets, row),
+          restore: (row, old) => restoreFields(row, old, edited),
+        }),
     },
   ];
 }

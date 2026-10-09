@@ -367,12 +367,12 @@ async function surfaceError(
   if (shouldToast) {
     // Pass the real error so Sentry records the true failure stack (the
     // engine adapter frame), not a synthetic one — this also fixes Sentry
-    // grouping (engine errors used to collapse into a single issue).
-    showErrorToast(label, message, err);
-  } else {
-    // toast suppressed but capture wanted: report to Sentry without a toast.
-    reportError(label, message, err);
+    // grouping (engine errors used to collapse into a single issue). True
+    // when it surfaced (or deliberately withheld) a state of its own.
+    return showErrorToast(label, message, err);
   }
+  // toast suppressed but capture wanted: report to Sentry without a toast.
+  reportError(label, message, err);
   return false;
 }
 

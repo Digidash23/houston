@@ -9,6 +9,7 @@ import {
   type SlackAuthorization,
 } from "../../lib/channel-handoff";
 import { silenceChannelCall } from "../../lib/channel-silence";
+import { logAndReportError } from "../../lib/error-report";
 import { runOptimisticWrite } from "../../lib/optimistic-core";
 import { tellOptimisticRefusal } from "../../lib/optimistic-write";
 import { queryKeys } from "../../lib/query-keys";
@@ -122,6 +123,7 @@ export function useChannelActions() {
           if (silenceChannelCall("disconnect_channel", err)) return;
           tellOptimisticRefusal(command, err, copy);
         },
+        logAndReportError,
       ),
     [qc, spaceId, t],
   );
