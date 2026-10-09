@@ -142,6 +142,18 @@ export function emitStatus(
 }
 
 /**
+ * The class each notice kind settles as; exhaustive, so a new notice kind is
+ * a compile error until it is classed. `engine_resumed` never reaches
+ * `finishErr` (its settle is `finishResumed`, a `completed` status).
+ */
+const NOTICE_CLASS: Record<EngineNoticeKind, TurnErrorClass | null> = {
+  engine_restart: "engine_restart",
+  engine_resumed: null,
+  send_busy: "send_busy",
+  compute_busy: "compute_busy",
+};
+
+/**
  * The class of a `finishErr` settle, from what the settle was given: the
  * typed notice first, then the SDK's own message constants. Every one of
  * those strings is minted here (the lost-send, lost-stream, dead-turn and
@@ -154,12 +166,8 @@ export function turnErrorClass(
   notice?: EngineNoticeKind,
 ): TurnErrorClass {
   if (isStoppedByUser(msg)) return "stopped";
-  if (
-    notice === "engine_restart" ||
-    notice === "send_busy" ||
-    notice === "compute_busy"
-  )
-    return notice;
+  const byNotice = notice ? NOTICE_CLASS[notice] : null;
+  if (byNotice) return byNotice;
   if (msg === TURN_DIED_MESSAGE) return "turn_died";
   if (msg === SEND_LOST_MESSAGE) return "send_lost";
   if (msg === STREAM_LOST_MESSAGE) return "stream_lost";

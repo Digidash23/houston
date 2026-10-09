@@ -59,6 +59,39 @@ describe("session failure analytics", () => {
       );
   });
 
+  it("maps a copy-less provider card to its legacy bucket, never to unknown", () => {
+    const track = createSessionFailureTracker();
+    deepStrictEqual(
+      track(status({ error_class: "provider_rate_limited", error: null }), 0),
+      [
+        {
+          event: "session_failed",
+          props: {
+            error_kind: "provider",
+            error_class: "provider_rate_limited",
+          },
+        },
+      ],
+    );
+    deepStrictEqual(
+      track(
+        status({ error_class: "provider_unauthenticated", error: null }),
+        0,
+      ).map((e) => e.props.error_kind),
+      ["auth"],
+    );
+    // The unclassified provider card is an error shown, under `provider`.
+    deepStrictEqual(
+      track(status({ error_class: "provider_unknown", error: null }), 0).map(
+        (e) => [e.event, e.props.error_kind],
+      ),
+      [
+        ["session_failed", "provider"],
+        ["app_error_shown", "provider"],
+      ],
+    );
+  });
+
   it("counts nothing for a turn the person stopped", () => {
     const track = createSessionFailureTracker();
     deepStrictEqual(

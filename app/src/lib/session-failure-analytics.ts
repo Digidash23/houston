@@ -23,10 +23,27 @@ export interface SessionFailureEvent {
   event: "session_failed" | "app_error_shown";
   props: {
     source?: "session";
-    error_kind: string;
+    /** The legacy copy-derived bucket; absent when neither copy nor class names one. */
+    error_kind?: string;
     error_class?: TurnErrorClass;
     origin?: SessionStatusOrigin;
   };
+}
+
+/**
+ * The legacy `error_kind` bucket. Read off the copy when there is copy; a
+ * typed provider card carries none, so its class maps to the bucket the
+ * dashboards already count it under (`auth`, `provider`) rather than
+ * growing `unknown`; anything else without copy names no bucket.
+ */
+function legacyErrorKind(
+  error: string | null,
+  cls: TurnErrorClass | undefined,
+): string | undefined {
+  if (error) return classifyAnalyticsError(error);
+  if (cls === "provider_unauthenticated") return "auth";
+  if (cls?.startsWith("provider_")) return "provider";
+  return undefined;
 }
 
 /**
@@ -57,14 +74,15 @@ export function createSessionFailureTracker(
     if (!cls && !data.error) return [];
     const disposition = cls ? turnErrorDisposition(cls) : "failure";
     if (disposition === "intended") return [];
+    const errorKind = legacyErrorKind(data.error, cls);
     const props: SessionFailureEvent["props"] = {
-      error_kind: classifyAnalyticsError(data.error ?? ""),
+      ...(errorKind ? { error_kind: errorKind } : {}),
       ...(cls ? { error_class: cls } : {}),
       ...(isSessionStatusOrigin(data.origin) ? { origin: data.origin } : {}),
     };
     const events: SessionFailureEvent[] = [{ event: "session_failed", props }];
     if (disposition !== "failure") return events;
-    const key = `${data.agent_path}\n${data.session_key}\n${cls ?? props.error_kind}`;
+    const key = `${data.agent_path}\n${data.session_key}\n${cls ?? errorKind}`;
     if (gate.isFirst(key, now))
       events.push({
         event: "app_error_shown",

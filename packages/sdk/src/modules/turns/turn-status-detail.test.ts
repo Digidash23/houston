@@ -1,7 +1,10 @@
+import type { WireFrame } from "@houston/runtime-client";
 import { expect, test } from "vitest";
+import { adoptReply } from "./adopt-reply";
 import type { FeedOutput } from "./feed-output";
 import { MultiplexFeedOutput } from "./feed-output-multiplex";
 import { COMPUTE_BUSY_MESSAGE } from "./send-busy";
+import { settleFromHistory } from "./settle-from-history";
 import { SEND_LOST_MESSAGE, STREAM_LOST_MESSAGE } from "./stream-tuning";
 import type { SessionStatusDetail } from "./turn-error-class";
 import {
@@ -18,6 +21,8 @@ import {
   newTurnState,
   settleProviderErrorCard,
 } from "./turn-settle";
+import { TurnSink } from "./turn-sink";
+import { turnErrorClass } from "./turn-state";
 
 /**
  * Every settle stamps WHY the turn ended on its session status, from the
@@ -133,4 +138,60 @@ test("the multiplexer forwards the detail to every output", () => {
   const detail = { origin: "sent", errorClass: "send_lost" };
   expect(a.statuses[0]?.[2]).toEqual(detail);
   expect(b.statuses[0]?.[2]).toEqual(detail);
+});
+
+test("a notice kind the error settle never carries falls through to the copy", () => {
+  // `engine_resumed` settles as completed (finishResumed); if it ever reached
+  // finishErr, the exhaustive notice table classes it as nothing and the
+  // copy decides.
+  expect(turnErrorClass("Model refused the request.", "engine_resumed")).toBe(
+    "engine_verdict",
+  );
+});
+
+test("the history settles class a dead turn and an engine restart", () => {
+  const { statuses, output } = recorder();
+  const dead = newTurnState("Houston/Bo", "c1", output);
+  dead.delivered = true;
+  settleFromHistory(
+    dead,
+    [{ role: "user", content: "hi", ts: 1, turnId: "t-1" }],
+    "t-1",
+    () => false,
+  );
+  adoptReply(newTurnState("Houston/Bo", "c2", output), {
+    role: "assistant",
+    content: "",
+    ts: 2,
+    turnId: "t-2",
+    interrupted: { cause: "engine_restart" },
+  });
+  expect(statuses.map((s) => [s[0], s[2]?.errorClass])).toEqual([
+    ["error", "turn_died"],
+    ["error", "engine_restart"],
+  ]);
+});
+
+test("the sink stamps its mode as the origin of every status", () => {
+  const { statuses, output } = recorder();
+  const sink = (mode: "turn" | "observer") =>
+    new TurnSink({
+      agentPath: "Houston/Bo",
+      sessionKey: mode,
+      output,
+      mode,
+      stop: () => {},
+      reloadHistory: async () => [],
+      historyGuard: () => false,
+    });
+  const errorFrame: WireFrame = {
+    type: "error",
+    data: { message: "Model refused the request." },
+  };
+  sink("turn").onFrame(errorFrame);
+  sink("observer").fail(STREAM_LOST_MESSAGE);
+  expect(statuses.map((s) => [s[0], s[2]])).toEqual([
+    ["error", { origin: "sent", errorClass: "engine_verdict" }],
+    ["error", { origin: "observed", errorClass: "stream_lost" }],
+  ]);
 });

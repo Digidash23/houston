@@ -1,5 +1,5 @@
 import { bootstrapLocalModelBridge } from "./bootstrap";
-import { isAuthorizationFailure, isBridgeAbort } from "./errors";
+import { isAuthorizationFailure } from "./errors";
 import { bridgeToResume } from "./migration";
 import { bridgeRetry } from "./retry";
 import type { LocalBridgeSnapshot, LocalModelBridgePorts } from "./types";
@@ -56,7 +56,9 @@ export async function bridgeNeedsWake(
     // A wake whose lifetime was invalidated mid-check (a space or agent switch
     // aborted the status GET) was superseded, not failed: nothing to report
     // and nothing to wake (HOUSTON-APP-5HX). The next scope wakes on its own.
-    if (signal.aborted || isBridgeAbort(error)) return undefined;
+    // Only OUR signal counts: a foreign AbortError (WebKit's "Fetch is
+    // aborted" on a dropped connection) is a real failure and stays loud.
+    if (signal.aborted) return undefined;
     ports.report(error);
     if (isAuthorizationFailure(error)) return "authorization_required" as const;
     return undefined;

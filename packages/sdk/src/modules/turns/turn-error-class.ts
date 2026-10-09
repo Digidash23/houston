@@ -93,6 +93,13 @@ export function turnErrorDisposition(
   cls: TurnErrorClass,
 ): TurnErrorDisposition {
   if (cls === "stopped") return "intended";
+  // `provider_unknown` is the card for a provider failure the runtime could
+  // not classify: its copy is generic and its only detail is a raw excerpt,
+  // so the person saw an unexplained error. `provider_internal` (the
+  // provider's own outage, with its status) and `malformed_response` (a cut
+  // repetition loop, retry) each name what happened and the next step, so
+  // they stay handled like every other typed card.
+  if (cls === "provider_unknown") return "failure";
   if (
     cls === "engine_restart" ||
     cls === "send_busy" ||

@@ -42,10 +42,13 @@ test("disposes each class once, for every surface", () => {
     "provider_unauthenticated",
     "provider_rate_limited",
     "provider_plan_message_limit",
-    "provider_unknown",
+    "provider_provider_internal",
+    "provider_malformed_response",
   ] as const)
     expect(turnErrorDisposition(cls), cls).toBe("handled");
+  // The unclassified provider card is generic copy over a raw excerpt.
   for (const cls of [
+    "provider_unknown",
     "turn_died",
     "send_lost",
     "stream_lost",
