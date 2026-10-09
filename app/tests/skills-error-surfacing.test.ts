@@ -33,10 +33,11 @@ describe("the Skills surface swallows nothing", () => {
       actions.indexOf("const promoteToShared = useCallback("),
     );
     // A manifest write that failed leaves some employee loading a deleted
-    // skill: the act throws (and is reported) instead of toasting success.
-    ok(body.includes('throw new Error("delete failed for some agents")'));
+    // skill: the act rethrows the refusal (reported once, unless `call()`
+    // already explained it) instead of toasting success.
+    ok(body.includes("throwFirstRefusal(settled);"));
     ok(
-      body.indexOf('throw new Error("delete failed for some agents")') <
+      body.indexOf("throwFirstRefusal(settled);") <
         body.indexOf('addToast({ title: t("global.skillRemoved")'),
     );
   });

@@ -4,6 +4,7 @@ import type { Routine } from "@houston/engine-adapter";
 import {
   applyOptimisticRoutineUpdate,
   patchRoutineList,
+  removeRoutineFromList,
   replaceRoutineInList,
 } from "../src/lib/routine-optimistic.ts";
 
@@ -108,5 +109,20 @@ describe("replaceRoutineInList", () => {
   it("ignores an answer without an id (a non-hosted adapter's empty echo)", () => {
     const list = [routine()];
     strictEqual(replaceRoutineInList(list, {} as Routine), list);
+  });
+});
+
+describe("removeRoutineFromList", () => {
+  it("drops the deleted routine and keeps the rest identical", () => {
+    const other = routine({ id: "r2" });
+    const next = removeRoutineFromList([routine(), other], "r1");
+    deepStrictEqual(next, [other]);
+    strictEqual(next?.[0], other);
+  });
+
+  it("is a no-op once the routine is gone, and on an empty cache", () => {
+    const list = [routine({ id: "r2" })];
+    strictEqual(removeRoutineFromList(list, "r1"), list);
+    strictEqual(removeRoutineFromList(undefined, "r1"), undefined);
   });
 });

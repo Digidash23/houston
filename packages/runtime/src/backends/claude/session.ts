@@ -117,6 +117,7 @@ export class ClaudeSession
       emit: (e) => this.events.emit(e),
       tickLiveness: () => this.events.tickLiveness(),
       emitAssistantMessageStart: () => this.events.emitAssistantMessageStart(),
+      emitReplyBeat: (beat) => this.events.emitReplyBeat(beat),
       emitTiming: (e) => this.events.emitTiming(e),
     };
   }

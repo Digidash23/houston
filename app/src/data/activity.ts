@@ -2,18 +2,13 @@
  * `.houston/activity/activity.json` — the board.
  *
  * Schema-validated via `@houston-ai/agent-schemas/activity.schema.json`.
- * Written atomically on every mutation (the backend handles the temp-file + rename).
+ * Written atomically on every mutation (the backend handles the temp-file + rename),
+ * one mutation per agent at a time (`activity-writes.ts`).
  */
 
 import type { PendingInteraction } from "@houston/protocol";
-import { toCanonicalProviderId } from "@houston/sdk/provider-catalog";
 import schema from "@houston-ai/agent-schemas/activity.schema.json";
-import {
-  applyActivityPatch,
-  applyBulkPatch,
-  applyBulkRemove,
-  applyRemove,
-} from "./activity-bulk";
+import { activityWrites } from "./activity-writes";
 import { newId, now, readAgentJson, writeAgentJson } from "./agent-file";
 
 /** Every status a mission can have. Mirrors the `status` enum in
@@ -83,7 +78,14 @@ export async function list(agentPath: string): Promise<Activity[]> {
   return readAgentJson<Activity[]>(agentPath, NAME, s, []);
 }
 
-export async function create(
+const writes = activityWrites({
+  list,
+  write: (agentPath, items) => writeAgentJson(agentPath, NAME, s, items),
+  now,
+  newId,
+});
+
+export function create(
   agentPath: string,
   title: string,
   description = "",
@@ -91,40 +93,11 @@ export async function create(
   provider?: string,
   model?: string,
 ): Promise<Activity> {
-  const items = await list(agentPath);
-  const item: Activity = {
-    id: newId(),
-    title,
-    description,
-    status: "running",
-    claude_session_id: null,
-    agent,
-    updated_at: now(),
-    provider:
-      provider === undefined ? undefined : toCanonicalProviderId(provider),
-    model,
-  };
-  await writeAgentJson(agentPath, NAME, s, [...items, item]);
-  return item;
+  return writes.create(agentPath, title, description, agent, provider, model);
 }
 
-export async function update(
-  agentPath: string,
-  id: string,
-  patch: ActivityUpdate,
-): Promise<Activity> {
-  const items = await list(agentPath);
-  const idx = items.findIndex((a) => a.id === id);
-  if (idx === -1) throw new Error(`Activity not found: ${id}`);
-  // ONE merge rule, shared with the bulk path and mirroring the host's domain
-  // `applyActivityUpdate` (clear on null, replace on an object, strip the
-  // blocking steps on a move to done).
-  const merged = applyActivityPatch(items[idx], patch, now());
-  const next = [...items];
-  next[idx] = merged;
-  await writeAgentJson(agentPath, NAME, s, next);
-  return merged;
-}
+/** Merge `patch` into one mission; rejects when the id is unknown. */
+export const update = writes.update;
 
 /**
  * Delete an activity. Idempotent: removing an id that's already gone is a
@@ -134,34 +107,14 @@ export async function update(
  * write that already removed the row) from rejecting as an unhandled rejection.
  * Genuine write failures still propagate.
  */
-export async function remove(agentPath: string, id: string): Promise<void> {
-  const items = await list(agentPath);
-  const { items: next, removed } = applyRemove(items, id);
-  if (!removed) return; // already gone — nothing to write
-  await writeAgentJson(agentPath, NAME, s, next);
-}
+export const remove = writes.remove;
 
 /**
  * Patch many activities in one read-mutate-write pass (e.g. bulk archive,
  * move-to). One file write → one engine event → one query invalidation,
  * instead of N round-trips. Unknown ids are silently no-ops.
  */
-export async function bulkUpdate(
-  agentPath: string,
-  ids: string[],
-  patch: ActivityUpdate,
-): Promise<void> {
-  const items = await list(agentPath);
-  const next = applyBulkPatch(items, new Set(ids), patch, now());
-  await writeAgentJson(agentPath, NAME, s, next);
-}
+export const bulkUpdate = writes.bulkUpdate;
 
 /** Delete many activities in one read-mutate-write pass. */
-export async function bulkRemove(
-  agentPath: string,
-  ids: string[],
-): Promise<void> {
-  const items = await list(agentPath);
-  const next = applyBulkRemove(items, new Set(ids));
-  await writeAgentJson(agentPath, NAME, s, next);
-}
+export const bulkRemove = writes.bulkRemove;

@@ -101,6 +101,14 @@
     "promoted": "Skill is now shared across your workspace",
     "loadFailedTitle": "We couldn't load your skills",
     "loadFailedDescription": "Something went wrong reading them. Try again in a moment.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "failure": {
+      "removeTitle": "Couldn't remove the skill",
+      "removeBody": "It wasn't fully removed. Try again in a moment.",
+      "updateTitle": "Couldn't update the skill",
+      "updateBody": "Your change was undone. Try again in a moment.",
+      "addTitle": "Couldn't add the skill",
+      "addBody": "It wasn't added. Try again in a moment."
+    }
   }
 }

@@ -47,7 +47,11 @@
     "nameConflictDescription": "Escolha um nome diferente e tente novamente.",
     "deleted": "Espaço de trabalho excluído",
     "switchedModel": "Mudou para {{provider}} ({{model}})",
-    "timezoneSet": "Fuso horário definido como {{zone}}"
+    "timezoneSet": "Fuso horário definido como {{zone}}",
+    "renameFailed": "Não foi possível renomear {{name}}",
+    "colorFailed": "Não foi possível mudar a cor de {{name}}",
+    "deleteFailed": "Não foi possível excluir {{name}}",
+    "writeFailedDescription": "Nada mudou. Tente de novo em instantes."
   },
   "nameErrors": {
     "invalidChars": "O nome do funcionário de IA não pode conter barras nem caracteres especiais",
@@ -63,7 +67,9 @@
       "addIndustry": "Adicionar indústria",
       "addRole": "Adicionar cargo"
     },
-    "loadFailed": "Não foi possível carregar a descrição do cargo."
+    "loadFailed": "Não foi possível carregar a descrição do cargo.",
+    "saveErrorTitle": "Não foi possível salvar a descrição do cargo",
+    "saveErrorBody": "Sua última alteração não foi salva. Tente de novo em instantes."
   },
   "learnings": {
     "emptyTitle": "Ainda sem aprendizados",
@@ -80,7 +86,15 @@
     "confirmRemoveLabel": "Remover",
     "provenanceFromMission": "De {{name}} · {{mission}}",
     "provenanceFrom": "De {{name}}",
-    "provenanceMission": "De {{mission}}"
+    "provenanceMission": "De {{mission}}",
+    "failure": {
+      "addTitle": "Não foi possível salvar o aprendizado",
+      "addBody": "Ele não foi adicionado. Tente de novo em instantes.",
+      "updateTitle": "Não foi possível atualizar o aprendizado",
+      "updateBody": "Sua edição foi desfeita. Tente de novo em instantes.",
+      "removeTitle": "Não foi possível remover o aprendizado",
+      "removeBody": "Ele voltou para a lista. Tente de novo em instantes."
+    }
   },
   "subTabs": {
     "instructions": "Descrição do cargo",
@@ -226,7 +240,15 @@
       "saveDiskFull": "Não há espaço livre suficiente neste computador para salvar o arquivo.",
       "revealPermission": "O app não tem permissão para abrir essa pasta neste computador. Procure o arquivo onde você o salvou."
     },
-    "modifiedToday": "Hoje"
+    "modifiedToday": "Hoje",
+    "failed": {
+      "delete_one": "Não foi possível mover “{{name}}” para o Lixo",
+      "delete_other": "Não foi possível mover {{count}} itens para o Lixo",
+      "rename": "Não foi possível renomear “{{name}}”",
+      "move": "Não foi possível mover “{{name}}”",
+      "createFolder": "Não foi possível criar a pasta “{{name}}”",
+      "description": "Seus arquivos voltaram a ser como eram. Tente de novo em instantes."
+    }
   },
   "copyAgent": {
     "row": "Duplicar {{name}}",
