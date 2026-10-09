@@ -75,12 +75,16 @@ pub async fn fetch_with_resume(
         }
         let mut outcome = attempt(client, url, headers, partial, &mut on_event).await;
         if let Err(e) = partial.settle().await {
-            // Bytes that did not reach the disk cannot be resumed from. Only a
-            // finished body is turned into a failure by this; an attempt that
-            // already failed keeps its own, more telling, reason.
+            // Bytes that did not reach the disk cannot be resumed from. A
+            // finished body becomes a failure; an attempt that already failed
+            // keeps its own, more telling, reason and re-reads how much really
+            // landed, so the next resume asks for the right offset. When even
+            // that cannot be known the download is final.
             tracing::warn!("[updater] flush partial download: {e}");
             if matches!(outcome, Ok(AttemptOutcome::Done)) {
                 outcome = Err(DownloadFailure::io("flush partial download", &e));
+            } else if let Err(e) = partial.resync_len() {
+                outcome = Err(DownloadFailure::io("measure partial download", &e));
             }
         }
         let mut failure = match outcome {

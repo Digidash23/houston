@@ -566,6 +566,39 @@ async fn a_transient_status_that_never_clears_reports_as_upstream() {
     assert_eq!(harness.ranges().len() as u32, DOWNLOAD_ATTEMPTS);
 }
 
+// A full disk mid-body is final for the call, frees the bytes it could not
+// keep, and (through the frontend latch) is not asked for again this session.
+#[tokio::test(start_paused = true)]
+async fn a_full_disk_mid_body_discards_the_partial_and_is_final() {
+    let harness = Harness::new(Vec::new()).await;
+    let mut partial = harness.open();
+    partial.fail_writes_with(std::io::ErrorKind::StorageFull);
+    let mut events = Vec::new();
+    let result = fetch_with_resume(
+        &harness.client,
+        &harness.url,
+        &HeaderMap::new(),
+        &mut partial,
+        DOWNLOAD_ATTEMPTS,
+        |e| events.push(e),
+    )
+    .await;
+    let failure = result.unwrap_err();
+    assert_eq!(failure.kind, DownloadFailureKind::StorageFull);
+    assert_eq!(failure.attempts, 1, "no retry against a full disk");
+    assert_eq!(harness.seen().len(), 1);
+    assert!(
+        !harness.part_path().exists(),
+        "the bytes it could not keep are freed"
+    );
+    assert!(!harness.sidecar_path().exists());
+    assert_eq!(
+        started(&events),
+        1,
+        "the 200 was seen before the first write failed"
+    );
+}
+
 #[test]
 fn a_full_disk_is_its_own_class_and_never_retried() {
     let full = std::io::Error::from(std::io::ErrorKind::StorageFull);

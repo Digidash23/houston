@@ -118,12 +118,19 @@ describe("downloadAttemptBudget", () => {
 // A download the disk refused must not be retried every poll: each retry
 // would fill the disk again and free it again, all session long.
 describe("shouldSkipDownload", () => {
-  it("skips the release the disk refused", () => {
-    strictEqual(shouldSkipDownload("1.0.6", "1.0.6"), true);
+  it("skips the release the disk refused for the automatic triggers", () => {
+    strictEqual(shouldSkipDownload("1.0.6", "1.0.6", "poll"), true);
+    strictEqual(shouldSkipDownload("1.0.6", "1.0.6", "launch"), true);
+  });
+
+  // The launch overlay cannot be dismissed and its only way out is Retry:
+  // a person who freed space and clicked it must get a download, not nothing.
+  it("never skips the person's own retry", () => {
+    strictEqual(shouldSkipDownload("1.0.6", "1.0.6", "user"), false);
   });
 
   it("tries a newer release afresh", () => {
-    strictEqual(shouldSkipDownload("1.0.6", "1.0.7"), false);
-    strictEqual(shouldSkipDownload(null, "1.0.6"), false);
+    strictEqual(shouldSkipDownload("1.0.6", "1.0.7", "poll"), false);
+    strictEqual(shouldSkipDownload(null, "1.0.6", "poll"), false);
   });
 });

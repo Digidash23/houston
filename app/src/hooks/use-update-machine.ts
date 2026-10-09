@@ -5,7 +5,6 @@ import {
   osCurrentAppBundlePath,
   osDownloadUpdate,
   osInstallUpdate,
-  osRelaunchAppFromPath,
 } from "../lib/os-bridge";
 import {
   type AvailableUpdate,
@@ -21,11 +20,13 @@ import {
 import { reportUpdateDownloadFailure } from "../lib/update-download-report";
 import { claimLaunchCheck } from "../lib/update-launch-claim";
 import {
+  type DownloadTrigger,
   downloadAttemptBudget,
   shouldReportDownloadFailure,
   shouldSkipDownload,
   type UpdateOrigin,
 } from "../lib/update-policy";
+import { relaunchInstalledRelease } from "../lib/update-relaunch";
 import {
   type InstallSource,
   type UpdateInfo,
@@ -93,62 +94,61 @@ export function useUpdateMachine() {
    *  the next check finds the release again and the download re-runs, and
    *  the shell carries on from the bytes it kept on disk rather than from
    *  zero, so a link that drops every few minutes still gets there. A
-   *  release the disk refused is not asked for again this session. */
-  const download = useCallback(async (): Promise<boolean> => {
-    const update = updateRef.current;
-    const info = infoRef.current;
-    if (!update || !info || busyRef.current) return false;
-    if (statusRef.current.state === "downloaded") return true;
-    if (shouldSkipDownload(gaveUpRef.current, info.version)) return false;
+   *  release the disk refused is not asked for again by a poll this
+   *  session; the person's own retry always is. */
+  const download = useCallback(
+    async (trigger: DownloadTrigger): Promise<boolean> => {
+      const update = updateRef.current;
+      const info = infoRef.current;
+      if (!update || !info || busyRef.current) return false;
+      if (statusRef.current.state === "downloaded") return true;
+      if (shouldSkipDownload(gaveUpRef.current, info.version, trigger))
+        return false;
 
-    busyRef.current = true;
-    let tally: DownloadTally = EMPTY_DOWNLOAD_TALLY;
-    try {
-      setStatus({ state: "downloading", info, progress: null });
-      bytesRidRef.current = await osDownloadUpdate(
-        update.rid,
-        downloadAttemptBudget(info.origin),
-        (event) => {
-          const next = applyDownloadEvent(tally, event);
-          tally = next.tally;
-          setStatus({ state: "downloading", info, progress: next.progress });
-        },
-      );
-      setStatus({ state: "downloaded", info });
-      analytics.track("update_downloaded", {
-        from_version: info.currentVersion,
-        to_version: info.version,
-        source: info.origin,
-      });
-      return true;
-    } catch (error) {
-      const outcome = updateDownloadOutcome(error);
-      if (outcome === "give_up") gaveUpRef.current = info.version;
-      if (outcome !== "skip") {
-        console.error("[updater] download failed", error);
-        if (shouldReportDownloadFailure(reportedRef.current, info.version)) {
-          reportedRef.current = info.version;
-          reportUpdateDownloadFailure(info.version, error);
+      busyRef.current = true;
+      let tally: DownloadTally = EMPTY_DOWNLOAD_TALLY;
+      try {
+        setStatus({ state: "downloading", info, progress: null });
+        bytesRidRef.current = await osDownloadUpdate(
+          update.rid,
+          downloadAttemptBudget(info.origin),
+          (event) => {
+            const next = applyDownloadEvent(tally, event);
+            tally = next.tally;
+            setStatus({ state: "downloading", info, progress: next.progress });
+          },
+        );
+        setStatus({ state: "downloaded", info });
+        analytics.track("update_downloaded", {
+          from_version: info.currentVersion,
+          to_version: info.version,
+          source: info.origin,
+        });
+        return true;
+      } catch (error) {
+        const outcome = updateDownloadOutcome(error);
+        if (outcome === "give_up") gaveUpRef.current = info.version;
+        if (outcome !== "skip") {
+          console.error("[updater] download failed", error);
+          if (shouldReportDownloadFailure(reportedRef.current, info.version)) {
+            reportedRef.current = info.version;
+            reportUpdateDownloadFailure(info.version, error);
+          }
         }
+        setStatus({ state: "error", info, phase: "download" });
+        return false;
+      } finally {
+        busyRef.current = false;
       }
-      setStatus({ state: "error", info, phase: "download" });
-      return false;
-    } finally {
-      busyRef.current = false;
-    }
-  }, []);
+    },
+    [],
+  );
 
   const relaunchInstalledApp = useCallback(async () => {
     const info = infoRef.current;
     if (!info) return;
-    try {
-      const appPath = appPathRef.current ?? (await osCurrentAppBundlePath());
-      await osRelaunchAppFromPath(appPath);
-    } catch (error) {
-      console.error("[updater] relaunch failed", error);
-      reportError("update_relaunch", `relaunch into ${info.version}`, error);
+    if (!(await relaunchInstalledRelease(info.version, appPathRef.current)))
       setStatus({ state: "error", info, phase: "relaunch" });
-    }
   }, []);
 
   /** Install the downloaded release and relaunch into it; downloads first
@@ -157,7 +157,7 @@ export function useUpdateMachine() {
   const installAndRelaunch = useCallback(
     async (source: InstallSource) => {
       if (busyRef.current) return;
-      if (statusRef.current.state !== "downloaded" && !(await download()))
+      if (statusRef.current.state !== "downloaded" && !(await download(source)))
         return;
       const update = updateRef.current;
       const info = infoRef.current;

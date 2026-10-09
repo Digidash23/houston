@@ -72,7 +72,10 @@ fn sweep(dir: &Path, doomed: impl Fn(&str, &std::fs::Metadata) -> bool) {
         let Ok(metadata) = entry.metadata() else {
             continue;
         };
-        if doomed(stem, &metadata) {
+        // A partial some download in this process is writing right now is
+        // never swept from under it, whatever its version.
+        let held = InFlightClaim::holds(&dir.join(format!("{stem}{PART_SUFFIX}")));
+        if !held && doomed(stem, &metadata) {
             if let Err(e) = remove_if_present(&path) {
                 tracing::warn!("[updater] remove stale partial {}: {e}", path.display());
             }
@@ -100,10 +103,36 @@ pub fn prune_abandoned(dir: &Path, running_version: &str, now: SystemTime) {
     });
 }
 
+/// `Ok(None)` for a path that is not there; any other read error is logged
+/// and reads as "not there" too, so a bad disk never fails the update here.
+pub fn read_if_present(path: &Path) -> Option<Vec<u8>> {
+    match std::fs::read(path) {
+        Ok(raw) => Some(raw),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => None,
+        Err(e) => {
+            tracing::warn!("[updater] read {}: {e}", path.display());
+            None
+        }
+    }
+}
+
+/// The length of the file at `path`, `None` when it is not there (any other
+/// error is logged and reads as "not there").
+pub fn len_if_present(path: &Path) -> Option<u64> {
+    match std::fs::metadata(path) {
+        Ok(metadata) => Some(metadata.len()),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => None,
+        Err(e) => {
+            tracing::warn!("[updater] stat {}: {e}", path.display());
+            None
+        }
+    }
+}
+
 /// The sidecar, or `None` when there is none or it does not parse (logged:
 /// a sidecar we wrote should always parse, so that is worth a look).
 pub fn read_sidecar(path: &Path) -> Option<Sidecar> {
-    let raw = std::fs::read(path).ok()?;
+    let raw = read_if_present(path)?;
     match serde_json::from_slice(&raw) {
         Ok(sidecar) => Some(sidecar),
         Err(e) => {
@@ -132,6 +161,11 @@ fn in_flight() -> MutexGuard<'static, Vec<PathBuf>> {
 pub struct InFlightClaim(PathBuf);
 
 impl InFlightClaim {
+    /// Whether some download in this process holds `path` right now.
+    pub fn holds(path: &Path) -> bool {
+        in_flight().iter().any(|p| p == path)
+    }
+
     /// `None` when another download holds the same path right now.
     pub fn take(path: &Path) -> Option<Self> {
         let mut held = in_flight();

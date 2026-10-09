@@ -12,8 +12,8 @@
 //! (`update_verify`) is what admits them.
 
 use super::update_partial_dir::{
-    file_stem, prune_others, read_sidecar, remove_if_present, InFlightClaim, ATOMIC_TMP_SUFFIX,
-    PART_SUFFIX, SIDECAR_SUFFIX,
+    file_stem, len_if_present, prune_others, read_sidecar, remove_if_present, InFlightClaim,
+    ATOMIC_TMP_SUFFIX, PART_SUFFIX, SIDECAR_SUFFIX,
 };
 use serde::{Deserialize, Serialize};
 use std::io;
@@ -52,6 +52,9 @@ pub struct PartialDownload {
     len: u64,
     sidecar: Option<Sidecar>,
     _claim: InFlightClaim,
+    /// Test seam: every write fails with this kind (a full disk, say).
+    #[cfg(test)]
+    fail_writes: Option<io::ErrorKind>,
 }
 
 impl PartialDownload {
@@ -71,9 +74,11 @@ impl PartialDownload {
             len: 0,
             sidecar: None,
             _claim: claim,
+            #[cfg(test)]
+            fail_writes: None,
         };
         let sidecar = read_sidecar(&partial.sidecar_path).filter(|s| s.url == url);
-        let len = std::fs::metadata(&partial.path).map(|m| m.len()).ok();
+        let len = len_if_present(&partial.path);
         match (sidecar, len) {
             (Some(sidecar), Some(len)) if len > 0 => {
                 partial.sidecar = Some(sidecar);
@@ -101,14 +106,18 @@ impl PartialDownload {
     }
 
     /// Throw the bytes away and begin again, as `sidecar` describes (or as
-    /// nothing at all, so the next request asks for a full body). With a
-    /// known total the file is first extended to it and cut back: on a
-    /// filesystem that allocates on extend (NTFS) a full disk fails HERE,
-    /// before a single byte is fetched into it.
+    /// nothing at all, so the next request asks for a full body). The old
+    /// sidecar goes FIRST: a process killed between here and the new sidecar
+    /// leaves a file with no sidecar, which the next open removes, never a
+    /// probe-sized file that an old sidecar would vouch for. With a known
+    /// total the file is extended to it and cut back: on a filesystem that
+    /// allocates on extend (NTFS) a full disk fails HERE, before a single
+    /// byte is fetched into it.
     pub async fn restart(&mut self, sidecar: Option<Sidecar>) -> io::Result<()> {
         self.file = None;
         self.len = 0;
         self.sidecar = sidecar;
+        remove_if_present(&self.sidecar_path)?;
         let file = File::create(&self.path).await?;
         if let Some(total) = self.total() {
             file.set_len(total).await?;
@@ -117,11 +126,28 @@ impl PartialDownload {
         self.file = Some(file);
         match &self.sidecar {
             Some(sidecar) => self.write_sidecar(sidecar),
-            None => remove_if_present(&self.sidecar_path),
+            None => Ok(()),
         }
     }
 
+    /// After a write path failed: forget the handle and trust the file's
+    /// length on disk again, so the next resume asks for the right offset.
+    pub fn resync_len(&mut self) -> io::Result<()> {
+        self.file = None;
+        self.len = std::fs::metadata(&self.path)?.len();
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub fn fail_writes_with(&mut self, kind: io::ErrorKind) {
+        self.fail_writes = Some(kind);
+    }
+
     pub async fn append(&mut self, chunk: &[u8]) -> io::Result<()> {
+        #[cfg(test)]
+        if let Some(kind) = self.fail_writes {
+            return Err(io::Error::from(kind));
+        }
         if self.file.is_none() {
             let file = OpenOptions::new().append(true).open(&self.path).await?;
             self.file = Some(file);

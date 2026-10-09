@@ -113,14 +113,23 @@ export function downloadAttemptBudget(origin: UpdateOrigin): number {
     : POLL_DOWNLOAD_ATTEMPTS;
 }
 
+/** What asked for a download: the launch find or a background poll (both
+ *  automatic), or the person's own retry. */
+export type DownloadTrigger = UpdateOrigin | "user";
+
 /**
- * A download the disk refused is not retried for that release in this
- * session: every poll would fill the disk again, fail again, and free it
- * again. The next release (or the next app start) tries afresh.
+ * A download the disk refused is not retried AUTOMATICALLY for that release
+ * in this session: every poll would fill the disk again, fail again, and
+ * free it again. The person's own retry always runs: someone who just freed
+ * space and clicked Retry on the launch overlay (which nothing else
+ * dismisses) must not be told nothing. The next release, or the next app
+ * start, tries afresh either way.
  */
 export function shouldSkipDownload(
   gaveUpVersion: string | null,
   version: string,
+  trigger: DownloadTrigger,
 ): boolean {
+  if (trigger === "user") return false;
   return gaveUpVersion === version;
 }

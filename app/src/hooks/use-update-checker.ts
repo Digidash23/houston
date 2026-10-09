@@ -71,7 +71,7 @@ export function useUpdateChecker() {
     if (updatePresentation(status.info.origin) === "launch") {
       void installAndRelaunch("launch");
     } else {
-      void download();
+      void download("poll");
     }
   }, [status, download, installAndRelaunch]);
 
