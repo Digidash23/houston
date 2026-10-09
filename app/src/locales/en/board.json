@@ -115,11 +115,17 @@
     "bannerTitle": "Your team is ready. Pick an AI Employee and start their first day.",
     "bannerExplain": "Each one will ask you a few questions to learn the job.",
     "connectAi": "Connect AI to start",
-    "bannerNeedsAi": "Connect an AI like Claude or ChatGPT first. Then they can start.",
+    "bannerNeedsAi": "Connect an AI like Claude or ChatGPT first. Then your AI Employees can start their first day.",
     "noProvider": {
       "title": "Connect your AI first",
       "body": "Your AI Employee needs an AI like Claude or ChatGPT to work. Connect one, then start the first day.",
       "action": "Connect AI"
+    },
+    "bannerNeedsAiTitle": "Connect an AI to get your team started",
+    "reconnect": {
+      "title": "Reconnect {{provider}}",
+      "body": "{{provider}} is signed out, so the first day can't start. Reconnect it, then start the first day.",
+      "action": "Reconnect"
     }
   },
   "writeFailed": {

@@ -115,11 +115,17 @@
     "bannerTitle": "Tu equipo está listo. Elige un empleado de IA y comienza su primer día.",
     "bannerExplain": "Cada uno te hará algunas preguntas para aprender el trabajo.",
     "connectAi": "Conecta una IA para empezar",
-    "bannerNeedsAi": "Primero conecta una IA como Claude o ChatGPT. Después podrán empezar.",
+    "bannerNeedsAi": "Primero conecta una IA como Claude o ChatGPT. Después tus empleados de IA podrán comenzar su primer día.",
     "noProvider": {
       "title": "Primero conecta tu IA",
       "body": "Tu empleado de IA necesita una IA como Claude o ChatGPT para trabajar. Conecta una y luego comienza su primer día.",
       "action": "Conectar IA"
+    },
+    "bannerNeedsAiTitle": "Conecta una IA para que tu equipo empiece",
+    "reconnect": {
+      "title": "Vuelve a conectar {{provider}}",
+      "body": "Tu sesión de {{provider}} se cerró, así que el primer día no puede comenzar. Vuelve a conectarlo y luego comienza el primer día.",
+      "action": "Volver a conectar"
     }
   },
   "writeFailed": {

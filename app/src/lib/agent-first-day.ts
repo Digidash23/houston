@@ -19,7 +19,10 @@
  */
 
 import type { FirstDayStartResult } from "@houston/engine-adapter";
-import { isFirstDayNotPending } from "@houston/sdk/agents/first-day-refusal";
+import {
+  isFirstDayNoProvider,
+  isFirstDayNotPending,
+} from "@houston/sdk/agents/first-day-refusal";
 import { registerSetupGreeting } from "../hooks/use-setup-greeting";
 import { useAgentProvisioningStore } from "../stores/agent-provisioning";
 import { useUIStore } from "../stores/ui";
@@ -63,6 +66,14 @@ export async function startEmployeeFirstDay(
     // pod still waking past the SDK's wait, offline). A refusal means this
     // button was stale, and that the engine is up: the refetch takes it away.
     if (isFirstDayNotPending(err)) engineAnswered(agent.folderPath);
+    if (isFirstDayNoProvider(err)) {
+      engineAnswered(agent.folderPath);
+      // The scan said an AI was connected and the host disagreed: re-probe
+      // so the start button flips to Connect AI on this answer.
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.providerStatuses(),
+      });
+    }
     void queryClient.invalidateQueries({ queryKey: configKey });
     return false;
   }

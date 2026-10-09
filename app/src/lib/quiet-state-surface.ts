@@ -41,7 +41,7 @@ export function surfaceQuietState(
       // A business state: the first day waits for a connected AI. The raw
       // reason stays in the log line; nothing to report.
       console.info(`[toast:${command}] ${message}`);
-      showFirstDayNoProviderToast();
+      showFirstDayNoProviderToast(originalError);
       return true;
     case "no_url_handler":
       // Same remedy copy `openExternalUrl` shows; a rejection that reached

@@ -135,6 +135,9 @@ test("a first turn refused for no connected AI answers its own code and stays pe
   expect(res.status).toBe(409);
   const body = (await res.json()) as Record<string, unknown>;
   expect(body.code).toBe("first_day_no_provider");
+  expect(body.error).toBe(
+    "No AI is connected to run the first day. Connect one, then start it again.",
+  );
   expect(body).not.toHaveProperty("provider");
   expect(await host.firstDay()).toBe("pending");
   expect(await host.setupTasks()).toHaveLength(0);

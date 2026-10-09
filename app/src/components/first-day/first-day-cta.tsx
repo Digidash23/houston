@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { useConnectAiGate } from "../../hooks/use-connect-ai-gate";
 import type { Agent } from "../../lib/types";
 import { startFirstDay } from "./start-first-day";
+import { useTrackFirstDayNeedsAi } from "./use-track-needs-ai";
 
 /**
  * The one "Start {{name}}'s first day" button. It holds its own busy state and
@@ -32,7 +33,9 @@ export function FirstDayStartButton({
 }) {
   const { t } = useTranslation("board");
   const gate = useConnectAiGate();
-  if (gate.active && gate.canConnect)
+  const needsAi = gate.active && gate.canConnect;
+  useTrackFirstDayNeedsAi(needsAi, "start_button");
+  if (needsAi)
     return (
       <Button
         data-first-day-connect-ai={agent.folderPath}

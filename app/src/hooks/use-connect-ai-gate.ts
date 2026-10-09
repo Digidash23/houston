@@ -1,26 +1,19 @@
 /**
- * "Is there no AI connected, and can this viewer go connect one?" as ONE
- * decision, for every surface that would otherwise start a turn no provider
- * can answer: the chat composer (`use-connect-ai-composer.tsx`) and the
- * first-day start button. Both read the same rule
- * (`shouldReplaceComposerWithConnectAi`, conservative: anything uncertain
- * keeps the normal action) and the same connect target, the AI Hub.
+ * Feeds the live signals to the ONE connect-AI decision
+ * (`lib/connect-ai-gate.ts`), for the chat composer and the first-day start
+ * button and banner alike, and supplies the connect target, the AI Hub.
  *
  * Reactivity is free: the provider-status query is invalidated on
  * `ProviderLoginComplete`, so connecting an AI flips the gate back with no
  * manual wiring.
  */
 
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import {
-  type PickerEmptyState,
-  pickerEmptyState,
-} from "../components/chat-model-selector-labels.ts";
-import {
-  type ConnectAiComposerSignals,
-  providerConnectionCounts,
-  shouldReplaceComposerWithConnectAi,
-} from "../lib/composer-connect-ai.ts";
+  type ConnectAiGateState,
+  connectAiGateState,
+} from "../lib/connect-ai-gate.ts";
+import type { ProviderConnectionStatus } from "../lib/provider-connection.ts";
 import { isTeamWorkspace } from "../lib/space-id.ts";
 import { AI_HUB_VIEW_ID } from "../lib/top-level-views.ts";
 import { useUIStore } from "../stores/ui";
@@ -29,55 +22,38 @@ import { useCapabilities } from "./use-capabilities";
 import { useProviderCatalog } from "./use-provider-catalog";
 import { useProviderStatuses } from "./use-provider-statuses";
 
-export interface ConnectAiGate {
-  /** True when zero providers are confirmed connected in a settled world. */
-  active: boolean;
-  /** Which no-AI story to tell: personal space or team space. */
-  variant: PickerEmptyState;
-  /** Whether the viewer can reach the AI Hub at all. */
-  canConnect: boolean;
+export interface ConnectAiGate extends ConnectAiGateState {
   /** Opens the AI Hub. */
   connect: () => void;
 }
 
-/** The provider-scan half of the rule, supplied by the caller. */
-export type ConnectAiScanSignals = Pick<
-  ConnectAiComposerSignals,
-  "connectedCount" | "checkingCount" | "statusesLoading" | "statusesError"
->;
+/** A provider scan as `useProviderStatuses` returns it. */
+export interface ConnectAiScan {
+  statuses: Record<string, ProviderConnectionStatus>;
+  isLoading: boolean;
+  isError: boolean;
+}
 
-/**
- * The gate from counts the caller already derived (the chat panel computes
- * them for its picker too). Reads the remaining world signals itself.
- */
-export function useConnectAiDecision(
-  scan: ConnectAiScanSignals,
-): ConnectAiGate {
+/** The gate over a scan the caller already holds (the chat panel's). */
+export function useConnectAiDecision(scan: ConnectAiScan): ConnectAiGate {
   const { capabilities, isLoading: capabilitiesLoading } = useCapabilities();
   const { isReady: catalogReady } = useProviderCatalog();
   const workspaceId = useWorkspaceStore((s) => s.current?.id ?? null);
   const setViewMode = useUIStore((s) => s.setViewMode);
-  const { variant, canConnect } = pickerEmptyState({
-    teamSpace: workspaceId ? isTeamWorkspace(workspaceId) : false,
+  const state = connectAiGateState({
+    statuses: scan.statuses,
+    statusesLoading: scan.isLoading,
+    statusesError: scan.isError,
+    catalogReady,
     capabilities,
     capabilitiesLoaded: !capabilitiesLoading,
-  });
-  const active = shouldReplaceComposerWithConnectAi({
-    ...scan,
-    catalogReady,
-    capabilitiesLoaded: !capabilitiesLoading,
+    teamSpace: workspaceId ? isTeamWorkspace(workspaceId) : false,
   });
   const connect = useCallback(() => setViewMode(AI_HUB_VIEW_ID), [setViewMode]);
-  return { active, variant, canConnect, connect };
+  return { ...state, connect };
 }
 
 /** The gate off the shared provider-status query, for a standalone surface. */
 export function useConnectAiGate(): ConnectAiGate {
-  const { statuses, isLoading, isError } = useProviderStatuses();
-  const counts = useMemo(() => providerConnectionCounts(statuses), [statuses]);
-  return useConnectAiDecision({
-    ...counts,
-    statusesLoading: isLoading,
-    statusesError: isError,
-  });
+  return useConnectAiDecision(useProviderStatuses());
 }

@@ -4,10 +4,9 @@
  * decides, and this returns the node the chat panel hands to
  * `composerOverride` in `replace` mode.
  *
- * The connection counts come in as PROPS rather than being re-derived here: the
- * chat panel already computes them from the ONE shared derivation
- * (`providerIsConnected` / `providerConnectionState`), and a second derivation
- * is exactly how two surfaces drift apart about whether a provider is connected.
+ * The scan comes in as a PROP: the chat panel already holds it, and the gate
+ * counts it through the ONE shared derivation (`providerConnectionCounts`), the
+ * same the first-day start button reads.
  *
  * Reactivity is free: `useProviderStatuses` (whose settled counts feed this) is
  * a TanStack query invalidated on `ProviderLoginComplete`, so connecting a
@@ -18,7 +17,7 @@
 import { type ReactNode, useMemo } from "react";
 import { ChatConnectAiEmptyState } from "../components/chat-connect-ai-empty-state.tsx";
 import {
-  type ConnectAiScanSignals,
+  type ConnectAiScan,
   useConnectAiDecision,
 } from "./use-connect-ai-gate";
 
@@ -29,10 +28,8 @@ export interface ConnectAiComposer {
   node: ReactNode | null;
 }
 
-export function useConnectAiComposer(
-  opts: ConnectAiScanSignals,
-): ConnectAiComposer {
-  const { active, variant, canConnect, connect } = useConnectAiDecision(opts);
+export function useConnectAiComposer(scan: ConnectAiScan): ConnectAiComposer {
+  const { active, variant, canConnect, connect } = useConnectAiDecision(scan);
   const node = useMemo<ReactNode | null>(
     () =>
       active ? (

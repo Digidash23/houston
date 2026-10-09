@@ -70,6 +70,10 @@ export type FirstDayStartAnswer =
   | { ok: true; status: 200 | 201; result: FirstDayStartResult }
   | ({ ok: false; status: 409 } & FirstDayRefusal);
 
+/** The refusal's text when the first turn had no AI to run on. */
+const NO_PROVIDER_ERROR =
+  "No AI is connected to run the first day. Connect one, then start it again.";
+
 export function startFirstDay(
   deps: FirstDayStartDeps,
   input: FirstDayStartInput,
@@ -123,7 +127,8 @@ async function run(
         ok: false,
         status: 409,
         code: "first_day_no_provider",
-        error: err.message,
+        // Authored, never the runtime's raw text: the code is the contract.
+        error: NO_PROVIDER_ERROR,
         ...(err.provider ? { provider: err.provider } : {}),
       };
     const reason = err instanceof Error ? err.message : String(err);

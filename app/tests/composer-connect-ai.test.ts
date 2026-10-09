@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
+import test, { describe } from "node:test";
 import {
   type ConnectAiComposerSignals,
   providerConnectionCounts,
   shouldReplaceComposerWithConnectAi,
   shouldShowConnectAiEmptyState,
 } from "../src/lib/composer-connect-ai.ts";
+import { connectAiGateState } from "../src/lib/connect-ai-gate.ts";
 
 /**
  * The composer's connect-AI empty state.
@@ -200,21 +201,65 @@ test("the counts come off the one connection derivation", () => {
 /**
  * The first-day start button is the other way to fire a turn. With no AI
  * connected it used to fire one anyway, and the refusal reached Sentry as a
- * bug (HOUSTON-APP-5H4). It reads the composer's own gate, never a second one.
+ * bug (HOUSTON-APP-5H4). It reads the composer's own gate, decided here once.
  */
-test("the first-day start button and banner read the composer's gate", () => {
-  const gate = read("../src/hooks/use-connect-ai-gate.ts");
-  assert.ok(gate.includes("shouldReplaceComposerWithConnectAi("));
-  assert.ok(gate.includes("providerConnectionCounts(statuses)"));
-  const composer = read("../src/hooks/use-connect-ai-composer.tsx");
-  assert.ok(composer.includes("useConnectAiDecision(opts)"));
-  for (const file of [
-    "../src/components/first-day/first-day-cta.tsx",
-    "../src/components/first-day/first-day-banner.tsx",
-  ]) {
-    const src = read(file);
-    assert.ok(src.includes("useConnectAiGate()"), file);
-    assert.ok(src.includes("gate.connect"), file);
-    assert.ok(src.includes('t("firstDay.connectAi")'), file);
-  }
+describe("connectAiGateState", () => {
+  const settled = {
+    statusesLoading: false,
+    statusesError: false,
+    catalogReady: true,
+    capabilities: null,
+    capabilitiesLoaded: true,
+    teamSpace: false,
+  };
+  const signedOut = {
+    anthropic: { cli_installed: true, auth_state: "unauthenticated" as const },
+  };
+
+  test("offers Connect AI when a settled scan confirms nothing connected", () => {
+    assert.deepEqual(connectAiGateState({ ...settled, statuses: signedOut }), {
+      active: true,
+      variant: "personal",
+      canConnect: true,
+    });
+    assert.equal(
+      connectAiGateState({ ...settled, statuses: signedOut, teamSpace: true })
+        .variant,
+      "team",
+    );
+  });
+
+  test("keeps the normal start for one connected provider", () => {
+    const statuses = {
+      ...signedOut,
+      openai: { cli_installed: true, auth_state: "authenticated" as const },
+    };
+    assert.equal(connectAiGateState({ ...settled, statuses }).active, false);
+  });
+
+  test("keeps the normal start while anything is uncertain", () => {
+    const checking = {
+      ...signedOut,
+      gemini: { cli_installed: true, auth_state: "unknown" as const },
+    };
+    for (const input of [
+      { ...settled, statuses: checking },
+      { ...settled, statuses: signedOut, statusesLoading: true },
+      { ...settled, statuses: signedOut, statusesError: true },
+      { ...settled, statuses: signedOut, catalogReady: false },
+      { ...settled, statuses: signedOut, capabilitiesLoaded: false },
+    ])
+      assert.equal(connectAiGateState(input).active, false);
+  });
+
+  test("never promises the AI Hub before the deployment described itself", () => {
+    assert.equal(
+      connectAiGateState({
+        ...settled,
+        statuses: signedOut,
+        capabilitiesLoaded: false,
+      }).canConnect,
+      false,
+    );
+  });
 });

@@ -10,6 +10,7 @@ import type { Agent } from "../../lib/types";
 import { FirstDayCompact } from "./first-day-cta";
 import type { FirstDayPlacement } from "./first-day-model";
 import { startFirstDay } from "./start-first-day";
+import { useTrackFirstDayNeedsAi } from "./use-track-needs-ai";
 
 /**
  * The team board's calm note while employees wait for their first day. Each
@@ -23,6 +24,7 @@ export function FirstDayBanner({ agents }: { agents: Agent[] }) {
   const { t } = useTranslation("board");
   const gate = useConnectAiGate();
   const needsAi = gate.active && gate.canConnect;
+  useTrackFirstDayNeedsAi(needsAi, "banner");
   return (
     <section
       data-testid="first-day-banner"
@@ -30,7 +32,7 @@ export function FirstDayBanner({ agents }: { agents: Agent[] }) {
     >
       <div>
         <p className="text-sm font-medium text-ink text-balance">
-          {t("firstDay.bannerTitle")}
+          {t(needsAi ? "firstDay.bannerNeedsAiTitle" : "firstDay.bannerTitle")}
         </p>
         <p className="text-sm text-ink-muted">
           {t(needsAi ? "firstDay.bannerNeedsAi" : "firstDay.bannerExplain")}
