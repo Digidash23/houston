@@ -60,8 +60,17 @@ export function site(local: () => string): Server {
       res.end();
       return;
     }
+    // A parser-blocking script that answers long after any test is over.
+    if (req.url === "/never") {
+      setTimeout(() => res.end(), 60_000).unref();
+      return;
+    }
     res.writeHead(200, { "content-type": "text/html" });
-    if (req.url === "/secure")
+    if (req.url === "/stall")
+      res.end(
+        `<title>Stalled</title><script src="/never"></script><h1>Body</h1>`,
+      );
+    else if (req.url === "/secure")
       res.end(
         signedIn
           ? "<title>Account</title><h1>Welcome back, student</h1>"

@@ -65,7 +65,9 @@ const text = (value: string): TextContent => ({ type: "text", text: value });
  */
 async function goto(page: Page, href: string): Promise<void> {
   try {
-    await page.goto(href, { waitUntil: "domcontentloaded" });
+    // "commit", not "domcontentloaded": a page whose head script stalls is
+    // still usable, and `settle` + the snapshot already wait a bounded time.
+    await page.goto(href, { waitUntil: "commit" });
   } catch (error) {
     if (error instanceof Error && error.message.includes("net::ERR_"))
       await errorPageCommitted(page);

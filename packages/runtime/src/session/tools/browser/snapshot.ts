@@ -32,11 +32,29 @@ export async function pageSnapshot(page: Page): Promise<string> {
       ),
   );
   const secrets = perFrame.flat();
-  const tree = await page.ariaSnapshot({ mode: "ai", timeout: 10_000 });
+  const tree = await ariaTree(page);
   const title = await page.title();
   return capSnapshot(
     `Page: ${title}\nAddress: ${page.url()}\n\n${maskPasswords(tree, secrets)}`,
   );
+}
+
+export const STILL_LOADING =
+  "(The page is still loading and has nothing to read yet. Wait a few seconds, then take a snapshot again.)";
+
+/**
+ * The tree waits for the page's body, which a slow parser-blocking script in
+ * the head holds back. That page is loading, not broken: the model is told
+ * so instead of getting a timeout that reads like its action failed.
+ */
+async function ariaTree(page: Page): Promise<string> {
+  try {
+    return await page.ariaSnapshot({ mode: "ai", timeout: 5_000 });
+  } catch (error) {
+    if (error instanceof Error && error.name === "TimeoutError")
+      return STILL_LOADING;
+    throw error;
+  }
 }
 
 const TEXTBOX_VALUE = /^(\s*- textbox\b.*\]: )(.*)$/;

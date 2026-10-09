@@ -17,6 +17,7 @@ import {
   tool,
 } from "./browser.test-support";
 import type { BrowserPool } from "./pool";
+import { STILL_LOADING } from "./snapshot";
 
 const available = await browserAvailable();
 const local = localService();
@@ -34,6 +35,7 @@ const workspace = () => mkdtempSync(join(tmpdir(), "browser-it-"));
 
 afterAll(async () => {
   await Promise.all(pools.map((pool) => pool.shutdown()));
+  server.closeAllConnections();
   server.close();
   local.server.close();
 });
@@ -148,6 +150,13 @@ describe.skipIf(!available)(
       // The next call reopens transparently.
       const again = await run({ action: "open", url: `${origin}/secure` });
       expect(again.details.ok).toBe(true);
+    });
+
+    test("a page held back by a stalled script opens as still loading", async () => {
+      const run = tool(workspace(), newPool());
+      const stalled = await run({ action: "open", url: `${origin}/stall` });
+      expect(stalled.details.ok).toBe(true);
+      expect(stalled.text).toContain(STILL_LOADING);
     });
 
     test("a stale ref is a page error the model can recover from", async () => {
