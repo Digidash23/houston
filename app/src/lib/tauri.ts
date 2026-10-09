@@ -59,6 +59,7 @@ import {
   isCloudEgressBlockedError,
 } from "./cloud-egress-blocked-error";
 import { cancelCodexLoopback } from "./codex-loopback";
+import { describeError } from "./describe-error";
 import { getEngine, isRemoteEngine } from "./engine";
 import { engineCallSurface } from "./engine-call-policy";
 import {
@@ -205,12 +206,7 @@ async function surfaceError(
   context?: Record<string, unknown>,
   options?: EngineCallOptions,
 ): Promise<void> {
-  const message =
-    err instanceof Error
-      ? err.message
-      : typeof err === "string"
-        ? err
-        : String(err);
+  const message = describeError(err);
   logger.error(
     `[engine:${label}] ${message}`,
     context ? JSON.stringify(context) : undefined,

@@ -36,7 +36,9 @@ fn permission_and_disk_full_classify_by_kind() {
     assert_eq!(classify(&denied), FileOpFailureKind::Permission);
     let full = io::Error::new(io::ErrorKind::StorageFull, "no space left on device");
     assert_eq!(classify(&full), FileOpFailureKind::DiskFull);
-    let other = io::Error::new(io::ErrorKind::NotFound, "gone");
+    let gone = io::Error::new(io::ErrorKind::NotFound, "gone");
+    assert_eq!(classify(&gone), FileOpFailureKind::NotFound);
+    let other = io::Error::new(io::ErrorKind::InvalidInput, "bad name");
     assert_eq!(classify(&other), FileOpFailureKind::Other);
 }
 
@@ -115,4 +117,23 @@ async fn protected_folder_fails_typed_instead_of_renaming() {
     );
     std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
     std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
+async fn vanished_folder_fails_typed_not_found() {
+    // HOUSTON-APP-53A after PR #1555: the folder picked in the dialog is on a
+    // drive that went away before the write.
+    let dir = tmp_dir("vanished");
+    let target = dir.join("gone").join("report.xlsx");
+    let err = write_with_fallback(&target, b"new").await.unwrap_err();
+    assert_eq!(err.kind, FileOpFailureKind::NotFound);
+    assert!(!target.exists());
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn not_found_crosses_the_wire_snake_case() {
+    // `app/src/lib/file-op-failure.ts` KINDS reads exactly this string.
+    let json = serde_json::to_string(&FileOpFailureKind::NotFound).unwrap();
+    assert_eq!(json, "\"not_found\"");
 }

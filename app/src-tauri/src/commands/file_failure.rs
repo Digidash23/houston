@@ -7,7 +7,7 @@
 //! siendo utilizado por otro proceso. (os error 32)"), and the frontend
 //! filed every one as a Sentry bug. They are user states with a remedy:
 //! the destination is open in Excel, the folder is protected, the disk is
-//! full. The frontend classifies `kind` (`app/src/lib/file-op-failure.ts`)
+//! full, the chosen folder is gone. The frontend classifies `kind` (`app/src/lib/file-op-failure.ts`)
 //! into authored expected-state copy; only `other` is still reported.
 
 use serde::Serialize;
@@ -23,6 +23,9 @@ pub enum FileOpFailureKind {
     /// that blocks spawning Explorer).
     Permission,
     DiskFull,
+    /// The chosen folder no longer exists (os error 3 / 2): an unplugged or
+    /// offline drive, a folder deleted while the dialog was open.
+    NotFound,
     Other,
 }
 
@@ -67,6 +70,7 @@ fn classify(err: &io::Error) -> FileOpFailureKind {
     match err.kind() {
         io::ErrorKind::PermissionDenied => FileOpFailureKind::Permission,
         io::ErrorKind::StorageFull => FileOpFailureKind::DiskFull,
+        io::ErrorKind::NotFound => FileOpFailureKind::NotFound,
         _ => FileOpFailureKind::Other,
     }
 }

@@ -224,6 +224,7 @@
       "saveLocked": "Esse arquivo está aberto em outro programa. Feche-o lá e baixe de novo.",
       "savePermission": "O app não tem permissão para salvar nessa pasta. Escolha outra pasta, como Downloads.",
       "saveDiskFull": "Não há espaço livre suficiente neste computador para salvar o arquivo.",
+      "saveNotFound": "Essa pasta não está mais disponível. Escolha outra pasta, como Downloads.",
       "revealPermission": "O app não tem permissão para abrir essa pasta neste computador. Procure o arquivo onde você o salvou."
     },
     "modifiedToday": "Hoje"

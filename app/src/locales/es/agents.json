@@ -224,6 +224,7 @@
       "saveLocked": "Ese archivo está abierto en otro programa. Ciérralo ahí y vuelve a descargarlo.",
       "savePermission": "La app no tiene permiso para guardar en esa carpeta. Elige otra carpeta, como Descargas.",
       "saveDiskFull": "No hay suficiente espacio libre en este computador para guardar el archivo.",
+      "saveNotFound": "Esa carpeta ya no está disponible. Elige otra carpeta, como Descargas.",
       "revealPermission": "La app no tiene permiso para abrir esa carpeta en este computador. Busca el archivo donde lo guardaste."
     },
     "modifiedToday": "Hoy"

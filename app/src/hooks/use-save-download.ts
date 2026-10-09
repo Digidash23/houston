@@ -17,9 +17,11 @@ import { useUIStore } from "../stores/ui";
  * policy: no silent failures), a cancelled save dialog stays quiet.
  *
  * The shell rejects typed (`file-op-failure.ts`): the destination open in
- * another program, a protected folder, a full disk are states the user can
- * fix and read as informational copy with no report; only `other` is a bug
- * (PRODUCT-1732). The raw OS diagnostic always reaches the frontend log.
+ * another program, a protected folder, a full disk, a folder that is gone
+ * are states the user can fix and read as informational copy with no report;
+ * only `other` is a bug (PRODUCT-1732). The raw OS diagnostic always reaches
+ * the frontend log, and the report carries the typed failure itself so its
+ * title reads `kind: message` (HOUSTON-APP-53A was "[object Object]").
  */
 export function useSaveDownload(): (name: string, blob: Blob) => Promise<void> {
   const { t } = useTranslation("agents");
@@ -58,7 +60,10 @@ export function useSaveDownload(): (name: string, blob: Blob) => Promise<void> {
                 addToast({
                   variant: "error",
                   title: t("files.toasts.revealFailed"),
-                  description: genericErrorDescription("reveal_download", err),
+                  description: genericErrorDescription(
+                    "reveal_download",
+                    plan.failure,
+                  ),
                 });
               });
             },
@@ -80,7 +85,7 @@ export function useSaveDownload(): (name: string, blob: Blob) => Promise<void> {
         addToast({
           variant: "error",
           title: t("files.toasts.saveFailedTitle"),
-          description: genericErrorDescription("save_download", err),
+          description: genericErrorDescription("save_download", plan.failure),
         });
       }
     },

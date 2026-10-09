@@ -224,6 +224,7 @@
       "saveLocked": "That file is open in another program. Close it there and download again.",
       "savePermission": "The app isn't allowed to save into that folder. Choose another folder, like Downloads.",
       "saveDiskFull": "There isn't enough free space on this computer to save the file.",
+      "saveNotFound": "That folder isn't available anymore. Choose another folder, like Downloads.",
       "revealPermission": "The app isn't allowed to open that folder on this computer. Look for the file where you saved it."
     },
     "modifiedToday": "Today"
