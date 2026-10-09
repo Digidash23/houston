@@ -6,7 +6,7 @@ import {
   unconnectedRoutineFailure,
   upsertById,
 } from "@houston/domain";
-import type { Routine, RoutineRunFailure } from "@houston/protocol";
+import type { Routine, RoutineRun, RoutineRunFailure } from "@houston/protocol";
 import type { Agent, Workspace } from "../domain/types";
 import type { EventHub } from "../events/hub";
 import type { WorkspacePaths } from "../paths";
@@ -83,10 +83,14 @@ export async function fireRoutineRun(
   ws: Workspace,
   agent: Agent,
   routine: Routine,
+  manual = false,
 ): Promise<{ runId: string; conversationId: string }> {
   const root = deps.paths.agentRoot(ws, agent);
   const runId = deps.newId();
-  const run = createRoutineRun(routine, runId, deps.now().toISOString());
+  const created = createRoutineRun(routine, runId, deps.now().toISOString());
+  // A "Run now" runs as whoever pressed it; the row says so, since the
+  // snooze rules (domain snoozeAfterRun) only trust a run as the creator's.
+  const run: RoutineRun = manual ? { ...created, manual: true } : created;
   try {
     await withRunsFile(root, async () => {
       const { items } = await loadRoutineRuns(deps.vfs, root);
