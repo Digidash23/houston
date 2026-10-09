@@ -109,6 +109,11 @@ export type AnalyticsEventName =
   // Fired when the user starts an AI Employee's first day (its self-setup
   // task). Carries `source` (how the employee arrived) when it is known.
   | "agent_onboarding_started"
+  // A first day that could not start for want of a connected AI: the server
+  // refused the start (`surface: refused`, with the signed-out `provider` when
+  // it named one) or a start button showed Connect AI instead (`surface:
+  // start_button | banner`, once per session each). Counted, never Sentry.
+  | "agent_first_day_needs_ai"
   | "chat_message_sent"
   | "chat_message_received"
   | "mission_created"

@@ -56,6 +56,12 @@ export function reportError(
     console.debug(`[report:${command}] refused: not the routine's creator`);
     return;
   }
+  // A first-day start with no AI connected: the connect-AI notice is the
+  // whole surface. Nothing broke.
+  if (quiet === "first_day_no_provider") {
+    console.debug(`[report:${command}] refused: no AI connected`);
+    return;
+  }
   if (quiet) {
     reportQuietError(quiet, command, message, originalError);
     return;

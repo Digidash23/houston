@@ -48,9 +48,12 @@ export {
   type AgentsModule,
   type AgentsViewModel,
   type AgentsWrites,
+  firstDayRefusal,
   type InstalledConfig,
   isAgentNameReserved,
   isAgentNameTaken,
+  isFirstDayNoProvider,
+  isFirstDayNotPending,
   type WireAgent,
 } from "./modules/agents";
 // ===== Files module contract ===========================================

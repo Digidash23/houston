@@ -15,6 +15,7 @@
 
 // Dependency-free subpath: the app's node:test entry points cannot load the
 // SDK root (it pulls @houston/domain, whose extensionless imports node rejects).
+import { isFirstDayNoProvider } from "@houston/sdk/agents/first-day-refusal";
 import { bridgeQuietClass } from "@houston/sdk/local-model-bridge/quiet";
 import type { QuietErrorClass } from "@houston/sdk/quiet-error-class";
 import { isPlanMinIntervalRefusal } from "@houston/sdk/routines/plan-floor-quiet";
@@ -49,6 +50,11 @@ export type { QuietErrorClass } from "@houston/sdk/quiet-error-class";
  * `isWebhookKeyNotCreatorRefusal`): the chip already hides the action for
  * them, so this covers a stale routine row, with authored copy and no report.
  *
+ * `first_day_no_provider` is a first-day start refused because the person has
+ * no AI connected (the SDK's `isFirstDayNoProvider`): the start button offers
+ * the connect flow instead when it can tell, so this covers a stale provider
+ * scan, with authored copy and no report.
+ *
  * `bug_intake_unavailable` is the bug-report intake refusing everyone on our
  * side (Linear's plan cap, HOUSTON-APP-5FT). `submitBugReport` reports it
  * itself and delivers the report through the fallback; this catches any other
@@ -58,6 +64,7 @@ export function classifyQuietError(err: unknown): QuietErrorClass | null {
   if (isNoBrowserFailure(err)) return "no_url_handler";
   if (isPlanMinIntervalRefusal(err)) return "plan_min_interval";
   if (isWebhookKeyNotCreatorRefusal(err)) return "webhook_not_creator";
+  if (isFirstDayNoProvider(err)) return "first_day_no_provider";
   if (isBugIntakeUnavailable(err)) return "bug_intake_unavailable";
   const bridge = bridgeQuietClass(err);
   if (bridge) return bridge;
