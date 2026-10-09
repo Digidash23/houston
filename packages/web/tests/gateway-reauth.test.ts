@@ -376,3 +376,105 @@ test("a hosted 401 with no refresher at all stays raw and leaves a breadcrumb", 
   );
   warn.mockRestore();
 });
+
+/** A bearer shaped like the real one: a three-part JWT whose `exp` is what the
+ *  gateway judges. `expOffsetS` is relative to now; `tag` keeps them distinct. */
+function jwtExpiringIn(expOffsetS: number, tag: string): string {
+  const nowS = Math.floor(Date.now() / 1000);
+  const enc = (o: unknown) =>
+    btoa(JSON.stringify(o))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+  return `${enc({ alg: "RS256", kid: tag })}.${enc({
+    sub: "uid",
+    iat: nowS + expOffsetS - 3600,
+    exp: nowS + expOffsetS,
+    tag,
+  })}.sig`;
+}
+
+test("a refreshed bearer already expired by its own claims is never replayed; the refresher is asked once more (HOUSTON-APP-5HZ)", async () => {
+  // After a laptop wake the refresher can answer with the token a pre-sleep
+  // run minted: fresh to the session store, 27 minutes past `exp` to the
+  // gateway. Replaying it only earns the 401 the breadcrumb then reports as
+  // a refused fresh mint. The claims already say the answer, so the bearer
+  // is not sent: one more refresh, and THAT one replays.
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const sleptOut = jwtExpiringIn(-1_621, "slept");
+  const fresh = jwtExpiringIn(3_600, "fresh");
+  const refresh = vi
+    .fn<() => Promise<string | null>>()
+    .mockResolvedValueOnce(sleptOut)
+    .mockResolvedValueOnce(fresh);
+  setEngineWindow({ token: "stale", refresh, controlPlane: true });
+  const calls = stubFetch(json(401), json(200, { ok: true }));
+
+  const res = await gatewayAuthFetch("stale")("https://gateway.example/x");
+
+  expect(res.status).toBe(200);
+  expect(refresh).toHaveBeenCalledTimes(2);
+  expect(calls.map(bearerOf)).toEqual(["Bearer stale", `Bearer ${fresh}`]);
+  expect(warn).toHaveBeenCalledTimes(1);
+  expect(warn.mock.calls[0][0]).toContain("[gateway-bearer]");
+  expect(warn.mock.calls[0][0]).toContain("expires_in_s=-16");
+  expect(warn.mock.calls[0][0]).not.toContain(sleptOut);
+  warn.mockRestore();
+});
+
+test("a second answer still expired by its claims replays once and lets the gateway judge", async () => {
+  // A client clock hours ahead of Google's makes EVERY token look expired
+  // locally while the gateway accepts it. One extra refresh is the budget;
+  // after that the bearer is sent and the verifier decides, so a wrong clock
+  // never locks a user out.
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const first = jwtExpiringIn(-7_200, "clock-a");
+  const second = jwtExpiringIn(-7_200, "clock-b");
+  const refresh = vi
+    .fn<() => Promise<string | null>>()
+    .mockResolvedValueOnce(first)
+    .mockResolvedValueOnce(second);
+  setEngineWindow({ token: "stale", refresh, controlPlane: true });
+  const calls = stubFetch(json(401), json(200, { ok: true }));
+
+  const res = await gatewayAuthFetch("stale")("https://gateway.example/x");
+
+  expect(res.status).toBe(200);
+  expect(refresh).toHaveBeenCalledTimes(2);
+  expect(calls.map(bearerOf)).toEqual(["Bearer stale", `Bearer ${second}`]);
+  warn.mockRestore();
+});
+
+test("N joiners handed one slept-out bearer share ONE extra refresh", async () => {
+  const sleptOut = jwtExpiringIn(-5_221, "slept");
+  const fresh = jwtExpiringIn(3_600, "fresh");
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const refresh = vi
+    .fn<() => Promise<string | null>>()
+    .mockResolvedValueOnce(sleptOut)
+    .mockResolvedValue(fresh);
+  setEngineWindow({ token: "stale", refresh, controlPlane: true });
+  const calls = stubFetch(
+    json(401),
+    json(401),
+    json(401),
+    json(200, { x: true }),
+    json(200, { y: true }),
+    json(200, { z: true }),
+  );
+
+  const answers = await Promise.all(
+    ["x", "y", "z"].map((path) =>
+      gatewayAuthFetch("stale")(`https://gateway.example/${path}`),
+    ),
+  );
+
+  expect(answers.map((r) => r.status)).toEqual([200, 200, 200]);
+  expect(refresh).toHaveBeenCalledTimes(2);
+  expect(calls.slice(3).map(bearerOf)).toEqual(
+    Array(3).fill(`Bearer ${fresh}`),
+  );
+  // One breadcrumb per discarded bearer, not one per joiner.
+  expect(warn).toHaveBeenCalledTimes(1);
+  warn.mockRestore();
+});

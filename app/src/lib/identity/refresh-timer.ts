@@ -20,6 +20,14 @@ const REFRESH_SKEW_MS = 5 * 60_000;
 const INITIAL_REFRESH_BACKOFF_MS = 30_000;
 const MAX_REFRESH_BACKOFF_MS = 15 * 60_000;
 
+// After a SUCCESSFUL refresh the next run waits at least this long, whatever
+// `expiresAt` says. Expiry is dated from the request's send (`refresh-mint.ts`)
+// and never from the token's claims, so a skewed clock cannot shrink it; this
+// floor is the backstop for anything else that could (a lifetime shorter than
+// the skew), so the timer can never become a tight loop against securetoken.
+// Boot and sign-in keep a zero floor: an already-expired session refreshes now.
+const MIN_RESCHEDULE_MS = 30_000;
+
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 let proactiveRunning = false;
 let getSessionForTimer: () => Promise<Session | null> = loadSession;
@@ -52,7 +60,7 @@ function armTimer(delayMs: number): void {
   refreshTimer = setTimeout(() => void onTimer(), delayMs);
 }
 
-async function scheduleNext(): Promise<void> {
+async function scheduleNext(minDelayMs = 0): Promise<void> {
   if (!proactiveRunning) return;
   let session: Session | null = null;
   try {
@@ -65,7 +73,10 @@ async function scheduleNext(): Promise<void> {
     );
   }
   if (!proactiveRunning || !session) return;
-  const delay = Math.max(0, session.expiresAt - Date.now() - REFRESH_SKEW_MS);
+  const delay = Math.max(
+    minDelayMs,
+    session.expiresAt - Date.now() - REFRESH_SKEW_MS,
+  );
   armTimer(delay);
 }
 
@@ -75,7 +86,7 @@ async function onTimer(): Promise<void> {
     // Success (or a terminal sign-out that returned null): resume normal
     // expiry-based scheduling. If the session was cleared, scheduleNext stops.
     backoffMs = 0;
-    void scheduleNext();
+    void scheduleNext(MIN_RESCHEDULE_MS);
   } catch (e) {
     // Transient failure (network): retry on an exponential backoff rather than
     // hot-looping the 0-delay expiry-based schedule inside the skew window.
