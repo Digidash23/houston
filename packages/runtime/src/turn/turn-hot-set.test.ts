@@ -42,7 +42,7 @@ test("admits the turn's own conversation state, nothing of the others", () => {
 });
 
 test("admits the turn's own archive segments, never another conversation's", () => {
-  // A shared routine chat's archive grows without bound (H-010: 54+ MiB of
+  // A shared routine chat's archive grows without bound (54+ MiB of
   // segments); a turn in any OTHER chat of the agent must not download it.
   const root = rootWithSessions();
   const admit = ownConversationOnly("c1");

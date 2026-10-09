@@ -114,7 +114,7 @@ export function ownConversationOnly(
     // Archive segments (store/conversation-archive.ts) ride with their own
     // conversation only. A shared routine chat's archive grows by a segment
     // every ~6 MiB of runs and never shrinks, so admitting every chat's
-    // segments made each turn of the agent download all of them (H-010).
+    // segments made each turn of the agent download all of them.
     if (kind === "conversations") {
       return (
         segments.length === runtimeAt + 3 &&
