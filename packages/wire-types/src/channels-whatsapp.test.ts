@@ -30,8 +30,8 @@ describe("WhatsApp channel wire shapes", () => {
   it("accepts only the exact number and encoded command", () => {
     expect(parseWhatsAppLink(link)).toEqual(link);
     expect(
-      parseWhatsAppLink({ ...link, url: link.url.replace("+", "%20") }),
-    ).toEqual({ ...link, url: link.url.replace("+", "%20") });
+      parseWhatsAppLink({ ...link, url: link.url.replaceAll("+", "%20") }),
+    ).toEqual({ ...link, url: link.url.replaceAll("+", "%20") });
     for (const changed of [
       { code: "short" },
       { phoneNumber: "15550001111" },

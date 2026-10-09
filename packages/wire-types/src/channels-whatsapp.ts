@@ -28,7 +28,7 @@ export function parseWhatsAppLink(value: unknown): WhatsAppLink {
   // represent the one command without admitting extra URL parameters.
   if (
     data.url !== `${base}${encodeURIComponent(command)}` &&
-    data.url !== `${base}${encodeURIComponent(command).replace("%20", "+")}`
+    data.url !== `${base}${encodeURIComponent(command).replaceAll("%20", "+")}`
   ) {
     throw new Error("Invalid WhatsApp link URL");
   }
