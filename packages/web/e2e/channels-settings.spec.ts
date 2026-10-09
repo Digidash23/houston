@@ -108,6 +108,7 @@ test("an expired WhatsApp code says so and a new one replaces it", async ({
   await expect(
     page.getByText("Send this message to +15550001111:", { exact: true }),
   ).toBeVisible();
+  await expect(page.getByText(/^Or send this message/)).toHaveCount(0);
   await page.getByRole("button", { name: "Get a new connection code" }).click();
   await expect(
     page.getByRole("textbox", { name: "WhatsApp connection command" }),
@@ -148,6 +149,46 @@ test("a WhatsApp connection landing ends the wait and clears the spent code", as
   await expect(page.getByRole("img", { name: /^QR code/ })).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Connect WhatsApp" }),
+  ).toBeVisible();
+});
+
+test("a Slack connection landing clears the spent code and the finish line", async ({
+  page,
+}) => {
+  // The browser takes the authorization page: stubbed, so no real tab opens
+  // and the section says "finish in Slack" rather than "blocked".
+  await page.addInitScript(() => {
+    window.open = () => ({ opener: null }) as unknown as Window;
+  });
+  const { connections } = await mockChannels(page);
+  await openChannels(page);
+  await page.getByRole("button", { name: "Connect Slack" }).click();
+  const finish = page.getByText(
+    "Finish connecting in Slack, then return here.",
+  );
+  await expect(finish).toBeVisible();
+  await page
+    .getByRole("button", { name: "Already added Houston to Slack?" })
+    .click();
+  const command = page.getByRole("textbox", {
+    name: "Slack connection command",
+  });
+  await expect(command).toHaveValue("connect ABCD-1234");
+  // The authorization finished in the other tab: nothing tells this one.
+  connections.push({
+    id: "connection-new",
+    provider: "slack",
+    accountLabel: "Ada · Elsewhere",
+    spaceId: "personal",
+    createdAt: "2026-09-08T14:00:00Z",
+  });
+  await expect(page.getByText("Ada · Elsewhere", { exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(finish).toHaveCount(0);
+  await expect(command).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Already added Houston to Slack?" }),
   ).toBeVisible();
 });
 

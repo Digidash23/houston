@@ -111,6 +111,11 @@ export async function mockChannels(
       redeemed();
       return;
     }
+    if (path.endsWith("/slack/connect")) {
+      return route.fulfill({
+        json: { url: "https://slack.com/oauth/v2/authorize?state=abc" },
+      });
+    }
     if (path.endsWith("/slack/link")) {
       return route.fulfill({
         json: {
