@@ -1,8 +1,7 @@
 import type { SDKAssistantMessageError } from "@anthropic-ai/claude-agent-sdk";
-import type { AuthFailureCause, ProviderError } from "@houston/runtime-client";
+import type { ProviderError } from "@houston/runtime-client";
 import {
   classifyProviderError,
-  extractRetryAfterSeconds,
   stampCredentialScope,
 } from "../../ai/provider-error";
 import { logProviderError } from "../../ai/provider-error-log";
@@ -11,20 +10,24 @@ import {
   noteQuotaExhausted,
 } from "../../auth/credential-health";
 import { reportRevokedServedToken } from "../../auth/report-revoked";
+import { authCause } from "./auth-cause";
+import {
+  type ClaudeRateLimitContext,
+  classifyClaudeRateLimit,
+  usageLimitFromText,
+} from "./usage-limit";
 
 /** The pi provider id this backend runs as — every error is attributed to it. */
 const PROVIDER = "anthropic";
 
 /** Context the SDK gives us alongside a typed error enum. */
-export interface SdkErrorContext {
+export interface SdkErrorContext extends ClaudeRateLimitContext {
   /** Verbatim provider failure text (from the message / result), for the card + logs. */
   message: string;
   /** The model the turn ran on, or null when unknown. */
   model: string | null;
   /** HTTP status the SDK surfaced (`result.api_error_status`), when present. */
   status?: number | null;
-  /** Seconds until a rate limit resets, from a `rate_limit_event` when one arrived. */
-  retryAfterSeconds?: number | null;
   /**
    * Digest of the OAuth access token the SDK subprocess authenticates with,
    * captured at spawn preparation (backend.ts → read-token.ts). The
@@ -79,7 +82,9 @@ export function mapSdkError(
       reportRevokedServedToken(mapped, ctx.usedAccessDigest);
     }
     // An exhausted account is a VALID credential with nothing left — marked
-    // separately so status says "out of credits", not "reconnect".
+    // separately so status says "out of credits", not "reconnect". A plan
+    // usage window is NOT marked: it is often one model's weekly limit while
+    // every other model still runs, and "out of credits" would be untrue.
     if (mapped.kind === "quota_exhausted")
       noteQuotaExhausted(mapped.provider, mapped.resets_at);
   }
@@ -126,14 +131,9 @@ function mapSdkEnum(
         message,
       };
     case "rate_limit":
-      return {
-        kind: "rate_limited",
-        provider: PROVIDER,
-        model,
-        retry_after_seconds:
-          ctx.retryAfterSeconds ?? extractRetryAfterSeconds(message),
-        message,
-      };
+      // A subscription usage window and a 429 share this enum; the event
+      // beside it and the CLI's own sentence tell them apart (usage-limit.ts).
+      return classifyClaudeRateLimit(message, model, ctx);
     case "overloaded":
     case "server_error":
       return {
@@ -171,12 +171,17 @@ export function classifyText(
   status: number | null,
   usedAccessDigest?: string,
 ): ProviderError {
-  const classified = classifyProviderError({
-    provider: PROVIDER,
-    model,
-    message,
-    status,
-  });
+  // A result-path error carries no enum, but Claude Code's limit sentence is
+  // unmistakable; the shared classifier would read it as unknown.
+  const limit = usageLimitFromText(message, model);
+  const classified = limit
+    ? stampCredentialScope(limit)
+    : classifyProviderError({
+        provider: PROVIDER,
+        model,
+        message,
+        status,
+      });
   logProviderError(classified, { model, status });
   if (classified.kind === "unauthenticated") {
     noteAuthFailure(classified.provider);
@@ -191,28 +196,4 @@ export function classifyText(
   if (classified.kind === "quota_exhausted")
     noteQuotaExhausted(classified.provider, classified.resets_at);
   return classified;
-}
-
-/**
- * A minimal auth-cause read off an authentication failure's text. The full
- * pattern set lives (unexported) in `ai/provider-error.ts`; here the SDK has
- * already decided it is auth, so only the recover-vs-reconnect distinction is
- * needed to pick the card's body copy.
- */
-function authCause(lower: string): AuthFailureCause {
-  if (
-    lower.includes("invalid api key") ||
-    lower.includes("invalid_api_key") ||
-    lower.includes("incorrect api key")
-  )
-    return "invalid_api_key";
-  if (
-    lower.includes("revoked") ||
-    lower.includes("session has ended") ||
-    lower.includes("session terminated") ||
-    lower.includes("log in again")
-  )
-    return "token_revoked";
-  if (lower.includes("expired")) return "token_expired";
-  return "unknown";
 }

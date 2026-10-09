@@ -78,7 +78,19 @@ export function dueAt(
   // Trigger routines have no schedule — their wake is an external event, not the
   // cron scanner. Guard (don't throw) so the scanner skips them by construction.
   if (!routine.schedule) return null;
-  const next = nextRun(routine.schedule, timezone, since);
+  // A snoozed routine (its account's plan limit, routine-snooze.ts) skips every
+  // instant at or before the snooze end: the window's left edge moves up to
+  // it, so the first fire strictly after it runs and the skipped ones never
+  // catch up. The cloud planner applies the same rule to its own fire rows
+  // (`snoozed_until` in the schedule snapshot, contract C19).
+  const snoozedUntil = routine.snoozed
+    ? Date.parse(routine.snoozed.until)
+    : NaN;
+  const from =
+    Number.isFinite(snoozedUntil) && snoozedUntil > since.getTime()
+      ? new Date(snoozedUntil)
+      : since;
+  const next = nextRun(routine.schedule, timezone, from);
   if (next && next.getTime() <= now.getTime()) return next;
   return null;
 }

@@ -86,8 +86,8 @@ export async function applyReconcileOp(
     now: () => new Date(),
     newId: randomUUID,
     // Never here: the hydrated routines would overwrite a concurrent edit.
-    // The caller pauses after its sync-back, from the durable history.
-    pauseFailing: async () => {},
+    // The caller snoozes/pauses after its sync-back, from the durable history.
+    settleWalls: async () => {},
   };
   if (abandoned?.routine)
     await recordLostRun(deps, ws, agent, op.conversationId, abandoned);

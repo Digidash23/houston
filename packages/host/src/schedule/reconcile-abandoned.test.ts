@@ -326,8 +326,8 @@ test("a deferred pause hands the failed routines to the caller instead of pausin
   await reconcileAgentRuns(
     {
       ...deps(env.vfs),
-      pauseFailing: async (ids) => {
-        handed.push(ids);
+      settleWalls: async (walled) => {
+        handed.push(walled.map((r) => r.routine_id));
       },
     },
     env.ws,

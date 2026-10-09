@@ -1,4 +1,8 @@
-import { loadRoutineRuns, routineAutoPauseLogTail } from "@houston/domain";
+import {
+  loadRoutineRuns,
+  routineAutoPauseLogTail,
+  routineSnoozeLogTail,
+} from "@houston/domain";
 import type { HoustonEvent } from "@houston/protocol";
 import {
   type ObjectStore,
@@ -15,7 +19,10 @@ import type { TurnServerDeps } from "./server-types";
 import { announcedOpEvents } from "./turn-changed-events";
 import { claimedTurnIncludes, type TurnFilesystem } from "./turn-filesystem";
 import { fsTextStore } from "./turn-fs-store";
-import { autoPauseRoutineTurn } from "./turn-routine-auto-pause";
+import {
+  autoPauseRoutineTurn,
+  snoozeRoutineTurn,
+} from "./turn-routine-auto-pause";
 
 type Reply = { status: number; body: Record<string, unknown> };
 
@@ -133,17 +140,27 @@ async function pauseAfterSync(input: {
   const events: HoustonEvent[] = [];
   const failed: string[] = [];
   for (const routineId of new Set(walled.map((r) => r.routine_id))) {
+    const common = {
+      store: input.resolved.store,
+      prefix: input.resolved.prefix,
+      filesystem: input.filesystem,
+      routineId,
+      nowIso: new Date().toISOString(),
+    };
     try {
-      const paused = await autoPauseRoutineTurn({
-        store: input.resolved.store,
-        prefix: input.resolved.prefix,
-        filesystem: input.filesystem,
-        routineId,
-        nowIso: new Date().toISOString(),
-      });
-      if (!paused) continue;
+      // A usage limit snoozes on the one run; every other wall is a streak.
+      const limit = walled.find(
+        (r) => r.routine_id === routineId && r.failure?.code === "usage_limit",
+      )?.failure;
+      const changed =
+        limit?.code === "usage_limit"
+          ? await snoozeRoutineTurn({ ...common, failure: limit })
+          : await autoPauseRoutineTurn(common);
+      if (!changed) continue;
       console.info(
-        `[routine-auto-pause] paused ${paused.id} after ${routineAutoPauseLogTail(paused.auto_paused)}`,
+        changed.snoozed && limit
+          ? `[routine-snooze] snoozed ${changed.id}: ${routineSnoozeLogTail(changed.snoozed)}`
+          : `[routine-auto-pause] paused ${changed.id} after ${routineAutoPauseLogTail(changed.auto_paused)}`,
       );
       events.push({
         type: "RoutinesChanged",

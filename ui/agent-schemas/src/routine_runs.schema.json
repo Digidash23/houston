@@ -23,7 +23,7 @@
         "description": "Human-readable reset hint while the provider CLI is sleeping on a usage-limit window. Only meaningful when status is 'running'."
       },
       "failure": {
-        "description": "Typed reason an error run never reached the agent. Account failures name the provider; 'no_model' means the routine names no model and nothing is connected to fall back on.",
+        "description": "Typed reason an error run never reached the agent. Account failures name the provider; 'no_model' means the routine names no model and nothing is connected to fall back on; 'usage_limit' means the account's plan used up its usage window and the routine is held until 'resets_at'.",
         "oneOf": [
           {
             "type": "object",
@@ -48,6 +48,20 @@
             "type": "object",
             "required": ["code"],
             "properties": { "code": { "const": "no_model" } },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": ["code", "provider", "model", "resets_at"],
+            "properties": {
+              "code": { "const": "usage_limit" },
+              "provider": { "type": "string" },
+              "model": { "type": ["string", "null"] },
+              "resets_at": {
+                "type": ["string", "null"],
+                "description": "When the account's plan usage limit resets (ISO 8601); null when the provider did not say."
+              }
+            },
             "additionalProperties": false
           }
         ]

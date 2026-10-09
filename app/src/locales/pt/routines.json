@@ -142,6 +142,8 @@
       "outOfCredits": "A conta {{provider}} está sem créditos.",
       "modelUnavailable": "A conta {{provider}} não pode usar o modelo desta rotina.",
       "noModel": "Esta rotina não tem um modelo escolhido e a conta de IA que ela usaria não está conectada.",
+      "usageLimit": "O plano {{provider}} atingiu o limite de uso. As execuções continuam a partir de {{time}}.",
+      "usageLimitNoReset": "O plano {{provider}} atingiu o limite de uso. As execuções continuam quando ele for restabelecido.",
       "poolDeliveryExpired": "Esta execução não pôde iniciar a tempo e foi ignorada. Você pode executar a rotina novamente.",
       "creatorNoAccess": "Esta rotina foi criada por alguém que não pode mais usar este funcionário de IA. Pause a rotina e retome-a para que ela seja executada como você."
     },
@@ -157,6 +159,12 @@
       "changeModel": "A conta {{provider}} não pode usar o modelo desta rotina. Escolha um modelo que a conta possa usar e depois retome a rotina.",
       "chooseModel": "Esta rotina não tem um modelo escolhido e a conta de IA que ela usaria não está conectada. Escolha um modelo na seção Modelo e depois retome a rotina.",
       "resume": "Retomar"
+    },
+    "snooze": {
+      "chip": "Pausada até {{time}}",
+      "title": "Pausada até {{time}}",
+      "body": "O plano {{provider}} que executa esta rotina atingiu o limite de uso. As execuções continuam sozinhas a partir de {{time}}. Para continuar agora, escolha outro modelo na seção Modelo.",
+      "bodyWithModel": "O plano {{provider}} atingiu o limite para {{model}}. As execuções continuam sozinhas a partir de {{time}}. Para continuar agora, escolha outro modelo na seção Modelo."
     }
   },
   "row": {

@@ -1,4 +1,7 @@
-import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type {
+  SDKMessage,
+  SDKRateLimitInfo,
+} from "@anthropic-ai/claude-agent-sdk";
 import type { WireEvent } from "@houston/runtime-client";
 import { classifyText, mapSdkError } from "./errors";
 import { isAssistantMessageStart } from "./sdk-message-shapes";
@@ -38,6 +41,9 @@ export function createStreamTranslator(cb: TranslatorCallbacks) {
     cb.onContextTokens(tokens);
   });
   let lastRateLimitRetry: number | null = null;
+  // The turn's latest rate_limit_event, whole: its `status: "rejected"` is
+  // what tells a used-up subscription window from a 429 (usage-limit.ts).
+  let lastRateLimit: SDKRateLimitInfo | null = null;
   // At most one provider_error per turn: an errored assistant message and an
   // error result can both describe the same failure — never double-terminal.
   let emittedError = false;
@@ -54,6 +60,7 @@ export function createStreamTranslator(cb: TranslatorCallbacks) {
       case "result":
         return onResult(msg);
       case "rate_limit_event":
+        lastRateLimit = msg.rate_limit_info ?? null;
         onRateLimit(msg.rate_limit_info?.resetsAt);
         return [];
       case "system":
@@ -97,6 +104,7 @@ export function createStreamTranslator(cb: TranslatorCallbacks) {
           message: text || `Claude error: ${msg.error}`,
           model: msg.message?.model ?? null,
           retryAfterSeconds: lastRateLimitRetry,
+          rateLimit: lastRateLimit,
           usedAccessDigest: cb.usedAccessDigest,
         }),
       },

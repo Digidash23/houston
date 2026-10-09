@@ -12,10 +12,10 @@ import type { Agent, Workspace } from "../domain/types";
 import type { EventHub } from "../events/hub";
 import type { WorkspacePaths } from "../paths";
 import type { Vfs } from "../vfs";
-import { pauseFailingRoutines } from "./auto-pause";
 import { decideRun, type RunUpdate } from "./reconcile-decide";
 import { loadRunReplies, type ReplyReader } from "./reconcile-replies";
 import { withRunsFile } from "./runs-lock";
+import { settleRoutineWalls } from "./snooze";
 
 export interface ReconcileDeps {
   vfs: Vfs;
@@ -27,11 +27,12 @@ export interface ReconcileDeps {
   newId: () => string;
   replyReader?: ReplyReader;
   /**
-   * Pause the routines whose run just settled on a typed wall. Default: the
-   * host's pauseFailingRoutines, here and now. A pool worker runs the pooled
-   * pause after its sync-back instead, rebased on the store's routines.
+   * What follows the runs that just settled on a typed wall (a snooze for a
+   * usage limit, the auto-pause streak for the rest). Default: the host's
+   * settleRoutineWalls, here and now. A pool worker runs its own after the
+   * sync-back instead, rebased on the store's routines.
    */
-  pauseFailing?: (routineIds: string[]) => Promise<void>;
+  settleWalls?: (walled: RoutineRun[]) => Promise<void>;
 }
 
 /** Narrows one sweep. The standing scheduler sweeps everything; a pool
@@ -152,7 +153,7 @@ export async function reconcileAgentRuns(
   // when its row is still `running` — a row a concurrent cancel flipped
   // terminal stays exactly as the user left it, and the queue keeps a
   // mid-flight fire/cancel write from being clobbered by this save.
-  const failedOn: string[] = [];
+  const walled: RoutineRun[] = [];
   const applied = await withRunsFile(root, async () => {
     const fresh = await loadRoutineRuns(deps.vfs, root);
     let nextRuns = fresh.items;
@@ -164,7 +165,7 @@ export async function reconcileAgentRuns(
         nextRuns,
         u.patch ? { ...current, ...u.patch } : u.run,
       );
-      if (!u.patch && u.run.failure) failedOn.push(u.run.routine_id);
+      if (!u.patch && u.run.failure) walled.push(u.run);
       count++;
     }
     if (count > 0) await saveRoutineRuns(deps.vfs, root, nextRuns);
@@ -182,6 +183,6 @@ export async function reconcileAgentRuns(
       agentPath: agent.id,
     });
   }
-  if (deps.pauseFailing) await deps.pauseFailing(failedOn);
-  else await pauseFailingRoutines(deps, ws, agent, root, failedOn);
+  if (deps.settleWalls) await deps.settleWalls(walled);
+  else await settleRoutineWalls(deps, ws, agent, root, walled);
 }

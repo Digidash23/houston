@@ -1,12 +1,16 @@
 import {
   routineAutoPauseLogTail,
+  routineSnoozeLogTail,
   unconnectedRoutineFailure,
 } from "@houston/domain";
 import type { RoutineRunFailure } from "@houston/protocol";
 import type { ObjectStore } from "@houston/runtime-client/object-sync";
 import { type TurnFilesystem, turnRoutineRunsKey } from "./turn-filesystem";
 import { type RoutinePhase, settleRoutineTurn } from "./turn-routine";
-import { autoPauseRoutineTurn } from "./turn-routine-auto-pause";
+import {
+  autoPauseRoutineTurn,
+  snoozeRoutineTurn,
+} from "./turn-routine-auto-pause";
 
 /** A settled routine turn: an error for the outcome, and its pending pause. */
 export interface FinishedRoutineTurn {
@@ -61,14 +65,46 @@ export async function finishRoutineTurn(opts: {
     };
   }
   if (!settled?.failure) return {};
+  const failed = settled.failure;
   const runsKey = turnRoutineRunsKey(opts.filesystem.workspaceRel);
   return {
     afterSync: async (landed) => {
+      // A usage limit snoozes on this run alone, durable row or not: the
+      // failure is the proof, and the snooze is what spares the next fire.
+      if (failed.code === "usage_limit") return snoozeNow(opts, failed);
       // This run's row is not durable: the next failed run decides instead.
       if (!landed.includes(runsKey)) return undefined;
       return pauseIfEarned(opts);
     },
   };
+}
+
+async function snoozeNow(
+  opts: {
+    store: ObjectStore;
+    prefix: string;
+    filesystem: TurnFilesystem;
+    phase: RoutinePhase;
+  },
+  failure: Extract<RoutineRunFailure, { code: "usage_limit" }>,
+): Promise<string | undefined> {
+  try {
+    const snoozed = await snoozeRoutineTurn({
+      store: opts.store,
+      prefix: opts.prefix,
+      filesystem: opts.filesystem,
+      routineId: opts.phase.routine.id,
+      failure,
+      nowIso: new Date().toISOString(),
+    });
+    if (snoozed?.snoozed)
+      console.info(
+        `[routine-snooze] snoozed ${snoozed.id}: ${routineSnoozeLogTail(snoozed.snoozed)}`,
+      );
+    return undefined;
+  } catch (error) {
+    return `routine snooze failed: ${error instanceof Error ? error.message : String(error)}`;
+  }
 }
 
 async function pauseIfEarned(opts: {

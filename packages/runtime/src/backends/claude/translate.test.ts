@@ -697,7 +697,10 @@ test("unmapped messages (system/init, message_start) are dropped", () => {
 test("a rate_limit_event carries retry seconds into a later rate_limit error", () => {
   const event = {
     type: "rate_limit_event",
-    rate_limit_info: { status: "rejected", resetsAt: Date.now() + 60_000 },
+    rate_limit_info: {
+      status: "allowed_warning",
+      resetsAt: Date.now() + 60_000,
+    },
   } as unknown as SDKMessage;
   const err = {
     type: "assistant",
@@ -715,4 +718,39 @@ test("a rate_limit_event carries retry seconds into a later rate_limit error", (
       : null;
   expect(secs).toBeGreaterThanOrEqual(58);
   expect(secs).toBeLessThanOrEqual(60);
+});
+
+test("a rejected rate_limit_event makes the later rate_limit a usage limit with its reset", () => {
+  const resetsAt = Date.parse("2026-10-13T05:00:00.000Z");
+  const event = {
+    type: "rate_limit_event",
+    rate_limit_info: {
+      status: "rejected",
+      rateLimitType: "seven_day",
+      resetsAt: resetsAt / 1000,
+    },
+  } as unknown as SDKMessage;
+  const err = {
+    type: "assistant",
+    error: "rate_limit",
+    message: {
+      role: "assistant",
+      model: "claude-fable-5",
+      content: [{ type: "text", text: "You've reached your Fable limit." }],
+    },
+    parent_tool_use_id: null,
+  } as unknown as SDKMessage;
+  const { events } = collect([event, err]);
+  expect(events).toEqual([
+    {
+      type: "provider_error",
+      data: {
+        kind: "usage_limit_paused",
+        provider: "anthropic",
+        model: "claude-fable-5",
+        resets_at: "2026-10-13T05:00:00.000Z",
+        message: "You've reached your Fable limit.",
+      },
+    },
+  ]);
 });
