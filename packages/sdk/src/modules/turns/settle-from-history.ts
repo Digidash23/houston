@@ -1,21 +1,16 @@
 import { type ChatMessage, EngineError } from "@houston/runtime-client";
 import { adoptReply } from "./adopt-reply";
 import { conclusiveReply, turnReply } from "./conclusive-reply";
+import { TURN_DIED_MESSAGE } from "./turn-errors";
 import { finishErr, finishOk, push, type TurnState } from "./turn-settle";
+
+export { TURN_DIED_MESSAGE } from "./turn-errors";
 
 /**
  * Settling a turn whose terminal frame was LOST — the reconnect resynced and
  * the turn is over, so persisted history (complete once a turn ends) is the
  * settle source. The live-frame settles live in turn-settle.ts.
  */
-
-/**
- * A turn that died without persisting a reply — the same copy the host's
- * dead-pump reaper stamps on the terminal `error` frame it synthesizes
- * (`packages/host/src/turn/relay-dialect.ts` TURN_DIED_MESSAGE), so the
- * surface reads identically whether the server or this client detected it.
- */
-export const TURN_DIED_MESSAGE = "The turn ended unexpectedly";
 
 /**
  * Settle a turn whose terminal frame was lost. With a known `turnId` the

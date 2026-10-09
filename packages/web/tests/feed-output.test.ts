@@ -18,6 +18,8 @@ type BusEvent = {
     item?: { feed_type?: string; data?: unknown };
     status?: string;
     error?: string;
+    error_class?: string;
+    origin?: string;
   };
 };
 
@@ -78,10 +80,50 @@ test("sessionStatus emits a SessionStatus event", () => {
   stop();
 
   const status = events.find((e) => e.type === "SessionStatus");
-  expect(status?.data).toMatchObject({
+  expect(status?.data).toEqual({
+    agent_path: "Houston/Bo",
     session_key: "c1",
     status: "error",
     error: "boom",
+  });
+});
+
+// The SDK's typed cause and origin ride the event additively (`error_class`,
+// `origin`): present exactly when the SDK stamped them, absent otherwise, so
+// the analytics subscriber reads the cause instead of guessing it off copy.
+test("sessionStatus carries the SDK's error class and origin when stamped", () => {
+  const { events, stop } = collect();
+  const out = createBusFeedOutput(async () => {});
+  out.sessionStatus(
+    "Houston/Bo",
+    "c1",
+    "error",
+    "The turn ended unexpectedly",
+    {
+      origin: "observed",
+      errorClass: "turn_died",
+    },
+  );
+  out.sessionStatus("Houston/Bo", "c1", "completed", undefined, {
+    origin: "sent",
+  });
+  stop();
+
+  const [failed, completed] = events.filter((e) => e.type === "SessionStatus");
+  expect(failed?.data).toEqual({
+    agent_path: "Houston/Bo",
+    session_key: "c1",
+    status: "error",
+    error: "The turn ended unexpectedly",
+    error_class: "turn_died",
+    origin: "observed",
+  });
+  expect(completed?.data).toEqual({
+    agent_path: "Houston/Bo",
+    session_key: "c1",
+    status: "completed",
+    error: undefined,
+    origin: "sent",
   });
 });
 

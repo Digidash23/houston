@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { NoAgentForProviderWriteError } from "../no-agent-provider-write-error";
-import { BridgeStateError } from "./errors";
+import { BridgeDisposedError, BridgeStateError } from "./errors";
 import { bridgeQuietClass } from "./quiet";
 
 // PRODUCT-1833: the SDK names the expected bridge states once; a surface only
@@ -28,4 +28,10 @@ test("names the three expected bridge states and nothing else", () => {
     ),
   ).toBeNull();
   expect(bridgeQuietClass(new Error("BridgeStateError"))).toBeNull();
+  // A cancellation is neither quiet nor loud: `isBridgeCancellation` drops it
+  // before any report (HOUSTON-APP-5HX), so it must not borrow a class here.
+  expect(
+    bridgeQuietClass(new DOMException("aborted", "AbortError")),
+  ).toBeNull();
+  expect(bridgeQuietClass(new BridgeDisposedError())).toBeNull();
 });

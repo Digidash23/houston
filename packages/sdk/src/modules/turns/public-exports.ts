@@ -61,6 +61,15 @@ export {
   streamKey,
 } from "./stream-registry";
 export {
+  isSessionStatusOrigin,
+  isTurnErrorClass,
+  type SessionStatusDetail,
+  type SessionStatusOrigin,
+  type TurnErrorClass,
+  type TurnErrorDisposition,
+  turnErrorDisposition,
+} from "./turn-error-class";
+export {
   ENGINE_RESTART_MESSAGE,
   ENGINE_RESUMED_MESSAGE,
   type EngineNoticeKind,

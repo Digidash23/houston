@@ -22,6 +22,10 @@ export type HoustonEvent =
         session_key: string;
         status: string;
         error: string | null;
+        /** Why an `error` status happened (SDK `TurnErrorClass`); additive. */
+        error_class?: string;
+        /** `sent` by this client or `observed` (SDK `SessionStatusOrigin`); additive. */
+        origin?: string;
       };
     }
   | {
