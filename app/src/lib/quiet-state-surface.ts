@@ -1,6 +1,5 @@
 import { useUIStore } from "../stores/ui";
 import { analytics, classifyAnalyticsError } from "./analytics";
-import { createBurstGate } from "./error-burst";
 import i18n from "./i18n";
 import { surfacePlanMinInterval } from "./plan-min-interval";
 import type { QuietErrorClass } from "./quiet-error-class";
@@ -15,9 +14,6 @@ import { showWebhookNotCreatorToast } from "./webhook-not-creator-toast";
  * takes the toast layer's normal report path. Split out of `error-toast.ts`
  * to keep that module small.
  */
-/** Two uploads cut together (two Files drops) read as one notice. */
-const uploadBurst = createBurstGate();
-
 export function surfaceQuietState(
   quiet: QuietErrorClass,
   command: string,
@@ -54,20 +50,19 @@ export function surfaceQuietState(
       return true;
     case "upload_interrupted": {
       // The person's own upload: copy naming it, never the offline notice,
-      // and its own fingerprint so a cut upload is never a network drop.
+      // and its own fingerprint so a cut upload is never a network drop. No
+      // burst gate: each upload is one action (its batch loop stops at the
+      // first failure), and `showSendFailedToast` relies on this toast
+      // showing every time, so a quick retry is never left silent.
       console.error(`[toast:${command}] ${message}`);
       reportQuietError("upload_interrupted", command, message, originalError);
-      const description = i18n.t(
-        "shell:errorToast.uploadInterruptedDescription",
-      );
-      if (!uploadBurst.isFirst(description, Date.now())) return true;
       analytics.track("app_error_shown", {
         source: command,
         error_kind: classifyAnalyticsError(message),
       });
       useUIStore.getState().addToast({
         title: i18n.t("shell:errorToast.uploadInterruptedTitle"),
-        description,
+        description: i18n.t("shell:errorToast.uploadInterruptedDescription"),
         variant: "info",
       });
       return true;
