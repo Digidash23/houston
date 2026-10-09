@@ -278,7 +278,13 @@
     "timezoneError": "No se pudo actualizar la zona horaria",
     "discardError": "No se pudo descartar el borrador",
     "modelError": "No se pudo cambiar el modelo",
-    "updateError": "No se pudo guardar la rutina"
+    "updateError": "No se pudo guardar la rutina",
+    "deleteError": "No se pudo eliminar la rutina",
+    "deleteErrorBody": "Volvió a la lista. Inténtalo de nuevo en un momento.",
+    "runError": "No se pudo iniciar la rutina",
+    "runErrorBody": "No se ejecutó. Inténtalo de nuevo en un momento.",
+    "stopError": "No se pudo detener la ejecución",
+    "stopErrorBody": "Es posible que siga en curso. Inténtalo de nuevo en un momento."
   },
   "webhook": {
     "createAddress": "Crear dirección de webhook",

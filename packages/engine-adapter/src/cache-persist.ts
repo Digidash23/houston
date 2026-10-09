@@ -18,8 +18,9 @@ export function cachePersistOutput(): FeedOutput {
   return {
     pushFeedItem() {},
     sessionStatus() {},
-    async persistBoardStatus(agentPath, sessionKey, status) {
-      if (status === "running") return;
+    async persistBoardStatus(agentPath, sessionKey, status, _pi, opts) {
+      // The early hand-back is not the settle: the feed is still finishing.
+      if (status === "running" || opts?.provisional) return;
       const snapshot = conversationStore.getSnapshot(
         conversationScope(agentPath, sessionKey),
       ) as { feed?: CachedFrame[] } | undefined;

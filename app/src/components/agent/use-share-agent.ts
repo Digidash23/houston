@@ -1,7 +1,9 @@
 import type { AgentAssignment, OrgMember } from "@houston/engine-adapter";
 import { useMutation } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { tauriAgents } from "../../lib/agents-facade";
 import { analytics } from "../../lib/analytics";
+import { tellOptimisticRefusal } from "../../lib/optimistic-write";
 import type { Agent } from "../../lib/types";
 import { useAgentStore } from "../../stores/agents";
 import { useWorkspaceStore } from "../../stores/workspaces";
@@ -10,13 +12,12 @@ import { accessWidened } from "./agent-access-diff.ts";
 /**
  * Optimistic write for an agent's assignee roster (Teams v2). Sends the
  * explicit `{userId, access}[]` via `tauriAgents.setAssignments`, which routes
- * through `call()` — so a failure already surfaces as a red toast with the
- * Report-bug affordance AND reports to Sentry (no `onError` toast here would
- * double it). This hook adds only the OPTIMISTIC part `call()` can't: it patches
- * the agent's `assignments` / `assignedUserIds` in the Zustand agent store so
- * the surface and the chat "Shared agent" note update on click, and rolls that
- * patch back if the write fails. `onSettled` reloads the agent list so the
- * server's authoritative shape wins once the round-trip lands.
+ * through `call()` (reporting, and the expected-state toasts). This hook adds
+ * the OPTIMISTIC part: it patches the agent's `assignments` /
+ * `assignedUserIds` in the Zustand agent store so the surface and the chat
+ * "Shared agent" note update on click, rolls that patch back if the write
+ * fails, and tells the user unless `call()` already did. `onSettled` reloads
+ * the agent list so the server's authoritative shape wins.
  */
 function patchAgent(
   agent: Agent,
@@ -46,6 +47,7 @@ export interface ShareAgentVariables {
 }
 
 export function useShareAgent(source: ShareSource) {
+  const { t } = useTranslation("teams");
   return useMutation({
     mutationFn: ({ agentId, assignments }: ShareAgentVariables) =>
       tauriAgents.setAssignments(agentId, assignments),
@@ -77,14 +79,17 @@ export function useShareAgent(source: ShareSource) {
         analytics.track("agent_shared", { agent_id: agentId, source });
       }
     },
-    onError: (_err, _vars, snapshot) => {
-      // Roll the optimistic patch back; call() already toasted + reported.
+    onError: (err, _vars, snapshot) => {
       if (snapshot) {
         useAgentStore.setState({
           agents: snapshot.agents,
           current: snapshot.current,
         });
       }
+      tellOptimisticRefusal("set_agent_assignments", err, {
+        title: t("writeFailed.agentAccess.title"),
+        description: t("writeFailed.agentAccess.description"),
+      });
     },
     onSettled: () => {
       const workspaceId = useWorkspaceStore.getState().current?.id;

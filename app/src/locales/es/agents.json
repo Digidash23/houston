@@ -47,7 +47,11 @@
     "nameConflictDescription": "Elige un nombre diferente e inténtalo de nuevo.",
     "deleted": "Espacio de trabajo eliminado",
     "switchedModel": "Cambiaste a {{provider}} ({{model}})",
-    "timezoneSet": "Zona horaria puesta en {{zone}}"
+    "timezoneSet": "Zona horaria puesta en {{zone}}",
+    "renameFailed": "No se pudo cambiar el nombre de {{name}}",
+    "colorFailed": "No se pudo cambiar el color de {{name}}",
+    "deleteFailed": "No se pudo eliminar a {{name}}",
+    "writeFailedDescription": "No cambió nada. Inténtalo de nuevo en un momento."
   },
   "nameErrors": {
     "invalidChars": "El nombre del empleado de IA no puede contener barras ni caracteres especiales",
@@ -63,7 +67,9 @@
       "addIndustry": "Agregar industria",
       "addRole": "Agregar rol"
     },
-    "loadFailed": "No se pudo cargar la descripción del puesto."
+    "loadFailed": "No se pudo cargar la descripción del puesto.",
+    "saveErrorTitle": "No se pudo guardar la descripción del puesto",
+    "saveErrorBody": "Tu último cambio no se guardó. Inténtalo de nuevo en un momento."
   },
   "learnings": {
     "emptyTitle": "Aún no hay aprendizajes",
@@ -80,7 +86,15 @@
     "confirmRemoveLabel": "Quitar",
     "provenanceFromMission": "De {{name}} · {{mission}}",
     "provenanceFrom": "De {{name}}",
-    "provenanceMission": "De {{mission}}"
+    "provenanceMission": "De {{mission}}",
+    "failure": {
+      "addTitle": "No se pudo guardar el aprendizaje",
+      "addBody": "No se añadió. Inténtalo de nuevo en un momento.",
+      "updateTitle": "No se pudo actualizar el aprendizaje",
+      "updateBody": "Se deshizo tu cambio. Inténtalo de nuevo en un momento.",
+      "removeTitle": "No se pudo quitar el aprendizaje",
+      "removeBody": "Volvió a la lista. Inténtalo de nuevo en un momento."
+    }
   },
   "subTabs": {
     "instructions": "Descripción del puesto",
@@ -226,7 +240,15 @@
       "saveDiskFull": "No hay suficiente espacio libre en este computador para guardar el archivo.",
       "revealPermission": "La app no tiene permiso para abrir esa carpeta en este computador. Busca el archivo donde lo guardaste."
     },
-    "modifiedToday": "Hoy"
+    "modifiedToday": "Hoy",
+    "failed": {
+      "delete_one": "No se pudo mover “{{name}}” a la Papelera",
+      "delete_other": "No se pudieron mover {{count}} elementos a la Papelera",
+      "rename": "No se pudo cambiar el nombre de “{{name}}”",
+      "move": "No se pudo mover “{{name}}”",
+      "createFolder": "No se pudo crear la carpeta “{{name}}”",
+      "description": "Tus archivos volvieron a como estaban. Inténtalo de nuevo en un momento."
+    }
   },
   "copyAgent": {
     "row": "Duplicar a {{name}}",

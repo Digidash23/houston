@@ -6,6 +6,7 @@ import {
   SelectValue,
 } from "@houston-ai/core";
 import { Languages } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { analytics } from "../../../lib/analytics";
 import {
@@ -14,9 +15,11 @@ import {
   SUPPORTED_LOCALES,
   type SupportedLocale,
 } from "../../../lib/i18n";
+import { tellOptimisticRefusal } from "../../../lib/optimistic-write";
 import { useUIStore } from "../../../stores/ui";
 import { useWorkspaceStore } from "../../../stores/workspaces";
 import { SettingsControlRow } from "../settings-row";
+import { createLanguageChange } from "./language-change";
 
 const LOCALE_LABELS: Record<SupportedLocale, string> = {
   en: "English",
@@ -29,20 +32,39 @@ export function LanguageSection() {
   const addToast = useUIStore((s) => s.addToast);
   const current = useWorkspaceStore((s) => s.current);
   const setWorkspaceLocale = useWorkspaceStore((s) => s.setLocale);
-  const currentLocale: SupportedLocale = isSupported(i18n.resolvedLanguage)
-    ? (i18n.resolvedLanguage as SupportedLocale)
-    : "en";
+  const shown = (): SupportedLocale =>
+    isSupported(i18n.resolvedLanguage)
+      ? (i18n.resolvedLanguage as SupportedLocale)
+      : "en";
+  const currentLocale = shown();
 
-  const handleLocaleChange = async (value: string) => {
-    // Persist the workspace override FIRST so the engine is the source of truth;
-    // if it fails the error surfaces and the UI never switches to an unsaved
-    // language. `current` is guaranteed once a workspace is active; the guard
-    // just defends the rare unmount race.
+  const [change] = useState(() =>
+    createLanguageChange({
+      shown,
+      show: changeLocale,
+      announce: (locale) => {
+        analytics.track("language_changed", { locale });
+        addToast({ title: t("common:language.toastChanged") });
+      },
+      save: (id, locale) => setWorkspaceLocale(id, locale),
+      restored: (id) => {
+        const { workspaces } = useWorkspaceStore.getState();
+        const locale = workspaces.find((w) => w.id === id)?.locale;
+        return isSupported(locale) ? locale : null;
+      },
+      refused: (err) =>
+        tellOptimisticRefusal("set_workspace_locale", err, {
+          title: t("settings:writeFailed.language.title"),
+          description: t("settings:writeFailed.language.description"),
+        }),
+    }),
+  );
+
+  const handleLocaleChange = (value: string) => {
+    // `current` is guaranteed once a workspace is active; the guard just
+    // defends the rare unmount race.
     if (!isSupported(value) || !current) return;
-    await setWorkspaceLocale(current.id, value);
-    await changeLocale(value);
-    analytics.track("language_changed", { locale: value });
-    addToast({ title: t("common:language.toastChanged") });
+    void change(current.id, value);
   };
 
   return (

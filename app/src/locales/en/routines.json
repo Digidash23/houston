@@ -278,7 +278,13 @@
     "timezoneError": "Couldn't update the timezone",
     "discardError": "Couldn't discard the draft",
     "modelError": "Couldn't change the model",
-    "updateError": "Couldn't save the routine"
+    "updateError": "Couldn't save the routine",
+    "deleteError": "Couldn't delete the routine",
+    "deleteErrorBody": "It's back in the list. Try again in a moment.",
+    "runError": "Couldn't start the routine",
+    "runErrorBody": "It didn't run. Try again in a moment.",
+    "stopError": "Couldn't stop the run",
+    "stopErrorBody": "It may still be running. Try again in a moment."
   },
   "webhook": {
     "createAddress": "Create webhook address",

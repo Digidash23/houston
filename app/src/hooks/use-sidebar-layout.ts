@@ -23,6 +23,7 @@ import {
   toggleGroupCollapsedOp,
 } from "../lib/sidebar-layout-ops";
 import { tauriSidebar } from "../lib/tauri";
+import { tellSidebarLayoutRefused } from "./sidebar-layout-refusal";
 import {
   applySidebarLayoutOp,
   sidebarLayoutWriteOptions,
@@ -136,8 +137,8 @@ export interface UseSidebarLayout {
  * Reads via TanStack Query; every helper computes the next layout immutably
  * from the freshest cached value and fires an OPTIMISTIC write so drag and
  * grouping feel instant. Ordering, refetch and rollback rules for overlapping
- * writes live in `sidebar-layout-writes.ts`; the `tauriSidebar` wrapper already
- * surfaces a failure through `call()`, so a rollback adds no second toast.
+ * writes live in `sidebar-layout-writes.ts`; a rollback tells the person their
+ * change did not save, unless `call()` already explained the refusal.
  *
  * Reading the layout and nothing else? Use {@link useSidebarLayoutValue}.
  */
@@ -155,6 +156,7 @@ export function useSidebarLayout(
       workspaceId ?? "",
       (next) => tauriSidebar.setLayout(workspaceId as string, next),
       logAndReportError,
+      tellSidebarLayoutRefused,
     ),
   );
 

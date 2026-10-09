@@ -1,14 +1,24 @@
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
-import type { WireEvent } from "@houston/runtime-client";
 import { markTurnOnce } from "../../turn/turn-network-marks";
-import type { HarnessTimingEvent, ThinkingLevel } from "../types";
 import { toSdkEffort } from "./effort";
 import { classifyText } from "./errors";
 import { createClaudeCallTimer } from "./model-calls";
-import { hasSessionId, isAssistantMessageStart } from "./sdk-message-shapes";
-import type { ClaudeSessionDeps, TurnAuth } from "./session-deps";
+import {
+  hasSessionId,
+  isAssistantMessageStart,
+  replyBeatOf,
+} from "./sdk-message-shapes";
+import type {
+  TurnAttemptInput,
+  TurnAttemptState,
+} from "./session-turn-attempt-state";
 import { houstonToolServerLost } from "./tool-server-lost";
 import { createStreamTranslator } from "./translate";
+
+export type {
+  TurnAttemptInput,
+  TurnAttemptState,
+} from "./session-turn-attempt-state";
 
 const errMessage = (err: unknown): string =>
   err instanceof Error ? err.message : String(err);
@@ -24,42 +34,6 @@ const errMessage = (err: unknown): string =>
  * thrown error and as an error result.
  */
 const DANGLING_RESUME_RE = /No conversation found with session ID/i;
-
-/**
- * The exact slice of `ClaudeSession` one attempt reads and writes, handed over
- * explicitly so the attempt owns no hidden view of the session's fields. The
- * session rebuilds it per attempt, so the values are the ones in force NOW.
- */
-export interface TurnAttemptState {
-  readonly deps: ClaudeSessionDeps;
-  /** The SDK model string this attempt spawns with. */
-  readonly model: string;
-  readonly thinkingLevel: ThinkingLevel | undefined;
-  /** Digest of the OAuth access token this attempt runs on, for error reports. */
-  readonly usedAccessDigest: string | undefined;
-  /**
-   * Clear the session's abort flag and register this attempt's controller, so
-   * the user's Stop (and dispose) cancels the query that is about to run.
-   */
-  beginAttempt(controller: AbortController): void;
-  /** Whether the user's Stop already fired for this attempt. */
-  isAborting(): boolean;
-  setContextTokens(tokens: number): void;
-  /** Why this attempt asked for a fresh rerun, for the session's warn line. */
-  setRetryReason(reason: string): void;
-  emit(e: WireEvent): void;
-  tickLiveness(): void;
-  /** One model round-trip beginning, for the turn's finish marks. */
-  emitAssistantMessageStart(): void;
-  emitTiming(e: HarnessTimingEvent): void;
-}
-
-/** The per-attempt inputs: the prompt, the resume id to try, the turn's env. */
-export interface TurnAttemptInput {
-  text: string;
-  resume: string | undefined;
-  env: TurnAuth["env"];
-}
 
 /**
  * One `query()` to completion. Returns "retry-fresh" ONLY when a resume was
@@ -114,6 +88,7 @@ export async function runTurnAttempt(
       else markTurnOnce("t_claude_first_message");
       if (msg.type === "result" && msg.subtype === "success") succeeded = true;
       if (isAssistantMessageStart(msg)) state.emitAssistantMessageStart();
+      const beat = replyBeatOf(msg);
       if (hasSessionId(msg)) capturedSessionId = msg.session_id;
       if (houstonToolServerLost(msg)) {
         // The turn is running without Houston's tools (PRODUCT-1706). On a
@@ -156,6 +131,7 @@ export async function runTurnAttempt(
         }
         state.emit(wire);
       }
+      if (beat) state.emitReplyBeat(beat); // after the frames it follows
     }
   } catch (err) {
     // The user's Stop aborts the controller, which makes the SDK iterator

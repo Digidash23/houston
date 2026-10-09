@@ -6,6 +6,7 @@ import { getEngine, isEngineReady } from "../lib/engine";
 import { logAndReportError } from "../lib/error-report";
 import { tauriPreferences } from "../lib/tauri";
 import type { Agent } from "../lib/types";
+import { clearAgentHolds, overlayHeldAgentWrites } from "./agent-roster-holds";
 import type { AgentState } from "./agents/state";
 
 const loadOrder = createAgentLoadOrder();
@@ -35,8 +36,9 @@ export function agentLoadingActions(
         return outcome === "apply";
       };
       try {
-        const agents = await tauriAgents.list(workspaceId);
+        const listed = await tauriAgents.list(workspaceId);
         if (!lands()) return;
+        const agents = overlayHeldAgentWrites(listed);
         const current = get().current;
         const selected = selectLoadedAgent(
           agents,
@@ -81,6 +83,7 @@ export function agentLoadingActions(
 
     reset: () => {
       invalidateAgentLoads();
+      clearAgentHolds();
       set({
         agents: [],
         current: null,
