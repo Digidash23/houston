@@ -60,7 +60,10 @@ export {
   FilesHttpError,
   type FilesModule,
   type FileUpload,
+  isUploadInterruptedError,
   type ProjectFile,
+  UploadInterruptedError,
+  type UploadRoute,
 } from "./modules/files";
 // ===== Integrations module contract ====================================
 export {

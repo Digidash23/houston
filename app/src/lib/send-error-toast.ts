@@ -3,6 +3,7 @@ import { logAndReportError } from "./error-report";
 import { showExpectedStateToast } from "./error-toast";
 import i18n from "./i18n";
 import { isStaleAttachmentError } from "./stale-attachment";
+import { wasToldUser } from "./user-told-mark";
 
 /**
  * The ONE toast for a send that failed BEFORE a turn stream existed
@@ -21,6 +22,10 @@ import { isStaleAttachmentError } from "./stale-attachment";
  * Every other failure shows authored copy only: the raw error (an
  * `EngineError` quoting an HTTP status, a JSON body, a cluster hostname) goes
  * to the frontend log and Sentry via `logAndReportError`, never into the toast.
+ *
+ * A failure `call()` already gave copy of its own (an interrupted upload, the
+ * device offline, an expired trial) is logged only: a second, generic toast on
+ * top would contradict the one that named the cause.
  */
 export function showSendFailedToast(err: unknown): void {
   if (isStaleAttachmentError(err)) {
@@ -31,6 +36,7 @@ export function showSendFailedToast(err: unknown): void {
     return;
   }
   logAndReportError("send_message", err);
+  if (wasToldUser(err)) return;
   useUIStore.getState().addToast({
     title: i18n.t("chat:errors.sessionStart"),
     variant: "error",

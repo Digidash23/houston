@@ -458,6 +458,8 @@
     "genericDescription": "Algo inesperado deu errado. Tente novamente.",
     "offlineTitle": "Sem conexão",
     "offlineDescription": "Não conseguimos conectar agora. Verifique sua conexão com a internet e tente novamente.",
+    "uploadInterruptedTitle": "O envio não terminou",
+    "uploadInterruptedDescription": "Seus arquivos não terminaram de ser enviados. Verifique sua conexão e tente novamente. Arquivos grandes podem levar alguns minutos em uma conexão lenta.",
     "engineWakingTitle": "Seu funcionário de IA está acordando",
     "engineWakingDescription": "Costuma levar cerca de 20 segundos. Você não precisa enviar sua mensagem de novo.",
     "updateStuckTitle": "As atualizações não estão chegando",

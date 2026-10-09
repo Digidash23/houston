@@ -13,8 +13,42 @@
  * binary half — hidden from the assistant, framed by their caller.
  */
 
+import { isTransportFailure } from "../../transport-failure";
 import { type HttpScope, httpRequest } from "../http";
 import type { FileUpload } from "./types";
+import { UploadInterruptedError, type UploadRoute } from "./upload-interrupted";
+
+/** A clock reading to time an upload by: monotonic when the host has one. */
+function uploadClock(scope: HttpScope): number {
+  const clock = scope.ports.clock;
+  return clock.monotonic?.() ?? clock.now();
+}
+
+/**
+ * What a failed upload POST rethrows. A transport failure (`fetch` rejecting
+ * with a browser's network `TypeError`: no answer at all) becomes an
+ * {@link UploadInterruptedError} carrying the elapsed time and the batch's
+ * size; an HTTP answer and an abort pass through untouched. Each call site
+ * keeps its literal `httpRequest(…)`, which `check:sdk-parity` and the
+ * assistant catalog read the route and body fields off.
+ */
+function uploadFailure(
+  err: unknown,
+  scope: HttpScope,
+  route: UploadRoute,
+  startedAt: number,
+  files: FileUpload[],
+): unknown {
+  // A coding-bug TypeError stays itself, so it still files as a bug.
+  if (!isTransportFailure(err)) return err;
+  // Decoded size: base64 carries 3 bytes per 4 characters.
+  const bytes = files.reduce(
+    (sum, f) => sum + Math.floor((f.contentBase64.length * 3) / 4),
+    0,
+  );
+  const elapsed = Math.max(0, uploadClock(scope) - startedAt);
+  return new UploadInterruptedError(route, bytes, elapsed, err.message);
+}
 
 /**
  * Uploads files to attach to a message.
@@ -44,11 +78,17 @@ export async function saveAttachments(
   scopeId: string,
   files: FileUpload[],
 ): Promise<string[]> {
-  const res = await httpRequest(
-    scope,
-    `/agents/${encodeURIComponent(agentId)}/attachments`,
-    { method: "POST", body: JSON.stringify({ scopeId, files }) },
-  );
+  const startedAt = uploadClock(scope);
+  let res: Response;
+  try {
+    res = await httpRequest(
+      scope,
+      `/agents/${encodeURIComponent(agentId)}/attachments`,
+      { method: "POST", body: JSON.stringify({ scopeId, files }) },
+    );
+  } catch (err) {
+    throw uploadFailure(err, scope, "attachments", startedAt, files);
+  }
   return ((await res.json()) as { paths: string[] }).paths;
 }
 
@@ -72,12 +112,20 @@ export async function uploadProjectFiles(
   files: FileUpload[],
   targetDir?: string | null,
 ): Promise<void> {
-  await httpRequest(
-    scope,
-    `/agents/${encodeURIComponent(agentPath)}/files/import`,
-    // The workspace root rides as an explicit `null` rather than an absent
-    // key: the host reads both the same way, and this is the shape every
-    // Files-section upload has sent.
-    { method: "POST", body: JSON.stringify({ dir: targetDir ?? null, files }) },
-  );
+  const startedAt = uploadClock(scope);
+  try {
+    await httpRequest(
+      scope,
+      `/agents/${encodeURIComponent(agentPath)}/files/import`,
+      // The workspace root rides as an explicit `null` rather than an absent
+      // key: the host reads both the same way, and this is the shape every
+      // Files-section upload has sent.
+      {
+        method: "POST",
+        body: JSON.stringify({ dir: targetDir ?? null, files }),
+      },
+    );
+  } catch (err) {
+    throw uploadFailure(err, scope, "files_import", startedAt, files);
+  }
 }

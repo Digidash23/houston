@@ -458,6 +458,8 @@
     "genericDescription": "Algo inesperado salió mal. Inténtalo de nuevo.",
     "offlineTitle": "Sin conexión",
     "offlineDescription": "No podemos conectarnos en este momento. Revisa tu conexión a internet e inténtalo de nuevo.",
+    "uploadInterruptedTitle": "La subida no terminó",
+    "uploadInterruptedDescription": "Tus archivos no terminaron de subirse. Revisa tu conexión e inténtalo de nuevo. Los archivos grandes pueden tardar unos minutos con una conexión lenta.",
     "engineWakingTitle": "Tu empleado de IA se está despertando",
     "engineWakingDescription": "Suele tardar unos 20 segundos. No necesitas enviar tu mensaje de nuevo.",
     "updateStuckTitle": "Las actualizaciones no te llegan",
