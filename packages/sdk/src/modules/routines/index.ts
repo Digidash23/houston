@@ -71,6 +71,13 @@ export type {
   WebhookKeyReveal,
 } from "./types";
 export { RoutinesCommand, type RoutinesCommandType } from "./types";
+export {
+  isWebhookKeyNotCreatorRefusal,
+  WEBHOOK_KEY_NOT_CREATOR,
+  type WebhookKeyAccess,
+  type WebhookKeyViewer,
+  webhookKeyAccess,
+} from "./webhook-key-access";
 
 /** The typed facade for an agent's scheduled work. */
 export interface RoutinesModule {
