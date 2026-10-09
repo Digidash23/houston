@@ -2,6 +2,9 @@ import type { ModelCallTiming, TurnMode } from "@houston/protocol";
 import type { WireEvent } from "@houston/runtime-client";
 import type { PiThinkingLevel } from "../ai/effort";
 import type { ProvidedContext } from "../session/workspace-context";
+import type { ReplyBeat } from "./reply-beat";
+
+export type { ReplyBeat } from "./reply-beat";
 
 /**
  * The HarnessBackend seam: turn execution abstracted behind a provider-agnostic
@@ -93,6 +96,13 @@ export interface HarnessSession {
    * fakes stay minimal; without it no tool can end the turn early.
    */
   subscribeAssistantMessageStart?(listener: () => void): () => void;
+  /**
+   * Subscribe to the reply's {@link ReplyBeat}s, which tell the finish marks
+   * the closing message is done the moment the model moves on to its offers
+   * (or simply stops), seconds before `done`. Optional so test fakes stay
+   * minimal; without it no `reply_complete` frame is emitted.
+   */
+  subscribeReplyBeats?(listener: (beat: ReplyBeat) => void): () => void;
   /**
    * Subscribe to where the model round-trip stands (`ModelPhase`). The stall
    * watchdog bounds a request that has not started answering far tighter

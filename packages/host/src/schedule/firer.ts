@@ -49,7 +49,9 @@ export class ChannelRoutineFirer implements RoutineFirer {
       job.conversationId,
       routinePrompt(job.routine),
       { ...pin, effort: job.routine.effort },
-      this.actingAs ? { actingAs: this.actingAs } : { actingUser: createdBy },
+      this.actingAs
+        ? { actingAs: this.actingAs, routine: true }
+        : { actingUser: createdBy, routine: true },
     );
   }
 }

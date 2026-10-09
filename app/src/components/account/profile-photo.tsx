@@ -52,8 +52,8 @@ function pictureInitials(name: string): string {
  * user's OWN upload — a "Remove picture" button that clears back to their Google
  * photo. The image is squared and shrunk in the browser before it ever reaches
  * the gateway ({@link fileToAvatarDataUrl}); every client-side rejection toasts
- * its honest reason, and the SAVE itself surfaces through `call()` in
- * `lib/tauri.ts`, so nothing here adds a second failure toast.
+ * its honest reason. The SAVE is optimistic: the new picture shows at once and
+ * a refusal puts the old one back with its own toast (`useSetMyProfile`).
  *
  * `displayName` is the EFFECTIVE name the Profile screen already resolved (the gateway
  * value, else the identity session's), passed in rather than re-derived so the
@@ -67,7 +67,12 @@ export function ProfilePhotoRow({ displayName }: { displayName: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [preparing, setPreparing] = useState(false);
 
-  const busy = preparing || setProfile.isPending;
+  // Only the in-browser resize is waited on: the save itself is optimistic.
+  const busy = preparing;
+  const photoFailure = {
+    title: t("writeFailed.profilePhoto.title"),
+    description: t("writeFailed.profilePhoto.description"),
+  };
 
   const failPhoto = (description: string) =>
     addToast({
@@ -84,9 +89,9 @@ export function ProfilePhotoRow({ displayName }: { displayName: string }) {
     setPreparing(true);
     try {
       const photoUrl = await fileToAvatarDataUrl(file);
-      setProfile.mutate(
+      void setProfile(
         { photoUrl },
-        { onSuccess: () => addToast({ title: t("profile.toasts.saved") }) },
+        { saved: t("profile.toasts.saved"), failure: photoFailure },
       );
     } catch (err) {
       failPhoto(
@@ -100,11 +105,9 @@ export function ProfilePhotoRow({ displayName }: { displayName: string }) {
   };
 
   const handleRemove = () =>
-    setProfile.mutate(
+    void setProfile(
       { photoUrl: null },
-      {
-        onSuccess: () => addToast({ title: t("profile.toasts.photoRemoved") }),
-      },
+      { saved: t("profile.toasts.photoRemoved"), failure: photoFailure },
     );
 
   if (!profile) return null;

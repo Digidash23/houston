@@ -47,7 +47,11 @@
     "nameConflictDescription": "Choose a different name and try again.",
     "deleted": "Workspace deleted",
     "switchedModel": "Switched to {{provider}} ({{model}})",
-    "timezoneSet": "Timezone set to {{zone}}"
+    "timezoneSet": "Timezone set to {{zone}}",
+    "renameFailed": "Couldn’t rename {{name}}",
+    "colorFailed": "Couldn’t change {{name}}’s color",
+    "deleteFailed": "Couldn’t delete {{name}}",
+    "writeFailedDescription": "Nothing changed. Try again in a moment."
   },
   "nameErrors": {
     "invalidChars": "AI Employee names can't contain slashes or special characters",
@@ -63,7 +67,9 @@
       "addIndustry": "Add industry",
       "addRole": "Add role"
     },
-    "loadFailed": "Couldn't load the job description."
+    "loadFailed": "Couldn't load the job description.",
+    "saveErrorTitle": "Couldn't save the job description",
+    "saveErrorBody": "Your last change wasn't saved. Try again in a moment."
   },
   "learnings": {
     "emptyTitle": "No learnings yet",
@@ -80,7 +86,15 @@
     "confirmRemoveLabel": "Remove",
     "provenanceFromMission": "From {{name}} · {{mission}}",
     "provenanceFrom": "From {{name}}",
-    "provenanceMission": "From {{mission}}"
+    "provenanceMission": "From {{mission}}",
+    "failure": {
+      "addTitle": "Couldn't save the learning",
+      "addBody": "It wasn't added. Try again in a moment.",
+      "updateTitle": "Couldn't update the learning",
+      "updateBody": "Your edit was undone. Try again in a moment.",
+      "removeTitle": "Couldn't remove the learning",
+      "removeBody": "It's back in the list. Try again in a moment."
+    }
   },
   "subTabs": {
     "instructions": "Job description",
@@ -227,7 +241,15 @@
       "saveNotFound": "That folder isn't available anymore. Choose another folder, like Downloads.",
       "revealPermission": "The app isn't allowed to open that folder on this computer. Look for the file where you saved it."
     },
-    "modifiedToday": "Today"
+    "modifiedToday": "Today",
+    "failed": {
+      "delete_one": "Couldn’t move “{{name}}” to Trash",
+      "delete_other": "Couldn’t move {{count}} items to Trash",
+      "rename": "Couldn’t rename “{{name}}”",
+      "move": "Couldn’t move “{{name}}”",
+      "createFolder": "Couldn’t create the folder “{{name}}”",
+      "description": "Your files are back the way they were. Try again in a moment."
+    }
   },
   "copyAgent": {
     "row": "Duplicate {{name}}",

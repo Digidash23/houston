@@ -593,5 +593,39 @@
   "agentNav": {
     "settingsUnavailable": "No pudimos abrir la configuración de este Empleado de IA",
     "settingsUnavailableBody": "Este Empleado de IA ya no está en este espacio. Puede que lo hayan eliminado o movido."
+  },
+  "writeFailed": {
+    "removeMember": {
+      "title": "No se pudo quitar a esta persona",
+      "description": "Sigue en la organización. Inténtalo de nuevo en un momento."
+    },
+    "memberRole": {
+      "title": "No se pudo cambiar el rol",
+      "description": "Su rol volvió a como estaba. Inténtalo de nuevo en un momento."
+    },
+    "revokeInvite": {
+      "title": "No se pudo revocar la invitación",
+      "description": "Sigue pendiente. Inténtalo de nuevo en un momento."
+    },
+    "declineInvite": {
+      "title": "No se pudo rechazar la invitación",
+      "description": "Sigue esperándote. Inténtalo de nuevo en un momento."
+    },
+    "delegation": {
+      "title": "No se pudo guardar el ajuste de Trabajo en equipo",
+      "description": "Volvió a como estaba. Inténtalo de nuevo en un momento."
+    },
+    "agentAccess": {
+      "title": "No se pudo actualizar quién tiene acceso",
+      "description": "El acceso volvió a como estaba. Inténtalo de nuevo en un momento."
+    },
+    "agentApps": {
+      "title": "No se pudieron actualizar las apps",
+      "description": "Las apps volvieron a como estaban. Inténtalo de nuevo en un momento."
+    },
+    "agentModels": {
+      "title": "No se pudieron actualizar los modelos permitidos",
+      "description": "Los modelos volvieron a como estaban. Inténtalo de nuevo en un momento."
+    }
   }
 }

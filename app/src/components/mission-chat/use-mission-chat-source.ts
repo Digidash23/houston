@@ -68,15 +68,15 @@ export function useMissionChatSource(
     [missionId],
   );
   const onDelete = useCallback(
-    async (item: KanbanItem) => {
-      await mc.handleDelete(item);
+    (item: KanbanItem) => {
+      mc.handleDelete(item);
       closeIfOpen(item);
     },
     [mc.handleDelete, closeIfOpen],
   );
   const onArchive = useCallback(
-    async (item: KanbanItem) => {
-      await mc.handleArchive(item);
+    (item: KanbanItem) => {
+      mc.handleArchive(item);
       closeIfOpen(item);
     },
     [mc.handleArchive, closeIfOpen],
