@@ -29,7 +29,11 @@ import type { BridgeQuietClass } from "@houston/sdk/local-model-bridge/quiet";
  *  `webhook_not_creator` is a webhook-key mint or rotate the gateway refused
  *  because the caller is not the routine's creator
  *  (`@houston/sdk/routines/webhook-key-access`): an expected state with its
- *  own copy, which every reporting path skips outright. */
+ *  own copy, which every reporting path skips outright.
+ *  `bug_intake_unavailable` is the bug-report intake (Linear) refusing every
+ *  report on our side, its plan's issue cap above all (HOUSTON-APP-5FT): the
+ *  report itself still arrives through the fallback feedback, so the refusal
+ *  is one counted warning, never a per-user bug. */
 export type QuietErrorClass =
   | "engine_waking"
   | "offline"
@@ -37,7 +41,8 @@ export type QuietErrorClass =
   | "release_host_unavailable"
   | "no_url_handler"
   | "plan_min_interval"
-  | "webhook_not_creator";
+  | "webhook_not_creator"
+  | "bug_intake_unavailable";
 
 /**
  * The burst-gate key a quiet-class report collapses on.

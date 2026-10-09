@@ -1,15 +1,23 @@
+import { type BugReportOutcome, deliverBugReport } from "./bug-report-delivery";
+import { logAndReportError } from "./error-report";
 import { osReadRecentLogs, osReportBug } from "./os-bridge";
+import { reportQuietError } from "./quiet-error-report";
+import { captureBugReportFeedback } from "./sentry-feedback";
+
+export type { BugReportOutcome } from "./bug-report-delivery";
 
 interface BugReportContext {
+  /** Flat snake_case triage tag (`manual_report`, a card's command). */
   command: string;
+  /** The diagnostic; for a person's own report, their words again. */
   error: string;
   spaceName?: string;
   workspaceName?: string;
   userEmail?: string | null;
   timestamp: string;
   appVersion: string;
-  /** Free-text feedback the user typed (only present on voluntary
-   *  "Send feedback" submissions, never on auto-generated error paths). */
+  /** Free-text the person typed (Settings > Report bug). Linear titles and
+   *  leads the issue with it, and the fallback feedback's message is it. */
   userMessage?: string;
 }
 
@@ -18,18 +26,60 @@ async function getRecentLogs(
 ): Promise<{ backend: string; frontend: string }> {
   try {
     return await osReadRecentLogs(lines);
-  } catch {
+  } catch (err) {
+    // The report still goes without logs; the read failure is logged.
+    console.warn(`[bug_report] could not read recent logs: ${String(err)}`);
     return { backend: "(unavailable)", frontend: "(unavailable)" };
   }
 }
 
-export async function reportBug(
+/**
+ * The ONE way a surface sends a bug report (Settings > Report bug, every
+ * card's report pill). Linear first, Sentry user feedback when Linear refuses
+ * (`deliverBugReport`), so a report is only lost when every channel failed.
+ * The refusal is reported here, once: a surface never reports it again.
+ */
+export async function submitBugReport(
   context: BugReportContext,
-): Promise<string | null> {
+): Promise<BugReportOutcome> {
   const logs = await getRecentLogs();
-
-  return await osReportBug({
-    ...context,
-    logs,
+  const { command } = context;
+  return deliverBugReport({
+    sendToIntake: () => osReportBug({ ...context, logs }),
+    sendFallback: (failure) =>
+      captureBugReportFeedback({
+        message: context.userMessage || context.error,
+        email: context.userEmail,
+        command,
+        reason: failure.kind,
+        context: {
+          error: context.userMessage ? undefined : context.error,
+          appVersion: context.appVersion,
+          timestamp: context.timestamp,
+          workspaceName: context.workspaceName,
+          spaceName: context.spaceName,
+          intakeFailure: failure.message,
+        },
+        logs,
+      }),
+    reportIntakeFailure: (failure, err) => {
+      if (failure.kind === "intake_unavailable") {
+        // Our side (Linear's plan cap, HOUSTON-APP-5FT): one fingerprinted
+        // warning per burst; the fallback feedback carries the report itself.
+        console.warn(
+          `[${command}] bug intake unavailable, sending as feedback: ${failure.message}`,
+        );
+        reportQuietError(
+          "bug_intake_unavailable",
+          command,
+          failure.message,
+          err,
+        );
+        return;
+      }
+      logAndReportError(command, err);
+    },
+    reportFallbackFailure: (err) =>
+      logAndReportError("bug_report_fallback", err),
   });
 }

@@ -1,9 +1,11 @@
+mod failure;
 mod format;
 mod linear;
 mod linear_graphql;
 #[cfg(test)]
 mod linear_tests;
 
+use failure::BugReportFailure;
 use serde::Deserialize;
 
 const LINEAR_API_URL: &str = "https://api.linear.app/graphql";
@@ -41,8 +43,8 @@ struct LinearBugReportConfig {
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub async fn report_bug(payload: BugReportPayload) -> Result<Option<String>, String> {
-    let config = bug_report_config()?;
+pub async fn report_bug(payload: BugReportPayload) -> Result<Option<String>, BugReportFailure> {
+    let config = bug_report_config().map_err(BugReportFailure::other)?;
 
     linear::send_bug_report_to(
         LINEAR_API_URL,

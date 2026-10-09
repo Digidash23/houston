@@ -181,6 +181,38 @@ test("report_bug falls back to the status when the gateway sends no reason", asy
   );
 });
 
+// H-009 / HOUSTON-APP-5FT: Linear at its plan's issue cap. The gateway answers
+// a typed 503 and the shim rethrows the SAME `{kind}` shape the desktop shell
+// rejects with, so the app delivers the report through its fallback.
+test("report_bug rethrows the gateway's intake refusal typed", async () => {
+  setCloudWindow({ token: "live-token" });
+  stubFetch(
+    json(503, {
+      error: "Linear API returned GraphQL errors: usage limit exceeded",
+      code: "intake_unavailable",
+    }),
+  );
+
+  const err = await invoke("report_bug", { payload: {} }).catch(
+    (e: unknown) => e,
+  );
+  expect(err).toBeInstanceOf(Error);
+  expect(err).toMatchObject({
+    kind: "intake_unavailable",
+    message: "Linear API returned GraphQL errors: usage limit exceeded",
+  });
+});
+
+test("report_bug types any other refusal as other", async () => {
+  setCloudWindow({ token: "live-token" });
+  stubFetch(json(503, { error: "feedback intake not configured" }));
+
+  await expect(invoke("report_bug", { payload: {} })).rejects.toMatchObject({
+    kind: "other",
+    message: "feedback intake not configured",
+  });
+});
+
 test("report_bug outside cloud mode stays a desktop-only action", async () => {
   Object.defineProperty(globalThis, "window", {
     configurable: true,
