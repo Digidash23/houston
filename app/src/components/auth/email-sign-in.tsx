@@ -119,7 +119,7 @@ export function EmailSignIn({
       }
       // The address row is the phone's primary sign-in field: 44px there,
       // 40px from md:. The code row keeps 40px beside its six pin boxes.
-      className={`shrink-0 rounded-full border-none! active:scale-[0.96] ${step === "code" ? "size-10" : "size-11 md:size-10"}`}
+      className={`shrink-0 rounded-full border-none! active:scale-[0.96] md:active:scale-100 ${step === "code" ? "size-10" : "size-11 md:size-10"}`}
     >
       {pending ? (
         <Loader2 className="size-4 animate-spin" />

@@ -45,7 +45,7 @@ export function ChatSuggestActions({
       {onDismiss ? (
         <button
           aria-label={labels.dismiss}
-          className="relative inline-flex size-8 shrink-0 items-center justify-center rounded-full text-ink-muted outline-none transition-[color,background-color,transform] hover:bg-hover hover:text-ink active:scale-[0.96] focus-visible:ring-[3px] focus-visible:ring-focus/50 disabled:pointer-events-none after:absolute after:-inset-1.5 md:after:hidden"
+          className="relative inline-flex size-8 shrink-0 items-center justify-center rounded-full text-ink-muted outline-none transition-[color,background-color,scale] hover:bg-hover hover:text-ink active:scale-[0.96] md:active:scale-100 focus-visible:ring-[3px] focus-visible:ring-focus/50 disabled:pointer-events-none after:absolute after:-inset-1.5 md:after:hidden"
           disabled={disabled}
           onClick={onDismiss}
           type="button"

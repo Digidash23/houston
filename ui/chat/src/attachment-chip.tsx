@@ -168,12 +168,13 @@ export function ComposerTrailing({
 
   const submitDisabled = disabled || (status === "ready" && !hasContent);
   return (
-    <div className="flex items-center gap-1.5 [grid-area:trailing]">
+    // Phone gap 8px: the mic's and send's 4px hit-slops meet without overlap.
+    <div className="flex items-center gap-2 [grid-area:trailing] md:gap-1.5">
       {view.kind === "idle" && status === "ready" && !disabled && dictation && (
         <button
           type="button"
           onClick={dictation.onStart}
-          className="flex h-9 w-9 items-center justify-center rounded-full text-ink-muted hover:bg-hover transition-colors"
+          className="relative flex h-9 w-9 items-center justify-center rounded-full text-ink-muted hover:bg-hover transition-colors after:absolute after:-inset-1 md:after:hidden"
           aria-label={dictation.labels.start}
         >
           <MicIcon className="size-5" />

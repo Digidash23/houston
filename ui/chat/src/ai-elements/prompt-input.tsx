@@ -1305,7 +1305,7 @@ export const PromptInputSubmit = ({
       className={cn(
         // The ::after hit-slop grows the phone target to 44px without moving
         // a pixel; desktop keeps the 36px box.
-        "relative flex size-9 items-center justify-center rounded-full bg-action text-action-text hover:bg-action/90 disabled:opacity-30 transition-[color,background-color,transform] active:scale-[0.96] after:absolute after:-inset-1 md:after:hidden",
+        "relative flex size-9 items-center justify-center rounded-full bg-action text-action-text hover:bg-action/90 disabled:opacity-30 transition-[color,background-color,scale] active:scale-[0.96] md:active:scale-100 after:absolute after:-inset-1 md:after:hidden",
         className,
       )}
       onClick={handleClick}

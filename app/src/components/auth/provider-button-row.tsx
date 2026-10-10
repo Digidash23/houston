@@ -93,7 +93,7 @@ function ProviderIconButton({
       title={label}
       onClick={onClick}
       disabled={disabled}
-      className="h-11 flex-1 justify-center rounded-full border-none! shadow-none active:scale-[0.96] md:h-10"
+      className="h-11 flex-1 justify-center rounded-full border-none! shadow-none active:scale-[0.96] md:h-10 md:active:scale-100"
     >
       {pending ? <Loader2 className="size-4 animate-spin" /> : children}
     </Button>
