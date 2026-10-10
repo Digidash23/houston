@@ -7,7 +7,7 @@ export function capgoReadyPorts(report: (error: unknown) => void): ReadyPorts {
   return {
     root,
     notifyAppReady: () => CapacitorUpdater.notifyAppReady(),
-    currentBundleId: async () => (await CapacitorUpdater.current()).bundle.id,
+    currentBundle: async () => (await CapacitorUpdater.current()).bundle,
     resetToBuiltin: () => CapacitorUpdater.reset(),
     storage: localStorage,
     report,

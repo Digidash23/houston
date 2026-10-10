@@ -188,12 +188,13 @@ WebCrypto can verify it. The manifest request uses CapacitorHttp native networki
 object URLs require bucket CORS for browser fetch. Each native launch and
 eligible resume checks the signed manifest and queues a compatible bundle for the next launch or
 background transition. The updater rolls back a bundle that does not report
-ready within 30 seconds. Ready means the real app (sign-in screen or signed-in
-shell, never the loading splash or the crash screen) rendered and stayed up for
-two seconds. An offline launch can only show the offline screen, so it reports
-ready provisionally and remembers the bundle; the next online launch resets to
-the builtin bundle and reports it if that bundle crashes or never renders the
-app within 30 seconds.
+ready within 30 seconds. Ready means the web app mounted (its boot splash
+counts, so a slow network or engine wake never rolls back) and stayed up two
+seconds without the crash screen. An offline launch shows only the offline
+screen, so a bundle not yet confirmed online reports ready provisionally; the
+next online launch resets it to the builtin bundle, and reports it, if its web
+entry fails to load, it crashes, or it never mounts within 30 seconds. A
+bundle already confirmed online is never put on trial.
 The signed manifest includes its channel, increasing publish `sequence`, and
 the zip's original `bundle_sequence` from `version.json`. The app
 rejects another channel, a sequence at or below the highest locally accepted
