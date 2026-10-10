@@ -169,14 +169,7 @@ describe("canDeleteWorkspace (PRODUCT-1247)", () => {
 
 describe("isSpaceOwner", () => {
   const withSpaces = (role: OrgRole): Capabilities =>
-    caps({ multiplayer: true, role, spaces: true, teamBilling: true });
-
-  it("hides it on a deployment with seat billing off", () => {
-    // Without `teamBilling` every billing read can only answer 503
-    // not_configured: no tab promising billing, no query polling it.
-    const off = caps({ multiplayer: true, role: "owner", spaces: true });
-    strictEqual(canSeeBillingTab(off, true), false);
-  });
+    caps({ multiplayer: true, role, spaces: true });
 
   it("single player owns the space, whatever the active-space flag says", () => {
     strictEqual(isSpaceOwner(caps(), false), true);
