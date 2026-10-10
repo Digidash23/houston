@@ -1,5 +1,10 @@
 import { expect, test, vi } from "vitest";
-import { nativeBuiltinSequence, otaSequenceKey } from "./native-sequence";
+import {
+  migrateLegacyOtaSequence,
+  nativeBuiltinSequence,
+  otaPolicyKey,
+  otaSequenceKey,
+} from "./native-sequence";
 
 test("an OTA bundle keeps its native build's floor and a store upgrade seeds a new floor", () => {
   const values = new Map<string, string>();
@@ -30,4 +35,30 @@ test("the applied OTA sequence is keyed by channel and native build", () => {
   expect(otaSequenceKey("production", "12")).toBe(
     "houston.ota.sequence.production.12",
   );
+});
+
+test("the legacy per-channel sequence seeds the policy floor once", () => {
+  const values = new Map([["houston.ota.sequence.production", "30"]]);
+  const storage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      values.set(key, value);
+    },
+    removeItem: (key: string) => {
+      values.delete(key);
+    },
+  };
+  migrateLegacyOtaSequence("production", storage);
+  expect(JSON.parse(values.get(otaPolicyKey("production")) ?? "")).toEqual({
+    sequence: 30,
+    required_native_build: 1,
+  });
+  expect(values.has("houston.ota.sequence.production")).toBe(false);
+  // A newer stored policy is never lowered by a leftover legacy value.
+  values.set("houston.ota.sequence.production", "5");
+  migrateLegacyOtaSequence("production", storage);
+  expect(
+    JSON.parse(values.get(otaPolicyKey("production")) ?? "").sequence,
+  ).toBe(30);
+  expect(values.has("houston.ota.sequence.production")).toBe(false);
 });

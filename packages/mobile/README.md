@@ -204,7 +204,9 @@ highest applied sequence per channel and native build, because a store upgrade
 restarts from that build's builtin bundle. Separately it persists the newest
 authenticated required-update policy per channel and refuses any older manifest
 before it touches the required-update gate, so a replayed manifest cannot lift
-it. Both live under `houston.ota.` and survive sign-out. A rollback reuses an old zip but signs a
+it. Both live under `houston.ota.` and survive sign-out. An install that still
+has the older per-channel `houston.ota.sequence.<channel>` value seeds the
+policy sequence from it once, then drops it. A rollback reuses an old zip but signs a
 new manifest with the current run's higher sequence.
 The publish workflow compares the new sequence with the channel's current
 manifest and refuses a rerun that would lower it. A bundle object is written

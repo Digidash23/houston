@@ -4,7 +4,12 @@ import { CapacitorUpdater } from "@capgo/capacitor-updater";
 import { logAndReportError } from "@houston/app/lib/error-report";
 import { clearNativeUpdateGate, showNativeUpdateGate } from "./gate";
 import { createUpdateManager } from "./manager";
-import { nativeBuiltinSequence, otaSequenceKey } from "./native-sequence";
+import {
+  migrateLegacyOtaSequence,
+  nativeBuiltinSequence,
+  otaPolicyKey,
+  otaSequenceKey,
+} from "./native-sequence";
 
 export async function installUpdates(): Promise<void> {
   const reported = new Set<string>();
@@ -67,9 +72,12 @@ export async function installUpdates(): Promise<void> {
           localStorage.setItem(otaSequenceKey(channel, nativeBuild), value),
       },
       policyStore: {
-        get: async () => localStorage.getItem(`houston.ota.policy.${channel}`),
+        get: async () => {
+          migrateLegacyOtaSequence(channel, localStorage);
+          return localStorage.getItem(otaPolicyKey(channel));
+        },
         set: async (value) =>
-          localStorage.setItem(`houston.ota.policy.${channel}`, value),
+          localStorage.setItem(otaPolicyKey(channel), value),
       },
     },
   );
