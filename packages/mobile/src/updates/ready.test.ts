@@ -128,3 +128,23 @@ test("a provisional bundle whose splash stays up online is confirmed", async () 
   expect(p.resetToBuiltin).not.toHaveBeenCalled();
   expect(storage.getItem(PROVISIONAL_READY_KEY)).toBeNull();
 });
+
+test("a provisional bundle whose web entry throws is reset at once", async () => {
+  storage.setItem(PROVISIONAL_READY_KEY, "ota-7");
+  const p = ports("ota-7");
+  const watch = declareReadyWhenShellRenders(p);
+  watch.fail(new Error("chunk failed"));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(p.resetToBuiltin).toHaveBeenCalledOnce();
+  expect(String(p.report.mock.calls[0]?.[0])).toContain("chunk failed");
+});
+
+test("the shell starts its readiness watch before loading the web entry", async () => {
+  const { readFileSync } = await import("node:fs");
+  const main = readFileSync("src/main.ts", "utf8");
+  const start = main.slice(main.indexOf("async function start"));
+  expect(start.indexOf("declareReadyWhenShellRenders(")).toBeLessThan(
+    start.indexOf('await import("../../web/src/main")'),
+  );
+  expect(start).toContain("ready.fail(error);");
+});

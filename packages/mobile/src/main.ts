@@ -57,15 +57,22 @@ async function start(): Promise<void> {
   starting = true;
   clearOffline?.();
   clearOffline = null;
-  await earlyPushTapReady;
-  const { installUpdates } = await import("./updates/boot");
-  await installUpdates().catch(reportBootError);
-  await import("../../web/src/main");
-  declareReadyWhenShellRenders(
+  // Watch before loading anything: a bundle whose web entry throws must still
+  // be caught (and reset, if an offline launch only provisionally trusted it).
+  const ready = declareReadyWhenShellRenders(
     capgoReadyPorts((error) => {
       void reportBootError(error);
     }),
   );
+  try {
+    await earlyPushTapReady;
+    const { installUpdates } = await import("./updates/boot");
+    await installUpdates().catch(reportBootError);
+    await import("../../web/src/main");
+  } catch (error) {
+    ready.fail(error);
+    throw error;
+  }
   const { installNativeUx } = await import("./native-ux");
   void installNativeUx().catch((error: unknown) => reportBootError(error));
 }
