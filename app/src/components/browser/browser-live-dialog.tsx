@@ -44,6 +44,7 @@ function useBrowserLiveLabels(): BrowserLiveViewLabels {
       endedNone: t("browserLive.endedNone"),
       notOwner: t("browserLive.notOwner"),
       tapToType: t("browserLive.tapToType"),
+      leavePage: t("browserLive.leavePage"),
       website: t("browserLive.website"),
       timeLeft: (minutes) => t("browserLive.timeLeft", { minutes }),
     }),

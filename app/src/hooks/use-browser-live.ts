@@ -1,4 +1,7 @@
-import type { BrowserLiveConnection } from "@houston/engine-adapter";
+import type {
+  BrowserLiveConnection,
+  BrowserLiveConnectOptions,
+} from "@houston/engine-adapter";
 import {
   type BrowserLiveViewInput,
   type BrowserLiveViewState,
@@ -45,7 +48,9 @@ export function useBrowserLive({
   /** The person answered (I'm done / Cancel) and the hand-off took it. */
   onFinished: () => void;
 }): BrowserLiveSession {
-  const layout = useIsMobile() ? "phone" : "desktop";
+  const layout: NonNullable<BrowserLiveConnectOptions["layout"]> = useIsMobile()
+    ? "phone"
+    : "desktop";
   const [frames] = useState(createBrowserLiveFrames);
   const [state, setState] = useState<BrowserLiveViewState>("connecting");
   const [page, setPage] = useState({ url: "", title: "" });
@@ -55,8 +60,12 @@ export function useBrowserLive({
   // One undecodable frame says what the next ones will: report it once.
   const paintReported = useRef(false);
   const onFinishedRef = useRef(onFinished);
+  // The layout a connection opens with; a later change re-shapes the open
+  // connection instead of replacing it (queued input and a finish survive).
+  const layoutRef = useRef(layout);
   useEffect(() => {
     onFinishedRef.current = onFinished;
+    layoutRef.current = layout;
   });
 
   useEffect(() => {
@@ -79,7 +88,7 @@ export function useBrowserLive({
           onRefused: () => setAddressRefused(true),
           onUnexpected: (error) => logAndReportError("browser_live", error),
         },
-        { layout },
+        { layout: layoutRef.current },
       );
     } catch (error) {
       logAndReportError("browser_live_open", error);
@@ -89,7 +98,11 @@ export function useBrowserLive({
       connection.current?.close();
       connection.current = null;
     };
-  }, [open, agentPath, conversationId, layout, frames]);
+  }, [open, agentPath, conversationId, frames]);
+
+  useEffect(() => {
+    connection.current?.setLayout(layout);
+  }, [layout]);
 
   const onInput = useCallback((events: BrowserLiveViewInput[]) => {
     for (const event of events) {
@@ -103,7 +116,11 @@ export function useBrowserLive({
     if (!live) return;
     live
       .finish(outcome)
-      .then(() => onFinishedRef.current())
+      // Only an answered finish reached the agent; one the view's close cut
+      // off leaves the hand-off waiting, so the view must not act as if done.
+      .then((result) => {
+        if (result === "answered") onFinishedRef.current();
+      })
       .catch((error: unknown) =>
         logAndReportError(`browser_live_finish_${outcome}`, error),
       );

@@ -478,6 +478,7 @@
     "endedNone": "This browser is no longer waiting for you.",
     "notOwner": "Only the person who asked can use this browser.",
     "tapToType": "Tap the page to type",
+    "leavePage": "Tab and Escape go to the website. Press Shift+Escape to get back to the browser controls.",
     "website": "Website",
     "timeLeft": "{{minutes}} min left",
     "title": "Browser"

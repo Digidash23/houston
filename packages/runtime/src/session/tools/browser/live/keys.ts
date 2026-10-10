@@ -1,4 +1,4 @@
-import type { BrowserLiveKey } from "@houston/wire-types";
+import type { BrowserLiveInput, BrowserLiveKey } from "@houston/wire-types";
 
 /**
  * Windows virtual key codes per special key, and the text the key types.
@@ -50,5 +50,47 @@ export function keyPress(
       ? { type: "keyDown", text, unmodifiedText: text, ...base }
       : { type: "rawKeyDown", ...base },
     { type: "keyUp", ...base },
+  ];
+}
+
+const MOUSE_TYPE = {
+  move: "mouseMoved",
+  down: "mousePressed",
+  up: "mouseReleased",
+} as const;
+
+export interface MouseEventParams {
+  type: "mouseMoved" | "mousePressed" | "mouseReleased";
+  x: number;
+  y: number;
+  button: "none" | "left";
+  buttons?: number;
+  clickCount: number;
+}
+
+/** The CDP `Input.dispatchMouseEvent` calls for one mouse event at `at` (px). */
+export function mouseSteps(
+  event: Extract<BrowserLiveInput, { type: "mouse" }>,
+  at: { x: number; y: number },
+): MouseEventParams[] {
+  const clickCount = event.clickCount ?? 1;
+  if (event.action === "click")
+    return (["mouseMoved", "mousePressed", "mouseReleased"] as const).map(
+      (type) => ({
+        type,
+        ...at,
+        button: type === "mouseMoved" ? "none" : "left",
+        clickCount,
+      }),
+    );
+  const pressed = event.buttons === 1;
+  return [
+    {
+      type: MOUSE_TYPE[event.action],
+      ...at,
+      button: event.action === "move" && !pressed ? "none" : "left",
+      buttons: pressed ? 1 : 0,
+      clickCount,
+    },
   ];
 }

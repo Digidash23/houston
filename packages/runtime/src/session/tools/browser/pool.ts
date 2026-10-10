@@ -1,19 +1,10 @@
+import { sep } from "node:path";
 import type { Browser } from "playwright-core";
 import { launchBrowser } from "./launch";
-import { type BrowserTab, openTab } from "./open-tab";
-import { saveState } from "./state-store";
-import { closeContext } from "./tab-pages";
+import type { BrowserTab } from "./open-tab";
+import { disposeSlot, liveTab, newSlot, type Slot } from "./pool-slot";
 
 export type { BrowserTab } from "./open-tab";
-
-/** A conversation's place in the pool; its calls run one at a time. */
-interface Slot {
-  statePath: string;
-  tab: Promise<BrowserTab> | null;
-  chain: Promise<void>;
-  pending: number;
-  lastUsed: number;
-}
 
 export interface BrowserPoolOptions {
   launch?: () => Promise<Browser>;
@@ -53,10 +44,15 @@ export class BrowserPool {
     fn: (tab: BrowserTab) => Promise<T>,
     signal?: AbortSignal,
   ): Promise<T> {
-    const slot = this.slots.get(key) ?? this.newSlot(key, statePath);
-    return this.enqueue(slot, async () => {
+    let slot = this.slots.get(key);
+    if (!slot) {
+      slot = newSlot(statePath);
+      this.slots.set(key, slot);
+    }
+    const queued = slot;
+    return this.enqueue(queued, async () => {
       signal?.throwIfAborted();
-      return fn(await this.liveTab(slot));
+      return fn(await liveTab(queued, () => this.ensureBrowser()));
     });
   }
 
@@ -72,7 +68,34 @@ export class BrowserPool {
   /** Save and close one conversation's context; the browser stays up. */
   async closeTab(key: string): Promise<void> {
     const slot = this.slots.get(key);
-    if (slot) await this.enqueue(slot, () => this.dispose(slot));
+    if (slot) await this.enqueue(slot, () => disposeSlot(slot));
+  }
+
+  /**
+   * Save and close every context whose sign-ins live under `dir`, and forget
+   * them: a pooled turn's workspace is about to be deleted, and a context left
+   * open would outlive it (and a later save would write into a removed tree).
+   * Waits behind each one's running call. Failures are logged, never thrown,
+   * so the caller's cleanup goes on.
+   */
+  async closeUnder(dir: string): Promise<void> {
+    const prefix = dir.endsWith(sep) ? dir : `${dir}${sep}`;
+    const keys = [...this.slots]
+      .filter(([, slot]) => slot.statePath.startsWith(prefix))
+      .map(([key]) => key);
+    const results = await Promise.allSettled(
+      keys.map((key) => this.closeTab(key)),
+    );
+    for (const key of keys) {
+      const slot = this.slots.get(key);
+      if (slot?.pending === 0 && !slot.tab) this.slots.delete(key);
+    }
+    for (const result of results)
+      if (result.status === "rejected")
+        console.error(
+          "[browser] closing a turn's browser failed",
+          result.reason,
+        );
   }
 
   /** Save every context and close the browser. Safe to call twice. */
@@ -88,18 +111,6 @@ export class BrowserPool {
         console.error("[browser] saving sign-ins failed", result.reason);
   }
 
-  private newSlot(key: string, statePath: string): Slot {
-    const slot: Slot = {
-      statePath,
-      tab: null,
-      chain: Promise.resolve(),
-      pending: 0,
-      lastUsed: Date.now(),
-    };
-    this.slots.set(key, slot);
-    return slot;
-  }
-
   private enqueue<T>(slot: Slot, fn: () => Promise<T>): Promise<T> {
     slot.pending += 1;
     const result = slot.chain.then(fn);
@@ -110,35 +121,6 @@ export class BrowserPool {
     };
     slot.chain = result.then(done, done);
     return result;
-  }
-
-  private async liveTab(slot: Slot): Promise<BrowserTab> {
-    // A failed open already reached its own caller as a refusal; here it only
-    // means "open again".
-    const tab = await slot.tab?.catch(() => undefined);
-    if (tab?.context.browser()?.isConnected()) {
-      if (tab.page.isClosed())
-        tab.page = tab.context.pages().at(-1) ?? (await tab.context.newPage());
-      return tab;
-    }
-    // Never opened, failed to open, or its browser is gone: open afresh.
-    const opened = this.ensureBrowser().then((browser) =>
-      openTab(browser, slot.statePath),
-    );
-    slot.tab = opened;
-    return opened;
-  }
-
-  private async dispose(slot: Slot): Promise<void> {
-    const pending = slot.tab;
-    slot.tab = null;
-    const tab = await pending?.catch(() => undefined);
-    if (!tab?.context.browser()?.isConnected()) return;
-    try {
-      await saveState(tab);
-    } finally {
-      await closeContext(tab);
-    }
   }
 
   private armSweep(): void {

@@ -478,6 +478,7 @@
     "endedNone": "Este navegador ya no te está esperando.",
     "notOwner": "Solo la persona que lo pidió puede usar este navegador.",
     "tapToType": "Toca la página para escribir",
+    "leavePage": "Tab y Escape van al sitio web. Presiona Mayús+Escape para volver a los controles del navegador.",
     "website": "Sitio web",
     "timeLeft": "Quedan {{minutes}} min",
     "title": "Navegador"

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { BROWSER_LIVE_IDLE_MS, BROWSER_LIVE_MAX_ATTEMPTS } from "./connection";
+import {
+  BROWSER_LIVE_HEALTHY_MS,
+  BROWSER_LIVE_IDLE_MS,
+  BROWSER_LIVE_MAX_ATTEMPTS,
+} from "./connection";
 import { flush, httpError, liveHarness } from "./live-test-kit";
 
 const frame = (seq: number) =>
@@ -78,13 +82,21 @@ describe("the browser live connection's stream", () => {
     expect(h.handlers.onUnexpected).not.toHaveBeenCalled();
   });
 
-  it("resets the attempt count once a stream delivers again", async () => {
+  it("resets the attempt count only once a stream stayed up", async () => {
     const h = liveHarness();
     h.streams[0].resolve();
     await flush();
     await h.advance(500);
+    // A stream that says its status and dies at once is no recovery.
     h.streams[1].onEvent(waiting);
+    h.streams[1].onEvent(frame(1));
     h.streams[1].resolve();
+    await flush();
+    expect(h.states.at(-1)).toEqual({ kind: "reconnecting", attempt: 2 });
+    await h.advance(1000);
+    h.streams[2].onEvent(waiting);
+    await h.advance(BROWSER_LIVE_HEALTHY_MS);
+    h.streams[2].resolve();
     await flush();
     expect(h.states.at(-1)).toEqual({ kind: "reconnecting", attempt: 1 });
   });
@@ -121,5 +133,68 @@ describe("the browser live connection's stream", () => {
     await h.advance(60_000);
     expect(h.streams).toHaveLength(1);
     expect(h.states).toEqual([{ kind: "connecting" }]);
+  });
+});
+
+describe("the browser live connection's failures and layout", () => {
+  it("treats a read error after the stream answered as a drop, unreported", async () => {
+    const h = liveHarness();
+    h.streams[0].onActivity?.();
+    h.streams[0].onEvent(waiting);
+    h.streams[0].reject(new TypeError("network error"));
+    await flush();
+    expect(h.states.at(-1)).toEqual({ kind: "reconnecting", attempt: 1 });
+    h.streams.length = 0;
+    await h.advance(500);
+    h.streams[0].onActivity?.();
+    h.streams[0].reject(new TypeError("Error in body stream"));
+    await flush();
+    expect(h.handlers.onUnexpected).not.toHaveBeenCalled();
+  });
+
+  it("aborts the request on every exit and reports drift once", async () => {
+    const h = liveHarness();
+    const garbled = new SyntaxError("Unexpected token");
+    h.streams[0].onActivity?.();
+    h.streams[0].reject(garbled);
+    await flush();
+    expect(h.streams[0].signal.aborted).toBe(true);
+    await h.advance(500);
+    h.streams[1].onMalformed?.(new Error("Invalid browser live frame jpeg"));
+    h.streams[1].resolve();
+    await flush();
+    expect(h.streams[1].signal.aborted).toBe(true);
+    expect(h.handlers.onUnexpected).toHaveBeenCalledTimes(1);
+    expect(h.handlers.onUnexpected).toHaveBeenCalledWith(garbled);
+  });
+
+  it("re-opens the stream for a new layout, keeping queued input and finish", async () => {
+    const h = liveHarness();
+    h.connection.send({ type: "back" });
+    const finished = h.connection.finish("done");
+    h.connection.setLayout("desktop");
+    expect(h.streams[0].signal.aborted).toBe(true);
+    expect(h.streams[1].layout).toBe("desktop");
+    h.streams[0].reject(new DOMException("aborted", "AbortError"));
+    h.posts[0].resolve({ state: "waiting" });
+    await flush();
+    expect(h.posts[1].request.finish).toBe("done");
+    h.posts[1].resolve({ state: "done" });
+    await expect(finished).resolves.toBe("answered");
+    expect(h.streams).toHaveLength(2);
+  });
+
+  it("a layout change while lost waits for the retry", async () => {
+    const h = liveHarness();
+    for (let i = 0; i <= BROWSER_LIVE_MAX_ATTEMPTS; i++) {
+      h.streams[i].reject(new TypeError("Failed to fetch"));
+      await flush();
+      await h.advance(8000);
+    }
+    expect(h.states.at(-1)).toEqual({ kind: "lost" });
+    h.connection.setLayout("desktop");
+    expect(h.streams).toHaveLength(BROWSER_LIVE_MAX_ATTEMPTS + 1);
+    h.connection.retry();
+    expect(h.streams.at(-1)?.layout).toBe("desktop");
   });
 });

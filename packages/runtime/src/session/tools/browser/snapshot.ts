@@ -1,5 +1,6 @@
 import type { Page } from "playwright-core";
 import type { BrowserTab } from "./open-tab";
+import { redactUrl } from "./redact-url";
 import { nextGeneration, stampRefs } from "./refs";
 
 /** A GitHub page measured ~200k characters raw; the model needs a page, not a dump. */
@@ -24,18 +25,7 @@ export async function pageSnapshot(tab: BrowserTab): Promise<string> {
   const page = tab.page;
   // Every frame: the AI snapshot descends into iframes (refs like f1e3), and
   // sign-in forms often live in one.
-  const perFrame = await Promise.all(
-    page
-      .frames()
-      .map((frame) =>
-        frame
-          .locator('input[type="password"]')
-          .evaluateAll((inputs) =>
-            inputs.map((input) => (input as HTMLInputElement).value),
-          ),
-      ),
-  );
-  const secrets = perFrame.flat();
+  const secrets = await passwordValues(page);
   const tree = await ariaTree(page);
   const title = await page.title();
   const generation = nextGeneration();
@@ -43,7 +33,33 @@ export async function pageSnapshot(tab: BrowserTab): Promise<string> {
   // (for the page underneath) read as stale instead of resolving on it.
   if (tab.page === page) tab.generation = generation;
   const stamped = stampRefs(maskPasswords(tree, secrets), generation);
-  return capSnapshot(`Page: ${title}\nAddress: ${page.url()}\n\n${stamped}`);
+  return capSnapshot(
+    `Page: ${title}\nAddress: ${redactUrl(page.url())}\n\n${stamped}`,
+  );
+}
+
+/**
+ * The password fields' values in every frame, to mask in the tree. A frame
+ * that detached meanwhile (an iframe the page removed) is no longer in the
+ * tree either, so its failure is skipped; any other failure is thrown rather
+ * than risk printing a password unmasked.
+ */
+async function passwordValues(page: Page): Promise<string[]> {
+  const frames = page.frames();
+  const perFrame = await Promise.allSettled(
+    frames.map((frame) =>
+      frame
+        .locator('input[type="password"]')
+        .evaluateAll((inputs) =>
+          inputs.map((input) => (input as HTMLInputElement).value),
+        ),
+    ),
+  );
+  return perFrame.flatMap((result, i) => {
+    if (result.status === "fulfilled") return result.value;
+    if (frames[i]?.isDetached()) return [];
+    throw result.reason;
+  });
 }
 
 export const STILL_LOADING =

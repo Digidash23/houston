@@ -1,10 +1,8 @@
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import type { Browser } from "playwright-core";
 import { afterAll, describe, expect, test } from "vitest";
 import { runWithConversationId } from "../../conversation-context";
 import {
+  agentWorkspace,
   browserAvailable,
   fixtureLaunch,
   fixturePool,
@@ -31,7 +29,7 @@ const newPool = () => {
   pools.push(pool);
   return pool;
 };
-const workspace = () => mkdtempSync(join(tmpdir(), "browser-it-"));
+const workspace = () => agentWorkspace("browser-it-");
 
 afterAll(async () => {
   await Promise.all(pools.map((pool) => pool.shutdown()));

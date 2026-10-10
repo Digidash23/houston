@@ -3,6 +3,7 @@ import type { Locator, Page } from "playwright-core";
 import type { BrowserAction } from "./actions";
 import { BrowserToolError } from "./errors";
 import type { BrowserTab } from "./pool";
+import { redactUrl } from "./redact-url";
 import { resolveRef } from "./refs";
 import { pageSnapshot } from "./snapshot";
 import { checkBrowserUrl, landedSafely } from "./url-policy";
@@ -117,7 +118,7 @@ export async function runBrowserAction(
     case "open": {
       const url = checkBrowserUrl(action.url);
       await goto(page, url.href);
-      return withSnapshot(`Opened ${url.href}.`);
+      return withSnapshot(`Opened ${redactUrl(url.href)}.`);
     }
     case "snapshot":
       return { content: [text(await pageSnapshot(tab))], mutated: false };
@@ -162,7 +163,7 @@ export async function runBrowserAction(
       const image = await page.screenshot({ type: "jpeg", quality: 60 });
       return {
         content: [
-          text(`Screenshot of ${page.url()}.`),
+          text(`Screenshot of ${redactUrl(page.url())}.`),
           {
             type: "image",
             data: image.toString("base64"),

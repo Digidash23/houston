@@ -29,10 +29,11 @@ export async function applyLayout(
 
 /**
  * Back to the size the model's snapshots assume, on every page the hand-off
- * may have resized (the shown page and each popup it followed).
+ * may have resized (the shown page and each popup it followed). Always every
+ * page: a phone viewer then a desktop one leaves the tab "desktop" while the
+ * popups the phone saw are still phone-sized.
  */
 export async function restoreLayout(tab: BrowserTab): Promise<void> {
-  if (tab.layout === "desktop") return;
   tab.layout = "desktop";
   const results = await Promise.allSettled(
     tab.context.pages().map((page) => fitPage(tab, page)),

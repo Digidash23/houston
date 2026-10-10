@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  BROWSER_LIVE_INPUT_TIMEOUT_MS,
   BROWSER_LIVE_MAX_EVENTS,
   BROWSER_LIVE_MAX_TEXT,
   BROWSER_LIVE_VIEWER,
@@ -76,6 +77,7 @@ describe("parseBrowserLiveInputRequest", () => {
           { type: "back" },
         ],
         ack: { viewer: "viewer_12345", seq: 3 },
+        batch: { viewer: "viewer_12345", seq: 7 },
         finish: "done",
       }),
     ).toEqual({
@@ -95,8 +97,17 @@ describe("parseBrowserLiveInputRequest", () => {
         { type: "back" },
       ],
       ack: { viewer: "viewer_12345", seq: 3 },
+      batch: { viewer: "viewer_12345", seq: 7 },
       finish: "done",
     });
+  });
+
+  it("accepts the first batch and the largest safe batch seq", () => {
+    for (const seq of [1, Number.MAX_SAFE_INTEGER])
+      expect(
+        parseBrowserLiveInputRequest({ batch: { viewer: "viewer_12345", seq } })
+          .batch,
+      ).toEqual({ viewer: "viewer_12345", seq });
   });
 
   it("accepts an empty body and a finish alone", () => {
@@ -155,8 +166,23 @@ describe("parseBrowserLiveInputRequest", () => {
     ["bad viewer", { ack: { viewer: "short", seq: 1 } }],
     ["bad ack seq", { ack: { viewer: "viewer_12345", seq: -1 } }],
     ["bad finish", { finish: "later" }],
+    ["batch not an object", { batch: 1 }],
+    ["bad batch viewer", { batch: { viewer: "short", seq: 1 } }],
+    ["batch seq zero", { batch: { viewer: "viewer_12345", seq: 0 } }],
+    ["fractional batch seq", { batch: { viewer: "viewer_12345", seq: 1.5 } }],
+    [
+      "unsafe batch seq",
+      { batch: { viewer: "viewer_12345", seq: Number.MAX_SAFE_INTEGER + 1 } },
+    ],
+    ["missing batch seq", { batch: { viewer: "viewer_12345" } }],
   ])("throws on %s", (_name, value) => {
     expect(() => parseBrowserLiveInputRequest(value)).toThrow();
+  });
+});
+
+describe("BROWSER_LIVE_INPUT_TIMEOUT_MS", () => {
+  it("is the client's 15 s per-POST budget", () => {
+    expect(BROWSER_LIVE_INPUT_TIMEOUT_MS).toBe(15_000);
   });
 });
 

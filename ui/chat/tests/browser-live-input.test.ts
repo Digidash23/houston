@@ -7,6 +7,7 @@ import {
 } from "../src/browser-live-geometry.ts";
 import {
   beforeInputKey,
+  isLeavePageKey,
   keyDownInput,
   textInput,
 } from "../src/browser-live-keys.ts";
@@ -147,6 +148,24 @@ describe("live view keys", () => {
   it("leaves printable keys and composition to the text field", () => {
     strictEqual(keyDownInput(key("a")), null);
     strictEqual(keyDownInput(key("Enter", { isComposing: true })), null);
+  });
+
+  it("drops the Enter that commits an IME composition (keyCode 229)", () => {
+    strictEqual(keyDownInput({ ...key("Enter"), keyCode: 229 }), null);
+    deepStrictEqual(keyDownInput({ ...key("Enter"), keyCode: 13 }), {
+      type: "key",
+      key: "Enter",
+    });
+  });
+
+  it("knows Shift+Escape alone as the way out of the page", () => {
+    strictEqual(isLeavePageKey(key("Escape", { shiftKey: true })), true);
+    strictEqual(isLeavePageKey(key("Escape")), false);
+    strictEqual(
+      isLeavePageKey(key("Escape", { shiftKey: true, ctrlKey: true })),
+      false,
+    );
+    strictEqual(isLeavePageKey(key("Tab", { shiftKey: true })), false);
   });
 
   it("sends Backspace on an empty field, where phones fire no keydown", () => {

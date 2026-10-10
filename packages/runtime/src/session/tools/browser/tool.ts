@@ -22,6 +22,7 @@ import { runHandoff } from "./handoff";
 import { type HandoffRegistry, sharedHandoffs } from "./live/registry";
 import { BROWSER_TOOL_NAME } from "./name";
 import { type BrowserPool, sharedBrowserPool } from "./pool";
+import { redactUrl } from "./redact-url";
 import { runBrowserAction } from "./run-action";
 import { browserStatePath, saveState } from "./state-store";
 
@@ -78,8 +79,11 @@ export function makeBrowserTool({
     const conversationId = currentConversationId();
     if (!liveView || !conversationId)
       return browserFailure("handoff_unavailable", NO_LIVE_VIEW);
-    // Taken now: the request that started the turn named who it is for.
-    const owner = decodeActingAuthor(currentActingContext()?.actingAs)?.userId;
+    // Taken now: the request that started the turn named who it is for (the
+    // signed acting-as, or a pooled turn's acting user).
+    const acting = currentActingContext();
+    const owner =
+      decodeActingAuthor(acting?.actingAs)?.userId ?? acting?.actingUser;
     return pool.run(
       key,
       statePath,
@@ -132,7 +136,11 @@ export function makeBrowserTool({
             if (outcome.mutated) await saveState(tab);
             return {
               content: outcome.content,
-              details: { ok: true, action: action.action, url: tab.page.url() },
+              details: {
+                ok: true,
+                action: action.action,
+                url: redactUrl(tab.page.url()),
+              },
             };
           },
           signal,

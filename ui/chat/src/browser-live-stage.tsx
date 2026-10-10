@@ -1,7 +1,7 @@
 "use client";
 
 import { Button, Spinner } from "@houston-ai/core";
-import { type PointerEvent, useEffect, useRef } from "react";
+import { type PointerEvent, useEffect, useId, useRef } from "react";
 import {
   type BrowserLiveStageGeometry,
   wheelInput,
@@ -25,6 +25,8 @@ export interface BrowserLiveStageProps {
   onInput: (events: BrowserLiveViewInput[]) => void;
   onRetry: () => void;
   onPaintError?: (error: unknown) => void;
+  /** Shift+Escape on the page: move focus to the view's own controls. */
+  onLeavePage?: () => void;
   labels: BrowserLiveViewLabels;
 }
 
@@ -76,15 +78,17 @@ export function BrowserLiveStage({
   onInput,
   onRetry,
   onPaintError,
+  onLeavePage,
   labels,
 }: BrowserLiveStageProps) {
+  const hintId = useId();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const pointer = useRef(createBrowserLivePointer()).current;
   const painted = useBrowserLivePaint(canvasRef, frames, onPaintError);
   const live = state === "live";
   const send = (event: BrowserLiveViewInput) => onInput([event]);
-  useBrowserLiveKeyboard(fieldRef, send, live);
+  useBrowserLiveKeyboard(fieldRef, send, live, onLeavePage);
 
   // React registers wheel listeners as passive; the page must own the scroll.
   const onInputRef = useRef(onInput);
@@ -168,7 +172,11 @@ export function BrowserLiveStage({
           </div>
         </div>
       ) : null}
+      <span className="sr-only" id={hintId}>
+        {labels.leavePage}
+      </span>
       <textarea
+        aria-describedby={hintId}
         aria-label={labels.tapToType}
         autoCapitalize="off"
         autoComplete="off"

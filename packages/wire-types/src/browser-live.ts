@@ -108,11 +108,20 @@ export const BROWSER_LIVE_MAX_TEXT = 10_000;
 export const BROWSER_LIVE_MAX_BODY_BYTES = 64 * 1024;
 /** Unacked frames the runtime keeps in flight per viewer. */
 export const BROWSER_LIVE_FRAME_WINDOW = 2;
+/** The client's per-POST timeout for an input batch; a retry reuses its `batch`. */
+export const BROWSER_LIVE_INPUT_TIMEOUT_MS = 15_000;
 
 export interface BrowserLiveInputRequest {
   events?: BrowserLiveInput[];
   /** The highest frame `seq` this viewer has received. */
   ack?: { viewer: string; seq: number };
+  /**
+   * Makes `events` idempotent across retries: `seq` starts at 1 and strictly
+   * increases per viewer. The runtime remembers the highest seq it applied
+   * per viewer; a request whose `seq` is not above it gets the current state
+   * WITHOUT its events being applied again (its `ack` and `finish` still are).
+   */
+  batch?: { viewer: string; seq: number };
   finish?: "done" | "cancel";
 }
 export interface BrowserLiveInputAnswer {

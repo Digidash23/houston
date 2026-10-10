@@ -87,9 +87,75 @@ describe("browserHandoffCards", () => {
     expect(browserHandoffCards(items, false)[0].state).toBe("ended");
     expect(browserHandoffCards([...items, end], true)[0].state).toBe("ended");
     expect(
-      browserHandoffCards([...items, call({ action: "snapshot" })], true)[0]
-        .state,
+      browserHandoffCards(
+        [
+          ...items,
+          call({ command: "ls" }, "bash"),
+          result("files", false, "bash"),
+        ],
+        true,
+      )[0].state,
     ).toBe("ended");
+  });
+
+  it("keeps waiting when the same message asked for another tool too", () => {
+    // Tools run one at a time: the second call waits behind the hand-off.
+    const items = [
+      user("go"),
+      call(handoff()),
+      call({ command: "ls" }, "bash"),
+    ];
+    expect(browserHandoffCards(items, true)[0].state).toBe("waiting");
+  });
+
+  it("reads an empty success as ended: history's fill for an interrupted tool", () => {
+    const items = [user("go"), call(handoff()), result(""), end];
+    expect(browserHandoffCards(items, false)[0]).toMatchObject({
+      anchorIndex: 2,
+      state: "ended",
+    });
+  });
+
+  it("an orphaned call of an earlier turn never takes a later result", () => {
+    const items = [
+      user("a"),
+      call(handoff("https://a.com"), "browser", "old"),
+      user("b"),
+      call(handoff("https://b.com"), "browser", "new"),
+      result("The person finished: b"),
+    ];
+    expect(
+      browserHandoffCards(items, false).map((c) => [c.key, c.state]),
+    ).toEqual([
+      ["old:handoff", "ended"],
+      ["new:handoff", "done"],
+    ]);
+  });
+
+  it("pairs by turn and tool index when the rows carry them", () => {
+    const tagged = (
+      item: BrowserHandoffFeedItem,
+      turnId: string,
+      toolIndex: number,
+    ) => ({ ...item, turnId, toolIndex });
+    const items = [
+      user("a"),
+      tagged(call(handoff("https://a.com"), "browser", "t1"), "T1", 0),
+      // T1 stopped mid hand-off: no result. Then T2 ran a browser open.
+      user("b"),
+      tagged(call({ action: "open", url: "https://c.com" }), "T2", 0),
+      call(handoff("https://b.com"), "browser", "t2"),
+      tagged(result("ERROR handoff_expired: late", true), "T2", 1),
+      tagged(result("opened"), "T2", 0),
+    ];
+    // The untagged hand-off call has no index; T2's index 1 is not T1's 0.
+    items[4] = tagged(items[4], "T2", 1);
+    expect(
+      browserHandoffCards(items, true).map((c) => [c.key, c.state]),
+    ).toEqual([
+      ["t1:handoff", "ended"],
+      ["t2:handoff", "expired"],
+    ]);
   });
 
   it("keeps waiting when the person writes while it waits", () => {

@@ -3,40 +3,46 @@ import type { CDPSession, Page } from "playwright-core";
 import { BrowserToolError } from "../errors";
 import type { BrowserTab } from "../open-tab";
 import { checkBrowserUrl } from "../url-policy";
-import { keyPress } from "./keys";
+import { CDP_STEP_MS, within } from "./cdp-step";
+import { keyPress, mouseSteps } from "./keys";
 import { DESKTOP_VIEWPORT } from "./layout";
 import { isClosedError, warnUnlessClosed } from "./page-errors";
 
 /** A navigation from the live view returns once it commits, never later. */
 const NAVIGATE_TIMEOUT_MS = 15_000;
 
-const MOUSE_TYPE = {
-  move: "mouseMoved",
-  down: "mousePressed",
-  up: "mouseReleased",
-} as const;
-
 export interface InputOutcome {
   refused?: "url_refused";
 }
+
+/** Input arriving after the hand-off ended: the page is the agent's again. */
+class InputClosedError extends Error {}
 
 /**
  * Applies the person's input to the tab's CURRENT page over its own CDP
  * session, never through the pool's queue: the hand-off holds that queue for
  * as long as the person is driving. Typed text and addresses are never logged.
+ * Every CDP step is bounded ({@link within}), and once closed nothing more
+ * reaches the page, not even the rest of a batch already running.
  */
 export class LiveInput {
   private bound: { page: Page; session: Promise<CDPSession> } | null = null;
+  private closed = false;
 
-  constructor(private readonly tab: BrowserTab) {}
+  constructor(
+    private readonly tab: BrowserTab,
+    private readonly stepMs = CDP_STEP_MS,
+  ) {}
 
   async apply(events: readonly BrowserLiveInput[]): Promise<InputOutcome> {
     let outcome: InputOutcome = {};
     for (const event of events) {
+      if (this.closed) break;
       try {
         if ((await this.one(event)) === "url_refused")
           outcome = { refused: "url_refused" };
       } catch (error) {
+        if (error instanceof InputClosedError) break;
         // The page closed under the person's click (a popup finishing its
         // sign-in): the tab already moved on, so the rest of the batch goes there.
         if (!isClosedError(error)) throw error;
@@ -44,6 +50,14 @@ export class LiveInput {
       }
     }
     return outcome;
+  }
+
+  /** One bounded CDP call on the current page's session. */
+  private async send(
+    ...[method, params]: Parameters<CDPSession["send"]>
+  ): Promise<void> {
+    const cdp = await this.session();
+    await within(cdp.send(method, params), method, this.stepMs);
   }
 
   private async one(
@@ -54,7 +68,7 @@ export class LiveInput {
         await this.mouse(event);
         return undefined;
       case "wheel":
-        await (await this.session()).send("Input.dispatchMouseEvent", {
+        await this.send("Input.dispatchMouseEvent", {
           type: "mouseWheel",
           ...this.px(event),
           deltaX: event.dx,
@@ -63,13 +77,11 @@ export class LiveInput {
         return;
       case "key":
         for (const params of keyPress(event.key, event.modifiers ?? 0))
-          await (await this.session()).send("Input.dispatchKeyEvent", params);
+          await this.send("Input.dispatchKeyEvent", params);
         return;
       case "text":
         if (event.text)
-          await (await this.session()).send("Input.insertText", {
-            text: event.text,
-          });
+          await this.send("Input.insertText", { text: event.text });
         return;
       case "navigate":
         return this.navigate(event.url);
@@ -82,31 +94,8 @@ export class LiveInput {
   private async mouse(
     event: Extract<BrowserLiveInput, { type: "mouse" }>,
   ): Promise<void> {
-    const at = this.px(event);
-    const clickCount = event.clickCount ?? 1;
-    const cdp = await this.session();
-    if (event.action === "click") {
-      for (const type of [
-        "mouseMoved",
-        "mousePressed",
-        "mouseReleased",
-      ] as const)
-        await cdp.send("Input.dispatchMouseEvent", {
-          type,
-          ...at,
-          button: type === "mouseMoved" ? "none" : "left",
-          clickCount,
-        });
-      return;
-    }
-    const pressed = event.buttons === 1;
-    await cdp.send("Input.dispatchMouseEvent", {
-      type: MOUSE_TYPE[event.action],
-      ...at,
-      button: event.action === "move" && !pressed ? "none" : "left",
-      buttons: pressed ? 1 : 0,
-      clickCount,
-    });
+    for (const params of mouseSteps(event, this.px(event)))
+      await this.send("Input.dispatchMouseEvent", params);
   }
 
   private async navigate(raw: string): Promise<"url_refused" | undefined> {
@@ -126,12 +115,21 @@ export class LiveInput {
     return undefined;
   }
 
-  /** A popup or new tab has no history: Back closes it, showing the one below. */
+  /**
+   * A popup or new tab has no history: Back closes it, showing the one below.
+   * The browser's own record of the page's history, never the page's word
+   * for it: a page script can fake `history.length` or stall `evaluate`.
+   */
   private async back(): Promise<void> {
     const page = this.tab.page;
-    const depth = await page.evaluate(() => history.length);
+    const cdp = await this.session();
+    const { currentIndex } = await within(
+      cdp.send("Page.getNavigationHistory"),
+      "history",
+      this.stepMs,
+    );
     const open = this.tab.context.pages().filter((p) => !p.isClosed());
-    if (depth <= 1 && open.length > 1) {
+    if (currentIndex <= 0 && open.length > 1) {
       await page.close();
       return;
     }
@@ -151,6 +149,7 @@ export class LiveInput {
   }
 
   private session(): Promise<CDPSession> {
+    if (this.closed) throw new InputClosedError("the hand-off has ended");
     const page = this.tab.page;
     if (this.bound?.page !== page) {
       const old = this.bound?.session;
@@ -162,8 +161,9 @@ export class LiveInput {
     return this.bound.session;
   }
 
-  /** Drop the CDP session (the hand-off ended). */
+  /** Refuse all further input and drop the CDP session (the hand-off ended). */
   async close(): Promise<void> {
+    this.closed = true;
     const bound = this.bound;
     this.bound = null;
     await bound?.session

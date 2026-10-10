@@ -114,6 +114,16 @@ export function parseBrowserLiveInputRequest(
       throw new Error("Invalid browser input ack viewer");
     request.ack = { viewer, seq: count(ack.seq, "browser input ack seq") };
   }
+  if (body.batch !== undefined) {
+    const batch = record(body.batch, "browser input batch");
+    const viewer = text(batch.viewer, "browser input batch viewer");
+    if (!BROWSER_LIVE_VIEWER.test(viewer))
+      throw new Error("Invalid browser input batch viewer");
+    const seq = count(batch.seq, "browser input batch seq");
+    if (seq < 1 || !Number.isSafeInteger(seq))
+      throw new Error("Invalid browser input batch seq");
+    request.batch = { viewer, seq };
+  }
   if (body.finish !== undefined) {
     if (body.finish !== "done" && body.finish !== "cancel")
       throw new Error("Invalid browser input finish");

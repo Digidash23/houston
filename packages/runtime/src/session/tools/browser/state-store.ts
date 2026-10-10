@@ -83,7 +83,7 @@ async function writeMerged(holder: StateHolder): Promise<void> {
   const ours = await holder.context.storageState({ indexedDB: true });
   const theirs = (await readState(holder.statePath)) ?? EMPTY_STATE;
   const merged = mergeStorageState(holder.base, ours, theirs);
-  await mkdir(dirname(holder.statePath), { recursive: true, mode: 0o700 });
+  if (!(await ensureStateDir(holder.statePath))) return;
   const tmp = atomicTempPath(
     holder.statePath,
     `${process.pid}-${crypto.randomUUID()}`,
@@ -91,4 +91,23 @@ async function writeMerged(holder: StateHolder): Promise<void> {
   await writeFile(tmp, JSON.stringify(merged), { mode: 0o600 });
   await rename(tmp, holder.statePath);
   holder.base = ours;
+}
+
+/**
+ * Creates `.houston/browser/` and nothing above it. A missing `.houston/`
+ * means the workspace is gone (a pooled turn's root already removed): the
+ * save is dropped with a warning instead of recreating a workspace that would
+ * hold plaintext cookies nobody cleans up.
+ */
+async function ensureStateDir(statePath: string): Promise<boolean> {
+  try {
+    await mkdir(dirname(statePath), { mode: 0o700 });
+    return true;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "EEXIST") return true;
+    if (code !== "ENOENT") throw error;
+    console.warn("[browser] the workspace is gone; sign-ins not saved");
+    return false;
+  }
 }

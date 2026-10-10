@@ -2,7 +2,7 @@
 
 import { Button } from "@houston-ai/core";
 import { ArrowLeftIcon, XIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BrowserLiveAddress } from "./browser-live-address";
 import {
   type BrowserLiveViewLabels,
@@ -81,6 +81,11 @@ export function BrowserLiveView({
   const live = state === "live";
   const minutes = useMinutesLeft(expiresAt, !ended);
   const send = (event: BrowserLiveViewInput) => onInput([event]);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const leavePage = () =>
+    toolbarRef.current
+      ?.querySelector<HTMLElement>("button:enabled, input:enabled")
+      ?.focus();
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-dialog">
@@ -106,7 +111,10 @@ export function BrowserLiveView({
           <XIcon className="size-5" />
         </Button>
       </header>
-      <div className="flex items-start gap-2 border-b border-line px-3 py-2">
+      <div
+        className="flex items-start gap-2 border-b border-line px-3 py-2"
+        ref={toolbarRef}
+      >
         <Button
           className="h-10 shrink-0"
           disabled={!live}
@@ -129,6 +137,7 @@ export function BrowserLiveView({
         frames={frames}
         labels={{ ...labels, website: title || labels.website }}
         onInput={onInput}
+        onLeavePage={leavePage}
         onPaintError={onPaintError}
         onRetry={onRetry}
         state={state}

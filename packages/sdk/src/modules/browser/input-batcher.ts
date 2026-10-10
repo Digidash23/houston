@@ -1,22 +1,29 @@
 /**
  * The live view's upward half: the person's input events and the viewer's
- * frame acks, batched into input POSTs with at most one in flight. Order is
- * the person's order; what can merge without changing the outcome does
- * (adjacent moves, adjacent wheel turns, adjacent typed text).
+ * frame acks, batched into input POSTs. Event batches go one at a time, in the
+ * person's order, each stamped `batch: { viewer, seq }`; a retry re-sends the
+ * same seq so a batch the runtime already applied is not applied twice. A
+ * frame ack never waits behind a stuck batch: it goes alone on its own lane.
+ * Every POST times out after `BROWSER_LIVE_INPUT_TIMEOUT_MS`, as a network
+ * failure would.
  */
 
-import {
-  BROWSER_LIVE_MAX_EVENTS,
-  BROWSER_LIVE_MAX_TEXT,
-  type BrowserLiveInput,
-  type BrowserLiveInputAnswer,
-  type BrowserLiveInputRequest,
+import type {
+  BrowserLiveInput,
+  BrowserLiveInputAnswer,
+  BrowserLiveInputRequest,
 } from "@houston/wire-types";
 import type { Clock } from "../../ports";
+import {
+  backOff,
+  clearLane,
+  type InputLane,
+  inputLane,
+  timedPost,
+} from "./input-lane";
+import { batchSize, isMove, merged, textEvents } from "./input-queue";
 import { type BrowserLiveFailure, classifyLiveFailure } from "./live-failure";
-
-/** Pause before re-sending a batch whose POST got no usable answer. */
-const RETRY_MS = [500, 1000, 2000, 4000, 8000] as const;
+import type { BrowserLiveFinishResult } from "./types";
 
 export interface InputBatcherDeps {
   viewer: string;
@@ -29,131 +36,163 @@ export interface InputBatcherDeps {
   onUnexpected(error: unknown): void;
 }
 
-function isMove(event: BrowserLiveInput): boolean {
-  return event.type === "mouse" && event.action === "move";
-}
-
-/** `next` folded into the queue's tail, or `null` when it must stay its own event. */
-function merged(
-  last: BrowserLiveInput,
-  next: BrowserLiveInput,
-): BrowserLiveInput | null {
-  if (isMove(last) && isMove(next)) return next;
-  if (last.type === "wheel" && next.type === "wheel")
-    return { ...next, dx: last.dx + next.dx, dy: last.dy + next.dy };
-  if (
-    last.type === "text" &&
-    next.type === "text" &&
-    last.text.length + next.text.length <= BROWSER_LIVE_MAX_TEXT
-  )
-    return { type: "text", text: last.text + next.text };
-  return null;
-}
-
 export function createInputBatcher(deps: InputBatcherDeps) {
+  const { clock } = deps;
   let queue: BrowserLiveInput[] = [];
-  let received: number | null = null;
-  let acked: number | null = null;
-  /** How many events at the queue's head the POST in flight carries. */
-  let inFlight: number | null = null;
+  /** The event batch on the wire or waiting to be re-sent, frozen with its seq. */
+  let batch: { seq: number; events: BrowserLiveInput[] } | null = null;
+  let nextSeq = 1;
+  let received = 0;
+  let acked = 0;
   let stopped = false;
-  let failures = 0;
-  let retryTimer: number | null = null;
+  /** An unexpected failure was reported and nothing has succeeded since. */
+  let reported = false;
   let finish: "done" | "cancel" | null = null;
-  const finishWaiters: (() => void)[] = [];
+  const finishWaiters: ((result: BrowserLiveFinishResult) => void)[] = [];
+  const events = inputLane();
+  const acks = inputLane();
 
-  const settleFinish = () => {
-    for (const resolve of finishWaiters.splice(0)) resolve();
+  const settleFinish = (result: BrowserLiveFinishResult) => {
+    finish = null;
+    for (const resolve of finishWaiters.splice(0)) resolve(result);
   };
 
-  const nextRequest = (): BrowserLiveInputRequest | null => {
-    const events = queue.slice(0, BROWSER_LIVE_MAX_EVENTS);
-    const request: BrowserLiveInputRequest = {};
-    if (events.length) request.events = events;
-    if (received !== null && received !== acked)
-      request.ack = { viewer: deps.viewer, seq: received };
-    if (finish && events.length === queue.length) request.finish = finish;
-    return request.events || request.ack || request.finish ? request : null;
+  const ackDue = () => {
+    const covered = Math.max(acked, events.ack ?? 0, acks.ack ?? 0);
+    return received > covered ? received : null;
   };
 
-  const retryLater = () => {
-    // Pointer moves are stale by the time a retry lands (every press carries
-    // its own position); only a trailing one still says where the pointer is.
-    queue = queue.filter((e, i) => !isMove(e) || i === queue.length - 1);
-    const pause = RETRY_MS[Math.min(failures, RETRY_MS.length - 1)];
-    failures += 1;
-    retryTimer = deps.clock.setTimeout(() => {
-      retryTimer = null;
-      pump();
-    }, pause);
-  };
-
-  const pump = (): void => {
-    if (stopped || inFlight !== null || retryTimer !== null) return;
-    const request = nextRequest();
-    if (!request) return;
-    const sent = request.events ?? [];
-    inFlight = sent.length;
-    deps.post(request).then(
+  /**
+   * Sends `request` on `l`. `onSent` runs on an answer, `onRefused` when the
+   * runtime refused it as malformed; either way the lane then moves on (after
+   * a pause when it failed). A transient failure keeps everything for a retry.
+   */
+  const send = (
+    l: InputLane,
+    request: BrowserLiveInputRequest,
+    onSent: () => void,
+    onRefused: () => void,
+  ) => {
+    l.busy = true;
+    l.ack = request.ack?.seq ?? null;
+    timedPost(deps.post, clock, request).then(
       (answer) => {
-        inFlight = null;
-        failures = 0;
-        if (request.ack) acked = Math.max(acked ?? 0, request.ack.seq);
-        queue = queue.slice(sent.length);
-        if (request.finish) {
-          finish = null;
-          settleFinish();
-        }
+        l.busy = false;
+        l.ack = null;
+        l.failures = 0;
+        reported = false;
+        if (request.ack) acked = Math.max(acked, request.ack.seq);
+        onSent();
         deps.onAnswer(answer);
         pump();
       },
       (err: unknown) => {
-        inFlight = null;
+        l.busy = false;
+        l.ack = null;
         if (stopped) return;
         const failure = classifyLiveFailure(err, deps.isTransport);
-        if (failure.kind === "transient") return retryLater();
-        if (failure.kind === "ended") return deps.onEnded(failure);
-        // A batch the runtime refused as malformed would be refused again.
-        deps.onUnexpected(err);
-        queue = queue.slice(sent.length);
-        if (request.finish) {
-          finish = null;
-          settleFinish();
+        if (failure.kind === "ended") {
+          // The hand-off is over: nothing is left to deliver a finish to.
+          settleFinish("answered");
+          return deps.onEnded(failure);
         }
-        pump();
+        if (failure.kind === "unexpected") {
+          // Refused as malformed: re-sending would be refused again.
+          if (!reported) deps.onUnexpected(err);
+          reported = true;
+          onRefused();
+        } else if (l === events && batch) {
+          // Moves are stale by the time a retry lands (every press carries
+          // its own position); only a trailing one still says where it is.
+          const kept = batch.events;
+          batch.events = kept.filter(
+            (e, i) => !isMove(e) || i === kept.length - 1,
+          );
+        }
+        backOff(l, clock, pump);
       },
     );
   };
 
+  const pumpEvents = () => {
+    if (events.busy || events.timer !== null) return;
+    if (!batch && queue.length > 0)
+      batch = { seq: nextSeq++, events: queue.splice(0, batchSize(queue)) };
+    const finishing = finish !== null && queue.length === 0 ? finish : null;
+    if (!batch && !finishing) return;
+    const request: BrowserLiveInputRequest = {};
+    if (batch) {
+      request.events = batch.events;
+      request.batch = { viewer: deps.viewer, seq: batch.seq };
+    }
+    const ack = ackDue();
+    if (ack !== null) request.ack = { viewer: deps.viewer, seq: ack };
+    if (finishing) request.finish = finishing;
+    const settled = (result: BrowserLiveFinishResult) => () => {
+      if (request.events) batch = null;
+      if (request.finish) settleFinish(result);
+    };
+    send(events, request, settled("answered"), settled("abandoned"));
+  };
+
+  const pumpAck = () => {
+    if (acks.busy || acks.timer !== null) return;
+    const ack = ackDue();
+    if (ack === null) return;
+    send(
+      acks,
+      { ack: { viewer: deps.viewer, seq: ack } },
+      () => {},
+      // A refused ack is not re-sent; the next frame's ack supersedes it.
+      () => {
+        acked = Math.max(acked, ack);
+      },
+    );
+  };
+
+  function pump(): void {
+    if (stopped) return;
+    pumpEvents();
+    pumpAck();
+  }
+
   return {
     send(event: BrowserLiveInput): void {
       if (stopped) return;
-      // Never fold into an event the POST in flight already carries.
-      const last = queue.length > (inFlight ?? 0) ? queue.at(-1) : undefined;
-      const fold = last ? merged(last, event) : null;
-      if (fold) queue[queue.length - 1] = fold;
-      else queue.push(event);
+      const parts = event.type === "text" ? textEvents(event.text) : [event];
+      for (const part of parts) {
+        const last = queue.at(-1);
+        const fold = last ? merged(last, part) : null;
+        if (fold) queue[queue.length - 1] = fold;
+        else queue.push(part);
+      }
       pump();
     },
-    /** The highest frame `seq` received; rides the next POST. */
+    /** The highest frame `seq` received; rides the next POST or goes alone. */
     ack(seq: number): void {
-      if (received === null || seq > received) received = seq;
+      if (seq > received) received = seq;
       pump();
     },
-    finish(outcome: "done" | "cancel"): Promise<void> {
-      if (stopped) return Promise.resolve();
+    finish(outcome: "done" | "cancel"): Promise<BrowserLiveFinishResult> {
+      if (stopped) return Promise.resolve("abandoned");
       finish = outcome;
-      const done = new Promise<void>((resolve) => finishWaiters.push(resolve));
+      const done = new Promise<BrowserLiveFinishResult>((resolve) =>
+        finishWaiters.push(resolve),
+      );
       pump();
       return done;
     },
-    /** Stop sending; a pending `finish` resolves (the hand-off answered or is out of reach). */
-    stop(): void {
+    /**
+     * Stop sending. A pending `finish` settles with `result`: `answered` when
+     * the hand-off is over anyway, `abandoned` when the view merely closed.
+     */
+    stop(result: BrowserLiveFinishResult): void {
       stopped = true;
       queue = [];
-      if (retryTimer !== null) deps.clock.clearTimeout(retryTimer);
-      retryTimer = null;
-      settleFinish();
+      batch = null;
+      clearLane(events, clock);
+      clearLane(acks, clock);
+      settleFinish(result);
     },
   };
 }

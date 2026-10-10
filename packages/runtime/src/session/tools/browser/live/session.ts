@@ -51,6 +51,8 @@ export class HandoffSession {
   private latestPage: BrowserLivePage | null = null;
   private seq = 0;
   private chain: Promise<unknown> = Promise.resolve();
+  /** The highest input batch seq applied per viewer (a retry is not re-applied). */
+  private readonly applied = new Map<string, number>();
 
   constructor(init: HandoffInit) {
     this.conversationId = init.conversationId;
@@ -124,9 +126,17 @@ export class HandoffSession {
     this.viewers.get(viewer)?.ack(seq);
   }
 
-  /** Apply one input batch, in order, after every earlier batch. */
-  apply(events: readonly BrowserLiveInput[]): Promise<InputOutcome> {
-    const run = this.chain.then(() => {
+  /**
+   * Apply one input batch, in order, after every earlier batch. A batch that
+   * was queued when the hand-off ended, or that repeats one already applied
+   * for its viewer (`batch.seq` not above the last), applies nothing.
+   */
+  apply(
+    events: readonly BrowserLiveInput[],
+    batch?: { viewer: string; seq: number },
+  ): Promise<InputOutcome> {
+    const run = this.chain.then((): InputOutcome | Promise<InputOutcome> => {
+      if (this.state !== "waiting" || !this.firstApply(batch)) return {};
       this.touch();
       return this.input.apply(events);
     });
@@ -136,6 +146,17 @@ export class HandoffSession {
       () => undefined,
     );
     return run;
+  }
+
+  /**
+   * Records `batch` as applied and says whether it is new. Recorded before the
+   * events run: a batch that failed halfway is not typed a second time.
+   */
+  private firstApply(batch?: { viewer: string; seq: number }): boolean {
+    if (!batch) return true;
+    if (batch.seq <= (this.applied.get(batch.viewer) ?? 0)) return false;
+    this.applied.set(batch.viewer, batch.seq);
+    return true;
   }
 
   private broadcastFrame(shot: Omit<BrowserLiveFrame, "type" | "seq">): void {

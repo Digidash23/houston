@@ -16,6 +16,8 @@ export interface BrowserLiveViewLabels {
   endedNone: string;
   notOwner: string;
   tapToType: string;
+  /** For assistive tech on the page itself: how to get back to the controls. */
+  leavePage: string;
   /** The page itself, for assistive tech. */
   website: string;
   timeLeft: (minutes: number) => string;
@@ -40,6 +42,8 @@ export const DEFAULT_BROWSER_LIVE_VIEW_LABELS: BrowserLiveViewLabels = {
   endedNone: "This browser is no longer waiting for you.",
   notOwner: "Only the person who asked can use this browser.",
   tapToType: "Tap the page to type",
+  leavePage:
+    "Tab and Escape go to the website. Press Shift+Escape to get back to the browser controls.",
   website: "Website",
   timeLeft: (minutes) => `${minutes} min left`,
 };

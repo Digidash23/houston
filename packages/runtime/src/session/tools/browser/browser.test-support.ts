@@ -1,5 +1,8 @@
+import { mkdirSync, mkdtempSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { runWithConversationId } from "../../conversation-context";
 import type { BrowserParams } from "./actions";
@@ -9,6 +12,13 @@ import { BrowserPool, type BrowserPoolOptions } from "./pool";
 import { makeBrowserTool } from "./tool";
 
 export const PASSWORD = "Password123";
+
+/** A fresh agent workspace: like every real one, it has its `.houston/` dir. */
+export function agentWorkspace(prefix = "browser-it-"): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  mkdirSync(join(dir, ".houston"));
+  return dir;
+}
 
 /**
  * The fixture site's name. The fence refuses loopback by address, so the

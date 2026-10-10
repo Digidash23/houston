@@ -1,5 +1,6 @@
 import type { CDPSession, Frame, Page } from "playwright-core";
 import type { BrowserTab } from "../open-tab";
+import { redactUrl } from "../redact-url";
 import { DESKTOP_VIEWPORT, PHONE_VIEWPORT } from "./layout";
 import { warnUnlessClosed } from "./page-errors";
 
@@ -130,7 +131,8 @@ export class Screencast {
     const page = this.shown;
     if (!page || page.isClosed()) return;
     const title = await page.title();
-    if (page === this.shown) this.sink.page({ url: page.url(), title });
+    if (page === this.shown)
+      this.sink.page({ url: redactUrl(page.url()), title });
   }
 
   private async release(): Promise<void> {

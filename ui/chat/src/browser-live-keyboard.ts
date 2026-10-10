@@ -1,22 +1,31 @@
 "use client";
 
 import { type RefObject, useEffect, useRef } from "react";
-import { beforeInputKey, keyDownInput, textInput } from "./browser-live-keys";
+import {
+  beforeInputKey,
+  isLeavePageKey,
+  keyDownInput,
+  textInput,
+} from "./browser-live-keys";
 import type { BrowserLiveViewInput } from "./browser-live-types";
 
 /**
  * Wires the stage's hidden text field to page input with NATIVE listeners:
  * React's synthetic `onBeforeInput` carries no `inputType`, and the field must
- * see composition and paste exactly as the platform sends them.
+ * see composition and paste exactly as the platform sends them. Shift+Escape
+ * calls `onLeave` instead of reaching the page.
  */
 export function useBrowserLiveKeyboard(
   fieldRef: RefObject<HTMLTextAreaElement | null>,
   send: (event: BrowserLiveViewInput) => void,
   enabled: boolean,
+  onLeave?: () => void,
 ): void {
   const sendRef = useRef(send);
+  const leaveRef = useRef(onLeave);
   useEffect(() => {
     sendRef.current = send;
+    leaveRef.current = onLeave;
   });
 
   useEffect(() => {
@@ -30,6 +39,11 @@ export function useBrowserLiveKeyboard(
       field.value = "";
     };
     const onKeyDown = (e: KeyboardEvent) => {
+      if (isLeavePageKey(e) && leaveRef.current) {
+        e.preventDefault();
+        leaveRef.current();
+        return;
+      }
       const event = keyDownInput(e);
       if (!event) return;
       e.preventDefault();

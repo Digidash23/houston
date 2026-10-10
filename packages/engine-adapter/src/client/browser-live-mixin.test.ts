@@ -7,6 +7,7 @@ function client(cp: object | null) {
   const connection = {
     send: vi.fn(),
     finish: vi.fn(),
+    setLayout: vi.fn(),
     retry: vi.fn(),
     close: vi.fn(),
   };

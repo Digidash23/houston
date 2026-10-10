@@ -13,13 +13,13 @@ import {
   type BrowserLiveInputAnswer,
   type BrowserLiveInputRequest,
   type BrowserLiveLayout,
-  parseBrowserLiveEvent,
   parseBrowserLiveInputAnswer,
 } from "@houston/wire-types";
 import type { ModuleContext } from "../../module-context";
 import { isTransportFailure } from "../../transport-failure";
 import { randomNonce } from "../turns/random-nonce";
 import { openBrowserLiveConnection } from "./connection";
+import { readLiveEvent } from "./live-event";
 import type {
   BrowserLiveConnection,
   BrowserLiveConnectOptions,
@@ -30,6 +30,8 @@ export interface BrowserWatchOptions {
   signal: AbortSignal;
   onEvent: (event: BrowserLiveEvent) => void;
   onActivity?: () => void;
+  /** A known message type with a broken shape; skipped. Absent: it rejects. */
+  onMalformed?: (error: unknown) => void;
 }
 
 export function createBrowserModule(ctx: ModuleContext) {
@@ -38,7 +40,8 @@ export function createBrowserModule(ctx: ModuleContext) {
    *
    * One connection attempt as viewer `viewer`: resolves when the stream ends,
    * rejects with the engine error (`404` no hand-off, `403` someone else's) or
-   * on a message outside the contract. {@link connect} is the reconnecting
+   * on a malformed message (unless `onMalformed` takes it). A message type
+   * this client does not know is skipped. {@link connect} is the reconnecting
    * binding.
    * @assistant group:chat
    * @assistant hidden: it streams a live picture of a website into the person's own screen while they sign in; dispatched on its own it would stream into nothing.
@@ -54,7 +57,10 @@ export function createBrowserModule(ctx: ModuleContext) {
       .clientFor(agentId)
       .streamBrowserLive(conversationId, viewer, layout, {
         signal: options.signal,
-        onFrame: (raw) => options.onEvent(parseBrowserLiveEvent(raw)),
+        onFrame: (raw) => {
+          const event = readLiveEvent(raw, options.onMalformed);
+          if (event) options.onEvent(event);
+        },
         onActivity: options.onActivity,
       });
   };

@@ -69,7 +69,7 @@ export function httpError(status: number, body = "") {
 }
 
 export function liveHarness() {
-  const { clock, advance } = manualClock();
+  const { clock, advance, pending } = manualClock();
   const streams: (BrowserLiveWatchOptions & Deferred<void>)[] = [];
   const posts: (Deferred<BrowserLiveInputAnswer> & {
     request: BrowserLiveInputRequest;
@@ -102,5 +102,5 @@ export function liveHarness() {
     handlers,
   };
   const connection = openBrowserLiveConnection(deps);
-  return { connection, streams, posts, states, handlers, advance };
+  return { connection, streams, posts, states, handlers, advance, pending };
 }

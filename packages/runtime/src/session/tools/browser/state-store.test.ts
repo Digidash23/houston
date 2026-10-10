@@ -1,4 +1,5 @@
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -18,7 +19,12 @@ import {
   saveState,
 } from "./state-store";
 
-const workspace = () => mkdtempSync(join(tmpdir(), "browser-state-"));
+/** An agent workspace: it always has its `.houston/` dir. */
+const workspace = () => {
+  const dir = mkdtempSync(join(tmpdir(), "browser-state-"));
+  mkdirSync(join(dir, ".houston"));
+  return dir;
+};
 
 function cookie(name: string, value: string) {
   return {
@@ -88,4 +94,19 @@ test("a missing state reads as none; a torn or foreign one is ignored", async ()
   expect(await readState(path)).toBeUndefined();
   writeFileSync(path, '{"cookies": "nope"}');
   expect(await readState(path)).toBeUndefined();
+});
+
+test("a workspace that is gone is never recreated by a save", async () => {
+  const gone = join(mkdtempSync(join(tmpdir(), "browser-state-")), "Agent");
+  const h = holder(browserStatePath(gone), () => ({
+    cookies: [cookie("sid", "abc")],
+    origins: [],
+  }));
+  await saveState(h);
+  expect(existsSync(gone)).toBe(false);
+  expect(h.base).toEqual(EMPTY_STATE);
+  // Nor is a workspace without `.houston/` given one.
+  const bare = mkdtempSync(join(tmpdir(), "browser-state-"));
+  await saveState(holder(browserStatePath(bare), () => EMPTY_STATE));
+  expect(readdirSync(bare)).toEqual([]);
 });

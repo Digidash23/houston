@@ -99,32 +99,39 @@ test("openBrowserLive streams GET …/browser/live and posts byte-identical inpu
   expect(get.headers.get("Authorization")).toBe("Bearer t");
   expect(get.headers.get("x-houston-org")).toBe(ORG);
 
-  // One batch on the wire; a frame and a key queue behind it.
+  // One event batch on the wire; a frame's ack does not wait behind it, a
+  // key queues behind it.
   live.send({ type: "text", text: "hi" });
   await vi.waitFor(() => expect(posts()).toHaveLength(1));
   stream.write(
     `event: frame\ndata: ${JSON.stringify({ type: "frame", seq: 3, jpeg: "AAA", width: 412, height: 860 })}\n\n`,
   );
   await vi.waitFor(() => expect(h.onFrame).toHaveBeenCalledOnce());
+  await vi.waitFor(() => expect(posts()).toHaveLength(2));
   live.send({ type: "key", key: "Enter" });
   firstAnswer.write('{"state":"waiting"}');
   firstAnswer.close();
-  await vi.waitFor(() => expect(posts()).toHaveLength(2));
+  await vi.waitFor(() => expect(posts()).toHaveLength(3));
 
-  const [first, second] = posts();
+  const [first, ack, second] = posts();
   expect(first.url).toBe(
     `${BASE}/agents/${AGENT}/conversations/${SK}/browser/input`,
   );
-  expect(first.body).toBe('{"events":[{"type":"text","text":"hi"}]}');
+  expect(first.body).toBe(
+    `{"events":[{"type":"text","text":"hi"}],"batch":{"viewer":"${viewer}","seq":1}}`,
+  );
   expectGatewayHeaders(first);
+  expect(ack.url).toBe(first.url);
+  expect(ack.body).toBe(`{"ack":{"viewer":"${viewer}","seq":3}}`);
+  expectGatewayHeaders(ack);
   expect(second.url).toBe(first.url);
   expect(second.body).toBe(
-    `{"events":[{"type":"key","key":"Enter"}],"ack":{"viewer":"${viewer}","seq":3}}`,
+    `{"events":[{"type":"key","key":"Enter"}],"batch":{"viewer":"${viewer}","seq":2}}`,
   );
   expectGatewayHeaders(second);
 
-  await live.finish("done");
-  const finish = posts()[2];
+  await expect(live.finish("done")).resolves.toBe("answered");
+  const finish = posts()[3];
   expect(finish.url).toBe(first.url);
   expect(finish.body).toBe('{"finish":"done"}');
   expectGatewayHeaders(finish);

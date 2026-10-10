@@ -40,11 +40,24 @@ export interface BrowserLiveHandlers {
   onUnexpected(error: unknown): void;
 }
 
+/**
+ * How a `finish` settled: `answered` when the hand-off took it (or had already
+ * ended, so there is nothing left to wait for), `abandoned` when the view
+ * closed, or the runtime refused the request, before any answer. Only
+ * `answered` means the person's choice reached the agent.
+ */
+export type BrowserLiveFinishResult = "answered" | "abandoned";
+
 export interface BrowserLiveConnection {
   /** Queue one input event; batched and sent in order. */
   send(event: BrowserLiveInput): void;
-  /** Flushes queued input first; resolves once the hand-off answered (or had already ended). */
-  finish(outcome: "done" | "cancel"): Promise<void>;
+  /** Flushes queued input first; never rejects. */
+  finish(outcome: "done" | "cancel"): Promise<BrowserLiveFinishResult>;
+  /**
+   * The viewer's screen changed shape: re-opens the stream with the new
+   * layout, keeping queued input and a pending `finish`.
+   */
+  setLayout(layout: BrowserLiveLayout): void;
   /** Start again after `lost`. */
   retry(): void;
   /** Stops watching only; the hand-off keeps waiting. */

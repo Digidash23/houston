@@ -100,6 +100,28 @@ describe("browser hand-off cards in the feed", () => {
     ]);
   });
 
+  it("keeps waiting when the same message also called another tool", () => {
+    const items = [
+      user("Go"),
+      call("browser", handoff("https://bank.example.com")),
+      call("bash", { command: "ls" }),
+    ];
+    const [{ at, card }] = cardsIn(withBrowserHandoffCards(items, true, "c"));
+    strictEqual(at, 2);
+    strictEqual(browserHandoffCard(card)?.state, "waiting");
+    strictEqual(card.ownsProgress, true);
+  });
+
+  it("reads a reloaded, interrupted hand-off (empty success) as ended", () => {
+    const items = [
+      user("Go"),
+      call("browser", handoff()),
+      result("browser", ""),
+    ];
+    const [{ card }] = cardsIn(withBrowserHandoffCards(items, false, "c"));
+    strictEqual(browserHandoffCard(card)?.state, "ended");
+  });
+
   it("leaves an unanswered hand-off as ended once no turn runs", () => {
     const items = [user("Go"), call("browser", handoff())];
     const [{ card }] = cardsIn(withBrowserHandoffCards(items, false, "c"));

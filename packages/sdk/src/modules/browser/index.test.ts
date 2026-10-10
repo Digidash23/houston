@@ -63,14 +63,41 @@ describe("the browser module", () => {
     ]);
   });
 
-  it("watch rejects a message outside the contract", async () => {
-    const { sdk: client } = sdk(() => sse({ type: "nope" }));
+  it("watch skips a message type it does not know yet (additive protocol)", async () => {
+    const { sdk: client } = sdk(() =>
+      sse({ type: "cursor", x: 1 }, { type: "page", url: "u", title: "t" }),
+    );
+    const events: unknown[] = [];
+    await client.browser.watch("c1", "agent-1", "viewer_12345", "desktop", {
+      signal: new AbortController().signal,
+      onEvent: (e) => events.push(e),
+    });
+    expect(events).toEqual([{ type: "page", url: "u", title: "t" }]);
+  });
+
+  it("watch rejects a broken known message, or hands it to onMalformed", async () => {
+    const broken = { type: "frame", seq: 1, jpeg: "", width: 1, height: 1 };
+    const { sdk: client } = sdk(() =>
+      sse(broken, { type: "page", url: "u", title: "t" }),
+    );
+    const options = {
+      signal: new AbortController().signal,
+      onEvent: vi.fn(),
+    };
     await expect(
-      client.browser.watch("c1", "agent-1", "viewer_12345", "desktop", {
-        signal: new AbortController().signal,
-        onEvent: () => {},
-      }),
-    ).rejects.toThrow("Invalid browser live event type");
+      client.browser.watch("c1", "agent-1", "viewer_12345", "desktop", options),
+    ).rejects.toThrow("Invalid browser live frame jpeg");
+    const onMalformed = vi.fn();
+    await client.browser.watch("c1", "agent-1", "viewer_12345", "desktop", {
+      ...options,
+      onMalformed,
+    });
+    expect(onMalformed).toHaveBeenCalledTimes(1);
+    expect(options.onEvent).toHaveBeenCalledWith({
+      type: "page",
+      url: "u",
+      title: "t",
+    });
   });
 
   it("input posts one batch and parses the answer", async () => {

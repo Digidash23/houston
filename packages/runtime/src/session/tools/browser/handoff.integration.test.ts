@@ -1,9 +1,9 @@
-import { mkdtempSync, readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { BrowserLiveEvent } from "@houston/wire-types";
 import { afterAll, describe, expect, test } from "vitest";
 import {
+  agentWorkspace,
   browserAvailable,
   fixturePool,
   handoffTool,
@@ -29,7 +29,7 @@ const newPool = (options: BrowserPoolOptions = {}) => {
   pools.push(pool);
   return pool;
 };
-const workspace = () => mkdtempSync(join(tmpdir(), "browser-handoff-it-"));
+const workspace = () => agentWorkspace("browser-handoff-it-");
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function until<T>(probe: () => T | undefined | false): Promise<T> {

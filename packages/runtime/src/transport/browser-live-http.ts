@@ -32,8 +32,9 @@ function refuse(
 
 /**
  * The hand-off a request may touch: the conversation's, and only for the
- * person it was handed to (the gateway-signed acting-as names them). With no
- * owner (desktop) anyone who reaches this runtime may.
+ * person it was handed to (the gateway-signed acting-as names them). Fails
+ * closed: a hand-off started with no person named (desktop) is open to a
+ * request that names nobody either, never to one signed as someone.
  */
 function sessionFor(
   req: IncomingMessage,
@@ -46,7 +47,7 @@ function sessionFor(
     refuse(res, 404, "no_handoff");
     return undefined;
   }
-  if (session.owner !== undefined && cardActor(req.headers) !== session.owner) {
+  if (cardActor(req.headers) !== session.owner) {
     refuse(res, 403, "not_handoff_owner");
     return undefined;
   }
@@ -133,8 +134,10 @@ export async function serveBrowserInput(
     return;
   }
   if (request.ack) session.ack(request.ack.viewer, request.ack.seq);
+  // A batch queued behind one that finished the hand-off applies nothing
+  // (session.ts); its answer then carries the ended state.
   const outcome = request.events?.length
-    ? await session.apply(request.events)
+    ? await session.apply(request.events, request.batch)
     : {};
   if (request.finish)
     session.finish(request.finish === "done" ? "done" : "cancelled");

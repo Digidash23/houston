@@ -195,6 +195,35 @@ describe("browser live view", () => {
     m.unmount();
   });
 
+  it("keeps Tab and Escape for the page; Shift+Escape moves to the controls", () => {
+    const m = mount({});
+    const field = m.container.querySelector(
+      "[data-testid=browser-live-keyboard]",
+    ) as HTMLTextAreaElement;
+    const hint = win.document.getElementById(
+      field.getAttribute("aria-describedby") ?? "",
+    );
+    strictEqual(hint?.textContent?.includes("Shift+Escape"), true);
+    act(() => field.focus());
+    const press = (init: KeyboardEventInit) =>
+      act(() => {
+        field.dispatchEvent(
+          new win.KeyboardEvent("keydown", { bubbles: true, ...init }),
+        );
+      });
+    press({ key: "Tab" });
+    press({ key: "Escape" });
+    deepStrictEqual(m.sent, [
+      [{ type: "key", key: "Tab" }],
+      [{ type: "key", key: "Escape" }],
+    ]);
+    strictEqual(win.document.activeElement, field);
+    press({ key: "Escape", shiftKey: true });
+    strictEqual(m.sent.length, 2);
+    strictEqual(win.document.activeElement, button(m.container, "Back"));
+    m.unmount();
+  });
+
   it("shows the minutes left before the deadline", () => {
     const m = mount({ expiresAt: Date.now() + 4 * 60_000 + 1_000 });
     strictEqual(m.container.textContent?.includes("5 min left"), true);

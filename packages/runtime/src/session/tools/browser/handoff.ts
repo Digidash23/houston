@@ -9,6 +9,7 @@ import {
 import { restoreLayout } from "./live/layout";
 import type { HandoffRegistry } from "./live/registry";
 import type { BrowserTab } from "./open-tab";
+import { redactUrl } from "./redact-url";
 import { nextGeneration } from "./refs";
 import { goto, guardLanding, settle } from "./run-action";
 import { pageSnapshot } from "./snapshot";
@@ -103,6 +104,6 @@ async function handoffResult(
         text: `The person finished: "${text}". Their sign-ins are saved. Check the page below before going on.\n\n${snapshot}`,
       },
     ],
-    details: { ok: true, action: "handoff", url: tab.page.url() },
+    details: { ok: true, action: "handoff", url: redactUrl(tab.page.url()) },
   };
 }
