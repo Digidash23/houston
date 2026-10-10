@@ -91,6 +91,31 @@ describe("sign-in phone tap targets", () => {
     }
   });
 
+  it("on a phone every provider stacks full width with its label", () => {
+    const html = render(
+      h(mods.row.ProviderButtonRow, {
+        pending: null,
+        onSignIn: () => () => undefined,
+      }),
+    );
+    const doc = new JSDOM(html).window.document;
+    const row = (doc.body.firstElementChild?.getAttribute("class") ?? "").split(
+      /\s+/,
+    );
+    ok(row.includes("flex-col") && row.includes("md:flex-row"), row.join(" "));
+    const buttons = [...doc.querySelectorAll("button")];
+    ok(buttons.length === 3);
+    for (const button of buttons) {
+      const label = button.getAttribute("aria-label") ?? "";
+      const span = button.querySelector("span.md\\:hidden");
+      // Visible on the phone, the same words the icon pill names on desktop:
+      // Sign in with Apple stays exactly as prominent as the other two.
+      ok(span?.textContent === label, `${label}: no phone label`);
+      ok(/^Continue with (Google|Apple|Microsoft)$/.test(label));
+      ok(button.getAttribute("class") === buttons[0]?.getAttribute("class"));
+    }
+  });
+
   it("the address field and its send button are 44px on a phone", () => {
     const form = h(mods.email.EmailSignIn, { submitFilled: true });
     const [field] = classesOf(form, "input[type=email]");
