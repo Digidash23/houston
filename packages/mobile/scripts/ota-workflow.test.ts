@@ -20,3 +20,26 @@ test("automatic publishes and rollbacks carry the live required floor, never the
   expect(select).toContain('test "$RAISE_REQUIRED" -gt "$current_required"');
   expect(yaml).toContain("options: [rollback, raise-required-native-build]");
 });
+
+test("only cloud-v releases of main commits no older than the live bundle publish", () => {
+  const yaml = updates();
+  const release = readFileSync(
+    "../../.github/workflows/mobile-release.yml",
+    "utf8",
+  );
+  for (const source of [yaml, release]) {
+    expect(source).toContain(
+      "startsWith(github.event.release.tag_name, 'cloud-v')",
+    );
+    expect(source).not.toContain(
+      "startsWith(github.event.release.tag_name, 'v')",
+    );
+  }
+  expect(yaml).toContain("fetch-depth: 0");
+  expect(yaml).toContain("git merge-base --is-ancestor HEAD origin/main");
+  expect(yaml).toContain('git merge-base --is-ancestor "$live_commit" HEAD');
+  // The guard runs before the build, for every non-dispatch publish.
+  expect(yaml.indexOf("- name: Refuse off-main or older commits")).toBeLessThan(
+    yaml.indexOf("- name: Build mobile bundle"),
+  );
+});

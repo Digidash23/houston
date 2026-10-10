@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   ios:
-    if: ${{ github.repository == 'gethouston/houston' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' || github.event_name == 'release' && (startsWith(github.event.release.tag_name, 'cloud-v') || startsWith(github.event.release.tag_name, 'v') && !github.event.release.prerelease)) }}
+    if: ${{ github.repository == 'gethouston/houston' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' || github.event_name == 'release' && startsWith(github.event.release.tag_name, 'cloud-v')) }}
     # Store credentials live only in this environment (store/release.md).
     environment: mobile-release
     runs-on: macos-26
@@ -114,7 +114,7 @@ jobs:
           xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Houston.xcarchive" -exportPath "$RUNNER_TEMP/export" -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" "${auth[@]}"
 
   android:
-    if: ${{ github.repository == 'gethouston/houston' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' || github.event_name == 'release' && (startsWith(github.event.release.tag_name, 'cloud-v') || startsWith(github.event.release.tag_name, 'v') && !github.event.release.prerelease)) }}
+    if: ${{ github.repository == 'gethouston/houston' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' || github.event_name == 'release' && startsWith(github.event.release.tag_name, 'cloud-v')) }}
     environment: mobile-release
     runs-on: ubuntu-latest
     timeout-minutes: 60

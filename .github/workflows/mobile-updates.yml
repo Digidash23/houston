@@ -36,7 +36,7 @@ concurrency:
 
 jobs:
   publish:
-    if: ${{ github.repository == 'gethouston/houston' && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main') && (github.event_name != 'release' || startsWith(github.event.release.tag_name, 'cloud-v') || (startsWith(github.event.release.tag_name, 'v') && !github.event.release.prerelease)) }}
+    if: ${{ github.repository == 'gethouston/houston' && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main') && (github.event_name != 'release' || startsWith(github.event.release.tag_name, 'cloud-v')) }}
     # The signing key lives only in this environment, whose deployment rule
     # admits main and cloud-v* tags (store/release.md), so an edited workflow
     # dispatched from another branch cannot sign a manifest.
@@ -54,6 +54,9 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
+          # Full history: the publish compares this commit with main and with
+          # the commit the channel's live manifest was built from.
+          fetch-depth: 0
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
       - name: Setup Node.js
@@ -70,6 +73,18 @@ jobs:
           service_account: github-deploy-web@gethouston.iam.gserviceaccount.com
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v3
+      - name: Refuse off-main or older commits
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor HEAD origin/main || { echo '::error::Only commits on main publish OTA bundles'; exit 1; }
+          if gcloud storage ls "gs://houston-mobile-updates/$CHANNEL/manifest.json" >/dev/null 2>&1; then
+            live=$(gcloud storage cat "gs://houston-mobile-updates/$CHANNEL/manifest.json" | jq -r .version)
+            live_sha=${live##*+}
+            [[ "$live_sha" =~ ^[0-9a-f]{7,}$ ]] || { echo "::error::Live manifest version $live names no commit"; exit 1; }
+            live_commit=$(git rev-parse --verify --quiet "$live_sha^{commit}") || { echo "::error::Live bundle commit $live_sha is not in this repository"; exit 1; }
+            git merge-base --is-ancestor "$live_commit" HEAD || { echo "::error::$(git rev-parse --short HEAD) is older than the live $CHANNEL bundle $live"; exit 1; }
+          fi
       - name: Build mobile bundle
         if: ${{ github.event_name != 'workflow_dispatch' }}
         env:
