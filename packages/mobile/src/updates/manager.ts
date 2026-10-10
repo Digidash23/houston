@@ -123,7 +123,13 @@ export function createUpdateManager(
         ports.onRequired(manifest);
         return "required";
       }
-      if (!policy || manifest.sequence > policy.sequence)
+      // Equal sequence = the same signed publish (sequences are unique per
+      // run), so it may refresh a policy seeded without its native requirement.
+      if (
+        !policy ||
+        manifest.sequence > policy.sequence ||
+        manifest.required_native_build !== policy.required_native_build
+      )
         await ports.policyStore.set(serializePolicy(manifest));
       if (nativeBuild < manifest.required_native_build) {
         required = true;

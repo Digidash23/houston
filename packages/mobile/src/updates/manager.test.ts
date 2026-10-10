@@ -746,3 +746,39 @@ test("a corrupt stored policy is reported and reseeded by the next manifest", as
   expect(report).toHaveBeenCalledOnce();
   expect(JSON.parse((await policy.get()) ?? "").sequence).toBe(10);
 });
+
+test("an equal-sequence manifest completes a policy seeded from the legacy sequence", async () => {
+  const gated = { ...body, required_native_build: 3 };
+  const policy = memoryPolicy(
+    JSON.stringify({ sequence: body.sequence, required_native_build: 1 }),
+  );
+  const gate = vi.fn();
+  const check = createUpdateManager(
+    {
+      baseUrl,
+      publicKey: pubkey,
+      channel: "preview",
+      builtinVersion: "old",
+      builtinSequence: 1,
+    },
+    {
+      fetch: vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ ...gated, signature: signManifest(gated, key) }),
+      }) as typeof fetch,
+      now: () => 0,
+      updater: { current: vi.fn(), download: vi.fn(), next: vi.fn() },
+      nativeBuild: async () => "2",
+      isOnline: () => true,
+      onRequired: gate,
+      report: vi.fn(),
+      sequenceStore: { get: async () => null, set: async () => {} },
+      policyStore: policy,
+    },
+  );
+  expect(await check()).toBe("required");
+  expect(JSON.parse((await policy.get()) ?? "")).toEqual({
+    sequence: body.sequence,
+    required_native_build: 3,
+  });
+});
