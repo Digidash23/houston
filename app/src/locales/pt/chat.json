@@ -242,9 +242,10 @@
       "ceilingEmpty": {
         "title": "Nenhum dos seus modelos de IA está ativado para este funcionário de IA",
         "hint": {
+          "connect": "Ele só usa modelos de uma IA que você ainda não conectou.",
           "choose": "Escolha quais modelos ele pode usar nas configurações dele.",
           "ask": "Peça a quem gerencia este funcionário de IA para ativar um.",
-          "workspace": "Seu espaço de trabalho está com eles desativados."
+          "unreachable": "Este funcionário de IA está com eles desativados."
         },
         "action": "Escolher modelos"
       },

@@ -16,6 +16,7 @@ import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { agentSettingsSections } from "../components/agent-settings/agent-settings-nav.ts";
 import {
+  ceilingEmptyAction,
   ceilingEmptyLabels,
   ceilingEmptyState,
 } from "../components/chat-model-selector-ceiling";
@@ -93,8 +94,7 @@ export function usePickerCeiling(
     [ceiling, picker.labels, t],
   );
 
-  const onEmptyStateAction =
-    ceiling === null ? undefined : ceiling === "choose" ? chooseModels : null;
+  const onEmptyStateAction = ceilingEmptyAction(ceiling, chooseModels);
 
   return { models, providers, hidden, labels, onEmptyStateAction };
 }

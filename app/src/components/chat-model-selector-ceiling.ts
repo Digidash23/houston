@@ -16,14 +16,19 @@ import type { useTranslation } from "react-i18next";
 /**
  * Which ceiling story the empty picker tells:
  *
- *  - `choose`    — the viewer manages the agent and its Models settings exist
- *                  here, so the empty state offers the way there.
- *  - `ask`       — someone else manages the agent; no action, just who to ask.
- *  - `workspace` — the viewer manages the agent but this space has no Models
- *                  settings to open (a personal space), so the ceiling comes
- *                  from the workspace itself. No action rather than a dead end.
+ *  - `connect`     — an AI the viewer has not connected offers an allowed
+ *                    model, so connecting it is the fix: the picker's own
+ *                    connect action, gated exactly as it always was.
+ *  - `choose`      — no AI offers an allowed model; the viewer manages the
+ *                    agent and its Models settings exist here, so the empty
+ *                    state offers the way there.
+ *  - `ask`         — no AI offers an allowed model and someone else manages
+ *                    the agent; no action, just who to ask.
+ *  - `unreachable` — no AI offers an allowed model and the viewer manages the
+ *                    agent, but this space has no Models settings to open (a
+ *                    personal space). No action rather than a dead end.
  */
-export type CeilingEmptyState = "choose" | "ask" | "workspace";
+export type CeilingEmptyState = "connect" | "choose" | "ask" | "unreachable";
 
 type Connection = Pick<ModelPickerProvider, "connection">;
 
@@ -39,7 +44,11 @@ export function ceilingEmptyState(opts: {
   catalogState: "loading" | "ready";
   /** The picker's providers before the ceiling clamp. */
   unclamped: readonly Connection[];
-  /** The same list after it. */
+  /**
+   * The same list after it. A provider survives the clamp when it offers an
+   * allowed model, connected or not (`picker.models` covers every visible
+   * provider), so a disconnected survivor is an AI worth connecting.
+   */
   clamped: readonly Connection[];
   /** The viewer may open this agent's settings (`canOpenAgentSettings`). */
   canManageAgent: boolean;
@@ -49,14 +58,30 @@ export function ceilingEmptyState(opts: {
   if (opts.catalogState !== "ready") return null;
   if (connectedCount(opts.unclamped) === 0) return null;
   if (connectedCount(opts.clamped) > 0) return null;
+  if (opts.clamped.length > 0) return "connect";
   if (!opts.canManageAgent) return "ask";
-  return opts.modelsSectionReachable ? "choose" : "workspace";
+  return opts.modelsSectionReachable ? "choose" : "unreachable";
+}
+
+/**
+ * The empty-state action for a story, in `ModelPicker`'s `onEmptyStateAction`
+ * terms: `undefined` keeps the picker's connect action (no story, or
+ * `connect`), the Models-settings opener for `choose`, and `null` (no button)
+ * for the stories nobody standing here can act on.
+ */
+export function ceilingEmptyAction(
+  state: CeilingEmptyState | null,
+  chooseModels: () => void,
+): (() => void) | null | undefined {
+  if (state === null || state === "connect") return undefined;
+  return state === "choose" ? chooseModels : null;
 }
 
 /**
  * The empty-state labels for a ceiling story. Only the three empty-state
  * strings change; the action label is always supplied, and whether it RENDERS
- * is the consumer's `onEmptyStateAction` (`null` outside `choose`).
+ * is {@link ceilingEmptyAction}. `connect` reuses the picker's Connect AI label,
+ * since its button is that same action.
  */
 export function ceilingEmptyLabels(
   t: ReturnType<typeof useTranslation<"chat">>[0],
@@ -68,6 +93,10 @@ export function ceilingEmptyLabels(
   return {
     noProviders: t("modelSelector.picker.ceilingEmpty.title"),
     noProvidersHint: t(`modelSelector.picker.ceilingEmpty.hint.${state}`),
-    noProvidersAction: t("modelSelector.picker.ceilingEmpty.action"),
+    noProvidersAction: t(
+      state === "connect"
+        ? "modelSelector.picker.noProviders.action"
+        : "modelSelector.picker.ceilingEmpty.action",
+    ),
   };
 }
