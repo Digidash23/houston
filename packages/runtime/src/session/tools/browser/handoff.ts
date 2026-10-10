@@ -1,5 +1,7 @@
 import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
 import type { BrowserHandoffEnd } from "@houston/wire-types";
+import type { ActingContext } from "../../acting-context";
+import { decodeActingAuthor } from "../../attribution";
 import type { BrowserAction } from "./actions";
 import {
   type BrowserDetails,
@@ -24,6 +26,18 @@ export interface HandoffOptions {
   limitMs: number;
   /** Keeps the pool from sweeping the tab while the person uses it. */
   touch?: () => void;
+}
+
+/**
+ * The person a hand-off is for: the gateway-signed acting-as, else the person
+ * a pooled turn's verified record names. Never `actingUser`: a standing
+ * runtime takes that from an unsigned header (the desktop's first-day turn
+ * sends one), and a hand-off owned by it would refuse the desktop app itself.
+ */
+export function handoffOwner(
+  acting: ActingContext | undefined,
+): string | undefined {
+  return decodeActingAuthor(acting?.actingAs)?.userId ?? acting?.verifiedOwner;
 }
 
 /**

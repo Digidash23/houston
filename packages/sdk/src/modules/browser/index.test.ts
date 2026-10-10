@@ -50,10 +50,17 @@ describe("the browser module", () => {
       sse({ type: "page", url: "https://a.com", title: "A", extra: 1 }),
     );
     const events: unknown[] = [];
-    await client.browser.watch("c 1", "agent-1", "viewer_12345", "phone", {
-      signal: new AbortController().signal,
-      onEvent: (e) => events.push(e),
-    });
+    await client.browser.watch(
+      "c 1",
+      "agent-1",
+      "viewer_12345",
+      "phone",
+      undefined,
+      {
+        signal: new AbortController().signal,
+        onEvent: (e) => events.push(e),
+      },
+    );
     expect(calls[0]).toMatchObject({
       method: "GET",
       url: `${BASE}/agents/agent-1/conversations/c%201/browser/live?viewer=viewer_12345&layout=phone`,
@@ -68,10 +75,17 @@ describe("the browser module", () => {
       sse({ type: "cursor", x: 1 }, { type: "page", url: "u", title: "t" }),
     );
     const events: unknown[] = [];
-    await client.browser.watch("c1", "agent-1", "viewer_12345", "desktop", {
-      signal: new AbortController().signal,
-      onEvent: (e) => events.push(e),
-    });
+    await client.browser.watch(
+      "c1",
+      "agent-1",
+      "viewer_12345",
+      "desktop",
+      undefined,
+      {
+        signal: new AbortController().signal,
+        onEvent: (e) => events.push(e),
+      },
+    );
     expect(events).toEqual([{ type: "page", url: "u", title: "t" }]);
   });
 
@@ -85,13 +99,27 @@ describe("the browser module", () => {
       onEvent: vi.fn(),
     };
     await expect(
-      client.browser.watch("c1", "agent-1", "viewer_12345", "desktop", options),
+      client.browser.watch(
+        "c1",
+        "agent-1",
+        "viewer_12345",
+        "desktop",
+        undefined,
+        options,
+      ),
     ).rejects.toThrow("Invalid browser live frame jpeg");
     const onMalformed = vi.fn();
-    await client.browser.watch("c1", "agent-1", "viewer_12345", "desktop", {
-      ...options,
-      onMalformed,
-    });
+    await client.browser.watch(
+      "c1",
+      "agent-1",
+      "viewer_12345",
+      "desktop",
+      undefined,
+      {
+        ...options,
+        onMalformed,
+      },
+    );
     expect(onMalformed).toHaveBeenCalledTimes(1);
     expect(options.onEvent).toHaveBeenCalledWith({
       type: "page",
@@ -105,18 +133,45 @@ describe("the browser module", () => {
       () => new Response('{"state":"done"}', { status: 200 }),
     );
     await expect(
-      client.browser.input("c1", "agent-1", { finish: "done" }),
+      client.browser.input("c1", "agent-1", {
+        handoff: "handoff-1",
+        finish: "done",
+      }),
     ).resolves.toEqual({ state: "done" });
     expect(calls[0]).toEqual({
       method: "POST",
       url: `${BASE}/agents/agent-1/conversations/c1/browser/input`,
-      body: '{"finish":"done"}',
+      body: '{"handoff":"handoff-1","finish":"done"}',
     });
+  });
+
+  it("watch names the hand-off a reconnect is for", async () => {
+    const { sdk: client, calls } = sdk(() => sse());
+    await client.browser.watch(
+      "c1",
+      "agent-1",
+      "viewer_12345",
+      "phone",
+      "h-0001-ab",
+      {
+        signal: new AbortController().signal,
+        onEvent: vi.fn(),
+      },
+    );
+    expect(calls[0].url).toBe(
+      `${BASE}/agents/agent-1/conversations/c1/browser/live?viewer=viewer_12345&layout=phone&handoff=h-0001-ab`,
+    );
   });
 
   it("connect opens a live view under a fresh viewer id", async () => {
     const { sdk: client, calls } = sdk(() =>
-      sse({ type: "status", state: "done", text: "t", expiresAt: 1 }),
+      sse({
+        type: "status",
+        handoffId: "handoff-1",
+        state: "done",
+        text: "t",
+        expiresAt: 1,
+      }),
     );
     const onConnection = vi.fn();
     client.browser.connect("c1", "agent-1", {

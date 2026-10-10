@@ -14,6 +14,7 @@ import {
   type Body,
   count,
   finite,
+  handoffId,
   record,
   text,
   unit,
@@ -100,6 +101,8 @@ export function parseBrowserLiveInputRequest(
 ): BrowserLiveInputRequest {
   const body = record(value, "browser input request");
   const request: BrowserLiveInputRequest = {};
+  if (body.handoff !== undefined)
+    request.handoff = handoffId(body.handoff, "browser input handoff");
   if (body.events !== undefined) {
     if (!Array.isArray(body.events))
       throw new Error("Invalid browser input events");
@@ -129,5 +132,10 @@ export function parseBrowserLiveInputRequest(
       throw new Error("Invalid browser input finish");
     request.finish = body.finish;
   }
+  // Anything that acts names its hand-off: unattributed, a late Done or batch
+  // from an earlier hand-off's view would land on the chat's next one.
+  const acts = request.events || request.ack || request.finish;
+  if (acts && request.handoff === undefined)
+    throw new Error("Invalid browser input without handoff");
   return request;
 }

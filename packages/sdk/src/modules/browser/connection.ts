@@ -17,6 +17,12 @@ import type { Clock } from "../../ports";
 import { createInputBatcher } from "./input-batcher";
 import { classifyLiveFailure } from "./live-failure";
 import { type BrowserLiveWatchOptions, startLiveStream } from "./live-stream";
+import {
+  BROWSER_LIVE_HEALTHY_MS,
+  BROWSER_LIVE_MAX_ATTEMPTS,
+  reconnectDelay,
+} from "./reconnect-policy";
+import { reportOnce } from "./report-once";
 
 export {
   BROWSER_LIVE_IDLE_MS,
@@ -28,16 +34,6 @@ import type {
   BrowserLiveConnectionState,
   BrowserLiveHandlers,
 } from "./types";
-
-/** Reconnect pauses; past the last attempt the connection is `lost`. */
-export const BROWSER_LIVE_BACKOFF_MS = [500, 1000, 2000, 4000, 8000] as const;
-export const BROWSER_LIVE_MAX_ATTEMPTS = 8;
-/**
- * A stream must stay up this long before the reconnect count starts over: the
- * runtime sends a status (and a frame) on every connect, so "it said
- * something" proves nothing about a stream that then dies at once.
- */
-export const BROWSER_LIVE_HEALTHY_MS = 10_000;
 
 export interface BrowserLiveConnectionDeps {
   viewer: string;
@@ -62,13 +58,12 @@ export function openBrowserLiveConnection(
   let stopStream: (() => void) | null = null;
   let reconnectTimer: number | null = null;
   let healthyTimer: number | null = null;
+  /** The hand-off this view is on, from the first status; reconnects name it. */
+  let handoff: string | undefined;
   // A drifting stream says so on every reconnect: report it once.
-  let malformedReported = false;
-  const reportMalformed = (err: unknown) => {
-    if (malformedReported) return;
-    malformedReported = true;
-    handlers.onUnexpected(err);
-  };
+  const malformed = reportOnce(handlers.onUnexpected);
+  // A refused stream, once per episode: a healthy stream or retry() re-arms.
+  const refused = reportOnce(handlers.onUnexpected);
 
   const setState = (next: BrowserLiveConnectionState) => {
     state = next;
@@ -109,6 +104,7 @@ export function openBrowserLiveConnection(
       healthyTimer = clock.setTimeout(() => {
         healthyTimer = null;
         attempt = 0;
+        refused.rearm();
       }, BROWSER_LIVE_HEALTHY_MS);
     }
     if (event.type === "frame") {
@@ -117,9 +113,14 @@ export function openBrowserLiveConnection(
     } else if (event.type === "page") {
       handlers.onPage({ url: event.url, title: event.title });
     } else {
-      const { state: handoff, text, expiresAt } = event;
-      handlers.onStatus({ state: handoff, text, expiresAt });
-      if (handoff !== "waiting") end(handoff);
+      // Another hand-off than the one this view is on: its own is over.
+      if (handoff !== undefined && event.handoffId !== handoff)
+        return end("none");
+      handoff = event.handoffId;
+      batcher.known(handoff);
+      const { state: ended, text, expiresAt } = event;
+      handlers.onStatus({ state: ended, text, expiresAt });
+      if (ended !== "waiting") end(ended);
     }
   };
 
@@ -130,14 +131,10 @@ export function openBrowserLiveConnection(
     // Queued input stays through `lost`: `retry()` picks the same hand-off up.
     if (attempt > BROWSER_LIVE_MAX_ATTEMPTS) return setState({ kind: "lost" });
     setState({ kind: "reconnecting", attempt });
-    const steps = BROWSER_LIVE_BACKOFF_MS;
-    reconnectTimer = clock.setTimeout(
-      () => {
-        reconnectTimer = null;
-        connect();
-      },
-      steps[Math.min(attempt - 1, steps.length - 1)],
-    );
+    reconnectTimer = clock.setTimeout(() => {
+      reconnectTimer = null;
+      connect();
+    }, reconnectDelay(attempt));
   };
 
   const connect = () => {
@@ -146,20 +143,20 @@ export function openBrowserLiveConnection(
       watch: deps.watch,
       viewer: deps.viewer,
       layout,
+      handoff,
       clock,
       onEvent,
-      onMalformed: reportMalformed,
+      onMalformed: malformed.report,
       onEnd: (streamEnd) => {
         stopStream = null;
-        if (streamEnd.kind === "malformed") reportMalformed(streamEnd.error);
+        if (streamEnd.kind === "malformed") malformed.report(streamEnd.error);
         if (streamEnd.kind === "refused") {
           const failure = classifyLiveFailure(
             streamEnd.error,
             deps.isTransport,
           );
           if (failure.kind === "ended") return end(failure.reason);
-          if (failure.kind === "unexpected")
-            handlers.onUnexpected(streamEnd.error);
+          if (failure.kind === "unexpected") refused.report(streamEnd.error);
         }
         // A stream that closed without a terminal status was cut, not ended.
         scheduleReconnect();
@@ -185,6 +182,7 @@ export function openBrowserLiveConnection(
     retry() {
       if (closed || state.kind !== "lost") return;
       attempt = 0;
+      refused.rearm();
       setState({ kind: "connecting" });
       connect();
     },

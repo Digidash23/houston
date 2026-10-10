@@ -61,7 +61,7 @@ describe("the engine client's browser hand-off routes", () => {
     );
     const frames: unknown[] = [];
     const onActivity = vi.fn();
-    await client.streamBrowserLive(ID, "viewer_12345", "phone", {
+    await client.streamBrowserLive(ID, "viewer_12345", "phone", undefined, {
       signal: new AbortController().signal,
       onFrame: (raw) => frames.push(raw),
       onActivity,
@@ -79,12 +79,23 @@ describe("the engine client's browser hand-off routes", () => {
 
   it("escapes the viewer into the query", async () => {
     const { client, calls } = makeClient(() => sse());
-    await client.streamBrowserLive(ID, "a b/c", "desktop", {
+    await client.streamBrowserLive(ID, "a b/c", "desktop", undefined, {
       signal: new AbortController().signal,
       onFrame: () => {},
     });
     expect(calls[0].url).toBe(
-      `${ENC}/browser/live?viewer=a%20b%2Fc&layout=desktop`,
+      `${ENC}/browser/live?viewer=a+b%2Fc&layout=desktop`,
+    );
+  });
+
+  it("names the hand-off a reconnect is for", async () => {
+    const { client, calls } = makeClient(() => sse());
+    await client.streamBrowserLive(ID, "viewer_12345", "phone", "handoff-1", {
+      signal: new AbortController().signal,
+      onFrame: () => {},
+    });
+    expect(calls[0].url).toBe(
+      `${ENC}/browser/live?viewer=viewer_12345&layout=phone&handoff=handoff-1`,
     );
   });
 
@@ -92,10 +103,16 @@ describe("the engine client's browser hand-off routes", () => {
     const { client } = makeClient(
       () => new Response('{"error":"no_handoff"}', { status: 404 }),
     );
-    const failure = client.streamBrowserLive(ID, "viewer_12345", "desktop", {
-      signal: new AbortController().signal,
-      onFrame: () => {},
-    });
+    const failure = client.streamBrowserLive(
+      ID,
+      "viewer_12345",
+      "desktop",
+      undefined,
+      {
+        signal: new AbortController().signal,
+        onFrame: () => {},
+      },
+    );
     await expect(failure).rejects.toBeInstanceOf(EngineError);
     await expect(failure).rejects.toMatchObject({ status: 404 });
   });

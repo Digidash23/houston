@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
+  BROWSER_LIVE_HANDOFF,
   BROWSER_LIVE_MAX_BODY_BYTES,
   BROWSER_LIVE_VIEWER,
   type BrowserLiveEvent,
@@ -31,20 +32,26 @@ function refuse(
 }
 
 /**
- * The hand-off a request may touch: the conversation's, and only for the
- * person it was handed to (the gateway-signed acting-as names them). Fails
- * closed: a hand-off started with no person named (desktop) is open to a
- * request that names nobody either, never to one signed as someone.
+ * The hand-off a request may touch: the one it names (`handoff`), else the
+ * chat's latest; and only for the person it was handed to (the
+ * gateway-signed acting-as names them). Fails closed: a hand-off started with
+ * no person named (desktop) is open to a request that names nobody either,
+ * never to one signed as someone. A named hand-off that is forgotten while
+ * the chat has a newer one is over (`409`, no state to tell).
  */
 function sessionFor(
   req: IncomingMessage,
   res: ServerResponse,
   conversationId: string,
   registry: HandoffRegistry,
+  handoff: string | undefined,
 ): HandoffSession | undefined {
-  const session = registry.get(conversationId);
+  const latest = registry.get(conversationId);
+  const session =
+    handoff === undefined ? latest : registry.find(conversationId, handoff);
   if (!session) {
-    refuse(res, 404, "no_handoff");
+    if (latest) refuse(res, 409, "handoff_ended");
+    else refuse(res, 404, "no_handoff");
     return undefined;
   }
   if (cardActor(req.headers) !== session.owner) {
@@ -62,17 +69,21 @@ export function serveBrowserLive(
   url: URL,
   registry: HandoffRegistry = sharedHandoffs,
 ): void {
-  const session = sessionFor(req, res, conversationId, registry);
-  if (!session) return;
   const viewer = url.searchParams.get("viewer") ?? "";
   const layout = url.searchParams.get("layout") ?? "desktop";
+  const handoff = url.searchParams.get("handoff") ?? undefined;
   if (
     !BROWSER_LIVE_VIEWER.test(viewer) ||
-    (layout !== "desktop" && layout !== "phone")
+    (layout !== "desktop" && layout !== "phone") ||
+    (handoff !== undefined && !BROWSER_LIVE_HANDOFF.test(handoff))
   ) {
     refuse(res, 400, "invalid_input");
     return;
   }
+  // An ended hand-off (the one named, or the chat's latest) answers with its
+  // terminal status and closes: attachViewer sends it and attaches nothing.
+  const session = sessionFor(req, res, conversationId, registry, handoff);
+  if (!session) return;
   res.writeHead(200, {
     "Content-Type": "text/event-stream; charset=utf-8",
     "Cache-Control": "no-cache, no-transform",
@@ -118,8 +129,6 @@ export async function serveBrowserInput(
   conversationId: string,
   registry: HandoffRegistry = sharedHandoffs,
 ): Promise<void> {
-  const session = sessionFor(req, res, conversationId, registry);
-  if (!session) return;
   let request: ReturnType<typeof parseBrowserLiveInputRequest>;
   try {
     request = parseBrowserLiveInputRequest(JSON.parse(await readCapped(req)));
@@ -129,6 +138,17 @@ export async function serveBrowserInput(
     refuse(res, 400, "invalid_input");
     return;
   }
+  const session = sessionFor(
+    req,
+    res,
+    conversationId,
+    registry,
+    request.handoff,
+  );
+  if (!session) return;
+  // Ended, or an earlier hand-off than the chat's waiting one (only ended
+  // hand-offs are retained by id): nothing of it, not its batch, its ack nor
+  // its finish, reaches the waiting one.
   if (session.state !== "waiting") {
     refuse(res, 409, "handoff_ended", session);
     return;

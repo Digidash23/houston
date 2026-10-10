@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
+import { BROWSER_LIVE_IDLE_MS } from "./connection";
+import { flush, httpError, liveHarness } from "./live-test-kit";
 import {
   BROWSER_LIVE_HEALTHY_MS,
-  BROWSER_LIVE_IDLE_MS,
   BROWSER_LIVE_MAX_ATTEMPTS,
-} from "./connection";
-import { flush, httpError, liveHarness } from "./live-test-kit";
+} from "./reconnect-policy";
 
 const frame = (seq: number) =>
   ({ type: "frame", seq, jpeg: "AAA", width: 412, height: 860 }) as const;
 const waiting = {
   type: "status",
+  handoffId: "handoff-1",
   state: "waiting",
   text: "Sign in",
   expiresAt: 600_000,
@@ -170,6 +171,7 @@ describe("the browser live connection's failures and layout", () => {
 
   it("re-opens the stream for a new layout, keeping queued input and finish", async () => {
     const h = liveHarness();
+    h.known();
     h.connection.send({ type: "back" });
     const finished = h.connection.finish("done");
     h.connection.setLayout("desktop");
@@ -178,7 +180,11 @@ describe("the browser live connection's failures and layout", () => {
     h.streams[0].reject(new DOMException("aborted", "AbortError"));
     h.posts[0].resolve({ state: "waiting" });
     await flush();
-    expect(h.posts[1].request.finish).toBe("done");
+    expect(h.posts[1].request).toMatchObject({
+      handoff: "handoff-1",
+      finish: "done",
+    });
+    expect(h.streams[1].handoff).toBe("handoff-1");
     h.posts[1].resolve({ state: "done" });
     await expect(finished).resolves.toBe("answered");
     expect(h.streams).toHaveLength(2);

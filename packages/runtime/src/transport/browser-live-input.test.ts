@@ -69,15 +69,23 @@ test("a retried batch answers the current state without typing twice", async () 
   const batch = { viewer, seq: 1 };
   for (let i = 0; i < 2; i += 1)
     expect(
-      await (await input(conversationId, { events: typed("a"), batch })).json(),
+      await (
+        await input(conversationId, {
+          handoff: session.handoffId,
+          events: typed("a"),
+          batch,
+        })
+      ).json(),
     ).toEqual({ state: "waiting" });
   await input(conversationId, {
+    handoff: session.handoffId,
     events: typed("b"),
     batch: { viewer, seq: 2 },
   });
   expect(cdp.sent).toEqual(["Input.insertText:a", "Input.insertText:b"]);
   // A repeat still carries its finish.
   const last = await input(conversationId, {
+    handoff: session.handoffId,
     events: typed("b"),
     batch: { viewer, seq: 2 },
     finish: "done",
@@ -90,6 +98,7 @@ test("a retried batch answers the current state without typing twice", async () 
 test("a navigate the policy refuses is named in the answer; the rest of the batch runs", async () => {
   const { conversationId, cdp, session } = handOver();
   const answer = await input(conversationId, {
+    handoff: session.handoffId,
     events: [
       { type: "navigate", url: "file:///etc/passwd" },
       { type: "text", text: "after" },
@@ -104,16 +113,34 @@ test("a navigate the policy refuses is named in the answer; the rest of the batc
 });
 
 test("a finish racing a queued batch wins: the batch applies nothing and answers the end", async () => {
-  const { conversationId, cdp } = handOver();
+  const { conversationId, cdp, session } = handOver();
   const release = cdp.hold("Input.insertText");
-  const running = input(conversationId, { events: typed("a") });
+  const running = input(conversationId, {
+    handoff: session.handoffId,
+    events: typed("a"),
+  });
   await sleep(50);
-  const queued = input(conversationId, { events: typed("queued") });
+  const queued = input(conversationId, {
+    handoff: session.handoffId,
+    events: typed("queued"),
+  });
   await sleep(50);
-  const finished = await input(conversationId, { finish: "done" });
+  const finished = await input(conversationId, {
+    handoff: session.handoffId,
+    finish: "done",
+  });
   expect(await finished.json()).toEqual({ state: "done" });
   release();
   expect(await (await running).json()).toEqual({ state: "done" });
   expect(await (await queued).json()).toEqual({ state: "done" });
   expect(cdp.sent).toEqual(["Input.insertText:a"]);
+});
+
+test("a finish that names no hand-off is refused and finishes nothing", async () => {
+  const { conversationId, session } = handOver();
+  const unnamed = await input(conversationId, { finish: "done" });
+  expect(unnamed.status).toBe(400);
+  expect(await unnamed.json()).toMatchObject({ code: "invalid_input" });
+  expect(session.state).toBe("waiting");
+  session.finish("cancelled");
 });

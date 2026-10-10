@@ -38,8 +38,11 @@ export function createBrowserModule(ctx: ModuleContext) {
   /**
    * Streams the live picture of a website the agent handed to the person.
    *
-   * One connection attempt as viewer `viewer`: resolves when the stream ends,
-   * rejects with the engine error (`404` no hand-off, `403` someone else's) or
+   * One connection attempt as viewer `viewer`, on hand-off `handoff` once a
+   * status named it (a reconnect of an earlier hand-off's view then gets that
+   * hand-off's end, never a newer one): resolves when the stream ends,
+   * rejects with the engine error (`404` no hand-off, `403` someone else's,
+   * `409` the named hand-off is over) or
    * on a malformed message (unless `onMalformed` takes it). A message type
    * this client does not know is skipped. {@link connect} is the reconnecting
    * binding.
@@ -51,11 +54,12 @@ export function createBrowserModule(ctx: ModuleContext) {
     agentId: string,
     viewer: string,
     layout: BrowserLiveLayout,
+    handoff: string | undefined,
     options: BrowserWatchOptions,
   ): Promise<void> => {
     await ctx
       .clientFor(agentId)
-      .streamBrowserLive(conversationId, viewer, layout, {
+      .streamBrowserLive(conversationId, viewer, layout, handoff, {
         signal: options.signal,
         onFrame: (raw) => {
           const event = readLiveEvent(raw, options.onMalformed);
@@ -68,8 +72,9 @@ export function createBrowserModule(ctx: ModuleContext) {
   /**
    * Sends the person's clicks, typing and frame acks to a handed-over website.
    *
-   * One batch, applied in order; `finish` ends the hand-off. Rejects with the
-   * engine error (`409` already ended, `404`, `403`, `400`).
+   * One batch, applied in order; `finish` ends the hand-off and must name it
+   * (`handoff`). Rejects with the engine error (`409` that hand-off already
+   * ended, `404`, `403`, `400`).
    * @assistant group:chat
    * @assistant hidden: it types and clicks into a website in place of the person during a sign-in hand-off; only the person at the screen may drive it, and the AI Manager driving it would defeat the hand-off.
    */
@@ -92,8 +97,8 @@ export function createBrowserModule(ctx: ModuleContext) {
     openBrowserLiveConnection({
       viewer: randomNonce(),
       layout: options.layout ?? "desktop",
-      watch: ({ viewer, layout, ...rest }) =>
-        watch(conversationId, agentId, viewer, layout, rest),
+      watch: ({ viewer, layout, handoff, ...rest }) =>
+        watch(conversationId, agentId, viewer, layout, handoff, rest),
       input: (request) => input(conversationId, agentId, request),
       clock: ctx.config.ports.clock,
       isTransport: isTransportFailure,

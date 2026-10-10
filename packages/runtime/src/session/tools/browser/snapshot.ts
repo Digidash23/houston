@@ -1,4 +1,4 @@
-import type { Page } from "playwright-core";
+import type { Frame, Page } from "playwright-core";
 import type { BrowserTab } from "./open-tab";
 import { redactUrl } from "./redact-url";
 import { nextGeneration, stampRefs } from "./refs";
@@ -39,27 +39,41 @@ export async function pageSnapshot(tab: BrowserTab): Promise<string> {
 }
 
 /**
- * The password fields' values in every frame, to mask in the tree. A frame
- * that detached meanwhile (an iframe the page removed) is no longer in the
- * tree either, so its failure is skipped; any other failure is thrown rather
- * than risk printing a password unmasked.
+ * The password fields' values in every frame, to mask in the tree. Any frame
+ * whose read fails is thrown rather than risk printing a password unmasked,
+ * except a frame that detached meanwhile (an iframe the page removed), which
+ * is no longer in the tree either.
  */
 async function passwordValues(page: Page): Promise<string[]> {
-  const frames = page.frames();
-  const perFrame = await Promise.allSettled(
-    frames.map((frame) =>
-      frame
-        .locator('input[type="password"]')
-        .evaluateAll((inputs) =>
-          inputs.map((input) => (input as HTMLInputElement).value),
-        ),
-    ),
-  );
-  return perFrame.flatMap((result, i) => {
-    if (result.status === "fulfilled") return result.value;
-    if (frames[i]?.isDetached()) return [];
-    throw result.reason;
-  });
+  const perFrame = await Promise.all(page.frames().map(framePasswords));
+  return perFrame.flat();
+}
+
+const readPasswords = (frame: Frame): Promise<string[]> =>
+  frame
+    .locator('input[type="password"]')
+    .evaluateAll((inputs) =>
+      inputs.map((input) => (input as HTMLInputElement).value),
+    );
+
+/**
+ * An iframe that navigates during the read stays attached but destroys the
+ * context being read ("Execution context was destroyed"): its new document is
+ * read once more, and only a second failure fails the snapshot.
+ */
+async function framePasswords(frame: Frame): Promise<string[]> {
+  try {
+    return await readPasswords(frame);
+  } catch {
+    // Not dropped: the retry's own failure is what gets thrown.
+    if (frame.isDetached()) return [];
+    try {
+      return await readPasswords(frame);
+    } catch (retryError) {
+      if (frame.isDetached()) return [];
+      throw retryError;
+    }
+  }
 }
 
 export const STILL_LOADING =

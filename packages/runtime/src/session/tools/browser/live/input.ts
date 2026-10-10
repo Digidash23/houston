@@ -6,10 +6,8 @@ import { checkBrowserUrl } from "../url-policy";
 import { CDP_STEP_MS, within } from "./cdp-step";
 import { keyPress, mouseSteps } from "./keys";
 import { DESKTOP_VIEWPORT } from "./layout";
+import { isNavigation, NavigationBudget } from "./navigation-budget";
 import { isClosedError, warnUnlessClosed } from "./page-errors";
-
-/** A navigation from the live view returns once it commits, never later. */
-const NAVIGATE_TIMEOUT_MS = 15_000;
 
 export interface InputOutcome {
   refused?: "url_refused";
@@ -32,12 +30,19 @@ export class LiveInput {
   constructor(
     private readonly tab: BrowserTab,
     private readonly stepMs = CDP_STEP_MS,
+    private readonly budget = new NavigationBudget(),
   ) {}
 
   async apply(events: readonly BrowserLiveInput[]): Promise<InputOutcome> {
     let outcome: InputOutcome = {};
+    this.budget.restart();
+    let skipped = 0;
     for (const event of events) {
       if (this.closed) break;
+      if (isNavigation(event) && this.budget.spent()) {
+        skipped += 1;
+        continue;
+      }
       try {
         if ((await this.one(event)) === "url_refused")
           outcome = { refused: "url_refused" };
@@ -49,6 +54,11 @@ export class LiveInput {
         this.bound = null;
       }
     }
+    // Counted, never the addresses: they may carry what the person typed.
+    if (skipped > 0)
+      console.warn(
+        `[browser] live view batch ran out of navigation time: skipped ${skipped} navigation(s)`,
+      );
     return outcome;
   }
 
@@ -110,7 +120,7 @@ export class LiveInput {
     // would freeze every click and keystroke queued behind it. A page that
     // fails to load shows its own error in the picture.
     await this.tab.page
-      .goto(href, { waitUntil: "commit", timeout: NAVIGATE_TIMEOUT_MS })
+      .goto(href, { waitUntil: "commit", timeout: this.budget.timeout() })
       .catch(warnUnlessClosed("live view navigation"));
     return undefined;
   }
@@ -134,7 +144,7 @@ export class LiveInput {
       return;
     }
     await page
-      .goBack({ waitUntil: "commit", timeout: NAVIGATE_TIMEOUT_MS })
+      .goBack({ waitUntil: "commit", timeout: this.budget.timeout() })
       .catch(warnUnlessClosed("live view back"));
   }
 

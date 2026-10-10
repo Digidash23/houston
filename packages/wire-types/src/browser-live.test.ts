@@ -27,6 +27,7 @@ describe("parseBrowserLiveEvent", () => {
     ).toEqual({ type: "page", url: "https://a.com", title: "A" });
     const status = {
       type: "status",
+      handoffId: "0b6c3f9e-8d1a-4f2b-9c3d-5e6f7a8b9c0d",
       state: "waiting",
       text: "Sign in",
       expiresAt: 1,
@@ -50,8 +51,28 @@ describe("parseBrowserLiveEvent", () => {
     { type: "frame", seq: 1, jpeg: "A", width: 0, height: 1 },
     { type: "frame", seq: 1, jpeg: "A", width: Number.NaN, height: 1 },
     { type: "page", url: 1, title: "t" },
-    { type: "status", state: "gone", text: "", expiresAt: 1 },
-    { type: "status", state: "done", text: "", expiresAt: Infinity },
+    {
+      type: "status",
+      handoffId: "handoff-1",
+      state: "gone",
+      text: "",
+      expiresAt: 1,
+    },
+    {
+      type: "status",
+      handoffId: "handoff-1",
+      state: "done",
+      text: "",
+      expiresAt: Infinity,
+    },
+    { type: "status", state: "done", text: "", expiresAt: 1 },
+    {
+      type: "status",
+      handoffId: "short",
+      state: "done",
+      text: "",
+      expiresAt: 1,
+    },
   ])("throws on %j", (value) => {
     expect(() => parseBrowserLiveEvent(value)).toThrow();
   });
@@ -76,11 +97,13 @@ describe("parseBrowserLiveInputRequest", () => {
           { type: "navigate", url: " https://a.com " },
           { type: "back" },
         ],
+        handoff: "handoff-1",
         ack: { viewer: "viewer_12345", seq: 3 },
         batch: { viewer: "viewer_12345", seq: 7 },
         finish: "done",
       }),
     ).toEqual({
+      handoff: "handoff-1",
       events: [
         {
           type: "mouse",
@@ -110,25 +133,41 @@ describe("parseBrowserLiveInputRequest", () => {
       ).toEqual({ viewer: "viewer_12345", seq });
   });
 
-  it("accepts an empty body and a finish alone", () => {
+  it("accepts an empty body and a finish naming its hand-off", () => {
     expect(parseBrowserLiveInputRequest({})).toEqual({});
-    expect(parseBrowserLiveInputRequest({ finish: "cancel" })).toEqual({
-      finish: "cancel",
-    });
+    expect(
+      parseBrowserLiveInputRequest({ handoff: "handoff-1", finish: "cancel" }),
+    ).toEqual({ handoff: "handoff-1", finish: "cancel" });
   });
 
   it("accepts exactly the event and text limits", () => {
     const events = Array.from({ length: BROWSER_LIVE_MAX_EVENTS }, () => ({
       type: "back",
     }));
-    expect(parseBrowserLiveInputRequest({ events }).events).toHaveLength(64);
+    expect(
+      parseBrowserLiveInputRequest({ handoff: "handoff-1", events }).events,
+    ).toHaveLength(64);
     const text = "a".repeat(BROWSER_LIVE_MAX_TEXT);
     expect(
-      parseBrowserLiveInputRequest({ events: [{ type: "text", text }] }),
-    ).toEqual({ events: [{ type: "text", text }] });
+      parseBrowserLiveInputRequest({
+        handoff: "handoff-1",
+        events: [{ type: "text", text }],
+      }),
+    ).toEqual({ handoff: "handoff-1", events: [{ type: "text", text }] });
   });
 
-  const one = (event: unknown) => ({ events: [event] });
+  it("refuses input, acks and finishes that name no hand-off", () => {
+    for (const body of [
+      { events: [{ type: "back" }] },
+      { ack: { viewer: "viewer_12345", seq: 1 } },
+      { finish: "done" },
+    ])
+      expect(() => parseBrowserLiveInputRequest(body)).toThrow(
+        "without handoff",
+      );
+  });
+
+  const one = (event: unknown) => ({ handoff: "handoff-1", events: [event] });
   it.each([
     ["not an object", "x"],
     ["events not an array", { events: {} }],
@@ -165,7 +204,10 @@ describe("parseBrowserLiveInputRequest", () => {
     ["empty url", one({ type: "navigate", url: "  " })],
     ["bad viewer", { ack: { viewer: "short", seq: 1 } }],
     ["bad ack seq", { ack: { viewer: "viewer_12345", seq: -1 } }],
-    ["bad finish", { finish: "later" }],
+    ["bad finish", { handoff: "handoff-1", finish: "later" }],
+    ["finish without its hand-off", { finish: "done" }],
+    ["bad handoff", { handoff: "no way", events: [] }],
+    ["handoff not a string", { handoff: 7 }],
     ["batch not an object", { batch: 1 }],
     ["bad batch viewer", { batch: { viewer: "short", seq: 1 } }],
     ["batch seq zero", { batch: { viewer: "viewer_12345", seq: 0 } }],

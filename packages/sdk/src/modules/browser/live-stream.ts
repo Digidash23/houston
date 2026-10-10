@@ -13,6 +13,8 @@ export const BROWSER_LIVE_IDLE_MS = 45_000;
 export interface BrowserLiveWatchOptions {
   viewer: string;
   layout: BrowserLiveLayout;
+  /** The hand-off a reconnect is for; undefined before the first status. */
+  handoff: string | undefined;
   signal: AbortSignal;
   onEvent: (event: BrowserLiveEvent) => void;
   onActivity?: () => void;
@@ -35,6 +37,7 @@ export interface LiveStreamAttempt {
   watch(options: BrowserLiveWatchOptions): Promise<void>;
   viewer: string;
   layout: BrowserLiveLayout;
+  handoff: string | undefined;
   clock: Clock;
   onEvent(event: BrowserLiveEvent): void;
   onMalformed(error: unknown): void;
@@ -72,6 +75,7 @@ export function startLiveStream(attempt: LiveStreamAttempt): () => void {
     .watch({
       viewer: attempt.viewer,
       layout: attempt.layout,
+      handoff: attempt.handoff,
       signal: controller.signal,
       onEvent: (event) => {
         if (live) attempt.onEvent(event);

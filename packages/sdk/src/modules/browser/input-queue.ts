@@ -103,3 +103,14 @@ export function batchSize(queue: readonly BrowserLiveInput[]): number {
   }
   return n;
 }
+
+/**
+ * A failed batch as its retry re-sends it. Moves are stale by the time a retry
+ * lands (every press carries its own position); only a trailing one still
+ * says where the pointer is.
+ */
+export function forRetry(
+  events: readonly BrowserLiveInput[],
+): BrowserLiveInput[] {
+  return events.filter((e, i) => !isMove(e) || i === events.length - 1);
+}

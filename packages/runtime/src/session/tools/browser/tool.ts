@@ -4,7 +4,6 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { BROWSER_HANDOFF_LIMIT_MS } from "@houston/wire-types";
 import { currentActingContext } from "../../acting-context";
-import { decodeActingAuthor } from "../../attribution";
 import { currentConversationId } from "../../conversation-context";
 import { assertNotAutoMode, assertNotPlanMode } from "../../live-mode-gate";
 import {
@@ -18,7 +17,7 @@ import {
   BrowserToolError,
   browserFailure,
 } from "./errors";
-import { runHandoff } from "./handoff";
+import { handoffOwner, runHandoff } from "./handoff";
 import { type HandoffRegistry, sharedHandoffs } from "./live/registry";
 import { BROWSER_TOOL_NAME } from "./name";
 import { type BrowserPool, sharedBrowserPool } from "./pool";
@@ -79,11 +78,8 @@ export function makeBrowserTool({
     const conversationId = currentConversationId();
     if (!liveView || !conversationId)
       return browserFailure("handoff_unavailable", NO_LIVE_VIEW);
-    // Taken now: the request that started the turn named who it is for (the
-    // signed acting-as, or a pooled turn's acting user).
-    const acting = currentActingContext();
-    const owner =
-      decodeActingAuthor(acting?.actingAs)?.userId ?? acting?.actingUser;
+    // Taken now: the request that started the turn named who it is for.
+    const owner = handoffOwner(currentActingContext());
     return pool.run(
       key,
       statePath,

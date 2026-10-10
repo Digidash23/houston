@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type {
   BrowserHandoffEnd,
   BrowserHandoffState,
@@ -35,6 +36,12 @@ export interface HandoffInit {
  */
 export class HandoffSession {
   readonly conversationId: string;
+  /**
+   * Unguessable, minted per hand-off and echoed by the client on everything
+   * it sends: a chat may hand over again, and nothing aimed at an earlier
+   * hand-off (a late Done, a retried batch) may act on this one.
+   */
+  readonly handoffId = randomUUID();
   readonly text: string;
   readonly owner: string | undefined;
   readonly expiresAt: number;
@@ -51,7 +58,7 @@ export class HandoffSession {
   private latestPage: BrowserLivePage | null = null;
   private seq = 0;
   private chain: Promise<unknown> = Promise.resolve();
-  /** The highest input batch seq applied per viewer (a retry is not re-applied). */
+  /** The highest input batch seq applied per viewer of this hand-off. */
   private readonly applied = new Map<string, number>();
 
   constructor(init: HandoffInit) {
@@ -77,6 +84,7 @@ export class HandoffSession {
   status(): BrowserLiveStatus {
     return {
       type: "status",
+      handoffId: this.handoffId,
       state: this.state,
       text: this.text,
       expiresAt: this.expiresAt,
@@ -129,7 +137,8 @@ export class HandoffSession {
   /**
    * Apply one input batch, in order, after every earlier batch. A batch that
    * was queued when the hand-off ended, or that repeats one already applied
-   * for its viewer (`batch.seq` not above the last), applies nothing.
+   * for its viewer (`batch.seq` not above the last), applies nothing. Batches
+   * aimed at another hand-off never get here (the route checks `handoff`).
    */
   apply(
     events: readonly BrowserLiveInput[],

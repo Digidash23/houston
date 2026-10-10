@@ -119,12 +119,16 @@ describe.skipIf(!available)(
       expect(JSON.stringify(result)).not.toContain("Secret1");
     });
 
-    test("the hand-off belongs to the turn's person: the signed acting-as, else the acting user", async () => {
+    test("the hand-off belongs to the turn's person: the signed acting-as, else a pooled turn's verified owner, never an unsigned acting user", async () => {
       const token = (sub: string) =>
         `acting-v1.${Buffer.from(JSON.stringify({ sub })).toString("base64url")}.sig`;
       for (const [ctx, owner] of [
         [{ actingAs: token("member-signed") }, "member-signed"],
-        [{ actingUser: "member-turn" }, "member-turn"],
+        [
+          { actingUser: "member-turn", verifiedOwner: "member-turn" },
+          "member-turn",
+        ],
+        [{ actingUser: "desktop-header" }, undefined],
       ] as const) {
         const { run, session: opened } = start();
         const pending = runWithActingContext(ctx, () => run(handoff));

@@ -1,7 +1,9 @@
 import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { expect, test } from "vitest";
+import { actingFromHeaders } from "../../acting-context";
 import { runWithConversationId } from "../../conversation-context";
 import { runWithTurnMode } from "../../turn-mode-context";
+import { handoffOwner } from "./handoff";
 import { HandoffRegistry } from "./live/registry";
 import { BrowserPool } from "./pool";
 import { makeBrowserTool } from "./tool";
@@ -61,4 +63,27 @@ test("the description tells the model about handoff only when it is offered", ()
     makeBrowserTool({ workspaceDir: "/ws", liveView }).description;
   expect(describe(true)).toContain("call handoff");
   expect(describe(false)).not.toContain("handoff");
+});
+
+const signedAs = (sub: string) =>
+  `acting-v1.${Buffer.from(JSON.stringify({ sub })).toString("base64url")}.sig`;
+
+test("a hand-off belongs to the signed acting-as, else a pooled turn's verified owner", () => {
+  expect(handoffOwner({ actingAs: signedAs("member-a") })).toBe("member-a");
+  expect(
+    handoffOwner({ actingAs: signedAs("member-a"), verifiedOwner: "other" }),
+  ).toBe("member-a");
+  expect(handoffOwner({ verifiedOwner: "member-b" })).toBe("member-b");
+});
+
+test("an unsigned acting-user header never owns a hand-off (the desktop's first-day turn)", () => {
+  expect(handoffOwner({ actingUser: "desktop-user" })).toBeUndefined();
+  // A standing runtime's request headers can never name a verified owner.
+  const standing = actingFromHeaders({
+    "x-houston-acting-user": "desktop-user",
+    "x-houston-verified-owner": "desktop-user",
+  });
+  expect(standing?.verifiedOwner).toBeUndefined();
+  expect(handoffOwner(standing)).toBeUndefined();
+  expect(handoffOwner(undefined)).toBeUndefined();
 });

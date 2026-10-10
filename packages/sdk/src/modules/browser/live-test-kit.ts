@@ -64,6 +64,9 @@ function deferred<T>(): Deferred<T> & { promise: Promise<T> } {
   return { promise, resolve, reject };
 }
 
+/** The hand-off id {@link liveHarness}'s `known()` names by default. */
+export const HANDOFF = "handoff-1";
+
 export function httpError(status: number, body = "") {
   return Object.assign(new Error(`engine ${status}`), { status, body });
 }
@@ -102,5 +105,23 @@ export function liveHarness() {
     handlers,
   };
   const connection = openBrowserLiveConnection(deps);
-  return { connection, streams, posts, states, handlers, advance, pending };
+  /** The latest stream's first status: names the hand-off, so input flows. */
+  const known = (handoffId = HANDOFF, state: "waiting" | "done" = "waiting") =>
+    streams.at(-1)?.onEvent({
+      type: "status",
+      handoffId,
+      state,
+      text: "Sign in",
+      expiresAt: 600_000,
+    });
+  return {
+    connection,
+    streams,
+    posts,
+    states,
+    handlers,
+    advance,
+    pending,
+    known,
+  };
 }

@@ -10,7 +10,14 @@ import {
   type BrowserLiveEvent,
   type BrowserLiveInputAnswer,
 } from "./browser-live";
-import { count, finite, isState, record, text } from "./browser-live-fields";
+import {
+  count,
+  finite,
+  handoffId,
+  isState,
+  record,
+  text,
+} from "./browser-live-fields";
 
 export { parseBrowserLiveInputRequest } from "./browser-live-input-parse";
 
@@ -44,6 +51,7 @@ export function parseBrowserLiveEvent(value: unknown): BrowserLiveEvent {
         throw new Error("Invalid browser live status state");
       return {
         type: "status",
+        handoffId: handoffId(body.handoffId, "browser live status handoffId"),
         state: body.state,
         text: text(body.text, "browser live status text"),
         expiresAt: count(body.expiresAt, "browser live status expiresAt"),

@@ -19,6 +19,7 @@ import {
 const BASE = "http://host";
 const AGENT = "a1";
 const SK = "sk-1";
+const HANDOFF = "0b6c3f9e-8d1a-4f2b-9c3d-5e6f7a8b9c0d";
 
 const { calls, reset, restore, stubRouted } = createWireCapture();
 
@@ -99,9 +100,16 @@ test("openBrowserLive streams GET …/browser/live and posts byte-identical inpu
   expect(get.headers.get("Authorization")).toBe("Bearer t");
   expect(get.headers.get("x-houston-org")).toBe(ORG);
 
+  // Nothing goes up before the first status names the hand-off.
+  live.send({ type: "text", text: "hi" });
+  await new Promise((r) => setTimeout(r, 20));
+  expect(posts()).toHaveLength(0);
+  stream.write(
+    `event: status\ndata: ${JSON.stringify({ type: "status", handoffId: HANDOFF, state: "waiting", text: "Sign in", expiresAt: 1 })}\n\n`,
+  );
+
   // One event batch on the wire; a frame's ack does not wait behind it, a
   // key queues behind it.
-  live.send({ type: "text", text: "hi" });
   await vi.waitFor(() => expect(posts()).toHaveLength(1));
   stream.write(
     `event: frame\ndata: ${JSON.stringify({ type: "frame", seq: 3, jpeg: "AAA", width: 412, height: 860 })}\n\n`,
@@ -118,26 +126,54 @@ test("openBrowserLive streams GET …/browser/live and posts byte-identical inpu
     `${BASE}/agents/${AGENT}/conversations/${SK}/browser/input`,
   );
   expect(first.body).toBe(
-    `{"events":[{"type":"text","text":"hi"}],"batch":{"viewer":"${viewer}","seq":1}}`,
+    `{"handoff":"${HANDOFF}","events":[{"type":"text","text":"hi"}],"batch":{"viewer":"${viewer}","seq":1}}`,
   );
   expectGatewayHeaders(first);
   expect(ack.url).toBe(first.url);
-  expect(ack.body).toBe(`{"ack":{"viewer":"${viewer}","seq":3}}`);
+  expect(ack.body).toBe(
+    `{"handoff":"${HANDOFF}","ack":{"viewer":"${viewer}","seq":3}}`,
+  );
   expectGatewayHeaders(ack);
   expect(second.url).toBe(first.url);
   expect(second.body).toBe(
-    `{"events":[{"type":"key","key":"Enter"}],"batch":{"viewer":"${viewer}","seq":2}}`,
+    `{"handoff":"${HANDOFF}","events":[{"type":"key","key":"Enter"}],"batch":{"viewer":"${viewer}","seq":2}}`,
   );
   expectGatewayHeaders(second);
 
   await expect(live.finish("done")).resolves.toBe("answered");
   const finish = posts()[3];
   expect(finish.url).toBe(first.url);
-  expect(finish.body).toBe('{"finish":"done"}');
+  expect(finish.body).toBe(`{"handoff":"${HANDOFF}","finish":"done"}`);
   expectGatewayHeaders(finish);
   expect(h.onConnection).toHaveBeenLastCalledWith({
     kind: "ended",
     reason: "done",
   });
   expect(h.onUnexpected).not.toHaveBeenCalled();
+});
+
+test("a reconnect names the hand-off in the stream query", async () => {
+  let gets = 0;
+  stubRouted((call: Call) => {
+    if (call.method !== "GET") return json(200, { state: "waiting" });
+    gets += 1;
+    const body =
+      gets === 1
+        ? `data: ${JSON.stringify({ type: "status", handoffId: HANDOFF, state: "waiting", text: "Sign in", expiresAt: 1 })}\n\n`
+        : "";
+    return new Response(body, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    });
+  });
+  const live = client().openBrowserLive(AGENT, SK, handlers());
+  await vi.waitFor(() => expect(gets).toBeGreaterThanOrEqual(2), {
+    timeout: 3000,
+  });
+  const [first, second] = calls.filter((c: Call) => c.method === "GET");
+  const viewer = new URL(first.url).searchParams.get("viewer") ?? "";
+  expect(second.url).toBe(
+    `${BASE}/agents/${AGENT}/conversations/${SK}/browser/live?viewer=${viewer}&layout=desktop&handoff=${HANDOFF}`,
+  );
+  live.close();
 });

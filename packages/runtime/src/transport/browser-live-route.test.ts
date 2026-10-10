@@ -134,6 +134,7 @@ test("a viewer gets the status, the page, then frames, two ahead of its acks", a
   });
   // The window is full: C was replaced by D while held back.
   const answer = await input(conversationId, {
+    handoff: session.handoffId,
     ack: { viewer: "viewer-0001", seq: 2 },
   });
   expect(await answer.json()).toEqual({ state: "waiting" });
@@ -146,10 +147,16 @@ test("a viewer gets the status, the page, then frames, two ahead of its acks", a
 
 test("finishing ends the hand-off; later input is refused and a late viewer sees how it ended", async () => {
   const { conversationId, session } = handOver();
-  const finished = await input(conversationId, { finish: "done" });
+  const finished = await input(conversationId, {
+    handoff: session.handoffId,
+    finish: "done",
+  });
   expect(await finished.json()).toEqual({ state: "done" });
   expect(await session.ended).toBe("done");
-  const late = await input(conversationId, { events: [{ type: "back" }] });
+  const late = await input(conversationId, {
+    handoff: session.handoffId,
+    events: [{ type: "back" }],
+  });
   expect(late.status).toBe(409);
   expect(await late.json()).toEqual({
     error: "handoff_ended",
@@ -161,6 +168,7 @@ test("finishing ends the hand-off; later input is refused and a late viewer sees
   expect(stream.seen).toEqual([
     {
       type: "status",
+      handoffId: session.handoffId,
       state: "done",
       text: "Sign in",
       expiresAt: session.expiresAt,
@@ -176,7 +184,10 @@ test("no hand-off is a 404; a bad viewer or body is a 400", async () => {
   const { conversationId, session } = handOver();
   for (const query of ["viewer=short", "", "viewer=viewer-0001&layout=tv"])
     expect((await live(conversationId, query)).status).toBe(400);
-  const bad = await input(conversationId, { events: [{ type: "teleport" }] });
+  const bad = await input(conversationId, {
+    handoff: session.handoffId,
+    events: [{ type: "teleport" }],
+  });
   expect(bad.status).toBe(400);
   expect(await bad.json()).toMatchObject({ code: "invalid_input" });
   session.finish("cancelled");
@@ -192,7 +203,7 @@ test("only the person the browser was handed to may watch or drive it", async ()
   }
   const owned = await input(
     conversationId,
-    { finish: "cancel" },
+    { handoff: session.handoffId, finish: "cancel" },
     acting("member-owner"),
   );
   expect(await owned.json()).toEqual({ state: "cancelled" });

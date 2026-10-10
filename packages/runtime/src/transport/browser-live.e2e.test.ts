@@ -72,13 +72,23 @@ describe.skipIf(!available)(
 
       const events: BrowserLiveEvent[] = [];
       const stop = new AbortController();
-      const stream = engine.streamBrowserLive(chat, viewer, "desktop", {
-        signal: stop.signal,
-        onFrame: (raw) => events.push(parseBrowserLiveEvent(raw)),
-      });
+      const stream = engine.streamBrowserLive(
+        chat,
+        viewer,
+        "desktop",
+        undefined,
+        {
+          signal: stop.signal,
+          onFrame: (raw) => events.push(parseBrowserLiveEvent(raw)),
+        },
+      );
       const frames = () => events.filter((e) => e.type === "frame");
       const first = await until(() => frames()[0]);
       expect(events[0]).toMatchObject({ type: "status", state: "waiting" });
+      const status = events[0];
+      if (status.type !== "status") throw new Error("no status first");
+      const handoff = status.handoffId;
+      expect(handoff).toBe(session.handoffId);
       expect(first.type === "frame" && first.jpeg.startsWith("/9j/")).toBe(
         true,
       );
@@ -95,6 +105,7 @@ describe.skipIf(!available)(
       const seen = frames().length;
       const answer = parseBrowserLiveInputAnswer(
         await engine.browserInput(chat, {
+          handoff,
           ack: { viewer, seq: first.type === "frame" ? first.seq : 0 },
           events: [
             { type: "mouse", action: "click", ...at },
@@ -115,6 +126,7 @@ describe.skipIf(!available)(
         return all.length > seen ? all[all.length - 1] : undefined;
       });
       await engine.browserInput(chat, {
+        handoff,
         ack: { viewer, seq: last.type === "frame" ? last.seq : 0 },
         finish: "done",
       });

@@ -234,6 +234,7 @@ test("the supplied turn id and acting identity reach the turn session", async ()
       turnId: turn.turnId,
       author: turn.author,
       actingUser: currentActingContext()?.actingUser,
+      verifiedOwner: currentActingContext()?.verifiedOwner,
     };
     turn.emit({ type: "text", data: "ok", turnId: turn.turnId });
     return {};
@@ -252,6 +253,7 @@ test("the supplied turn id and acting identity reach the turn session", async ()
     turnId: "gateway-turn-1",
     author: { userId: "user-1", name: "Ada" },
     actingUser: "user-1",
+    verifiedOwner: "user-1",
   });
   expect(raw).toContain('"turnId":"gateway-turn-1"');
 });

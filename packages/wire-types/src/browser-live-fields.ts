@@ -2,6 +2,7 @@
 
 import {
   BROWSER_HANDOFF_STATES,
+  BROWSER_LIVE_HANDOFF,
   type BrowserHandoffState,
 } from "./browser-live";
 
@@ -36,4 +37,10 @@ export function unit(value: unknown, what: string): number {
 
 export function isState(value: unknown): value is BrowserHandoffState {
   return BROWSER_HANDOFF_STATES.includes(value as BrowserHandoffState);
+}
+
+export function handoffId(value: unknown, what: string): string {
+  const id = text(value, what);
+  if (!BROWSER_LIVE_HANDOFF.test(id)) throw new Error(`Invalid ${what}`);
+  return id;
 }

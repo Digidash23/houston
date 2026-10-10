@@ -23,6 +23,12 @@ export interface InputLane {
   failures: number;
   /** The frame ack the POST in flight carries. */
   ack: number | null;
+  /**
+   * A refusal on this lane was reported and this lane has not succeeded
+   * since: a repeated 400 reports once per episode, and the other lane's
+   * successes do not re-arm it.
+   */
+  reported: boolean;
 }
 
 export const inputLane = (): InputLane => ({
@@ -30,6 +36,7 @@ export const inputLane = (): InputLane => ({
   timer: null,
   failures: 0,
   ack: null,
+  reported: false,
 });
 
 /** Arms `lane`'s next pause (growing with its failures) then runs `next`. */

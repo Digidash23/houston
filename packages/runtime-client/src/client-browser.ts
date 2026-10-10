@@ -29,18 +29,25 @@ export abstract class EngineBrowserClient extends EngineConversationsClient {
 
   /**
    * One connection attempt; resolves when the stream ends. `viewer` names this
-   * viewer (frame acks are counted per viewer). Viewer and layout are
-   * positional so the assistant catalog can derive the query from the SDK
-   * operation's own parameters.
+   * viewer (frame acks are counted per viewer); `handoff`, once the first
+   * status named it, keeps a reconnect on that hand-off. Viewer, layout and
+   * handoff are positional so the assistant catalog can derive the query from
+   * the SDK operation's own parameters.
    */
   async streamBrowserLive(
     id: string,
     viewer: string,
     layout: "desktop" | "phone",
+    handoff: string | undefined,
     opts: BrowserLiveStreamOptions,
   ): Promise<void> {
+    const query = new URLSearchParams();
+    query.set("viewer", viewer);
+    query.set("layout", layout);
+    if (handoff !== undefined) query.set("handoff", handoff);
+    const suffix = query.toString();
     const res = await this.request(
-      `/conversations/${encodeURIComponent(id)}/browser/live?viewer=${encodeURIComponent(viewer)}&layout=${encodeURIComponent(layout)}`,
+      `/conversations/${encodeURIComponent(id)}/browser/live${suffix ? `?${suffix}` : ""}`,
       // No Accept header: the host proxy keys SSE on the response's content
       // type, and a header beyond the JSON one leaves the route underivable
       // for the assistant catalog (and so unbound for the parity gate).

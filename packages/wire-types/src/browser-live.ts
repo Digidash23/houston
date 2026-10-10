@@ -31,8 +31,21 @@ export const BROWSER_HANDOFF_FAILURES = [
 export type BrowserHandoffFailure = (typeof BROWSER_HANDOFF_FAILURES)[number];
 
 export type BrowserLiveLayout = "desktop" | "phone";
-/** GET query: `viewer` (required, /^[A-Za-z0-9_-]{8,64}$/), `layout` (default desktop). */
+/**
+ * GET query: `viewer` (required, /^[A-Za-z0-9_-]{8,64}$/), `layout` (default
+ * desktop), and `handoff` (optional, {@link BROWSER_LIVE_HANDOFF}): the
+ * hand-off the viewer is watching, once its first status named it.
+ *
+ * - No `handoff`: the chat's current hand-off (`404 no_handoff` when none).
+ * - `handoff` names the current one: served as usual.
+ * - `handoff` names an earlier one still retained (60 s after it ended): one
+ *   terminal `status` of THAT hand-off, then the stream closes.
+ * - `handoff` names one no longer known: `409 handoff_ended` (no `state`)
+ *   while the chat has a newer hand-off, `404 no_handoff` when it has none.
+ */
 export const BROWSER_LIVE_VIEWER = /^[A-Za-z0-9_-]{8,64}$/;
+/** A hand-off id as the runtime mints it (a UUID) and the client echoes it. */
+export const BROWSER_LIVE_HANDOFF = /^[A-Za-z0-9_-]{8,64}$/;
 
 // server → client (SSE `data:` JSON; `type` is the discriminant)
 export interface BrowserLiveFrame {
@@ -50,6 +63,12 @@ export interface BrowserLivePage {
 }
 export interface BrowserLiveStatus {
   type: "status";
+  /**
+   * This hand-off's unguessable id. A chat may hand over again after one
+   * ends; the client stamps this id on everything it sends so nothing from an
+   * earlier hand-off's view (a late Done, a retry) acts on a newer one.
+   */
+  handoffId: string;
   state: BrowserHandoffState;
   text: string;
   /** Epoch ms the hand-off expires at. */
@@ -112,6 +131,13 @@ export const BROWSER_LIVE_FRAME_WINDOW = 2;
 export const BROWSER_LIVE_INPUT_TIMEOUT_MS = 15_000;
 
 export interface BrowserLiveInputRequest {
+  /**
+   * The hand-off this request is for (its status's `handoffId`). One naming
+   * any other hand-off than the chat's waiting one gets `409 handoff_ended`
+   * (with that hand-off's `state` while it is retained) and changes nothing.
+   * REQUIRED with `events`, `ack` or `finish` (`400 invalid_input` without it).
+   */
+  handoff?: string;
   events?: BrowserLiveInput[];
   /** The highest frame `seq` this viewer has received. */
   ack?: { viewer: string; seq: number };

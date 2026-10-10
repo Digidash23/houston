@@ -26,6 +26,13 @@ export interface ActingContext {
   actingAs?: string;
   actingUser?: string;
   /**
+   * The person a pooled turn's VERIFIED turn record names (execute-ready-turn
+   * only). Unlike `actingUser`, which a standing runtime takes from an
+   * unsigned header, this never comes from a request: it may name who owns
+   * something the turn starts, such as a browser hand-off.
+   */
+  verifiedOwner?: string;
+  /**
    * WHOSE credentials this subtree resolves. Normally derived from `actingAs`
    * (see `credentialScopeKeyFor`); an internal caller may supply a stable
    * execution scope independently of forwarded acting authority. Pooled turns
@@ -92,6 +99,7 @@ export function runWithActingContext<T>(
     !ctx ||
     (!ctx.actingAs &&
       !ctx.actingUser &&
+      !ctx.verifiedOwner &&
       !ctx.credentialScopeKey &&
       !ctx.authPath &&
       !ctx.localModelTransport)

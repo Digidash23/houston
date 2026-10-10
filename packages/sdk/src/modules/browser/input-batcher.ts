@@ -1,11 +1,13 @@
 /**
  * The live view's upward half: the person's input events and the viewer's
- * frame acks, batched into input POSTs. Event batches go one at a time, in the
- * person's order, each stamped `batch: { viewer, seq }`; a retry re-sends the
- * same seq so a batch the runtime already applied is not applied twice. A
- * frame ack never waits behind a stuck batch: it goes alone on its own lane.
- * Every POST times out after `BROWSER_LIVE_INPUT_TIMEOUT_MS`, as a network
- * failure would.
+ * frame acks, batched into input POSTs. Nothing is sent before the stream's
+ * first status names the hand-off (`known`); every POST then carries it, so
+ * none can act on a later hand-off in the same chat. Event batches go one at
+ * a time, in the person's order, each stamped `batch: { viewer, seq }`; a
+ * retry re-sends the same seq so a batch the runtime already applied is not
+ * applied twice. A frame ack never waits behind a stuck batch: it goes alone
+ * on its own lane. Every POST times out after `BROWSER_LIVE_INPUT_TIMEOUT_MS`,
+ * as a network failure would.
  */
 
 import type {
@@ -14,6 +16,7 @@ import type {
   BrowserLiveInputRequest,
 } from "@houston/wire-types";
 import type { Clock } from "../../ports";
+import { finishWaiters } from "./finish-waiters";
 import {
   backOff,
   clearLane,
@@ -21,7 +24,7 @@ import {
   inputLane,
   timedPost,
 } from "./input-lane";
-import { batchSize, isMove, merged, textEvents } from "./input-queue";
+import { batchSize, forRetry, merged, textEvents } from "./input-queue";
 import { type BrowserLiveFailure, classifyLiveFailure } from "./live-failure";
 import type { BrowserLiveFinishResult } from "./types";
 
@@ -45,17 +48,11 @@ export function createInputBatcher(deps: InputBatcherDeps) {
   let received = 0;
   let acked = 0;
   let stopped = false;
-  /** An unexpected failure was reported and nothing has succeeded since. */
-  let reported = false;
-  let finish: "done" | "cancel" | null = null;
-  const finishWaiters: ((result: BrowserLiveFinishResult) => void)[] = [];
+  /** The hand-off every POST names; null until the first status names it. */
+  let handoff: string | null = null;
+  const finish = finishWaiters();
   const events = inputLane();
   const acks = inputLane();
-
-  const settleFinish = (result: BrowserLiveFinishResult) => {
-    finish = null;
-    for (const resolve of finishWaiters.splice(0)) resolve(result);
-  };
 
   const ackDue = () => {
     const covered = Math.max(acked, events.ack ?? 0, acks.ack ?? 0);
@@ -79,8 +76,10 @@ export function createInputBatcher(deps: InputBatcherDeps) {
       (answer) => {
         l.busy = false;
         l.ack = null;
+        // Closed meanwhile: a late answer must not reach a reopened view.
+        if (stopped) return;
         l.failures = 0;
-        reported = false;
+        l.reported = false;
         if (request.ack) acked = Math.max(acked, request.ack.seq);
         onSent();
         deps.onAnswer(answer);
@@ -93,34 +92,29 @@ export function createInputBatcher(deps: InputBatcherDeps) {
         const failure = classifyLiveFailure(err, deps.isTransport);
         if (failure.kind === "ended") {
           // The hand-off is over: nothing is left to deliver a finish to.
-          settleFinish("answered");
+          finish.settle("answered");
           return deps.onEnded(failure);
         }
         if (failure.kind === "unexpected") {
           // Refused as malformed: re-sending would be refused again.
-          if (!reported) deps.onUnexpected(err);
-          reported = true;
+          if (!l.reported) deps.onUnexpected(err);
+          l.reported = true;
           onRefused();
         } else if (l === events && batch) {
-          // Moves are stale by the time a retry lands (every press carries
-          // its own position); only a trailing one still says where it is.
-          const kept = batch.events;
-          batch.events = kept.filter(
-            (e, i) => !isMove(e) || i === kept.length - 1,
-          );
+          batch.events = forRetry(batch.events);
         }
         backOff(l, clock, pump);
       },
     );
   };
 
-  const pumpEvents = () => {
+  const pumpEvents = (handoff: string) => {
     if (events.busy || events.timer !== null) return;
     if (!batch && queue.length > 0)
       batch = { seq: nextSeq++, events: queue.splice(0, batchSize(queue)) };
-    const finishing = finish !== null && queue.length === 0 ? finish : null;
+    const finishing = queue.length === 0 ? finish.pending() : null;
     if (!batch && !finishing) return;
-    const request: BrowserLiveInputRequest = {};
+    const request: BrowserLiveInputRequest = { handoff };
     if (batch) {
       request.events = batch.events;
       request.batch = { viewer: deps.viewer, seq: batch.seq };
@@ -130,18 +124,18 @@ export function createInputBatcher(deps: InputBatcherDeps) {
     if (finishing) request.finish = finishing;
     const settled = (result: BrowserLiveFinishResult) => () => {
       if (request.events) batch = null;
-      if (request.finish) settleFinish(result);
+      if (request.finish) finish.settle(result);
     };
     send(events, request, settled("answered"), settled("abandoned"));
   };
 
-  const pumpAck = () => {
+  const pumpAck = (handoff: string) => {
     if (acks.busy || acks.timer !== null) return;
     const ack = ackDue();
     if (ack === null) return;
     send(
       acks,
-      { ack: { viewer: deps.viewer, seq: ack } },
+      { handoff, ack: { viewer: deps.viewer, seq: ack } },
       () => {},
       // A refused ack is not re-sent; the next frame's ack supersedes it.
       () => {
@@ -151,9 +145,9 @@ export function createInputBatcher(deps: InputBatcherDeps) {
   };
 
   function pump(): void {
-    if (stopped) return;
-    pumpEvents();
-    pumpAck();
+    if (stopped || handoff === null) return;
+    pumpEvents(handoff);
+    pumpAck(handoff);
   }
 
   return {
@@ -168,17 +162,20 @@ export function createInputBatcher(deps: InputBatcherDeps) {
       }
       pump();
     },
+    /** The hand-off the stream's first status named: sending starts. */
+    known(id: string): void {
+      handoff ??= id;
+      pump();
+    },
     /** The highest frame `seq` received; rides the next POST or goes alone. */
     ack(seq: number): void {
       if (seq > received) received = seq;
       pump();
     },
+    /** Waits for the hand-off to be known (or the view to close) first. */
     finish(outcome: "done" | "cancel"): Promise<BrowserLiveFinishResult> {
       if (stopped) return Promise.resolve("abandoned");
-      finish = outcome;
-      const done = new Promise<BrowserLiveFinishResult>((resolve) =>
-        finishWaiters.push(resolve),
-      );
+      const done = finish.request(outcome);
       pump();
       return done;
     },
@@ -192,7 +189,7 @@ export function createInputBatcher(deps: InputBatcherDeps) {
       batch = null;
       clearLane(events, clock);
       clearLane(acks, clock);
-      settleFinish(result);
+      finish.settle(result);
     },
   };
 }
