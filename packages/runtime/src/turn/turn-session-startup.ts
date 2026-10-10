@@ -106,9 +106,9 @@ async function prepareTurnSession(
     codeSandbox,
     systemPrompt: config.systemPrompt || turnSystemPrompt(codeExecution),
     // The ROLE's file wall, the same policy the long-lived runtime builds
-    // (session-tools.ts): a coordinator turn is held to its memory document,
-    // so the shared skills mirror it must never rewrite is not a writable root
-    // for it on any provider.
+    // (session-tools.ts): a coordinator turn is held to its memory document
+    // (plus read-only attachments), so the shared skills mirror it must never
+    // rewrite is not a writable root for it on any provider.
     fileGuard: fileToolGuardOptions({
       role: turn.role ?? null,
       workspaceDir: directories.workspaceDir,

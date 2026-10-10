@@ -46,7 +46,8 @@ const filePolicy = {
 /**
  * The wall this runtime's file tools are built with (security Gate #1): extra
  * writable roots for an ordinary agent, an exact-file allowlist — its memory
- * document and nothing else — for the coordinator (coordinator-policy.ts).
+ * document, plus read-only attachments — for the coordinator
+ * (coordinator-policy.ts).
  *
  * Exported so the Claude backend, which enforces file rules in its permission
  * gate rather than in these tools, is handed the SAME object instead of a

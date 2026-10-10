@@ -1,4 +1,4 @@
-import { mkdtempSync, realpathSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -156,5 +156,39 @@ test("the coordinator keeps exactly its memory document, nothing else", async ()
   expect(
     (await decide(gate, "Read", { file_path: join(workspaceDir, "CLAUDE.md") }))
       .behavior,
+  ).toBe("deny");
+});
+
+test("the coordinator can Read what people send it, and never Write there", async () => {
+  // H-044: a photo sent over Slack lands in `uploads/`, and the assistant must
+  // be able to look at it. The gate is built before the folder exists (it
+  // appears with the first upload), so the read must hold for a folder that
+  // arrives later.
+  const workspaceDir = tempRoot();
+  const gate = await gateFor("coordinator", workspaceDir, tempRoot());
+  const uploads = join(workspaceDir, "uploads");
+  mkdirSync(join(uploads, "slack"), { recursive: true });
+  const image = join(uploads, "image.png");
+  writeFileSync(image, "png");
+  writeFileSync(join(uploads, "slack", "brief.pdf"), "pdf");
+
+  for (const file_path of [image, join(uploads, "slack", "brief.pdf")])
+    expect((await decide(gate, "Read", { file_path })).behavior).toBe("allow");
+
+  const write = await decide(gate, "Write", { file_path: image });
+  expect(write.behavior).toBe("deny");
+  if (write.behavior === "deny")
+    expect(write.message).toContain("kept exactly as it arrived");
+  expect(
+    (await decide(gate, "Write", { file_path: join(uploads, "new.md") }))
+      .behavior,
+  ).toBe("deny");
+  // The folder is not a door: `..` out of it is still the narrowed wall.
+  expect(
+    (
+      await decide(gate, "Read", {
+        file_path: join(uploads, "..", "CLAUDE.md"),
+      })
+    ).behavior,
   ).toBe("deny");
 });
