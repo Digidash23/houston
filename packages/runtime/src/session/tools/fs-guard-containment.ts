@@ -1,6 +1,11 @@
 import { relative, sep } from "node:path";
 import { PathDeniedError, PathEscapeError } from "./fs-guard-errors";
-import { contains, type RootBoundary, realNearest } from "./fs-guard-paths";
+import {
+  contains,
+  type RootBoundary,
+  realNearest,
+  stripStream,
+} from "./fs-guard-paths";
 
 /**
  * The rules a resolved path is judged against: root containment and the
@@ -30,14 +35,15 @@ export const DENIED_SEGMENTS: ReadonlySet<string> = new Set([
  * `claude-login` ABOVE it (it appears as `..` from the root) can never deny
  * the whole tree. Lower-cased because macOS and Windows filesystems are
  * case-insensitive by default, so `AUTH.JSON` would otherwise open the very
- * file `auth.json` denies.
+ * file `auth.json` denies, and stream-stripped because `auth.json::$DATA`
+ * opens it on Windows.
  */
 export function isCredential(abs: string, boundary: RootBoundary): boolean {
   const base = contains(abs, boundary.canonical)
     ? boundary.canonical
     : boundary.lexical;
   for (const segment of relative(base, abs).split(sep)) {
-    if (DENIED_SEGMENTS.has(segment.toLowerCase())) return true;
+    if (DENIED_SEGMENTS.has(stripStream(segment).toLowerCase())) return true;
   }
   return false;
 }

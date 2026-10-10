@@ -16,9 +16,11 @@ const UNICODE_SPACES = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g;
  * NTFS alternate-data-stream suffixes (`auth.json::$DATA`, `auth.json:hidden`).
  * On Windows they address the SAME file under a different name, so a rule that
  * matches path segments would see `auth.json::$DATA` and not `auth.json` while
- * the open call reads the credential all the same. Stripped on every platform:
- * the suffix is meaningless elsewhere, and a rule that only holds on one OS is
- * a rule that will be found not holding on another.
+ * the open call reads the credential all the same. The PATH drops the suffix
+ * only on Windows: elsewhere `:` is an ordinary name character
+ * (`Standup 10:30.md`), and the guard hands its resolved path to the tool to
+ * open. The credential rule strips it from every segment on every platform
+ * (fs-guard-containment.ts), so a rule holds the same on each OS.
  */
 const NTFS_STREAM = /:[^:\\/]*(?::\$[A-Za-z_]+)?$/;
 
@@ -40,14 +42,14 @@ export function normalizeLikePi(input: string): string {
     return join(homedir(), p.slice(2));
   }
   if (/^file:\/\//.test(p)) return fileURLToPath(p);
-  return stripStream(p);
+  return process.platform === "win32" ? stripStream(p) : p;
 }
 
 /**
  * `path::$DATA` / `path:stream` -> `path`, leaving a Windows drive letter
  * (`C:\dir`) and a bare drive-relative path alone.
  */
-function stripStream(input: string): string {
+export function stripStream(input: string): string {
   const start = input.length > 1 && input[1] === ":" ? 2 : 0;
   const head = input.slice(0, start);
   const tail = input.slice(start);

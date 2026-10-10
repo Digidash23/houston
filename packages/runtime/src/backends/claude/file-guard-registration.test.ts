@@ -203,6 +203,9 @@ test("a one-shot call offers no tool and refuses any", async () => {
     query: sdk.query,
   });
   expect(calls[0]?.tools).toEqual([]);
+  // Its prompt quotes conversation text, so an `@path` there attaches nothing.
+  expect(calls[0]?.env?.CLAUDE_CODE_DISABLE_ATTACHMENTS).toBe("1");
+  expect(calls[0]?.disallowedTools).toContain("Read(**/auth.json)");
   expect(await preToolUse(calls[0], "notes.md")).toMatchObject({
     hookSpecificOutput: { permissionDecision: "deny" },
   });

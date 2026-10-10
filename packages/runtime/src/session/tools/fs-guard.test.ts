@@ -517,3 +517,15 @@ test("an NTFS data-stream suffix cannot launder a denied name", () => {
     );
   }
 });
+
+test("outside Windows a `:` is part of the file name the guard hands back", () => {
+  const workspace = realpathSync(mkdtempSync(join(tmpdir(), "houston-colon-")));
+  const guard = new WorkspaceGuard(workspace);
+  expect(guard.clamp("notes/Standup 10:30.md")).toBe(
+    join(
+      workspace,
+      "notes",
+      process.platform === "win32" ? "Standup 10" : "Standup 10:30.md",
+    ),
+  );
+});

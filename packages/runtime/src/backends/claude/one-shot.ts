@@ -2,6 +2,7 @@ import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { ClaudeToken } from "./backend-types";
 import { resolveClaudeExecutable } from "./binary-path";
 import { buildClaudeEnv } from "./claude-env";
+import { CREDENTIAL_PERMISSION_RULES } from "./credential-rules";
 import { denyEveryTool } from "./file-guard-hook";
 import { toSdkModel } from "./model";
 import { claudeLoginConfigDir } from "./paths";
@@ -80,16 +81,22 @@ export async function oneShotWithClaude(
   const pathToClaudeCodeExecutable = resolveClaudeExecutable();
   const options: Options = {
     cwd: p.workspaceDir,
-    env: buildClaudeEnv(token, {
-      configDir: claudeLoginConfigDir(),
-      credentialStorageDir: anthropicCredentialStorageDir(p.dataDir),
-    }),
+    env: {
+      ...buildClaudeEnv(token, {
+        configDir: claudeLoginConfigDir(),
+        credentialStorageDir: anthropicCredentialStorageDir(p.dataDir),
+      }),
+      // The CLI attaches the file behind any `@path` in the prompt, no tool
+      // involved, and a one-shot's prompt quotes conversation text.
+      CLAUDE_CODE_DISABLE_ATTACHMENTS: "1",
+    },
     ...(pathToClaudeCodeExecutable ? { pathToClaudeCodeExecutable } : {}),
     ...CLAUDE_QUERY_DEFAULTS,
     // A one-shot answers in prose. No built-in is offered, and the hook
     // refuses any tool a future SDK would offer anyway.
     tools: [],
     allowedTools: [],
+    disallowedTools: [...CREDENTIAL_PERMISSION_RULES],
     hooks: { PreToolUse: [{ hooks: [denyEveryTool] }] },
     systemPrompt: p.systemPrompt,
     ...(p.modelId ? { model: toSdkModel(p.modelId) } : {}),

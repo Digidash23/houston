@@ -91,18 +91,24 @@ test("an ordinary read passes with the proven absolute path", async () => {
     kind: "pass",
     updatedInput: { file_path: join(ws, "notes.md"), limit: 5 },
   });
-  // The raw string is never what opens: `@` is judged and opened as one path,
-  // and an NTFS stream suffix names the file it is a stream of.
+  // The raw string is never what opens: `@` is judged and opened as one path.
   expect(
     decision(await run(hook, "Read", { file_path: "@uploads/photo.png" })),
   ).toMatchObject({
     updatedInput: { file_path: join(ws, "uploads", "photo.png") },
   });
+  // A `:` names a stream of the file on Windows and is part of the name
+  // elsewhere; either way the path handed back is the file that opens.
+  const colon =
+    process.platform === "win32" ? "Standup 10" : "Standup 10:30.md";
   expect(
     decision(
-      await run(hook, "Edit", { file_path: "notes.md:x", old_string: "a" }),
+      await run(hook, "Edit", {
+        file_path: "Standup 10:30.md",
+        old_string: "a",
+      }),
     ),
-  ).toMatchObject({ updatedInput: { file_path: join(ws, "notes.md") } });
+  ).toMatchObject({ updatedInput: { file_path: join(ws, colon) } });
   expect(
     decision(await run(hook, "Grep", { pattern: "/api/", path: "uploads" })),
   ).toEqual({
@@ -189,6 +195,12 @@ test("the coordinator is held to its allowlist", async () => {
   const calls: [string, Record<string, unknown>][] = [
     ["Read", { file_path: "notes.md" }],
     ["Read", { file_path: "CLAUDE.md" }],
+    ...(process.platform === "win32"
+      ? []
+      : ([["Write", { file_path: `${memory}:x`, content: "[]" }]] as [
+          string,
+          Record<string, unknown>,
+        ][])),
     ["Read", { file_path: ".houston/runtime/auth.json" }],
     ["Grep", { pattern: "token" }],
     ["Glob", { pattern: "**/*" }],
