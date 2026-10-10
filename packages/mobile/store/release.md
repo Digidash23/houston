@@ -70,7 +70,7 @@ lowest live store build number). It re-signs the channel's current bundle with
 the higher floor; it refuses a value at or below the current one.
 
 The committed `native-compat.json`, Xcode `CURRENT_PROJECT_VERSION`, and Gradle
-`versionCode` remain the native compatibility floor (currently 4): OTA bundles
+`versionCode` remain the native compatibility floor (currently 101, the first CI store build number): OTA bundles
 skip builds below `min_native_build`, and store uploads must be at least
 `required_native_build`. Store jobs
 override the upload build number with `github.run_number * 100 +
@@ -81,7 +81,8 @@ Gradle `versionName`) is the release tag without `cloud-v` (`cloud-v1.0.7`
 uploads `1.0.7`); a `main` dispatch uses the highest `cloud-v*` tag by version, so once that
 version is approved, cut a new release instead of dispatching. The committed
 `1.0` is only the local-build default. Advance all three committed values together for
-a native capability change. Play requires a first app bundle uploaded through
+a native change, to a build above every store build already uploaded, and
+append the new fingerprint to `src/native-compat.test.ts`. Play requires a first app bundle uploaded through
 its Console before the API upload can create subsequent releases.
 
 The web production and staging builds generate `/.well-known` association files
