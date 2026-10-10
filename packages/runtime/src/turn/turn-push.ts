@@ -9,6 +9,7 @@ import {
 } from "@houston/domain";
 import { createPushReporter } from "@houston/host/src/telemetry/push-report";
 import {
+  type Activity,
   missionAudience,
   notificationReason,
   type PushReport,
@@ -54,6 +55,20 @@ function reporter({ deps, turn }: TurnPushContext, claimBound = false) {
   });
 }
 
+/** The mission row with this turn's contributor and mentions stamped; the
+ *  SAME reference when the stamp changes nothing. */
+function stamped(current: Activity, turn: TurnRequest, mentioned: string[]) {
+  return upsertMentions(
+    upsertContributor(current, {
+      user_id: turn.actingAs?.userId ?? "",
+      ...(turn.actingAs?.name ? { name: turn.actingAs.name } : {}),
+    }),
+    mentioned,
+    new Date().toISOString(),
+    turn.actingAs?.userId,
+  );
+}
+
 /** Stamp the same contributor and mention aggregate as a standing pod. */
 export async function stampPooledTurn(input: TurnPushContext): Promise<{
   mentionReport?: Promise<void>;
@@ -64,12 +79,19 @@ export async function stampPooledTurn(input: TurnPushContext): Promise<{
     ...new Set((turn.mentions ?? []).map((m) => m.userId)),
   ].slice(0, 32);
   try {
-    const activity = await mutateTurnDocument({
+    // This runs before the first token. A returning contributor with no
+    // mentions changes nothing (contributors are add-only), so the hydrated
+    // view settles it without a store refresh and generation-guarded upload.
+    const hydrated = (
+      await loadActivities(filesystem.vfs, filesystem.workspaceRel)
+    ).items.find((item) => addressesMission(item, turn.conversationId));
+    if (hydrated && stamped(hydrated, turn, mentioned) === hydrated) return {};
+    const result = await mutateTurnDocument({
       store: input.resolved.store,
       prefix: input.resolved.prefix,
       filesystem,
       relativePath: docKey(filesystem.workspaceRel, "activity"),
-      shouldCommit: (activity) => activity !== undefined,
+      shouldCommit: (result) => result.changed,
       apply: async () => {
         const { items } = await loadActivities(
           filesystem.vfs,
@@ -78,25 +100,18 @@ export async function stampPooledTurn(input: TurnPushContext): Promise<{
         const current = items.find((item) =>
           addressesMission(item, turn.conversationId),
         );
-        if (!current) return undefined;
-        const next = upsertMentions(
-          upsertContributor(current, {
-            user_id: turn.actingAs?.userId ?? "",
-            ...(turn.actingAs?.name ? { name: turn.actingAs.name } : {}),
-          }),
-          mentioned,
-          new Date().toISOString(),
-          turn.actingAs?.userId,
+        if (!current) return { activity: undefined, changed: false };
+        const next = stamped(current, turn, mentioned);
+        if (next === current) return { activity: next, changed: false };
+        await saveActivities(
+          filesystem.vfs,
+          filesystem.workspaceRel,
+          upsertById(items, next),
         );
-        if (next !== current)
-          await saveActivities(
-            filesystem.vfs,
-            filesystem.workspaceRel,
-            upsertById(items, next),
-          );
-        return next;
+        return { activity: next, changed: true };
       },
     });
+    const activity = result.activity;
     const send = reporter(input, true);
     if (activity && mentioned.length && turn.actingToken && send) {
       const mentionReport = send(

@@ -169,3 +169,43 @@ test("settle push makes one claim-bound attempt and reports failure without fail
     errors.mockRestore();
   }
 });
+
+test("a returning contributor with no mentions stamps without touching the store", async () => {
+  const agent = await agentStore();
+  const board = `${WORKSPACE_REL}/.houston/activity/activity.json`;
+  const rows = JSON.stringify([
+    {
+      id: "m",
+      title: "Review",
+      description: "",
+      status: "running",
+      session_key: "c1",
+      contributors: [{ user_id: "alice", name: "Alice" }],
+    },
+  ]);
+  await seed(agent.prefixRoot, board, rows);
+  const { filesystem } = await claimedTurn(agent, podDocs());
+  const uploads: string[] = [];
+  const downloads = vi.spyOn(agent.store, "downloadVersioned");
+  agent.hooks.beforeUpload = (key) => {
+    uploads.push(key);
+    return undefined;
+  };
+  const stamped = await stampPooledTurn({
+    deps: {} as TurnServerDeps,
+    turn: {
+      claim: { token: "claim", bootId: "boot" },
+      hostToken: "turn-bearer",
+      actingAs: { userId: "alice", name: "Alice" },
+      gcsPrefix: PREFIX,
+      conversationId: "c1",
+    } as TurnRequest,
+    turnId: "turn-1",
+    filesystem,
+    resolved: { store: agent.store, prefix: PREFIX },
+  });
+  expect(stamped).toEqual({});
+  expect(uploads).toEqual([]);
+  expect(downloads).not.toHaveBeenCalled();
+  expect(await readFile(join(agent.prefixRoot, board), "utf8")).toBe(rows);
+});
