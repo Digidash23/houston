@@ -51,6 +51,11 @@ beforeAll(() => {
     "merge notes 2.0.0",
     shas["notes 2.0.0"] ?? "",
   );
+  // A hotfix release cut from old main, tagged, and merged back much later.
+  cut("1.5.0", "m5", ["hotfix", "release"]);
+  for (let i = 0; i < 25; i++) commit(`late ${i}`);
+  cut("3.0.0", "late 24");
+  git("merge", "-q", "--no-ff", "-m", "merge back 1.5.0", "cloud-v1.5.0");
   git("checkout", "-q", "--detach", shas.m4 ?? "");
   for (let i = 0; i < 21; i++) commit(`far ${i}`);
   git("tag", "-a", "cloud-v9.9.9", "-m", "far");
@@ -110,4 +115,10 @@ test("releases whose main bases diverge are not provably older and publish", () 
   const result = run("cloud-v2.0.1", shas["release 2.0.0"]?.slice(0, 7));
   expect(result.status).toBe(0);
   expect(result.stdout).toContain("branch from main separately");
+});
+
+test("an old release merged back into main cannot replace a newer live bundle", () => {
+  const result = run("cloud-v1.5.0", shas["release 3.0.0"]?.slice(0, 7));
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain("lacks");
 });

@@ -51,8 +51,14 @@ if [ -n "$live" ]; then
     exit 1
   fi
   # Neither base contains the other when a release-notes commit cut off main
-  # only reached main later (cloud-v1.0.0): not provably older, so it passes.
+  # only reached main later (cloud-v1.0.0, one commit apart): that passes. A
+  # release branch merged back long after its cut is old code: refuse it.
   if ! git merge-base --is-ancestor "$live_base" "$candidate_base"; then
+    missing=$(git rev-list --count "$candidate_base..$live_base")
+    if [ "$missing" -gt "$MAX_RELEASE_COMMITS" ]; then
+      echo "::error::$candidate lacks $missing commits of the live bundle $live" >&2
+      exit 1
+    fi
     echo "::notice::$candidate and the live bundle $live branch from main separately"
   fi
 fi
