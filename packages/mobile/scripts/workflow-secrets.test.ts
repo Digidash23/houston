@@ -19,3 +19,24 @@ test("OTA publication checks the current channel sequence before overwriting", (
   expect(yaml).toContain("OTA sequence must increase for this channel");
   expect(yaml).toContain('"$HOUSTON_MOBILE_UPDATE_SEQUENCE" -gt "$current"');
 });
+
+test("signing and store credentials come from protected environments, dispatched only from main", () => {
+  const updates = readFileSync(
+    "../../.github/workflows/mobile-updates.yml",
+    "utf8",
+  );
+  const publish = updates.split("\n  publish:\n")[1]?.split("    steps:")[0];
+  expect(publish).toContain("environment: mobile-updates");
+  expect(publish).toContain(
+    "(github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main')",
+  );
+  const release = readFileSync(
+    "../../.github/workflows/mobile-release.yml",
+    "utf8",
+  );
+  for (const job of ["ios", "android"]) {
+    const header = release.split(`\n  ${job}:\n`)[1]?.split("    steps:")[0];
+    expect(header).toContain("environment: mobile-release");
+    expect(header).toContain("github.ref == 'refs/heads/main'");
+  }
+});

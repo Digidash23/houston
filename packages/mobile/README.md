@@ -195,7 +195,8 @@ The publish workflow compares the new sequence with the channel's current
 manifest and refuses a rerun that would lower it.
 
 CI uses the existing `github-deploy-web` Workload Identity Federation identity
-and needs repository secrets `HOUSTON_MOBILE_UPDATE_SIGNING_KEY` (PKCS8 PEM) and
+and needs `HOUSTON_MOBILE_UPDATE_SIGNING_KEY` (PKCS8 PEM) in the protected
+`mobile-updates` environment plus the repository secret
 `HOUSTON_MOBILE_UPDATE_PUBKEY` (matching base64 DER SPKI). Existing web build
 secrets supply Firebase, gateway, PostHog and Sentry values. The repository
 variable `FIREBASE_APPLE_SERVICE_ID` supplies Android Apple availability in OTA bundles.
@@ -223,7 +224,7 @@ audience to everyone.
 apps on a release tag or manual `main` dispatch. Missing credentials produce one
 named notice per platform. See `store/release.md` for setup and build numbers.
 
-- Apple secrets: `ASC_KEY_P8_B64`, `ASC_KEY_ID`, `ASC_ISSUER_ID` (App Store Connect API key).
-- Android secrets: `ANDROID_UPLOAD_KEYSTORE_B64`, `ANDROID_UPLOAD_KEYSTORE_PASSWORD`, `ANDROID_UPLOAD_KEY_ALIAS`, `ANDROID_UPLOAD_KEY_PASSWORD` (local upload key), `PLAY_SERVICE_ACCOUNT_JSON` (Play release service account).
+- Apple secrets (environment `mobile-release`): `ASC_KEY_P8_B64`, `ASC_KEY_ID`, `ASC_ISSUER_ID` (App Store Connect API key).
+- Android secrets (environment `mobile-release`): `ANDROID_UPLOAD_KEYSTORE_B64`, `ANDROID_UPLOAD_KEYSTORE_PASSWORD`, `ANDROID_UPLOAD_KEY_ALIAS`, `ANDROID_UPLOAD_KEY_PASSWORD` (local upload key), `PLAY_SERVICE_ACCOUNT_JSON` (Play release service account).
 - Shared secrets: `HOSTED_ENGINE_URL`, `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `POSTHOG_KEY`, `POSTHOG_HOST`, `SENTRY_DSN` (existing production web values), `HOUSTON_MOBILE_UPDATE_PUBKEY` (OTA public key).
 - Variables: `APPLE_TEAM_ID`, `HOUSTON_APPLE_TEAM_ID` (Apple Developer Team ID), `HOUSTON_ANDROID_CERT_SHA256` (Play App Signing fingerprint), `FIREBASE_APPLE_SERVICE_ID` (Firebase Apple provider), `HOUSTON_MOBILE_STORE_URL_IOS`, `HOUSTON_MOBILE_STORE_URL_ANDROID` (store listing links).

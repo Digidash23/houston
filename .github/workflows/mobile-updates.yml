@@ -27,7 +27,11 @@ concurrency:
 
 jobs:
   publish:
-    if: ${{ github.repository == 'gethouston/houston' && (github.event_name != 'release' || startsWith(github.event.release.tag_name, 'cloud-v') || (startsWith(github.event.release.tag_name, 'v') && !github.event.release.prerelease)) }}
+    if: ${{ github.repository == 'gethouston/houston' && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main') && (github.event_name != 'release' || startsWith(github.event.release.tag_name, 'cloud-v') || (startsWith(github.event.release.tag_name, 'v') && !github.event.release.prerelease)) }}
+    # The signing key lives only in this environment, whose deployment rule
+    # admits main and cloud-v* tags (store/release.md), so an edited workflow
+    # dispatched from another branch cannot sign a manifest.
+    environment: mobile-updates
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
