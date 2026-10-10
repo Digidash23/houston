@@ -2,6 +2,7 @@ import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
 import { setNativeShell } from "../../web/src/shims/native-shell";
 import { logAuthAvailability, nativeIdentity } from "./identity/native-config";
+import { openExternalUrl } from "./open-url";
 import { installEarlyPushTap, mobilePush } from "./push";
 import { publishMobileSurface } from "./surface";
 import { installSystemBars } from "./system-bars";
@@ -16,10 +17,11 @@ publishMobileSurface(window, {
 setNativeShell({
   identity: nativeIdentity,
   push: mobilePush,
-  async openUrl(url) {
-    await Browser.open({ url: new URL(url, window.location.href).href });
-    return true;
-  },
+  openUrl: (url) =>
+    openExternalUrl(url, window.location.href, {
+      browser: (href) => Browser.open({ url: href }),
+      system: (href) => window.location.assign(href),
+    }),
 });
 logAuthAvailability();
 const earlyPushTapReady = installEarlyPushTap().catch((error: unknown) =>
