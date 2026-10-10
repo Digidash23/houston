@@ -16,3 +16,11 @@ export function nativeBuiltinSequence(
   }
   return value;
 }
+
+/** Highest OTA sequence applied on one native build of one channel. */
+export function otaSequenceKey(
+  channel: "production" | "preview",
+  nativeBuild: string,
+): string {
+  return `houston.ota.sequence.${channel}.${nativeBuild}`;
+}

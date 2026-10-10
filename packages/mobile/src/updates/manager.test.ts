@@ -576,5 +576,51 @@ test("a higher publish sequence rolls back an OTA zip above the native baseline"
   );
   await check();
   expect(download).toHaveBeenCalledOnce();
-  expect(set).toHaveBeenCalledWith("12");
+  expect(set).toHaveBeenCalledWith("2", "12");
+});
+
+test("a store upgrade ignores the older build's OTA record and its older builtin", async () => {
+  // Build 2 applied OTA 20; build 3 ships builtin 15. Capgo resets to builtin
+  // 15 after the upgrade, so OTA 18 is newer than what now runs.
+  const upgrade = { ...body, sequence: 18, bundle_sequence: 18 };
+  const stored = new Map([["2", "20"]]);
+  const download = vi.fn().mockResolvedValue({ id: "bundle" });
+  const check = createUpdateManager(
+    {
+      baseUrl,
+      publicKey: pubkey,
+      channel: "preview",
+      builtinVersion: "0.5.41+builtin",
+      builtinSequence: 15,
+    },
+    {
+      fetch: vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ...upgrade,
+          signature: signManifest(upgrade, key),
+        }),
+      }) as typeof fetch,
+      now: () => 0,
+      updater: {
+        current: async () => ({ bundle: { id: "builtin", version: "x" } }),
+        download,
+        next: vi.fn(),
+      },
+      nativeBuild: async () => "3",
+      isOnline: () => true,
+      onRequired: vi.fn(),
+      report: vi.fn(),
+      sequenceStore: {
+        get: async (build) => stored.get(build) ?? null,
+        set: async (build, value) => {
+          stored.set(build, value);
+        },
+      },
+    },
+  );
+  await check();
+  expect(download).toHaveBeenCalledOnce();
+  expect(stored.get("3")).toBe("18");
+  expect(stored.get("2")).toBe("20");
 });

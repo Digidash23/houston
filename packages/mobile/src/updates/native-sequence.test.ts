@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { nativeBuiltinSequence } from "./native-sequence";
+import { nativeBuiltinSequence, otaSequenceKey } from "./native-sequence";
 
 test("an OTA bundle keeps its native build's floor and a store upgrade seeds a new floor", () => {
   const values = new Map<string, string>();
@@ -24,4 +24,10 @@ test("invalid saved native baseline is reseeded", () => {
       "10",
     );
   }
+});
+
+test("the applied OTA sequence is keyed by channel and native build", () => {
+  expect(otaSequenceKey("production", "12")).toBe(
+    "houston.ota.sequence.production.12",
+  );
 });

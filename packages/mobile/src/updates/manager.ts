@@ -20,9 +20,12 @@ export interface UpdatePorts {
   onRequired(manifest: UpdateManifest): void;
   onCleared?(): void;
   report(error: unknown): void;
+  /** Highest applied OTA sequence, per native build: a store upgrade restarts
+   *  from that build's own builtin bundle, so an older build's record must not
+   *  hide OTAs newer than the new builtin. */
   sequenceStore: {
-    get(): Promise<string | null>;
-    set(value: string): Promise<void>;
+    get(nativeBuild: string): Promise<string | null>;
+    set(nativeBuild: string, value: string): Promise<void>;
   };
 }
 
@@ -100,7 +103,7 @@ export function createUpdateManager(
         typeof config.builtinSequence === "function"
           ? config.builtinSequence(nativeBuildText)
           : config.builtinSequence;
-      const saved = await ports.sequenceStore.get();
+      const saved = await ports.sequenceStore.get(nativeBuildText);
       const highest = saved === null ? 0 : Number(saved);
       if (!Number.isSafeInteger(highest) || highest < 0)
         throw new Error("Invalid stored OTA sequence");
@@ -112,7 +115,10 @@ export function createUpdateManager(
       const version =
         current.id === "builtin" ? config.builtinVersion : current.version;
       if (version === manifest.version) {
-        await ports.sequenceStore.set(String(manifest.sequence));
+        await ports.sequenceStore.set(
+          nativeBuildText,
+          String(manifest.sequence),
+        );
         return "clear";
       }
       const bundle = await ports.updater.download({
@@ -121,7 +127,7 @@ export function createUpdateManager(
         checksum: manifest.sha256,
       });
       await ports.updater.next({ id: bundle.id });
-      await ports.sequenceStore.set(String(manifest.sequence));
+      await ports.sequenceStore.set(nativeBuildText, String(manifest.sequence));
       return "clear";
     } catch (error) {
       lastCheck = -Infinity;

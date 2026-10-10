@@ -4,7 +4,7 @@ import { CapacitorUpdater } from "@capgo/capacitor-updater";
 import { logAndReportError } from "@houston/app/lib/error-report";
 import { clearNativeUpdateGate, showNativeUpdateGate } from "./gate";
 import { createUpdateManager } from "./manager";
-import { nativeBuiltinSequence } from "./native-sequence";
+import { nativeBuiltinSequence, otaSequenceKey } from "./native-sequence";
 
 export async function installUpdates(): Promise<void> {
   const reported = new Set<string>();
@@ -61,10 +61,10 @@ export async function installUpdates(): Promise<void> {
       onCleared: clearNativeUpdateGate,
       report: (error) => logAndReportError("mobile_update", error),
       sequenceStore: {
-        get: async () =>
-          localStorage.getItem(`houston.ota.sequence.${channel}`),
-        set: async (value) =>
-          localStorage.setItem(`houston.ota.sequence.${channel}`, value),
+        get: async (nativeBuild) =>
+          localStorage.getItem(otaSequenceKey(channel, nativeBuild)),
+        set: async (nativeBuild, value) =>
+          localStorage.setItem(otaSequenceKey(channel, nativeBuild), value),
       },
     },
   );
