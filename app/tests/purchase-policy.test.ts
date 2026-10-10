@@ -113,6 +113,7 @@ describe("isPurchaseUrl", () => {
       "https://user@checkout.stripe.com:443/c/pay/x",
       "https://checkout.stripe.com./c/pay/x",
       "  https://checkout.stripe.com/c/pay/x",
+      "https://%63heckout.stripe.com/c/pay/x",
     ])
       equal(isPurchaseUrl(url), true, url);
   });
@@ -142,5 +143,24 @@ describe("blocksPurchaseUrl", () => {
     leave = enterNativeApp("ios");
     equal(blocksPurchaseUrl(checkout), true);
     equal(blocksPurchaseUrl("https://gethouston.ai/help"), false);
+  });
+
+  it("blocks a percent-encoded host the opener would normalize", () => {
+    leave = enterNativeApp("android");
+    equal(blocksPurchaseUrl("https://%63heckout.stripe.com/c/pay/x"), true);
+  });
+
+  it("resolves against the page, as the native opener does", () => {
+    equal(
+      isPurchaseUrl("//checkout.stripe.com/c/pay/x", "https://app.example/"),
+      true,
+    );
+    equal(isPurchaseUrl("report.pdf", "https://app.example/"), false);
+  });
+
+  it("refuses a link that does not parse inside a store app", () => {
+    leave = enterNativeApp("ios");
+    equal(blocksPurchaseUrl("https://[bad"), true);
+    equal(blocksPurchaseUrl("mailto:help@gethouston.ai"), false);
   });
 });

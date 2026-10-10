@@ -64,25 +64,41 @@ const PURCHASE_HOSTS: ReadonlySet<string> = new Set([
   "buy.stripe.com",
 ]);
 
-/** The host of an absolute web URL (no userinfo, no port), or null. */
-const WEB_HOST = /^\s*https?:\/\/(?:[^/?#@]*@)?([^/?#:]+)/i;
+/**
+ * The normalized host of a web URL, `null` for any other scheme, `undefined`
+ * when it does not parse. The WHATWG parser is the one the opener runs, so
+ * `https://%63heckout.stripe.com` or `//checkout.stripe.com` resolve to the
+ * same host here as there; a regex over the raw string misses both.
+ */
+function webHost(url: string, base?: string): string | null | undefined {
+  let parsed: URL;
+  try {
+    parsed = new URL(url, base);
+  } catch {
+    return undefined;
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+  return parsed.hostname.toLowerCase().replace(/\.$/, "");
+}
 
 /** True for a link to a page where something is bought or billed. */
-export function isPurchaseUrl(url: string): boolean {
-  const host = WEB_HOST.exec(url)?.[1];
-  return (
-    host !== undefined &&
-    PURCHASE_HOSTS.has(host.toLowerCase().replace(/\.$/, ""))
-  );
+export function isPurchaseUrl(url: string, base?: string): boolean {
+  const host = webHost(url, base);
+  return typeof host === "string" && PURCHASE_HOSTS.has(host);
 }
 
 /**
  * True when this link must not open here: a payment page inside a store app.
  * Every external open checks it, so a payment link an agent wrote in chat
  * (a checkout the AI Manager started elsewhere) never opens in the store apps.
+ * Links resolve against the page, as the native opener resolves them, and a
+ * link that does not parse at all is refused there rather than guessed at.
  */
 export function blocksPurchaseUrl(url: string): boolean {
-  return !canPurchaseInApp() && isPurchaseUrl(url);
+  if (canPurchaseInApp()) return false;
+  const base = typeof location === "undefined" ? undefined : location.href;
+  const host = webHost(url, base);
+  return host === undefined || (host !== null && PURCHASE_HOSTS.has(host));
 }
 
 type PlanDialog = ReturnType<typeof planDialog>;
