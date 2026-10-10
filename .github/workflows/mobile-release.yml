@@ -56,7 +56,7 @@ jobs:
         if: steps.gate.outputs.ready == 'true'
         with:
           ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
-          # Tags: a dispatch names its store version after the newest cloud-v tag.
+          # Tags: a dispatch names its store version after the highest cloud-v tag.
           fetch-depth: 0
       - uses: pnpm/action-setup@v6
         if: steps.gate.outputs.ready == 'true'
@@ -96,7 +96,9 @@ jobs:
           test "$GITHUB_RUN_ATTEMPT" -lt 100
           test "$build" -ge "$(jq -r .required_native_build packages/mobile/native-compat.json)"
           echo "NATIVE_BUILD=$build" >> "$GITHUB_ENV"
-          tag=${RELEASE_TAG:-$(git describe --tags --match 'cloud-v[0-9]*' --abbrev=0)}
+          # Release commits live only under their tags, off main, so describing HEAD
+          # from main finds an old tag: take the highest cloud-v tag by version.
+          tag=${RELEASE_TAG:-$(git tag -l 'cloud-v*' | grep -E '^cloud-v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)}
           version=${tag#cloud-v}
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Release tag $tag names no x.y.z store version"; exit 1; }
           echo "MARKETING_VERSION=$version" >> "$GITHUB_ENV"
@@ -163,7 +165,7 @@ jobs:
         if: steps.gate.outputs.ready == 'true'
         with:
           ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
-          # Tags: a dispatch names its store version after the newest cloud-v tag.
+          # Tags: a dispatch names its store version after the highest cloud-v tag.
           fetch-depth: 0
       - uses: pnpm/action-setup@v6
         if: steps.gate.outputs.ready == 'true'
@@ -213,7 +215,9 @@ jobs:
           test "$GITHUB_RUN_ATTEMPT" -lt 100
           test "$build" -ge "$(jq -r .required_native_build packages/mobile/native-compat.json)"
           echo "$ANDROID_UPLOAD_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/houston-upload.keystore"
-          tag=${RELEASE_TAG:-$(git describe --tags --match 'cloud-v[0-9]*' --abbrev=0)}
+          # Release commits live only under their tags, off main, so describing HEAD
+          # from main finds an old tag: take the highest cloud-v tag by version.
+          tag=${RELEASE_TAG:-$(git tag -l 'cloud-v*' | grep -E '^cloud-v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)}
           version=${tag#cloud-v}
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Release tag $tag names no x.y.z store version"; exit 1; }
           export HOUSTON_NATIVE_BUILD_NUMBER="$build"
