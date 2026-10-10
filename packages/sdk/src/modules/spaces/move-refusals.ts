@@ -1,4 +1,5 @@
 import { NAME_TAKEN } from "@houston/protocol/file-refusal";
+import { AGENT_MOVED } from "@houston/wire-types";
 
 /**
  * The C8 codes an agent move is refused with, from the `POST /move` rejection
@@ -60,4 +61,17 @@ export function isMoveRefusedBeforeStart(
   code: string | null | undefined,
 ): code is typeof NAME_TAKEN {
   return code === NAME_TAKEN;
+}
+
+/**
+ * Whether the gateway answered a move with `agent_moved`: the agent already
+ * lives in the requested team, so the move is done. A client clears its
+ * record of the move and refreshes its agents instead of re-sending it. An
+ * older gateway answers the same state with an uncoded 404, which stays an
+ * ordinary rejection.
+ */
+export function isMoveAlreadyDone(
+  code: string | null | undefined,
+): code is typeof AGENT_MOVED {
+  return code === AGENT_MOVED;
 }

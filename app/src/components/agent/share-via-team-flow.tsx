@@ -19,6 +19,7 @@ import {
   recordPendingMove,
   releaseMove,
 } from "../../lib/pending-move";
+import { isExpectedShareError, shareErrorCode } from "../../lib/share-error";
 import {
   addInviteEmails,
   applyMovePoll,
@@ -28,7 +29,6 @@ import {
   finish,
   initialState,
   isDismissable,
-  isExpectedShareError,
   MOVE_POLL_TIMEOUT_MS,
   markInviteFailed,
   markInviteSending,
@@ -41,7 +41,6 @@ import {
   retrySwitch,
   type ShareViaTeamState,
   sendableInvites,
-  shareErrorCode,
   startCreate,
   startMove,
   switchDone,

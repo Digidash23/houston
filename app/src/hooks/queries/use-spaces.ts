@@ -5,7 +5,7 @@ import type {
 } from "@houston/engine-adapter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryKeys } from "../../lib/query-keys";
-import { isExpectedShareError } from "../../lib/share-via-team";
+import { isExpectedShareError } from "../../lib/share-error";
 import { tauriOrg } from "../../lib/tauri";
 
 /**

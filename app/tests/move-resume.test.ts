@@ -162,6 +162,33 @@ describe("resumePendingMove", () => {
     });
   });
 
+  it("yields done when the agent already lives in the target (agent_moved)", async () => {
+    // The ticket expired after the move finished: the gateway answers the
+    // re-POST 409 agent_moved, so the record clears instead of resending.
+    const w = wire({
+      statuses: { "op-old": [{ status: "failed", error: "move not found" }] },
+      moveAgent: async () => {
+        throw { status: 409, body: { error: "moved", code: "agent_moved" } };
+      },
+    });
+    deepStrictEqual(await resumePendingMove(PENDING, w, instant), {
+      outcome: "done",
+    });
+  });
+
+  it("keeps an older gateway's uncoded 404 as rejected", async () => {
+    const w = wire({
+      statuses: { "op-old": [{ status: "failed" }] },
+      moveAgent: async () => {
+        throw { status: 404, body: { error: "agent not found" } };
+      },
+    });
+    deepStrictEqual(await resumePendingMove(PENDING, w, instant), {
+      outcome: "rejected",
+      code: "agent not found",
+    });
+  });
+
   it("yields rejected when even the first status read throws", async () => {
     const w = wire({ statuses: {} });
     w.moveStatus = async () => {

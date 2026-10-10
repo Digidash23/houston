@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   canRetryMoveError,
   classifyMoveError,
+  isMoveAlreadyDone,
   isMoveRefusalCode,
   isMoveRefusedBeforeStart,
 } from "./move-refusals";
@@ -56,5 +57,28 @@ describe("a move refused before anything started", () => {
     ]) {
       expect(isMoveRefusedBeforeStart(code)).toBe(false);
     }
+  });
+});
+
+describe("a move the agent already finished", () => {
+  it("is agent_moved: the agent lives in the target, so the move is done", () => {
+    expect(isMoveAlreadyDone("agent_moved")).toBe(true);
+  });
+
+  it("is nothing else, including a plain or coded not-found", () => {
+    for (const code of [
+      "agent_not_found",
+      "agent not found",
+      "move_in_progress",
+      "name_taken",
+      undefined,
+      null,
+    ]) {
+      expect(isMoveAlreadyDone(code)).toBe(false);
+    }
+  });
+
+  it("is not a refusal: it never classifies as a failure kind", () => {
+    expect(isMoveRefusalCode("agent_moved")).toBe(false);
   });
 });

@@ -1,7 +1,12 @@
 import type { AgentMoveStart, AgentMoveStatus } from "@houston/engine-adapter";
-import { isMoveRefusedBeforeStart, type MoveRefusalCode } from "@houston/sdk";
+import {
+  isMoveAlreadyDone,
+  isMoveRefusedBeforeStart,
+  type MoveRefusalCode,
+} from "@houston/sdk";
 import type { PendingAgentMove } from "./pending-move";
-import { MOVE_POLL_TIMEOUT_MS, shareErrorCode } from "./share-via-team.ts";
+import { shareErrorCode } from "./share-error.ts";
+import { MOVE_POLL_TIMEOUT_MS } from "./share-via-team.ts";
 
 /**
  * Pure resume algorithm for an abandoned C8 agent move (HOU-817). Wire calls
@@ -87,6 +92,8 @@ export async function resumePendingMove(
     options.onMoveAccepted?.(start.moveId);
   } catch (err) {
     const code = shareErrorCode(err);
+    // The agent already lives in the target: the move finished server-side.
+    if (isMoveAlreadyDone(code)) return { outcome: "done" };
     if (isMoveRefusedBeforeStart(code)) return { outcome: "refused", code };
     return code === "move_in_progress"
       ? { outcome: "inProgress" }

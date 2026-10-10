@@ -2,6 +2,10 @@ import { deepStrictEqual, strictEqual, throws } from "node:assert";
 import { describe, it } from "node:test";
 import type { AgentMoveStatus, OrgSummary } from "@houston/engine-adapter";
 import {
+  isExpectedMoveAnswer,
+  isExpectedShareError,
+} from "../src/lib/share-error.ts";
+import {
   addInviteEmails,
   applyMovePoll,
   assertInviteReady,
@@ -10,8 +14,6 @@ import {
   finish,
   initialState,
   isDismissable,
-  isExpectedMoveAnswer,
-  isExpectedShareError,
   markInviteFailed,
   markInviteSending,
   markInviteSent,
@@ -190,6 +192,13 @@ describe("move rejection + retry", () => {
     });
   });
 
+  it("an agent already in the team skips straight to the space switch", () => {
+    deepStrictEqual(moveRejected(pickTeam(TEAM), "agent_moved"), {
+      step: "switching",
+      team: TEAM,
+    });
+  });
+
   it("retryable errors allow re-issuing the move from moveFailed", () => {
     const failed = moveRejected(pickTeam(TEAM), "needs_upgrade");
     strictEqual(canRetryMove(failed), true);
@@ -317,6 +326,10 @@ describe("isExpectedMoveAnswer (what a move wire keeps out of Sentry)", () => {
     strictEqual(isExpectedMoveAnswer({ kind: "name_taken" }), true);
     strictEqual(isExpectedMoveAnswer({ body: { code: "name_taken" } }), true);
     strictEqual(isExpectedMoveAnswer({ code: "move_in_progress" }), true);
+  });
+
+  it("covers a move the agent already finished (agent_moved)", () => {
+    strictEqual(isExpectedMoveAnswer({ body: { code: "agent_moved" } }), true);
   });
 
   it("still reports an unexpected move failure", () => {
