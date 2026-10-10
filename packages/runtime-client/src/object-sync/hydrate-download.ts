@@ -2,7 +2,7 @@ import { readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { fileSha256 } from "./file-hash";
 import type { HydrateManifest } from "./hydrate";
-import { hydrateBatched } from "./hydrate-batch";
+import { hydrateBatched, skipRefusedLanding } from "./hydrate-batch";
 import { ObjectNotFoundError, type ObjectStore } from "./object-store";
 import { keepsMergeBase } from "./sync-back-doc-merge";
 
@@ -50,8 +50,14 @@ export async function downloadHydrationEntries(opts: {
       const { generation, key, rel } = entry;
       try {
         const dest = join(opts.destDir, ...rel.split("/"));
-        await opts.store.download(key, dest, { signal: opts.signal });
+        const read = await opts.store.download(key, dest, {
+          signal: opts.signal,
+        });
         if (opts.signal.aborted) return;
+        if (read?.refused) {
+          skipRefusedLanding(key);
+          continue;
+        }
         const { size } = await stat(dest);
         opts.state.total += size;
         if (opts.state.total > opts.maxBytes) {

@@ -79,8 +79,12 @@ export class PrefetchedObjectStore implements ObjectStore {
     return keys.map((key) => ({ key, size: 0, md5: "", updated: "" }));
   }
 
-  async download(key: string, destFile: string, opts?: ReadOptions) {
-    await this.downloadVersioned(key, destFile, opts);
+  download(
+    key: string,
+    destFile: string,
+    opts?: ReadOptions,
+  ): Promise<ReadResult> {
+    return this.downloadVersioned(key, destFile, opts);
   }
 
   async downloadVersioned(
@@ -90,14 +94,14 @@ export class PrefetchedObjectStore implements ObjectStore {
   ): Promise<ReadResult> {
     const hit = this.take(key);
     if (hit) {
-      await writeAtomically(destFile, hit.data);
+      if (!(await writeAtomically(destFile, hit.data)))
+        return { refused: true };
       return hit.generation ? { generation: hit.generation } : {};
     }
     if (this.inner.downloadVersioned) {
       return this.inner.downloadVersioned(key, destFile, opts);
     }
-    await this.inner.download(key, destFile, opts);
-    return {};
+    return (await this.inner.download(key, destFile, opts)) ?? {};
   }
 
   async downloadMany(
@@ -112,11 +116,15 @@ export class PrefetchedObjectStore implements ObjectStore {
         misses.push(entry);
         continue;
       }
-      await writeAtomically(entry.destFile, hit.data);
-      outcomes.set(entry.key, {
-        status: "ok",
-        ...(hit.generation ? { generation: hit.generation } : {}),
-      });
+      outcomes.set(
+        entry.key,
+        (await writeAtomically(entry.destFile, hit.data))
+          ? {
+              status: "ok",
+              ...(hit.generation ? { generation: hit.generation } : {}),
+            }
+          : { status: "refused" },
+      );
     }
     if (misses.length === 0) return outcomes;
     if (!this.inner.downloadMany) {

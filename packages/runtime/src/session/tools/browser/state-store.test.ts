@@ -5,12 +5,13 @@ import {
   readdirSync,
   readFileSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { BrowserContext } from "playwright-core";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { EMPTY_STATE, type StorageState } from "./state-merge";
 import {
   browserStatePath,
@@ -71,6 +72,41 @@ test("saving writes the merged state atomically, owner-only", async () => {
   expect(readdirSync(dirname(path))).toEqual(["state.json"]);
 });
 
+const posixTest = process.platform === "win32" ? test.skip : test;
+
+posixTest("a save closes a hydrated, group-open state owner-only", async () => {
+  // A pooled turn's worker runs with umask 002 and hydration of an older
+  // build could leave the directory and file group read-write.
+  const previous = process.umask(0o002);
+  try {
+    const path = browserStatePath(workspace());
+    mkdirSync(dirname(path), { mode: 0o775 });
+    writeFileSync(path, JSON.stringify(EMPTY_STATE), { mode: 0o664 });
+    await saveState(
+      holder(path, () => ({ cookies: [cookie("sid", "abc")], origins: [] })),
+    );
+    expect(statSync(path).mode & 0o777).toBe(0o600);
+    expect(statSync(dirname(path)).mode & 0o777).toBe(0o700);
+  } finally {
+    process.umask(previous);
+  }
+});
+
+posixTest(
+  "a first save under umask 002 creates the directory owner-only",
+  async () => {
+    const previous = process.umask(0o002);
+    try {
+      const path = browserStatePath(workspace());
+      await saveState(holder(path, () => EMPTY_STATE));
+      expect(statSync(path).mode & 0o777).toBe(0o600);
+      expect(statSync(dirname(path)).mode & 0o777).toBe(0o700);
+    } finally {
+      process.umask(previous);
+    }
+  },
+);
+
 test("two conversations saving at once both keep their sign-ins", async () => {
   const path = browserStatePath(workspace());
   const a = holder(path, () => ({
@@ -110,3 +146,26 @@ test("a workspace that is gone is never recreated by a save", async () => {
   await saveState(holder(browserStatePath(bare), () => EMPTY_STATE));
   expect(readdirSync(bare)).toEqual([]);
 });
+
+posixTest(
+  "a .houston/browser the tool user swapped for a symlink gets no cookies",
+  async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const ws = workspace();
+    const catcher = mkdtempSync(join(tmpdir(), "browser-catch-"));
+    symlinkSync(catcher, join(ws, ".houston", "browser"));
+    const h = holder(browserStatePath(ws), () => ({
+      cookies: [cookie("sid", "abc")],
+      origins: [],
+    }));
+    await saveState(h);
+    expect(readdirSync(catcher)).toEqual([]);
+    expect(h.base).toEqual(EMPTY_STATE);
+    // Refused twice: the merge's read of the saved state, then the write.
+    expect(error.mock.calls.map(([line]) => line)).toEqual([
+      expect.stringMatching(/not reading sign-in state/),
+      expect.stringMatching(/refusing to write sign-in state/),
+    ]);
+    error.mockRestore();
+  },
+);

@@ -10,7 +10,7 @@ import type { CustomIntegrationManager } from "../integrations/custom/manager";
 import { LocalPaths } from "../paths";
 import { LocalWorkspaceStore } from "../store/local";
 import { FsVfs, LazyReadRefusedError, type Vfs } from "../vfs";
-import { relayAgentOpResponse, TOO_LARGE_MESSAGE } from "./dispatch-relay";
+import { lazyRefusalBody, relayAgentOpResponse } from "./dispatch-relay";
 import { runAgentOpChain } from "./handler-chain";
 
 /**
@@ -47,8 +47,12 @@ export interface AgentOpResponse {
    *  as the handler's answer (a legacy layout, a stale envelope) — it declines
    *  so the gateway takes the proxy path instead. */
   agentMissing?: true;
-  /** A binary answer over the relay cap: refused before buffering. */
+  /** A binary answer over the relay cap, or a lazy read over its cap:
+   *  refused before buffering. */
   tooLarge?: true;
+  /** A lazy read of sign-in state its private directory refused: the
+   *  overlay may be partial, as with `tooLarge`, but nothing was too big. */
+  privateRefused?: true;
   status: number;
   contentType: string;
   /** Text body (JSON/text responses). Empty when `bodyBase64` is set. */
@@ -104,15 +108,14 @@ export async function dispatchAgentOp(opts: {
   // A refused lazy read answers 503 from INSIDE the handler chain (the
   // handler may be half-way through a multi-key mutation); the flag tells
   // the caller to discard the overlay instead of syncing a partial result.
-  let refused = false;
+  let refused: LazyReadRefusedError["reason"] | undefined;
   const relayError = (res: ServerResponse, error: unknown): void => {
     if (error instanceof LazyReadRefusedError) {
-      refused = true;
-      // Refused before the download: the same answer the relay cap gives.
+      refused = error.reason;
       if (!res.headersSent) {
         res.writeHead(503, { "Content-Type": "application/json" });
       }
-      res.end(JSON.stringify({ error: TOO_LARGE_MESSAGE }));
+      res.end(lazyRefusalBody(error.reason));
       return;
     }
     if (!res.headersSent) {
@@ -181,6 +184,7 @@ export async function dispatchAgentOp(opts: {
       ...(body !== undefined ? { body } : {}),
     });
     const relayed = await relayAgentOpResponse(response, rest, events);
+    if (refused === "private") return { ...relayed, privateRefused: true };
     return refused ? { ...relayed, tooLarge: true } : relayed;
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));

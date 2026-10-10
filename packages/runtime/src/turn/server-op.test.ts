@@ -559,7 +559,7 @@ class DownloadLog extends LocalDirStore {
     key: string,
     destFile: string,
     opts?: Parameters<LocalDirStore["download"]>[2],
-  ): Promise<void> {
+  ): ReturnType<LocalDirStore["download"]> {
     this.downloaded.push(key);
     return super.download(key, destFile, opts);
   }

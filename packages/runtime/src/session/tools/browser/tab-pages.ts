@@ -17,12 +17,25 @@ export async function closeContext(tab: BrowserTab): Promise<void> {
 export const MAX_TAB_PAGES = 8;
 
 /**
+ * The cap in turn mode: a 2 GB sandbox also runs Node and the model harness,
+ * and every page is its own renderer. Three still fits a page, its sign-in
+ * popup and that popup's own child.
+ */
+export const TURN_MAX_TAB_PAGES = 3;
+
+type PageEnv = Record<string, string | undefined>;
+
+export function maxTabPages(env: PageEnv): number {
+  return env.HOUSTON_MODE === "turn" ? TURN_MAX_TAB_PAGES : MAX_TAB_PAGES;
+}
+
+/**
  * The tab follows the newest page: a link that opens a new window (a "Sign in
  * with Google" popup) becomes the page the model and the person are on, and
  * when that page closes the tab falls back to the last one still open. Each
  * switch retires the model's refs (a new generation) and tells the live view.
  */
-export function followPages(tab: BrowserTab): void {
+export function followPages(tab: BrowserTab, maxPages: number): void {
   watchClose(tab, tab.page);
   // One trim at a time, so two popups in a row never close a page each.
   let trimming = Promise.resolve();
@@ -30,7 +43,7 @@ export function followPages(tab: BrowserTab): void {
     watchClose(tab, page);
     switchTo(tab, page);
     trimming = trimming
-      .then(() => capPages(tab))
+      .then(() => capPages(tab, maxPages))
       .catch((error: unknown) =>
         console.warn("[browser] trimming old pages failed", error),
       );
@@ -73,16 +86,20 @@ function switchTo(tab: BrowserTab, page: Page): void {
 }
 
 /**
- * Over the cap, close the oldest pages, but never the current page or a page
- * it was opened from: closing an opener breaks the popup's `window.opener`,
- * which is how an OAuth popup hands the sign-in back.
+ * Over the cap, close the oldest pages, but never the current page or the
+ * page it was opened from: closing that opener breaks the popup's
+ * `window.opener`, which is how an OAuth popup hands the sign-in back. Only
+ * the DIRECT opener is kept: a page that popped up a popup that popped up
+ * another would otherwise keep its whole chain open past any cap.
  */
-async function capPages(tab: BrowserTab): Promise<void> {
+async function capPages(tab: BrowserTab, maxPages: number): Promise<void> {
   const open = tab.context.pages().filter((p) => !p.isClosed());
-  if (open.length <= MAX_TAB_PAGES) return;
-  const kept = await openerChain(tab.page);
+  if (open.length <= maxPages) return;
+  const current = tab.page;
+  const opener = await current.opener();
+  const kept = new Set<Page>(opener ? [current, opener] : [current]);
   const spare = open.filter((p) => !kept.has(p));
-  const excess = open.length - MAX_TAB_PAGES;
+  const excess = open.length - maxPages;
   await Promise.all(
     spare.slice(0, excess).map((page) =>
       page.close().catch((error: unknown) => {
@@ -90,14 +107,4 @@ async function capPages(tab: BrowserTab): Promise<void> {
       }),
     ),
   );
-}
-
-async function openerChain(page: Page): Promise<Set<Page>> {
-  const chain = new Set<Page>();
-  let current: Page | null = page;
-  while (current && !chain.has(current)) {
-    chain.add(current);
-    current = await current.opener();
-  }
-  return chain;
 }

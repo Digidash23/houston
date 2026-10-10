@@ -1,12 +1,13 @@
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
-import type { Locator, Page } from "playwright-core";
+import type { Locator } from "playwright-core";
 import type { BrowserAction } from "./actions";
-import { BrowserToolError } from "./errors";
+import { clearFenceRefusal } from "./fence-refusals";
+import { guardLanding, openUrl, settle } from "./navigate";
 import type { BrowserTab } from "./pool";
 import { redactUrl } from "./redact-url";
 import { resolveRef } from "./refs";
 import { pageSnapshot } from "./snapshot";
-import { checkBrowserUrl, landedSafely } from "./url-policy";
+import { checkBrowserUrl } from "./url-policy";
 
 /**
  * A ref names an element the latest snapshot saw, so one that is not there now
@@ -20,15 +21,6 @@ export interface ActionOutcome {
   mutated: boolean;
 }
 
-/** Give a page a moment to finish loading; slow pages are still usable. */
-export async function settle(page: Page): Promise<void> {
-  try {
-    await page.waitForLoadState("load", { timeout: 5_000 });
-  } catch (error) {
-    if (!(error instanceof Error && error.name === "TimeoutError")) throw error;
-  }
-}
-
 async function isPasswordField(field: Locator): Promise<boolean> {
   return field.evaluate(
     (el) => el instanceof HTMLInputElement && el.type === "password",
@@ -39,51 +31,7 @@ async function isPasswordField(field: Locator): Promise<boolean> {
   );
 }
 
-/** Refuse a page a redirect carried somewhere the browser may not be. */
-export async function guardLanding(page: Page): Promise<void> {
-  const url = page.url();
-  if (landedSafely(url)) return;
-  // Chromium's own error page: the network fence (launch.ts) or plain DNS.
-  if (url.startsWith("chrome-error:"))
-    throw new BrowserToolError(
-      "page_error",
-      "That page did not load. Check the address, or try again.",
-    );
-  await page.goto("about:blank");
-  throw new BrowserToolError(
-    "url_refused",
-    "That page sent the browser somewhere it may not go, so it was stopped.",
-  );
-}
-
 const text = (value: string): TextContent => ({ type: "text", text: value });
-
-/**
- * A load that failed commits Chromium's error page a moment later, and a goto
- * issued before that is "interrupted" by it. Waiting for it here keeps one
- * failed page from failing the model's next `open` too.
- */
-export async function goto(page: Page, href: string): Promise<void> {
-  try {
-    // "commit", not "domcontentloaded": a page whose head script stalls is
-    // still usable, and `settle` + the snapshot already wait a bounded time.
-    await page.goto(href, { waitUntil: "commit" });
-  } catch (error) {
-    if (error instanceof Error && error.message.includes("net::ERR_"))
-      await errorPageCommitted(page);
-    throw error;
-  }
-}
-
-async function errorPageCommitted(page: Page): Promise<void> {
-  try {
-    await page.waitForURL((url) => url.protocol === "chrome-error:", {
-      timeout: 2_000,
-    });
-  } catch (error) {
-    if (!(error instanceof Error && error.name === "TimeoutError")) throw error;
-  }
-}
 
 /** Settles with `work`, or rejects as soon as the turn is stopped. */
 function unlessAborted<T>(work: Promise<T>, signal?: AbortSignal): Promise<T> {
@@ -105,9 +53,10 @@ export async function runBrowserAction(
   signal?: AbortSignal,
 ): Promise<ActionOutcome> {
   const page = tab.page;
+  clearFenceRefusal(tab);
   const withSnapshot = async (lead: string, mutated = true) => {
     await settle(tab.page);
-    await guardLanding(tab.page);
+    await guardLanding(tab);
     return {
       content: [text(`${lead}\n\n${await pageSnapshot(tab)}`)],
       mutated,
@@ -117,7 +66,7 @@ export async function runBrowserAction(
   switch (action.action) {
     case "open": {
       const url = checkBrowserUrl(action.url);
-      await goto(page, url.href);
+      await openUrl(tab, url.href);
       return withSnapshot(`Opened ${redactUrl(url.href)}.`);
     }
     case "snapshot":

@@ -6,7 +6,7 @@ import { runWithTurnMode } from "../../turn-mode-context";
 import { handoffOwner } from "./handoff";
 import { HandoffRegistry } from "./live/registry";
 import { BrowserPool } from "./pool";
-import { makeBrowserTool } from "./tool";
+import { type HandoffBudget, makeBrowserTool } from "./tool";
 
 /** A pool that fails the test if anything reaches the browser. */
 const noBrowser = () =>
@@ -14,12 +14,13 @@ const noBrowser = () =>
     launch: () => Promise.reject(new Error("no browser should launch")),
   });
 
-function handOver(liveView: boolean) {
+function handOver(liveView: boolean, handoffBudget?: HandoffBudget) {
   const tool = makeBrowserTool({
     workspaceDir: "/ws/Agent",
     liveView,
     pool: noBrowser(),
     handoffs: new HandoffRegistry(),
+    ...(handoffBudget ? { handoffBudget } : {}),
   });
   // SAFETY: the browser tool never reads its ExtensionContext.
   return tool.execute(
@@ -47,6 +48,19 @@ test("outside a conversation there is nobody to hand the browser to", async () =
   expect(result.details).toMatchObject({
     ok: false,
     error: { code: "handoff_unavailable" },
+  });
+});
+
+test("a turn too close to its end refuses before touching the browser", async () => {
+  const result = await runWithConversationId("c1", () =>
+    handOver(true, () => null),
+  );
+  expect(result.details).toMatchObject({
+    ok: false,
+    error: { code: "handoff_unavailable" },
+  });
+  expect(result.content[0]).toMatchObject({
+    text: expect.stringMatching(/run too long.*new message/),
   });
 });
 

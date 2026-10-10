@@ -17,7 +17,7 @@ import {
   BrowserToolError,
   browserFailure,
 } from "./errors";
-import { handoffOwner, runHandoff } from "./handoff";
+import { handoffOwner, NO_TIME_LEFT, runHandoff } from "./handoff";
 import { type HandoffRegistry, sharedHandoffs } from "./live/registry";
 import { BROWSER_TOOL_NAME } from "./name";
 import { type BrowserPool, sharedBrowserPool } from "./pool";
@@ -35,9 +35,17 @@ export interface BrowserToolOptions {
   liveView: boolean;
   pool?: BrowserPool;
   handoffs?: HandoffRegistry;
-  /** Tests shorten the person's 10 minutes. */
-  handoffLimitMs?: number;
+  /**
+   * How long the person gets, asked at each hand-off: 10 minutes by default; a
+   * pooled turn caps it at its token's deadline (turn/turn-deadline.ts), and
+   * tests shorten it. `null` means too little time is left to hand over.
+   */
+  handoffBudget?: HandoffBudget;
 }
+
+export type HandoffBudget = () => number | null;
+
+const FULL_HANDOFF: HandoffBudget = () => BROWSER_HANDOFF_LIMIT_MS;
 
 function description(liveView: boolean): string {
   return [
@@ -66,7 +74,7 @@ export function makeBrowserTool({
   liveView,
   pool = sharedBrowserPool,
   handoffs = sharedHandoffs,
-  handoffLimitMs = BROWSER_HANDOFF_LIMIT_MS,
+  handoffBudget = FULL_HANDOFF,
 }: BrowserToolOptions) {
   const statePath = browserStatePath(workspaceDir);
   const handOver = (
@@ -78,6 +86,9 @@ export function makeBrowserTool({
     const conversationId = currentConversationId();
     if (!liveView || !conversationId)
       return browserFailure("handoff_unavailable", NO_LIVE_VIEW);
+    // Asked now to refuse fast, and again once the page is up (handoff.ts).
+    if (handoffBudget() === null)
+      return browserFailure("handoff_unavailable", NO_TIME_LEFT);
     // Taken now: the request that started the turn named who it is for.
     const owner = handoffOwner(currentActingContext());
     return pool.run(
@@ -89,7 +100,7 @@ export function makeBrowserTool({
           ...(owner ? { owner } : {}),
           ...(signal ? { signal } : {}),
           registry: handoffs,
-          limitMs: handoffLimitMs,
+          budget: handoffBudget,
           touch: () => pool.touch(key),
         }),
       signal,
@@ -144,15 +155,6 @@ export function makeBrowserTool({
       } catch (error) {
         if (error instanceof BrowserToolError)
           return browserFailure(error.code, error.message);
-        // The network fence (launch.ts) refusing a hop to this machine.
-        if (
-          error instanceof Error &&
-          error.message.includes("net::ERR_PROXY_CONNECTION_FAILED")
-        )
-          return browserFailure(
-            "url_refused",
-            "That page sent the browser to an address on this computer, so it was stopped.",
-          );
         if (error instanceof Error && isPageFailure(error))
           return browserFailure("page_error", firstLine(error.message));
         throw error;

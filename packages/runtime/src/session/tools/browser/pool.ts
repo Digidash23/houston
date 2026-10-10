@@ -3,6 +3,7 @@ import type { Browser } from "playwright-core";
 import { launchBrowser } from "./launch";
 import type { BrowserTab } from "./open-tab";
 import { disposeSlot, liveTab, newSlot, type Slot } from "./pool-slot";
+import { maxTabPages } from "./tab-pages";
 
 export type { BrowserTab } from "./open-tab";
 
@@ -10,6 +11,8 @@ export interface BrowserPoolOptions {
   launch?: () => Promise<Browser>;
   /** How long an untouched conversation keeps its context open. */
   idleMs?: number;
+  /** Pages one conversation may keep open; by default 3 in turn mode, else 8 (tab-pages.ts). */
+  maxPages?: number;
 }
 
 export const BROWSER_IDLE_MS = 5 * 60_000;
@@ -28,10 +31,12 @@ export class BrowserPool {
   private sweepTimer: NodeJS.Timeout | null = null;
   private readonly launch: () => Promise<Browser>;
   private readonly idleMs: number;
+  private readonly maxPages: number;
 
   constructor(options: BrowserPoolOptions = {}) {
     this.launch = options.launch ?? (() => launchBrowser());
     this.idleMs = options.idleMs ?? BROWSER_IDLE_MS;
+    this.maxPages = options.maxPages ?? maxTabPages(process.env);
   }
 
   /**
@@ -52,7 +57,9 @@ export class BrowserPool {
     const queued = slot;
     return this.enqueue(queued, async () => {
       signal?.throwIfAborted();
-      return fn(await liveTab(queued, () => this.ensureBrowser()));
+      return fn(
+        await liveTab(queued, () => this.ensureBrowser(), this.maxPages),
+      );
     });
   }
 

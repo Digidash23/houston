@@ -8,12 +8,13 @@ import {
   BrowserToolError,
   browserFailure,
 } from "./errors";
+import { clearFenceRefusal } from "./fence-refusals";
 import { restoreLayout } from "./live/layout";
 import type { HandoffRegistry } from "./live/registry";
+import { guardLanding, openUrl, settle } from "./navigate";
 import type { BrowserTab } from "./open-tab";
 import { redactUrl } from "./redact-url";
 import { nextGeneration } from "./refs";
-import { goto, guardLanding, settle } from "./run-action";
 import { pageSnapshot } from "./snapshot";
 import { saveState } from "./state-store";
 import { checkBrowserUrl } from "./url-policy";
@@ -23,7 +24,11 @@ export interface HandoffOptions {
   owner?: string;
   signal?: AbortSignal;
   registry: HandoffRegistry;
-  limitMs: number;
+  /**
+   * How long the person gets, read once the page is loaded, so the wait in
+   * the queue and the page load come off it; `null` means too little is left.
+   */
+  budget: () => number | null;
   /** Keeps the pool from sweeping the tab while the person uses it. */
   touch?: () => void;
 }
@@ -40,8 +45,11 @@ export function handoffOwner(
   return decodeActingAuthor(acting?.actingAs)?.userId ?? acting?.verifiedOwner;
 }
 
+export const NO_TIME_LEFT =
+  "This task has run too long to hand the browser over now. Tell the person what they need to sign in to, and that sending a new message gives them time to do it.";
+
 /**
- * Hand the tab to the person and wait (up to `limitMs`) until they finish,
+ * Hand the tab to the person and wait (up to the budget) until they finish,
  * cancel, or the turn is stopped; then save what they signed in to and give
  * the model a fresh look at the page. The person's typing never reaches the
  * model: only the page they leave behind does, passwords masked.
@@ -52,16 +60,20 @@ export async function runHandoff(
   options: HandoffOptions,
 ): Promise<AgentToolResult<BrowserDetails>> {
   if (action.url) {
-    await goto(tab.page, checkBrowserUrl(action.url).href);
+    clearFenceRefusal(tab);
+    await openUrl(tab, checkBrowserUrl(action.url).href);
     await settle(tab.page);
-    await guardLanding(tab.page);
+    await guardLanding(tab);
   }
+  const limitMs = options.budget();
+  if (limitMs === null)
+    return browserFailure("handoff_unavailable", NO_TIME_LEFT);
   const session = options.registry.open({
     conversationId: options.conversationId,
     text: action.text,
     ...(options.owner ? { owner: options.owner } : {}),
     tab,
-    limitMs: options.limitMs,
+    limitMs,
     ...(options.touch ? { touch: options.touch } : {}),
   });
   let browserClosed = false;
@@ -107,7 +119,7 @@ async function handoffResult(
   if (end === "expired")
     return browserFailure(
       "handoff_expired",
-      "Nobody finished within 10 minutes. Tell the person what is still needed and offer to try again when they are ready.",
+      "Nobody finished in time. Tell the person what is still needed and offer to try again when they are ready.",
     );
   await settle(tab.page);
   const snapshot = await pageSnapshot(tab);

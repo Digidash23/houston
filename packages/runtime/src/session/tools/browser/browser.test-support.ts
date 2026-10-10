@@ -1,15 +1,16 @@
 import { mkdirSync, mkdtempSync } from "node:fs";
 import { createServer, type Server } from "node:http";
-import type { AddressInfo } from "node:net";
+import { type AddressInfo, connect } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { runWithConversationId } from "../../conversation-context";
 import type { BrowserParams } from "./actions";
+import type { FenceNet } from "./fence-proxy";
 import { launchBrowser } from "./launch";
 import type { HandoffRegistry } from "./live/registry";
 import { BrowserPool, type BrowserPoolOptions } from "./pool";
-import { makeBrowserTool } from "./tool";
+import { type HandoffBudget, makeBrowserTool } from "./tool";
 
 export const PASSWORD = "Password123";
 
@@ -21,12 +22,37 @@ export function agentWorkspace(prefix = "browser-it-"): string {
 }
 
 /**
- * The fixture site's name. The fence refuses loopback by address, so the
- * fixture is reached by a name the browser alone maps to 127.0.0.1, the same
- * way a public site is reached by its DNS name.
+ * The fixture site's name. The fence proxy refuses loopback, so the fixture
+ * is reached the way a public site is: its name resolves (in the fixture's
+ * DNS) to a public documentation address, which the proxy's connect then
+ * carries to the server on 127.0.0.1.
  */
 export const SITE_HOST = "site.test";
-const HOST_RULES = [`MAP ${SITE_HOST} 127.0.0.1`];
+const SITE_ADDRESS = "198.51.100.7";
+/** A public-looking name whose DNS answer is this machine. */
+export const LOOPBACK_NAME_HOST = "loop.test";
+/** A name with one public and one private answer. */
+export const MIXED_NAME_HOST = "mixed.test";
+
+const FIXTURE_DNS: Record<string, readonly string[]> = {
+  [SITE_HOST]: [SITE_ADDRESS],
+  [LOOPBACK_NAME_HOST]: ["127.0.0.1"],
+  [MIXED_NAME_HOST]: [SITE_ADDRESS, "10.0.0.7"],
+};
+
+/** The fixture's network: its own names, and the site's address on loopback. */
+export const FIXTURE_NET: FenceNet = {
+  lookup: async (host) => {
+    const answers = FIXTURE_DNS[host];
+    if (!answers)
+      throw Object.assign(new Error(`no fixture name ${host}`), {
+        code: "ENOTFOUND",
+      });
+    return answers.map((address) => ({ address, family: 4 }));
+  },
+  connect: (address, port) =>
+    connect({ host: address === SITE_ADDRESS ? "127.0.0.1" : address, port }),
+};
 
 const LOGIN = `<!doctype html><title>Sign in</title><form method="post" action="/login">
 <label>Username <input name="username"></label>
@@ -88,10 +114,11 @@ export function site(local: () => string): Server {
           ? "<title>Account</title><h1>Welcome back, student</h1>"
           : "<title>Account</title><h1>Please sign in</h1>",
       );
-    else if (req.url === "/popup-later")
-      // Opens a window on its own, the way a sign-in page opens its popup.
+    else if (req.url === "/popup")
+      // A "Sign in with ..." button: the popup opens on a click (popup
+      // blocking is on, so a window opened without one never appears).
       res.end(`<title>Opener</title><h1>Opener</h1><button>Stay</button>
-<script>setTimeout(() => window.open("/login"), 300)</script>`);
+<button onclick="window.open('/login')">Open sign-in</button>`);
     else if (req.url === "/sneaky")
       res.end(`<title>Sneaky</title><h1>Hello</h1>
 <img src="${local()}/img-direct"><img src="/bounce-img">
@@ -105,7 +132,7 @@ export async function listen(server: Server): Promise<number> {
   return (server.address() as AddressInfo).port;
 }
 
-export const fixtureLaunch = () => launchBrowser(process.env, HOST_RULES);
+export const fixtureLaunch = () => launchBrowser(process.env, FIXTURE_NET);
 
 export async function browserAvailable(): Promise<boolean> {
   try {
@@ -134,11 +161,13 @@ export function handoffTool(
   workspaceDir: string,
   pool: BrowserPool,
   handoffs: HandoffRegistry,
-  options: { chat?: string; limitMs?: number } = {},
+  options: { chat?: string; limitMs?: number; budget?: HandoffBudget } = {},
 ) {
+  const limited = options.limitMs;
+  const budget = options.budget ?? (limited ? () => limited : undefined);
   const run = liveTool(workspaceDir, pool, {
     handoffs,
-    ...(options.limitMs ? { handoffLimitMs: options.limitMs } : {}),
+    ...(budget ? { handoffBudget: budget } : {}),
   });
   return (params: BrowserParams, signal?: AbortSignal) =>
     runWithConversationId(options.chat ?? "chat", () => run(params, signal));
@@ -147,7 +176,7 @@ export function handoffTool(
 function liveTool(
   workspaceDir: string,
   pool: BrowserPool,
-  live?: { handoffs: HandoffRegistry; handoffLimitMs?: number },
+  live?: { handoffs: HandoffRegistry; handoffBudget?: HandoffBudget },
 ) {
   const browser = makeBrowserTool({
     workspaceDir,

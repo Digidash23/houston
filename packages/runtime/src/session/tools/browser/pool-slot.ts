@@ -26,6 +26,7 @@ export function newSlot(statePath: string): Slot {
 export async function liveTab(
   slot: Slot,
   ensureBrowser: () => Promise<Browser>,
+  maxPages: number,
 ): Promise<BrowserTab> {
   // A failed open already reached its own caller as a refusal; here it only
   // means "open again".
@@ -36,7 +37,7 @@ export async function liveTab(
     return tab;
   }
   const opened = ensureBrowser().then((browser) =>
-    openTab(browser, slot.statePath),
+    openTab(browser, slot.statePath, maxPages),
   );
   slot.tab = opened;
   return opened;

@@ -1,5 +1,6 @@
 import type { HoustonEvent } from "@houston/protocol";
 import { MAX_UPLOAD_BYTES } from "../turn/files-import";
+import type { LazyReadRefusedError } from "../vfs";
 import type { AgentOpResponse } from "./dispatch";
 
 // Only the handlers' own JSON is safe to carry as text: a downloaded file is
@@ -9,6 +10,24 @@ const TEXT_BODY = /^application\/json/i;
 const RELAYED_HEADERS = ["content-disposition", "cache-control"] as const;
 export const TOO_LARGE_MESSAGE =
   "file too large to fetch while the agent sleeps";
+/** A lazy read of sign-in state whose private directory was refused. */
+export const PRIVATE_REFUSED_MESSAGE =
+  "sign-in state is unavailable while the agent sleeps";
+export const PRIVATE_REFUSED_CODE = "private_state_refused";
+
+/**
+ * The 503 body for a refused lazy read: a size refusal gives the same answer
+ * the relay cap gives; refused sign-in state says so, never "too large".
+ */
+export function lazyRefusalBody(
+  reason: LazyReadRefusedError["reason"],
+): string {
+  return JSON.stringify(
+    reason === "private"
+      ? { error: PRIVATE_REFUSED_MESSAGE, code: PRIVATE_REFUSED_CODE }
+      : { error: TOO_LARGE_MESSAGE },
+  );
+}
 
 /** Turn the loopback handler's response into the op envelope's answer. */
 export async function relayAgentOpResponse(

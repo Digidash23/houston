@@ -1,4 +1,5 @@
 import { join, posix } from "node:path";
+import { PRIVATE_REFUSED_CODE } from "@houston/host/src/op/dispatch-relay";
 import { LazyReadRefusedError } from "@houston/host/src/vfs";
 import {
   CONVERSATION_IMPORT_INVALID,
@@ -88,7 +89,15 @@ export async function applyConversationOp(
   } catch (error) {
     if (!(error instanceof LazyReadRefusedError)) throw error;
     return {
-      ...answer(503, { error: "conversation too large to edit asleep" }),
+      ...answer(
+        503,
+        error.reason === "private"
+          ? {
+              error: "conversation could not be read asleep",
+              code: PRIVATE_REFUSED_CODE,
+            }
+          : { error: "conversation too large to edit asleep" },
+      ),
       decline: true,
     };
   }

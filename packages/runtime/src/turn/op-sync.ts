@@ -22,7 +22,11 @@ export async function syncOp(input: {
   let announce: ReturnType<typeof announcedOpEvents> = [];
   if (!isRead) {
     const treeOp = op.op.kind === "route" || op.op.kind === "conversation";
-    if (result.tooLarge || (treeOp && result.status >= 500)) {
+    if (
+      result.tooLarge ||
+      result.privateRefused ||
+      (treeOp && result.status >= 500)
+    ) {
       // A tree-mutating handler failed part-way (a refused lazy read, a
       // 5xx): the overlay may hold HALF a multi-key mutation. Nothing has
       // reached the store yet, so declining is exact — the pod re-runs
@@ -31,7 +35,7 @@ export async function syncOp(input: {
       // half-written; their own status (a 502 from the credential store)
       // is the pod's answer too.
       console.error(
-        `[op] handler failed before sync: status=${result.status} tooLarge=${result.tooLarge === true} prefix=${resolved.prefix} kind=${op.op.kind}`,
+        `[op] handler failed before sync: status=${result.status} tooLarge=${result.tooLarge === true} privateRefused=${result.privateRefused === true} prefix=${resolved.prefix} kind=${op.op.kind}`,
       );
       return { reply: { ok: true, decline: true }, announce };
     }

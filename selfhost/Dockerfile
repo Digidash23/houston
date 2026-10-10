@@ -37,6 +37,7 @@ COPY selfhost/bundle.mjs /app/selfhost/bundle.mjs
 COPY ui/agent-schemas/ /app/ui/agent-schemas/
 COPY packages/agentstore-contract/ /app/packages/agentstore-contract/
 COPY packages/protocol/ /app/packages/protocol/
+COPY packages/wire-types/ /app/packages/wire-types/
 COPY packages/runtime-client/ /app/packages/runtime-client/
 COPY packages/domain/ /app/packages/domain/
 COPY packages/runtime/ /app/packages/runtime/
@@ -68,6 +69,7 @@ COPY patches/ /app/patches/
 COPY ui/agent-schemas/ /app/ui/agent-schemas/
 COPY packages/agentstore-contract/ /app/packages/agentstore-contract/
 COPY packages/protocol/ /app/packages/protocol/
+COPY packages/wire-types/ /app/packages/wire-types/
 COPY packages/runtime-client/ /app/packages/runtime-client/
 COPY packages/domain/ /app/packages/domain/
 COPY packages/runtime/ /app/packages/runtime/
@@ -96,6 +98,32 @@ RUN ln -s /app/node_modules/.pnpm/node_modules /app/dist/host/node_modules \
 # single named volume persists everything. Owned by the non-root node user so a
 # mounted volume comes up writable.
 RUN mkdir -p /data/workspaces /data/db && chown -R node:node /app /data
+
+# The browser tool's Chromium: Playwright's headless shell (190-240 MB PSS
+# for the whole tree with one page open, measured in an E2B sandbox), installed by the SAME playwright-core the runtime
+# bundle imports, so the browser revision always moves with the engine. It
+# lives under /app because the E2B template copies only /app from this image
+# (cloud e2b/pool-worker/export-app.sh); the template installs the system
+# libraries itself with `install-deps`. PLAYWRIGHT_BROWSERS_PATH (not
+# HOUSTON_BROWSER_EXECUTABLE, whose path names the revision) lets the
+# runtime's "Playwright headless shell" launch candidate find it. Installed
+# AFTER the chown on purpose: root-owned and world-readable is all the
+# runtime needs, and a chown -R over it would copy ~280 MB into another layer.
+ENV PLAYWRIGHT_BROWSERS_PATH=/app/ms-playwright
+RUN node /app/node_modules/.pnpm/node_modules/playwright-core/cli.js \
+      install --with-deps --no-progress chromium-headless-shell \
+ && ls -d /app/ms-playwright/chromium_headless_shell-* \
+ && rm -rf /var/lib/apt/lists/*
+
+# Chromium's own sandbox is OFF in this image, an accepted risk: Docker's
+# default seccomp profile blocks the unprivileged user namespaces it needs, so
+# a sandboxed launch fails here and the browser would never start. The image
+# is single-tenant (self-host, or one org's engine pod), and the agent's own
+# shell tool already runs as this same user, so the sandbox would not keep a
+# compromised page from anything the agent cannot already reach. The E2B
+# template does NOT inherit this: it sets HOUSTON_BROWSER_SANDBOX=1 (cloud
+# e2b/pool-worker/build.mjs), where the tool shell runs as another user.
+ENV HOUSTON_BROWSER_SANDBOX=0
 
 ENV NODE_ENV=production \
     HOUSTON_HOME=/data \

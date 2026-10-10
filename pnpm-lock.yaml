@@ -15,6 +15,9 @@ patchedDependencies:
   '@executor-js/sdk@1.5.37':
     hash: 7061d4455cc286a23ca4c3683819032231059648ed7fef31e7a1f0297e1f3597
     path: patches/@executor-js__sdk@1.5.37.patch
+  playwright-core@1.64.0:
+    hash: e5a9d612266a18ed3622f15359c79cc2643fd0fcd64178551e6ee2f37b887c0d
+    path: patches/playwright-core@1.64.0.patch
 
 importers:
 
@@ -602,7 +605,7 @@ importers:
         version: link:../wire-types
       playwright-core:
         specifier: 1.64.0
-        version: 1.64.0
+        version: 1.64.0(patch_hash=e5a9d612266a18ed3622f15359c79cc2643fd0fcd64178551e6ee2f37b887c0d)
       tsx:
         specifier: 4.23.0
         version: 4.23.0
@@ -14492,7 +14495,7 @@ snapshots:
 
   playwright-core@1.61.1: {}
 
-  playwright-core@1.64.0: {}
+  playwright-core@1.64.0(patch_hash=e5a9d612266a18ed3622f15359c79cc2643fd0fcd64178551e6ee2f37b887c0d): {}
 
   playwright@1.61.1:
     dependencies:

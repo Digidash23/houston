@@ -96,6 +96,7 @@ export function createTurnBackend(
       deps.toolSelection,
       workspaceDir,
       deps.turn.grant?.scopes.includes("browser-live") === true,
+      deps.turn.tokenExpiresAt,
     ),
   ];
   if (provider === "anthropic") {

@@ -72,6 +72,7 @@ test("a turn's browser offers handoff only with the browser-live grant", () => {
       { toolNames: ["browser"], includeRunCode: false },
       "/ws/Agent",
       liveView,
+      undefined,
     );
     const schema = tool?.parameters as unknown as {
       properties: { action: { anyOf: { const: string }[] } };
@@ -85,6 +86,7 @@ test("a turn's browser offers handoff only with the browser-live grant", () => {
       { toolNames: ["run_code"], includeRunCode: true },
       "/ws",
       true,
+      undefined,
     ),
   ).toEqual([]);
 });

@@ -22,6 +22,7 @@ export {
   startHydrate,
   syncBack,
 } from "./hydrate";
+export { landStream } from "./land-file";
 export type {
   ManifestObjectStore,
   ObjectMetadata,
@@ -50,6 +51,15 @@ export {
   PrefetchedObjectStore,
   parsePrefetchedObjects,
 } from "./prefetched-store";
+export { type PrivateFileRead, readPrivateFile } from "./private-file";
+export {
+  closePrivateDir,
+  landingMode,
+  PRIVATE_DIR_MODE,
+  PRIVATE_FILE_MODE,
+  privateDirOf,
+  privateDirProblem,
+} from "./private-paths";
 export { StoreReadTimeoutError } from "./read-timeout";
 export { fetchWithRetry } from "./retry";
 export { mergeRoutineRunArrays } from "./routine-runs-merge";

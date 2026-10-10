@@ -112,7 +112,7 @@ jobs:
               && git fetch --depth=1 origin "$BASE" 2>/dev/null; then
             if git diff --name-only "$BASE" "$GITHUB_SHA" -- \
                 selfhost/Dockerfile selfhost/bundle.mjs selfhost/gondolin-guest.json \
-                packages/protocol \
+                packages/protocol packages/wire-types \
                 packages/runtime-client packages/domain packages/runtime \
                 packages/host packages/agentstore-contract ui/agent-schemas \
                 patches package.json pnpm-lock.yaml pnpm-workspace.yaml \
@@ -173,6 +173,12 @@ jobs:
               echo "ERROR: Claude Agent SDK binary is not executable: $BINARY" >&2
               exit 1
             fi
+          '
+          # The browser tool's Chromium must launch from the image as built
+          # (PLAYWRIGHT_BROWSERS_PATH comes from the image env): a missing
+          # revision or system library fails here, before anything publishes.
+          docker run --rm --entrypoint sh "$SHA_TAG" -c '
+            cd /app/dist/runtime && node --input-type=module -e "const {chromium}=await import(\"playwright-core\");const b=await chromium.launch();await b.close();console.log(\"chromium launches\")"
           '
           docker push "$SHA_TAG"
           docker push "$POC_TAG"

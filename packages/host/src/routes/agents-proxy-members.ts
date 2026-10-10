@@ -109,8 +109,9 @@ export const PROXY_MEMBERS: ProxyMember[] = [
     engines: BOTH,
   },
   // The browser hand-off live view (transport/browser-live-route.ts): frames
-  // down an SSE stream, the person's input up. Standing only until a gateway
-  // serves them to the per-turn worker.
+  // down an SSE stream, the person's input up. The Go gateway serves these to
+  // E2B turns itself (it proxies to the turn's sandbox), so this host's own
+  // Cloud Run dispatch never sees them: STANDING describes that dispatch.
   {
     method: "GET",
     rest: "conversations/:conversationId/browser/live",

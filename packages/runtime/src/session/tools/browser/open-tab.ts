@@ -1,5 +1,6 @@
 import type { BrowserLiveLayout } from "@houston/wire-types";
 import type { Browser, Page } from "playwright-core";
+import { watchFence } from "./fence-refusals";
 import { DESKTOP_VIEWPORT } from "./live/layout";
 import { EMPTY_STATE } from "./state-merge";
 import { readState, type StateHolder } from "./state-store";
@@ -20,11 +21,13 @@ export interface BrowserTab extends StateHolder {
  * A fresh context loaded with the workspace's saved sign-ins. Its `base` is
  * what it started from, so a later save writes only what this conversation
  * changed (state-merge.ts). Downloads are refused: nothing would ever read
- * them, and they would pile up in a temp dir.
+ * them, and they would pile up in a temp dir. `maxPages` caps the popups it
+ * keeps (tab-pages.ts).
  */
 export async function openTab(
   browser: Browser,
   statePath: string,
+  maxPages: number,
 ): Promise<BrowserTab> {
   const saved = await readState(statePath);
   const context = await browser.newContext({
@@ -46,6 +49,7 @@ export async function openTab(
     layout: "desktop",
     onPageChange: new Set(),
   };
-  followPages(tab);
+  followPages(tab, maxPages);
+  watchFence(tab);
   return tab;
 }

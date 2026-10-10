@@ -67,6 +67,8 @@ export async function applyReconcileOp(
     );
     if ("tooLarge" in settled)
       return { events: [], chat: "too_large", decline: true };
+    if ("privateRefused" in settled)
+      return { events: [], chat: "private_refused", decline: true };
     if ("line" in settled) {
       line = settled.line;
       chat = settled.written ? "settled" : "already_settled";

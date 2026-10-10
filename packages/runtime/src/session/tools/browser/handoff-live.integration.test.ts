@@ -56,9 +56,10 @@ describe.skipIf(!available)(
   () => {
     test("Back on a popup with no history closes it and shows the page that opened it", async () => {
       const { run, session: opened } = start();
-      const pending = run({ ...handoff, url: `${origin}/popup-later` });
+      const pending = run({ ...handoff, url: `${origin}/popup` });
       const session = await opened();
       const opener = session.tab.page;
+      await opener.getByRole("button", { name: "Open sign-in" }).click();
       const popup = await until(
         () => session.tab.page !== opener && session.tab.page,
       );
@@ -84,9 +85,10 @@ describe.skipIf(!available)(
 
     test("a phone viewer then a desktop viewer: every page is desktop-sized again at the end", async () => {
       const { run, session: opened } = start();
-      const pending = run({ ...handoff, url: `${origin}/popup-later` });
+      const pending = run({ ...handoff, url: `${origin}/popup` });
       const session = await opened();
       const opener = session.tab.page;
+      await opener.getByRole("button", { name: "Open sign-in" }).click();
       session.attachViewer("viewer-phone-1", "phone", () => true);
       const popup = await until(
         () => session.tab.page !== opener && session.tab.page,

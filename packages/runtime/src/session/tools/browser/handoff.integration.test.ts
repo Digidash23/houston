@@ -18,6 +18,7 @@ import { HandoffRegistry } from "./live/registry";
 import type { HandoffSession } from "./live/session";
 import type { BrowserPool, BrowserPoolOptions } from "./pool";
 import { browserStatePath } from "./state-store";
+import type { HandoffBudget } from "./tool";
 
 const available = await browserAvailable();
 const server = site(() => "http://127.0.0.1:9");
@@ -59,7 +60,13 @@ async function spot(session: HandoffSession, selector: string) {
   };
 }
 
-function start(options: { limitMs?: number; pool?: BrowserPool } = {}) {
+function start(
+  options: {
+    limitMs?: number;
+    budget?: HandoffBudget;
+    pool?: BrowserPool;
+  } = {},
+) {
   const registry = new HandoffRegistry();
   const ws = workspace();
   const pool = options.pool ?? newPool();
@@ -111,6 +118,41 @@ describe.skipIf(!available)(
         error: { code: "handoff_expired" },
       });
       expect(registry.get("chat")?.state).toBe("expired");
+    });
+
+    test("the live view's deadline is the budget the hand-off was given", async () => {
+      const { registry, run } = start({ limitMs: 90_000 });
+      const pending = run(handoff);
+      const session = await until(() => registry.get("chat"));
+      const left = session.expiresAt - Date.now();
+      expect(left).toBeGreaterThan(85_000);
+      expect(left).toBeLessThanOrEqual(90_000);
+      session.finish("cancelled");
+      await pending;
+    });
+
+    test("the budget is read again once the page is up, so loading it comes off", async () => {
+      const left = [60_000, 30_000];
+      const { registry, run } = start({ budget: () => left.shift() ?? null });
+      const pending = run({ ...handoff, url: `${origin}/login` });
+      const session = await until(() => registry.get("chat"));
+      expect(session.tab.page.url()).toBe(`${origin}/login`);
+      expect(session.expiresAt - Date.now()).toBeLessThanOrEqual(30_000);
+      session.finish("cancelled");
+      await pending;
+      expect(left).toEqual([]);
+    });
+
+    test("a page that loads past the turn's end refuses the hand-off after loading", async () => {
+      const left: (number | null)[] = [60_000, null];
+      const { registry, run } = start({ budget: () => left.shift() ?? null });
+      const result = await run({ ...handoff, url: `${origin}/login` });
+      expect(result.details).toMatchObject({
+        ok: false,
+        error: { code: "handoff_unavailable" },
+      });
+      expect(result.text).toMatch(/run too long/);
+      expect(registry.get("chat")).toBeUndefined();
     });
 
     test("a stopped turn ends the hand-off at once and frees the browser", async () => {
@@ -170,12 +212,14 @@ describe.skipIf(!available)(
 
     test("the tab follows a popup the page opens, and the old refs go stale", async () => {
       const run = tool(workspace(), newPool());
-      const opened = await run({
-        action: "open",
-        url: `${origin}/popup-later`,
-      });
+      const opened = await run({ action: "open", url: `${origin}/popup` });
       const stay = ref(opened.text, "button", "Stay");
-      await sleep(1_500);
+      // The model's click is a real input event: popup blocking lets it open.
+      await run({
+        action: "click",
+        ref: ref(opened.text, "button", "Open sign-in"),
+      });
+      await sleep(500);
       expect((await run({ action: "click", ref: stay })).details).toMatchObject(
         {
           ok: false,
@@ -187,7 +231,7 @@ describe.skipIf(!available)(
       );
     });
 
-    test("over eight pages the oldest close, never the current page or its openers", async () => {
+    test("over eight pages the oldest close, never the current page or its direct opener", async () => {
       const pool = newPool();
       const tab = await pool.run(
         "k",
@@ -206,7 +250,8 @@ describe.skipIf(!available)(
       await until(() => tab.context.pages().length <= 8);
       await sleep(200);
       expect(tab.context.pages()).toHaveLength(8);
-      expect(first.isClosed()).toBe(false);
+      // The opener's own opener is just the oldest page: it goes first.
+      expect(first.isClosed()).toBe(true);
       expect(opener.isClosed()).toBe(false);
       expect(tab.page.isClosed()).toBe(false);
       expect(await tab.page.opener()).toBe(opener);
