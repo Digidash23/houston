@@ -6,7 +6,11 @@ import { openExternalUrl } from "./open-url";
 import { installEarlyPushTap, mobilePush } from "./push";
 import { publishMobileSurface } from "./surface";
 import { installSystemBars } from "./system-bars";
-import { notifyMobileReadyAfterRender } from "./updates/ready";
+import {
+  declareProvisionalReady,
+  declareReadyWhenShellRenders,
+} from "./updates/ready";
+import { capgoReadyPorts } from "./updates/ready-ports";
 
 // These globals precede every shared-app module, including analytics bootstrap.
 publishMobileSurface(window, {
@@ -57,9 +61,11 @@ async function start(): Promise<void> {
   const { installUpdates } = await import("./updates/boot");
   await installUpdates().catch(reportBootError);
   await import("../../web/src/main");
-  notifyMobileReadyAfterRender((error) => {
-    void reportBootError(error);
-  });
+  declareReadyWhenShellRenders(
+    capgoReadyPorts((error) => {
+      void reportBootError(error);
+    }),
+  );
   const { installNativeUx } = await import("./native-ux");
   void installNativeUx().catch((error: unknown) => reportBootError(error));
 }
@@ -74,11 +80,13 @@ if (navigator.onLine) {
   void import("./offline")
     .then(({ showOffline }) => {
       clearOffline = showOffline(launch);
-      // The offline first frame proves this local bundle booted; waiting for a
-      // network-backed sign-in here would falsely roll back a healthy OTA.
-      notifyMobileReadyAfterRender((error) => {
-        void reportBootError(error);
-      });
+      // Offline cannot reach the app, so readiness is provisional: the next
+      // online launch resets the bundle if the real app fails to render.
+      void declareProvisionalReady(
+        capgoReadyPorts((error) => {
+          void reportBootError(error);
+        }),
+      ).catch(reportBootError);
       window.addEventListener("online", launch, { once: true });
       if (navigator.onLine) launch();
     })
