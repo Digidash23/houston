@@ -1,17 +1,5 @@
-import {
-  attachmentFolderRoot,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@houston-ai/core";
-import { Plus } from "lucide-react";
-import type {
-  ChangeEvent,
-  InputHTMLAttributes,
-  ReactNode,
-  RefObject,
-} from "react";
-import { useState } from "react";
+import { attachmentFolderRoot } from "@houston-ai/core";
+import type { ChangeEvent, InputHTMLAttributes, RefObject } from "react";
 import { AttachmentChip, FolderAttachmentChip } from "./attachment-chip";
 import { fileIdentityKey } from "./clipboard-files";
 
@@ -30,6 +18,8 @@ interface ChatInputAttachmentsProps {
   onRemoveFiles: (indices: readonly number[]) => void;
   /** Localized "N files" line for a folder chip. English default. */
   folderCountLabel?: (count: number) => string;
+  /** A chip's remove button name for `name`. English default. */
+  removeLabel?: (name: string) => string;
 }
 
 /** One chip per plain file; a whole attached folder collapses into ONE chip
@@ -79,6 +69,7 @@ export function ChatInputAttachments({
   onFileChange,
   onRemoveFiles,
   folderCountLabel,
+  removeLabel,
 }: ChatInputAttachmentsProps) {
   const groups = groupAttachments(files);
   return (
@@ -116,12 +107,14 @@ export function ChatInputAttachments({
                   defaultFolderCount(group.indices.length)
                 }
                 onRemove={() => onRemoveFiles(group.indices)}
+                removeLabel={removeLabel}
               />
             ) : (
               <AttachmentChip
                 key={group.key}
                 name={group.name}
                 onRemove={() => onRemoveFiles(group.indices)}
+                removeLabel={removeLabel}
               />
             ),
           )}
@@ -133,83 +126,4 @@ export function ChatInputAttachments({
 
 function defaultFolderCount(count: number): string {
   return count === 1 ? "1 file" : `${count} files`;
-}
-
-type AttachMenuApi = {
-  openFilePicker: () => void;
-  openFolderPicker: () => void;
-  close: () => void;
-};
-
-interface ChatInputAttachButtonProps {
-  onOpenFilePicker: () => void;
-  onOpenFolderPicker: () => void;
-  /** Optional popover menu. When provided, clicking the paperclip opens a
-   *  popover instead of invoking `onOpenFilePicker` directly. The render-prop
-   *  form receives an API the caller uses to trigger the file or folder
-   *  picker from inside the menu and close the popover. */
-  attachMenu?: ReactNode | ((api: AttachMenuApi) => ReactNode);
-  ariaLabel?: string;
-  /** Locks the button inert (keyboard focus survives the composer's
-   *  pointer-events lock, so the button must opt out on its own). */
-  disabled?: boolean;
-}
-
-export function ChatInputAttachButton({
-  onOpenFilePicker,
-  onOpenFolderPicker,
-  attachMenu,
-  ariaLabel = "Attach files",
-  disabled = false,
-}: ChatInputAttachButtonProps) {
-  const [open, setOpen] = useState(false);
-
-  const button = (
-    <button
-      type="button"
-      onClick={attachMenu ? undefined : onOpenFilePicker}
-      disabled={disabled}
-      className="relative flex h-9 w-9 items-center justify-center rounded-full text-ink-muted hover:bg-hover transition-[color,background-color,scale] active:scale-[0.96] md:active:scale-100 after:absolute after:-inset-1 disabled:pointer-events-none md:after:hidden"
-      aria-label={ariaLabel}
-    >
-      <Plus className="size-5" />
-    </button>
-  );
-
-  if (!attachMenu) {
-    return (
-      <div className="flex items-center [grid-area:leading]">{button}</div>
-    );
-  }
-
-  const content =
-    typeof attachMenu === "function"
-      ? attachMenu({
-          openFilePicker: () => {
-            setOpen(false);
-            onOpenFilePicker();
-          },
-          openFolderPicker: () => {
-            setOpen(false);
-            onOpenFolderPicker();
-          },
-          close: () => setOpen(false),
-        })
-      : attachMenu;
-
-  return (
-    <div className="flex items-center [grid-area:leading]">
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>{button}</PopoverTrigger>
-        <PopoverContent
-          align="start"
-          side="top"
-          sideOffset={8}
-          className="w-auto min-w-56 p-1.5"
-        >
-          {content}
-        </PopoverContent>
-      </Popover>
-    </div>
-  );
 }

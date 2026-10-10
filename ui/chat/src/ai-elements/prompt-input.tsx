@@ -1258,6 +1258,8 @@ export const PromptInputActionMenuItem = ({
 export type PromptInputSubmitProps = ComponentProps<typeof InputGroupButton> & {
   status?: ChatStatus;
   onStop?: () => void;
+  /** Accessible names; English defaults. The app passes its own `t()`. */
+  labels?: { submit?: string; stop?: string };
 };
 
 export const PromptInputSubmit = ({
@@ -1268,6 +1270,7 @@ export const PromptInputSubmit = ({
   onStop,
   onClick,
   children,
+  labels,
   ...props
 }: PromptInputSubmitProps) => {
   const isGenerating = status === "submitted" || status === "streaming";
@@ -1301,7 +1304,9 @@ export const PromptInputSubmit = ({
       // A stable hook for callers that point at the composer's send from
       // outside it (a guided lesson's spotlight), like `data-composer-surface`.
       data-composer-submit="true"
-      aria-label={isGenerating ? "Stop" : "Submit"}
+      aria-label={
+        isGenerating ? (labels?.stop ?? "Stop") : (labels?.submit ?? "Submit")
+      }
       className={cn(
         // The ::after hit-slop grows the phone target to 44px without moving
         // a pixel; desktop keeps the 36px box.

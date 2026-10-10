@@ -13,9 +13,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import { PromptInputSubmit } from "../src/ai-elements/prompt-input.tsx";
 import { Suggestion } from "../src/ai-elements/suggestion.tsx";
-import { ComposerTrailing } from "../src/attachment-chip.tsx";
-import { ChatInputAttachButton } from "../src/chat-input-attachments.tsx";
+import { ChatInputAttachButton } from "../src/chat-input-attach-button.tsx";
 import { ChatSuggestActions } from "../src/chat-suggest-actions.tsx";
+import { ComposerTrailing } from "../src/composer-trailing.tsx";
 import { ConversationActionsMenu } from "../src/conversation-actions-menu.tsx";
 import { DEFAULT_CONVERSATION_MAP_LABELS } from "../src/conversation-map-labels.ts";
 import { DEFAULT_DICTATION_LABELS } from "../src/dictation-types.ts";

@@ -157,6 +157,7 @@ export function ChatInput({
           onFileChange={handleFileChange}
           onRemoveFiles={removeFiles}
           folderCountLabel={labels?.folderFileCount}
+          removeLabel={labels?.removeAttachment}
         />
 
         <QueuedMessageList
@@ -189,6 +190,7 @@ export function ChatInput({
             placeholder={placeholder}
             status={status}
             text={text}
+            labels={labels}
           />
         </ChatInputMentions>
 
