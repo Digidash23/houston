@@ -12,6 +12,11 @@ concurrency:
   group: mobile-store-release
   cancel-in-progress: false
 
+env:
+  # The web bundle build runs out of heap at Node's default limit on hosted
+  # runners (same setting as release.yml).
+  NODE_OPTIONS: --max-old-space-size=4096
+
 jobs:
   ios:
     if: ${{ github.repository == 'gethouston/houston' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' || github.event_name == 'release' && startsWith(github.event.release.tag_name, 'cloud-v')) }}
