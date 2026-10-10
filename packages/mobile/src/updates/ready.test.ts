@@ -148,3 +148,14 @@ test("the shell starts its readiness watch before loading the web entry", async 
   );
   expect(start).toContain("ready.fail(error);");
 });
+
+test("an online launch waits for the offline trial marker before watching", async () => {
+  const { readFileSync } = await import("node:fs");
+  const main = readFileSync("src/main.ts", "utf8");
+  const start = main.slice(main.indexOf("async function start"));
+  expect(start.indexOf("await provisionalReady;")).toBeGreaterThan(-1);
+  expect(start.indexOf("await provisionalReady;")).toBeLessThan(
+    start.indexOf("declareReadyWhenShellRenders("),
+  );
+  expect(main).toContain("provisionalReady = declareProvisionalReady(");
+});
