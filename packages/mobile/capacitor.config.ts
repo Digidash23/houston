@@ -26,11 +26,13 @@ const config: CapacitorConfig = {
     },
   },
   plugins: {
-    // Native resizes the WebView itself. The existing visualViewport hook
-    // measures remaining occlusion, so the composer never gets two insets.
-    // Android edge-to-edge can look full screen to the keyboard plugin. Force
-    // the WebView resize there too; the viewport hook observes the final edge.
-    Keyboard: { resize: "native", resizeOnFullScreen: true },
+    // iOS: `resize: "native"` shrinks the WKWebView above the keyboard.
+    // Android: the core SystemBars plugin pads the window by the IME inset,
+    // and the Keyboard plugin's own resizeOnFullScreen path is skipped while
+    // SystemBars is present (Capacitor logs a warning to omit it). Either
+    // way the existing visualViewport hook measures any remaining occlusion,
+    // so the composer never gets two insets.
+    Keyboard: { resize: "native" },
     SystemBars: { insetsHandling: "css", style: "LIGHT" },
     SplashScreen: { launchAutoHide: true },
     FirebaseMessaging: { presentationOptions: [] },
