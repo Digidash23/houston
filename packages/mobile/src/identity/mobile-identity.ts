@@ -3,6 +3,7 @@ import { logAndReportError } from "@houston/app/lib/error-report";
 import { IdentityError, type SignInOutcome } from "@houston/app/lib/identity";
 import { signInWithCredential } from "firebase/auth";
 import { ready } from "../../../web/src/identity/firebase-auth-instance";
+import { webSignOut as jsSignOut } from "../../../web/src/identity/firebase-popup";
 import {
   backfillAccountProfile,
   toOutcome,
@@ -18,8 +19,46 @@ export {
   webOnIdTokenChanged,
   webRefreshIdToken,
   webSignInWithCustomToken,
-  webSignOut,
 } from "../../../web/src/identity/firebase-popup";
+
+/** A hung native plugin must never hold the sign-out screen hostage. */
+export const NATIVE_SIGN_OUT_TIMEOUT_MS = 3_000;
+
+async function nativeSignOut(): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      FirebaseAuthentication.signOut(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("Native sign-out timed out after 3 seconds")),
+          NATIVE_SIGN_OUT_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
+ * Sign out of the JS session AND the native one. The native Google SDK /
+ * Credential Manager and Apple's native Firebase session outlive the JS
+ * signOut, so skipping them hands the next sign-in the previous account. A
+ * native failure is reported but never fails the sign-out: the JS session is
+ * the one Houston restores on launch.
+ */
+export async function webSignOut(): Promise<void> {
+  try {
+    await jsSignOut();
+  } finally {
+    try {
+      await nativeSignOut();
+    } catch (error) {
+      logAndReportError("native_sign_out", error);
+    }
+  }
+}
 
 async function signIn(provider: NativeProvider): Promise<SignInOutcome | null> {
   if (!nativeIdentity.providers[provider])
