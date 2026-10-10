@@ -39,6 +39,8 @@ describe("mission chat back control", () => {
     ok(classes.includes("md:after:hidden"), "no slop at the desktop edge");
     ok(classes.includes("active:scale-[0.96]"), "phone press feedback");
     ok(classes.includes("md:active:scale-95"), "desktop keeps its 0.95 press");
+    // ...and keeps it instant, as on main: no scale in the desktop transition.
+    ok(classes.includes("md:transition-colors"), "desktop press stays instant");
     // Tailwind's scale-* is the CSS `scale` property, not `transform`.
     ok(
       classes.some((c) => /^transition-\[.*\bscale\b.*\]$/.test(c)),
