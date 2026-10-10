@@ -13,9 +13,15 @@ import type { MissionTitleRequest } from "../session/mission-title";
  * Independently deployable authority carried by a per-turn grant. `code-run`
  * means the gateway serves `POST {grant.url}/v1/code/run` for this turn: the
  * worker reaches the code sandbox through the grant and never holds a sandbox
- * URL, app token or GCP identity of its own.
+ * URL, app token or GCP identity of its own. `browser-live` means the gateway
+ * serves the conversation's browser live routes to this worker for this turn,
+ * so the `browser` tool may hand the page to the person.
  */
-export type TurnGrantScope = "integrations" | "agent-writes" | "code-run";
+export type TurnGrantScope =
+  | "integrations"
+  | "agent-writes"
+  | "code-run"
+  | "browser-live";
 
 /** Parsed short-lived authority for host-proxying tools. */
 export interface TurnGrant {

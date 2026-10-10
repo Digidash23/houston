@@ -124,10 +124,10 @@ export function getToolDetail(name: string, input: unknown): string | null {
       return (inp.query as string | undefined) ?? null;
     case "WebFetch":
       return shortUrl(inp.url as string | undefined);
-    // Only `open` names a page; clicks and fills carry element refs, which
-    // mean nothing to a person reading the log.
+    // Only `open` and `handoff` name a page; clicks and fills carry element
+    // refs, which mean nothing to a person reading the log.
     case "browser":
-      return inp.action === "open"
+      return inp.action === "open" || inp.action === "handoff"
         ? shortUrl(inp.url as string | undefined)
         : null;
     default:

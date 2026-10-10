@@ -108,6 +108,19 @@ export const PROXY_MEMBERS: ProxyMember[] = [
     rest: "conversations/:conversationId/messages",
     engines: BOTH,
   },
+  // The browser hand-off live view (transport/browser-live-route.ts): frames
+  // down an SSE stream, the person's input up. Standing only until a gateway
+  // serves them to the per-turn worker.
+  {
+    method: "GET",
+    rest: "conversations/:conversationId/browser/live",
+    engines: STANDING,
+  },
+  {
+    method: "POST",
+    rest: "conversations/:conversationId/browser/input",
+    engines: STANDING,
+  },
   // Create-with-AI's one-shot (generate-route.ts).
   { method: "POST", rest: "generate-agent", engines: STANDING },
 ];

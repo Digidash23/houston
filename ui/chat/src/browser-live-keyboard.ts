@@ -1,0 +1,65 @@
+"use client";
+
+import { type RefObject, useEffect, useRef } from "react";
+import { beforeInputKey, keyDownInput, textInput } from "./browser-live-keys";
+import type { BrowserLiveViewInput } from "./browser-live-types";
+
+/**
+ * Wires the stage's hidden text field to page input with NATIVE listeners:
+ * React's synthetic `onBeforeInput` carries no `inputType`, and the field must
+ * see composition and paste exactly as the platform sends them.
+ */
+export function useBrowserLiveKeyboard(
+  fieldRef: RefObject<HTMLTextAreaElement | null>,
+  send: (event: BrowserLiveViewInput) => void,
+  enabled: boolean,
+): void {
+  const sendRef = useRef(send);
+  useEffect(() => {
+    sendRef.current = send;
+  });
+
+  useEffect(() => {
+    const field = fieldRef.current;
+    if (!field || !enabled) return;
+    const emit = (event: BrowserLiveViewInput | null) => {
+      if (event) sendRef.current(event);
+    };
+    const flush = () => {
+      emit(textInput(field.value));
+      field.value = "";
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      const event = keyDownInput(e);
+      if (!event) return;
+      e.preventDefault();
+      emit(event);
+    };
+    const onBeforeInput = (e: InputEvent) => {
+      const event = beforeInputKey(e.inputType, field.value);
+      if (!event) return;
+      e.preventDefault();
+      emit(event);
+    };
+    const onInput = (e: Event) => {
+      if (!(e as InputEvent).isComposing) flush();
+    };
+    // Pasting is typing into the page: never blocked, sent as text.
+    const onPaste = (e: ClipboardEvent) => {
+      e.preventDefault();
+      emit(textInput(e.clipboardData?.getData("text/plain") ?? ""));
+    };
+    field.addEventListener("keydown", onKeyDown);
+    field.addEventListener("beforeinput", onBeforeInput);
+    field.addEventListener("input", onInput);
+    field.addEventListener("compositionend", flush);
+    field.addEventListener("paste", onPaste);
+    return () => {
+      field.removeEventListener("keydown", onKeyDown);
+      field.removeEventListener("beforeinput", onBeforeInput);
+      field.removeEventListener("input", onInput);
+      field.removeEventListener("compositionend", flush);
+      field.removeEventListener("paste", onPaste);
+    };
+  }, [fieldRef, enabled]);
+}

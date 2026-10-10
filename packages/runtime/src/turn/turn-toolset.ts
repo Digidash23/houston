@@ -135,12 +135,15 @@ export function buildTurnCommonTools(
 /**
  * The `browser` tool for this turn's workspace, when the selection admits it
  * (never a coordinator). Built per turn because the workspace is; the browser
- * process itself is shared across turns.
+ * process itself is shared across turns. `liveView` is the turn grant's
+ * `browser-live` scope: `handoff` is offered only when the gateway will carry
+ * the person's live view to this worker.
  */
 export function buildTurnBrowserTool(
   selection: ToolSelection,
   workspaceDir: string,
+  liveView: boolean,
 ): PiBackendDeps["customTools"] {
   if (!selection.toolNames.includes(BROWSER_TOOL_NAME)) return [];
-  return [makeBrowserTool({ workspaceDir })];
+  return [makeBrowserTool({ workspaceDir, liveView })];
 }

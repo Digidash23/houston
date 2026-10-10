@@ -5,6 +5,10 @@
  * Re-exported wholesale by the package barrel; import from `@houston/sdk`.
  */
 // ===== Conversations module contract ===================================
+
+// ===== Browser hand-off module contract ===============================
+export type { BrowserWatchOptions } from "./modules/browser";
+export type * from "./modules/browser/types";
 export {
   type ConversationListItem,
   type ConversationListVM,

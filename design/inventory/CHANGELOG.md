@@ -3,6 +3,17 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v129 - 2026-10-10
+
+An AI Employee can hand its browser to the person. When a website needs the
+person themselves (signing in, a verification code, a captcha), the chat
+shows a card naming the site with an Open button, and Open shows the live
+page: the person taps, types and scrolls on it, then presses I'm done (or
+Cancel), and the employee carries on from that page. Passwords never pass
+through the chat. On phones the page opens as a full-height sheet sized for
+the phone; on desktop as a large dialog. After the hand-off the card keeps
+how it ended: done, not finished, time ran out, or no longer waiting.
+
 ## v128 - 2026-10-09
 
 The first day offer knows when no AI is connected. A new hire's first day

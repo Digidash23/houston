@@ -1,8 +1,9 @@
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
-import type { Page } from "playwright-core";
+import type { Locator, Page } from "playwright-core";
 import type { BrowserAction } from "./actions";
 import { BrowserToolError } from "./errors";
 import type { BrowserTab } from "./pool";
+import { resolveRef } from "./refs";
 import { pageSnapshot } from "./snapshot";
 import { checkBrowserUrl, landedSafely } from "./url-policy";
 
@@ -19,7 +20,7 @@ export interface ActionOutcome {
 }
 
 /** Give a page a moment to finish loading; slow pages are still usable. */
-async function settle(page: Page): Promise<void> {
+export async function settle(page: Page): Promise<void> {
   try {
     await page.waitForLoadState("load", { timeout: 5_000 });
   } catch (error) {
@@ -27,20 +28,18 @@ async function settle(page: Page): Promise<void> {
   }
 }
 
-async function isPasswordField(page: Page, ref: string): Promise<boolean> {
-  return page
-    .getByRef(ref)
-    .evaluate(
-      (el) => el instanceof HTMLInputElement && el.type === "password",
-      undefined,
-      {
-        timeout: REF_TIMEOUT_MS,
-      },
-    );
+async function isPasswordField(field: Locator): Promise<boolean> {
+  return field.evaluate(
+    (el) => el instanceof HTMLInputElement && el.type === "password",
+    undefined,
+    {
+      timeout: REF_TIMEOUT_MS,
+    },
+  );
 }
 
 /** Refuse a page a redirect carried somewhere the browser may not be. */
-async function guardLanding(page: Page): Promise<void> {
+export async function guardLanding(page: Page): Promise<void> {
   const url = page.url();
   if (landedSafely(url)) return;
   // Chromium's own error page: the network fence (launch.ts) or plain DNS.
@@ -63,7 +62,7 @@ const text = (value: string): TextContent => ({ type: "text", text: value });
  * issued before that is "interrupted" by it. Waiting for it here keeps one
  * failed page from failing the model's next `open` too.
  */
-async function goto(page: Page, href: string): Promise<void> {
+export async function goto(page: Page, href: string): Promise<void> {
   try {
     // "commit", not "domcontentloaded": a page whose head script stalls is
     // still usable, and `settle` + the snapshot already wait a bounded time.
@@ -85,20 +84,35 @@ async function errorPageCommitted(page: Page): Promise<void> {
   }
 }
 
+/** Settles with `work`, or rejects as soon as the turn is stopped. */
+function unlessAborted<T>(work: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return work;
+  signal.throwIfAborted();
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    signal.addEventListener("abort", onAbort, { once: true });
+    work.then(resolve, reject).finally(() => {
+      signal.removeEventListener("abort", onAbort);
+    });
+  });
+}
+
 /** Run one action on the conversation's current page and describe the result. */
 export async function runBrowserAction(
   tab: BrowserTab,
-  action: Exclude<BrowserAction, { action: "close" }>,
+  action: Exclude<BrowserAction, { action: "close" | "handoff" }>,
+  signal?: AbortSignal,
 ): Promise<ActionOutcome> {
   const page = tab.page;
   const withSnapshot = async (lead: string, mutated = true) => {
     await settle(tab.page);
     await guardLanding(tab.page);
     return {
-      content: [text(`${lead}\n\n${await pageSnapshot(tab.page)}`)],
+      content: [text(`${lead}\n\n${await pageSnapshot(tab)}`)],
       mutated,
     };
   };
+  const target = (ref: string) => page.getByRef(resolveRef(tab, ref));
   switch (action.action) {
     case "open": {
       const url = checkBrowserUrl(action.url);
@@ -106,15 +120,13 @@ export async function runBrowserAction(
       return withSnapshot(`Opened ${url.href}.`);
     }
     case "snapshot":
-      return { content: [text(await pageSnapshot(page))], mutated: false };
+      return { content: [text(await pageSnapshot(tab))], mutated: false };
     case "click":
-      await page.getByRef(action.ref).click({ timeout: REF_TIMEOUT_MS });
+      await target(action.ref).click({ timeout: REF_TIMEOUT_MS });
       return withSnapshot(`Clicked ${action.ref}.`);
     case "fill": {
-      const secret = await isPasswordField(page, action.ref);
-      await page
-        .getByRef(action.ref)
-        .fill(action.text, { timeout: REF_TIMEOUT_MS });
+      const secret = await isPasswordField(target(action.ref));
+      await target(action.ref).fill(action.text, { timeout: REF_TIMEOUT_MS });
       // The model may know the password; the transcript must not repeat it.
       return withSnapshot(
         secret
@@ -123,17 +135,20 @@ export async function runBrowserAction(
       );
     }
     case "select":
-      await page
-        .getByRef(action.ref)
-        .selectOption(action.value, { timeout: REF_TIMEOUT_MS });
+      await target(action.ref).selectOption(action.value, {
+        timeout: REF_TIMEOUT_MS,
+      });
       return withSnapshot(`Selected "${action.value}" in ${action.ref}.`);
     case "press":
       await page.keyboard.press(action.key);
       return withSnapshot(`Pressed ${action.key}.`);
     case "wait":
-      if (action.text)
-        await page.getByText(action.text).first().waitFor({ timeout: 15_000 });
-      else await page.waitForTimeout(action.ms ?? 0);
+      await unlessAborted(
+        action.text
+          ? page.getByText(action.text).first().waitFor({ timeout: 15_000 })
+          : page.waitForTimeout(action.ms ?? 0),
+        signal,
+      );
       return withSnapshot(
         action.text
           ? `"${action.text}" is on the page.`

@@ -43,14 +43,16 @@ afterAll(async () => {
 async function signIn(run: ReturnType<typeof tool>) {
   const login = await run({ action: "open", url: `${origin}/login` });
   expect(login.details.ok).toBe(true);
-  await run({
+  // Each action's snapshot retires the refs before it, so every ref comes
+  // from the latest one.
+  const named = await run({
     action: "fill",
     ref: ref(login.text, "textbox", "Username"),
     text: "student",
   });
   const filled = await run({
     action: "fill",
-    ref: ref(login.text, "textbox", "Password"),
+    ref: ref(named.text, "textbox", "Password"),
     text: PASSWORD,
   });
   // The password never comes back to the model, neither echoed nor in the tree.
@@ -161,14 +163,26 @@ describe.skipIf(!available)(
       expect(stalled.text).toContain(STILL_LOADING);
     });
 
-    test("a stale ref is a page error the model can recover from", async () => {
+    test("a ref the page no longer has is a page error the model can recover from", async () => {
       const run = tool(workspace(), newPool());
-      await run({ action: "open", url: `${origin}/login` });
-      const stale = await run({ action: "click", ref: "e999" });
-      expect(stale.details).toMatchObject({
+      const login = await run({ action: "open", url: `${origin}/login` });
+      const prefix = ref(login.text, "button", "Sign in").replace(/e\d+$/, "");
+      const gone = await run({ action: "click", ref: `${prefix}e999` });
+      expect(gone.details).toMatchObject({
         ok: false,
         error: { code: "page_error" },
       });
+    });
+
+    test("a ref from an older snapshot, or with no generation, is refused as stale", async () => {
+      const run = tool(workspace(), newPool());
+      const first = await run({ action: "open", url: `${origin}/login` });
+      const button = ref(first.text, "button", "Sign in");
+      await run({ action: "snapshot" });
+      for (const stale of [button, button.replace(/^s\d+/, "")])
+        expect(
+          (await run({ action: "click", ref: stale })).details,
+        ).toMatchObject({ ok: false, error: { code: "stale_ref" } });
     });
   },
 );

@@ -1818,6 +1818,28 @@
       "POST /conversations/c1/messages"
     ]
   },
+  "GET /agents/:agentId/conversations/:conversationId/browser/live": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "GET /conversations/c1/browser/live"
+    ]
+  },
+  "POST /agents/:agentId/conversations/:conversationId/browser/input": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "POST /conversations/c1/browser/input"
+    ]
+  },
   "POST /agents/:agentId/generate-agent": {
     "status": 200,
     "contentType": "application/json",
@@ -17832,6 +17854,260 @@
       "POST /conversations/c1/import/"
     ]
   },
+  "POST /agents/:agentId/conversations/:conversationId/browser/live": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "POST /conversations/c1/browser/live"
+    ]
+  },
+  "POST /agents/:agentId/conversations/:conversationId/browser/live [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "POST /agents/:agentId/conversations/:conversationId/browser/live [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PUT /agents/:agentId/conversations/:conversationId/browser/live": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "PUT /conversations/c1/browser/live"
+    ]
+  },
+  "PUT /agents/:agentId/conversations/:conversationId/browser/live [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PUT /agents/:agentId/conversations/:conversationId/browser/live [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PATCH /agents/:agentId/conversations/:conversationId/browser/live": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "PATCH /conversations/c1/browser/live"
+    ]
+  },
+  "PATCH /agents/:agentId/conversations/:conversationId/browser/live [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PATCH /agents/:agentId/conversations/:conversationId/browser/live [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "DELETE /agents/:agentId/conversations/:conversationId/browser/live": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "DELETE /conversations/c1/browser/live"
+    ]
+  },
+  "DELETE /agents/:agentId/conversations/:conversationId/browser/live [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "DELETE /agents/:agentId/conversations/:conversationId/browser/live [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "GET /agents/:agentId/conversations/:conversationId/browser/live/": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "GET /conversations/c1/browser/live/"
+    ]
+  },
+  "GET /agents/:agentId/conversations/:conversationId/browser/input": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "GET /conversations/c1/browser/input"
+    ]
+  },
+  "GET /agents/:agentId/conversations/:conversationId/browser/input [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "GET /agents/:agentId/conversations/:conversationId/browser/input [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PUT /agents/:agentId/conversations/:conversationId/browser/input": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "PUT /conversations/c1/browser/input"
+    ]
+  },
+  "PUT /agents/:agentId/conversations/:conversationId/browser/input [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PUT /agents/:agentId/conversations/:conversationId/browser/input [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PATCH /agents/:agentId/conversations/:conversationId/browser/input": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "PATCH /conversations/c1/browser/input"
+    ]
+  },
+  "PATCH /agents/:agentId/conversations/:conversationId/browser/input [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "PATCH /agents/:agentId/conversations/:conversationId/browser/input [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "DELETE /agents/:agentId/conversations/:conversationId/browser/input": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "DELETE /conversations/c1/browser/input"
+    ]
+  },
+  "DELETE /agents/:agentId/conversations/:conversationId/browser/input [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "DELETE /agents/:agentId/conversations/:conversationId/browser/input [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "POST /agents/:agentId/conversations/:conversationId/browser/input/": {
+    "status": 200,
+    "contentType": "application/json",
+    "errorCode": null,
+    "bodyKeys": [
+      "ok"
+    ],
+    "forwarded": [
+      "POST /conversations/c1/browser/input/"
+    ]
+  },
   "GET /agents/:agentId/generate-agent": {
     "status": 200,
     "contentType": "application/json",
@@ -21040,6 +21316,42 @@
     "forwarded": []
   },
   "POST /agents/:agentId/conversations/:conversationId/messages [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "GET /agents/:agentId/conversations/:conversationId/browser/live [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "GET /agents/:agentId/conversations/:conversationId/browser/live [other]": {
+    "status": 403,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "not your agent",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "POST /agents/:agentId/conversations/:conversationId/browser/input [anon]": {
+    "status": 401,
+    "contentType": "application/json; charset=utf-8",
+    "errorCode": "unauthorized",
+    "bodyKeys": [
+      "error"
+    ],
+    "forwarded": []
+  },
+  "POST /agents/:agentId/conversations/:conversationId/browser/input [other]": {
     "status": 403,
     "contentType": "application/json; charset=utf-8",
     "errorCode": "not your agent",

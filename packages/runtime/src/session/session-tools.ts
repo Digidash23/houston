@@ -106,9 +106,12 @@ export const toolSelection = buildToolSelection({
 const bashTool = toolSelection.toolNames.includes("bash")
   ? makeScrubbedBashTool(config.workspaceDir)
   : null;
-/** Shared with the Claude backend so both providers browse with one policy. */
+/**
+ * Shared with the Claude backend so both providers browse with one policy.
+ * This server serves the live view routes itself, so `handoff` is offered.
+ */
 export const browserToolOptions = toolSelection.toolNames.includes("browser")
-  ? { workspaceDir: config.workspaceDir }
+  ? { workspaceDir: config.workspaceDir, liveView: true }
   : undefined;
 // One runtime serves one workspace, so a limiter built once here IS the
 // per-workspace budget (turn mode builds the tool per turn and shares its own).

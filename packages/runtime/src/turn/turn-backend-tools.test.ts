@@ -15,6 +15,7 @@ import type { TurnSessionRequest } from "./turn-session";
  */
 
 const piTools = vi.fn<(names: string[]) => void>();
+const piBrowserActions = vi.fn<(actions: string[]) => void>();
 const claudeTools = vi.fn<(names: string[]) => void>();
 
 const piPrompt = vi.fn<(prompt: string | undefined) => void>();
@@ -26,14 +27,23 @@ const claudeRole =
     (role: string | null | undefined, clamp: boolean | undefined) => void
   >();
 
+function browserActions(tool: { parameters?: unknown }): string[] {
+  const schema = tool.parameters as {
+    properties: { action: { anyOf: { const: string }[] } };
+  };
+  return schema.properties.action.anyOf.map((option) => option.const);
+}
+
 vi.mock("../backends/pi/backend", () => ({
   createPiBackend: (deps: {
-    customTools: { name: string }[];
+    customTools: { name: string; parameters?: unknown }[];
     systemPrompt?: string;
     transport?: string;
     role?: string | null;
   }) => {
     piTools(deps.customTools.map((tool) => tool.name));
+    const browser = deps.customTools.find((tool) => tool.name === "browser");
+    if (browser) piBrowserActions(browserActions(browser));
     piRole(deps.role);
     piPrompt(deps.systemPrompt);
     piTransport(deps.transport);
@@ -165,4 +175,19 @@ test("a selected browser reaches BOTH branches; an unselected one neither", asyn
   createTurnBackend("anthropic", deps());
   expect(piTools.mock.calls[1]?.[0]).not.toContain("browser");
   expect(claudeTools.mock.calls[1]?.[0]).not.toContain("browser");
+});
+
+test("the browser offers handoff only when the turn's grant carries browser-live", async () => {
+  const { createTurnBackend } = await import("./turn-backend");
+  piBrowserActions.mockClear();
+  for (const scopes of [["browser-live"], ["code-run"], undefined] as const) {
+    const browsing = deps();
+    browsing.toolSelection = { toolNames: ["browser"], includeRunCode: false };
+    if (scopes) browsing.turn.grant = { scopes: [...scopes] };
+    createTurnBackend("openai-codex", browsing);
+  }
+  const offered = piBrowserActions.mock.calls.map(([actions]) =>
+    actions.includes("handoff"),
+  );
+  expect(offered).toEqual([true, false, false]);
 });

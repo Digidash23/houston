@@ -1,5 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { type BrowserParams, MAX_WAIT_MS, parseBrowserAction } from "./actions";
+import {
+  type BrowserParams,
+  browserParameters,
+  MAX_WAIT_MS,
+  parseBrowserAction,
+} from "./actions";
 import { BrowserToolError } from "./errors";
 
 const refused = (params: BrowserParams) => {
@@ -78,5 +83,56 @@ describe("parseBrowserAction", () => {
       action: "wait",
       text: "Welcome",
     });
+  });
+
+  test("handoff needs what the person must do, and may name a page", () => {
+    expect(
+      parseBrowserAction({
+        action: "handoff",
+        text: "  Sign in to GitHub ",
+        url: " github.com/login ",
+      }),
+    ).toEqual({
+      action: "handoff",
+      text: "Sign in to GitHub",
+      url: "github.com/login",
+    });
+    expect(parseBrowserAction({ action: "handoff", text: "Sign in" })).toEqual({
+      action: "handoff",
+      text: "Sign in",
+    });
+    expect(refused({ action: "handoff" })).toBe("invalid_action");
+    expect(refused({ action: "handoff", text: "  " })).toBe("invalid_action");
+  });
+
+  test("a ref keeps its generation prefix", () => {
+    expect(
+      parseBrowserAction({ action: "click", ref: "[ref=s4f1e3]" }),
+    ).toEqual({ action: "click", ref: "s4f1e3" });
+  });
+});
+
+describe("browserParameters", () => {
+  const actions = (handoff: boolean) =>
+    (
+      browserParameters({ handoff }).properties.action as unknown as {
+        anyOf: { const: string }[];
+      }
+    ).anyOf.map((option) => option.const);
+
+  test("handoff is listed only where a person can be shown the browser", () => {
+    expect(actions(true)).toContain("handoff");
+    expect(actions(false)).not.toContain("handoff");
+    expect(actions(true).filter((a) => a !== "handoff")).toEqual(
+      actions(false),
+    );
+  });
+
+  test("the schema stays one flat object either way", () => {
+    for (const handoff of [true, false])
+      expect(browserParameters({ handoff }).type).toBe("object");
+    expect(
+      JSON.stringify(browserParameters({ handoff: true }).properties.text),
+    ).toContain("For handoff");
   });
 });

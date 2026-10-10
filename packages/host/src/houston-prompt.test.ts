@@ -363,7 +363,7 @@ test("websites that need signing in go through the browser tool, in BOTH mirrors
     "utf8",
   );
   const paragraph = norm(
-    "When you have the `browser` tool, use it for websites that need signing in or clicking through pages; keep using the shell for plain downloads and page fetches. If a site asks for a password the user has not given you, tell them they need to sign in themselves. Never ask for a password in the chat.",
+    "When you have the `browser` tool, use it for websites that need signing in or clicking through pages; keep using the shell for plain downloads and page fetches. When a site needs the person themselves (signing in, a verification code, a captcha) and the browser offers a `handoff` action, say in one sentence what they need to do, then call it, and continue from the page it returns. Without `handoff`, tell them they need to sign in themselves. Never ask for a password or a verification code in the chat.",
   );
   expect(norm(houstonSystemPrompt())).toContain(paragraph);
   expect(norm(rust)).toContain(paragraph);

@@ -9,6 +9,13 @@
  * own; the adapter re-exports them so `app/src` reads one surface.
  */
 
+// The browser hand-off live view `openBrowserLive` returns, and the handlers it reports through.
+export type {
+  BrowserLiveConnection,
+  BrowserLiveConnectionState,
+  BrowserLiveConnectOptions,
+  BrowserLiveHandlers,
+} from "@houston/sdk";
 export * from "@houston/wire-types";
 export type { HoustonClientOptions } from "./client";
 export {

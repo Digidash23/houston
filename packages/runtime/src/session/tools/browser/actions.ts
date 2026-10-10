@@ -1,71 +1,11 @@
-import { type Static, Type } from "typebox";
+import { BROWSER_ACTION_NAMES, type BrowserParams } from "./action-schema";
 import { BrowserToolError } from "./errors";
 
-export const BROWSER_ACTION_NAMES = [
-  "open",
-  "snapshot",
-  "click",
-  "fill",
-  "select",
-  "press",
-  "wait",
-  "back",
-  "screenshot",
-  "close",
-] as const;
-
-/**
- * Flat on purpose: a top-level union is not a valid function schema for most
- * providers, and the Claude bridge converts only object shapes. Which fields
- * each action needs is checked by {@link parseBrowserAction}.
- */
-export const browserParameters = Type.Object({
-  action: Type.Union(
-    [
-      Type.Literal("open"),
-      Type.Literal("snapshot"),
-      Type.Literal("click"),
-      Type.Literal("fill"),
-      Type.Literal("select"),
-      Type.Literal("press"),
-      Type.Literal("wait"),
-      Type.Literal("back"),
-      Type.Literal("screenshot"),
-      Type.Literal("close"),
-    ],
-    {
-      description:
-        "open a url; snapshot the page; click/fill/select an element by ref; press a key; wait for text or a pause; back; screenshot; close the browser (saves sign-ins).",
-    },
-  ),
-  url: Type.Optional(Type.String({ description: "For open." })),
-  ref: Type.Optional(
-    Type.String({
-      description:
-        "For click/fill/select: the element's ref from the LATEST snapshot, e.g. e12.",
-    }),
-  ),
-  text: Type.Optional(
-    Type.String({
-      description: "For fill: what to type. For wait: text to wait for.",
-    }),
-  ),
-  value: Type.Optional(
-    Type.String({ description: "For select: the option to pick." }),
-  ),
-  key: Type.Optional(
-    Type.String({
-      description: "For press: a key such as Enter, Tab, Escape.",
-    }),
-  ),
-  ms: Type.Optional(
-    Type.Number({
-      description: "For wait: milliseconds to pause (max 10000).",
-    }),
-  ),
-});
-
-export type BrowserParams = Static<typeof browserParameters>;
+export {
+  BROWSER_ACTION_NAMES,
+  type BrowserParams,
+  browserParameters,
+} from "./action-schema";
 
 export type BrowserAction =
   | { action: "open"; url: string }
@@ -77,7 +17,9 @@ export type BrowserAction =
   | { action: "fill"; ref: string; text: string }
   | { action: "select"; ref: string; value: string }
   | { action: "press"; key: string }
-  | { action: "wait"; text?: string; ms?: number };
+  | { action: "wait"; text?: string; ms?: number }
+  /** The person drives the page until they finish; `text` is what they need to do. */
+  | { action: "handoff"; text: string; url?: string };
 
 export const MAX_WAIT_MS = 10_000;
 
@@ -90,7 +32,7 @@ function required(params: BrowserParams, field: keyof BrowserParams): string {
   );
 }
 
-/** A ref the model copied with its brackets ("[ref=e3]") still names e3. */
+/** A ref the model copied with its brackets ("[ref=s2e3]") still names s2e3. */
 function refOf(params: BrowserParams): string {
   return required(params, "ref")
     .replace(/^\[?(?:ref=)?|\]$/g, "")
@@ -145,6 +87,14 @@ export function parseBrowserAction(params: BrowserParams): BrowserAction {
       return { action: "screenshot" };
     case "close":
       return { action: "close" };
+    case "handoff": {
+      const url = params.url?.trim();
+      return {
+        action: "handoff",
+        text: required(params, "text").trim(),
+        ...(url ? { url } : {}),
+      };
+    }
     default:
       throw new BrowserToolError(
         "invalid_action",

@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 128
+version: 129
 
 components:
   - id: agent-delegation-settings
@@ -757,6 +757,39 @@ components:
     behavior: A turn's structured successful start_mission receipts each produce one card after its final reply. Opening a card selects that mission on its employee's board.
     a11y: The Open action is visible, keyboard reachable, and at least 44px high. A removed employee leaves the card and its disabled action with a text explanation.
     since: 117
+
+  - id: chat-browser-handoff-card
+    title: Browser hand-off card
+    purpose: In an AI Employee's chat, the card shown when its browser waits for the person to do something on a website themselves (sign in, a code, a captcha).
+    anatomy: [globe-disc, heading-with-site, task-line, open-action, outcome-line]
+    states: [waiting, done, cancelled, expired, ended]
+    variants: [with-site, without-site]
+    behavior: >-
+      One card per browser hand-off call, placed after the tool's result once
+      it has one, else right after the call. The SDK (browserHandoffCards)
+      decides the state from the feed: waiting only while the turn runs and
+      nothing shows it moved on; the tool's result settles done, cancelled or
+      expired; anything else is ended. While waiting the card owns the turn's
+      progress (no thinking line under it) and Open opens the live browser.
+    a11y: The Open action is visible only while waiting, keyboard reachable, at least 44px high, and its accessible name names the site. The outcome is plain text.
+    since: 129
+
+  - id: browser-live-view
+    title: Live browser view
+    purpose: The person drives the AI Employee's own browser page during a hand-off, then hands it back with I'm done or Cancel.
+    anatomy: [task-header, privacy-line, time-left, close-action, back-action, address-field, page-stage, state-overlay, hidden-text-field, cancel-action, done-action]
+    states: [connecting, live, reconnecting, lost, done, cancelled, expired, none, not-owner]
+    variants: [phone-sheet, desktop-dialog]
+    behavior: >-
+      The SDK connection (browser.connect) owns streaming, reconnection,
+      input batching, frame acks and every refusal; the surface paints frames
+      onto a canvas outside render state, forwards pointer, wheel, key and
+      text input, and shows the connection's state. Phones open it as a
+      full-height bottom sheet and ask the runtime for a phone-sized page;
+      desktop opens a large dialog. Closing only stops watching; the
+      hand-off keeps waiting until I'm done, Cancel or the time limit.
+    a11y: Every action is a visible button (no hover-only affordances); the address field is 16px and labelled; Escape typed into the page goes to the page, not the dialog; the ended and lost states are announced as status text, and Try again is a visible button.
+    since: 129
 
   - id: chat-parent-mission-link
     title: Parent mission link

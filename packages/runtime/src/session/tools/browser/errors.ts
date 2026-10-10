@@ -1,4 +1,5 @@
 import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
+import type { BrowserHandoffFailure } from "@houston/wire-types";
 
 /** Why a `browser` call did nothing. Reported as a value so the model can react. */
 export type BrowserErrorCode =
@@ -9,7 +10,11 @@ export type BrowserErrorCode =
   /** The address is not an ordinary web page (file:, chrome:, this runtime). */
   | "url_refused"
   /** The page refused or timed out (element gone, navigation failed). */
-  | "page_error";
+  | "page_error"
+  /** A ref from a snapshot older than the latest one (refs.ts). */
+  | "stale_ref"
+  /** A hand-off that ended without the person finishing, or could not start. */
+  | BrowserHandoffFailure;
 
 export class BrowserToolError extends Error {
   constructor(

@@ -22,4 +22,19 @@ describe("browser tool rows", () => {
       null,
     );
   });
+
+  it("name the site for a hand-off, and nothing when it gives no address", () => {
+    strictEqual(
+      getToolDetail("mcp__houston__browser", {
+        action: "handoff",
+        text: "Sign in to your bank",
+        url: "https://bank.example.com/login",
+      }),
+      "bank.example.com",
+    );
+    strictEqual(
+      getToolDetail("browser", { action: "handoff", text: "Sign in" }),
+      null,
+    );
+  });
 });

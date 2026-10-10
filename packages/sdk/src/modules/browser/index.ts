@@ -1,0 +1,98 @@
+/**
+ * The browser hand-off: while an agent's `browser` tool waits on a `handoff`,
+ * the person drives the same page through a live view (frames down an SSE
+ * stream, input up in POST batches). Both routes are runtime-proxy members
+ * under `/agents/:agentId/conversations/:conversationId/browser/`.
+ *
+ * Which chat item is a hand-off, and how it ended, is `./handoff-card.ts`
+ * (published as `@houston/sdk/browser-handoff`).
+ */
+
+import {
+  type BrowserLiveEvent,
+  type BrowserLiveInputAnswer,
+  type BrowserLiveInputRequest,
+  type BrowserLiveLayout,
+  parseBrowserLiveEvent,
+  parseBrowserLiveInputAnswer,
+} from "@houston/wire-types";
+import type { ModuleContext } from "../../module-context";
+import { isTransportFailure } from "../../transport-failure";
+import { randomNonce } from "../turns/random-nonce";
+import { openBrowserLiveConnection } from "./connection";
+import type {
+  BrowserLiveConnection,
+  BrowserLiveConnectOptions,
+  BrowserLiveHandlers,
+} from "./types";
+
+export interface BrowserWatchOptions {
+  signal: AbortSignal;
+  onEvent: (event: BrowserLiveEvent) => void;
+  onActivity?: () => void;
+}
+
+export function createBrowserModule(ctx: ModuleContext) {
+  /**
+   * Streams the live picture of a website the agent handed to the person.
+   *
+   * One connection attempt as viewer `viewer`: resolves when the stream ends,
+   * rejects with the engine error (`404` no hand-off, `403` someone else's) or
+   * on a message outside the contract. {@link connect} is the reconnecting
+   * binding.
+   * @assistant group:chat
+   * @assistant hidden: it streams a live picture of a website into the person's own screen while they sign in; dispatched on its own it would stream into nothing.
+   */
+  const watch = async (
+    conversationId: string,
+    agentId: string,
+    viewer: string,
+    layout: BrowserLiveLayout,
+    options: BrowserWatchOptions,
+  ): Promise<void> => {
+    await ctx
+      .clientFor(agentId)
+      .streamBrowserLive(conversationId, viewer, layout, {
+        signal: options.signal,
+        onFrame: (raw) => options.onEvent(parseBrowserLiveEvent(raw)),
+        onActivity: options.onActivity,
+      });
+  };
+
+  /**
+   * Sends the person's clicks, typing and frame acks to a handed-over website.
+   *
+   * One batch, applied in order; `finish` ends the hand-off. Rejects with the
+   * engine error (`409` already ended, `404`, `403`, `400`).
+   * @assistant group:chat
+   * @assistant hidden: it types and clicks into a website in place of the person during a sign-in hand-off; only the person at the screen may drive it, and the AI Manager driving it would defeat the hand-off.
+   */
+  const input = async (
+    conversationId: string,
+    agentId: string,
+    request: BrowserLiveInputRequest,
+  ): Promise<BrowserLiveInputAnswer> =>
+    parseBrowserLiveInputAnswer(
+      await ctx.clientFor(agentId).browserInput(conversationId, request),
+    );
+
+  /** Opens the reconnecting live view a surface binds. */
+  const connect = (
+    conversationId: string,
+    agentId: string,
+    handlers: BrowserLiveHandlers,
+    options: BrowserLiveConnectOptions = {},
+  ): BrowserLiveConnection =>
+    openBrowserLiveConnection({
+      viewer: randomNonce(),
+      layout: options.layout ?? "desktop",
+      watch: ({ viewer, layout, ...rest }) =>
+        watch(conversationId, agentId, viewer, layout, rest),
+      input: (request) => input(conversationId, agentId, request),
+      clock: ctx.config.ports.clock,
+      isTransport: isTransportFailure,
+      handlers,
+    });
+
+  return { watch, input, connect };
+}

@@ -1,8 +1,10 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
+import { runWithConversationId } from "../../conversation-context";
 import type { BrowserParams } from "./actions";
 import { launchBrowser } from "./launch";
+import type { HandoffRegistry } from "./live/registry";
 import { BrowserPool, type BrowserPoolOptions } from "./pool";
 import { makeBrowserTool } from "./tool";
 
@@ -76,6 +78,10 @@ export function site(local: () => string): Server {
           ? "<title>Account</title><h1>Welcome back, student</h1>"
           : "<title>Account</title><h1>Please sign in</h1>",
       );
+    else if (req.url === "/popup-later")
+      // Opens a window on its own, the way a sign-in page opens its popup.
+      res.end(`<title>Opener</title><h1>Opener</h1><button>Stay</button>
+<script>setTimeout(() => window.open("/login"), 300)</script>`);
     else if (req.url === "/sneaky")
       res.end(`<title>Sneaky</title><h1>Hello</h1>
 <img src="${local()}/img-direct"><img src="/bounce-img">
@@ -107,13 +113,44 @@ export function fixturePool(options: BrowserPoolOptions = {}): BrowserPool {
 
 /** The tool's execute, flattened to its text and details. */
 export function tool(workspaceDir: string, pool: BrowserPool) {
-  const browser = makeBrowserTool({ workspaceDir, pool });
-  return async (params: BrowserParams) => {
+  return liveTool(workspaceDir, pool);
+}
+
+/**
+ * The tool with the live view on, running in conversation `chat`; `signal`
+ * stands in for a stopped turn.
+ */
+export function handoffTool(
+  workspaceDir: string,
+  pool: BrowserPool,
+  handoffs: HandoffRegistry,
+  options: { chat?: string; limitMs?: number } = {},
+) {
+  const run = liveTool(workspaceDir, pool, {
+    handoffs,
+    ...(options.limitMs ? { handoffLimitMs: options.limitMs } : {}),
+  });
+  return (params: BrowserParams, signal?: AbortSignal) =>
+    runWithConversationId(options.chat ?? "chat", () => run(params, signal));
+}
+
+function liveTool(
+  workspaceDir: string,
+  pool: BrowserPool,
+  live?: { handoffs: HandoffRegistry; handoffLimitMs?: number },
+) {
+  const browser = makeBrowserTool({
+    workspaceDir,
+    pool,
+    liveView: live !== undefined,
+    ...live,
+  });
+  return async (params: BrowserParams, signal?: AbortSignal) => {
     // SAFETY: the browser tool never reads its ExtensionContext.
     const result = await browser.execute(
       "t",
       params,
-      undefined,
+      signal,
       undefined,
       {} as ExtensionToolContext,
     );

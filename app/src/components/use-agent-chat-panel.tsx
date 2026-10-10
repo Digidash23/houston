@@ -169,6 +169,7 @@ import {
   isProviderAuthMessage,
   providerAuthSignalKey,
 } from "./agent/provider-auth-feed";
+import { useBrowserHandoffCards } from "./browser/use-browser-handoff-cards";
 import { resolveEffectiveProvider } from "./chat-effective-provider";
 import { ChatEffortSelector } from "./chat-effort-selector";
 import { chatInteractionStepsNode } from "./chat-interaction-stepper";
@@ -2199,6 +2200,13 @@ export function useAgentChatPanel({
     },
     [welcomeGreetingRevealed, agentName, setupHello, selectedSessionKey, t],
   );
+  // Browser hand-offs as cards the person opens the live browser from.
+  const browserHandoff = useBrowserHandoffCards({
+    mapFeedItems,
+    renderSystemMessage,
+    agentPath: path ?? undefined,
+    runningSessionKey: turnRunning ? selectedSessionKey : null,
+  });
   const afterMessages = useCallback(
     ({ feedItems }: { sessionKey: string; feedItems: FeedItem[] }) => {
       // A message sent while the agent's engine still warms up (HOU-693) is
@@ -2466,9 +2474,9 @@ export function useAgentChatPanel({
         ? busyIndicator
         : thinkingIndicator,
     renderTurnSummary,
-    renderSystemMessage,
+    renderSystemMessage: browserHandoff.renderSystemMessage,
     conversationMap,
-    mapFeedItems,
+    mapFeedItems: browserHandoff.mapFeedItems,
     afterMessages,
     pickerDialog,
     effectiveProvider: displayModelPin.provider,

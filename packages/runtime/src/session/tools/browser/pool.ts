@@ -2,6 +2,7 @@ import type { Browser } from "playwright-core";
 import { launchBrowser } from "./launch";
 import { type BrowserTab, openTab } from "./open-tab";
 import { saveState } from "./state-store";
+import { closeContext } from "./tab-pages";
 
 export type { BrowserTab } from "./open-tab";
 
@@ -42,14 +43,30 @@ export class BrowserPool {
     this.idleMs = options.idleMs ?? BROWSER_IDLE_MS;
   }
 
-  /** Run `fn` on `key`'s tab after every earlier call for `key` has finished. */
+  /**
+   * Run `fn` on `key`'s tab after every earlier call for `key` has finished.
+   * A call whose turn was stopped while it queued is dropped, not run.
+   */
   run<T>(
     key: string,
     statePath: string,
     fn: (tab: BrowserTab) => Promise<T>,
+    signal?: AbortSignal,
   ): Promise<T> {
     const slot = this.slots.get(key) ?? this.newSlot(key, statePath);
-    return this.enqueue(slot, async () => fn(await this.liveTab(slot)));
+    return this.enqueue(slot, async () => {
+      signal?.throwIfAborted();
+      return fn(await this.liveTab(slot));
+    });
+  }
+
+  /**
+   * Mark `key` as in use without queueing: a person driving the page through
+   * the live view acts on it directly while the hand-off holds the queue.
+   */
+  touch(key: string): void {
+    const slot = this.slots.get(key);
+    if (slot) slot.lastUsed = Date.now();
   }
 
   /** Save and close one conversation's context; the browser stays up. */
@@ -120,7 +137,7 @@ export class BrowserPool {
     try {
       await saveState(tab);
     } finally {
-      await tab.context.close();
+      await closeContext(tab);
     }
   }
 

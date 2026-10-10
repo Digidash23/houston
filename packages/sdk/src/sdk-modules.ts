@@ -13,6 +13,7 @@ import { createActivitiesModule } from "./modules/activities";
 import { createAgentsModule } from "./modules/agents";
 import { createAppearanceModule } from "./modules/appearance";
 import { createBillingModule } from "./modules/billing";
+import { createBrowserModule } from "./modules/browser";
 import { createChannelsModule } from "./modules/channels";
 import { createConversationsModule } from "./modules/conversations";
 import { createDelegationModule } from "./modules/delegation";
@@ -79,6 +80,8 @@ export interface SdkModules {
   readonly files: ReturnType<typeof createFilesModule>;
   /** Migration facade (an agent's data out as zip chunks, and into another). */
   readonly migration: ReturnType<typeof createMigrationModule>;
+  /** Browser hand-off facade (the live view a person drives a handed-over website in). */
+  readonly browser: ReturnType<typeof createBrowserModule>;
 }
 
 /**
@@ -94,6 +97,7 @@ export const moduleFactories = {
   createAgentsModule,
   createAppearanceModule,
   createBillingModule,
+  createBrowserModule,
   createPlanModule,
   createChannelsModule,
   createConversationsModule,

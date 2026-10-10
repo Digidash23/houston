@@ -1,0 +1,215 @@
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { BrowserLiveEvent } from "@houston/wire-types";
+import { afterAll, describe, expect, test } from "vitest";
+import {
+  browserAvailable,
+  fixturePool,
+  handoffTool,
+  listen,
+  PASSWORD,
+  ref,
+  SITE_HOST,
+  site,
+  tool,
+} from "./browser.test-support";
+import { HandoffRegistry } from "./live/registry";
+import type { HandoffSession } from "./live/session";
+import type { BrowserPool, BrowserPoolOptions } from "./pool";
+import { browserStatePath } from "./state-store";
+
+const available = await browserAvailable();
+const server = site(() => "http://127.0.0.1:9");
+const origin = available ? `http://${SITE_HOST}:${await listen(server)}` : "";
+
+const pools: BrowserPool[] = [];
+const newPool = (options: BrowserPoolOptions = {}) => {
+  const pool = fixturePool(options);
+  pools.push(pool);
+  return pool;
+};
+const workspace = () => mkdtempSync(join(tmpdir(), "browser-handoff-it-"));
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function until<T>(probe: () => T | undefined | false): Promise<T> {
+  for (let i = 0; i < 200; i += 1) {
+    const value = probe();
+    if (value) return value;
+    await sleep(25);
+  }
+  throw new Error("timed out waiting");
+}
+
+afterAll(async () => {
+  await Promise.all(pools.map((pool) => pool.shutdown()));
+  server.closeAllConnections();
+  server.close();
+});
+
+/** Where an element sits in the frame, 0..1 the way the live view sends it. */
+async function spot(session: HandoffSession, selector: string) {
+  const page = session.tab.page;
+  const box = await page.locator(selector).boundingBox();
+  const size = page.viewportSize();
+  if (!box || !size) throw new Error(`no ${selector} on the page`);
+  return {
+    x: (box.x + box.width / 2) / size.width,
+    y: (box.y + box.height / 2) / size.height,
+  };
+}
+
+function start(options: { limitMs?: number; pool?: BrowserPool } = {}) {
+  const registry = new HandoffRegistry();
+  const ws = workspace();
+  const pool = options.pool ?? newPool();
+  const run = handoffTool(ws, pool, registry, options);
+  return { registry, ws, pool, run };
+}
+
+const handoff = {
+  action: "handoff",
+  text: "Sign in to the test site",
+} as const;
+
+describe.skipIf(!available)(
+  "browser hand-off against a real Chromium",
+  { timeout: 30_000 },
+  () => {
+    test("the person signs in through the live view; the model gets the page, never the password", async () => {
+      const { registry, ws, run } = start();
+      const pending = run({ ...handoff, url: `${origin}/login` });
+      const session = await until(() => registry.get("chat"));
+      await session.apply([
+        {
+          type: "mouse",
+          action: "click",
+          ...(await spot(session, "input[name=username]")),
+        },
+        { type: "text", text: "student" },
+        { type: "key", key: "Tab" },
+        { type: "text", text: PASSWORD },
+        { type: "key", key: "Enter" },
+      ]);
+      await session.tab.page.waitForURL(/\/secure$/);
+      session.finish("done");
+      const result = await pending;
+      expect(result.details).toMatchObject({ ok: true, action: "handoff" });
+      expect(result.text).toContain(
+        'The person finished: "Sign in to the test site"',
+      );
+      expect(result.text).toContain("Welcome back, student");
+      expect(result.text).not.toContain(PASSWORD);
+      expect(readFileSync(browserStatePath(ws), "utf8")).toContain('"sid"');
+    });
+
+    test("nobody finishing in time ends the hand-off as expired", async () => {
+      const { registry, run } = start({ limitMs: 200 });
+      const result = await run(handoff);
+      expect(result.details).toMatchObject({
+        ok: false,
+        error: { code: "handoff_expired" },
+      });
+      expect(registry.get("chat")?.state).toBe("expired");
+    });
+
+    test("a stopped turn ends the hand-off at once and frees the browser", async () => {
+      const { registry, run } = start();
+      const stop = new AbortController();
+      const pending = run(handoff, stop.signal);
+      await until(() => registry.get("chat"));
+      const stoppedAt = Date.now();
+      stop.abort();
+      const result = await pending;
+      expect(Date.now() - stoppedAt).toBeLessThan(1_000);
+      expect(result.details).toMatchObject({
+        ok: false,
+        error: { code: "handoff_cancelled" },
+      });
+      const next = await run({ action: "open", url: `${origin}/login` });
+      expect(next.details.ok).toBe(true);
+    });
+
+    test("the idle sweep never closes a page the person is using", async () => {
+      const { registry, run } = start({ pool: newPool({ idleMs: 150 }) });
+      const pending = run({ ...handoff, url: `${origin}/login` });
+      const session = await until(() => registry.get("chat"));
+      await sleep(600);
+      expect(session.tab.page.isClosed()).toBe(false);
+      expect(session.tab.context.browser()?.isConnected()).toBe(true);
+      session.finish("done");
+      expect((await pending).details.ok).toBe(true);
+    });
+
+    test("a phone viewer gets a phone-sized page, restored when the hand-off ends", async () => {
+      const { registry, run } = start();
+      const pending = run({ ...handoff, url: `${origin}/login` });
+      const session = await until(() => registry.get("chat"));
+      const seen: BrowserLiveEvent[] = [];
+      session.attachViewer("viewer-phone-1", "phone", (event) => {
+        seen.push(event);
+        return true;
+      });
+      await until(() => session.tab.page.viewportSize()?.width === 412);
+      const frame = await until(() =>
+        seen.find((e) => e.type === "frame" && e.width === 412),
+      );
+      expect(frame).toMatchObject({ height: 860 });
+      expect(seen[0]).toMatchObject({ type: "status", state: "waiting" });
+      expect(seen.findIndex((e) => e.type === "page")).toBeLessThan(
+        seen.indexOf(frame),
+      );
+      session.finish("done");
+      await pending;
+      expect(session.tab.page.viewportSize()).toEqual({
+        width: 1280,
+        height: 800,
+      });
+      expect(seen.at(-1)).toMatchObject({ type: "status", state: "done" });
+    });
+
+    test("the tab follows a popup the page opens, and the old refs go stale", async () => {
+      const run = tool(workspace(), newPool());
+      const opened = await run({
+        action: "open",
+        url: `${origin}/popup-later`,
+      });
+      const stay = ref(opened.text, "button", "Stay");
+      await sleep(1_500);
+      expect((await run({ action: "click", ref: stay })).details).toMatchObject(
+        {
+          ok: false,
+          error: { code: "stale_ref" },
+        },
+      );
+      expect((await run({ action: "snapshot" })).text).toContain(
+        "Page: Sign in",
+      );
+    });
+
+    test("over eight pages the oldest close, never the current page or its openers", async () => {
+      const pool = newPool();
+      const tab = await pool.run(
+        "k",
+        join(workspace(), "state.json"),
+        async (t) => t,
+      );
+      await tab.page.goto(`${origin}/login`);
+      const first = tab.page;
+      const open = async (from: typeof first) => {
+        const popup = from.waitForEvent("popup");
+        await from.evaluate(() => window.open("/login"));
+        return popup;
+      };
+      const opener = await open(first);
+      for (let i = 0; i < 9; i += 1) await open(opener);
+      await until(() => tab.context.pages().length <= 8);
+      await sleep(200);
+      expect(tab.context.pages()).toHaveLength(8);
+      expect(first.isClosed()).toBe(false);
+      expect(opener.isClosed()).toBe(false);
+      expect(tab.page.isClosed()).toBe(false);
+      expect(await tab.page.opener()).toBe(opener);
+    });
+  },
+);

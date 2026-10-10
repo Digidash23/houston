@@ -1,4 +1,6 @@
 import type { Page } from "playwright-core";
+import type { BrowserTab } from "./open-tab";
+import { nextGeneration, stampRefs } from "./refs";
 
 /** A GitHub page measured ~200k characters raw; the model needs a page, not a dump. */
 export const SNAPSHOT_MAX_CHARS = 12_000;
@@ -13,11 +15,13 @@ export function capSnapshot(text: string, max = SNAPSHOT_MAX_CHARS): string {
 
 /**
  * The page as the model reads it: title, address, and Playwright's AI-mode
- * accessibility tree, whose `[ref=eN]` marks are what click/fill/select take.
- * Refs resolve against the LATEST snapshot only, so every action that changes
- * the page returns a fresh one.
+ * accessibility tree, whose `[ref=sGeN]` marks are what click/fill/select take.
+ * Refs resolve against the LATEST snapshot only (refs.ts), so every action
+ * that changes the page returns a fresh one. Only a snapshot the model reads
+ * starts a new generation.
  */
-export async function pageSnapshot(page: Page): Promise<string> {
+export async function pageSnapshot(tab: BrowserTab): Promise<string> {
+  const page = tab.page;
   // Every frame: the AI snapshot descends into iframes (refs like f1e3), and
   // sign-in forms often live in one.
   const perFrame = await Promise.all(
@@ -34,9 +38,12 @@ export async function pageSnapshot(page: Page): Promise<string> {
   const secrets = perFrame.flat();
   const tree = await ariaTree(page);
   const title = await page.title();
-  return capSnapshot(
-    `Page: ${title}\nAddress: ${page.url()}\n\n${maskPasswords(tree, secrets)}`,
-  );
+  const generation = nextGeneration();
+  // A popup that took over meanwhile keeps its own generation, so these refs
+  // (for the page underneath) read as stale instead of resolving on it.
+  if (tab.page === page) tab.generation = generation;
+  const stamped = stampRefs(maskPasswords(tree, secrets), generation);
+  return capSnapshot(`Page: ${title}\nAddress: ${page.url()}\n\n${stamped}`);
 }
 
 export const STILL_LOADING =

@@ -173,6 +173,31 @@ export type { AutolinkProps } from "./autolink";
 // DOCUMENT rather than a chat turn (the file preview): mid-sentence, a link
 // has to read as a link, not as the chat bubble's labeled button pill.
 export { AUTOLINK_CLASS, Autolink } from "./autolink";
+// === Browser hand-off ===
+// The agent hands its own browser page to the person (sign in, a code, a
+// captcha): the in-chat card, and the live view the app frames in a dialog or
+// sheet. Props-only; frames bypass React state through `BrowserLiveFrames`.
+export type {
+  BrowserHandoffCardLabels,
+  BrowserHandoffCardProps,
+} from "./browser-handoff-card";
+export {
+  BrowserHandoffCard,
+  DEFAULT_BROWSER_HANDOFF_CARD_LABELS,
+} from "./browser-handoff-card";
+export type { BrowserLiveViewLabels } from "./browser-live-labels";
+export { DEFAULT_BROWSER_LIVE_VIEW_LABELS } from "./browser-live-labels";
+export type {
+  BrowserHandoffCardState,
+  BrowserLiveFrames,
+  BrowserLiveViewFrame,
+  BrowserLiveViewInput,
+  BrowserLiveViewKey,
+  BrowserLiveViewState,
+} from "./browser-live-types";
+export { isBrowserLiveViewEnded } from "./browser-live-types";
+export type { BrowserLiveViewProps } from "./browser-live-view";
+export { BrowserLiveView } from "./browser-live-view";
 export type { ChannelSource } from "./channel-avatar";
 export { ChannelAvatar } from "./channel-avatar";
 export type {

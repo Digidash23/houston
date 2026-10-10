@@ -7,6 +7,7 @@
  * X-Internal-Token is the application secret for dispatched work and logins.
  */
 import { createServer, type Server } from "node:http";
+import { handleBrowserLiveRoute } from "../transport/browser-live-route";
 import { AdmissionLimiter, turnConcurrency } from "./admission";
 import { makeLoginRunnerRoutes } from "./login-runner-routes";
 import { authorized, incarnationOK, json } from "./server-http";
@@ -16,6 +17,8 @@ import { serveOp, serveTurn } from "./server-work";
 import { ProviderWarmer } from "./turn-provider-warm";
 
 export type { TurnServerDeps } from "./server-types";
+
+const BROWSER_LIVE_PATH = /^\/conversations\/[^/]+\/browser\/(?:live|input)$/;
 
 export function createTurnServer(deps: TurnServerDeps): Server {
   const admission =
@@ -46,6 +49,22 @@ export function createTurnServer(deps: TurnServerDeps): Server {
             ? { localModelBridge: { versions: [1] } }
             : {},
         );
+      }
+      if (BROWSER_LIVE_PATH.test(path)) {
+        // The person's live view of a hand-off this worker's turn is waiting
+        // on. Inert until a gateway grants `browser-live` (no tool offers
+        // `handoff` without it); never takes the login/work latch.
+        if (!authorized(req, deps.token)) {
+          return json(res, 401, { error: "unauthorized" });
+        }
+        if (!incarnationOK(req, deps.podUid, Boolean(deps.singleUse))) {
+          return json(res, 409, { error: "pod_uid_mismatch" });
+        }
+        const url = new URL(req.url || "/", "http://turn.invalid");
+        const method = req.method || "GET";
+        if (await handleBrowserLiveRoute({ req, res, url, path, method }))
+          return;
+        return json(res, 404, { error: "not found" });
       }
       const isLogin = path.startsWith("/login/");
       if (

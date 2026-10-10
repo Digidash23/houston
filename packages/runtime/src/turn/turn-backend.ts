@@ -92,7 +92,11 @@ export function createTurnBackend(
   const { workspaceDir, dataDir, turnRoot, workspaceReady } = deps.directories;
   const commonTools = [
     ...buildTurnCommonTools(deps.turn, deps.codeSandbox, dataDir),
-    ...buildTurnBrowserTool(deps.toolSelection, workspaceDir),
+    ...buildTurnBrowserTool(
+      deps.toolSelection,
+      workspaceDir,
+      deps.turn.grant?.scopes.includes("browser-live") === true,
+    ),
   ];
   if (provider === "anthropic") {
     const backend = createClaudeBackend({

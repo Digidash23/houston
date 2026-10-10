@@ -448,5 +448,38 @@
     "exactValue": "Contenido exacto de {{name}}:",
     "truncated_one": "[y {{formatted}} carácter más, que también se escribiría]",
     "truncated_other": "[y {{formatted}} caracteres más, que también se escribirían]"
+  },
+  "browserHandoff": {
+    "heading": "Te toca en {{site}}",
+    "headingNoSite": "Te toca en el navegador",
+    "open": "Abrir",
+    "openLabel": "Abrir el navegador para {{site}}",
+    "openLabelNoSite": "Abrir el navegador",
+    "done": "Listo",
+    "cancelled": "Sin terminar",
+    "expired": "Se acabó el tiempo",
+    "ended": "Ya no está esperando"
+  },
+  "browserLive": {
+    "privacy": "Lo que escribas va al sitio web. Este empleado de IA guarda el inicio de sesión para después, nunca tu contraseña.",
+    "back": "Atrás",
+    "address": "Dirección web",
+    "addressRefused": "Aquí solo se pueden abrir direcciones de sitios web.",
+    "finish": "Ya terminé",
+    "cancel": "Cancelar",
+    "close": "Cerrar",
+    "connecting": "Conectando",
+    "reconnecting": "Reconectando",
+    "lost": "Se perdió la conexión.",
+    "retry": "Intentar de nuevo",
+    "endedDone": "Listo. Ya puedes cerrar esto.",
+    "endedCancelled": "Cerraste el navegador.",
+    "endedExpired": "Se acabó el tiempo. Pide en el chat que lo intente de nuevo.",
+    "endedNone": "Este navegador ya no te está esperando.",
+    "notOwner": "Solo la persona que lo pidió puede usar este navegador.",
+    "tapToType": "Toca la página para escribir",
+    "website": "Sitio web",
+    "timeLeft": "Quedan {{minutes}} min",
+    "title": "Navegador"
   }
 }
