@@ -39,6 +39,41 @@ export function isAuthorizationFailure(error: unknown) {
   );
 }
 
+/**
+ * The gateway refused to register a connection for good: a 403 (the agent's
+ * model ceiling, the person's role, the agent gone) or a request it will never
+ * accept (400/422). Nothing was registered under the journal's key, so the SDK
+ * forgets the attempt; kept, it was re-registered and refused again on every
+ * boot, and the retirement every later connect or disconnect runs first was
+ * refused the same way, so the agent's local model could never change
+ * (HOUSTON-APP-5DY). A 401 is a lost session, never this.
+ */
+export function isRegistrationRefusal(error: unknown): boolean {
+  if (typeof error !== "object" || error === null || !("status" in error))
+    return false;
+  return [400, 403, 422].includes(Number(error.status));
+}
+
+/**
+ * A refused registration the SDK already forgot (see
+ * {@link isRegistrationRefusal}): nothing is connected, so the bridge settles
+ * disabled rather than asking the person to sign in. Keeps the gateway's
+ * status and body so the report still carries its cause. Erasable syntax only
+ * (see {@link BridgeStateError}).
+ */
+export class BridgeRegistrationRefusedError extends Error {
+  readonly status: number;
+  readonly body: unknown;
+  constructor(refusal: unknown) {
+    const detail = refusal instanceof Error ? refusal.message : String(refusal);
+    super(`bridge registration refused: ${detail}`, { cause: refusal });
+    this.name = "BridgeRegistrationRefusedError";
+    const { status, body } = refusal as { status?: unknown; body?: unknown };
+    this.status = Number(status);
+    this.body = body;
+  }
+}
+
 export function isPermanentBridgeFailure(error: unknown) {
   if (typeof error !== "object" || error === null || !("status" in error))
     return false;

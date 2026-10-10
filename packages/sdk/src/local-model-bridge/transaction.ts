@@ -1,8 +1,10 @@
 import type { CustomEndpoint, LocalBridgeDevice } from "@houston/protocol";
 import {
+  BridgeRegistrationRefusedError,
   BridgeStateError,
   isAuthorizationFailure,
   isPermanentBridgeFailure,
+  isRegistrationRefusal,
 } from "./errors";
 import { sameBridgeIdentity } from "./identity";
 import { migrationProof } from "./migration";
@@ -58,13 +60,14 @@ export async function prepareBridge(
       (journal.migration
         ? await migrationProof(ports, journal.input.model, signal)
         : undefined);
-    const descriptor = await registerBridge(
-      ports,
-      journal,
-      device,
-      signal,
-      legacy,
-    );
+    let descriptor: Awaited<ReturnType<typeof registerBridge>>;
+    try {
+      descriptor = await registerBridge(ports, journal, device, signal, legacy);
+    } catch (error) {
+      if (signal.aborted || !isRegistrationRefusal(error)) throw error;
+      await ports.storage.clear(identity);
+      throw new BridgeRegistrationRefusedError(error);
+    }
     // Keep the prepared idempotency key durable if this write fails. Resume can recover the descriptor.
     journal = { ...journal, descriptor, phase: "registered" };
     await ports.storage.save(identity, journal);
