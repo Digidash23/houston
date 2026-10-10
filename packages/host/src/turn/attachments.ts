@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { UPLOADS_DIR } from "@houston/domain/uploads-dir";
 import type { HoustonEvent } from "@houston/protocol";
 import type { Agent, Workspace } from "../domain/types";
 import type { WorkspacePaths } from "../paths";
@@ -32,9 +33,6 @@ import { MAX_UPLOAD_BODY_BYTES, MAX_UPLOAD_BYTES } from "./files-import";
  * clients — which still send it to stay compatible with not-yet-updated cloud
  * pods — never 400.
  */
-
-/** The on-disk dir name — a visible, durable folder in the agent's workspace. */
-const UPLOADS_DIR = "uploads";
 
 // A single request's decoded payload is capped at MAX_UPLOAD_BYTES (shared with
 // files/import so the composer's client-side per-file limit and the host cap

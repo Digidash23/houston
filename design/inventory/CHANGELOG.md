@@ -3,7 +3,7 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
-## v129 - 2026-10-10
+## v130 - 2026-10-10
 
 An AI Employee can hand its browser to the person. When a website needs the
 person themselves (signing in, a verification code, a captcha), the chat
@@ -13,6 +13,14 @@ Cancel), and the employee carries on from that page. Passwords never pass
 through the chat. On phones the page opens as a full-height sheet sized for
 the phone; on desktop as a large dialog. After the hand-off the card keeps
 how it ended: done, not finished, time ran out, or no longer waiting.
+
+## v129 - 2026-10-10
+
+Messaging channels settings shows separate Slack and WhatsApp provider cards.
+WhatsApp pairing offers a full-width phone link and a desktop QR code (dark on
+a light tile in every theme) for the prefilled message, with a copyable command
+and a waiting state that lasts as long as the code and clears once the
+connection lands.
 
 ## v128 - 2026-10-09
 

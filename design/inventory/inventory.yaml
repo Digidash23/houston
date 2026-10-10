@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 129
+version: 130
 
 components:
   - id: agent-delegation-settings
@@ -772,7 +772,7 @@ components:
       expired; anything else is ended. While waiting the card owns the turn's
       progress (no thinking line under it) and Open opens the live browser.
     a11y: The Open action is visible only while waiting, keyboard reachable, at least 44px high, and its accessible name names the site. The outcome is plain text.
-    since: 129
+    since: 130
 
   - id: browser-live-view
     title: Live browser view
@@ -789,7 +789,7 @@ components:
       desktop opens a large dialog. Closing only stops watching; the
       hand-off keeps waiting until I'm done, Cancel or the time limit.
     a11y: Every action is a visible button (no hover-only affordances); the address field is 16px and labelled; Escape typed into the page goes to the page, not the dialog; the ended and lost states are announced as status text, and Try again is a visible button.
-    since: 129
+    since: 130
 
   - id: chat-parent-mission-link
     title: Parent mission link
@@ -2267,12 +2267,16 @@ components:
   - id: messaging-channels-settings
     title: Messaging channels settings
     purpose: Connect messaging identities to the personal assistant in the selected Houston space.
-    anatomy: [section-header, space-label, provider-row, connection-list, connect-action, pairing-command, disconnect-confirmation]
-    states: [loading, empty, connected, connecting, completing, pairing-code, expired-code, link-refused, unavailable]
+    anatomy: [section-header, space-label, provider-card, connection-list, connect-action, pairing-command, whatsapp-qr, disconnect-confirmation]
+    states: [loading, empty, connected, connecting, completing, pairing-code, expired-code, waiting, link-refused, unavailable]
     variants: [phone, desktop]
     behavior: >-
       OAuth connects Slack; an expiring command pairs an existing Slack installation.
-      Both bind the same personal assistant conversation. Returning from Slack
+      WhatsApp pairs through an expiring command sent to Houston's number, opened
+      from a full-width phone link or a desktop QR code (dark on a light tile in
+      every theme). The section waits for that connection for as long as the code
+      lives, and a landed connection clears the spent code. Both providers bind
+      the personal assistant. Returning from Slack
       redeems a one-time ticket on the authenticated client, which is what binds
       the connection: the section reports that it is finishing, refreshes the list
       when it succeeds, and says the link is invalid or already connected when the
@@ -2282,7 +2286,7 @@ components:
       assistant links resolve live membership before selecting the linked
       conversation's space.
     a11y: >-
-      Real labeled buttons, a read-only labeled command input, status messages,
+      Real labeled buttons, "Open WhatsApp" as a real link, a read-only labeled command input, labeled QR code, status messages,
       and a focus-managed disconnect confirmation. All controls remain visible.
     since: 94
 

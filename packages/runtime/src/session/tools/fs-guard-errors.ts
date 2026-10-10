@@ -1,5 +1,5 @@
 /**
- * The three refusals a workspace path guard can produce. They are separate
+ * The refusals a workspace path guard can produce. They are separate
  * types because callers distinguish them: an escape is a path that never
  * belonged here, a not-allowed is a path this role has no business with, and a
  * denial is a path inside an allowed root that holds credential material.
@@ -23,9 +23,12 @@ export class PathEscapeError extends Error {
  * IS allowed rather than only what is not.
  */
 export class PathNotAllowedError extends Error {
-  constructor(raw: string, allowed: string[]) {
+  constructor(raw: string, allowed: string[], readable: string[] = []) {
+    const attachments = readable.length
+      ? ` You can also read what people send you, kept in ${readable.join(", ")}, but not change it.`
+      : "";
     super(
-      `You cannot open or change that: ${raw}. The only ${allowed.length === 1 ? "document" : "documents"} you can read or write here: ${allowed.join(", ")}.`,
+      `You cannot open or change that: ${raw}. The only ${allowed.length === 1 ? "document" : "documents"} you can read or write here: ${allowed.join(", ")}.${attachments}`,
     );
     this.name = "PathNotAllowedError";
   }
@@ -74,5 +77,20 @@ export class SharedSkillReadOnlyError extends ProtectedWriteDeniedError {
       "Shared skills belong to the whole team and cannot be changed from this conversation. Use the skill as it is.",
     );
     this.name = "SharedSkillReadOnlyError";
+  }
+}
+
+/**
+ * A write into a folder the runtime may only read: the attachments people send
+ * the coordinator. They are the person's own material, kept as it arrived, and
+ * a prompt injection riding one attachment must not be able to rewrite the
+ * next, so the model is told to use them as they are.
+ */
+export class AttachmentReadOnlyError extends ProtectedWriteDeniedError {
+  constructor() {
+    super(
+      "What people send you is kept exactly as it arrived and cannot be changed or replaced. Read it as it is, and save anything worth keeping to your memory instead.",
+    );
+    this.name = "AttachmentReadOnlyError";
   }
 }

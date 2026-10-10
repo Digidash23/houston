@@ -13,6 +13,7 @@ export * from "./browser-live";
 export * from "./browser-live-parse";
 export * from "./channels";
 export * from "./channels-refusals";
+export * from "./channels-whatsapp";
 export * from "./compute-refusal";
 export * from "./delegation";
 export * from "./first-day-refusal";
