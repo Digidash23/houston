@@ -193,7 +193,11 @@ the zip's original `bundle_sequence` from `version.json`. The app
 rejects another channel, a sequence at or below the highest locally accepted
 sequence, a publish sequence at or below its built-in sequence, and any zip
 whose original bundle sequence is below that built-in sequence. It persists the
-highest accepted sequence per channel. A rollback reuses an old zip but signs a
+highest applied sequence per channel and native build, because a store upgrade
+restarts from that build's builtin bundle. Separately it persists the newest
+authenticated required-update policy per channel and refuses any older manifest
+before it touches the required-update gate, so a replayed manifest cannot lift
+it. Both live under `houston.ota.` and survive sign-out. A rollback reuses an old zip but signs a
 new manifest with the current run's higher sequence.
 The publish workflow compares the new sequence with the channel's current
 manifest and refuses a rerun that would lower it.
