@@ -121,7 +121,12 @@ describe("surfaceGatesFor", () => {
     // Both are destinations an agent's hands-on errand can send someone to, so
     // a gate that said yes off a personal space would hand them a button to a
     // section that is not rendered anywhere.
-    const spaces = { ...owner, spaces: true, workspaceDelete: true } as never;
+    const spaces = {
+      ...owner,
+      spaces: true,
+      teamBilling: true,
+      workspaceDelete: true,
+    } as never;
     const team = surfaceGatesFor({
       capabilities: spaces,
       isTeam: true,

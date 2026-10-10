@@ -22582,6 +22582,21 @@
               }
             ]
           },
+          "teamBilling": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "const": false,
+                "type": "boolean"
+              },
+              {
+                "const": true,
+                "type": "boolean"
+              }
+            ]
+          },
           "teams": {
             "anyOf": [
               {
