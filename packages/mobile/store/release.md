@@ -51,8 +51,22 @@ Create these repository variables:
 | `FIREBASE_APPLE_SERVICE_ID` | Existing Apple Services ID configured in Firebase Authentication. |
 | `HOUSTON_MOBILE_STORE_URL_IOS`, `HOUSTON_MOBILE_STORE_URL_ANDROID` | Store listing URLs. Each platform's store job skips with one named notice when its URL is absent; production OTA builds still publish. |
 
+## Raising the required native build
+
+An OTA publish (and a rollback) never raises the manifest's
+`required_native_build`: it carries the channel's live value forward, because a
+higher floor locks every older build behind an update screen with nothing to
+install while the store builds wait in Play internal testing or App Review.
+Once the new store builds are live for everyone on both stores, run
+**Mobile OTA updates** manually from `main` with action
+`raise-required-native-build`, the channel, and the new floor (at most the
+lowest live store build number). It re-signs the channel's current bundle with
+the higher floor; it refuses a value at or below the current one.
+
 The committed `native-compat.json`, Xcode `CURRENT_PROJECT_VERSION`, and Gradle
-`versionCode` remain the native compatibility floor (currently 4). Store jobs
+`versionCode` remain the native compatibility floor (currently 4): OTA bundles
+skip builds below `min_native_build`, and store uploads must be at least
+`required_native_build`. Store jobs
 override the upload build number with `github.run_number * 100 +
 github.run_attempt`, after checking it is at least `required_native_build`.
 The run number rises across workflow runs and the attempt rises on reruns;

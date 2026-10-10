@@ -7,14 +7,23 @@ on:
     types: [published]
   workflow_dispatch:
     inputs:
+      action:
+        description: Roll back to an existing bundle, or raise the required native build once the store builds are live
+        required: true
+        type: choice
+        options: [rollback, raise-required-native-build]
       channel:
-        description: Channel to roll back
+        description: Channel to change
         required: true
         type: choice
         options: [preview, production]
       version:
-        description: Existing bundle version to restore
-        required: true
+        description: Existing bundle version to restore (rollback only)
+        required: false
+        type: string
+      required_native_build:
+        description: New required native build (raise only); every store build at or above it must already be live
+        required: false
         type: string
 
 permissions:
@@ -37,7 +46,9 @@ jobs:
     env:
       CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.channel || github.event_name == 'push' && 'preview' || 'production' }}
       BASE_URL: https://storage.googleapis.com/houston-mobile-updates
+      ACTION: ${{ github.event_name == 'workflow_dispatch' && inputs.action || 'publish' }}
       ROLLBACK_VERSION: ${{ inputs.version }}
+      RAISE_REQUIRED: ${{ inputs.required_native_build }}
     steps:
       - name: Checkout release or main
         uses: actions/checkout@v6
@@ -87,18 +98,47 @@ jobs:
           find packages/mobile/dist -name "*.map" -delete
           cd packages/mobile/dist
           zip -q -r ../update.zip .
-      - name: Select bundle version
+      - name: Select bundle version and compatibility
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = workflow_dispatch ]; then
-            [[ "$ROLLBACK_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+\+[0-9a-f]{7,}$ ]] || { echo '::error::Invalid bundle version'; exit 1; }
-            gcloud storage cp "gs://houston-mobile-updates/$CHANNEL/$ROLLBACK_VERSION.zip" packages/mobile/update.zip
-            unzip -p packages/mobile/update.zip version.json > packages/mobile/version.json
-            unzip -p packages/mobile/update.zip native-compat.json > packages/mobile/compat-to-sign.json
-          else
-            cp packages/mobile/dist/version.json packages/mobile/version.json
-            cp packages/mobile/native-compat.json packages/mobile/compat-to-sign.json
+          current_required=1
+          current_version=
+          if gcloud storage ls "gs://houston-mobile-updates/$CHANNEL/manifest.json" >/dev/null 2>&1; then
+            gcloud storage cat "gs://houston-mobile-updates/$CHANNEL/manifest.json" > packages/mobile/current-manifest.json
+            current_required=$(jq -r '.required_native_build' packages/mobile/current-manifest.json)
+            current_version=$(jq -r '.version' packages/mobile/current-manifest.json)
           fi
+          [[ "$current_required" =~ ^[0-9]+$ ]] || { echo '::error::Current manifest has no valid required_native_build'; exit 1; }
+          required=$current_required
+          case "$ACTION" in
+            rollback)
+              [[ "$ROLLBACK_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+\+[0-9a-f]{7,}$ ]] || { echo '::error::Invalid bundle version'; exit 1; }
+              gcloud storage cp "gs://houston-mobile-updates/$CHANNEL/$ROLLBACK_VERSION.zip" packages/mobile/update.zip
+              unzip -p packages/mobile/update.zip version.json > packages/mobile/version.json
+              ;;
+            raise-required-native-build)
+              test -n "$current_version" || { echo '::error::No manifest to raise on this channel'; exit 1; }
+              [[ "$RAISE_REQUIRED" =~ ^[1-9][0-9]*$ ]] || { echo '::error::Invalid required_native_build'; exit 1; }
+              test "$RAISE_REQUIRED" -gt "$current_required" || { echo "::error::required_native_build must exceed the current $current_required"; exit 1; }
+              gcloud storage cp "gs://houston-mobile-updates/$CHANNEL/$current_version.zip" packages/mobile/update.zip
+              unzip -p packages/mobile/update.zip version.json > packages/mobile/version.json
+              required=$RAISE_REQUIRED
+              ;;
+            publish)
+              cp packages/mobile/dist/version.json packages/mobile/version.json
+              ;;
+            *) echo "::error::Unknown action $ACTION"; exit 1 ;;
+          esac
+          if [ "$ACTION" = publish ]; then
+            min=$(jq -r .min_native_build packages/mobile/native-compat.json)
+          else
+            min=$(unzip -p packages/mobile/update.zip native-compat.json | jq -r .min_native_build)
+          fi
+          # Publishing and rolling back never raise the required floor: users on
+          # older builds would be gated before any store build is live. Raising
+          # it is the separate raise-required-native-build dispatch.
+          jq -n --argjson min "$min" --argjson required "$required" \
+            '{min_native_build: $min, required_native_build: $required}' > packages/mobile/compat-to-sign.json
           VERSION=$(jq -r .version packages/mobile/version.json)
           echo "version=$VERSION" >> "$GITHUB_ENV"
       - name: Sign manifest
@@ -119,7 +159,7 @@ jobs:
       - name: Upload zip, then manifest
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" != workflow_dispatch ]; then
+          if [ "$ACTION" = publish ]; then
             gcloud storage cp --cache-control='public,max-age=31536000,immutable' \
               packages/mobile/update.zip "gs://houston-mobile-updates/$CHANNEL/$version.zip"
           fi

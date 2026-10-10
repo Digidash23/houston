@@ -212,9 +212,12 @@ Repository variables `HOUSTON_MOBILE_STORE_URL_IOS` and
 `HOUSTON_MOBILE_STORE_URL_ANDROID` fill the store buttons when set. Production
 OTA builds permit them to be absent; each store release job skips with one named
 notice when its platform URL is absent. To roll back, run
-the workflow manually with the channel and an existing bundle version. It
-retrieves that archive, reads its recorded version and compatibility floor,
-signs a fresh manifest for the same archive, and replaces only the manifest.
+the workflow manually from `main` with action `rollback`, the channel and an
+existing bundle version. It retrieves that archive, reads its recorded version
+and minimum native build, signs a fresh manifest for the same archive, and
+replaces only the manifest. Publishes and rollbacks keep the channel's live
+`required_native_build`; only the `raise-required-native-build` action raises
+it, after the store builds are live (`store/release.md`).
 
 Push registration is scoped to the current signed-in user. A gateway
 `409 {"code":"device_conflict"}` makes the client persist a new installation ID
