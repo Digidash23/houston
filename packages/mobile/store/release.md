@@ -3,9 +3,9 @@
 
 `.github/workflows/mobile-release.yml` runs on the same published `cloud-v*`
 releases as mobile OTA updates and can be dispatched from `main`. The OTA
-workflow publishes production only for a `cloud-v*` release whose tagged
-release commit was cut from `main` (the daily cut keeps it off `main`, so its
-first parent is checked) and whose `main` base is not older than the live
+workflow publishes production only for a `cloud-v*` release commit within 20
+commits of `main` (daily cuts, hand cuts with notes or CI commits, cherry-picked
+hotfixes) whose merge base with `main` is not strictly older than the live
 bundle's (the `+<sha>` suffix of the signed manifest's version);
 `scripts/ota-commit-guard.sh` enforces both. Legacy `v*` releases publish
 nothing. Each platform reports one
