@@ -257,7 +257,7 @@
       "openSlack": "Abrir Slack",
       "completing": "Finalizando sua conexão com o Slack…",
       "completeInvalid": "Esse link de conexão com o Slack é inválido ou expirou. Conecte novamente.",
-      "completeAlready": "Essa conta do Slack já está conectada a outra conta do Houston. Desconecte por lá e conecte novamente.",
+      "completeAlready": "Essa conta do Slack já está conectada a outra conta do Houston ou a outro espaço seu do Houston. Desconecte por lá e conecte novamente.",
       "alreadyAdded": "Já adicionou o Houston ao Slack?",
       "linkInstructions": "Abra sua mensagem direta com o Houston no Slack e envie este comando.",
       "commandLabel": "Comando de conexão do Slack",
