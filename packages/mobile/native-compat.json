@@ -1,5 +1,5 @@
 {
   "min_native_build": 4,
   "required_native_build": 4,
-  "plugin_dependencies_sha256": "5d02dd44118e0f7e64e71aa2c3b26698f62e1219319f68063ff15f39f47bfe98"
+  "native_fingerprint_sha256": "bd8bfb425621f800d2de8b1b22428eeabd59b127d1255b5e33146851ce14ba2b"
 }

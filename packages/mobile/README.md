@@ -159,11 +159,17 @@ The mobile Vite build writes `dist/version.json` with
 It also copies `native-compat.json` into the bundle. A change to native code or
 the Capacitor plugin dependencies requires a new iOS `CURRENT_PROJECT_VERSION`
 and Android `versionCode` and an update to `native-compat.json`'s
-`min_native_build` and `required_native_build`. The plugin dependency fingerprint
-test pins both the native build and dependency fingerprint, so updating the
-plugin set requires advancing that test baseline with the native build. Set
+`min_native_build` and `required_native_build`. The native fingerprint
+(`scripts/native-fingerprint.ts`: plugin versions resolved in `pnpm-lock.yaml`,
+`capacitor.config.ts`, `Info.plist`, entitlements, app delegates,
+`AndroidManifest.xml`, `MainActivity` and the Android XML resources) is pinned
+with the native build in `src/native-compat.test.ts`, so any of those changes
+requires advancing that baseline with the native build. Print the new value
+with `node --experimental-strip-types scripts/native-fingerprint.ts`. Set
 `min_native_build` to the first native build capable of running the bundle;
-set `required_native_build` to the first build allowed to keep using the app.
+set `required_native_build` to the first build allowed to keep using the app
+(store uploads must be at least this; the live OTA floor is raised separately,
+see `store/release.md`).
 CI bakes `HOUSTON_MOBILE_BUILTIN_SEQUENCE` into each native or OTA bundle as
 `github.run_id * 100 + github.run_attempt`; local builds use zero. Attempts
 stay below 100. The run ID increases between runs across both mobile workflows.
