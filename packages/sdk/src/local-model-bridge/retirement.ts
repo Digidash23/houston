@@ -1,4 +1,4 @@
-import { isBridgeAbsent } from "./errors";
+import { isBridgeAbsent, isRegistrationRefusal } from "./errors";
 import { sameBridgeIdentity } from "./identity";
 import { registerBridge } from "./registration";
 import type { LocalBridgeJournal, LocalModelBridgePorts } from "./types";
@@ -44,7 +44,16 @@ export async function retireBridge(
     const device = await ports.native.device(retiring.identity);
     signal?.throwIfAborted();
     // A lost registration response is recovered with its original key, never a new registration intent.
-    const descriptor = await registerBridge(ports, retiring, device, signal);
+    let descriptor: Awaited<ReturnType<typeof registerBridge>>;
+    try {
+      descriptor = await registerBridge(ports, retiring, device, signal);
+    } catch (error) {
+      if (signal?.aborted || !isRegistrationRefusal(error)) throw error;
+      // Refused for good: nothing to revoke. A lost response that did register
+      // leaves a row the gateway will not name to us; it never got an endpoint.
+      await forgetRetiring(ports, retiring, signal);
+      return;
+    }
     retiring = { ...retiring, descriptor };
     await ports.storage.save(retiring.identity, retiring);
     signal?.throwIfAborted();
@@ -58,6 +67,14 @@ export async function retireBridge(
     if (!isBridgeAbsent(error)) throw error;
   }
   signal?.throwIfAborted();
+  await forgetRetiring(ports, retiring, signal);
+}
+
+async function forgetRetiring(
+  ports: LocalModelBridgePorts,
+  retiring: LocalBridgeJournal,
+  signal?: AbortSignal,
+) {
   if (retiring.phase === "disconnecting") {
     await ports.management.clearEndpoint(signal);
     signal?.throwIfAborted();
