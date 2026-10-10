@@ -1,21 +1,13 @@
 import { relative, sep } from "node:path";
-import {
-  PathDeniedError,
-  PathEscapeError,
-  PathNotAllowedError,
-} from "./fs-guard-errors";
-import {
-  contains,
-  type RootBoundary,
-  realNearest,
-  resolveLikePi,
-} from "./fs-guard-paths";
+import { PathDeniedError, PathEscapeError } from "./fs-guard-errors";
+import { contains, type RootBoundary, realNearest } from "./fs-guard-paths";
 
 /**
- * The rules a resolved path is judged against: root containment, the credential
- * deny list, and the exact-file allowlist that narrows the first two to a
- * single document. Kept apart from the guard object so each rule reads as a
- * pure decision over (path, boundaries) with nothing else in scope.
+ * The rules a resolved path is judged against: root containment and the
+ * credential deny list. (The exact-file allowlist that narrows both to a single
+ * document lives in fs-guard-narrow.ts.) Kept apart from the guard object so
+ * each rule reads as a pure decision over (path, boundaries) with nothing else
+ * in scope.
  */
 
 /**
@@ -36,7 +28,7 @@ const DENIED_SEGMENTS = new Set(["auth.json", "auth-users", "claude-login"]);
  * case-insensitive by default, so `AUTH.JSON` would otherwise open the very
  * file `auth.json` denies.
  */
-function isCredential(abs: string, boundary: RootBoundary): boolean {
+export function isCredential(abs: string, boundary: RootBoundary): boolean {
   const base = contains(abs, boundary.canonical)
     ? boundary.canonical
     : boundary.lexical;
@@ -84,46 +76,4 @@ export function assertContained(
     }
   }
   throw new PathEscapeError(raw, root);
-}
-
-/**
- * The exact-file rule: resolve the model's path the way pi does, then require
- * it to BE one of the allowed documents — lexically, or once symlinks are
- * resolved, so neither a link nor a `..` detour can stand in for one.
- *
- * The allowlist NARROWS the workspace wall, it does not replace it. Being on
- * the list is necessary, never sufficient: the resolved path must still land
- * inside the agent's own directory and must still not be credential material,
- * so a listed document that is (or sits behind) a symlink pointing out of the
- * workspace is refused, and `auth.json` cannot be reached by listing it. The
- * two rules stack in exactly the order containment applies them.
- */
-export function assertAllowedFile(
-  raw: string,
-  root: string,
-  allowedFiles: RootBoundary[],
-): string {
-  const abs = resolveLikePi(raw, root);
-  const real = realNearest(abs);
-  const allowed = allowedFiles.some(
-    (file) =>
-      abs === file.lexical ||
-      abs === file.canonical ||
-      real === file.canonical ||
-      real === file.lexical,
-  );
-  if (!allowed)
-    throw new PathNotAllowedError(
-      raw,
-      allowedFiles.map((file) => file.lexical),
-    );
-  // `root` is the guard's CANONICAL workspace root, so the real path is the one
-  // form that can be compared against it: a lexical match would accept the
-  // symlink itself and let the tool follow it anywhere.
-  const boundary: RootBoundary = { canonical: root, lexical: root };
-  if (!contains(real, root)) throw new PathEscapeError(raw, root);
-  if (isCredential(real, boundary)) throw new PathDeniedError(raw);
-  // The proven path, for the same reason containment returns one: the tool must
-  // open what was judged, not re-resolve the name a second time.
-  return real;
 }

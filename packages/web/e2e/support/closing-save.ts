@@ -39,7 +39,14 @@ export async function holdClosingSave(
  */
 export async function evictMidClosing(page: Page): Promise<Page> {
   const url = page.url();
+  // `emulateMedia` belongs to the page, not the context: without carrying it
+  // over, the fresh tab types the manager's messages out word by word and a
+  // loaded CI runner outlasts the 10s default before a line is whole.
+  const reducedMotion = await page.evaluate(
+    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
   const fresh = await page.context().newPage();
+  if (reducedMotion) await fresh.emulateMedia({ reducedMotion: "reduce" });
   await seedPage(fresh);
   await page.close();
   await fresh.goto(url);

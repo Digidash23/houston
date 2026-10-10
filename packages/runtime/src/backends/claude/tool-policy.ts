@@ -60,7 +60,8 @@ const PLAN_FILE_TOOLS = ["Read", "Glob", "Grep"] as const;
 /**
  * The personal assistant's file tools (SDK names). It coordinates and never
  * produces work, so it keeps only the pair memory consolidation needs — read
- * the memory file, write the trimmed list back — mirroring the pi-side
+ * the memory file, write the trimmed list back; Read also opens attachments,
+ * which the permission gate never lets it write — mirroring the pi-side
  * COORDINATOR_TOOL_NAMES clamp. Everything else (Edit/Glob/Grep/Bash) is denied.
  */
 const COORDINATOR_FILE_TOOLS = ["Read", "Write"] as const;
