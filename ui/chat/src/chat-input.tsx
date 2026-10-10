@@ -8,6 +8,7 @@ import type { ChatInputProps } from "./chat-input-types";
 import { isDictationActive, isDictationCapturing } from "./dictation-types";
 import { QueuedMessageList } from "./queued-message-list";
 import { useComposerAttachments } from "./use-composer-attachments";
+import { useComposerKeyDown } from "./use-composer-key-down";
 import { useDictationHotkeys } from "./use-dictation-hotkeys.ts";
 import { useControllable } from "./use-file-drop-zone";
 import { useMentionCombobox } from "./use-mention-combobox.ts";
@@ -84,26 +85,12 @@ export function ChatInput({
     [mentions.refresh],
   );
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      // The mention list gets first say: every key it consumes is
-      // `preventDefault()`ed, which is what makes PromptInputTextarea bail
-      // before its own Enter handling and keeps Escape off the stop handler.
-      mentions.onKeyDown(e);
-      if (e.defaultPrevented) return;
-      // Escape discards an in-flight capture first, before any streaming stop.
-      if (e.key === "Escape" && isDictationCapturing(dictation)) {
-        e.preventDefault();
-        dictation?.onCancel();
-        return;
-      }
-      if (e.key === "Escape" && status !== "ready" && onStop) {
-        e.preventDefault();
-        onStop();
-      }
-    },
-    [status, onStop, dictation, mentions.onKeyDown],
-  );
+  const handleKeyDown = useComposerKeyDown({
+    mentionKeyDown: mentions.onKeyDown,
+    dictation,
+    status,
+    onStop,
+  });
 
   const handleSubmit = useCallback(
     async (message: PromptInputMessage) => {
