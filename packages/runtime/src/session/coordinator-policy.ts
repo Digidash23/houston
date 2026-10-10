@@ -1,4 +1,6 @@
+import { join } from "node:path";
 import type { AssistantRuntimeRole } from "@houston/domain/assistant-role";
+import { UPLOADS_DIR } from "@houston/domain/uploads-dir";
 import { learningsDocPath } from "./learnings-context";
 import type { WorkspaceGuardOptions } from "./tools/fs-guard";
 
@@ -15,8 +17,11 @@ import type { WorkspaceGuardOptions } from "./tools/fs-guard";
  * context documents, its own session records.
  *
  * So its file tools are given an exact-file allowlist rather than a root, and
- * no shared root at all. An ordinary agent keeps the workspace containment it
- * has always had.
+ * no shared root at all. The one widening is READ-ONLY: the folder where what
+ * people send it lands (a photo in the composer, a PDF over Slack or WhatsApp),
+ * which it must be able to look at to help with it. It can never change those
+ * files, so one poisoned attachment cannot rewrite the next. An ordinary agent
+ * keeps the workspace containment it has always had.
  */
 
 export interface RuntimeFilePolicyInput {
@@ -43,7 +48,10 @@ export function fileToolGuardOptions(
   input: RuntimeFilePolicyInput,
 ): WorkspaceGuardOptions {
   if (input.role === "coordinator") {
-    return { allowedFiles: [learningsDocPath(input.workspaceDir)] };
+    return {
+      allowedFiles: [learningsDocPath(input.workspaceDir)],
+      readableDirs: [join(input.workspaceDir, UPLOADS_DIR)],
+    };
   }
   return {
     sharedRoots: sharedRootsFor(input),
