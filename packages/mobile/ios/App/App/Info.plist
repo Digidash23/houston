@@ -24,6 +24,10 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Houston uses the camera when you take a photo or video to attach or to use as your profile picture.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Houston uses the microphone when you record a video to attach.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>UIBackgroundModes</key>
