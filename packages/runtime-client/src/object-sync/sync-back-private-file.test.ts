@@ -1,4 +1,5 @@
 import {
+  linkSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -136,6 +137,27 @@ posixOnly("sync-back checks each sign-in file where it reads it", () => {
     afterGate.hook = async () => {
       renameSync(browser, join(root, ".houston", "browser-real"));
       symlinkSync(planted, browser);
+    };
+    const { store, uploads } = recordingStore();
+    const result = await syncBack(store, "p", root, KEPT);
+    expect(uploads.has(`p/${STATE}`)).toBe(false);
+    expect(result.manifest.get(STATE)).toEqual(KEPT.get(STATE));
+  });
+  test("a swapped-in directory holding a hard link to our own file feeds no upload", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const root = agent();
+    const browser = join(root, ".houston", "browser");
+    // A worker-owned, group-writable file the tool user filled with cookies.
+    const ours = join(root, "notes.json");
+    writeFileSync(ours, '{"cookies":["planted"],"origins":[]}');
+    const planted = mkdtempSync(join(tmpdir(), "planted-"));
+    linkSync(ours, join(planted, "state.json"));
+    let swapped = false;
+    afterGate.hook = async () => {
+      if (swapped) return;
+      swapped = true;
+      renameSync(browser, join(root, ".houston", "browser-real"));
+      renameSync(planted, browser);
     };
     const { store, uploads } = recordingStore();
     const result = await syncBack(store, "p", root, KEPT);

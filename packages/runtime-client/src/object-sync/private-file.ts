@@ -19,6 +19,10 @@ function problemWith(info: Stats, uid: number | undefined): string | null {
   if (!info.isFile()) return "is not a regular file";
   if (uid !== undefined && info.uid !== uid)
     return `is owned by uid ${info.uid}, not this process (${uid})`;
+  // Every writer here lands a temp file and renames it in, so the state file
+  // has exactly one name. A second one is a hard link the tool user made to
+  // a worker-owned file it can write (umask 002) and swapped in.
+  if (info.nlink !== 1) return `has ${info.nlink} hard links`;
   return null;
 }
 
@@ -30,7 +34,7 @@ function problemWith(info: Stats, uid: number | undefined): string | null {
  * final symlink, then judged through that descriptor (a regular file this
  * process owns) and read through it: nothing re-opens the path. A swapped-in
  * directory can only offer the tool user's own files, which the owner check
- * refuses. `uid` is the tests' seam.
+ * refuses, or a hard link to one of ours, which the link count refuses. `uid` is the tests' seam.
  */
 export async function readPrivateFile(
   file: string,

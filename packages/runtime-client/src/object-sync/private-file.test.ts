@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import {
+  linkSync,
   mkdirSync,
   mkdtempSync,
   renameSync,
@@ -38,6 +39,15 @@ posixOnly("reading one sign-in file through a checked descriptor", () => {
     expect(await readPrivateFile(file, (uid ?? 0) + 1)).toEqual({
       kind: "refused",
       problem: expect.stringMatching(/^is owned by uid \d+, not this process/),
+    });
+  });
+
+  test("a hard link to a file this process owns is refused", async () => {
+    const { root, file } = stateFile('{"cookies":["planted"],"origins":[]}');
+    linkSync(file, join(root, "elsewhere.json"));
+    expect(await readPrivateFile(file)).toEqual({
+      kind: "refused",
+      problem: "has 2 hard links",
     });
   });
 
