@@ -110,6 +110,8 @@ async function expectGuarded(options: Options | undefined): Promise<void> {
   });
   expect(options?.disallowedTools).toContain("Read(**/auth.json)");
   expect(options?.canUseTool).toBeTypeOf("function");
+  // An `@path` in the prompt would attach the file with no tool call at all.
+  expect(options?.env?.CLAUDE_CODE_DISABLE_ATTACHMENTS).toBe("1");
 }
 
 test("a long-lived session and its compaction carry the guard", async () => {
@@ -156,7 +158,7 @@ test("a long-lived session and its compaction carry the guard", async () => {
     },
     compactions: createCompactionCheckpoints(conversations),
     model: "claude-sonnet-4-6",
-    refreshAuth: () => ({ env: {} }),
+    refreshAuth: () => ({ env: calls[0]?.env ?? {} }),
   });
   await compacting.compact();
   expect(summarized[0]?.resume).toBe("sdk-session-1");

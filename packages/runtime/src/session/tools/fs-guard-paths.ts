@@ -67,6 +67,17 @@ export function resolveLikePi(raw: string, root: string): string {
     : resolve(root, normalized);
 }
 
+/**
+ * A name as a case-insensitive filesystem compares it (APFS and NTFS by
+ * default): `AUTH.JSON` and `auth.j\u017Fon` (long s) open `auth.json`
+ * there, whether or not the file exists yet, so name rules compare this form.
+ * NFKC over-folds a few names those filesystems keep apart, which only ever
+ * refuses more.
+ */
+export function foldName(name: string): string {
+  return name.normalize("NFKC").toLowerCase();
+}
+
 export function contains(abs: string, root: string): boolean {
   return abs === root || abs.startsWith(root + sep);
 }

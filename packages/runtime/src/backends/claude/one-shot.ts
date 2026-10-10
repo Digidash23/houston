@@ -81,15 +81,10 @@ export async function oneShotWithClaude(
   const pathToClaudeCodeExecutable = resolveClaudeExecutable();
   const options: Options = {
     cwd: p.workspaceDir,
-    env: {
-      ...buildClaudeEnv(token, {
-        configDir: claudeLoginConfigDir(),
-        credentialStorageDir: anthropicCredentialStorageDir(p.dataDir),
-      }),
-      // The CLI attaches the file behind any `@path` in the prompt, no tool
-      // involved, and a one-shot's prompt quotes conversation text.
-      CLAUDE_CODE_DISABLE_ATTACHMENTS: "1",
-    },
+    env: buildClaudeEnv(token, {
+      configDir: claudeLoginConfigDir(),
+      credentialStorageDir: anthropicCredentialStorageDir(p.dataDir),
+    }),
     ...(pathToClaudeCodeExecutable ? { pathToClaudeCodeExecutable } : {}),
     ...CLAUDE_QUERY_DEFAULTS,
     // A one-shot answers in prose. No built-in is offered, and the hook
