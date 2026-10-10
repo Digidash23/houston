@@ -200,7 +200,9 @@ before it touches the required-update gate, so a replayed manifest cannot lift
 it. Both live under `houston.ota.` and survive sign-out. A rollback reuses an old zip but signs a
 new manifest with the current run's higher sequence.
 The publish workflow compares the new sequence with the channel's current
-manifest and refuses a rerun that would lower it.
+manifest and refuses a rerun that would lower it. A bundle object is written
+once (`--if-generation-match=0`); a rerun of an already published commit signs
+the published bytes instead of uploading a rebuild under the same name.
 
 CI uses the existing `github-deploy-web` Workload Identity Federation identity
 and needs `HOUSTON_MOBILE_UPDATE_SIGNING_KEY` (PKCS8 PEM) in the protected

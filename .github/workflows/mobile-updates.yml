@@ -125,6 +125,7 @@ jobs:
           fi
           [[ "$current_required" =~ ^[0-9]+$ ]] || { echo '::error::Current manifest has no valid required_native_build'; exit 1; }
           required=$current_required
+          upload_zip=false
           case "$ACTION" in
             rollback)
               [[ "$ROLLBACK_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+\+[0-9a-f]{7,}$ ]] || { echo '::error::Invalid bundle version'; exit 1; }
@@ -140,11 +141,22 @@ jobs:
               required=$RAISE_REQUIRED
               ;;
             publish)
-              cp packages/mobile/dist/version.json packages/mobile/version.json
+              built=$(jq -r .version packages/mobile/dist/version.json)
+              if gcloud storage ls "gs://houston-mobile-updates/$CHANNEL/$built.zip" >/dev/null 2>&1; then
+                # A rerun of a published commit: the object is cached as
+                # immutable for a year, so sign its published bytes instead of
+                # replacing them with a rebuild whose sha256 differs.
+                echo "::notice::$built.zip already published; re-signing its bytes"
+                gcloud storage cp "gs://houston-mobile-updates/$CHANNEL/$built.zip" packages/mobile/update.zip
+                unzip -p packages/mobile/update.zip version.json > packages/mobile/version.json
+              else
+                upload_zip=true
+                cp packages/mobile/dist/version.json packages/mobile/version.json
+              fi
               ;;
             *) echo "::error::Unknown action $ACTION"; exit 1 ;;
           esac
-          if [ "$ACTION" = publish ]; then
+          if [ "$ACTION" = publish ] && [ "$upload_zip" = true ]; then
             min=$(jq -r .min_native_build packages/mobile/native-compat.json)
           else
             min=$(unzip -p packages/mobile/update.zip native-compat.json | jq -r .min_native_build)
@@ -156,6 +168,7 @@ jobs:
             '{min_native_build: $min, required_native_build: $required}' > packages/mobile/compat-to-sign.json
           VERSION=$(jq -r .version packages/mobile/version.json)
           echo "version=$VERSION" >> "$GITHUB_ENV"
+          echo "upload_zip=$upload_zip" >> "$GITHUB_ENV"
       - name: Sign manifest
         env:
           HOUSTON_MOBILE_UPDATE_SIGNING_KEY: ${{ secrets.HOUSTON_MOBILE_UPDATE_SIGNING_KEY }}
@@ -174,8 +187,10 @@ jobs:
       - name: Upload zip, then manifest
         run: |
           set -euo pipefail
-          if [ "$ACTION" = publish ]; then
-            gcloud storage cp --cache-control='public,max-age=31536000,immutable' \
+          if [ "$upload_zip" = true ]; then
+            # Never overwrite: clients and caches hold these bytes for a year.
+            gcloud storage cp --if-generation-match=0 \
+              --cache-control='public,max-age=31536000,immutable' \
               packages/mobile/update.zip "gs://houston-mobile-updates/$CHANNEL/$version.zip"
           fi
           gcloud storage cp --cache-control='no-store' packages/mobile/manifest.json \

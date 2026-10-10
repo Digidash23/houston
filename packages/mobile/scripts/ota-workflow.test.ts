@@ -43,3 +43,15 @@ test("only cloud-v releases of main commits no older than the live bundle publis
     yaml.indexOf("- name: Build mobile bundle"),
   );
 });
+
+test("an immutable bundle object is never overwritten with different bytes", () => {
+  const yaml = updates();
+  const upload = yaml.split("- name: Upload zip, then manifest")[1] ?? "";
+  expect(upload).toContain('if [ "$upload_zip" = true ]; then');
+  expect(upload).toContain("--if-generation-match=0");
+  expect(upload).toContain("max-age=31536000,immutable");
+  // A rerun signs the bytes already published under that name.
+  expect(yaml).toContain(
+    'gcloud storage cp "gs://houston-mobile-updates/$CHANNEL/$built.zip" packages/mobile/update.zip',
+  );
+});
