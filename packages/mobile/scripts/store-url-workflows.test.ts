@@ -31,3 +31,17 @@ test("production OTA publishing permits absent store URLs", () => {
     /test -n "\$HOUSTON_MOBILE_STORE_URL_(?:IOS|ANDROID)"/,
   );
 });
+
+test("store uploads name their version after the cloud-v release tag", () => {
+  const source = workflow("mobile-release");
+  expect(source.match(/version=\$\{tag#cloud-v\}/g)).toHaveLength(2);
+  expect(source).toContain('MARKETING_VERSION="$MARKETING_VERSION"');
+  expect(source).toContain('export HOUSTON_NATIVE_VERSION_NAME="$version"');
+  const gradle = readFileSync(
+    fileURLToPath(new URL("../android/app/build.gradle", import.meta.url)),
+    "utf8",
+  );
+  expect(gradle).toContain(
+    "versionName(System.getenv('HOUSTON_NATIVE_VERSION_NAME') ?: '1.0')",
+  );
+});

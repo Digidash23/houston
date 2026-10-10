@@ -74,7 +74,11 @@ skip builds below `min_native_build`, and store uploads must be at least
 override the upload build number with `github.run_number * 100 +
 github.run_attempt`, after checking it is at least `required_native_build`.
 The run number rises across workflow runs and the attempt rises on reruns;
-attempts must stay below 100. Advance all three committed values together for
+attempts must stay below 100. The store version (Xcode `MARKETING_VERSION`,
+Gradle `versionName`) is the release tag without `cloud-v` (`cloud-v1.0.7`
+uploads `1.0.7`); a `main` dispatch uses the newest `cloud-v*` tag, so once that
+version is approved, cut a new release instead of dispatching. The committed
+`1.0` is only the local-build default. Advance all three committed values together for
 a native capability change. Play requires a first app bundle uploaded through
 its Console before the API upload can create subsequent releases.
 

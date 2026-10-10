@@ -56,6 +56,8 @@ jobs:
         if: steps.gate.outputs.ready == 'true'
         with:
           ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
+          # Tags: a dispatch names its store version after the newest cloud-v tag.
+          fetch-depth: 0
       - uses: pnpm/action-setup@v6
         if: steps.gate.outputs.ready == 'true'
       - uses: actions/setup-node@v6
@@ -84,6 +86,7 @@ jobs:
           HOUSTON_MOBILE_UPDATE_PUBKEY: ${{ secrets.HOUSTON_MOBILE_UPDATE_PUBKEY }}
           HOUSTON_MOBILE_STORE_URL_IOS: ${{ vars.HOUSTON_MOBILE_STORE_URL_IOS }}
           HOUSTON_MOBILE_STORE_URL_ANDROID: ${{ vars.HOUSTON_MOBILE_STORE_URL_ANDROID }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
           xcodebuild -version | grep '^Xcode 26\.'
@@ -93,6 +96,10 @@ jobs:
           test "$GITHUB_RUN_ATTEMPT" -lt 100
           test "$build" -ge "$(jq -r .required_native_build packages/mobile/native-compat.json)"
           echo "NATIVE_BUILD=$build" >> "$GITHUB_ENV"
+          tag=${RELEASE_TAG:-$(git describe --tags --match 'cloud-v[0-9]*' --abbrev=0)}
+          version=${tag#cloud-v}
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Release tag $tag names no x.y.z store version"; exit 1; }
+          echo "MARKETING_VERSION=$version" >> "$GITHUB_ENV"
       - name: Archive and upload to App Store Connect
         if: steps.gate.outputs.ready == 'true'
         shell: bash
@@ -110,7 +117,7 @@ jobs:
           <plist version="1.0"><dict><key>method</key><string>app-store-connect</string><key>destination</key><string>upload</string><key>signingStyle</key><string>automatic</string><key>teamID</key><string>${APPLE_TEAM_ID}</string></dict></plist>
           PLIST
           auth=(-authenticationKeyPath "$RUNNER_TEMP/AuthKey_${ASC_KEY_ID}.p8" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" -allowProvisioningUpdates)
-          xcodebuild -project packages/mobile/ios/App/App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Houston.xcarchive" DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CURRENT_PROJECT_VERSION="$NATIVE_BUILD" "${auth[@]}" archive
+          xcodebuild -project packages/mobile/ios/App/App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Houston.xcarchive" DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CURRENT_PROJECT_VERSION="$NATIVE_BUILD" MARKETING_VERSION="$MARKETING_VERSION" "${auth[@]}" archive
           xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Houston.xcarchive" -exportPath "$RUNNER_TEMP/export" -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" "${auth[@]}"
 
   android:
@@ -156,6 +163,8 @@ jobs:
         if: steps.gate.outputs.ready == 'true'
         with:
           ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
+          # Tags: a dispatch names its store version after the newest cloud-v tag.
+          fetch-depth: 0
       - uses: pnpm/action-setup@v6
         if: steps.gate.outputs.ready == 'true'
       - uses: actions/setup-node@v6
@@ -195,6 +204,7 @@ jobs:
           ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
           ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
           ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
           export HOUSTON_MOBILE_BUILTIN_SEQUENCE=$((GITHUB_RUN_ID * 100 + GITHUB_RUN_ATTEMPT))
@@ -203,7 +213,11 @@ jobs:
           test "$GITHUB_RUN_ATTEMPT" -lt 100
           test "$build" -ge "$(jq -r .required_native_build packages/mobile/native-compat.json)"
           echo "$ANDROID_UPLOAD_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/houston-upload.keystore"
+          tag=${RELEASE_TAG:-$(git describe --tags --match 'cloud-v[0-9]*' --abbrev=0)}
+          version=${tag#cloud-v}
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Release tag $tag names no x.y.z store version"; exit 1; }
           export HOUSTON_NATIVE_BUILD_NUMBER="$build"
+          export HOUSTON_NATIVE_VERSION_NAME="$version"
           export ANDROID_UPLOAD_KEYSTORE_PATH="$RUNNER_TEMP/houston-upload.keystore"
           cd packages/mobile/android
           ./gradlew bundleRelease

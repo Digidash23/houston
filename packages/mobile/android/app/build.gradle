@@ -10,7 +10,8 @@ android {
         // Parenthesised call: `versionCode (x).toInteger()` would parse as
         // `versionCode(x).toInteger()` and fail on null.
         versionCode((System.getenv('HOUSTON_NATIVE_BUILD_NUMBER') ?: '4').toInteger())
-        versionName "1.0"
+        // Store jobs name the version after the cloud-v release tag.
+        versionName(System.getenv('HOUSTON_NATIVE_VERSION_NAME') ?: '1.0')
         resValue "bool", "houston_firebase_config_present", file('google-services.json').exists() ? "true" : "false"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
