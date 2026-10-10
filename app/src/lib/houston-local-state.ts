@@ -43,6 +43,10 @@ export function purgeHoustonLocalState(storage: KeyedStorage): void {
  *  - `houston.cloudMigration.outcome` — this machine's desktop-to-cloud wizard
  *    outcome. The wizard moves THIS machine's `~/.houston` once; wiping it at
  *    sign-out re-offered the migration on every sign-in.
+ *  - `houston.ota.` — the mobile app's OTA anti-rollback state (highest
+ *    applied update and policy sequences, per-native-build baselines). It
+ *    belongs to the installation: wiping it lets a replayed, older signed
+ *    bundle install again and reseeds the floor from the wrong build.
  */
 const DEVICE_LOCAL_KEY_PREFIXES = [
   "houston.web.engine",
@@ -52,6 +56,7 @@ const DEVICE_LOCAL_KEY_PREFIXES = [
   "houston.pref.push.device_id",
   "houston.pref.notifications_enabled",
   "houston.cloudMigration.outcome",
+  "houston.ota.",
 ] as const;
 
 /** Remove every ACCOUNT-scoped `houston.*` key — prefs mirrors, sidebar

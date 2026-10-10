@@ -45,6 +45,8 @@ test("purgeAccountLocalState removes account traces, keeps device keys", () => {
     ["houston.pref.notifications_enabled", "false"],
     ["houston.pref.push.registration", "{}"],
     ["houston.cloudMigration.outcome", "done"],
+    ["houston.ota.sequence.production.12", "42"],
+    ["houston.ota.native_builtin_sequence.production.12", "40"],
     // Not ours — never touched.
     ["other-app.key", "keep"],
   ]);
@@ -53,6 +55,8 @@ test("purgeAccountLocalState removes account traces, keeps device keys", () => {
 
   assert.deepStrictEqual([...store.keys()].sort(), [
     "houston.cloudMigration.outcome",
+    "houston.ota.native_builtin_sequence.production.12",
+    "houston.ota.sequence.production.12",
     "houston.pendingAgentMoves",
     "houston.pref.notifications_enabled",
     "houston.pref.push.device_id",
