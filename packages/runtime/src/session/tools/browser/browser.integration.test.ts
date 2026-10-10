@@ -61,6 +61,8 @@ async function signIn(run: ReturnType<typeof tool>) {
 
 describe.skipIf(!available)(
   "browser tool against a real Chromium (skips when no Chromium-family browser is installed)",
+  // A stalled page and a stale ref each wait out the tool's own 5 s limit.
+  { timeout: 30_000 },
   () => {
     test("a sign-in survives closing the browser and a fresh process", async () => {
       const ws = workspace();
