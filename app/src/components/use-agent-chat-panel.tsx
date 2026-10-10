@@ -2321,43 +2321,50 @@ export function useAgentChatPanel({
     // labelled pills, so there the Skills entry lives in the composer's "+"
     // menu (see `attachMenu`), the effort pill is its gauge icon alone, and
     // the pickers drop their chevrons. On a phone each control is a 44px
-    // target, and the row scrolls sideways (scrollbar hidden) when a long
-    // model name or a translated mode will not fit. Desktop is unchanged.
+    // target, and the pickers scroll sideways (scrollbar hidden) when a long
+    // model name or a translated mode will not fit, while the context ring
+    // stays pinned at the right edge. The scroller's 2px phone padding keeps
+    // the pickers' focus rings inside its clip. Desktop is unchanged.
     return () => (
       <div
         data-testid="composer-toolbar"
-        className="flex w-full items-center gap-1 overflow-x-auto [scrollbar-width:none] md:gap-2 md:overflow-visible"
+        className="flex w-full items-center gap-1 md:gap-2"
       >
-        <button
-          type="button"
-          onClick={() => setPickerOpen(true)}
-          className="hidden md:inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-xs font-medium text-ink-muted whitespace-nowrap hover:text-ink hover:bg-hover transition-colors"
+        <div
+          data-testid="composer-toolbar-pickers"
+          className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto p-0.5 [scrollbar-width:none] md:gap-2 md:overflow-visible md:p-0"
         >
-          <Play className="size-3 fill-current" />
-          {t("composerSkill.browse")}
-        </button>
-        <ChatModeSelector
-          mode={turnMode}
-          onSelect={handleModeSelect}
-          agent={agent}
-        />
-        <ChatModelSelector
-          provider={displayModelPin.provider}
-          model={displayModelPin.model}
-          onSelect={selectModel}
-          open={modelPickerOpen}
-          onOpenChange={setModelPickerOpen}
-          agent={agent}
-          allowedModels={allowedModels}
-        />
-        <ChatEffortSelector
-          provider={displayModelPin.provider}
-          model={displayModelPin.model}
-          effort={displayModelPin.effort}
-          onSelect={selectEffort}
-          agent={agent}
-        />
-        <div className="ml-auto">
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            className="hidden md:inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-xs font-medium text-ink-muted whitespace-nowrap hover:text-ink hover:bg-hover transition-colors"
+          >
+            <Play className="size-3 fill-current" />
+            {t("composerSkill.browse")}
+          </button>
+          <ChatModeSelector
+            mode={turnMode}
+            onSelect={handleModeSelect}
+            agent={agent}
+          />
+          <ChatModelSelector
+            provider={displayModelPin.provider}
+            model={displayModelPin.model}
+            onSelect={selectModel}
+            open={modelPickerOpen}
+            onOpenChange={setModelPickerOpen}
+            agent={agent}
+            allowedModels={allowedModels}
+          />
+          <ChatEffortSelector
+            provider={displayModelPin.provider}
+            model={displayModelPin.model}
+            effort={displayModelPin.effort}
+            onSelect={selectEffort}
+            agent={agent}
+          />
+        </div>
+        <div className="shrink-0">
           <ContextIndicator
             usage={contextUsage}
             contextWindow={contextWindow}
