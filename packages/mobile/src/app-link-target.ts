@@ -1,6 +1,6 @@
 import { APP_LINK_PATHS } from "../../web/src/app-association";
 
-export type AppLinkTarget = "home" | "plan";
+export type AppLinkTarget = "home";
 
 export function appLinkTarget(value: string): AppLinkTarget | null {
   try {
@@ -17,7 +17,7 @@ export function appLinkTarget(value: string): AppLinkTarget | null {
       !APP_LINK_PATHS.includes(url.pathname as (typeof APP_LINK_PATHS)[number])
     )
       return null;
-    return url.pathname === "/" ? "home" : "plan";
+    return "home";
   } catch {
     return null;
   }

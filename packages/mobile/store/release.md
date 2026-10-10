@@ -38,8 +38,8 @@ a native capability change. Play requires a first app bundle uploaded through
 its Console before the API upload can create subsequent releases.
 
 The web production and staging builds generate `/.well-known` association files
-when `HOUSTON_APPLE_TEAM_ID` and `HOUSTON_ANDROID_CERT_SHA256` are set. Only `/`
-and `/settings/plan` open in the native app. Firebase Hosting serves both files
+when `HOUSTON_APPLE_TEAM_ID` and `HOUSTON_ANDROID_CERT_SHA256` are set. Only `/` opens in the
+native app; plan links stay on the web because the store app cannot sell plans. Firebase Hosting serves both files
 as JSON at `app.gethouston.ai`; absent values omit the respective file with a
 named build log. The iOS privacy manifest declares the app's collected data;
 Capacitor 8 ships its own privacy manifest. The app manifest includes the

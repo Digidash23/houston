@@ -11,7 +11,7 @@ test("associations include only the native link routes", () => {
       .details[0],
   ).toEqual({
     appIDs: ["TEAM123.ai.gethouston.app"],
-    components: [{ "/": "/" }, { "/": "/settings/plan" }],
+    components: [{ "/": "/" }],
   });
   expect(
     JSON.parse(assets[".well-known/assetlinks.json"])[0].target

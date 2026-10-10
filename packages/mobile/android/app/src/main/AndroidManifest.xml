@@ -24,7 +24,6 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="app.gethouston.ai" android:path="/" />
-                <data android:scheme="https" android:host="app.gethouston.ai" android:path="/settings/plan" />
             </intent-filter>
         </activity>
 

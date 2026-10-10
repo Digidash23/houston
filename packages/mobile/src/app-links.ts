@@ -11,9 +11,7 @@ export async function installAppLinks(): Promise<void> {
       pending = target;
       return;
     }
-    if (target === "home")
-      useUIStore.getState().openAgentsHome(null, { nav: "reset" });
-    else useUIStore.getState().openSettings("plan");
+    useUIStore.getState().openAgentsHome(null, { nav: "reset" });
   };
   useWorkspaceStore.subscribe((state) => {
     if (state.current && pending) {
