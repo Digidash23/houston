@@ -9,7 +9,7 @@ import type { AdmissionLimiter } from "./admission";
 import { executeOp } from "./execute-op";
 import { executeTurn } from "./execute-turn";
 import { parseTurnRequest } from "./parse-turn-request";
-import { json, readJson } from "./server-http";
+import { json, readJson, wireErrorMessage } from "./server-http";
 import type { TurnServerDeps } from "./server-types";
 import type { TurnRequest } from "./types";
 
@@ -51,7 +51,7 @@ export async function serveTurn(
     arrival.t_body_parsed = performance.now();
   } catch (error) {
     return json(res, 400, {
-      error: error instanceof Error ? error.message : String(error),
+      error: wireErrorMessage(error),
     });
   }
   // Local bash is enabled for the single-use worker's ONE claimed turn.

@@ -9,7 +9,12 @@
 import { createServer, type Server } from "node:http";
 import { AdmissionLimiter, turnConcurrency } from "./admission";
 import { makeLoginRunnerRoutes } from "./login-runner-routes";
-import { authorized, incarnationOK, json } from "./server-http";
+import {
+  authorized,
+  incarnationOK,
+  json,
+  wireErrorMessage,
+} from "./server-http";
 import { servePrewarm } from "./server-prewarm";
 import type { TurnServerDeps } from "./server-types";
 import { serveOp, serveTurn } from "./server-work";
@@ -92,7 +97,7 @@ export function createTurnServer(deps: TurnServerDeps): Server {
         await serveTurn(deps, admission, req, res, arrival);
       }
     })().catch((error) => {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = wireErrorMessage(error);
       console.error("[turn] unhandled:", message);
       if (!res.headersSent) json(res, 500, { error: message });
       else if (!res.writableEnded) res.end();
