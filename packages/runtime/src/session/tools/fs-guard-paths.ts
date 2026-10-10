@@ -91,3 +91,15 @@ export function realNearest(abs: string): string {
     }
   }
 }
+
+/** The roots that exist, in both forms; a missing root is simply not a root. */
+export function existingBoundaries(roots: string[] = []): RootBoundary[] {
+  return roots.flatMap((root): RootBoundary[] => {
+    try {
+      return [{ canonical: realpathSync(root), lexical: resolve(root) }];
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw error;
+    }
+  });
+}

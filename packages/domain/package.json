@@ -75,6 +75,10 @@
       "types": "./src/assistant-role.ts",
       "import": "./src/assistant-role.ts"
     },
+    "./uploads-dir": {
+      "types": "./src/uploads-dir.ts",
+      "import": "./src/uploads-dir.ts"
+    },
     "./assistant-capability-index": {
       "types": "./src/assistant-capability-index.generated.ts",
       "import": "./src/assistant-capability-index.generated.ts"

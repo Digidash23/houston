@@ -1,19 +1,26 @@
 import { realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { assertAllowedFile, assertContained } from "./fs-guard-containment";
+import { assertContained } from "./fs-guard-containment";
 import {
   BoardWriteDeniedError,
   RoutineWriteDeniedError,
   SharedSkillReadOnlyError,
 } from "./fs-guard-errors";
 import {
+  assertNarrowed,
+  assertNotReadOnly,
+  type Narrowing,
+  narrowingFor,
+} from "./fs-guard-narrow";
+import {
   contains,
+  existingBoundaries,
   type RootBoundary,
-  realNearest,
   resolveLikePi,
 } from "./fs-guard-paths";
 
 export {
+  AttachmentReadOnlyError,
   BoardWriteDeniedError,
   PathDeniedError,
   PathEscapeError,
@@ -45,10 +52,11 @@ const PROTECTED_WRITES = [
  * Containment is not the only shape a wall takes. A runtime whose whole job is
  * ONE document — the coordinator, which keeps no work of its own and only ever
  * consolidates its memory — gets `allowedFiles` instead: an exact list of the
- * documents its tools may touch, with every other path in the workspace, in the
- * shared mirror, and everywhere else refused. Narrowing to what a role actually
- * needs is what keeps a prompt injection there from rewriting a shared skill
- * every agent runs, or the runtime's own session records.
+ * documents its tools may touch, plus `readableDirs` it may only read (the
+ * attachments people send it), with every other path refused
+ * (fs-guard-narrow.ts). Narrowing to what a role actually needs is what keeps a
+ * prompt injection there from rewriting a shared skill every agent runs, or the
+ * runtime's own session records.
  *
  * Containment alone is NOT enough: the runtime's own dataDir sits INSIDE the
  * workspace root (`<agentDir>/.houston/runtime`, wired in the host's
@@ -81,6 +89,13 @@ export interface WorkspaceGuardOptions {
    * one — is judged by where it really points.
    */
   allowedFiles?: string[];
+  /**
+   * Folders INSIDE the workspace an `allowedFiles` runtime may read, never
+   * write: where the attachments people send it arrive. A folder need not exist
+   * yet (it appears with the first upload); a path in it is judged by its real
+   * location. Only meaningful alongside `allowedFiles`.
+   */
+  readableDirs?: string[];
 }
 
 export class WorkspaceGuard {
@@ -91,8 +106,8 @@ export class WorkspaceGuard {
   private readonly workspaceBoundary: RootBoundary;
   private readonly sharedBoundaries: RootBoundary[];
   private readonly readOnlyBoundaries: RootBoundary[];
-  /** Exact-file allowlist (empty = root containment governs). */
-  private readonly allowedFiles: RootBoundary[];
+  /** Exact files + read-only folders (null = root containment governs). */
+  private readonly narrowing: Narrowing | null;
 
   constructor(root: string, options?: WorkspaceGuardOptions) {
     this.workspaceBoundary = {
@@ -112,10 +127,11 @@ export class WorkspaceGuard {
     this.sharedRoots = this.sharedBoundaries.map(
       (boundary) => boundary.canonical,
     );
-    this.allowedFiles = (options?.allowedFiles ?? []).map((file) => ({
-      canonical: realNearest(resolve(file)),
-      lexical: resolve(file),
-    }));
+    this.narrowing = narrowingFor(
+      this.workspaceBoundary,
+      options?.allowedFiles,
+      options?.readableDirs,
+    );
   }
 
   /**
@@ -127,15 +143,8 @@ export class WorkspaceGuard {
    * on the runtime's credential files.
    */
   clamp(raw: string | undefined): string {
-    if (this.allowedFiles.length)
-      return assertAllowedFile(raw ?? ".", this.root, this.allowedFiles);
     const input = raw ?? ".";
-    return assertContained(
-      resolveLikePi(input, this.root),
-      input,
-      this.allowedRoots(),
-      this.root,
-    );
+    return this.judge(input, resolveLikePi(input, this.root));
   }
 
   /** Protected domain stores are changed through their tools. */
@@ -147,14 +156,7 @@ export class WorkspaceGuard {
 
   /** Guard a path pi already resolved (the operations-hook inner wall). */
   assertInside(absolutePath: string): string {
-    if (this.allowedFiles.length)
-      return assertAllowedFile(absolutePath, this.root, this.allowedFiles);
-    return assertContained(
-      resolve(absolutePath),
-      absolutePath,
-      this.allowedRoots(),
-      this.root,
-    );
+    return this.judge(absolutePath, resolve(absolutePath));
   }
 
   assertWritable(absolutePath: string): string {
@@ -175,25 +177,22 @@ export class WorkspaceGuard {
       if (contains(proven, canonical) || contains(proven, lexical))
         throw new SharedSkillReadOnlyError();
     }
+    assertNotReadOnly(proven, this.root, this.narrowing);
   }
 
-  private allowedRoots(): RootBoundary[] {
-    return [
-      this.workspaceBoundary,
-      ...this.sharedBoundaries,
-      ...this.readOnlyBoundaries,
-    ];
+  /** `raw` is the model's string (echoed in refusals), `abs` its resolution. */
+  private judge(raw: string, abs: string): string {
+    if (this.narrowing)
+      return assertNarrowed(raw, this.workspaceBoundary, this.narrowing);
+    return assertContained(
+      abs,
+      raw,
+      [
+        this.workspaceBoundary,
+        ...this.sharedBoundaries,
+        ...this.readOnlyBoundaries,
+      ],
+      this.root,
+    );
   }
-}
-
-/** The roots that exist, in both forms; a missing root is simply not a root. */
-function existingBoundaries(roots: string[] = []): RootBoundary[] {
-  return roots.flatMap((root): RootBoundary[] => {
-    try {
-      return [{ canonical: realpathSync(root), lexical: resolve(root) }];
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-      throw error;
-    }
-  });
 }
