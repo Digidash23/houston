@@ -1,24 +1,30 @@
+import { join } from "node:path";
 import { expect, test } from "vitest";
 import { fileToolGuardOptions, sharedRootsFor } from "./coordinator-policy";
 import { learningsDocPath } from "./learnings-context";
 
 /**
  * The coordinator produces no work, so it needs no working files: one document
- * (its memory) and nothing else. What this pins is the gap between that and an
+ * (its memory) to read and write, and the attachments people send it to read. What this pins is the gap between that and an
  * ordinary agent, whose workspace containment must stay exactly as it was.
  */
 
 const workspaceDir = "/data/ws/.assistant";
 const sharedSkillsDir = "/data/ws/.shared/skills";
 
-test("the coordinator's file tools are scoped to its memory document", () => {
+const coordinatorWall = {
+  allowedFiles: [learningsDocPath(workspaceDir)],
+  readableDirs: [join(workspaceDir, "uploads")],
+};
+
+test("the coordinator's file tools are scoped to its memory and its attachments", () => {
   expect(
     fileToolGuardOptions({
       role: "coordinator",
       workspaceDir,
       sharedSkillsDir,
     }),
-  ).toEqual({ allowedFiles: [learningsDocPath(workspaceDir)] });
+  ).toEqual(coordinatorWall);
 });
 
 test("the coordinator gets no shared skills root to write to", () => {
@@ -68,5 +74,5 @@ test("a pooled turn's shared skills snapshot is readable, never a writable root"
       sharedSkillsDir: "",
       sharedSkillsSnapshot: snapshot,
     }),
-  ).toEqual({ allowedFiles: [learningsDocPath(workspaceDir)] });
+  ).toEqual(coordinatorWall);
 });

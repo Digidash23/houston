@@ -189,6 +189,8 @@ export interface Capabilities {
   computeUsage?: boolean;
   /** C19 personal plan is configured on this deployment. */
   plan?: boolean;
+  /** C8 team seat billing is configured; absent, `/v1/org/billing*` only 503s. */
+  teamBilling?: boolean;
   /**
    * Whether this deployment can delete a team space (`DELETE /v1/orgs/:slug`,
    * PRODUCT-1410). A feature-detect flag the frontend reads to show the

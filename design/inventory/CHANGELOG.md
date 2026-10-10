@@ -3,7 +3,7 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
-## v129 - 2026-10-10
+## v130 - 2026-10-10
 
 The org chart looks like one. Between the hero and the ledger, Admin > Org
 chart draws the space at the top, its people under it, and each AI Employee
@@ -15,6 +15,14 @@ an indented outline. The cards fade up once and press in on tap. A Share pill op
 chart with a ready post for LinkedIn: Share on LinkedIn copies the post and
 opens the composer, Download image and Copy image hand over the picture,
 and phones get the native share sheet.
+
+## v129 - 2026-10-10
+
+Messaging channels settings shows separate Slack and WhatsApp provider cards.
+WhatsApp pairing offers a full-width phone link and a desktop QR code (dark on
+a light tile in every theme) for the prefilled message, with a copyable command
+and a waiting state that lasts as long as the code and clears once the
+connection lands.
 
 ## v128 - 2026-10-09
 
