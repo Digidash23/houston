@@ -38,12 +38,15 @@ test("a native fingerprint change moves the OTA floor past every older build", (
   expect(compat.required_native_build).toBeGreaterThanOrEqual(
     compat.min_native_build,
   );
+  // Local builds (including the hand-uploaded first Play bundle) sit one below
+  // the first CI store build, so they never reuse its versionCode.
+  const local = compat.min_native_build - 1;
   expect(readFileSync("android/app/build.gradle", "utf8")).toContain(
-    `System.getenv('HOUSTON_NATIVE_BUILD_NUMBER') ?: '${compat.required_native_build}'`,
+    `System.getenv('HOUSTON_NATIVE_BUILD_NUMBER') ?: '${local}'`,
   );
   expect(
     readFileSync("ios/App/App.xcodeproj/project.pbxproj", "utf8"),
-  ).toContain(`CURRENT_PROJECT_VERSION = ${compat.required_native_build};`);
+  ).toContain(`CURRENT_PROJECT_VERSION = ${local};`);
 });
 
 test("the fingerprint reads resolved plugin versions, not package.json ranges", () => {

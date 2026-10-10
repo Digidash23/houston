@@ -69,10 +69,13 @@ Once the new store builds are live for everyone on both stores, run
 lowest live store build number). It re-signs the channel's current bundle with
 the higher floor; it refuses a value at or below the current one.
 
-The committed `native-compat.json`, Xcode `CURRENT_PROJECT_VERSION`, and Gradle
-`versionCode` remain the native compatibility floor (currently 101, the first CI store build number): OTA bundles
-skip builds below `min_native_build`, and store uploads must be at least
-`required_native_build`. Store jobs
+The committed `native-compat.json` holds the native compatibility floor
+(currently 101, the first CI store build number): OTA bundles skip builds below
+`min_native_build`, and store uploads must be at least `required_native_build`.
+Xcode `CURRENT_PROJECT_VERSION` and the Gradle `versionCode` default sit one
+below it (100), so a local build, including the first Play bundle uploaded by
+hand through the Console, never takes the versionCode the first CI run (101)
+uploads. Local builds therefore receive no OTA bundles. Store jobs
 override the upload build number with `github.run_number * 100 +
 github.run_attempt`, after checking it is at least `required_native_build`.
 The run number rises across workflow runs and the attempt rises on reruns;
@@ -80,8 +83,8 @@ attempts must stay below 100. The store version (Xcode `MARKETING_VERSION`,
 Gradle `versionName`) is the release tag without `cloud-v` (`cloud-v1.0.7`
 uploads `1.0.7`); a `main` dispatch uses the highest `cloud-v*` tag by version, so once that
 version is approved, cut a new release instead of dispatching. The committed
-`1.0` is only the local-build default. Advance all three committed values together for
-a native change, to a build above every store build already uploaded, and
+`1.0` is only the local-build default. For a native change, move the floor above every store build already uploaded
+(and the Xcode and Gradle defaults to one below it), and
 append the new fingerprint to `src/native-compat.test.ts`. Play requires a first app bundle uploaded through
 its Console before the API upload can create subsequent releases.
 
