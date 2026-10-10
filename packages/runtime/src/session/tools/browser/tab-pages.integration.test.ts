@@ -22,7 +22,7 @@ const site = createServer((req, res) => {
       : step >= 0
         ? // Each popup's button opens the next: a chain of openers.
           `<title>Chain ${step}</title><button onclick="window.open('/chain/${step + 1}')">Next</button>`
-        : `<title>Popup</title><h1>${req.url}</h1>`,
+        : "<title>Popup</title><h1>Popup</h1>",
   );
 });
 const origin = available ? `http://${SITE_HOST}:${await listen(site)}` : "";
