@@ -2320,11 +2320,13 @@ export function useAgentChatPanel({
     // ONE row at both breakpoints. A phone composer has no room for five
     // labelled pills, so there the Skills entry lives in the composer's "+"
     // menu (see `attachMenu`), the effort pill is its gauge icon alone, and
-    // the pickers drop their chevrons. Desktop is unchanged.
+    // the pickers drop their chevrons. On a phone each control is a 44px
+    // target, and the row scrolls sideways (scrollbar hidden) when a long
+    // model name or a translated mode will not fit. Desktop is unchanged.
     return () => (
       <div
         data-testid="composer-toolbar"
-        className="flex w-full items-center gap-1 md:gap-2"
+        className="flex w-full items-center gap-1 overflow-x-auto [scrollbar-width:none] md:gap-2 md:overflow-visible"
       >
         <button
           type="button"
