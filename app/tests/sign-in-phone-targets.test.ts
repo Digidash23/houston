@@ -87,6 +87,8 @@ describe("sign-in phone tap targets", () => {
     ok(pills.length > 0);
     for (const c of pills) {
       ok(c.includes("h-11") && c.includes("md:h-10"), c.join(" "));
+      // flex-1 in the phone's column would collapse the 44px height.
+      ok(!c.includes("flex-1") && c.includes("md:flex-1"), c.join(" "));
       assertPhonePress(c);
     }
   });
