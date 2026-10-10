@@ -59,7 +59,6 @@ const parts = (over: Partial<Parts>): Parts => ({
   header: null,
   personal: null,
   signOut: null,
-  menu: null,
   identity: null,
   actions: [],
   ...over,

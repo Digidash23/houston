@@ -67,8 +67,6 @@ export interface AccountMenuParts {
   personal: ReactNode;
   /** A separator, then Sign out; null without an identity. */
   signOut: ReactNode;
-  /** The whole menu, the parts in order. */
-  menu: ReactNode;
   /** Who is signed in; null without an identity. */
   identity: { name: string; email: string } | null;
   /** Profile, About me, then Sign out: what the phone's account page lists. */
@@ -78,9 +76,9 @@ export interface AccountMenuParts {
 /**
  * The person's own menu, shared by the rail's account row
  * (`sidebar-workspace-menu.tsx`, which sets its parts among the workspaces
- * and the destinations) and the phone's More card (`mobile-more-row.tsx`, the
- * account row, which opens `menu` whole), so both breakpoints offer the same
- * things.
+ * and the destinations) and the phone's More card (`mobile-more-account.tsx`,
+ * the account page its account row drills into, which lists `actions`), so
+ * both breakpoints offer the same things.
  *
  * Headed by who is signed in, it holds what the account itself needs: the
  * person's Profile (name and picture, where the deployment serves it), About
@@ -159,13 +157,6 @@ export function useAccountMenu(opts: {
     header: header || null,
     personal,
     signOut: signOutRow || null,
-    menu: (
-      <>
-        {header}
-        {personal}
-        {signOutRow}
-      </>
-    ),
     identity: profile
       ? { name: profile.name, email: session?.email ?? "" }
       : null,
