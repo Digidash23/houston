@@ -18,7 +18,11 @@ import { contains, type RootBoundary, realNearest } from "./fs-guard-paths";
  * `auth.json` is refused too, which is the safe direction for a wall whose
  * failure mode is leaking every team member's access token.
  */
-const DENIED_SEGMENTS = new Set(["auth.json", "auth-users", "claude-login"]);
+export const DENIED_SEGMENTS: ReadonlySet<string> = new Set([
+  "auth.json",
+  "auth-users",
+  "claude-login",
+]);
 
 /**
  * Whether any segment of `abs` BELOW the allowed root it sits in names

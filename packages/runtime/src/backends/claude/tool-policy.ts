@@ -1,4 +1,5 @@
 import type { TurnMode } from "@houston/protocol";
+import { CREDENTIAL_PERMISSION_RULES } from "./credential-rules";
 
 // The permission gate lives beside this policy; re-exported so callers keep one
 // import site for "the Claude backend's tool rules".
@@ -93,8 +94,23 @@ export interface ToolPolicy {
   disallowedTools: string[];
 }
 
-/** Build the `{ tools, disallowedTools }` SDK options (this object sets no `allowedTools` — see above). */
+/**
+ * Build the `{ tools, disallowedTools }` SDK options (this object sets no
+ * `allowedTools`, see above). Every policy also carries the credential deny
+ * rules (credential-rules.ts).
+ */
 export function buildToolPolicy(input: ToolPolicyInput): ToolPolicy {
+  const policy = builtInPolicy(input);
+  return {
+    tools: policy.tools,
+    disallowedTools: [
+      ...policy.disallowedTools,
+      ...CREDENTIAL_PERMISSION_RULES,
+    ],
+  };
+}
+
+function builtInPolicy(input: ToolPolicyInput): ToolPolicy {
   // Plan mode: read-only built-ins only, and deny every write/exec tool. We do
   // NOT switch the SDK to permissionMode "plan" — that forces the ExitPlanMode
   // tool (which pi lacks) and the SDK's own plan prompt; Houston keeps

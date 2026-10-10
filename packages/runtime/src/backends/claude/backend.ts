@@ -146,13 +146,9 @@ export function createClaudeBackend(deps: ClaudeBackendDeps): HarnessBackend {
         // BUILT-INS; MCP tools ride alongside and are not filtered by it.
         mcpServers: { [HOUSTON_MCP_SERVER_NAME]: houstonMcp.server },
         allowedTools: houstonMcp.allowedTools,
-        // End the turn after a tool batch in which an offer tool ran after
-        // the closing message — the pi path's `terminate` hint, mirrored.
-        hooks: buildSessionHooks(deps.beforeTool),
-        // The role's file policy, whole: an ordinary agent's shared writable
-        // roots, or the coordinator's exact-file allowlist (which replaces root
-        // containment entirely, so its memory document is the only file this
-        // backend's tools can reach).
+        // The turn-end stop, plus the workspace guard on every tool call, built
+        // from the same `fileGuard` policy as `canUseTool` (tool-gate-hook.ts).
+        hooks: buildSessionHooks(deps),
         canUseTool: makeCanUseTool(deps.workspaceDir, deps.fileGuard),
         systemPrompt: buildSystemPrompt(
           deps.workspaceDir,
