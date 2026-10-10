@@ -39,12 +39,21 @@ function isTeamCredential(err: ProviderError): boolean {
 /**
  * The typed failure for a turn's provider error, or undefined when the error
  * is not a wall a person has to clear: a rate limit, an outage, a network
- * blip, an overflowing conversation, a usage window that resets by itself.
- * Those leave the run's story in its summary and never count toward a pause.
+ * blip, an overflowing conversation. Those leave the run's story in its
+ * summary and never count toward a pause. A plan usage window that resets by
+ * itself is typed too (`usage_limit`), not for the pause streak (it skips it)
+ * but for the snooze that stops firing until the reset (routine-snooze.ts).
  */
 export function routineRunFailure(
   err: ProviderError,
 ): RoutineRunFailure | undefined {
+  if (err.kind === "usage_limit_paused")
+    return {
+      code: "usage_limit",
+      provider: err.provider,
+      model: err.model,
+      resets_at: err.resets_at,
+    };
   if (err.kind === "quota_exhausted")
     return { code: "out_of_credits", provider: err.provider };
   if (err.kind === "model_unavailable")
@@ -105,9 +114,10 @@ const startedMs = (run: RoutineRun): number => {
  * - a run that answered (silent or surfaced) ends the streak — it recovered;
  * - a typed failure of another kind or provider ends it too (a new wall);
  * - an error with no typed failure (a timeout, an outage, a rate limit), a
- *   fire cloud could not deliver in time (`delivery_failure`: our capacity,
- *   never the person's account) and a run someone stopped neither count nor
- *   end it;
+ *   usage limit that resets by itself (`usage_limit`, which snoozes instead),
+ *   a fire cloud never started (`delivery_failure`: no worker in time, or a
+ *   creator who lost access to the agent, never an account the run used)
+ *   and a run someone stopped neither count nor end it;
  * - runs that started before the routine's last edit are not counted, so
  *   resuming (or fixing the routine's model) starts the count from zero.
  */
@@ -123,12 +133,13 @@ export function routineAutoPause(
     .filter((r) => r.routine_id === routine.id && r.status !== "running")
     .filter((r) => startedMs(r) >= since)
     .sort((a, b) => startedMs(b) - startedMs(a));
-  let wall: RoutineRunFailure | undefined;
+  // Only walls a person clears can start a streak; a usage limit snoozes.
+  let wall: Exclude<RoutineRunFailure, { code: "usage_limit" }> | undefined;
   let failures = 0;
   for (const run of finished) {
     if (run.status === "cancelled") continue;
     if (run.status !== "error") break;
-    if (!run.failure) continue;
+    if (!run.failure || run.failure.code === "usage_limit") continue;
     wall ??= run.failure;
     if (!sameWall(run.failure, wall)) break;
     failures++;

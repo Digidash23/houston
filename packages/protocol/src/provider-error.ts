@@ -4,72 +4,27 @@
  * assistant message (`ChatMessage.providerError`, conversation.ts).
  */
 
-/**
- * Why an `unauthenticated` provider error happened. Mirrors the frontend
- * `AuthFailureCause` (`@houston-ai/chat`) so the typed reconnect card reads it
- * straight off the wire and picks the right body copy + reconnect lifecycle.
- *
- * - `no_credentials` — never connected (surfaced separately at send time, not
- *   from a live turn).
- * - `token_expired` — the credential lapsed; logging in again recovers it.
- * - `token_revoked` — the provider ended the session server-side (the terminal
- *   session-kill, e.g. Codex `app_session_terminated` / "your session has ended").
- * - `invalid_api_key` — a pasted key the provider rejected.
- * - `org_policy_blocked` — the provider's organization/policy blocked
- *   subscription access for this environment (Anthropic's
- *   `oauth_org_not_allowed`, e.g. subscription OAuth denied from datacenter
- *   IPs). The credential itself is not the problem, so reconnecting does NOT
- *   heal it; the remedy is connecting with an API key instead.
- */
-export type AuthFailureCause =
-  | "no_credentials"
-  | "token_expired"
-  | "token_revoked"
-  | "invalid_api_key"
-  | "org_policy_blocked"
-  | "unknown";
+import type {
+  AuthFailureCause,
+  ModelUnavailableReason,
+  ProviderErrorCredential,
+  QuotaScope,
+} from "./provider-error-parts";
 
 /**
- * Why a `model_unavailable` provider error happened. Mirrors the frontend
- * `ModelUnavailableReason` (`@houston-ai/chat`) so the wire shape stays
- * assignable to the card's union. The runtime can't always tell the precise
- * sub-reason from the gateway's flat string (GitHub Copilot just says
- * `model_not_supported`), so `unknown` is the common case; the actionable detail
- * is the `suggested_fallback`, not this tag.
+ * The `code` the gateway's credential serve, the host's own sandbox serve and
+ * the pool's send refusal all carry for a provider that blocks the account
+ * behind an intact credential (`billing_locked` in AuthFailureCause). One
+ * constant so the host, the runtime's serve probe and the SDK read one string.
  */
-export type ModelUnavailableReason =
-  | "preview_gated"
-  | "deprecated"
-  | "region_restricted"
-  // Azure OpenAI's DeploymentNotFound: the RESOURCE has no deployment named
-  // after the model. Switching models cannot help until the user deploys one
-  // (deployment name must equal the model id), so the card must say "deploy
-  // it", not "pick another".
-  | "not_deployed"
-  | "unknown";
+export const PROVIDER_ACCOUNT_BLOCKED_CODE = "provider_account_blocked";
 
-/**
- * How a `quota_exhausted` limit is scoped. Mirrors the frontend `QuotaScope`
- * (`@houston-ai/chat`). Informational today — the card copy keys off `resets_at`,
- * not this.
- */
-export type QuotaScope = "free_tier" | "paid_plan" | "organization" | "unknown";
-
-/**
- * WHICH credential ran the failed turn. Present only on a managed-cloud turn
- * that carried an acting identity — absent on desktop, self-host, and any turn
- * with no acting identity, where there is exactly one credential and nothing to
- * name.
- *
- * It exists so a failure card can be HONEST about whose account hit the wall
- * (HOU-976): in a team space every turn runs on the acting member's own AI
- * account, so "your Anthropic account is rate limited" is a true sentence and a
- * generic one is not. There is no fallback to offer — a team space has no shared
- * AI credential — so this only names, it never unlocks an action.
- */
-export interface ProviderErrorCredential {
-  scope: "personal" | "team";
-}
+export type {
+  AuthFailureCause,
+  ModelUnavailableReason,
+  ProviderErrorCredential,
+  QuotaScope,
+} from "./provider-error-parts";
 
 /**
  * A typed provider/auth/model failure for a turn's model request. Mirrors the
@@ -112,6 +67,27 @@ export type ProviderError =
       provider: string;
       model: string | null;
       retry_after_seconds: number | null;
+      message: string;
+      /** WHOSE credential ran this turn (HOU-976); absent without an acting identity. */
+      credential?: ProviderErrorCredential;
+    }
+  | {
+      /**
+       * A subscription plan's usage window is used up: Anthropic's 5-hour
+       * session limit and its weekly per-model limits (Claude Code reports
+       * both as a `rate_limit` with `rate_limit_info.status: "rejected"`).
+       * Distinct from `rate_limited` (seconds to wait, retrying is the
+       * remedy) and from `quota_exhausted` (nothing comes back on its own,
+       * pay or switch): here nothing is owed and retrying fails until
+       * `resets_at`, so the remedies are waiting or running another model.
+       * The routine scheduler snoozes a routine until the reset on this kind
+       * (domain `routine-snooze.ts`) instead of firing into the wall.
+       */
+      kind: "usage_limit_paused";
+      provider: string;
+      model: string | null;
+      /** ISO 8601 reset instant when the provider named one; null = unknown. */
+      resets_at: string | null;
       message: string;
       /** WHOSE credential ran this turn (HOU-976); absent without an acting identity. */
       credential?: ProviderErrorCredential;

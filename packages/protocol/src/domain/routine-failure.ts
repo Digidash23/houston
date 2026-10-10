@@ -24,9 +24,15 @@ export type RoutineAccountFailureCode =
  * Every typed reason a routine run failed. `no_model`: the routine names no
  * model (it predates per-routine models, PRODUCT-1982) and the agent has no
  * saved provider to fall back on, so there is no provider to name; choosing a
- * model for the routine fixes it.
+ * model for the routine fixes it. `usage_limit`: the account's subscription
+ * plan used up its usage window (Anthropic's 5-hour session or weekly model
+ * limit); it heals by itself at `resets_at`, so it never counts toward an
+ * auto-pause and instead snoozes the routine (`Routine.snoozed`).
  */
-export type RoutineRunFailureCode = RoutineAccountFailureCode | "no_model";
+export type RoutineRunFailureCode =
+  | RoutineAccountFailureCode
+  | "no_model"
+  | "usage_limit";
 
 export type RoutineRunFailure =
   | {
@@ -34,10 +40,50 @@ export type RoutineRunFailure =
       /** The provider id the run needed (e.g. "anthropic"). */
       provider: string;
     }
-  | { code: "no_model" };
+  | { code: "no_model" }
+  | {
+      code: "usage_limit";
+      /** The provider id whose plan limit the run hit (e.g. "anthropic"). */
+      provider: string;
+      /** The model the limit applies to, when the turn named one. */
+      model: string | null;
+      /** ISO 8601 instant the provider said the limit resets; null = unknown. */
+      resets_at: string | null;
+    };
 
-/** Delivery failures never contribute to credential auto-pause streaks. */
-export type RoutineDeliveryFailureCode = "pool_delivery_expired";
+/**
+ * An engine-written hold on a routine's fires that expires by the clock (see
+ * `Routine.snoozed`). Unlike `auto_paused` it leaves `enabled` true: the wall
+ * clears by itself at `until`, so no one has to resume it and no writer has
+ * to clear it (a podless cloud agent has none). Fires whose instant is before
+ * `until` are skipped by every scheduler; a change of the routine's model or
+ * provider, or a resume, removes it. A stale snooze (its `until` passed) is
+ * inert and may be left in place.
+ */
+export interface RoutineSnooze {
+  /** Why: the only reason today is a plan usage window the run used up. */
+  reason: "usage_limit";
+  /** The provider id whose limit it is (e.g. "anthropic"). */
+  provider: string;
+  /** The model the limit applies to, when the failed turn named one. */
+  model: string | null;
+  /** ISO time fires resume: the provider's reset, else a bounded wait. */
+  until: string;
+  /** ISO time the engine snoozed the routine. */
+  at: string;
+}
+
+/**
+ * Why cloud never started a fire. Delivery failures never contribute to
+ * credential auto-pause streaks. `pool_delivery_expired`: no worker took the
+ * fire before its deadline; running it again is the remedy.
+ * `creator_no_access`: the person the routine runs as can no longer use the
+ * agent; any save of the routine (pausing and resuming it included) makes
+ * the saver its creator.
+ */
+export type RoutineDeliveryFailureCode =
+  | "pool_delivery_expired"
+  | "creator_no_access";
 
 export interface RoutineDeliveryFailure {
   code: RoutineDeliveryFailureCode;

@@ -58,8 +58,7 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
     connect.isPending ||
     complete.isPending ||
     link.isPending ||
-    linkWhatsApp.isPending ||
-    disconnect.isPending;
+    linkWhatsApp.isPending;
   const completionFailed = slackCompletionResult(
     landed,
     slackCompletionFailure(complete.error),
@@ -171,7 +170,6 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
             connect.reset();
             link.reset();
             linkWhatsApp.reset();
-            disconnect.reset();
           }
           complete.reset();
           void query.refetch();
@@ -183,7 +181,7 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
         target={target}
         providers={query.data?.providers ?? []}
         onClose={() => setTarget(null)}
-        onConfirm={(connection) => disconnect.mutate(connection.id)}
+        onConfirm={(connection) => disconnect(connection.id)}
       />
     </section>
   );

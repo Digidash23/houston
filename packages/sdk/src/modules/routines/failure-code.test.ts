@@ -8,6 +8,12 @@ test("delivery expiry is classified separately from account failures", () => {
   ).toBe("pool_delivery_expired");
 });
 
+test("a fire refused for its creator's access is its own delivery code", () => {
+  expect(
+    routineFailureCode({ delivery_failure: { code: "creator_no_access" } }),
+  ).toBe("creator_no_access");
+});
+
 const accountCodes: RoutineAccountFailureCode[] = [
   "creator_not_connected",
   "team_not_connected",

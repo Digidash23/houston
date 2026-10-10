@@ -77,7 +77,7 @@ test("the poll never adopts a summary marker written while the turn still runs",
     [...earlier, ours, pendingMarker],
     adopted,
   );
-  expect(settled).toBe(false);
+  expect(settled).toBe("pending");
   expect(s.settled).toBe(false);
   expect(items).toEqual([]);
   expect(adopted).toEqual([]);
@@ -101,7 +101,7 @@ test("the poll derives the turn id from our user row and adopts the turn's final
     ],
     adopted,
   );
-  expect(settled).toBe(true);
+  expect(settled).toBe("settled");
   expect(adopted).toEqual(["t-1"]);
   const final = items.find((i) => i.feed_type === "final_result")?.data as {
     result: string;
@@ -119,7 +119,7 @@ test("the poll does not adopt another turn's reply when our row is not the newes
     ],
     [],
   );
-  expect(settled).toBe(false);
+  expect(settled).toBe("pending");
 });
 
 test("a lost terminal with a pending summary trailing does not settle on it", async () => {
@@ -147,7 +147,7 @@ test("a history without turn ids keeps the legacy trailing-reply settle", async 
     ],
     [],
   );
-  expect(settled).toBe(true);
+  expect(settled).toBe("settled");
   const final = items.find((i) => i.feed_type === "final_result")?.data as {
     result: string;
   };
@@ -167,7 +167,7 @@ test("a mixed history keeps the legacy settle for our own id-less turn", async (
     ],
     [],
   );
-  expect(settled).toBe(true);
+  expect(settled).toBe("settled");
   const final = items.find((i) => i.feed_type === "final_result")?.data as {
     result: string;
   };
@@ -181,5 +181,5 @@ test("an id-less turn never settles on a pending summary marker either", async (
     [...earlier, { role: "user", content: PROMPT, ts: 3 }, pendingMarker],
     [],
   );
-  expect(settled).toBe(false);
+  expect(settled).toBe("pending");
 });

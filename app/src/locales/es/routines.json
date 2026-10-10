@@ -142,7 +142,10 @@
       "outOfCredits": "La cuenta de {{provider}} se quedó sin créditos.",
       "modelUnavailable": "La cuenta de {{provider}} no puede usar el modelo de esta rutina.",
       "noModel": "Esta rutina no tiene un modelo elegido y la cuenta de IA que usaría no está conectada.",
-      "poolDeliveryExpired": "Esta ejecución no pudo iniciar a tiempo y se omitió. Puedes ejecutar la rutina de nuevo."
+      "usageLimit": "El plan de {{provider}} llegó a su límite de uso. Las ejecuciones continúan a partir de {{time}}.",
+      "usageLimitNoReset": "El plan de {{provider}} llegó a su límite de uso. Las ejecuciones continúan cuando se restablezca.",
+      "poolDeliveryExpired": "Esta ejecución no pudo iniciar a tiempo y se omitió. Puedes ejecutar la rutina de nuevo.",
+      "creatorNoAccess": "Esta rutina la creó alguien que ya no puede usar este empleado de IA. Pausa la rutina y reanúdala para que se ejecute como tú."
     },
     "autoPause": {
       "chip": "En pausa",
@@ -156,6 +159,12 @@
       "changeModel": "La cuenta de {{provider}} no puede usar el modelo de esta rutina. Elige un modelo que la cuenta pueda usar y luego reanuda la rutina.",
       "chooseModel": "Esta rutina no tiene un modelo elegido y la cuenta de IA que usaría no está conectada. Elige un modelo en la sección Modelo y luego reanuda la rutina.",
       "resume": "Reanudar"
+    },
+    "snooze": {
+      "chip": "En pausa hasta {{time}}",
+      "title": "En pausa hasta {{time}}",
+      "body": "El plan de {{provider}} con el que corre esta rutina llegó a su límite de uso. Las ejecuciones continúan solas a partir de {{time}}. Para que siga funcionando ahora, elige otro modelo en la sección Modelo.",
+      "bodyWithModel": "El plan de {{provider}} llegó a su límite para {{model}}. Las ejecuciones continúan solas a partir de {{time}}. Para que siga funcionando ahora, elige otro modelo en la sección Modelo."
     }
   },
   "row": {
@@ -260,6 +269,8 @@
     "reconnect": "Reconectar",
     "statusDisconnectedHint": "La cuenta conectada se desconectó.",
     "statusRevokedHint": "Esta app se desactivó para este empleado de IA.",
+    "statusTriggerGoneHint": "La app ya no ofrece este evento. Edita esta rutina y elige otro evento.",
+    "statusConfigRejectedHint": "La app rechazó la configuración de este evento. Seguiremos intentando; si no empieza a funcionar, edita la configuración de la rutina.",
     "rowSummary": "Se activa con un evento en {{app}}",
     "loadFailed": "No se pudieron cargar los activadores de eventos",
     "webhookRowSummary": "Se activa cuando llaman a su dirección de webhook"
@@ -269,7 +280,13 @@
     "timezoneError": "No se pudo actualizar la zona horaria",
     "discardError": "No se pudo descartar el borrador",
     "modelError": "No se pudo cambiar el modelo",
-    "updateError": "No se pudo guardar la rutina"
+    "updateError": "No se pudo guardar la rutina",
+    "deleteError": "No se pudo eliminar la rutina",
+    "deleteErrorBody": "Volvió a la lista. Inténtalo de nuevo en un momento.",
+    "runError": "No se pudo iniciar la rutina",
+    "runErrorBody": "No se ejecutó. Inténtalo de nuevo en un momento.",
+    "stopError": "No se pudo detener la ejecución",
+    "stopErrorBody": "Es posible que siga en curso. Inténtalo de nuevo en un momento."
   },
   "webhook": {
     "createAddress": "Crear dirección de webhook",

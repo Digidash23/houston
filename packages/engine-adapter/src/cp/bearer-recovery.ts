@@ -1,6 +1,13 @@
 import { SIGNED_OUT_ERROR } from "../client/errors";
-import { hasSessionRefresher, refreshLiveToken } from "../session-refresh";
+import { hasSessionRefresher } from "../session-refresh";
+import {
+  inControlPlaneMode,
+  refreshUsableBearer,
+  resetDiscardedBearers,
+} from "./refresh-bearer";
 import { resetRejectedMints, settleRejectedMint } from "./rejected-mint";
+
+export { inControlPlaneMode };
 
 /**
  * The 401 half of `gatewayAuthFetch` (`./fetch.ts`): what to do once the
@@ -51,14 +58,8 @@ export function wasBearerRejected(bearer: string): boolean {
 export function resetRejectedBearers(): void {
   rejectedBearers.length = 0;
   resetRejectedMints();
+  resetDiscardedBearers();
 }
-
-/** True in hosted control-plane mode (the cloud web app and the desktop cloud
- *  profile both set the flag). Local hosts never set it, so the signed-out
- *  short-circuit cannot affect them. */
-export const inControlPlaneMode = (): boolean =>
-  typeof window !== "undefined" &&
-  (window as { __HOUSTON_CP__?: boolean }).__HOUSTON_CP__ === true;
 
 /** The local answer for a hosted call attempted with no session: the same 401
  *  shape a gateway rejection produces, minted WITHOUT a network round trip.
@@ -71,32 +72,6 @@ export const signedOutResponse = () =>
     status: 401,
     headers: { "Content-Type": "application/json" },
   });
-
-const nextMacrotask = () => new Promise<void>((r) => setTimeout(r, 0));
-
-/**
- * Ask the session refresher for a bearer, giving a hosted page ONE extra
- * macrotask when the refresher is not installed at the instant a 401 lands.
- *
- * Observed in the field (PRODUCT-1737): after a laptop wake, the first 401
- * response processed found no refresher on the window and surfaced the
- * gateway's raw answer, while its sibling responses two milliseconds later
- * refreshed and replayed normally. The gap is a single turn of the event loop,
- * so that is what this waits — never longer, and never at all when the
- * refresher is where it belongs. A page that still has no refresher after the
- * tick is a static-token host or the pre-mount boot window, and the warn is
- * the breadcrumb that tells the next Sentry event which of the two it was.
- */
-async function refreshBearer(): Promise<string | null> {
-  const fresh = await refreshLiveToken();
-  if (fresh || !inControlPlaneMode() || hasSessionRefresher()) return fresh;
-  await nextMacrotask();
-  if (hasSessionRefresher()) return refreshLiveToken();
-  console.warn(
-    "[gateway-auth] 401 with no session refresher installed on a hosted page; surfacing the gateway's answer as-is",
-  );
-  return null;
-}
 
 /**
  * Settle a gateway response: anything but a 401 stands (and clears its bearer
@@ -134,7 +109,9 @@ export function settleGatewayResponse(
  * replayed once; a 401 to THAT replay is verified once more after a beat, and
  * only a bearer refused twice is returned raw — by one caller, so a fresh mint
  * the gateway keeps rejecting still surfaces as the real bug it is, without a
- * report per query (PRODUCT-1812).
+ * report per query (PRODUCT-1812). A refreshed bearer whose own `exp` is
+ * already past never reaches that path at all: `./refresh-bearer.ts` asks the
+ * refresher once more before anything is sent (HOUSTON-APP-5HZ).
  */
 export async function recoverFromUnauthorized(
   res: Response,
@@ -142,7 +119,7 @@ export async function recoverFromUnauthorized(
   send: (bearer: string) => Promise<Response>,
 ): Promise<Response> {
   noteBearerRejected(bearer);
-  const fresh = await refreshBearer();
+  const fresh = await refreshUsableBearer();
   const quiet = () =>
     inControlPlaneMode() && hasSessionRefresher() ? signedOutResponse() : res;
   if (!fresh) return quiet();

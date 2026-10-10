@@ -399,7 +399,11 @@
     "search": "Buscar",
     "firstDay": "Empieza su primer día",
     "working": "Trabajando…",
-    "newAgent": "Nuevo"
+    "newAgent": "Nuevo",
+    "layoutSaveFailed": {
+      "title": "No se pudo guardar tu barra lateral",
+      "description": "Volvió a como estaba. Inténtalo de nuevo en un momento."
+    }
   },
   "accountMenu": {
     "profile": "Perfil",
@@ -454,6 +458,8 @@
     "genericDescription": "Algo inesperado salió mal. Inténtalo de nuevo.",
     "offlineTitle": "Sin conexión",
     "offlineDescription": "No podemos conectarnos en este momento. Revisa tu conexión a internet e inténtalo de nuevo.",
+    "uploadInterruptedTitle": "La subida no terminó",
+    "uploadInterruptedDescription": "Tus archivos no terminaron de subirse. Revisa tu conexión e inténtalo de nuevo. Los archivos grandes pueden tardar unos minutos con una conexión lenta.",
     "engineWakingTitle": "Tu empleado de IA se está despertando",
     "engineWakingDescription": "Suele tardar unos 20 segundos. No necesitas enviar tu mensaje de nuevo.",
     "updateStuckTitle": "Las actualizaciones no te llegan",
@@ -599,6 +605,9 @@
       "titleOrgPolicy": "{{provider}} bloqueó el acceso por suscripción",
       "bodyOrgPolicyBlocked": "{{provider}} no permite usar tu suscripción aquí, así que iniciar sesión de nuevo no va a ayudar. Agrega una clave de API de {{provider}} en la página Modelos de IA para seguir trabajando.",
       "useApiKey": "Usar una clave de API",
+      "titleBillingLocked": "La facturación de {{provider}} está bloqueada",
+      "bodyBillingLocked": "La facturación de tu cuenta de {{provider}} se bloqueó después de un pago fallido, así que volver a iniciar sesión no ayudará. Resuelve el pago con {{provider}} o elige otra IA en la página Modelos de IA para seguir trabajando.",
+      "chooseAnotherAi": "Elegir otra IA",
       "reconnect": "Reconectar",
       "waiting": "Termina de iniciar sesión en tu navegador",
       "reconnectedTitle": "Reconectado a {{provider}}",

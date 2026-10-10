@@ -1,5 +1,6 @@
 import type { ChatMessage } from "@houston/runtime-client";
 import { expect, test } from "vitest";
+import { finishAccountBlocked } from "./account-blocked-refusal";
 import type { FeedOutput, PendingInteraction } from "./feed-output";
 import { settleFromHistory, TURN_DIED_MESSAGE } from "./settle-from-history";
 import { ENGINE_RESTART_MESSAGE, ENGINE_RESUMED_MESSAGE } from "./turn-errors";
@@ -70,6 +71,34 @@ test("a not-connected refusal fails the optimistic bubble (the send never landed
   finishErr(s, "No provider connected. Log in with Claude or Codex first.");
   const card = items.find((i) => i.feed_type === "provider_error");
   expect(card?.fails_pending).toBe(true);
+});
+
+test("a blocked-account refusal settles as the billing_locked card, not a sign-in", () => {
+  // H-005: the provider blocks the account behind an intact credential. The
+  // card names the provider the gateway named, carries the refused prompt for
+  // "Send again", and never reads as `no_credentials` (a sign-in would change
+  // nothing).
+  const { items, statuses, output } = recorder();
+  const s = newTurnState("Houston/Bo", "activity", output, { prompt: "hi" });
+  s.provider = "anthropic";
+  finishAccountBlocked(s, {
+    code: "provider_account_blocked",
+    error: "The github-copilot account is blocked by the provider.",
+    provider: "github-copilot",
+  });
+  const card = items.find((i) => i.feed_type === "provider_error");
+  expect(card?.data).toMatchObject({
+    kind: "unauthenticated",
+    cause: "billing_locked",
+    provider: "github-copilot",
+    failed_prompt: "hi",
+  });
+  expect(card?.fails_pending).toBe(true);
+  expect(s.settled).toBe(true);
+  expect(statuses.at(-1)?.[0]).toBe("error");
+  // Settled once: a late failure line must not land on top of the card.
+  finishErr(s, "late failure");
+  expect(items.filter((i) => i.feed_type === "system_message")).toHaveLength(0);
 });
 
 test("a genuine turn error fails the optimistic bubble", () => {

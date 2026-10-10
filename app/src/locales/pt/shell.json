@@ -399,7 +399,11 @@
     "search": "Buscar",
     "firstDay": "Comece o primeiro dia",
     "working": "Trabalhando…",
-    "newAgent": "Novo"
+    "newAgent": "Novo",
+    "layoutSaveFailed": {
+      "title": "Não foi possível salvar sua barra lateral",
+      "description": "Ela voltou a ser como era. Tente de novo em instantes."
+    }
   },
   "accountMenu": {
     "profile": "Perfil",
@@ -454,6 +458,8 @@
     "genericDescription": "Algo inesperado deu errado. Tente novamente.",
     "offlineTitle": "Sem conexão",
     "offlineDescription": "Não conseguimos conectar agora. Verifique sua conexão com a internet e tente novamente.",
+    "uploadInterruptedTitle": "O envio não terminou",
+    "uploadInterruptedDescription": "Seus arquivos não terminaram de ser enviados. Verifique sua conexão e tente novamente. Arquivos grandes podem levar alguns minutos em uma conexão lenta.",
     "engineWakingTitle": "Seu funcionário de IA está acordando",
     "engineWakingDescription": "Costuma levar cerca de 20 segundos. Você não precisa enviar sua mensagem de novo.",
     "updateStuckTitle": "As atualizações não estão chegando",
@@ -594,6 +600,9 @@
       "titleOrgPolicy": "{{provider}} bloqueou o acesso por assinatura",
       "bodyOrgPolicyBlocked": "O {{provider}} não permite usar sua assinatura aqui, então entrar de novo não vai ajudar. Adicione uma chave de API do {{provider}} na página Modelos de IA para continuar trabalhando.",
       "useApiKey": "Usar uma chave de API",
+      "titleBillingLocked": "A cobrança do {{provider}} está bloqueada",
+      "bodyBillingLocked": "A cobrança da sua conta do {{provider}} foi bloqueada depois de um pagamento falhar, então entrar de novo não vai ajudar. Resolva o pagamento com o {{provider}} ou escolha outra IA na página Modelos de IA para continuar trabalhando.",
+      "chooseAnotherAi": "Escolher outra IA",
       "reconnect": "Reconectar",
       "waiting": "Conclua o login no seu navegador",
       "reconnectedTitle": "Reconectado a {{provider}}",

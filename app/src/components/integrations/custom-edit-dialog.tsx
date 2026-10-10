@@ -3,7 +3,6 @@ import { FormDialog, Input } from "@houston-ai/core";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEditCustomIntegration } from "../../hooks/queries/use-edit-custom-integration";
-import { stayOpen } from "../../lib/dialog-stay-open";
 
 export function CustomEditDialog({
   integration,
@@ -20,19 +19,14 @@ export function CustomEditDialog({
   const id = useId();
   const save = useEditCustomIntegration(agentId);
 
-  const submit = async () => {
-    try {
-      await save.mutateAsync({
-        slug: integration.slug,
-        name: name.trim(),
-        website: website.trim(),
-      });
-    } catch {
-      // The engine call's `call()` wrapper already surfaced and reported the
-      // failure; the dialog's job is only to keep the edits on screen.
-      return stayOpen();
-    }
-  };
+  // Closes on Save: the lists already show the edit, and a refusal puts the
+  // old details back with a toast (`useEditCustomIntegration`).
+  const submit = () =>
+    save({
+      slug: integration.slug,
+      name: name.trim(),
+      website: website.trim(),
+    });
 
   return (
     <FormDialog
@@ -44,7 +38,6 @@ export function CustomEditDialog({
       description={t("custom.edit.description")}
       primary={{
         label: t("custom.edit.save"),
-        pendingLabel: t("custom.edit.saving"),
         onClick: submit,
         disabled: !name.trim(),
       }}

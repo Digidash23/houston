@@ -1,12 +1,11 @@
 import type { ChatMessage } from "@houston/runtime-client";
-import { canonicalPinProvider, isProvider } from "../ai/providers";
 import {
   logTurnTarget,
   resolveTurnTarget,
   type TurnPinSource,
   turnTargetIsRunnable,
 } from "../ai/turn-diagnostic";
-import { serveModeOn, syncServedCredentialSafe } from "../auth/serve";
+import { syncServedCredentialSafe } from "../auth/serve";
 import { config } from "../config";
 import type { ActingContext } from "./acting-context";
 import { publish } from "./bus";
@@ -19,16 +18,15 @@ import {
 } from "./exec-turn";
 import type { MissionTitleRequest } from "./mission-title";
 import { titleMissionAfterTurn } from "./mission-title-report";
-import {
-  connectedProviderForTurn,
-  pinnedProviderUnavailable,
-} from "./provider-gate";
+import { connectedProviderForTurn } from "./provider-gate";
 import { withTurnInFlight } from "./turn-inflight-count";
 import {
-  reportPinnedProviderUnavailable,
+  type CardAnswer,
+  refuseQueuedCardAnswer,
   reportTurnStartFailure,
   type TurnStartFailure,
 } from "./turn-start-failure";
+import { inTurnOrder, refusePinnedProvider } from "./turn-start-order";
 import { withWorkdirLock } from "./workdir-lock";
 import type { ProvidedContext } from "./workspace-context";
 
@@ -89,7 +87,14 @@ async function runAcceptedTurn(
    * so a restart that kills the resume too settles it and stops — one
    * automatic resume per interrupted turn (PRODUCT-1785).
    */
-  options?: { resumeOf?: string; missionTitle?: MissionTitleRequest },
+  options?: {
+    resumeOf?: string;
+    missionTitle?: MissionTitleRequest;
+    cardAnswer?: CardAnswer;
+    /** The host fired this message for a routine run (ROUTINE_FIRE_HEADER).
+     *  A boot resume omits it: the fire already applied its budget. */
+    routineFire?: boolean;
+  },
 ): Promise<void> {
   // Mint the turn's wire identity up front so even a turn that fails before
   // executing (the guards below) terminates under one id.
@@ -102,18 +107,7 @@ async function runAcceptedTurn(
     displayText,
     mentions,
   };
-  const canonicalPinnedProvider = pin?.provider
-    ? canonicalPinProvider(pin.provider)
-    : undefined;
-  if (
-    serveModeOn() &&
-    canonicalPinnedProvider &&
-    isProvider(canonicalPinnedProvider) &&
-    (await pinnedProviderUnavailable(canonicalPinnedProvider))
-  ) {
-    reportPinnedProviderUnavailable(failure, canonicalPinnedProvider);
-    return;
-  }
+  if (await refusePinnedProvider(failure, pin, options?.cardAnswer)) return;
   // The message route already synced the credential and confirmed a provider via
   // ensureProviderForTurn. Re-check here as a cheap guard for the narrow window
   // where the provider is logged out mid-turn: getConversation returns a CACHED
@@ -136,7 +130,9 @@ async function runAcceptedTurn(
   try {
     conv = await getConversation(id, pin, context);
   } catch (err) {
-    reportTurnStartFailure(failure, err, pin);
+    await inTurnOrder(failure, options?.cardAnswer, () =>
+      reportTurnStartFailure(failure, err, pin),
+    );
     return;
   }
   const startup = {
@@ -156,6 +152,7 @@ async function runAcceptedTurn(
   // have its session disposed by a concurrent conversation's eviction sweep.
   conv.pending++;
   const run = conv.queue.then(() => {
+    if (refuseQueuedCardAnswer(id, turnId, options?.cardAnswer)) return null;
     // Persist + announce the user message BEFORE taking the workdir lock, so a
     // brand-new conversation's message is durable and visible (GET /messages)
     // the instant the turn is accepted — even while ANOTHER conversation holds
@@ -179,6 +176,7 @@ async function runAcceptedTurn(
         ...(options?.resumeOf ? { resumeOf: options.resumeOf } : {}),
       },
     );
+    recorded.routineFire = options?.routineFire === true;
     return withWorkdirLock(config.workspaceDir, () =>
       execTurn(conv, id, turnId, text, recorded, pin, acting, startup),
     );

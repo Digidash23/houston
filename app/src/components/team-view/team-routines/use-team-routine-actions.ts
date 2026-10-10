@@ -1,3 +1,4 @@
+import type { RoutineUpdate } from "@houston/engine-adapter";
 import { useTranslation } from "react-i18next";
 import {
   useRoutineWritesForAnyAgent,
@@ -20,11 +21,11 @@ export interface TeamRoutineActions {
 }
 
 /**
- * The employee's row actions. Plain `.mutate` throughout: `call()` already
- * reports every failure, and a `.mutateAsync` without a catch would be an
- * unhandled rejection. Discarding a draft is the one exception: the activity
- * update throws its own "Activity not found" without going through `call()`,
- * so that one is awaited and toasted here.
+ * The employee's row actions, every one painted before the host answers. A
+ * refused edit, delete or run control rolls back with the toast its hook
+ * carries (`useRoutineWritesForAnyAgent`). Discarding a draft is
+ * the one awaited write: the activity update throws its own "Activity not
+ * found" without going through `call()`, so that one is toasted here.
  */
 export function useTeamRoutineActions(agent: Agent): TeamRoutineActions {
   const { t } = useTranslation("routines");
@@ -34,10 +35,11 @@ export function useTeamRoutineActions(agent: Agent): TeamRoutineActions {
   const { update, remove, runNow, cancelRun } = useRoutineWritesForAnyAgent();
   const updateActivity = useUpdateActivityForAnyAgent();
   const agentPath = agent.folderPath;
+  const save = (routineId: string, updates: RoutineUpdate) =>
+    update.mutate({ agentPath, routineId, updates });
 
   return {
-    onToggle: (routineId, enabled) =>
-      update.mutate({ agentPath, routineId, updates: { enabled } }),
+    onToggle: (routineId, enabled) => save(routineId, { enabled }),
     // Inline cron edit from the row: the same update route every other routine
     // write uses (`schedule` clears any trigger binding server-side).
     onScheduleChange: (routineId, cron) => {
@@ -46,16 +48,15 @@ export function useTeamRoutineActions(agent: Agent): TeamRoutineActions {
         addToast({ title: planT("shortInterval", { minutes: floor.minutes }) });
         return;
       }
-      update.mutate({ agentPath, routineId, updates: { schedule: cron } });
+      save(routineId, { schedule: cron });
     },
-    onDeleteRoutine: (routineId) => remove.mutate({ agentPath, routineId }),
+    onDeleteRoutine: (routineId) => remove({ agentPath, routineId }),
     // Manual runs are the intentional analytics signal for usage.
     onRunNow: (routineId) => {
       analytics.track("routine_executed", { routine_id: routineId });
-      runNow.mutate({ agentPath, routineId });
+      runNow({ agentPath, routineId });
     },
-    onStopRun: (routineId, runId) =>
-      cancelRun.mutate({ agentPath, routineId, runId }),
+    onStopRun: (routineId, runId) => cancelRun({ agentPath, routineId, runId }),
     onDiscardDraft: (activityId) => {
       void updateActivity
         .mutateAsync({ agentPath, activityId, update: { status: "archived" } })

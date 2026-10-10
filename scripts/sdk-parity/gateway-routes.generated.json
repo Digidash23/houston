@@ -586,6 +586,46 @@
     "reason": "the internal operator dashboard's server pulls it with the shared GW_METRICS_TOKEN bearer; no Houston principal is behind the call and the app never reads it"
   },
   {
+    "pattern": "/v1/observability/e2b/sandboxes",
+    "methods": [
+      "GET"
+    ],
+    "classification": "infra",
+    "reason": "the internal observability dashboard's server pulls it with its own shared bearer; no Houston principal is behind the call and the app never reads it"
+  },
+  {
+    "pattern": "/v1/observability/e2b/team-metrics",
+    "methods": [
+      "GET"
+    ],
+    "classification": "infra",
+    "reason": "the internal observability dashboard's server pulls it with its own shared bearer; no Houston principal is behind the call and the app never reads it"
+  },
+  {
+    "pattern": "/v1/observability/e2b/templates",
+    "methods": [
+      "GET"
+    ],
+    "classification": "infra",
+    "reason": "the internal observability dashboard's server pulls it with its own shared bearer; no Houston principal is behind the call and the app never reads it"
+  },
+  {
+    "pattern": "/v1/observability/prometheus/query",
+    "methods": [
+      "GET"
+    ],
+    "classification": "infra",
+    "reason": "the internal observability dashboard's server pulls it with its own shared bearer; no Houston principal is behind the call and the app never reads it"
+  },
+  {
+    "pattern": "/v1/observability/prometheus/query_range",
+    "methods": [
+      "GET"
+    ],
+    "classification": "infra",
+    "reason": "the internal observability dashboard's server pulls it with its own shared bearer; no Houston principal is behind the call and the app never reads it"
+  },
+  {
     "pattern": "/v1/org",
     "methods": [
       "GET"

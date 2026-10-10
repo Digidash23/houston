@@ -1,6 +1,7 @@
 /** Routine execution history with translated summaries for typed failures. */
 
 import {
+  formatLocalDateTime,
   type RoutineReaderAccount,
   type RoutineRun,
   routineFailureCode,
@@ -95,6 +96,8 @@ export function RoutineRunsHistory({
     switch (routineFailureCode(run, readerFor)) {
       case "pool_delivery_expired":
         return t("details.failure.poolDeliveryExpired");
+      case "creator_no_access":
+        return t("details.failure.creatorNoAccess");
       case "creator_not_connected":
         return t("details.failure.creatorNotConnected", { provider });
       case "team_not_connected":
@@ -109,6 +112,16 @@ export function RoutineRunsHistory({
         return t("details.failure.modelUnavailable", { provider });
       case "no_model":
         return t("details.failure.noModel");
+      case "usage_limit": {
+        const resetsAt =
+          run.failure?.code === "usage_limit" ? run.failure.resets_at : null;
+        return resetsAt && Number.isFinite(Date.parse(resetsAt))
+          ? t("details.failure.usageLimit", {
+              provider,
+              time: formatLocalDateTime(resetsAt, locale),
+            })
+          : t("details.failure.usageLimitNoReset", { provider });
+      }
     }
   };
 

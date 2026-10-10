@@ -142,7 +142,10 @@
       "outOfCredits": "A conta {{provider}} está sem créditos.",
       "modelUnavailable": "A conta {{provider}} não pode usar o modelo desta rotina.",
       "noModel": "Esta rotina não tem um modelo escolhido e a conta de IA que ela usaria não está conectada.",
-      "poolDeliveryExpired": "Esta execução não pôde iniciar a tempo e foi ignorada. Você pode executar a rotina novamente."
+      "usageLimit": "O plano {{provider}} atingiu o limite de uso. As execuções continuam a partir de {{time}}.",
+      "usageLimitNoReset": "O plano {{provider}} atingiu o limite de uso. As execuções continuam quando ele for restabelecido.",
+      "poolDeliveryExpired": "Esta execução não pôde iniciar a tempo e foi ignorada. Você pode executar a rotina novamente.",
+      "creatorNoAccess": "Esta rotina foi criada por alguém que não pode mais usar este funcionário de IA. Pause a rotina e retome-a para que ela seja executada como você."
     },
     "autoPause": {
       "chip": "Pausada",
@@ -156,6 +159,12 @@
       "changeModel": "A conta {{provider}} não pode usar o modelo desta rotina. Escolha um modelo que a conta possa usar e depois retome a rotina.",
       "chooseModel": "Esta rotina não tem um modelo escolhido e a conta de IA que ela usaria não está conectada. Escolha um modelo na seção Modelo e depois retome a rotina.",
       "resume": "Retomar"
+    },
+    "snooze": {
+      "chip": "Pausada até {{time}}",
+      "title": "Pausada até {{time}}",
+      "body": "O plano {{provider}} que executa esta rotina atingiu o limite de uso. As execuções continuam sozinhas a partir de {{time}}. Para continuar agora, escolha outro modelo na seção Modelo.",
+      "bodyWithModel": "O plano {{provider}} atingiu o limite para {{model}}. As execuções continuam sozinhas a partir de {{time}}. Para continuar agora, escolha outro modelo na seção Modelo."
     }
   },
   "row": {
@@ -260,6 +269,8 @@
     "reconnect": "Reconectar",
     "statusDisconnectedHint": "A conta conectada foi desconectada.",
     "statusRevokedHint": "Este app foi desativado para este funcionário de IA.",
+    "statusTriggerGoneHint": "O app não oferece mais este evento. Edite esta rotina e escolha outro evento.",
+    "statusConfigRejectedHint": "O app recusou a configuração deste evento. Vamos continuar tentando; se não começar a funcionar, edite as configurações da rotina.",
     "rowSummary": "Aciona por um evento em {{app}}",
     "loadFailed": "Não foi possível carregar os acionadores de eventos",
     "webhookRowSummary": "Aciona quando chamam seu endereço de webhook"
@@ -269,7 +280,13 @@
     "timezoneError": "Não foi possível atualizar o fuso horário",
     "discardError": "Não foi possível descartar o rascunho",
     "modelError": "Não foi possível alterar o modelo",
-    "updateError": "Não foi possível salvar a rotina"
+    "updateError": "Não foi possível salvar a rotina",
+    "deleteError": "Não foi possível excluir a rotina",
+    "deleteErrorBody": "Ela voltou para a lista. Tente de novo em instantes.",
+    "runError": "Não foi possível iniciar a rotina",
+    "runErrorBody": "Ela não foi executada. Tente de novo em instantes.",
+    "stopError": "Não foi possível parar a execução",
+    "stopErrorBody": "Ela ainda pode estar em andamento. Tente de novo em instantes."
   },
   "webhook": {
     "createAddress": "Criar endereço de webhook",

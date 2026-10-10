@@ -1,10 +1,12 @@
 import type { PendingInteraction, WireFrame } from "@houston/runtime-client";
-import type { MessageLimitRefusal } from "@houston/wire-types";
+import type { MessageLimitRefusal, ProviderRefusal } from "@houston/wire-types";
+import { finishAccountBlocked } from "./account-blocked-refusal";
 import type { TerminalBoardStatus } from "./feed-output";
 import { PreAcceptTurn } from "./pre-accept-turn";
-import { PresettlePoll } from "./presettle-poll";
+import type { PresettlePoll } from "./presettle-poll";
 import { SendHoldState } from "./send-hold-state";
-import { presettleFromHistory, reloadAndSettle } from "./settle-from-history";
+import { reloadAndSettle } from "./settle-from-history";
+import { sinkPresettlePoll } from "./sink-presettle";
 import type { EngineNoticeKind } from "./turn-errors";
 import { applyTurnFrame } from "./turn-frames";
 import { classifyFrame, classifyRunningSync } from "./turn-identity";
@@ -64,19 +66,22 @@ export class TurnSink {
   private readonly onStarted: Array<() => void> = [];
 
   constructor(private readonly o: TurnSinkOptions) {
-    this.poll = new PresettlePoll(o.presettledPollMs, {
+    this.s = newTurnState(o.agentPath, o.sessionKey, o.output, o);
+    this.poll = sinkPresettlePoll({
+      s: this.s,
+      o,
       canArm: () =>
         this.accepted &&
         !this.sawRunning &&
         !this.settling &&
         !this.s.settled &&
         !this.muted,
-      check: () => this.presettleCheck(),
-    });
-    this.s = newTurnState(o.agentPath, o.sessionKey, o.output, {
-      provider: o.provider,
-      prompt: o.prompt,
-      firstResponse: o.firstResponse,
+      hasEvidence: () => this.sawRunning || this.muted,
+      adoptTurnId: (turnId) => this.adoptTurnId(turnId),
+      settled: () => {
+        this.settling = true;
+        this.o.stop();
+      },
     });
   }
 
@@ -121,7 +126,7 @@ export class TurnSink {
   mute(): void {
     this.muted = true;
     this.poll.cancel();
-    this.preAccept.clear(); // a muted sink claims nothing; release what it kept
+    this.preAccept.release(); // a muted sink claims nothing; release what it kept
   }
   /**
    * Turn mode: the send returned 202 — its turn id is authoritative. A pool
@@ -152,7 +157,7 @@ export class TurnSink {
     // The re-send of a held message may have landed: frames are ours again.
     this.held.release();
     // No 202 will name a turn now: nothing kept can be claimed.
-    this.preAccept.clear();
+    this.preAccept.release();
     this.accepted = true;
     // If the engine did accept it and the turn already finished, the pre-settled
     // poll can settle it conclusively — faster than the ambiguous-send verdict
@@ -165,6 +170,11 @@ export class TurnSink {
   }
   planLimit(refusal: MessageLimitRefusal): void {
     finishPlanLimit(this.s, refusal);
+  }
+  /** The send was refused because the provider blocks the account behind an
+   *  intact credential: settle as the `billing_locked` reconnect card. */
+  accountBlocked(refusal: ProviderRefusal): void {
+    finishAccountBlocked(this.s, refusal);
   }
   /**
    * Verdict on an ambiguous send: settle as an error UNLESS evidence arrived
@@ -469,23 +479,6 @@ export class TurnSink {
     );
   }
 
-  /** One conclusive-only history settle for the pre-settled poll. */
-  private async presettleCheck(): Promise<boolean> {
-    const settled = await presettleFromHistory(
-      this.s,
-      this.o.reloadHistory,
-      this.s.turnId,
-      this.o.historyGuard,
-      () => this.sawRunning || this.muted,
-      (turnId) => this.adoptTurnId(turnId),
-    );
-    if (settled) {
-      this.settling = true;
-      this.o.stop();
-    }
-    return settled;
-  }
-
   /**
    * Run `cb` once the turn is first seen running (our echo, its frames, or a
    * running sync it adopted): at once if it already was.
@@ -510,6 +503,6 @@ export class TurnSink {
   dispose(): void {
     this.muted = true;
     this.poll.cancel();
-    this.preAccept.clear();
+    this.preAccept.release();
   }
 }

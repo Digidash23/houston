@@ -40,12 +40,16 @@ export function purgeHoustonLocalState(storage: KeyedStorage): void {
  *    at sign-out would leave the agent 503-locked forever. Tenancy is safe:
  *    the gateway refuses a wrong-account resume and `useMoveResume` keeps the
  *    record for the owning account's next sign-in.
+ *  - `houston.cloudMigration.outcome` — this machine's desktop-to-cloud wizard
+ *    outcome. The wizard moves THIS machine's `~/.houston` once; wiping it at
+ *    sign-out re-offered the migration on every sign-in.
  */
 const DEVICE_LOCAL_KEY_PREFIXES = [
   "houston.web.engine",
   "houston.web.agents",
   "houston.web.agentfile:",
   "houston.pendingAgentMoves",
+  "houston.cloudMigration.outcome",
 ] as const;
 
 /** Remove every ACCOUNT-scoped `houston.*` key — prefs mirrors, sidebar

@@ -31,6 +31,10 @@
       "types": "./src/first-day.ts",
       "import": "./src/first-day.ts"
     },
+    "./agents/first-day-refusal": {
+      "types": "./src/modules/agents/first-day-refusal.ts",
+      "import": "./src/modules/agents/first-day-refusal.ts"
+    },
     "./mission-started-by": {
       "types": "./src/modules/activities/started-by.ts",
       "import": "./src/modules/activities/started-by.ts"
@@ -54,6 +58,14 @@
     "./routines/webhook-key-access": {
       "types": "./src/modules/routines/webhook-key-access.ts",
       "import": "./src/modules/routines/webhook-key-access.ts"
+    },
+    "./files/upload-interrupted": {
+      "types": "./src/modules/files/upload-interrupted.ts",
+      "import": "./src/modules/files/upload-interrupted.ts"
+    },
+    "./transport-failure": {
+      "types": "./src/transport-failure.ts",
+      "import": "./src/transport-failure.ts"
     },
     "./quiet-error-class": {
       "types": "./src/quiet-error-class.ts",
@@ -86,6 +98,14 @@
     "./draft-typing": {
       "types": "./src/modules/turns/draft-typing.ts",
       "import": "./src/modules/turns/draft-typing.ts"
+    },
+    "./turns/turn-error-class": {
+      "types": "./src/modules/turns/turn-error-class.ts",
+      "import": "./src/modules/turns/turn-error-class.ts"
+    },
+    "./notice-ends-turn": {
+      "types": "./src/modules/turns/notice-ends-turn.ts",
+      "import": "./src/modules/turns/notice-ends-turn.ts"
     }
   },
   "files": [

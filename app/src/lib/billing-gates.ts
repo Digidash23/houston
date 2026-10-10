@@ -29,15 +29,22 @@ export function canSeeBilling(caps: Capabilities | null | undefined): boolean {
 
 /**
  * Whether the C8 Billing surface (the org dashboard tab AND the `useBilling`
- * query) belongs at all: only on a Spaces-capable host (`caps.spaces`), only
- * when the ACTIVE space is a team (personal spaces are free forever and never
- * bill), and only for owner/admin (`canSeeBilling`; members never see billing
- * data — C8 §Client UX). One source of truth for both the tab-visibility gate
- * and the query-fire gate so they can never drift.
+ * query) belongs at all: only on a Spaces-capable host (`caps.spaces`) whose
+ * deployment bills teams (`caps.teamBilling`; without it every billing read
+ * answers 503 `not_configured`), only when the ACTIVE space is a team
+ * (personal spaces are free forever and never bill), and only for owner/admin
+ * (`canSeeBilling`; members never see billing data — C8 §Client UX). One
+ * source of truth for both the tab-visibility gate and the query-fire gate so
+ * they can never drift.
  */
 export function canSeeBillingTab(
   caps: Capabilities | null | undefined,
   activeSpaceIsTeam: boolean,
 ): boolean {
-  return hasSpaces(caps) && activeSpaceIsTeam && canSeeBilling(caps);
+  return (
+    hasSpaces(caps) &&
+    caps?.teamBilling === true &&
+    activeSpaceIsTeam &&
+    canSeeBilling(caps)
+  );
 }

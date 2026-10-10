@@ -399,7 +399,11 @@
     "search": "Search",
     "firstDay": "Start their first day",
     "working": "Working…",
-    "newAgent": "New"
+    "newAgent": "New",
+    "layoutSaveFailed": {
+      "title": "Couldn't save your sidebar",
+      "description": "It's back the way it was. Try again in a moment."
+    }
   },
   "accountMenu": {
     "profile": "Profile",
@@ -454,6 +458,8 @@
     "genericDescription": "Something unexpected went wrong. Please try again.",
     "offlineTitle": "Connection lost",
     "offlineDescription": "We can't connect right now. Check your internet connection and try again.",
+    "uploadInterruptedTitle": "Upload didn't finish",
+    "uploadInterruptedDescription": "Your files didn't finish uploading. Check your connection and try again. Large files can take a few minutes on a slow connection.",
     "engineWakingTitle": "Your AI Employee is waking up",
     "engineWakingDescription": "It usually takes about 20 seconds. You don't need to send your message again.",
     "updateStuckTitle": "Updates can't reach you",
@@ -599,6 +605,9 @@
       "titleOrgPolicy": "{{provider}} blocked subscription access",
       "bodyOrgPolicyBlocked": "{{provider}} does not allow your subscription to be used here, so signing in again will not help. Add a {{provider}} API key on the AI Models page to keep working.",
       "useApiKey": "Use an API key",
+      "titleBillingLocked": "{{provider}} billing is locked",
+      "bodyBillingLocked": "Your {{provider}} account's billing was locked after a payment failed, so signing in again won't help. Fix the payment with {{provider}}, or choose another AI on the AI Models page to keep working.",
+      "chooseAnotherAi": "Choose another AI",
       "reconnect": "Reconnect",
       "waiting": "Finish signing in using your browser",
       "reconnectedTitle": "Reconnected to {{provider}}",

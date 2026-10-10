@@ -1,4 +1,6 @@
 import type { WireFrame } from "@houston/runtime-client";
+import { noteReplyPhase } from "./reply-phase";
+import { finishSetupError } from "./turn-notices";
 import {
   finishErr,
   finishOk,
@@ -21,6 +23,7 @@ export function applyTurnFrame(
   ev: WireFrame,
   stop: () => void,
 ): void {
+  noteReplyPhase(s, ev);
   switch (ev.type) {
     case "text":
       s.text += ev.data;
@@ -90,7 +93,7 @@ export function applyTurnFrame(
       stop();
       break;
     case "error":
-      finishErr(s, ev.data.message);
+      if (!finishSetupError(s, ev.data)) finishErr(s, ev.data.message);
       stop();
       break;
     case "done":
@@ -103,6 +106,8 @@ export function applyTurnFrame(
       finishOk(s);
       stop();
       break;
+    case "reply_complete":
+      break; // the reply phase above is all it changes
     case "sync":
     case "user":
       break; // handled by the sink before identity classification

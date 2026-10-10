@@ -2,13 +2,17 @@ use reqwest::StatusCode;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use super::failure::{
+    graphql_error_is_intake_limit, kind_for_http, BugReportFailure, BugReportFailureKind,
+};
+
 pub(super) async fn post_graphql<T, V>(
     client: &reqwest::Client,
     api_url: &str,
     api_key: &str,
     query: &'static str,
     variables: V,
-) -> Result<T, String>
+) -> Result<T, BugReportFailure>
 where
     T: DeserializeOwned,
     V: Serialize,
@@ -20,7 +24,7 @@ where
         .json(&request)
         .send()
         .await
-        .map_err(|e| format!("Linear API request failed: {e}"))?;
+        .map_err(|e| BugReportFailure::other(format!("Linear API request failed: {e}")))?;
 
     let status = response.status();
     if !status.is_success() {
@@ -30,22 +34,24 @@ where
             .unwrap_or_else(|e| format!("could not read Linear response body: {e}"));
         let message = linear_http_error_message(status, &body);
         tracing::warn!(%message, "Linear API request failed");
-        return Err(message);
+        return Err(BugReportFailure::new(kind_for_http(status, &body), message));
     }
 
     let body = response
         .json::<LinearGraphqlResponse<T>>()
         .await
-        .map_err(|e| format!("Linear API response was not valid JSON: {e}"))?;
+        .map_err(|e| {
+            BugReportFailure::other(format!("Linear API response was not valid JSON: {e}"))
+        })?;
 
     if let Some(errors) = body.errors.as_deref().filter(|errors| !errors.is_empty()) {
         let message = linear_graphql_error_message(errors);
         tracing::warn!(%message, "Linear API request returned GraphQL errors");
-        return Err(message);
+        return Err(BugReportFailure::new(graphql_errors_kind(errors), message));
     }
 
     body.data
-        .ok_or_else(|| "Linear API response did not include data".to_string())
+        .ok_or_else(|| BugReportFailure::other("Linear API response did not include data"))
 }
 
 #[derive(Serialize)]
@@ -64,6 +70,21 @@ struct LinearGraphqlResponse<T> {
 #[derive(Deserialize)]
 pub(super) struct LinearGraphqlError {
     pub(super) message: String,
+    /// Linear's machine-readable side (`type`, `code`, `userError`,
+    /// `userPresentableMessage`): where a quota refusal names itself.
+    #[serde(default)]
+    pub(super) extensions: Option<serde_json::Value>,
+}
+
+pub(super) fn graphql_errors_kind(errors: &[LinearGraphqlError]) -> BugReportFailureKind {
+    if errors
+        .iter()
+        .any(|error| graphql_error_is_intake_limit(&error.message, error.extensions.as_ref()))
+    {
+        BugReportFailureKind::IntakeUnavailable
+    } else {
+        BugReportFailureKind::Other
+    }
 }
 
 pub(super) fn linear_http_error_message(status: StatusCode, body: &str) -> String {

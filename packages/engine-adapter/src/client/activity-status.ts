@@ -18,6 +18,11 @@ import { viaSdk } from "./sdk-error";
  * Shared by the chat mixin's `startSession` / `cancelSession` / `loadChatHistory`
  * observe paths, so it takes the {@link AdapterContext} rather than living on any
  * one of them.
+ *
+ * `turnCard` is ONE turn's memory of the card it writes ({@link turnCardWriter}):
+ * the turn's first write finds the card by its session key, every later write
+ * of that turn PATCHes the same id with no list read in front of it. A failed
+ * PATCH forgets the id, so the retry looks the card up again.
  */
 export async function setActivityStatus(
   ctx: AdapterContext,
@@ -25,6 +30,7 @@ export async function setActivityStatus(
   sessionKey: string,
   status: BoardStatus,
   pendingInteraction: PendingInteraction | null,
+  turnCard?: { id?: string },
 ): Promise<void> {
   if (!ctx.cp) {
     activities.setStatusBySessionKey(
@@ -51,24 +57,56 @@ export async function setActivityStatus(
   const board = `${agentRoute(agentPath)}/activities`;
   for (let i = 0; ; i++) {
     try {
-      const list = await viaSdk(board, () =>
-        ctx.sdk.activities.list(agentPath),
-      );
-      const match = list.find((a) => addressesMission(a, sessionKey));
-      if (!match) return; // transient session with no board card — nothing to update
+      let id = turnCard?.id;
+      if (id === undefined) {
+        const list = await viaSdk(board, () =>
+          ctx.sdk.activities.list(agentPath),
+        );
+        const match = list.find((a) => addressesMission(a, sessionKey));
+        if (!match) return; // transient session with no board card — nothing to update
+        id = match.id;
+      }
+      const cardId = id;
       // `pending_interaction: null` clears it explicitly (the host route +
       // domain applyActivityUpdate honor null); a value records the interaction.
-      await viaSdk(`${board}/${encodeURIComponent(match.id)}`, () =>
-        ctx.sdk.activities.writes.update(agentPath, match.id, {
+      await viaSdk(`${board}/${encodeURIComponent(cardId)}`, () =>
+        ctx.sdk.activities.writes.update(agentPath, cardId, {
           status,
           pending_interaction: pendingInteraction,
         }),
       );
+      if (turnCard) turnCard.id = cardId;
       break;
     } catch (err) {
+      if (turnCard) turnCard.id = undefined; // the card may be gone: look again
       if (i >= retryDelaysMs.length) throw err;
       await new Promise((r) => setTimeout(r, retryDelaysMs[i]));
     }
   }
   emitLocalEcho("ActivityChanged", { agentPath });
+}
+
+/**
+ * The board setter ONE turn writes its card through: start, early hand-back,
+ * settle. It carries the card id across those writes (see
+ * {@link setActivityStatus}), and lives exactly as long as the turn's stream.
+ */
+export function turnCardWriter(
+  ctx: AdapterContext,
+  agentPath: string,
+  sessionKey: string,
+): (
+  status: BoardStatus,
+  pendingInteraction: PendingInteraction | null,
+) => Promise<void> {
+  const turnCard: { id?: string } = {};
+  return (status, pendingInteraction) =>
+    setActivityStatus(
+      ctx,
+      agentPath,
+      sessionKey,
+      status,
+      pendingInteraction,
+      turnCard,
+    );
 }

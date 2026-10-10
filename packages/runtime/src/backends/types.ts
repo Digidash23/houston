@@ -2,6 +2,10 @@ import type { ModelCallTiming, TurnMode } from "@houston/protocol";
 import type { WireEvent } from "@houston/runtime-client";
 import type { PiThinkingLevel } from "../ai/effort";
 import type { ProvidedContext } from "../session/workspace-context";
+import type { ForcedToolCall, ForcedToolCallRequest } from "./forced-tool-call";
+import type { ReplyBeat } from "./reply-beat";
+
+export type { ReplyBeat } from "./reply-beat";
 
 /**
  * The HarnessBackend seam: turn execution abstracted behind a provider-agnostic
@@ -94,6 +98,13 @@ export interface HarnessSession {
    */
   subscribeAssistantMessageStart?(listener: () => void): () => void;
   /**
+   * Subscribe to the reply's {@link ReplyBeat}s, which tell the finish marks
+   * the closing message is done the moment the model moves on to its offers
+   * (or simply stops), seconds before `done`. Optional so test fakes stay
+   * minimal; without it no `reply_complete` frame is emitted.
+   */
+  subscribeReplyBeats?(listener: (beat: ReplyBeat) => void): () => void;
+  /**
    * Subscribe to where the model round-trip stands (`ModelPhase`). The stall
    * watchdog bounds a request that has not started answering far tighter
    * than a quiet response: a provider that never opens its response is not
@@ -110,6 +121,13 @@ export interface HarnessSession {
   ): () => void;
   /** Run one turn; resolves at turn end. Provider errors surface as WireEvents. */
   prompt(text: string): Promise<void>;
+  /**
+   * After a clean `prompt`, ask the model for one call to a named tool,
+   * invisibly (`ForcedToolCall`). A provider failure rejects. Optional: the
+   * Claude backend runs its turn in a CLI subprocess with no per-request tool
+   * choice, so only pi implements it.
+   */
+  forceToolCall?(request: ForcedToolCallRequest): Promise<ForcedToolCall>;
   /** Abort the in-flight turn (the user's Stop), then settle. */
   abort(): Promise<void>;
   /** Tear down the session and its listeners. Idempotent. */

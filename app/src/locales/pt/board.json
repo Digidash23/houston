@@ -80,7 +80,6 @@
     "delete": "Excluir",
     "clear": "Limpar seleção",
     "cancel": "Cancelar",
-    "error": "Não foi possível atualizar as tarefas selecionadas. Tente novamente.",
     "confirmMove": {
       "title": "Mover tarefas?",
       "description_one": "Mover {{count}} tarefa para {{target}}?",
@@ -108,15 +107,39 @@
     "emptyTitle": "Nenhuma tarefa arquivada",
     "emptyDescription": "As tarefas arquivadas aparecem aqui. Responda a uma para reativá-la."
   },
-  "dnd": {
-    "moveError": "Não foi possível mover a tarefa. Tente novamente."
-  },
   "firstDay": {
     "start": "Começar o primeiro dia de {{name}}",
     "heroTitle": "Tudo pronto para o primeiro dia de {{name}}",
     "explain": "{{name}} vai fazer algumas perguntas para aprender o trabalho.",
     "compactTitle": "O primeiro dia de {{name}} ainda não começou",
     "bannerTitle": "Sua equipe está pronta. Escolha um funcionário de IA para começar o primeiro dia dele.",
-    "bannerExplain": "Cada um vai fazer algumas perguntas para aprender o trabalho."
+    "bannerExplain": "Cada um vai fazer algumas perguntas para aprender o trabalho.",
+    "connectAi": "Conecte uma IA para começar",
+    "bannerNeedsAi": "Primeiro conecte uma IA como Claude ou ChatGPT. Depois seus funcionários de IA podem começar o primeiro dia.",
+    "noProvider": {
+      "title": "Conecte sua IA primeiro",
+      "body": "Seu funcionário de IA precisa de uma IA como Claude ou ChatGPT para trabalhar. Conecte uma e depois comece o primeiro dia.",
+      "action": "Conectar IA"
+    },
+    "bannerNeedsAiTitle": "Conecte uma IA para sua equipe começar",
+    "reconnect": {
+      "title": "Reconecte {{provider}}",
+      "body": "Sua conta do {{provider}} foi desconectada, então o primeiro dia não pode começar. Reconecte e depois comece o primeiro dia.",
+      "action": "Reconectar"
+    }
+  },
+  "writeFailed": {
+    "delete": "Não foi possível excluir \"{{title}}\"",
+    "archive": "Não foi possível arquivar \"{{title}}\"",
+    "move": "Não foi possível mover \"{{title}}\"",
+    "rename": "Não foi possível mudar o título de \"{{title}}\"",
+    "backOnBoard": "A tarefa voltou para o quadro. Tente novamente em instantes.",
+    "backInArchive": "A tarefa voltou para Arquivadas. Tente novamente em instantes.",
+    "backWhereItWas": "A tarefa voltou para onde estava. Tente novamente em instantes.",
+    "oldName": "A tarefa voltou ao título anterior. Tente novamente em instantes.",
+    "bulkDelete": "Não foi possível excluir as tarefas selecionadas",
+    "bulkArchive": "Não foi possível arquivar as tarefas selecionadas",
+    "bulkMove": "Não foi possível mover as tarefas selecionadas",
+    "bulkBack": "As tarefas que não mudaram voltaram para onde estavam. Tente novamente em instantes."
   }
 }

@@ -1,22 +1,19 @@
 import type { KanbanItem } from "@houston-ai/board";
 import type { FeedItem } from "@houston-ai/chat";
 import { messagePreviewText } from "@houston-ai/chat";
+import { useQueryClient } from "@tanstack/react-query";
 import { createElement, useCallback, useMemo, useRef, useState } from "react";
 import { useAllConversations } from "../../hooks/queries";
 import { useMissionOriginTag } from "../../hooks/use-mission-origin-tag";
 import { useOpenConversationFeed } from "../../hooks/use-open-conversation-feed";
-import { forgetConversationDraftsOf } from "../../lib/conversation-drafts";
 import { missionCardTags } from "../../lib/mission-card";
-import {
-  type HistoryLoadOptions,
-  tauriActivity,
-  tauriChat,
-} from "../../lib/tauri";
+import { type HistoryLoadOptions, tauriChat } from "../../lib/tauri";
 import type { Agent } from "../../lib/types";
 import { AgentCardAvatar } from "../shell/agent-card-avatar";
 import { archivedMissionRows } from "./archived-mission-filter";
 import { boardItemConversationRow } from "./board-item-row";
 import { agentsByPath, missionCardAgentName } from "./mission-card-agent";
+import { deleteMission } from "./mission-writes";
 import { rowSessionKey } from "./session-loading";
 
 /**
@@ -29,6 +26,7 @@ import { rowSessionKey } from "./session-loading";
 export function useMissionControlArchived(agents: Agent[]) {
   const agentPaths = useMemo(() => agents.map((a) => a.folderPath), [agents]);
   const { data: convos } = useAllConversations(agentPaths);
+  const queryClient = useQueryClient();
 
   // ONE roster lookup behind both halves of a card's identity. The colour was
   // always taken from here; the NAME used to come off the swept row, which the
@@ -128,21 +126,16 @@ export function useMissionControlArchived(agents: Agent[]) {
     [],
   );
 
+  // The card leaves the archive in the same frame as the click
+  // (`deleteMission`); a refusal brings it back with a toast.
   const handleDelete = useCallback(
-    async (item: KanbanItem) => {
+    (item: KanbanItem) => {
       const agentPath = pathMapRef.current[item.id];
       if (!agentPath) return;
-      // The card is the only place this mission's conversation key survives the
-      // delete, so the row is read off it before the write goes out.
-      const row = boardItemConversationRow(item);
-      await tauriActivity.delete(agentPath, item.id);
-      // Files attached in this conversation stay in the workspace's uploads/
-      // folder — they are agent context, not conversation scratch (HOU-706);
-      // the composer draft and the half-walked card beside it go.
-      forgetConversationDraftsOf(row);
+      void deleteMission(queryClient, agentPath, item, "archive");
       if (selectedId === item.id) setSelectedId(null);
     },
-    [selectedId],
+    [queryClient, selectedId],
   );
 
   // The open mission resolved all the way through to the agent that owns it:

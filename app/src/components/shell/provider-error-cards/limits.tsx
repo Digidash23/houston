@@ -77,20 +77,23 @@ export function RateLimitedCard({
 }
 
 /**
- * Plan-window usage limit (Anthropic's 5-hour subscription session limit).
- * Distinct from RateLimited: retrying now fails, so waiting for the stated reset
- * is the recovery — which leaves this card deliberately action-less.
+ * Plan-window usage limit (Anthropic's 5-hour session and weekly model
+ * limits). Distinct from RateLimited: retrying now fails until the stated
+ * reset, so there is no Retry; the one way on before then is another model.
  */
 export function UsageLimitPausedCard({
   error,
-}: {
+  onSwitchModel,
+}: Pick<LimitProps, "onSwitchModel"> & {
   error: Extract<ProviderError, { kind: "usage_limit_paused" }>;
 }) {
-  const { t } = useTranslation("shell");
-  const body = error.resets_at
-    ? t("providerError.usageLimitPaused.bodyWithReset", {
-        time: error.resets_at,
-      })
+  const { t, i18n } = useTranslation("shell");
+  const time =
+    error.resets_at && Number.isFinite(Date.parse(error.resets_at))
+      ? formatLocalDateTime(error.resets_at, i18n.language)
+      : null;
+  const body = time
+    ? t("providerError.usageLimitPaused.bodyWithReset", { time })
     : t("providerError.usageLimitPaused.body");
   return (
     <div className="w-full px-1 py-2">
@@ -98,6 +101,15 @@ export function UsageLimitPausedCard({
         media={<TimerResetIcon className="size-5" />}
         title={t("providerError.usageLimitPaused.title")}
         description={body}
+        action={
+          onSwitchModel ? (
+            <RowCardButton
+              label={t("providerError.rateLimited.switchModel")}
+              onClick={onSwitchModel}
+              variant="outline"
+            />
+          ) : undefined
+        }
       />
     </div>
   );

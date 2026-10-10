@@ -128,7 +128,8 @@
       "successTitle": "Recibido, reporte registrado.",
       "successBody": "El centro de control ya está trabajando en la solución.",
       "successBodyWithId": "El centro de control ya está trabajando en la solución. Referencia: {{id}}",
-      "errorTitle": "No se pudo enviar el reporte"
+      "errorTitle": "No se pudo enviar el reporte",
+      "errorBody": "Tu mensaje sigue aquí. Intenta enviarlo otra vez en un momento."
     }
   },
   "migration": {
@@ -277,5 +278,31 @@
       "notConfigured": "Las conexiones de WhatsApp aún no están listas para este espacio de Houston. Pídele a tu administrador de Houston que termine de configurar WhatsApp y actualiza."
     }
   },
-  "advancedBadge": "Avanzado"
+  "advancedBadge": "Avanzado",
+  "writeFailed": {
+    "revokeApiKey": {
+      "title": "No se pudo revocar la clave",
+      "description": "Sigue funcionando. Inténtalo de nuevo en un momento."
+    },
+    "disconnectChannel": {
+      "title": "No se pudo desconectar la cuenta",
+      "description": "Sigue conectada. Inténtalo de nuevo en un momento."
+    },
+    "language": {
+      "title": "No se pudo cambiar el idioma",
+      "description": "Volvió al idioma que tenías. Inténtalo de nuevo en un momento."
+    },
+    "profileName": {
+      "title": "No se pudo guardar tu nombre",
+      "description": "Tu nombre volvió a como estaba. Inténtalo de nuevo en un momento."
+    },
+    "profilePhoto": {
+      "title": "No se pudo guardar tu foto",
+      "description": "Tu foto volvió a como estaba. Inténtalo de nuevo en un momento."
+    },
+    "deleteWorkspace": {
+      "title": "No se pudo eliminar \"{{name}}\"",
+      "description": "El espacio de trabajo sigue ahí. Inténtalo de nuevo en un momento."
+    }
+  }
 }

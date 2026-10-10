@@ -1,8 +1,10 @@
-import type { OrgSummary } from "@houston/engine-adapter";
+import type { OrgSummary, OrgsList } from "@houston/engine-adapter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
+import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { analytics } from "../../lib/analytics";
+import { logAndReportError } from "../../lib/error-report";
 import { showExpectedStateToast } from "../../lib/error-toast";
 import {
   classifyInviteError,
@@ -10,6 +12,9 @@ import {
   isExpectedInviteError,
   teamIsInSwitcher,
 } from "../../lib/invite-model";
+import { runOptimisticWrite } from "../../lib/optimistic-core";
+import { tellOptimisticRefusal } from "../../lib/optimistic-write";
+import { orgsWithoutInvite } from "../../lib/org-cache-patches";
 import { queryKeys } from "../../lib/query-keys";
 import { tauriOrg } from "../../lib/tauri";
 import { useUIStore } from "../../stores/ui";
@@ -20,12 +25,12 @@ import { useWorkspaceStore } from "../../stores/workspaces";
  * `GET /v1/orgs`'s `invites`. The owner's revoke is a different route and a
  * different hook (`useDeleteInvite`, `use-org.ts`).
  *
- * Both hooks invalidate the spaces list on BOTH paths, not just on success:
+ * Both hooks refresh the spaces list on BOTH paths, not just on success:
  * every expected rejection (`already_member`, `invite_not_found`) means the
  * server's truth already moved on, so the stale card must disappear either way.
- * The invalidation fires FIRST and is never awaited behind the workspace
- * reload, so the answered card leaves the sidebar immediately rather than
- * lingering for the length of a `GET /v1/workspaces`.
+ * Declining is optimistic (the card leaves on the click); accepting waits for
+ * the host, whose answer names the team it joined, but its invalidation fires
+ * FIRST and is never awaited behind the workspace reload.
  *
  * Accepting also reloads the workspace store — a joined team reaches the
  * switcher through `GET /v1/workspaces`, which is Zustand, not a query the
@@ -85,18 +90,37 @@ export function useAcceptInvite() {
 export function useDeclineInvite() {
   const { t } = useTranslation("teams");
   const qc = useQueryClient();
-  return useMutation<void, unknown, string>({
-    mutationFn: (inviteId: string) =>
-      tauriOrg.declineInvite(inviteId, { silence: isExpectedInviteError }),
-    onSuccess: () => {
-      analytics.track("org_invite_declined");
-      qc.invalidateQueries({ queryKey: queryKeys.orgs() });
-    },
-    onError: (err) => {
-      showInviteFailure(t, err);
-      qc.invalidateQueries({ queryKey: queryKeys.orgs() });
-    },
-  });
+  return useCallback(
+    (inviteId: string) =>
+      runOptimisticWrite(
+        {
+          qc,
+          command: "decline_org_invite",
+          patches: [
+            {
+              queryKey: queryKeys.orgs(),
+              apply: (list: OrgsList | undefined) =>
+                orgsWithoutInvite(list, inviteId),
+            },
+          ],
+          write: () =>
+            tauriOrg.declineInvite(inviteId, {
+              silence: isExpectedInviteError,
+            }),
+          failure: {
+            title: t("writeFailed.declineInvite.title"),
+            description: t("writeFailed.declineInvite.description"),
+          },
+          onSuccess: () => analytics.track("org_invite_declined"),
+        },
+        (command, err, copy) =>
+          isExpectedInviteError(err)
+            ? showInviteFailure(t, err)
+            : tellOptimisticRefusal(command, err, copy),
+        logAndReportError,
+      ),
+    [qc, t],
+  );
 }
 
 /**

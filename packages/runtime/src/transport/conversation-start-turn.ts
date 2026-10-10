@@ -10,10 +10,18 @@ import {
 import { runConversationCommand } from "../session/conversation-command-run";
 import { isDraining } from "../session/drain";
 import { parseMissionTitle } from "../session/mission-title";
+import { engineUnavailable } from "./engine-unavailable";
 import { json, type RouteContext, readJson } from "./http-helpers";
+import {
+  isRoutineFire,
+  queuedCardAnswer,
+  refuseNonCardOwner,
+  sendAnswerer,
+} from "./interaction-owner-gate";
 import {
   acceptAdmission,
   admissionInput,
+  releaseAdmission,
   replyExistingAdmission,
   trackAdmission,
 } from "./message-admission";
@@ -26,26 +34,6 @@ import { noProviderRefusal } from "./no-provider-refusal";
  * a turn lives here: the drain refusal, the conversation commands, the provider
  * gate, and the acting identity the turn runs as.
  */
-
-/**
- * The engine's "not here, not now" answer — the gateway's waking shape, byte
- * for byte. Every shipped client reads `503 {"error":"engine unavailable"}` as
- * a state, not a failure: it re-sends the SAME message (same nonce, so a late
- * acceptance can never double it) along its wake ladder while the user's bubble
- * stays pending, and shows nothing. A new reason string would instead be a red
- * toast on every one of them.
- */
-function engineUnavailable(
-  ctx: RouteContext,
-  detail: string,
-  retryAfterSeconds: number,
-): void {
-  ctx.res.writeHead(503, {
-    "Content-Type": "application/json; charset=utf-8",
-    "Retry-After": String(retryAfterSeconds),
-  });
-  ctx.res.end(JSON.stringify({ error: "engine unavailable", detail }));
-}
 
 export async function handleStartTurn(ctx: RouteContext, id: string) {
   // Shutting down: the turns already running finish, new ones do not start
@@ -74,6 +62,12 @@ export async function handleStartTurn(ctx: RouteContext, id: string) {
   }
   const admission = admissionInput(ctx, body);
   if (admission === false || replyExistingAdmission(ctx, id, admission)) return;
+  // While a card is live, only the person it is for may answer it, `/clear`
+  // included. After the replay lookup (a retry of an admitted message starts
+  // nothing and keeps its answer) and before any reservation; judged again
+  // when a queued turn starts. A routine run is exempt.
+  const answerer = sendAnswerer(ctx.req.headers);
+  if (answerer && refuseNonCardOwner(ctx, id)) return;
   // CONVERSATION COMMANDS (`/clear`, `/compact`): an instruction to the
   // conversation, not a prompt for the agent. Intercepted HERE — ahead of the
   // provider gate below — so a `/clear` still works for someone whose provider
@@ -191,7 +185,11 @@ export async function handleStartTurn(ctx: RouteContext, id: string) {
         turnId,
         // A new mission's first send: title its card after the reply, in this
         // same runtime (session/mission-title.ts). Malformed = no title.
-        { missionTitle: parseMissionTitle(missionTitle) },
+        {
+          missionTitle: parseMissionTitle(missionTitle),
+          ...queuedCardAnswer(answerer, () => releaseAdmission(id, admission)),
+          routineFire: isRoutineFire(ctx.req.headers),
+        },
       ),
     ),
   );

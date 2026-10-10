@@ -7,8 +7,8 @@
  * must not miss a row, because a row it cannot see takes the conversation key —
  * and the composer text and half-walked interaction card parked under it — with
  * it, unreachable for the life of the session. So every seam unions both cache
- * sources, and all three (agent delete, mission bulk delete, Mission Control
- * bulk delete) derive their keys the same way.
+ * sources, and both (agent delete, Mission Control bulk delete) derive their
+ * keys the same way.
  *
  * Kept dependency-free (QueryClient only) so `node --test` exercises it.
  */

@@ -34,6 +34,13 @@ describe("toFileOpFailure", () => {
     );
   });
 
+  it("an unknown kind keeps its diagnostic, never [object Object]", () => {
+    strictEqual(
+      toFileOpFailure({ kind: "teapot", message: "short and stout" }).message,
+      "teapot: short and stout",
+    );
+  });
+
   it("wraps a thrown Error and an unknown kind as `other`", () => {
     strictEqual(toFileOpFailure(new Error("boom")).kind, "other");
     strictEqual(
@@ -94,6 +101,20 @@ describe("planFileOpFailure", () => {
     strictEqual(planFileOpFailure("save", "raw string").surface, "report");
     strictEqual(
       planFileOpFailure("reveal", new Error("boom")).surface,
+      "report",
+    );
+  });
+
+  it("a destination that no longer exists is an expected save state", () => {
+    // HOUSTON-APP-53A after PR #1555: the folder picked in the dialog is on a
+    // drive that went away (os error 3 / 2).
+    const gone = planFileOpFailure("save", {
+      kind: "not_found",
+      message: "Failed to save file: (os error 3)",
+    });
+    strictEqual(gone.surface === "expected" && gone.copy, "saveNotFound");
+    strictEqual(
+      planFileOpFailure("reveal", { kind: "not_found", message: "" }).surface,
       "report",
     );
   });

@@ -21,6 +21,7 @@
     "@houston/host": "workspace:*",
     "@houston/protocol": "workspace:*",
     "@houston/runtime-client": "workspace:*",
+    "@houston/wire-types": "workspace:*",
     "tsx": "4.23.0",
     "typebox": "1.1.38",
     "zod": "4.4.3"

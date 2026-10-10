@@ -127,8 +127,14 @@ async function pauseAfterSync(input: {
     fsTextStore(),
     input.filesystem.workspaceDir,
   );
+  // A usage limit is not snoozed here: a reconciled lost turn names no acting
+  // user, and only a run on the creator's own account may hold the schedule
+  // (domain snoozeAfterRun). The next fire that hits the limit snoozes it.
   const walled = runs.filter(
-    (r) => r.session_key === input.op.op.conversationId && r.failure,
+    (r) =>
+      r.session_key === input.op.op.conversationId &&
+      r.failure &&
+      r.failure.code !== "usage_limit",
   );
   const events: HoustonEvent[] = [];
   const failed: string[] = [];

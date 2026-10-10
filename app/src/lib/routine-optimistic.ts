@@ -61,3 +61,12 @@ export function replaceRoutineInList(
   if (!list || !routine?.id) return list;
   return list.map((entry) => (entry.id === routine.id ? routine : entry));
 }
+
+/** The cached list without a deleted routine. */
+export function removeRoutineFromList(
+  list: Routine[] | undefined,
+  routineId: string,
+): Routine[] | undefined {
+  if (!list?.some((entry) => entry.id === routineId)) return list;
+  return list.filter((entry) => entry.id !== routineId);
+}

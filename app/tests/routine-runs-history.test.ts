@@ -65,6 +65,22 @@ describe("routine history failure copy", () => {
     });
   }
 
+  for (const language of ["en", "es", "pt"] as const) {
+    it(`renders authored creator-access copy in ${language}`, async () => {
+      const refused: RoutineRun = {
+        ...failed,
+        summary: "cloud's English summary",
+        delivery_failure: { code: "creator_no_access" },
+      };
+      const html = await render([refused], language);
+      ok(
+        html.includes(resources[language].details.failure.creatorNoAccess),
+        html,
+      );
+      equal(html.includes("cloud's English summary"), false);
+    });
+  }
+
   it("keeps account failure copy and ordinary run summaries", async () => {
     const { delivery_failure: _, ...base } = failed;
     const accountRun: RoutineRun = {

@@ -3,13 +3,26 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
-## v128 - 2026-10-08
+## v129 - 2026-10-10
 
 Messaging channels settings shows separate Slack and WhatsApp provider cards.
 WhatsApp pairing offers a full-width phone link and a desktop QR code (dark on
 a light tile in every theme) for the prefilled message, with a copyable command
 and a waiting state that lasts as long as the code and clears once the
 connection lands.
+
+## v128 - 2026-10-09
+
+The first day offer knows when no AI is connected. A new hire's first day
+runs on the person's AI, so with none connected the start button reads
+"Connect AI to start" and opens the AI Hub, and the team banner retitles
+itself and swaps its employee chips for that one button. It uses the composer's own connect-AI
+rule, so anything uncertain (a probe still loading, a provider still
+checking) keeps the normal start. Once an AI connects, the start returns by
+itself. A start the server still refuses for no connected AI (a scan that
+had not caught up) shows an info notice instead of an error report: Reconnect
+<provider> when the hire's saved AI is signed out, else Connect your AI, with
+an AI Hub action only when the viewer can reach it.
 
 ## v127 - 2026-10-07
 

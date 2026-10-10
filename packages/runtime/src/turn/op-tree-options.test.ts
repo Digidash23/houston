@@ -57,3 +57,53 @@ test("only a migration import takes the agent-import claim", () => {
   ]);
   expect(opTreeOptions(route("migration/import")).excludes).toBeUndefined();
 });
+
+test("settings and credential ops never download the agent's own folders", () => {
+  const settings = {
+    kind: "settings",
+    action: "put",
+    input: { activeProvider: "anthropic" },
+  } as const;
+  const credential = {
+    kind: "credential",
+    action: "api-key",
+    provider: "openrouter",
+    apiKey: "k",
+  } as const;
+  for (const op of [settings, credential]) {
+    const { filter, lazy } = opTreeOptions(op);
+    expect(lazy, op.kind).toBeUndefined();
+    expect(filter, op.kind).toBeDefined();
+    const admits = (rel: string) => filter?.(rel) === true;
+    // The runtime dir, the root context files, the hidden folders and the
+    // store-root files stay: the op reads settings.json beside them.
+    for (const rel of [
+      `${RUNTIME}/settings.json`,
+      `${RUNTIME}/custom-endpoint.json`,
+      `${RUNTIME}/qwen-region.json`,
+      "workspaces/Personal/Bob/CLAUDE.md",
+      "workspaces/Personal/Bob/.agents/skills/x/SKILL.md",
+      "custom-integrations.json",
+    ])
+      expect(admits(rel), `${op.kind} ${rel}`).toBe(true);
+    // A project folder is most of a heavy agent's bytes and no settings or
+    // credential op reads one.
+    for (const rel of [
+      "workspaces/Personal/Bob/render/big.bin",
+      "workspaces/Personal/Bob/data/export/report.csv",
+      "workspaces/Personal/Bob/uploads/a.png",
+    ])
+      expect(admits(rel), `${op.kind} ${rel}`).toBe(false);
+  }
+  // Route and conversation ops list lazily and need no filter.
+  expect(
+    opTreeOptions({ kind: "route", method: "POST", rest: "routines" }).filter,
+  ).toBeUndefined();
+  expect(
+    opTreeOptions({
+      kind: "conversation",
+      action: "delete",
+      conversationId: "c1",
+    }).filter,
+  ).toBeUndefined();
+});

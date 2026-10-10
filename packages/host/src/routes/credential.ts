@@ -1,11 +1,15 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { isExpiring } from "../credentials/refresh";
-import { RemoteCredentialDeadError } from "../credentials/remote-store";
+import {
+  RemoteCredentialBlockedError,
+  RemoteCredentialDeadError,
+} from "../credentials/remote-store";
 import {
   type CredentialStore,
   type CredentialVault,
   isApiKeyCredential,
 } from "../ports";
+import { answerAccountBlocked } from "./credential-blocked";
 import type { CredentialServeHealer } from "./credential-healer";
 import { refreshedForServe } from "./credential-refresh";
 import { bearer, json } from "./http";
@@ -108,6 +112,8 @@ export async function handleSandboxCredential(
   try {
     cred = await deps.credentials.get(claim.workspaceId, provider, acting);
   } catch (error) {
+    if (error instanceof RemoteCredentialBlockedError)
+      return answerAccountBlocked(res, error.detail);
     if (!(error instanceof RemoteCredentialDeadError)) throw error;
     deadError = error;
   }
@@ -136,6 +142,8 @@ export async function handleSandboxCredential(
   );
   if ("notConnected" in refreshed)
     return notConnected(res, refreshed.notConnected);
+  if ("blocked" in refreshed)
+    return answerAccountBlocked(res, refreshed.blocked.detail);
   cred = refreshed.cred;
   // Never serve a STALE anthropic token. Unlike every other provider, a served
   // anthropic token doesn't just fail its own API call — inside the Claude
