@@ -8,7 +8,8 @@ import type { SlackCompletion } from "./settings-landing.ts";
  * source impersonates the other's wire literal.
  *
  *  - `unredeemable` — this link will never connect anything; connect again.
- *  - `taken`        — the Slack account is bound to another Houston account.
+ *  - `taken`        — the Slack account is bound to another Houston account or
+ *                     to another of the caller's spaces.
  */
 export type SlackCompletionResult = "unredeemable" | "taken";
 

@@ -245,7 +245,7 @@
     "openSlack": "Abrir Slack",
     "completing": "Terminando tu conexión con Slack…",
     "completeInvalid": "Ese enlace de conexión con Slack no es válido o venció. Conéctate de nuevo.",
-    "completeAlready": "Esa cuenta de Slack ya está conectada a otra cuenta de Houston. Desconéctala allí y vuelve a conectarte.",
+    "completeAlready": "Esa cuenta de Slack ya está conectada a otra cuenta de Houston o a otro de tus espacios de Houston. Desconéctala allí y vuelve a conectarte.",
     "alreadyAdded": "¿Ya agregaste Houston a Slack?",
     "newCode": "Obtener un nuevo código de conexión",
     "linkInstructions": "Abre tu mensaje directo con Houston en Slack y envía este comando.",

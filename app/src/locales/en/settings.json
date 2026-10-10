@@ -245,7 +245,7 @@
     "openSlack": "Open Slack",
     "completing": "Finishing your Slack connection…",
     "completeInvalid": "That Slack connection link is invalid or expired. Connect again.",
-    "completeAlready": "That Slack account is already connected to another Houston account. Disconnect it there first, then connect again.",
+    "completeAlready": "That Slack account is already connected to another Houston account or to another of your Houston spaces. Disconnect it there first, then connect again.",
     "alreadyAdded": "Already added Houston to Slack?",
     "newCode": "Get a new connection code",
     "linkInstructions": "Open your direct message with Houston in Slack and send this command.",
