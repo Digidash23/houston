@@ -105,7 +105,14 @@ export type RoutineRunFailure =
       provider: string;
     }
   /** The routine names no model and nothing is connected to fall back on. */
-  | { code: "no_model" };
+  | { code: "no_model" }
+  /** The account's plan used up its usage window; it resets at `resets_at`. */
+  | {
+      code: "usage_limit";
+      provider: string;
+      model: string | null;
+      resets_at: string | null;
+    };
 
 export interface RoutineRun {
   id: string;

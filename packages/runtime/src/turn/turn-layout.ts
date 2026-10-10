@@ -1,5 +1,6 @@
 import { mkdir, readdir } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
+import type { TurnSetupCode as WireTurnSetupCode } from "@houston/wire-types";
 import { realAgents, standingTree } from "./turn-layout-agents";
 
 /** Stable internal codes for failures before provider execution. */
@@ -12,6 +13,15 @@ export type TurnSetupCode =
   | "agent_not_migrated"
   /** Houston's message reused a nonce for other words: a host refuses it. */
   | "message_refused";
+
+/** Clients parse these codes from `@houston/wire-types`: the two lists are
+ *  the same set, or this fails to compile. */
+type SameCodes = [TurnSetupCode] extends [WireTurnSetupCode]
+  ? [WireTurnSetupCode] extends [TurnSetupCode]
+    ? true
+    : never
+  : never;
+export const TURN_SETUP_CODES_MATCH_WIRE: SameCodes = true;
 
 /** A setup failure the internal turn stream exposes as a stable code. */
 export class TurnSetupError extends Error {

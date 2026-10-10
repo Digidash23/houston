@@ -98,6 +98,7 @@ test("a non-Error rejection still reports a readable reason", () => {
   genericErrorDescription("user_feedback", { status: 501 });
 
   const [error] = captureException.mock.calls[0] as [Error];
-  expect(error.message).toBe("[object Object]");
+  // HOUSTON-APP-53A: never "[object Object]"; describeError names the fields.
+  expect(error.message).toBe("object {status: 501} keys: status");
   expect(error.name).toBe("user_feedback");
 });

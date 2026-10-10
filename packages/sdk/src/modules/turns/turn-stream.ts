@@ -5,12 +5,14 @@ import {
 } from "@houston/protocol";
 import type { HoustonEngineClient } from "@houston/runtime-client";
 import { streamEventsResumable } from "@houston/runtime-client";
+import { TurnBoardWrites } from "./board-writes";
 import type { FeedOutput } from "./feed-output";
 import { FirstResponseClock } from "./first-response";
 import type { PersonStop } from "./person-stop";
 import { randomNonce } from "./random-nonce";
 import { computeBusyRefusal } from "./send-busy";
 import { observerSettled } from "./send-hold";
+import { refusedResendItem, settleRefusedSend } from "./send-refusal-item";
 import { armHandoffStop, sendUntilAccepted } from "./send-wait";
 import {
   type ActiveStream,
@@ -27,10 +29,9 @@ import {
 import {
   engineVerdictMessage,
   isAmbiguousSendFailure,
-  messageLimitRefusal,
   STOPPED_BY_USER,
 } from "./turn-errors";
-import { isTurnRunningRejection, sendRefusal } from "./turn-running";
+import { isTurnRunningRejection } from "./turn-running";
 import { TurnSink } from "./turn-sink";
 import type { FeedAuthor, FeedMention } from "./vm-output";
 
@@ -207,7 +208,9 @@ export async function streamTurn(
   // activity must reset it) and CLEAR any interaction the prior settle stored
   // (null) — a re-run is no longer waiting on the user. Fire concurrently so it
   // never delays turn start; persistBoardStatus surfaces its own failure.
-  void output.persistBoardStatus(agentPath, sessionKey, "running", null);
+  // Every later write to this card queues behind it (board-writes.ts).
+  const board = new TurnBoardWrites(output, agentPath, sessionKey);
+  void board.persist("running", null);
 
   const key = streamKey(agentPath, sessionKey);
   const nonce = opts.nonce ?? randomNonce();
@@ -347,31 +350,7 @@ export async function streamTurn(
       registry.endSend(key);
       // The resend was rejected before it reached the engine — fail its
       // optimistic bubble (the observed turn keeps rendering unaffected).
-      const limit = messageLimitRefusal(e);
-      output.pushFeedItem(
-        agentPath,
-        sessionKey,
-        limit
-          ? {
-              feed_type: "provider_error",
-              data: {
-                kind: "plan_message_limit",
-                provider: "",
-                resets_at: limit.resetsAt,
-                message: limit.error,
-              },
-              fails_pending: true,
-            }
-          : (() => {
-              const refusal = sendRefusal(e);
-              return {
-                feed_type: "system_message" as const,
-                data: refusal.message,
-                ...(refusal.notice ? { notice: refusal.notice } : {}),
-                fails_pending: true,
-              };
-            })(),
-      );
+      output.pushFeedItem(agentPath, sessionKey, refusedResendItem(e));
       firstResponse.resolve("error");
       return; // the observer keeps rendering the running turn
     }
@@ -416,6 +395,7 @@ export async function streamTurn(
     // our first sync (its frames never replayed) hangs the card without it.
     presettledPollMs: opts.tuning?.presettledPollMs ?? PRESETTLED_POLL_MS,
     firstResponse,
+    board,
   });
   if (sent) sink.sendAccepted();
   // A teardown ends the sink at once: a history reload still out publishes
@@ -506,14 +486,7 @@ export async function streamTurn(
     // handler: settle with the engine's plain message so the spinner stops
     // and the reason surfaces. Every settle aborts after it, so an abort with
     // nothing settled is a teardown: a late refusal then settles nothing.
-    if (!sink.settled && !ac.signal.aborted) {
-      const limit = messageLimitRefusal(e);
-      if (limit) sink.planLimit(limit);
-      else {
-        const refusal = sendRefusal(e);
-        sink.fail(refusal.message, refusal.notice);
-      }
-    }
+    if (!sink.settled && !ac.signal.aborted) settleRefusedSend(sink, e);
   } finally {
     if (sendVerdict !== undefined) clearTimeout(sendVerdict);
     sink.dispose(); // clear any armed pre-settled poll — the stream is done
@@ -525,13 +498,8 @@ export async function streamTurn(
 
   // Persist the terminal board status once the turn settled — awaited, through
   // the cloud-aware seam, so the card actually leaves "running" on the surface
-  // the board reads. An externally disposed stream (logout teardown) settles
+  // the board reads. The sink queued it the moment it settled (reply-phase.ts
+  // `settleCard`). An externally disposed stream (logout teardown) settles
   // nothing and persists nothing: the client is gone.
-  if (sink.terminal)
-    await output.persistBoardStatus(
-      agentPath,
-      sessionKey,
-      sink.terminal,
-      sink.terminalInteraction,
-    );
+  await board.settled;
 }

@@ -113,7 +113,7 @@ export function ApiKeysBody() {
         confirmLabel={t("apiKeys.revoke.confirm")}
         cancelLabel={t("apiKeys.revoke.cancel")}
         onConfirm={() => {
-          if (revokeTarget) revoke.mutate(revokeTarget.id);
+          if (revokeTarget) revoke(revokeTarget.id);
           setRevokeTarget(null);
         }}
       />

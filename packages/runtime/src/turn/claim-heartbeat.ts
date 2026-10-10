@@ -94,3 +94,27 @@ export function startClaimHeartbeat(opts: {
     },
   };
 }
+
+/**
+ * A claimed turn's heartbeat, or null for an unclaimed one: a fenced claim
+ * aborts the turn, and a mode the gateway reports becomes the turn's live mode.
+ */
+export function startTurnClaimHeartbeat(
+  turn: TurnRequest,
+  abort: AbortController,
+  opts: { fetchImpl?: typeof fetch; heartbeatIntervalMs?: number },
+): ClaimHeartbeat | null {
+  if (!turn.claim || !turn.hostToken) return null;
+  return startClaimHeartbeat({
+    claim: turn.claim,
+    hostToken: turn.hostToken,
+    onFenced: () => abort.abort(),
+    onMode: (mode) => {
+      if (turn.liveMode) turn.liveMode.current = mode;
+    },
+    ...(opts.fetchImpl ? { fetchImpl: opts.fetchImpl } : {}),
+    ...(opts.heartbeatIntervalMs
+      ? { intervalMs: opts.heartbeatIntervalMs }
+      : {}),
+  });
+}

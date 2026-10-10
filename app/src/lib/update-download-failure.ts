@@ -6,12 +6,17 @@
 /** `network` is the device's link; `upstream` is the release host answering
  *  a transient status (a 5xx / 429) for the whole retry budget (PRODUCT-1811).
  *  Both are expected states. `http` is any other status, final on first
- *  sight. */
+ *  sight. `in_progress` is another download of the same release already
+ *  running in the shell (a remounted hook asked twice): nothing happened.
+ *  `storage_full` is the disk refusing the bytes: quiet, and not retried for
+ *  that release this session. */
 export type UpdateDownloadFailureKind =
   | "network"
   | "upstream"
   | "http"
   | "signature"
+  | "in_progress"
+  | "storage_full"
   | "other";
 
 /** What the shell reports when a release download gives up: the class, the
@@ -52,8 +57,24 @@ const KINDS: ReadonlySet<string> = new Set([
   "upstream",
   "http",
   "signature",
+  "in_progress",
+  "storage_full",
   "other",
 ]);
+
+/** What the machine does with a failed download: `skip` (another download
+ *  of the release is running; nothing to report, nothing to change),
+ *  `give_up` (the disk is full; no retry for this release this session, one
+ *  quiet report), or `retry` (report once per release; the next poll resumes
+ *  the persisted partial). */
+export type UpdateDownloadOutcome = "skip" | "give_up" | "retry";
+
+export function updateDownloadOutcome(err: unknown): UpdateDownloadOutcome {
+  const kind = toUpdateDownloadError(err).kind;
+  if (kind === "in_progress") return "skip";
+  if (kind === "storage_full") return "give_up";
+  return "retry";
+}
 
 /**
  * Read the shell's rejection into an `UpdateDownloadError`. Anything else

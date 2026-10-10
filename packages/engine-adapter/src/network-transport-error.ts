@@ -1,5 +1,5 @@
 // The "is this failure just connectivity?" classifier for the error-surfacing
-// layer. Dependency-free so it is node-testable directly
+// layer. Dependency-free (one SDK subpath) so it is node-testable directly
 // (app/tests/network-transport-error.test.ts) and importable from anywhere.
 // Lives in the engine adapter for the same reason as ./engine-waking-error.ts:
 // the adapter ships in the desktop bundle, which cannot resolve `@houston/app`.
@@ -11,20 +11,9 @@
 // TypeError ("undefined is not a function") — it keys on the small fixed set of
 // messages browsers use for fetch transport failures.
 
-/**
- * The messages `fetch` transport rejections carry, per engine:
- *  - WebKit (our Tauri webview): "Load failed", sometimes suffixed with the
- *    host — "Load failed (gateway.gethouston.ai)" — plus the CFNetwork
- *    phrasings older WebKits surface ("The network connection was lost.",
- *    "The Internet connection appears to be offline.", "A server with the
- *    specified hostname could not be found.", "Could not connect to the
- *    server.", "The request timed out.").
- *  - Chromium: "Failed to fetch".
- *  - Firefox: "NetworkError when attempting to fetch resource.".
- *  - Node/undici (web dev, tests): "fetch failed".
- */
-const TRANSPORT_MESSAGE =
-  /^load failed|^failed to fetch|^networkerror|^fetch failed|network connection was lost|internet connection appears to be offline|hostname could not be found|could not connect to the server|request timed out/i;
+// The message set lives in the SDK (`@houston/sdk/transport-failure`), which
+// types an interrupted upload off the same predicate.
+import { isTransportFailure } from "@houston/sdk/transport-failure";
 
 /**
  * A transport-level network failure: the device is offline or the host is
@@ -46,5 +35,5 @@ export function isNetworkTransportError(err: unknown): boolean {
 }
 
 function isTransportTypeError(err: unknown): boolean {
-  return err instanceof TypeError && TRANSPORT_MESSAGE.test(err.message);
+  return isTransportFailure(err);
 }

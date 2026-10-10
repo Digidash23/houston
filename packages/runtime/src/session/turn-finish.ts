@@ -1,3 +1,6 @@
+import { isOfferToolName } from "@houston/protocol";
+import type { ReplyBeat } from "../backends/types";
+
 /**
  * The marks a turn's finish is decided on, held by the per-turn interaction
  * holder (interaction-holder.ts) and fed by whichever turn executor owns the session
@@ -9,6 +12,9 @@
  * turn on their own result — the reply and the offers then come from ONE
  * model pass — and the Claude backend's PostToolBatch hook reads the ended
  * mark to stop the subprocess (backends/claude/turn-end-hook.ts).
+ *
+ * They also decide when the reply is complete ({@link noteReplyBeat}), the
+ * moment the turn executors emit `reply_complete` — seconds before `done`.
  */
 export class TurnFinishMarks {
   /**
@@ -29,6 +35,8 @@ export class TurnFinishMarks {
    * a turn on text it cannot attribute to the current message.
    */
   private inAssistantMessage = false;
+  /** Whether this turn already reported its reply complete (once per turn). */
+  private replyCompleted = false;
 
   /** A model round-trip begins: the closing-message mark starts over. */
   noteAssistantMessageStart(): void {
@@ -41,5 +49,21 @@ export class TurnFinishMarks {
   noteAssistantText(delta: string): void {
     if (this.inAssistantMessage && /\S/.test(delta))
       this.closingMessageSeen = true;
+  }
+
+  /**
+   * Note a reply beat; true exactly once per turn, when it completes the
+   * reply: the model opens an offer tool after writing its closing message
+   * (the offer then ends the turn, see suggest-actions.ts), or ends a
+   * message that holds that text with no tool call. An offer opened BEFORE
+   * any closing text is the NEEDS_MESSAGE path: the model still has to write
+   * the reply, so it completes nothing.
+   */
+  noteReplyBeat(beat: ReplyBeat): boolean {
+    if (this.replyCompleted || !this.closingMessageSeen) return false;
+    if (beat.type === "tool_call_start" && !isOfferToolName(beat.name))
+      return false;
+    this.replyCompleted = true;
+    return true;
   }
 }

@@ -16,6 +16,9 @@ const chatOpen = read("../src/components/skills-view/use-skill-chat-open.ts");
 const sharedActions = read(
   "../src/components/skills-view/use-shared-skills-actions.ts",
 );
+const assignments = read(
+  "../src/components/skills-view/use-shared-skill-assignments.ts",
+);
 const scopedActions = read(
   "../src/components/skills-view/scoped-skill-actions.ts",
 );
@@ -58,15 +61,16 @@ describe("an AI Employee's own Skills section", () => {
     // Clearing the manifest alone is a no-op: a local copy loads whether or
     // not the manifest names it. The two writes and the order they happen in
     // are ONE capability, so the hook delegates rather than sequencing them.
-    ok(sharedActions.includes("const disableForAgent = useCallback("));
+    ok(sharedActions.includes("...useSharedSkillAssignments(workspaceId)"));
+    ok(assignments.includes("const disableForAgent = useCallback("));
     ok(
-      sharedActions.includes(
+      assignments.includes(
         "tauriSkillsManifest.disableForAgent(agent.folderPath, row.slug)",
       ),
       "the shadowing copy goes with the entry, in the SDK's order",
     );
     ok(
-      sharedActions.includes(
+      assignments.includes(
         "tauriSkillsManifest.revertOverride(agent.folderPath, row.slug)",
       ),
       "and going back to the workspace version is the same one act",
@@ -76,12 +80,13 @@ describe("an AI Employee's own Skills section", () => {
   it("refreshes what the act moved even when the act failed partway", () => {
     // The manifest entry can land and the copy delete fail after it, so a
     // refresh that only follows success leaves every cache one write behind.
-    const rides = (call: string) =>
-      new RegExp(String.raw`actThenRefresh\(\s*\(\) =>\s*${call}`).test(
-        sharedActions,
-      );
-    ok(rides(String.raw`tauriSkillsManifest\.disableForAgent`));
-    ok(rides(String.raw`tauriSkillsManifest\.revertOverride`));
+    // `optimisticWrite` refreshes its `invalidate` keys on BOTH outcomes.
+    ok(assignments.includes("optimisticWrite({"));
+    ok(
+      assignments.includes(
+        "invalidate: skillWriteRefresh(a.agentPaths, workspaceId)",
+      ),
+    );
   });
 
   it("reads every employee only for the menu's acts that reach them all", () => {

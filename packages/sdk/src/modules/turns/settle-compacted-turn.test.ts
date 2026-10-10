@@ -103,7 +103,7 @@ test("the pre-settled poll adopts the same conclusive record", async () => {
     () => false,
     () => false,
   );
-  expect(settled).toBe(true);
+  expect(settled).toBe("settled");
   expect(items.some((i) => i.feed_type === "provider_error")).toBe(true);
   expect(items.some((i) => i.data === SUMMARY)).toBe(false);
 });

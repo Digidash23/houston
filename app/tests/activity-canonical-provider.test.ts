@@ -15,7 +15,7 @@ import {
 
 test("the app's activity writer canonicalizes the provider it stores", () => {
   const source = readFileSync(
-    new URL("../src/data/activity.ts", import.meta.url),
+    new URL("../src/data/activity-writes.ts", import.meta.url),
     "utf8",
   );
   strictEqual(source.includes("toCanonicalProviderId(provider)"), true);

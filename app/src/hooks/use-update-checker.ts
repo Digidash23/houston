@@ -71,7 +71,7 @@ export function useUpdateChecker() {
     if (updatePresentation(status.info.origin) === "launch") {
       void installAndRelaunch("launch");
     } else {
-      void download();
+      void download("poll");
     }
   }, [status, download, installAndRelaunch]);
 
@@ -85,16 +85,21 @@ export function useUpdateChecker() {
     void check();
     const interval = setInterval(check, UPDATE_CHECK_INTERVAL_MS);
     // Returning to the app is a cheap moment to look again, throttled
-    // against focus bursts.
-    const onFocus = () => {
+    // against focus bursts. The link coming back is the moment a download
+    // that died on it can carry on: the check finds the release again and
+    // the shell resumes from the bytes it kept, instead of waiting out the
+    // rest of the poll interval.
+    const recheckIfDue = () => {
       if (shouldRecheckOnFocus(lastCheckAtRef.current, Date.now())) {
         void check();
       }
     };
-    window.addEventListener("focus", onFocus);
+    window.addEventListener("focus", recheckIfDue);
+    window.addEventListener("online", recheckIfDue);
     return () => {
       clearInterval(interval);
-      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("focus", recheckIfDue);
+      window.removeEventListener("online", recheckIfDue);
     };
   }, [check]);
 

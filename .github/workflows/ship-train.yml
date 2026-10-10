@@ -18,6 +18,7 @@
 #          surface: the store's prod roll used to require a separate manual
 #          `agentstore-v*` tag push that nobody made, so the public site sat
 #          two weeks behind staging (Jul→Aug 2026).
+#        · THIS workflow then records `train.json` on the release (see below).
 #
 # WHAT "SAME TRAIN" MEANS FOR THE ENGINE:
 #   Engine images build per engine-touching merge (engine-pod-image.yml is
@@ -35,6 +36,15 @@
 #   stay monotonic no matter who sends. The payload KEY stays `run_number`
 #   (cloud reads client_payload.run_number).
 #
+# train.json IS THE RECORD OF WHAT SHIPPED: the `record` job uploads it to the
+#   published release (asset `train.json`, GITHUB_TOKEN + contents: write, no
+#   ref push involved). It maps the train to the engine and agentstore images
+#   (sha, digest, image ref) that were promoted, and says whether each label
+#   below could be stamped, and whether each prod dispatch went out. Read it
+#   first when asking "what did train X.Y.Z ship?"; the labels are a
+#   convenience view of the same facts. Schema is additive
+#   (`schema: 1`); scripts/ci/write-train-json.sh renders it.
+#
 # THE VERSION LABELS ARE LABELS, NOT TRIGGERS: `label/engine-pod-v<version>`
 #   and `label/agentstore-v<version>` are pushed with the default GITHUB_TOKEN,
 #   whose pushes deliberately do NOT trigger other workflows (GitHub's
@@ -48,6 +58,14 @@
 #   environment's tag patterns, cloud's WIF release-tag prefixes), so a label a
 #   branch workflow forges grants nothing. Trains up to 1.0.5 carry the old
 #   `engine-pod-v<version>` / `agentstore-v<version>` labels.
+#   A LABEL CAN BE REFUSED, AND THAT NEVER FAILS THE TRAIN: GITHUB_TOKEN has no
+#   `workflows` permission, and GitHub rejects a ref push whose target commit's
+#   .github/workflows/* differ from the default branch's. The agentstore image
+#   commit is usually older than main (store builds are sparse), so its label
+#   trips this whenever a workflow changed since; the engine label can too.
+#   scripts/ci/stamp-train-label.sh turns every refusal into a ::warning:: and
+#   records the outcome in train.json. 1.0.6 shipped with this refusal and a
+#   red run (label/agentstore-v1.0.6 was never created), hence the rule.
 #   Pushing an `engine-pod-v*` tag by hand (admins only; a real user push DOES
 #   trigger engine-pod-image.yml's tag path) remains the break-glass prod
 #   engine roll, independent of any release. A hand-pushed agentstore-v* tag
@@ -64,7 +82,7 @@ on:
     types: [published]
 
 permissions:
-  contents: write # the label/* version tag pushes (GITHUB_TOKEN, non-triggering)
+  contents: write # the label/* version tag pushes and the train.json release asset (GITHUB_TOKEN, non-triggering)
   id-token: write # Workload Identity Federation (Artifact Registry probe)
 
 concurrency:
@@ -87,6 +105,14 @@ jobs:
       github.event.release.tag_name != 'cloud-latest'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      version: ${{ steps.engine.outputs.version }}
+      base_sha: ${{ steps.engine.outputs.base_sha }}
+      train_sha: ${{ steps.engine.outputs.train_sha }}
+      digest: ${{ steps.engine.outputs.digest }}
+      dispatched: ${{ steps.dispatch.outputs.dispatched }}
+      label_stamped: ${{ steps.label.outputs.stamped }}
+      label_reason: ${{ steps.label.outputs.reason }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -133,14 +159,18 @@ jobs:
           fi
 
           echo "Train engine: engine-pod:${TRAIN_SHA} (${DIGEST})"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "train_sha=${TRAIN_SHA}" >> "$GITHUB_OUTPUT"
-          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=${VERSION}"
+            echo "base_sha=${BASE_SHA}"
+            echo "train_sha=${TRAIN_SHA}"
+            echo "digest=${DIGEST}"
+          } >> "$GITHUB_OUTPUT"
 
       # Fire the prod roll — the same repository_dispatch contract
       # engine-pod-image.yml's tag path uses (cloud/roll-engine.yml consumes
       # it: ConfigMap write, converge ticker rolls the fleet busy-aware).
       - name: Promote prod engine fleet
+        id: dispatch
         env:
           GH_TOKEN: ${{ secrets.CLOUD_DISPATCH_TOKEN }}
           VERSION: ${{ steps.engine.outputs.version }}
@@ -155,44 +185,32 @@ jobs:
             -F "client_payload[image]=$IMAGE" \
             -F "client_payload[sha]=${TRAIN_SHA}" \
             -F "client_payload[run_number]=$(date +%s)"
+          echo "dispatched=true" >> "$GITHUB_OUTPUT"
           echo "::notice::Prod engine promotion dispatched for train ${VERSION} (${IMAGE})"
 
-      # Version label: label/engine-pod-v<version> at the train's engine sha. Pushed
-      # with GITHUB_TOKEN so it can never trigger a build (see header). A
-      # re-publish of the same release is a no-op when the label already points
-      # at the same sha; a label pointing ELSEWHERE is a hard error — a train's
-      # label must never silently move.
+      # Version label: label/engine-pod-v<version> at the train's engine sha.
+      # Pushed with GITHUB_TOKEN so it can never trigger a build (see header).
+      # The script never fails the train: a re-publish at the same sha is a
+      # no-op, a label pointing ELSEWHERE is left alone with a warning (a
+      # train's label never silently moves), and a refused push is a warning.
+      # Its outcome lands in train.json.
       - name: Stamp engine version label
+        id: label
         env:
           VERSION: ${{ steps.engine.outputs.version }}
           TRAIN_SHA: ${{ steps.engine.outputs.train_sha }}
         run: |
-          set -euo pipefail
-          LABEL="label/engine-pod-v${VERSION}"
-
-          if EXISTING=$(git rev-parse -q --verify "refs/tags/${LABEL}" 2>/dev/null); then
-            EXISTING_TARGET=$(git rev-parse "${EXISTING}^{commit}")
-            if [ "$EXISTING_TARGET" = "$TRAIN_SHA" ]; then
-              echo "::notice::${LABEL} already points at ${TRAIN_SHA} (release re-published) — nothing to do."
-              exit 0
-            fi
-            echo "::error::${LABEL} already exists at ${EXISTING_TARGET}, but this train resolves to ${TRAIN_SHA}. A train label must never move — investigate before re-tagging."
-            exit 1
-          fi
-
-          git config user.name "houston-release-bot"
-          git config user.email "release-bot@users.noreply.github.com"
-          git tag -a "$LABEL" -m "Houston train ${VERSION} — engine label (app tag cloud-v${VERSION})" "$TRAIN_SHA"
-          git push origin "refs/tags/${LABEL}"
-          echo "::notice::Stamped ${LABEL} at ${TRAIN_SHA}"
+          scripts/ci/stamp-train-label.sh "label/engine-pod-v${VERSION}" "$TRAIN_SHA" \
+            "Houston train ${VERSION} — engine label (app tag cloud-v${VERSION})"
 
       - name: Summary
         env:
           VERSION: ${{ steps.engine.outputs.version }}
           TRAIN_SHA: ${{ steps.engine.outputs.train_sha }}
           DIGEST: ${{ steps.engine.outputs.digest }}
+          LABEL_STAMPED: ${{ steps.label.outputs.stamped }}
         run: |
-          echo "::notice::Train ${VERSION} shipped: desktop updater flipped by cloud-updater-manifest.yml, prod engine rolling to engine-pod@${DIGEST} (sha ${TRAIN_SHA}), label label/engine-pod-v${VERSION} stamped."
+          echo "::notice::Train ${VERSION} shipped: desktop updater flipped by cloud-updater-manifest.yml, prod engine rolling to engine-pod@${DIGEST} (sha ${TRAIN_SHA}), label label/engine-pod-v${VERSION} stamped=${LABEL_STAMPED}."
 
   promote-agentstore:
     # Reads RELEASE_CUT_TOKEN / CLOUD_DISPATCH_TOKEN from this environment, which
@@ -204,6 +222,14 @@ jobs:
       github.event.release.tag_name != 'cloud-latest'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      version: ${{ steps.agentstore.outputs.version }}
+      base_sha: ${{ steps.agentstore.outputs.base_sha }}
+      train_sha: ${{ steps.agentstore.outputs.train_sha }}
+      digest: ${{ steps.agentstore.outputs.digest }}
+      dispatched: ${{ steps.dispatch.outputs.dispatched }}
+      label_stamped: ${{ steps.label.outputs.stamped }}
+      label_reason: ${{ steps.label.outputs.reason }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -261,9 +287,12 @@ jobs:
             --format='value(image_summary.digest)')
 
           echo "Train agentstore: agentstore:${TRAIN_SHA} (${DIGEST})"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "train_sha=${TRAIN_SHA}" >> "$GITHUB_OUTPUT"
-          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=${VERSION}"
+            echo "base_sha=${BASE_SHA}"
+            echo "train_sha=${TRAIN_SHA}"
+            echo "digest=${DIGEST}"
+          } >> "$GITHUB_OUTPUT"
 
       # Same repository_dispatch contract agentstore-image.yml's tag path uses
       # (cloud/roll-agentstore.yml consumes it: kubectl set image + rollout
@@ -272,6 +301,7 @@ jobs:
       # run_number is informational there; epoch seconds keeps it monotonic
       # alongside this workflow's engine dispatch.
       - name: Promote prod agentstore web
+        id: dispatch
         env:
           GH_TOKEN: ${{ secrets.CLOUD_DISPATCH_TOKEN }}
           VERSION: ${{ steps.agentstore.outputs.version }}
@@ -286,40 +316,82 @@ jobs:
             -F "client_payload[image]=$IMAGE" \
             -F "client_payload[sha]=${TRAIN_SHA}" \
             -F "client_payload[run_number]=$(date +%s)"
+          echo "dispatched=true" >> "$GITHUB_OUTPUT"
           echo "::notice::Prod agentstore promotion dispatched for train ${VERSION} (${IMAGE})"
 
       # Version label: label/agentstore-v<version> at the train's agentstore sha.
-      # Same rules as the engine label: GITHUB_TOKEN push (never triggers the
-      # tag build), re-publish at the same sha is a no-op, a label pointing
-      # ELSEWHERE is a hard error — a train's label must never silently move.
+      # Same rules as the engine label (GITHUB_TOKEN push, never triggers the
+      # tag build, never fails the train). This is the label GitHub refuses
+      # most often: the store image commit sits behind main, so any workflow
+      # change since makes the push a "workflow update" the token may not do.
       - name: Stamp agentstore version label
+        id: label
         env:
           VERSION: ${{ steps.agentstore.outputs.version }}
           TRAIN_SHA: ${{ steps.agentstore.outputs.train_sha }}
         run: |
-          set -euo pipefail
-          LABEL="label/agentstore-v${VERSION}"
-
-          if EXISTING=$(git rev-parse -q --verify "refs/tags/${LABEL}" 2>/dev/null); then
-            EXISTING_TARGET=$(git rev-parse "${EXISTING}^{commit}")
-            if [ "$EXISTING_TARGET" = "$TRAIN_SHA" ]; then
-              echo "::notice::${LABEL} already points at ${TRAIN_SHA} (release re-published) — nothing to do."
-              exit 0
-            fi
-            echo "::error::${LABEL} already exists at ${EXISTING_TARGET}, but this train resolves to ${TRAIN_SHA}. A train label must never move — investigate before re-tagging."
-            exit 1
-          fi
-
-          git config user.name "houston-release-bot"
-          git config user.email "release-bot@users.noreply.github.com"
-          git tag -a "$LABEL" -m "Houston train ${VERSION} — agentstore label (app tag cloud-v${VERSION})" "$TRAIN_SHA"
-          git push origin "refs/tags/${LABEL}"
-          echo "::notice::Stamped ${LABEL} at ${TRAIN_SHA}"
+          scripts/ci/stamp-train-label.sh "label/agentstore-v${VERSION}" "$TRAIN_SHA" \
+            "Houston train ${VERSION} — agentstore label (app tag cloud-v${VERSION})"
 
       - name: Summary
         env:
           VERSION: ${{ steps.agentstore.outputs.version }}
           TRAIN_SHA: ${{ steps.agentstore.outputs.train_sha }}
           DIGEST: ${{ steps.agentstore.outputs.digest }}
+          LABEL_STAMPED: ${{ steps.label.outputs.stamped }}
         run: |
-          echo "::notice::Train ${VERSION}: agents.gethouston.ai rolling to agentstore@${DIGEST} (sha ${TRAIN_SHA}), label label/agentstore-v${VERSION} stamped."
+          echo "::notice::Train ${VERSION}: agents.gethouston.ai rolling to agentstore@${DIGEST} (sha ${TRAIN_SHA}), label label/agentstore-v${VERSION} stamped=${LABEL_STAMPED}."
+
+  # The durable record (see header). Runs after both promotions whatever their
+  # result (not on cancel): a half whose image never resolved is `null`, a
+  # half whose dispatch step failed reads dispatched=false (job outputs survive
+  # a failed job, so the resolved sha alone is not proof of a roll), and a
+  # refused label shows as stamped=false with the remote's reason, so the
+  # asset always says what this run actually did. No environment, no ref push.
+  record:
+    needs: [promote, promote-agentstore]
+    if: >-
+      !cancelled() &&
+      startsWith(github.event.release.tag_name, 'cloud-v') &&
+      github.event.release.tag_name != 'cloud-latest'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Job-level so the inherited id-token: write is dropped here: this job
+    # only uploads an asset with GITHUB_TOKEN, it never talks to GCP.
+    permissions:
+      contents: write # gh release upload the train.json asset
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Write train.json
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BASE_SHA: ${{ needs.promote.outputs.base_sha || needs.promote-agentstore.outputs.base_sha }}
+          ENGINE_SHA: ${{ needs.promote.outputs.train_sha }}
+          ENGINE_DIGEST: ${{ needs.promote.outputs.digest }}
+          ENGINE_DISPATCHED: ${{ needs.promote.outputs.dispatched }}
+          ENGINE_LABEL_STAMPED: ${{ needs.promote.outputs.label_stamped }}
+          ENGINE_LABEL_REASON: ${{ needs.promote.outputs.label_reason }}
+          AGENTSTORE_SHA: ${{ needs.promote-agentstore.outputs.train_sha }}
+          AGENTSTORE_DIGEST: ${{ needs.promote-agentstore.outputs.digest }}
+          AGENTSTORE_DISPATCHED: ${{ needs.promote-agentstore.outputs.dispatched }}
+          AGENTSTORE_LABEL_STAMPED: ${{ needs.promote-agentstore.outputs.label_stamped }}
+          AGENTSTORE_LABEL_REASON: ${{ needs.promote-agentstore.outputs.label_reason }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#cloud-v}" scripts/ci/write-train-json.sh train.json
+          cat train.json
+
+      # `--clobber`: a re-published release re-records over the previous asset.
+      # Asset uploads are not release events, and GITHUB_TOKEN never triggers
+      # workflows anyway, so this cannot re-fire cloud-updater-manifest.yml.
+      - name: Upload train.json to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          gh release upload "$TAG" train.json --clobber -R "$GITHUB_REPOSITORY"
+          echo "::notice::train.json recorded on https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}"

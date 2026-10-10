@@ -2,12 +2,19 @@ import type { PendingInteraction } from "@houston/runtime-client";
 import { LruCache } from "../../lru";
 import type { ScopeStore } from "../../store";
 import type {
+  BoardPersistOptions,
   BoardStatus,
   FeedOutput,
   SessionStatusValue,
 } from "./feed-output";
 import type { SendWaitReason } from "./send-busy";
 import type { EngineNoticeKind } from "./turn-errors";
+import {
+  foldReplyPhase,
+  type ReplyPhaseState,
+  type ReplyPhaseVM,
+  replyPhaseField,
+} from "./vm-reply-phase";
 
 /**
  * The SDK's built-in {@link FeedOutput}: folds one conversation's pushes into a
@@ -155,7 +162,7 @@ export interface QueuedMessageVM {
 }
 
 /** The reactive snapshot published to the `conversation/<id>` scope. */
-export interface ConversationVM {
+export interface ConversationVM extends ReplyPhaseVM {
   feed: FeedItemVM[];
   /** Derived: `sessionStatus === "running"`. The spinner/loading flag. */
   running: boolean;
@@ -204,7 +211,7 @@ export interface HistoryWindowVM {
   total: number;
 }
 
-interface ConvState {
+interface ConvState extends ReplyPhaseState {
   feed: FeedItemVM[];
   sessionStatus: SessionStatusValue | "idle";
   boardStatus: BoardStatus | null;
@@ -325,6 +332,7 @@ export class ConversationVmOutput implements FeedOutput {
         seq: 0,
         streaming: new Map(),
         queued: [],
+        replyComplete: false,
       };
       this.convs.set(key, s);
     }
@@ -647,6 +655,7 @@ export class ConversationVmOutput implements FeedOutput {
   ): void {
     const s = this.state(agentPath, sessionKey);
     s.sessionStatus = status;
+    s.replyComplete = false; // a turn starts or settles: the phase is over
     // A terminal status closes every open streaming run so the next turn's
     // streaming text starts a fresh bubble instead of extending this one, and it
     // confirms any outstanding optimistic bubble — the turn is over, nothing is
@@ -669,8 +678,11 @@ export class ConversationVmOutput implements FeedOutput {
     sessionKey: string,
     status: BoardStatus,
     pendingInteraction?: PendingInteraction | null,
+    opts?: BoardPersistOptions,
   ): Promise<void> {
     const s = this.state(agentPath, sessionKey);
+    if (foldReplyPhase(s, status, opts))
+      return this.publish(agentPath, sessionKey, s);
     s.boardStatus = status;
     // Turn start persists `running` + null (clears); a settle persists the
     // terminal status + the interaction it ended on (or null). An omitted arg
@@ -795,6 +807,7 @@ export class ConversationVmOutput implements FeedOutput {
       ...(s.queued.length ? { queued: s.queued.map((q) => ({ ...q })) } : {}),
       ...(s.historyWindow ? { historyWindow: { ...s.historyWindow } } : {}),
       ...(s.sendWaiting ? { sendWaiting: s.sendWaiting } : {}),
+      ...replyPhaseField(s),
     };
     const scope = conversationScope(agentPath, sessionKey);
     this.store.publish(scope, snapshot);

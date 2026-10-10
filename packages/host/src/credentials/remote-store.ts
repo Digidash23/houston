@@ -12,10 +12,16 @@ import {
   isNotConnected404,
 } from "./gateway-wire";
 import {
+  gatewayBlockedDetail,
+  RemoteCredentialBlockedError,
+} from "./remote-blocked";
+import {
   type RevocationTombstones,
   sharedRevocationTombstones,
 } from "./revocation-tombstones";
 import { credentialScopeKey } from "./scope-key";
+
+export { RemoteCredentialBlockedError } from "./remote-blocked";
 
 const CACHE_TTL_MS = 15_000;
 type CachedCredential = Omit<WorkspaceCredential, "workspaceId">;
@@ -223,6 +229,9 @@ export class RemoteCredentialStore implements CredentialStore {
         .clone()
         .text()
         .catch(() => "");
+      const blocked = gatewayBlockedDetail(body);
+      if (blocked !== null)
+        throw new RemoteCredentialBlockedError(provider, blocked);
       if (
         /refresh|credential.*(dead|expired|invalid|reject)|session.*ended/i.test(
           body,

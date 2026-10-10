@@ -8,7 +8,11 @@ import { assertListedWithinCap, HydrateLimitError } from "./hydrate-limit";
 import type { ObjectStore } from "./object-store";
 import { withReadTimeout } from "./read-timeout";
 
-export { DEFAULT_EXCLUDES, excluded } from "./hydrate-excludes";
+export {
+  DEFAULT_EXCLUDES,
+  excluded,
+  STORE_ROOT_PACKAGE_EXCLUDES,
+} from "./hydrate-excludes";
 export { HydrateLimitError } from "./hydrate-limit";
 
 /**

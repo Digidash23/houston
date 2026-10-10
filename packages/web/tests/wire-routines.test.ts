@@ -3,6 +3,7 @@ import {
   isWebhookKeyNotCreatorRefusal,
   planMinIntervalRefusal,
   routinePauseNotice,
+  routineSnoozeNotice,
 } from "@houston/sdk";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { createWireCapture, json, ORG } from "./support/wire-capture";
@@ -177,6 +178,40 @@ test("updateRoutine PATCHes only the fields the caller changed", async () => {
   expect(calls[0].method).toBe("PATCH");
   expect(calls[0].url).toBe(`${BASE}/agents/a1/routines/r1`);
   expect(calls[0].body).toBe(JSON.stringify({ schedule: "0 10 * * *" }));
+});
+
+test("an engine snooze reaches the SDK notice while it holds, and a model change is a plain PATCH", async () => {
+  const snoozed = {
+    ...routine,
+    snoozed: {
+      reason: "usage_limit" as const,
+      provider: "anthropic",
+      model: "claude-fable-5",
+      until: "2026-10-13T05:00:00.000Z",
+      at: "2026-10-08T20:47:30.000Z",
+    },
+  };
+  stubFetch(json(200, { items: [snoozed] }), json(200, routine));
+
+  const [row] = await client().listRoutines("a1");
+  expect(row?.snoozed).toEqual(snoozed.snoozed);
+  expect(row?.enabled).toBe(true);
+  const during = new Date("2026-10-09T12:00:00.000Z");
+  expect(row && routineSnoozeNotice(row, during)).toEqual({
+    provider: "anthropic",
+    model: "claude-fable-5",
+    until: "2026-10-13T05:00:00.000Z",
+    snoozedAt: "2026-10-08T20:47:30.000Z",
+  });
+  expect(
+    row && routineSnoozeNotice(row, new Date("2026-10-13T05:00:00.000Z")),
+  ).toBeNull();
+
+  await client().updateRoutine("a1", "r1", { model: "claude-sonnet-4-5" });
+  expect(calls).toHaveLength(2);
+  expect(calls[1].method).toBe("PATCH");
+  expect(calls[1].url).toBe(`${BASE}/agents/a1/routines/r1`);
+  expect(calls[1].body).toBe(JSON.stringify({ model: "claude-sonnet-4-5" }));
 });
 
 test("an engine auto-pause reaches the SDK notice, and resuming is a plain enabled PATCH", async () => {

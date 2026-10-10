@@ -3,6 +3,7 @@ import {
   linkSync,
   mkdirSync,
   readFileSync,
+  rmSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -13,6 +14,7 @@ import {
   type MessageAdmissionReceipt,
 } from "@houston/protocol";
 import { messageAdmissionFileName } from "@houston/protocol/message-admission-file";
+import { hasCode } from "./fs-error-code";
 import { pruneMessageAdmissions } from "./message-admission-prune";
 
 export type Admission =
@@ -145,6 +147,14 @@ export class MessageAdmissions {
       this.collect();
   }
 
+  /** Forget a receipt whose turn was refused before it recorded anything, so
+   *  a retry of the same message is judged afresh instead of as uncertain. */
+  release(conversationId: string, nonce: string): void {
+    const file = this.file(conversationId, nonce);
+    this.active.delete(file);
+    rmSync(file, { force: true });
+  }
+
   /**
    * The collection this process last scheduled. Housekeeping is never the
    * settling turn's work, so a caller that must observe it (shutdown, tests)
@@ -185,13 +195,4 @@ export class MessageAdmissions {
 
 export function messageFingerprint(values: readonly unknown[]): string {
   return digest(JSON.stringify(values));
-}
-
-function hasCode(error: unknown, code: string): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    error.code === code
-  );
 }

@@ -5,8 +5,6 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { latestCachedAgentActivities } from "../../lib/all-conversations-cache";
-import { allCachedActivityRows } from "../../lib/cached-conversation-rows";
-import { forgetDeletedConversationDrafts } from "../../lib/conversation-drafts";
 import { queryKeys } from "../../lib/query-keys";
 import { tauriActivity } from "../../lib/tauri";
 
@@ -60,28 +58,6 @@ export function useActivity(agentPath: string | undefined) {
   });
 }
 
-export function useCreateActivity(agentPath: string | undefined) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      title,
-      description,
-      agent,
-    }: {
-      title: string;
-      description?: string;
-      agent?: string;
-    }) => {
-      if (!agentPath) throw new Error("agentPath required");
-      return tauriActivity.create(agentPath, title, description, agent);
-    },
-    onSuccess: () => {
-      if (agentPath)
-        qc.invalidateQueries({ queryKey: queryKeys.activity(agentPath) });
-    },
-  });
-}
-
 /**
  * An activity patch with the AGENT in the variables instead of in the hook
  * argument, the sibling of `useRoutineWritesForAnyAgent`: one binding serves
@@ -101,27 +77,5 @@ export function useUpdateActivityForAnyAgent() {
     }) => tauriActivity.update(agentPath, activityId, update),
     onSuccess: (_r, { agentPath }) =>
       qc.invalidateQueries({ queryKey: queryKeys.activity(agentPath) }),
-  });
-}
-
-/** Delete many activities at once, wiping each one's draft. */
-export function useBulkDeleteActivity(agentPath: string | undefined) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (ids: string[]) => {
-      if (!agentPath) throw new Error("agentPath required");
-      // Read BEFORE the delete: a mission's unsent work is parked under the
-      // conversation key the row names, and these rows are the only place that
-      // key survives the delete. Both caches, so a stale empty per-agent sweep
-      // cannot mask a mission the aggregate still names.
-      const rows = allCachedActivityRows(qc, agentPath);
-      await tauriActivity.bulkDelete(agentPath, ids);
-      // Attached files stay in the workspace's uploads/ folder (HOU-706).
-      forgetDeletedConversationDrafts(ids, rows);
-    },
-    onSuccess: () => {
-      if (agentPath)
-        qc.invalidateQueries({ queryKey: queryKeys.activity(agentPath) });
-    },
   });
 }

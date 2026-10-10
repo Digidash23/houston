@@ -5,8 +5,11 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { tauriAgentDelegation } from "../../lib/delegation-facade";
+import { describeError } from "../../lib/describe-error";
 import { reportError } from "../../lib/error-report";
+import { tellOptimisticRefusal } from "../../lib/optimistic-write";
 import { queryKeys } from "../../lib/query-keys";
 
 interface DelegationWriteState {
@@ -45,7 +48,7 @@ export function useAgentDelegation(agentId: string, enabled: boolean) {
         }
         return stored;
       } catch (error) {
-        reportError("get_agent_delegation", String(error), error);
+        reportError("get_agent_delegation", describeError(error), error);
         throw error;
       }
     },
@@ -55,6 +58,7 @@ export function useAgentDelegation(agentId: string, enabled: boolean) {
 
 export function useSetAgentDelegation(agentId: string) {
   const qc = useQueryClient();
+  const { t } = useTranslation("teams");
   const key = queryKeys.agentDelegation(agentId);
   const states = statesFor(qc);
   const mutation = useMutation({
@@ -70,8 +74,17 @@ export function useSetAgentDelegation(agentId: string) {
     },
     onError: (error, { id }) => {
       const state = states.get(agentId);
-      if (state?.latest === id) qc.setQueryData(key, state.confirmed);
-      reportError("set_agent_delegation", String(error), error);
+      // Each PUT carries the whole policy, so a later pick that lands carries
+      // this one too: only a refused LATEST pick is visibly undone and told.
+      if (state?.latest !== id) {
+        reportError("set_agent_delegation", describeError(error), error);
+        return;
+      }
+      qc.setQueryData(key, state.confirmed);
+      tellOptimisticRefusal("set_agent_delegation", error, {
+        title: t("writeFailed.delegation.title"),
+        description: t("writeFailed.delegation.description"),
+      });
     },
     onSettled: () => {
       const state = states.get(agentId);
@@ -96,7 +109,7 @@ export function useSetAgentDelegation(agentId: string) {
     const id = ++state.latest;
     state.pending += 1;
     qc.cancelQueries({ queryKey: key }).catch((error: unknown) => {
-      reportError("cancel_agent_delegation_query", String(error), error);
+      reportError("cancel_agent_delegation_query", describeError(error), error);
     });
     qc.setQueryData(key, policy);
     mutation.mutate({ policy, id });

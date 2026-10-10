@@ -13,6 +13,7 @@ import { isCodexTerseRefusal } from "./codex-terse-refusal";
  */
 const EXPECTED_KINDS: ReadonlySet<ProviderError["kind"]> = new Set([
   "rate_limited",
+  "usage_limit_paused",
   "quota_exhausted",
   "model_unavailable",
   "context_overflow",

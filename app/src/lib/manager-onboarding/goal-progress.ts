@@ -1,4 +1,6 @@
 // `.ts` extensions so the node test runner can import this module directly.
+
+import { noticeEndsTurn } from "@houston/sdk/notice-ends-turn";
 import type { FeedItem } from "@houston-ai/chat";
 
 /**
@@ -91,20 +93,16 @@ function pickedFor(runs: readonly ToolRun[]): GoalStaff | null {
 }
 
 /** The turn is over: it settled, failed on a provider error, the chat
- *  wrote why it stopped (a send lost or refused, a stream that died), or the
- *  person wrote again. A restart notice is not an end: the turn resumes. A
- *  `send_busy` or `compute_busy` notice is: the held send was refused for
- *  good. */
+ *  wrote why it stopped (a send lost or refused, a stream that died, a turn
+ *  that could not start), or the person wrote again. Which system lines end
+ *  a turn is the SDK's call (`noticeEndsTurn`). */
 function turnEnded(items: readonly FeedItem[]): boolean {
   return items.some(
     (item) =>
       item.feed_type === "final_result" ||
       item.feed_type === "provider_error" ||
       item.feed_type === "user_message" ||
-      (item.feed_type === "system_message" &&
-        (item.notice === undefined ||
-          item.notice === "send_busy" ||
-          item.notice === "compute_busy")),
+      (item.feed_type === "system_message" && noticeEndsTurn(item.notice)),
   );
 }
 

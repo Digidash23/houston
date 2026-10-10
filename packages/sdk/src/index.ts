@@ -90,6 +90,7 @@ export {
   type SkillDraftActivityWrites,
   type SkillDraftWrites,
 } from "./modules/skills/drafts-writes";
+export * from "./modules/teams/trigger-remedy";
 export type {
   Clock,
   KeyValueStore,

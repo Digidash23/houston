@@ -59,7 +59,7 @@ describe("schedule editors get the saver's own floor", () => {
   it("a server plan-floor refusal is an expected state, never a bug report", () => {
     const tauri = readFileSync(join(SRC, "lib/tauri.ts"), "utf8");
     ok(
-      tauri.includes("if (surfacePlanMinInterval(err)) return;"),
+      tauri.includes("if (surfacePlanMinInterval(err)) return true;"),
       "surfaceError hands the refusal to the plan copy before any bug path",
     );
     const surface = readFileSync(join(SRC, "lib/plan-min-interval.ts"), "utf8");

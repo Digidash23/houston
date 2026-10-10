@@ -18,7 +18,9 @@ import { normalizeSidebarLayout } from "../lib/sidebar-layout-ops";
  * 3. Only the LAST pending write re-reads the server, once every write landed.
  * 4. A failed write rolls back only when it is the last one pending, and then to
  *    the state before the OLDEST write that failed since the last success: each
- *    later write was computed on top of the earlier failures.
+ *    later write was computed on top of the earlier failures. That rollback is
+ *    the one moment the person sees their arrangement undone, so it alone
+ *    calls `rolledBack` (the caller's authored "did not save" surface).
  */
 
 export const sidebarLayoutWriteKey = (workspaceId: string) =>
@@ -58,6 +60,7 @@ export function sidebarLayoutWriteOptions(
   workspaceId: string,
   persist: (layout: SidebarLayout) => Promise<unknown>,
   report: ReportLayoutError,
+  rolledBack?: (err: unknown) => void,
 ) {
   const key = queryKeys.sidebarLayout(workspaceId);
   return {
@@ -67,7 +70,7 @@ export function sidebarLayoutWriteOptions(
     onSuccess: () => {
       rollbackBasesOf(qc).delete(workspaceId);
     },
-    onError: (_err: unknown, vars: LayoutWrite) => {
+    onError: (err: unknown, vars: LayoutWrite) => {
       const bases = rollbackBasesOf(qc);
       const base = bases.has(workspaceId) ? bases.get(workspaceId) : vars.prev;
       if (pendingWrites(qc, workspaceId) > 1) {
@@ -76,6 +79,7 @@ export function sidebarLayoutWriteOptions(
       }
       bases.delete(workspaceId);
       if (base) qc.setQueryData(key, base);
+      rolledBack?.(err);
     },
     onSettled: () => {
       if (pendingWrites(qc, workspaceId) === 1) {

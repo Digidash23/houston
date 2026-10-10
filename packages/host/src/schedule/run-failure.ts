@@ -44,6 +44,10 @@ export function routineRunFailureSummary(failure: RoutineRunFailure): string {
       return `The ${name} account is out of credits.`;
     case "model_unavailable":
       return `The ${name} account can't use the model this routine runs on.`;
+    case "usage_limit":
+      // The reset instant is left to the surface, which knows the reader's
+      // zone and language; this sentence is the history's verbatim fallback.
+      return `The ${name} plan reached its usage limit for this routine's model. Runs continue when the limit resets.`;
   }
 }
 

@@ -1,4 +1,4 @@
-import { cancelledBridgeOperation } from "./errors";
+import { BridgeDisposedError, cancelledBridgeOperation } from "./errors";
 import { observeBridgeJournal } from "./journal";
 import { BridgeLifetime } from "./lifetime";
 import { discoverBridge } from "./resume";
@@ -45,8 +45,12 @@ export abstract class LocalBridgeLifecycle extends LocalBridgeState {
     retry: boolean,
     external?: AbortSignal,
   ): Promise<void>;
+  /** Every explicit operation on a superseded controller refuses with this. */
+  protected disposedRejection(): Promise<never> {
+    return Promise.reject(new BridgeDisposedError());
+  }
   async resume(): Promise<void> {
-    if (this.disposed) throw new Error("bridge controller disposed");
+    if (this.disposed) throw new BridgeDisposedError();
     if (["connecting", "online", "reconnecting"].includes(this.snapshot.status))
       return;
     const signal = this.lifetime.abort.signal;
@@ -74,8 +78,7 @@ export abstract class LocalBridgeLifecycle extends LocalBridgeState {
     return this.lifetime.enqueue(() => this.ports.native.stop());
   }
   disconnect() {
-    if (this.disposed)
-      return Promise.reject(new Error("bridge controller disposed"));
+    if (this.disposed) return this.disposedRejection();
     this.lifetime.invalidate();
     this.emit({ ...this.snapshot, status: "disabled", generation: undefined });
     const signal = this.lifetime.abort.signal;
@@ -98,15 +101,13 @@ export abstract class LocalBridgeLifecycle extends LocalBridgeState {
     });
   }
   retire() {
-    if (this.disposed)
-      return Promise.reject(new Error("bridge controller disposed"));
+    if (this.disposed) return this.disposedRejection();
     this.lifetime.invalidate();
     this.emit({ ...this.snapshot, status: "disabled", generation: undefined });
     return this.lifetime.enqueue(() => this.finishRetirement());
   }
   replaceEndpoint(save: () => Promise<void>): Promise<void> {
-    if (this.disposed)
-      return Promise.reject(new Error("bridge controller disposed"));
+    if (this.disposed) return this.disposedRejection();
     // Pending writes/logout must drain before replacement. A healthy committed
     // connection stays live (including renewal) until the new settings succeed.
     if (this.snapshot.journal?.phase !== "committed")

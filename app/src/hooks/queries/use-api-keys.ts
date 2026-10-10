@@ -1,6 +1,10 @@
 import type { ApiKey } from "@houston/engine-adapter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import { apiKeysWithout } from "../../lib/account-cache-patches";
 import { apiKeysSupported } from "../../lib/api-keys-model";
+import { optimisticWrite } from "../../lib/optimistic-write";
 import { queryKeys } from "../../lib/query-keys";
 import { tauriApiKeys } from "../../lib/tauri";
 import { useCapabilities } from "../use-capabilities";
@@ -16,6 +20,7 @@ import { useCapabilities } from "../use-capabilities";
  * second toast would double up (same as `use-billing.ts`). The one exception is
  * the mint's `key_limit`, which `tauriApiKeys.create` silences so the section
  * can render it inline; the mutation error is read by the caller for that.
+ * Revoking is optimistic and owns its refusal toast (`optimisticWrite`).
  */
 
 /** The caller's active API keys, newest first. Enabled only on a gateway that
@@ -50,13 +55,28 @@ export function useCreateApiKey() {
   });
 }
 
-/** Revoke a key by id, then refresh the list. */
+/** Revoke a key by id: the row leaves on the click, the write follows. A key
+ *  already gone (404) is success: `tauriApiKeys.revoke` resolves it. */
 export function useRevokeApiKey() {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => tauriApiKeys.revoke(id),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: queryKeys.apiKeys() });
-    },
-  });
+  const { t } = useTranslation("settings");
+  return useCallback(
+    (id: string) =>
+      void optimisticWrite({
+        qc,
+        command: "revoke_api_key",
+        patches: [
+          {
+            queryKey: queryKeys.apiKeys(),
+            apply: (keys: ApiKey[] | undefined) => apiKeysWithout(keys, id),
+          },
+        ],
+        write: () => tauriApiKeys.revoke(id),
+        failure: {
+          title: t("writeFailed.revokeApiKey.title"),
+          description: t("writeFailed.revokeApiKey.description"),
+        },
+      }),
+    [qc, t],
+  );
 }

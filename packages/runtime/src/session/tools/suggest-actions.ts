@@ -1,5 +1,6 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { type Static, Type } from "typebox";
+import { Value } from "typebox/value";
 import { currentTurnFinish, recordSuggestActions } from "../interaction";
 
 /**
@@ -48,14 +49,50 @@ const SuggestActionsParams = Type.Object({
   ),
 });
 type SuggestActionsParams = Static<typeof SuggestActionsParams>;
+type SuggestedAction = SuggestActionsParams["actions"][number];
+
+/** Why `actions` cannot become bubbles, or null when they can. */
+export function suggestActionsProblem(
+  actions: readonly SuggestedAction[],
+): string | null {
+  if (
+    actions.some(
+      (action) =>
+        !action.id.trim() || !action.label.trim() || !action.message.trim(),
+    )
+  )
+    return "suggest_actions needs non-empty ids, labels, and messages.";
+  if (
+    new Set(actions.map((action) => action.id.trim())).size !== actions.length
+  )
+    return "suggest_actions needs unique action ids.";
+  return null;
+}
+
+/**
+ * Raw call arguments as usable actions, or null. A forced call's arguments
+ * never pass pi's tool validation (the tool does not run), so the schema and
+ * the rules above are checked here.
+ */
+export function parseSuggestedActions(args: unknown): SuggestedAction[] | null {
+  if (!Value.Check(SuggestActionsParams, args)) return null;
+  return suggestActionsProblem(args.actions) ? null : args.actions;
+}
 
 /** The result when the closing message is already written: the turn ends here. */
 const ENDED_INSTRUCTION =
   "Your follow-up actions were recorded. The app shows them as clickable bubbles above the composer, under the message you already wrote. This ended your turn.";
 
-/** The result when the model called the tool before writing anything visible. */
+/**
+ * The result when the model called the tool before writing anything visible.
+ * A model can prepare the deliverable (a draft email, an answer) only in its
+ * reasoning and go straight to this call, believing the user read it; asked
+ * for a "short closing message" it answered "The draft is above", pointing at
+ * nothing visible. A deliverable already written earlier in the turn (a
+ * previous message) is visible and must not be pasted again.
+ */
 const NEEDS_MESSAGE_INSTRUCTION =
-  "Your follow-up actions were recorded. The app will show them as clickable bubbles above the composer. You called this before writing anything the user can read, so this did NOT end your turn: write your short closing message now, then end. Do not repeat the actions in plain text or ask a closing question.";
+  "Your follow-up actions were recorded. The app will show them as clickable bubbles above the composer. You called this before writing anything the user can read in this message, so this did NOT end your turn. Write your closing message now, then end. The user never sees your reasoning or tool results: if what you prepared for them (a draft, an answer, findings) exists only there, write it out in full in this message and do not call it 'above'. If you already wrote it in visible text earlier in this turn, do not repeat it. Do not repeat the actions in plain text or ask a closing question.";
 
 /** Optional, concrete next steps for a mission that has already completed. */
 export function makeSuggestActionsTool() {
@@ -63,26 +100,14 @@ export function makeSuggestActionsTool() {
     name: "suggest_actions",
     label: "Suggest follow-up actions",
     description:
-      "Required on every turn you end without a blocking ask: after your closing message, offer 2 to 4 concrete, useful next steps grounded in the work you just did. This call ENDS your turn, so write the whole closing message first, in the same response, and put nothing after the call. Each label is short bubble text and each message is what gets sent if the user clicks it. Use this instead of ending a completed mission with a filler ask_user question. Skip it only when the turn ends blocked on the user, meaning an ask_user question, a connection or credential request, or a plan waiting for approval. Call it at most once per turn, in the same final message as suggest_reusable if you offer one.",
+      "Required on every turn you end without a blocking ask: after your closing message, offer 2 to 4 concrete, useful next steps grounded in the work you just did. This call ENDS your turn, so write the whole closing message first, in the same response, and put nothing after the call. The user never sees your reasoning or tool results: anything they should read, such as a draft you prepared, must be in your visible text. Each label is short bubble text and each message is what gets sent if the user clicks it. Use this instead of ending a completed mission with a filler ask_user question. Skip it only when the turn ends blocked on the user, meaning an ask_user question, a connection or credential request, or a plan waiting for approval. Call it at most once per turn, in the same final message as suggest_reusable if you offer one.",
     promptSnippet: "Offer concrete follow-up actions for the completed work",
     parameters: SuggestActionsParams,
     executionMode: "sequential",
     async execute(_id: string, params: SuggestActionsParams) {
       const actions = params.actions;
-      if (
-        actions.some(
-          (action) =>
-            !action.id.trim() || !action.label.trim() || !action.message.trim(),
-        )
-      )
-        throw new Error(
-          "suggest_actions needs non-empty ids, labels, and messages.",
-        );
-      if (
-        new Set(actions.map((action) => action.id.trim())).size !==
-        actions.length
-      )
-        throw new Error("suggest_actions needs unique action ids.");
+      const problem = suggestActionsProblem(actions);
+      if (problem) throw new Error(problem);
       recordSuggestActions({ actions });
       const finish = currentTurnFinish();
       if (!finish?.closingMessageSeen)

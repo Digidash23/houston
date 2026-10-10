@@ -117,8 +117,7 @@
       "description": "Change how this integration appears. Your connection stays the same.",
       "website": "Website (optional)",
       "websiteHelp": "Use the app's website, starting with https://. It's used for the icon.",
-      "save": "Save changes",
-      "saving": "Saving..."
+      "save": "Save changes"
     },
     "description": "Connect an API or MCP server that isn't in the app catalog.",
     "empty": "No custom integrations yet. Add one to connect a tool that isn't in the catalog.",
@@ -257,6 +256,20 @@
       "newTo": "New to {{name}}? Create your account first, then come back here to connect.",
       "createAccount": "Create a {{name}} account",
       "headerRequired": "Enter the sub-account ID to continue."
+    }
+  },
+  "writeFailed": {
+    "disconnect": {
+      "title": "Couldn't disconnect the app",
+      "description": "It's still connected. Try again in a moment."
+    },
+    "removeCustom": {
+      "title": "Couldn't remove the integration",
+      "description": "It's still in your list. Try again in a moment."
+    },
+    "editCustom": {
+      "title": "Couldn't save your changes",
+      "description": "The name and website are back to what they were. Try again in a moment."
     }
   }
 }

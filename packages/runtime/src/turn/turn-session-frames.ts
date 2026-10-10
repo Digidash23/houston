@@ -8,6 +8,7 @@ import type {
 import type { HarnessSession } from "../backends/types";
 import type { newInteractionHolder } from "../session/interaction";
 import type { ModelCallCollector } from "../session/model-call-report";
+import { subscribeFinishMarks } from "../session/reply-complete";
 import type { TurnOutcome, TurnSessionRequest } from "./turn-session-types";
 
 /** What a pooled turn accumulates from its session's wire stream. */
@@ -33,7 +34,8 @@ export function newTurnFrames(): TurnFrames {
 /**
  * Accumulate `session`'s wire stream into `frames` and forward every frame
  * through `emit`. The interaction holder's finish marks are fed too, so an
- * offer tool can tell whether the closing message is already written. Every
+ * offer tool can tell whether the closing message is already written, and
+ * they decide the turn's `reply_complete` frame (reply-complete.ts). Every
  * event passes `admit` first (the stall guard, turn-stall-guard.ts), which
  * drops the echo of an abort the turn issued itself. Returns the unsubscribe
  * for both subscriptions.
@@ -46,9 +48,7 @@ export function collectTurnFrames(
   emit: (frame: WireFrame) => void,
   admit: (wire: WireEvent) => boolean = () => true,
 ): () => void {
-  const unsubMessageStart = session.subscribeAssistantMessageStart?.(() =>
-    interaction.finish.noteAssistantMessageStart(),
-  );
+  const unsubMarks = subscribeFinishMarks(session, interaction.finish, emit);
   const unsub = session.subscribe((wire: WireEvent) => {
     if (!admit(wire)) return;
     // First provider-originated event = the honest first-token bound. Set
@@ -71,7 +71,7 @@ export function collectTurnFrames(
   });
   return () => {
     unsub();
-    unsubMessageStart?.();
+    unsubMarks();
   };
 }
 

@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  isFirstDayNotPendingError,
-  isFirstDayPending,
-} from "../src/lib/agent-first-day-model.ts";
+  isFirstDayNoProvider,
+  isFirstDayNotPending,
+} from "@houston/sdk/agents/first-day-refusal";
+import { isFirstDayPending } from "../src/lib/agent-first-day-model.ts";
+import { classifyQuietError } from "../src/lib/quiet-error-class.ts";
 
 describe("isFirstDayPending", () => {
   it("offers the start button only on an explicit pending", () => {
@@ -24,10 +26,10 @@ describe("isFirstDayPending", () => {
   });
 });
 
-describe("isFirstDayNotPendingError", () => {
+describe("isFirstDayNotPending (SDK)", () => {
   it("names the host's refusal of a start button that outlived its first day", () => {
     assert.equal(
-      isFirstDayNotPendingError({
+      isFirstDayNotPending({
         status: 409,
         body: { error: "x", code: "first_day_not_pending" },
       }),
@@ -37,14 +39,50 @@ describe("isFirstDayNotPendingError", () => {
 
   it("leaves every other failure to be reported", () => {
     assert.equal(
-      isFirstDayNotPendingError({
+      isFirstDayNotPending({
         status: 409,
         body: { code: "first_day_not_started" },
       }),
       false,
     );
-    assert.equal(isFirstDayNotPendingError({ status: 409, body: {} }), false);
-    assert.equal(isFirstDayNotPendingError(new Error("boom")), false);
-    assert.equal(isFirstDayNotPendingError(null), false);
+    assert.equal(isFirstDayNotPending({ status: 409, body: {} }), false);
+    assert.equal(isFirstDayNotPending(new Error("boom")), false);
+    assert.equal(isFirstDayNotPending(null), false);
+  });
+});
+
+describe("a start with no AI connected", () => {
+  const refusal = {
+    status: 409,
+    body: {
+      error: "No provider connected. Connect an AI provider first.",
+      code: "first_day_no_provider",
+    },
+  };
+
+  it("is the SDK's no-provider refusal, and only that", () => {
+    assert.equal(isFirstDayNoProvider(refusal), true);
+    assert.equal(isFirstDayNotPending(refusal), false);
+    assert.equal(
+      isFirstDayNoProvider({
+        status: 409,
+        body: { error: "x", code: "first_day_not_started" },
+      }),
+      false,
+    );
+  });
+
+  it("is a quiet expected state, never a bug report", () => {
+    const err = Object.assign(new Error("engine error 409"), refusal);
+    assert.equal(classifyQuietError(err), "first_day_no_provider");
+    assert.equal(
+      classifyQuietError(
+        Object.assign(new Error("engine error 409"), {
+          status: 409,
+          body: { error: "x", code: "first_day_not_started" },
+        }),
+      ),
+      null,
+    );
   });
 });

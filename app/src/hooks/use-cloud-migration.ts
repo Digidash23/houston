@@ -2,6 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import type { LegacyDetection } from "../lib/cloud-migration";
 import { DEMO_DETECTION, isMigrationDemo } from "../lib/cloud-migration-demo";
+import {
+  readCloudMigrationOutcome,
+  writeCloudMigrationOutcome,
+} from "../lib/cloud-migration-outcome";
 import { isHostedGatewayEngine } from "../lib/engine";
 import { reportError } from "../lib/error-report";
 import { osDetectLegacyHouston, osIsTauri } from "../lib/os-bridge";
@@ -14,18 +18,9 @@ import {
 import { useOnboardingCompleted } from "./use-onboarding-completed";
 import { useSession } from "./use-session";
 
-const STORAGE_PREFIX = "houston.cloudMigration.";
-
-/** The legacy data is machine-local, so the outcome flag is too: localStorage,
- *  keyed per signed-in user (a shared machine migrates once per account). */
-function storageKey(userId: string): string {
-  return `${STORAGE_PREFIX}${userId}`;
-}
-
-function readOutcome(userId: string): CloudMigrationOutcome | null {
+function readOutcome(userId: string | null): CloudMigrationOutcome | null {
   try {
-    const raw = localStorage.getItem(storageKey(userId));
-    return raw === "done" || raw === "skipped" ? raw : null;
+    return readCloudMigrationOutcome(localStorage, userId);
   } catch (e) {
     reportError("cloud_migration_storage", "reading the outcome failed", e);
     return null;
@@ -63,7 +58,7 @@ export function useCloudMigration(): CloudMigrationTrigger {
   const { markCompleted } = useOnboardingCompleted();
 
   const [outcome, setOutcome] = useState<CloudMigrationOutcome | null>(() =>
-    userId ? readOutcome(userId) : null,
+    readOutcome(userId),
   );
 
   const gatesOpen = remoteGateway && isTauri && Boolean(userId) && !outcome;
@@ -91,17 +86,11 @@ export function useCloudMigration(): CloudMigrationTrigger {
 
   const persistOutcome = useCallback(
     (value: CloudMigrationOutcome, opts?: { applyNow?: boolean }) => {
-      if (userId) {
-        try {
-          localStorage.setItem(storageKey(userId), value);
-        } catch (e) {
-          // Worst case the wizard offers again next launch; still report it.
-          reportError(
-            "cloud_migration_storage",
-            "writing the outcome failed",
-            e,
-          );
-        }
+      try {
+        writeCloudMigrationOutcome(localStorage, value);
+      } catch (e) {
+        // Worst case the wizard offers again next launch; still report it.
+        reportError("cloud_migration_storage", "writing the outcome failed", e);
       }
       // A completed migration IS onboarding: the user just moved their agents
       // into the cloud, so they must land in the shell, never the create flow.
@@ -111,7 +100,7 @@ export function useCloudMigration(): CloudMigrationTrigger {
       if (value === "done") void markCompleted();
       if (opts?.applyNow !== false) setOutcome(value);
     },
-    [userId, markCompleted],
+    [markCompleted],
   );
 
   // Dev-only: force the wizard open with stub data so it can be tested in

@@ -2,19 +2,19 @@ import { Button } from "@houston-ai/core";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useSession } from "../../../hooks/use-session";
+import {
+  clearCloudMigrationOutcome,
+  readCloudMigrationOutcome,
+} from "../../../lib/cloud-migration-outcome";
 import { isHostedGatewayEngine } from "../../../lib/engine";
 import { reportError } from "../../../lib/error-report";
 import { osDetectLegacyHouston, osIsTauri } from "../../../lib/os-bridge";
 import { queryKeys } from "../../../lib/query-keys";
 
-/** Same per-machine outcome key the wizard gate writes (use-cloud-migration.ts). */
-const STORAGE_PREFIX = "houston.cloudMigration.";
-
-/** The wizard's persisted per-user outcome on THIS machine, or `null`. */
-function readOutcome(userId: string): "done" | "skipped" | null {
+/** This machine's wizard outcome (the key the wizard gate writes), or `null`. */
+function readOutcome(userId: string | null): "done" | "skipped" | null {
   try {
-    const raw = localStorage.getItem(STORAGE_PREFIX + userId);
-    return raw === "done" || raw === "skipped" ? raw : null;
+    return readCloudMigrationOutcome(localStorage, userId);
   } catch (e) {
     reportError("cloud_migration_storage", "reading the outcome failed", e);
     return null;
@@ -26,17 +26,14 @@ function readOutcome(userId: string): "done" | "skipped" | null {
  * hosted desktop build, legacy data still on THIS machine, and this machine's
  * migration not already completed ("done"). A hook the settings view calls to
  * gate the row. The detect query shares its key with the wizard gate's, so
- * React Query dedupes the filesystem scan. Identity
- * (Firebase) has no client-writable user metadata, so the completed state is the
- * per-machine localStorage outcome (the retired Supabase `user_metadata` flag).
+ * React Query dedupes the filesystem scan. The completed state is the
+ * device-level localStorage outcome (`lib/cloud-migration-outcome.ts`).
  */
 export function useMigrationAvailable(): boolean {
   const { data: session } = useSession();
   const userId = session?.uid ?? null;
   const gates =
-    isHostedGatewayEngine() &&
-    osIsTauri() &&
-    (userId ? readOutcome(userId) : null) !== "done";
+    isHostedGatewayEngine() && osIsTauri() && readOutcome(userId) !== "done";
   const detect = useQuery({
     queryKey: queryKeys.cloudMigrationDetect(),
     queryFn: async () => {
@@ -60,7 +57,7 @@ export function useMigrationAvailable(): boolean {
 
 /**
  * Lets a user re-run the cloud migration if a prior run was skipped or failed.
- * Clears the per-machine outcome flag and reloads: on reboot the wizard gate
+ * Clears the machine's outcome flag and reloads: on reboot the wizard gate
  * re-evaluates (no outcome, not completed, legacy data present) and reopens.
  */
 export function MigrationSection() {
@@ -69,16 +66,10 @@ export function MigrationSection() {
   const userId = session?.uid ?? null;
 
   const handleContinue = () => {
-    if (userId) {
-      try {
-        localStorage.removeItem(STORAGE_PREFIX + userId);
-      } catch (e) {
-        reportError(
-          "cloud_migration_storage",
-          "clearing the outcome failed",
-          e,
-        );
-      }
+    try {
+      clearCloudMigrationOutcome(localStorage, userId);
+    } catch (e) {
+      reportError("cloud_migration_storage", "clearing the outcome failed", e);
     }
     location.reload();
   };

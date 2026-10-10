@@ -15,6 +15,9 @@ export interface TurnStoreConfig {
 export interface ResolvedTurnStore {
   store: ObjectStore;
   prefix: string;
+  /** The claim-backed store without the prefetched layer: what the store
+   *  holds now, under this turn's claim. Set only for a claimed turn. */
+  live?: ObjectStore;
 }
 
 /** Fail-loud fallback used when turn mode has only the pool store configured. */
@@ -81,5 +84,6 @@ export function resolveTurnStore(
       ? new PrefetchedObjectStore(http, turn.prefetch)
       : http,
     prefix: "",
+    live: http,
   };
 }

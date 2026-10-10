@@ -1,8 +1,13 @@
 import type { IntegrationProviderId } from "@houston/protocol";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { IntegrationConnection } from "@houston/wire-types";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { cancelFlowsForDisconnect } from "../../components/integrations/connect-flow-registry";
 import { integrationsSupported } from "../../components/integrations/model";
 import { analytics } from "../../lib/analytics";
+import { connectionsWithout } from "../../lib/integration-cache-patches";
+import { optimisticWrite } from "../../lib/optimistic-write";
 import { queryKeys } from "../../lib/query-keys";
 import { tauriIntegrations } from "../../lib/tauri";
 import { connectFlowRegistry } from "../../stores/connect-flow";
@@ -74,41 +79,44 @@ export function useIntegrationToolkits(
 }
 
 /**
- * The mutations below intentionally carry no `onError`: their `mutationFn`
- * routes through `tauriIntegrations.*`, every one of which is wrapped by the
- * `call()` adapter in `lib/tauri.ts`. `call()` already shows the real error as a
- * red toast AND captures it to Sentry (the "Report bug" path) before re-throwing,
- * so the failure is surfaced once. React Query catches the re-throw internally,
- * so `.mutate()` never leaks an unhandled rejection. Adding an `onError` here
- * would double-toast (a second, more generic message on top of the engine's).
+ * Disconnect an app: the tile leaves on the click and the write follows
+ * (`optimisticWrite`, which owns the refusal toast). `connectionId`
+ * narrows the removal to ONE account of the toolkit (a toolkit can hold
+ * several, two Gmail logins); omitted removes them all.
  */
 export function useDisconnectIntegration(provider: IntegrationProviderId) {
   const qc = useQueryClient();
-  return useMutation({
-    // `connectionId` narrows the removal to ONE account of the toolkit (a
-    // toolkit can hold several — two Gmail logins); omitted removes them all.
-    mutationFn: ({
-      toolkit,
-      connectionId,
-    }: {
-      toolkit: string;
-      connectionId?: string;
-    }) => tauriIntegrations.disconnect(provider, toolkit, connectionId),
-    // A connect poll waiting on the connection being removed must stop NOW,
-    // before the removal lands: otherwise its next read 404s on the id the
-    // user just took away (PRODUCT-1733).
-    onMutate: ({ toolkit, connectionId }) => {
+  const { t } = useTranslation("integrations");
+  return useCallback(
+    ({ toolkit, connectionId }: { toolkit: string; connectionId?: string }) => {
+      // A connect poll waiting on the connection being removed must stop NOW,
+      // before the removal lands: otherwise its next read 404s on the id the
+      // user just took away (PRODUCT-1733).
       cancelFlowsForDisconnect(connectFlowRegistry, toolkit, connectionId);
-    },
-    onSuccess: (_data, { toolkit }) => {
-      analytics.track("integration_disconnected", {
-        integration_slug: toolkit,
+      void optimisticWrite({
+        qc,
+        command: "integration_disconnect",
+        patches: [
+          {
+            queryKey: queryKeys.integrationConnections(provider),
+            apply: (rows: IntegrationConnection[] | undefined) =>
+              connectionsWithout(rows, toolkit, connectionId),
+          },
+        ],
+        write: () =>
+          tauriIntegrations.disconnect(provider, toolkit, connectionId),
+        failure: {
+          title: t("writeFailed.disconnect.title"),
+          description: t("writeFailed.disconnect.description"),
+        },
+        onSuccess: () =>
+          analytics.track("integration_disconnected", {
+            integration_slug: toolkit,
+          }),
       });
-      qc.invalidateQueries({
-        queryKey: queryKeys.integrationConnections(provider),
-      });
     },
-  });
+    [qc, provider, t],
+  );
 }
 
 // The custom (API / MCP) integration hooks live in

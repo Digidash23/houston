@@ -128,7 +128,7 @@ export function CustomIntegrationDialogs({
       <CustomDeleteDialog
         integration={bySlug(selection.removeSlug)}
         onClose={selection.closeRemove}
-        onConfirm={(integration) => remove.mutate(integration.slug)}
+        onConfirm={(integration) => remove(integration.slug)}
       />
     </>
   );

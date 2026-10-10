@@ -110,6 +110,7 @@ defineRoute({
         authz.workspace,
         authz.agent,
         routine,
+        true,
       );
       json(res, 200, { ok: true, runId });
     } catch (err) {

@@ -551,3 +551,71 @@ test("an api-key connect that fails connectability pushes nothing and leaves no 
     false,
   );
 });
+
+/** A store that remembers every object it was asked to download. */
+class DownloadLog extends LocalDirStore {
+  readonly downloaded: string[] = [];
+  override download(
+    key: string,
+    destFile: string,
+    opts?: Parameters<LocalDirStore["download"]>[2],
+  ): Promise<void> {
+    this.downloaded.push(key);
+    return super.download(key, destFile, opts);
+  }
+}
+
+test("settings and credential ops on a heavy agent download none of its project folders", async () => {
+  const { storeRoot, agentId, prefix } = await seedAgent();
+  // A project folder three times the hydrate cap: an eager hydrate of the
+  // agent's folders would fail over the cap before the handler ran.
+  const project = join(storeRoot, prefix, "workspaces", agentId, "render");
+  mkdirSync(project, { recursive: true });
+  writeFileSync(join(project, "big.bin"), Buffer.alloc(3 * 1024 * 1024, 1));
+  const store = new DownloadLog(storeRoot);
+  const base = await listen(
+    createTurnServer({
+      store,
+      token: "",
+      runTurn: noopTurn,
+      maxHydrateBytes: 1024 * 1024,
+    }),
+  );
+  const hb = await heartbeatOK();
+
+  let { json } = await postOp(
+    base,
+    opBody(agentId, hb, {
+      kind: "settings",
+      action: "put",
+      input: { activeProvider: "anthropic", model: "claude-sonnet-5" },
+    }),
+  );
+  expect(json, JSON.stringify(json)).toMatchObject({ status: 200 });
+  expect(JSON.parse(json.body as string)).toMatchObject({
+    activeProvider: "anthropic",
+  });
+
+  ({ json } = await postOp(
+    base,
+    opBody(agentId, hb, {
+      kind: "credential",
+      action: "api-key",
+      provider: "nope-provider",
+      apiKey: "sk-test",
+    }),
+  ));
+  // The handler's own 400, not a hydration failure.
+  expect(json, JSON.stringify(json)).toMatchObject({ status: 400 });
+
+  expect(store.downloaded.some((k) => k.endsWith("/render/big.bin"))).toBe(
+    false,
+  );
+  // The folder the op never saw is still in the store: skipping a download
+  // must never read as a delete.
+  const synced = await store.list(prefix);
+  expect(synced.some((k) => k.endsWith("/render/big.bin"))).toBe(true);
+  expect(
+    synced.some((k) => k.endsWith("/.houston/runtime/settings.json")),
+  ).toBe(true);
+});

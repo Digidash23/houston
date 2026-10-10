@@ -156,7 +156,7 @@ export async function applyOp(
       return { ...json(200, { title }), events: [], include: none };
     }
     case "conversation":
-      return applyConversationOp(op.op, filesystem);
+      return applyConversationOp(op.op, filesystem, op.actingAs?.userId);
     case "first-day":
       return prepareFirstDayOp(op, filesystem);
     case "seed":

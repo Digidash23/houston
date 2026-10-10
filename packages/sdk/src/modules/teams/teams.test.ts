@@ -163,6 +163,23 @@ describe("per-agent policy", () => {
       { routine_id: "r3", status: "error", detail: "x" },
     ]);
   });
+
+  it("keeps a reason it can explain and drops one it cannot", async () => {
+    const { sdk } = ok({
+      items: [
+        { routine_id: "r1", status: "error", reason: "trigger_type_gone" },
+        { routine_id: "r2", status: "error", reason: "config_rejected" },
+        { routine_id: "r3", status: "error", reason: "future_reason" },
+        { routine_id: "r4", status: "paused_disconnected", reason: 7 },
+      ],
+    });
+    expect(await sdk.teams.agentTriggerStatus("a1")).toEqual([
+      { routine_id: "r1", status: "error", reason: "trigger_type_gone" },
+      { routine_id: "r2", status: "error", reason: "config_rejected" },
+      { routine_id: "r3", status: "error" },
+      { routine_id: "r4", status: "paused_disconnected" },
+    ]);
+  });
 });
 
 describe("what the module refuses to soften", () => {

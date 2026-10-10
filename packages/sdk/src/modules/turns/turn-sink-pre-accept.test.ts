@@ -1,7 +1,7 @@
 import type { WireFrame } from "@houston/runtime-client";
 import { expect, test, vi } from "vitest";
 import type { FeedOutput } from "./feed-output";
-import { PreAcceptTurn } from "./pre-accept-turn";
+import { MAX_FAILURES, PreAcceptTurn } from "./pre-accept-turn";
 import { TurnSink } from "./turn-sink";
 
 /**
@@ -226,4 +226,18 @@ test("stop, an ambiguous send and teardown release the kept frames", () => {
     expect(clear, end).toHaveBeenCalled();
   }
   clear.mockRestore();
+});
+
+test("only the last MAX_FAILURES failures stay claimable", () => {
+  const kept = new PreAcceptTurn();
+  const fail = (turnId: string): WireFrame => ({
+    type: "error",
+    data: { message: "failed" },
+    turnId,
+  });
+  for (let i = 0; i <= MAX_FAILURES; i++) kept.keep(fail(`t${i}`));
+  // t0 was the oldest, evicted by the ninth.
+  expect(kept.claim("t0")).toEqual([]);
+  for (let i = 1; i <= MAX_FAILURES; i++) kept.keep(fail(`t${i}`));
+  expect(kept.claim(`t${MAX_FAILURES}`)).toEqual([fail(`t${MAX_FAILURES}`)]);
 });

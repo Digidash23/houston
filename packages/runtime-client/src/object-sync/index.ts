@@ -18,6 +18,7 @@ export {
   excluded,
   HydrateLimitError,
   hydrate,
+  STORE_ROOT_PACKAGE_EXCLUDES,
   startHydrate,
   syncBack,
 } from "./hydrate";

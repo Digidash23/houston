@@ -1,10 +1,6 @@
 // Routines + routine runs. snake_case mirrors the on-disk .houston schemas.
 
-import type {
-  RoutineAutoPause,
-  RoutineDeliveryFailure,
-  RoutineRunFailure,
-} from "./routine-failure";
+import type { RoutineAutoPause, RoutineSnooze } from "./routine-failure";
 
 export type {
   RoutineAccountFailureCode,
@@ -13,6 +9,7 @@ export type {
   RoutineDeliveryFailureCode,
   RoutineRunFailure,
   RoutineRunFailureCode,
+  RoutineSnooze,
 } from "./routine-failure";
 
 /** Whether a routine's runs share one chat ("shared", default) or each run gets its own ("per_run"). */
@@ -107,6 +104,13 @@ export interface Routine {
    * removes it. Absent on every routine a person paused or never paused.
    */
   auto_paused?: RoutineAutoPause;
+  /**
+   * Set when the engine is holding this routine's fires until a plan usage
+   * limit resets (`enabled` stays true). Server-owned like `auto_paused`: an
+   * update never writes it; changing the routine's model or provider, or
+   * resuming it, removes it; past `until` it is inert.
+   */
+  snoozed?: RoutineSnooze;
   created_at: string;
   updated_at: string;
 }
@@ -153,54 +157,4 @@ export interface RoutineUpdate {
   integrations?: string[];
   /** Attach a setup-chat activity to this routine; omit to leave unchanged. */
   setup_activity_id?: string;
-}
-
-export type RoutineRunStatus =
-  | "running"
-  | "silent"
-  | "surfaced"
-  | "error"
-  | "cancelled";
-
-export interface RoutineRun {
-  id: string;
-  routine_id: string;
-  status: RoutineRunStatus;
-  session_key: string;
-  activity_id?: string;
-  summary?: string;
-  started_at: string;
-  completed_at?: string;
-  /** Human-readable reset hint while a run sleeps on a usage-limit window. */
-  paused_until?: string;
-  /**
-   * The typed credential-level reason an errored run failed. Additive and
-   * optional: other failures after a run starts (a timeout, a provider
-   * outage) carry only `summary`, exactly as before.
-   */
-  failure?: RoutineRunFailure;
-  /**
-   * Cloud never started the run: no worker took the fire before its max age,
-   * or the routine's creator can no longer use the agent. Written by the
-   * control plane, never by the engine; it is never paired with `failure` and
-   * never feeds the auto-pause streak. A client that does not know the code
-   * shows `summary`.
-   */
-  delivery_failure?: RoutineDeliveryFailure;
-  /**
-   * The engine restarted mid-run and is running the turn again by itself
-   * (PRODUCT-1785). The run stays `running` — its reply is still coming — and
-   * this only records that the elapsed time includes a restart, so a reader
-   * knows why the run took longer than the routine usually does.
-   */
-  resumed?: true;
-}
-
-export interface RoutineRunUpdate {
-  status?: RoutineRunStatus;
-  activity_id?: string;
-  summary?: string;
-  completed_at?: string;
-  paused_until?: string | null;
-  resumed?: true;
 }

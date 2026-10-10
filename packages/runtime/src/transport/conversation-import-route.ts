@@ -5,11 +5,12 @@ import {
 } from "@houston/protocol";
 import { importConversation } from "../session/import-conversation";
 import { json, type RouteContext, readJson } from "./http-helpers";
+import { refuseNonCardOwner } from "./interaction-owner-gate";
 
 /**
  * `POST /conversations/:id/import`: 200 `{ ok, imported }` (0 when the import
- * had already landed), 400 for a body that is not an import, 409 while a turn
- * holds the conversation.
+ * had already landed), 400 for a body that is not an import, 403 while a live
+ * card is someone else's, 409 while a turn holds the conversation.
  */
 export async function handleConversationImport(
   ctx: RouteContext,
@@ -30,6 +31,7 @@ export async function handleConversationImport(
     });
     return;
   }
+  if (refuseNonCardOwner(ctx, id)) return;
   const outcome = await importConversation(id, request);
   if (outcome === "busy") {
     json(ctx.res, 409, { error: "turn running" });

@@ -57,7 +57,9 @@ export class TurnChannel implements RuntimeChannel {
     // no standing sandbox proxy to relay an acting-user header to; the acting-as
     // identity flows through the standing-pod path (ProxyChannel). Not sent to
     // the runtime here - recorded on the turn, which is where the `/sandbox/*`
-    // routes read it from.
+    // routes read it from. For the same reason `routine` needs no marker here:
+    // a body with no acting identity is never refused by the worker's
+    // card-owner rule.
     { actingUser, actingAs, limits }: FireTurnOptions = {},
   ): Promise<void> {
     // A turn begins here for every programmatic fire (a routine, a trigger, a

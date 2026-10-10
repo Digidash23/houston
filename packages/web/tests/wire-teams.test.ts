@@ -156,6 +156,34 @@ describe("the delegated per-agent policy", () => {
     expect(calls[0].url).toBe(`${BASE}/v1/agents/a1/trigger-status`);
   });
 
+  test("trigger status carries why a binding is stuck, dropping unknown reasons", async () => {
+    stubFetch(() =>
+      json(200, {
+        items: [
+          {
+            routine_id: "r1",
+            status: "error",
+            detail: "gone",
+            reason: "trigger_type_gone",
+          },
+          { routine_id: "r2", status: "error", reason: "future_reason" },
+        ],
+      }),
+    );
+
+    await expect(client().agentTriggerStatus("a1")).resolves.toStrictEqual([
+      {
+        routine_id: "r1",
+        status: "error",
+        detail: "gone",
+        reason: "trigger_type_gone",
+      },
+      { routine_id: "r2", status: "error" },
+    ]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe(`${BASE}/v1/agents/a1/trigger-status`);
+  });
+
   test("a 404 hides the model picker and the trigger badge, nothing else", async () => {
     stubFetch(() => json(404, { error: "not found" }));
 

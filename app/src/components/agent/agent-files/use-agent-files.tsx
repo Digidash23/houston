@@ -2,9 +2,8 @@ import type { FileEntry, FilesBrowserProps } from "@houston-ai/agent";
 import { type ReactNode, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  useCreateFolder,
-  useDeleteFile,
   useFiles,
+  useFileWrites,
   useUploadFiles,
 } from "../../../hooks/queries";
 import { useFilePreviewLoader } from "../../../hooks/use-file-preview-loader";
@@ -86,18 +85,14 @@ export function useAgentFiles(
     isFetching,
     refetch,
   } = useFiles(path, options?.enabled);
-  const deleteFile = useDeleteFile(path);
+  const writes = useFileWrites(path);
   const requestRename = useRenameWithConflict(path, files);
-  const createFolder = useCreateFolder(path);
   const uploadFiles = useUploadFiles(path);
   const move = useMoveWithConflict(path, files);
-  // One mutation call per file, deliberately: `useDeleteFile` routes through
-  // `call`, which toasts + reports every failure on its own, so a batch where
-  // the third file fails still tells the user about that third file instead of
-  // one aggregate promise swallowing it. Nothing here catches or awaits, so
-  // there is no place for a rejection to go quiet.
+  // The rows leave in the confirm's own frame; `remove` never rejects (a
+  // refusal rolls back and tells the user), so nothing here can go quiet.
   const deleteConfirm = useFilesDeleteConfirm((selected) => {
-    for (const file of selected) deleteFile.mutate(file.path);
+    void writes.remove(selected.map((file) => file.path));
   });
   const { downloadFile, downloadFolder, downloadAll } = useAgentFileDownloads(
     path,
@@ -129,7 +124,7 @@ export function useAgentFiles(
     onDelete: deleteConfirm.requestDelete,
     onDeleteMany: deleteConfirm.requestDeleteMany,
     onRename: (file, newName) => requestRename(file.path, newName),
-    onCreateFolder: (name) => createFolder.mutate(name),
+    onCreateFolder: (name) => void writes.createFolder(name),
     onFilesDropped: (dropped, targetFolder) =>
       ingest(dropped, targetFolder ?? null),
     onDropError,
@@ -168,8 +163,8 @@ export function useAgentFiles(
       />
       <MoveConflictDialog
         name={move.pending?.name ?? null}
-        onReplace={() => void move.replace()}
-        onKeepBoth={() => void move.keepBoth()}
+        onReplace={move.replace}
+        onKeepBoth={move.keepBoth}
         onCancel={move.cancel}
       />
       {deleteConfirm.dialog}

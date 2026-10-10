@@ -48,9 +48,12 @@ export {
   type AgentsModule,
   type AgentsViewModel,
   type AgentsWrites,
+  firstDayRefusal,
   type InstalledConfig,
   isAgentNameReserved,
   isAgentNameTaken,
+  isFirstDayNoProvider,
+  isFirstDayNotPending,
   type WireAgent,
 } from "./modules/agents";
 // ===== Files module contract ===========================================
@@ -60,7 +63,10 @@ export {
   FilesHttpError,
   type FilesModule,
   type FileUpload,
+  isUploadInterruptedError,
   type ProjectFile,
+  UploadInterruptedError,
+  type UploadRoute,
 } from "./modules/files";
 // ===== Integrations module contract ====================================
 export {
@@ -139,6 +145,7 @@ export {
   type RoutinePin,
   type RoutineReaderAccount,
   type RoutineRun,
+  type RoutineSnoozeNotice,
   RoutinesCommand,
   type RoutinesCommandType,
   RoutinesHttpError,
@@ -147,6 +154,7 @@ export {
   routineFailureCode,
   routineFirePin,
   routinePauseNotice,
+  routineSnoozeNotice,
   viewerIsRoutineCreator,
   type WebhookKeyAccess,
   type WebhookKeyReveal,

@@ -1,5 +1,6 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { ROUTINE_FIRE_HEADER } from "@houston/protocol";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { MemoryCredentialStore } from "../credentials/store";
 import type { Agent, Workspace } from "../domain/types";
@@ -150,4 +151,37 @@ test("a fire records its acting identity and plan limits on the turn it starts",
     limits: { routineMinIntervalMinutes: 15 },
   });
   liveTurns.forget(agent.id);
+});
+
+test("only a routine fire carries the routine-fire marker; a client cannot set it", async () => {
+  for (const flag of [false, true]) {
+    seenHeaders = [];
+    const channel = makeChannel(flag);
+    await channel.fireTurn(ctx, "c1", "run it", undefined, {
+      actingAs: "acting-v1.payload.sig",
+      routine: true,
+    });
+    await channel.fireTurn(ctx, "c1", "first turn", undefined, {
+      actingAs: "acting-v1.payload.sig",
+    });
+    expect(seenHeaders[0]?.[ROUTINE_FIRE_HEADER]).toBe("1");
+    expect(seenHeaders[1]?.[ROUTINE_FIRE_HEADER]).toBeUndefined();
+
+    seenHeaders = [];
+    const { base, close } = await serve(channel);
+    try {
+      await fetch(`${base}/conversations/c1/messages`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          [ROUTINE_FIRE_HEADER]: "1",
+        },
+        body: JSON.stringify({ text: "hi" }),
+      });
+    } finally {
+      close();
+    }
+    expect(seenHeaders[0]?.authorization).toBe("Bearer sbx");
+    expect(seenHeaders[0]?.[ROUTINE_FIRE_HEADER]).toBeUndefined();
+  }
 });

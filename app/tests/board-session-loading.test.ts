@@ -170,6 +170,46 @@ describe("a board keeps its activity-row semantics", () => {
   });
 });
 
+describe("a turn whose reply completed ends its Stop before the card's write lands", () => {
+  // `reply_complete`: only the wrap-up (offers, durability, title) remains.
+  // The row still says running for a beat; the VM already knows.
+  it("clears a session we sent even while its row still reads running", () => {
+    deepStrictEqual(
+      deriveSessionLoading({
+        locallySent: { s1: true },
+        rows: board({ s1: "running" }),
+        openSessionKey: "s1",
+        vmStatus: vm({ s1: "wrapping_up" }),
+      }),
+      {},
+    );
+  });
+
+  it("clears a running row started elsewhere", () => {
+    deepStrictEqual(
+      deriveSessionLoading({
+        locallySent: {},
+        rows: board({ s1: "running", s2: "running" }),
+        openSessionKey: null,
+        vmStatus: vm({ s1: "wrapping_up" }),
+      }),
+      { s2: true },
+    );
+  });
+
+  it("clears a boardless chat", () => {
+    deepStrictEqual(
+      deriveSessionLoading({
+        locallySent: { assistant: true },
+        rows: NO_BOARD,
+        openSessionKey: "assistant",
+        vmStatus: vm({ assistant: "wrapping_up" }),
+      }),
+      {},
+    );
+  });
+});
+
 describe("the send hook subscribes to the open conversation's VM", () => {
   // The rollup is a `useMemo`: a synchronous VM read alone never wakes it, so a
   // surface whose activity list never refetches (the assistant has none) froze

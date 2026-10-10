@@ -17,8 +17,10 @@
 import type { PendingInteraction } from "@houston/runtime-client";
 import type { FirstResponse } from "./first-response";
 import type { SendWaitReason } from "./send-busy";
+import type { SessionStatusDetail } from "./turn-error-class";
 
 export type { PendingInteraction } from "@houston/runtime-client";
+export { MultiplexFeedOutput } from "./feed-output-multiplex";
 
 /**
  * The session statuses a streamed turn produces. The desktop reacts to exactly
@@ -42,6 +44,19 @@ export type TerminalBoardStatus = "needs_you" | "error";
 export type BoardStatus = "running" | TerminalBoardStatus;
 
 /**
+ * How a board persist relates to the turn's settle. `provisional`: the turn's
+ * reply finished streaming (`reply_complete`) and only its wrap-up remains, so
+ * the card is handed back early (`needs_you`) — or taken back (`running`)
+ * when the turn turned out to carry on. One a later write already overtook is
+ * never sent (board-writes.ts). A board writer writes it like any other; the
+ * conversation VM does NOT fold it into `boardStatus` (that is the "turn
+ * settled" signal), only into `ConversationVM.replyComplete`.
+ */
+export interface BoardPersistOptions {
+  provisional?: boolean;
+}
+
+/**
  * Everything the turn machinery emits for one conversation. An implementation
  * decides where the pushes land (a reactive VM, a UI bus, ...). `pushFeedItem`
  * and `sessionStatus` are fire-and-forget; `persistBoardStatus` is awaited so
@@ -50,25 +65,31 @@ export type BoardStatus = "running" | TerminalBoardStatus;
 export interface FeedOutput {
   /** One chat FeedItem for this conversation (streaming text, tool call, ...). */
   pushFeedItem(agentPath: string, sessionKey: string, item: unknown): void;
-  /** The conversation's session status (spinner / settle / failure). */
+  /**
+   * The conversation's session status (spinner / settle / failure). `detail`
+   * is additive: the turn's origin, and on a failure WHY it failed
+   * ({@link SessionStatusDetail}); `error` stays the product-voice copy.
+   */
   sessionStatus(
     agentPath: string,
     sessionKey: string,
     status: SessionStatusValue,
     error?: string,
+    detail?: SessionStatusDetail,
   ): void;
   /**
    * Persist the board-card status through the host's (cloud-aware) seam.
    * `pendingInteraction` rides the terminal persist: the interaction a clean
    * turn ended on (what the `needs_you` card renders), or `null` to clear it
    * (turn start, and every settle that carries no interaction). Omitted is
-   * treated as `null`.
+   * treated as `null`. `opts` marks an early write ({@link BoardPersistOptions}).
    */
   persistBoardStatus(
     agentPath: string,
     sessionKey: string,
     status: BoardStatus,
     pendingInteraction?: PendingInteraction | null,
+    opts?: BoardPersistOptions,
   ): Promise<void>;
   /**
    * The server confirmed this conversation is IDLE (an observer attached and
@@ -107,68 +128,4 @@ export interface FeedOutput {
     sessionKey: string,
     reason: SendWaitReason | null,
   ): void;
-}
-
-/**
- * Fan every push out to several {@link FeedOutput}s at once. The turn machinery
- * folds each frame ONCE and calls a single output; wrapping N outputs in one
- * multiplexer runs them all with no re-processing — e.g. the SDK's conversation
- * VM plus a host's own sink. `persistBoardStatus` awaits every child.
- */
-export class MultiplexFeedOutput implements FeedOutput {
-  constructor(private readonly outputs: readonly FeedOutput[]) {}
-
-  pushFeedItem(agentPath: string, sessionKey: string, item: unknown): void {
-    for (const o of this.outputs) o.pushFeedItem(agentPath, sessionKey, item);
-  }
-
-  sessionStatus(
-    agentPath: string,
-    sessionKey: string,
-    status: SessionStatusValue,
-    error?: string,
-  ): void {
-    for (const o of this.outputs)
-      o.sessionStatus(agentPath, sessionKey, status, error);
-  }
-
-  async persistBoardStatus(
-    agentPath: string,
-    sessionKey: string,
-    status: BoardStatus,
-    pendingInteraction?: PendingInteraction | null,
-  ): Promise<void> {
-    await Promise.all(
-      this.outputs.map((o) =>
-        o.persistBoardStatus(agentPath, sessionKey, status, pendingInteraction),
-      ),
-    );
-  }
-
-  confirmIdle(agentPath: string, sessionKey: string): void {
-    for (const o of this.outputs) o.confirmIdle?.(agentPath, sessionKey);
-  }
-
-  stampUserTurn(agentPath: string, sessionKey: string, turnId: string): void {
-    for (const o of this.outputs)
-      o.stampUserTurn?.(agentPath, sessionKey, turnId);
-  }
-
-  firstResponse(
-    agentPath: string,
-    sessionKey: string,
-    response: FirstResponse,
-  ): void {
-    for (const o of this.outputs)
-      o.firstResponse?.(agentPath, sessionKey, response);
-  }
-
-  sendWaiting(
-    agentPath: string,
-    sessionKey: string,
-    reason: SendWaitReason | null,
-  ): void {
-    for (const o of this.outputs)
-      o.sendWaiting?.(agentPath, sessionKey, reason);
-  }
 }

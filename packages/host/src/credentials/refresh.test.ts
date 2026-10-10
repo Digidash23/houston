@@ -1,5 +1,6 @@
 import { afterEach, expect, test, vi } from "vitest";
 import { isApiKeyCredential, type WorkspaceCredential } from "../ports";
+import { ProviderAccountBlockedError } from "./account-blocked";
 import { RefreshRejectedError } from "./oauth-token-exchange";
 import { isExpiring, refreshCredential } from "./refresh";
 
@@ -376,6 +377,81 @@ test("refreshCredential refreshes Copilot Enterprise against the company GitHub 
     expect(fresh.accessToken).toBe("tid=ghe-token");
     // The domain rides along so the NEXT refresh keeps targeting the same GHE.
     expect(fresh.enterpriseUrl).toBe("acme.ghe.com");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test("refreshCredential types GitHub's billing lock as an account block, not a dead token", async () => {
+  // GitHub answers the Copilot mint with 403 "billing is currently locked"
+  // while the stored GitHub token is valid (H-005). pi-ai throws the status
+  // and body verbatim; the serve must neither sign the user out nor serve a
+  // stale token that fails the turn as "session expired".
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (url: string | URL | Request) => {
+    const u = String(url);
+    if (u.includes("copilot_internal/v2/token")) {
+      return new Response(
+        JSON.stringify({
+          error_details: {
+            message:
+              "Your account's billing is currently locked because recent account charges have failed. Please update your payment method to restore access.",
+            url: "https://github.com/settings/billing",
+            notification_id: "billing_locked",
+          },
+        }),
+        { status: 403, headers: { "content-type": "application/json" } },
+      );
+    }
+    throw new Error(`unexpected fetch in test: ${u}`);
+  }) as typeof fetch;
+  try {
+    const attempt = refreshCredential({
+      workspaceId: "ws_1",
+      provider: "github-copilot",
+      accessToken: "tid=stale",
+      refreshToken: "gho_github_token",
+      expiresAt: 1,
+      kind: "oauth",
+    });
+    const err = await attempt.then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(ProviderAccountBlockedError);
+    expect(err).not.toBeInstanceOf(RefreshRejectedError);
+    const blocked = err as ProviderAccountBlockedError;
+    expect(blocked.provider).toBe("github-copilot");
+    expect(blocked.detail).toMatch(/billing is currently locked/);
+    expect(blocked.detail).not.toContain("{");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test("any other Copilot mint 403 stays a plain (retryable) error", async () => {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({
+        error_details: { message: "You do not have access to GitHub Copilot." },
+      }),
+      { status: 403 },
+    )) as typeof fetch;
+  try {
+    const attempt = refreshCredential({
+      workspaceId: "ws_1",
+      provider: "github-copilot",
+      accessToken: "tid=stale",
+      refreshToken: "gho_github_token",
+      expiresAt: 1,
+      kind: "oauth",
+    });
+    await expect(attempt).rejects.toThrow();
+    await expect(attempt).rejects.not.toBeInstanceOf(
+      ProviderAccountBlockedError,
+    );
+    await expect(attempt).rejects.not.toBeInstanceOf(RefreshRejectedError);
   } finally {
     globalThis.fetch = realFetch;
   }

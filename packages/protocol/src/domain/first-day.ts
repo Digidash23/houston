@@ -41,4 +41,19 @@ export type FirstDayRefusalCode =
   /** Not a pending new hire, and no setup task to hand back. */
   | "first_day_not_pending"
   /** The setup task's first turn could not be started; the first day stays pending. */
-  | "first_day_not_started";
+  | "first_day_not_started"
+  /**
+   * The person has no AI connected for the first turn to run on (the
+   * runtime's `no_provider`, the gateway's provider-not-connected refusal).
+   * An expected state, not a failure: the first day stays pending and
+   * starts once an AI is connected.
+   */
+  | "first_day_no_provider";
+
+/** The 409 body a refused first-day start answers with. */
+export interface FirstDayRefusal {
+  code: FirstDayRefusalCode;
+  error: string;
+  /** `first_day_no_provider` only: the pinned provider that is not connected. */
+  provider?: string;
+}

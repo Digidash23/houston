@@ -12,4 +12,8 @@ export interface FireTurnOptions {
   actingUser?: string | undefined;
   actingAs?: string | undefined;
   limits?: TurnLimits | undefined;
+  /** A routine run (scheduled, trigger-woken or run now), as opposed to a
+   *  mission's or first day's fire: the standing channel marks its request
+   *  with `ROUTINE_FIRE_HEADER`. */
+  routine?: true;
 }

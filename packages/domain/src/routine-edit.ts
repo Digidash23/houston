@@ -56,15 +56,17 @@ export function applyRoutineUpdate(
   nowIso: string,
   actorSub?: string,
 ): Routine {
-  // `auto_paused` is engine-owned like `created_by`: only the pause itself
-  // writes it (autoPauseRoutine), and resuming is what clears it.
+  // `auto_paused` and `snoozed` are engine-owned like `created_by`: only the
+  // pause/snooze itself writes them (autoPauseRoutine, snoozeRoutine);
+  // resuming clears both, and a new model or provider clears the snooze.
   const defined = Object.fromEntries(
     Object.entries(update).filter(
       ([k, v]) =>
         v !== undefined &&
         k !== "timezone" &&
         k !== "created_by" &&
-        k !== "auto_paused",
+        k !== "auto_paused" &&
+        k !== "snoozed",
     ),
   );
   // A null wake key means "clear that mechanism" (the client keeps or moves to
@@ -93,5 +95,14 @@ export function applyRoutineUpdate(
   if (clearsTrigger) delete next.trigger;
   if (clearsSchedule) delete next.schedule;
   if (defined.enabled === true) delete next.auto_paused;
+  // The snooze names one account's limit on one model: a routine moved to
+  // another model or provider is no longer behind it, and a resume is the
+  // person asking for fires again.
+  if (
+    defined.enabled === true ||
+    defined.model !== undefined ||
+    defined.provider !== undefined
+  )
+    delete next.snoozed;
   return next;
 }

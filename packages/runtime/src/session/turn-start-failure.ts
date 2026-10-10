@@ -1,10 +1,12 @@
 import type { ChatMessage } from "@houston/runtime-client";
 import { stampCredentialScope } from "../ai/provider-error";
 import { logProviderError } from "../ai/provider-error-log";
+import { storedCardRefuses } from "../store/conversation-card";
 import {
   appendAssistantMessage,
   appendUserMessage,
 } from "../store/conversations";
+import { NOT_INTERACTION_OWNER } from "../store/interaction-owner";
 import { publish } from "./bus";
 import type { TurnPin } from "./exec-turn";
 
@@ -134,4 +136,33 @@ export function reportTurnStartFailure(
     turnId: turn.turnId,
   });
   publish(turn.id, { type: "error", data: { message }, turnId: turn.turnId });
+}
+
+/**
+ * Who a send answers a live card as, judged again when its turn is about to
+ * start: a send admitted behind a running turn may find that turn ended on a
+ * card meant for someone else. Absent when the send is exempt (no signed
+ * identity, or a routine run).
+ */
+export interface CardAnswer {
+  userId: string;
+  /** Release the send's admission: a refused send leaves nothing behind. */
+  onRefused: () => void;
+}
+
+/**
+ * Refuse a queued send whose person the conversation's live card is not for.
+ * Records nothing: the turn ends on a typed `error` frame alone, so the
+ * transcript never shows a message that was not allowed to answer the card.
+ */
+export function refuseQueuedCardAnswer(
+  id: string,
+  turnId: string,
+  answer: CardAnswer | undefined,
+): boolean {
+  if (!answer || !storedCardRefuses(id, answer.userId)) return false;
+  answer.onRefused();
+  const data = { message: NOT_INTERACTION_OWNER, code: NOT_INTERACTION_OWNER };
+  publish(id, { type: "error", data, turnId });
+  return true;
 }

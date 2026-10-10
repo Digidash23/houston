@@ -76,9 +76,10 @@ function mappedClaudeTranscript(
 }
 
 /**
- * Hot-set admission for one conversation: its canonical conversation,
- * harness markers, the two newest Pi tails, the Claude transcript named by
- * sessions.json, and the acting member's Claude flag cache. Other
+ * Hot-set admission for one conversation: its canonical conversation and its
+ * own archive segments, harness markers, the two newest Pi tails, the Claude
+ * transcript named by sessions.json, and the acting member's Claude flag
+ * cache. Other
  * conversations, older session files, and other members' caches stay remote.
  * Matches both layouts: `workspaces/<ws>/<agent>/.houston/runtime/…` and
  * the per-turn `data/…`.
@@ -95,6 +96,7 @@ export function ownConversationOnly(
   hydratedRoot: string,
 ) => boolean {
   const file = `${encodeURIComponent(conversationId)}.json`;
+  const archive = `${encodeURIComponent(conversationId)}.archive`;
   const ownFlags = actingUserId ? claudeFlagsFileName(actingUserId) : null;
   let claudeSelection: { file: string | null } | undefined;
   return (rel, listing, hydratedRoot) => {
@@ -108,6 +110,17 @@ export function ownConversationOnly(
       return ownFlagsFile(segments, runtimeAt, ownFlags);
     if (kind === "conversations" && segments.length === runtimeAt + 2) {
       return own === file;
+    }
+    // Archive segments (store/conversation-archive.ts) ride with their own
+    // conversation only. A shared routine chat's archive grows by a segment
+    // every ~6 MiB of runs and never shrinks, so admitting every chat's
+    // segments made each turn of the agent download all of them.
+    if (kind === "conversations") {
+      return (
+        segments.length === runtimeAt + 3 &&
+        own === archive &&
+        /^\d+\.json$/.test(segments[runtimeAt + 2] ?? "")
+      );
     }
     if (kind === "sessions" && segments.length > runtimeAt + 1) {
       if (own !== conversationId) return false;

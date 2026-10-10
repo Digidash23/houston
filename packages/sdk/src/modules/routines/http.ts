@@ -85,6 +85,9 @@ export async function createRoutine(
  *   (`auto_paused`); fix what `auto_paused.reason` names first, or the next
  *   runs fail the same way. When `auto_paused.cause` is `no_model`, the
  *   routine has no model: set its `provider` and `model` to a connected one.
+ *   A routine with `snoozed` is enabled but held until `snoozed.until`
+ *   because its account's plan usage limit is reached; it resumes by itself
+ *   then, and setting another `model` (or `provider`) lets it run sooner.
  * @assistant group:routines
  * @assistant confirm: money. A schedule edit retargets recurring spend, changing how often the agent runs and is billed from then on.
  * @assistant unschematized: a trigger binding carries the outside app's own event config, whose shape belongs to that app.

@@ -603,5 +603,39 @@
     "inviteNeedsUpgradeTitle": "Esta equipe não pode adicionar pessoas no momento",
     "inviteNeedsUpgradeBody": "O teste dela terminou, então o plano dela não inclui novas pessoas no momento.",
     "moveNeedsUpgrade": "O plano desta equipe não inclui mover Funcionários de IA para ela no momento."
+  },
+  "writeFailed": {
+    "removeMember": {
+      "title": "Não foi possível remover esta pessoa",
+      "description": "Ela continua na organização. Tente de novo em instantes."
+    },
+    "memberRole": {
+      "title": "Não foi possível mudar a função",
+      "description": "A função voltou a ser como era. Tente de novo em instantes."
+    },
+    "revokeInvite": {
+      "title": "Não foi possível revogar o convite",
+      "description": "Ele continua pendente. Tente de novo em instantes."
+    },
+    "declineInvite": {
+      "title": "Não foi possível recusar o convite",
+      "description": "Ele continua esperando por você. Tente de novo em instantes."
+    },
+    "delegation": {
+      "title": "Não foi possível salvar a configuração de Trabalho em equipe",
+      "description": "Ela voltou a ser como era. Tente de novo em instantes."
+    },
+    "agentAccess": {
+      "title": "Não foi possível atualizar quem tem acesso",
+      "description": "O acesso voltou a ser como era. Tente de novo em instantes."
+    },
+    "agentApps": {
+      "title": "Não foi possível atualizar os apps",
+      "description": "Os apps voltaram a ser como eram. Tente de novo em instantes."
+    },
+    "agentModels": {
+      "title": "Não foi possível atualizar os modelos permitidos",
+      "description": "Os modelos voltaram a ser como eram. Tente de novo em instantes."
+    }
   }
 }

@@ -9,8 +9,9 @@
  * topology — a REMOTE gateway build finding the machine's OLD local data.
  */
 
-/** The wizard's persisted outcome, keyed per signed-in user (identity uid) in
- *  localStorage — the legacy data is machine-local, so the flag is too. */
+/** The wizard's persisted outcome: one device-level localStorage key that
+ *  survives sign-out (`lib/cloud-migration-outcome.ts`). The legacy data is
+ *  machine-local, so the flag is too. */
 export type CloudMigrationOutcome = "done" | "skipped";
 
 export interface CloudMigrationInputs {
@@ -23,13 +24,13 @@ export interface CloudMigrationInputs {
   /** Running inside the Tauri desktop shell — only it can read the old
    *  `~/.houston` tree and spawn the migration source host. */
   isTauri: boolean;
-  /** A signed-in identity exists to key the persisted outcome on. */
+  /** A signed-in identity exists to import the agents into. */
   signedIn: boolean;
   /** `detect_legacy_houston` found legacy workspaces with agents. */
   hasLegacyWorkspaces: boolean;
   /**
-   * This user already finished ("done") or declined ("skipped") the wizard on
-   * this machine — the persisted per-uid localStorage flag. The migration reads
+   * Someone already finished ("done") or declined ("skipped") the wizard on
+   * this machine, under any account: the persisted device flag. The migration reads
    * THIS machine's `~/.houston`, so the record is machine-local: identity
    * (Firebase) exposes no client-writable user metadata for a cross-machine
    * "already migrated" flag (unlike the retired Supabase `user_metadata`).
@@ -55,8 +56,8 @@ export function cloudMigrationGateState(
   if (!i.remoteGateway) return "pass";
   if (!i.isTauri) return "pass";
   if (!i.signedIn) return "pass";
-  // A machine that already finished or declined the wizard never sees it again
-  // (per-uid localStorage). The migration is inherently machine-scoped — it
+  // A machine that already finished or declined the wizard never sees it again,
+  // whichever account signs in next. The migration is inherently machine-scoped — it
   // reads this machine's `~/.houston` — so this per-machine flag is the gate.
   if (i.outcome) return "pass";
   if (i.loading) return "loading";

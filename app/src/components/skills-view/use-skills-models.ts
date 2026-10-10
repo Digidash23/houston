@@ -55,6 +55,7 @@ export function useSkillsModels(agents: Agent[]): SkillsModels {
           onRevert: sharedActions.revertOverride,
           onDisableForAgent: sharedActions.disableForAgent,
           onEnableAll: (row) => sharedActions.enableForAll(row, agents),
+          onAddToAgent: sharedActions.addToAgent,
           onPromote: sharedActions.promoteToShared,
         }
       : undefined;

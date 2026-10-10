@@ -1,4 +1,5 @@
 import type { CustomEndpoint } from "@houston/engine-adapter";
+import { isBridgeCancellation } from "@houston/sdk";
 import { peekSession } from "./identity/session-store";
 import {
   localBridgeController,
@@ -36,8 +37,7 @@ async function reported<T>(action: () => Promise<T>): Promise<T> {
   try {
     return await action();
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError")
-      throw new ConnectAborted();
+    if (isBridgeCancellation(error)) throw new ConnectAborted();
     reportLocalBridgeError(error);
     throw error;
   }

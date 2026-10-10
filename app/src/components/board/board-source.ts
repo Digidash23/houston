@@ -102,12 +102,13 @@ export interface BoardSource {
   sessionKeyFor: (activityId: string) => string;
 
   // ── Mutations (routed to the right agent inside the source) ───────────────
-  onDelete: (item: KanbanItem) => void | Promise<void>;
-  onApprove: (item: KanbanItem) => void | Promise<void>;
+  // Card writes paint now and write behind the click (`mission-writes.ts`).
+  onDelete: (item: KanbanItem) => void;
+  onApprove: (item: KanbanItem) => void;
   /** The Done card's archive box: files a signed-off mission away. Removes the
    *  card from the active board, so the source also drops it from the open
    *  panel the way a delete / bulk archive does. */
-  onArchive: (item: KanbanItem) => void | Promise<void>;
+  onArchive: (item: KanbanItem) => void;
   onRename: (item: KanbanItem, title: string) => void;
   /**
    * Persisted chat history for one conversation. Callers forward `opts`:

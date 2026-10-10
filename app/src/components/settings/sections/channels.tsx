@@ -37,21 +37,14 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
     (provider) => provider.id === "slack",
   );
   const connections = query.data?.connections ?? [];
-  const busy =
-    connect.isPending ||
-    complete.isPending ||
-    link.isPending ||
-    disconnect.isPending;
+  const busy = connect.isPending || complete.isPending || link.isPending;
   const completionFailed = slackCompletionResult(
     landed,
     slackCompletionFailure(complete.error),
   );
-  const actionUnavailable = [
-    connect.error,
-    complete.error,
-    link.error,
-    disconnect.error,
-  ].some((error) => channelUnavailableReason(error) === "not-configured");
+  const actionUnavailable = [connect.error, complete.error, link.error].some(
+    (error) => channelUnavailableReason(error) === "not-configured",
+  );
   /** Every hand-off starts the watch: the connection arrives out of band. */
   const handOff = (start: () => void) => {
     setWatch(startChannelWatch(connections.length, Date.now()));
@@ -119,7 +112,6 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
           if (actionUnavailable) {
             connect.reset();
             link.reset();
-            disconnect.reset();
           }
           complete.reset();
           void query.refetch();
@@ -140,7 +132,7 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
         cancelLabel={t("channels.cancel")}
         variant="destructive"
         onConfirm={() => {
-          if (target) disconnect.mutate(target.id);
+          if (target) disconnect(target.id);
         }}
       />
     </section>

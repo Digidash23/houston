@@ -1,6 +1,11 @@
 import { githubCopilotProvider } from "@earendil-works/pi-ai/providers/github-copilot";
 import { isApiKeyCredential, type WorkspaceCredential } from "../ports";
 import {
+  accountBlockedDetail,
+  mintFailureStatus,
+  ProviderAccountBlockedError,
+} from "./account-blocked";
+import {
   exchangeRefreshToken,
   REFRESH_TIMEOUT_MS,
   TransientRefreshError,
@@ -85,18 +90,36 @@ export async function refreshCredential(
     // at the company's GitHub: pi-ai hits `api.<domain>/copilot_internal/v2/token`
     // instead of github.com. Absent => individual Copilot. Preserve it on the
     // refreshed credential so the next refresh keeps targeting the same GHE.
-    const r = await copilotOAuth.refresh(
-      {
-        type: "oauth",
-        access: cred.accessToken,
-        refresh: cred.refreshToken,
-        expires: cred.expiresAt,
-        ...(cred.enterpriseUrl ? { enterpriseUrl: cred.enterpriseUrl } : {}),
-      },
-      // pi ≥0.84 requires a concrete abort signal; bound it like our own
-      // token exchange so a hung endpoint can't stall the credential serve.
-      AbortSignal.timeout(REFRESH_TIMEOUT_MS),
-    );
+    let r: Awaited<ReturnType<typeof copilotOAuth.refresh>>;
+    try {
+      r = await copilotOAuth.refresh(
+        {
+          type: "oauth",
+          access: cred.accessToken,
+          refresh: cred.refreshToken,
+          expires: cred.expiresAt,
+          ...(cred.enterpriseUrl ? { enterpriseUrl: cred.enterpriseUrl } : {}),
+        },
+        // pi ≥0.84 requires a concrete abort signal; bound it like our own
+        // token exchange so a hung endpoint can't stall the credential serve.
+        AbortSignal.timeout(REFRESH_TIMEOUT_MS),
+      );
+    } catch (err) {
+      // pi-ai throws the mint's `<status> <text>: <body>` verbatim. A 403
+      // whose body names a billing lock is the ACCOUNT blocked, not the
+      // token: typed so the serve neither signs the user out nor serves a
+      // dead token that fails the turn as "session expired" (H-005).
+      const detail =
+        err instanceof Error
+          ? accountBlockedDetail(
+              mintFailureStatus(err.message) ?? 0,
+              err.message,
+            )
+          : null;
+      if (detail !== null)
+        throw new ProviderAccountBlockedError(cred.provider, detail);
+      throw err;
+    }
     return {
       workspaceId: cred.workspaceId,
       provider: cred.provider,

@@ -5,6 +5,7 @@ import {
   isUpdateNetworkFailure,
   toUpdateDownloadError,
   UpdateDownloadError,
+  updateDownloadOutcome,
 } from "../src/lib/update-download-failure.ts";
 
 // PRODUCT-1727: the shell's resumable download rejects with a typed failure;
@@ -123,5 +124,35 @@ describe("isUpdateNetworkFailure", () => {
     ]) {
       strictEqual(isUpdateNetworkFailure(message), false, message);
     }
+  });
+});
+
+// Two callers of one release (the hook remounts across the mobile
+// breakpoint, on identity change and on reload while the shell keeps
+// downloading) must not both report, and a full disk must not be retried
+// every poll.
+describe("updateDownloadOutcome", () => {
+  it("skips a download the shell is already running", () => {
+    const outcome = updateDownloadOutcome({
+      kind: "in_progress",
+      message: "a download of 1.0.6 is already running",
+    });
+    strictEqual(outcome, "skip");
+  });
+
+  it("gives up on a release the disk refused", () => {
+    const outcome = updateDownloadOutcome({
+      kind: "storage_full",
+      message: "write partial download: No space left on device",
+    });
+    strictEqual(outcome, "give_up");
+  });
+
+  it("retries everything else at the next poll", () => {
+    strictEqual(
+      updateDownloadOutcome({ kind: "network", message: "x" }),
+      "retry",
+    );
+    strictEqual(updateDownloadOutcome(new Error("boom")), "retry");
   });
 });

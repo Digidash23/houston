@@ -16,9 +16,10 @@ import type {
  * workspace store skills it does not load yet, and the manifest write that
  * gives it one.
  *
- * The write is the SAME one the skill editor commits for its assignment
- * (`SharedDialogActions.onApply`), so an add here and an enable there are one
- * behavior with one invalidation; only the notice names the intent.
+ * The write is one manifest entry switched on, painted before the host
+ * answers: the row leaves the dialog at once, and a refusal puts it back with
+ * its own toast (`SharedDialogActions.onAddToAgent`). The employee starts
+ * loading the workspace version as it stands; nothing is written to it.
  */
 export function useAddExistingSkill(opts: {
   /** The employee whose Skills section this is. */
@@ -48,14 +49,10 @@ export function useAddExistingSkill(opts: {
       // Unreachable: without a store there is nothing to offer, so the list
       // is empty and no row exists to press.
       if (shared === undefined) return;
-      await shared.onApply(
+      await shared.onAddToAgent(
         // Narrowed by `addableSkills`, which keeps store rows only.
         row as SharedSkillRow,
-        // Nothing is written to the store copy: `contentDirty: false` is what
-        // makes this an assignment alone, and the employee starts loading the
-        // workspace version as it stands.
-        { content: "", contentDirty: false },
-        { enable: [agent.folderPath], disable: [] },
+        agent,
         t("global.addExisting.added", {
           name: skillDisplayTitle(row.summary),
         }),

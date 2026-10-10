@@ -1,9 +1,9 @@
-import type { RoutineRunFailureCode } from "@houston/protocol";
+import type { RoutineAccountFailureCode } from "@houston/protocol";
 import { expect, test } from "vitest";
 import { routinePauseNotice } from "./auto-pause";
 import { failureCodeForReader } from "./failure-view";
 
-const failure = (code: RoutineRunFailureCode) => ({
+const failure = (code: RoutineAccountFailureCode) => ({
   code,
   provider: "anthropic",
 });

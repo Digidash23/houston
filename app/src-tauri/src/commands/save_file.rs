@@ -76,5 +76,7 @@ async fn pick_destination(name: &str) -> Result<Option<PathBuf>, FileOpFailure> 
     let dir = dirs::download_dir()
         .or_else(dirs::home_dir)
         .ok_or_else(|| FileOpFailure::other("Could not resolve a download directory"))?;
-    Ok(Some(super::file_failure::free_sibling(&dir.join(name))))
+    super::file_failure::prepare_download_target(&dir, name)
+        .await
+        .map(Some)
 }

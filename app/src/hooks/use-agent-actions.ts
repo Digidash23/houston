@@ -2,7 +2,9 @@ import { isAgentNameReserved, isAgentNameTaken } from "@houston/sdk";
 import type { TFunction } from "i18next";
 import { useEmployeeNameIssueCopy } from "../components/employee-card/use-employee-name";
 import { agentNameIssue } from "../lib/agent-name";
+import { isAgentWarmingRefusal } from "../lib/agent-warming-refusal";
 import { showExpectedStateToast } from "../lib/error-toast";
+import { tellOptimisticRefusal } from "../lib/optimistic-write";
 import { renameAgentWithFollowUp } from "../lib/rename-agent-follow-up";
 import { useAgentStore } from "../stores/agents";
 
@@ -11,6 +13,8 @@ type AgentActionsT = TFunction<["agents"]>;
 
 /**
  * An agent's mutations: rename (validated before the PATCH), colour, delete.
+ * All three are optimistic in the store; a refusal is told here, once, with
+ * authored copy (the expected name refusals keep their own).
  *
  * These were the RAIL's, in `shell/use-sidebar-agent-actions.ts`, behind the
  * agent row's "..." menu. That menu is gone — an agent row in the rail is a
@@ -35,6 +39,28 @@ export function useAgentActions(args: {
   const deleteAgent = useAgentStore((s) => s.delete);
   const updateAgentColor = useAgentStore((s) => s.updateColor);
   const issueCopy = useEmployeeNameIssueCopy();
+  const nameOf = (agentId: string) =>
+    agentNamesById.find((a) => a.id === agentId)?.name ?? "";
+  // The store already put the row back; this says what did not happen, then
+  // rethrows so a caller tracking its own save state still sees the refusal.
+  const refused = (
+    command: string,
+    titleKey:
+      | "agents:toasts.renameFailed"
+      | "agents:toasts.colorFailed"
+      | "agents:toasts.deleteFailed",
+    agentId: string,
+    err: unknown,
+  ): never => {
+    // The warming guard's own dialog is already open and says it all.
+    if (!isAgentWarmingRefusal(err)) {
+      tellOptimisticRefusal(command, err, {
+        title: t(titleKey, { name: nameOf(agentId) }),
+        description: t("agents:toasts.writeFailedDescription"),
+      });
+    }
+    throw err;
+  };
 
   const rename = async (agentId: string, newName: string) => {
     if (!workspaceId) return;
@@ -83,18 +109,31 @@ export function useAgentActions(args: {
         );
         return;
       }
-      throw err;
+      return refused(
+        "rename_agent",
+        "agents:toasts.renameFailed",
+        agentId,
+        err,
+      );
     }
   };
 
   const changeColor = async (agentId: string, color: string) => {
     if (!workspaceId) return;
-    await updateAgentColor(workspaceId, agentId, color);
+    try {
+      await updateAgentColor(workspaceId, agentId, color);
+    } catch (err) {
+      refused("update_agent_color", "agents:toasts.colorFailed", agentId, err);
+    }
   };
 
   const remove = async (agentId: string) => {
     if (!workspaceId) return;
-    await deleteAgent(workspaceId, agentId);
+    try {
+      await deleteAgent(workspaceId, agentId);
+    } catch (err) {
+      refused("delete_agent", "agents:toasts.deleteFailed", agentId, err);
+    }
   };
 
   return { rename, changeColor, remove };

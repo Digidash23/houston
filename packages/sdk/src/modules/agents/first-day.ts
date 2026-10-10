@@ -37,6 +37,10 @@ export type { FirstDayStartInput, FirstDayStartResult };
  * started hands back the same task instead of making another. A new hire's
  * first day can be started right after it is created: while the new agent is
  * still getting ready, the start waits for it (up to about a minute and a half).
+ * The first day runs on an AI the person has connected (Claude, ChatGPT and
+ * the like): with none connected the start is refused with
+ * `first_day_no_provider` and the first day stays waiting, so connect an AI
+ * first, then start it again.
  *
  * @param agentId The agent this acts on, by the id listAgents returns. An
  *   agent's name is not its id, so read the id from listAgents first.

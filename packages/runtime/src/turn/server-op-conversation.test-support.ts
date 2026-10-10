@@ -33,7 +33,10 @@ export async function opWorker(transcriptStatus = 200) {
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  const post = async (op: Record<string, unknown>) => {
+  const post = async (
+    op: Record<string, unknown>,
+    envelope: Record<string, unknown> = {},
+  ) => {
     for (let attempt = 0; ; attempt++) {
       const res = await fetch(`${base}/op`, {
         method: "POST",
@@ -52,6 +55,7 @@ export async function opWorker(transcriptStatus = 200) {
           },
           triggersEnabled: false,
           op,
+          ...envelope,
         }),
       });
       const reply = (await res.json()) as {

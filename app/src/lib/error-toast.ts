@@ -135,13 +135,15 @@ export function showEngineWakingToast(
  *
  * `command` is a short machine-readable tag (e.g. "list_workspaces",
  * "uncaught_error") used as the Sentry tag for triage.
+ * True when the user was dealt with (a surface of its own shown or withheld
+ * on purpose); false for a report-only failure, which the caller must tell.
  */
 export function showErrorToast(
   command: string,
   message: string,
   originalError?: unknown,
   options?: ErrorToastOptions,
-): void {
+): boolean {
   // A hosted call answered by the transport's synthetic signed-out 401 is an
   // EXPECTED lifecycle state (sign-out / account switch): the sign-in screen is
   // the surface, nothing is broken, and there is no bug to report — so not even
@@ -149,13 +151,13 @@ export function showErrorToast(
   // the transport only mints the synthetic body when no session exists at all.
   if (isSignedOutEngineError(originalError)) {
     console.warn(`[toast:${command}] suppressed: signed-out engine call`);
-    return;
+    return true;
   }
   // The app's own warming-guard refusal (HOU-693): the "almost ready" dialog
   // is the surface and nothing failed — no capture either (HOUSTON-APP-53K).
   if (isAgentWarmingRefusal(originalError)) {
     console.debug(`[toast:${command}] write blocked while the agent warms up`);
-    return;
+    return true;
   }
   // The quiet classes (PRODUCT-1735) — the same gate the engine-call layer,
   // `reportError` and the global handlers run. A caller that hands a raw
@@ -166,14 +168,14 @@ export function showErrorToast(
   const quiet = classifyQuietError(originalError);
   if (quiet === "offline") {
     showConnectivityErrorToast(command, message, originalError);
-    return;
+    return true;
   }
   if (quiet === "engine_waking") {
     showEngineWakingToast(command, message, originalError);
-    return;
+    return true;
   }
   if (quiet && surfaceQuietState(quiet, command, message, originalError))
-    return;
+    return true;
 
   // With no toast left, this line is the failure's only trace on the user's
   // machine — guarantee it here rather than trusting each caller to log.
@@ -194,7 +196,7 @@ export function showErrorToast(
   // Sentry keeps EVERY occurrence (it dedupes server-side, and the per-event
   // context is what tells one user's outage from a fleet-wide one).
   // Dev build with Sentry suppressed: initSentry already bailed, so don't.
-  if (sentrySuppressedInDev) return;
+  if (sentrySuppressedInDev) return false;
   markReportedToSentry(originalError);
   void sentryCapture(
     createSentryReportError(command, message, originalError),
@@ -206,4 +208,5 @@ export function showErrorToast(
   ).catch((flushErr: unknown) => {
     console.error("[sentry] failed to flush captured error", flushErr);
   });
+  return false;
 }

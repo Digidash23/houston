@@ -103,7 +103,9 @@ export function ProviderErrorCard({
         />
       );
     case "usage_limit_paused":
-      return <UsageLimitPausedCard error={error} />;
+      return (
+        <UsageLimitPausedCard error={error} onSwitchModel={onSwitchModel} />
+      );
     case "quota_exhausted":
       return <QuotaExhaustedCard error={error} onSwitchModel={onSwitchModel} />;
     case "context_overflow":

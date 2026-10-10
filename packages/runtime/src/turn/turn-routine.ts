@@ -49,6 +49,9 @@ export interface RoutinePhase {
   model?: string;
   effort?: string;
   provider: string | null;
+  /** The claim's acting user, null when none: only the creator's own run
+   *  snoozes or lifts the routine's schedule (domain snoozeAfterRun). */
+  actingSub?: string | null;
 }
 
 /**
@@ -134,6 +137,7 @@ export async function prepareRoutineTurn(
     ...(pin.model ? { model: pin.model } : {}),
     ...(routine.effort ? { effort: routine.effort } : {}),
     provider: pin.provider,
+    actingSub: turn.actingAs?.userId ?? null,
   };
 }
 

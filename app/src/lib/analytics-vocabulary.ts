@@ -23,6 +23,12 @@ export type AnalyticsProperty =
   | "mission"
   | "source"
   | "error_kind"
+  // Why a turn failed, from the SDK's typed settle (`TurnErrorClass`), and
+  // whose turn it was (`sent` by this client / `observed`); `error_kind` is
+  // the legacy copy-derived bucket kept for continuity (session_failed,
+  // app_error_shown).
+  | "error_class"
+  | "origin"
   | "workspace_count"
   | "agent_count"
   // New properties
@@ -93,6 +99,8 @@ export const ALLOWED_PROPS = new Set<AnalyticsProperty>([
   "mission",
   "source",
   "error_kind",
+  "error_class",
+  "origin",
   "workspace_count",
   "agent_count",
   "integration_slug",

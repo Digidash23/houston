@@ -165,7 +165,7 @@ export function IntegrationsReady({
                       category={category}
                       isLoading={apps.isLoading}
                       connectFlow={connectFlow}
-                      onRemove={(toolkit) => disconnect.mutate({ toolkit })}
+                      onRemove={(toolkit) => disconnect({ toolkit })}
                       onCuratedConnect={(slug, providerConnect) =>
                         setCuratedRequest({ slug, providerConnect })
                       }
@@ -196,7 +196,7 @@ export function IntegrationsReady({
         selection={selection}
         connectFlow={connectFlow}
         onRemove={(toolkit, connectionId) =>
-          disconnect.mutate({ toolkit, connectionId })
+          disconnect({ toolkit, connectionId })
         }
       />
 

@@ -80,7 +80,6 @@
     "delete": "Eliminar",
     "clear": "Quitar selección",
     "cancel": "Cancelar",
-    "error": "No se pudieron actualizar las tareas seleccionadas. Inténtalo de nuevo.",
     "confirmMove": {
       "title": "¿Mover tareas?",
       "description_one": "¿Mover {{count}} tarea a {{target}}?",
@@ -108,15 +107,39 @@
     "emptyTitle": "No hay tareas archivadas",
     "emptyDescription": "Las tareas archivadas aparecen aquí. Responde a una para reactivarla."
   },
-  "dnd": {
-    "moveError": "No se pudo mover la tarea. Inténtalo de nuevo."
-  },
   "firstDay": {
     "start": "Comenzar el primer día de {{name}}",
     "heroTitle": "Todo listo para el primer día de {{name}}",
     "explain": "{{name}} te hará algunas preguntas para aprender el trabajo.",
     "compactTitle": "El primer día de {{name}} aún no comienza",
     "bannerTitle": "Tu equipo está listo. Elige un empleado de IA y comienza su primer día.",
-    "bannerExplain": "Cada uno te hará algunas preguntas para aprender el trabajo."
+    "bannerExplain": "Cada uno te hará algunas preguntas para aprender el trabajo.",
+    "connectAi": "Conecta una IA para empezar",
+    "bannerNeedsAi": "Primero conecta una IA como Claude o ChatGPT. Después tus empleados de IA podrán comenzar su primer día.",
+    "noProvider": {
+      "title": "Primero conecta tu IA",
+      "body": "Tu empleado de IA necesita una IA como Claude o ChatGPT para trabajar. Conecta una y luego comienza su primer día.",
+      "action": "Conectar IA"
+    },
+    "bannerNeedsAiTitle": "Conecta una IA para que tu equipo empiece",
+    "reconnect": {
+      "title": "Vuelve a conectar {{provider}}",
+      "body": "Tu sesión de {{provider}} se cerró, así que el primer día no puede comenzar. Vuelve a conectarlo y luego comienza el primer día.",
+      "action": "Volver a conectar"
+    }
+  },
+  "writeFailed": {
+    "delete": "No se pudo eliminar \"{{title}}\"",
+    "archive": "No se pudo archivar \"{{title}}\"",
+    "move": "No se pudo mover \"{{title}}\"",
+    "rename": "No se pudo cambiar el título de \"{{title}}\"",
+    "backOnBoard": "La tarea volvió al tablero. Inténtalo de nuevo en un momento.",
+    "backInArchive": "La tarea volvió a Archivadas. Inténtalo de nuevo en un momento.",
+    "backWhereItWas": "La tarea volvió a donde estaba. Inténtalo de nuevo en un momento.",
+    "oldName": "La tarea volvió a su título anterior. Inténtalo de nuevo en un momento.",
+    "bulkDelete": "No se pudieron eliminar las tareas seleccionadas",
+    "bulkArchive": "No se pudieron archivar las tareas seleccionadas",
+    "bulkMove": "No se pudieron mover las tareas seleccionadas",
+    "bulkBack": "Las tareas que no cambiaron volvieron a donde estaban. Inténtalo de nuevo en un momento."
   }
 }

@@ -132,7 +132,7 @@ fn run_repair() -> Result<(), String> {
         .collect();
     let encoded = base64::engine::general_purpose::STANDARD.encode(utf16);
 
-    let sweep = std::process::Command::new("powershell.exe")
+    let sweep = std::process::Command::new(crate::powershell_path::windows_powershell())
         .args(["-NoProfile", "-NonInteractive", "-EncodedCommand", &encoded])
         .current_dir(&cwd)
         .creation_flags(CREATE_NO_WINDOW)

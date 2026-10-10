@@ -147,6 +147,7 @@ test("the live file is read, never the archive, and ordinary chats not at all", 
     "Run it.",
     MODEL,
     "auto",
+    "fire",
   );
   await resetRoutineSessionIfNeeded(
     conv(),
@@ -155,6 +156,7 @@ test("the live file is read, never the archive, and ordinary chats not at all", 
     "Hi",
     MODEL,
     "auto",
+    "fire",
   );
   expect(store.liveReads).toEqual(["routine-live"]);
   expect(store.historyReads).toBe(0);
@@ -171,12 +173,14 @@ test("many short usage-less runs reset on the standing server exactly as on a po
     "Run it.",
     { ...MODEL, contextWindow: 64_000 },
     "auto",
+    "fire",
   );
   const pooled = resetPooledRoutineContext({
     dataDir: config.dataDir,
     conversationId: "routine-usageless",
     turnId: "now",
     windowTokens: 64_000,
+    kind: "fire",
   });
   expect(standing).not.toBeNull();
   expect(pooled).not.toBeNull();
@@ -193,6 +197,7 @@ test("a usage-less rotated chat resets from its live tail; only the replay reads
     "Run it.",
     MODEL,
     "auto",
+    "fire",
   );
   expect(reset).not.toBeNull();
   expect(store.historyWindows).toEqual([{ limit: 200 }]);
@@ -212,6 +217,7 @@ test("a rebuild that fails keeps the record, and its next turn retries it", asyn
       "Run it.",
       MODEL,
       "auto",
+      "fire",
     ),
   ).rejects.toThrow("backend unavailable");
   expect(record.sessionRebuildPending).toBe(true);
@@ -231,9 +237,48 @@ test("a rebuild that fails keeps the record, and its next turn retries it", asyn
     "Run it.",
     MODEL,
     "auto",
+    "fire",
   );
   expect(retry).not.toBeNull();
   expect(record.sessionRebuildPending).toBeUndefined();
   expect(record.session).not.toBe(old);
   expect(built.map((o) => o.fresh)).toEqual([true, true]);
+});
+
+test("a person's turn in a routine chat keeps its session on both paths; the next fire resets", async () => {
+  seed("routine-chatting", 150_000);
+  const record = conv();
+  const old = record.session;
+
+  const standing = await resetRoutineSessionIfNeeded(
+    record,
+    "routine-chatting",
+    "now",
+    "Draft the follow-up email.",
+    MODEL,
+    "execute",
+    "chat",
+  );
+  const pooled = resetPooledRoutineContext({
+    dataDir: config.dataDir,
+    conversationId: "routine-chatting",
+    turnId: "now",
+    windowTokens: 200_000,
+    kind: "chat",
+  });
+  expect(standing).toBeNull();
+  expect(pooled).toBeNull();
+  expect(record.session).toBe(old);
+  expect(built).toEqual([]);
+
+  const fire = await resetRoutineSessionIfNeeded(
+    record,
+    "routine-chatting",
+    "now",
+    "Run it.",
+    MODEL,
+    "auto",
+    "fire",
+  );
+  expect(fire?.preTokens).toBe(150_000);
 });

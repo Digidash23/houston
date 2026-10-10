@@ -1,4 +1,4 @@
-import { bootstrapLocalModelBridge } from "@houston/sdk";
+import { bootstrapLocalModelBridge, isBridgeCancellation } from "@houston/sdk";
 import { useEffect, useState } from "react";
 import { listenOsEvent } from "../lib/events";
 import { subscribeSession } from "../lib/identity/session-store";
@@ -80,10 +80,7 @@ export function useLocalBridgeAutoReconnect(userId: string | null): void {
         if (!abort.signal.aborted) await bridge?.resume();
       })
       .catch((error: unknown) => {
-        if (
-          !abort.signal.aborted &&
-          !(error instanceof DOMException && error.name === "AbortError")
-        )
+        if (!abort.signal.aborted && !isBridgeCancellation(error))
           reportLocalBridgeError(error);
       });
     return () => {

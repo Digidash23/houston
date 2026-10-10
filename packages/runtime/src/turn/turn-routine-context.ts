@@ -5,6 +5,7 @@ import { carryAfterRun } from "../session/routine-carry";
 import {
   isRoutineConversation,
   planRoutineContext,
+  type RoutineTurnKind,
 } from "../session/routine-context";
 import { ROUTINE_REPLAY_TAIL } from "../session/routine-replay";
 import { getHistoryAt } from "../store/conversation-file";
@@ -40,6 +41,8 @@ export function resetPooledRoutineContext(input: {
   conversationId: string;
   turnId: string;
   windowTokens: number;
+  /** A routine fire (`TurnRequest.routine`) or a person chatting in it. */
+  kind: RoutineTurnKind;
 }): PooledRoutineReset | null {
   if (!isRoutineConversation(input.conversationId)) return null;
   const plan = planRoutineContext(
@@ -50,6 +53,7 @@ export function resetPooledRoutineContext(input: {
     ),
     input.turnId,
     input.windowTokens,
+    input.kind,
   );
   if (!plan.reset) return null;
   console.info(

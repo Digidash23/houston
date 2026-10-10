@@ -118,6 +118,20 @@ beforeEach(() => {
 
 const assistants = (id: string) =>
   getHistory(id)?.messages.filter((m) => m.role === "assistant") ?? [];
+/** A routine fire, as the host's firer sends it (ROUTINE_FIRE_HEADER). */
+const fireRoutine = (id: string) =>
+  runTurn(
+    id,
+    PROMPT,
+    undefined,
+    { mode: "auto" },
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    { routineFire: true },
+  );
 const piSessionFiles = (id: string) =>
   readdirSync(join(config.dataDir, "sessions", id)).filter((f) =>
     f.endsWith(".jsonl"),
@@ -128,14 +142,14 @@ test("a pi routine run after a run bigger than the window starts fresh and fits"
   // One run exported ~36k tokens into the chat: it fit when it ran, but the
   // chat now holds most of the window, so the next run would carry it all.
   endpoint.replyChars = 144_000;
-  await runTurn(id, PROMPT, undefined, { mode: "auto" });
+  await fireRoutine(id);
   expect(assistants(id).at(-1)?.providerError).toBeUndefined();
   const before = piSessionFiles(id);
 
   endpoint.replyChars = 400;
   endpoint.requests.length = 0;
-  await runTurn(id, PROMPT, undefined, { mode: "auto" });
-  await runTurn(id, PROMPT, undefined, { mode: "auto" });
+  await fireRoutine(id);
+  await fireRoutine(id);
 
   // Every request of both later runs fit the window...
   expect(endpoint.requests.every((r) => !r.refused)).toBe(true);

@@ -86,11 +86,10 @@ defineRoute({
       },
       parsed.input,
     );
-    if (!answer.ok)
-      return json(res, answer.status, {
-        error: answer.error,
-        code: answer.code,
-      });
+    if (!answer.ok) {
+      const { ok: _ok, status, ...refusal } = answer;
+      return json(res, status, refusal);
+    }
     json(res, answer.status, answer.result);
   },
 });

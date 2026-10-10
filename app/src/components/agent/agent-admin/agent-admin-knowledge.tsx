@@ -2,10 +2,8 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   useActivity,
-  useAddLearning,
   useLearnings,
-  useRemoveLearning,
-  useUpdateLearning,
+  useLearningWrites,
 } from "../../../hooks/queries";
 import { useUserProfiles } from "../../../hooks/queries/use-user-profiles";
 import {
@@ -21,9 +19,7 @@ export function AgentAdminKnowledge({ agent }: AgentSectionProps) {
   const { t } = useTranslation(["teams", "agents"]);
   const path = agent.folderPath;
   const { data } = useLearnings(path);
-  const addLearning = useAddLearning(path);
-  const removeLearning = useRemoveLearning(path);
-  const updateLearning = useUpdateLearning(path);
+  const writes = useLearningWrites(path);
 
   const entries = data?.entries ?? [];
   // Faces for whoever taught these learnings. The hook is multiplayer-gated, so
@@ -62,9 +58,9 @@ export function AgentAdminKnowledge({ agent }: AgentSectionProps) {
         layout="section"
         showHelper={false}
         entries={rows}
-        onAdd={(text) => addLearning.mutateAsync(text)}
-        onRemove={(index) => removeLearning.mutateAsync(index)}
-        onUpdate={(id, text) => updateLearning.mutateAsync({ id, text })}
+        onAdd={writes.add}
+        onRemove={writes.remove}
+        onUpdate={writes.update}
       />
     </div>
   );

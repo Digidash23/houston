@@ -1,6 +1,14 @@
-import type { OrgRole } from "@houston/engine-adapter";
+import type { OrgInfo, OrgRole } from "@houston/engine-adapter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { analytics } from "../../lib/analytics";
+import { optimisticWrite } from "../../lib/optimistic-write";
+import {
+  orgWithMemberRole,
+  orgWithoutInvite,
+  orgWithoutMember,
+} from "../../lib/org-cache-patches";
 import { queryKeys } from "../../lib/query-keys";
 import { type EngineCallOptions, tauriOrg } from "../../lib/tauri";
 
@@ -20,14 +28,10 @@ export function useOrg(enabled: boolean) {
 }
 
 /**
- * The mutations below carry no `onError`: their `mutationFn` routes through the
- * `tauriOrg.*` wrappers, each wrapped by the `call()` adapter in `lib/tauri.ts`.
- * `call()` already surfaces the real error as a red toast AND
- * reports it to Sentry before re-throwing (React Query swallows the re-throw
- * internally, so `.mutate()` never leaks). The "user already in another org"
- * 409 reaches the user through that same path; the "last owner" 409 is an
- * expected business state and `call()` routes it to a plain informational
- * toast (`isLastOwnerError`). Adding an `onError` here would double-toast.
+ * Adding a member waits for the host (it may mint an invite instead) and
+ * carries no `onError`: `tauriOrg.addMember` routes through `call()`, which
+ * surfaces + reports the failure once (the "user already in another org" 409
+ * included). Adding an `onError` here would double-toast.
  */
 export function useAddMember() {
   const qc = useQueryClient();
@@ -53,41 +57,80 @@ export function useAddMember() {
 }
 
 /**
- * Revoke a pending invite (owner only). Invites ride on `OrgInfo` (`GET /org`),
- * so re-fetching the org after a successful revoke is the reactive path — the
- * roster + invites re-render together. Carries no `onError`: `tauriOrg.deleteInvite`
- * routes through `call()`, which already toasts + reports the failure once.
+ * The roster writes below paint `GET /org` (roster + pending invites) on the
+ * click and send in the background (`optimisticWrite`). The People
+ * screen only offers them to a caller who may make them (`canManage`), so the
+ * expected refusal left is the `last_owner` 409, which `call()` explains with
+ * its own toast while the rollback restores the row.
  */
-export function useDeleteInvite() {
+function useOrgWrite() {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (inviteId: string) => tauriOrg.deleteInvite(inviteId),
-    onSuccess: () => {
-      analytics.track("org_invite_revoked");
-      qc.invalidateQueries({ queryKey: queryKeys.org() });
-    },
-  });
+  const { t } = useTranslation("teams");
+  return useCallback(
+    (opts: {
+      command: string;
+      copy: "removeMember" | "memberRole" | "revokeInvite";
+      apply: (org: OrgInfo | undefined) => OrgInfo | undefined;
+      write: () => Promise<unknown>;
+      onSuccess: () => void;
+    }) =>
+      void optimisticWrite({
+        qc,
+        command: opts.command,
+        patches: [{ queryKey: queryKeys.org(), apply: opts.apply }],
+        write: opts.write,
+        failure: {
+          title: t(`writeFailed.${opts.copy}.title`),
+          description: t(`writeFailed.${opts.copy}.description`),
+        },
+        onSuccess: opts.onSuccess,
+      }),
+    [qc, t],
+  );
+}
+
+/** Revoke a pending invite (owner only). */
+export function useDeleteInvite() {
+  const write = useOrgWrite();
+  return useCallback(
+    (inviteId: string) =>
+      write({
+        command: "delete_org_invite",
+        copy: "revokeInvite",
+        apply: (org) => orgWithoutInvite(org, inviteId),
+        write: () => tauriOrg.deleteInvite(inviteId),
+        onSuccess: () => analytics.track("org_invite_revoked"),
+      }),
+    [write],
+  );
 }
 
 export function useRemoveMember() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (userId: string) => tauriOrg.removeMember(userId),
-    onSuccess: () => {
-      analytics.track("org_member_removed");
-      qc.invalidateQueries({ queryKey: queryKeys.org() });
-    },
-  });
+  const write = useOrgWrite();
+  return useCallback(
+    (userId: string) =>
+      write({
+        command: "remove_org_member",
+        copy: "removeMember",
+        apply: (org) => orgWithoutMember(org, userId),
+        write: () => tauriOrg.removeMember(userId),
+        onSuccess: () => analytics.track("org_member_removed"),
+      }),
+    [write],
+  );
 }
 
 export function useSetMemberRole() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ userId, role }: { userId: string; role: OrgRole }) =>
-      tauriOrg.setMemberRole(userId, role),
-    onSuccess: (_data, { role }) => {
-      analytics.track("org_role_changed", { role });
-      qc.invalidateQueries({ queryKey: queryKeys.org() });
-    },
-  });
+  const write = useOrgWrite();
+  return useCallback(
+    (userId: string, role: OrgRole) =>
+      write({
+        command: "set_org_member_role",
+        copy: "memberRole",
+        apply: (org) => orgWithMemberRole(org, userId, role),
+        write: () => tauriOrg.setMemberRole(userId, role),
+        onSuccess: () => analytics.track("org_role_changed", { role }),
+      }),
+    [write],
+  );
 }

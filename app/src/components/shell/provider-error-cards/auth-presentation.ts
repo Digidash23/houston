@@ -1,4 +1,8 @@
 import type { ProviderError } from "@houston-ai/chat";
+import {
+  type UnhealableCause,
+  unhealablePresentation,
+} from "./auth-unhealable.ts";
 
 /**
  * Pure state -> presentation mapping for the inline `UnauthenticatedCard`.
@@ -29,6 +33,8 @@ export function authCauseBodyKey(cause: UnauthCause): string {
       return `${K}.bodyTokenRevoked`;
     case "org_policy_blocked":
       return `${K}.bodyOrgPolicyBlocked`;
+    case "billing_locked":
+      return `${K}.bodyBillingLocked`;
     default:
       return `${K}.bodyUnknown`;
   }
@@ -105,11 +111,10 @@ function donePresentation(args: {
  * - `done` without a retry handler: nothing to resume — plain confirmation.
  * - `waiting`: the wait is on the user's browser, so the action is Cancel.
  * - `failed` / `idle`: the Reconnect button relaunches sign-in.
- * - `orgPolicyBlocked` (idle / failed): the provider's org policy blocked
- *   subscription access — reconnecting can only fail the same way, so the
- *   card never offers it. The action opens the AI Hub, where the user can
- *   connect with an API key instead (PRODUCT-1393). A later successful
- *   connect still lands the normal `done` confirmation + auto-resume.
+ * - `unhealable` (idle / failed): a cause a sign-in cannot heal; the card
+ *   comes from `unhealablePresentation` and never offers a reconnect. A
+ *   later successful connect still lands the normal `done` confirmation +
+ *   auto-resume.
  */
 export function resolveAuthCardPresentation(args: {
   phase: LoginPhase;
@@ -117,7 +122,7 @@ export function resolveAuthCardPresentation(args: {
   hasFailedPrompt: boolean;
   hasRetry: boolean;
   causeBodyKey: string;
-  orgPolicyBlocked?: boolean;
+  unhealable?: UnhealableCause;
 }): AuthCardPresentation {
   const { phase, hasProvider, hasFailedPrompt, hasRetry, causeBodyKey } = args;
 
@@ -152,20 +157,9 @@ export function resolveAuthCardPresentation(args: {
   }
 
   // idle and failed alike: this card never launches a sign-in (a reconnect
-  // can only hit the same policy wall), so a stray login failure elsewhere
-  // must not swap in the "sign-in did not finish" body over the honest one.
-  if (args.orgPolicyBlocked) {
-    return {
-      variant: "active",
-      titleKey: `${K}.titleOrgPolicy`,
-      bodyKey: `${K}.bodyOrgPolicyBlocked`,
-      button: {
-        kind: "action",
-        labelKey: `${K}.useApiKey`,
-        action: "open_ai_hub",
-      },
-    };
-  }
+  // can only hit the same wall), so a stray login failure elsewhere must not
+  // swap in the "sign-in did not finish" body over the honest one.
+  if (args.unhealable) return unhealablePresentation(args.unhealable);
 
   if (phase === "waiting") {
     return {

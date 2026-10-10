@@ -50,7 +50,7 @@ export function conversationDraftKeysFor(
 }
 
 /** Retire the unsent work of every deleted mission, under each key it could
- *  have been parked under. Call BEFORE the rows leave the cache. */
+ *  have been parked under. Read `rows` BEFORE they leave the cache. */
 export function forgetDeletedConversationDrafts(
   ids: readonly string[],
   rows: readonly ConversationRow[],

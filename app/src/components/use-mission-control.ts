@@ -20,17 +20,15 @@ import { useMissionOriginTag } from "../hooks/use-mission-origin-tag";
 import { useWarmingConversations } from "../hooks/use-warming-conversations";
 import { latestCachedAllConversations } from "../lib/all-conversations-cache";
 import { buildAttachmentPrompt } from "../lib/attachment-message";
-import { forgetConversationDraftsOf } from "../lib/conversation-drafts";
 import type { RawConversation } from "../lib/conversations-facade";
 import { createMission } from "../lib/create-mission";
 import { isSetupChatMode } from "../lib/integration-chat-setup";
 import { missionCardTags } from "../lib/mission-card";
-import { armMissionDoneCelebration } from "../lib/mission-done-celebration";
 import {
   buildMissionPeople,
   collectContributorIds,
 } from "../lib/mission-people";
-import { ARCHIVED_STATUS, DONE_STATUS } from "../lib/mission-selection";
+import { ARCHIVED_STATUS } from "../lib/mission-selection";
 import { isMultiplayer } from "../lib/org-roles";
 import { perfSpans } from "../lib/perf-spans";
 import { queryKeys } from "../lib/query-keys";
@@ -39,7 +37,6 @@ import { showSendFailedToast } from "../lib/send-error-toast";
 import { sweepIsAuthoritative } from "../lib/sweep-authoritative";
 import {
   type HistoryLoadOptions,
-  tauriActivity,
   tauriAttachments,
   tauriChat,
 } from "../lib/tauri";
@@ -47,10 +44,10 @@ import { DEFAULT_TURN_MODE } from "../lib/turn-mode";
 import type { Agent } from "../lib/types";
 import { mergeWarmingRows } from "../lib/warming-board-rows";
 import { useAgentProvisioningStore } from "../stores/agent-provisioning";
-import { boardItemConversationRow } from "./board/board-item-row";
 import type { SendOverrides } from "./board/board-source";
 import { agentsByPath, missionCardAgentName } from "./board/mission-card-agent";
 import { useMcOpenConversation } from "./board/use-mc-open-conversation";
+import { useMissionCardWrites } from "./board/use-mission-card-writes";
 import { resolveFollowUpOverrides } from "./mission-control-send";
 import { AgentCardAvatar } from "./shell/agent-card-avatar";
 
@@ -224,61 +221,12 @@ export function useMissionControl(agents: Agent[]) {
     [],
   );
 
-  const handleDelete = useCallback(
-    async (item: KanbanItem) => {
-      const agentPath = pathMapRef.current[item.id];
-      if (!agentPath) return;
-      // The card is the only place this mission's conversation key survives the
-      // delete, so the row is read off it before the write goes out.
-      const row = boardItemConversationRow(item);
-      await tauriActivity.delete(agentPath, item.id);
-      // Files attached in this conversation stay in the workspace's uploads/
-      // folder — they are agent context, not conversation scratch (HOU-706);
-      // the composer draft and the half-walked card beside it go.
-      forgetConversationDraftsOf(row);
-      if (selectedId === item.id) setSelectedId(null);
-    },
-    [selectedId],
-  );
-
-  // The card checkmark: the user signing a mission off. Confetti fires only
-  // after the write lands (a rejection propagates to the global error toast)
-  // and only for a mission that actually succeeded — the checkmark also closes
-  // failed missions, and those get the move without the fanfare. The burst is
-  // armed before the write so it comes off the card the user just checked off
-  // (full contract in armMissionDoneCelebration).
-  const handleApprove = useCallback(async (item: KanbanItem) => {
-    const agentPath = pathMapRef.current[item.id];
-    if (!agentPath) return;
-    const celebrate = armMissionDoneCelebration(item, DONE_STATUS);
-    await tauriActivity.update(agentPath, item.id, { status: DONE_STATUS });
-    celebrate();
-  }, []);
-
-  // The Done card's archive box: filing away a mission the user already signed
-  // off. No confetti — the win was the checkmark, this is the tidy-up after it.
-  // Archiving takes the card off the active board, so a mission whose chat is
-  // open is deselected exactly as `handleDelete` and the bulk archive do it.
-  const handleArchive = useCallback(
-    async (item: KanbanItem) => {
-      const agentPath = pathMapRef.current[item.id];
-      if (!agentPath) return;
-      await tauriActivity.update(agentPath, item.id, {
-        status: ARCHIVED_STATUS,
-      });
-      if (selectedId === item.id) setSelectedId(null);
-    },
-    [selectedId],
-  );
-
-  const handleRename = useCallback(
-    async (item: KanbanItem, newTitle: string) => {
-      const agentPath = pathMapRef.current[item.id];
-      if (!agentPath) return;
-      await tauriActivity.update(agentPath, item.id, { title: newTitle });
-    },
+  const agentPathOf = useCallback(
+    (id: string) => pathMapRef.current[id] as string | undefined,
     [],
   );
+  const { handleDelete, handleApprove, handleArchive, handleRename } =
+    useMissionCardWrites({ agentPathOf, selectedId, setSelectedId });
 
   const handleSendMessage = useCallback(
     async (
@@ -462,7 +410,7 @@ export function useMissionControl(agents: Agent[]) {
       // are read synchronously and re-derive on the activity refetch.
       const s =
         sessionKey === activeSessionKey && agentPath === (activeAgentPath ?? "")
-          ? activeVm?.sessionStatus
+          ? activeVm?.turnStatus
           : agentPath
             ? getConversationStatus(agentPath, sessionKey)
             : undefined;
@@ -485,10 +433,10 @@ export function useMissionControl(agents: Agent[]) {
         (item.metadata?.sessionKey as string | undefined) ??
         `activity-${item.id}`;
       const agentPath = pathMapRef.current[item.id];
-      if (
-        item.status === "running" ||
-        vmStatusFor(agentPath, sessionKey) === "running"
-      ) {
+      const vmStatus = vmStatusFor(agentPath, sessionKey);
+      // A completed reply ends the spinner before its card's write lands.
+      if (vmStatus === "wrapping_up") continue;
+      if (item.status === "running" || vmStatus === "running") {
         out[sessionKey] = true;
       }
     }

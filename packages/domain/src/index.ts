@@ -29,6 +29,7 @@ export * from "./routine-auto-pause";
 export * from "./routine-pin";
 export * from "./routine-prompt";
 export * from "./routine-run-in-flight";
+export * from "./routine-snooze";
 export * from "./routines";
 export * from "./scan";
 export * from "./schedule";

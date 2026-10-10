@@ -1,4 +1,5 @@
 import type { AgentInitialConfig } from "@houston/engine-adapter";
+import type { AgentPaint } from "../../lib/agent-roster-overlay";
 import type { Agent } from "../../lib/types";
 
 export interface CreatedAgent {
@@ -53,6 +54,8 @@ export interface AgentState {
     /** The config the agent is born with: a new hire's pin and first day. */
     config?: AgentInitialConfig,
   ) => Promise<CreatedAgent>;
+  /** Optimistic: the row leaves at once and comes back if the host refuses
+   *  (the promise then rejects). Same contract for `rename`/`updateColor`. */
   delete: (workspaceId: string, id: string) => Promise<void>;
   rename: (workspaceId: string, id: string, newName: string) => Promise<Agent>;
   updateColor: (
@@ -60,6 +63,10 @@ export interface AgentState {
     id: string,
     color: string,
   ) => Promise<void>;
+  /** Show `paint` on the agent's row before any write for it starts (a
+   *  colour waiting on a rename's new id). The release takes `revert: true`
+   *  when that write will never run, putting the painted fields back. */
+  paint: (id: string, paint: AgentPaint) => (revert?: boolean) => void;
   /** Drop the agent list back to its initial (unloaded) state on an identity
    *  change (HOU-903); the incoming account re-loads its own agents on boot. */
   reset: () => void;

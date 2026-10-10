@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 127
+version: 128
 
 components:
   - id: agent-delegation-settings
@@ -2183,8 +2183,9 @@ components:
     purpose: >-
       The "Start {{name}}'s first day" offer a board shows for an AI Employee
       whose first day is still pending.
-    anatomy: [avatar, title, explanation, start-button, employee-chip]
-    states: [pending, starting, started]
+    anatomy: [avatar, title, explanation, start-button, employee-chip,
+      connect-ai-button]
+    states: [pending, starting, started, needs-ai]
     variants: [hero, compact, team-banner]
     behavior: >-
       A newly hired AI Employee waits for the person to start its first day,
@@ -2195,10 +2196,18 @@ components:
       that employee's first day in one tap. Pressing start opens the setup
       task's chat beside the board and records the start, which takes every
       start button for that employee away, whoever pressed it and on whichever
-      device. Repeat presses while starting are dropped.
+      device. Repeat presses while starting are dropped. With no AI connected
+      (the composer's own connect-AI rule) the start button becomes "Connect
+      AI to start" and the banner retitles itself and swaps its chips for one
+      such button, both opening the AI Hub; the offer turns back on its own
+      once an AI connects. A start the server still refuses for no connected
+      AI shows an info notice (Reconnect <provider> when the hire's saved AI
+      is signed out) with an AI Hub action when the viewer can reach it, never
+      an error.
     a11y: >-
       The start control is a real button named "Start {{name}}'s first day",
       showing a busy state while it starts; banner chips carry that same name.
+      The connect-AI control is a real button named by its visible label.
     since: 101
   - id: academy-path
     title: Academy path

@@ -52,6 +52,9 @@ export type BatchReadOutcome =
 
 export interface ReadOptions {
   signal?: AbortSignal;
+  /** The generation the caller already holds: a store that can tell it is
+   *  still current skips the body (`notModified`); any other store reads. */
+  ifGenerationNotMatch?: string;
 }
 
 export interface WriteOptions {
@@ -64,6 +67,8 @@ export interface WriteOptions {
 /** Metadata captured atomically with an object download. */
 export interface ReadResult {
   generation?: string;
+  /** The object is still at `ifGenerationNotMatch`; nothing was written. */
+  notModified?: true;
 }
 
 export interface WriteResult {

@@ -1,10 +1,14 @@
-import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type {
+  SDKMessage,
+  SDKRateLimitInfo,
+} from "@anthropic-ai/claude-agent-sdk";
 import type { WireEvent } from "@houston/runtime-client";
 import { classifyText, mapSdkError } from "./errors";
 import { isAssistantMessageStart } from "./sdk-message-shapes";
 import { createContentBlockTracker } from "./translate-blocks";
 import type { EventLike } from "./translate-support";
 import { createUsageTracker } from "./translate-usage";
+import { isRejectedWindow } from "./usage-limit";
 
 // Re-exported for tests that assert the pi-parity usage math directly.
 export { normalizeUsage } from "./translate-support";
@@ -38,6 +42,9 @@ export function createStreamTranslator(cb: TranslatorCallbacks) {
     cb.onContextTokens(tokens);
   });
   let lastRateLimitRetry: number | null = null;
+  // The turn's latest rate_limit_event, whole: its `status: "rejected"` is
+  // what tells a used-up subscription window from a 429 (usage-limit.ts).
+  let lastRateLimit: SDKRateLimitInfo | null = null;
   // At most one provider_error per turn: an errored assistant message and an
   // error result can both describe the same failure — never double-terminal.
   let emittedError = false;
@@ -54,7 +61,8 @@ export function createStreamTranslator(cb: TranslatorCallbacks) {
       case "result":
         return onResult(msg);
       case "rate_limit_event":
-        onRateLimit(msg.rate_limit_info?.resetsAt);
+        lastRateLimit = msg.rate_limit_info ?? null;
+        onRateLimit(lastRateLimit);
         return [];
       case "system":
         if (msg.subtype === "compact_boundary") {
@@ -97,6 +105,7 @@ export function createStreamTranslator(cb: TranslatorCallbacks) {
           message: text || `Claude error: ${msg.error}`,
           model: msg.message?.model ?? null,
           retryAfterSeconds: lastRateLimitRetry,
+          rateLimit: lastRateLimit,
           usedAccessDigest: cb.usedAccessDigest,
         }),
       },
@@ -123,8 +132,15 @@ export function createStreamTranslator(cb: TranslatorCallbacks) {
     return out;
   }
 
-  function onRateLimit(resetsAt: unknown): void {
-    if (typeof resetsAt !== "number") return;
+  function onRateLimit(info: SDKRateLimitInfo | null): void {
+    // Only a REJECTED window says when requests resume. An allowed or
+    // allowed_warning event's resetsAt is merely when the 5-hour or weekly
+    // window rolls over, days away for a weekly one: taken as a retry wait, it
+    // would turn an ordinary 429 into a multi-day usage limit. A rejection
+    // that overage carries past blocks nothing either (isRejectedWindow).
+    lastRateLimitRetry = null;
+    const resetsAt = info?.resetsAt;
+    if (!isRejectedWindow(info) || typeof resetsAt !== "number") return;
     // resetsAt is an epoch; values below 1e12 are seconds, above are milliseconds.
     const resetMs = resetsAt < 1e12 ? resetsAt * 1000 : resetsAt;
     lastRateLimitRetry = Math.max(0, Math.ceil((resetMs - Date.now()) / 1000));

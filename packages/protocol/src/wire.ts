@@ -38,6 +38,8 @@ import type { ProviderError } from "./provider-error";
  * - `file_changes` — user-visible workspace files this turn created/modified,
  *   emitted once before `done` (only when non-empty). Drives the "files this
  *   mission touched" summary.
+ * - `reply_complete` — the turn's main reply finished streaming; only its
+ *   wrap-up remains (see the variant below).
  * - `done` / `error` — the turn ended.
  */
 export type WireEvent =
@@ -197,6 +199,19 @@ export type WireEvent =
     }
   | {
       /**
+       * The turn's main reply has finished streaming: what is left is its
+       * wrap-up (the suggest_actions / suggest_reusable offers, file-change
+       * diff, durability, the mission title), and then `done`. Emitted at most
+       * once per turn, never after a terminal frame, and NOT terminal itself:
+       * the client may hand the card back to the user early, but must keep
+       * the turn live, and treats later work (more text, thinking, a non-offer
+       * tool) as the turn carrying on. Absent from pre-field servers.
+       */
+      type: "reply_complete";
+      data: null;
+    }
+  | {
+      /**
        * The turn ended normally. `pendingInteraction` is present when the model
        * finished by asking the user for something (ask_user /
        * request_connection / plan_ready) or by offering something optional
@@ -243,7 +258,7 @@ export function clipToolResult(text: string): string {
  * `turnId` identifies the turn a frame belongs to. The turn's server mints one
  * id (a UUID) when the turn starts and stamps it on every turn-scoped frame it
  * publishes (`user`, `text`, `thinking`, `tool_start`, `tool_end`, `usage`,
- * `provider_switched`, `provider_error`, `file_changes`, `done`, `error` — including terminal
+ * `provider_switched`, `provider_error`, `file_changes`, `reply_complete`, `done`, `error` — including terminal
  * frames the relay synthesizes for a dead turn). The same id is persisted on
  * the turn's user + assistant `ChatMessage`s, so a client resyncing across a
  * turn boundary can match history to a live turn — and, crucially, can tell a

@@ -4,6 +4,8 @@
 // report? Dependency-free so it is node-testable directly
 // (app/tests/url-open-failure.test.ts).
 
+import { describeError } from "./describe-error";
+
 export type UrlOpenFailureKind = "no_handler" | "other";
 
 export interface UrlOpenFailure {
@@ -29,10 +31,7 @@ export function toUrlOpenFailure(err: unknown): UrlOpenFailure {
       };
     }
   }
-  return {
-    kind: "other",
-    message: err instanceof Error ? err.message : String(err),
-  };
+  return { kind: "other", message: describeError(err) };
 }
 
 /**

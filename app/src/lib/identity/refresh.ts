@@ -9,17 +9,18 @@
 // `window.__HOUSTON_SESSION_REFRESH__`.
 //
 // The background timer that drives it (~5 min before `expiresAt`, with a
-// backoff on transient failures) lives in `refresh-timer.ts`.
+// backoff on transient failures) lives in `refresh-timer.ts`; the securetoken
+// round trip itself, and the guard against handing out a token that expired
+// while the laptop slept, in `refresh-mint.ts`.
 //
 // Cache seam: this module never imports react-query. It calls an injected
 // `setSessionSink` callback after each save/clear so Wave B (auth.ts) can push
 // the new Session (or null) into the `["session"]` TanStack cache. Default is a
 // no-op that logs — so an unwired build refreshes storage without crashing.
 
-import { identityConfig } from "./config.ts";
 import { isIdentityError } from "./errors.ts";
-import { refreshIdToken } from "./firebase-rest.ts";
 import { identityLog } from "./log.ts";
+import { mintUsableIdToken } from "./refresh-mint.ts";
 import type { Session } from "./session.ts";
 import {
   clearSession,
@@ -65,10 +66,10 @@ async function doRefresh(): Promise<string | null> {
   const session = await loadSession();
   if (!session) return null;
   try {
-    const refreshed = await refreshIdToken({
-      apiKey: identityConfig.apiKey,
-      refreshToken: session.refreshToken,
-    });
+    // Never a token that outlived its lifetime in flight (a pre-sleep answer
+    // delivered on wake): `./refresh-mint.ts` mints once more in that case,
+    // inside this same single-flight run, so every joiner gets the live one.
+    const refreshed = await mintUsableIdToken(session.refreshToken);
     // Re-check immediately before the write: nothing may resurrect a session
     // cleared at ANY point since `epochAtStart` (during the read or the call).
     if (sessionEpoch() !== epochAtStart) {

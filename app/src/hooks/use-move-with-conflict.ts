@@ -2,13 +2,14 @@
  * Move-with-conflict flow for the Files section: a drop that would collide with
  * an existing entry opens a Replace / Keep both dialog instead of hitting
  * the host's 409. Replace deletes the occupant then moves; Keep both renames
- * the moved item to a free "name (n)" first. Step failures surface through
- * the tauriFiles call() toasts like every other files op.
+ * the moved item to a free "name (n)" first. Each choice paints its end state
+ * at once and runs its steps in the background as one optimistic write, so a
+ * refused step rolls the whole listing back with one surface.
  */
 import type { FileEntry } from "@houston-ai/agent";
 import { useCallback, useState } from "react";
 import { detectMoveConflict, keepBothName } from "../lib/file-conflicts";
-import { useDeleteFile, useMoveFile, useRenameFile } from "./queries";
+import { useFileWrites } from "./queries";
 
 export interface PendingMove {
   sourcePath: string;
@@ -22,9 +23,7 @@ export function useMoveWithConflict(
   agentPath: string | undefined,
   files: readonly FileEntry[] | undefined,
 ) {
-  const moveFile = useMoveFile(agentPath);
-  const deleteFile = useDeleteFile(agentPath);
-  const renameFile = useRenameFile(agentPath);
+  const writes = useFileWrites(agentPath);
   const [pending, setPending] = useState<PendingMove | null>(null);
 
   const requestMove = useCallback(
@@ -40,23 +39,18 @@ export function useMoveWithConflict(
         });
         return;
       }
-      moveFile.mutate({ relativePath: sourcePath, toDir });
+      void writes.move(sourcePath, toDir);
     },
-    [files, moveFile],
+    [files, writes],
   );
 
-  const replace = useCallback(async () => {
+  const replace = useCallback(() => {
     if (!pending) return;
     setPending(null);
-    try {
-      await deleteFile.mutateAsync(pending.targetPath);
-    } catch {
-      return; // call() toasted; nothing was moved
-    }
-    moveFile.mutate({ relativePath: pending.sourcePath, toDir: pending.toDir });
-  }, [pending, deleteFile, moveFile]);
+    void writes.replace(pending.targetPath, pending.sourcePath, pending.toDir);
+  }, [pending, writes]);
 
-  const keepBoth = useCallback(async () => {
+  const keepBoth = useCallback(() => {
     if (!pending) return;
     setPending(null);
     const newName = keepBothName(
@@ -64,21 +58,8 @@ export function useMoveWithConflict(
       pending.sourcePath,
       pending.toDir,
     );
-    try {
-      await renameFile.mutateAsync({
-        relativePath: pending.sourcePath,
-        newName,
-      });
-    } catch {
-      return; // call() toasted; the item keeps its old name and place
-    }
-    const slash = pending.sourcePath.lastIndexOf("/");
-    const renamedPath =
-      slash === -1
-        ? newName
-        : `${pending.sourcePath.slice(0, slash)}/${newName}`;
-    moveFile.mutate({ relativePath: renamedPath, toDir: pending.toDir });
-  }, [pending, files, renameFile, moveFile]);
+    void writes.keepBoth(pending.sourcePath, newName, pending.toDir);
+  }, [pending, files, writes]);
 
   return {
     requestMove,

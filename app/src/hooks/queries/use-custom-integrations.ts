@@ -18,6 +18,8 @@ import {
 } from "../../lib/tauri";
 import { useCapabilities } from "../use-capabilities";
 
+export { useRemoveCustomIntegration } from "./use-remove-custom-integration";
+
 /**
  * HOU-550 / HOU-980: the user's custom (API / MCP) integrations. User-level
  * data (one list, shared across agents), gated on the `integrations`
@@ -30,7 +32,8 @@ import { useCapabilities } from "../use-capabilities";
  * The mutations carry no `onError`: every write routes through a
  * `tauriIntegrations.*` wrapper built on `call()`, which toasts the real error
  * AND captures it to Sentry exactly once before re-throwing. An `onError` here
- * would double-toast.
+ * would double-toast. Removing is optimistic and owns its refusal toast
+ * (`use-remove-custom-integration.ts`).
  *
  * `agentId` on the mutations/reads switches to the per-agent surface
  * (HOU-823) — REQUIRED wherever a gateway may front the host (the in-chat
@@ -75,18 +78,6 @@ function invalidateCustom(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: queryKeys.customIntegrations() });
   qc.invalidateQueries({
     queryKey: queryKeys.integrationConnections("custom"),
-  });
-}
-
-/** Remove a custom integration entirely (definition + secret + tools). */
-export function useRemoveCustomIntegration(agentId?: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (slug: string) =>
-      agentId
-        ? tauriIntegrations.customRemoveForAgent(agentId, slug)
-        : tauriIntegrations.customRemove(slug),
-    onSuccess: () => invalidateCustom(qc),
   });
 }
 

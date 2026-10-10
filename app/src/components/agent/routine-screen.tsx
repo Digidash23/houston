@@ -11,19 +11,16 @@
 import type { Routine, RoutineUpdate } from "@houston/engine-adapter";
 import type { RoutineRun } from "@houston-ai/routines";
 import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { useRoutineWritesForAnyAgent } from "../../hooks/queries";
 import { useRoutineLabels } from "../../hooks/use-routine-labels";
 import { useRoutineReader } from "../../hooks/use-routine-provider-health";
-import { genericErrorDescription } from "../../lib/error-report";
-import { toastRoutineWriteFailure } from "../../lib/routine-write-failure";
 import type { Agent } from "../../lib/types";
-import { useUIStore } from "../../stores/ui";
 import { RoutineAutoPauseBanner } from "./routine-auto-pause-banner";
 import { RoutinePlanSkipNotice } from "./routine-plan-skip-notice";
 import { RoutineRunsDialog } from "./routine-runs-dialog";
 import { RoutineScreenHeader } from "./routine-screen-header";
 import { RoutineScreenSections } from "./routine-screen-sections";
+import { RoutineSnoozeBanner } from "./routine-snooze-banner";
 
 interface Props {
   agent: Agent;
@@ -55,25 +52,18 @@ export function RoutineScreen({
   onOpenChat,
   onOpenRun,
 }: Props) {
-  const { t } = useTranslation("routines");
   const labels = useRoutineLabels();
-  const addToast = useUIStore((s) => s.addToast);
   const { update: updateRoutine } = useRoutineWritesForAnyAgent();
   const [runsOpen, setRunsOpen] = useState(false);
   const readerFor = useRoutineReader(routine.created_by);
 
+  // A refusal's toast comes from the hook (one per write, even after unmount).
   const save = (updates: RoutineUpdate) =>
-    updateRoutine.mutate(
-      { agentPath: agent.folderPath, routineId: routine.id, updates },
-      {
-        onError: (err) =>
-          toastRoutineWriteFailure(
-            err,
-            { title: t("toasts.updateError"), command: "update_routine" },
-            { addToast, describe: genericErrorDescription },
-          ),
-      },
-    );
+    updateRoutine.mutate({
+      agentPath: agent.folderPath,
+      routineId: routine.id,
+      updates,
+    });
 
   // Escape leaves the screen (back to the list) — same key convention as the
   // panes — but only while this screen is the active surface.
@@ -120,6 +110,7 @@ export function RoutineScreen({
           resuming={updateRoutine.isPending}
           readerFor={readerFor}
         />
+        <RoutineSnoozeBanner routine={routine} />
         <RoutineScreenSections
           agent={agent}
           routine={routine}

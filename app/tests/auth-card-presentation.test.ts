@@ -4,6 +4,7 @@ import {
   authCauseBodyKey,
   resolveAuthCardPresentation,
 } from "../src/components/shell/provider-error-cards/auth-presentation.ts";
+import { unhealableCause } from "../src/components/shell/provider-error-cards/auth-unhealable.ts";
 import { reconnectSurface } from "../src/components/shell/provider-error-cards/reconnect-surface.ts";
 
 // The card once labeled two opposite actions "Try again". These assert the
@@ -35,6 +36,10 @@ describe("authCauseBodyKey", () => {
     strictEqual(
       authCauseBodyKey("org_policy_blocked"),
       "providerError.unauthenticated.bodyOrgPolicyBlocked",
+    );
+    strictEqual(
+      authCauseBodyKey("billing_locked"),
+      "providerError.unauthenticated.bodyBillingLocked",
     );
   });
 
@@ -226,7 +231,7 @@ describe("resolveAuthCardPresentation for an org-policy block", () => {
         hasFailedPrompt: false,
         hasRetry: false,
         causeBodyKey: authCauseBodyKey("org_policy_blocked"),
-        orgPolicyBlocked: true,
+        unhealable: "org_policy_blocked",
       }),
       {
         variant: "active",
@@ -248,13 +253,45 @@ describe("resolveAuthCardPresentation for an org-policy block", () => {
       hasFailedPrompt: false,
       hasRetry: true,
       causeBodyKey: authCauseBodyKey("org_policy_blocked"),
-      orgPolicyBlocked: true,
+      unhealable: "org_policy_blocked",
     });
     strictEqual(pres.bodyKey, ORG);
     strictEqual(
       pres.button?.kind === "action" ? pres.button.action : null,
       "open_ai_hub",
     );
+  });
+
+  it("idle/failed with a blocked account: names the block and points at another AI, never a sign-in (H-005)", () => {
+    for (const phase of ["idle", "failed"] as const) {
+      deepStrictEqual(
+        resolveAuthCardPresentation({
+          phase,
+          hasProvider: true,
+          hasFailedPrompt: true,
+          hasRetry: true,
+          causeBodyKey: authCauseBodyKey("billing_locked"),
+          unhealable: "billing_locked",
+        }),
+        {
+          variant: "active",
+          titleKey: "providerError.unauthenticated.titleBillingLocked",
+          bodyKey: "providerError.unauthenticated.bodyBillingLocked",
+          button: {
+            kind: "action",
+            labelKey: "providerError.unauthenticated.chooseAnotherAi",
+            action: "open_ai_hub",
+          },
+        },
+      );
+    }
+  });
+
+  it("unhealableCause names only the causes a sign-in cannot heal", () => {
+    strictEqual(unhealableCause("org_policy_blocked"), "org_policy_blocked");
+    strictEqual(unhealableCause("billing_locked"), "billing_locked");
+    strictEqual(unhealableCause("token_expired"), undefined);
+    strictEqual(unhealableCause("no_credentials"), undefined);
   });
 
   it("done: a successful connect (an API key counts) confirms and resumes as usual", () => {
@@ -265,7 +302,7 @@ describe("resolveAuthCardPresentation for an org-policy block", () => {
         hasFailedPrompt: false,
         hasRetry: true,
         causeBodyKey: authCauseBodyKey("org_policy_blocked"),
-        orgPolicyBlocked: true,
+        unhealable: "org_policy_blocked",
       }),
       {
         variant: "done",

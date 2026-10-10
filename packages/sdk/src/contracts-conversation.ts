@@ -21,6 +21,8 @@ export type {
 // a host (the web engine-adapter) can drive it with its OWN FeedOutput. The
 // typed facade is still reached through `sdk.turns`.
 export {
+  AGENT_SETUP_FAILED_MESSAGE,
+  AGENT_TOO_LARGE_MESSAGE,
   type AttachmentRef,
   type AttachmentsOperation,
   AttachmentTooLargeError,
@@ -58,10 +60,12 @@ export {
   isTurnRunningRejection,
   MultiplexFeedOutput,
   messageLimitRefusal,
+  noticeEndsTurn,
   observeConversation,
   type PendingInteraction,
   PREWARM_REFRESH_MS,
   type PrewarmCapabilities,
+  providerAccountBlockedRefusal,
   type QueuedMessageVM,
   SEND_IN_FLIGHT_MESSAGE,
   type SendWaitReason,
@@ -76,6 +80,7 @@ export {
   type TerminalBoardStatus,
   TURN_DIED_MESSAGE,
   TURN_FAILED_MESSAGE,
+  TURN_UNCONFIRMED_MESSAGE,
   type TurnAttachmentsSaveInput,
   type TurnAttachmentsSaveResult,
   type TurnConversationInput,
@@ -83,8 +88,10 @@ export {
   type TurnPrewarmInput,
   type TurnSendInput,
   type TurnSetModeInput,
+  type TurnSetupNotice,
   TurnsHttpError,
   type TurnTruncateInput,
   type TurnWirePin,
   turnErrorMessage,
+  turnFailureReport,
 } from "./modules/turns";

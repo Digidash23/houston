@@ -20,7 +20,7 @@ export class LocalModelBridgeController extends LocalBridgeLifecycle {
     return this.begin(undefined, false);
   }
   async wake(): Promise<void> {
-    if (this.disposed) throw new Error("bridge controller disposed");
+    if (this.disposed) return; // a superseded wake has nothing to report
     const status = await bridgeNeedsWake(
       this.ports,
       this.snapshot,
@@ -35,8 +35,7 @@ export class LocalModelBridgeController extends LocalBridgeLifecycle {
     retry: boolean,
     external?: AbortSignal,
   ) {
-    if (this.disposed)
-      return Promise.reject(new Error("bridge controller disposed"));
+    if (this.disposed) return this.disposedRejection();
     const epoch = this.lifetime.invalidate();
     if (input) this.emit({ ...this.snapshot, status: "connecting" });
     const signal = external

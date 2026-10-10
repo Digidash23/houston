@@ -21,5 +21,6 @@ export const stripLocalRoutineKeys = ({
   setup_activity_id: _local,
   created_by: _owner,
   auto_paused: _pause,
+  snoozed: _snooze,
   ...routine
 }: Routine): Routine => routine;

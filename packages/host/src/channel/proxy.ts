@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ClaudeOAuthCredential, CustomEndpoint } from "@houston/protocol";
-import { normalizeTurnMode } from "@houston/protocol";
+import { normalizeTurnMode, ROUTINE_FIRE_HEADER } from "@houston/protocol";
 import {
   type RevocationTombstones,
   RevokedRefillBlockedError,
@@ -263,7 +263,7 @@ export class ProxyChannel implements RuntimeChannel {
     conversationId: string,
     text: string,
     pin?: TurnPin,
-    { actingUser, actingAs, limits }: FireTurnOptions = {},
+    { actingUser, actingAs, limits, routine }: FireTurnOptions = {},
   ): Promise<void> {
     // A turn begins here for every programmatic fire (a routine, a trigger, a
     // mission's first turn): the host records which conversation this agent is
@@ -299,6 +299,10 @@ export class ProxyChannel implements RuntimeChannel {
               : actingUser
                 ? { "x-houston-acting-user": actingUser }
                 : {}),
+            // Set only here: `dispatch` relays a client's request through
+            // `forward`, which builds its own header list, so no client
+            // message can carry this marker.
+            ...(routine ? { [ROUTINE_FIRE_HEADER]: "1" } : {}),
           },
           body: JSON.stringify({
             text,

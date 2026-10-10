@@ -51,6 +51,7 @@ test("before any visible text it records the r1 step but does NOT end the turn",
   });
   const text = (out.content[0] as { text: string }).text;
   expect(text).toMatch(/did NOT end your turn/i);
+  expect(text).toMatch(/never sees your reasoning or tool results/i);
   expect(text).toMatch(/do not repeat/i);
   expect(out.terminate).toBeUndefined();
   expect(holder.finish.turnEndedByTool).toBe(false);

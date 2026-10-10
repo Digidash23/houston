@@ -1,5 +1,6 @@
 import { isAgentWarmingRefusal } from "./agent-warming-refusal";
 import { classifyAnalyticsError } from "./analytics";
+import { describeError } from "./describe-error";
 import i18n from "./i18n";
 import { classifyQuietError } from "./quiet-error-class";
 import { reportQuietError } from "./quiet-error-report";
@@ -55,6 +56,12 @@ export function reportError(
     console.debug(`[report:${command}] refused: not the routine's creator`);
     return;
   }
+  // A first-day start with no AI connected: the connect-AI notice is the
+  // whole surface. Nothing broke.
+  if (quiet === "first_day_no_provider") {
+    console.debug(`[report:${command}] refused: no AI connected`);
+    return;
+  }
   if (quiet) {
     reportQuietError(quiet, command, message, originalError);
     return;
@@ -82,7 +89,7 @@ export function reportError(
  * label lacks — but NOT captured again: one failure, one Sentry issue.
  */
 export function logAndReportError(command: string, err: unknown): void {
-  const raw = err instanceof Error ? err.message : String(err);
+  const raw = describeError(err);
   console.error(`[${command}] ${raw}`);
   if (wasReportedToSentry(err)) return;
   reportError(command, raw, err);

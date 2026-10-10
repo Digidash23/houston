@@ -1,6 +1,8 @@
 import type { AgentSettings } from "@houston/engine-adapter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { analytics } from "../../lib/analytics";
+import { tellOptimisticRefusal } from "../../lib/optimistic-write";
 import { queryKeys } from "../../lib/query-keys";
 import { tauriAgentSettings } from "../../lib/tauri";
 
@@ -38,13 +40,12 @@ export function agentSettingsQueryOptions(
 /**
  * Teams v2, agent-manager only: replace this agent's allowed-toolkit ceiling
  * (`null` = all allowed, `[]` = none). Optimistic — a single manager action, so
- * a whole-value swap with rollback on error is enough. Carries no `onError`
- * toast: the `tauriAgentSettings.*` wrappers route through `call()`, which
- * surfaces + reports the failure once (adding one here would double-toast); the
- * `onError` below only rolls the optimistic value back.
+ * a whole-value swap with rollback on error is enough. The rollback tells the
+ * user unless `call()` already explained the refusal (`tellOptimisticRefusal`).
  */
 export function useSetAgentSettings(agentId: string) {
   const qc = useQueryClient();
+  const { t } = useTranslation("teams");
   const key = queryKeys.agentSettings(agentId);
   return useMutation({
     mutationFn: (allowedToolkits: string[] | null) =>
@@ -57,8 +58,12 @@ export function useSetAgentSettings(agentId: string) {
       }
       return { prev };
     },
-    onError: (_err, _next, ctx) => {
+    onError: (err, _next, ctx) => {
       if (ctx?.prev) qc.setQueryData(key, ctx.prev);
+      tellOptimisticRefusal("set_agent_settings", err, {
+        title: t("writeFailed.agentApps.title"),
+        description: t("writeFailed.agentApps.description"),
+      });
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: key });
@@ -71,12 +76,12 @@ export function useSetAgentSettings(agentId: string) {
  * (`allowedModels`: `null` = every model allowed, `[]` = none) via the same
  * `setAgentSettings` PUT. Optimistic whole-value swap with rollback, mirroring
  * `useSetAgentSettings` — but models carry no server-side grant pruning, so this
- * only invalidates the agent's settings, not its grant set. No `onError` toast:
- * `tauriAgentSettings.set` routes through `call()`, which surfaces + reports the
- * failure once; `onError` here only rolls the optimistic value back.
+ * only invalidates the agent's settings, not its grant set. A refusal rolls
+ * back and is told, as above.
  */
 export function useSetAgentAllowedModels(agentId: string) {
   const qc = useQueryClient();
+  const { t } = useTranslation("teams");
   const key = queryKeys.agentSettings(agentId);
   return useMutation({
     mutationFn: (allowedModels: string[] | null) =>
@@ -95,8 +100,12 @@ export function useSetAgentAllowedModels(agentId: string) {
         source: allowedModels === null ? "any" : "picked",
       });
     },
-    onError: (_err, _next, ctx) => {
+    onError: (err, _next, ctx) => {
       if (ctx?.prev) qc.setQueryData(key, ctx.prev);
+      tellOptimisticRefusal("set_agent_allowed_models", err, {
+        title: t("writeFailed.agentModels.title"),
+        description: t("writeFailed.agentModels.description"),
+      });
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: key });

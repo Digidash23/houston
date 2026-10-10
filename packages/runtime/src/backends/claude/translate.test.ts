@@ -716,3 +716,108 @@ test("a rate_limit_event carries retry seconds into a later rate_limit error", (
   expect(secs).toBeGreaterThanOrEqual(58);
   expect(secs).toBeLessThanOrEqual(60);
 });
+
+test("an allowed_warning on the weekly window leaves a later 429 a plain rate limit", () => {
+  const event = {
+    type: "rate_limit_event",
+    rate_limit_info: {
+      status: "allowed_warning",
+      rateLimitType: "seven_day",
+      resetsAt: Date.now() / 1000 + 4 * 86_400,
+    },
+  } as unknown as SDKMessage;
+  const err = {
+    type: "assistant",
+    error: "rate_limit",
+    message: {
+      role: "assistant",
+      model: "m",
+      content: [{ type: "text", text: "429 Too Many Requests" }],
+    },
+    parent_tool_use_id: null,
+  } as unknown as SDKMessage;
+  const { events } = collect([event, err]);
+  expect(events).toEqual([
+    {
+      type: "provider_error",
+      data: {
+        kind: "rate_limited",
+        provider: "anthropic",
+        model: "m",
+        retry_after_seconds: null,
+        message: "429 Too Many Requests",
+      },
+    },
+  ]);
+});
+
+test("a rejected rate_limit_event makes the later rate_limit a usage limit with its reset", () => {
+  const resetsAt = Date.parse("2026-10-13T05:00:00.000Z");
+  const event = {
+    type: "rate_limit_event",
+    rate_limit_info: {
+      status: "rejected",
+      rateLimitType: "seven_day",
+      resetsAt: resetsAt / 1000,
+    },
+  } as unknown as SDKMessage;
+  const err = {
+    type: "assistant",
+    error: "rate_limit",
+    message: {
+      role: "assistant",
+      model: "claude-fable-5",
+      content: [{ type: "text", text: "You've reached your Fable limit." }],
+    },
+    parent_tool_use_id: null,
+  } as unknown as SDKMessage;
+  const { events } = collect([event, err]);
+  expect(events).toEqual([
+    {
+      type: "provider_error",
+      data: {
+        kind: "usage_limit_paused",
+        provider: "anthropic",
+        model: "claude-fable-5",
+        resets_at: "2026-10-13T05:00:00.000Z",
+        message: "You've reached your Fable limit.",
+      },
+    },
+  ]);
+});
+
+test("a rejected event while overage is in use gives a later 429 no wait", () => {
+  const event = {
+    type: "rate_limit_event",
+    rate_limit_info: {
+      status: "rejected",
+      rateLimitType: "seven_day",
+      resetsAt: Date.now() / 1000 + 4 * 86_400,
+      isUsingOverage: true,
+      overageStatus: "allowed",
+    },
+  } as unknown as SDKMessage;
+  const err = {
+    type: "assistant",
+    error: "rate_limit",
+    message: {
+      role: "assistant",
+      model: "m",
+      content: [{ type: "text", text: "429 Too Many Requests" }],
+    },
+    parent_tool_use_id: null,
+  } as unknown as SDKMessage;
+  const { events } = collect([event, err]);
+  expect(events).toEqual([
+    {
+      type: "provider_error",
+      data: {
+        kind: "rate_limited",
+        provider: "anthropic",
+        model: "m",
+        retry_after_seconds: null,
+        message: "429 Too Many Requests",
+      },
+    },
+  ]);
+});

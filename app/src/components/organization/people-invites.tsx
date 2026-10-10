@@ -1,5 +1,5 @@
 import type { OrgInvite, OrgMember } from "@houston/engine-adapter";
-import { AsyncButton, Avatar, AvatarFallback } from "@houston-ai/core";
+import { Avatar, AvatarFallback, Button } from "@houston-ai/core";
 import { useTranslation } from "react-i18next";
 import { useDeleteInvite } from "../../hooks/queries";
 import { initialsFor, inviterLabel } from "./people-tab-model";
@@ -7,9 +7,8 @@ import { initialsFor, inviterLabel } from "./people-tab-model";
 /**
  * Pending invitations on the People tab: people invited by email who haven't
  * signed in yet (the invite is consumed on their first sign-in). Owners can
- * revoke; admins see the list read-only. Revoke failures surface as a toast from
- * the `call()` wrapper, so no `onError` here. Invites ride on `GET /org`, so a
- * successful revoke re-fetches the org and the row disappears.
+ * revoke; admins see the list read-only. A revoke is optimistic: the row leaves
+ * on the click, and comes back with a toast if the host refuses.
  */
 export function PendingInvites({
   invites,
@@ -56,22 +55,16 @@ export function PendingInvites({
                 {t(`people.roles.${invite.role}`)}
               </span>
               {canManage && (
-                <AsyncButton
+                <Button
                   variant="ghost"
                   className="rounded-full text-danger hover:text-danger"
                   aria-label={t("people.invites.revokeLabel", {
                     email: invite.email,
                   })}
-                  onClick={async () => {
-                    try {
-                      await deleteInvite.mutateAsync(invite.id);
-                    } catch {
-                      // call() already toasted + reported the failure.
-                    }
-                  }}
+                  onClick={() => deleteInvite(invite.id)}
                 >
                   {t("people.invites.revoke")}
-                </AsyncButton>
+                </Button>
               )}
             </li>
           ))}

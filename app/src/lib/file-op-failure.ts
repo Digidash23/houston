@@ -4,7 +4,14 @@
 // report? Dependency-free so it is node-testable directly
 // (app/tests/file-op-failure.test.ts).
 
-export type FileOpFailureKind = "locked" | "permission" | "disk_full" | "other";
+import { describeError } from "./describe-error";
+
+export type FileOpFailureKind =
+  | "locked"
+  | "permission"
+  | "disk_full"
+  | "not_found"
+  | "other";
 
 export interface FileOpFailure {
   kind: FileOpFailureKind;
@@ -16,6 +23,7 @@ const KINDS: ReadonlySet<string> = new Set([
   "locked",
   "permission",
   "disk_full",
+  "not_found",
   "other",
 ]);
 
@@ -34,10 +42,7 @@ export function toFileOpFailure(err: unknown): FileOpFailure {
       };
     }
   }
-  return {
-    kind: "other",
-    message: err instanceof Error ? err.message : String(err),
-  };
+  return { kind: "other", message: describeError(err) };
 }
 
 export type FileOp = "save" | "reveal";
@@ -48,6 +53,7 @@ export type FileOpStateCopy =
   | "saveLocked"
   | "savePermission"
   | "saveDiskFull"
+  | "saveNotFound"
   | "revealPermission";
 
 export type FileOpFailurePlan =
@@ -57,8 +63,9 @@ export type FileOpFailurePlan =
 /**
  * Where a failed save / reveal goes: an informational toast with authored
  * copy for the OS states a user can fix (the destination is open in another
- * program, the folder is protected, the disk is full: HOUSTON-APP-53A and
- * -5C6 were these, filed as bugs in the OS language), or the report path
+ * program, the folder is protected, the disk is full, the chosen folder is
+ * gone (an unplugged drive): HOUSTON-APP-53A and -5C6 were these, filed as
+ * bugs in the OS language), or the report path
  * for everything else. A reveal has one expected state: Explorer refusing
  * to launch. A locked or full-disk reveal is not a thing, so it reports.
  */
@@ -78,6 +85,7 @@ function expectedCopy(
     if (kind === "locked") return "saveLocked";
     if (kind === "permission") return "savePermission";
     if (kind === "disk_full") return "saveDiskFull";
+    if (kind === "not_found") return "saveNotFound";
     return null;
   }
   return kind === "permission" ? "revealPermission" : null;
