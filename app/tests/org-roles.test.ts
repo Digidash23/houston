@@ -121,7 +121,14 @@ describe("canSeeBilling (C8)", () => {
 
 describe("canSeeBillingTab (C8)", () => {
   const withSpaces = (role: OrgRole): Capabilities =>
-    caps({ multiplayer: true, role, spaces: true });
+    caps({ multiplayer: true, role, spaces: true, teamBilling: true });
+
+  it("hides it on a deployment with seat billing off", () => {
+    // Without `teamBilling` every billing read can only answer 503
+    // not_configured: no tab promising billing, no query polling it.
+    const off = caps({ multiplayer: true, role: "owner", spaces: true });
+    strictEqual(canSeeBillingTab(off, true), false);
+  });
 
   it("shows Billing to owner/admin on a team space of a Spaces host", () => {
     strictEqual(canSeeBillingTab(withSpaces("owner"), true), true);

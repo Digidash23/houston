@@ -121,7 +121,12 @@ describe("surfaceGatesFor", () => {
     // Both are destinations an agent's hands-on errand can send someone to, so
     // a gate that said yes off a personal space would hand them a button to a
     // section that is not rendered anywhere.
-    const spaces = { ...owner, spaces: true, workspaceDelete: true } as never;
+    const spaces = {
+      ...owner,
+      spaces: true,
+      teamBilling: true,
+      workspaceDelete: true,
+    } as never;
     const team = surfaceGatesFor({
       capabilities: spaces,
       isTeam: true,
@@ -152,6 +157,19 @@ describe("surfaceGatesFor", () => {
     });
     strictEqual(member.showBilling, false);
     strictEqual(member.showWorkspaceDanger, false);
+  });
+
+  it("keeps Billing off a deployment that bills no teams", () => {
+    // No `teamBilling`: every billing read 503s, so the tab, the query and the
+    // hands-on billing errand all stay shut while the Danger zone remains.
+    const gates = surfaceGatesFor({
+      capabilities: { ...owner, spaces: true, workspaceDelete: true } as never,
+      isTeam: true,
+      assistant: present,
+      capabilitiesLoading: false,
+    });
+    strictEqual(gates.showBilling, false);
+    strictEqual(gates.showWorkspaceDanger, true);
   });
 
   it("keeps the Danger zone off a deployment that cannot delete a space", () => {

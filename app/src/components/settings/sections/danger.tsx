@@ -43,7 +43,7 @@ import { SettingsControlRow } from "../settings-row";
  */
 export function DangerSection() {
   const { t } = useTranslation("settings");
-  const { showWorkspaceDanger } = useSurfaceGates();
+  const { showWorkspaceDanger, showBilling } = useSurfaceGates();
   const currentWorkspace = useWorkspaceStore((s) => s.current);
   const deleteWorkspace = useWorkspaceStore((s) => s.delete);
   const loadAgents = useAgentStore((s) => s.loadAgents);
@@ -96,10 +96,12 @@ export function DangerSection() {
     const { id, name } = currentWorkspace;
     try {
       // Both reads address the ACTIVE space — still the doomed team here; the
-      // optimistic switch only re-pins the gateway after they resolve.
+      // optimistic switch only re-pins the gateway after they resolve. Where
+      // the deployment bills no teams the billing read could only 503, and no
+      // Stripe object can exist, so it is skipped as `null`.
       const provablyDeletable = await Promise.all([
         tauriOrg.get(),
-        tauriOrg.getBilling(),
+        showBilling ? tauriOrg.getBilling() : null,
       ]).then(
         ([info, billing]) => canDeleteOptimistically(info.members, billing),
         // Not swallowed: the wire layer reported the read failure, and the
