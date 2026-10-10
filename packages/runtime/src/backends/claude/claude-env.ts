@@ -148,6 +148,10 @@ export function buildClaudeEnv(
   // Files enter a turn only through tool calls, so the CLI's `@path` prompt
   // attachments are off.
   env.CLAUDE_CODE_DISABLE_ATTACHMENTS = "1";
+  // Scrub mode keeps the CLI's credential variables out of the commands the
+  // model runs. It also forces permissionMode "default", the mode Houston
+  // already runs in.
+  env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB = "1";
   const fence =
     opts.shellFencePath === undefined
       ? claudeShellFencePath()
