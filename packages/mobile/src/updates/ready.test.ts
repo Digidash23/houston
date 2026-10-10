@@ -159,3 +159,15 @@ test("an online launch waits for the offline trial marker before watching", asyn
   );
   expect(main).toContain("provisionalReady = declareProvisionalReady(");
 });
+
+test("the offline trial marker settles even if notifyAppReady never answers", async () => {
+  const p = ports("ota-7", "pending");
+  p.notifyAppReady.mockReturnValue(new Promise(() => {}));
+  await declareProvisionalReady(p);
+  expect(storage.getItem(PROVISIONAL_READY_KEY)).toBe("ota-7");
+  const failing = ports("ota-8", "pending");
+  failing.notifyAppReady.mockRejectedValue(new Error("native"));
+  await declareProvisionalReady(failing);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(failing.report).toHaveBeenCalledWith(expect.any(Error));
+});

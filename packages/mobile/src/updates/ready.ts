@@ -106,6 +106,8 @@ async function rollBackProvisional(
  * Capgo is told it is ready (its timeout would otherwise roll back a healthy
  * update). A bundle not yet confirmed online is remembered as provisional until
  * an online launch mounts the app; a confirmed bundle is never put on trial.
+ * Resolves once the marker is recorded; `notifyAppReady` runs on its own and
+ * reports, so a hanging native call never holds up the online launch.
  */
 export async function declareProvisionalReady(
   ports: ReadyPorts,
@@ -116,5 +118,5 @@ export async function declareProvisionalReady(
     ports.storage.getItem(PROVISIONAL_READY_KEY) !== bundle.id;
   if (bundle.id !== "builtin" && !confirmed)
     ports.storage.setItem(PROVISIONAL_READY_KEY, bundle.id);
-  await ports.notifyAppReady();
+  void ports.notifyAppReady().catch(ports.report);
 }
