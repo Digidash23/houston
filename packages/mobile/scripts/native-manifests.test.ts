@@ -14,3 +14,16 @@ test("iOS declares camera and microphone use for WebView photo and video capture
       new RegExp(`<key>${key}</key>\\s*<string>[^<]+</string>`),
     );
 });
+
+test("Android never backs up WebView storage holding sessions and OTA state", () => {
+  const manifest = read("android/app/src/main/AndroidManifest.xml");
+  expect(manifest).toContain('android:allowBackup="false"');
+  expect(manifest).toContain(
+    'android:dataExtractionRules="@xml/data_extraction_rules"',
+  );
+  const rules = read("android/app/src/main/res/xml/data_extraction_rules.xml");
+  for (const section of ["cloud-backup", "device-transfer"]) {
+    const body = rules.split(`<${section}>`)[1]?.split(`</${section}>`)[0];
+    expect(body).toContain('<exclude domain="root" />');
+  }
+});
