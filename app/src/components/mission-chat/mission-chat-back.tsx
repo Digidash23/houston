@@ -12,7 +12,7 @@ export function MissionChatBack() {
       data-testid="mission-chat-back"
       aria-label={t("missionChat.back")}
       onClick={closeMissionChat}
-      className="flex size-9 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors active:scale-95 hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-focus"
+      className="relative flex size-9 shrink-0 items-center justify-center rounded-full text-ink-muted transition-[color,background-color,transform] active:scale-[0.96] hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-focus after:absolute after:-inset-1 md:after:hidden"
     >
       <ChevronLeft className="size-5" />
     </button>

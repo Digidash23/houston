@@ -1303,7 +1303,9 @@ export const PromptInputSubmit = ({
       data-composer-submit="true"
       aria-label={isGenerating ? "Stop" : "Submit"}
       className={cn(
-        "flex size-9 items-center justify-center rounded-full bg-action text-action-text hover:bg-action/90 disabled:opacity-30 transition-colors",
+        // The ::after hit-slop grows the phone target to 44px without moving
+        // a pixel; desktop keeps the 36px box.
+        "relative flex size-9 items-center justify-center rounded-full bg-action text-action-text hover:bg-action/90 disabled:opacity-30 transition-[color,background-color,transform] active:scale-[0.96] after:absolute after:-inset-1 md:after:hidden",
         className,
       )}
       onClick={handleClick}
