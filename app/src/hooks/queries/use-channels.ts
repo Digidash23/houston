@@ -4,7 +4,7 @@ import {
 } from "@houston/sdk/channels/watch";
 import type { ChannelStatus } from "@houston/wire-types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { channelsWithout } from "../../lib/account-cache-patches";
 import type { SlackAuthorization } from "../../lib/channel-handoff";
@@ -96,13 +96,17 @@ export function useChannelActions() {
       ),
     onSuccess: invalidateHere,
   });
+  const [disconnecting, setDisconnecting] = useState(0);
   /**
    * Optimistic: the account leaves the card on the click. A refusal the
    * section answers itself (no channels here, the user moved away) only
-   * rolls back; the refetch shows the truth.
+   * rolls back; the refetch shows the truth. `disconnecting` stays up until
+   * the write settles: a hand-off started meanwhile would record the ids
+   * without the removed account, and a rollback would then read as a landing.
    */
   const disconnect = useCallback(
-    (id: string) =>
+    (id: string) => {
+      setDisconnecting((n) => n + 1);
       void runOptimisticWrite(
         {
           qc,
@@ -128,7 +132,8 @@ export function useChannelActions() {
           tellOptimisticRefusal(command, err, copy);
         },
         logAndReportError,
-      ),
+      ).finally(() => setDisconnecting((n) => n - 1));
+    },
     [qc, spaceId, t],
   );
   return {
@@ -138,5 +143,6 @@ export function useChannelActions() {
     link,
     linkWhatsApp,
     disconnect,
+    disconnecting: disconnecting > 0,
   };
 }

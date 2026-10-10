@@ -234,6 +234,44 @@ test("disconnecting a WhatsApp connection names WhatsApp", async ({ page }) => {
   ]);
 });
 
+test("a new WhatsApp code waits until a disconnect settles", async ({
+  page,
+}) => {
+  await mockChannels(page, {
+    connections: [
+      {
+        id: "connection-wa",
+        provider: "whatsapp",
+        accountLabel: "•••• 1111",
+        spaceId: "personal",
+        createdAt: "2026-09-08T13:00:00Z",
+      },
+    ],
+  });
+  // The row leaves on the click, before the gateway answers. A code minted
+  // in that window would record the ids without the removed account, so a
+  // refused disconnect's rollback would read as a connection landing.
+  let answer = () => {};
+  const answered = new Promise<void>((resolve) => {
+    answer = resolve;
+  });
+  await page.route("**/v1/channels/connections/**", async (route) => {
+    await answered;
+    await route.fallback();
+  });
+  await openChannels(page);
+  await page.getByRole("button", { name: "Disconnect", exact: true }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Disconnect", exact: true })
+    .click();
+  await expect(page.getByText("•••• 1111", { exact: true })).toHaveCount(0);
+  const connect = page.getByRole("button", { name: "Connect WhatsApp" });
+  await expect(connect).toBeDisabled();
+  answer();
+  await expect(connect).toBeEnabled();
+});
+
 test("a deployment that lists no known provider says channels are unavailable", async ({
   page,
 }) => {

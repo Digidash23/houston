@@ -28,8 +28,15 @@ export function ChannelsSection() {
 
 function ChannelsBody({ spaceName }: { spaceName: string }) {
   const { t } = useTranslation("settings");
-  const { connect, reopen, complete, link, linkWhatsApp, disconnect } =
-    useChannelActions();
+  const {
+    connect,
+    reopen,
+    complete,
+    link,
+    linkWhatsApp,
+    disconnect,
+    disconnecting,
+  } = useChannelActions();
   const [target, setTarget] = useState<ChannelConnection | null>(null);
   // A landed connection spends the hand-off that produced it: clear its code
   // and its "finish in Slack" line so nothing invites a second, dead attempt.
@@ -58,7 +65,8 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
     connect.isPending ||
     complete.isPending ||
     link.isPending ||
-    linkWhatsApp.isPending;
+    linkWhatsApp.isPending ||
+    disconnecting;
   const completionFailed = slackCompletionResult(
     landed,
     slackCompletionFailure(complete.error),
