@@ -782,3 +782,38 @@ test("an equal-sequence manifest completes a policy seeded from the legacy seque
     required_native_build: 3,
   });
 });
+
+test("an equal-sequence manifest never lowers the stored requirement", async () => {
+  const policy = memoryPolicy(
+    JSON.stringify({ sequence: body.sequence, required_native_build: 5 }),
+  );
+  const check = createUpdateManager(
+    {
+      baseUrl,
+      publicKey: pubkey,
+      channel: "preview",
+      builtinVersion: "old",
+      builtinSequence: 1,
+    },
+    {
+      fetch: vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ ...body, signature: signManifest(body, key) }),
+      }) as typeof fetch,
+      now: () => 0,
+      updater: {
+        current: async () => ({ bundle: { id: "builtin", version: "x" } }),
+        download: vi.fn().mockResolvedValue({ id: "b" }),
+        next: vi.fn(),
+      },
+      nativeBuild: async () => "2",
+      isOnline: () => true,
+      onRequired: vi.fn(),
+      report: vi.fn(),
+      sequenceStore: { get: async () => null, set: async () => {} },
+      policyStore: policy,
+    },
+  );
+  await check();
+  expect(JSON.parse((await policy.get()) ?? "").required_native_build).toBe(5);
+});
