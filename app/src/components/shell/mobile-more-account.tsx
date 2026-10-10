@@ -1,5 +1,6 @@
 import { sidebarSheetRowClasses } from "@houston-ai/layout";
 import { ChevronLeft } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import type { AccountMenuParts } from "./sidebar-account-menu";
 import { SignedInHeader } from "./workspace-switcher-face";
@@ -10,7 +11,8 @@ import { SignedInHeader } from "./workspace-switcher-face";
  * out) under a back row, instead of a desktop dropdown opening over the card
  * and covering its other rows. The rows are the same `AccountAction`s the
  * rail's menu draws, so both breakpoints offer the same things. Instant, like
- * every menu: no slide for a control used many times a day.
+ * every menu: no slide for a control used many times a day. Focus lands on
+ * the back row on entry; the card returns it to "Your account" on back.
  */
 export function MobileMoreAccountPage({
   account,
@@ -20,14 +22,19 @@ export function MobileMoreAccountPage({
   onBack: () => void;
 }) {
   const { t } = useTranslation("shell");
+  const backRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => backRef.current?.focus(), []);
   const personal = account.actions.filter((a) => a.id !== "signOut");
   const signOut = account.actions.find((a) => a.id === "signOut");
   return (
     <div data-testid="more-account-page" className="flex min-h-0 flex-col py-2">
       <button
+        ref={backRef}
         type="button"
         onClick={onBack}
-        aria-label={t("moreMenu.back")}
+        // Starts with the visible "Your account" (WCAG 2.5.3), then says
+        // where the row goes.
+        aria-label={t("moreMenu.backFrom", { label: account.label })}
         data-testid="more-account-back"
         className={sidebarSheetRowClasses}
       >

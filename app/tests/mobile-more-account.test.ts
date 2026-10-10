@@ -84,7 +84,11 @@ describe("the More card's account page", () => {
       }),
     );
     const buttons = [...doc.querySelectorAll("button")];
-    strictEqual(buttons[0]?.getAttribute("aria-label"), shell.moreMenu.back);
+    // The name starts with the visible text (WCAG 2.5.3), then the target.
+    strictEqual(
+      buttons[0]?.getAttribute("aria-label"),
+      "Your account, back to More",
+    );
     ok(buttons[0]?.textContent?.includes("Your account"));
     strictEqual(
       buttons

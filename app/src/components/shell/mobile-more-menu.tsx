@@ -1,6 +1,6 @@
 import { Sheet, SheetContent, SheetTitle } from "@houston-ai/core";
 import { SidebarWorkspaceSwitcher } from "@houston-ai/layout";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSurfaceGates } from "../../hooks/use-surface-gates";
 import { openAdmin } from "../../lib/open-admin";
@@ -50,6 +50,14 @@ export function MobileMoreMenu() {
   const setMobileMoreOpen = useUIStore((s) => s.setMobileMoreOpen);
   // "Your account" drills in inside the card; reopening starts at its root.
   const [page, setPage] = useState<"root" | "account">("root");
+  // Back from the account page hands focus to the row that opened it.
+  const accountRow = useRef<HTMLButtonElement>(null);
+  const backFromAccount = useRef(false);
+  useEffect(() => {
+    if (page !== "root" || !backFromAccount.current) return;
+    backFromAccount.current = false;
+    accountRow.current?.focus();
+  }, [page]);
   const setOpen = useCallback(
     (next: boolean) => {
       if (!next) setPage("root");
@@ -103,7 +111,10 @@ export function MobileMoreMenu() {
           {page === "account" ? (
             <MobileMoreAccountPage
               account={account}
-              onBack={() => setPage("root")}
+              onBack={() => {
+                backFromAccount.current = true;
+                setPage("root");
+              }}
             />
           ) : (
             <>
@@ -141,6 +152,7 @@ export function MobileMoreMenu() {
                     label={account.label}
                     avatar={account.avatar}
                     onOpen={() => setPage("account")}
+                    ref={accountRow}
                   />
                   {showOrganization && <MobileMoreRowButton row={admin} />}
                   <MobileMoreRowButton row={academy} />

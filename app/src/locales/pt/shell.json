@@ -699,7 +699,7 @@
   },
   "moreMenu": {
     "title": "Mais",
-    "back": "Voltar para Mais"
+    "backFrom": "{{label}}, voltar para Mais"
   },
   "addToWorkspace": {
     "title": "Adicionar ao seu espaço de trabalho",

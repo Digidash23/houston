@@ -128,6 +128,11 @@ test("the account's destinations follow the connect rows, in the rail's order", 
   await menu.getByTestId("more-account").tap();
   const account = menu.getByTestId("more-account-page");
   await expect(account).toBeVisible();
+  // Focus moves onto the page's back row, named from its visible text.
+  const back = account.getByRole("button", {
+    name: "Your account, back to More",
+  });
+  await expect(back).toBeFocused();
   await expect(page.getByRole("menu")).toHaveCount(0);
   await expect(moreRow(page, "nav-settings")).toBeHidden();
   await expect(
@@ -138,8 +143,9 @@ test("the account's destinations follow the connect rows, in the rail's order", 
   );
 
   // Back returns to the card's rows, still open.
-  await account.getByRole("button", { name: "Back to More" }).tap();
+  await back.tap();
   await expect(moreRow(page, "nav-settings")).toBeVisible();
+  await expect(menu.getByTestId("more-account")).toBeFocused();
   await menu.getByTestId("more-account").tap();
 
   // About me is a screen of its own: the card steps aside and the screen

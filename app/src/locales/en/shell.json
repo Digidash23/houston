@@ -699,7 +699,7 @@
   },
   "moreMenu": {
     "title": "More",
-    "back": "Back to More"
+    "backFrom": "{{label}}, back to More"
   },
   "addToWorkspace": {
     "title": "Add to your workspace",

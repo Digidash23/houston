@@ -1,6 +1,6 @@
 import { sidebarSheetRowClasses } from "@houston-ai/layout";
 import { ChevronRight } from "lucide-react";
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import type { MenuRow } from "./menu-row";
 
 function RowFace(props: { icon: ReactNode; label: string }) {
@@ -45,9 +45,11 @@ export function MobileAccountRow(props: {
   label: string;
   avatar: ReactNode;
   onOpen: () => void;
+  ref?: Ref<HTMLButtonElement>;
 }) {
   return (
     <button
+      ref={props.ref}
       type="button"
       data-testid="more-account"
       onClick={props.onOpen}
