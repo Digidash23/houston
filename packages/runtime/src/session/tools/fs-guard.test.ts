@@ -542,6 +542,11 @@ test("a name a case-insensitive volume folds onto a protected one is refused", (
     ".houston/runtime/auth.j\u017Fon",
     ".houston/runtime/auth-u\u017Fers/abc.json",
     ".houston/runtime/CLAUDE-LOGIN/.credentials.json",
+    ".houston/runtime/auth.json.",
+    ".houston/runtime/auth.json ",
+    ".houston/runtime/auth-users. /abc.json",
+    ".houston/runtime/auth-users::$INDEX_ALLOCATION./abc.json",
+    ".houston/runtime/auth-users:$i30:$INDEX_ALLOCATION./abc.json",
   ])
     expect(() => guard.clampWrite(lookalike), lookalike).toThrow(
       PathDeniedError,

@@ -36,17 +36,31 @@ export const DENIED_SEGMENTS: ReadonlySet<string> = new Set([
  * `claude-login` ABOVE it (it appears as `..` from the root) can never deny
  * the whole tree. Case-folded (`foldName`) because macOS and Windows
  * filesystems are case-insensitive by default, so `AUTH.JSON` would otherwise
- * open the very file `auth.json` denies, and stream-stripped because
- * `auth.json::$DATA` opens it on Windows.
+ * open the very file `auth.json` denies. Stream suffixes and trailing dots or
+ * spaces go too: Windows opens `auth.json` for `auth.json::$DATA` and
+ * `auth.json.` alike.
  */
 export function isCredential(abs: string, boundary: RootBoundary): boolean {
   const base = contains(abs, boundary.canonical)
     ? boundary.canonical
     : boundary.lexical;
   for (const segment of relative(base, abs).split(sep)) {
-    if (DENIED_SEGMENTS.has(foldName(stripStream(segment)))) return true;
+    if (DENIED_SEGMENTS.has(foldName(windowsName(segment)))) return true;
   }
   return false;
+}
+
+/**
+ * The name Windows opens for a segment: it drops stream suffixes and trailing
+ * dots or spaces in either order (`auth-users::$INDEX_ALLOCATION.` is the
+ * folder), so both are stripped until neither is left.
+ */
+function windowsName(segment: string): string {
+  for (let name = segment; ; ) {
+    const next = stripStream(name).replace(/[. ]+$/, "");
+    if (next === name) return name;
+    name = next;
+  }
 }
 
 /**
