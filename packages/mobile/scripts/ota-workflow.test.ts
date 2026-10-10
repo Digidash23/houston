@@ -36,8 +36,9 @@ test("only cloud-v releases of main commits no older than the live bundle publis
     );
   }
   expect(yaml).toContain("fetch-depth: 0");
-  expect(yaml).toContain("git merge-base --is-ancestor HEAD origin/main");
-  expect(yaml).toContain('git merge-base --is-ancestor "$live_commit" HEAD');
+  expect(yaml).toContain(
+    'packages/mobile/scripts/ota-commit-guard.sh origin/main HEAD "$live_sha"',
+  );
   // The guard runs before the build, for every non-dispatch publish.
   expect(yaml.indexOf("- name: Refuse off-main or older commits")).toBeLessThan(
     yaml.indexOf("- name: Build mobile bundle"),

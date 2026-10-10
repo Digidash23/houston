@@ -77,14 +77,13 @@ jobs:
         if: ${{ github.event_name != 'workflow_dispatch' }}
         run: |
           set -euo pipefail
-          git merge-base --is-ancestor HEAD origin/main || { echo '::error::Only commits on main publish OTA bundles'; exit 1; }
+          live_sha=
           if gcloud storage ls "gs://houston-mobile-updates/$CHANNEL/manifest.json" >/dev/null 2>&1; then
             live=$(gcloud storage cat "gs://houston-mobile-updates/$CHANNEL/manifest.json" | jq -r .version)
             live_sha=${live##*+}
             [[ "$live_sha" =~ ^[0-9a-f]{7,}$ ]] || { echo "::error::Live manifest version $live names no commit"; exit 1; }
-            live_commit=$(git rev-parse --verify --quiet "$live_sha^{commit}") || { echo "::error::Live bundle commit $live_sha is not in this repository"; exit 1; }
-            git merge-base --is-ancestor "$live_commit" HEAD || { echo "::error::$(git rev-parse --short HEAD) is older than the live $CHANNEL bundle $live"; exit 1; }
           fi
+          packages/mobile/scripts/ota-commit-guard.sh origin/main HEAD "$live_sha"
       - name: Build mobile bundle
         if: ${{ github.event_name != 'workflow_dispatch' }}
         env:
