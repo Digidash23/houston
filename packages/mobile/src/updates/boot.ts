@@ -66,6 +66,11 @@ export async function installUpdates(): Promise<void> {
         set: async (nativeBuild, value) =>
           localStorage.setItem(otaSequenceKey(channel, nativeBuild), value),
       },
+      policyStore: {
+        get: async () => localStorage.getItem(`houston.ota.policy.${channel}`),
+        set: async (value) =>
+          localStorage.setItem(`houston.ota.policy.${channel}`, value),
+      },
     },
   );
   await App.addListener("appStateChange", ({ isActive }) => {

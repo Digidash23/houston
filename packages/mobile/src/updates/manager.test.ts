@@ -9,6 +9,15 @@ const key = keys.privateKey.export({ type: "pkcs8", format: "pem" }).toString();
 const pubkey = keys.publicKey
   .export({ type: "spki", format: "der" })
   .toString("base64");
+function memoryPolicy(initial: string | null = null) {
+  let value = initial;
+  return {
+    get: async () => value,
+    set: async (next: string) => {
+      value = next;
+    },
+  };
+}
 const baseUrl = "https://storage.googleapis.com/houston-mobile-updates";
 const body: UpdateManifestBody = {
   v: 1,
@@ -55,6 +64,7 @@ test("checks signed manifest, downloads once, and stages next without reload", a
       onRequired: vi.fn(),
       report,
       sequenceStore: { get: async () => null, set: async () => {} },
+      policyStore: memoryPolicy(),
     },
   );
   await check();
@@ -103,6 +113,7 @@ test("required native build gates the app and invalid signatures report", async 
       onRequired: gate,
       report,
       sequenceStore: { get: async () => null, set: async () => {} },
+      policyStore: memoryPolicy(),
     },
   );
   await check();
@@ -129,6 +140,7 @@ test("required native build gates the app and invalid signatures report", async 
       onRequired: gate,
       report,
       sequenceStore: { get: async () => null, set: async () => {} },
+      policyStore: memoryPolicy(),
     },
   );
   await invalid();
@@ -162,6 +174,7 @@ test("required-update retry fetches a fresh manifest immediately", async () => {
       onRequired: gate,
       report: vi.fn(),
       sequenceStore: { get: async () => null, set: async () => {} },
+      policyStore: memoryPolicy(),
     },
   );
   await check();
@@ -211,6 +224,7 @@ test("a forced check clears a lifted native requirement", async () => {
       onCleared,
       report: vi.fn(),
       sequenceStore: { get: async () => null, set: async () => {} },
+      policyStore: memoryPolicy(),
     },
   );
   expect(await check()).toBe("required");
@@ -251,6 +265,7 @@ test("native-build rejection is reported and the next check retries it", async (
       onRequired: vi.fn(),
       report,
       sequenceStore: { get: async () => null, set: async () => {} },
+      policyStore: memoryPolicy(),
     },
   );
   await check();
@@ -287,6 +302,7 @@ test("a native info TypeError is reported instead of classified as a fetch outag
       onRequired: vi.fn(),
       report,
       sequenceStore: { get: async () => null, set: async () => {} },
+      policyStore: memoryPolicy(),
     },
   );
   await check();
@@ -327,6 +343,7 @@ test("offline checks wait for the next eligible resume without reporting", async
       onRequired: vi.fn(),
       report,
       sequenceStore: { get: async () => null, set: async () => {} },
+      policyStore: memoryPolicy(),
     },
   );
   await check();
@@ -364,6 +381,7 @@ test("a build below the OTA minimum keeps its current bundle without gating", as
       onRequired: gate,
       report: vi.fn(),
       sequenceStore: { get: async () => null, set: async () => {} },
+      policyStore: memoryPolicy(),
     },
   );
   await check();
@@ -411,6 +429,7 @@ test("legacy signed manifests cannot stage a downgrade", async () => {
       onRequired: vi.fn(),
       report,
       sequenceStore: { get: async () => null, set: async () => {} },
+      policyStore: memoryPolicy(),
     },
   );
   await check();
@@ -445,6 +464,7 @@ test("signed preview manifest cannot cross into production", async () => {
       onRequired: vi.fn(),
       report,
       sequenceStore: { get: async () => null, set: async () => {} },
+      policyStore: memoryPolicy(),
     },
   );
   await check();
@@ -484,6 +504,7 @@ test("stored and built-in sequences reject replay before download", async () => 
         onRequired: vi.fn(),
         report: vi.fn(),
         sequenceStore: { get: async () => stored, set: async () => {} },
+        policyStore: memoryPolicy(),
       },
     );
     await check();
@@ -528,6 +549,7 @@ test("a freshly republished old zip cannot replace a newer built-in bundle", asy
       onRequired: vi.fn(),
       report: vi.fn(),
       sequenceStore: { get: async () => null, set: async () => {} },
+      policyStore: memoryPolicy(),
     },
   );
   await check();
@@ -572,6 +594,7 @@ test("a higher publish sequence rolls back an OTA zip above the native baseline"
       onRequired: vi.fn(),
       report: vi.fn(),
       sequenceStore: { get: async () => "11", set },
+      policyStore: memoryPolicy(),
     },
   );
   await check();
@@ -617,10 +640,109 @@ test("a store upgrade ignores the older build's OTA record and its older builtin
           stored.set(build, value);
         },
       },
+      policyStore: memoryPolicy(),
     },
   );
   await check();
   expect(download).toHaveBeenCalledOnce();
   expect(stored.get("3")).toBe("18");
   expect(stored.get("2")).toBe("20");
+});
+
+test("a replayed older manifest cannot clear a newer required-update gate", async () => {
+  const gated = {
+    ...body,
+    sequence: 30,
+    bundle_sequence: 30,
+    required_native_build: 3,
+  };
+  const replay = {
+    ...body,
+    sequence: 19,
+    bundle_sequence: 19,
+    required_native_build: 2,
+  };
+  let served: UpdateManifestBody = gated;
+  const gate = vi.fn();
+  const cleared = vi.fn();
+  const report = vi.fn();
+  const download = vi.fn();
+  const policy = memoryPolicy();
+  const make = () =>
+    createUpdateManager(
+      {
+        baseUrl,
+        publicKey: pubkey,
+        channel: "preview",
+        builtinVersion: "old",
+        builtinSequence: 1,
+      },
+      {
+        fetch: vi.fn(async () => ({
+          ok: true,
+          json: async () => ({
+            ...served,
+            signature: signManifest(served, key),
+          }),
+        })) as unknown as typeof fetch,
+        now: () => 0,
+        updater: { current: vi.fn(), download, next: vi.fn() },
+        nativeBuild: async () => "2",
+        isOnline: () => true,
+        onRequired: gate,
+        onCleared: cleared,
+        report,
+        sequenceStore: { get: async () => null, set: async () => {} },
+        policyStore: policy,
+      },
+    );
+  const check = make();
+  expect(await check()).toBe("required");
+  served = replay;
+  expect(await check(true)).toBe("required");
+  // A fresh launch reads the persisted policy, not just in-memory state.
+  expect(await make()()).toBe("required");
+  expect(cleared).not.toHaveBeenCalled();
+  expect(download).not.toHaveBeenCalled();
+  expect(gate).toHaveBeenCalledTimes(3);
+  expect(report).toHaveBeenCalledTimes(2);
+  expect(JSON.parse((await policy.get()) ?? "")).toEqual({
+    sequence: 30,
+    required_native_build: 3,
+  });
+});
+
+test("a corrupt stored policy is reported and reseeded by the next manifest", async () => {
+  const report = vi.fn();
+  const policy = memoryPolicy("not json");
+  const check = createUpdateManager(
+    {
+      baseUrl,
+      publicKey: pubkey,
+      channel: "preview",
+      builtinVersion: "old",
+      builtinSequence: 1,
+    },
+    {
+      fetch: vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ ...body, signature: signManifest(body, key) }),
+      }) as typeof fetch,
+      now: () => 0,
+      updater: {
+        current: async () => ({ bundle: { id: "builtin", version: "x" } }),
+        download: vi.fn().mockResolvedValue({ id: "b" }),
+        next: vi.fn(),
+      },
+      nativeBuild: async () => "2",
+      isOnline: () => true,
+      onRequired: vi.fn(),
+      report,
+      sequenceStore: { get: async () => null, set: async () => {} },
+      policyStore: policy,
+    },
+  );
+  expect(await check()).toBe("clear");
+  expect(report).toHaveBeenCalledOnce();
+  expect(JSON.parse((await policy.get()) ?? "").sequence).toBe(10);
 });

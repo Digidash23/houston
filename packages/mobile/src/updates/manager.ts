@@ -1,5 +1,6 @@
 import type { UpdateManifest } from "./manifest";
 import { verifyManifest } from "./manifest";
+import { parseStoredPolicy, serializePolicy } from "./policy";
 
 export interface UpdaterPort {
   current(): Promise<{ bundle: { id: string; version: string } }>;
@@ -27,6 +28,12 @@ export interface UpdatePorts {
     get(nativeBuild: string): Promise<string | null>;
     set(nativeBuild: string, value: string): Promise<void>;
   };
+  /** Newest authenticated policy, per channel, persisted apart from bundle
+   *  installs so a replayed older manifest can never relax a required gate. */
+  policyStore: {
+    get(): Promise<string | null>;
+    set(value: string): Promise<void>;
+  };
 }
 
 export type UpdateCheckResult = "required" | "clear" | "unavailable";
@@ -51,6 +58,17 @@ export function createUpdateManager(
     running = runCheck();
     return running;
   };
+
+  async function readPolicy() {
+    const raw = await ports.policyStore.get();
+    try {
+      return parseStoredPolicy(raw);
+    } catch (error) {
+      // Corrupt local state: report it and let this manifest reseed the policy.
+      ports.report(error);
+      return null;
+    }
+  }
 
   async function runCheck(): Promise<UpdateCheckResult> {
     lastCheck = ports.now();
@@ -92,6 +110,21 @@ export function createUpdateManager(
       const nativeBuild = Number(nativeBuildText);
       if (!Number.isSafeInteger(nativeBuild) || nativeBuild < 1)
         throw new Error("Invalid native build number");
+      const policy = await readPolicy();
+      if (policy && manifest.sequence < policy.sequence) {
+        // A replayed or stale manifest: keep enforcing the newer policy.
+        ports.report(
+          new Error(
+            `OTA manifest ${manifest.sequence} is older than policy ${policy.sequence}`,
+          ),
+        );
+        if (nativeBuild >= policy.required_native_build) return "unavailable";
+        required = true;
+        ports.onRequired(manifest);
+        return "required";
+      }
+      if (!policy || manifest.sequence > policy.sequence)
+        await ports.policyStore.set(serializePolicy(manifest));
       if (nativeBuild < manifest.required_native_build) {
         required = true;
         ports.onRequired(manifest);
