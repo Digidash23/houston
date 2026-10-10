@@ -698,7 +698,8 @@
     }
   },
   "moreMenu": {
-    "title": "More"
+    "title": "More",
+    "back": "Back to More"
   },
   "addToWorkspace": {
     "title": "Add to your workspace",

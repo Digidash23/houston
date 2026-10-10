@@ -698,7 +698,8 @@
     }
   },
   "moreMenu": {
-    "title": "Más"
+    "title": "Más",
+    "back": "Volver a Más"
   },
   "addToWorkspace": {
     "title": "Agregar a tu espacio de trabajo",

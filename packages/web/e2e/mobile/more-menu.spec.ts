@@ -122,20 +122,29 @@ test("the account's destinations follow the connect rows, in the rail's order", 
   }
   expect(ys).toEqual([...ys].sort((a, b) => a - b));
 
-  // The account row opens the person's menu. The single-player seed has no
-  // identity, so it holds About me alone: no header, no Sign out.
+  // The account row drills into the card's own account page: a back row,
+  // then the account's actions as rows. No menu pops over the card's other
+  // rows. The single-player seed has no identity, so it holds About me alone.
   await menu.getByTestId("more-account").tap();
-  const account = page.getByRole("menu");
+  const account = menu.getByTestId("more-account-page");
+  await expect(account).toBeVisible();
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(moreRow(page, "nav-settings")).toBeHidden();
   await expect(
-    account.getByRole("menuitem", { name: "About me", exact: true }),
+    account.getByRole("button", { name: "About me", exact: true }),
   ).toBeVisible();
-  await expect(account.getByRole("menuitem", { name: "Sign out" })).toHaveCount(
+  await expect(account.getByRole("button", { name: "Sign out" })).toHaveCount(
     0,
   );
 
+  // Back returns to the card's rows, still open.
+  await account.getByRole("button", { name: "Back to More" }).tap();
+  await expect(moreRow(page, "nav-settings")).toBeVisible();
+  await menu.getByTestId("more-account").tap();
+
   // About me is a screen of its own: the card steps aside and the screen
   // takes the glass, headed by its own title.
-  await account.getByRole("menuitem", { name: "About me", exact: true }).tap();
+  await account.getByRole("button", { name: "About me", exact: true }).tap();
   await expect(moreMenu(page)).toBeHidden();
   await expect(screen(page)).toHaveAttribute("data-screen", "about-me");
   await expect(
