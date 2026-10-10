@@ -139,6 +139,14 @@ To build in Xcode directly, open `packages/mobile/ios/App/App.xcodeproj` and
 select an iOS simulator. Android Studio opens `packages/mobile/android`;
 build or run the `app` target there after `sync`.
 
+Run the Android emulator on the host GPU (`emulator -avd <name> -gpu host`, or
+`hw.gpu.enabled=yes` and `hw.gpu.mode=host` in the AVD's `config.ini`). An AVD
+with `hw.gpu.enabled=no` falls back to the software renderer (`lavapipe` with
+SwiftShader GLES), which corrupts WebView raster tiles: stale copies of the
+chat header, bubbles or composer bar appear over the conversation and
+persist. The DOM holds one copy and the same build renders cleanly on the
+host GPU, so this is not an app bug.
+
 ## Over-the-air updates
 
 The native updater runs in manual mode. A mobile build enables OTA when both
