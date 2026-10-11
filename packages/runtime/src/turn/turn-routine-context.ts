@@ -8,6 +8,7 @@ import {
   type RoutineTurnKind,
 } from "../session/routine-context";
 import { ROUTINE_REPLAY_TAIL } from "../session/routine-replay";
+import { ArchiveSegmentMissingError } from "../store/conversation-archive-missing";
 import { getHistoryAt } from "../store/conversation-file";
 import {
   readRoutineTranscriptAt,
@@ -73,14 +74,20 @@ export function resetPooledRoutineContext(input: {
 /**
  * Fetch whatever part of a routine chat's replay tail the hot set left remote
  * (turn-archive-fetch.ts), before `routineReplayHistory` reads it: usually
- * nothing, as the newest segments hydrate with the turn.
+ * nothing, as the newest segments hydrate with the turn. A segment the store
+ * lost (already reported) only shortens the replay: failing here would fail
+ * every run of the routine for good. Any other failure fails this turn.
  */
 export async function loadRoutineReplayArchive(
   loadArchive: ArchiveLoader | undefined,
   conversationId: string,
 ): Promise<void> {
   if (!isRoutineConversation(conversationId)) return;
-  await loadArchive?.(conversationId, { limit: ROUTINE_REPLAY_TAIL });
+  try {
+    await loadArchive?.(conversationId, { limit: ROUTINE_REPLAY_TAIL });
+  } catch (error) {
+    if (!(error instanceof ArchiveSegmentMissingError)) throw error;
+  }
 }
 
 /**

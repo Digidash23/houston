@@ -6,10 +6,10 @@ import type {
   ObjectStore,
 } from "@houston/runtime-client/object-sync";
 import {
-  ArchiveSegmentMissingError,
   segmentFileFor,
   totalMessageCount,
 } from "../store/conversation-archive";
+import { reportMissingSegment } from "../store/conversation-archive-missing";
 import { segmentsInWindow } from "../store/conversation-archive-window";
 import { loadConversation } from "../store/conversation-file";
 import type { HistoryWindow } from "../store/conversation-queries";
@@ -28,8 +28,9 @@ export type ArchiveLoader = (
  * first. A missing segment is fetched from the store into the turn's tree and
  * entered in its manifest with the bytes' hash, exactly like a hydrated one:
  * the sync never re-uploads it, and a local delete of it reaches the store.
- * A segment the store does not have either fails loudly
- * (ArchiveSegmentMissingError); it never reads as an empty one.
+ * A segment the store does not have either is reported and fails the fetch
+ * (ArchiveSegmentMissingError); the caller decides whether its read can go
+ * on past the hole (conversation-archive-missing.ts).
  */
 export function turnArchiveLoader(opts: {
   store: ObjectStore;
@@ -67,12 +68,17 @@ export function turnArchiveLoader(opts: {
       `${encodeURIComponent(conversationId)}.archive`,
     );
     const vfs = await overlay(archiveRel);
+    // Every segment the store has lands before a lost one fails the fetch:
+    // a caller that reads on past the hole loses only that segment.
+    const lost: number[] = [];
     for (const n of missing) {
       if ((await vfs.readBytes(`${archiveRel}/${n}.json`)) === null)
-        throw new ArchiveSegmentMissingError(
-          segmentFileFor(dir, conversationId, n),
-        );
+        lost.push(n);
     }
+    const errors = lost.map((n) =>
+      reportMissingSegment(segmentFileFor(dir, conversationId, n)),
+    );
+    if (errors[0]) throw errors[0];
   };
 }
 

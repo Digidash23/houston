@@ -2,15 +2,16 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ChatMessage } from "@houston/runtime-client";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import {
-  ArchiveSegmentMissingError,
   archiveDirFor,
   segmentFileFor,
   segments,
 } from "./conversation-archive";
+import { ArchiveSegmentMissingError } from "./conversation-archive-missing";
 import { segmentsInWindow } from "./conversation-archive-window";
-import { getHistoryAt } from "./conversation-file";
+import { getHistoryAt, loadFullConversation } from "./conversation-file";
+import { importConversationMessagesAt } from "./conversation-import";
 
 const msg = (n: number): ChatMessage => ({
   role: n % 2 ? "assistant" : "user",
@@ -60,12 +61,27 @@ test("a window names exactly the segments it reaches into", () => {
   expect(segmentsInWindow(undefined, 2, {})).toEqual([]);
 });
 
-test("a missing segment fails the read loudly, never a shorter history", () => {
+test("a missing segment reads as a reported gap, never a failed chat", () => {
   const dir = rotated();
   rmSync(segmentFileFor(dir, "c1", 1));
-  // The newest window never touches segment 1, so it still reads.
-  expect(getHistoryAt(dir, "c1", { limit: 5 })?.messages.length).toBe(5);
-  expect(() => getHistoryAt(dir, "c1")).toThrow(ArchiveSegmentMissingError);
+  const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    // The newest window never touches segment 1: nothing to report.
+    expect(getHistoryAt(dir, "c1", { limit: 5 })?.messages.length).toBe(5);
+    expect(errors).not.toHaveBeenCalled();
+    // The full read serves what is left and reports the hole, once per
+    // segment however often the chat is read.
+    expect(getHistoryAt(dir, "c1")?.messages.map((m) => m.content)).toEqual(
+      Array.from({ length: 8 }, (_, n) => `m${n + 3}`),
+    );
+    getHistoryAt(dir, "c1");
+    expect(errors).toHaveBeenCalledTimes(1);
+    expect(errors.mock.calls[0]?.[1]).toBeInstanceOf(
+      ArchiveSegmentMissingError,
+    );
+  } finally {
+    errors.mockRestore();
+  }
   // And it is not remembered as empty: once the segment is back, it reads.
   writeFileSync(
     segmentFileFor(dir, "c1", 1),
@@ -74,4 +90,35 @@ test("a missing segment fails the read loudly, never a shorter history", () => {
   expect(getHistoryAt(dir, "c1")?.messages.map((m) => m.content)).toEqual(
     Array.from({ length: 11 }, (_, n) => `m${n}`),
   );
+});
+
+test("a whole-document read refuses a missing segment: a repair never ships the hole", () => {
+  const dir = rotated();
+  rmSync(segmentFileFor(dir, "c1", 2));
+  const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    expect(() => loadFullConversation(dir, "c1")).toThrow(
+      ArchiveSegmentMissingError,
+    );
+    expect(errors).toHaveBeenCalledTimes(1);
+  } finally {
+    errors.mockRestore();
+  }
+});
+
+test("an import still lands in a chat that lost a segment", () => {
+  const dir = rotated();
+  rmSync(segmentFileFor(dir, "c1", 1));
+  const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    expect(
+      importConversationMessagesAt(dir, "c1", {
+        importId: "onboarding:first_run",
+        messages: [{ role: "assistant", content: "Hi!" }],
+      }),
+    ).toBe(1);
+    expect(errors).toHaveBeenCalledTimes(1);
+  } finally {
+    errors.mockRestore();
+  }
 });

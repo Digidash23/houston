@@ -3,6 +3,10 @@ import { join } from "node:path";
 import { atomicTempPath } from "@houston/protocol";
 import type { ChatMessage } from "@houston/runtime-client";
 import { LruCache } from "../lru";
+import {
+  type MissingSegment,
+  reportMissingSegment,
+} from "./conversation-archive-missing";
 import type { StoredConversation } from "./conversation-file";
 
 /**
@@ -132,20 +136,12 @@ export function archiveOlderMessages(
 /** Segments are immutable, so a parsed one is valid until it is deleted. */
 export const segments = new LruCache<string, ChatMessage[]>({ capacity: 8 });
 
-/**
- * A segment the live file's index names is not on disk. On a pool worker that
- * means nobody fetched it (turn-archive-fetch.ts); anywhere else the tree lost
- * it. Either way the read fails: an empty segment would serve a history with
- * a silent hole, and a repair would ship that hole as the whole transcript.
- */
-export class ArchiveSegmentMissingError extends Error {
-  constructor(readonly file: string) {
-    super(`archive segment missing: ${file}`);
-    this.name = "ArchiveSegmentMissingError";
-  }
-}
-
-export function readSegment(dir: string, id: string, n: number): ChatMessage[] {
+export function readSegment(
+  dir: string,
+  id: string,
+  n: number,
+  missing: MissingSegment = "report",
+): ChatMessage[] {
   const file = segmentFileFor(dir, id, n);
   const hit = segments.get(file);
   if (hit) return hit;
@@ -153,9 +149,11 @@ export function readSegment(dir: string, id: string, n: number): ChatMessage[] {
   try {
     raw = readFileSync(file, "utf8");
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT")
-      throw new ArchiveSegmentMissingError(file);
-    throw err;
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+    // Never cached: a segment fetched later (a pool turn) must read.
+    const error = reportMissingSegment(file);
+    if (missing === "throw") throw error;
+    return [];
   }
   let messages: ChatMessage[];
   try {
@@ -176,6 +174,7 @@ export function sliceTranscript(
   conv: StoredConversation,
   start: number,
   end: number,
+  missing: MissingSegment = "report",
 ): ChatMessage[] {
   const out: ChatMessage[] = [];
   let offset = 0;
@@ -184,10 +183,10 @@ export function sliceTranscript(
     const size = sizes[i] ?? 0;
     const lo = Math.max(start, offset);
     const hi = Math.min(end, offset + size);
-    if (lo < hi)
-      out.push(
-        ...readSegment(dir, conv.id, i + 1).slice(lo - offset, hi - offset),
-      );
+    if (lo < hi) {
+      const segment = readSegment(dir, conv.id, i + 1, missing);
+      out.push(...segment.slice(lo - offset, hi - offset));
+    }
     offset += size;
   }
   const lo = Math.max(start, offset);

@@ -7,13 +7,12 @@ import {
   LocalDirStore,
   type ObjectStore,
 } from "@houston/runtime-client/object-sync";
-import { expect, test } from "vitest";
-import {
-  ArchiveSegmentMissingError,
-  segments,
-} from "../store/conversation-archive";
+import { expect, test, vi } from "vitest";
+import { segments } from "../store/conversation-archive";
+import { ArchiveSegmentMissingError } from "../store/conversation-archive-missing";
 import { getHistoryAt } from "../store/conversation-file";
 import { turnArchiveLoader } from "./turn-archive-fetch";
+import { loadRoutineReplayArchive } from "./turn-routine-context";
 
 const PREFIX = "ws/acme/bob";
 const DATA = "workspaces/Personal/Bob/.houston/runtime";
@@ -112,15 +111,40 @@ test("a reader reaching back fetches exactly the missing segments, owned by the 
   ).toEqual(Array.from({ length: 14 }, (_, n) => `m${n}`));
 });
 
-test("a segment the store lost fails the read loudly", async () => {
+test("a segment the store lost fails the fetch loudly, reported once", async () => {
   const { load, agent, conversations } = fixture();
   rmSync(join(agent, ...ARCHIVE.split("/"), "1.json"));
-  await expect(load("routine-r1", {})).rejects.toBeInstanceOf(
-    ArchiveSegmentMissingError,
-  );
-  expect(() => getHistoryAt(conversations, "routine-r1")).toThrow(
-    ArchiveSegmentMissingError,
-  );
+  const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    await expect(load("routine-r1", {})).rejects.toBeInstanceOf(
+      ArchiveSegmentMissingError,
+    );
+    // A reader that goes on anyway sees the gap, already reported.
+    expect(getHistoryAt(conversations, "routine-r1")?.messages).toHaveLength(
+      11,
+    );
+    expect(errors).toHaveBeenCalledTimes(1);
+  } finally {
+    errors.mockRestore();
+  }
+});
+
+test("a routine replay reads past a segment the store lost; any other failure fails the turn", async () => {
+  const { load, agent } = fixture();
+  rmSync(join(agent, ...ARCHIVE.split("/"), "1.json"));
+  const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    await expect(
+      loadRoutineReplayArchive(load, "routine-r1"),
+    ).resolves.toBeUndefined();
+    expect(errors).toHaveBeenCalledTimes(1);
+  } finally {
+    errors.mockRestore();
+  }
+  const down = new Error("store unreachable");
+  await expect(
+    loadRoutineReplayArchive(() => Promise.reject(down), "routine-r1"),
+  ).rejects.toBe(down);
 });
 
 test("a chat with no archive, or no live file, needs nothing", async () => {
