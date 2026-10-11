@@ -51,3 +51,33 @@ describe("moveTeamAgent on a name the team already holds", () => {
     strictEqual(teamAgentMoveError(result), "unknown");
   });
 });
+
+describe("moveTeamAgent for an agent the team already holds", () => {
+  beforeEach(() => store.clear());
+
+  it("clears the pending move: the move is done (agent_moved)", async () => {
+    const result = await moveTeamAgent(AGENT, TEAM, {
+      moveAgent: async () => {
+        throw { status: 409, body: { error: "moved", code: "agent_moved" } };
+      },
+      moveStatus: async () => {
+        throw new Error("a finished move has no ticket to poll");
+      },
+    });
+    deepStrictEqual(result, { outcome: "done" });
+    deepStrictEqual(readPendingMoves(), []);
+  });
+
+  it("clears the pending move when the agent is in neither space", async () => {
+    const result = await moveTeamAgent(AGENT, TEAM, {
+      moveAgent: async () => {
+        throw { status: 404, body: { error: "gone", code: "agent_not_found" } };
+      },
+      moveStatus: async () => {
+        throw new Error("a missing agent has no ticket to poll");
+      },
+    });
+    deepStrictEqual(result, { outcome: "gone" });
+    deepStrictEqual(readPendingMoves(), []);
+  });
+});

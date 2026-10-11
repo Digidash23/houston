@@ -207,6 +207,45 @@ describe("what the mixin softens, and what it must not", () => {
     expect(soleCall().url).toBe(`${BASE}/v1/agents/ag-1/move`);
   });
 
+  test("a move the agent already finished rejects 409 agent_moved", async () => {
+    stubFetch(() =>
+      json(409, { error: "agent already moved", code: "agent_moved" }),
+    );
+    const err = await client()
+      .moveAgent("ag-1", ORG_SLUG)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(HoustonEngineError);
+    expect((err as HoustonEngineError).status).toBe(409);
+    expect((err as HoustonEngineError).body).toMatchObject({
+      code: "agent_moved",
+    });
+    expect(soleCall().url).toBe(`${BASE}/v1/agents/ag-1/move`);
+  });
+
+  test("an agent in neither space rejects 404 agent_not_found", async () => {
+    stubFetch(() =>
+      json(404, { error: "agent not found", code: "agent_not_found" }),
+    );
+    const err = await client()
+      .moveAgent("ag-1", ORG_SLUG)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(HoustonEngineError);
+    expect((err as HoustonEngineError).status).toBe(404);
+    expect((err as HoustonEngineError).body).toMatchObject({
+      code: "agent_not_found",
+    });
+  });
+
+  test("an older gateway's uncoded 404 stays a plain rejection", async () => {
+    stubFetch(() => json(404, { error: "agent not found" }));
+    const err = await client()
+      .moveAgent("ag-1", ORG_SLUG)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(HoustonEngineError);
+    expect((err as HoustonEngineError).status).toBe(404);
+    expect((err as HoustonEngineError).body).not.toHaveProperty("code");
+  });
+
   test("a rejection keeps the gateway's parsed body and status", async () => {
     stubFetch(() =>
       json(409, { error: "members remain", code: "has_members" }),

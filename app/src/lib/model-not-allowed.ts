@@ -16,7 +16,7 @@
  * (`app/tests/model-not-allowed.test.ts`).
  */
 
-import { shareErrorCode } from "./share-via-team.ts";
+import { shareErrorCode } from "./share-error.ts";
 
 export const MODEL_NOT_ALLOWED_CODE = "model_not_allowed";
 

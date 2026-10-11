@@ -1,5 +1,5 @@
 import type { MoveWire } from "./move-resume";
-import { isExpectedMoveAnswer } from "./share-via-team";
+import { isExpectedMoveAnswer } from "./share-error";
 import { tauriOrg } from "./tauri";
 
 /**

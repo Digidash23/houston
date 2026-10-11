@@ -1,7 +1,8 @@
 /**
- * The allowed-models ceiling rule (Teams E8), as the gateway enforces it
- * (cloud `internal/edge/agents/ceiling.go`): the composer offers, pins and
- * writes exactly what the gateway's clamp and model-choice route accept.
+ * The allowed-models ceiling rule (Teams E8), as cloud enforces it
+ * (`internal/modelceiling`, shared by the gateway's clamp, its model-choice
+ * route and the local model bridge): the composer offers, pins and writes
+ * exactly what those accept.
  *
  * A ceiling (`null`/`undefined` = every model, `[]` = none) allows `provider`
  * running `model` when `model` is a ceiling entry (case-insensitive, any

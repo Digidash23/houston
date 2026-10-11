@@ -11,6 +11,7 @@ import { makeRequestConnectionTool } from "../session/tools/integrations";
 import { makeMissionTools } from "../session/tools/missions";
 import { makeReadMissionTool } from "../session/tools/read-mission";
 import { getHistoryAt } from "../store/conversation-file";
+import type { ArchiveLoader } from "./turn-archive-fetch";
 import type { TurnSessionRequest } from "./turn-session";
 
 /**
@@ -42,12 +43,19 @@ export function turnAssistantOptions(
 export function buildTurnCoordinatorTools(
   turn: TurnSessionRequest,
   dataDir: string,
+  loadArchive?: ArchiveLoader,
 ): PiBackendDeps["customTools"] {
   const assistant = turnAssistantOptions(turn);
   if (!assistant) return [];
   const conversations = join(dataDir, "conversations");
+  // houston_recall searches the whole transcript: the archive segments the
+  // hot set left remote land first (turn-archive-fetch.ts).
+  const readHistory = async (id: string) => {
+    await loadArchive?.(id, {});
+    return getHistoryAt(conversations, id);
+  };
   return [
-    ...makeAssistantTools(assistant, (id) => getHistoryAt(conversations, id)),
+    ...makeAssistantTools(assistant, readHistory),
     ...makeMissionTools({
       call: assistant.call,
       personalAssistant: true,

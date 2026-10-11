@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { engineErrorCode } from "../src/lib/engine-error-code.ts";
-import { shareErrorCode } from "../src/lib/share-via-team.ts";
+import { shareErrorCode } from "../src/lib/share-error.ts";
 
 test("engineErrorCode reads the code out of every shape a host sends", () => {
   // The adapter's own classification.

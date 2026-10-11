@@ -1,5 +1,6 @@
 import type { Vfs } from "@houston/host/src/vfs";
 import type { HydrateManifest } from "@houston/runtime-client/object-sync";
+import type { ArchiveLoader } from "./turn-archive-fetch";
 import type { TurnLayout } from "./turn-layout";
 
 /** Hydrated manifest paired with the resolved on-disk layout. */
@@ -27,6 +28,9 @@ export interface TurnFilesystem extends TurnLayout {
   /** The prompt is over: stop the deferred download if it has not landed,
    *  and sync as after a failed one (turn-deferred-watch.ts). */
   abandonDeferred?: () => void;
+  /** Eager trees only: fetch the archive segments the hot set left remote
+   *  before a reader reaches them (turn-archive-fetch.ts). */
+  loadArchive?: ArchiveLoader;
 }
 
 export interface TurnFilesystemPreparation {

@@ -18,6 +18,7 @@ export * from "./first-day-refusal";
 export * from "./heartbeat";
 export * from "./interactions";
 export * from "./local-model-bridge";
+export * from "./move-refusal";
 export * from "./onboarding";
 export * from "./plan";
 export * from "./prewarm";
