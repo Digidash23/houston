@@ -67,4 +67,17 @@ describe("moveTeamAgent for an agent the team already holds", () => {
     deepStrictEqual(result, { outcome: "done" });
     deepStrictEqual(readPendingMoves(), []);
   });
+
+  it("clears the pending move when the agent is in neither space", async () => {
+    const result = await moveTeamAgent(AGENT, TEAM, {
+      moveAgent: async () => {
+        throw { status: 404, body: { error: "gone", code: "agent_not_found" } };
+      },
+      moveStatus: async () => {
+        throw new Error("a missing agent has no ticket to poll");
+      },
+    });
+    deepStrictEqual(result, { outcome: "gone" });
+    deepStrictEqual(readPendingMoves(), []);
+  });
 });

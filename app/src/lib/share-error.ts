@@ -1,4 +1,4 @@
-import { isMoveAlreadyDone, isMoveRefusalCode } from "@houston/sdk";
+import { classifyMoveRePost, isMoveRefusalCode } from "@houston/sdk";
 import { engineErrorCode } from "./engine-error-code.ts";
 
 /**
@@ -34,14 +34,13 @@ export function isExpectedShareError(err: unknown): boolean {
 }
 
 /**
- * What a move wire keeps out of Sentry: every expected share state, plus
- * `move_in_progress` (a live move owns the agent) and `agent_moved` (done).
+ * What a move wire keeps out of Sentry: every expected share state, plus every
+ * answer the SDK classifies for a re-sent move (`move_in_progress`, and
+ * `agent_moved` / `agent_not_found`, the agent already moved or gone).
  */
 export function isExpectedMoveAnswer(err: unknown): boolean {
-  const code = shareErrorCode(err);
   return (
     isExpectedShareError(err) ||
-    code === "move_in_progress" ||
-    isMoveAlreadyDone(code)
+    classifyMoveRePost(shareErrorCode(err)).kind !== "rejected"
   );
 }

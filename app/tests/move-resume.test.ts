@@ -176,6 +176,20 @@ describe("resumePendingMove", () => {
     });
   });
 
+  it("yields gone when the agent is in neither space (agent_not_found)", async () => {
+    // Coded: no move holds the agent and it lives nowhere the move could
+    // reach, so nothing is left to resume and the record clears.
+    const w = wire({
+      statuses: { "op-old": [{ status: "failed", error: "move not found" }] },
+      moveAgent: async () => {
+        throw { status: 404, body: { error: "gone", code: "agent_not_found" } };
+      },
+    });
+    deepStrictEqual(await resumePendingMove(PENDING, w, instant), {
+      outcome: "gone",
+    });
+  });
+
   it("keeps an older gateway's uncoded 404 as rejected", async () => {
     const w = wire({
       statuses: { "op-old": [{ status: "failed" }] },

@@ -87,7 +87,9 @@ export async function drivePendingTeamMove(
       wire.clearAgentMove(agentId);
       return { outcome: "refused", agentId };
     }
-    if (result.outcome !== "done") return { outcome: "failed", agentId };
+    // `gone`: the agent is in neither space, so nothing is left to move.
+    if (result.outcome !== "done" && result.outcome !== "gone")
+      return { outcome: "failed", agentId };
     wire.clearAgentMove(agentId);
     wire.markAgentMoved(agentId);
     moved.add(agentId);

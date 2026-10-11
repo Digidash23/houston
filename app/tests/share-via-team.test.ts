@@ -332,6 +332,20 @@ describe("isExpectedMoveAnswer (what a move wire keeps out of Sentry)", () => {
     strictEqual(isExpectedMoveAnswer({ body: { code: "agent_moved" } }), true);
   });
 
+  it("covers an agent in neither space (coded agent_not_found)", () => {
+    strictEqual(
+      isExpectedMoveAnswer({ body: { code: "agent_not_found" } }),
+      true,
+    );
+  });
+
+  it("still reports an older gateway's uncoded 404", () => {
+    strictEqual(
+      isExpectedMoveAnswer({ status: 404, body: { error: "agent not found" } }),
+      false,
+    );
+  });
+
   it("still reports an unexpected move failure", () => {
     strictEqual(isExpectedMoveAnswer({ kind: "internal_error" }), false);
     strictEqual(isExpectedMoveAnswer(new Error("boom")), false);

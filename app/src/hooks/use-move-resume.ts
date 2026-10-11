@@ -26,7 +26,8 @@ import { useWorkspaceStore } from "../stores/workspaces";
  * every request answers 503 "agent is being moved", which reads as a fully
  * broken app. On each boot of a spaces-capable host this re-drives every
  * persisted pending move to terminal: poll the recorded ticket, re-POST to
- * stale-adopt when it reads failed, and clear the record only on `done`.
+ * stale-adopt when it reads failed, and clear the record only once nothing is
+ * left to finish (`done`, `gone`, or refused before anything started).
  * Success and failure both toast — a silently healed (or still-stuck) agent
  * would hide what happened to it.
  *
@@ -73,15 +74,18 @@ export function useMoveResume(enabled: boolean): void {
             onMoveAccepted: (moveId) =>
               updatePendingMoveId(pending.agentId, moveId),
           });
-          if (result.outcome === "done") {
+          if (result.outcome === "done" || result.outcome === "gone") {
             clearPendingMove(pending.agentId);
-            addToast({
-              title: t("moveResume.done", {
-                agent: pending.agentName,
-                team: pending.teamName,
-              }),
-              variant: "success",
-            });
+            // `gone`: the agent is in neither space, so there is no move to
+            // announce; the refresh shows where things stand.
+            if (result.outcome === "done")
+              addToast({
+                title: t("moveResume.done", {
+                  agent: pending.agentName,
+                  team: pending.teamName,
+                }),
+                variant: "success",
+              });
             // The agent changed spaces: refresh the switcher, the team list,
             // and the active workspace's sidebar.
             await useWorkspaceStore.getState().loadWorkspaces();

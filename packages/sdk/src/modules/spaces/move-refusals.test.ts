@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   canRetryMoveError,
   classifyMoveError,
+  classifyMoveRePost,
   isMoveAlreadyDone,
   isMoveRefusalCode,
   isMoveRefusedBeforeStart,
@@ -80,5 +81,40 @@ describe("a move the agent already finished", () => {
 
   it("is not a refusal: it never classifies as a failure kind", () => {
     expect(isMoveRefusalCode("agent_moved")).toBe(false);
+  });
+});
+
+describe("what a client does with the answer to a move it re-sends", () => {
+  it("agent_moved is done: the agent already lives in the team", () => {
+    expect(classifyMoveRePost("agent_moved")).toEqual({ kind: "done" });
+  });
+
+  it("a coded agent_not_found is gone: nothing is left to move or resume", () => {
+    expect(classifyMoveRePost("agent_not_found")).toEqual({ kind: "gone" });
+  });
+
+  it("name_taken is refused before anything started", () => {
+    expect(classifyMoveRePost("name_taken")).toEqual({
+      kind: "refused",
+      code: "name_taken",
+    });
+  });
+
+  it("move_in_progress is another driver's live move", () => {
+    expect(classifyMoveRePost("move_in_progress")).toEqual({
+      kind: "inProgress",
+    });
+  });
+
+  it("keeps everything else, an older gateway's uncoded 404 included", () => {
+    for (const code of [
+      "agent not found",
+      "agent_not_ready",
+      "needs_upgrade",
+      "not_member",
+      undefined,
+    ]) {
+      expect(classifyMoveRePost(code)).toEqual({ kind: "rejected", code });
+    }
   });
 });
