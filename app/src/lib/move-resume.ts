@@ -1,7 +1,8 @@
 import type { AgentMoveStart, AgentMoveStatus } from "@houston/engine-adapter";
-import { isMoveRefusedBeforeStart, type MoveRefusalCode } from "@houston/sdk";
+import { classifyMoveRePost, type MoveRefusalCode } from "@houston/sdk";
 import type { PendingAgentMove } from "./pending-move";
-import { MOVE_POLL_TIMEOUT_MS, shareErrorCode } from "./share-via-team.ts";
+import { shareErrorCode } from "./share-error.ts";
+import { MOVE_POLL_TIMEOUT_MS } from "./share-via-team.ts";
 
 /**
  * Pure resume algorithm for an abandoned C8 agent move (HOU-817). Wire calls
@@ -24,6 +25,9 @@ export interface MoveWire {
 export type ResumeOutcome =
   /** The move reached terminal `done` — the record must be cleared. */
   | { outcome: "done" }
+  /** The agent is in neither space and no move holds it: nothing is left to
+   *  move or resume. Clear the record and refresh the agents. */
+  | { outcome: "gone" }
   /** The move reached terminal `failed` again. Keep the record for next boot. */
   | { outcome: "failed"; error?: string; moveId?: string }
   /** A fresh move already owns the agent (another driver). Keep the record. */
@@ -86,11 +90,12 @@ export async function resumePendingMove(
     start = await wire.moveAgent(pending.agentId, pending.teamSlug);
     options.onMoveAccepted?.(start.moveId);
   } catch (err) {
-    const code = shareErrorCode(err);
-    if (isMoveRefusedBeforeStart(code)) return { outcome: "refused", code };
-    return code === "move_in_progress"
-      ? { outcome: "inProgress" }
-      : { outcome: "rejected", code };
+    const verdict = classifyMoveRePost(shareErrorCode(err));
+    if (verdict.kind === "refused")
+      return { outcome: "refused", code: verdict.code };
+    if (verdict.kind === "rejected")
+      return { outcome: "rejected", code: verdict.code ?? undefined };
+    return { outcome: verdict.kind };
   }
   const settled = await pollToTerminal(pending.agentId, start.moveId, wire, {
     pollIntervalMs,

@@ -1,11 +1,10 @@
 import { useState } from "react";
 import type { useAddMember } from "../../hooks/queries";
+import { isExpectedShareError, shareErrorCode } from "../../lib/share-error";
 import {
   addInviteEmails,
   type EmailInvite,
-  isExpectedShareError,
   sendableInvites,
-  shareErrorCode,
 } from "../../lib/share-via-team";
 
 /** The folder move's closing invite step: who to invite and each send. */

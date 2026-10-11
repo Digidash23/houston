@@ -121,7 +121,8 @@ export function useTeamMoveFlow(source: TeamMoveSource, open: boolean) {
         setState((current) => teamAgentMoveFailed(current, "unknown"));
         return;
       }
-      if (result.outcome !== "done") {
+      // `gone`: the agent is in neither space, so nothing is left to move.
+      if (result.outcome !== "done" && result.outcome !== "gone") {
         if (result.outcome === "refused")
           parkRefusedTeamMove(source.id, agent.id);
         const error = teamAgentMoveError(result);

@@ -67,6 +67,24 @@ test("admits the turn's own archive segments, never another conversation's", () 
   );
 });
 
+test("hydrates only the two newest of the turn's own archive segments", () => {
+  // The rest stay remote: a routine run replays ROUTINE_REPLAY_TAIL
+  // messages, and an older segment is fetched only when a reader reaches
+  // back (turn-archive-fetch.ts).
+  const root = rootWithSessions();
+  for (const runtime of [standing, "data"]) {
+    const segment = (n: number) =>
+      `${runtime}/conversations/c1.archive/${n}.json`;
+    const listing = listed(...[1, 2, 9, 10, 11].map(segment));
+    const admit = ownConversationOnly("c1");
+    // Numeric order, not lexical: 10 and 11 are newer than 9.
+    for (const n of [10, 11])
+      expect(admit(segment(n), listing, root)).toBe(true);
+    for (const n of [1, 2, 9])
+      expect(admit(segment(n), listing, root)).toBe(false);
+  }
+});
+
 test("hydrates the conversation's own markers, never another's", () => {
   const root = rootWithSessions();
   const admit = ownConversationOnly("c1");

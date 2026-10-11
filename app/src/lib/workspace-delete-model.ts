@@ -1,5 +1,5 @@
 import type { BillingSummary, OrgMember } from "@houston/engine-adapter";
-import { shareErrorCode } from "./share-via-team.ts";
+import { shareErrorCode } from "./share-error.ts";
 import type { Workspace } from "./types.ts";
 
 /**

@@ -69,6 +69,7 @@ function alreadyImported(
 ): boolean {
   if (holdsImport(conv.messages, importId)) return true;
   if (!conv.archived) return false;
-  const full = loadFullConversation(dir, conv.id);
+  // Only a lookup: a lost segment (reported) must not block every import.
+  const full = loadFullConversation(dir, conv.id, "report");
   return full !== null && holdsImport(full.messages, importId);
 }

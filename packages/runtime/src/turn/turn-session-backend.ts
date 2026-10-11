@@ -15,6 +15,7 @@ import { seedTurnClaudeFlags } from "./turn-claude-flags";
 import { settleClaudeSummary } from "./turn-compactions";
 import { readTurnHarness, writeTurnHarness } from "./turn-harness-state";
 import {
+  loadRoutineReplayArchive,
   resetPooledRoutineContext,
   routineReplayHistory,
 } from "./turn-routine-context";
@@ -104,7 +105,9 @@ export async function openTurnBackendSession(input: {
   // reads, bounded by the routine budget; every other chat keeps its hydrated
   // live file and the budget it always had here (routine-replay.ts). Built
   // only when a session actually starts without its history: the tail can
-  // reach into archive segments, which a resumed run must never parse.
+  // reach into archive segments, which a resumed run must never parse. Any
+  // the tail reaches that stayed remote land first (only stats when none).
+  await loadRoutineReplayArchive(directories.loadArchive, conversationId);
   const replayOf = () =>
     replayForConversation({
       conversationId,
