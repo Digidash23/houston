@@ -3,6 +3,10 @@ import { join } from "node:path";
 import { atomicTempPath } from "@houston/protocol";
 import type { ChatMessage } from "@houston/runtime-client";
 import { LruCache } from "../lru";
+import {
+  type MissingSegment,
+  reportMissingSegment,
+} from "./conversation-archive-missing";
 import type { StoredConversation } from "./conversation-file";
 
 /**
@@ -132,16 +136,31 @@ export function archiveOlderMessages(
 /** Segments are immutable, so a parsed one is valid until it is deleted. */
 export const segments = new LruCache<string, ChatMessage[]>({ capacity: 8 });
 
-export function readSegment(dir: string, id: string, n: number): ChatMessage[] {
+export function readSegment(
+  dir: string,
+  id: string,
+  n: number,
+  missing: MissingSegment = "report",
+): ChatMessage[] {
   const file = segmentFileFor(dir, id, n);
   const hit = segments.get(file);
   if (hit) return hit;
+  let raw: string;
+  try {
+    raw = readFileSync(file, "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+    // Never cached: a segment fetched later (a pool turn) must read.
+    const error = reportMissingSegment(file);
+    if (missing === "throw") throw error;
+    return [];
+  }
   let messages: ChatMessage[];
   try {
-    messages = (JSON.parse(readFileSync(file, "utf8")) as SegmentFile).messages;
+    messages = (JSON.parse(raw) as SegmentFile).messages;
   } catch (err) {
-    // A missing or corrupt segment shows as a gap in old history; the live
-    // conversation is unaffected, so log loudly and keep serving.
+    // A corrupt segment (written atomically, so never by Houston) shows as a
+    // gap in old history; the live conversation is unaffected.
     console.error(`[conversations] archive segment unreadable: ${file}`, err);
     messages = [];
   }
@@ -155,6 +174,7 @@ export function sliceTranscript(
   conv: StoredConversation,
   start: number,
   end: number,
+  missing: MissingSegment = "report",
 ): ChatMessage[] {
   const out: ChatMessage[] = [];
   let offset = 0;
@@ -163,10 +183,10 @@ export function sliceTranscript(
     const size = sizes[i] ?? 0;
     const lo = Math.max(start, offset);
     const hi = Math.min(end, offset + size);
-    if (lo < hi)
-      out.push(
-        ...readSegment(dir, conv.id, i + 1).slice(lo - offset, hi - offset),
-      );
+    if (lo < hi) {
+      const segment = readSegment(dir, conv.id, i + 1, missing);
+      out.push(...segment.slice(lo - offset, hi - offset));
+    }
     offset += size;
   }
   const lo = Math.max(start, offset);

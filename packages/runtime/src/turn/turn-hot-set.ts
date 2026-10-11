@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { HydrateListedObject } from "@houston/runtime-client/object-sync";
 import { CLAUDE_FLAGS_DIR, claudeFlagsFileName } from "./claude-flags-path";
+import { newestArchiveSegments } from "./turn-hot-set-archive";
 
 function runtimeIndex(segments: string[]): number {
   if (segments[0] === "data") return 1;
@@ -76,8 +77,8 @@ function mappedClaudeTranscript(
 }
 
 /**
- * Hot-set admission for one conversation: its canonical conversation and its
- * own archive segments, harness markers, the two newest Pi tails, the Claude
+ * Hot-set admission for one conversation: its canonical conversation and the
+ * newest of its own archive segments, harness markers, the two newest Pi tails, the Claude
  * transcript named by sessions.json, and the acting member's Claude flag
  * cache. Other
  * conversations, older session files, and other members' caches stay remote.
@@ -99,6 +100,7 @@ export function ownConversationOnly(
   const archive = `${encodeURIComponent(conversationId)}.archive`;
   const ownFlags = actingUserId ? claudeFlagsFileName(actingUserId) : null;
   let claudeSelection: { file: string | null } | undefined;
+  const eagerSegments = new Map<string, Set<string>>();
   return (rel, listing, hydratedRoot) => {
     const segments = rel.split("/");
     const runtimeAt = runtimeIndex(segments);
@@ -112,15 +114,18 @@ export function ownConversationOnly(
       return own === file;
     }
     // Archive segments (store/conversation-archive.ts) ride with their own
-    // conversation only. A shared routine chat's archive grows by a segment
-    // every ~6 MiB of runs and never shrinks, so admitting every chat's
-    // segments made each turn of the agent download all of them.
+    // conversation only, and only the newest of them. A shared routine
+    // chat's archive grows by a segment every ~6 MiB of runs and never
+    // shrinks, so every run downloading all of them grew without bound.
     if (kind === "conversations") {
-      return (
-        segments.length === runtimeAt + 3 &&
-        own === archive &&
-        /^\d+\.json$/.test(segments[runtimeAt + 2] ?? "")
-      );
+      if (segments.length !== runtimeAt + 3 || own !== archive) return false;
+      const archiveRel = segments.slice(0, runtimeAt + 2).join("/");
+      let newest = eagerSegments.get(archiveRel);
+      if (!newest) {
+        newest = newestArchiveSegments(listing, archiveRel);
+        eagerSegments.set(archiveRel, newest);
+      }
+      return newest.has(rel);
     }
     if (kind === "sessions" && segments.length > runtimeAt + 1) {
       if (own !== conversationId) return false;
