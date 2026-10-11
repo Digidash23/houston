@@ -109,7 +109,7 @@ export function openBrowserLiveConnection(
     }
     if (event.type === "frame") {
       handlers.onFrame(event);
-      batcher.ack(event.seq);
+      batcher.ack(event.seq, event.jpeg.length);
     } else if (event.type === "page") {
       handlers.onPage({ url: event.url, title: event.title });
     } else {
@@ -117,7 +117,7 @@ export function openBrowserLiveConnection(
       if (handoff !== undefined && event.handoffId !== handoff)
         return end("none");
       handoff = event.handoffId;
-      batcher.known(handoff);
+      batcher.known(handoff, event.window);
       const { state: ended, text, expiresAt } = event;
       handlers.onStatus({ state: ended, text, expiresAt });
       if (ended !== "waiting") end(ended);

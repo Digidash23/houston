@@ -1,6 +1,6 @@
 import {
   type BrowserHandoffCardModel,
-  browserHandoffCards,
+  browserHandoffFeedRows,
 } from "@houston/sdk/browser-handoff";
 import type { FeedItem, HostCard } from "@houston-ai/chat";
 
@@ -23,38 +23,38 @@ export function browserHandoffCard(
 }
 
 /**
- * The chat's feed with a card after every browser hand-off: after the tool's
- * result once it has one, else right after the call. While the hand-off waits
- * the card owns the turn's progress, so no thinking line sits under it.
+ * The chat's feed with a card after every browser hand-off, laid out by the
+ * SDK (`browserHandoffFeedRows`): after the tool's result once it has one,
+ * else right after the call, and in the same place before and after the turn
+ * ends. A reply of the card's turn sits under the card; while the hand-off
+ * waits the SDK marks it `settled` (nothing streams into it then), so it is
+ * drawn as finished text, and the card owns the turn's progress: no thinking
+ * line under it, no streaming reply after it.
  */
 export function withBrowserHandoffCards(
   items: readonly FeedItem[],
   turnRunning: boolean,
   conversationId: string,
 ): FeedItem[] {
-  const cards = browserHandoffCards(items, turnRunning);
-  if (cards.length === 0) return [...items];
-  const after = new Map<number, BrowserHandoffCardModel[]>();
-  for (const card of cards) {
-    const list = after.get(card.anchorIndex) ?? [];
-    list.push(card);
-    after.set(card.anchorIndex, list);
-  }
-  const out: FeedItem[] = [];
-  items.forEach((item, index) => {
-    out.push(item);
-    for (const card of after.get(index) ?? []) {
-      const payload: BrowserHandoffCardPayload = { ...card, conversationId };
-      out.push({
-        feed_type: "host_card",
-        id: card.key,
-        data: {
-          kind: BROWSER_HANDOFF_CARD,
-          payload,
-          ...(card.state === "waiting" ? { ownsProgress: true } : {}),
-        },
-      });
+  const rows = browserHandoffFeedRows(items, turnRunning);
+  if (!rows.some((row) => row.kind === "card")) return [...items];
+  return rows.map((row): FeedItem => {
+    if (row.kind === "item") {
+      const item = items[row.index];
+      return row.settled && item.feed_type === "assistant_text_streaming"
+        ? { ...item, feed_type: "assistant_text" }
+        : item;
     }
+    const { card } = row;
+    const payload: BrowserHandoffCardPayload = { ...card, conversationId };
+    return {
+      feed_type: "host_card",
+      id: card.key,
+      data: {
+        kind: BROWSER_HANDOFF_CARD,
+        payload,
+        ...(card.state === "waiting" ? { ownsProgress: true } : {}),
+      },
+    };
   });
-  return out;
 }

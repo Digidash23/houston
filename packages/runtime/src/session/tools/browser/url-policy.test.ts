@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { BrowserToolError } from "./errors";
+import { fenceRefusal } from "./fence-refusals";
 import type { PrivateNetworks } from "./ip-ranges";
 import {
+  BLOCKED_ON_PURPOSE,
   blockedHost,
   checkBrowserUrl,
   isBlockedHost,
@@ -167,6 +169,46 @@ describe("checkBrowserUrl", () => {
   test("an empty or unparseable address is an invalid action", () => {
     expect(code("")).toBe("invalid_action");
     expect(code("https://exa mple.com")).toBe("invalid_action");
+  });
+});
+
+describe("a refusal", () => {
+  /** The message `raw` is refused with. */
+  function refusal(raw: string): string {
+    try {
+      checkBrowserUrl(raw, "blocked");
+    } catch (error) {
+      return (error as BrowserToolError).message;
+    }
+    return "allowed";
+  }
+
+  test("says a non-public address is blocked on purpose, not to be fetched another way", () => {
+    expect(BLOCKED_ON_PURPOSE).toMatch(/blocked on purpose/);
+    expect(BLOCKED_ON_PURPOSE).toMatch(/shell, curl or code/);
+    for (const message of [
+      refusal("http://169.254.169.254/"),
+      refusal("http://metadata.google.internal/"),
+      refusal("http://10.1.2.3/"),
+      fenceRefusal("rebind.example.com").message,
+      fenceRefusal("10.0.0.5").message,
+    ]) {
+      expect(message).toContain(BLOCKED_ON_PURPOSE);
+      expect(message).not.toMatch(/\u2014/);
+    }
+  });
+
+  test("leaves this machine's own addresses to the shell", () => {
+    // On desktop that is the person's own local server.
+    for (const message of [
+      refusal("http://127.0.0.1:3000/"),
+      refusal("http://localhost:5173/"),
+      fenceRefusal("127.0.0.1").message,
+      fenceRefusal("localhost").message,
+    ]) {
+      expect(message).toMatch(/this computer|not on the public web/);
+      expect(message).not.toContain(BLOCKED_ON_PURPOSE);
+    }
   });
 });
 

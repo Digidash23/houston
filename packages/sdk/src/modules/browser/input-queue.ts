@@ -114,3 +114,14 @@ export function forRetry(
 ): BrowserLiveInput[] {
   return events.filter((e, i) => !isMove(e) || i === events.length - 1);
 }
+
+/** Queue `event`: text split to fit a batch, each part folded into the last. */
+export function enqueue(queue: BrowserLiveInput[], event: BrowserLiveInput) {
+  const parts = event.type === "text" ? textEvents(event.text) : [event];
+  for (const part of parts) {
+    const last = queue.at(-1);
+    const fold = last ? merged(last, part) : null;
+    if (fold) queue[queue.length - 1] = fold;
+    else queue.push(part);
+  }
+}

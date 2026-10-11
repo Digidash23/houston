@@ -6,16 +6,18 @@
  * a time, in the person's order, each stamped `batch: { viewer, seq }`; a
  * retry re-sends the same seq so a batch the runtime already applied is not
  * applied twice. A frame ack never waits behind a stuck batch: it goes alone
- * on its own lane. Every POST times out after `BROWSER_LIVE_INPUT_TIMEOUT_MS`,
- * as a network failure would.
+ * on its own lane, paced by {@link ackPacer}. Every POST times out after
+ * `BROWSER_LIVE_INPUT_TIMEOUT_MS`, as a network failure would.
  */
 
 import type {
   BrowserLiveInput,
   BrowserLiveInputAnswer,
   BrowserLiveInputRequest,
+  BrowserLiveWindow,
 } from "@houston/wire-types";
 import type { Clock } from "../../ports";
+import { ackPacer } from "./ack-pace";
 import { finishWaiters } from "./finish-waiters";
 import {
   backOff,
@@ -24,7 +26,7 @@ import {
   inputLane,
   timedPost,
 } from "./input-lane";
-import { batchSize, forRetry, merged, textEvents } from "./input-queue";
+import { batchSize, enqueue, forRetry } from "./input-queue";
 import { type BrowserLiveFailure, classifyLiveFailure } from "./live-failure";
 import type { BrowserLiveFinishResult } from "./types";
 
@@ -53,10 +55,12 @@ export function createInputBatcher(deps: InputBatcherDeps) {
   const finish = finishWaiters();
   const events = inputLane();
   const acks = inputLane();
+  const pacer = ackPacer(clock, () => pump());
 
-  const ackDue = () => {
-    const covered = Math.max(acked, events.ack ?? 0, acks.ack ?? 0);
-    return received > covered ? received : null;
+  const covered = () => Math.max(acked, events.ack ?? 0, acks.ack ?? 0);
+  const noteAcked = (seq: number) => {
+    acked = Math.max(acked, seq);
+    pacer.acked(acked);
   };
 
   /**
@@ -80,7 +84,7 @@ export function createInputBatcher(deps: InputBatcherDeps) {
         if (stopped) return;
         l.failures = 0;
         l.reported = false;
-        if (request.ack) acked = Math.max(acked, request.ack.seq);
+        if (request.ack) noteAcked(request.ack.seq);
         onSent();
         deps.onAnswer(answer);
         pump();
@@ -119,8 +123,8 @@ export function createInputBatcher(deps: InputBatcherDeps) {
       request.events = batch.events;
       request.batch = { viewer: deps.viewer, seq: batch.seq };
     }
-    const ack = ackDue();
-    if (ack !== null) request.ack = { viewer: deps.viewer, seq: ack };
+    if (received > covered())
+      request.ack = { viewer: deps.viewer, seq: received };
     if (finishing) request.finish = finishing;
     const settled = (result: BrowserLiveFinishResult) => () => {
       if (request.events) batch = null;
@@ -131,16 +135,14 @@ export function createInputBatcher(deps: InputBatcherDeps) {
 
   const pumpAck = (handoff: string) => {
     if (acks.busy || acks.timer !== null) return;
-    const ack = ackDue();
-    if (ack === null) return;
+    if (!pacer.ready(covered())) return;
+    const ack = received;
     send(
       acks,
       { handoff, ack: { viewer: deps.viewer, seq: ack } },
       () => {},
       // A refused ack is not re-sent; the next frame's ack supersedes it.
-      () => {
-        acked = Math.max(acked, ack);
-      },
+      () => noteAcked(ack),
     );
   };
 
@@ -153,23 +155,20 @@ export function createInputBatcher(deps: InputBatcherDeps) {
   return {
     send(event: BrowserLiveInput): void {
       if (stopped) return;
-      const parts = event.type === "text" ? textEvents(event.text) : [event];
-      for (const part of parts) {
-        const last = queue.at(-1);
-        const fold = last ? merged(last, part) : null;
-        if (fold) queue[queue.length - 1] = fold;
-        else queue.push(part);
-      }
+      enqueue(queue, event);
       pump();
     },
-    /** The hand-off the stream's first status named: sending starts. */
-    known(id: string): void {
+    /** A status named the hand-off (sending starts) and the runtime's window. */
+    known(id: string, window?: BrowserLiveWindow): void {
       handoff ??= id;
+      pacer.windowed(window);
       pump();
     },
-    /** The highest frame `seq` received; rides the next POST or goes alone. */
-    ack(seq: number): void {
-      if (seq > received) received = seq;
+    /** Frame `seq` (`bytes` of base64) arrived: its ack rides along, paced. */
+    ack(seq: number, bytes: number): void {
+      if (seq <= received) return;
+      received = seq;
+      pacer.received(seq, bytes);
       pump();
     },
     /** Waits for the hand-off to be known (or the view to close) first. */
@@ -189,6 +188,7 @@ export function createInputBatcher(deps: InputBatcherDeps) {
       batch = null;
       clearLane(events, clock);
       clearLane(acks, clock);
+      pacer.stop();
       finish.settle(result);
     },
   };

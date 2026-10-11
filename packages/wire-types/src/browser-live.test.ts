@@ -33,6 +33,8 @@ describe("parseBrowserLiveEvent", () => {
       expiresAt: 1,
     };
     expect(parseBrowserLiveEvent(status)).toEqual(status);
+    const windowed = { ...status, window: { frames: 8, bytes: 327_680 } };
+    expect(parseBrowserLiveEvent(windowed)).toEqual(windowed);
   });
 
   it("drops fields outside the contract", () => {
@@ -66,6 +68,19 @@ describe("parseBrowserLiveEvent", () => {
       expiresAt: Infinity,
     },
     { type: "status", state: "done", text: "", expiresAt: 1 },
+    ...[
+      { frames: 0, bytes: 1 },
+      { frames: 2, bytes: -1 },
+      { frames: 2 },
+      3,
+    ].map((window) => ({
+      type: "status",
+      handoffId: "handoff-1",
+      state: "waiting",
+      text: "",
+      expiresAt: 1,
+      window,
+    })),
     {
       type: "status",
       handoffId: "short",

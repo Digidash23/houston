@@ -96,11 +96,13 @@ describe("the browser live input's retries", () => {
     const h = liveHarness();
     h.known();
     h.streams[0].onEvent(frame(1));
+    await h.advance(250);
     h.posts[0].reject(httpError(400, "{}"));
     await flush();
     await h.advance(1000);
     expect(h.posts).toHaveLength(1);
     h.streams[0].onEvent(frame(2));
+    await h.advance(250);
     expect(h.posts[1].request).toEqual({
       handoff: HANDOFF,
       ack: { viewer: "viewer_12345", seq: 2 },
@@ -141,6 +143,7 @@ describe("the browser live input's retries", () => {
     h.posts[0].reject(refusal);
     await flush();
     h.streams[0].onEvent(frame(1));
+    await h.advance(250);
     expect(h.posts[1].request).toEqual({
       handoff: HANDOFF,
       ack: { viewer: "viewer_12345", seq: 1 },

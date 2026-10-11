@@ -11,8 +11,11 @@ shows a card naming the site with an Open button, and Open shows the live
 page: the person taps, types and scrolls on it, then presses I'm done (or
 Cancel), and the employee carries on from that page. Passwords never pass
 through the chat. On phones the page opens as a full-height sheet sized for
-the phone; on desktop as a large dialog. After the hand-off the card keeps
-how it ended: done, not finished, time ran out, or no longer waiting.
+the phone; on desktop as a large dialog. The card stays in one place while
+the employee works and after it finishes, with the employee's reply under
+it, and while the card waits that reply stays still. After the hand-off the
+card keeps how it ended: done, not finished, time ran out, or no longer
+waiting.
 
 ## v129 - 2026-10-10
 

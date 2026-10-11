@@ -4,7 +4,8 @@
  * stream, input up in POST batches). Both routes are runtime-proxy members
  * under `/agents/:agentId/conversations/:conversationId/browser/`.
  *
- * Which chat item is a hand-off, and how it ended, is `./handoff-card.ts`
+ * Which chat item is a hand-off, and how it ended, is `./handoff-card.ts`;
+ * where its card sits, `./handoff-layout.ts`
  * (published as `@houston/sdk/browser-handoff`).
  */
 

@@ -36,8 +36,8 @@
       "import": "./src/modules/agents/first-day-refusal.ts"
     },
     "./browser-handoff": {
-      "types": "./src/modules/browser/handoff-card.ts",
-      "import": "./src/modules/browser/handoff-card.ts"
+      "types": "./src/modules/browser/handoff-layout.ts",
+      "import": "./src/modules/browser/handoff-layout.ts"
     },
     "./mission-started-by": {
       "types": "./src/modules/activities/started-by.ts",

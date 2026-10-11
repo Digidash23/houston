@@ -116,6 +116,10 @@ describe.skipIf(!available)(
         ok: false,
         error: { code: "url_refused" },
       });
+      // This machine's own server is not called blocked on purpose: on
+      // desktop the agent may still reach the person's local server by shell.
+      for (const refused of [bounced, direct])
+        expect(refused.text).not.toContain("blocked on purpose");
       // The page's own images, redirected images and fetches are fenced too.
       const sneaky = await run({ action: "open", url: `${origin}/sneaky` });
       expect(sneaky.text).toContain("Hello");

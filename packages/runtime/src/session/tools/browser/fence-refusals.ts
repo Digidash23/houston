@@ -3,12 +3,13 @@ import { BrowserToolError } from "./errors";
 import type { FenceProxy } from "./fence-proxy";
 import { FENCE_HEADER } from "./fence-wire";
 import type { BrowserTab } from "./open-tab";
+import { refusalText } from "./url-policy";
 
 /** Each launched browser's fence proxy (launch.ts binds them). */
 const fences = new WeakMap<Browser, FenceProxy>();
 
-/** Tabs whose page the fence stopped since their last action began. */
-const refusedTabs = new WeakSet<BrowserTab>();
+/** Tabs whose page the fence stopped since their last action began, and the host. */
+const refusedTabs = new WeakMap<BrowserTab, string>();
 
 export function bindFence(browser: Browser, proxy: FenceProxy): void {
   fences.set(browser, proxy);
@@ -50,17 +51,19 @@ export function watchFence(tab: BrowserTab): void {
   const fence = fenceOf(tab);
   if (!fence) return;
   tab.context.on("requestfailed", (request) => {
-    if (isPageNavigation(request) && fence.refused(hostOf(request.url())))
-      refusedTabs.add(tab);
+    const host = hostOf(request.url());
+    if (isPageNavigation(request) && fence.refused(host))
+      refusedTabs.set(tab, host);
   });
   tab.context.on("response", (response) => {
     const request = response.request();
+    const host = hostOf(request.url());
     if (
       isPageNavigation(request) &&
       response.headers()[FENCE_HEADER] === "refused" &&
-      fence.refused(hostOf(request.url()))
+      fence.refused(host)
     )
-      refusedTabs.add(tab);
+      refusedTabs.set(tab, host);
   });
 }
 
@@ -69,23 +72,29 @@ export function clearFenceRefusal(tab: BrowserTab): void {
   refusedTabs.delete(tab);
 }
 
-const FENCE_REFUSAL =
-  "That address is not on the public web, so the browser did not open it.";
-
-/** The model's refusal for a page the fence stopped. */
-export function fenceRefusal(): BrowserToolError {
-  return new BrowserToolError("url_refused", FENCE_REFUSAL);
+/** The model's refusal for a page on `host` the fence stopped. */
+export function fenceRefusal(host: string): BrowserToolError {
+  return new BrowserToolError(
+    "url_refused",
+    refusalText(
+      "That address is not on the public web, so the browser did not open it.",
+      host,
+    ),
+  );
 }
 
 /**
- * Whether the fence stopped this tab's page since the action began, or
- * refused `host` (the address an `open` asked for) just now. Reading it
- * clears it.
+ * The host the fence stopped this tab's page on since the action began, or
+ * `host` (the address an `open` asked for) when the fence refused it just
+ * now; null when neither. Reading it clears it.
  */
-export function takeFenceRefusal(tab: BrowserTab, host?: string): boolean {
-  const hit =
-    refusedTabs.has(tab) ||
-    (host !== undefined && fenceOf(tab)?.refused(host) === true);
+export function takeFenceRefusal(
+  tab: BrowserTab,
+  host?: string,
+): string | null {
+  const refused =
+    refusedTabs.get(tab) ??
+    (host !== undefined && fenceOf(tab)?.refused(host) === true ? host : null);
   refusedTabs.delete(tab);
-  return hit;
+  return refused;
 }

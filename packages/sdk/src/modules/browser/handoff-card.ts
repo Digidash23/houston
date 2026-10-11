@@ -3,9 +3,7 @@
  * the person, or how it ended. Pure over the feed a surface already holds; the
  * outcome is read from the `browser` tool's own result (`ERROR handoff_*:`),
  * so no wire field was added for it.
- *
- * Published as `@houston/sdk/browser-handoff` so the app's pure feed mapping
- * imports it without the SDK barrel.
+ * Where the cards sit in the chat: `handoff-layout.ts`.
  */
 
 import { browserHandoffFailureOf } from "@houston/wire-types";

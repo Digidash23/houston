@@ -40,6 +40,7 @@ describe("the live view names its hand-off on everything it sends", () => {
     h.known();
     h.connection.send({ type: "back" });
     h.streams[0].onEvent(frame(1));
+    await h.advance(250);
     const finished = h.connection.finish("cancel");
     h.posts[0].resolve({ state: "waiting" });
     h.posts[1].resolve({ state: "waiting" });

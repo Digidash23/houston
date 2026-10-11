@@ -9,6 +9,7 @@ import {
   type BrowserHandoffFailure,
   type BrowserLiveEvent,
   type BrowserLiveInputAnswer,
+  type BrowserLiveWindow,
 } from "./browser-live";
 import {
   count,
@@ -55,10 +56,21 @@ export function parseBrowserLiveEvent(value: unknown): BrowserLiveEvent {
         state: body.state,
         text: text(body.text, "browser live status text"),
         expiresAt: count(body.expiresAt, "browser live status expiresAt"),
+        ...(body.window === undefined
+          ? {}
+          : { window: liveWindow(body.window) }),
       };
     default:
       throw new Error("Invalid browser live event type");
   }
+}
+
+function liveWindow(value: unknown): BrowserLiveWindow {
+  const body = record(value, "browser live status window");
+  const frames = count(body.frames, "browser live window frames");
+  const bytes = count(body.bytes, "browser live window bytes");
+  if (frames < 1 || bytes < 1) throw new Error("Invalid browser live window");
+  return { frames, bytes };
 }
 
 /** The input POST's `200` answer, or a throw. */

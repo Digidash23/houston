@@ -1,4 +1,7 @@
-import type { BrowserLiveEvent } from "@houston/wire-types";
+import {
+  BROWSER_LIVE_FRAME_WINDOW,
+  type BrowserLiveEvent,
+} from "@houston/wire-types";
 import type { Page } from "playwright-core";
 import { expect, test } from "vitest";
 import { LiveInput } from "./input";
@@ -158,14 +161,17 @@ test("a viewer's frame window carries across a page switch; the old page's late 
   );
   expect(sessions[0]?.detached).toBe(true);
   sessions[0]?.paint("OLD");
-  sessions[1]?.paint("B");
-  sessions[1]?.paint("C");
-  // A and B fill the window of two; C waits for an ack.
-  expect(frames()).toEqual(["A", "B"]);
+  const fill = Array.from(
+    { length: BROWSER_LIVE_FRAME_WINDOW - 1 },
+    (_, i) => `B${i + 1}`,
+  );
+  for (const jpeg of [...fill, "C"]) sessions[1]?.paint(jpeg);
+  // A and the new page's frames fill the window; C waits for an ack.
+  expect(frames()).toEqual(["A", ...fill]);
   expect(seen.filter((e) => e.type === "page").at(-1)).toMatchObject({
     url: "https://accounts.test/sign-in",
   });
-  session.ack("viewer-0001", 2);
-  expect(frames()).toEqual(["A", "B", "C"]);
+  session.ack("viewer-0001", BROWSER_LIVE_FRAME_WINDOW);
+  expect(frames()).toEqual(["A", ...fill, "C"]);
   session.finish("done");
 });

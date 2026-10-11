@@ -151,7 +151,8 @@ export function getChatDisplayItems(
  * is on screen it ALREADY surfaces "Thinking..." or the current step, so the
  * standalone line would duplicate it. Show the indicator only while a turn is
  * `submitted` AND no active process block, nor a host card that shows its own
- * progress, is trailing.
+ * progress, is trailing. Finished assistant text after such a card (a reply
+ * the host placed under it) still leaves the progress to the card.
  */
 export function shouldShowThinkingIndicator(
   items: ChatDisplayItem[],
@@ -159,7 +160,19 @@ export function shouldShowThinkingIndicator(
 ): boolean {
   if (status !== "submitted") return false;
   const last = items[items.length - 1];
-  if (last?.kind === "message" && last.message.hostCard?.ownsProgress)
-    return false;
-  return !(last?.kind === "process" && last.isActive);
+  if (last?.kind === "process" && last.isActive) return false;
+  return !progressCardTrails(items);
+}
+
+/** Whether a progress-owning host card ends the log, past finished replies. */
+function progressCardTrails(items: ChatDisplayItem[]): boolean {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i];
+    if (item.kind !== "message") return false;
+    if (item.message.hostCard)
+      return item.message.hostCard.ownsProgress === true;
+    if (item.message.from !== "assistant" || item.message.isStreaming)
+      return false;
+  }
+  return false;
 }

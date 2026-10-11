@@ -3,9 +3,12 @@
  * fake `watch`/`input` operations whose every call the test settles.
  */
 
-import type {
-  BrowserLiveInputAnswer,
-  BrowserLiveInputRequest,
+import {
+  BROWSER_LIVE_FRAME_WINDOW,
+  BROWSER_LIVE_FRAME_WINDOW_BYTES,
+  type BrowserLiveInputAnswer,
+  type BrowserLiveInputRequest,
+  type BrowserLiveWindow,
 } from "@houston/wire-types";
 import { vi } from "vitest";
 import type { Clock } from "../../ports";
@@ -66,6 +69,11 @@ function deferred<T>(): Deferred<T> & { promise: Promise<T> } {
 
 /** The hand-off id {@link liveHarness}'s `known()` names by default. */
 export const HANDOFF = "handoff-1";
+/** The window {@link liveHarness}'s `known()` advertises by default. */
+export const WINDOW: BrowserLiveWindow = {
+  frames: BROWSER_LIVE_FRAME_WINDOW,
+  bytes: BROWSER_LIVE_FRAME_WINDOW_BYTES,
+};
 
 export function httpError(status: number, body = "") {
   return Object.assign(new Error(`engine ${status}`), { status, body });
@@ -105,14 +113,22 @@ export function liveHarness() {
     handlers,
   };
   const connection = openBrowserLiveConnection(deps);
-  /** The latest stream's first status: names the hand-off, so input flows. */
-  const known = (handoffId = HANDOFF, state: "waiting" | "done" = "waiting") =>
+  /**
+   * The latest stream's first status: names the hand-off, so input flows, and
+   * advertises `window` (null: none, as a runtime older than the field).
+   */
+  const known = (
+    handoffId = HANDOFF,
+    state: "waiting" | "done" = "waiting",
+    window: BrowserLiveWindow | null = WINDOW,
+  ) =>
     streams.at(-1)?.onEvent({
       type: "status",
       handoffId,
       state,
       text: "Sign in",
       expiresAt: 600_000,
+      ...(window ? { window } : {}),
     });
   return {
     connection,

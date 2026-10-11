@@ -129,6 +129,62 @@ describe("browser hand-off cards in the feed", () => {
     strictEqual(card.ownsProgress, undefined);
   });
 
+  it("draws the reply under a waiting card as finished, not streaming", () => {
+    const items = [
+      user("Go"),
+      { feed_type: "assistant_text_streaming", data: "Please sign in." },
+      call("browser", handoff("https://bank.example.com"), "c1"),
+    ] as FeedItem[];
+    const out = withBrowserHandoffCards(items, true, "c");
+    deepStrictEqual(
+      out.map((item) => item.feed_type),
+      ["user_message", "tool_call", "host_card", "assistant_text"],
+    );
+    strictEqual(out.at(-1)?.data, "Please sign in.");
+    // Once handed back, the reply streams again where it sits.
+    const back = withBrowserHandoffCards(
+      [...items, result("browser", "The person finished")],
+      true,
+      "c",
+    );
+    strictEqual(back.at(-1)?.feed_type, "assistant_text_streaming");
+  });
+
+  it("stays in one place across the turn's end, the reply after it", () => {
+    const text = (feed_type: "assistant_text" | "assistant_text_streaming") =>
+      ({ feed_type, data: "Please sign in. Done, you are in." }) as FeedItem;
+    const order = (items: FeedItem[], running: boolean) =>
+      withBrowserHandoffCards(items, running, "c").map((item) =>
+        item.feed_type === "host_card" ? "card" : item.feed_type,
+      );
+    const hand = call("browser", handoff("https://bank.example.com"));
+    const back = result("browser", "The person finished");
+    const later = call("browser", { action: "snapshot" });
+    const page = result("browser", "page");
+    // Live: the reply streams into one entry, placed where it started.
+    const running = order(
+      [user("Go"), text("assistant_text_streaming"), hand, back, later, page],
+      true,
+    );
+    // Settled: the transcript puts the reply after the tools.
+    const settled = order(
+      [user("Go"), hand, back, later, page, text("assistant_text")],
+      false,
+    );
+    const shape = (rows: string[]) =>
+      rows.map((row) => row.replace("_streaming", ""));
+    deepStrictEqual(shape(running), shape(settled));
+    deepStrictEqual(shape(settled), [
+      "user_message",
+      "tool_call",
+      "tool_result",
+      "card",
+      "tool_call",
+      "tool_result",
+      "assistant_text",
+    ]);
+  });
+
   it("leaves a feed without hand-offs alone and ignores other host cards", () => {
     const items = [
       user("Hi"),

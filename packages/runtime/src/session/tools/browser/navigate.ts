@@ -2,7 +2,7 @@ import type { Page } from "playwright-core";
 import { BrowserToolError } from "./errors";
 import { fenceRefusal, takeFenceRefusal } from "./fence-refusals";
 import type { BrowserTab } from "./open-tab";
-import { landedSafely } from "./url-policy";
+import { landedSafely, refusalText } from "./url-policy";
 
 /** Give a page a moment to finish loading; slow pages are still usable. */
 export async function settle(page: Page): Promise<void> {
@@ -18,9 +18,10 @@ export async function settle(page: Page): Promise<void> {
  * fence proxy stopped it (fence-refusals.ts), or it landed on a refused name.
  */
 export async function guardLanding(tab: BrowserTab): Promise<void> {
-  if (takeFenceRefusal(tab)) {
+  const fenced = takeFenceRefusal(tab);
+  if (fenced !== null) {
     await tab.page.goto("about:blank");
-    throw fenceRefusal();
+    throw fenceRefusal(fenced);
   }
   const url = tab.page.url();
   if (landedSafely(url)) return;
@@ -33,7 +34,10 @@ export async function guardLanding(tab: BrowserTab): Promise<void> {
   await tab.page.goto("about:blank");
   throw new BrowserToolError(
     "url_refused",
-    "That page sent the browser somewhere it may not go, so it was stopped.",
+    refusalText(
+      "That page sent the browser somewhere it may not go, so it was stopped.",
+      URL.canParse(url) ? new URL(url).hostname : "",
+    ),
   );
 }
 
@@ -62,7 +66,8 @@ export async function openUrl(tab: BrowserTab, href: string): Promise<void> {
   try {
     await goto(tab.page, href);
   } catch (error) {
-    if (takeFenceRefusal(tab, new URL(href).hostname)) throw fenceRefusal();
+    const fenced = takeFenceRefusal(tab, new URL(href).hostname);
+    if (fenced !== null) throw fenceRefusal(fenced);
     throw error;
   }
 }

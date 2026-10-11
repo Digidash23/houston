@@ -14,7 +14,7 @@ import { type InputOutcome, LiveInput } from "./input";
 import { applyLayout } from "./layout";
 import { warnUnlessClosed } from "./page-errors";
 import { Screencast } from "./screencast";
-import { ViewerWindow } from "./viewer-window";
+import { VIEWER_WINDOW, ViewerWindow } from "./viewer-window";
 
 export interface HandoffInit {
   conversationId: string;
@@ -88,6 +88,7 @@ export class HandoffSession {
       state: this.state,
       text: this.text,
       expiresAt: this.expiresAt,
+      window: VIEWER_WINDOW,
     };
   }
 
@@ -119,7 +120,7 @@ export class HandoffSession {
     if (this.state !== "waiting") return () => undefined;
     this.viewers.set(viewer, stream);
     if (this.latestPage) stream.event(this.latestPage);
-    if (this.latestFrame) stream.frame(this.latestFrame);
+    if (this.latestFrame) stream.replay(this.latestFrame);
     if (layout !== this.tab.layout)
       applyLayout(this.tab, layout).catch(warnUnlessClosed("layout"));
     this.screencast.start();

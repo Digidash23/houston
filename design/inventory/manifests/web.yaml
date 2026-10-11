@@ -147,7 +147,7 @@ components:
 
   chat-browser-handoff-card:
     status: implemented
-    ref: "@houston-ai/chat BrowserHandoffCard; app/src/components/browser/use-browser-handoff-cards.tsx inserts it from @houston/sdk/browser-handoff (app/src/lib/browser-handoff-feed.ts)"
+    ref: "@houston-ai/chat BrowserHandoffCard; app/src/components/browser/use-browser-handoff-cards.tsx lays the feed out with browserHandoffFeedRows from @houston/sdk/browser-handoff (app/src/lib/browser-handoff-feed.ts)"
 
   browser-live-view:
     status: implemented

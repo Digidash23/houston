@@ -765,12 +765,16 @@ components:
     states: [waiting, done, cancelled, expired, ended]
     variants: [with-site, without-site]
     behavior: >-
-      One card per browser hand-off call, placed after the tool's result once
-      it has one, else right after the call. The SDK (browserHandoffCards)
-      decides the state from the feed: waiting only while the turn runs and
-      nothing shows it moved on; the tool's result settles done, cancelled or
-      expired; anything else is ended. While waiting the card owns the turn's
-      progress (no thinking line under it) and Open opens the live browser.
+      One card per browser hand-off call. The SDK (browserHandoffFeedRows)
+      lays out the feed: the card right after the tool's result once it has
+      one, else right after the call, in the same place while the turn runs
+      and after it settles; a reply of the card's turn moves under the card,
+      where the settled transcript puts it, and is drawn as finished text
+      while the card waits. The same rows carry each card's state: waiting
+      only while the turn runs and nothing shows it moved on; the tool's
+      result settles done, cancelled or expired; anything else is ended.
+      While waiting the card owns the turn's progress (no thinking line, no
+      streaming reply under it) and Open opens the live browser.
     a11y: The Open action is visible only while waiting, keyboard reachable, at least 44px high, and its accessible name names the site. The outcome is plain text.
     since: 130
 

@@ -73,6 +73,18 @@ export interface BrowserLiveStatus {
   text: string;
   /** Epoch ms the hand-off expires at. */
   expiresAt: number;
+  /**
+   * The frame window this runtime keeps per viewer. Optional/additive: a
+   * runtime that predates it keeps {@link BROWSER_LIVE_LEGACY_WINDOW}.
+   */
+  window?: BrowserLiveWindow;
+}
+/** How much a runtime sends a viewer before it waits for an ack. */
+export interface BrowserLiveWindow {
+  /** Unacked frames. */
+  frames: number;
+  /** Unacked frame bytes, counted as the frames' base64 `jpeg` length. */
+  bytes: number;
 }
 export type BrowserLiveEvent =
   | BrowserLiveFrame
@@ -126,7 +138,18 @@ export const BROWSER_LIVE_MAX_EVENTS = 64;
 export const BROWSER_LIVE_MAX_TEXT = 10_000;
 export const BROWSER_LIVE_MAX_BODY_BYTES = 64 * 1024;
 /** Unacked frames the runtime keeps in flight per viewer. */
-export const BROWSER_LIVE_FRAME_WINDOW = 2;
+export const BROWSER_LIVE_FRAME_WINDOW = 8;
+/**
+ * Unacked frame bytes (base64 length) the runtime keeps in flight per viewer:
+ * eight full frames would queue over a megabyte, seconds of lag on a slow
+ * link. A single frame larger than this still goes when nothing is unacked.
+ */
+export const BROWSER_LIVE_FRAME_WINDOW_BYTES = 320 * 1024;
+/** The window a runtime that advertises none keeps: two frames, no byte cap. */
+export const BROWSER_LIVE_LEGACY_WINDOW: BrowserLiveWindow = {
+  frames: 2,
+  bytes: Number.POSITIVE_INFINITY,
+};
 /** The client's per-POST timeout for an input batch; a retry reuses its `batch`. */
 export const BROWSER_LIVE_INPUT_TIMEOUT_MS = 15_000;
 

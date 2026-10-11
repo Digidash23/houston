@@ -1,6 +1,10 @@
 import { EventEmitter } from "node:events";
 import type { AddressInfo } from "node:net";
-import type { BrowserLiveEvent } from "@houston/wire-types";
+import {
+  BROWSER_LIVE_FRAME_WINDOW,
+  BROWSER_LIVE_FRAME_WINDOW_BYTES,
+  type BrowserLiveEvent,
+} from "@houston/wire-types";
 import { afterAll, expect, test } from "vitest";
 import { sharedHandoffs } from "../session/tools/browser/live/registry";
 import type { BrowserTab } from "../session/tools/browser/open-tab";
@@ -115,31 +119,41 @@ function events(response: Response) {
 const frames = (seen: BrowserLiveEvent[]) =>
   seen.flatMap((e) => (e.type === "frame" ? [e.jpeg] : []));
 
-test("a viewer gets the status, the page, then frames, two ahead of its acks", async () => {
+test("a viewer gets the status, the page, then frames, a window ahead of its acks", async () => {
   const { conversationId, cdp, session } = handOver();
   const stream = events(await live(conversationId));
   await stream.until(() => cdp.sent.includes("Page.startScreencast"));
-  for (const jpeg of ["A", "B", "C", "D"]) cdp.paint(jpeg);
-  await stream.until(() => frames(stream.seen).length === 2);
+  const painted = Array.from(
+    { length: BROWSER_LIVE_FRAME_WINDOW + 2 },
+    (_, i) => `F${i + 1}`,
+  );
+  for (const jpeg of painted) cdp.paint(jpeg);
+  await stream.until(
+    () => frames(stream.seen).length === BROWSER_LIVE_FRAME_WINDOW,
+  );
   expect(stream.seen.map((e) => e.type)).toEqual([
     "status",
     "page",
-    "frame",
-    "frame",
+    ...Array(BROWSER_LIVE_FRAME_WINDOW).fill("frame"),
   ]);
   expect(stream.seen[1]).toEqual({
     type: "page",
     url: "https://site.test/login",
     title: "Sign in",
   });
-  // The window is full: C was replaced by D while held back.
+  // The window is full: the next frame was replaced by the last while held.
   const answer = await input(conversationId, {
     handoff: session.handoffId,
-    ack: { viewer: "viewer-0001", seq: 2 },
+    ack: { viewer: "viewer-0001", seq: BROWSER_LIVE_FRAME_WINDOW },
   });
   expect(await answer.json()).toEqual({ state: "waiting" });
-  await stream.until(() => frames(stream.seen).length === 3);
-  expect(frames(stream.seen)).toEqual(["A", "B", "D"]);
+  await stream.until(
+    () => frames(stream.seen).length === BROWSER_LIVE_FRAME_WINDOW + 1,
+  );
+  expect(frames(stream.seen)).toEqual([
+    ...painted.slice(0, BROWSER_LIVE_FRAME_WINDOW),
+    painted.at(-1),
+  ]);
   session.finish("cancelled");
   await stream.done;
   expect(stream.seen.at(-1)).toMatchObject({ state: "cancelled" });
@@ -172,6 +186,10 @@ test("finishing ends the hand-off; later input is refused and a late viewer sees
       state: "done",
       text: "Sign in",
       expiresAt: session.expiresAt,
+      window: {
+        frames: BROWSER_LIVE_FRAME_WINDOW,
+        bytes: BROWSER_LIVE_FRAME_WINDOW_BYTES,
+      },
     },
   ]);
 });

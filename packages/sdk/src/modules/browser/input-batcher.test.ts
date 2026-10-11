@@ -66,6 +66,8 @@ describe("the browser live connection's input", () => {
     const h = liveHarness();
     h.known();
     h.streams[0].onEvent(frame(1));
+    expect(h.posts).toHaveLength(0);
+    await h.advance(250);
     expect(h.posts[0].request).toEqual({ handoff: HANDOFF, ack: ack(1) });
     h.streams[0].onEvent(frame(2));
     h.streams[0].onEvent(frame(3));
@@ -88,6 +90,7 @@ describe("the browser live connection's input", () => {
     h.known();
     h.connection.send({ type: "back" });
     h.streams[0].onEvent(frame(7));
+    await h.advance(250);
     expect(h.posts[1].request).toEqual({ handoff: HANDOFF, ack: ack(7) });
   });
 

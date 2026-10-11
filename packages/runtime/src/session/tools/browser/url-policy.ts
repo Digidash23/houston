@@ -46,13 +46,34 @@ export function isBlockedHost(
   return blockedHost(hostname, privateNetworks) !== null;
 }
 
+/**
+ * Said after a refusal of a private-network, metadata or otherwise non-public
+ * address: a model told only "the browser will not open it" reached the same
+ * address with curl from its shell. Never after a refusal of this machine
+ * itself: on desktop that is the person's own local server, which the agent
+ * may still reach with its shell.
+ */
+export const BLOCKED_ON_PURPOSE =
+  "It is blocked on purpose: do not fetch it another way, such as with the shell, curl or code.";
+
+/**
+ * `lead`, plus {@link BLOCKED_ON_PURPOSE} unless `host` names this machine,
+ * where the lead itself says so: "not on the public web" is the prompt's cue
+ * never to fetch an address another way, which must not catch localhost.
+ */
+export function refusalText(lead: string, host: string): string {
+  return blockedHost(host) === "this_machine"
+    ? THIS_MACHINE
+    : `${lead} ${BLOCKED_ON_PURPOSE}`;
+}
+
+const THIS_MACHINE =
+  "That address points at this computer itself, so the browser will not open it.";
+
 const REFUSALS = {
-  this_machine:
-    "That address points at this computer itself, so the browser will not open it.",
-  link_local:
-    "That address is not on the public web, so the browser will not open it.",
-  private_network:
-    "That address is on a private network, not the public web, so the browser will not open it.",
+  this_machine: THIS_MACHINE,
+  link_local: `That address is not on the public web, so the browser will not open it. ${BLOCKED_ON_PURPOSE}`,
+  private_network: `That address is on a private network, not the public web, so the browser will not open it. ${BLOCKED_ON_PURPOSE}`,
 } as const satisfies Record<BlockedKind, string>;
 
 /**
