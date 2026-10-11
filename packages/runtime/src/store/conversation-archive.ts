@@ -132,16 +132,37 @@ export function archiveOlderMessages(
 /** Segments are immutable, so a parsed one is valid until it is deleted. */
 export const segments = new LruCache<string, ChatMessage[]>({ capacity: 8 });
 
+/**
+ * A segment the live file's index names is not on disk. On a pool worker that
+ * means nobody fetched it (turn-archive-fetch.ts); anywhere else the tree lost
+ * it. Either way the read fails: an empty segment would serve a history with
+ * a silent hole, and a repair would ship that hole as the whole transcript.
+ */
+export class ArchiveSegmentMissingError extends Error {
+  constructor(readonly file: string) {
+    super(`archive segment missing: ${file}`);
+    this.name = "ArchiveSegmentMissingError";
+  }
+}
+
 export function readSegment(dir: string, id: string, n: number): ChatMessage[] {
   const file = segmentFileFor(dir, id, n);
   const hit = segments.get(file);
   if (hit) return hit;
+  let raw: string;
+  try {
+    raw = readFileSync(file, "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT")
+      throw new ArchiveSegmentMissingError(file);
+    throw err;
+  }
   let messages: ChatMessage[];
   try {
-    messages = (JSON.parse(readFileSync(file, "utf8")) as SegmentFile).messages;
+    messages = (JSON.parse(raw) as SegmentFile).messages;
   } catch (err) {
-    // A missing or corrupt segment shows as a gap in old history; the live
-    // conversation is unaffected, so log loudly and keep serving.
+    // A corrupt segment (written atomically, so never by Houston) shows as a
+    // gap in old history; the live conversation is unaffected.
     console.error(`[conversations] archive segment unreadable: ${file}`, err);
     messages = [];
   }

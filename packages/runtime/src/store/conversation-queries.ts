@@ -5,6 +5,7 @@ import type {
   ConversationSummary,
 } from "@houston/runtime-client";
 import { sliceTranscript, totalMessageCount } from "./conversation-archive";
+import { historyBounds } from "./conversation-archive-window";
 import { loadConversation, type StoredConversation } from "./conversation-file";
 import { readParsedSummary } from "./conversation-parse-cache";
 
@@ -35,9 +36,7 @@ export function getHistoryAt(
   // Indexes are absolute across the archive segments and the live tail
   // (conversation-archive.ts), so a page before the tail reads a segment.
   const total = totalMessageCount(conv);
-  const end = Math.min(Math.max(window.before ?? total, 0), total);
-  const start =
-    window.limit === undefined ? 0 : Math.max(0, end - window.limit);
+  const { start, end } = historyBounds(total, window);
   return {
     id: conv.id,
     title: conv.title,
