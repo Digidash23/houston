@@ -89,9 +89,10 @@ export function createTurnBackend(
   provider: string,
   deps: TurnBackendDeps,
 ): HarnessBackend {
-  const { workspaceDir, dataDir, turnRoot, workspaceReady } = deps.directories;
+  const { workspaceDir, dataDir, turnRoot, workspaceReady, loadArchive } =
+    deps.directories;
   const commonTools = [
-    ...buildTurnCommonTools(deps.turn, deps.codeSandbox, dataDir),
+    ...buildTurnCommonTools(deps.turn, deps.codeSandbox, dataDir, loadArchive),
     ...buildTurnBrowserTool(
       deps.toolSelection,
       workspaceDir,

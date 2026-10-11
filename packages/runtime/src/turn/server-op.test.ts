@@ -502,6 +502,38 @@ test("a settings claim runs on the worker and syncs settings.json back (never mo
   expect(after.effort).toBe("high");
 });
 
+test("a settings put merges into the stored settings.json (the op downloads it)", async () => {
+  const { storeRoot, agentId, prefix } = await seedAgent();
+  const settingsKey = `${prefix}/workspaces/${agentId}/.houston/runtime/settings.json`;
+  writeFileSync(
+    join(storeRoot, ...settingsKey.split("/")),
+    JSON.stringify({ models: { openai: "x" }, effort: "high" }),
+  );
+  const store = new LocalDirStore(storeRoot);
+  const base = await listen(
+    createTurnServer({ store, token: "", runTurn: noopTurn }),
+  );
+  const { json } = await postOp(
+    base,
+    opBody(agentId, await heartbeatOK(), {
+      kind: "settings",
+      action: "put",
+      input: { activeProvider: "anthropic" },
+    }),
+  );
+  expect(json, JSON.stringify(json)).toMatchObject({ status: 200 });
+  // A filter that skipped the runtime dir would answer (and sync) a fresh
+  // file: the stored model choice and effort would be gone.
+  const stored = JSON.parse(
+    readFileSync(join(storeRoot, ...settingsKey.split("/")), "utf8"),
+  );
+  expect(stored).toEqual({
+    activeProvider: "anthropic",
+    models: { openai: "x" },
+    effort: "high",
+  });
+});
+
 test("an api-key connect that fails connectability pushes nothing and leaves no auth.json", async () => {
   const { storeRoot, agentId, prefix } = await seedAgent();
   const store = new LocalDirStore(storeRoot);

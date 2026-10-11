@@ -144,6 +144,28 @@ describe("team move resume", () => {
     deepStrictEqual(events, ["record:a", "clear:a"]);
   });
 
+  it("settles an agent in neither space and moves on: nothing is left to move", async () => {
+    const events: string[] = [];
+    const result = await drivePendingTeamMove(PENDING, {
+      readAgentMove: () => undefined,
+      recordAgentMove: () => {},
+      updateAgentMoveId: () => {},
+      clearAgentMove: (id) => void events.push(`clear:${id}`),
+      markAgentMoved: (id) => void events.push(`moved:${id}`),
+      resumeAgentMove: async (move) =>
+        move.agentId === "a" ? { outcome: "gone" } : { outcome: "done" },
+      runPostscript: async () => void events.push("folder"),
+    });
+    deepStrictEqual(result, { outcome: "done" });
+    deepStrictEqual(events, [
+      "clear:a",
+      "moved:a",
+      "clear:b",
+      "moved:b",
+      "folder",
+    ]);
+  });
+
   it("leaves a move parked on a taken name to the dialog, never the boot", () => {
     strictEqual(resumableAtBoot(PENDING), true);
     strictEqual(resumableAtBoot({ ...PENDING, refusedAgentId: "b" }), false);

@@ -58,7 +58,7 @@ test("only a migration import takes the agent-import claim", () => {
   expect(opTreeOptions(route("migration/import")).excludes).toBeUndefined();
 });
 
-test("settings and credential ops never download the agent's own folders", () => {
+test("settings and credential ops download exactly the runtime files their handlers touch", () => {
   const settings = {
     kind: "settings",
     action: "put",
@@ -75,23 +75,39 @@ test("settings and credential ops never download the agent's own folders", () =>
     expect(lazy, op.kind).toBeUndefined();
     expect(filter, op.kind).toBeDefined();
     const admits = (rel: string) => filter?.(rel) === true;
-    // The runtime dir, the root context files, the hidden folders and the
-    // store-root files stay: the op reads settings.json beside them.
-    for (const rel of [
-      `${RUNTIME}/settings.json`,
-      `${RUNTIME}/custom-endpoint.json`,
-      `${RUNTIME}/qwen-region.json`,
-      "workspaces/Personal/Bob/CLAUDE.md",
-      "workspaces/Personal/Bob/.agents/skills/x/SKILL.md",
-      "custom-integrations.json",
-    ])
-      expect(admits(rel), `${op.kind} ${rel}`).toBe(true);
-    // A project folder is most of a heavy agent's bytes and no settings or
-    // credential op reads one.
+    // What the settings, endpoint and api-key handlers read or merge into,
+    // in the standing layout and in the per-turn (`data/`) one.
+    for (const dataRel of [RUNTIME, "data"])
+      for (const file of [
+        "settings.json",
+        "custom-endpoint.json",
+        "qwen-region.json",
+        "azure-endpoint.json",
+        "xiaomi-endpoint.json",
+      ])
+        expect(admits(`${dataRel}/${file}`), `${op.kind} ${file}`).toBe(true);
+    // Everything else stays listed (the layout resolves from the listing)
+    // and is never downloaded: project folders, hidden folders, root files,
+    // the runtime's log and its other files, the store root.
     for (const rel of [
       "workspaces/Personal/Bob/render/big.bin",
       "workspaces/Personal/Bob/data/export/report.csv",
       "workspaces/Personal/Bob/uploads/a.png",
+      "workspaces/Personal/Bob/CLAUDE.md",
+      "workspaces/Personal/Bob/huge-root-file.bin",
+      "workspaces/Personal/Bob/.git/objects/pack/p.pack",
+      "workspaces/Personal/Bob/.venv/lib/x.py",
+      "workspaces/Personal/Bob/.agents/skills/x/SKILL.md",
+      "workspaces/Personal/Bob/.houston/activity/activity.json",
+      `${RUNTIME}/runtime.log`,
+      `${RUNTIME}/auth.json`,
+      `${RUNTIME}/claude-login/state.json`,
+      `${RUNTIME}/models-store/x.json`,
+      "workspaces/Personal/Bob/files/.houston/runtime/settings.json",
+      "data/runtime.log",
+      "data/nested/settings.json",
+      "custom-integrations.json",
+      "settings.json",
     ])
       expect(admits(rel), `${op.kind} ${rel}`).toBe(false);
   }

@@ -19,6 +19,7 @@ import {
   recordPendingMove,
   releaseMove,
 } from "../../lib/pending-move";
+import { isExpectedShareError, shareErrorCode } from "../../lib/share-error";
 import {
   addInviteEmails,
   applyMovePoll,
@@ -28,7 +29,6 @@ import {
   finish,
   initialState,
   isDismissable,
-  isExpectedShareError,
   MOVE_POLL_TIMEOUT_MS,
   markInviteFailed,
   markInviteSending,
@@ -41,7 +41,6 @@ import {
   retrySwitch,
   type ShareViaTeamState,
   sendableInvites,
-  shareErrorCode,
   startCreate,
   startMove,
   switchDone,
@@ -119,13 +118,12 @@ export function ShareViaTeamFlow({
   useEffect(() => () => releaseMove(agent.id), [agent.id]);
 
   // Fold each move-status poll into the machine (moving -> switching | failed).
-  // Terminal `done` retires the durable pending-move record — the ONLY event
-  // that does; every other exit leaves it for the boot-time resume.
+  // Only `switching` (a done poll, or `agent_moved`) retires the durable
+  // pending-move record; every other exit leaves it for the boot-time resume.
   useEffect(() => {
     if (!polled) return;
-    if (polled.status === "done") clearPendingMove(agent.id);
     setState((s) => applyMovePoll(s, polled));
-  }, [polled, agent.id]);
+  }, [polled]);
 
   // Wall-clock ceiling on the non-dismissable `moving` step: without it a gateway
   // move that never reaches done/failed strands the user on an un-closable
@@ -147,6 +145,7 @@ export function ShareViaTeamFlow({
   // would 403 `personal_space` on every add. Surface a closable `switchFailed`.
   useEffect(() => {
     if (state.step !== "switching") return;
+    clearPendingMove(agent.id);
     const { team } = state;
     let cancelled = false;
     void (async () => {
@@ -175,7 +174,7 @@ export function ShareViaTeamFlow({
     return () => {
       cancelled = true;
     };
-  }, [state, loadWorkspaces, setCurrentWorkspace, loadAgents]);
+  }, [state, agent.id, loadWorkspaces, setCurrentWorkspace, loadAgents]);
 
   const handleCreate = async (name: string) => {
     try {

@@ -17,8 +17,9 @@ import { MOVE_POLL_TIMEOUT_MS, type TeamRef } from "./share-via-team";
 /**
  * Move one agent of a team move to terminal. The pending record is written
  * BEFORE the POST (so a quit mid-request still resumes) and cleared when the
- * move is done or was refused before anything started (`refused`): only then
- * is there nothing left on the gateway to finish.
+ * move is done, the agent is in neither space (`gone`), or the move was
+ * refused before anything started (`refused`): only then is there nothing
+ * left on the gateway to finish.
  */
 export async function moveTeamAgent(
   agent: { id: string; name: string },
@@ -56,7 +57,7 @@ export async function moveTeamAgent(
       await new Promise((resolve) => setTimeout(resolve, 1_500));
       result = await resumePendingMove(pending, wire);
     }
-    if (result.outcome === "done" || result.outcome === "refused")
+    if (["done", "gone", "refused"].includes(result.outcome))
       clearPendingMove(agent.id);
     else if ("moveId" in result && result.moveId)
       updatePendingMoveId(agent.id, result.moveId);

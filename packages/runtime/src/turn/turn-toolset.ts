@@ -16,6 +16,7 @@ import { makeSaveLearningTool } from "../session/tools/save-learning";
 import { makeSaveRoutineTool } from "../session/tools/save-routine";
 import { makeSuggestActionsTool } from "../session/tools/suggest-actions";
 import { makeSuggestReusableTool } from "../session/tools/suggest-reusable";
+import type { ArchiveLoader } from "./turn-archive-fetch";
 import {
   buildTurnCoordinatorTools,
   turnAssistantOptions,
@@ -121,6 +122,7 @@ export function buildTurnCommonTools(
   turn: TurnSessionRequest,
   codeSandbox: PiBackendDeps["customTools"][number] | null,
   dataDir: string,
+  loadArchive?: ArchiveLoader,
 ): PiBackendDeps["customTools"] {
   return [
     makeAskUserTool(),
@@ -129,7 +131,7 @@ export function buildTurnCommonTools(
     makeSuggestActionsTool(),
     ...(codeSandbox ? [codeSandbox] : []),
     ...buildTurnHostTools(turn),
-    ...buildTurnCoordinatorTools(turn, dataDir),
+    ...buildTurnCoordinatorTools(turn, dataDir, loadArchive),
   ];
 }
 

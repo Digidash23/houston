@@ -2,10 +2,9 @@ import type { AgentMoveStatus, OrgSummary } from "@houston/engine-adapter";
 import {
   canRetryMoveError,
   classifyMoveError,
-  isMoveRefusalCode,
+  isMoveAlreadyDone,
   type MoveErrorKind,
 } from "@houston/sdk";
-import { engineErrorCode } from "./engine-error-code.ts";
 
 /**
  * Pure, DOM-free state machine behind {@link ShareViaTeamFlow} — the
@@ -23,48 +22,6 @@ import { engineErrorCode } from "./engine-error-code.ts";
  * only transition that produces the `invite` step is a completed switch, which
  * is itself only reachable from a `done` move poll.
  */
-
-/**
- * {@link engineErrorCode}, plus the ENGLISH SENTENCE as a last resort — the
- * share flow's own concession, kept here and nowhere else.
- *
- * The C8 gateway predates the `{error, code}` shape for some rejections and
- * answers them with a bare `{error: "<sentence>"}`. The share flow's step
- * machine renders a sentence it does not recognize as a generic failure rather
- * than classifying it, so falling back to it degrades gracefully. Anywhere
- * else, matching a code against an English sentence is a bug waiting for the
- * first reword, so `engineErrorCode` has no such fallback.
- */
-export function shareErrorCode(err: unknown): string | undefined {
-  const code = engineErrorCode(err);
-  if (code !== undefined) return code;
-  const bodyError = (err as { body?: { error?: unknown } } | null | undefined)
-    ?.body?.error;
-  return typeof bodyError === "string" ? bodyError : undefined;
-}
-
-/**
- * True for a gateway error the share flow renders INLINE (a `MoveFailedStep` or
- * an `InviteBadge`): an expected, user-actionable business state, NOT a Houston
- * bug. That is every C8 move refusal the SDK classifies (`isMoveRefusalCode`)
- * plus the invite `already_member`. `call()` silences these (no red bug toast,
- * no Sentry) so the inline surface is the only one; every other failure keeps
- * the generic toast + report.
- */
-export function isExpectedShareError(err: unknown): boolean {
-  const code = shareErrorCode(err);
-  return isMoveRefusalCode(code) || code === "already_member";
-}
-
-/**
- * What a move wire keeps out of Sentry: every expected share state, plus
- * `move_in_progress`, the normal answer when a live move already owns the agent.
- */
-export function isExpectedMoveAnswer(err: unknown): boolean {
-  return (
-    isExpectedShareError(err) || shareErrorCode(err) === "move_in_progress"
-  );
-}
 
 /**
  * Wall-clock ceiling for the `moving` poll. The `moving` step is non-dismissable
@@ -169,12 +126,13 @@ export function startMove(
   return { step: "moving", team: s.team, moveId };
 }
 
-/** The move POST was rejected before a ticket existed (403/409). */
+/** The move POST was rejected (403/409); `agent_moved` means it is done. */
 export function moveRejected(
   s: ShareViaTeamState,
   code: string | null | undefined,
 ): ShareViaTeamState {
   if (s.step !== "confirm" && s.step !== "moveFailed") return s;
+  if (isMoveAlreadyDone(code)) return { step: "switching", team: s.team };
   return { step: "moveFailed", team: s.team, error: classifyMoveError(code) };
 }
 
