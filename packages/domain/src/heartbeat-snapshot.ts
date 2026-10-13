@@ -61,6 +61,12 @@ export interface HeartbeatSnapshot {
   routineRuns: HeartbeatSection<HeartbeatRoutineRun>;
   pausedRoutines: HeartbeatSection<HeartbeatPausedRoutine>;
   done: HeartbeatSection<HeartbeatDone>;
+  /**
+   * The newest timestamp (epoch ms) over every matched item, the ones past
+   * the cap included; null when none carries a readable one. What the "only
+   * when there is news" rule compares (heartbeat-news.ts).
+   */
+  newestMs: number | null;
 }
 
 function capped<T>(items: T[]): HeartbeatSection<T> {
@@ -100,6 +106,11 @@ export function buildHeartbeatSnapshot(
   const runs: HeartbeatRoutineRun[] = [];
   const paused: HeartbeatPausedRoutine[] = [];
   const done: (HeartbeatDone & { at: string })[] = [];
+  let newestMs = Number.NEGATIVE_INFINITY;
+  const seen = (iso: string) => {
+    const ms = Date.parse(iso);
+    if (ms > newestMs) newestMs = ms;
+  };
   for (const data of agents) {
     const agent = data.agentName;
     const waiting = new Set<string>();
@@ -107,6 +118,7 @@ export function buildHeartbeatSnapshot(
       const at = activity.updated_at ?? "";
       if (activity.status === "needs_you") {
         waiting.add(activity.id);
+        seen(at);
         const waitingOn = blockingKind(activity);
         needsYou.push({
           agent,
@@ -115,6 +127,7 @@ export function buildHeartbeatSnapshot(
           at,
         });
       } else if (activity.status === "done" && atOrAfter(at, sinceMs)) {
+        seen(at);
         done.push({ agent, title: activity.title, at });
       }
     }
@@ -124,6 +137,7 @@ export function buildHeartbeatSnapshot(
       const at = run.completed_at ?? run.started_at;
       if (!atOrAfter(at, sinceMs)) continue;
       if (run.activity_id && waiting.has(run.activity_id)) continue;
+      seen(at);
       runs.push({
         agent,
         routine: routineName.get(run.routine_id) ?? run.routine_id,
@@ -134,6 +148,7 @@ export function buildHeartbeatSnapshot(
     }
     for (const routine of data.routines) {
       if (routine.enabled || !routine.auto_paused) continue;
+      seen(routine.auto_paused.at);
       paused.push({
         agent,
         routine: routine.name,
@@ -148,6 +163,7 @@ export function buildHeartbeatSnapshot(
     routineRuns: capped(runs.sort(byAt)),
     pausedRoutines: capped(paused),
     done: capped(done.sort(byAt).map(strip)),
+    newestMs: Number.isFinite(newestMs) ? newestMs : null,
   };
 }
 

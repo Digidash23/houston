@@ -14,6 +14,7 @@ export * from "./first-day-mode";
 export * from "./first-day-prompt";
 export * from "./heartbeat";
 export * from "./heartbeat-clock";
+export * from "./heartbeat-news";
 export * from "./heartbeat-prompt";
 export * from "./heartbeat-snapshot";
 export * from "./job-description";

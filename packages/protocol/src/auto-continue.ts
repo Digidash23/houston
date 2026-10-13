@@ -25,3 +25,27 @@ export function encodeAutoContinue(text: string): string {
 export function isAutoContinue(content: string): boolean {
   return content.startsWith(AUTO_CONTINUE_MARKER);
 }
+
+/**
+ * The marker that tags the AI Manager's daily morning briefing turn.
+ *
+ * It rides INSIDE an auto-continue message, on the line after its blank line,
+ * so every transcript already hides the bubble and the model reads two
+ * leading HTML comments it ignores. Channels (Slack, WhatsApp) recognize a
+ * briefing turn by the exact prefix. The local host and the cloud gateway
+ * both mint these bytes, so the layout is a contract: change it in both.
+ */
+export const HEARTBEAT_MARKER = "<!--houston:heartbeat-->";
+
+const HEARTBEAT_PREFIX = `${AUTO_CONTINUE_MARKER}\n\n${HEARTBEAT_MARKER}\n`;
+
+/** The briefing's hidden user message: `AUTO_CONTINUE_MARKER + "\n\n" +
+ *  HEARTBEAT_MARKER + "\n" + prompt`. */
+export function encodeHeartbeat(prompt: string): string {
+  return encodeAutoContinue(`${HEARTBEAT_MARKER}\n${prompt}`);
+}
+
+/** True for the hidden message of a morning briefing turn. */
+export function isHeartbeat(content: string): boolean {
+  return content.startsWith(HEARTBEAT_PREFIX);
+}

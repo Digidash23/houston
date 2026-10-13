@@ -42,6 +42,7 @@ describe("heartbeat document", () => {
       enabled: false,
       time: "08:00",
       last,
+      lastDeliveredAt: null,
     });
   });
 
@@ -65,9 +66,10 @@ describe("heartbeat document", () => {
         reason: "no provider",
       },
     });
-    expect(JSON.parse(store.files.get(heartbeatDocKey("P")) ?? "")).toEqual(
-      after,
-    );
+    expect(JSON.parse(store.files.get(heartbeatDocKey("P")) ?? "")).toEqual({
+      ...after,
+      lastDeliveredAt: null,
+    });
   });
 });
 

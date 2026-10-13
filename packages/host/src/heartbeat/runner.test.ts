@@ -4,7 +4,12 @@ import {
   saveActivities,
   setPreference,
 } from "@houston/domain";
-import { AUTO_CONTINUE_MARKER, type HoustonEvent } from "@houston/protocol";
+import {
+  AUTO_CONTINUE_MARKER,
+  HEARTBEAT_MARKER,
+  type HoustonEvent,
+  isAutoContinue,
+} from "@houston/protocol";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { Agent, Workspace } from "../domain/types";
 import { LocalPaths } from "../paths";
@@ -108,7 +113,12 @@ describe("the daily tick", () => {
       channel.fireTurn.mock.calls[0] ?? [];
     expect(ctx).toEqual({ workspace: WS, agent: MANAGER });
     expect(conversation).toBe("assistant");
-    expect(text.startsWith(AUTO_CONTINUE_MARKER)).toBe(true);
+    // The exact bytes the cloud gateway also sends; channels key on them.
+    expect(
+      text.startsWith(`${AUTO_CONTINUE_MARKER}\n\n${HEARTBEAT_MARKER}\n`),
+    ).toBe(true);
+    expect(text).toContain("This is your automatic morning check-in.");
+    expect(isAutoContinue(text)).toBe(true);
     expect(text).toContain('Ana: "Invoice"');
     expect(text).toContain("2026-10-10, 08:30");
     expect(pin).toEqual({ mode: "auto" });
@@ -202,8 +212,55 @@ describe("the daily tick", () => {
   });
 });
 
+describe("only when there is news", () => {
+  const nextMorning = () => {
+    now = new Date(now.getTime() + 86_400_000);
+  };
+
+  test("the same waiting mission the next day is quiet", async () => {
+    await saveActivities(vfs, ANA.id, [
+      {
+        id: "m1",
+        title: "Invoice",
+        description: "",
+        status: "needs_you",
+        updated_at: "2026-10-10T06:00:00.000Z",
+      },
+    ]);
+    const r = runner();
+    expect(await r.tick()).toEqual({ kind: "delivered" });
+    nextMorning();
+    expect(await r.tick()).toEqual({ kind: "quiet" });
+    expect(channel.fireTurn).toHaveBeenCalledTimes(1);
+    // A quiet day never moves the baseline: news after the delivery counts.
+    await saveActivities(vfs, ANA.id, [
+      {
+        id: "m2",
+        title: "Report",
+        description: "",
+        status: "done",
+        updated_at: "2026-10-10T12:00:00.000Z",
+      },
+    ]);
+    nextMorning();
+    expect(await r.tick()).toEqual({ kind: "delivered" });
+    const text: string = channel.fireTurn.mock.calls[1]?.[2];
+    expect(text).toContain('Ana: "Report"');
+  });
+
+  test("a failed day keeps the window open from the last delivery", async () => {
+    await seedWaitingMission();
+    const r = runner();
+    channel.fireTurn.mockRejectedValueOnce(new Error("quota"));
+    expect((await r.tick()).kind).toBe("error");
+    nextMorning();
+    // Never delivered: the first briefing still counts any item.
+    expect(await r.tick()).toEqual({ kind: "delivered" });
+  });
+});
+
 describe("brief me now", () => {
-  test("ignores the time and today's run, still honours the busy guard", async () => {
+  test("ignores the time, today's run and the news rule, still honours the busy guard", async () => {
     now = new Date("2026-10-10T03:00:00Z");
     await seedWaitingMission();
     const r = runner();

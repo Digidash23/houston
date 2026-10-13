@@ -1,16 +1,18 @@
 import {
   getPreference,
   heartbeatDue,
+  heartbeatHasNews,
   heartbeatPrompt,
+  heartbeatWindowStart,
   isHeartbeatSnapshotEmpty,
   type LocalClock,
-  loadHeartbeat,
+  loadHeartbeatDoc,
   localClock,
   recordHeartbeatRun,
   resolveTimezone,
 } from "@houston/domain";
 import {
-  encodeAutoContinue,
+  encodeHeartbeat,
   type HeartbeatLast,
   HeartbeatRunStatus,
 } from "@houston/protocol";
@@ -43,7 +45,6 @@ export type HeartbeatOutcome =
   | { kind: typeof HeartbeatRunStatus.Delivered }
   | { kind: typeof HeartbeatRunStatus.Error; reason: string };
 
-const DAY_MS = 86_400_000;
 /** Outlives the local day in any zone, so a date is never fired twice. */
 const LOCK_TTL_SEC = 2 * 86_400;
 
@@ -53,7 +54,8 @@ const reasonOf = (err: unknown) =>
 /**
  * The AI Manager's daily morning briefing: one turn on the manager's own
  * `assistant` conversation, never one per agent. A deterministic snapshot runs
- * first and an empty one records "quiet" without a model call.
+ * first; one with nothing new since the last delivered briefing (or, for
+ * "brief me now", an empty one) records "quiet" without a model call.
  *
  * Attempts run one at a time: a "brief me now" landing on the minute tick
  * waits for it, then meets the turn it started (busy) instead of racing a
@@ -89,7 +91,7 @@ export class HeartbeatRunner {
     const { deps } = this;
     const now = this.now();
     const ws = await deps.store.getOrCreatePersonalWorkspace(deps.userId);
-    const state = await loadHeartbeat(deps.vfs, ws.id);
+    const state = await loadHeartbeatDoc(deps.vfs, ws.id);
     const timezone = resolveTimezone(
       await getPreference(deps.vfs, ws.id, "timezone"),
     );
@@ -104,9 +106,7 @@ export class HeartbeatRunner {
     const ctx: ChannelCtx = { workspace: ws, agent };
     // Never into a running turn: retried on the next tick, nothing recorded.
     if (await deps.channel.busy(ctx)) return { kind: "busy" };
-    const sinceMs = state.last
-      ? Date.parse(state.last.at)
-      : now.getTime() - DAY_MS;
+    const sinceMs = heartbeatWindowStart(state.lastDeliveredAt, now.getTime());
     // Read before the date is burned: a snapshot that throws leaves today
     // unclaimed, so the next tick retries instead of losing the day.
     const snapshot = await collectHeartbeatSnapshot(deps, sinceMs);
@@ -119,7 +119,10 @@ export class HeartbeatRunner {
       ))
     )
       return { kind: "locked" };
-    if (isHeartbeatSnapshotEmpty(snapshot)) {
+    const worthSaying = force
+      ? !isHeartbeatSnapshotEmpty(snapshot)
+      : heartbeatHasNews(snapshot, state.lastDeliveredAt);
+    if (!worthSaying) {
       await this.record(ws, clock, now, { status: HeartbeatRunStatus.Quiet });
       return { kind: HeartbeatRunStatus.Quiet };
     }
@@ -133,7 +136,7 @@ export class HeartbeatRunner {
       await deps.channel.fireTurn(
         ctx,
         ASSISTANT_CONVERSATION_ID,
-        encodeAutoContinue(prompt),
+        encodeHeartbeat(prompt),
         { mode: "auto" },
         { actingUser: deps.userId },
       );
