@@ -4,7 +4,7 @@ import {
   refusesInteractionAnswer,
 } from "../store/interaction-owner";
 import { json } from "./server-http";
-import { startCardOwnerRead } from "./turn-card-owner-read";
+import { type CardOwnerRead, startCardOwnerRead } from "./turn-card-owner-read";
 import type { TurnFilesystemPreparation } from "./turn-filesystem";
 import { TurnSetupError } from "./turn-layout";
 import {
@@ -40,15 +40,15 @@ export async function refuseHydratedTurn(input: {
     turn.actingAs && !turn.routine && !turn.shadow
       ? turn.actingAs.userId
       : undefined;
-  const card = actingUserId
-    ? startCardOwnerRead(
+  let card: CardOwnerRead | undefined;
+  try {
+    if (actingUserId)
+      card = startCardOwnerRead(
         turn,
         input.preparation.filesystem,
         input.resolved,
         timings,
-      )
-    : undefined;
-  try {
+      );
     await input.preparation.hydrated;
     timings.t_hydrated = performance.now();
     if (card && refusesInteractionAnswer(await card.messages(), actingUserId)) {
@@ -61,7 +61,9 @@ export async function refuseHydratedTurn(input: {
     if (refused) throw new TurnSetupError("message_refused", refused);
     return false;
   } catch (error) {
-    // The turn root is removed behind this throw; the card read writes there.
+    // The turn root is removed behind this throw and the card read writes
+    // there: stop it (a store read has no deadline), then wait.
+    card?.abort();
     await card?.settled;
     await reportAbandonedTurnStartup(input.startup);
     throw error;

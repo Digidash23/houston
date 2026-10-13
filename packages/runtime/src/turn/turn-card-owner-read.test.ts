@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import {
   AGENT,
   closeTurnServers,
@@ -130,3 +130,57 @@ test("a turn with no card to judge still reports the step", async () => {
   expect(timings.card_checked).toBeTypeOf("number");
   expect(timings.card_read).toBeUndefined();
 });
+
+test("a stale inlined listing with live-read bytes still refuses another member", async () => {
+  // The listing predates the card, but the bytes were read under the claim.
+  const out = await pooledTurn(
+    "c1",
+    { actingAs: { userId: OTHER } },
+    undefined,
+    { stalePrefetch: true, conversationNotInlined: true },
+  );
+
+  expect(out.res.status).toBe(403);
+  expect(out.reads).toEqual({ full: 1, notModified: 0 });
+});
+
+test("the read is conditioned on the inlined bytes' own generation", async () => {
+  // A write landed between the gateway's listing (generation 1) and its read
+  // of the bytes (generation 2): the store is still at the bytes' generation.
+  const out = await pooledTurn(
+    "c1",
+    { actingAs: { userId: OWNER } },
+    undefined,
+    { currentPrefetch: true, inlinedGeneration: "2", storeGeneration: "2" },
+  );
+
+  expect(out.res.status).toBe(200);
+  expect(out.reads).toEqual({ full: 0, notModified: 1 });
+});
+
+test("a hydration failure is answered promptly while the card read hangs", async () => {
+  const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    const started = performance.now();
+    const out = await pooledTurn(
+      "c1",
+      { actingAs: { userId: OTHER } },
+      undefined,
+      {
+        stalePrefetch: true,
+        hangReread: true,
+        failLive: `${AGENT}/.houston/activity/activity.json`,
+      },
+    );
+
+    expect(out.order).toContain("conversation-reread");
+    expect(out.res.status).toBe(500);
+    expect(JSON.parse(out.text)).toMatchObject({
+      error: expect.stringContaining("failed (403)"),
+    });
+    expect(out.runTurn).not.toHaveBeenCalled();
+    expect(performance.now() - started).toBeLessThan(2000);
+  } finally {
+    errorLog.mockRestore();
+  }
+}, 5000);

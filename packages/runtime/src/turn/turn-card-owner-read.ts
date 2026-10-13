@@ -15,6 +15,8 @@ export interface CardOwnerRead {
   messages: () => Promise<ChatMessage[]>;
   /** Settles when the store read (if any) has; never rejects. */
   settled: Promise<unknown>;
+  /** Stop the store read; `settled` then settles promptly. */
+  abort: () => void;
 }
 
 type FreshRead =
@@ -29,9 +31,11 @@ type FreshRead =
  * it held the claim, so the card the previous turn ended on can be missing
  * from them) or its prefetched listing did not name it (the card's turn may
  * have created it since). Only then is the object read again, conditioned on
- * the listed generation so an unchanged one answers 304. That read starts as
- * soon as the layout is known, beside hydration, so the 202 rarely waits for
- * it. A read failure is answered like a failure during hydration.
+ * the generation of the bytes the worker holds (the inlined object's, else
+ * the listing's), so an unchanged one answers 304. It starts once the listing,
+ * layout and priority inputs have landed and overlaps the bulk hydration, so
+ * the 202 rarely waits for it. A read failure is answered like a failure
+ * during hydration.
  */
 export function startCardOwnerRead(
   turn: TurnRequest,
@@ -43,22 +47,26 @@ export function startCardOwnerRead(
   const key = posix.join(filesystem.dataRel, "conversations", file);
   const at = resolved.prefix ? posix.join(resolved.prefix, key) : key;
   const listed = turn.prefetch?.manifest.find((object) => object.key === at);
+  const inlined = resolved.inlined?.get(at);
   const live = resolved.live;
   const stale =
     turn.prefetch !== undefined &&
-    (listed === undefined || resolved.inlined?.has(at) === true);
+    (listed === undefined || inlined !== undefined);
+  const stop = new AbortController();
   const scratch = join(dirname(filesystem.storeRoot), "card-owner");
   const read: Promise<FreshRead> =
     live && stale
-      ? readFresh(live, at, join(scratch, file), listed?.generation).then(
-          (result) => {
-            timings.t_card_read = performance.now();
-            return result;
-          },
-        )
+      ? readFresh(live, at, join(scratch, file), {
+          held: inlined?.generation ?? listed?.generation,
+          signal: stop.signal,
+        }).then((result) => {
+          timings.t_card_read = performance.now();
+          return result;
+        })
       : Promise.resolve({ kind: "hydrated" });
   return {
     settled: read,
+    abort: () => stop.abort(new Error("turn setup failed")),
     messages: async () => {
       const fresh = await read;
       if (fresh.kind === "failed") throw turnHydrationError(fresh.error);
@@ -76,13 +84,13 @@ async function readFresh(
   live: NonNullable<ResolvedTurnStore["live"]>,
   at: string,
   destFile: string,
-  held: string | undefined,
+  { held, signal }: { held: string | undefined; signal: AbortSignal },
 ): Promise<FreshRead> {
-  const opts = held ? { ifGenerationNotMatch: held } : undefined;
+  const opts = held ? { ifGenerationNotMatch: held, signal } : { signal };
   try {
     const result = live.downloadVersioned
       ? await live.downloadVersioned(at, destFile, opts)
-      : await live.download(at, destFile).then(() => ({}) as ReadResult);
+      : await live.download(at, destFile, opts).then(() => ({}) as ReadResult);
     return result.notModified ? { kind: "hydrated" } : { kind: "read" };
   } catch (error) {
     if (error instanceof ObjectNotFoundError) return { kind: "missing" };

@@ -60,6 +60,7 @@ const noCardConversation = (id: string) =>
 async function prefetchOf(
   pool: ReturnType<typeof fakePoolStore>,
   skip: readonly string[] = [],
+  generation = "1",
 ) {
   const base = `${POOL_STORE_URL}/v1/pod/store/org/agent`;
   const { objects: manifest } = (await (
@@ -70,7 +71,7 @@ async function prefetchOf(
     if (!skip.includes(key))
       objects[key] = {
         data: Buffer.from(pool.read(key)).toString("base64"),
-        generation: "1",
+        generation,
       };
   return { manifest, objects };
 }
@@ -91,6 +92,12 @@ export interface PooledTurnOptions {
   failRead?: number;
   /** Fail every live read of the agent's CLAUDE.md with this status. */
   failHydration?: number;
+  /** The generation the gateway's batch read reported for inlined bytes. */
+  inlinedGeneration?: string;
+  /** Fail the live read of this key with a 403 (it is never inlined). */
+  failLive?: string;
+  /** The conversation's read under the claim never answers until aborted. */
+  hangReread?: boolean;
   /** Hold the live read of this key until the conversation is read again
    *  under the claim, or 1 s passes. */
   holdLive?: string;
@@ -109,18 +116,21 @@ export async function pooledTurn(
   const skip = [
     ...(options.conversationNotInlined ? [conversationKey] : []),
     ...(options.holdLive ? [options.holdLive] : []),
+    ...(options.failLive ? [options.failLive] : []),
   ];
+  const generation = options.inlinedGeneration;
   let prefetch: unknown;
   if (options.prefetchBeforeConversation) prefetch = await prefetchOf(pool);
   if (options.stalePrefetch) {
     // The gateway read the agent's files before it held the claim: its bytes
     // predate the card the previous turn ended on.
     pool.put(conversationKey, noCardConversation(conversationId));
-    prefetch = await prefetchOf(pool, skip);
+    prefetch = await prefetchOf(pool, skip, generation);
   }
   pool.put(conversationKey, cardConversation(conversationId));
   seed(pool.put);
-  if (options.currentPrefetch) prefetch = await prefetchOf(pool, skip);
+  if (options.currentPrefetch)
+    prefetch = await prefetchOf(pool, skip, generation);
   const turnlog: string[] = [];
   const reads = { full: 0, notModified: 0 };
   const order: string[] = [];
@@ -136,6 +146,8 @@ export async function pooledTurn(
     const path = decodeURIComponent(new URL(String(input)).pathname);
     if (options.failHydration && path.endsWith(`/objects/${AGENT}/CLAUDE.md`))
       return new Response("denied", { status: options.failHydration });
+    if (options.failLive && path.endsWith(`/objects/${options.failLive}`))
+      return new Response("denied", { status: 403 });
     if (options.holdLive && path.endsWith(`/objects/${options.holdLive}`)) {
       await Promise.race([
         rereadSeen,
@@ -157,6 +169,12 @@ export async function pooledTurn(
         order.push("conversation-reread");
         reread();
       }
+      if (condition !== null && options.hangReread)
+        return new Promise<Response>((_resolve, reject) =>
+          init?.signal?.addEventListener("abort", () =>
+            reject(init.signal?.reason),
+          ),
+        );
       if (condition === generation) {
         reads.notModified++;
         return new Response(null, { status: 304 });
