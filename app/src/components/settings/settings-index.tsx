@@ -97,7 +97,9 @@ export function SettingsIndex({
           <AppearanceSection />
           <LanguageSection />
           <NotificationsSection />
-          {capabilities?.heartbeat && <MorningBriefingSection />}
+          {capabilities?.heartbeat && (
+            <MorningBriefingSection channelsAvailable={channelsAvailable} />
+          )}
           {settingsSectionAvailable("apiKeys", capabilities) && (
             <SettingsRow
               icon={KeyRound}

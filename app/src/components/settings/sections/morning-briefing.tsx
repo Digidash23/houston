@@ -27,9 +27,15 @@ import { SettingsControlRow } from "../settings-row";
 /**
  * The AI Manager's morning briefing: on/off, the time it arrives, and "brief
  * me now". Rendered only where the deployment serves it
- * (`capabilities.heartbeat`, gated by the caller).
+ * (`capabilities.heartbeat`, gated by the caller). `channelsAvailable` is the
+ * same gate the Channels row uses: only then does the copy promise Slack or
+ * WhatsApp delivery.
  */
-export function MorningBriefingSection() {
+export function MorningBriefingSection({
+  channelsAvailable,
+}: {
+  channelsAvailable: boolean;
+}) {
   const { t, i18n } = useTranslation("settings");
   const addToast = useUIStore((s) => s.addToast);
   const heartbeat = useHeartbeat(true);
@@ -68,7 +74,11 @@ export function MorningBriefingSection() {
       <SettingsControlRow
         icon={Sunrise}
         title={t("morningBriefing.title")}
-        description={t("morningBriefing.description")}
+        description={
+          channelsAvailable
+            ? t("morningBriefing.descriptionWithChannels")
+            : t("morningBriefing.description")
+        }
       >
         <Switch
           checked={state?.enabled ?? true}

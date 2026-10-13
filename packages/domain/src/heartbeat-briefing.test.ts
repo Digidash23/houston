@@ -58,7 +58,11 @@ describe("a briefing's two moments", () => {
   test("finishing makes the briefing's keys the seen set", async () => {
     const store = memoryStore();
     await admit(store, ["need:Ana/m1"]);
-    await settleHeartbeatRun(store, "P", { kind: "completed", at: DONE });
+    await settleHeartbeatRun(store, "P", {
+      kind: "completed",
+      nonce: "heartbeat-1",
+      at: DONE,
+    });
     expect(await loadHeartbeatDoc(store, "P")).toMatchObject({
       seen: ["need:Ana/m1"],
       pending: null,
@@ -70,6 +74,7 @@ describe("a briefing's two moments", () => {
     await admit(store, ["need:Ana/m1"]);
     await settleHeartbeatRun(store, "P", {
       kind: "failed",
+      nonce: "heartbeat-1",
       at: DONE,
       reason: "overloaded",
     });
@@ -87,11 +92,41 @@ describe("a briefing's two moments", () => {
     const store = memoryStore();
     await admit(store, []);
     expect(
-      await settleHeartbeatRun(store, "P", { kind: "completed", at: DONE }),
+      await settleHeartbeatRun(store, "P", {
+        kind: "completed",
+        nonce: "heartbeat-1",
+        at: DONE,
+      }),
     ).not.toBeNull();
     expect(
-      await settleHeartbeatRun(store, "P", { kind: "completed", at: DONE }),
+      await settleHeartbeatRun(store, "P", {
+        kind: "completed",
+        nonce: "heartbeat-1",
+        at: DONE,
+      }),
     ).toBeNull();
+  });
+
+  test("an outcome read for one briefing never lands on a newer one", async () => {
+    const store = memoryStore();
+    await admit(store, ["need:W/Ana/m1"]);
+    // A run-now replaced the pending briefing after the host read the first.
+    await recordHeartbeatAdmitted(store, "P", {
+      date: "2026-10-10",
+      at: DONE,
+      nonce: "heartbeat-2",
+      seen: ["need:W/Ana/m2"],
+    });
+    expect(
+      await settleHeartbeatRun(store, "P", {
+        kind: "completed",
+        nonce: "heartbeat-1",
+        at: DONE,
+      }),
+    ).toBeNull();
+    const doc = await loadHeartbeatDoc(store, "P");
+    expect(doc.pending?.nonce).toBe("heartbeat-2");
+    expect(doc.seen).toEqual([]);
   });
 
   test("a document without seen reads as empty; junk entries are dropped", () => {

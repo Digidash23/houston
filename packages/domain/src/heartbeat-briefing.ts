@@ -26,16 +26,18 @@ export async function recordHeartbeatAdmitted(
   }));
 }
 
-/** How the pending turn ended, as the host read it off its turn record. */
+/** How the pending turn ended, as the host read it off its turn record.
+ *  `nonce` names WHICH turn: the one the host read. */
 export type HeartbeatTurnEnd =
-  | { kind: "completed"; at: string }
-  | { kind: "failed"; at: string; reason: string };
+  | { kind: "completed"; nonce: string; at: string }
+  | { kind: "failed"; nonce: string; at: string; reason: string };
 
 /**
  * Settle the pending turn. Completed: `seen` becomes what the briefing
- * covered. Failed: the run reads as an error and `seen` stays. Null when
- * nothing was pending any more (another settle got there first), so the
- * caller never announces one briefing twice.
+ * covered. Failed: the run reads as an error and `seen` stays. Null when the
+ * turn read is no longer the pending one (another settle got there first, or
+ * a newer briefing replaced it in between), so an outcome never lands on the
+ * wrong briefing and one briefing is never announced twice.
  */
 export function settleHeartbeatRun(
   store: TextStore,
@@ -44,7 +46,7 @@ export function settleHeartbeatRun(
 ): Promise<HeartbeatDoc | null> {
   return updateHeartbeatDoc(store, workspaceId, (current) => {
     const { pending, last } = current;
-    if (!pending) return null;
+    if (pending?.nonce !== end.nonce) return null;
     if (end.kind === "completed")
       return { ...current, pending: null, seen: pending.seen };
     return {

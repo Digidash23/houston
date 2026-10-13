@@ -250,8 +250,10 @@ describe("stuck-wake parity", () => {
 });
 
 describe("the delegated timezone seed", () => {
-  test("is one create-only PUT pinned to the space it was started for", async () => {
-    stubFetch(() => json(200, { value: "America/Bogota" }));
+  test("reads, then one create-only PUT, both pinned to the seed's space", async () => {
+    stubFetch(() =>
+      json(200, { value: calls.length === 1 ? null : "America/Bogota" }),
+    );
     const c = client();
     // The person stands in another space: the seed still targets its own.
     c.setActiveOrg("ffffffffffffffff");
@@ -262,21 +264,37 @@ describe("the delegated timezone seed", () => {
       timezone: "America/Bogota",
       source: "detected",
     });
-    expect(calls).toHaveLength(1);
-    const [put] = calls;
-    expect(put.method).toBe("PUT");
-    expect(put.url).toBe(`${BASE}/v1/preferences/timezone`);
-    expect(put.body).toBe(
-      JSON.stringify({ value: "America/Bogota", onlyIfAbsent: true }),
-    );
-    // A body flag, never a header the gateway's CORS allow-list lacks.
-    expect(put.headers.get("If-None-Match")).toBeNull();
-    expect(put.headers.get("x-houston-org")).toBe(ORG);
+    expect(calls.map((call) => [call.method, call.url, call.body])).toEqual([
+      ["GET", `${BASE}/v1/preferences/timezone`, null],
+      [
+        "PUT",
+        `${BASE}/v1/preferences/timezone`,
+        JSON.stringify({ value: "America/Bogota", onlyIfAbsent: true }),
+      ],
+    ]);
+    for (const call of calls) {
+      expect(call.headers.get("x-houston-org")).toBe(ORG);
+      // A body flag, never a header the gateway's CORS allow-list lacks.
+      expect(call.headers.get("If-None-Match")).toBeNull();
+    }
   });
 
-  test("a stored zone answers 412 and wins", async () => {
+  test("a stored zone is adopted and nothing is written", async () => {
+    stubFetch(() => json(200, { value: "Europe/Lisbon" }));
+    const c = client();
+    c.setActiveOrg(ORG);
+    expect(await c.seedTimezone(`org:${ORG}`, "America/Bogota")).toEqual({
+      kind: "stored",
+      timezone: "Europe/Lisbon",
+    });
+    expect(calls.map((call) => call.method)).toEqual(["GET"]);
+  });
+
+  test("a choice landing between the read and the write answers 412 and wins", async () => {
     stubFetch(() =>
-      json(412, { code: "preference_exists", value: "Europe/Lisbon" }),
+      calls.length === 1
+        ? json(200, { value: null })
+        : json(412, { code: "preference_exists", value: "Europe/Lisbon" }),
     );
     const c = client();
     c.setActiveOrg(ORG);

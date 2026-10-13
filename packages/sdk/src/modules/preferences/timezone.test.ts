@@ -11,7 +11,7 @@ interface Recorded {
   body: string | null;
 }
 
-function makeSdk(answer: () => Response) {
+function makeSdk(answer: (method: string) => Response) {
   const calls: Recorded[] = [];
   const fetchImpl = vi.fn(
     async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -20,7 +20,7 @@ function makeSdk(answer: () => Response) {
         url: String(input),
         body: typeof init?.body === "string" ? init.body : null,
       });
-      return answer();
+      return answer(init?.method ?? "GET");
     },
   );
   const ports: SdkPorts = {
@@ -41,8 +41,10 @@ const json = (body: unknown, status = 200) =>
   });
 
 describe("seeding the timezone", () => {
-  it("is ONE create-only PUT of the detected zone", async () => {
-    const { sdk, calls } = makeSdk(() => json({ value: "America/Bogota" }));
+  it("reads first, then ONE create-only PUT of the detected zone", async () => {
+    const { sdk, calls } = makeSdk((method) =>
+      json({ value: method === "GET" ? null : "America/Bogota" }),
+    );
     expect(
       await sdk.preferences.seedTimezone({ detected: "America/Bogota" }),
     ).toEqual({
@@ -51,6 +53,7 @@ describe("seeding the timezone", () => {
       source: "detected",
     });
     expect(calls).toEqual([
+      { method: "GET", url: `${BASE}/v1/preferences/timezone`, body: null },
       {
         method: "PUT",
         url: `${BASE}/v1/preferences/timezone`,
@@ -59,9 +62,20 @@ describe("seeding the timezone", () => {
     ]);
   });
 
-  it("a stored zone wins: the 412 answer is read, nothing thrown", async () => {
-    const { sdk } = makeSdk(() =>
-      json({ code: "preference_exists", value: "Europe/Lisbon" }, 412),
+  it("a stored zone is the answer and nothing is written", async () => {
+    // An old gateway would write unconditionally: the read keeps it safe.
+    const { sdk, calls } = makeSdk(() => json({ value: "Europe/Lisbon" }));
+    expect(
+      await sdk.preferences.seedTimezone({ detected: "America/Bogota" }),
+    ).toEqual({ kind: "stored", timezone: "Europe/Lisbon" });
+    expect(calls.map((c) => c.method)).toEqual(["GET"]);
+  });
+
+  it("a choice that lands between the read and the write wins (412)", async () => {
+    const { sdk } = makeSdk((method) =>
+      method === "GET"
+        ? json({ value: null })
+        : json({ code: "preference_exists", value: "Europe/Lisbon" }, 412),
     );
     expect(
       await sdk.preferences.seedTimezone({ detected: "America/Bogota" }),
@@ -69,14 +83,16 @@ describe("seeding the timezone", () => {
   });
 
   it("lifts this device's old zone before the detected one", async () => {
-    const { sdk, calls } = makeSdk(() => json({ value: "Asia/Tokyo" }));
+    const { sdk, calls } = makeSdk((method) =>
+      json({ value: method === "GET" ? null : "Asia/Tokyo" }),
+    );
     expect(
       await sdk.preferences.seedTimezone({
         detected: "America/Bogota",
         legacy: "Asia/Tokyo",
       }),
     ).toEqual({ kind: "seeded", timezone: "Asia/Tokyo", source: "legacy" });
-    expect(calls[0]?.body).toBe(
+    expect(calls[1]?.body).toBe(
       JSON.stringify({ value: "Asia/Tokyo", onlyIfAbsent: true }),
     );
   });

@@ -111,7 +111,10 @@ export function createPreferencesModule(ctx: ModuleContext): PreferencesModule {
    */
   const seedTimezone = (input: TimezoneSeedInput) =>
     seedTimezoneWith(
-      (key, value) => run(() => client.createPreference(key, value)),
+      {
+        get,
+        create: (key, value) => run(() => client.createPreference(key, value)),
+      },
       input,
     );
 

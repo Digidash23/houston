@@ -72,7 +72,8 @@
   },
   "morningBriefing": {
     "title": "Resumo da manhã",
-    "description": "Toda manhã o Houston confere sua equipe e conta o que precisa da sua atenção. Você recebe no seu chat com o Houston e também no Slack ou WhatsApp, se estiverem conectados.",
+    "description": "Toda manhã o Houston confere sua equipe e conta o que precisa da sua atenção. Você recebe no seu chat com o Houston.",
+    "descriptionWithChannels": "Toda manhã o Houston confere sua equipe e conta o que precisa da sua atenção. Você recebe no seu chat com o Houston e também no Slack ou WhatsApp, se estiverem conectados.",
     "time": "Enviar às",
     "timeLabel": "Horário do resumo",
     "quiet": "Nada precisa da sua atenção agora.",

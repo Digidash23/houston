@@ -126,12 +126,14 @@ export async function settlePendingBriefing(
     ),
   );
   const at = now.toISOString();
+  const { nonce } = pending;
   const end: HeartbeatTurnEnd =
     outcome.kind === "completed"
-      ? { kind: "completed", at }
-      : { kind: "failed", at, reason: outcome.reason };
+      ? { kind: "completed", nonce, at }
+      : { kind: "failed", nonce, at, reason: outcome.reason };
   const settled = await settleHeartbeatRun(deps.vfs, ws.id, end);
-  // Another replica settled it first: it also told the person.
+  // Settled elsewhere first (it told the person), or a newer briefing
+  // replaced this one: the outcome read is not this document's to apply.
   if (!settled) return loadHeartbeatDoc(deps.vfs, ws.id);
   const first = await deps.lock.setNx(
     `heartbeat:settled:${ws.id}:${pending.nonce}`,
