@@ -72,7 +72,7 @@
   },
   "morningBriefing": {
     "title": "Morning briefing",
-    "description": "Every morning Houston checks on your team and tells you what needs your attention.",
+    "description": "Every morning Houston checks on your team and tells you what needs your attention. It arrives in your chat with Houston, and in Slack or WhatsApp too if you've connected them.",
     "time": "Send it at",
     "timeLabel": "Briefing time",
     "quiet": "Nothing needs your attention right now.",
