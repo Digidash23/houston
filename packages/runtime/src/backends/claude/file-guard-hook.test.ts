@@ -192,7 +192,19 @@ test("the coordinator is held to its allowlist", async () => {
     decision(await run(hook, "Write", { file_path: memory, content: "[]" }))
       .kind,
   ).toBe("pass");
+  // What people send it under uploads/ is readable, never writable.
+  expect(
+    decision(await run(hook, "Read", { file_path: "uploads/photo.png" })),
+  ).toEqual({
+    kind: "pass",
+    updatedInput: { file_path: join(ws, "uploads", "photo.png") },
+  });
+  writeFileSync(join(ws, "uploads", "auth.json"), "{}");
   const calls: [string, Record<string, unknown>][] = [
+    ["Write", { file_path: "uploads/new.md", content: "x" }],
+    ["Edit", { file_path: "uploads/photo.png", old_string: "p" }],
+    ["Read", { file_path: "uploads/AUTH.JSON" }],
+    ["Read", { file_path: "uploads/auth.json" }],
     ["Read", { file_path: "notes.md" }],
     ["Read", { file_path: "CLAUDE.md" }],
     ...(process.platform === "win32"
