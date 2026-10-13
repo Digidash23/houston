@@ -1,4 +1,9 @@
 import { migrateProviderModel } from "@houston/domain";
+import {
+  TIMEZONE_PREFERENCE,
+  type TimezoneSeedInput,
+  type TimezoneSeedResult,
+} from "@houston/sdk";
 import type { ProjectConfig } from "@houston/wire-types";
 import { emitLocalEcho } from "../bus";
 import * as controlPlane from "../control-plane";
@@ -134,6 +139,20 @@ export function ConfigPrefsMixin<TBase extends BaseCtor>(Base: TBase) {
       }
       if (value === null) return clearLocalPref(key);
       writeLocalPref(key, value);
+    }
+    /** The SDK's timezone seed, handed this device's pre-account copy to
+     *  lift (dropped once the account holds a zone). */
+    async seedTimezone(
+      input: Omit<TimezoneSeedInput, "legacy">,
+    ): Promise<TimezoneSeedResult> {
+      const legacy = legacyLocalPref(TIMEZONE_PREFERENCE);
+      const result = await viaSdk(
+        controlPlane.prefPath(TIMEZONE_PREFERENCE),
+        () => this.ctx.sdk.preferences.seedTimezone({ ...input, legacy }),
+      );
+      if (legacy !== null && result.kind !== "superseded")
+        dropLegacyLocalPref(TIMEZONE_PREFERENCE);
+      return result;
     }
     async getAgentConfig(): Promise<ProjectConfig> {
       const { provider, model } = await this.ctx.activeOld();

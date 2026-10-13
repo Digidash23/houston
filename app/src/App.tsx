@@ -94,7 +94,7 @@ export default function App() {
 
   useIdentityTagging(session);
   // The cloud scheduler fires routines and the morning briefing in this zone.
-  useTimezoneSeed(session?.uid ?? null);
+  useTimezoneSeed();
 
   const routing = useFirstRunRouting();
   useWorkspaceBootReads();

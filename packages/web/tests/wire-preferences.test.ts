@@ -248,3 +248,38 @@ describe("stuck-wake parity", () => {
     expect(await walk("a-2")).toBe(true);
   });
 });
+
+describe("the delegated timezone seed", () => {
+  test("reads, then writes the detected zone once, in the active space", async () => {
+    let stored: string | null = null;
+    stubFetch(() => json(200, { value: stored }));
+    const c = client();
+    c.setActiveOrg(ORG);
+
+    const result = await c.seedTimezone({
+      scope: "ana:team",
+      detected: "America/Bogota",
+    });
+    expect(result).toEqual({
+      kind: "seeded",
+      timezone: "America/Bogota",
+      source: "detected",
+    });
+    expect(calls.map((call) => [call.method, call.url, call.body])).toEqual([
+      ["GET", `${BASE}/v1/preferences/timezone`, null],
+      [
+        "PUT",
+        `${BASE}/v1/preferences/timezone`,
+        JSON.stringify({ value: "America/Bogota" }),
+      ],
+    ]);
+    for (const call of calls)
+      expect(call.headers.get("x-houston-org")).toBe(ORG);
+
+    // Seeded once per scope: no second request.
+    stored = "America/Bogota";
+    reset();
+    await c.seedTimezone({ scope: "ana:team", detected: "Asia/Tokyo" });
+    expect(calls).toHaveLength(0);
+  });
+});

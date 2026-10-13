@@ -20,12 +20,22 @@ import {
 } from "@houston/runtime-client";
 import type { ModuleContext } from "../../module-context";
 import { requireString } from "../payload";
+import {
+  createTimezoneSeeder,
+  TIMEZONE_PREFERENCE,
+  type TimezoneSeedInput,
+  type TimezoneSeedResult,
+} from "./timezone";
+
+export type { TimezoneSeedInput, TimezoneSeedResult } from "./timezone";
+export { TIMEZONE_PREFERENCE } from "./timezone";
 
 /** The write vocabulary — the same constants back the facade and `dispatch`. */
 export const PreferencesCommand = {
   Get: "preferences/get",
   Set: "preferences/set",
   SetLocale: "workspace/setLocale",
+  SeedTimezone: "preferences/seedTimezone",
 } as const;
 
 export type PreferencesCommandType =
@@ -39,6 +49,8 @@ export interface PreferencesModule {
   set(key: string, value: string | null): Promise<string | null>;
   /** Set (or clear, with `null`) the workspace's UI-locale override. */
   setLocale(workspaceId: string, locale: string | null): Promise<Workspace>;
+  /** Save the device's zone as `timezone` when the person has none (./timezone). */
+  seedTimezone(input: TimezoneSeedInput): Promise<TimezoneSeedResult>;
 }
 
 /** A nullable-string field off an untrusted command payload. */
@@ -75,12 +87,22 @@ export function createPreferencesModule(ctx: ModuleContext): PreferencesModule {
    */
   const get = (key: string): Promise<string | null> =>
     run(() => client.getPreference(key));
+  const seeder = createTimezoneSeeder({
+    get,
+    set: (key, value) => run(() => client.setPreference(key, value)),
+  });
   /**
    * Changes one of the user's saved preferences.
    * @assistant group:settings hidden: UI plumbing; an open key/value write that can clobber any app setting.
    */
-  const set = (key: string, value: string | null): Promise<string | null> =>
-    run(() => client.setPreference(key, value));
+  const set = async (
+    key: string,
+    value: string | null,
+  ): Promise<string | null> => {
+    const stored = await run(() => client.setPreference(key, value));
+    if (key === TIMEZONE_PREFERENCE) seeder.forget();
+    return stored;
+  };
   /**
    * Sets the language the app's own screens are shown in, for one workspace.
    * @param workspaceId The workspace this acts on, by the id listWorkspaces
@@ -94,6 +116,12 @@ export function createPreferencesModule(ctx: ModuleContext): PreferencesModule {
   ): Promise<Workspace> =>
     run(() => client.setWorkspaceLocale(workspaceId, locale));
 
+  /**
+   * Saves the device's time zone as the person's when they have none yet.
+   * @assistant group:settings hidden: UI plumbing; the app runs it on its own at sign-in with the zone of the screen the person is sitting at.
+   */
+  const seedTimezone = (input: TimezoneSeedInput) => seeder.seed(input);
+
   ctx.registerCommand(PreferencesCommand.Get, (p) =>
     get(requireString(p, "key")),
   );
@@ -104,5 +132,13 @@ export function createPreferencesModule(ctx: ModuleContext): PreferencesModule {
     setLocale(requireString(p, "workspaceId"), optionalString(p, "locale")),
   );
 
-  return { get, set, setLocale };
+  ctx.registerCommand(PreferencesCommand.SeedTimezone, (p) =>
+    seedTimezone({
+      scope: requireString(p, "scope"),
+      detected: requireString(p, "detected"),
+      legacy: optionalString(p, "legacy"),
+    }),
+  );
+
+  return { get, set, setLocale, seedTimezone };
 }
