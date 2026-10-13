@@ -67,7 +67,9 @@ const store: ObjectStore = {
   delete: async () => undefined,
 };
 
-const RESET = "2026-10-13T05:00:00.000Z";
+// The snooze is taken at the wall clock and a past reset is ignored, so the
+// provider's reset must stay in the future (and inside the 8-day cap).
+const RESET = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
 const HELD: RoutineSnooze = {
   reason: "usage_limit",
   provider: "anthropic",
