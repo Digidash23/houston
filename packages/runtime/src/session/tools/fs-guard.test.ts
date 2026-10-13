@@ -12,6 +12,7 @@ import {
   PathDeniedError,
   PathEscapeError,
   PathNotAllowedError,
+  ProtectedWriteDeniedError,
   SharedSkillReadOnlyError,
   WorkspaceGuard,
 } from "./fs-guard";
@@ -516,4 +517,42 @@ test("an NTFS data-stream suffix cannot launder a denied name", () => {
       PathDeniedError,
     );
   }
+});
+
+test("outside Windows a `:` is part of the file name the guard hands back", () => {
+  const workspace = realpathSync(mkdtempSync(join(tmpdir(), "houston-colon-")));
+  const guard = new WorkspaceGuard(workspace);
+  expect(guard.clamp("notes/Standup 10:30.md")).toBe(
+    join(
+      workspace,
+      "notes",
+      process.platform === "win32" ? "Standup 10" : "Standup 10:30.md",
+    ),
+  );
+});
+
+test("a name a case-insensitive volume folds onto a protected one is refused", () => {
+  const workspace = realpathSync(mkdtempSync(join(tmpdir(), "houston-fold-")));
+  const runtime = join(workspace, ".houston", "runtime");
+  mkdirSync(runtime, { recursive: true });
+  writeFileSync(join(runtime, "auth.json"), "{}");
+  const guard = new WorkspaceGuard(workspace);
+  // U+017F (long s) opens `auth.json` on APFS, existing file or not.
+  for (const lookalike of [
+    ".houston/runtime/auth.j\u017Fon",
+    ".houston/runtime/auth-u\u017Fers/abc.json",
+    ".houston/runtime/CLAUDE-LOGIN/.credentials.json",
+    ".houston/runtime/auth.json.",
+    ".houston/runtime/auth.json ",
+    ".houston/runtime/auth-users. /abc.json",
+    ".houston/runtime/auth-users::$INDEX_ALLOCATION./abc.json",
+    ".houston/runtime/auth-users:$i30:$INDEX_ALLOCATION./abc.json",
+  ])
+    expect(() => guard.clampWrite(lookalike), lookalike).toThrow(
+      PathDeniedError,
+    );
+  for (const store of [".houston/ACTIVITY/x.json", ".houston/Routines.json"])
+    expect(() => guard.clampWrite(store), store).toThrow(
+      ProtectedWriteDeniedError,
+    );
 });
