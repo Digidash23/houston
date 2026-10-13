@@ -60,7 +60,7 @@ export class TurnChannel implements RuntimeChannel {
     // routes read it from. For the same reason `routine` needs no marker here:
     // a body with no acting identity is never refused by the worker's
     // card-owner rule.
-    { actingUser, actingAs, limits }: FireTurnOptions = {},
+    { actingUser, actingAs, limits, nonce }: FireTurnOptions = {},
   ): Promise<void> {
     // A turn begins here for every programmatic fire (a routine, a trigger, a
     // mission's first turn): the host records which conversation this agent is
@@ -79,7 +79,7 @@ export class TurnChannel implements RuntimeChannel {
       ctx.agent,
       conversationId,
       text,
-      undefined,
+      nonce,
       pin,
     );
     if (outcome.status === "quota") throw new Error(outcome.message);

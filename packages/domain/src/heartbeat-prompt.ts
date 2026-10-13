@@ -1,5 +1,5 @@
 import type { InteractionStep } from "@houston/protocol";
-import type { HeartbeatSection } from "./heartbeat-coverage";
+import type { HeartbeatSection } from "./heartbeat-sections";
 import type { HeartbeatSnapshot } from "./heartbeat-snapshot";
 
 /**

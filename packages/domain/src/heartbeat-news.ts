@@ -1,67 +1,55 @@
-import {
-  type HeartbeatSnapshot,
-  isHeartbeatSnapshotEmpty,
-} from "./heartbeat-snapshot";
-
-const DAY_MS = 86_400_000;
+import type { HeartbeatSnapshot } from "./heartbeat-snapshot";
 
 /**
- * The "only when there is news" rule of the scheduled morning briefing. The
- * cloud gateway's scheduler implements the same rule; keep the two identical.
+ * The "only when there is news" rule of the scheduled morning briefing, by
+ * SEEN KEYS, never by timestamps. The cloud gateway's scheduler implements
+ * the same rule; keep the two identical.
  *
- * The baseline is a COVERAGE WATERMARK (`briefedThrough`), never a clock
- * reading: the newest timestamp among the items a finished briefing actually
- * named, held just below the oldest fresh item a section cap cut
- * (heartbeat-coverage.ts), and never moving backwards. Only a briefing turn
- * that FINISHED with a reply moves it (heartbeat-briefing.ts): admission alone
- * does not, nor does a quiet run, nor a turn that failed. A briefing that named
- * no timestamped item leaves it where it was.
+ * 1. Every snapshot item has an identity key:
+ *    - a mission waiting on the person: `need:<agent>/<missionId>`
+ *    - a finished mission:              `done:<agent>/<missionId>`
+ *    - a routine run (failed/surfaced): `run:<agent>/<runId>`
+ *    - a routine the engine paused:     `pause:<agent>/<routineId>:<auto_paused.at>`
+ *    (`<agent>` is the agent's name; a re-pause gets a new `auto_paused.at`,
+ *    so it is a new item.)
+ * 2. The heartbeat document keeps `seen`: the keys the person has been told.
+ *    A document without it reads as empty (at worst one extra briefing).
+ * 3. Each section puts unseen items first, oldest first, then seen ones,
+ *    newest first, and only then caps at HEARTBEAT_SECTION_CAP.
+ * 4. A scheduled run calls the model only when at least one matched item is
+ *    unseen, items past the cap included. Otherwise it records "quiet". A
+ *    "brief me now" run skips this and is quiet only on an empty snapshot.
+ * 5. Only a CONFIRMED delivery (the briefing turn finished with a reply,
+ *    heartbeat-briefing.ts) changes `seen`, to: the keys of the items the
+ *    briefing named, plus the previously seen keys still present in that
+ *    snapshot. Keys of items gone from the snapshot drop out, so `seen` stays
+ *    bounded. Quiet runs and failed briefings never change it.
  *
- * A scheduled run calls the model only when at least one item is FRESH: its
- * timestamp is strictly newer than the watermark (with no watermark, any
- * timestamped item). With no finished briefing ever, any item counts, fresh or
- * not. An empty snapshot is never news. Otherwise the run records "quiet".
- *
- * Each section puts fresh items first, oldest first, then the rest newest
- * first, and only then caps, so what a cap cuts is newer than what was named
- * and is still fresh next time. Items past the cap still count as news.
- *
- * The timestamp of each item kind:
- * - waiting on the person, and finished: the mission's `updated_at`. A mission
- *   carries no "entered needs_you at"; `updated_at` is bumped on every write,
- *   so it is the closest field. A mission without one (a hand-written or
- *   legacy row) is never fresh, so it is news only before any briefing.
- * - routine runs: `completed_at`, else `started_at`.
- * - paused routines: `auto_paused.at`, when the engine paused it.
- *
- * Times compare as instants, never as strings. A "brief me now" run skips
- * the rule (the person asked) and is quiet only on an empty snapshot.
+ * Finished missions and routine runs are matched over a fixed look-back of
+ * HEARTBEAT_LOOKBACK_MS; waiting missions and paused routines are matched
+ * whenever they are in that state. Item timestamps only order a section:
+ * the mission's `updated_at`, the run's `completed_at` else `started_at`, the
+ * pause's `auto_paused.at`.
  */
-export function heartbeatHasNews(
+export function heartbeatHasNews(snapshot: HeartbeatSnapshot): boolean {
+  return snapshot.unseen > 0;
+}
+
+/** The look-back for finished missions and routine runs. */
+export const HEARTBEAT_LOOKBACK_MS = 48 * 60 * 60 * 1000;
+
+/** Where the look-back for finished missions and routine runs opens. */
+export function heartbeatWindowStart(nowMs: number): number {
+  return nowMs - HEARTBEAT_LOOKBACK_MS;
+}
+
+/** Rule 5: `seen` after this snapshot's briefing is confirmed delivered. */
+export function seenAfterDelivery(
   snapshot: HeartbeatSnapshot,
-  everBriefed: boolean,
-): boolean {
-  if (isHeartbeatSnapshotEmpty(snapshot)) return false;
-  return !everBriefed || snapshot.freshCount > 0;
-}
-
-/**
- * Where the snapshot's look-back window for finished missions and routine
- * runs opens: just past the watermark, so anything the last briefing did not
- * cover is in it; with none, a day ago.
- */
-export function heartbeatWindowStart(
-  briefedThrough: string | null,
-  nowMs: number,
-): number {
-  const through =
-    briefedThrough === null ? Number.NaN : Date.parse(briefedThrough);
-  return Number.isNaN(through) ? nowMs - DAY_MS : through + 1;
-}
-
-/** The watermark as the snapshot builder takes it. */
-export function briefedThroughMs(briefedThrough: string | null): number | null {
-  const through =
-    briefedThrough === null ? Number.NaN : Date.parse(briefedThrough);
-  return Number.isNaN(through) ? null : through;
+  seen: readonly string[],
+): string[] {
+  const present = new Set(snapshot.presentKeys);
+  return [
+    ...new Set([...snapshot.namedKeys, ...seen.filter((k) => present.has(k))]),
+  ];
 }

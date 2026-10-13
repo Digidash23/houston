@@ -1,169 +1,146 @@
 import type { Activity, Routine, RoutineRun } from "@houston/protocol";
 import { describe, expect, test } from "vitest";
-import { HEARTBEAT_SECTION_CAP } from "./heartbeat-coverage";
 import {
-  briefedThroughMs,
+  HEARTBEAT_LOOKBACK_MS,
   heartbeatHasNews,
   heartbeatWindowStart,
+  seenAfterDelivery,
 } from "./heartbeat-news";
+import { HEARTBEAT_SECTION_CAP } from "./heartbeat-sections";
 import {
   buildHeartbeatSnapshot,
   type HeartbeatAgentData,
 } from "./heartbeat-snapshot";
 
-const BRIEFED = "2026-10-10T08:00:00.000Z";
-const BEFORE = "2026-10-10T07:00:00.000Z";
-const AFTER = "2026-10-10T09:00:00.000Z";
+const T = "2026-10-10T08:00:00.000Z";
 const LONG_AGO = Date.parse("2026-01-01T00:00:00Z");
-const at = (minute: number) =>
-  new Date(Date.parse(BRIEFED) + minute * 60_000).toISOString();
 
 const snapshotOf = (
   over: Partial<HeartbeatAgentData>,
-  through: string | null = BRIEFED,
+  seen: readonly string[] = [],
 ) =>
   buildHeartbeatSnapshot(
     [{ agentName: "Ana", activities: [], routines: [], runs: [], ...over }],
     LONG_AGO,
-    briefedThroughMs(through),
+    new Set(seen),
   );
-const mission = (status: string, updated_at?: string, title = "Invoice") =>
+const mission = (id: string, status: string, updated_at?: string) =>
   ({
-    id: `${status}-${updated_at}-${title}`,
-    title,
+    id,
+    title: id,
     description: "",
     status,
     ...(updated_at ? { updated_at } : {}),
   }) as Activity;
-const failedRun = (over: Partial<RoutineRun>): RoutineRun => ({
-  id: "run",
+const failedRun = (id: string): RoutineRun => ({
+  id,
   routine_id: "r1",
   status: "error",
   session_key: "routine-r1",
-  started_at: BEFORE,
-  ...over,
+  started_at: T,
 });
-const paused = (pausedAt: string, name = "Daily report") =>
+const paused = (id: string, at = T) =>
   ({
-    id: name,
-    name,
+    id,
+    name: id,
     prompt: "p",
     schedule: "0 9 * * *",
     enabled: false,
     suppress_when_silent: false,
-    auto_paused: {
-      reason: "out_of_credits",
-      provider: "anthropic",
-      failures: 3,
-      at: pausedAt,
-    },
+    auto_paused: { reason: "out_of_credits", provider: "a", failures: 3, at },
   }) as Routine;
 
-describe("only when there is news", () => {
-  test("an empty snapshot is never news, not even before any briefing", () => {
-    expect(heartbeatHasNews(snapshotOf({}, null), false)).toBe(false);
-  });
-
-  test("before any finished briefing, any item counts, timestamp or not", () => {
-    const s = snapshotOf({ activities: [mission("needs_you")] }, null);
-    expect(heartbeatHasNews(s, false)).toBe(true);
-  });
-
-  test("a mission still waiting since before the watermark is not news", () => {
-    expect(
-      heartbeatHasNews(
-        snapshotOf({ activities: [mission("needs_you", BEFORE)] }),
-        true,
-      ),
-    ).toBe(false);
-    expect(
-      heartbeatHasNews(
-        snapshotOf({ activities: [mission("needs_you", AFTER)] }),
-        true,
-      ),
-    ).toBe(true);
-  });
-
-  test("a mission with no updated_at is never fresh", () => {
-    const s = snapshotOf({ activities: [mission("needs_you")] });
-    expect(s.freshCount).toBe(0);
-    expect(heartbeatHasNews(s, true)).toBe(false);
-  });
-
-  test("strictly newer, compared as instants", () => {
-    const same = snapshotOf({
-      activities: [mission("needs_you", "2026-10-10T10:00:00+02:00")],
+describe("identity keys", () => {
+  test("one per item kind, scoped by agent", () => {
+    const s = snapshotOf({
+      activities: [mission("m1", "needs_you"), mission("m2", "done", T)],
+      runs: [failedRun("run1")],
+      routines: [paused("r9")],
     });
-    expect(heartbeatHasNews(same, true)).toBe(false);
+    expect(s.presentKeys.sort()).toEqual(
+      [
+        "done:Ana/m2",
+        "need:Ana/m1",
+        `pause:Ana/r9:${T}`,
+        "run:Ana/run1",
+      ].sort(),
+    );
   });
 
-  test("runs count by completed_at, else started_at", () => {
-    expect(
-      heartbeatHasNews(
-        snapshotOf({ runs: [failedRun({ started_at: AFTER })] }),
-        true,
-      ),
-    ).toBe(true);
-    const completed = snapshotOf({
-      runs: [failedRun({ started_at: AFTER, completed_at: BEFORE })],
-    });
-    expect(heartbeatHasNews(completed, true)).toBe(false);
-  });
-
-  test("a paused routine counts by when the engine paused it", () => {
-    expect(
-      heartbeatHasNews(snapshotOf({ routines: [paused(BEFORE)] }), true),
-    ).toBe(false);
-    expect(
-      heartbeatHasNews(snapshotOf({ routines: [paused(AFTER)] }), true),
-    ).toBe(true);
-  });
-
-  test("the window opens just past the watermark, else a day ago", () => {
-    const now = Date.parse(AFTER);
-    expect(heartbeatWindowStart(BRIEFED, now)).toBe(Date.parse(BRIEFED) + 1);
-    expect(heartbeatWindowStart(null, now)).toBe(now - 86_400_000);
+  test("a re-pause is a new item", () => {
+    const later = "2026-10-11T08:00:00.000Z";
+    const s = snapshotOf({ routines: [paused("r9", later)] }, [
+      `pause:Ana/r9:${T}`,
+    ]);
+    expect(heartbeatHasNews(s)).toBe(true);
   });
 });
 
-describe("capping and coverage", () => {
-  test("a fresh item is never cut behind already-briefed ones", () => {
-    const old = Array.from({ length: HEARTBEAT_SECTION_CAP }, (_, i) =>
-      paused(BEFORE, `old-${i}`),
-    );
-    const s = snapshotOf({ routines: [...old, paused(AFTER, "new")] });
-    expect(s.pausedRoutines.items[0]?.routine).toBe("new");
-    expect(s.pausedRoutines.more).toBe(1);
-    expect(heartbeatHasNews(s, true)).toBe(true);
+describe("only when there is news", () => {
+  test("an empty snapshot is never news", () => {
+    expect(heartbeatHasNews(snapshotOf({}))).toBe(false);
   });
 
-  test("fresh items go oldest first, so the cap cuts only newer ones", () => {
-    const fresh = Array.from({ length: HEARTBEAT_SECTION_CAP + 2 }, (_, i) =>
-      mission("needs_you", at(i + 1), `m${i + 1}`),
-    ).reverse();
-    const s = snapshotOf({ activities: fresh });
-    expect(s.needsYou.items[0]?.title).toBe("m1");
-    expect(s.needsYou.items.at(-1)?.title).toBe(`m${HEARTBEAT_SECTION_CAP}`);
-    expect(s.freshCount).toBe(HEARTBEAT_SECTION_CAP + 2);
-    // Covered through the newest named item; the cut two stay fresh.
-    expect(s.coveredThroughMs).toBe(Date.parse(at(HEARTBEAT_SECTION_CAP)));
-  });
-
-  test("coverage stops below a cut item even when another section is newer", () => {
-    const fresh = Array.from({ length: HEARTBEAT_SECTION_CAP + 1 }, (_, i) =>
-      mission("needs_you", at(i + 1), `m${i + 1}`),
-    );
-    const s = snapshotOf({
-      activities: fresh,
-      routines: [paused(at(90))],
-    });
-    const cut = Date.parse(at(HEARTBEAT_SECTION_CAP + 1));
-    expect(s.coveredThroughMs).toBe(cut - 1);
-  });
-
-  test("a briefing naming no timestamped item covers nothing", () => {
+  test("an unseen item is news, whatever its timestamps", () => {
     expect(
-      snapshotOf({ activities: [mission("needs_you")] }).coveredThroughMs,
-    ).toBeNull();
+      heartbeatHasNews(
+        snapshotOf({ activities: [mission("m1", "needs_you")] }),
+      ),
+    ).toBe(true);
+  });
+
+  test("an item already told is not, even if it was touched since", () => {
+    const s = snapshotOf(
+      { activities: [mission("m1", "needs_you", "2026-12-01T00:00:00Z")] },
+      ["need:Ana/m1"],
+    );
+    expect(heartbeatHasNews(s)).toBe(false);
+  });
+
+  test("the look-back is a fixed window", () => {
+    expect(heartbeatWindowStart(Date.parse(T))).toBe(
+      Date.parse(T) - HEARTBEAT_LOOKBACK_MS,
+    );
+  });
+});
+
+describe("capping", () => {
+  test("unseen items go first, so a cut never hides one behind told ones", () => {
+    const told = Array.from({ length: HEARTBEAT_SECTION_CAP }, (_, i) =>
+      paused(`old${i}`),
+    );
+    const s = snapshotOf(
+      { routines: [...told, paused("new")] },
+      told.map((r) => `pause:Ana/${r.id}:${T}`),
+    );
+    expect(s.pausedRoutines.items[0]?.routine).toBe("new");
+    expect(s.namedKeys).toContain(`pause:Ana/new:${T}`);
+  });
+
+  test("items with one timestamp never starve: what the cap cut is named next", () => {
+    const all = Array.from({ length: HEARTBEAT_SECTION_CAP + 1 }, (_, i) =>
+      mission(`m${i}`, "needs_you", T),
+    );
+    const first = snapshotOf({ activities: all });
+    expect(first.unseen).toBe(HEARTBEAT_SECTION_CAP + 1);
+    const seen = seenAfterDelivery(first, []);
+    expect(seen).toHaveLength(HEARTBEAT_SECTION_CAP);
+    const second = snapshotOf({ activities: all }, seen);
+    expect(heartbeatHasNews(second)).toBe(true);
+    expect(second.unseen).toBe(1);
+    expect(second.namedKeys[0]).not.toBe(undefined);
+    expect(seen).not.toContain(second.namedKeys[0]);
+  });
+});
+
+describe("seen after a confirmed delivery", () => {
+  test("named keys, plus told keys still present; gone ones drop out", () => {
+    const s = snapshotOf(
+      { activities: [mission("m1", "needs_you"), mission("m2", "needs_you")] },
+      ["need:Ana/m1", "need:Ana/gone"],
+    );
+    expect(
+      seenAfterDelivery(s, ["need:Ana/m1", "need:Ana/gone"]).sort(),
+    ).toEqual(["need:Ana/m1", "need:Ana/m2"]);
   });
 });

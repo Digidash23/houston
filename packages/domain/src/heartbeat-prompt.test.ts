@@ -1,7 +1,7 @@
 import type { Activity, Routine, RoutineRun } from "@houston/protocol";
 import { describe, expect, test } from "vitest";
-import { HEARTBEAT_SECTION_CAP } from "./heartbeat-coverage";
 import { heartbeatPrompt } from "./heartbeat-prompt";
+import { HEARTBEAT_SECTION_CAP } from "./heartbeat-sections";
 import {
   buildHeartbeatSnapshot,
   type HeartbeatAgentData,

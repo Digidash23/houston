@@ -57,21 +57,35 @@ let channel: {
 let events: HoustonEvent[];
 let now: Date;
 /** How the fake runtime's briefing turn ends once admitted. */
-let reply: "ok" | "provider_error" | "none";
+let reply: "ok" | "provider_error" | "stopped" | "none";
 
-/** The runtime's side: the hidden message and its turn's reply, persisted. */
-async function persistTurn(_ctx: unknown, cid: string, text: string) {
+/** The runtime's side: the hidden message (with the sender's nonce) and its
+ *  turn's reply, persisted the way the runtime does. */
+async function persistTurn(
+  _ctx: unknown,
+  cid: string,
+  text: string,
+  _pin: unknown,
+  opts: { nonce?: string },
+) {
   const key = conversationKey(new LocalPaths(), WS, MANAGER, cid);
   const conv = JSON.parse((await vfs.readText(key)) ?? '{"messages":[]}');
   const turnId = `t${conv.messages.length}`;
   const ts = now.getTime();
-  conv.messages.push({ role: "user", content: text, ts, turnId });
+  conv.messages.push({
+    role: "user",
+    content: text,
+    ts,
+    turnId,
+    nonce: opts.nonce,
+  });
   if (reply !== "none")
     conv.messages.push({
       role: "assistant",
       content: reply === "ok" ? "Good morning" : "",
       ts: ts + 1,
       turnId,
+      ...(reply === "stopped" ? { stopped: true } : {}),
       ...(reply === "provider_error"
         ? {
             providerError: {
@@ -159,7 +173,10 @@ describe("the daily tick", () => {
     expect(text).toContain('Ana: "Invoice"');
     expect(text).toContain("2026-10-10, 08:30");
     expect(pin).toEqual({ mode: "auto" });
-    expect(opts).toEqual({ actingUser: "local-owner" });
+    expect(opts).toEqual({
+      actingUser: "local-owner",
+      nonce: expect.stringMatching(/^heartbeat-/),
+    });
     expect((await loadHeartbeat(vfs, WS.id)).last).toMatchObject({
       status: "delivered",
       date: "2026-10-10",
@@ -269,7 +286,7 @@ describe("only when there is news", () => {
     nextMorning();
     expect(await r.tick()).toEqual({ kind: "quiet" });
     expect(channel.fireTurn).toHaveBeenCalledTimes(1);
-    // A quiet day never moves the baseline: news after the delivery counts.
+    // A mission the person has not been told about is news.
     await saveActivities(vfs, ANA.id, [
       {
         id: "m2",
@@ -298,27 +315,31 @@ describe("only when there is news", () => {
 
 describe("an admitted briefing counts once its turn finishes", () => {
   const nextMorning = () => later(24 * 60);
-  const seedDated = () =>
-    saveActivities(vfs, ANA.id, [
-      {
-        id: "m1",
-        title: "Invoice",
-        description: "",
-        status: "needs_you",
-        updated_at: "2026-10-10T06:00:00.000Z",
-      },
-    ]);
 
-  test("a turn that fails after admission tells nobody and keeps the baseline", async () => {
-    await seedDated();
-    reply = "provider_error";
+  test("each fire carries a nonce its user message keeps", async () => {
+    await seedWaitingMission();
+    await runner().tick();
+    const opts = channel.fireTurn.mock.calls[0]?.[4];
+    expect(opts.nonce).toMatch(/^heartbeat-/);
+    expect((await loadHeartbeatDoc(vfs, WS.id)).pending?.nonce).toBe(
+      opts.nonce,
+    );
+  });
+
+  test.each([
+    ["provider_error", "overloaded"],
+    ["stopped", "the briefing turn was stopped"],
+    ["none", "the briefing turn ended without a reply"],
+  ] as const)("a turn that ends %s tells nobody and leaves seen alone", async (how, reason) => {
+    await seedWaitingMission();
+    reply = how;
     const r = runner();
     expect(await r.tick()).toEqual({ kind: "delivered" });
     later(1);
     expect(await r.tick()).toEqual({ kind: "not_due" });
     const doc = await loadHeartbeatDoc(vfs, WS.id);
-    expect(doc.last).toMatchObject({ status: "error", reason: "overloaded" });
-    expect(doc.briefedAt).toBeNull();
+    expect(doc.last).toMatchObject({ status: "error", reason });
+    expect(doc.seen).toEqual([]);
     expect(doc.pending).toBeNull();
     expect(events.map((e) => e.type)).not.toContain("HeartbeatDelivered");
     // The same, unchanged mission is told the next morning.
@@ -328,21 +349,8 @@ describe("an admitted briefing counts once its turn finishes", () => {
     expect(channel.fireTurn).toHaveBeenCalledTimes(2);
   });
 
-  test("a turn that ends without a reply is a failed briefing", async () => {
-    await seedDated();
-    reply = "none";
-    const r = runner();
-    await r.tick();
-    later(1);
-    await r.tick();
-    expect((await loadHeartbeatDoc(vfs, WS.id)).last).toMatchObject({
-      status: "error",
-      reason: "the briefing turn ended without a reply",
-    });
-  });
-
   test("a turn still running stays pending, then settles once", async () => {
-    await seedDated();
+    await seedWaitingMission();
     const r = runner();
     await r.tick();
     channel.busy.mockResolvedValue(true);
@@ -356,21 +364,9 @@ describe("an admitted briefing counts once its turn finishes", () => {
     await r.tick();
     const doc = await loadHeartbeatDoc(vfs, WS.id);
     expect(doc.pending).toBeNull();
-    // Settled on the first idle tick, two minutes after admission.
-    expect(doc.briefedAt).toBe("2026-10-10T08:32:00.000Z");
+    expect(doc.seen).toEqual(["need:Ana/m1"]);
     expect(events.filter((e) => e.type === "HeartbeatDelivered")).toHaveLength(
       1,
-    );
-  });
-
-  test("the baseline is what the briefing named, not when it ran", async () => {
-    await seedDated();
-    const r = runner();
-    await r.tick();
-    later(1);
-    await r.tick();
-    expect((await loadHeartbeatDoc(vfs, WS.id)).briefedThrough).toBe(
-      "2026-10-10T06:00:00.000Z",
     );
   });
 });

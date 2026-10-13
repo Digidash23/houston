@@ -6,10 +6,10 @@ import {
   type RoutineRun,
 } from "@houston/protocol";
 import {
-  coveredThrough,
-  coverSection,
   type HeartbeatSection,
-} from "./heartbeat-coverage";
+  type Keyed,
+  orderSection,
+} from "./heartbeat-sections";
 
 /**
  * The deterministic look across the person's agents that runs BEFORE any model
@@ -57,10 +57,12 @@ export interface HeartbeatSnapshot {
   routineRuns: HeartbeatSection<HeartbeatRoutineRun>;
   pausedRoutines: HeartbeatSection<HeartbeatPausedRoutine>;
   done: HeartbeatSection<HeartbeatDone>;
-  /** Items newer than the baseline, across sections, cut ones included. */
-  freshCount: number;
-  /** What this snapshot's briefing covers, epoch ms (heartbeat-coverage.ts). */
-  coveredThroughMs: number | null;
+  /** Items not yet in the seen set, across sections, cut ones included. */
+  unseen: number;
+  /** Keys of the items this snapshot's briefing names. */
+  namedKeys: string[];
+  /** Keys of every matched item. */
+  presentKeys: string[];
 }
 
 /** The first step the mission is genuinely blocked on (offers never block). */
@@ -74,27 +76,28 @@ const atOrAfter = (iso: string | undefined, sinceMs: number) =>
   iso !== undefined && Date.parse(iso) >= sinceMs;
 
 /**
- * Everything worth a morning sentence since `sinceMs` (heartbeat-news.ts):
- * missions waiting on the person, routine runs that failed or reported
- * something, routines the engine paused by itself, and missions finished. A
- * surfaced run whose card is already waiting on the person is named once, as
- * the card. `briefedThroughMs` (the last delivered briefing's coverage, null
- * when none) decides what is fresh and so the order each section is capped in.
+ * Everything worth a morning sentence: missions waiting on the person, routine
+ * runs since `sinceMs` that failed or reported something, routines the engine
+ * paused by itself, and missions finished since `sinceMs`. A surfaced run
+ * whose card is already waiting on the person is named once, as the card.
+ * Each item carries its identity key (heartbeat-news.ts); `seen` decides the
+ * order each section is capped in.
  */
 export function buildHeartbeatSnapshot(
   agents: readonly HeartbeatAgentData[],
   sinceMs: number,
-  briefedThroughMs: number | null = null,
+  seen: ReadonlySet<string> = new Set(),
 ): HeartbeatSnapshot {
-  const needsYou: (HeartbeatNeedsYou & { at: string })[] = [];
-  const runs: HeartbeatRoutineRun[] = [];
-  const paused: (HeartbeatPausedRoutine & { at: string })[] = [];
-  const done: (HeartbeatDone & { at: string })[] = [];
+  const needsYou: (HeartbeatNeedsYou & Keyed)[] = [];
+  const runs: (HeartbeatRoutineRun & Keyed)[] = [];
+  const paused: (HeartbeatPausedRoutine & Keyed)[] = [];
+  const done: (HeartbeatDone & Keyed)[] = [];
   for (const data of agents) {
     const agent = data.agentName;
     const waiting = new Set<string>();
     for (const activity of data.activities) {
       const at = activity.updated_at ?? "";
+      const id = `${agent}/${activity.id}`;
       if (activity.status === "needs_you") {
         waiting.add(activity.id);
         const waitingOn = blockingKind(activity);
@@ -102,10 +105,11 @@ export function buildHeartbeatSnapshot(
           agent,
           title: activity.title,
           ...(waitingOn ? { waitingOn } : {}),
+          key: `need:${id}`,
           at,
         });
       } else if (activity.status === "done" && atOrAfter(at, sinceMs)) {
-        done.push({ agent, title: activity.title, at });
+        done.push({ agent, title: activity.title, key: `done:${id}`, at });
       }
     }
     const routineName = new Map(data.routines.map((r) => [r.id, r.name]));
@@ -119,39 +123,48 @@ export function buildHeartbeatSnapshot(
         routine: routineName.get(run.routine_id) ?? run.routine_id,
         status: run.status,
         ...(run.summary ? { summary: run.summary } : {}),
+        key: `run:${agent}/${run.id}`,
         at,
       });
     }
     for (const routine of data.routines) {
       if (routine.enabled || !routine.auto_paused) continue;
+      const at = routine.auto_paused.at;
       paused.push({
         agent,
         routine: routine.name,
         failures: routine.auto_paused.failures,
-        at: routine.auto_paused.at,
+        key: `pause:${agent}/${routine.id}:${at}`,
+        at,
       });
     }
   }
-  const covered = {
-    needsYou: coverSection(needsYou, briefedThroughMs),
-    routineRuns: coverSection(runs, briefedThroughMs),
-    pausedRoutines: coverSection(paused, briefedThroughMs),
-    done: coverSection(done, briefedThroughMs),
+  const ordered = {
+    needsYou: orderSection(needsYou, seen),
+    routineRuns: orderSection(runs, seen),
+    pausedRoutines: orderSection(paused, seen),
+    done: orderSection(done, seen),
   };
-  const all = Object.values(covered);
-  const strip = <T extends { at: string }>(
+  const all = Object.values(ordered);
+  const bare = <T extends Keyed>(
     section: HeartbeatSection<T>,
-  ): HeartbeatSection<Omit<T, "at">> => ({
-    items: section.items.map(({ at: _at, ...rest }) => rest),
+  ): HeartbeatSection<Omit<T, keyof Keyed>> => ({
+    items: section.items.map(({ key: _key, at: _at, ...rest }) => rest),
     more: section.more,
   });
   return {
-    needsYou: strip(covered.needsYou.section),
-    routineRuns: covered.routineRuns.section,
-    pausedRoutines: strip(covered.pausedRoutines.section),
-    done: strip(covered.done.section),
-    freshCount: all.reduce((n, s) => n + s.fresh, 0),
-    coveredThroughMs: coveredThrough(all),
+    needsYou: bare(ordered.needsYou.section),
+    routineRuns: {
+      items: ordered.routineRuns.section.items.map(
+        ({ key: _key, ...run }) => run,
+      ),
+      more: ordered.routineRuns.section.more,
+    },
+    pausedRoutines: bare(ordered.pausedRoutines.section),
+    done: bare(ordered.done.section),
+    unseen: all.reduce((n, s) => n + s.unseen, 0),
+    namedKeys: all.flatMap((s) => s.named),
+    presentKeys: all.flatMap((s) => s.present),
   };
 }
 

@@ -1,5 +1,5 @@
+import { randomUUID } from "node:crypto";
 import {
-  briefedThroughMs,
   getPreference,
   heartbeatDue,
   heartbeatHasNews,
@@ -12,6 +12,7 @@ import {
   recordHeartbeatAdmitted,
   recordHeartbeatRun,
   resolveTimezone,
+  seenAfterDelivery,
 } from "@houston/domain";
 import {
   encodeHeartbeat,
@@ -114,13 +115,12 @@ export class HeartbeatRunner {
     const ctx = await managerContext(deps, ws);
     // Never into a running turn: retried on the next tick, nothing recorded.
     if (await deps.channel.busy(ctx)) return { kind: "busy" };
-    const sinceMs = heartbeatWindowStart(state.briefedThrough, now.getTime());
     // Read before the date is burned: a snapshot that throws leaves today
     // unclaimed, so the next tick retries instead of losing the day.
     const snapshot = await collectHeartbeatSnapshot(
       deps,
-      sinceMs,
-      briefedThroughMs(state.briefedThrough),
+      heartbeatWindowStart(now.getTime()),
+      new Set(state.seen),
     );
     if (
       !force &&
@@ -133,7 +133,7 @@ export class HeartbeatRunner {
       return { kind: "locked" };
     const worthSaying = force
       ? !isHeartbeatSnapshotEmpty(snapshot)
-      : heartbeatHasNews(snapshot, state.briefedAt !== null);
+      : heartbeatHasNews(snapshot);
     if (!worthSaying) {
       await this.record(ws, clock, now, { status: HeartbeatRunStatus.Quiet });
       return { kind: HeartbeatRunStatus.Quiet };
@@ -144,13 +144,15 @@ export class HeartbeatRunner {
       timezone: clock.timezone,
       snapshot,
     });
+    // The nonce rides the persisted user message: settle.ts finds the turn by it.
+    const nonce = `heartbeat-${randomUUID()}`;
     try {
       await deps.channel.fireTurn(
         ctx,
         ASSISTANT_CONVERSATION_ID,
         encodeHeartbeat(prompt),
         { mode: "auto" },
-        { actingUser: deps.userId },
+        { actingUser: deps.userId, nonce },
       );
     } catch (err) {
       const reason = reasonOf(err);
@@ -164,7 +166,8 @@ export class HeartbeatRunner {
     await recordHeartbeatAdmitted(deps.vfs, ws.id, {
       date: clock.date,
       at: now.toISOString(),
-      coveredThroughMs: snapshot.coveredThroughMs,
+      nonce,
+      seen: seenAfterDelivery(snapshot, state.seen),
     });
     this.changed(ws);
     return { kind: HeartbeatRunStatus.Delivered };

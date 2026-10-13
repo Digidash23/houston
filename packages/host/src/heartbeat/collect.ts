@@ -33,7 +33,7 @@ export interface CollectDeps {
 export async function collectHeartbeatSnapshot(
   deps: CollectDeps,
   sinceMs: number,
-  briefedThroughMs: number | null,
+  seen: ReadonlySet<string>,
 ): Promise<HeartbeatSnapshot> {
   const agents: HeartbeatAgentData[] = [];
   for (const ws of await deps.store.listWorkspacesForUser(deps.userId)) {
@@ -56,5 +56,5 @@ export async function collectHeartbeatSnapshot(
       }
     }
   }
-  return buildHeartbeatSnapshot(agents, sinceMs, briefedThroughMs);
+  return buildHeartbeatSnapshot(agents, sinceMs, seen);
 }

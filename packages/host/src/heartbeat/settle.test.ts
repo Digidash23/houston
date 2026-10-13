@@ -1,20 +1,25 @@
+import type { ChatMessage } from "@houston/protocol";
+import { describe, expect, test, vi } from "vitest";
+import type { Agent, Workspace } from "../domain/types";
+import type { RuntimeChannel } from "../ports";
+import { MemoryTurnBus } from "../turn/bus";
 import {
-  type ChatMessage,
-  encodeAutoContinue,
-  encodeHeartbeat,
-} from "@houston/protocol";
-import { describe, expect, test } from "vitest";
-import { briefingTurnState } from "./settle";
+  briefingOutcome,
+  readBriefingTurn,
+  settlePendingBriefing,
+} from "./settle";
 
+const NONCE = "heartbeat-1";
 const SINCE = 1_000;
 const prompt = (over: Partial<ChatMessage> = {}): ChatMessage => ({
   role: "user",
-  content: encodeHeartbeat("Brief them."),
+  content: "hidden",
   ts: SINCE + 5,
   turnId: "t1",
+  nonce: NONCE,
   ...over,
 });
-const answer = (over: Partial<ChatMessage> = {}): ChatMessage => ({
+const reply = (over: Partial<ChatMessage> = {}): ChatMessage => ({
   role: "assistant",
   content: "Good morning",
   ts: SINCE + 9,
@@ -22,74 +27,119 @@ const answer = (over: Partial<ChatMessage> = {}): ChatMessage => ({
   ...over,
 });
 
-describe("the pending briefing turn", () => {
-  test("is running while the manager is busy, whatever the transcript says", () => {
-    expect(briefingTurnState([prompt(), answer()], SINCE, true)).toEqual({
-      kind: "running",
-    });
-  });
-
-  test("completed: the briefing's own turn answered", () => {
-    expect(briefingTurnState([prompt(), answer()], SINCE, false)).toEqual({
+describe("the briefing turn's outcome", () => {
+  test("completed only with words and no failure marker", () => {
+    expect(briefingOutcome([prompt(), reply()].slice(1))).toEqual({
       kind: "completed",
     });
   });
 
-  test("failed: the turn's last reply carries a provider error", () => {
-    const failed = answer({
-      content: "",
-      providerError: {
-        kind: "unknown",
-        provider: "anthropic",
-        raw_excerpt: "overloaded",
+  test.each([
+    [
+      {
+        providerError: {
+          kind: "unknown",
+          provider: "x",
+          raw_excerpt: "overloaded",
+        },
+      },
+      "overloaded",
+    ],
+    [{ stopped: true }, "the briefing turn was stopped"],
+    [
+      { interrupted: { cause: "engine_restart" } },
+      "the briefing turn was interrupted",
+    ],
+    [{ content: "  " }, "the briefing turn ended without a reply"],
+  ] as const)("failed on %j", (marker, reason) => {
+    const turn = [reply({ content: "", ...marker } as Partial<ChatMessage>)];
+    expect(briefingOutcome(turn)).toEqual({ kind: "failed", reason });
+  });
+
+  test("a turn nowhere to be found never reached the chat", () => {
+    expect(briefingOutcome(null)).toEqual({
+      kind: "failed",
+      reason: "the briefing never reached the chat",
+    });
+  });
+});
+
+describe("finding the briefing turn", () => {
+  const files = (entries: Record<string, unknown>) => async (key: string) =>
+    key in entries ? JSON.stringify(entries[key]) : null;
+
+  test("by its nonce, and only its own turn's replies", async () => {
+    const read = files({
+      "c/assistant.json": {
+        messages: [
+          prompt({ nonce: "other", turnId: "t0" }),
+          reply({ turnId: "t0", content: "old" }),
+          prompt(),
+          reply(),
+          { role: "user", content: "thanks", ts: SINCE + 20, turnId: "t2" },
+          reply({ turnId: "t2", content: "you're welcome" }),
+        ],
       },
     });
-    expect(briefingTurnState([prompt(), failed], SINCE, false)).toEqual({
-      kind: "failed",
-      reason: "overloaded",
-    });
+    const turn = await readBriefingTurn(read, "c/assistant.json", NONCE, SINCE);
+    expect(turn?.map((m) => m.content)).toEqual(["Good morning"]);
   });
 
-  test("failed: no reply, or the hidden message never landed", () => {
-    expect(briefingTurnState([prompt()], SINCE, false)).toMatchObject({
-      kind: "failed",
-      reason: "the briefing turn ended without a reply",
+  test("in the archive once a later turn rotated it out of the live file", async () => {
+    const read = files({
+      "c/assistant.json": {
+        messages: [
+          { role: "user", content: "later", ts: SINCE + 99, turnId: "t9" },
+        ],
+        archived: { messages: 4, segments: [2, 2] },
+      },
+      "c/assistant.archive/2.json": { messages: [prompt(), reply()] },
+      "c/assistant.archive/1.json": { messages: [] },
     });
-    expect(briefingTurnState([], SINCE, false)).toMatchObject({
-      kind: "failed",
-      reason: "the briefing never reached the chat",
-    });
+    const turn = await readBriefingTurn(read, "c/assistant.json", NONCE, SINCE);
+    expect(briefingOutcome(turn)).toEqual({ kind: "completed" });
   });
 
-  test("ignores an older briefing and other hidden messages", () => {
-    const old = [
-      prompt({ ts: SINCE - 50, turnId: "t0" }),
-      answer({ turnId: "t0" }),
-    ];
-    const resume = prompt({ content: encodeAutoContinue("continue") });
-    expect(briefingTurnState([...old, resume], SINCE, false)).toMatchObject({
-      kind: "failed",
-      reason: "the briefing never reached the chat",
-    });
+  test("stops at a segment older than the briefing", async () => {
+    const read = vi.fn(
+      files({
+        "c/assistant.json": { messages: [], archived: { segments: [1, 1] } },
+        "c/assistant.archive/2.json": {
+          messages: [reply({ ts: SINCE - 10, turnId: "t0" })],
+        },
+      }),
+    );
+    expect(
+      await readBriefingTurn(read, "c/assistant.json", NONCE, SINCE),
+    ).toBeNull();
+    expect(read).not.toHaveBeenCalledWith("c/assistant.archive/1.json");
   });
+});
 
-  test("a later chat's reply never answers for the briefing", () => {
-    const messages = [
-      prompt(),
-      { role: "user", content: "thanks", ts: SINCE + 20, turnId: "t2" },
-      answer({ turnId: "t2", ts: SINCE + 25 }),
-    ] as ChatMessage[];
-    expect(briefingTurnState(messages, SINCE, false)).toMatchObject({
-      kind: "failed",
-    });
-    // Without turn ids, the reply up to the next user message counts.
-    const legacy = [
-      prompt({ turnId: undefined }),
-      answer({ turnId: undefined }),
-      { role: "user", content: "thanks", ts: SINCE + 20 },
-    ] as ChatMessage[];
-    expect(briefingTurnState(legacy, SINCE, false)).toEqual({
-      kind: "completed",
-    });
+describe("settling", () => {
+  test("never reads the transcript while the manager is busy", async () => {
+    const vfs = { readText: vi.fn(async () => null) };
+    const doc = {
+      enabled: true,
+      time: "08:00",
+      last: null,
+      seen: [],
+      pending: { nonce: NONCE, at: new Date(SINCE).toISOString(), seen: ["k"] },
+    };
+    const ws = { id: "P", ownerUserId: "u" } as Workspace;
+    const out = await settlePendingBriefing(
+      {
+        vfs: vfs as never,
+        paths: { dataRoot: () => "root" } as never,
+        channel: { busy: async () => true } as unknown as RuntimeChannel,
+        lock: new MemoryTurnBus(),
+      },
+      ws,
+      { workspace: ws, agent: { id: "P/.assistant" } as Agent },
+      doc,
+      new Date(),
+    );
+    expect(out).toBe(doc);
+    expect(vfs.readText).not.toHaveBeenCalled();
   });
 });

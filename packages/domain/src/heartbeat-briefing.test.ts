@@ -1,6 +1,5 @@
 import { describe, expect, test } from "vitest";
 import {
-  heartbeatDocKey,
   loadHeartbeat,
   loadHeartbeatDoc,
   normalizeHeartbeat,
@@ -11,14 +10,12 @@ import {
 } from "./heartbeat-briefing";
 import type { TextStore } from "./store";
 
-const T0 = "2026-10-10T06:00:00.000Z";
 const RUN = "2026-10-10T08:30:00.000Z";
 const DONE = "2026-10-10T08:32:00.000Z";
 
-function memoryStore(): TextStore & { files: Map<string, string> } {
+function memoryStore(): TextStore {
   const files = new Map<string, string>();
   return {
-    files,
     readText: async (key) => files.get(key) ?? null,
     writeText: async (key, content) => {
       files.set(key, content);
@@ -26,26 +23,30 @@ function memoryStore(): TextStore & { files: Map<string, string> } {
   };
 }
 
-const admit = (store: TextStore, coveredThroughMs: number | null) =>
+const admit = (store: TextStore, seen: string[]) =>
   recordHeartbeatAdmitted(store, "P", {
     date: "2026-10-10",
     at: RUN,
-    coveredThroughMs,
+    nonce: "heartbeat-1",
+    seen,
   });
 
 describe("a briefing's two moments", () => {
-  test("admission claims the day but moves no baseline", async () => {
+  test("admission claims the day but leaves seen alone", async () => {
     const store = memoryStore();
-    await admit(store, Date.parse(T0));
+    await admit(store, ["need:Ana/m1"]);
     const doc = await loadHeartbeatDoc(store, "P");
     expect(doc.last).toEqual({
       status: "delivered",
       date: "2026-10-10",
       at: RUN,
     });
-    expect(doc.pending).toEqual({ at: RUN, coveredThrough: T0 });
-    expect(doc.briefedAt).toBeNull();
-    expect(doc.briefedThrough).toBeNull();
+    expect(doc.pending).toEqual({
+      nonce: "heartbeat-1",
+      at: RUN,
+      seen: ["need:Ana/m1"],
+    });
+    expect(doc.seen).toEqual([]);
     // Host-owned: never on the wire.
     expect(Object.keys(await loadHeartbeat(store, "P")).sort()).toEqual([
       "enabled",
@@ -54,26 +55,19 @@ describe("a briefing's two moments", () => {
     ]);
   });
 
-  test("finishing moves the baseline to what it covered, never backwards", async () => {
+  test("finishing makes the briefing's keys the seen set", async () => {
     const store = memoryStore();
-    await admit(store, Date.parse(T0));
+    await admit(store, ["need:Ana/m1"]);
     await settleHeartbeatRun(store, "P", { kind: "completed", at: DONE });
-    let doc = await loadHeartbeatDoc(store, "P");
-    expect(doc).toMatchObject({
-      briefedAt: DONE,
-      briefedThrough: T0,
+    expect(await loadHeartbeatDoc(store, "P")).toMatchObject({
+      seen: ["need:Ana/m1"],
       pending: null,
     });
-    // A later briefing that named nothing timestamped keeps the watermark.
-    await admit(store, null);
-    await settleHeartbeatRun(store, "P", { kind: "completed", at: DONE });
-    doc = await loadHeartbeatDoc(store, "P");
-    expect(doc.briefedThrough).toBe(T0);
   });
 
-  test("failing reads as an error and keeps the baseline", async () => {
+  test("failing reads as an error and leaves seen alone", async () => {
     const store = memoryStore();
-    await admit(store, Date.parse(T0));
+    await admit(store, ["need:Ana/m1"]);
     await settleHeartbeatRun(store, "P", {
       kind: "failed",
       at: DONE,
@@ -86,36 +80,23 @@ describe("a briefing's two moments", () => {
       at: DONE,
       reason: "overloaded",
     });
-    expect(doc).toMatchObject({
-      briefedAt: null,
-      briefedThrough: null,
-      pending: null,
-    });
+    expect(doc).toMatchObject({ seen: [], pending: null });
   });
 
   test("settling twice is a no-op the second time", async () => {
     const store = memoryStore();
-    await admit(store, null);
+    await admit(store, []);
     expect(
       await settleHeartbeatRun(store, "P", { kind: "completed", at: DONE }),
     ).not.toBeNull();
     expect(
       await settleHeartbeatRun(store, "P", { kind: "completed", at: DONE }),
     ).toBeNull();
-    expect(store.files.has(heartbeatDocKey("P"))).toBe(true);
   });
 
-  test("a document from before the record reads a delivered last as briefed", () => {
-    const last = { status: "delivered", date: "2026-10-10", at: RUN } as const;
-    expect(normalizeHeartbeat({ last })).toMatchObject({
-      briefedAt: RUN,
-      briefedThrough: RUN,
-      pending: null,
-    });
-    // Written by this version: a delivered last with no finish is not briefed.
-    expect(normalizeHeartbeat({ last, briefedAt: null }).briefedAt).toBeNull();
-    expect(
-      normalizeHeartbeat({ last: { ...last, status: "quiet" } }).briefedAt,
-    ).toBeNull();
+  test("a document without seen reads as empty; junk entries are dropped", () => {
+    expect(normalizeHeartbeat({ lastDeliveredAt: RUN }).seen).toEqual([]);
+    expect(normalizeHeartbeat({ seen: ["a", 3, null] }).seen).toEqual(["a"]);
+    expect(normalizeHeartbeat({ pending: { at: RUN } }).pending).toBeNull();
   });
 });

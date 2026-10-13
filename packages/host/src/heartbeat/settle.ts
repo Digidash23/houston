@@ -4,7 +4,7 @@ import {
   loadHeartbeatDoc,
   settleHeartbeatRun,
 } from "@houston/domain";
-import { type ChatMessage, isHeartbeat } from "@houston/protocol";
+import type { ChatMessage } from "@houston/protocol";
 import type { Workspace } from "../domain/types";
 import type { EventHub } from "../events/hub";
 import { conversationKey, type WorkspacePaths } from "../paths";
@@ -22,69 +22,85 @@ export interface SettleDeps {
   events?: EventHub;
 }
 
-/** How the pending briefing turn stands, read off the manager's transcript. */
-export type BriefingTurnState =
-  | { kind: "running" }
-  | { kind: "completed" }
-  | { kind: "failed"; reason: string };
+interface StoredFile {
+  messages?: ChatMessage[];
+  archived?: { segments?: number[] };
+}
 
 /**
- * The pending turn's state. While the manager is busy it is still running
- * (or the person is talking to it; either way, look again next tick). Idle:
- * the briefing's hidden message at or after `sinceMs`, and its turn's replies
- * (by turn id, else up to the next user message). The last reply carrying a
- * provider error, or no reply at all, is a failed briefing.
+ * The briefing turn's messages, found by the nonce it was sent with: the user
+ * message carries it and the replies carry its `turnId`. Read from the live
+ * transcript, else from its archive segments newest first (the runtime never
+ * splits a turn across files, conversation-archive.ts), stopping at a segment
+ * that ends before the briefing started. Null when the turn is nowhere.
  */
-export function briefingTurnState(
-  messages: readonly ChatMessage[],
+export async function readBriefingTurn(
+  read: (key: string) => Promise<string | null>,
+  liveKey: string,
+  nonce: string,
   sinceMs: number,
-  busy: boolean,
-): BriefingTurnState {
-  if (busy) return { kind: "running" };
-  const at = messages.findLastIndex(
-    (m) => m.role === "user" && m.ts >= sinceMs && isHeartbeat(m.content),
-  );
+): Promise<ChatMessage[] | null> {
+  const parse = async (key: string): Promise<StoredFile> => {
+    const raw = await read(key);
+    return raw ? (JSON.parse(raw) as StoredFile) : {};
+  };
+  const live = await parse(liveKey);
+  const found = turnIn(live.messages ?? [], nonce);
+  if (found) return found;
+  const segments = live.archived?.segments ?? [];
+  const archiveDir = liveKey.replace(/\.json$/, ".archive");
+  for (let n = segments.length; n >= 1; n--) {
+    const messages = (await parse(`${archiveDir}/${n}.json`)).messages ?? [];
+    const turn = turnIn(messages, nonce);
+    if (turn) return turn;
+    if ((messages.at(-1)?.ts ?? 0) < sinceMs) return null;
+  }
+  return null;
+}
+
+function turnIn(
+  messages: readonly ChatMessage[],
+  nonce: string,
+): ChatMessage[] | null {
+  const at = messages.findIndex((m) => m.role === "user" && m.nonce === nonce);
   const prompt = messages[at];
-  if (!prompt)
-    return { kind: "failed", reason: "the briefing never reached the chat" };
+  if (!prompt) return null;
   const after = messages.slice(at + 1);
-  const nextUser = after.findIndex((m) => m.role === "user");
-  const untilNextUser = nextUser === -1 ? after : after.slice(0, nextUser);
-  const turn = prompt.turnId
-    ? after.filter((m) => m.turnId === prompt.turnId)
-    : untilNextUser;
-  const last = turn.filter((m) => m.role === "assistant").at(-1);
-  if (!last)
+  if (prompt.turnId) return after.filter((m) => m.turnId === prompt.turnId);
+  const next = after.findIndex((m) => m.role === "user");
+  return next === -1 ? after : after.slice(0, next);
+}
+
+/**
+ * How a finished turn ended, from the outcome the runtime persisted on its
+ * replies: a provider error, a stop, an engine-restart interruption, or no
+ * words at all is a failed briefing; otherwise it was delivered.
+ */
+export function briefingOutcome(
+  turn: readonly ChatMessage[] | null,
+): { kind: "completed" } | { kind: "failed"; reason: string } {
+  if (!turn)
+    return { kind: "failed", reason: "the briefing never reached the chat" };
+  const replies = turn.filter((m) => m.role === "assistant");
+  const failed = replies.find((m) => m.providerError)?.providerError;
+  if (failed) return { kind: "failed", reason: providerErrorSummary(failed) };
+  if (replies.some((m) => m.stopped))
+    return { kind: "failed", reason: "the briefing turn was stopped" };
+  if (replies.some((m) => m.interrupted))
+    return { kind: "failed", reason: "the briefing turn was interrupted" };
+  if (!replies.some((m) => m.content.trim()))
     return {
       kind: "failed",
       reason: "the briefing turn ended without a reply",
     };
-  if (last.providerError)
-    return { kind: "failed", reason: providerErrorSummary(last.providerError) };
   return { kind: "completed" };
 }
 
-async function readTranscript(
-  deps: SettleDeps,
-  ctx: ChannelCtx,
-): Promise<ChatMessage[]> {
-  const raw = await deps.vfs.readText(
-    conversationKey(
-      deps.paths,
-      ctx.workspace,
-      ctx.agent,
-      ASSISTANT_CONVERSATION_ID,
-    ),
-  );
-  return raw
-    ? ((JSON.parse(raw) as { messages?: ChatMessage[] }).messages ?? [])
-    : [];
-}
-
 /**
- * Settle an admitted briefing once its turn is over: the baseline moves and
- * the person is told only for a turn that finished with a reply. Returns the
- * document as it now stands.
+ * Settle an admitted briefing once its turn is over: `seen` moves and the
+ * person is told only for a turn that finished with a reply. Nothing is read
+ * while the manager is busy (the turn, or the person's next one, is still
+ * running). Returns the document as it now stands.
  */
 export async function settlePendingBriefing(
   deps: SettleDeps,
@@ -94,23 +110,31 @@ export async function settlePendingBriefing(
   now: Date,
 ): Promise<HeartbeatDoc> {
   const { pending } = doc;
-  if (!pending) return doc;
-  const state = briefingTurnState(
-    await readTranscript(deps, ctx),
-    Date.parse(pending.at),
-    await deps.channel.busy(ctx),
+  if (!pending || (await deps.channel.busy(ctx))) return doc;
+  const liveKey = conversationKey(
+    deps.paths,
+    ctx.workspace,
+    ctx.agent,
+    ASSISTANT_CONVERSATION_ID,
   );
-  if (state.kind === "running") return doc;
+  const outcome = briefingOutcome(
+    await readBriefingTurn(
+      (key) => deps.vfs.readText(key),
+      liveKey,
+      pending.nonce,
+      Date.parse(pending.at),
+    ),
+  );
   const at = now.toISOString();
   const end: HeartbeatTurnEnd =
-    state.kind === "completed"
+    outcome.kind === "completed"
       ? { kind: "completed", at }
-      : { kind: "failed", at, reason: state.reason };
+      : { kind: "failed", at, reason: outcome.reason };
   const settled = await settleHeartbeatRun(deps.vfs, ws.id, end);
   // Another replica settled it first: it also told the person.
   if (!settled) return loadHeartbeatDoc(deps.vfs, ws.id);
   const first = await deps.lock.setNx(
-    `heartbeat:settled:${ws.id}:${pending.at}`,
+    `heartbeat:settled:${ws.id}:${pending.nonce}`,
     "1",
     2 * 86_400,
   );
@@ -118,7 +142,7 @@ export async function settlePendingBriefing(
     type: "HeartbeatChanged",
     workspaceId: ws.id,
   });
-  if (first && state.kind === "completed")
+  if (first && outcome.kind === "completed")
     deps.events?.emit(ws.ownerUserId, {
       type: "HeartbeatDelivered",
       agentPath: ctx.agent.id,
