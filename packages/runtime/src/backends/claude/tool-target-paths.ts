@@ -1,40 +1,6 @@
 import { isAbsolute } from "node:path";
 import { bashWords } from "./bash-words";
 
-/** The path(s) a tool call would touch, for clamping. */
-export function targetPaths(
-  toolName: string,
-  input: Record<string, unknown>,
-): string[] {
-  switch (toolName) {
-    case "Read":
-    case "Edit":
-    case "Write": {
-      const fp = input.file_path;
-      return typeof fp === "string" ? [fp] : [];
-    }
-    case "Glob":
-    case "Grep": {
-      const targets: string[] = [];
-      if (typeof input.path === "string") targets.push(input.path);
-      // Glob's real target is its PATTERN, not `path`: with no `path`, the
-      // pattern is resolved against cwd, so an absolute/`~`/`..`-escaping
-      // pattern (e.g. `Glob({pattern:"/etc/**/*.conf"})`) reads OUTSIDE the
-      // workspace unless clamped. A benign relative glob (`**/*.ts`) has no
-      // escape anchor, resolves under cwd, and is left to the default.
-      if (typeof input.pattern === "string" && isEscapeToken(input.pattern))
-        targets.push(input.pattern);
-      return targets;
-    }
-    case "Bash": {
-      const cmd = input.command;
-      return typeof cmd === "string" ? bashEscapeCandidates(cmd) : [];
-    }
-    default:
-      return [];
-  }
-}
-
 /**
  * Path tokens in a Bash command that could escape the workspace: absolute (`/`),
  * home (`~`), or a `..` segment that climbs out of cwd — `cat ../../etc/passwd`
@@ -50,7 +16,7 @@ export function targetPaths(
  * is judged whole: `"/etc/passwd"` is still one absolute token and still
  * denied, while `".../Personal/neqw copia"` is contained (PRODUCT-1809).
  */
-function bashEscapeCandidates(command: string): string[] {
+export function bashEscapeCandidates(command: string): string[] {
   return bashWords(command).filter(isEscapeToken);
 }
 
@@ -62,7 +28,7 @@ function bashEscapeCandidates(command: string): string[] {
  * glob patterns we deliberately do NOT parse magic — only the leading anchor
  * matters for escape detection.
  */
-function isEscapeToken(token: string): boolean {
+export function isEscapeToken(token: string): boolean {
   if (isAbsolute(token) || token.startsWith("~")) return true;
   // Split on both separators so a `..` segment is caught on POSIX and Windows.
   return token.split(/[/\\]+/).includes("..");
