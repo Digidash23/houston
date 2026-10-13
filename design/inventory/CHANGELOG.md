@@ -3,6 +3,19 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v131 - 2026-10-13
+
+The browser hand-off reads at a glance. The chat card shows a soft live dot
+while it waits and keeps Open and how it ended in the same place under the
+text, so the card never changes height: a green Done chip, or a quiet chip
+for not finished, time ran out and no longer waiting. The live view no
+longer cuts the instruction mid-sentence (a phone shows three lines with
+Show more), its close is the dialogs' own small X, a page-shaped skeleton
+waits for the first frame, the time left sits by the answers and turns to
+the attention colour in its last minute, and I'm done is clearly the main
+answer with Cancel beside it. The sheet rises from the bottom and the
+dialog scales in, both leaving faster than they arrive.
+
 ## v130 - 2026-10-10
 
 An AI Employee can hand its browser to the person. When a website needs the

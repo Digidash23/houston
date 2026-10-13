@@ -491,6 +491,9 @@
     "leavePage": "Tab and Escape go to the website. Press Shift+Escape to get back to the browser controls.",
     "website": "Website",
     "timeLeft": "{{minutes}} min left",
+    "timeLeftLastMinute": "Less than a minute left",
+    "showMore": "Show more",
+    "showLess": "Show less",
     "title": "Browser"
   }
 }

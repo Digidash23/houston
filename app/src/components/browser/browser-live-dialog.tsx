@@ -47,6 +47,9 @@ function useBrowserLiveLabels(): BrowserLiveViewLabels {
       leavePage: t("browserLive.leavePage"),
       website: t("browserLive.website"),
       timeLeft: (minutes) => t("browserLive.timeLeft", { minutes }),
+      timeLeftLastMinute: t("browserLive.timeLeftLastMinute"),
+      showMore: t("browserLive.showMore"),
+      showLess: t("browserLive.showLess"),
     }),
     [t],
   );
@@ -62,8 +65,18 @@ function keepPageEscape(event: KeyboardEvent) {
 }
 
 /**
- * The live browser's frame: a full-height bottom sheet on phones, a large
- * dialog on desktop (a structural fork, so `useIsMobile`). Closing it only
+ * Opening lands focus on the frame itself, not its first control: the close
+ * X wore a focus ring from the moment the view appeared. The frame is
+ * focusable (tabIndex -1), so the focus trap and Tab order are unchanged.
+ */
+function focusFrame(event: Event) {
+  event.preventDefault();
+  if (event.currentTarget instanceof HTMLElement) event.currentTarget.focus();
+}
+
+/**
+ * The live browser's frame: a full-height bottom sheet on phones (rising on
+ * the drawer curve), a large dialog on desktop (scaling in from 0.96) (a structural fork, so `useIsMobile`). Closing it only
  * stops watching; the hand-off keeps waiting until the person answers or the
  * time runs out.
  */
@@ -97,8 +110,9 @@ export function BrowserLiveDialog({
     return (
       <Sheet onOpenChange={onOpenChange} open={open}>
         <SheetContent
-          className="h-dvh gap-0 p-0 pt-safe"
+          className="browser-live-sheet h-dvh gap-0 p-0 pt-safe"
           onEscapeKeyDown={keepPageEscape}
+          onOpenAutoFocus={focusFrame}
           showCloseButton={false}
           side="bottom"
         >
@@ -111,8 +125,9 @@ export function BrowserLiveDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="flex h-[90dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(72rem,calc(100%-2rem))]"
+        className="browser-live-dialog flex h-[90dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(72rem,calc(100%-2rem))]"
         onEscapeKeyDown={keepPageEscape}
+        onOpenAutoFocus={focusFrame}
         showCloseButton={false}
       >
         <DialogTitle className="sr-only">{title}</DialogTitle>

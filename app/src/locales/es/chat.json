@@ -491,6 +491,9 @@
     "leavePage": "Tab y Escape van al sitio web. Presiona Mayús+Escape para volver a los controles del navegador.",
     "website": "Sitio web",
     "timeLeft": "Quedan {{minutes}} min",
+    "timeLeftLastMinute": "Queda menos de un minuto",
+    "showMore": "Ver más",
+    "showLess": "Ver menos",
     "title": "Navegador"
   }
 }

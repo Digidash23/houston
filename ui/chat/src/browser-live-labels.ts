@@ -21,6 +21,11 @@ export interface BrowserLiveViewLabels {
   /** The page itself, for assistive tech. */
   website: string;
   timeLeft: (minutes: number) => string;
+  /** The countdown's last minute, shown in the attention colour. */
+  timeLeftLastMinute: string;
+  /** Unfolds an instruction clamped on a phone, and folds it back. */
+  showMore: string;
+  showLess: string;
 }
 
 export const DEFAULT_BROWSER_LIVE_VIEW_LABELS: BrowserLiveViewLabels = {
@@ -46,4 +51,7 @@ export const DEFAULT_BROWSER_LIVE_VIEW_LABELS: BrowserLiveViewLabels = {
     "Tab and Escape go to the website. Press Shift+Escape to get back to the browser controls.",
   website: "Website",
   timeLeft: (minutes) => `${minutes} min left`,
+  timeLeftLastMinute: "Less than a minute left",
+  showMore: "Show more",
+  showLess: "Show less",
 };

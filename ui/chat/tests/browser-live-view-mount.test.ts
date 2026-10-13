@@ -229,4 +229,29 @@ describe("browser live view", () => {
     strictEqual(m.container.textContent?.includes("5 min left"), true);
     m.unmount();
   });
+
+  it("turns the countdown to the attention colour in the last minute", () => {
+    const m = mount({ expiresAt: Date.now() + 45_000 });
+    strictEqual(
+      m.container.textContent?.includes("Less than a minute left"),
+      true,
+    );
+    strictEqual(m.container.querySelector("[data-urgent]") !== null, true);
+    m.unmount();
+  });
+
+  it("holds a page-shaped skeleton until the first frame paints", () => {
+    const m = mount({ state: "connecting" });
+    strictEqual(
+      m.container.querySelector("[data-testid=browser-live-skeleton]") !== null,
+      true,
+    );
+    m.unmount();
+    const ended = mount({ state: "done" });
+    strictEqual(
+      ended.container.querySelector("[data-testid=browser-live-skeleton]"),
+      null,
+    );
+    ended.unmount();
+  });
 });

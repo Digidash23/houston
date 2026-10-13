@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 130
+version: 131
 
 components:
   - id: agent-delegation-settings
@@ -761,7 +761,7 @@ components:
   - id: chat-browser-handoff-card
     title: Browser hand-off card
     purpose: In an AI Employee's chat, the card shown when its browser waits for the person to do something on a website themselves (sign in, a code, a captcha).
-    anatomy: [globe-disc, heading-with-site, task-line, open-action, outcome-line]
+    anatomy: [globe-disc, live-dot, heading-with-site, task-line, action-slot, open-action, outcome-chip]
     states: [waiting, done, cancelled, expired, ended]
     variants: [with-site, without-site]
     behavior: >-
@@ -774,14 +774,17 @@ components:
       only while the turn runs and nothing shows it moved on; the tool's
       result settles done, cancelled or expired; anything else is ended.
       While waiting the card owns the turn's progress (no thinking line, no
-      streaming reply under it) and Open opens the live browser.
-    a11y: The Open action is visible only while waiting, keyboard reachable, at least 44px high, and its accessible name names the site. The outcome is plain text.
+      streaming reply under it) and Open opens the live browser. Open and
+      the outcome share one slot under the text, so a state change never
+      changes the card's height; a change (not a mount) settles in, and the
+      waiting dot's ring breathes only without reduced motion.
+    a11y: The Open action is visible only while waiting, keyboard reachable, at least 44px high on phones, and its accessible name names the site. The outcome is a text chip whose icon is decorative; colour is never the only signal.
     since: 130
 
   - id: browser-live-view
     title: Live browser view
     purpose: The person drives the AI Employee's own browser page during a hand-off, then hands it back with I'm done or Cancel.
-    anatomy: [task-header, privacy-line, time-left, close-action, back-action, address-field, page-stage, state-overlay, hidden-text-field, cancel-action, done-action]
+    anatomy: [task-header, show-more-action, privacy-line, close-action, back-action, address-field, page-stage, page-skeleton, state-overlay, hidden-text-field, tap-hint, time-left, cancel-action, done-action]
     states: [connecting, live, reconnecting, lost, done, cancelled, expired, none, not-owner]
     variants: [phone-sheet, desktop-dialog]
     behavior: >-
@@ -791,8 +794,14 @@ components:
       text input, and shows the connection's state. Phones open it as a
       full-height bottom sheet and ask the runtime for a phone-sized page;
       desktop opens a large dialog. Closing only stops watching; the
-      hand-off keeps waiting until I'm done, Cancel or the time limit.
-    a11y: Every action is a visible button (no hover-only affordances); the address field is 16px and labelled; Escape typed into the page goes to the page, not the dialog; the ended and lost states are announced as status text, and Try again is a visible button.
+      hand-off keeps waiting until I'm done, Cancel or the time limit. A
+      page-shaped skeleton holds the stage until the first frame, which
+      fades in; the countdown sits by the answers and takes the attention
+      colour in its last minute. I'm done is the primary answer, Cancel the
+      quiet one. The sheet rises on the drawer curve, the dialog scales in
+      from 0.96, both leave faster than they came, and reduced motion keeps
+      only a fade.
+    a11y: Opening focuses the frame, not the close X. A phone clamps the instruction to three lines with a visible Show more. Every action is a visible button (no hover-only affordances); the address field is 16px and labelled; Escape typed into the page goes to the page, not the dialog; the ended and lost states are announced as status text, and Try again is a visible button.
     since: 130
 
   - id: chat-parent-mission-link

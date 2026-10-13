@@ -1,6 +1,5 @@
 "use client";
 
-import { Button, Spinner } from "@houston-ai/core";
 import { type PointerEvent, useEffect, useId, useRef } from "react";
 import {
   type BrowserLiveStageGeometry,
@@ -8,11 +7,13 @@ import {
 } from "./browser-live-geometry";
 import { useBrowserLiveKeyboard } from "./browser-live-keyboard";
 import type { BrowserLiveViewLabels } from "./browser-live-labels";
+import { BrowserLiveOverlay } from "./browser-live-overlay";
 import { useBrowserLivePaint } from "./browser-live-paint";
 import {
   type BrowserLivePointerSample,
   createBrowserLivePointer,
 } from "./browser-live-pointer";
+import { BrowserLiveSkeleton } from "./browser-live-skeleton";
 import type {
   BrowserLiveFrames,
   BrowserLiveViewInput,
@@ -49,26 +50,6 @@ function sampleOf(e: PointerEvent): BrowserLivePointerSample {
     clientX: e.clientX,
     clientY: e.clientY,
   };
-}
-
-function endedMessage(
-  state: BrowserLiveViewState,
-  labels: BrowserLiveViewLabels,
-): string | null {
-  switch (state) {
-    case "done":
-      return labels.endedDone;
-    case "cancelled":
-      return labels.endedCancelled;
-    case "expired":
-      return labels.endedExpired;
-    case "none":
-      return labels.endedNone;
-    case "not_owner":
-      return labels.notOwner;
-    default:
-      return null;
-  }
 }
 
 /** The page itself: a canvas of the latest frame that forwards input. */
@@ -127,17 +108,24 @@ export function BrowserLiveStage({
     if (up.focusKeyboard) fieldRef.current?.focus({ preventScroll: true });
   };
 
-  const ended = endedMessage(state, labels);
-  const busy = state === "connecting" || state === "reconnecting";
+  // The first frame fades in over the skeleton; later frames replace the
+  // canvas pixels in place, so a swap never blinks.
+  const loading =
+    !painted && (live || state === "connecting" || state === "reconnecting");
   return (
     <div
       className="relative min-h-0 flex-1 overflow-hidden bg-chip-subtle"
       data-browser-live-stage=""
     >
+      {loading ? (
+        <div className="absolute inset-0 flex justify-center p-2 md:p-6">
+          <BrowserLiveSkeleton />
+        </div>
+      ) : null}
       <div className="absolute inset-0 flex items-start justify-center p-2 md:items-center">
         <canvas
           aria-label={labels.website}
-          className={`max-h-full max-w-full touch-none rounded-md bg-background shadow-edge outline-none ${painted ? "" : "invisible"} ${live ? "" : "opacity-60"}`}
+          className={`max-h-full max-w-full touch-none rounded-md bg-background shadow-edge outline-none transition-opacity duration-200 ease-out ${painted ? (live ? "opacity-100" : "opacity-60") : "invisible opacity-0"}`}
           data-testid="browser-live-canvas"
           height={0}
           onContextMenu={(e) => e.preventDefault()}
@@ -149,29 +137,7 @@ export function BrowserLiveStage({
           width={0}
         />
       </div>
-      {busy ? (
-        <div className="absolute inset-x-0 top-4 flex justify-center">
-          <span className="inline-flex items-center gap-2 rounded-full bg-dialog px-3 py-1.5 text-sm text-ink shadow-card">
-            <Spinner aria-hidden="true" role="presentation" />
-            {state === "connecting" ? labels.connecting : labels.reconnecting}
-          </span>
-        </div>
-      ) : null}
-      {state === "lost" || ended ? (
-        <div className="absolute inset-0 flex items-center justify-center p-6">
-          <div
-            className="flex max-w-sm flex-col items-center gap-3 rounded-xl bg-dialog p-4 text-center shadow-card"
-            role="status"
-          >
-            <p className="text-sm text-ink">{ended ?? labels.lost}</p>
-            {state === "lost" ? (
-              <Button className="min-h-11" onClick={onRetry} variant="outline">
-                {labels.retry}
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
+      <BrowserLiveOverlay labels={labels} onRetry={onRetry} state={state} />
       <span className="sr-only" id={hintId}>
         {labels.leavePage}
       </span>

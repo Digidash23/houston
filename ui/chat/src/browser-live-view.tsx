@@ -1,14 +1,16 @@
 "use client";
 
 import { Button } from "@houston-ai/core";
-import { ArrowLeftIcon, XIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ArrowLeftIcon, LockIcon, XIcon } from "lucide-react";
+import { useRef } from "react";
 import { BrowserLiveAddress } from "./browser-live-address";
 import {
   type BrowserLiveViewLabels,
   DEFAULT_BROWSER_LIVE_VIEW_LABELS,
 } from "./browser-live-labels";
 import { BrowserLiveStage } from "./browser-live-stage";
+import { BrowserLiveTask } from "./browser-live-task";
+import { BrowserLiveTimeLeft, useMinutesLeft } from "./browser-live-time-left";
 import {
   type BrowserLiveFrames,
   type BrowserLiveViewInput,
@@ -38,21 +40,8 @@ export interface BrowserLiveViewProps {
   labels?: Partial<BrowserLiveViewLabels>;
 }
 
-const TICK_MS = 15_000;
-
-function useMinutesLeft(expiresAt: number, running: boolean): number | null {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!running || expiresAt <= 0) return;
-    setNow(Date.now());
-    const timer = setInterval(() => setNow(Date.now()), TICK_MS);
-    return () => clearInterval(timer);
-  }, [expiresAt, running]);
-  if (!running || expiresAt <= 0) return null;
-  return Math.max(0, Math.ceil((expiresAt - now) / 60_000));
-}
-
-const PILL = "min-h-11 flex-1 md:min-h-9 md:flex-none";
+/** Every answer and control presses in a touch, so the view feels it heard. */
+const PRESS = "active:scale-[0.97]";
 
 /**
  * The body of the live browser: the person drives the agent's own browser page
@@ -90,33 +79,34 @@ export function BrowserLiveView({
   return (
     <div className="flex h-full min-h-0 flex-col bg-dialog">
       <header className="flex items-start gap-3 border-b border-line px-4 py-3">
-        <div className="min-w-0 flex-1">
-          <p className="line-clamp-2 text-sm font-medium text-balance text-ink">
-            {task}
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <BrowserLiveTask
+            showLess={labels.showLess}
+            showMore={labels.showMore}
+            task={task}
+          />
+          <p className="flex items-start gap-1.5 text-xs text-ink-muted">
+            <LockIcon aria-hidden="true" className="mt-px size-3.5 shrink-0" />
+            {labels.privacy}
           </p>
-          <p className="mt-0.5 text-xs text-ink-muted">{labels.privacy}</p>
-          {minutes !== null ? (
-            <p className="mt-0.5 text-xs text-ink-muted tabular-nums">
-              {labels.timeLeft(minutes)}
-            </p>
-          ) : null}
         </div>
-        <Button
+        {/* The dialog frame's own X (rounded-lg, 16px glyph), with its hit
+            area grown to 44px for a thumb. */}
+        <button
           aria-label={labels.close}
-          className="size-11 md:size-9"
+          className={`relative -mr-1 shrink-0 rounded-lg p-1.5 text-ink-muted outline-none transition-transform duration-150 ease-out after:absolute after:-inset-2 hover:bg-hover hover:text-ink focus-visible:ring-[3px] focus-visible:ring-focus/50 ${PRESS}`}
           onClick={onClose}
-          size="icon"
-          variant="ghost"
+          type="button"
         >
-          <XIcon className="size-5" />
-        </Button>
+          <XIcon aria-hidden="true" className="size-4" />
+        </button>
       </header>
       <div
         className="flex items-start gap-2 border-b border-line px-3 py-2"
         ref={toolbarRef}
       >
         <Button
-          className="h-10 shrink-0"
+          className={`h-10 shrink-0 ${PRESS}`}
           disabled={!live}
           onClick={() => send({ type: "back" })}
           variant="ghost"
@@ -143,24 +133,43 @@ export function BrowserLiveView({
         state={state}
       />
       <footer className="border-t border-line pb-safe md:pb-0">
-        <div className="flex flex-col gap-2 px-4 py-3 md:flex-row md:items-center">
-          {live ? (
-            <p className="text-xs text-ink-muted md:flex-1">
-              {labels.tapToType}
-            </p>
+        <div className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:gap-4">
+          {live || minutes !== null ? (
+            <div className="flex min-h-7 items-center justify-between gap-3 md:flex-1 md:justify-start">
+              {live ? (
+                <p className="text-xs text-ink-muted">{labels.tapToType}</p>
+              ) : (
+                <span />
+              )}
+              {minutes !== null ? (
+                <BrowserLiveTimeLeft
+                  label={labels.timeLeft}
+                  lastMinuteLabel={labels.timeLeftLastMinute}
+                  minutes={minutes}
+                />
+              ) : null}
+            </div>
           ) : null}
           <div className="flex gap-2 md:ml-auto">
             {ended ? (
-              <Button className={PILL} onClick={onClose} variant="outline">
+              <Button
+                className={`min-h-11 flex-1 md:min-h-9 md:flex-none ${PRESS}`}
+                onClick={onClose}
+                variant="outline"
+              >
                 {labels.close}
               </Button>
             ) : (
               <>
-                <Button className={PILL} onClick={onCancel} variant="outline">
+                <Button
+                  className={`min-h-11 px-5 md:min-h-9 md:px-4 ${PRESS}`}
+                  onClick={onCancel}
+                  variant="ghost"
+                >
                   {labels.cancel}
                 </Button>
                 <Button
-                  className={PILL}
+                  className={`min-h-11 flex-1 md:min-h-9 md:flex-none ${PRESS}`}
                   disabled={state === "connecting"}
                   onClick={onDone}
                 >

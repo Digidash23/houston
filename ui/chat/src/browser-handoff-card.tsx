@@ -1,6 +1,14 @@
 "use client";
 
-import { GlobeIcon } from "lucide-react";
+import {
+  CheckIcon,
+  CircleSlashIcon,
+  ClockIcon,
+  GlobeIcon,
+  type LucideIcon,
+  XIcon,
+} from "lucide-react";
+import { useRef } from "react";
 import type { BrowserHandoffCardState } from "./browser-live-types";
 
 export interface BrowserHandoffCardLabels {
@@ -38,26 +46,40 @@ export interface BrowserHandoffCardProps {
   labels?: Partial<BrowserHandoffCardLabels>;
 }
 
-function outcomeLabel(
-  state: Exclude<BrowserHandoffCardState, "waiting">,
-  labels: BrowserHandoffCardLabels,
-): string {
-  switch (state) {
-    case "done":
-      return labels.done;
-    case "cancelled":
-      return labels.cancelled;
-    case "expired":
-      return labels.expired;
-    case "ended":
-      return labels.ended;
-  }
+type Outcome = Exclude<BrowserHandoffCardState, "waiting">;
+
+/** Done is the one success; every other ending is neutral, never an error. */
+const NEUTRAL = "bg-chip text-ink-muted";
+const OUTCOME: Record<Outcome, { icon: LucideIcon; tone: string }> = {
+  done: { icon: CheckIcon, tone: "bg-success/10 text-success-ink" },
+  cancelled: { icon: XIcon, tone: NEUTRAL },
+  expired: { icon: ClockIcon, tone: NEUTRAL },
+  ended: { icon: CircleSlashIcon, tone: NEUTRAL },
+};
+
+function OutcomeChip({
+  state,
+  labels,
+}: {
+  state: Outcome;
+  labels: BrowserHandoffCardLabels;
+}) {
+  const { icon: Icon, tone } = OUTCOME[state];
+  return (
+    <span
+      className={`inline-flex h-7 items-center gap-1.5 rounded-full pr-3 pl-2.5 text-xs font-medium ${tone}`}
+    >
+      <Icon aria-hidden="true" className="size-3.5" />
+      <span>{labels[state]}</span>
+    </span>
+  );
 }
 
 /**
  * The in-chat card for a browser hand-off: the agent is waiting for the person
  * to do something on a website themselves (sign in, a code, a captcha). Open
- * shows only while it waits; afterwards the card keeps the outcome.
+ * shows only while it waits; afterwards the same slot keeps the outcome, so
+ * the card keeps its height and the chat under it never jumps.
  */
 export function BrowserHandoffCard({
   site,
@@ -68,39 +90,52 @@ export function BrowserHandoffCard({
 }: BrowserHandoffCardProps) {
   const labels = { ...DEFAULT_BROWSER_HANDOFF_CARD_LABELS, ...labelOverrides };
   const heading = site ? labels.heading(site) : labels.headingNoSite;
+  const waiting = state === "waiting";
+  // Animate a state CHANGE only: a card scrolled back into a settled chat
+  // mounts already ended and must not fade in again.
+  const mountedState = useRef(state);
+  const swap = mountedState.current === state ? "" : "browser-handoff-swap-in";
   return (
     <div
-      className="flex w-full min-w-0 items-center gap-3 rounded-xl border border-line/60 bg-input p-3 md:max-w-md"
+      className="flex w-full min-w-0 items-start gap-3 rounded-xl border border-line/60 bg-input p-3 md:max-w-md"
       data-state={state}
     >
       <span
         aria-hidden="true"
-        className="flex size-10 shrink-0 items-center justify-center rounded-full bg-chip text-ink-muted"
+        className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-chip text-ink-muted"
       >
         <GlobeIcon className="size-5" />
+        {waiting ? (
+          <span className="browser-handoff-live-dot absolute top-0.5 right-0.5 size-2.5 rounded-full bg-action ring-2 ring-input" />
+        ) : null}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-ink">{heading}</p>
+        <p className="line-clamp-2 text-sm font-medium text-ink [overflow-wrap:anywhere]">
+          {heading}
+        </p>
         {task ? (
           <p className="line-clamp-2 text-xs text-ink-muted">{task}</p>
         ) : null}
-        {state !== "waiting" ? (
-          <p className="text-xs text-ink-muted">
-            {outcomeLabel(state, labels)}
-          </p>
-        ) : null}
-      </div>
-      {state === "waiting" ? (
-        <button
-          aria-label={labels.openLabel(site)}
-          className="inline-flex min-h-11 shrink-0 items-center rounded-full bg-action px-4 text-sm font-medium text-action-text outline-none transition-transform hover:bg-action/70 focus-visible:ring-[3px] focus-visible:ring-focus/50 active:scale-[0.96] disabled:cursor-default disabled:opacity-50"
-          disabled={!onOpen}
-          onClick={onOpen}
-          type="button"
+        {/* One slot, one height: Open while it waits, then how it ended. */}
+        <div
+          className={`mt-2 flex min-h-11 items-center md:min-h-9 ${swap}`}
+          key={state}
         >
-          {labels.open}
-        </button>
-      ) : null}
+          {waiting ? (
+            <button
+              aria-label={labels.openLabel(site)}
+              className="inline-flex min-h-11 items-center rounded-full bg-action px-5 text-sm font-medium text-action-text outline-none transition-transform duration-150 ease-out hover:bg-action/80 focus-visible:ring-[3px] focus-visible:ring-focus/50 active:scale-[0.97] disabled:cursor-default disabled:opacity-50 md:min-h-9 md:px-4"
+              disabled={!onOpen}
+              onClick={onOpen}
+              type="button"
+            >
+              {labels.open}
+            </button>
+          ) : (
+            <OutcomeChip labels={labels} state={state} />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
