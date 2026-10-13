@@ -42,7 +42,9 @@ describe("heartbeat document", () => {
       enabled: false,
       time: "08:00",
       last,
-      lastDeliveredAt: null,
+      briefedAt: null,
+      briefedThrough: null,
+      pending: null,
     });
   });
 
@@ -68,7 +70,9 @@ describe("heartbeat document", () => {
     });
     expect(JSON.parse(store.files.get(heartbeatDocKey("P")) ?? "")).toEqual({
       ...after,
-      lastDeliveredAt: null,
+      briefedAt: null,
+      briefedThrough: null,
+      pending: null,
     });
   });
 });

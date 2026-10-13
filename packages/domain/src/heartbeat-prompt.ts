@@ -1,5 +1,6 @@
 import type { InteractionStep } from "@houston/protocol";
-import type { HeartbeatSection, HeartbeatSnapshot } from "./heartbeat-snapshot";
+import type { HeartbeatSection } from "./heartbeat-coverage";
+import type { HeartbeatSnapshot } from "./heartbeat-snapshot";
 
 /**
  * The hidden prompt of the AI Manager's morning briefing turn. Nobody typed

@@ -1,4 +1,5 @@
 import {
+  briefedThroughMs,
   getPreference,
   heartbeatDue,
   heartbeatHasNews,
@@ -8,6 +9,7 @@ import {
   type LocalClock,
   loadHeartbeatDoc,
   localClock,
+  recordHeartbeatAdmitted,
   recordHeartbeatRun,
   resolveTimezone,
 } from "@houston/domain";
@@ -18,13 +20,12 @@ import {
 } from "@houston/protocol";
 import type { AgentId, Workspace } from "../domain/types";
 import type { EventHub } from "../events/hub";
-import type { ChannelCtx, RuntimeChannel } from "../ports";
-import {
-  ASSISTANT_AGENT_NAME,
-  ASSISTANT_CONVERSATION_ID,
-} from "../routes/assistant";
+import type { RuntimeChannel } from "../ports";
+import { ASSISTANT_CONVERSATION_ID } from "../routes/assistant";
 import type { FireLock } from "../schedule/fire-lock";
 import { type CollectDeps, collectHeartbeatSnapshot } from "./collect";
+import { managerContext } from "./manager";
+import { settlePendingBriefing } from "./settle";
 
 export interface HeartbeatDeps extends CollectDeps {
   /** Cross-replica dedup: one briefing per workspace per local date. */
@@ -54,8 +55,10 @@ const reasonOf = (err: unknown) =>
 /**
  * The AI Manager's daily morning briefing: one turn on the manager's own
  * `assistant` conversation, never one per agent. A deterministic snapshot runs
- * first; one with nothing new since the last delivered briefing (or, for
- * "brief me now", an empty one) records "quiet" without a model call.
+ * first; one with nothing new since the last finished briefing (or, for
+ * "brief me now", an empty one) records "quiet" without a model call. An
+ * accepted turn shows "delivered" at once, but moves the news baseline and
+ * tells the person only when a later tick sees it finish (settle.ts).
  *
  * Attempts run one at a time: a "brief me now" landing on the minute tick
  * waits for it, then meets the turn it started (busy) instead of racing a
@@ -91,7 +94,16 @@ export class HeartbeatRunner {
     const { deps } = this;
     const now = this.now();
     const ws = await deps.store.getOrCreatePersonalWorkspace(deps.userId);
-    const state = await loadHeartbeatDoc(deps.vfs, ws.id);
+    let state = await loadHeartbeatDoc(deps.vfs, ws.id);
+    // An admitted briefing counts once its turn finishes (settle.ts).
+    if (state.pending)
+      state = await settlePendingBriefing(
+        deps,
+        ws,
+        await managerContext(deps, ws),
+        state,
+        now,
+      );
     const timezone = resolveTimezone(
       await getPreference(deps.vfs, ws.id, "timezone"),
     );
@@ -99,17 +111,17 @@ export class HeartbeatRunner {
     if (!force && !heartbeatDue(state, state.last, clock))
       return { kind: "not_due" };
 
-    const agentId: AgentId = `${ws.id}/${ASSISTANT_AGENT_NAME}`;
-    deps.ensureAgentDir(agentId);
-    const agent = await deps.store.getAgent(agentId);
-    if (!agent) throw new Error(`the AI Manager ${agentId} has no directory`);
-    const ctx: ChannelCtx = { workspace: ws, agent };
+    const ctx = await managerContext(deps, ws);
     // Never into a running turn: retried on the next tick, nothing recorded.
     if (await deps.channel.busy(ctx)) return { kind: "busy" };
-    const sinceMs = heartbeatWindowStart(state.lastDeliveredAt, now.getTime());
+    const sinceMs = heartbeatWindowStart(state.briefedThrough, now.getTime());
     // Read before the date is burned: a snapshot that throws leaves today
     // unclaimed, so the next tick retries instead of losing the day.
-    const snapshot = await collectHeartbeatSnapshot(deps, sinceMs);
+    const snapshot = await collectHeartbeatSnapshot(
+      deps,
+      sinceMs,
+      briefedThroughMs(state.briefedThrough),
+    );
     if (
       !force &&
       !(await deps.lock.setNx(
@@ -121,7 +133,7 @@ export class HeartbeatRunner {
       return { kind: "locked" };
     const worthSaying = force
       ? !isHeartbeatSnapshotEmpty(snapshot)
-      : heartbeatHasNews(snapshot, state.lastDeliveredAt);
+      : heartbeatHasNews(snapshot, state.briefedAt !== null);
     if (!worthSaying) {
       await this.record(ws, clock, now, { status: HeartbeatRunStatus.Quiet });
       return { kind: HeartbeatRunStatus.Quiet };
@@ -149,13 +161,20 @@ export class HeartbeatRunner {
       });
       return { kind: HeartbeatRunStatus.Error, reason };
     }
-    await this.record(ws, clock, now, { status: HeartbeatRunStatus.Delivered });
-    deps.events?.emit(ws.ownerUserId, {
-      type: "HeartbeatDelivered",
-      agentPath: agent.id,
+    await recordHeartbeatAdmitted(deps.vfs, ws.id, {
       date: clock.date,
+      at: now.toISOString(),
+      coveredThroughMs: snapshot.coveredThroughMs,
     });
+    this.changed(ws);
     return { kind: HeartbeatRunStatus.Delivered };
+  }
+
+  private changed(ws: Workspace): void {
+    this.deps.events?.emit(ws.ownerUserId, {
+      type: "HeartbeatChanged",
+      workspaceId: ws.id,
+    });
   }
 
   private async record(
@@ -163,11 +182,7 @@ export class HeartbeatRunner {
     clock: LocalClock,
     now: Date,
     outcome:
-      | {
-          status:
-            | typeof HeartbeatRunStatus.Quiet
-            | typeof HeartbeatRunStatus.Delivered;
-        }
+      | { status: typeof HeartbeatRunStatus.Quiet }
       | { status: typeof HeartbeatRunStatus.Error; reason: string },
   ): Promise<void> {
     const last: HeartbeatLast = {
@@ -176,9 +191,6 @@ export class HeartbeatRunner {
       at: now.toISOString(),
     };
     await recordHeartbeatRun(this.deps.vfs, ws.id, last);
-    this.deps.events?.emit(ws.ownerUserId, {
-      type: "HeartbeatChanged",
-      workspaceId: ws.id,
-    });
+    this.changed(ws);
   }
 }

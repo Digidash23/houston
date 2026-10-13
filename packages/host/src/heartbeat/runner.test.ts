@@ -1,6 +1,7 @@
 import {
   heartbeatDocKey,
   loadHeartbeat,
+  loadHeartbeatDoc,
   saveActivities,
   setPreference,
 } from "@houston/domain";
@@ -12,7 +13,7 @@ import {
 } from "@houston/protocol";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { Agent, Workspace } from "../domain/types";
-import { LocalPaths } from "../paths";
+import { conversationKey, LocalPaths } from "../paths";
 import type { RuntimeChannel, WorkspaceStore } from "../ports";
 import { MemoryTurnBus } from "../turn/bus";
 import { MemoryVfs } from "../vfs";
@@ -55,6 +56,38 @@ let channel: {
 };
 let events: HoustonEvent[];
 let now: Date;
+/** How the fake runtime's briefing turn ends once admitted. */
+let reply: "ok" | "provider_error" | "none";
+
+/** The runtime's side: the hidden message and its turn's reply, persisted. */
+async function persistTurn(_ctx: unknown, cid: string, text: string) {
+  const key = conversationKey(new LocalPaths(), WS, MANAGER, cid);
+  const conv = JSON.parse((await vfs.readText(key)) ?? '{"messages":[]}');
+  const turnId = `t${conv.messages.length}`;
+  const ts = now.getTime();
+  conv.messages.push({ role: "user", content: text, ts, turnId });
+  if (reply !== "none")
+    conv.messages.push({
+      role: "assistant",
+      content: reply === "ok" ? "Good morning" : "",
+      ts: ts + 1,
+      turnId,
+      ...(reply === "provider_error"
+        ? {
+            providerError: {
+              kind: "unknown",
+              provider: "anthropic",
+              raw_excerpt: "overloaded",
+            },
+          }
+        : {}),
+    });
+  await vfs.writeText(key, JSON.stringify(conv));
+}
+
+const later = (minutes: number) => {
+  now = new Date(now.getTime() + minutes * 60_000);
+};
 
 function runner(over: Partial<HeartbeatDeps> = {}) {
   const store = {
@@ -89,7 +122,8 @@ const seedWaitingMission = () =>
 
 beforeEach(async () => {
   vfs = new MemoryVfs();
-  channel = { busy: vi.fn(async () => false), fireTurn: vi.fn(async () => {}) };
+  reply = "ok";
+  channel = { busy: vi.fn(async () => false), fireTurn: vi.fn(persistTurn) };
   events = [];
   now = new Date("2026-10-10T08:30:00Z");
   await setPreference(vfs, WS.id, "timezone", "UTC");
@@ -107,6 +141,9 @@ describe("the daily tick", () => {
     await seedWaitingMission();
     const r = runner();
     expect(await r.tick()).toEqual({ kind: "delivered" });
+    // Admitted, not yet finished: the person is not told yet.
+    expect(events.map((e) => e.type)).not.toContain("HeartbeatDelivered");
+    later(1);
     expect(await r.tick()).toEqual({ kind: "not_due" });
     expect(channel.fireTurn).toHaveBeenCalledTimes(1);
     const [ctx, conversation, text, pin, opts] =
@@ -256,6 +293,85 @@ describe("only when there is news", () => {
     nextMorning();
     // Never delivered: the first briefing still counts any item.
     expect(await r.tick()).toEqual({ kind: "delivered" });
+  });
+});
+
+describe("an admitted briefing counts once its turn finishes", () => {
+  const nextMorning = () => later(24 * 60);
+  const seedDated = () =>
+    saveActivities(vfs, ANA.id, [
+      {
+        id: "m1",
+        title: "Invoice",
+        description: "",
+        status: "needs_you",
+        updated_at: "2026-10-10T06:00:00.000Z",
+      },
+    ]);
+
+  test("a turn that fails after admission tells nobody and keeps the baseline", async () => {
+    await seedDated();
+    reply = "provider_error";
+    const r = runner();
+    expect(await r.tick()).toEqual({ kind: "delivered" });
+    later(1);
+    expect(await r.tick()).toEqual({ kind: "not_due" });
+    const doc = await loadHeartbeatDoc(vfs, WS.id);
+    expect(doc.last).toMatchObject({ status: "error", reason: "overloaded" });
+    expect(doc.briefedAt).toBeNull();
+    expect(doc.pending).toBeNull();
+    expect(events.map((e) => e.type)).not.toContain("HeartbeatDelivered");
+    // The same, unchanged mission is told the next morning.
+    reply = "ok";
+    nextMorning();
+    expect(await r.tick()).toEqual({ kind: "delivered" });
+    expect(channel.fireTurn).toHaveBeenCalledTimes(2);
+  });
+
+  test("a turn that ends without a reply is a failed briefing", async () => {
+    await seedDated();
+    reply = "none";
+    const r = runner();
+    await r.tick();
+    later(1);
+    await r.tick();
+    expect((await loadHeartbeatDoc(vfs, WS.id)).last).toMatchObject({
+      status: "error",
+      reason: "the briefing turn ended without a reply",
+    });
+  });
+
+  test("a turn still running stays pending, then settles once", async () => {
+    await seedDated();
+    const r = runner();
+    await r.tick();
+    channel.busy.mockResolvedValue(true);
+    later(1);
+    await r.tick();
+    expect((await loadHeartbeatDoc(vfs, WS.id)).pending).not.toBeNull();
+    channel.busy.mockResolvedValue(false);
+    later(1);
+    await r.tick();
+    later(1);
+    await r.tick();
+    const doc = await loadHeartbeatDoc(vfs, WS.id);
+    expect(doc.pending).toBeNull();
+    // Settled on the first idle tick, two minutes after admission.
+    expect(doc.briefedAt).toBe("2026-10-10T08:32:00.000Z");
+    expect(events.filter((e) => e.type === "HeartbeatDelivered")).toHaveLength(
+      1,
+    );
+  });
+
+  test("the baseline is what the briefing named, not when it ran", async () => {
+    await seedDated();
+    const r = runner();
+    await r.tick();
+    later(1);
+    await r.tick();
+    expect((await loadHeartbeatDoc(vfs, WS.id)).briefedThrough).toBe(
+      "2026-10-10T06:00:00.000Z",
+    );
   });
 });
 

@@ -32,9 +32,10 @@ export type HeartbeatSettingsPatch = z.infer<
 >;
 
 /**
- * How the last run ended. `delivered`: a briefing turn was accepted. `quiet`:
- * nothing needed the person, so no model call was made. `error`: the turn
- * could not start (no provider, quota...), retried the next day only.
+ * How the last run ended. `delivered`: a briefing turn was accepted (the
+ * person is told once it finishes). `quiet`: nothing new needed the person, so
+ * no model call was made. `error`: the turn could not start (no provider,
+ * quota...) or died before it finished; retried the next day only.
  */
 export const HeartbeatRunStatus = {
   Delivered: "delivered",

@@ -5,6 +5,11 @@ import {
   type Routine,
   type RoutineRun,
 } from "@houston/protocol";
+import {
+  coveredThrough,
+  coverSection,
+  type HeartbeatSection,
+} from "./heartbeat-coverage";
 
 /**
  * The deterministic look across the person's agents that runs BEFORE any model
@@ -13,21 +18,12 @@ import {
  * Pure: the host loads each agent's board, routines and runs, this decides.
  */
 
-/** Each section keeps this many items; the rest is a count. */
-export const HEARTBEAT_SECTION_CAP = 20;
-
 /** One agent's documents, as the host loaded them. */
 export interface HeartbeatAgentData {
   agentName: string;
   activities: readonly Activity[];
   routines: readonly Routine[];
   runs: readonly RoutineRun[];
-}
-
-export interface HeartbeatSection<T> {
-  items: T[];
-  /** How many more matched than the cap kept. */
-  more: number;
 }
 
 export interface HeartbeatNeedsYou {
@@ -61,25 +57,11 @@ export interface HeartbeatSnapshot {
   routineRuns: HeartbeatSection<HeartbeatRoutineRun>;
   pausedRoutines: HeartbeatSection<HeartbeatPausedRoutine>;
   done: HeartbeatSection<HeartbeatDone>;
-  /**
-   * The newest timestamp (epoch ms) over every matched item, the ones past
-   * the cap included; null when none carries a readable one. What the "only
-   * when there is news" rule compares (heartbeat-news.ts).
-   */
-  newestMs: number | null;
+  /** Items newer than the baseline, across sections, cut ones included. */
+  freshCount: number;
+  /** What this snapshot's briefing covers, epoch ms (heartbeat-coverage.ts). */
+  coveredThroughMs: number | null;
 }
-
-function capped<T>(items: T[]): HeartbeatSection<T> {
-  return {
-    items: items.slice(0, HEARTBEAT_SECTION_CAP),
-    more: Math.max(0, items.length - HEARTBEAT_SECTION_CAP),
-  };
-}
-
-const newestFirst =
-  <T>(at: (item: T) => string) =>
-  (a: T, b: T) =>
-    at(b).localeCompare(at(a));
 
 /** The first step the mission is genuinely blocked on (offers never block). */
 function blockingKind(activity: Activity): InteractionStep["kind"] | undefined {
@@ -92,25 +74,22 @@ const atOrAfter = (iso: string | undefined, sinceMs: number) =>
   iso !== undefined && Date.parse(iso) >= sinceMs;
 
 /**
- * Everything worth a morning sentence since `sinceMs` (the last briefing, or a
- * day ago): missions waiting on the person, routine runs that failed or
- * reported something, routines the engine paused by itself, and missions
- * finished. A surfaced run whose card is already waiting on the person is
- * named once, as the card.
+ * Everything worth a morning sentence since `sinceMs` (heartbeat-news.ts):
+ * missions waiting on the person, routine runs that failed or reported
+ * something, routines the engine paused by itself, and missions finished. A
+ * surfaced run whose card is already waiting on the person is named once, as
+ * the card. `briefedThroughMs` (the last delivered briefing's coverage, null
+ * when none) decides what is fresh and so the order each section is capped in.
  */
 export function buildHeartbeatSnapshot(
   agents: readonly HeartbeatAgentData[],
   sinceMs: number,
+  briefedThroughMs: number | null = null,
 ): HeartbeatSnapshot {
   const needsYou: (HeartbeatNeedsYou & { at: string })[] = [];
   const runs: HeartbeatRoutineRun[] = [];
-  const paused: HeartbeatPausedRoutine[] = [];
+  const paused: (HeartbeatPausedRoutine & { at: string })[] = [];
   const done: (HeartbeatDone & { at: string })[] = [];
-  let newestMs = Number.NEGATIVE_INFINITY;
-  const seen = (iso: string) => {
-    const ms = Date.parse(iso);
-    if (ms > newestMs) newestMs = ms;
-  };
   for (const data of agents) {
     const agent = data.agentName;
     const waiting = new Set<string>();
@@ -118,7 +97,6 @@ export function buildHeartbeatSnapshot(
       const at = activity.updated_at ?? "";
       if (activity.status === "needs_you") {
         waiting.add(activity.id);
-        seen(at);
         const waitingOn = blockingKind(activity);
         needsYou.push({
           agent,
@@ -127,7 +105,6 @@ export function buildHeartbeatSnapshot(
           at,
         });
       } else if (activity.status === "done" && atOrAfter(at, sinceMs)) {
-        seen(at);
         done.push({ agent, title: activity.title, at });
       }
     }
@@ -137,7 +114,6 @@ export function buildHeartbeatSnapshot(
       const at = run.completed_at ?? run.started_at;
       if (!atOrAfter(at, sinceMs)) continue;
       if (run.activity_id && waiting.has(run.activity_id)) continue;
-      seen(at);
       runs.push({
         agent,
         routine: routineName.get(run.routine_id) ?? run.routine_id,
@@ -148,22 +124,34 @@ export function buildHeartbeatSnapshot(
     }
     for (const routine of data.routines) {
       if (routine.enabled || !routine.auto_paused) continue;
-      seen(routine.auto_paused.at);
       paused.push({
         agent,
         routine: routine.name,
         failures: routine.auto_paused.failures,
+        at: routine.auto_paused.at,
       });
     }
   }
-  const byAt = newestFirst<{ at: string }>((item) => item.at);
-  const strip = <T extends { at: string }>({ at: _at, ...rest }: T) => rest;
+  const covered = {
+    needsYou: coverSection(needsYou, briefedThroughMs),
+    routineRuns: coverSection(runs, briefedThroughMs),
+    pausedRoutines: coverSection(paused, briefedThroughMs),
+    done: coverSection(done, briefedThroughMs),
+  };
+  const all = Object.values(covered);
+  const strip = <T extends { at: string }>(
+    section: HeartbeatSection<T>,
+  ): HeartbeatSection<Omit<T, "at">> => ({
+    items: section.items.map(({ at: _at, ...rest }) => rest),
+    more: section.more,
+  });
   return {
-    needsYou: capped(needsYou.sort(byAt).map(strip)),
-    routineRuns: capped(runs.sort(byAt)),
-    pausedRoutines: capped(paused),
-    done: capped(done.sort(byAt).map(strip)),
-    newestMs: Number.isFinite(newestMs) ? newestMs : null,
+    needsYou: strip(covered.needsYou.section),
+    routineRuns: covered.routineRuns.section,
+    pausedRoutines: strip(covered.pausedRoutines.section),
+    done: strip(covered.done.section),
+    freshCount: all.reduce((n, s) => n + s.fresh, 0),
+    coveredThroughMs: coveredThrough(all),
   };
 }
 
