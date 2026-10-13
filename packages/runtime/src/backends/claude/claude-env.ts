@@ -1,9 +1,9 @@
 import { isAbsolute } from "node:path";
 import { firstByteDeadlineMs } from "../../ai/first-byte";
-import { isPersonalClaudePlan } from "../../auth/claude-plan";
 import { config } from "../../config";
 import { claudeShellFencePath } from "../../session/claude-shell-fence";
 import type { ClaudeToken } from "./backend-types";
+import { tokenEnv } from "./claude-token-env";
 
 /**
  * Building the environment for the Claude Agent SDK subprocess.
@@ -105,30 +105,6 @@ const PASSTHROUGH_ENV_VARS: ReadonlySet<string> = new Set(
 );
 
 /**
- * The single Anthropic auth env var for a credential (empty when none is
- * connected): a setup/OAuth token via `CLAUDE_CODE_OAUTH_TOKEN`, an API key via
- * `ANTHROPIC_API_KEY`.
- *
- * An env OAuth token tells the CLI nothing about its plan, so the CLI treats
- * it like an organization login and blocks every startup on the managed
- * settings and policy limits fetches. `CLAUDE_CODE_SUBSCRIPTION_TYPE` is the
- * CLI's own channel for that fact (its background sessions hand the plan over
- * the same way); it is set only for a known personal plan, so a Team or
- * Enterprise login keeps fetching its admins' policy.
- */
-function tokenEnv(token: ClaudeToken | undefined): Record<string, string> {
-  if (token?.kind === "oauth-token")
-    return {
-      CLAUDE_CODE_OAUTH_TOKEN: token.value,
-      ...(isPersonalClaudePlan(token.subscriptionType)
-        ? { CLAUDE_CODE_SUBSCRIPTION_TYPE: token.subscriptionType }
-        : {}),
-    };
-  if (token?.kind === "api-key") return { ANTHROPIC_API_KEY: token.value };
-  return {};
-}
-
-/**
  * Build the SDK subprocess env from an ALLOWLIST, carrying EXACTLY the connected
  * credential and no host secret.
  *
@@ -169,6 +145,13 @@ export function buildClaudeEnv(
     }
   }
   env.CLAUDE_CONFIG_DIR = opts.configDir;
+  // Files enter a turn only through tool calls, so the CLI's `@path` prompt
+  // attachments are off.
+  env.CLAUDE_CODE_DISABLE_ATTACHMENTS = "1";
+  // Scrub mode keeps the CLI's credential variables out of the commands the
+  // model runs. It also forces permissionMode "default", the mode Houston
+  // already runs in.
+  env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB = "1";
   const fence =
     opts.shellFencePath === undefined
       ? claudeShellFencePath()
