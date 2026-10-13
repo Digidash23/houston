@@ -21,7 +21,11 @@ describe("parseBrowserAction", () => {
   test("each action keeps exactly the fields it needs", () => {
     expect(
       parseBrowserAction({ action: "open", url: "a.com", ref: "e1" }),
-    ).toEqual({ action: "open", url: "a.com" });
+    ).toEqual({
+      action: "open",
+      url: "a.com",
+      view: { interactive: false, links: false },
+    });
     expect(parseBrowserAction({ action: "click", ref: "e3" })).toEqual({
       action: "click",
       ref: "e3",
@@ -33,10 +37,47 @@ describe("parseBrowserAction", () => {
       action: "press",
       key: "Enter",
     });
-    for (const action of ["snapshot", "back", "screenshot", "close"] as const)
+    for (const action of ["back", "text", "close"] as const)
       expect(parseBrowserAction({ action, url: "ignored" })).toEqual({
         action,
       });
+  });
+
+  test("snapshot and open take the view; screenshot takes labels", () => {
+    expect(
+      parseBrowserAction({
+        action: "snapshot",
+        interactive: true,
+        query: "  Price ",
+        links: true,
+      }),
+    ).toEqual({
+      action: "snapshot",
+      view: { interactive: true, links: true, query: "Price" },
+    });
+    expect(parseBrowserAction({ action: "snapshot", query: "  " })).toEqual({
+      action: "snapshot",
+      view: { interactive: false, links: false },
+    });
+    expect(parseBrowserAction({ action: "screenshot", labels: true })).toEqual({
+      action: "screenshot",
+      labels: true,
+    });
+    expect(parseBrowserAction({ action: "screenshot" })).toEqual({
+      action: "screenshot",
+      labels: false,
+    });
+  });
+
+  test("dialog needs accept, and keeps a prompt's answer", () => {
+    expect(parseBrowserAction({ action: "dialog", accept: false })).toEqual({
+      action: "dialog",
+      accept: false,
+    });
+    expect(
+      parseBrowserAction({ action: "dialog", accept: true, text: "Ada" }),
+    ).toEqual({ action: "dialog", accept: true, text: "Ada" });
+    expect(refused({ action: "dialog" })).toBe("invalid_action");
   });
 
   test("a missing field is a named refusal, not a page error", () => {

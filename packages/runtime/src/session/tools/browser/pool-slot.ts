@@ -1,4 +1,5 @@
 import type { Browser } from "playwright-core";
+import { dismissPending } from "./dialogs";
 import { type BrowserTab, openTab } from "./open-tab";
 import { saveState } from "./state-store";
 import { closeContext } from "./tab-pages";
@@ -50,6 +51,8 @@ export async function disposeSlot(slot: Slot): Promise<void> {
   const tab = await pending?.catch(() => undefined);
   if (!tab?.context.browser()?.isConnected()) return;
   try {
+    // A page frozen behind a dialog cannot hand over its storage.
+    await dismissPending(tab);
     await saveState(tab);
   } finally {
     await closeContext(tab);

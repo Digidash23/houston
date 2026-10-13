@@ -1,12 +1,23 @@
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import type { Locator } from "playwright-core";
 import type { BrowserAction } from "./actions";
+import {
+  answerDialog,
+  dialogNotice,
+  dialogOpenError,
+  pendingDialog,
+  raceDialog,
+} from "./dialogs";
 import { clearFenceRefusal } from "./fence-refusals";
+import { lookEpoch, SupersededError } from "./look-memory";
 import { guardLanding, openUrl, settle } from "./navigate";
+import { pageText } from "./page-text";
 import type { BrowserTab } from "./pool";
 import { redactUrl } from "./redact-url";
 import { resolveRef } from "./refs";
+import { screenshot } from "./screenshot";
 import { pageSnapshot } from "./snapshot";
+import type { SnapshotView } from "./snapshot-view";
 import { checkBrowserUrl } from "./url-policy";
 
 /**
@@ -20,6 +31,8 @@ export interface ActionOutcome {
   /** The action may have changed sign-ins, so the state is saved after it. */
   mutated: boolean;
 }
+
+type PageAction = Exclude<BrowserAction, { action: "close" | "handoff" }>;
 
 async function isPasswordField(field: Locator): Promise<boolean> {
   return field.evaluate(
@@ -46,19 +59,56 @@ function unlessAborted<T>(work: Promise<T>, signal?: AbortSignal): Promise<T> {
   });
 }
 
-/** Run one action on the conversation's current page and describe the result. */
+/**
+ * Run one action on the conversation's current page and describe the result.
+ * A page with a dialog open is frozen: only answering it, or a look that
+ * reports it, runs; and a dialog opening mid-action ends the action there.
+ */
 export async function runBrowserAction(
   tab: BrowserTab,
-  action: Exclude<BrowserAction, { action: "close" | "handoff" }>,
+  action: PageAction,
+  signal?: AbortSignal,
+): Promise<ActionOutcome> {
+  clearFenceRefusal(tab);
+  const pending = pendingDialog(tab);
+  if (pending && action.action !== "dialog") {
+    if (action.action === "snapshot" || action.action === "screenshot")
+      return { content: [text(dialogNotice(pending))], mutated: false };
+    throw dialogOpenError(pending);
+  }
+  const raced = await raceDialog(tab, () => perform(tab, action, signal));
+  if (raced.done) return raced.value;
+  return {
+    content: [
+      text(
+        `The page opened a dialog during ${action.action}.\n${dialogNotice(raced.dialog)}`,
+      ),
+    ],
+    mutated: false,
+  };
+}
+
+async function perform(
+  tab: BrowserTab,
+  action: PageAction,
   signal?: AbortSignal,
 ): Promise<ActionOutcome> {
   const page = tab.page;
-  clearFenceRefusal(tab);
-  const withSnapshot = async (lead: string, mutated = true) => {
+  const epoch = lookEpoch(tab);
+  const withSnapshot = async (
+    lead: string,
+    mutated = true,
+    view?: SnapshotView,
+  ) => {
+    // Interrupted by a dialog and resumed once it was answered: the answer's
+    // own look reads the page (and any fence refusal) instead.
+    if (lookEpoch(tab) !== epoch) throw new SupersededError();
     await settle(tab.page);
     await guardLanding(tab);
     return {
-      content: [text(`${lead}\n\n${await pageSnapshot(tab)}`)],
+      // The action's epoch, not the look's: a dialog opening during
+      // settle must still keep this late look from retiring newer refs.
+      content: [text(`${lead}\n\n${await pageSnapshot(tab, view, epoch)}`)],
       mutated,
     };
   };
@@ -67,10 +117,15 @@ export async function runBrowserAction(
     case "open": {
       const url = checkBrowserUrl(action.url);
       await openUrl(tab, url.href);
-      return withSnapshot(`Opened ${redactUrl(url.href)}.`);
+      return withSnapshot(`Opened ${redactUrl(url.href)}.`, true, action.view);
     }
     case "snapshot":
-      return { content: [text(await pageSnapshot(tab))], mutated: false };
+      return {
+        content: [text(await pageSnapshot(tab, action.view))],
+        mutated: false,
+      };
+    case "text":
+      return { content: [text(await pageText(page))], mutated: false };
     case "click":
       await target(action.ref).click({ timeout: REF_TIMEOUT_MS });
       return withSnapshot(`Clicked ${action.ref}.`);
@@ -108,19 +163,13 @@ export async function runBrowserAction(
     case "back":
       await page.goBack({ waitUntil: "domcontentloaded" });
       return withSnapshot("Went back.");
-    case "screenshot": {
-      const image = await page.screenshot({ type: "jpeg", quality: 60 });
-      return {
-        content: [
-          text(`Screenshot of ${redactUrl(page.url())}.`),
-          {
-            type: "image",
-            data: image.toString("base64"),
-            mimeType: "image/jpeg",
-          },
-        ],
-        mutated: false,
-      };
+    case "dialog": {
+      const answered = await answerDialog(tab, action.accept, action.text);
+      return withSnapshot(
+        `${action.accept ? "Accepted" : "Dismissed"} the ${answered.kind} dialog.`,
+      );
     }
+    case "screenshot":
+      return screenshot(tab, action.labels);
   }
 }

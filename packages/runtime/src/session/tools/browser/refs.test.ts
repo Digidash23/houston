@@ -18,13 +18,17 @@ test("every ref in a snapshot carries its generation, iframe refs included", () 
     "- iframe [ref=e9]:",
     '  - button "Verify" [ref=f1e3]',
     "- text: [ref=e5] in prose is not a ref mark",
+    '- button "Keep [ref=e5]" [active] [ref=e6]: Keep [ref=e5]',
   ].join("\n");
   expect(stampRefs(tree, 7)).toBe(
     [
       '- textbox "Username" [ref=s7e4]',
       "- iframe [ref=s7e9]:",
       '  - button "Verify" [ref=s7f1e3]',
-      "- text: [ref=s7e5] in prose is not a ref mark",
+      // Page text spelling out another element's ref stays unstamped, so
+      // the model can never be steered to it as if it were current.
+      "- text: [ref=e5] in prose is not a ref mark",
+      '- button "Keep [ref=e5]" [active] [ref=s7e6]: Keep [ref=e5]',
     ].join("\n"),
   );
 });

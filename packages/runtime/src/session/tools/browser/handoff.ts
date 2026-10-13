@@ -4,6 +4,13 @@ import type { ActingContext } from "../../acting-context";
 import { decodeActingAuthor } from "../../attribution";
 import type { BrowserAction } from "./actions";
 import {
+  dialogNotice,
+  dialogOpenError,
+  pendingDialog,
+  raceDialog,
+  setPersonDriving,
+} from "./dialogs";
+import {
   type BrowserDetails,
   BrowserToolError,
   browserFailure,
@@ -59,6 +66,23 @@ export async function runHandoff(
   action: Extract<BrowserAction, { action: "handoff" }>,
   options: HandoffOptions,
 ): Promise<AgentToolResult<BrowserDetails>> {
+  const held = pendingDialog(tab);
+  if (held) throw dialogOpenError(held);
+  // From the hand-off's own page load until its sign-ins are saved, the page
+  // is the person's: a dialog held for the model there would freeze it.
+  setPersonDriving(tab, true);
+  try {
+    return await handOver(tab, action, options);
+  } finally {
+    setPersonDriving(tab, false);
+  }
+}
+
+async function handOver(
+  tab: BrowserTab,
+  action: Extract<BrowserAction, { action: "handoff" }>,
+  options: HandoffOptions,
+): Promise<AgentToolResult<BrowserDetails>> {
   if (action.url) {
     clearFenceRefusal(tab);
     await openUrl(tab, checkBrowserUrl(action.url).href);
@@ -101,6 +125,7 @@ export async function runHandoff(
   await saveState(tab);
   // The person may have changed the page: refs from before are stale either way.
   tab.generation = nextGeneration();
+  setPersonDriving(tab, false);
   return handoffResult(tab, action.text, end, options.signal);
 }
 
@@ -122,7 +147,14 @@ async function handoffResult(
       "Nobody finished in time. Tell the person what is still needed and offer to try again when they are ready.",
     );
   await settle(tab.page);
-  const snapshot = await pageSnapshot(tab);
+  // Held for the model again: a dialog now must not freeze the look.
+  const held = pendingDialog(tab);
+  const look = held
+    ? { done: false as const, dialog: held }
+    : await raceDialog(tab, () => pageSnapshot(tab));
+  const snapshot = look.done
+    ? look.value
+    : `The page opened a dialog.\n${dialogNotice(look.dialog)}`;
   return {
     content: [
       {

@@ -1,5 +1,6 @@
 import { BROWSER_ACTION_NAMES, type BrowserParams } from "./action-schema";
 import { BrowserToolError } from "./errors";
+import type { SnapshotView } from "./snapshot-view";
 
 export {
   BROWSER_ACTION_NAMES,
@@ -8,11 +9,14 @@ export {
 } from "./action-schema";
 
 export type BrowserAction =
-  | { action: "open"; url: string }
-  | { action: "snapshot" }
+  | { action: "open"; url: string; view: SnapshotView }
+  | { action: "snapshot"; view: SnapshotView }
+  | { action: "text" }
   | { action: "back" }
-  | { action: "screenshot" }
+  | { action: "screenshot"; labels: boolean }
   | { action: "close" }
+  /** Answer the dialog the page holds open; `text` answers a prompt. */
+  | { action: "dialog"; accept: boolean; text?: string }
   | { action: "click"; ref: string }
   | { action: "fill"; ref: string; text: string }
   | { action: "select"; ref: string; value: string }
@@ -39,11 +43,24 @@ function refOf(params: BrowserParams): string {
     .trim();
 }
 
+function viewOf(params: BrowserParams): SnapshotView {
+  const query = params.query?.trim();
+  return {
+    interactive: params.interactive === true,
+    links: params.links === true,
+    ...(query ? { query } : {}),
+  };
+}
+
 /** Narrow the flat parameters to the one action asked for, or refuse it. */
 export function parseBrowserAction(params: BrowserParams): BrowserAction {
   switch (params.action) {
     case "open":
-      return { action: "open", url: required(params, "url") };
+      return {
+        action: "open",
+        url: required(params, "url"),
+        view: viewOf(params),
+      };
     case "click":
       return { action: "click", ref: refOf(params) };
     case "fill":
@@ -80,11 +97,24 @@ export function parseBrowserAction(params: BrowserParams): BrowserAction {
       };
     }
     case "snapshot":
-      return { action: "snapshot" };
+      return { action: "snapshot", view: viewOf(params) };
+    case "text":
+      return { action: "text" };
+    case "dialog":
+      if (typeof params.accept !== "boolean")
+        throw new BrowserToolError(
+          "invalid_action",
+          "The dialog action needs 'accept': true to accept, false to dismiss.",
+        );
+      return {
+        action: "dialog",
+        accept: params.accept,
+        ...(typeof params.text === "string" ? { text: params.text } : {}),
+      };
     case "back":
       return { action: "back" };
     case "screenshot":
-      return { action: "screenshot" };
+      return { action: "screenshot", labels: params.labels === true };
     case "close":
       return { action: "close" };
     case "handoff": {

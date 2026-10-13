@@ -3,6 +3,7 @@ import { Type } from "typebox";
 const PAGE_ACTIONS = [
   "open",
   "snapshot",
+  "text",
   "click",
   "fill",
   "select",
@@ -10,6 +11,7 @@ const PAGE_ACTIONS = [
   "wait",
   "back",
   "screenshot",
+  "dialog",
   "close",
 ] as const;
 
@@ -17,7 +19,7 @@ export const BROWSER_ACTION_NAMES = [...PAGE_ACTIONS, "handoff"] as const;
 export type BrowserActionName = (typeof BROWSER_ACTION_NAMES)[number];
 
 const ACTIONS_LEAD =
-  "open a url; snapshot the page; click/fill/select an element by ref; press a key; wait for text or a pause; back; screenshot; close the browser (saves sign-ins)";
+  "open a url; snapshot the page's elements with their refs; text: read the page's text; click/fill/select an element by ref; press a key; wait for text or a pause; back; screenshot; dialog: answer a dialog the page opened; close the browser (saves sign-ins)";
 
 /**
  * Flat on purpose: a top-level union is not a valid function schema for most
@@ -55,8 +57,8 @@ export function browserParameters({ handoff }: { handoff: boolean }) {
     text: Type.Optional(
       Type.String({
         description: handoff
-          ? "For fill: what to type. For wait: text to wait for. For handoff: what the person needs to do, in one short sentence they will read."
-          : "For fill: what to type. For wait: text to wait for.",
+          ? "For fill: what to type. For wait: text to wait for. For dialog: the answer to a prompt. For handoff: what the person needs to do, in one short sentence they will read."
+          : "For fill: what to type. For wait: text to wait for. For dialog: the answer to a prompt.",
       }),
     ),
     value: Type.Optional(
@@ -70,6 +72,35 @@ export function browserParameters({ handoff }: { handoff: boolean }) {
     ms: Type.Optional(
       Type.Number({
         description: "For wait: milliseconds to pause (max 10000).",
+      }),
+    ),
+    interactive: Type.Optional(
+      Type.Boolean({
+        description:
+          "For snapshot/open: only the controls (buttons, links, fields) and the headings around them.",
+      }),
+    ),
+    query: Type.Optional(
+      Type.String({
+        description:
+          "For snapshot/open: only the lines containing this text (any case), with a little context.",
+      }),
+    ),
+    links: Type.Optional(
+      Type.Boolean({
+        description: "For snapshot/open: also list each link's address.",
+      }),
+    ),
+    labels: Type.Optional(
+      Type.Boolean({
+        description:
+          "For screenshot: draw each visible control's ref on the picture, so you can click what you see.",
+      }),
+    ),
+    accept: Type.Optional(
+      Type.Boolean({
+        description:
+          "For dialog: true to accept (OK), false to dismiss (Cancel).",
       }),
     ),
   });
@@ -87,4 +118,9 @@ export interface BrowserParams {
   value?: string;
   key?: string;
   ms?: number;
+  interactive?: boolean;
+  query?: string;
+  links?: boolean;
+  labels?: boolean;
+  accept?: boolean;
 }

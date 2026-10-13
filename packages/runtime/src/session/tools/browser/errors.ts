@@ -13,6 +13,8 @@ export type BrowserErrorCode =
   | "page_error"
   /** A ref from a snapshot older than the latest one (refs.ts). */
   | "stale_ref"
+  /** The page has a dialog open, which must be answered first (dialogs.ts). */
+  | "dialog_open"
   /** A hand-off that ended without the person finishing, or could not start. */
   | BrowserHandoffFailure;
 

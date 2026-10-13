@@ -1,5 +1,6 @@
 import type { BrowserLiveLayout } from "@houston/wire-types";
 import type { Browser, Page } from "playwright-core";
+import { watchDialogs } from "./dialogs";
 import { watchFence } from "./fence-refusals";
 import { DESKTOP_VIEWPORT } from "./live/layout";
 import { EMPTY_STATE } from "./state-merge";
@@ -51,5 +52,6 @@ export async function openTab(
   };
   followPages(tab, maxPages);
   watchFence(tab);
+  watchDialogs(tab);
   return tab;
 }
