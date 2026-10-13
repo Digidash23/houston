@@ -6,7 +6,9 @@ import {
   type RoutineRun,
 } from "@houston/protocol";
 import {
+  type HeartbeatItemKind,
   type HeartbeatSection,
+  heartbeatItemKey,
   type Keyed,
   orderSection,
 } from "./heartbeat-sections";
@@ -20,6 +22,9 @@ import {
 
 /** One agent's documents, as the host loaded them. */
 export interface HeartbeatAgentData {
+  /** The workspace-qualified agent id: the identity every key carries. */
+  agentId: string;
+  /** What the prompt calls the agent. */
   agentName: string;
   activities: readonly Activity[];
   routines: readonly Routine[];
@@ -63,6 +68,9 @@ export interface HeartbeatSnapshot {
   namedKeys: string[];
   /** Keys of every matched item. */
   presentKeys: string[];
+  /** Agents whose documents could not be read this time: their items are
+   *  unknown, so their seen keys must survive (heartbeat-news.ts rule 5). */
+  unreadAgents: string[];
 }
 
 /** The first step the mission is genuinely blocked on (offers never block). */
@@ -87,6 +95,7 @@ export function buildHeartbeatSnapshot(
   agents: readonly HeartbeatAgentData[],
   sinceMs: number,
   seen: ReadonlySet<string> = new Set(),
+  unreadAgents: readonly string[] = [],
 ): HeartbeatSnapshot {
   const needsYou: (HeartbeatNeedsYou & Keyed)[] = [];
   const runs: (HeartbeatRoutineRun & Keyed)[] = [];
@@ -94,10 +103,11 @@ export function buildHeartbeatSnapshot(
   const done: (HeartbeatDone & Keyed)[] = [];
   for (const data of agents) {
     const agent = data.agentName;
+    const key = (kind: HeartbeatItemKind, rest: string) =>
+      heartbeatItemKey(kind, data.agentId, rest);
     const waiting = new Set<string>();
     for (const activity of data.activities) {
       const at = activity.updated_at ?? "";
-      const id = `${agent}/${activity.id}`;
       if (activity.status === "needs_you") {
         waiting.add(activity.id);
         const waitingOn = blockingKind(activity);
@@ -105,11 +115,16 @@ export function buildHeartbeatSnapshot(
           agent,
           title: activity.title,
           ...(waitingOn ? { waitingOn } : {}),
-          key: `need:${id}`,
+          key: key("need", activity.id),
           at,
         });
       } else if (activity.status === "done" && atOrAfter(at, sinceMs)) {
-        done.push({ agent, title: activity.title, key: `done:${id}`, at });
+        done.push({
+          agent,
+          title: activity.title,
+          key: key("done", activity.id),
+          at,
+        });
       }
     }
     const routineName = new Map(data.routines.map((r) => [r.id, r.name]));
@@ -123,7 +138,7 @@ export function buildHeartbeatSnapshot(
         routine: routineName.get(run.routine_id) ?? run.routine_id,
         status: run.status,
         ...(run.summary ? { summary: run.summary } : {}),
-        key: `run:${agent}/${run.id}`,
+        key: key("run", run.id),
         at,
       });
     }
@@ -134,7 +149,7 @@ export function buildHeartbeatSnapshot(
         agent,
         routine: routine.name,
         failures: routine.auto_paused.failures,
-        key: `pause:${agent}/${routine.id}:${at}`,
+        key: key("pause", `${routine.id}:${at}`),
         at,
       });
     }
@@ -165,6 +180,7 @@ export function buildHeartbeatSnapshot(
     unseen: all.reduce((n, s) => n + s.unseen, 0),
     namedKeys: all.flatMap((s) => s.named),
     presentKeys: all.flatMap((s) => s.present),
+    unreadAgents: [...unreadAgents],
   };
 }
 

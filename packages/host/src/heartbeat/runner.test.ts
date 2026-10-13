@@ -364,7 +364,7 @@ describe("an admitted briefing counts once its turn finishes", () => {
     await r.tick();
     const doc = await loadHeartbeatDoc(vfs, WS.id);
     expect(doc.pending).toBeNull();
-    expect(doc.seen).toEqual(["need:Ana/m1"]);
+    expect(doc.seen).toEqual(["need:Personal/Ana/m1"]);
     expect(events.filter((e) => e.type === "HeartbeatDelivered")).toHaveLength(
       1,
     );

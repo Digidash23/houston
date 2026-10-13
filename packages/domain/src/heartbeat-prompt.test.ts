@@ -39,6 +39,7 @@ const run = (over: Partial<RoutineRun>): RoutineRun => ({
 });
 
 const agent = (over: Partial<HeartbeatAgentData>): HeartbeatAgentData => ({
+  agentId: "Personal/Ana",
   agentName: "Ana",
   activities: [],
   routines: [],

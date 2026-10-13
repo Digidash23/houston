@@ -106,8 +106,10 @@ defineRoute({
       body.value === null || body.value === undefined
         ? null
         : String(body.value);
-    // Create-only (`onlyIfAbsent`, @houston/protocol preference-create).
-    if (value !== null && body[PREFERENCE_ONLY_IF_ABSENT_FIELD] === true) {
+    // Create-only (`onlyIfAbsent`, @houston/protocol preference-create): the
+    // flag holds whatever the value, null included, and the check and the
+    // write share the preferences doc lock (createPreference).
+    if (body[PREFERENCE_ONLY_IF_ABSENT_FIELD] === true) {
       const out = await createPreference(vfs, ws.id, key, value);
       return out.created
         ? json(res, 200, { value: out.value })

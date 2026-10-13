@@ -94,8 +94,8 @@ export async function createPreference(
   store: TextStore,
   workspaceId: string,
   key: string,
-  value: string,
-): Promise<{ created: boolean; value: string }> {
+  value: string | null,
+): Promise<{ created: boolean; value: string | null }> {
   const held = (current: string | null) =>
     current !== null && current.trim() !== "";
   const { previous } = await updatePreference(

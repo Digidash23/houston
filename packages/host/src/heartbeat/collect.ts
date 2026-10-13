@@ -28,7 +28,8 @@ export interface CollectDeps {
  * every-tenant list and never the source here, even where the two agree.
  *
  * Fail-isolated per agent: one agent with a mangled document is logged and
- * left out, never allowed to cost the person the whole briefing.
+ * left out, never allowed to cost the person the whole briefing, and named
+ * as unread so its seen keys survive the next delivery.
  */
 export async function collectHeartbeatSnapshot(
   deps: CollectDeps,
@@ -36,6 +37,7 @@ export async function collectHeartbeatSnapshot(
   seen: ReadonlySet<string>,
 ): Promise<HeartbeatSnapshot> {
   const agents: HeartbeatAgentData[] = [];
+  const unread: string[] = [];
   for (const ws of await deps.store.listWorkspacesForUser(deps.userId)) {
     for (const agent of await deps.store.listAgents(ws.id)) {
       const root = deps.paths.agentRoot(ws, agent);
@@ -46,6 +48,7 @@ export async function collectHeartbeatSnapshot(
           loadRoutineRuns(deps.vfs, root),
         ]);
         agents.push({
+          agentId: agent.id,
           agentName: agent.name,
           activities: activities.items,
           routines: routines.items,
@@ -53,8 +56,9 @@ export async function collectHeartbeatSnapshot(
         });
       } catch (err) {
         deps.log(`[heartbeat] skipped ${agent.id} in the snapshot:`, err);
+        unread.push(agent.id);
       }
     }
   }
-  return buildHeartbeatSnapshot(agents, sinceMs, seen);
+  return buildHeartbeatSnapshot(agents, sinceMs, seen, unread);
 }

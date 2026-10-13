@@ -8,7 +8,7 @@ beforeAll(async () => {
 });
 afterAll(async () => close());
 
-const put = (user: string, value: string, createOnly: boolean) =>
+const put = (user: string, value: string | null, createOnly: boolean) =>
   fetch(`${base}/v1/preferences/timezone`, {
     method: "PUT",
     headers: auth(user),
@@ -41,4 +41,23 @@ test("a blank stored value counts as unset; a plain PUT still overwrites", async
   await put("erin", "  ", false);
   expect((await put("erin", "Asia/Tokyo", true)).status).toBe(200);
   expect((await put("erin", "Europe/Madrid", false)).status).toBe(200);
+});
+
+test("a create-only null never clears a stored value", async () => {
+  await put("frank", "Europe/Lisbon", false);
+  const r = await put("frank", null, true);
+  expect(r.status).toBe(412);
+  expect(await r.json()).toEqual({
+    code: "preference_exists",
+    value: "Europe/Lisbon",
+  });
+});
+
+test("concurrent create-only writes: exactly one lands", async () => {
+  const answers = await Promise.all(
+    ["Asia/Tokyo", "America/Bogota", "Europe/Madrid"].map((tz) =>
+      put("gina", tz, true),
+    ),
+  );
+  expect(answers.map((r) => r.status).sort()).toEqual([200, 412, 412]);
 });

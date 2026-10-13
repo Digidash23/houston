@@ -67,6 +67,23 @@ describe("preferences", () => {
   });
 });
 
+describe("timezone seed", () => {
+  it("writes the detected zone once, then never over a stored one", async () => {
+    expect(
+      await h.sdk.preferences.seedTimezone({ detected: "America/Bogota" }),
+    ).toEqual({
+      kind: "seeded",
+      timezone: "America/Bogota",
+      source: "detected",
+    });
+    await h.sdk.preferences.set("timezone", "Europe/Lisbon");
+    expect(
+      await h.sdk.preferences.seedTimezone({ detected: "America/Bogota" }),
+    ).toEqual({ kind: "stored", timezone: "Europe/Lisbon" });
+    expect(await h.sdk.preferences.get("timezone")).toBe("Europe/Lisbon");
+  });
+});
+
 describe("workspace locale", () => {
   it("PATCHes the workspace and persists as the locale preference", async () => {
     const ws = await h.sdk.preferences.setLocale(SEED_WORKSPACE_ID, "pt");

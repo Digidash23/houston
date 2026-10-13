@@ -15,15 +15,18 @@ import {
 const T = "2026-10-10T08:00:00.000Z";
 const LONG_AGO = Date.parse("2026-01-01T00:00:00Z");
 
+const agentData = (over: Partial<HeartbeatAgentData>): HeartbeatAgentData => ({
+  agentId: "W/Ana",
+  agentName: "Ana",
+  activities: [],
+  routines: [],
+  runs: [],
+  ...over,
+});
 const snapshotOf = (
   over: Partial<HeartbeatAgentData>,
   seen: readonly string[] = [],
-) =>
-  buildHeartbeatSnapshot(
-    [{ agentName: "Ana", activities: [], routines: [], runs: [], ...over }],
-    LONG_AGO,
-    new Set(seen),
-  );
+) => buildHeartbeatSnapshot([agentData(over)], LONG_AGO, new Set(seen));
 const mission = (id: string, status: string, updated_at?: string) =>
   ({
     id,
@@ -51,6 +54,22 @@ const paused = (id: string, at = T) =>
   }) as Routine;
 
 describe("identity keys", () => {
+  test("same-named agents in two workspaces never share a key", () => {
+    const s = buildHeartbeatSnapshot(
+      [
+        agentData({ activities: [mission("m1", "needs_you")] }),
+        agentData({
+          agentId: "X/Ana",
+          activities: [mission("m1", "needs_you")],
+        }),
+      ],
+      LONG_AGO,
+      new Set(["need:W/Ana/m1"]),
+    );
+    expect(s.unseen).toBe(1);
+    expect(s.namedKeys[0]).toBe("need:X/Ana/m1");
+  });
+
   test("one per item kind, scoped by agent", () => {
     const s = snapshotOf({
       activities: [mission("m1", "needs_you"), mission("m2", "done", T)],
@@ -59,10 +78,10 @@ describe("identity keys", () => {
     });
     expect(s.presentKeys.sort()).toEqual(
       [
-        "done:Ana/m2",
-        "need:Ana/m1",
-        `pause:Ana/r9:${T}`,
-        "run:Ana/run1",
+        "done:W/Ana/m2",
+        "need:W/Ana/m1",
+        `pause:W/Ana/r9:${T}`,
+        "run:W/Ana/run1",
       ].sort(),
     );
   });
@@ -70,7 +89,7 @@ describe("identity keys", () => {
   test("a re-pause is a new item", () => {
     const later = "2026-10-11T08:00:00.000Z";
     const s = snapshotOf({ routines: [paused("r9", later)] }, [
-      `pause:Ana/r9:${T}`,
+      `pause:W/Ana/r9:${T}`,
     ]);
     expect(heartbeatHasNews(s)).toBe(true);
   });
@@ -92,7 +111,7 @@ describe("only when there is news", () => {
   test("an item already told is not, even if it was touched since", () => {
     const s = snapshotOf(
       { activities: [mission("m1", "needs_you", "2026-12-01T00:00:00Z")] },
-      ["need:Ana/m1"],
+      ["need:W/Ana/m1"],
     );
     expect(heartbeatHasNews(s)).toBe(false);
   });
@@ -111,10 +130,10 @@ describe("capping", () => {
     );
     const s = snapshotOf(
       { routines: [...told, paused("new")] },
-      told.map((r) => `pause:Ana/${r.id}:${T}`),
+      told.map((r) => `pause:W/Ana/${r.id}:${T}`),
     );
     expect(s.pausedRoutines.items[0]?.routine).toBe("new");
-    expect(s.namedKeys).toContain(`pause:Ana/new:${T}`);
+    expect(s.namedKeys).toContain(`pause:W/Ana/new:${T}`);
   });
 
   test("items with one timestamp never starve: what the cap cut is named next", () => {
@@ -133,14 +152,48 @@ describe("capping", () => {
   });
 });
 
+describe("ordering by instant", () => {
+  test("offsets never break chronology; unreadable times count as oldest", () => {
+    // +14:00 midnight on the 11th is 10:00Z on the 10th: the older one.
+    const s = snapshotOf({
+      activities: [
+        mission("late", "needs_you", "2026-10-10T23:30:00Z"),
+        mission("early", "needs_you", "2026-10-11T00:00:00+14:00"),
+        mission("unknown", "needs_you", "not a time"),
+      ],
+    });
+    expect(s.needsYou.items.map((m) => m.title)).toEqual([
+      "unknown",
+      "early",
+      "late",
+    ]);
+  });
+});
+
 describe("seen after a confirmed delivery", () => {
+  test("an agent that could not be read keeps its seen keys", () => {
+    const s = buildHeartbeatSnapshot(
+      [agentData({ activities: [mission("m1", "needs_you")] })],
+      LONG_AGO,
+      new Set(["need:W/Ana/m1", "need:W/Bob/m7"]),
+      ["W/Bob"],
+    );
+    expect(
+      seenAfterDelivery(s, [
+        "need:W/Ana/m1",
+        "need:W/Bob/m7",
+        "need:W/Cy/m2",
+      ]).sort(),
+    ).toEqual(["need:W/Ana/m1", "need:W/Bob/m7"]);
+  });
+
   test("named keys, plus told keys still present; gone ones drop out", () => {
     const s = snapshotOf(
       { activities: [mission("m1", "needs_you"), mission("m2", "needs_you")] },
-      ["need:Ana/m1", "need:Ana/gone"],
+      ["need:W/Ana/m1", "need:W/Ana/gone"],
     );
     expect(
-      seenAfterDelivery(s, ["need:Ana/m1", "need:Ana/gone"]).sort(),
-    ).toEqual(["need:Ana/m1", "need:Ana/m2"]);
+      seenAfterDelivery(s, ["need:W/Ana/m1", "need:W/Ana/gone"]).sort(),
+    ).toEqual(["need:W/Ana/m1", "need:W/Ana/m2"]);
   });
 });

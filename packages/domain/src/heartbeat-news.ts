@@ -1,3 +1,4 @@
+import { keyOfAgent } from "./heartbeat-sections";
 import type { HeartbeatSnapshot } from "./heartbeat-snapshot";
 
 /**
@@ -10,8 +11,10 @@ import type { HeartbeatSnapshot } from "./heartbeat-snapshot";
  *    - a finished mission:              `done:<agent>/<missionId>`
  *    - a routine run (failed/surfaced): `run:<agent>/<runId>`
  *    - a routine the engine paused:     `pause:<agent>/<routineId>:<auto_paused.at>`
- *    (`<agent>` is the agent's name; a re-pause gets a new `auto_paused.at`,
- *    so it is a new item.)
+ *    `<agent>` is a stable, workspace-qualified agent identity (locally the
+ *    agent id `<workspaceId>/<name>`), never the bare display name, so two
+ *    same-named agents in different workspaces never share a key. A re-pause
+ *    gets a new `auto_paused.at`, so it is a new item.
  * 2. The heartbeat document keeps `seen`: the keys the person has been told.
  *    A document without it reads as empty (at worst one extra briefing).
  * 3. Each section puts unseen items first, oldest first, then seen ones,
@@ -22,14 +25,18 @@ import type { HeartbeatSnapshot } from "./heartbeat-snapshot";
  * 5. Only a CONFIRMED delivery (the briefing turn finished with a reply,
  *    heartbeat-briefing.ts) changes `seen`, to: the keys of the items the
  *    briefing named, plus the previously seen keys still present in that
- *    snapshot. Keys of items gone from the snapshot drop out, so `seen` stays
- *    bounded. Quiet runs and failed briefings never change it.
+ *    snapshot, plus every previously seen key of an agent whose documents
+ *    could not be read for that snapshot (its items are unknown, not gone).
+ *    Keys of items gone from a read agent drop out, so `seen` stays bounded.
+ *    Quiet runs and failed briefings never change it.
  *
  * Finished missions and routine runs are matched over a fixed look-back of
  * HEARTBEAT_LOOKBACK_MS; waiting missions and paused routines are matched
- * whenever they are in that state. Item timestamps only order a section:
- * the mission's `updated_at`, the run's `completed_at` else `started_at`, the
- * pause's `auto_paused.at`.
+ * whenever they are in that state. Item timestamps only order a section (as
+ * parsed instants, an absent or unreadable one counting as the oldest, ties
+ * broken by key) and bound the look-back (parsed instants too): the mission's
+ * `updated_at`, the run's `completed_at` else `started_at`, the pause's
+ * `auto_paused.at`.
  */
 export function heartbeatHasNews(snapshot: HeartbeatSnapshot): boolean {
   return snapshot.unseen > 0;
@@ -49,7 +56,9 @@ export function seenAfterDelivery(
   seen: readonly string[],
 ): string[] {
   const present = new Set(snapshot.presentKeys);
-  return [
-    ...new Set([...snapshot.namedKeys, ...seen.filter((k) => present.has(k))]),
-  ];
+  const kept = seen.filter(
+    (k) =>
+      present.has(k) || snapshot.unreadAgents.some((a) => keyOfAgent(k, a)),
+  );
+  return [...new Set([...snapshot.namedKeys, ...kept])];
 }
