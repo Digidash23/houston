@@ -28,8 +28,9 @@ export interface CollectDeps {
  * every-tenant list and never the source here, even where the two agree.
  *
  * Fail-isolated per agent: one agent with a mangled document is logged and
- * left out, never allowed to cost the person the whole briefing, and named
- * as unread so its seen keys survive the next delivery.
+ * left out, never allowed to cost the person the whole briefing. It, and an
+ * agent any of whose documents read with diagnostics, is named unread so its
+ * seen keys survive the next delivery.
  */
 export async function collectHeartbeatSnapshot(
   deps: CollectDeps,
@@ -54,6 +55,19 @@ export async function collectHeartbeatSnapshot(
           routines: routines.items,
           runs: runs.items,
         });
+        // A malformed doc reads as fewer items without throwing: the agent's
+        // items are not fully known, so its seen keys must survive too.
+        const diagnostics = [
+          ...activities.diagnostics,
+          ...routines.diagnostics,
+          ...runs.diagnostics,
+        ];
+        if (diagnostics.length > 0) {
+          deps.log(
+            `[heartbeat] ${agent.id} read incompletely: ${diagnostics.map((d) => `${d.key}: ${d.message}`).join("; ")}`,
+          );
+          unread.push(agent.id);
+        }
       } catch (err) {
         deps.log(`[heartbeat] skipped ${agent.id} in the snapshot:`, err);
         unread.push(agent.id);
