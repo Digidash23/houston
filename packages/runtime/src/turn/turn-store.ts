@@ -18,6 +18,9 @@ export interface ResolvedTurnStore {
   /** The claim-backed store without the prefetched layer: what the store
    *  holds now, under this turn's claim. Set only for a claimed turn. */
   live?: ObjectStore;
+  /** The keys whose bytes the gateway inlined into the turn, read BEFORE it
+   *  held the claim. Captured here because hydration consumes the prefetch. */
+  inlined?: ReadonlySet<string>;
 }
 
 /** Fail-loud fallback used when turn mode has only the pool store configured. */
@@ -85,5 +88,8 @@ export function resolveTurnStore(
       : http,
     prefix: "",
     live: http,
+    ...(turn.prefetch
+      ? { inlined: new Set(turn.prefetch.objects.keys()) }
+      : {}),
   };
 }
