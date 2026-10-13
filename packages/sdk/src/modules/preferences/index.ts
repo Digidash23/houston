@@ -21,8 +21,7 @@ import {
 import type { ModuleContext } from "../../module-context";
 import { requireString } from "../payload";
 import {
-  createTimezoneSeeder,
-  TIMEZONE_PREFERENCE,
+  seedTimezone as seedTimezoneWith,
   type TimezoneSeedInput,
   type TimezoneSeedResult,
 } from "./timezone";
@@ -87,22 +86,12 @@ export function createPreferencesModule(ctx: ModuleContext): PreferencesModule {
    */
   const get = (key: string): Promise<string | null> =>
     run(() => client.getPreference(key));
-  const seeder = createTimezoneSeeder({
-    get,
-    set: (key, value) => run(() => client.setPreference(key, value)),
-  });
   /**
    * Changes one of the user's saved preferences.
    * @assistant group:settings hidden: UI plumbing; an open key/value write that can clobber any app setting.
    */
-  const set = async (
-    key: string,
-    value: string | null,
-  ): Promise<string | null> => {
-    const stored = await run(() => client.setPreference(key, value));
-    if (key === TIMEZONE_PREFERENCE) seeder.forget();
-    return stored;
-  };
+  const set = (key: string, value: string | null): Promise<string | null> =>
+    run(() => client.setPreference(key, value));
   /**
    * Sets the language the app's own screens are shown in, for one workspace.
    * @param workspaceId The workspace this acts on, by the id listWorkspaces
@@ -120,7 +109,11 @@ export function createPreferencesModule(ctx: ModuleContext): PreferencesModule {
    * Saves the device's time zone as the person's when they have none yet.
    * @assistant group:settings hidden: UI plumbing; the app runs it on its own at sign-in with the zone of the screen the person is sitting at.
    */
-  const seedTimezone = (input: TimezoneSeedInput) => seeder.seed(input);
+  const seedTimezone = (input: TimezoneSeedInput) =>
+    seedTimezoneWith(
+      (key, value) => run(() => client.createPreference(key, value)),
+      input,
+    );
 
   ctx.registerCommand(PreferencesCommand.Get, (p) =>
     get(requireString(p, "key")),
@@ -134,7 +127,6 @@ export function createPreferencesModule(ctx: ModuleContext): PreferencesModule {
 
   ctx.registerCommand(PreferencesCommand.SeedTimezone, (p) =>
     seedTimezone({
-      scope: requireString(p, "scope"),
       detected: requireString(p, "detected"),
       legacy: optionalString(p, "legacy"),
     }),

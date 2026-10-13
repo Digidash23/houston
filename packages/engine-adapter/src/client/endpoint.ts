@@ -112,14 +112,14 @@ export abstract class EngineEndpoint extends AgentSelection {
   }
 
   /**
-   * The SDK addressed at one space instead of the active one: a call about a
-   * space the user is not standing in (a folder move's destination) carries
-   * that space's `x-houston-org`. `null` is the personal space. Off-cloud there
-   * is one space, so it is the shared {@link sdk}.
+   * The SDK pinned to one space instead of following the active one: every
+   * request it makes (a 401 replay included) carries that space's
+   * `x-houston-org`, even if the person switches space mid-flight. `null` is
+   * the personal space. Off-cloud there is one space, so it is the shared
+   * {@link sdk}.
    */
   sdkForSpace(orgSlug: string | null): HoustonSdk {
-    if (!this._cp || orgSlug === (this._cp.activeOrgSlug ?? null))
-      return this.sdk;
+    if (!this._cp) return this.sdk;
     return createEngineSdk({
       baseUrl: this.baseUrl,
       fetch: gatewayAuthFetch(this.token, () => orgSlug),

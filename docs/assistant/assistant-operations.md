@@ -152,6 +152,7 @@ A person's message can grant one `createAgent` call with the constrained name, c
 | `getMyProfile` | GET | unconfirmed: read-only HTTP GET | visible | none |
 | `getPlan` | GET | unconfirmed: read-only HTTP GET | visible | none |
 | `getPreference` | GET | unconfirmed: read-only HTTP GET | UI plumbing; an untyped key/value store the app reads for its own device settings. | key: free text |
+| `preferences.seedTimezone` | unroutable | unconfirmed: withheld from dispatch | UI plumbing; the app runs it on its own at sign-in with the zone of the screen the person is sitting at. | input: free text |
 | `preferences.setLocale` | PATCH | unconfirmed: Reversible display preference; the app's own language picker changes it with one click. | visible | workspaceId: resolved:workspaces; locale: free text |
 | `runHeartbeatNow` | POST | unconfirmed: withheld from dispatch | the briefing is a turn on the AI Manager itself, and it never starts while the manager is mid-turn, so a call from inside the manager's own turn is always refused (turn_running). | none |
 | `setContext` | PUT | confirmed: host approval required | visible | kind: enum; content: free text |

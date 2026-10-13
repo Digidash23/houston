@@ -1,9 +1,5 @@
 import { migrateProviderModel } from "@houston/domain";
-import {
-  TIMEZONE_PREFERENCE,
-  type TimezoneSeedInput,
-  type TimezoneSeedResult,
-} from "@houston/sdk";
+import { TIMEZONE_PREFERENCE, type TimezoneSeedResult } from "@houston/sdk";
 import type { ProjectConfig } from "@houston/wire-types";
 import { emitLocalEcho } from "../bus";
 import * as controlPlane from "../control-plane";
@@ -17,6 +13,7 @@ import {
 import { clearLocalPref, readLocalPref, writeLocalPref } from "./device-prefs";
 import type { BaseCtor } from "./mixin";
 import { viaSdk } from "./sdk-error";
+import { teamSlugFromWorkspaceId } from "./workspaces-mixin";
 
 /**
  * Preference keys that are ACCOUNT state, not device state. The engine acts on
@@ -140,18 +137,22 @@ export function ConfigPrefsMixin<TBase extends BaseCtor>(Base: TBase) {
       if (value === null) return clearLocalPref(key);
       writeLocalPref(key, value);
     }
-    /** The SDK's timezone seed, handed this device's pre-account copy to
-     *  lift (dropped once the account holds a zone). */
+    /** The SDK's timezone seed for one space, pinned for the whole request
+     *  (`sdkForSpace`), handed this device's pre-account copy to lift. */
     async seedTimezone(
-      input: Omit<TimezoneSeedInput, "legacy">,
+      workspaceId: string,
+      detected: string,
     ): Promise<TimezoneSeedResult> {
+      const wireId = await this.ctx.workspaceIds.resolve(workspaceId);
       const legacy = legacyLocalPref(TIMEZONE_PREFERENCE);
       const result = await viaSdk(
         controlPlane.prefPath(TIMEZONE_PREFERENCE),
-        () => this.ctx.sdk.preferences.seedTimezone({ ...input, legacy }),
+        () =>
+          this.ctx
+            .sdkForSpace(teamSlugFromWorkspaceId(wireId))
+            .preferences.seedTimezone({ detected, legacy }),
       );
-      if (legacy !== null && result.kind !== "superseded")
-        dropLegacyLocalPref(TIMEZONE_PREFERENCE);
+      if (legacy !== null) dropLegacyLocalPref(TIMEZONE_PREFERENCE);
       return result;
     }
     async getAgentConfig(): Promise<ProjectConfig> {

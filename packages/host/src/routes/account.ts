@@ -1,5 +1,15 @@
-import { getPreference, loadPreferences, setPreference } from "@houston/domain";
-import type { Workspace as WireWorkspace } from "@houston/protocol";
+import {
+  createPreference,
+  getPreference,
+  loadPreferences,
+  setPreference,
+} from "@houston/domain";
+import {
+  PREFERENCE_EXISTS_CODE,
+  PREFERENCE_EXISTS_STATUS,
+  PREFERENCE_ONLY_IF_ABSENT_FIELD,
+  type Workspace as WireWorkspace,
+} from "@houston/protocol";
 import type { Workspace } from "../domain/types";
 import { type AccountDeps, ownedWorkspace } from "./account-access";
 import { json, readJson } from "./http";
@@ -96,6 +106,16 @@ defineRoute({
       body.value === null || body.value === undefined
         ? null
         : String(body.value);
+    // Create-only (`onlyIfAbsent`, @houston/protocol preference-create).
+    if (value !== null && body[PREFERENCE_ONLY_IF_ABSENT_FIELD] === true) {
+      const out = await createPreference(vfs, ws.id, key, value);
+      return out.created
+        ? json(res, 200, { value: out.value })
+        : json(res, PREFERENCE_EXISTS_STATUS, {
+            code: PREFERENCE_EXISTS_CODE,
+            value: out.value,
+          });
+    }
     await setPreference(vfs, ws.id, key, value);
     json(res, 200, { value });
   },

@@ -11,35 +11,24 @@ import { tauriPreferences } from "../lib/tauri";
 import { detectTimezone, timezoneOwner } from "../lib/timezone-seed";
 import { useWorkspaceStore } from "../stores/workspaces";
 
-const sessionUid = () =>
-  queryClient.getQueryData<Session | null>(SESSION_QUERY_KEY)?.uid ?? null;
-
-/** Who is signed in where, read live: the seed's fence asks it at write time. */
-const liveOwner = () =>
-  timezoneOwner(
-    sessionUid(),
-    isIdentityConfigured(),
-    useWorkspaceStore.getState().current?.id ?? null,
-  );
-
-function useTimezoneOwner(): string | null {
+/** The workspace to seed in and the person-and-space key that re-runs it. */
+function useSeedTarget(): { workspaceId: string; owner: string } | null {
   const workspaceId = useWorkspaceStore((s) => s.current?.id ?? null);
-  return timezoneOwner(sessionUid(), isIdentityConfigured(), workspaceId);
+  const uid =
+    queryClient.getQueryData<Session | null>(SESSION_QUERY_KEY)?.uid ?? null;
+  const owner = timezoneOwner(uid, isIdentityConfigured(), workspaceId);
+  return owner && workspaceId ? { workspaceId, owner } : null;
 }
 
 /**
- * Seed through the SDK for `owner`; never rejects. The zone to render: the
- * account's, or the detected one when the seed failed (already reported) or
- * the person moved on before it finished.
+ * Seed through the SDK (create-only, so a stored zone always wins); never
+ * rejects. The zone to render: the account's, or the detected one when the
+ * seed failed (already reported).
  */
-async function seedFor(owner: string): Promise<string> {
+async function seedIn(workspaceId: string): Promise<string> {
   try {
-    const result = await tauriPreferences.seedTimezone({
-      scope: owner,
-      detected: detectTimezone(),
-      isCurrent: () => liveOwner() === owner,
-    });
-    return result.kind === "superseded" ? detectTimezone() : result.timezone;
+    return (await tauriPreferences.seedTimezone(workspaceId, detectTimezone()))
+      .timezone;
   } catch (err) {
     logAndReportError("timezone_seed", err);
     return detectTimezone();
@@ -52,10 +41,12 @@ async function seedFor(owner: string): Promise<string> {
  * a zone for everyone, not only those who opened Routines.
  */
 export function useTimezoneSeed(): void {
-  const owner = useTimezoneOwner();
+  const target = useSeedTarget();
+  const owner = target?.owner;
+  const workspaceId = target?.workspaceId;
   useEffect(() => {
-    if (owner) void seedFor(owner);
-  }, [owner]);
+    if (owner && workspaceId) void seedIn(workspaceId);
+  }, [owner, workspaceId]);
 }
 
 export interface TimezoneState {
@@ -74,22 +65,24 @@ export interface TimezoneState {
  * zone when none is stored; users change it from the Routines editor.
  */
 export function useTimezonePreference(): TimezoneState {
-  const owner = useTimezoneOwner();
+  const target = useSeedTarget();
+  const owner = target?.owner ?? null;
+  const workspaceId = target?.workspaceId ?? null;
   const [reading, setReading] = useState<{
     owner: string | null;
     value: string | null;
   }>({ owner: null, value: null });
 
   useEffect(() => {
-    if (!owner) return;
+    if (!owner || !workspaceId) return;
     let live = true;
-    void seedFor(owner).then((value) => {
+    void seedIn(workspaceId).then((value) => {
       if (live) setReading({ owner, value });
     });
     return () => {
       live = false;
     };
-  }, [owner]);
+  }, [owner, workspaceId]);
 
   const confirm = useCallback(
     async (tz: string) => {

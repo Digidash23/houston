@@ -250,36 +250,39 @@ describe("stuck-wake parity", () => {
 });
 
 describe("the delegated timezone seed", () => {
-  test("reads, then writes the detected zone once, in the active space", async () => {
-    let stored: string | null = null;
-    stubFetch(() => json(200, { value: stored }));
+  test("is one create-only PUT pinned to the space it was started for", async () => {
+    stubFetch(() => json(200, { value: "America/Bogota" }));
     const c = client();
-    c.setActiveOrg(ORG);
+    // The person stands in another space: the seed still targets its own.
+    c.setActiveOrg("ffffffffffffffff");
 
-    const result = await c.seedTimezone({
-      scope: "ana:team",
-      detected: "America/Bogota",
-    });
+    const result = await c.seedTimezone(`org:${ORG}`, "America/Bogota");
     expect(result).toEqual({
       kind: "seeded",
       timezone: "America/Bogota",
       source: "detected",
     });
-    expect(calls.map((call) => [call.method, call.url, call.body])).toEqual([
-      ["GET", `${BASE}/v1/preferences/timezone`, null],
-      [
-        "PUT",
-        `${BASE}/v1/preferences/timezone`,
-        JSON.stringify({ value: "America/Bogota" }),
-      ],
-    ]);
-    for (const call of calls)
-      expect(call.headers.get("x-houston-org")).toBe(ORG);
+    expect(calls).toHaveLength(1);
+    const [put] = calls;
+    expect(put.method).toBe("PUT");
+    expect(put.url).toBe(`${BASE}/v1/preferences/timezone`);
+    expect(put.body).toBe(
+      JSON.stringify({ value: "America/Bogota", onlyIfAbsent: true }),
+    );
+    // A body flag, never a header the gateway's CORS allow-list lacks.
+    expect(put.headers.get("If-None-Match")).toBeNull();
+    expect(put.headers.get("x-houston-org")).toBe(ORG);
+  });
 
-    // Seeded once per scope: no second request.
-    stored = "America/Bogota";
-    reset();
-    await c.seedTimezone({ scope: "ana:team", detected: "Asia/Tokyo" });
-    expect(calls).toHaveLength(0);
+  test("a stored zone answers 412 and wins", async () => {
+    stubFetch(() =>
+      json(412, { code: "preference_exists", value: "Europe/Lisbon" }),
+    );
+    const c = client();
+    c.setActiveOrg(ORG);
+    expect(await c.seedTimezone(`org:${ORG}`, "America/Bogota")).toEqual({
+      kind: "stored",
+      timezone: "Europe/Lisbon",
+    });
   });
 });
