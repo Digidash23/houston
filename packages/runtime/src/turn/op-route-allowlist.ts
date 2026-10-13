@@ -14,11 +14,14 @@ const OP_ROUTE =
   /^(activities|routines|routine_runs|learnings|config)(\/[^/]+)?$|^agentfile\/(?!\.houston\/runtime\/).+$|^skills(\/[^/]+)?$|^files(\/.+)?$|^attachments$|^skills-manifest$|^portable\/(preview|export)$|^migration\/(export|import|complete|status)$|^integrations\/custom\/(detect|definitions|definitions\/[^/]+|definitions\/[^/]+\/(credential|tools))$/;
 
 // Reads run as ops only where the gateway has no doc to serve them from:
-// the Files tab, arbitrary agent files, one skill's detail (the list is a
-// view doc), the export/migration inventories, and a custom integration's
-// compiled tool list.
+// the Files tab, arbitrary agent files, one skill's detail, the
+// export/migration inventories, and a custom integration's compiled tool
+// list. The family lists (routines, routine_runs, learnings, config, skills)
+// do have docs; the gateway sends them as ops only when its own store read
+// cannot reproduce the host's answer (a file the host reports a diagnostic
+// for, a SKILL.md its port cannot be sure of, a file past its read cap).
 const READ_ROUTE =
-  /^files(\/.+)?$|^agentfile\/|^skills\/[^/]+$|^skills-manifest$|^portable\/preview$|^migration\/status$|^integrations\/custom\/definitions$|^integrations\/custom\/definitions\/[^/]+\/tools$/;
+  /^(routines|routine_runs|learnings|config|skills)$|^files(\/.+)?$|^agentfile\/|^skills\/[^/]+$|^skills-manifest$|^portable\/preview$|^migration\/status$|^integrations\/custom\/definitions$|^integrations\/custom\/definitions\/[^/]+\/tools$/;
 
 // A routine run's stop: the gateway released the run's pool claim first, so
 // the worker settles the row only (host op/routine-run-cancel.ts).

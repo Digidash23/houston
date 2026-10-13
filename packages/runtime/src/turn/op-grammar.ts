@@ -121,8 +121,7 @@ function parseRouteOp(raw: Record<string, unknown>): AgentOp {
   if (!isOpRoute(decoded)) {
     throw new Error("op.rest is not an op route");
   }
-  // Reads run as ops only where the gateway has no doc to serve them
-  // from: the Files tab and arbitrary agent files.
+  // Reads run as ops only on the read shapes op-route-allowlist.ts names.
   if (method === "GET" && !isReadOpRoute(decoded)) {
     throw new Error("op.rest is not a read op route");
   }
