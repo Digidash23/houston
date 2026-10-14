@@ -72,6 +72,8 @@
   },
   "morningBriefing": {
     "title": "Morning briefing",
+    "navDescription": "A daily summary of what needs your attention",
+    "enabled": "Send me a morning briefing",
     "description": "Every morning Houston checks on your team and tells you what needs your attention. It arrives in your chat with Houston.",
     "descriptionWithChannels": "Every morning Houston checks on your team and tells you what needs your attention. It arrives in your chat with Houston, and in Slack or WhatsApp too if you've connected them.",
     "time": "Send it at",

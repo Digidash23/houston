@@ -7,6 +7,7 @@ import {
   Keyboard,
   KeyRound,
   MessagesSquare,
+  Sunrise,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChannels } from "../../hooks/queries/use-channels";
@@ -24,7 +25,6 @@ import { AppearanceSection } from "./sections/appearance";
 import { DangerSection } from "./sections/danger";
 import { DeleteAccountSection } from "./sections/delete-account";
 import { LanguageSection } from "./sections/language";
-import { MorningBriefingSection } from "./sections/morning-briefing";
 import { NotificationsSection } from "./sections/notifications";
 import { SettingsCard, SettingsRow } from "./settings-row";
 
@@ -104,8 +104,13 @@ export function SettingsIndex({
           <AppearanceSection />
           <LanguageSection />
           <NotificationsSection />
-          {capabilities?.heartbeat && (
-            <MorningBriefingSection channelsAvailable={channelsAvailable} />
+          {settingsSectionAvailable("morningBriefing", capabilities) && (
+            <SettingsRow
+              icon={Sunrise}
+              title={t("settings:morningBriefing.title")}
+              description={t("settings:morningBriefing.navDescription")}
+              onClick={() => onSelect("morningBriefing")}
+            />
           )}
           {settingsSectionAvailable("apiKeys", capabilities) && (
             <SettingsRow
