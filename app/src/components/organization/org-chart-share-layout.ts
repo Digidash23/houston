@@ -1,8 +1,10 @@
 import {
   CARD,
+  CARD_TEXT,
   type CardBox,
   type CardLayout,
   type CardNode,
+  type CardZoom,
   NODE,
 } from "./org-chart-share-card-geometry.ts";
 import type { OrgTree, OrgTreeAgent } from "./org-chart-tree.ts";
@@ -35,9 +37,40 @@ const TREE = {
   columnGap: 14,
   margin: 56,
   radius: 12,
-  /** The lowest a card may reach, clear of the footer. */
-  floor: 1080,
 } as const;
+
+/**
+ * The room the chart is scaled into: clear of the count line above and the
+ * footer below. A small team grows to fill it (up to {@link MAX_ZOOM}), so
+ * three cards never sit as a speck in an empty square; a big one shrinks.
+ */
+const ROOM = {
+  top: CARD_TEXT.countsY + 70,
+  bottom: CARD_TEXT.footerY - 80,
+  /** The margin the columns are laid out in, so a full row is never shrunk. */
+  side: TREE.margin,
+} as const;
+const MAX_ZOOM = 1.8;
+
+/** Scale `boxes` (centred on the card) into {@link ROOM}. */
+function zoomFor(boxes: Box[]): CardZoom {
+  const top = Math.min(...boxes.map((b) => b.y));
+  const bottom = Math.max(...boxes.map((b) => b.y + b.h));
+  const left = Math.min(...boxes.map((b) => b.x));
+  const right = Math.max(...boxes.map((b) => b.x + b.w));
+  const roomH = ROOM.bottom - ROOM.top;
+  const scale = Math.min(
+    MAX_ZOOM,
+    (CARD.width - ROOM.side * 2) / (right - left),
+    roomH / (bottom - top),
+  );
+  const cx = CARD.width / 2;
+  return {
+    scale,
+    x: cx - cx * scale,
+    y: ROOM.top + (roomH - (bottom - top) * scale) / 2 - top * scale,
+  };
+}
 
 /** The words the layout writes on cards, all authored `t()` copy. */
 export interface CardWords {
@@ -147,16 +180,10 @@ export function shareCardLayout(tree: OrgTree, words: CardWords): CardLayout {
     }
   });
 
-  // A small chart sits centred in the room between header and footer
-  // rather than hanging under the header with the bottom half empty.
-  const bottom = Math.max(...boxes.map((box) => box.y + box.h));
-  const shift = Math.max(0, (TREE.floor - bottom) / 2);
-  for (const box of boxes) box.y += shift;
-
   const byId = new Map<string, Box>(boxes.map((box) => [box.id, box]));
   const path = connectorPath(treeEdges(tree, "desktop"), byId, {
     radius: TREE.radius,
     spineInset: 0,
   });
-  return { boxes, path };
+  return { boxes, path, zoom: zoomFor(boxes) };
 }

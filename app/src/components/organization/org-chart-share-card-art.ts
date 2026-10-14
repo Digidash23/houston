@@ -87,6 +87,9 @@ export function paintCard(
   quiet = false,
 ): void {
   const r = 16;
+  // Shadows ignore the canvas transform, so a zoomed chart scales them by
+  // hand; the hairline stays a hairline at any zoom.
+  const zoom = ctx.getTransform().a;
   ctx.save();
   if (!quiet)
     for (const [color, blur, dy] of [
@@ -94,8 +97,8 @@ export function paintCard(
       [ART.shadowNear, 3, 1],
     ] as const) {
       ctx.shadowColor = color;
-      ctx.shadowBlur = blur;
-      ctx.shadowOffsetY = dy;
+      ctx.shadowBlur = blur * zoom;
+      ctx.shadowOffsetY = dy * zoom;
       roundRect(ctx, box.x, box.y, box.w, box.h, r);
       ctx.fillStyle = ART.card;
       ctx.fill();
@@ -104,7 +107,7 @@ export function paintCard(
   roundRect(ctx, box.x + 0.5, box.y + 0.5, box.w - 1, box.h - 1, r);
   ctx.fillStyle = quiet ? ART.moreFill : ART.card;
   ctx.fill();
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.5 / zoom;
   ctx.strokeStyle = ART.hairline;
   ctx.stroke();
 }

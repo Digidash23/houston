@@ -51,7 +51,7 @@ export function face(
   ctx.restore();
   ctx.beginPath();
   ctx.arc(x, y, r - 0.5, 0, Math.PI * 2);
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 1 / ctx.getTransform().a;
   ctx.strokeStyle = ART.hairline;
   ctx.stroke();
 }

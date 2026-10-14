@@ -179,13 +179,17 @@ export function paintShareCard(
 ): void {
   paintPaper(ctx, CARD.width, CARD.height);
   paintHeader(ctx, text);
+  const { zoom } = layout;
+  ctx.save();
+  ctx.setTransform(zoom.scale, 0, 0, zoom.scale, zoom.x, zoom.y);
   if (layout.path) {
     ctx.strokeStyle = ART.line;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.5 / zoom.scale;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.stroke(new Path2D(layout.path));
   }
   for (const box of layout.boxes) paintBox(ctx, box, text, assets);
+  ctx.restore();
   paintFooter(ctx, text, assets.mark);
 }

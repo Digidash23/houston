@@ -4,6 +4,7 @@ import type { Agent, OrgMember } from "@houston/engine-adapter";
 import {
   CARD,
   CARD_TEXT,
+  onCard,
 } from "../src/components/organization/org-chart-share-card-geometry.ts";
 import { shareCardLayout } from "../src/components/organization/org-chart-share-layout.ts";
 import { SHARE_CARD_CAPS } from "../src/components/organization/org-chart-share-model.ts";
@@ -50,8 +51,8 @@ const big = () =>
 
 describe("shareCardLayout", () => {
   it("keeps every card inside the card, between the header and the footer, without overlaps", () => {
-    const { boxes } = big();
-    for (const box of boxes) {
+    const { boxes, zoom } = big();
+    for (const box of boxes.map((b) => ({ ...b, ...onCard(zoom, b) }))) {
       ok(box.x >= 0 && box.x + box.w <= CARD.width, `x ${box.id}`);
       ok(box.y > CARD_TEXT.countsY + 20, `top ${box.id}`);
       ok(box.y + box.h < CARD_TEXT.footerY - 40, `bottom ${box.id}`);
@@ -76,7 +77,7 @@ describe("shareCardLayout", () => {
     for (const [x, y] of pathPoints(path)) {
       ok(x >= left - 0.5 && x <= right + 0.5, `x ${x}`);
       ok(y >= boxes[0].y + boxes[0].h - 0.5, `y ${y}`);
-      ok(y < CARD_TEXT.footerY, `y ${y}`);
+      ok(y < Math.max(...boxes.map((b) => b.y + b.h)) + 0.5, `y ${y}`);
     }
   });
 
@@ -99,6 +100,22 @@ describe("shareCardLayout", () => {
       column.map((b) => b.shape),
       ["column", "leaf", "leaf", "leaf", "moreLeaf"],
     );
+  });
+
+  it("grows a small team to fill the card, and leaves a full one at its size", () => {
+    const small = layout([agent("a", "owner"), agent("b", "owner")], roster(1));
+    ok(small.zoom.scale > 1.5, `small ${small.zoom.scale}`);
+    const [root] = small.boxes.map((b) => onCard(small.zoom, b));
+    strictEqual(root.x + root.w / 2, CARD.width / 2);
+    // A full row already spans the card: it is never shrunk below 1.
+    const wide = layout(
+      Array.from({ length: 8 }, (_, i) => agent(`a${i}`)),
+      roster(1),
+      true,
+    );
+    ok(Math.abs(wide.zoom.scale - 1) < 1e-9, `wide ${wide.zoom.scale}`);
+    const large = big();
+    ok(large.zoom.scale <= 1 + 1e-9, `big ${large.zoom.scale}`);
   });
 
   it("centres a lone branch under the root with a straight line", () => {

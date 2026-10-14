@@ -84,8 +84,27 @@ export interface CardBox extends Box {
   label?: string;
 }
 
+/** Card point = chart point x scale + (x, y). */
+export interface CardZoom {
+  scale: number;
+  x: number;
+  y: number;
+}
+
 export interface CardLayout {
+  /** In chart units; {@link CardLayout.zoom} places them on the card. */
   boxes: CardBox[];
-  /** Every connector as one SVG path, for `Path2D`. */
+  /** Every connector as one SVG path, for `Path2D`, in chart units. */
   path: string;
+  zoom: CardZoom;
+}
+
+/** Where `box` lands on the card once zoomed. */
+export function onCard(zoom: CardZoom, box: Box): Box {
+  return {
+    x: box.x * zoom.scale + zoom.x,
+    y: box.y * zoom.scale + zoom.y,
+    w: box.w * zoom.scale,
+    h: box.h * zoom.scale,
+  };
 }
