@@ -63,7 +63,7 @@ export const DEFAULT_MODEL: Partial<Record<ProviderId, string>> = {
   // pi lists Alibaba's multi-vendor Token Plan catalogs alphabetically, which
   // would make MiniMax the default on a card named Qwen.
   qwen: "qwen3.7-max",
-  // Mistral's general flagship (reasoning, 512K context). With no row here the
+  // Mistral's general flagship (reasoning, 1M context). With no row here the
   // default was pi's first Mistral row, a Codestral code-completion model
   // capped at 4K output (8K on the dated snapshot pi 1.1.0 put first).
   mistral: "mistral-large-4",

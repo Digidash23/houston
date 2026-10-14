@@ -2,6 +2,7 @@ import { expect, type Locator, type Page } from "@playwright/test";
 import { ASSISTANT_COMPOSER } from "./composer";
 import { screen } from "./team-nav";
 import {
+  accountAction,
   openAccountMenu,
   openDestination,
   openDestinations,
@@ -80,7 +81,7 @@ export async function openAccountScreen(
   name: keyof typeof ACCOUNT_SCREENS,
 ): Promise<void> {
   const menu = await openAccountMenu(page);
-  await menu.getByRole("menuitem", { name, exact: true }).click();
+  await accountAction(page, menu, name).click();
   await expect(screen(page)).toHaveAttribute(
     "data-screen",
     ACCOUNT_SCREENS[name],

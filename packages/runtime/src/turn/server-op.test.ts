@@ -201,7 +201,7 @@ test("an invalid op is rejected before any hydration", async () => {
     opBody(agentId, "http://127.0.0.1:1/hb", {
       kind: "route",
       method: "GET",
-      rest: "routines",
+      rest: "activities",
     }),
   );
   expect(status).toBe(400);

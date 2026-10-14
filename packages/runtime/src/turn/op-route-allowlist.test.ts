@@ -6,8 +6,31 @@ test("one skill's detail is a read op: the gateway has no doc for it", () => {
   expect(isReadOpRoute("skills/weekly-digest")).toBe(true);
 });
 
-test("the skills list stays a view-doc read, never a read op", () => {
-  expect(isReadOpRoute("skills")).toBe(false);
+test("the family lists are read ops: the gateway's fallback when its doc read cannot answer", () => {
+  for (const rest of [
+    "skills",
+    "routines",
+    "routine_runs",
+    "learnings",
+    "config",
+  ]) {
+    expect(isOpRoute(rest), rest).toBe(true);
+    expect(isReadOpRoute(rest), rest).toBe(true);
+  }
+});
+
+test("activities, providers and item reads stay refused as read ops", () => {
+  for (const rest of [
+    "activities",
+    "providers",
+    "routines/r1",
+    "routine_runs/run-1",
+    "learnings/l1",
+    "config/x",
+    "routinesx",
+    "xroutines",
+  ])
+    expect(isReadOpRoute(rest), rest).toBe(false);
 });
 
 test("remote-skills shapes no host handler serves are not op routes", () => {

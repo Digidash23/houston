@@ -107,7 +107,7 @@ export function ContextIndicator({
     <button
       type="button"
       aria-label={t("button.aria")}
-      className={`inline-flex items-center justify-center size-7 rounded-full transition-colors hover:bg-hover ${
+      className={`inline-flex items-center justify-center size-11 rounded-full transition-[color,background-color,scale] hover:bg-hover active:scale-[0.96] md:size-7 md:active:scale-100 ${
         warn ? "text-danger" : "text-ink-muted hover:text-ink"
       }`}
     >

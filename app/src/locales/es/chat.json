@@ -33,7 +33,11 @@
       "failed": "El dictado por voz no funcionó esta vez. Inténtalo de nuevo.",
       "unsupportedTitle": "El dictado por voz no está disponible en esta computadora",
       "unsupportedBody": "El procesador de esta computadora es demasiado antiguo para el dictado por voz. Todo lo demás sigue funcionando con normalidad."
-    }
+    },
+    "submit": "Enviar",
+    "stop": "Detener",
+    "attachFiles": "Adjuntar archivos",
+    "removeAttachment": "Quitar {{name}}"
   },
   "mentions": {
     "listAriaLabel": "Mencionar a un compañero"
@@ -457,7 +461,8 @@
     "argument": "{{name}} \"{{value}}\"",
     "exactValue": "Contenido exacto de {{name}}:",
     "truncated_one": "[y {{formatted}} carácter más, que también se escribiría]",
-    "truncated_other": "[y {{formatted}} caracteres más, que también se escribirían]"
+    "truncated_other": "[y {{formatted}} caracteres más, que también se escribirían]",
+    "storeRefusalOk": "Entendido"
   },
   "browserHandoff": {
     "heading": "Te toca en {{site}}",

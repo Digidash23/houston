@@ -69,17 +69,26 @@ type SectionCapabilities =
   | null
   | undefined;
 
+/** Where Settings renders: `touch` is a phone-width layout or a store app. */
+export interface SettingsSurface {
+  touch: boolean;
+}
+
 /**
  * Billing exists only where the deployment serves the personal plan (C19);
  * API keys only where it serves the public API (C9: the hosted gateway, which
- * desktop and web both reach once signed in).
+ * desktop and web both reach once signed in). Keyboard shortcuts need a
+ * keyboard, so a touch surface (phone width, or the iOS/Android app at any
+ * width) has none.
  */
 export function settingsSectionAvailable(
   section: SettingsSectionId,
   capabilities: SectionCapabilities,
+  surface: SettingsSurface = { touch: false },
 ): boolean {
   if (section === "plan") return capabilities?.plan === true;
   if (section === "apiKeys") return capabilities?.apiKeys === true;
+  if (section === "shortcuts") return !surface.touch;
   return true;
 }
 

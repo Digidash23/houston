@@ -41,6 +41,13 @@ export interface ChatComposerLabels {
   folderReadFailed?: string;
   /** "N files" line on a folder chip. */
   folderFileCount?: (count: number) => string;
+  /** The send button's name, and its name while a turn runs (it stops it). */
+  submit?: string;
+  stop?: string;
+  /** The "+" button's name. */
+  attachFiles?: string;
+  /** An attachment chip's remove button, for the file or folder `name`. */
+  removeAttachment?: (name: string) => string;
 }
 
 export interface ChatPanelProps {

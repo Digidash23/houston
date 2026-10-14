@@ -46,6 +46,16 @@ function AccountAvatar(props: { name: string; avatarUrl: string | null }) {
   );
 }
 
+/** One thing the account offers, as data: the phone's account page draws
+ *  these as sheet rows, the menus as menu items. */
+export interface AccountAction {
+  id: "profile" | "aboutMe" | "signOut";
+  icon: ReactNode;
+  label: string;
+  onSelect: () => void;
+  dataAttrs?: Record<string, string>;
+}
+
 /** The person's own menu, in the parts a host arranges (`useAccountMenu`). */
 export interface AccountMenuParts {
   label: string;
@@ -57,16 +67,18 @@ export interface AccountMenuParts {
   personal: ReactNode;
   /** A separator, then Sign out; null without an identity. */
   signOut: ReactNode;
-  /** The whole menu, the parts in order: what the phone's account row opens. */
-  menu: ReactNode;
+  /** Who is signed in; null without an identity. */
+  identity: { name: string; email: string } | null;
+  /** Profile, About me, then Sign out: what the phone's account page lists. */
+  actions: AccountAction[];
 }
 
 /**
  * The person's own menu, shared by the rail's account row
  * (`sidebar-workspace-menu.tsx`, which sets its parts among the workspaces
- * and the destinations) and the phone's More card (`mobile-more-row.tsx`, the
- * account row, which opens `menu` whole), so both breakpoints offer the same
- * things.
+ * and the destinations) and the phone's More card (`mobile-more-account.tsx`,
+ * the account page its account row drills into, which lists `actions`), so
+ * both breakpoints offer the same things.
  *
  * Headed by who is signed in, it holds what the account itself needs: the
  * person's Profile (name and picture, where the deployment serves it), About
@@ -98,37 +110,41 @@ export function useAccountMenu(opts: {
       <DropdownMenuSeparator />
     </>
   );
+  const profileAction: AccountAction = {
+    id: "profile",
+    icon: <CircleUserRound className="size-4" aria-hidden="true" />,
+    label: t("accountMenu.profile"),
+    onSelect: () => open(PROFILE_VIEW_ID),
+  };
+  const aboutMeAction: AccountAction = {
+    id: "aboutMe",
+    icon: <UserRound className="size-4" aria-hidden="true" />,
+    label: t("accountMenu.aboutMe"),
+    onSelect: () => open(ABOUT_ME_VIEW_ID),
+  };
+  const signOutAction: AccountAction = {
+    id: "signOut",
+    icon: <LogOut className="size-4" aria-hidden="true" />,
+    label: t("accountMenu.signOut"),
+    dataAttrs: { "data-testid": "account-sign-out" },
+    onSelect: () => {
+      // `signOut` also surfaces its failure on the auth-error bus,
+      // which the sign-in screen replacing the app renders.
+      void signOut().catch((e: unknown) =>
+        logAndReportError("account-sign-out", e),
+      );
+    },
+  };
   const personal = (
     <>
-      {profileAvailable && (
-        <MenuItemRow
-          icon={<CircleUserRound className="size-4" aria-hidden="true" />}
-          label={t("accountMenu.profile")}
-          onSelect={() => open(PROFILE_VIEW_ID)}
-        />
-      )}
-      <MenuItemRow
-        icon={<UserRound className="size-4" aria-hidden="true" />}
-        label={t("accountMenu.aboutMe")}
-        onSelect={() => open(ABOUT_ME_VIEW_ID)}
-      />
+      {profileAvailable && <MenuItemRow {...profileAction} />}
+      <MenuItemRow {...aboutMeAction} />
     </>
   );
   const signOutRow = profile && (
     <>
       <DropdownMenuSeparator />
-      <MenuItemRow
-        icon={<LogOut className="size-4" aria-hidden="true" />}
-        label={t("accountMenu.signOut")}
-        dataAttrs={{ "data-testid": "account-sign-out" }}
-        onSelect={() => {
-          // `signOut` also surfaces its failure on the auth-error bus,
-          // which the sign-in screen replacing the app renders.
-          void signOut().catch((e: unknown) =>
-            logAndReportError("account-sign-out", e),
-          );
-        }}
-      />
+      <MenuItemRow {...signOutAction} />
     </>
   );
   return {
@@ -141,12 +157,13 @@ export function useAccountMenu(opts: {
     header: header || null,
     personal,
     signOut: signOutRow || null,
-    menu: (
-      <>
-        {header}
-        {personal}
-        {signOutRow}
-      </>
-    ),
+    identity: profile
+      ? { name: profile.name, email: session?.email ?? "" }
+      : null,
+    actions: [
+      ...(profileAvailable ? [profileAction] : []),
+      aboutMeAction,
+      ...(profile ? [signOutAction] : []),
+    ],
   };
 }

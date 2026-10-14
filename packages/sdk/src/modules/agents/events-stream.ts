@@ -15,6 +15,7 @@
  */
 
 import { streamGlobalEvents } from "@houston/runtime-client";
+import { trimTrailingSlashes } from "@houston/runtime-client/trim-slashes";
 import type { Clock, SdkLogger } from "../../ports";
 import { AGENT_ROLE_CHANGED_EVENT, AGENTS_CHANGED_EVENT } from "./types";
 
@@ -43,7 +44,7 @@ export interface AgentsStreamDeps {
 export function startAgentsEventStream(deps: AgentsStreamDeps): () => void {
   const ac = new AbortController();
   const { clock, logger, handlers } = deps;
-  const root = deps.baseUrl.replace(/\/+$/, "");
+  const root = trimTrailingSlashes(deps.baseUrl);
   void streamGlobalEvents({
     url: () => `${root}/v1/events`,
     fetch: deps.fetch,
