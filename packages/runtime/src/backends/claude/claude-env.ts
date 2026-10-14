@@ -112,10 +112,10 @@ const PASSTHROUGH_ENV_VARS: ReadonlySet<string> = new Set(
  * byte-identical to before that guard existed.
  *
  * `shellFencePath` is the wrapper the CLI runs its Bash tool through
- * (`CLAUDE_CODE_SHELL_PREFIX`), capping the memory of what the model spawns
- * inside a memory-limited container (session/child-memory-fence.ts). Left
- * undefined it resolves from the container; null (or no container limit)
- * sets nothing. An ambient prefix is never copied — it is not in the
+ * (`CLAUDE_CODE_SHELL_PREFIX`). It unsets the CLI's credential variables and
+ * caps the memory of what the model spawns inside a memory-limited container
+ * (session/claude-shell-fence.ts). Left undefined it resolves for this
+ * runtime, which on Linux always has one; null sets nothing. An ambient prefix is never copied — it is not in the
  * allowlist, and the fence is the only wrapper this subprocess may run.
  */
 export function buildClaudeEnv(
@@ -150,11 +150,11 @@ export function buildClaudeEnv(
   // already runs in. The CLI's Linux build exits at startup with it on unless
   // bubblewrap is installed, and no Houston Linux image ships bubblewrap, so
   // there the shell fence, which Linux always gets, unsets those variables.
-  if ((opts.platform ?? process.platform) !== "linux")
-    env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB = "1";
+  const platform = opts.platform ?? process.platform;
+  if (platform !== "linux") env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB = "1";
   const fence =
     opts.shellFencePath === undefined
-      ? claudeShellFencePath()
+      ? claudeShellFencePath(platform)
       : opts.shellFencePath;
   if (fence !== null) env.CLAUDE_CODE_SHELL_PREFIX = claudeShellPrefix(fence);
   // Claude Code's request timeout covers only the wait for the response

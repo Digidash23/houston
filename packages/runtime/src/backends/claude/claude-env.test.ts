@@ -1,4 +1,7 @@
-import { afterEach, expect, test } from "vitest";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, expect, test, vi } from "vitest";
 import { buildClaudeEnv } from "./claude-env";
 
 const savedHome = process.env.HOME;
@@ -129,4 +132,38 @@ test("on Linux the env never turns on the CLI's scrub", () => {
   );
   expect(env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).toBeUndefined();
   expect(env.ANTHROPIC_API_KEY).toBe("sk-ant-api03-x");
+});
+
+test("on Linux the scrub is off and the fence that unsets the credentials is on", async () => {
+  const savedDataDir = process.env.HOUSTON_DATA_DIR;
+  const savedToolShell = process.env.HOUSTON_TOOL_SHELL;
+  const dataDir = mkdtempSync(join(tmpdir(), "claude-env-linux-"));
+  process.env.HOUSTON_DATA_DIR = dataDir;
+  delete process.env.HOUSTON_TOOL_SHELL;
+  vi.resetModules();
+  vi.doMock("../../session/child-memory-fence", async (actual) => ({
+    ...(await actual<typeof import("../../session/child-memory-fence")>()),
+    resolveChildMemoryCap: () => null,
+  }));
+  try {
+    const fresh = await import("./claude-env");
+    const env = fresh.buildClaudeEnv(
+      { kind: "api-key", value: "sk-ant-api03-x" },
+      { configDir: "/cfg", platform: "linux" },
+    );
+    const fence = join(dataDir, "bin", "claude-shell-fence");
+    expect(env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).toBeUndefined();
+    expect(env.CLAUDE_CODE_SHELL_PREFIX).toBe(`${fence} -c`);
+    expect(readFileSync(fence, "utf8")).toContain(
+      "unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY",
+    );
+  } finally {
+    vi.doUnmock("../../session/child-memory-fence");
+    vi.resetModules();
+    rmSync(dataDir, { recursive: true });
+    if (savedDataDir === undefined) delete process.env.HOUSTON_DATA_DIR;
+    else process.env.HOUSTON_DATA_DIR = savedDataDir;
+    if (savedToolShell !== undefined)
+      process.env.HOUSTON_TOOL_SHELL = savedToolShell;
+  }
 });
