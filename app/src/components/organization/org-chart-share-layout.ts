@@ -41,10 +41,10 @@ const TREE = {
 
 /** The words the layout writes on cards, all authored `t()` copy. */
 export interface CardWords {
-  /** "4 people". */
-  people: (count: number) => string;
-  /** "9 AI Employees". */
-  agents: (count: number) => string;
+  /** "+4 people". */
+  morePeople: (count: number) => string;
+  /** "+9 AI Employees". */
+  moreAgents: (count: number) => string;
 }
 
 interface Column {
@@ -84,7 +84,7 @@ function columnsOf(tree: OrgTree, words: CardWords): Column[] {
     columns.push({
       head: {
         ...more(NODE_ID.morePeople, tree.morePeople),
-        label: words.people(tree.morePeople),
+        label: words.morePeople(tree.morePeople),
       },
       stack: [],
     });
@@ -94,7 +94,7 @@ function columnsOf(tree: OrgTree, words: CardWords): Column[] {
     columns.push({
       head: {
         ...more(NODE_ID.moreRoot, tree.moreRootAgents),
-        label: words.agents(tree.moreRootAgents),
+        label: words.moreAgents(tree.moreRootAgents),
       },
       stack: [],
     });

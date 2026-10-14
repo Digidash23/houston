@@ -30,8 +30,8 @@ const layout = (agents: Agent[], members: OrgMember[], personal = false) =>
   shareCardLayout(
     buildOrgTree({ agents, members, name: "Acme", personal }, SHARE_CARD_CAPS),
     {
-      people: (n) => `${n} people`,
-      agents: (n) => `${n} AI Employees`,
+      morePeople: (n) => `+${n} people`,
+      moreAgents: (n) => `+${n} AI Employees`,
     },
   );
 
@@ -91,7 +91,7 @@ describe("shareCardLayout", () => {
       ),
     );
     const peopleMore = boxes.find((b) => b.id === "more:people");
-    strictEqual(peopleMore?.label, "4 people");
+    strictEqual(peopleMore?.label, "+4 people");
     const u0 = boxes.find((b) => b.id === "p:u0");
     const column = boxes.filter((b) => b.x === u0?.x);
     // User 00 holds four: three shown, then the "+1".

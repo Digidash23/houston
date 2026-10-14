@@ -47,8 +47,6 @@ export interface OrgTree {
   branches: OrgTreeBranch[];
   /** People past the cap, drawn as "+N". */
   morePeople: number;
-  /** The AI Employees homed under those people, drawn beside their "+N". */
-  morePeopleAgents: number;
   /**
    * AI Employees hung straight off the root: a personal space's, or a
    * space's when nobody on the roster can be their home.
@@ -151,7 +149,6 @@ export function buildOrgTree(
         : { kind: "company", name: input.name },
       branches: [],
       morePeople: 0,
-      morePeopleAgents: 0,
       rootAgents: shown,
       moreRootAgents: more,
       counts: { people: self ? 1 : 0, agents: agents.length },
@@ -185,7 +182,6 @@ export function buildOrgTree(
     root: { kind: "company", name: input.name },
     branches,
     morePeople: dropped.length,
-    morePeopleAgents: dropped.reduce((n, b) => n + b.agents.length, 0),
     rootAgents: root.shown,
     moreRootAgents: root.more,
     counts: { people: roster.length, agents: agents.length },

@@ -86,12 +86,12 @@ function paintRoot(
 
 /**
  * A stacked card: its mark, then the name (two lines when it needs them),
- * the whole block centred in the card.
+ * the whole block centred in the card. A "+N" that has words is the words
+ * alone.
  */
 function paintStacked(
   ctx: CanvasRenderingContext2D,
   box: CardBox,
-  text: ShareCardText,
   assets: ShareCardAssets,
 ): void {
   const s = box.shape === "column" ? NODE.column : NODE.leaf;
@@ -101,6 +101,26 @@ function paintStacked(
   ctx.font = `600 ${s.name}px ${FONT}`;
   const shape = box.shape === "column" ? "column" : "leaf";
   const lines = box.label ? wrapLines(ctx, box.label, inner, NAME_LINES) : [];
+  // A "+N" with words ("+4 people") says it once, centred, with no mark.
+  if (node.kind === "more" && lines.length > 0) {
+    let line = box.y + (box.h - lines.length * s.nameLine) / 2;
+    ctx.textBaseline = "middle";
+    for (const text of lines) {
+      centred(
+        ctx,
+        text,
+        cx,
+        line + s.nameLine / 2,
+        s.name,
+        600,
+        ART.muted,
+        inner,
+      );
+      line += s.nameLine;
+    }
+    ctx.textBaseline = "alphabetic";
+    return;
+  }
   let y = box.y + (box.h - stackedHeight(shape, lines.length)) / 2;
   const markY = y + s.extent / 2;
   if (node.kind === "person")
@@ -114,11 +134,6 @@ function paintStacked(
     );
   else if (node.kind === "agent")
     accent(ctx, cx, markY, s.dot, s.halo, agentAccent(node.agent.color));
-  else if (node.kind === "more") {
-    ctx.textBaseline = "middle";
-    centred(ctx, text.more(node.count), cx, markY, 30, 650, ART.ink, inner);
-    ctx.textBaseline = "alphabetic";
-  }
   y += s.extent + s.gap;
   ctx.textBaseline = "middle";
   track(ctx, -0.2);
@@ -152,7 +167,7 @@ function paintBox(
       box.w - 20,
     );
     ctx.textBaseline = "alphabetic";
-  } else paintStacked(ctx, box, text, assets);
+  } else paintStacked(ctx, box, assets);
 }
 
 /** Paint the whole card onto a CARD-sized context. */

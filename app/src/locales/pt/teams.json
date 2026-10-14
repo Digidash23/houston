@@ -579,10 +579,10 @@
     "emptyBody": "Contrate seu primeiro funcionário de IA e ele aparece aqui, com as pessoas que o gerenciam e o usam.",
     "tree": {
       "label": "Organograma",
-      "moreAgents_one": "Mais {{count}} funcionário de IA",
-      "moreAgents_other": "Mais {{count}} funcionários de IA",
-      "morePeople_one": "Mais {{count}} pessoa",
-      "morePeople_other": "Mais {{count}} pessoas"
+      "moreAgents_one": "+{{count}} funcionário de IA",
+      "moreAgents_other": "+{{count}} funcionários de IA",
+      "morePeople_one": "+{{count}} pessoa",
+      "morePeople_other": "+{{count}} pessoas"
     },
     "share": {
       "open": "Compartilhar",

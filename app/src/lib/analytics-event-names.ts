@@ -187,10 +187,10 @@ export type AnalyticsEventName =
   // The INVITEE's own answer to a pending team invite (C8 spaces).
   | "org_invite_accepted"
   | "org_invite_declined"
-  // Admin > Org chart's Share, once the image left (`share_channel`:
-  // linkedin with the image copied | linkedin_download with it saved |
-  // native share sheet). Counts only (`agent_count`, `people_count`), never
-  // a name.
+  // Admin > Org chart's Share, once LinkedIn or the share sheet opened
+  // (`share_channel`: linkedin with the image copied | linkedin_download
+  // with it saved | linkedin_text_only with no image | native). Counts only
+  // (`agent_count`, `people_count`), never a name.
   | "org_chart_shared"
   // Update lifecycle (closes the symbolication-coverage feedback loop).
   // update_offered: the check found a release; update_downloaded: it landed

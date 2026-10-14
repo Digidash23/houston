@@ -1,4 +1,4 @@
-import { deepStrictEqual, strictEqual } from "node:assert";
+import { deepStrictEqual, ok, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
 import type { Agent, OrgMember } from "@houston/engine-adapter";
 import {
@@ -163,9 +163,8 @@ describe("buildOrgTree", () => {
       tree.branches.map((b) => b.person.userId),
       ["julian", "abe"],
     );
-    // Sara and Tom are left out with the two AI Employees they are home to.
+    // Sara and Tom are left out, with the AI Employees they are home to.
     strictEqual(tree.morePeople, 3);
-    strictEqual(tree.morePeopleAgents, 2);
   });
 
   it("accounts for every person and AI Employee, whatever the caps", () => {
@@ -201,9 +200,12 @@ describe("buildOrgTree", () => {
       const shownAgents =
         tree.branches.reduce((n, b) => n + b.agents.length + b.moreAgents, 0) +
         tree.rootAgents.length +
-        tree.moreRootAgents +
-        tree.morePeopleAgents;
-      strictEqual(shownAgents, tree.counts.agents, `run ${run} agents`);
+        tree.moreRootAgents;
+      // Everyone's AI Employees are on the chart or in a "+N", except those
+      // homed under people left out (who travel with their "+N people").
+      if (tree.morePeople === 0)
+        strictEqual(shownAgents, tree.counts.agents, `run ${run} agents`);
+      else ok(shownAgents <= tree.counts.agents, `run ${run} agents`);
       const shownPeople =
         tree.branches.length +
         tree.morePeople +

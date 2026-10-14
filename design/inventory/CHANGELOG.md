@@ -11,7 +11,8 @@ Employee under the person it belongs to, as compact cards (a face and a
 name) joined by rounded lines. An AI Employee hangs under its first admin
 manager, else its one user, else the first owner (every owner manages every
 AI Employee, so management alone would hang them all on the owner). Desktop
-reads top-down and scrolls sideways when wide; the phone reads it as an
+reads top-down and, when wide, opens on the owners and fades the sides
+that scroll; the phone reads it as an
 indented outline. The cards fade up once and press in on tap. Share is one
 click with no dialog: LinkedIn's composer opens with a short post in the
 app's language while a square image of the chart goes on the clipboard, and

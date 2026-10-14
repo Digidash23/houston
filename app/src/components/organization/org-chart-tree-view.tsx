@@ -3,11 +3,12 @@ import { Share2 } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { PRESS_CLASS, PRESS_STYLE } from "./org-chart-motion";
+import { edgeMask } from "./org-chart-scroll-edges";
 import type { OrgTree } from "./org-chart-tree";
 import { OrgChartTreeFrame } from "./org-chart-tree-connectors";
 import { type TreeHandlers, useTreeParts } from "./org-chart-tree-levels";
 import { type PathOptions, treeEdges } from "./org-chart-tree-paths";
-import { useCentreOnce } from "./use-centre-once";
+import { useScrollEdges } from "./use-scroll-edges";
 
 /**
  * Lines meet a card's avatar on the phone: the card's `px-3` plus half its
@@ -26,7 +27,8 @@ interface TreeViewProps extends TreeHandlers {
  * The org chart drawn as one: the space at the top, its people under it,
  * each person's AI Employees under them, joined by lines measured from where
  * the cards landed. Desktop reads top-down and scrolls sideways when wide
- * (centred when it fits); the phone reads it as an indented outline. The
+ * (centred when it fits, opening on its left edge with the hidden sides
+ * faded when it does not); the phone reads it as an indented outline. The
  * cards fade up once when the chart first mounts. Share is one click (the
  * caller's `onShare`).
  */
@@ -38,8 +40,11 @@ export function OrgChartTreeView({
 }: TreeViewProps) {
   const { t } = useTranslation("teams");
   const { root, columns } = useTreeParts(tree, handlers);
-  // A chart wider than the screen opens on its root, not its left edge.
-  const scroller = useCentreOnce<HTMLDivElement>();
+  // A chart wider than the screen opens on its left edge (the owners
+  // first) and fades the sides that hide more, so it reads as scrollable
+  // without hovering.
+  const scroller = useScrollEdges<HTMLDivElement>();
+  const mask = edgeMask(scroller.edges);
   const edges = useMemo(
     () => treeEdges(tree, phone ? "phone" : "desktop"),
     [tree, phone],
@@ -83,7 +88,11 @@ export function OrgChartTreeView({
           )}
         </OrgChartTreeFrame>
       ) : (
-        <div ref={scroller} className="-mx-2 overflow-x-auto px-2 pt-1 pb-3">
+        <div
+          ref={scroller.ref}
+          className="-mx-2 overflow-x-auto px-2 pt-1 pb-3"
+          style={mask ? { maskImage: mask, WebkitMaskImage: mask } : undefined}
+        >
           <OrgChartTreeFrame
             edges={edges}
             options={PATHS}

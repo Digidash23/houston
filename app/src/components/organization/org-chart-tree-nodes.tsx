@@ -112,17 +112,8 @@ export function TreeAgentNode({
   );
 }
 
-/** What the caps left out: a quiet card with the count and what it holds. */
-export function TreeMoreNode({
-  id,
-  count,
-  label,
-}: {
-  id: string;
-  count: number;
-  label: string;
-}) {
-  const { t } = useTranslation("teams");
+/** What the caps left out: a quiet card that says "+N people" once. */
+export function TreeMoreNode({ id, label }: { id: string; label: string }) {
   return (
     <Slot id={id}>
       <div
@@ -131,10 +122,9 @@ export function TreeMoreNode({
           "bg-transparent shadow-none ring-1 ring-line-input ring-inset",
         )}
       >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-chip text-xs font-medium text-chip-text tabular-nums">
-          {t("orgChart.more", { count })}
+        <span className="min-w-0 flex-1 truncate text-sm leading-tight font-medium text-ink-muted tabular-nums">
+          {label}
         </span>
-        <Name name={label} />
       </div>
     </Slot>
   );

@@ -579,10 +579,10 @@
     "emptyBody": "Hire your first AI Employee and it appears here, with the people who manage it and use it.",
     "tree": {
       "label": "Org chart",
-      "moreAgents_one": "{{count}} more AI Employee",
-      "moreAgents_other": "{{count}} more AI Employees",
-      "morePeople_one": "{{count}} more person",
-      "morePeople_other": "{{count}} more people"
+      "moreAgents_one": "+{{count}} AI Employee",
+      "moreAgents_other": "+{{count}} AI Employees",
+      "morePeople_one": "+{{count}} person",
+      "morePeople_other": "+{{count}} people"
     },
     "share": {
       "open": "Share",

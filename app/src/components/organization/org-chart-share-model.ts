@@ -73,8 +73,26 @@ export function isShareCancel(error: unknown): boolean {
 }
 
 /**
+ * Whether a share sheet rejection is the sheet already being open (a second
+ * tap while it is up): the first share is still running, not a failure.
+ */
+export function isShareBusy(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    error.name === "InvalidStateError"
+  );
+}
+
+/**
  * How a share left, as tracked: LinkedIn with the image on the clipboard,
- * LinkedIn with the image saved as a file instead, or the phone's share
+ * LinkedIn with the image saved as a file instead, LinkedIn with the post
+ * alone (the image could not be drawn or saved), or the phone's share
  * sheet.
  */
-export type ShareChannel = "linkedin" | "linkedin_download" | "native";
+export type ShareChannel =
+  | "linkedin"
+  | "linkedin_download"
+  | "linkedin_text_only"
+  | "native";

@@ -1,4 +1,9 @@
-import { isShareCancel, linkedInShareUrl } from "./org-chart-share-model.ts";
+import {
+  isShareBusy,
+  isShareCancel,
+  linkedInShareUrl,
+  type ShareChannel,
+} from "./org-chart-share-model.ts";
 
 /**
  * The Share button's sequencing, with the browser handed in so the order is
@@ -66,7 +71,8 @@ export function shareOrgChart(deps: ShareRunDeps): Promise<ShareOutcome> {
     return sheet.share({ files: [ready], text: deps.post }).then(
       (): ShareOutcome => ({ kind: "native" }),
       (error: unknown): ShareOutcome => {
-        if (isShareCancel(error)) return { kind: "cancelled" };
+        if (isShareCancel(error) || isShareBusy(error))
+          return { kind: "cancelled" };
         deps.report("org_chart_share_native", error);
         return { kind: "failed" };
       },
@@ -132,4 +138,41 @@ async function saveInstead(deps: ShareRunDeps): Promise<ImageHandoff> {
     deps.report("org_chart_share_download", error);
     return "none";
   }
+}
+
+/** What the person is told once a share lands, and what is tracked. */
+export interface ShareLanding {
+  /** Tracked now: the share left. `null` when it did not (yet). */
+  channel: ShareChannel | null;
+  /** The toast: where the image went, else that the tab was blocked. */
+  toast: "copied" | "saved" | "blocked" | null;
+  /**
+   * The browser blocked LinkedIn's tab: the toast carries an Open LinkedIn
+   * action, and opening it tracks this channel.
+   */
+  blocked: ShareChannel | null;
+}
+
+const QUIET: ShareLanding = { channel: null, toast: null, blocked: null };
+
+/**
+ * `tauri`: the desktop shell has no popup blocker, so a refusal there
+ * already explained itself in its own toast.
+ */
+export function shareLanding(
+  outcome: ShareOutcome,
+  tauri: boolean,
+): ShareLanding {
+  if (outcome.kind === "native") return { ...QUIET, channel: "native" };
+  if (outcome.kind !== "linkedin") return QUIET;
+  const channel: ShareChannel =
+    outcome.image === "copied"
+      ? "linkedin"
+      : outcome.image === "saved"
+        ? "linkedin_download"
+        : "linkedin_text_only";
+  const image = outcome.image === "none" ? null : outcome.image;
+  if (outcome.opened) return { channel, toast: image, blocked: null };
+  if (tauri) return { ...QUIET, toast: image };
+  return { channel: null, toast: image ?? "blocked", blocked: channel };
 }

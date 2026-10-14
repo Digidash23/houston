@@ -2,7 +2,9 @@ import { deepStrictEqual, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
 import {
   isExpectedClipboardRefusal,
+  type ShareOutcome,
   type ShareRunDeps,
+  shareLanding,
   shareOrgChart,
 } from "../src/components/organization/org-chart-share-run.ts";
 
@@ -171,6 +173,17 @@ describe("shareOrgChart on a phone", () => {
     deepStrictEqual(reports, []);
   });
 
+  it("treats a second tap while the sheet is up as the first share running, silently", async () => {
+    const { deps, reports } = harness({
+      phone: true,
+      sheet: sheet(() =>
+        Promise.reject(new DOMException("busy", "InvalidStateError")),
+      ),
+    });
+    deepStrictEqual(await shareOrgChart(deps), { kind: "cancelled" });
+    deepStrictEqual(reports, []);
+  });
+
   it("reports a sheet that failed for another reason", async () => {
     const { deps, reports } = harness({
       phone: true,
@@ -207,5 +220,62 @@ describe("isExpectedClipboardRefusal", () => {
     );
     strictEqual(isExpectedClipboardRefusal(new Error("boom")), false);
     strictEqual(isExpectedClipboardRefusal(null), false);
+  });
+});
+
+describe("shareLanding", () => {
+  const linkedIn = (
+    opened: boolean,
+    image: "copied" | "saved" | "none",
+  ): ShareOutcome => ({ kind: "linkedin", url: "u", opened, image });
+
+  it("tracks where the image went, and toasts it", () => {
+    deepStrictEqual(shareLanding(linkedIn(true, "copied"), false), {
+      channel: "linkedin",
+      toast: "copied",
+      blocked: null,
+    });
+    deepStrictEqual(shareLanding(linkedIn(true, "saved"), false), {
+      channel: "linkedin_download",
+      toast: "saved",
+      blocked: null,
+    });
+  });
+
+  it("never counts a share whose image failed as a copied one", () => {
+    deepStrictEqual(shareLanding(linkedIn(true, "none"), false), {
+      channel: "linkedin_text_only",
+      toast: null,
+      blocked: null,
+    });
+  });
+
+  it("tracks a blocked tab only once the toast's Open LinkedIn is used", () => {
+    deepStrictEqual(shareLanding(linkedIn(false, "copied"), false), {
+      channel: null,
+      toast: "copied",
+      blocked: "linkedin",
+    });
+    deepStrictEqual(shareLanding(linkedIn(false, "none"), false), {
+      channel: null,
+      toast: "blocked",
+      blocked: "linkedin_text_only",
+    });
+    // The desktop shell explained its own refusal.
+    deepStrictEqual(shareLanding(linkedIn(false, "none"), true), {
+      channel: null,
+      toast: null,
+      blocked: null,
+    });
+  });
+
+  it("tracks the share sheet, and nothing for a cancel or a failure", () => {
+    strictEqual(shareLanding({ kind: "native" }, false).channel, "native");
+    for (const kind of ["cancelled", "failed"] as const)
+      deepStrictEqual(shareLanding({ kind }, false), {
+        channel: null,
+        toast: null,
+        blocked: null,
+      });
   });
 });

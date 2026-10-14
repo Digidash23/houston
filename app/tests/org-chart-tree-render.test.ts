@@ -131,8 +131,10 @@ describe("org chart tree rendering", () => {
       agentsPerPerson: 1,
       rootAgents: 1,
     });
-    match(html, /2 more AI Employees/);
-    match(html, /2 more people/);
+    // Said once, "+2 people", never a "+2" beside "2 more people".
+    match(html, />\+2 AI Employees</);
+    match(html, />\+2 people</);
+    strictEqual(count(html, />\+2</), 0);
   });
 
   it("counts the people left out, with no line under the count", () => {
@@ -141,7 +143,7 @@ describe("org chart tree rendering", () => {
       false,
       { people: 1, agentsPerPerson: 3, rootAgents: 3 },
     );
-    match(html, /2 more people/);
+    match(html, />\+2 people</);
     doesNotMatch(html, /1 AI Employee</);
     // The owner stays even though Tom has the only AI Employee.
     match(html, /aria-label="Open Julian Arango in People"/);

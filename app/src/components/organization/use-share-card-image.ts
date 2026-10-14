@@ -32,8 +32,8 @@ function draw(tree: OrgTree, t: Translate): ShareImageDraw {
   };
   const entry: ShareImageDraw = {
     png: renderShareCard(tree, text, {
-      people: (count) => t("orgChart.peopleCount", { count }),
-      agents: (count) => t("orgChart.agentCount", { count }),
+      morePeople: (count) => t("orgChart.tree.morePeople", { count }),
+      moreAgents: (count) => t("orgChart.tree.moreAgents", { count }),
     }).then(
       (blob) => new File([blob], shareFileName(title), { type: "image/png" }),
     ),

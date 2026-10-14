@@ -55,7 +55,6 @@ export function useTreeParts(tree: OrgTree, handlers: TreeHandlers) {
         node: (
           <TreeMoreNode
             id={NODE_ID.moreAgents(person.userId)}
-            count={branch.moreAgents}
             label={t("orgChart.tree.moreAgents", { count: branch.moreAgents })}
           />
         ),
@@ -78,7 +77,6 @@ export function useTreeParts(tree: OrgTree, handlers: TreeHandlers) {
       head: (
         <TreeMoreNode
           id={NODE_ID.morePeople}
-          count={tree.morePeople}
           label={t("orgChart.tree.morePeople", { count: tree.morePeople })}
         />
       ),
@@ -102,7 +100,6 @@ export function useTreeParts(tree: OrgTree, handlers: TreeHandlers) {
       head: (
         <TreeMoreNode
           id={NODE_ID.moreRoot}
-          count={tree.moreRootAgents}
           label={t("orgChart.tree.moreAgents", { count: tree.moreRootAgents })}
         />
       ),

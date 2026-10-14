@@ -1591,10 +1591,11 @@ components:
       open People on that person and AI Employees open their board, both
       pressing in on tap. Rounded elbow lines are measured from where the
       cards land. Desktop reads top-down with the space centred over its
-      people and scrolls sideways when wide, opening on the root; the phone
+      people and scrolls sideways when wide, opening on its left edge (the
+      owners first) with the sides that hide more faded; the phone
       reads it as an indented outline. The cards fade up once when the chart
       mounts, without the rise under reduced motion. Past the caps a "+N"
-      says how many people or AI Employees are left out. A personal space
+      says how many people or AI Employees are left out, once ("+4 people"). A personal space
       draws its person over every AI Employee. The Share pill has no dialog:
       a square PNG of the chart (light paper, white cards, each AI
       Employee's colour as a dot, the space's name and counts over it, no

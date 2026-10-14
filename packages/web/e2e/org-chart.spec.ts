@@ -345,11 +345,15 @@ test("the org chart draws its people and AI Employees, and shares in one click",
     /^This is my organization\. These are all the AI Employees at .+, working in Houston\.\n\ngethouston\.ai$/,
   );
   await linkedIn.close();
+  await page.bringToFront();
 
-  // The image went on the clipboard, or was saved where the clipboard
-  // refused it, and the toast says which.
+  // The image went on the clipboard (always on Chromium, where the spec
+  // grants the clipboard), or was saved where the browser refused it, and
+  // the toast says which once the person is back on the page.
   const toast = page.getByText(/^Image (copied|saved)\. /);
   await expect(toast).toBeVisible();
+  if (browserName === "chromium")
+    await expect(toast).toHaveText(/^Image copied\./);
   if ((await toast.textContent())?.startsWith("Image copied")) {
     await expect(toast).toHaveText(
       "Image copied. Paste it into your LinkedIn post.",
