@@ -1,15 +1,26 @@
 import { rm } from "node:fs/promises";
 import { releaseConversation } from "../session/bus";
 import type { startClaimHeartbeat } from "./claim-heartbeat";
-import type { TurnFilesystemPreparation } from "./turn-filesystem";
+import type {
+  TurnFilesystem,
+  TurnFilesystemPreparation,
+} from "./turn-filesystem";
 import type { makeTurnSandboxFetch } from "./turn-sandbox";
 
 const HYDRATION_SETTLE_TIMEOUT_MS = 5_000;
 
+type CleanedHydration = Pick<
+  TurnFilesystemPreparation,
+  "abortHydration" | "settled"
+> & { filesystem?: Pick<TurnFilesystem, "abandonDeferred"> };
+
 async function hydrationIsQuiet(
-  hydration: Pick<TurnFilesystemPreparation, "abortHydration" | "settled">,
+  hydration: CleanedHydration,
   timeoutMs: number,
 ): Promise<boolean> {
+  // A turn that never prompted (refused, failed setup, shadow) still has its
+  // deferred files downloading: stopping them is not a failure to report.
+  hydration.filesystem?.abandonDeferred?.();
   hydration.abortHydration();
   let timeout: ReturnType<typeof setTimeout> | undefined;
   const expired = new Promise<false>((resolve) => {
@@ -31,7 +42,7 @@ export async function cleanupTurn(input: {
   conversationId: string;
   heartbeat: ReturnType<typeof startClaimHeartbeat> | null;
   sandbox: ReturnType<typeof makeTurnSandboxFetch> | null;
-  hydration?: Pick<TurnFilesystemPreparation, "abortHydration" | "settled">;
+  hydration?: CleanedHydration;
   hydrationSettleTimeoutMs?: number;
   removeRoot?: (root: string) => Promise<void>;
   closeSse?: () => void;

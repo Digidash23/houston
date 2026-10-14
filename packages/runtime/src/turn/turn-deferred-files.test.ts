@@ -44,7 +44,7 @@ function callTool(tool: TurnTool, signal?: AbortSignal) {
   return tool.execute("call-1", {} as never, signal, undefined, {} as never);
 }
 
-test("files in the agent's own non-hidden folders are deferred", () => {
+test("files in the agent's folders other than the startup ones are deferred", () => {
   const f = deferredWorkspaceFile;
   expect(f("workspaces/Personal/Bob/uploads/a.png")).toBe(true);
   expect(f("workspaces/Personal/Bob/uploads/docs/a.md")).toBe(true);
@@ -53,6 +53,11 @@ test("files in the agent's own non-hidden folders are deferred", () => {
   expect(f("workspaces/Personal/Bob/skills/a/SKILL.md")).toBe(true);
   expect(f("workspaces/Personal/Bob/reports/.x.md")).toBe(true);
   expect(f("workspaces/Personal/Bob/Contratación/oferta.pdf")).toBe(true);
+  // Hidden folders no runtime input lives in: git clones, toolchains, caches.
+  expect(f("workspaces/Personal/Bob/.repo-web/.git/objects/ab/cd")).toBe(true);
+  expect(f("workspaces/Personal/Bob/.git/HEAD")).toBe(true);
+  expect(f("workspaces/Personal/Bob/.venv/bin/python")).toBe(true);
+  expect(f("workspaces/Personal/Bob/.cache/pip/a")).toBe(true);
 });
 
 test("runtime inputs stay on the prompt's critical path", () => {
@@ -66,6 +71,7 @@ test("runtime inputs stay on the prompt's critical path", () => {
   expect(f("workspaces/Personal/Bob/.houston/state/seen.json")).toBe(false);
   expect(f("workspaces/Personal/Bob/.agents/skills/a/SKILL.md")).toBe(false);
   expect(f("workspaces/Personal/Bob/.claude/settings.json")).toBe(false);
+  expect(f("workspaces/Personal/Bob/.pi/settings.json")).toBe(false);
   // Workspace-level files, the legacy data layout, and malformed paths.
   expect(f("workspaces/Personal/GROUP.md")).toBe(false);
   expect(f("workspaces/Personal/Bob/uploads")).toBe(false);

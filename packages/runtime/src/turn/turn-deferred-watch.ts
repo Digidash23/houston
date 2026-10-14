@@ -10,9 +10,14 @@ export class DeferredFilesAbandonedError extends Error {
 
 /** Store reads of the deferred set, each bounded (read-timeout.ts). */
 export const DEFERRED_READ_TIMEOUT_MS = 120_000;
-/** Deferred reads in flight at once: below the critical set's, since they
- *  buffer batches while the harness starts beside them. */
-export const DEFERRED_PARALLEL = 2;
+/** Deferred reads in flight at once: the critical set's batch parallelism
+ *  (hydrate-batch.ts), so up to four batch bodies are buffered beside the
+ *  harness, as the critical path already buffers while a send's harness
+ *  starts. A large agent's bulk (git clones, toolchains, documents) lands
+ *  here and every tool waits for it; at half that pace, a turn's first tool
+ *  call would wait longer than the whole tree used to take before the
+ *  prompt. */
+export const DEFERRED_PARALLEL = 4;
 
 /**
  * Watch the deferred files of one turn: mark when they land (`t_files_ready`)

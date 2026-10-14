@@ -35,8 +35,9 @@ export interface HydrateOptions {
   defer?: (rel: string) => boolean;
   /**
    * Deferred objects only: one store read (an object, or a batch) gives up
-   * after this long, failing `deferred` instead of hanging whoever waits on
-   * it. Absent = no deadline, like the critical set.
+   * after this long plus time for its listed bytes (read-timeout.ts),
+   * failing `deferred` instead of hanging whoever waits on it. Absent = no
+   * deadline, like the critical set.
    */
   deferredReadTimeoutMs?: number;
   /**
