@@ -253,15 +253,15 @@ describe("shareLanding", () => {
     image: "copied" | "saved" | "none",
   ): ShareOutcome => ({ kind: "linkedin", url: "u", opened, image });
 
-  it("tracks where the image went, and toasts it", () => {
+  it("tracks where the image went, and says it", () => {
     deepStrictEqual(shareLanding(linkedIn(true, "copied"), false), {
       channel: "linkedin",
-      toast: "copied",
+      line: "copied",
       blocked: null,
     });
     deepStrictEqual(shareLanding(linkedIn(true, "saved"), false), {
       channel: "linkedin_download",
-      toast: "saved",
+      line: "saved",
       blocked: null,
     });
   });
@@ -269,26 +269,26 @@ describe("shareLanding", () => {
   it("never counts a share whose image failed as a copied one", () => {
     deepStrictEqual(shareLanding(linkedIn(true, "none"), false), {
       channel: "linkedin_text_only",
-      toast: null,
+      line: null,
       blocked: null,
     });
   });
 
-  it("tracks a blocked tab only once the toast's Open LinkedIn is used", () => {
+  it("tracks a blocked tab only once the line's LinkedIn link is used", () => {
     deepStrictEqual(shareLanding(linkedIn(false, "copied"), false), {
       channel: null,
-      toast: "copied",
+      line: "copied",
       blocked: "linkedin",
     });
     deepStrictEqual(shareLanding(linkedIn(false, "none"), false), {
       channel: null,
-      toast: "blocked",
+      line: "blocked",
       blocked: "linkedin_text_only",
     });
     // The desktop shell explained its own refusal.
     deepStrictEqual(shareLanding(linkedIn(false, "none"), true), {
       channel: null,
-      toast: null,
+      line: null,
       blocked: null,
     });
   });
@@ -298,7 +298,7 @@ describe("shareLanding", () => {
     for (const kind of ["cancelled", "failed"] as const)
       deepStrictEqual(shareLanding({ kind }, false), {
         channel: null,
-        toast: null,
+        line: null,
         blocked: null,
       });
   });

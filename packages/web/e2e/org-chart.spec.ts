@@ -231,7 +231,7 @@ function expectSharePng(bytes: Buffer) {
   expect(bytes.readUInt32BE(20)).toBe(1200);
 }
 
-test("the org chart draws its people and AI Employees, and shares in one click", async ({
+test("the org chart draws its people and AI Employees, and shares an image from its dialog", async ({
   page,
   request,
   browserName,
@@ -329,14 +329,18 @@ test("the org chart draws its people and AI Employees, and shares in one click",
   // The ledger is still there under the chart.
   await expect(line(page, "Scout")).toBeVisible();
 
+  await tree.getByRole("button", { name: "Share", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Share your org chart" });
+  await expect(
+    dialog.getByRole("img", { name: "Your org chart as an image" }),
+  ).toBeVisible();
+
+  // Share on LinkedIn: the composer opens with the post written in.
   const opening = page.waitForEvent("popup");
-  const downloading = page
+  const saving = page
     .waitForEvent("download", { timeout: 20_000 })
     .catch(() => null);
-  await tree.getByRole("button", { name: "Share", exact: true }).click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-
-  // LinkedIn's composer opens with the post written in.
+  await dialog.getByRole("button", { name: "Share on LinkedIn" }).click();
   const linkedIn = await opening;
   const url = new URL(linkedIn.url());
   expect(url.host).toBe("www.linkedin.com");
@@ -345,33 +349,37 @@ test("the org chart draws its people and AI Employees, and shares in one click",
     /^This is my organization\. These are all the AI Employees at .+, working in Houston\.\n\ngethouston\.ai$/,
   );
   await linkedIn.close();
-  await page.bringToFront();
 
   // The image went on the clipboard (always on Chromium, where the spec
   // grants the clipboard), or was saved where the browser refused it, and
-  // the toast says which once the person is back on the page.
-  const toast = page.getByText(/^Image (copied|saved)\. /);
-  await expect(toast).toBeVisible();
+  // the dialog's line says which.
+  const status = dialog.getByRole("status");
+  await expect(status).toHaveText(/^Image (copied|saved)\. /);
   if (browserName === "chromium")
-    await expect(toast).toHaveText(/^Image copied\./);
-  if ((await toast.textContent())?.startsWith("Image copied")) {
-    await expect(toast).toHaveText(
+    await expect(status).toHaveText(
       "Image copied. Paste it into your LinkedIn post.",
     );
+  if ((await status.textContent())?.startsWith("Image copied")) {
     const copied = await page.evaluate(
       () => (window as unknown as { __copiedPng?: number[] }).__copiedPng,
     );
     expectSharePng(Buffer.from(copied ?? []));
   } else {
-    await expect(toast).toHaveText(
+    await expect(status).toHaveText(
       "Image saved. Add it to your LinkedIn post.",
     );
-    const download = await downloading;
-    expect(download?.suggestedFilename()).toMatch(
-      /^[a-z0-9-]+-org-chart\.png$/,
-    );
-    const png = test.info().outputPath("share-card.png");
-    await download?.saveAs(png);
+    const saved = await saving;
+    const png = test.info().outputPath("saved-card.png");
+    await saved?.saveAs(png);
     expectSharePng(await readFile(png));
   }
+
+  // Download image hands over the same 1200 x 1200 PNG.
+  const downloading = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "Download image" }).click();
+  const download = await downloading;
+  expect(download.suggestedFilename()).toMatch(/^[a-z0-9-]+-org-chart\.png$/);
+  const png = test.info().outputPath("share-card.png");
+  await download.saveAs(png);
+  expectSharePng(await readFile(png));
 });

@@ -13,11 +13,13 @@ manager, else its one user, else the first owner (every owner manages every
 AI Employee, so management alone would hang them all on the owner). Desktop
 reads top-down and, when wide, opens on the owners and fades the sides
 that scroll; the phone reads it as an
-indented outline. The cards fade up once and press in on tap. Share is one
-click with no dialog: LinkedIn's composer opens with a short post in the
-app's language while a square image of the chart goes on the clipboard, and
-a toast says to paste it in. Where the clipboard refuses, the image is saved
-instead. On a phone the share sheet takes the image and the post.
+indented outline. The cards fade up once and press in on tap. The Share pill
+opens a small dialog with a large preview of a square image of the
+chart, Share on LinkedIn, Download image and Copy image. Share on LinkedIn
+opens the composer with a short post in the app's language while the image
+goes on the clipboard, and a line under the buttons says to paste it in
+(or that it was saved, where the clipboard refuses). On a phone the share
+sheet takes the image and the post.
 
 ## v129 - 2026-10-10
 

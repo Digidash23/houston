@@ -148,20 +148,20 @@ async function saveInstead(deps: ShareRunDeps): Promise<ImageHandoff> {
   }
 }
 
-/** What the person is told once a share lands, and what is tracked. */
+/** What the dialog says once a share lands, and what is tracked. */
 export interface ShareLanding {
   /** Tracked now: the share left. `null` when it did not (yet). */
   channel: ShareChannel | null;
-  /** The toast: where the image went, else that the tab was blocked. */
-  toast: "copied" | "saved" | "blocked" | null;
+  /** The line under the buttons: where the image went, else a blocked tab. */
+  line: "copied" | "saved" | "blocked" | null;
   /**
-   * The browser blocked LinkedIn's tab: the toast carries an Open LinkedIn
-   * action, and opening it tracks this channel.
+   * The browser blocked LinkedIn's tab: the line carries a link to it, and
+   * following the link tracks this channel.
    */
   blocked: ShareChannel | null;
 }
 
-const QUIET: ShareLanding = { channel: null, toast: null, blocked: null };
+const QUIET: ShareLanding = { channel: null, line: null, blocked: null };
 
 /**
  * `tauri`: the desktop shell has no popup blocker, so a refusal there
@@ -180,7 +180,7 @@ export function shareLanding(
         ? "linkedin_download"
         : "linkedin_text_only";
   const image = outcome.image === "none" ? null : outcome.image;
-  if (outcome.opened) return { channel, toast: image, blocked: null };
-  if (tauri) return { ...QUIET, toast: image };
-  return { channel: null, toast: image ?? "blocked", blocked: channel };
+  if (outcome.opened) return { channel, line: image, blocked: null };
+  if (tauri) return { ...QUIET, line: image };
+  return { channel: null, line: image ?? "blocked", blocked: channel };
 }

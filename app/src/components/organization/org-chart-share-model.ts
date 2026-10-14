@@ -88,11 +88,13 @@ export function isShareBusy(error: unknown): boolean {
 /**
  * How a share left, as tracked: LinkedIn with the image on the clipboard,
  * LinkedIn with the image saved as a file instead, LinkedIn with the post
- * alone (the image could not be drawn or saved), or the phone's share
- * sheet.
+ * alone (the image could not be drawn or saved), the phone's share sheet,
+ * or the dialog's Download image and Copy image.
  */
 export type ShareChannel =
   | "linkedin"
   | "linkedin_download"
   | "linkedin_text_only"
-  | "native";
+  | "native"
+  | "download"
+  | "copy_image";

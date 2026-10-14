@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { logAndReportError } from "../../lib/error-report";
 import { renderShareCard } from "./org-chart-share-card";
@@ -8,12 +8,22 @@ import type { OrgTree } from "./org-chart-tree";
 
 type Translate = ReturnType<typeof useTranslation<"teams">>["t"];
 
-/** One drawing of the share PNG. `ready` is set once it lands. */
+/** One drawing of the share PNG. `ready` and `url` are set once it lands. */
 export interface ShareImageDraw {
   png: Promise<File>;
   ready: File | null;
+  /** An object URL of the PNG for the preview, revoked when replaced. */
+  url: string | null;
   failed: boolean;
+  /** Replaced by a newer drawing: it never makes an object URL. */
+  stale: boolean;
 }
+
+/** What the dialog's preview shows. */
+export type SharePreview =
+  | { status: "drawing" }
+  | { status: "failed" }
+  | { status: "ready"; url: string };
 
 function draw(tree: OrgTree, t: Translate): ShareImageDraw {
   const title = shareTitle(tree);
@@ -38,11 +48,14 @@ function draw(tree: OrgTree, t: Translate): ShareImageDraw {
       (blob) => new File([blob], shareFileName(title), { type: "image/png" }),
     ),
     ready: null,
+    url: null,
     failed: false,
+    stale: false,
   };
   entry.png.then(
     (file) => {
       entry.ready = file;
+      if (!entry.stale) entry.url = URL.createObjectURL(file);
     },
     (error: unknown) => {
       entry.failed = true;
@@ -52,25 +65,58 @@ function draw(tree: OrgTree, t: Translate): ShareImageDraw {
   return entry;
 }
 
+function release(entry: ShareImageDraw | undefined) {
+  if (!entry) return;
+  entry.stale = true;
+  if (entry.url) URL.revokeObjectURL(entry.url);
+}
+
 /**
  * The share PNG for `tree`, drawn ahead of the click: as soon as the chart
  * is on screen, and again whenever what it draws changes (`tree` keeps its
- * identity across identical reloads), so Share is instant. `current()` is
- * the latest drawing, still under way or done; one that failed is drawn
- * again on the next call.
+ * identity across identical reloads), so the dialog opens on a finished
+ * image. `current()` is the latest drawing, still under way or done; one
+ * that failed is drawn again on the next call or on `retry()`. `preview`
+ * follows the latest drawing for the dialog.
  */
 export function useShareCardImage(tree: OrgTree) {
   const { t } = useTranslation("teams");
   const latest = useRef<{ tree: OrgTree; draw: ShareImageDraw } | null>(null);
+  const [, settled] = useReducer((n: number) => n + 1, 0);
+
+  const start = useCallback((): ShareImageDraw => {
+    release(latest.current?.draw);
+    const entry = draw(tree, t);
+    latest.current = { tree, draw: entry };
+    const land = () => {
+      if (latest.current?.draw === entry) settled();
+    };
+    entry.png.then(land, land);
+    settled();
+    return entry;
+  }, [tree, t]);
 
   useEffect(() => {
-    latest.current = { tree, draw: draw(tree, t) };
-  }, [tree, t]);
+    start();
+    return () => {
+      release(latest.current?.draw);
+      latest.current = null;
+    };
+  }, [start]);
 
-  return useCallback((): ShareImageDraw => {
+  const current = useCallback((): ShareImageDraw => {
     const held = latest.current;
     if (held && held.tree === tree && !held.draw.failed) return held.draw;
-    latest.current = { tree, draw: draw(tree, t) };
-    return latest.current.draw;
-  }, [tree, t]);
+    return start();
+  }, [tree, start]);
+
+  const held = latest.current?.draw;
+  const preview: SharePreview = !held
+    ? { status: "drawing" }
+    : held.failed
+      ? { status: "failed" }
+      : held.url
+        ? { status: "ready", url: held.url }
+        : { status: "drawing" };
+  return { current, preview, retry: start };
 }

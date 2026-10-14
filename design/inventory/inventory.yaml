@@ -1542,19 +1542,20 @@ components:
     title: Org chart
     purpose: >-
       The space drawn as an org chart of its people and their AI Employees,
-      shared to LinkedIn in one click, then the space's month of work and
+      shared to LinkedIn from a small dialog, then the space's month of work and
       its AI Employees ranked by the hours they worked, with the people who
       manage and use each one, in Admin.
     anatomy: [share-pill, tree-root, tree-person, tree-agent, tree-connector,
-      tree-overflow, share-toast, hero-band, space-name, summary-sentence,
+      tree-overflow, share-dialog, share-preview, share-actions, share-line,
+      hero-band, space-name, summary-sentence,
       hero-figure, supporting-stats, area-chart, ledger-caption, relation-key,
       featured-line, column-captions, ledger-line, hours-bar, face-group,
       relation-dot, retry-line]
     states: [loading, empty, ready, hours-loading, hours-hidden,
       hours-unavailable, messages-loading, messages-hidden,
       messages-unavailable, messages-not-counted, people-hidden,
-      shared-with-everyone, lit, tree-capped, share-copied, share-saved,
-      share-blocked]
+      shared-with-everyone, lit, tree-capped, share-drawing, share-ready,
+      share-failed, share-copied, share-saved, share-blocked]
     variants: [ledger, dense, phone, personal, scoped, tree-comb,
       tree-outline]
     behavior: >-
@@ -1598,17 +1599,22 @@ components:
       says how many people or AI Employees are left out, once: "+4 people" on
       screen and across the image's first row, and a bare "+3" under a
       person in the image, where the card is too narrow for the words. A personal space
-      draws its person over every AI Employee. The Share pill has no dialog:
-      a square PNG of the chart (light paper, white cards, each AI
+      draws its person over every AI Employee. The Share pill opens a small dialog: its title, a large preview
+      of a square PNG of the chart (light paper, white cards, each AI
       Employee's colour as a dot, the space's name and counts over it, no
-      roles) is drawn while the chart is on screen, and one click hands it
-      on. On a phone whose share sheet takes files, the sheet gets the image
-      and the post. Everywhere else LinkedIn's composer opens with the post
-      written (in the app's language, ending on gethouston.ai) while the
-      image goes on the clipboard, and a toast says to paste it into the
-      post; where the clipboard refuses, the image is saved as a file and
-      the toast says to add it. A browser that blocks the tab gets an Open
-      LinkedIn action on the toast. A photo that cannot be drawn becomes
+      roles), drawn while the chart is on screen so it is usually ready,
+      with a quiet skeleton while it draws and one line with Try again if it
+      fails; Share on LinkedIn; then Download image and Copy image (where
+      the clipboard takes images; it reads "Copied" for two seconds). On a
+      phone whose share sheet takes files, Share on LinkedIn hands the
+      sheet the image and the post. Everywhere else it opens LinkedIn's
+      composer with the post written (in the app's language, ending on
+      gethouston.ai) while the image goes on the clipboard, and one line
+      under the buttons says "Image copied. Paste it into your LinkedIn
+      post."; where the clipboard refuses, the image is saved and the line
+      says to add it. A blocked tab gets a link to LinkedIn on that line.
+      The dialog stays open, so the line is there when the person comes
+      back. A photo that cannot be drawn becomes
       initials.
     a11y: >-
       The space name is a level-2 heading; the ledger is a labelled region
