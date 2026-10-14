@@ -248,11 +248,18 @@ function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
+test("a fence path without a dash is the prefix as is", () => {
+  expect(claudeShellPrefix("/data/bin/claude-shell-fence")).toBe(
+    "/data/bin/claude-shell-fence",
+  );
+});
+
 test.skipIf(process.platform === "win32")(
   "the prefix runs the fence from a folder whose name has a dash",
   () => {
     const dir = join(scratch("fence-dash-"), "Writer - Draft", "bin");
     const prefix = claudeShellPrefix(ensureClaudeShellFence(dir, null));
+    expect(prefix.endsWith(" -c")).toBe(true);
     const out = execFileSync(
       "/bin/bash",
       ["-c", cliCommandLine(prefix, "echo \"[$ANTHROPIC_API_KEY] 'a b'\"")],

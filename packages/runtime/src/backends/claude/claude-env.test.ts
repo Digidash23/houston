@@ -47,7 +47,7 @@ test("the shell fence rides CLAUDE_CODE_SHELL_PREFIX, and only the fence does", 
       shellFencePath: "/data/bin/claude-shell-fence",
     });
     expect(fenced.CLAUDE_CODE_SHELL_PREFIX).toBe(
-      "/data/bin/claude-shell-fence -c",
+      "/data/bin/claude-shell-fence",
     );
 
     // No container limit → no wrapper; the ambient one never passes through.
@@ -153,7 +153,7 @@ test("on Linux the scrub is off and the fence that unsets the credentials is on"
     );
     const fence = join(dataDir, "bin", "claude-shell-fence");
     expect(env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).toBeUndefined();
-    expect(env.CLAUDE_CODE_SHELL_PREFIX).toBe(`${fence} -c`);
+    expect(env.CLAUDE_CODE_SHELL_PREFIX).toBe(fence);
     expect(readFileSync(fence, "utf8")).toContain(
       "unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY",
     );

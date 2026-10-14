@@ -15,9 +15,9 @@ function shellWord(value: string): string {
 /**
  * The wrapper the Claude CLI runs its Bash tool through when
  * `CLAUDE_CODE_SHELL_PREFIX` names it (`claudeShellPrefix`): the CLI appends
- * the whole command as ONE argument after `-c` (verified against Claude Code
- * 2.1), so `$1` is the command once `-c` is shifted off, and the wrapper
- * re-enters bash under the cap. `$BASH` is the interpreter running
+ * the whole command as ONE argument (verified against Claude Code 2.1), after
+ * the `-c` the dash form of the prefix adds, so `$1` is the command once any
+ * `-c` is shifted off, and the wrapper re-enters bash under the cap. `$BASH` is the interpreter running
  * this script (always set inside a bash script), the same one the CLI chose.
  *
  * With a tool shell (config.toolShell) the wrapper hands the command to it
@@ -54,11 +54,13 @@ export function claudeShellFenceScript(
  * The `CLAUDE_CODE_SHELL_PREFIX` value for the wrapper at `fencePath`. Claude
  * Code splits the prefix at its LAST " -" into an executable it shell-quotes
  * and raw arguments, so a bare path containing " -" (an agent folder named
- * "Writer - Draft") would run the wrong file. The trailing `-c` is always that
- * last " -", which keeps the whole path one quoted word.
+ * "Writer - Draft") would run the wrong file; a trailing `-c` becomes that
+ * last " -" and keeps the path one quoted word. Any other path stays bare:
+ * the CLI also spawns stdio MCP servers (machine-managed ones included) with
+ * this value as the executable, unsplit, which the `-c` form cannot serve.
  */
 export function claudeShellPrefix(fencePath: string): string {
-  return `${fencePath} -c`;
+  return fencePath.includes(" -") ? `${fencePath} -c` : fencePath;
 }
 
 /**

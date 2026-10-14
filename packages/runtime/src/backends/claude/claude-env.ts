@@ -115,8 +115,9 @@ const PASSTHROUGH_ENV_VARS: ReadonlySet<string> = new Set(
  * (`CLAUDE_CODE_SHELL_PREFIX`). It unsets the CLI's credential variables and
  * caps the memory of what the model spawns inside a memory-limited container
  * (session/claude-shell-fence.ts). Left undefined it resolves for this
- * runtime, which on Linux always has one; null sets nothing. An ambient prefix is never copied — it is not in the
- * allowlist, and the fence is the only wrapper this subprocess may run.
+ * runtime, which on Linux always has one; null sets nothing. An ambient
+ * prefix is never copied — it is not in the allowlist, and the fence is the
+ * only wrapper this subprocess may run.
  */
 export function buildClaudeEnv(
   token: ClaudeToken | undefined,
