@@ -6,6 +6,7 @@ import {
   type ShareRunDeps,
   shareLanding,
   shareOrgChart,
+  usesShareSheet,
 } from "../src/components/organization/org-chart-share-run.ts";
 
 /** A promise this test settles by hand. */
@@ -204,6 +205,29 @@ describe("shareOrgChart on a phone", () => {
       strictEqual(outcome.kind, "linkedin");
       deepStrictEqual(calls, ["copy", "open:www.linkedin.com"]);
     }
+  });
+
+  it("names the sheet path ahead of the run, so the click can leave it ungated", () => {
+    strictEqual(
+      usesShareSheet({ phone: true, ready: PNG, sheet: sheet(async () => {}) }),
+      true,
+    );
+    strictEqual(
+      usesShareSheet({
+        phone: false,
+        ready: PNG,
+        sheet: sheet(async () => {}),
+      }),
+      false,
+    );
+    strictEqual(
+      usesShareSheet({
+        phone: true,
+        ready: null,
+        sheet: sheet(async () => {}),
+      }),
+      false,
+    );
   });
 
   it("never uses the sheet at desktop width", async () => {

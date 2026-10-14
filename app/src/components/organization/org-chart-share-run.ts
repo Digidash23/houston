@@ -67,7 +67,7 @@ export type ShareOutcome =
  */
 export function shareOrgChart(deps: ShareRunDeps): Promise<ShareOutcome> {
   const { ready, sheet } = deps;
-  if (deps.phone && ready && sheet?.canShare({ files: [ready] }))
+  if (ready && sheet && usesShareSheet(deps))
     return sheet.share({ files: [ready], text: deps.post }).then(
       (): ShareOutcome => ({ kind: "native" }),
       (error: unknown): ShareOutcome => {
@@ -78,6 +78,14 @@ export function shareOrgChart(deps: ShareRunDeps): Promise<ShareOutcome> {
       },
     );
   return shareToLinkedIn(deps);
+}
+
+/** Whether this share goes through the phone's share sheet. */
+export function usesShareSheet(
+  deps: Pick<ShareRunDeps, "phone" | "ready" | "sheet">,
+): boolean {
+  const { ready, sheet } = deps;
+  return Boolean(deps.phone && ready && sheet?.canShare({ files: [ready] }));
 }
 
 /**

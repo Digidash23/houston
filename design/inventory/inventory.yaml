@@ -1595,7 +1595,9 @@ components:
       owners first) with the sides that hide more faded; the phone
       reads it as an indented outline. The cards fade up once when the chart
       mounts, without the rise under reduced motion. Past the caps a "+N"
-      says how many people or AI Employees are left out, once ("+4 people"). A personal space
+      says how many people or AI Employees are left out, once: "+4 people" on
+      screen and across the image's first row, and a bare "+3" under a
+      person in the image, where the card is too narrow for the words. A personal space
       draws its person over every AI Employee. The Share pill has no dialog:
       a square PNG of the chart (light paper, white cards, each AI
       Employee's colour as a dot, the space's name and counts over it, no

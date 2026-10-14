@@ -46,11 +46,11 @@ describe("edgeMask", () => {
     strictEqual(edgeMask(NO_EDGES), undefined);
     strictEqual(
       edgeMask({ start: false, end: true }),
-      "linear-gradient(to right, black, black, black calc(100% - 3rem), transparent)",
+      "linear-gradient(to right, black, black, black calc(100% - 48px), transparent)",
     );
     strictEqual(
       edgeMask({ start: true, end: false }),
-      "linear-gradient(to right, transparent, black 3rem, black, black)",
+      "linear-gradient(to right, transparent, black 48px, black, black)",
     );
   });
 });

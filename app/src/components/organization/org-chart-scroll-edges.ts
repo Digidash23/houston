@@ -1,3 +1,5 @@
+import { space } from "@houston/design-tokens";
+
 /**
  * Which sides of a sideways scroller hide more content, and the fade that
  * says so. Pure and DOM-free. The fade is the visible cue that the chart
@@ -29,7 +31,7 @@ export function scrollEdges(box: {
 }
 
 /** How far each fade reaches into the scroller. */
-const FADE = "3rem";
+const FADE = space["48"];
 
 /**
  * A mask that fades the sides hiding content, or `undefined` when nothing
