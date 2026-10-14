@@ -30,7 +30,6 @@ const layout = (agents: Agent[], members: OrgMember[], personal = false) =>
   shareCardLayout(
     buildOrgTree({ agents, members, name: "Acme", personal }, SHARE_CARD_CAPS),
     {
-      role: (person) => person.role,
       people: (n) => `${n} people`,
       agents: (n) => `${n} AI Employees`,
     },
@@ -84,8 +83,8 @@ describe("shareCardLayout", () => {
   it("draws six people and a +N, each with three AI Employees and a +N", () => {
     const { boxes } = big();
     strictEqual(boxes.filter((b) => b.node.kind === "person").length, 6);
-    // The owner is always on the card, and the people left out say what
-    // they bring: 9 users hold 30 agents, 5 are shown, 4 are left out.
+    // The owner is always on the card, and the people left out are counted:
+    // 9 users hold 30 agents, 5 are shown, 4 are left out.
     ok(
       boxes.some(
         (b) => b.node.kind === "person" && b.node.person.userId === "owner",
@@ -93,8 +92,6 @@ describe("shareCardLayout", () => {
     );
     const peopleMore = boxes.find((b) => b.id === "more:people");
     strictEqual(peopleMore?.label, "4 people");
-    // u5..u8 are left out, three AI Employees each.
-    strictEqual(peopleMore?.sublabel, "12 AI Employees");
     const u0 = boxes.find((b) => b.id === "p:u0");
     const column = boxes.filter((b) => b.x === u0?.x);
     // User 00 holds four: three shown, then the "+1".
@@ -127,16 +124,16 @@ describe("shareCardLayout", () => {
     ok(boxes.slice(1).every((b) => b.shape === "column"));
   });
 
-  it("labels people with their role and AI Employees with theirs", () => {
+  it("labels every card with its name alone, never a role", () => {
     const { boxes } = layout(
       [{ ...agent("a"), role: "Inbox keeper" }],
       roster(1),
     );
     const person = boxes.find((b) => b.node.kind === "person");
     const ai = boxes.find((b) => b.node.kind === "agent");
-    strictEqual(person?.sublabel, "owner");
+    strictEqual(person?.label, "Owner");
     strictEqual(ai?.label, "Agent a");
-    strictEqual(ai?.sublabel, "Inbox keeper");
+    for (const box of boxes) ok(!("sublabel" in box), box.id);
     strictEqual(boxes[0].label, "Acme");
   });
 });

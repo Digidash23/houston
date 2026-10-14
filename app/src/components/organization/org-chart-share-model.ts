@@ -1,9 +1,8 @@
 import type { OrgTree, OrgTreeCaps } from "./org-chart-tree.ts";
 
 /**
- * What sharing the org chart says and where it can go. Pure and DOM-free:
- * the post text, the image's file name, LinkedIn's share link, and which
- * share actions this browser can actually perform.
+ * What sharing the org chart says and where it goes. Pure and DOM-free:
+ * the post text, the image's file name and LinkedIn's share link.
  */
 
 /**
@@ -23,19 +22,13 @@ export type Translate = (
 ) => string;
 
 /**
- * The prefilled post: who is on the chart in counts and the space's name,
- * then where to get Houston. A personal space speaks in the first person.
+ * The post that goes with the image: the space's name, then where to get
+ * Houston. A personal space speaks of the person's own AI Employees.
  */
 export function sharePostText(t: Translate, tree: OrgTree): string {
-  const agents = t("orgChart.agentCount", { count: tree.counts.agents });
-  if (tree.root.kind === "person")
-    return t("orgChart.share.postPersonal", { agents });
-  const people = t("orgChart.peopleCount", { count: tree.counts.people });
-  return t("orgChart.share.post", {
-    company: tree.root.name,
-    people,
-    agents,
-  });
+  return tree.root.kind === "person"
+    ? t("orgChart.share.postPersonal")
+    : t("orgChart.share.post", { company: tree.root.name });
 }
 
 /** The name the chart is drawn under: the space, or the personal space's person. */
@@ -63,41 +56,10 @@ export function shareFileName(company: string): string {
 
 /**
  * LinkedIn's compose link with the post text filled in. It cannot carry an
- * image, so the dialog tells the person to attach the downloaded one.
+ * image, so the image travels on the clipboard (or as a saved file).
  */
 export function linkedInShareUrl(text: string): string {
   return `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(text)}`;
-}
-
-/** The ways this browser can hand the image on. */
-export interface ShareAbilities {
-  /** `navigator.clipboard.write` with `ClipboardItem`: copy the PNG itself. */
-  copyImage: boolean;
-  /** The native share sheet takes files (phones, some desktops). */
-  nativeShare: boolean;
-}
-
-/** The slice of `navigator` and `window` the detection reads. */
-export interface ShareEnvironment {
-  clipboard?: { write?: unknown };
-  ClipboardItem?: unknown;
-  share?: unknown;
-  canShare?: (data: { files: File[] }) => boolean;
-}
-
-export function shareAbilities(
-  env: ShareEnvironment,
-  file: File | null,
-): ShareAbilities {
-  const copyImage =
-    typeof env.clipboard?.write === "function" &&
-    typeof env.ClipboardItem === "function";
-  const nativeShare =
-    file !== null &&
-    typeof env.share === "function" &&
-    typeof env.canShare === "function" &&
-    env.canShare({ files: [file] });
-  return { copyImage, nativeShare };
 }
 
 /** Whether a share sheet rejection is the person closing it, not a failure. */
@@ -110,5 +72,9 @@ export function isShareCancel(error: unknown): boolean {
   );
 }
 
-/** The channels a share is tracked under. */
-export type ShareChannel = "linkedin" | "download" | "copy_image" | "native";
+/**
+ * How a share left, as tracked: LinkedIn with the image on the clipboard,
+ * LinkedIn with the image saved as a file instead, or the phone's share
+ * sheet.
+ */
+export type ShareChannel = "linkedin" | "linkedin_download" | "native";

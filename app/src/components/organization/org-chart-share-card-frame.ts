@@ -3,12 +3,11 @@ import { CARD, CARD_TEXT } from "./org-chart-share-card-geometry";
 import { FONT, fitFontSize, fitText } from "./org-chart-share-card-text";
 
 /*
- * The share image's header (kicker, name, counts) and its quiet footer.
+ * The share image's header (name, counts) and its quiet footer.
  */
 
 /** The words on the image, all authored `t()` copy. */
 export interface ShareCardText {
-  kicker: string;
   title: string;
   counts: string;
   site: string;
@@ -21,9 +20,6 @@ export function paintHeader(
 ) {
   const max = CARD.width - CARD.pad * 2;
   ctx.textAlign = "left";
-  ctx.font = `500 24px ${FONT}`;
-  ctx.fillStyle = ART.faint;
-  ctx.fillText(fitText(ctx, text.kicker, max), CARD.pad, CARD_TEXT.kickerY);
   // A confident title: heavy, tight-tracked, shrunk to fit before it is cut.
   track(ctx, -2.5);
   const size = fitFontSize(ctx, text.title, max, 700, 84, 52);

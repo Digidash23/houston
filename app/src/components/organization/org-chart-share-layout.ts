@@ -1,4 +1,3 @@
-import type { ChartPerson } from "./org-chart-people.ts";
 import {
   CARD,
   type CardBox,
@@ -6,7 +5,7 @@ import {
   type CardNode,
   NODE,
 } from "./org-chart-share-card-geometry.ts";
-import type { OrgTree } from "./org-chart-tree.ts";
+import type { OrgTree, OrgTreeAgent } from "./org-chart-tree.ts";
 import {
   type Box,
   connectorPath,
@@ -28,8 +27,8 @@ import {
  */
 
 const TREE = {
-  rootY: 284,
-  rowY: 410,
+  rootY: 252,
+  rowY: 378,
   /** Space between stacked cards, which the connector spans. */
   gap: 24,
   maxColumn: 236,
@@ -42,7 +41,6 @@ const TREE = {
 
 /** The words the layout writes on cards, all authored `t()` copy. */
 export interface CardWords {
-  role: (person: ChartPerson) => string;
   /** "4 people". */
   people: (count: number) => string;
   /** "9 AI Employees". */
@@ -56,15 +54,10 @@ interface Column {
 
 function columnsOf(tree: OrgTree, words: CardWords): Column[] {
   type Entry = Column["head"];
-  const agentEntry = (agent: {
-    id: string;
-    name: string;
-    role?: string;
-  }): Entry => ({
+  const agentEntry = (agent: OrgTreeAgent): Entry => ({
     id: NODE_ID.agent(agent.id),
-    node: { kind: "agent", agent } as CardNode,
+    node: { kind: "agent", agent },
     label: agent.name,
-    sublabel: agent.role,
   });
   const more = (id: string, count: number): Entry => ({
     id,
@@ -81,22 +74,17 @@ function columnsOf(tree: OrgTree, words: CardWords): Column[] {
         id: NODE_ID.person(branch.person.userId),
         node: { kind: "person", person: branch.person },
         label: branch.person.name,
-        sublabel: words.role(branch.person),
       },
       stack,
     };
   });
-  // The people the cap left out, with the AI Employees they bring, so the
-  // card's totals still add up.
+  // The people the cap left out. The header's count line still holds the
+  // AI Employees they bring.
   if (tree.morePeople > 0)
     columns.push({
       head: {
         ...more(NODE_ID.morePeople, tree.morePeople),
         label: words.people(tree.morePeople),
-        sublabel:
-          tree.morePeopleAgents > 0
-            ? words.agents(tree.morePeopleAgents)
-            : undefined,
       },
       stack: [],
     });

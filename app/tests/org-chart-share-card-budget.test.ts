@@ -2,7 +2,6 @@ import { ok } from "node:assert";
 import { describe, it } from "node:test";
 import {
   CARD_PADDING,
-  lineBudget,
   NAME_LINES,
   NODE,
   type StackedShape,
@@ -13,11 +12,10 @@ describe("share card content budget", () => {
   it("fits the worst case of every stacked card inside it, halo and padding included", () => {
     for (const shape of ["column", "leaf"] as StackedShape[]) {
       for (let names = 0; names <= NAME_LINES; names++) {
-        const roles = lineBudget(shape, names);
-        const height = stackedHeight(shape, names, roles);
+        const height = stackedHeight(shape, names);
         ok(
           height + CARD_PADDING * 2 <= NODE[shape].h,
-          `${shape}: ${names} name + ${roles} role lines = ${height}px in ${NODE[shape].h}px`,
+          `${shape}: ${names} name lines = ${height}px in ${NODE[shape].h}px`,
         );
       }
       // The block is measured from what the mark really paints: the photo
@@ -27,9 +25,11 @@ describe("share card content budget", () => {
     }
   });
 
-  it("keeps a leaf's role to one line, and a column's to what three lines leave", () => {
-    ok(lineBudget("leaf", 2) === 1 && lineBudget("leaf", 1) === 1);
-    ok(lineBudget("column", 2) === 1 && lineBudget("column", 1) === 2);
+  it("leaves no tall empty band: a full two-line card fills most of its height", () => {
+    for (const shape of ["column", "leaf"] as StackedShape[]) {
+      const full = stackedHeight(shape, NAME_LINES);
+      ok(full >= NODE[shape].h * 0.8, `${shape}: ${full} of ${NODE[shape].h}`);
+    }
   });
 
   it("fits the one-line cards", () => {

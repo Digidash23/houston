@@ -16,7 +16,6 @@ import {
   CARD,
   type CardBox,
   type CardLayout,
-  lineBudget,
   NAME_LINES,
   NODE,
   stackedHeight,
@@ -86,8 +85,8 @@ function paintRoot(
 }
 
 /**
- * A stacked card: its mark, then the name (two lines when it needs them)
- * and the muted role, the whole block centred in the card.
+ * A stacked card: its mark, then the name (two lines when it needs them),
+ * the whole block centred in the card.
  */
 function paintStacked(
   ctx: CanvasRenderingContext2D,
@@ -102,14 +101,7 @@ function paintStacked(
   ctx.font = `600 ${s.name}px ${FONT}`;
   const shape = box.shape === "column" ? "column" : "leaf";
   const lines = box.label ? wrapLines(ctx, box.label, inner, NAME_LINES) : [];
-  ctx.font = `400 ${s.role}px ${FONT}`;
-  const roleLines = lineBudget(shape, lines.length);
-  const roles =
-    box.sublabel && roleLines > 0
-      ? wrapLines(ctx, box.sublabel, inner, roleLines)
-      : [];
-  let y =
-    box.y + (box.h - stackedHeight(shape, lines.length, roles.length)) / 2;
+  let y = box.y + (box.h - stackedHeight(shape, lines.length)) / 2;
   const markY = y + s.extent / 2;
   if (node.kind === "person")
     face(
@@ -135,10 +127,6 @@ function paintStacked(
     y += s.nameLine;
   }
   track(ctx, 0);
-  for (const line of roles) {
-    centred(ctx, line, cx, y + s.roleLine / 2, s.role, 400, ART.muted, inner);
-    y += s.roleLine;
-  }
   ctx.textBaseline = "alphabetic";
 }
 

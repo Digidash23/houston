@@ -1,76 +1,76 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { logAndReportError } from "../../lib/error-report";
 import { renderShareCard } from "./org-chart-share-card";
 import type { ShareCardText } from "./org-chart-share-card-paint";
-import {
-  currentShareImage,
-  type DrawnShareImage,
-  type ShareImage,
-} from "./org-chart-share-image-state";
 import { shareFileName, shareTitle } from "./org-chart-share-model";
 import type { OrgTree } from "./org-chart-tree";
 
-export type { ShareImage };
+type Translate = ReturnType<typeof useTranslation<"teams">>["t"];
 
-/**
- * The share PNG for `tree`, drawn while `open` and released when the dialog
- * closes. A draw that fails reports and settles on `failed` with a retry; a
- * draw that lands after the dialog closed or the tree changed is dropped.
- */
-export function useShareCardImage(tree: OrgTree, open: boolean) {
-  const { t } = useTranslation("teams");
-  const [drawn, setDrawn] = useState<DrawnShareImage | null>(null);
-  const [attempt, setAttempt] = useState(0);
+/** One drawing of the share PNG. `ready` is set once it lands. */
+export interface ShareImageDraw {
+  png: Promise<File>;
+  ready: File | null;
+  failed: boolean;
+}
 
-  useEffect(() => {
-    if (!open) return;
-    let live = true;
-    let url: string | null = null;
-    const settle = (image: ShareImage) => {
-      if (live) setDrawn({ tree, attempt, image });
-    };
-    const title = shareTitle(tree);
-    const agents = t("orgChart.agentCount", { count: tree.counts.agents });
-    const text: ShareCardText = {
-      kicker: t("orgChart.share.cardKicker"),
-      title,
-      counts:
-        tree.root.kind === "person"
-          ? agents
-          : t("orgChart.share.cardCounts", {
-              people: t("orgChart.peopleCount", { count: tree.counts.people }),
-              agents,
-            }),
-      site: t("orgChart.share.site"),
-      more: (count) => t("orgChart.more", { count }),
-    };
-    renderShareCard(tree, text, {
-      role: (person) => t(`people.roles.${person.role}`),
+function draw(tree: OrgTree, t: Translate): ShareImageDraw {
+  const title = shareTitle(tree);
+  const agents = t("orgChart.agentCount", { count: tree.counts.agents });
+  const text: ShareCardText = {
+    title,
+    counts:
+      tree.root.kind === "person"
+        ? agents
+        : t("orgChart.share.cardCounts", {
+            people: t("orgChart.peopleCount", { count: tree.counts.people }),
+            agents,
+          }),
+    site: t("orgChart.share.site"),
+    more: (count) => t("orgChart.more", { count }),
+  };
+  const entry: ShareImageDraw = {
+    png: renderShareCard(tree, text, {
       people: (count) => t("orgChart.peopleCount", { count }),
       agents: (count) => t("orgChart.agentCount", { count }),
-    })
-      .then((blob) => {
-        if (!live) return;
-        url = URL.createObjectURL(blob);
-        const file = new File([blob], shareFileName(title), {
-          type: "image/png",
-        });
-        settle({ status: "ready", blob, url, file });
-      })
-      .catch((error: unknown) => {
-        logAndReportError("org_chart_share_image", error);
-        settle({ status: "failed" });
-      });
-    return () => {
-      live = false;
-      if (url) URL.revokeObjectURL(url);
-      setDrawn(null);
-    };
-  }, [tree, open, attempt, t]);
-
-  return {
-    image: currentShareImage(drawn, tree, attempt, open),
-    retry: () => setAttempt((n) => n + 1),
+    }).then(
+      (blob) => new File([blob], shareFileName(title), { type: "image/png" }),
+    ),
+    ready: null,
+    failed: false,
   };
+  entry.png.then(
+    (file) => {
+      entry.ready = file;
+    },
+    (error: unknown) => {
+      entry.failed = true;
+      logAndReportError("org_chart_share_image", error);
+    },
+  );
+  return entry;
+}
+
+/**
+ * The share PNG for `tree`, drawn ahead of the click: as soon as the chart
+ * is on screen, and again whenever what it draws changes (`tree` keeps its
+ * identity across identical reloads), so Share is instant. `current()` is
+ * the latest drawing, still under way or done; one that failed is drawn
+ * again on the next call.
+ */
+export function useShareCardImage(tree: OrgTree) {
+  const { t } = useTranslation("teams");
+  const latest = useRef<{ tree: OrgTree; draw: ShareImageDraw } | null>(null);
+
+  useEffect(() => {
+    latest.current = { tree, draw: draw(tree, t) };
+  }, [tree, t]);
+
+  return useCallback((): ShareImageDraw => {
+    const held = latest.current;
+    if (held && held.tree === tree && !held.draw.failed) return held.draw;
+    latest.current = { tree, draw: draw(tree, t) };
+    return latest.current.draw;
+  }, [tree, t]);
 }

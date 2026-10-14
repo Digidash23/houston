@@ -8,8 +8,7 @@ import type { ChartPerson } from "./org-chart-people";
 import type { OrgTreeAgent } from "./org-chart-tree";
 
 /**
- * The org chart's nodes: compact cards, avatar then name over a muted role,
- * the same size at every level so the chart reads as one grid. People and AI
+ * The org chart's nodes: compact cards, a face and a name, the same size at every level so the chart reads as one grid. People and AI
  * Employees are buttons (People on that person, the AI Employee's board)
  * that press in a little; the hover fill is an extra, never the only sign.
  * `id` is the node's `data-tree-node`, which the connectors measure.
@@ -24,17 +23,10 @@ const PRESSABLE = cn(
   "hover:bg-hover focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none",
 );
 
-function Labels({ name, sub }: { name: string; sub?: string }) {
+function Name({ name }: { name: string }) {
   return (
-    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-      <span className="truncate text-sm leading-tight font-medium text-ink">
-        {name}
-      </span>
-      {sub && (
-        <span className="truncate text-xs leading-tight text-ink-muted tabular-nums">
-          {sub}
-        </span>
-      )}
+    <span className="min-w-0 flex-1 truncate text-sm leading-tight font-medium text-ink">
+      {name}
     </span>
   );
 }
@@ -47,22 +39,14 @@ function Slot({ id, children }: { id: string; children: ReactNode }) {
   );
 }
 
-export function TreeCompanyNode({
-  id,
-  name,
-  sub,
-}: {
-  id: string;
-  name: string;
-  sub: string;
-}) {
+export function TreeCompanyNode({ id, name }: { id: string; name: string }) {
   return (
     <Slot id={id}>
       <div className={CARD}>
         <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-ink text-background">
           <Building2 className="size-4" />
         </span>
-        <Labels name={name} sub={sub} />
+        <Name name={name} />
       </div>
     </Slot>
   );
@@ -71,12 +55,10 @@ export function TreeCompanyNode({
 export function TreePersonNode({
   id,
   person,
-  sub,
   onOpen,
 }: {
   id: string;
   person: ChartPerson;
-  sub: string;
   onOpen: (userId: string) => void;
 }) {
   const { t } = useTranslation("teams");
@@ -98,7 +80,7 @@ export function TreePersonNode({
           className="size-8 shrink-0"
           initialsClassName="text-xs"
         />
-        <Labels name={person.name} sub={sub} />
+        <Name name={person.name} />
       </button>
     </Slot>
   );
@@ -124,7 +106,7 @@ export function TreeAgentNode({
         style={PRESS_STYLE}
       >
         <HoustonAvatar color={resolveAgentColor(agent.color)} diameter={32} />
-        <Labels name={agent.name} sub={agent.role} />
+        <Name name={agent.name} />
       </button>
     </Slot>
   );
@@ -135,12 +117,10 @@ export function TreeMoreNode({
   id,
   count,
   label,
-  sub,
 }: {
   id: string;
   count: number;
   label: string;
-  sub?: string;
 }) {
   const { t } = useTranslation("teams");
   return (
@@ -154,7 +134,7 @@ export function TreeMoreNode({
         <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-chip text-xs font-medium text-chip-text tabular-nums">
           {t("orgChart.more", { count })}
         </span>
-        <Labels name={label} sub={sub} />
+        <Name name={label} />
       </div>
     </Slot>
   );

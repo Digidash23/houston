@@ -13,7 +13,6 @@ export const ART = {
   dot: "rgba(17, 17, 16, 0.075)",
   ink: "#111110",
   muted: "#6b6b66",
-  faint: "#9a9a94",
   card: "#ffffff",
   hairline: "#e7e7e4",
   line: "#d4d4d0",

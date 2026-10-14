@@ -1,4 +1,4 @@
-import { match, strictEqual } from "node:assert";
+import { doesNotMatch, match, strictEqual } from "node:assert";
 import { before, describe, it } from "node:test";
 import type { Agent, OrgMember } from "@houston/engine-adapter";
 import i18next from "i18next";
@@ -62,14 +62,16 @@ before(async () => {
 });
 
 describe("org chart tree rendering", () => {
-  it("draws the space, every person as a button and every AI Employee as a button", () => {
+  it("draws the space, every person and every AI Employee as a face and a name", () => {
     const html = render([
       agent("a", { role: "Handles the inbox" }),
       agent("b", { assignments: [{ userId: "tom", access: "user" }] }),
     ]);
     match(html, /aria-label="Org chart"/);
     match(html, />Acme</);
-    match(html, /3 people, 2 AI Employees/);
+    // No captions: no counts under the space, no section title.
+    doesNotMatch(html, /3 people/);
+    doesNotMatch(html, /Who works here/);
     for (const name of ["Julian Arango", "Sara Diaz", "Tom Reed"])
       strictEqual(
         count(html, new RegExp(`aria-label="Open ${name} in People"`)),
@@ -77,11 +79,14 @@ describe("org chart tree rendering", () => {
       );
     match(html, /aria-label="Open Agent a&#x27;s board"/);
     match(html, /aria-label="Open Agent b&#x27;s board"/);
-    match(html, /Handles the inbox/);
-    // Role labels come from People's own words.
-    match(html, />Owner</);
-    match(html, />Manager</);
-    match(html, />Member</);
+    // Nor a role under anyone: not People's roles, not a job description.
+    for (const role of [
+      "Handles the inbox",
+      ">Owner<",
+      ">Manager<",
+      ">Member<",
+    ])
+      doesNotMatch(html, new RegExp(role));
   });
 
   it("gives every card a node id the connectors measure, on both layouts", () => {
@@ -130,14 +135,14 @@ describe("org chart tree rendering", () => {
     match(html, /2 more people/);
   });
 
-  it("says what the people left out bring with them", () => {
+  it("counts the people left out, with no line under the count", () => {
     const html = render(
       [agent("a", { assignments: [{ userId: "tom", access: "user" }] })],
       false,
       { people: 1, agentsPerPerson: 3, rootAgents: 3 },
     );
     match(html, /2 more people/);
-    match(html, /1 AI Employee</);
+    doesNotMatch(html, /1 AI Employee</);
     // The owner stays even though Tom has the only AI Employee.
     match(html, /aria-label="Open Julian Arango in People"/);
   });
@@ -145,7 +150,7 @@ describe("org chart tree rendering", () => {
   it("draws a personal space as its person over its AI Employees", () => {
     const html = render([agent("a"), agent("b")], true);
     match(html, /aria-label="Open Julian Arango in People"/);
-    match(html, /2 AI Employees/);
+    doesNotMatch(html, /2 AI Employees/);
     strictEqual(count(html, /aria-label="Open Sara Diaz in People"/), 0);
     strictEqual(count(html, /&#x27;s board"/), 2);
   });

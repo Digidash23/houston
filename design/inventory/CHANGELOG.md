@@ -3,18 +3,20 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
-## v130 - 2026-10-10
+## v130 - 2026-10-14
 
-The org chart looks like one. Between the hero and the ledger, Admin > Org
-chart draws the space at the top, its people under it, and each AI Employee
-under the person it belongs to, as compact cards joined by rounded lines: its first
-admin manager, else its one user, else the first owner (every owner manages
-every AI Employee, so management alone would hang them all on the owner).
-Desktop reads top-down and scrolls sideways when wide; the phone reads it as
-an indented outline. The cards fade up once and press in on tap. A Share pill opens a square image of the
-chart with a ready post for LinkedIn: Share on LinkedIn copies the post and
-opens the composer, Download image and Copy image hand over the picture,
-and phones get the native share sheet.
+The org chart looks like one, and leads Admin > Org chart, above the hero
+and the ledger: the space at the top, its people under it, and each AI
+Employee under the person it belongs to, as compact cards (a face and a
+name) joined by rounded lines. An AI Employee hangs under its first admin
+manager, else its one user, else the first owner (every owner manages every
+AI Employee, so management alone would hang them all on the owner). Desktop
+reads top-down and scrolls sideways when wide; the phone reads it as an
+indented outline. The cards fade up once and press in on tap. Share is one
+click with no dialog: LinkedIn's composer opens with a short post in the
+app's language while a square image of the chart goes on the clipboard, and
+a toast says to paste it in. Where the clipboard refuses, the image is saved
+instead. On a phone the share sheet takes the image and the post.
 
 ## v129 - 2026-10-10
 

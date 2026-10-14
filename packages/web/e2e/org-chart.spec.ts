@@ -206,10 +206,46 @@ test("an admin's chart is theirs: people hidden where they only use an AI Employ
   await expect(line(page, "Scout")).not.toContainText("People hidden");
 });
 
-test("the org chart draws its people and AI Employees, and shares an image with a post", async ({
+/**
+ * Records the PNG every clipboard write carries (the first 24 bytes, enough
+ * for the signature and the IHDR size) before handing the write on, so the
+ * spec sees the image whether or not the browser lets the write land.
+ */
+const RECORD_CLIPBOARD = () => {
+  const w = window as unknown as { __copiedPng?: number[] };
+  const clipboard = navigator.clipboard;
+  const write = clipboard?.write?.bind(clipboard);
+  if (!write) return;
+  clipboard.write = async (items: ClipboardItem[]) => {
+    const pending = write(items);
+    const png = await items[0].getType("image/png");
+    w.__copiedPng = [...new Uint8Array(await png.arrayBuffer()).slice(0, 24)];
+    return pending;
+  };
+};
+
+/** A PNG, 1200 x 1200 (IHDR width and height, big-endian). */
+function expectSharePng(bytes: Buffer) {
+  expect(bytes.subarray(1, 4).toString("ascii")).toBe("PNG");
+  expect(bytes.readUInt32BE(16)).toBe(1200);
+  expect(bytes.readUInt32BE(20)).toBe(1200);
+}
+
+test("the org chart draws its people and AI Employees, and shares in one click", async ({
   page,
   request,
+  browserName,
 }) => {
+  if (browserName === "chromium")
+    await page
+      .context()
+      .grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.addInitScript(RECORD_CLIPBOARD);
+  await page
+    .context()
+    .route("https://www.linkedin.com/**", (route) =>
+      route.fulfill({ contentType: "text/html", body: "<p>LinkedIn</p>" }),
+    );
   await request.post(`${FAKE_HOST_URL}/__test__/org`, {
     data: {
       members: [
@@ -252,7 +288,10 @@ test("the org chart draws its people and AI Employees, and shares an image with 
   await openAdminSection(page, "Org chart");
 
   const tree = chart(page).getByRole("region", { name: "Org chart" });
-  await expect(tree.getByText("3 people, 3 AI Employees")).toBeVisible();
+  // Faces and names only: no counts, roles or section caption on the chart.
+  await expect(tree.getByText("3 people, 3 AI Employees")).toHaveCount(0);
+  await expect(tree.getByText("Owner", { exact: true })).toHaveCount(0);
+  await expect(chart(page).getByText("Who works here")).toHaveCount(0);
   for (const name of ["Olga Owner", "Sara Diaz", "Tom Reed"])
     await expect(
       tree.getByRole("button", { name: `Open ${name} in People` }),
@@ -290,28 +329,45 @@ test("the org chart draws its people and AI Employees, and shares an image with 
   // The ledger is still there under the chart.
   await expect(line(page, "Scout")).toBeVisible();
 
+  const opening = page.waitForEvent("popup");
+  const downloading = page
+    .waitForEvent("download", { timeout: 20_000 })
+    .catch(() => null);
   await tree.getByRole("button", { name: "Share", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Share your org chart" });
-  await expect(
-    dialog.getByRole("img", { name: "Your org chart as an image" }),
-  ).toBeVisible();
-  const post = dialog.getByRole("textbox", { name: "Your post" });
-  await expect(post).toHaveValue(/3 people and 3 AI Employees/);
-  await expect(post).toHaveValue(/gethouston\.ai/);
-  await expect(post).not.toHaveValue(/—/);
-  await expect(
-    dialog.getByRole("button", { name: "Share on LinkedIn" }),
-  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 
-  const downloading = page.waitForEvent("download");
-  await dialog.getByRole("button", { name: "Download image" }).click();
-  const download = await downloading;
-  expect(download.suggestedFilename()).toMatch(/^[a-z0-9-]+-org-chart\.png$/);
-  const png = test.info().outputPath("share-card.png");
-  await download.saveAs(png);
-  const bytes = await readFile(png);
-  // A PNG, 1200 x 1200 (IHDR width and height, big-endian).
-  expect(bytes.subarray(1, 4).toString("ascii")).toBe("PNG");
-  expect(bytes.readUInt32BE(16)).toBe(1200);
-  expect(bytes.readUInt32BE(20)).toBe(1200);
+  // LinkedIn's composer opens with the post written in.
+  const linkedIn = await opening;
+  const url = new URL(linkedIn.url());
+  expect(url.host).toBe("www.linkedin.com");
+  expect(url.searchParams.get("shareActive")).toBe("true");
+  expect(url.searchParams.get("text")).toMatch(
+    /^This is my organization\. These are all the AI Employees at .+, working in Houston\.\n\ngethouston\.ai$/,
+  );
+  await linkedIn.close();
+
+  // The image went on the clipboard, or was saved where the clipboard
+  // refused it, and the toast says which.
+  const toast = page.getByText(/^Image (copied|saved)\. /);
+  await expect(toast).toBeVisible();
+  if ((await toast.textContent())?.startsWith("Image copied")) {
+    await expect(toast).toHaveText(
+      "Image copied. Paste it into your LinkedIn post.",
+    );
+    const copied = await page.evaluate(
+      () => (window as unknown as { __copiedPng?: number[] }).__copiedPng,
+    );
+    expectSharePng(Buffer.from(copied ?? []));
+  } else {
+    await expect(toast).toHaveText(
+      "Image saved. Add it to your LinkedIn post.",
+    );
+    const download = await downloading;
+    expect(download?.suggestedFilename()).toMatch(
+      /^[a-z0-9-]+-org-chart\.png$/,
+    );
+    const png = test.info().outputPath("share-card.png");
+    await download?.saveAs(png);
+    expectSharePng(await readFile(png));
+  }
 });

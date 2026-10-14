@@ -21,24 +21,15 @@ export interface TreeHandlers {
  */
 export function useTreeParts(tree: OrgTree, handlers: TreeHandlers) {
   const { t } = useTranslation("teams");
-  const agents = t("orgChart.agentCount", { count: tree.counts.agents });
-  const counts =
-    tree.root.kind === "person"
-      ? agents
-      : t("orgChart.share.cardCounts", {
-          people: t("orgChart.peopleCount", { count: tree.counts.people }),
-          agents,
-        });
   const root =
     tree.root.kind === "person" ? (
       <TreePersonNode
         id={NODE_ID.root}
         person={tree.root.person}
-        sub={counts}
         onOpen={handlers.onOpenPerson}
       />
     ) : (
-      <TreeCompanyNode id={NODE_ID.root} name={tree.root.name} sub={counts} />
+      <TreeCompanyNode id={NODE_ID.root} name={tree.root.name} />
     );
 
   const columns: {
@@ -75,7 +66,6 @@ export function useTreeParts(tree: OrgTree, handlers: TreeHandlers) {
         <TreePersonNode
           id={NODE_ID.person(person.userId)}
           person={person}
-          sub={t(`people.roles.${person.role}`)}
           onOpen={handlers.onOpenPerson}
         />
       ),
@@ -90,11 +80,6 @@ export function useTreeParts(tree: OrgTree, handlers: TreeHandlers) {
           id={NODE_ID.morePeople}
           count={tree.morePeople}
           label={t("orgChart.tree.morePeople", { count: tree.morePeople })}
-          sub={
-            tree.morePeopleAgents > 0
-              ? t("orgChart.agentCount", { count: tree.morePeopleAgents })
-              : undefined
-          }
         />
       ),
       stack: [],

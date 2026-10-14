@@ -2,7 +2,8 @@ import { deepStrictEqual, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
 import {
   isExpectedClipboardRefusal,
-  shareToLinkedIn,
+  type ShareRunDeps,
+  shareOrgChart,
 } from "../src/components/organization/org-chart-share-run.ts";
 
 /** A promise this test settles by hand. */
@@ -16,72 +17,195 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-describe("shareToLinkedIn", () => {
-  it("opens LinkedIn in the click's own tick, after starting the copy and before any await", async () => {
-    const calls: string[] = [];
-    const copy = deferred<void>();
-    const running = shareToLinkedIn("Hello", {
-      writeText: (text) => {
-        calls.push(`copy:${text}`);
-        return copy.promise;
-      },
-      open: async (url) => {
-        calls.push(`open:${new URL(url).host}`);
-        return true;
-      },
-      report: () => calls.push("report"),
-    });
-    // Synchronously, before the copy settles: both have been called.
-    deepStrictEqual(calls, ["copy:Hello", "open:www.linkedin.com"]);
-    copy.resolve();
-    const result = await running;
-    strictEqual(result.opened, true);
-    strictEqual(result.copied, true);
+const PNG = new File(["png"], "acme-org-chart.png", { type: "image/png" });
+
+/** Deps that record every call, desktop-shaped unless overridden. */
+function harness(overrides: Partial<ShareRunDeps> = {}) {
+  const calls: string[] = [];
+  const reports: string[] = [];
+  const deps: ShareRunDeps = {
+    post: "Hello",
+    png: Promise.resolve(PNG),
+    ready: PNG,
+    phone: false,
+    sheet: undefined,
+    copyImage: async () => {
+      calls.push("copy");
+    },
+    open: async (url) => {
+      calls.push(`open:${new URL(url).host}`);
+      return true;
+    },
+    save: async (file) => {
+      calls.push(`save:${file.name}`);
+      return true;
+    },
+    report: (command) => reports.push(command),
+    ...overrides,
+  };
+  return { deps, calls, reports };
+}
+
+describe("shareOrgChart on desktop", () => {
+  it("starts the image copy, then opens LinkedIn, in the click's own tick", async () => {
+    const drawing = deferred<File>();
+    const copied = deferred<void>();
+    const { deps, calls } = harness({ png: drawing.promise, ready: null });
+    let handed: Promise<File> | null = null;
+    deps.copyImage = (png) => {
+      handed = png;
+      calls.push("copy");
+      return copied.promise;
+    };
+    const running = shareOrgChart(deps);
+    // Synchronously, before the drawing or the copy settles: both started,
+    // the copy first, and the copy was handed the drawing itself.
+    deepStrictEqual(calls, ["copy", "open:www.linkedin.com"]);
+    strictEqual(handed, drawing.promise);
+    drawing.resolve(PNG);
+    copied.resolve();
+    const outcome = await running;
+    deepStrictEqual(outcome.kind === "linkedin" && outcome.image, "copied");
+    strictEqual(
+      outcome.kind === "linkedin" &&
+        new URL(outcome.url).searchParams.get("text"),
+      "Hello",
+    );
   });
 
-  it("hands back the URL when the browser blocked the tab", async () => {
-    const result = await shareToLinkedIn("Hi", {
-      writeText: async () => {},
-      open: async () => false,
-      report: () => {},
+  it("saves the image instead when the clipboard refuses, without a report", async () => {
+    const { deps, calls, reports } = harness({
+      copyImage: () =>
+        Promise.reject(new DOMException("no focus", "NotAllowedError")),
     });
-    strictEqual(result.opened, false);
-    strictEqual(new URL(result.url).searchParams.get("text"), "Hi");
-  });
-
-  it("opens even with no clipboard, and reports nothing for it", async () => {
-    const reports: string[] = [];
-    const result = await shareToLinkedIn("Hi", {
-      writeText: undefined,
-      open: async () => true,
-      report: (command) => reports.push(command),
-    });
-    deepStrictEqual([result.opened, result.copied, reports], [true, false, []]);
-  });
-
-  it("treats a refused clipboard as the person's setup, and anything else as a bug", async () => {
-    const reports: string[] = [];
-    const deps = (error: unknown) => ({
-      writeText: async () => {
-        throw error;
-      },
-      open: async () => true,
-      report: (command: string) => reports.push(command),
-    });
-    await shareToLinkedIn("Hi", deps(new DOMException("x", "NotAllowedError")));
+    const outcome = await shareOrgChart(deps);
+    deepStrictEqual(calls, [
+      "open:www.linkedin.com",
+      "save:acme-org-chart.png",
+    ]);
+    strictEqual(outcome.kind === "linkedin" && outcome.image, "saved");
     deepStrictEqual(reports, []);
-    await shareToLinkedIn("Hi", deps(new TypeError("boom")));
-    deepStrictEqual(reports, ["org_chart_share_copy_text"]);
+  });
+
+  it("saves the image where there is no image clipboard at all", async () => {
+    const { deps, calls } = harness({ copyImage: undefined });
+    const outcome = await shareOrgChart(deps);
+    deepStrictEqual(calls, [
+      "open:www.linkedin.com",
+      "save:acme-org-chart.png",
+    ]);
+    strictEqual(outcome.kind === "linkedin" && outcome.image, "saved");
+  });
+
+  it("reports an unexpected clipboard failure, and still saves", async () => {
+    const { deps, reports } = harness({
+      copyImage: () => {
+        throw new TypeError("boom");
+      },
+    });
+    const outcome = await shareOrgChart(deps);
+    strictEqual(outcome.kind === "linkedin" && outcome.image, "saved");
+    deepStrictEqual(reports, ["org_chart_share_copy_image"]);
+  });
+
+  it("opens LinkedIn without the image when the drawing failed, reporting nothing new", async () => {
+    const failed = Promise.reject(new Error("no canvas"));
+    failed.catch(() => {});
+    const { deps, calls, reports } = harness({
+      png: failed,
+      ready: null,
+      copyImage: (png) => png.then(() => {}),
+    });
+    const outcome = await shareOrgChart(deps);
+    deepStrictEqual(calls, ["open:www.linkedin.com"]);
+    strictEqual(outcome.kind === "linkedin" && outcome.image, "none");
+    deepStrictEqual(reports, []);
+  });
+
+  it("says when the browser blocked the tab", async () => {
+    const { deps } = harness({ open: async () => false });
+    const outcome = await shareOrgChart(deps);
+    strictEqual(outcome.kind === "linkedin" && outcome.opened, false);
+  });
+
+  it("reports a failed save", async () => {
+    const { deps, reports } = harness({
+      copyImage: undefined,
+      save: () => Promise.reject(new Error("disk full")),
+    });
+    const outcome = await shareOrgChart(deps);
+    strictEqual(outcome.kind === "linkedin" && outcome.image, "none");
+    deepStrictEqual(reports, ["org_chart_share_download"]);
+  });
+});
+
+describe("shareOrgChart on a phone", () => {
+  const sheet = (share: () => Promise<void>, canShare = true) => ({
+    canShare: () => canShare,
+    share,
+  });
+
+  it("hands the image and the post to the share sheet, and nothing else", async () => {
+    const shared: unknown[] = [];
+    const { deps, calls } = harness({
+      phone: true,
+      sheet: sheet(async () => {}),
+    });
+    deps.sheet = {
+      canShare: () => true,
+      share: async (data) => {
+        shared.push(data);
+      },
+    };
+    deepStrictEqual(await shareOrgChart(deps), { kind: "native" });
+    deepStrictEqual(shared, [{ files: [PNG], text: "Hello" }]);
+    deepStrictEqual(calls, []);
+  });
+
+  it("treats closing the sheet as a cancel, silently", async () => {
+    const { deps, reports } = harness({
+      phone: true,
+      sheet: sheet(() => Promise.reject(new DOMException("x", "AbortError"))),
+    });
+    deepStrictEqual(await shareOrgChart(deps), { kind: "cancelled" });
+    deepStrictEqual(reports, []);
+  });
+
+  it("reports a sheet that failed for another reason", async () => {
+    const { deps, reports } = harness({
+      phone: true,
+      sheet: sheet(() => Promise.reject(new Error("boom"))),
+    });
+    deepStrictEqual(await shareOrgChart(deps), { kind: "failed" });
+    deepStrictEqual(reports, ["org_chart_share_native"]);
+  });
+
+  it("goes the LinkedIn way when the sheet cannot take files or the image is still drawing", async () => {
+    for (const overrides of [
+      { sheet: sheet(async () => {}, false) },
+      { sheet: sheet(async () => {}), ready: null },
+      { sheet: undefined },
+    ]) {
+      const { deps, calls } = harness({ phone: true, ...overrides });
+      const outcome = await shareOrgChart(deps);
+      strictEqual(outcome.kind, "linkedin");
+      deepStrictEqual(calls, ["copy", "open:www.linkedin.com"]);
+    }
+  });
+
+  it("never uses the sheet at desktop width", async () => {
+    const { deps } = harness({ sheet: sheet(async () => {}) });
+    strictEqual((await shareOrgChart(deps)).kind, "linkedin");
   });
 });
 
 describe("isExpectedClipboardRefusal", () => {
-  it("is only NotAllowedError", () => {
+  it("is only the browser's NotAllowedError", () => {
     strictEqual(
       isExpectedClipboardRefusal(new DOMException("x", "NotAllowedError")),
       true,
     );
-    strictEqual(isExpectedClipboardRefusal(new Error("x")), false);
-    strictEqual(isExpectedClipboardRefusal(undefined), false);
+    strictEqual(isExpectedClipboardRefusal(new Error("boom")), false);
+    strictEqual(isExpectedClipboardRefusal(null), false);
   });
 });

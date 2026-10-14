@@ -2,7 +2,6 @@ import { Button } from "@houston-ai/core";
 import { Share2 } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { CAPTION } from "./org-chart-caption";
 import { PRESS_CLASS, PRESS_STYLE } from "./org-chart-motion";
 import type { OrgTree } from "./org-chart-tree";
 import { OrgChartTreeFrame } from "./org-chart-tree-connectors";
@@ -28,7 +27,8 @@ interface TreeViewProps extends TreeHandlers {
  * each person's AI Employees under them, joined by lines measured from where
  * the cards landed. Desktop reads top-down and scrolls sideways when wide
  * (centred when it fits); the phone reads it as an indented outline. The
- * cards fade up once when the chart first mounts.
+ * cards fade up once when the chart first mounts. Share is one click (the
+ * caller's `onShare`).
  */
 export function OrgChartTreeView({
   tree,
@@ -51,8 +51,7 @@ export function OrgChartTreeView({
       data-org-tree=""
       className="flex flex-col gap-5 md:gap-6"
     >
-      <div className="flex items-center justify-between gap-4">
-        <h3 className={CAPTION}>{t("orgChart.tree.title")}</h3>
+      <div className="flex justify-end">
         <Button
           variant="outline"
           className={`rounded-full ${PRESS_CLASS}`}
