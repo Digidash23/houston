@@ -22,7 +22,7 @@ export interface ShareDialogState {
 export type ShareDialogAction =
   | { type: "open" }
   | { type: "close" }
-  /** The image now on screen (`null` while it draws). */
+  /** The picture on screen was replaced (`null` while the new one draws). */
   | { type: "redrawn"; url: string | null }
   | { type: "landed"; session: number; line: ShareLine }
   | { type: "copied" }
@@ -60,4 +60,15 @@ export function shareDialogReducer(
     case "copiedDone":
       return { ...state, copied: false };
   }
+}
+
+/**
+ * Whether the picture on screen was replaced. The first image arriving is
+ * not: a share started while it drew keeps its line.
+ */
+export function replacesShownImage(
+  previous: string | null,
+  next: string | null,
+): boolean {
+  return previous !== null && previous !== next;
 }

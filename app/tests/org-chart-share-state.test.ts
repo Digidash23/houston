@@ -2,6 +2,7 @@ import { deepStrictEqual, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
 import {
   INITIAL_SHARE_DIALOG,
+  replacesShownImage,
   type ShareDialogAction,
   type ShareLine,
   shareDialogReducer,
@@ -62,6 +63,13 @@ describe("shareDialogReducer", () => {
     strictEqual(redrawn.line, null);
     strictEqual(redrawn.copied, false);
     strictEqual(redrawn.open, true);
+  });
+
+  it("treats only a replaced picture as a redraw, not the first image", () => {
+    strictEqual(replacesShownImage(null, "blob:first"), false);
+    strictEqual(replacesShownImage("blob:a", "blob:a"), false);
+    strictEqual(replacesShownImage("blob:a", null), true);
+    strictEqual(replacesShownImage("blob:a", "blob:b"), true);
   });
 
   it("flips Copied back after its moment", () => {

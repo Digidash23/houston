@@ -16,6 +16,7 @@ import {
 } from "./org-chart-share-run";
 import {
   INITIAL_SHARE_DIALOG,
+  replacesShownImage,
   shareDialogReducer,
 } from "./org-chart-share-state";
 import type { OrgTree } from "./org-chart-tree";
@@ -68,9 +69,15 @@ export function useOrgChartShare(tree: OrgTree, phone: boolean) {
     };
   }, [clearTimer]);
   // A redrawn image is a different picture: what was said about the old one
-  // no longer holds.
+  // no longer holds. Only replacing a picture that was on screen resets: the
+  // first image arriving must not wipe the line of a share started while it
+  // was still drawing.
   const drawnUrl = preview.status === "ready" ? preview.url : null;
+  const shownUrl = useRef<string | null>(null);
   useEffect(() => {
+    const previous = shownUrl.current;
+    shownUrl.current = drawnUrl;
+    if (!replacesShownImage(previous, drawnUrl)) return;
     clearTimer();
     dispatch({ type: "redrawn", url: drawnUrl });
   }, [drawnUrl, clearTimer]);
