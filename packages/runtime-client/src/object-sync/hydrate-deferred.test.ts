@@ -53,6 +53,31 @@ test("a stalled deferred read times out; the critical set never waits on it", as
   await expect(started.deferred).rejects.toBeInstanceOf(StoreReadTimeoutError);
 });
 
+test("a large deferred read gets time for its size before it times out", async () => {
+  const root = mkdtempSync(join(tmpdir(), "hydrate-deferred-"));
+  mkdirSync(join(root, "p", "later"), { recursive: true });
+  writeFileSync(join(root, "p", "a.md"), "a");
+  // ~1 MB: the floor rate allows it about a second on top of the deadline.
+  writeFileSync(join(root, "p", "later", "pack.bin"), Buffer.alloc(1_000_000));
+  const inner = new LocalDirStore(root);
+  const store = wrap(inner, async (key, dest, opts) => {
+    if (key.endsWith("pack.bin"))
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    await inner.download(key, dest, opts);
+  });
+  const started = await startHydrate(
+    store,
+    "p",
+    mkdtempSync(join(tmpdir(), "d-")),
+    {
+      defer: (rel) => rel.startsWith("later/"),
+      deferredReadTimeoutMs: 30,
+    },
+  );
+  await started.deferred;
+  expect(started.manifest.has("later/pack.bin")).toBe(true);
+});
+
 test("deferred reads stay under their own parallelism cap", async () => {
   const files = Array.from({ length: 12 }, (_, i) => `later/f${i}.md`);
   const inner = tree(["a.md", ...files]);

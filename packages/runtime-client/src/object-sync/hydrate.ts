@@ -126,7 +126,9 @@ export async function startHydrate(
     downloadHydrationEntries({
       store:
         later && opts.deferredReadTimeoutMs !== undefined
-          ? withReadTimeout(store, opts.deferredReadTimeoutMs)
+          ? withReadTimeout(store, opts.deferredReadTimeoutMs, (key) =>
+              sizes.get(prefix ? key.slice(prefix.length + 1) : key),
+            )
           : store,
       destDir,
       entries: batch,

@@ -122,6 +122,8 @@ export function buildClaudeEnv(
     credentialStorageDir?: string;
     homeDir?: string;
     shellFencePath?: string | null;
+    /** The agent's deferred files may land after the CLI starts. */
+    filesStillLanding?: boolean;
     platform?: NodeJS.Platform;
   },
 ): Record<string, string> {
@@ -135,6 +137,11 @@ export function buildClaudeEnv(
   // Files enter a turn only through tool calls, so the CLI's `@path` prompt
   // attachments are off.
   env.CLAUDE_CODE_DISABLE_ATTACHMENTS = "1";
+  // The CLI reads `git status` at startup, outside the tool gate, while the
+  // deferred folders (`.git` included) may still be downloading. The same
+  // switch drops the Bash tool's commit and PR guidance, so only turns with
+  // deferred files set it.
+  if (opts.filesStillLanding) env.CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS = "1";
   // Scrub mode keeps the CLI's credential variables out of the commands the
   // model runs. It also forces permissionMode "default", the mode Houston
   // already runs in. The CLI's Linux build exits at startup with it on unless
