@@ -21,16 +21,16 @@ function shellWord(value: string): string {
  *
  * With a tool shell (config.toolShell) the wrapper hands the command to it
  * instead, so it runs as the deployment's tool user; the cap line, when there
- * is a cap, still runs first and the tool shell inherits it. The CLI's
- * credential variables are unset first: the tool shell keeps the environment,
- * and on Linux the CLI's own scrub is off (backends/claude/claude-env.ts).
+ * is a cap, still runs first and the tool shell inherits it.
+ *
+ * Either way the CLI's credential variables are unset first: on Linux the
+ * CLI's own scrub is off (backends/claude/claude-env.ts), and the tool shell
+ * keeps the environment it is handed.
  */
 export function claudeShellFenceScript(
   capBytes: number | null,
   toolShell: string | null = null,
 ): string {
-  // The header still names child-memory-fence.ts, where this lived: without a
-  // tool shell the script must stay byte-identical to what it always was.
   return [
     "#!/bin/bash",
     "# Written by the Houston runtime (session/child-memory-fence.ts).",
@@ -38,7 +38,7 @@ export function claudeShellFenceScript(
       ? "# Runs the Claude CLI's shell commands under a per-process memory cap."
       : "# Runs the Claude CLI's shell commands as the deployment's tool user.",
     ...(capBytes === null ? [] : [bashMemoryFencePrefix(capBytes)]),
-    ...(toolShell === null ? [] : [`unset ${CREDENTIAL_ENV_VARS.join(" ")}`]),
+    `unset ${CREDENTIAL_ENV_VARS.join(" ")}`,
     toolShell === null
       ? 'exec "$BASH" -c "$1"'
       : `exec ${shellWord(toolShell)} -c "$1"`,
@@ -68,14 +68,17 @@ let resolvedFencePath: string | null | undefined;
 
 /**
  * The absolute path of the Claude CLI shell wrapper for this runtime's cap and
- * tool shell, written into the runtime's data dir on first use. Null when
- * there is neither a cap nor a tool shell.
+ * tool shell, written into the runtime's data dir on first use. Linux always
+ * gets one, since it is what unsets the credential variables there. Elsewhere
+ * it is null when there is neither a cap nor a tool shell.
  */
-export function claudeShellFencePath(): string | null {
+export function claudeShellFencePath(
+  platform: NodeJS.Platform = process.platform,
+): string | null {
   if (resolvedFencePath === undefined) {
     const cap = resolveChildMemoryCap();
     resolvedFencePath =
-      cap === null && config.toolShell === null
+      cap === null && config.toolShell === null && platform !== "linux"
         ? null
         : ensureClaudeShellFence(
             join(config.dataDir, "bin"),

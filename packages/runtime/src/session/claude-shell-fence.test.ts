@@ -46,13 +46,14 @@ afterEach(() => {
 });
 
 describe("without a tool shell", () => {
-  test("the wrapper is byte-identical to the memory fence it always was", () => {
+  test("the wrapper caps memory and unsets the credential variables", () => {
     expect(claudeShellFenceScript(768 * MiB)).toBe(
       [
         "#!/bin/bash",
         "# Written by the Houston runtime (session/child-memory-fence.ts).",
         "# Runs the Claude CLI's shell commands under a per-process memory cap.",
         "ulimit -d 786432 2>/dev/null",
+        "unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_CODE_SUBSCRIPTION_TYPE",
         'exec "$BASH" -c "$1"',
         "",
       ].join("\n"),
@@ -166,7 +167,7 @@ describe("with a tool shell", () => {
     }
   });
 
-  test("with neither a cap nor a tool shell there is no wrapper", async () => {
+  test("off Linux, with neither a cap nor a tool shell there is no wrapper", async () => {
     delete process.env.HOUSTON_TOOL_SHELL;
     process.env.HOUSTON_DATA_DIR = scratch("fence-data-");
     vi.resetModules();
@@ -176,10 +177,57 @@ describe("with a tool shell", () => {
     }));
     try {
       const { claudeShellFencePath } = await import("./claude-shell-fence");
-      expect(claudeShellFencePath()).toBeNull();
+      expect(claudeShellFencePath("darwin")).toBeNull();
     } finally {
       vi.doUnmock("./child-memory-fence");
       vi.resetModules();
     }
   });
+
+  test("on Linux there is always a wrapper, so the credentials are unset", async () => {
+    delete process.env.HOUSTON_TOOL_SHELL;
+    process.env.HOUSTON_DATA_DIR = scratch("fence-data-");
+    vi.resetModules();
+    vi.doMock("./child-memory-fence", async (actual) => ({
+      ...(await actual<typeof import("./child-memory-fence")>()),
+      resolveChildMemoryCap: () => null,
+    }));
+    try {
+      const { claudeShellFencePath } = await import("./claude-shell-fence");
+      const path = claudeShellFencePath("linux");
+      expect(path).toBe(
+        join(process.env.HOUSTON_DATA_DIR, "bin", "claude-shell-fence"),
+      );
+      expect(readFileSync(path ?? "", "utf8")).toBe(
+        claudeShellFenceScript(null),
+      );
+    } finally {
+      vi.doUnmock("./child-memory-fence");
+      vi.resetModules();
+    }
+  });
+
+  test.skipIf(process.platform === "win32")(
+    "without a tool shell the command never sees the credential variables",
+    () => {
+      const fence = ensureClaudeShellFence(
+        join(scratch("fence-plain-"), "bin"),
+        null,
+      );
+      const out = execFileSync(
+        "/bin/bash",
+        [fence, 'echo "[$ANTHROPIC_API_KEY][$CLAUDE_CODE_OAUTH_TOKEN][$KEEP]"'],
+        {
+          encoding: "utf8",
+          env: {
+            PATH: process.env.PATH,
+            ANTHROPIC_API_KEY: "sk-ant-api03-x",
+            CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-z",
+            KEEP: "kept",
+          },
+        },
+      );
+      expect(out).toBe("[][][kept]\n");
+    },
+  );
 });

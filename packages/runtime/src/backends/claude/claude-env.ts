@@ -146,7 +146,7 @@ export function buildClaudeEnv(
   // model runs. It also forces permissionMode "default", the mode Houston
   // already runs in. The CLI's Linux build exits at startup with it on unless
   // bubblewrap is installed, and no Houston Linux image ships bubblewrap, so
-  // there the shell fence unsets those variables for the tool user instead.
+  // there the shell fence, which Linux always gets, unsets those variables.
   if ((opts.platform ?? process.platform) !== "linux")
     env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB = "1";
   const fence =
