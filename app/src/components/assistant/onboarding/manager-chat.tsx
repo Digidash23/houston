@@ -6,6 +6,7 @@ import {
   teamCardItem,
 } from "../../../lib/manager-onboarding/onboarding-feed";
 import type { ScriptLine } from "../../../lib/manager-onboarding/script";
+import { useBoardLabels } from "../../board/use-board-labels";
 import { AssistantPhoneHeader } from "../assistant-phone-header";
 import { ManagerReceipt } from "./manager-receipt";
 import { OnboardingTeamCard } from "./onboarding-team-card";
@@ -75,6 +76,7 @@ export function ManagerChat({
   }, [reveal.settled, awaitingSaid]);
   const rootRef = useRef<HTMLDivElement>(null);
   const keyboardInset = useVisualViewportInset(rootRef);
+  const { composerLabels } = useBoardLabels("assistant");
   const byKey = new Map(lines.map((line) => [`user-${line.key}`, line]));
   const answers = lines.filter((line) => line.kind === "receipt").length;
   const said = (line: ManagerLine): FeedItem =>
@@ -125,6 +127,7 @@ export function ManagerChat({
           // read as a reply on its way, with the thinking line under it.
           status={reveal.typing ? "streaming" : "ready"}
           onSend={noSend}
+          composerLabels={composerLabels}
           scrollToLatestToken={answers}
           renderUserMessage={(message) => {
             const line = byKey.get(message.key);

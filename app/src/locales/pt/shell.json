@@ -455,6 +455,7 @@
     "nativeTriggeredDescription": "Confira o Sentry para sentry-native-stack-smoke-test."
   },
   "errorToast": {
+    "offlineLaunchTitle": "Você está sem conexão",
     "genericDescription": "Algo inesperado deu errado. Tente novamente.",
     "offlineTitle": "Sem conexão",
     "offlineDescription": "Não conseguimos conectar agora. Verifique sua conexão com a internet e tente novamente.",
@@ -697,7 +698,8 @@
     }
   },
   "moreMenu": {
-    "title": "Mais"
+    "title": "Mais",
+    "backFrom": "{{label}}, voltar para Mais"
   },
   "addToWorkspace": {
     "title": "Adicionar ao seu espaço de trabalho",
@@ -719,5 +721,14 @@
     "retryLabel": "Tentar contratar {{name}} de novo",
     "removeLabel": "Remover {{name}}",
     "nameHeading": "Nome"
+  },
+  "mobileUpdate": {
+    "title": "Atualize o Houston para continuar",
+    "description": "Uma versão mais recente do app é necessária. Atualize o Houston pela loja de aplicativos.",
+    "retryDescription": "Uma versão mais recente do app é necessária. Verifique novamente se há uma atualização.",
+    "openStore": "Abrir loja",
+    "retry": "Verificar novamente",
+    "checking": "Verificando atualizações…",
+    "stillRequired": "Ainda é necessário atualizar o aplicativo."
   }
 }

@@ -20,9 +20,10 @@ import {
   PromptInputHeader,
   PromptInputTextarea,
 } from "./ai-elements/prompt-input";
-import { ComposerTrailing } from "./attachment-chip";
-import { ChatInputAttachButton } from "./chat-input-attachments";
+import { ChatInputAttachButton } from "./chat-input-attach-button";
 import type { ChatInputProps, InputStatus } from "./chat-input-types";
+import type { ChatComposerLabels } from "./chat-panel-types";
+import { ComposerTrailing } from "./composer-trailing";
 import type { DictationControl } from "./dictation-types";
 import { DictationWaveform } from "./dictation-waveform";
 
@@ -50,6 +51,8 @@ export interface ChatInputFormProps {
    *  textarea, so IT is the combobox and the list is what it controls; absent
    *  while no list is open, which reverts the textarea to a plain one. */
   mentionCombobox?: MentionComboboxAria;
+  /** The composer's control names (send, stop, attach); English defaults. */
+  labels?: ChatComposerLabels;
 }
 
 /** The ARIA a focused textarea needs to announce an open, navigable list. */
@@ -77,6 +80,7 @@ export function ChatInputForm({
   onSelect,
   onStop,
   mentionCombobox,
+  labels,
 }: ChatInputFormProps) {
   return (
     <PromptInput onSubmit={onSubmit}>
@@ -86,6 +90,7 @@ export function ChatInputForm({
 
       <ChatInputAttachButton
         attachMenu={attachMenu}
+        ariaLabel={labels?.attachFiles}
         disabled={disabled}
         onOpenFilePicker={onOpenFilePicker}
         onOpenFolderPicker={onOpenFolderPicker}
@@ -116,6 +121,7 @@ export function ChatInputForm({
         hasContent={hasContent}
         onStop={onStop}
         status={status}
+        submitLabels={{ submit: labels?.submit, stop: labels?.stop }}
       />
     </PromptInput>
   );

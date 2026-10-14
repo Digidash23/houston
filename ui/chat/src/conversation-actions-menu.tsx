@@ -45,7 +45,7 @@ export function ConversationActionsMenu({
         <DropdownMenuTrigger asChild>
           <button
             aria-label={labels.moreActions}
-            className="size-7 flex items-center justify-center rounded-md text-ink-muted hover:text-ink hover:bg-hover/50 data-[state=open]:bg-hover/50 data-[state=open]:text-ink transition-colors shrink-0"
+            className="relative size-7 flex items-center justify-center rounded-md text-ink-muted hover:text-ink hover:bg-hover/50 data-[state=open]:bg-hover/50 data-[state=open]:text-ink transition-[color,background-color,scale] active:scale-[0.96] md:active:scale-100 shrink-0 after:absolute after:-inset-2 md:after:hidden"
             ref={triggerRef}
             type="button"
           >

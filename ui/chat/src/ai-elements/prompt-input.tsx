@@ -1258,6 +1258,8 @@ export const PromptInputActionMenuItem = ({
 export type PromptInputSubmitProps = ComponentProps<typeof InputGroupButton> & {
   status?: ChatStatus;
   onStop?: () => void;
+  /** Accessible names; English defaults. The app passes its own `t()`. */
+  labels?: { submit?: string; stop?: string };
 };
 
 export const PromptInputSubmit = ({
@@ -1268,6 +1270,7 @@ export const PromptInputSubmit = ({
   onStop,
   onClick,
   children,
+  labels,
   ...props
 }: PromptInputSubmitProps) => {
   const isGenerating = status === "submitted" || status === "streaming";
@@ -1301,9 +1304,13 @@ export const PromptInputSubmit = ({
       // A stable hook for callers that point at the composer's send from
       // outside it (a guided lesson's spotlight), like `data-composer-surface`.
       data-composer-submit="true"
-      aria-label={isGenerating ? "Stop" : "Submit"}
+      aria-label={
+        isGenerating ? (labels?.stop ?? "Stop") : (labels?.submit ?? "Submit")
+      }
       className={cn(
-        "flex size-9 items-center justify-center rounded-full bg-action text-action-text hover:bg-action/90 disabled:opacity-30 transition-colors",
+        // The ::after hit-slop grows the phone target to 44px without moving
+        // a pixel; desktop keeps the 36px box.
+        "relative flex size-9 items-center justify-center rounded-full bg-action text-action-text hover:bg-action/90 disabled:opacity-30 transition-[color,background-color,scale] active:scale-[0.96] md:active:scale-100 after:absolute after:-inset-1 md:after:hidden",
         className,
       )}
       onClick={handleClick}

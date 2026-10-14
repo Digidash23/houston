@@ -1,15 +1,12 @@
 /**
  * Internal pieces used by ChatInput. Not exported from the package index.
  *  - AttachmentChip: rich attachment card with type icon + remove button
- *  - ComposerTrailing: dictate / voice / submit button row
+ *  - FolderAttachmentChip: one chip for a whole attached folder
+ * The send row beside them lives in `composer-trailing.tsx`.
  */
 
 import { FileTypeGlyphInline, FolderGlyph } from "@houston-ai/core";
-import { MicIcon, XIcon } from "lucide-react";
-import { PromptInputSubmit } from "./ai-elements/prompt-input";
-import { DictationActions, DictationTranscribing } from "./dictation-controls";
-import type { DictationControl } from "./dictation-types";
-import { isDictationActive, resolveDictationView } from "./dictation-types";
+import { XIcon } from "lucide-react";
 
 export function getExt(name: string): string {
   const dot = name.lastIndexOf(".");
@@ -64,9 +61,17 @@ export function AttachmentIcon({ ext }: { ext: string }) {
 export interface AttachmentChipProps {
   name: string;
   onRemove: () => void;
+  /** The remove button's name for `name`; English default. */
+  removeLabel?: (name: string) => string;
 }
 
-export function AttachmentChip({ name, onRemove }: AttachmentChipProps) {
+const defaultRemoveLabel = (name: string) => `Remove ${name}`;
+
+export function AttachmentChip({
+  name,
+  onRemove,
+  removeLabel = defaultRemoveLabel,
+}: AttachmentChipProps) {
   const ext = getExt(name);
   return (
     <div className="relative flex items-center gap-2.5 rounded-xl border border-ink/[0.08] bg-input pl-2.5 pr-8 py-2 min-w-0 shrink-0 max-w-[240px] shadow-sm">
@@ -83,7 +88,7 @@ export function AttachmentChip({ name, onRemove }: AttachmentChipProps) {
         type="button"
         onClick={onRemove}
         className="absolute top-1.5 right-1.5 size-4 rounded-full bg-ink/60 text-input flex items-center justify-center hover:bg-ink/80 transition-colors"
-        aria-label={`Remove ${name}`}
+        aria-label={removeLabel(name)}
       >
         <XIcon className="size-2.5" strokeWidth={3} />
       </button>
@@ -96,6 +101,7 @@ export interface FolderAttachmentChipProps {
   /** Localized "N files" line under the folder name (HOU-808). */
   countLabel: string;
   onRemove: () => void;
+  removeLabel?: (name: string) => string;
 }
 
 /** A whole attached folder as ONE chip — its files upload together and are
@@ -104,6 +110,7 @@ export function FolderAttachmentChip({
   name,
   countLabel,
   onRemove,
+  removeLabel = defaultRemoveLabel,
 }: FolderAttachmentChipProps) {
   return (
     <div className="relative flex items-center gap-2.5 rounded-xl border border-ink/[0.08] bg-input pl-2.5 pr-8 py-2 min-w-0 shrink-0 max-w-[240px] shadow-sm">
@@ -121,69 +128,10 @@ export function FolderAttachmentChip({
         type="button"
         onClick={onRemove}
         className="absolute top-1.5 right-1.5 size-4 rounded-full bg-ink/60 text-input flex items-center justify-center hover:bg-ink/80 transition-colors"
-        aria-label={`Remove ${name}`}
+        aria-label={removeLabel(name)}
       >
         <XIcon className="size-2.5" strokeWidth={3} />
       </button>
-    </div>
-  );
-}
-
-export interface ComposerTrailingProps {
-  status: "ready" | "streaming" | "submitted";
-  hasContent: boolean;
-  onStop?: () => void;
-  /** When absent (e.g. the web build) no mic affordance renders at all. */
-  dictation?: DictationControl;
-  /** Locks the composer: submit goes inert and the mic is hidden. */
-  disabled?: boolean;
-}
-
-/**
- * Trailing button row. Idle/absent: an optional mic button (idle) + the
- * always-visible submit. While a capture is in flight the composer's input row
- * is taken over by the waveform, so this slot swaps to the dictation actions
- * (✕ cancel + ✓ accept, or a transcribing spinner) and hides submit entirely.
- */
-export function ComposerTrailing({
-  status,
-  hasContent,
-  onStop,
-  dictation,
-  disabled = false,
-}: ComposerTrailingProps) {
-  const view = resolveDictationView(dictation);
-
-  if (isDictationActive(dictation) && dictation) {
-    return (
-      <div className="flex items-center gap-1.5 [grid-area:trailing]">
-        {view.kind === "transcribing" ? (
-          <DictationTranscribing label={dictation.labels.transcribing} />
-        ) : (
-          <DictationActions control={dictation} />
-        )}
-      </div>
-    );
-  }
-
-  const submitDisabled = disabled || (status === "ready" && !hasContent);
-  return (
-    <div className="flex items-center gap-1.5 [grid-area:trailing]">
-      {view.kind === "idle" && status === "ready" && !disabled && dictation && (
-        <button
-          type="button"
-          onClick={dictation.onStart}
-          className="flex h-9 w-9 items-center justify-center rounded-full text-ink-muted hover:bg-hover transition-colors"
-          aria-label={dictation.labels.start}
-        >
-          <MicIcon className="size-5" />
-        </button>
-      )}
-      <PromptInputSubmit
-        status={status}
-        onStop={onStop}
-        disabled={submitDisabled}
-      />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { json, readJson } from "./server-http";
+import { json, readJson, wireErrorMessage } from "./server-http";
 import { type ProviderWarmer, providerWarmUrl } from "./turn-provider-warm";
 
 const PREWARM_BODY_MAX_BYTES = 16 * 1024;
@@ -58,7 +58,7 @@ export async function servePrewarm(
     request = parsePrewarmRequest(await readJson(req, PREWARM_BODY_MAX_BYTES));
   } catch (error) {
     return json(res, 400, {
-      error: error instanceof Error ? error.message : String(error),
+      error: wireErrorMessage(error),
     });
   }
   const url = providerWarmUrl(

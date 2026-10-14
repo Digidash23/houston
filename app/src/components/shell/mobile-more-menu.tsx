@@ -1,12 +1,13 @@
 import { Sheet, SheetContent, SheetTitle } from "@houston-ai/core";
 import { SidebarWorkspaceSwitcher } from "@houston-ai/layout";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSurfaceGates } from "../../hooks/use-surface-gates";
 import { openAdmin } from "../../lib/open-admin";
 import { ACADEMY_VIEW_ID } from "../../lib/top-level-views";
 import { useUIStore } from "../../stores/ui";
 import { ConnectGroup } from "./connect-group";
+import { MobileMoreAccountPage } from "./mobile-more-account";
 import { MobileAccountRow, MobileMoreRowButton } from "./mobile-more-row";
 import { PlanUpgradeRow } from "./plan-upgrade-row";
 import { useAccountMenu } from "./sidebar-account-menu";
@@ -46,7 +47,24 @@ export function MobileMoreMenu() {
   const { t } = useTranslation(["shell", "common", "teams"]);
   const { showOrganization } = useSurfaceGates();
   const open = useUIStore((s) => s.mobileMoreOpen);
-  const setOpen = useUIStore((s) => s.setMobileMoreOpen);
+  const setMobileMoreOpen = useUIStore((s) => s.setMobileMoreOpen);
+  // "Your account" drills in inside the card; reopening starts at its root.
+  const [page, setPage] = useState<"root" | "account">("root");
+  // Back from the account page hands focus to the row that opened it.
+  const accountRow = useRef<HTMLButtonElement>(null);
+  const backFromAccount = useRef(false);
+  useEffect(() => {
+    if (page !== "root" || !backFromAccount.current) return;
+    backFromAccount.current = false;
+    accountRow.current?.focus();
+  }, [page]);
+  const setOpen = useCallback(
+    (next: boolean) => {
+      if (!next) setPage("root");
+      setMobileMoreOpen(next);
+    },
+    [setMobileMoreOpen],
+  );
   const openSettings = useUIStore((s) => s.openSettings);
   const setViewMode = useUIStore((s) => s.setViewMode);
   const close = useCallback(() => setOpen(false), [setOpen]);
@@ -90,46 +108,59 @@ export function MobileMoreMenu() {
           <SheetTitle className="sr-only">
             {t("shell:moreMenu.title")}
           </SheetTitle>
-          {/* Every row is a sheet row: one 16px left edge, one 16px type
+          {page === "account" ? (
+            <MobileMoreAccountPage
+              account={account}
+              onBack={() => {
+                backFromAccount.current = true;
+                setPage("root");
+              }}
+            />
+          ) : (
+            <>
+              {/* Every row is a sheet row: one 16px left edge, one 16px type
               size, 48px tall, whichever component draws it. */}
-          <div className="pt-2">
-            <SidebarWorkspaceSwitcher
-              title={face.title}
-              header={face.header}
-              dataAttrs={{ "data-testid": "more-workspace-switcher" }}
-            >
-              <WorkspaceSwitchItems
-                onSwitch={switchWorkspace}
-                createLabel={create.label}
-                onCreate={() => {
-                  // The create dialog stands on its own: the card steps aside.
-                  close();
-                  create.onCreate();
-                }}
-              />
-            </SidebarWorkspaceSwitcher>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto pb-2">
-            <PlanUpgradeRow surface="sheet" nav="reset" />
-            <div className="pb-2">
-              <ConnectGroup
-                collapsed={false}
-                surface="sheet"
-                nav="reset"
-                onNavigate={close}
-              />
-            </div>
-            <div className="border-line border-t">
-              <MobileAccountRow
-                label={account.label}
-                avatar={account.avatar}
-                menu={account.menu}
-              />
-              {showOrganization && <MobileMoreRowButton row={admin} />}
-              <MobileMoreRowButton row={academy} />
-              <MobileMoreRowButton row={settings} />
-            </div>
-          </div>
+              <div className="pt-2">
+                <SidebarWorkspaceSwitcher
+                  title={face.title}
+                  header={face.header}
+                  dataAttrs={{ "data-testid": "more-workspace-switcher" }}
+                >
+                  <WorkspaceSwitchItems
+                    onSwitch={switchWorkspace}
+                    createLabel={create.label}
+                    onCreate={() => {
+                      // The create dialog stands on its own: the card steps aside.
+                      close();
+                      create.onCreate();
+                    }}
+                  />
+                </SidebarWorkspaceSwitcher>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+                <PlanUpgradeRow surface="sheet" nav="reset" />
+                <div className="pb-2">
+                  <ConnectGroup
+                    collapsed={false}
+                    surface="sheet"
+                    nav="reset"
+                    onNavigate={close}
+                  />
+                </div>
+                <div className="border-line border-t">
+                  <MobileAccountRow
+                    label={account.label}
+                    avatar={account.avatar}
+                    onOpen={() => setPage("account")}
+                    ref={accountRow}
+                  />
+                  {showOrganization && <MobileMoreRowButton row={admin} />}
+                  <MobileMoreRowButton row={academy} />
+                  <MobileMoreRowButton row={settings} />
+                </div>
+              </div>
+            </>
+          )}
         </SheetContent>
       </Sheet>
       {/* Outside the sheet on purpose: picking "Create workspace" closes the
