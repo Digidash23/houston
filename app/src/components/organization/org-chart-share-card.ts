@@ -6,7 +6,8 @@ import {
   type ShareCardAssets,
   type ShareCardText,
 } from "./org-chart-share-card-paint";
-import { type CardWords, shareCardLayout } from "./org-chart-share-layout";
+import type { CardWords } from "./org-chart-share-columns";
+import { shareCardLayout } from "./org-chart-share-layout";
 import type { OrgTree } from "./org-chart-tree";
 
 /**

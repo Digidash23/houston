@@ -4,11 +4,13 @@ import type { Agent, OrgMember } from "@houston/engine-adapter";
 import {
   CARD,
   CARD_TEXT,
+  type CardBox,
   onCard,
 } from "../src/components/organization/org-chart-share-card-geometry.ts";
 import { shareCardLayout } from "../src/components/organization/org-chart-share-layout.ts";
 import { SHARE_CARD_CAPS } from "../src/components/organization/org-chart-share-model.ts";
 import { buildOrgTree } from "../src/components/organization/org-chart-tree.ts";
+import type { Box } from "../src/components/organization/org-chart-tree-paths.ts";
 
 const agent = (id: string, userId?: string): Agent => ({
   id,
@@ -43,6 +45,44 @@ const pathPoints = (d: string) =>
     Number(m[2]),
   ]);
 
+function noOverlaps(boxes: CardBox[]) {
+  for (const a of boxes)
+    for (const b of boxes) {
+      if (a === b) continue;
+      const apart =
+        a.x + a.w <= b.x ||
+        b.x + b.w <= a.x ||
+        a.y + a.h <= b.y ||
+        b.y + b.h <= a.y;
+      ok(apart, `${a.id} overlaps ${b.id}`);
+    }
+}
+
+/**
+ * Whether any run of `path` passes through a card. Each `M` starts a new
+ * edge; a rounded corner's control point stands in for its curve.
+ */
+function crossesCard(path: string, boxes: Box[]): boolean {
+  const inside = (box: Box, x: number, y: number) =>
+    x > box.x + 0.5 &&
+    x < box.x + box.w - 0.5 &&
+    y > box.y + 0.5 &&
+    y < box.y + box.h - 0.5;
+  for (const edge of path.split("M").filter(Boolean)) {
+    const points = pathPoints(`M${edge}`);
+    for (let i = 1; i < points.length; i++) {
+      const [ax, ay] = points[i - 1];
+      const [bx, by] = points[i];
+      for (let t = 0; t <= 1; t += 0.05)
+        if (
+          boxes.some((b) => inside(b, ax + (bx - ax) * t, ay + (by - ay) * t))
+        )
+          return true;
+    }
+  }
+  return false;
+}
+
 const big = () =>
   layout(
     Array.from({ length: 30 }, (_, i) => agent(`a${i}`, `u${i % 9}`)),
@@ -57,16 +97,7 @@ describe("shareCardLayout", () => {
       ok(box.y > CARD_TEXT.countsY + 20, `top ${box.id}`);
       ok(box.y + box.h < CARD_TEXT.footerY - 40, `bottom ${box.id}`);
     }
-    for (const a of boxes)
-      for (const b of boxes) {
-        if (a === b) continue;
-        const apart =
-          a.x + a.w <= b.x ||
-          b.x + b.w <= a.x ||
-          a.y + a.h <= b.y ||
-          b.y + b.h <= a.y;
-        ok(apart, `${a.id} overlaps ${b.id}`);
-      }
+    noOverlaps(boxes);
   });
 
   it("only draws lines between cards, never past the outermost ones", () => {
@@ -107,12 +138,16 @@ describe("shareCardLayout", () => {
     ok(small.zoom.scale > 1.5, `small ${small.zoom.scale}`);
     const [root] = small.boxes.map((b) => onCard(small.zoom, b));
     strictEqual(root.x + root.w / 2, CARD.width / 2);
-    // A full row already spans the card: it is never shrunk below 1.
+    // A full row already spans the card: it is never shrunk below 1. Six
+    // people with one AI Employee each, then "+2 people".
     const wide = layout(
-      Array.from({ length: 8 }, (_, i) => agent(`a${i}`)),
-      roster(1),
-      true,
+      Array.from({ length: 8 }, (_, i) => agent(`a${i}`, `u${i - 1}`)),
+      roster(9),
     );
+    const row = wide.boxes.filter((b) => b.shape === "column");
+    strictEqual(row.length, 7);
+    strictEqual(new Set(row.map((b) => b.y)).size, 1);
+    noOverlaps(wide.boxes);
     ok(Math.abs(wide.zoom.scale - 1) < 1e-9, `wide ${wide.zoom.scale}`);
     const large = big();
     ok(large.zoom.scale <= 1 + 1e-9, `big ${large.zoom.scale}`);
@@ -152,5 +187,67 @@ describe("shareCardLayout", () => {
     strictEqual(ai?.label, "Agent a");
     for (const box of boxes) ok(!("sublabel" in box), box.id);
     strictEqual(boxes[0].label, "Acme");
+  });
+
+  it("wraps five to seven AI Employees onto two lines, the second in the first's gaps", () => {
+    const rows = (agents: number) => {
+      const { boxes, path, zoom } = layout(
+        Array.from({ length: agents }, (_, i) => agent(`a${i}`)),
+        roster(1),
+        true,
+      );
+      const cards = boxes.slice(1);
+      const tops = [...new Set(cards.map((b) => b.y))].sort((a, b) => a - b);
+      return {
+        boxes,
+        path,
+        zoom,
+        first: cards.filter((b) => b.y === tops[0]),
+        second: cards.filter((b) => b.y === tops[1]),
+      };
+    };
+    strictEqual(rows(4).second.length, 0);
+    // 8 AI Employees show as six and a "+2": seven columns.
+    for (const [agents, across, below] of [
+      [5, 3, 2],
+      [6, 4, 2],
+      [8, 4, 3],
+    ]) {
+      const { boxes, path, zoom, first, second } = rows(agents);
+      strictEqual(first.length, across, `${agents} first`);
+      strictEqual(second.length, below, `${agents} second`);
+      noOverlaps(boxes);
+      ok(!crossesCard(path, boxes), `${agents} line through a card`);
+      ok(zoom.scale > 1 - 1e-9, `${agents} never shrinks ${zoom.scale}`);
+      const centre = CARD.width / 2;
+      const mid = (b: Box) => b.x + b.w / 2;
+      // Symmetric about the root, and every second-line card's line drops
+      // through a gap: clear of every card above it.
+      const offsets = second.map((b) => mid(b) - centre);
+      for (const offset of offsets)
+        ok(
+          offsets.some((o) => Math.abs(o + offset) < 1e-9),
+          `${agents} sym`,
+        );
+      for (const b of second)
+        for (const above of first)
+          ok(
+            mid(b) > above.x + above.w + 20 || mid(b) < above.x - 20,
+            `${agents} ${b.id} under ${above.id}`,
+          );
+    }
+  });
+
+  it("wraps a team whose people have no AI Employees yet the same way", () => {
+    const { boxes, path } = layout([], roster(6));
+    const people = boxes.filter((b) => b.node.kind === "person");
+    strictEqual(people.length, 6);
+    deepStrictEqual(
+      [...new Set(people.map((b) => b.y))].map(
+        (y) => people.filter((b) => b.y === y).length,
+      ),
+      [4, 2],
+    );
+    ok(!crossesCard(path, boxes));
   });
 });

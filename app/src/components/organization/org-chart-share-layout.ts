@@ -7,7 +7,13 @@ import {
   type CardZoom,
   NODE,
 } from "./org-chart-share-card-geometry.ts";
-import type { OrgTree, OrgTreeAgent } from "./org-chart-tree.ts";
+import {
+  type CardWords,
+  COLUMNS,
+  columnSlots,
+  columnsOf,
+} from "./org-chart-share-columns.ts";
+import type { OrgTree } from "./org-chart-tree.ts";
 import {
   type Box,
   connectorPath,
@@ -24,8 +30,8 @@ import {
  * person's AI Employees stacked under them, needs height more than width,
  * and a square image takes the most room LinkedIn's feed gives a post. The
  * root card sits centred under the header, the first row spreads across
- * as equal columns, and each person's AI Employees stack under them, then
- * one "+N" for the rest.
+ * as equal columns (`org-chart-share-columns.ts`), and each person's AI
+ * Employees stack under them, then one "+N" for the rest.
  */
 
 const TREE = {
@@ -33,9 +39,6 @@ const TREE = {
   rowY: 378,
   /** Space between stacked cards, which the connector spans. */
   gap: 24,
-  maxColumn: 236,
-  columnGap: 14,
-  margin: 56,
   radius: 12,
 } as const;
 
@@ -48,7 +51,7 @@ const ROOM = {
   top: CARD_TEXT.countsY + 70,
   bottom: CARD_TEXT.footerY - 80,
   /** The margin the columns are laid out in, so a full row is never shrunk. */
-  side: TREE.margin,
+  side: COLUMNS.margin,
 } as const;
 const MAX_ZOOM = 1.8;
 
@@ -70,68 +73,6 @@ function zoomFor(boxes: Box[]): CardZoom {
     x: cx - cx * scale,
     y: ROOM.top + (roomH - (bottom - top) * scale) / 2 - top * scale,
   };
-}
-
-/** The words the layout writes on cards, all authored `t()` copy. */
-export interface CardWords {
-  /** "+4 people". */
-  morePeople: (count: number) => string;
-  /** "+9 AI Employees". */
-  moreAgents: (count: number) => string;
-}
-
-interface Column {
-  head: Omit<CardBox, "x" | "y" | "w" | "h" | "shape">;
-  stack: Omit<CardBox, "x" | "y" | "w" | "h" | "shape">[];
-}
-
-function columnsOf(tree: OrgTree, words: CardWords): Column[] {
-  type Entry = Column["head"];
-  const agentEntry = (agent: OrgTreeAgent): Entry => ({
-    id: NODE_ID.agent(agent.id),
-    node: { kind: "agent", agent },
-    label: agent.name,
-  });
-  const more = (id: string, count: number): Entry => ({
-    id,
-    node: { kind: "more", count } as CardNode,
-  });
-  const columns: Column[] = tree.branches.map((branch) => {
-    const stack = branch.agents.map(agentEntry);
-    if (branch.moreAgents > 0)
-      stack.push(
-        more(NODE_ID.moreAgents(branch.person.userId), branch.moreAgents),
-      );
-    return {
-      head: {
-        id: NODE_ID.person(branch.person.userId),
-        node: { kind: "person", person: branch.person },
-        label: branch.person.name,
-      },
-      stack,
-    };
-  });
-  // The people the cap left out. The header's count line still holds the
-  // AI Employees they bring.
-  if (tree.morePeople > 0)
-    columns.push({
-      head: {
-        ...more(NODE_ID.morePeople, tree.morePeople),
-        label: words.morePeople(tree.morePeople),
-      },
-      stack: [],
-    });
-  for (const agent of tree.rootAgents)
-    columns.push({ head: agentEntry(agent), stack: [] });
-  if (tree.moreRootAgents > 0)
-    columns.push({
-      head: {
-        ...more(NODE_ID.moreRoot, tree.moreRootAgents),
-        label: words.moreAgents(tree.moreRootAgents),
-      },
-      stack: [],
-    });
-  return columns;
 }
 
 export function shareCardLayout(tree: OrgTree, words: CardWords): CardLayout {
@@ -156,22 +97,20 @@ export function shareCardLayout(tree: OrgTree, words: CardWords): CardLayout {
   ];
 
   const columns = columnsOf(tree, words);
-  const n = columns.length;
-  const usable = CARD.width - TREE.margin * 2 - TREE.columnGap * (n - 1);
-  const w = Math.min(TREE.maxColumn, usable / Math.max(n, 1));
-  const left = cx - (w * n + TREE.columnGap * (n - 1)) / 2;
-
+  const slots = columnSlots(columns);
+  const secondRowY = TREE.rowY + NODE.column.h + COLUMNS.rowGap;
   columns.forEach((column, index) => {
-    const x = left + index * (w + TREE.columnGap);
+    const { x, w, row } = slots[index];
+    const top = row === 0 ? TREE.rowY : secondRowY;
     boxes.push({
       ...column.head,
       shape: "column",
       x,
-      y: TREE.rowY,
+      y: top,
       w,
       h: NODE.column.h,
     });
-    let y = TREE.rowY + NODE.column.h + TREE.gap;
+    let y = top + NODE.column.h + TREE.gap;
     for (const entry of column.stack) {
       const shape = entry.node.kind === "more" ? "moreLeaf" : "leaf";
       const h = NODE[shape].h;
