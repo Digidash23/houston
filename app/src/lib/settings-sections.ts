@@ -18,6 +18,7 @@ export const SETTINGS_SECTION_IDS = [
   "plan",
   "apiKeys",
   "channels",
+  "morningBriefing",
   "shortcuts",
   "reportBug",
   "migration",
@@ -65,7 +66,7 @@ export function settingsSectionFromDeepLink(
 
 /** The capability flags that decide whether a section exists here. */
 type SectionCapabilities =
-  | { plan?: boolean; apiKeys?: boolean }
+  | { plan?: boolean; apiKeys?: boolean; heartbeat?: boolean }
   | null
   | undefined;
 
@@ -77,7 +78,8 @@ export interface SettingsSurface {
 /**
  * Billing exists only where the deployment serves the personal plan (C19);
  * API keys only where it serves the public API (C9: the hosted gateway, which
- * desktop and web both reach once signed in). Keyboard shortcuts need a
+ * desktop and web both reach once signed in); the morning briefing only where
+ * the deployment runs it (`heartbeat`). Keyboard shortcuts need a
  * keyboard, so a touch surface (phone width, or the iOS/Android app at any
  * width) has none.
  */
@@ -88,6 +90,7 @@ export function settingsSectionAvailable(
 ): boolean {
   if (section === "plan") return capabilities?.plan === true;
   if (section === "apiKeys") return capabilities?.apiKeys === true;
+  if (section === "morningBriefing") return capabilities?.heartbeat === true;
   if (section === "shortcuts") return !surface.touch;
   return true;
 }

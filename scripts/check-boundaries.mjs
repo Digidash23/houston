@@ -174,6 +174,7 @@ const ENGINE_CLIENT_OWNERS = new Set([
   "app/src/lib/conversations-facade.ts",
   "app/src/lib/composer-prewarm-facade.ts",
   "app/src/lib/browser-live-facade.ts",
+  "app/src/lib/heartbeat-facade.ts",
 ]);
 const ENGINE_CALL_BYPASS = new Set([
   "app/src/components/agent-actions/use-copy-agent.ts",

@@ -576,7 +576,34 @@
     "retry": "Try again",
     "loading": "Loading your org chart...",
     "empty": "No AI Employees yet",
-    "emptyBody": "Hire your first AI Employee and it appears here, with the people who manage it and use it."
+    "emptyBody": "Hire your first AI Employee and it appears here, with the people who manage it and use it.",
+    "tree": {
+      "label": "Org chart",
+      "moreAgents_one": "+{{count}} AI Employee",
+      "moreAgents_other": "+{{count}} AI Employees",
+      "morePeople_one": "+{{count}} person",
+      "morePeople_other": "+{{count}} people"
+    },
+    "share": {
+      "open": "Share",
+      "title": "Share your org chart",
+      "description": "A picture of your org chart, ready to post on LinkedIn.",
+      "previewAlt": "Your org chart as an image",
+      "drawing": "Drawing your org chart...",
+      "failed": "The image could not be drawn.",
+      "linkedIn": "Share on LinkedIn",
+      "download": "Download image",
+      "copyImage": "Copy image",
+      "copiedImage": "Copied",
+      "copied": "Image copied. Paste it into your LinkedIn post.",
+      "saved": "Image saved. Add it to your LinkedIn post.",
+      "linkedInBlocked": "Your browser kept LinkedIn from opening.",
+      "openLinkedIn": "Open LinkedIn",
+      "cardCounts": "{{people}}, {{agents}}",
+      "site": "gethouston.ai",
+      "post": "This is my organization. These are all the AI Employees at {{company}}, working in Houston.\n\ngethouston.ai",
+      "postPersonal": "These are all my AI Employees, working in Houston.\n\ngethouston.ai"
+    }
   },
   "phoneEmployee": {
     "emptyGroup": {

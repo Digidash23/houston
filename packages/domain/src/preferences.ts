@@ -84,3 +84,27 @@ export async function setPreference(
   return (await updatePreference(store, workspaceId, key, () => value))
     .preferences;
 }
+
+/**
+ * Write `value` only when the key holds nothing (absent, null or blank), under
+ * the same lock as every other write. `created: false` carries the value that
+ * was already there, untouched.
+ */
+export async function createPreference(
+  store: TextStore,
+  workspaceId: string,
+  key: string,
+  value: string | null,
+): Promise<{ created: boolean; value: string | null }> {
+  const held = (current: string | null) =>
+    current !== null && current.trim() !== "";
+  const { previous } = await updatePreference(
+    store,
+    workspaceId,
+    key,
+    (current) => (held(current) ? current : value),
+  );
+  return previous !== null && held(previous)
+    ? { created: false, value: previous }
+    : { created: true, value };
+}

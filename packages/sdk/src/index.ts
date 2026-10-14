@@ -51,6 +51,7 @@ export { CommandRegistry, isCommandEnvelope } from "./commands";
 export * from "./contracts-account";
 export * from "./contracts-agent";
 export * from "./contracts-conversation";
+export * from "./contracts-preferences";
 export * from "./local-model-bridge";
 export type { ModuleContext } from "./module-context";
 export {
@@ -63,6 +64,15 @@ export {
   delegationWithMode,
   otherAddressableAgents,
 } from "./modules/delegation";
+// The AI Manager's daily morning briefing: settings, last run, "brief me now".
+export {
+  classifyHeartbeatFailure,
+  HeartbeatCommand,
+  type HeartbeatCommandType,
+  type HeartbeatFailure,
+  HeartbeatHttpError,
+  type HeartbeatModule,
+} from "./modules/heartbeat";
 export * from "./modules/plan/announcement-model";
 export * from "./modules/plan/billing-model";
 export * from "./modules/plan/schedule-floor";

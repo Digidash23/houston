@@ -1,9 +1,13 @@
 import { isAbsolute } from "node:path";
 import { firstByteDeadlineMs } from "../../ai/first-byte";
 import { config } from "../../config";
-import { claudeShellFencePath } from "../../session/claude-shell-fence";
+import {
+  claudeShellFencePath,
+  claudeShellPrefix,
+} from "../../session/claude-shell-fence";
 import type { ClaudeToken } from "./backend-types";
 import { tokenEnv } from "./claude-token-env";
+import { CREDENTIAL_ENV_VARS } from "./credential-env-vars";
 
 /**
  * Building the environment for the Claude Agent SDK subprocess.
@@ -22,21 +26,6 @@ import { tokenEnv } from "./claude-token-env";
  * agent could call the control plane's `/sandbox/credential` directly and pull
  * the workspace's real provider tokens — defeating the short-TTL Gate-#2 design.
  */
-
-/**
- * Every env var the Claude Agent SDK reads to authenticate. The SDK honors all
- * three (verified in the installed `sdk.mjs`): a setup/OAuth token via
- * `CLAUDE_CODE_OAUTH_TOKEN`, and an API key via either `ANTHROPIC_API_KEY` or
- * the `ANTHROPIC_AUTH_TOKEN` alias. We never copy these from the ambient env;
- * exactly the one for the connected credential is set, so exactly one survives.
- */
-const CREDENTIAL_ENV_VARS = [
-  "CLAUDE_CODE_OAUTH_TOKEN",
-  "ANTHROPIC_API_KEY",
-  "ANTHROPIC_AUTH_TOKEN",
-  // Not a secret, but a fact about the credential: never inherited.
-  "CLAUDE_CODE_SUBSCRIPTION_TYPE",
-] as const;
 
 /**
  * The ALLOWLIST of ambient env vars copied verbatim into the subprocess.
@@ -123,11 +112,12 @@ const PASSTHROUGH_ENV_VARS: ReadonlySet<string> = new Set(
  * byte-identical to before that guard existed.
  *
  * `shellFencePath` is the wrapper the CLI runs its Bash tool through
- * (`CLAUDE_CODE_SHELL_PREFIX`), capping the memory of what the model spawns
- * inside a memory-limited container (session/child-memory-fence.ts). Left
- * undefined it resolves from the container; null (or no container limit)
- * sets nothing. An ambient prefix is never copied — it is not in the
- * allowlist, and the fence is the only wrapper this subprocess may run.
+ * (`CLAUDE_CODE_SHELL_PREFIX`). It unsets the CLI's credential variables and
+ * caps the memory of what the model spawns inside a memory-limited container
+ * (session/claude-shell-fence.ts). Left undefined it resolves for this
+ * runtime, which on Linux always has one; null sets nothing. An ambient
+ * prefix is never copied — it is not in the allowlist, and the fence is the
+ * only wrapper this subprocess may run.
  */
 export function buildClaudeEnv(
   token: ClaudeToken | undefined,
@@ -136,6 +126,9 @@ export function buildClaudeEnv(
     credentialStorageDir?: string;
     homeDir?: string;
     shellFencePath?: string | null;
+    /** The agent's deferred files may land after the CLI starts. */
+    filesStillLanding?: boolean;
+    platform?: NodeJS.Platform;
   },
 ): Record<string, string> {
   const env: Record<string, string> = {};
@@ -148,15 +141,23 @@ export function buildClaudeEnv(
   // Files enter a turn only through tool calls, so the CLI's `@path` prompt
   // attachments are off.
   env.CLAUDE_CODE_DISABLE_ATTACHMENTS = "1";
+  // The CLI reads `git status` at startup, outside the tool gate, while the
+  // deferred folders (`.git` included) may still be downloading. The same
+  // switch drops the Bash tool's commit and PR guidance, so only turns with
+  // deferred files set it.
+  if (opts.filesStillLanding) env.CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS = "1";
   // Scrub mode keeps the CLI's credential variables out of the commands the
   // model runs. It also forces permissionMode "default", the mode Houston
-  // already runs in.
-  env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB = "1";
+  // already runs in. The CLI's Linux build exits at startup with it on unless
+  // bubblewrap is installed, and no Houston Linux image ships bubblewrap, so
+  // there the shell fence, which Linux always gets, unsets those variables.
+  const platform = opts.platform ?? process.platform;
+  if (platform !== "linux") env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB = "1";
   const fence =
     opts.shellFencePath === undefined
-      ? claudeShellFencePath()
+      ? claudeShellFencePath(platform)
       : opts.shellFencePath;
-  if (fence !== null) env.CLAUDE_CODE_SHELL_PREFIX = fence;
+  if (fence !== null) env.CLAUDE_CODE_SHELL_PREFIX = claudeShellPrefix(fence);
   // Claude Code's request timeout covers only the wait for the response
   // headers, and it retries a request that timed out: the CLI's own
   // cancel-and-resend at the first-byte deadline (ai/first-byte.ts). A stream

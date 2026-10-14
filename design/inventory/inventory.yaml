@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 131
+version: 132
 
 components:
   - id: agent-delegation-settings
@@ -779,7 +779,7 @@ components:
       changes the card's height; a change (not a mount) settles in, and the
       waiting dot's ring breathes only without reduced motion.
     a11y: The Open action is visible only while waiting, keyboard reachable, at least 44px high on phones, and its accessible name names the site. The outcome is a text chip whose icon is decorative; colour is never the only signal.
-    since: 130
+    since: 131
 
   - id: browser-live-view
     title: Live browser view
@@ -802,7 +802,7 @@ components:
       from 0.96, both leave faster than they came, and reduced motion keeps
       only a fade.
     a11y: Opening focuses the frame, not the close X. A phone clamps the instruction to three lines with a visible Show more. Every action is a visible button (no hover-only affordances); the address field is 16px and labelled; Escape typed into the page goes to the page, not the dialog; the ended and lost states are announced as status text, and Try again is a visible button.
-    since: 130
+    since: 131
 
   - id: chat-parent-mission-link
     title: Parent mission link
@@ -1587,17 +1587,23 @@ components:
   - id: org-chart
     title: Org chart
     purpose: >-
-      The space's month of work and its AI Employees ranked by the hours they
-      worked, with the people who manage and use each one, in Admin.
-    anatomy: [hero-band, space-name, summary-sentence, hero-figure,
-      supporting-stats, area-chart, ledger-caption, relation-key,
+      The space drawn as an org chart of its people and their AI Employees,
+      shared to LinkedIn from a small dialog, then the space's month of work and
+      its AI Employees ranked by the hours they worked, with the people who
+      manage and use each one, in Admin.
+    anatomy: [share-pill, tree-root, tree-person, tree-agent, tree-connector,
+      tree-overflow, share-dialog, share-preview, share-actions, share-line,
+      hero-band, space-name, summary-sentence,
+      hero-figure, supporting-stats, area-chart, ledger-caption, relation-key,
       featured-line, column-captions, ledger-line, hours-bar, face-group,
       relation-dot, retry-line]
     states: [loading, empty, ready, hours-loading, hours-hidden,
       hours-unavailable, messages-loading, messages-hidden,
       messages-unavailable, messages-not-counted, people-hidden,
-      shared-with-everyone, lit]
-    variants: [ledger, dense, phone, personal, scoped]
+      shared-with-everyone, lit, tree-capped, share-drawing, share-ready,
+      share-failed, share-copied, share-saved, share-blocked]
+    variants: [ledger, dense, phone, personal, scoped, tree-comb,
+      tree-outline]
     behavior: >-
       The hero names the team space (or, in a personal space, its person)
       with one sentence of who is here and what they did in the last 30 days,
@@ -1623,7 +1629,39 @@ components:
       no messages total unless every line's messages are counted, and a line
       whose messages the gateway does not count for them says "Not counted".
       A personal space draws no people columns. The phone stacks each line in
-      two rows.
+      two rows. Above the hero the space is drawn as an org chart: the space
+      at the top, its people under it (owners, then admins, then users, by
+      name), and each AI Employee under its home person: its first admin
+      manager by name, else its one user, else the first owner (also where
+      an AI Employee the caller cannot see the people of goes). Every node is
+      a compact card with a face and a name and nothing under it; people
+      open People on that person and AI Employees open their board, both
+      pressing in on tap. Rounded elbow lines are measured from where the
+      cards land. Desktop reads top-down with the space centred over its
+      people and scrolls sideways when wide, opening on its left edge (the
+      owners first) with the sides that hide more faded; the phone
+      reads it as an indented outline. The cards fade up once when the chart
+      mounts, without the rise under reduced motion. Past the caps a "+N"
+      says how many people or AI Employees are left out, once: "+4 people" on
+      screen and across the image's first row, and a bare "+3" under a
+      person in the image, where the card is too narrow for the words. A personal space
+      draws its person over every AI Employee. The Share pill opens a small dialog: its title, a large preview
+      of a square PNG of the chart (light paper, white cards, each AI
+      Employee's colour as a dot, the space's name and counts over it, no
+      roles), drawn while the chart is on screen so it is usually ready,
+      with a quiet skeleton while it draws and one line with Try again if it
+      fails; Share on LinkedIn; then Download image and Copy image (where
+      the clipboard takes images; it reads "Copied" for two seconds). On a
+      phone whose share sheet takes files, Share on LinkedIn hands the
+      sheet the image and the post. Everywhere else it opens LinkedIn's
+      composer with the post written (in the app's language, ending on
+      gethouston.ai) while the image goes on the clipboard, and one line
+      under the buttons says "Image copied. Paste it into your LinkedIn
+      post."; where the clipboard refuses, the image is saved and the line
+      says to add it. A blocked tab gets a link to LinkedIn on that line.
+      The dialog stays open, so the line is there when the person comes
+      back. A photo that cannot be drawn becomes
+      initials.
     a11y: >-
       The space name is a level-2 heading; the ledger is a labelled region
       of ordered lists; every line is a button named for opening that AI

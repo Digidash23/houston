@@ -1,4 +1,7 @@
-import { afterEach, expect, test } from "vitest";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, expect, test, vi } from "vitest";
 import { buildClaudeEnv } from "./claude-env";
 
 const savedHome = process.env.HOME;
@@ -102,16 +105,65 @@ test("an ambient plan never reaches the subprocess", () => {
   }
 });
 
-test("every env asks the CLI to scrub credentials from the model's commands", () => {
-  for (const token of [
-    { kind: "api-key" as const, value: "sk-ant-api03-x" },
-    { kind: "oauth-token" as const, value: "sk-ant-oat01-x" },
-    undefined,
-  ]) {
-    const env = buildClaudeEnv(token, {
-      configDir: "/cfg",
-      shellFencePath: null,
-    });
-    expect(env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, token?.kind).toBe("1");
+test("off Linux every env asks the CLI to scrub credentials from the model's commands", () => {
+  for (const platform of ["darwin", "win32"] as const) {
+    for (const token of [
+      { kind: "api-key" as const, value: "sk-ant-api03-x" },
+      { kind: "oauth-token" as const, value: "sk-ant-oat01-x" },
+      undefined,
+    ]) {
+      const env = buildClaudeEnv(token, {
+        configDir: "/cfg",
+        shellFencePath: null,
+        platform,
+      });
+      expect(env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, platform).toBe("1");
+    }
+  }
+});
+
+// The CLI's Linux build exits 1 at startup ("bubblewrap is required for
+// subprocess env scrubbing") when scrub is on and bwrap is missing, which
+// failed every Claude turn on E2B.
+test("on Linux the env never turns on the CLI's scrub", () => {
+  const env = buildClaudeEnv(
+    { kind: "api-key", value: "sk-ant-api03-x" },
+    { configDir: "/cfg", shellFencePath: null, platform: "linux" },
+  );
+  expect(env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).toBeUndefined();
+  expect(env.ANTHROPIC_API_KEY).toBe("sk-ant-api03-x");
+});
+
+test("on Linux the scrub is off and the fence that unsets the credentials is on", async () => {
+  const savedDataDir = process.env.HOUSTON_DATA_DIR;
+  const savedToolShell = process.env.HOUSTON_TOOL_SHELL;
+  const dataDir = mkdtempSync(join(tmpdir(), "claude-env-linux-"));
+  process.env.HOUSTON_DATA_DIR = dataDir;
+  delete process.env.HOUSTON_TOOL_SHELL;
+  vi.resetModules();
+  vi.doMock("../../session/child-memory-fence", async (actual) => ({
+    ...(await actual<typeof import("../../session/child-memory-fence")>()),
+    resolveChildMemoryCap: () => null,
+  }));
+  try {
+    const fresh = await import("./claude-env");
+    const env = fresh.buildClaudeEnv(
+      { kind: "api-key", value: "sk-ant-api03-x" },
+      { configDir: "/cfg", platform: "linux" },
+    );
+    const fence = join(dataDir, "bin", "claude-shell-fence");
+    expect(env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).toBeUndefined();
+    expect(env.CLAUDE_CODE_SHELL_PREFIX).toBe(fence);
+    expect(readFileSync(fence, "utf8")).toContain(
+      "unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY",
+    );
+  } finally {
+    vi.doUnmock("../../session/child-memory-fence");
+    vi.resetModules();
+    rmSync(dataDir, { recursive: true });
+    if (savedDataDir === undefined) delete process.env.HOUSTON_DATA_DIR;
+    else process.env.HOUSTON_DATA_DIR = savedDataDir;
+    if (savedToolShell !== undefined)
+      process.env.HOUSTON_TOOL_SHELL = savedToolShell;
   }
 });

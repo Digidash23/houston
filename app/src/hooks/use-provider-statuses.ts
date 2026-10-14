@@ -102,13 +102,20 @@ export function useProviderStatuses(): ProviderStatusesState {
   const newEngine = newEngineActive();
   const providerCapabilities =
     capabilities ?? (newEngine ? EMPTY_PROVIDER_CAPABILITIES : undefined);
-  // The pi-ai catalog hydrates `PROVIDERS` IN PLACE, so `getVisibleProviders`
-  // grows from the override-only seed to the full runnable set with no React
-  // signal. Fold `updatedAt` into the query key so statuses are re-probed for
-  // the FULL set the moment the catalog resolves — not just the seed captured on
-  // first mount. `useProviderCatalog` shares the `["provider-catalog"]` query, so
-  // this reads the cache and never triggers a second catalog fetch.
-  const { updatedAt: catalogUpdatedAt } = useProviderCatalog();
+  // The pi-ai catalog hydrates `PROVIDERS` IN PLACE, during this render, so
+  // `getVisibleProviders` grows from the override-only seed to the full
+  // runnable set with no React signal. The ids it returns key the query: the
+  // statuses are re-probed for the FULL set the moment the catalog resolves,
+  // while a re-read of an unchanged catalog keeps the key and its data (see
+  // `providerStatusesQueryKey`). `useProviderCatalog` shares the
+  // `["provider-catalog"]` query, so this reads the cache and never triggers a
+  // second catalog fetch.
+  useProviderCatalog();
+  const providerIds = getVisibleProviders({
+    newEngine,
+    desktop: osIsTauri(),
+    capabilities: providerCapabilities,
+  }).map((p) => p.id);
   const workspaceId = useWorkspaceStore((s) => s.current?.id ?? null);
   const agentsLoading = useAgentStore((s) => s.loading);
   const agentsLoaded = useAgentStore((s) => s.loaded);
@@ -120,25 +127,19 @@ export function useProviderStatuses(): ProviderStatusesState {
   const query = useQuery({
     queryKey: providerStatusesQueryKey({
       base: queryKeys.providerStatuses(capabilities?.providers ?? null),
-      catalogUpdatedAt,
+      providerIds,
       workspaceId,
     }),
     queryFn: async (): Promise<Record<string, ProviderStatus>> => {
-      const providers = getVisibleProviders({
-        newEngine,
-        desktop: osIsTauri(),
-        capabilities: providerCapabilities,
-      });
       // ONE round-trip for every provider (HOU-650): on the new engine this is a
       // single listProviders(), versus the old per-provider probe that fired N
       // identical round-trips to the agent's sandbox each time the picker opened.
-      const ids = providers.map((p) => p.id);
-      const scan = await tauriProvider.checkAllStatuses(ids);
+      const scan = await tauriProvider.checkAllStatuses(providerIds);
       // The adapter never rejects — an unreachable engine resolves every
       // provider as `unknown` (HOU-1153). Reject on that shape so this query
       // has an ERROR state: without it the picker read "every provider is
       // checking" as a settled answer and spun forever.
-      if (classifyStatusScan(ids, scan) === "unreachable")
+      if (classifyStatusScan(providerIds, scan) === "unreachable")
         throw new ProviderProbeUnreachableError();
       return scan;
     },

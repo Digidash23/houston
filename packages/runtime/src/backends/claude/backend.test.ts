@@ -60,6 +60,16 @@ test("buildClaudeEnv pins the isolated config dir", () => {
   expect(env.CLAUDE_CONFIG_DIR).toBe("/data/cfg");
 });
 
+test("only a session whose files may still be landing skips the CLI's git context", () => {
+  const landing = buildClaudeEnv(oauth, {
+    configDir: "/cfg",
+    filesStillLanding: true,
+  });
+  expect(landing.CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS).toBe("1");
+  const settled = buildClaudeEnv(oauth, { configDir: "/cfg" });
+  expect(settled.CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS).toBeUndefined();
+});
+
 test("an OAuth token scrubs a stale ambient ANTHROPIC_API_KEY", () => {
   // The exact fail-open: the host process has an API key, the user connects an
   // OAuth subscription token. The subprocess must carry ONLY the OAuth token.

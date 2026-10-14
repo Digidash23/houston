@@ -51,15 +51,19 @@ export function providerProbeReady(agents: AgentsSettledSignals): boolean {
  * stale-while-revalidate. A distinct key per space means the new space starts
  * from no data (a visible "checking"), never from another tenant's answer.
  *
- * `catalogUpdatedAt` stays in the key so statuses are re-probed for the FULL
- * provider set the moment the pi-ai catalog hydrates `PROVIDERS` in place.
+ * `providerIds` is the set the probe asks about, so statuses are re-probed for
+ * the FULL set the moment the pi-ai catalog hydrates `PROVIDERS` in place. It
+ * must be the ids and never the catalog query's `dataUpdatedAt`: every re-read
+ * of an unchanged catalog (each event-stream reconnect re-reads every query)
+ * would move the key to an empty entry, and the composer's send pin, which
+ * waits on these statuses, held every send for the full settle timeout (H-055).
  */
 export function providerStatusesQueryKey(opts: {
   base: readonly string[];
-  catalogUpdatedAt: number;
+  providerIds: readonly string[];
   workspaceId: string | null;
 }): readonly unknown[] {
-  return [...opts.base, opts.catalogUpdatedAt, opts.workspaceId];
+  return [...opts.base, opts.providerIds, opts.workspaceId];
 }
 
 /**

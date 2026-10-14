@@ -20,12 +20,21 @@ import {
 } from "@houston/runtime-client";
 import type { ModuleContext } from "../../module-context";
 import { requireString } from "../payload";
+import {
+  seedTimezone as seedTimezoneWith,
+  type TimezoneSeedInput,
+  type TimezoneSeedResult,
+} from "./timezone";
+
+export type { TimezoneSeedInput, TimezoneSeedResult } from "./timezone";
+export { TIMEZONE_PREFERENCE } from "./timezone";
 
 /** The write vocabulary — the same constants back the facade and `dispatch`. */
 export const PreferencesCommand = {
   Get: "preferences/get",
   Set: "preferences/set",
   SetLocale: "workspace/setLocale",
+  SeedTimezone: "preferences/seedTimezone",
 } as const;
 
 export type PreferencesCommandType =
@@ -39,6 +48,8 @@ export interface PreferencesModule {
   set(key: string, value: string | null): Promise<string | null>;
   /** Set (or clear, with `null`) the workspace's UI-locale override. */
   setLocale(workspaceId: string, locale: string | null): Promise<Workspace>;
+  /** Save the device's zone as `timezone` when the person has none (./timezone). */
+  seedTimezone(input: TimezoneSeedInput): Promise<TimezoneSeedResult>;
 }
 
 /** A nullable-string field off an untrusted command payload. */
@@ -94,6 +105,19 @@ export function createPreferencesModule(ctx: ModuleContext): PreferencesModule {
   ): Promise<Workspace> =>
     run(() => client.setWorkspaceLocale(workspaceId, locale));
 
+  /**
+   * Saves the device's time zone as the person's when they have none yet.
+   * @assistant group:settings hidden: UI plumbing; the app runs it on its own at sign-in with the zone of the screen the person is sitting at.
+   */
+  const seedTimezone = (input: TimezoneSeedInput) =>
+    seedTimezoneWith(
+      {
+        get,
+        create: (key, value) => run(() => client.createPreference(key, value)),
+      },
+      input,
+    );
+
   ctx.registerCommand(PreferencesCommand.Get, (p) =>
     get(requireString(p, "key")),
   );
@@ -104,5 +128,12 @@ export function createPreferencesModule(ctx: ModuleContext): PreferencesModule {
     setLocale(requireString(p, "workspaceId"), optionalString(p, "locale")),
   );
 
-  return { get, set, setLocale };
+  ctx.registerCommand(PreferencesCommand.SeedTimezone, (p) =>
+    seedTimezone({
+      detected: requireString(p, "detected"),
+      legacy: optionalString(p, "legacy"),
+    }),
+  );
+
+  return { get, set, setLocale, seedTimezone };
 }

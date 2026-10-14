@@ -3,7 +3,7 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
-## v131 - 2026-10-13
+## v132 - 2026-10-13
 
 The browser hand-off reads at a glance. The chat card shows a soft live dot
 while it waits and keeps Open and how it ended in the same place under the
@@ -16,7 +16,7 @@ the attention colour in its last minute, and I'm done is clearly the main
 answer with Cancel beside it. The sheet rises from the bottom and the
 dialog scales in, both leaving faster than they arrive.
 
-## v130 - 2026-10-10
+## v131 - 2026-10-10
 
 An AI Employee can hand its browser to the person. When a website needs the
 person themselves (signing in, a verification code, a captcha), the chat
@@ -29,6 +29,24 @@ the employee works and after it finishes, with the employee's reply under
 it, and while the card waits that reply stays still. After the hand-off the
 card keeps how it ended: done, not finished, time ran out, or no longer
 waiting.
+
+## v130 - 2026-10-14
+
+The org chart looks like one, and leads Admin > Org chart, above the hero
+and the ledger: the space at the top, its people under it, and each AI
+Employee under the person it belongs to, as compact cards (a face and a
+name) joined by rounded lines. An AI Employee hangs under its first admin
+manager, else its one user, else the first owner (every owner manages every
+AI Employee, so management alone would hang them all on the owner). Desktop
+reads top-down and, when wide, opens on the owners and fades the sides
+that scroll; the phone reads it as an
+indented outline. The cards fade up once and press in on tap. The Share pill
+opens a small dialog with a large preview of a square image of the
+chart, Share on LinkedIn, Download image and Copy image. Share on LinkedIn
+opens the composer with a short post in the app's language while the image
+goes on the clipboard, and a line under the buttons says to paste it in
+(or that it was saved, where the clipboard refuses). On a phone the share
+sheet takes the image and the post.
 
 ## v129 - 2026-10-10
 

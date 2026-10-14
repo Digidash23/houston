@@ -576,7 +576,34 @@
     "retry": "Tentar novamente",
     "loading": "Carregando seu organograma...",
     "empty": "Ainda não há funcionários de IA",
-    "emptyBody": "Contrate seu primeiro funcionário de IA e ele aparece aqui, com as pessoas que o gerenciam e o usam."
+    "emptyBody": "Contrate seu primeiro funcionário de IA e ele aparece aqui, com as pessoas que o gerenciam e o usam.",
+    "tree": {
+      "label": "Organograma",
+      "moreAgents_one": "+{{count}} funcionário de IA",
+      "moreAgents_other": "+{{count}} funcionários de IA",
+      "morePeople_one": "+{{count}} pessoa",
+      "morePeople_other": "+{{count}} pessoas"
+    },
+    "share": {
+      "open": "Compartilhar",
+      "title": "Compartilhe seu organograma",
+      "description": "Uma imagem do seu organograma, pronta para publicar no LinkedIn.",
+      "previewAlt": "Seu organograma como imagem",
+      "drawing": "Desenhando seu organograma...",
+      "failed": "Não foi possível desenhar a imagem.",
+      "linkedIn": "Compartilhar no LinkedIn",
+      "download": "Baixar imagem",
+      "copyImage": "Copiar imagem",
+      "copiedImage": "Copiada",
+      "copied": "Imagem copiada. Cole na sua publicação do LinkedIn.",
+      "saved": "Imagem salva. Adicione à sua publicação do LinkedIn.",
+      "linkedInBlocked": "Seu navegador impediu que o LinkedIn abrisse.",
+      "openLinkedIn": "Abrir o LinkedIn",
+      "cardCounts": "{{people}}, {{agents}}",
+      "site": "gethouston.ai",
+      "post": "Esta é a minha organização. Estes são todos os funcionários de IA da {{company}}, trabalhando no Houston.\n\ngethouston.ai",
+      "postPersonal": "Estes são todos os meus funcionários de IA, trabalhando no Houston.\n\ngethouston.ai"
+    }
   },
   "phoneEmployee": {
     "emptyGroup": {

@@ -7,6 +7,7 @@ import {
   Keyboard,
   KeyRound,
   MessagesSquare,
+  Sunrise,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChannels } from "../../hooks/queries/use-channels";
@@ -37,7 +38,7 @@ interface SettingsIndexProps {
  * own app and preferences.
  *
  * The page holds ONE general group (plan, channels, appearance, language,
- * notifications, and the API-key, shortcut, bug-report and migration rows), plus
+ * notifications, the morning briefing, and the API-key, shortcut, bug-report and migration rows), plus
  * Danger. Admin is its own screen; an AI Employee's Skills live in that
  * employee's settings. The person themselves (who is signed in, Sign out,
  * their Profile and About me) is the account menu's, not a row here.
@@ -103,6 +104,14 @@ export function SettingsIndex({
           <AppearanceSection />
           <LanguageSection />
           <NotificationsSection />
+          {settingsSectionAvailable("morningBriefing", capabilities) && (
+            <SettingsRow
+              icon={Sunrise}
+              title={t("settings:morningBriefing.title")}
+              description={t("settings:morningBriefing.navDescription")}
+              onClick={() => onSelect("morningBriefing")}
+            />
+          )}
           {settingsSectionAvailable("apiKeys", capabilities) && (
             <SettingsRow
               icon={KeyRound}

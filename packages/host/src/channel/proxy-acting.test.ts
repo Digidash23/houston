@@ -36,12 +36,20 @@ const ctx: ChannelCtx = { workspace: ws, agent };
 let runtime: Server;
 let runtimeUrl = "";
 let seenHeaders: Record<string, string | string[] | undefined>[] = [];
+let seenBodies: string[] = [];
 
 beforeAll(async () => {
   runtime = createServer((req, res) => {
     seenHeaders.push({ ...req.headers });
-    res.writeHead(202, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ ok: true }));
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk;
+    });
+    req.on("end", () => {
+      seenBodies.push(body);
+      res.writeHead(202, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true }));
+    });
   });
   await new Promise<void>((r) => runtime.listen(0, "127.0.0.1", () => r()));
   runtimeUrl = `http://127.0.0.1:${(runtime.address() as AddressInfo).port}`;
@@ -126,6 +134,20 @@ test("routine creator identity (server-minted acting-user) flows regardless of t
     // fireTurn never sends the acting-as header — it is not the routine path.
     expect(seenHeaders[0]?.["x-houston-acting-as"]).toBeUndefined();
   }
+});
+
+test("a fire's nonce rides the message body, so the runtime persists it", async () => {
+  seenBodies = [];
+  await makeChannel(false).fireTurn(ctx, "c1", "run it", undefined, {
+    nonce: "heartbeat-1",
+  });
+  expect(JSON.parse(seenBodies[0] ?? "{}")).toMatchObject({
+    text: "run it",
+    nonce: "heartbeat-1",
+  });
+  seenBodies = [];
+  await makeChannel(false).fireTurn(ctx, "c1", "run it");
+  expect(JSON.parse(seenBodies[0] ?? "{}")).not.toHaveProperty("nonce");
 });
 
 test("interactive and routine turns both refresh shared resources before dispatch", async () => {

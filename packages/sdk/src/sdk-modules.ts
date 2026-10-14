@@ -18,6 +18,7 @@ import { createChannelsModule } from "./modules/channels";
 import { createConversationsModule } from "./modules/conversations";
 import { createDelegationModule } from "./modules/delegation";
 import { createFilesModule } from "./modules/files";
+import { createHeartbeatModule } from "./modules/heartbeat";
 import { createIntegrationsModule } from "./modules/integrations";
 import { createMigrationModule } from "./modules/migration";
 import { createMissionsSearchModule } from "./modules/missions-search";
@@ -74,6 +75,8 @@ export interface SdkModules {
   readonly push: ReturnType<typeof createPushModule>;
   /** Channels facade (the messaging accounts the personal assistant answers in). */
   readonly channels: ReturnType<typeof createChannelsModule>;
+  /** Heartbeat facade (the AI Manager's daily morning briefing). */
+  readonly heartbeat: ReturnType<typeof createHeartbeatModule>;
   /** Routines facade (an agent's scheduled work, its runs, its webhook key). */
   readonly routines: ReturnType<typeof createRoutinesModule>;
   /** Skills facade (an agent's own skills and the manifest enabling them). */
@@ -106,6 +109,7 @@ export const moduleFactories = {
   createConversationsModule,
   createDelegationModule,
   createFilesModule,
+  createHeartbeatModule,
   createIntegrationsModule,
   createMigrationModule,
   createMissionsSearchModule,
