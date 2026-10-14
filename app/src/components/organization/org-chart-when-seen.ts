@@ -90,7 +90,10 @@ export function showWhenBack(
   options: { departure?: Departure; expectLeave: boolean; clock: Clock },
 ): () => void {
   const { clock } = options;
-  const stops: (() => void)[] = [];
+  // The departure watcher stops with everything else, the stale drop included.
+  const stops: (() => void)[] = options.departure
+    ? [options.departure.stop]
+    : [];
   const cancel = () => {
     for (const stop of stops.splice(0)) stop();
   };

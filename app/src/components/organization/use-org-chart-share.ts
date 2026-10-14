@@ -49,9 +49,13 @@ export function useOrgChartShare(tree: OrgTree, phone: boolean) {
   const image = useShareCardImage(tree);
   const flight = useRef(createSingleFlight());
   const pending = useRef(new Set<() => void>());
+  // A share that lands after unmount must not register a toast nobody drains.
+  const disposed = useRef(false);
   useEffect(() => {
+    disposed.current = false;
     const cancels = pending.current;
     return () => {
+      disposed.current = true;
       for (const cancel of cancels) cancel();
       cancels.clear();
     };
@@ -61,7 +65,7 @@ export function useOrgChartShare(tree: OrgTree, phone: boolean) {
     const landing = shareLanding(outcome, isTauri());
     if (landing.channel) track(landing.channel, tree);
     const { toast, blocked } = landing;
-    if (!toast) return departure.stop();
+    if (!toast || disposed.current) return departure.stop();
     // A stop left in the set after its toast showed is a harmless no-op.
     const cancel = showWhenBack(
       livePage(),

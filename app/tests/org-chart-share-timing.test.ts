@@ -130,11 +130,12 @@ describe("showWhenBack", () => {
     strictEqual(shown, 1);
   });
 
-  it("drops a toast nobody came back for", () => {
+  it("drops a toast nobody came back for, departure watcher included", () => {
     const p = page(false, false);
     const c = clock();
     let shown = 0;
     showWhenBack(p.fake, () => shown++, {
+      departure: watchDeparture(p.fake),
       expectLeave: false,
       clock: c.fake,
     });
@@ -142,6 +143,7 @@ describe("showWhenBack", () => {
     p.back();
     strictEqual(shown, 0);
     strictEqual(p.count(), 0);
+    strictEqual(c.pending(), 0);
   });
 
   it("cancels cleanly on unmount", () => {
