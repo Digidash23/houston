@@ -27,6 +27,7 @@ import { SessionUnavailableError, useSession } from "./hooks/use-session";
 import { useSessionEvents } from "./hooks/use-session-events";
 import { useSpacesLiveRefresh } from "./hooks/use-spaces-live-refresh";
 import { useTeamMoveResume } from "./hooks/use-team-move-resume";
+import { useTimezoneSeed } from "./hooks/use-timezone-preference";
 import { isIdentityConfigured } from "./lib/identity";
 import { logger } from "./lib/logger";
 import { useNavHistorySync } from "./lib/nav-history";
@@ -96,6 +97,8 @@ export default function App() {
   useTeamMoveResume(Boolean(session));
 
   useIdentityTagging(session);
+  // The cloud scheduler fires routines and the morning briefing in this zone.
+  useTimezoneSeed();
 
   const routing = useFirstRunRouting();
   useWorkspaceBootReads();

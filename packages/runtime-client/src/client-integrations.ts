@@ -17,8 +17,6 @@ import type {
   IntegrationConnection,
   IntegrationProviderStatus,
   IntegrationToolkit,
-  PreferenceValue,
-  Workspace,
 } from "./types";
 
 const JSON_HEADERS = { "Content-Type": "application/json" } as const;
@@ -137,53 +135,6 @@ export class IntegrationsClient {
     await this.r.request("/v1/integrations/reconnect-notice/dismiss", {
       method: "POST",
       headers: JSON_HEADERS,
-    });
-  }
-}
-
-/** Per-user preferences + the workspace-locale override (the boot/settings path). */
-export class PreferencesClient {
-  private readonly r: Requester;
-
-  constructor(config: EngineClientConfig) {
-    this.r = createRequester(config);
-  }
-
-  /** Read a preference value, or `null` when unset. */
-  async getPreference(key: string): Promise<string | null> {
-    return (
-      await this.r.json<PreferenceValue>(
-        `/v1/preferences/${encodeURIComponent(key)}`,
-      )
-    ).value;
-  }
-
-  /** Write (or, with `null`, clear) a preference; echoes the stored value. */
-  async setPreference(
-    key: string,
-    value: string | null,
-  ): Promise<string | null> {
-    return (
-      await this.r.json<PreferenceValue>(
-        `/v1/preferences/${encodeURIComponent(key)}`,
-        {
-          method: "PUT",
-          headers: JSON_HEADERS,
-          body: JSON.stringify({ value }),
-        },
-      )
-    ).value;
-  }
-
-  /** Set (or clear, with `null`) the workspace's UI-locale override. */
-  setWorkspaceLocale(
-    workspaceId: string,
-    locale: string | null,
-  ): Promise<Workspace> {
-    return this.r.json(`/v1/workspaces/${encodeURIComponent(workspaceId)}`, {
-      method: "PATCH",
-      headers: JSON_HEADERS,
-      body: JSON.stringify({ locale }),
     });
   }
 }

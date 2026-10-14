@@ -1,5 +1,6 @@
 import { deepStrictEqual, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
+import { encodeHeartbeat } from "@houston/protocol/auto-continue";
 import type { FeedItem } from "@houston-ai/chat";
 import {
   encodeAutoContinueMessage,
@@ -43,6 +44,17 @@ describe("filterAutoContinueFeedItems", () => {
     strictEqual(
       filtered[0].feed_type === "user_message" && filtered[0].data,
       "real question",
+    );
+  });
+
+  it("hides the morning briefing's hidden message too", () => {
+    const items: FeedItem[] = [
+      { feed_type: "user_message", data: encodeHeartbeat("Brief them.") },
+      { feed_type: "assistant_text", data: "Good morning" },
+    ];
+    deepStrictEqual(
+      filterAutoContinueFeedItems(items).map((i) => i.feed_type),
+      ["assistant_text"],
     );
   });
 

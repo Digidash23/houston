@@ -1,89 +1,52 @@
+import { TIMEZONE_PREFERENCE } from "@houston/sdk";
 import { useCallback, useEffect, useState } from "react";
+import { logAndReportError } from "../lib/error-report";
+import {
+  isIdentityConfigured,
+  SESSION_QUERY_KEY,
+  type Session,
+} from "../lib/identity";
+import { queryClient } from "../lib/query-client";
 import { tauriPreferences } from "../lib/tauri";
+import { detectTimezone, timezoneOwner } from "../lib/timezone-seed";
+import { useWorkspaceStore } from "../stores/workspaces";
 
-const TIMEZONE_KEY = "timezone";
-
-export function detectTimezone(): string {
-  try {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (tz?.length) return tz;
-  } catch {
-    // fall through
-  }
-  return "UTC";
+/** The workspace to seed in and the person-and-space key that re-runs it. */
+function useSeedTarget(): { workspaceId: string; owner: string } | null {
+  const workspaceId = useWorkspaceStore((s) => s.current?.id ?? null);
+  const uid =
+    queryClient.getQueryData<Session | null>(SESSION_QUERY_KEY)?.uid ?? null;
+  const owner = timezoneOwner(uid, isIdentityConfigured(), workspaceId);
+  return owner && workspaceId ? { workspaceId, owner } : null;
 }
 
 /**
- * Read the account timezone preference; if the user has never set one, persist
- * the browser-detected zone. Returns the effective IANA zone. Never overwrites
- * an existing value.
- *
- * The single seeding guard behind the hook's load path (below), so a user who
- * never opens the Routines section still has a zone — without one the cloud
- * scheduler would fire their routines in the pod's UTC instead of their local
- * time.
- *
- * A persist failure propagates (the tauri wrapper already surfaced a toast), so
- * the load path can fall back to the detected value in memory and still render.
+ * Seed through the SDK (create-only, so a stored zone always wins); never
+ * rejects. The zone to render: the account's, or the detected one when the
+ * seed failed (already reported).
  */
-async function seedTimezoneIfUnset(): Promise<string> {
-  const stored = await tauriPreferences.get(TIMEZONE_KEY);
-  const existing = stored?.trim() ? stored : null;
-  if (existing) return existing;
-  const detected = detectTimezone();
-  await tauriPreferences.set(TIMEZONE_KEY, detected);
-  return detected;
+async function seedIn(workspaceId: string): Promise<string> {
+  try {
+    return (await tauriPreferences.seedTimezone(workspaceId, detectTimezone()))
+      .timezone;
+  } catch (err) {
+    logAndReportError("timezone_seed", err);
+    return detectTimezone();
+  }
 }
 
-interface CachedState {
-  value: string | null;
-  loaded: boolean;
-}
-
-let cache: CachedState = { value: null, loaded: false };
-let inflight: Promise<string | null> | null = null;
-const subscribers = new Set<(v: string | null) => void>();
-
-function notify() {
-  for (const fn of subscribers) fn(cache.value);
-}
-
-async function fetchOnce(): Promise<string | null> {
-  if (cache.loaded) return cache.value;
-  if (inflight) return inflight;
-  inflight = (async () => {
-    try {
-      // Auto-seed via the shared guard: if the user has never set a timezone,
-      // it saves their browser-detected one silently. Previously we showed a
-      // full-page "What's your timezone?" gate that blocked the Routines tab.
-      // The detected zone is almost always correct; users who need to change it
-      // later do so from the timezone picker in the Routines editor.
-      let value: string | null;
-      try {
-        value = await seedTimezoneIfUnset();
-      } catch (err) {
-        // Persist failed (the engine-call wrapper already toasted it). Keep the
-        // detected value in memory so the UI can still render a cron schedule —
-        // but the engine never learned the zone, so routines fire in the HOST's
-        // zone until a save succeeds (retried next launch).
-        console.error("[timezone] failed to persist detected zone:", err);
-        value = detectTimezone();
-      }
-
-      cache = { value, loaded: true };
-      notify();
-      return cache.value;
-    } finally {
-      inflight = null;
-    }
-  })();
-  return inflight;
-}
-
-export async function setTimezonePreference(tz: string): Promise<void> {
-  await tauriPreferences.set(TIMEZONE_KEY, tz);
-  cache = { value: tz, loaded: true };
-  notify();
+/**
+ * App-shell level: seed the account timezone for the signed-in person in the
+ * current space, so the cloud scheduler (routines, the morning briefing) has
+ * a zone for everyone, not only those who opened Routines.
+ */
+export function useTimezoneSeed(): void {
+  const target = useSeedTarget();
+  const owner = target?.owner;
+  const workspaceId = target?.workspaceId;
+  useEffect(() => {
+    if (owner && workspaceId) void seedIn(workspaceId);
+  }, [owner, workspaceId]);
 }
 
 export interface TimezoneState {
@@ -93,35 +56,46 @@ export interface TimezoneState {
   loaded: boolean;
   /** The browser-detected zone, used as a default when prompting the user. */
   detected: string;
-  /** Persist a new value and broadcast to all subscribers. */
+  /** Persist a new value. */
   confirm: (tz: string) => Promise<void>;
 }
 
 /**
- * Returns the user's IANA timezone. On first call we auto-save the
- * browser-detected zone, so `timezone` is non-null from the first render
- * onwards (no "timezone gate" UX). Users can change it later from the
- * timezone picker in the Routines editor.
+ * Returns the user's IANA timezone, seeded (by the SDK) with the detected
+ * zone when none is stored; users change it from the Routines editor.
  */
 export function useTimezonePreference(): TimezoneState {
-  const [, force] = useState(0);
+  const target = useSeedTarget();
+  const owner = target?.owner ?? null;
+  const workspaceId = target?.workspaceId ?? null;
+  const [reading, setReading] = useState<{
+    owner: string | null;
+    value: string | null;
+  }>({ owner: null, value: null });
 
   useEffect(() => {
-    const sub = () => force((n) => n + 1);
-    subscribers.add(sub);
-    fetchOnce().catch((e) => console.error("[timezone] load failed:", e));
+    if (!owner || !workspaceId) return;
+    let live = true;
+    void seedIn(workspaceId).then((value) => {
+      if (live) setReading({ owner, value });
+    });
     return () => {
-      subscribers.delete(sub);
+      live = false;
     };
-  }, []);
+  }, [owner, workspaceId]);
 
-  const confirm = useCallback(async (tz: string) => {
-    await setTimezonePreference(tz);
-  }, []);
+  const confirm = useCallback(
+    async (tz: string) => {
+      await tauriPreferences.set(TIMEZONE_PREFERENCE, tz);
+      setReading({ owner, value: tz });
+    },
+    [owner],
+  );
+  const loaded = owner !== null && reading.owner === owner;
 
   return {
-    timezone: cache.value,
-    loaded: cache.loaded,
+    timezone: loaded ? reading.value : null,
+    loaded,
     detected: detectTimezone(),
     confirm,
   };

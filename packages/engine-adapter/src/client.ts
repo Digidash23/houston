@@ -42,6 +42,7 @@ import type { HoustonClientOptions } from "./client/context";
 import { CustomIntegrationsMixin } from "./client/custom-integrations-mixin";
 import { DelegationMixin } from "./client/delegation-mixin";
 import { FirstDayMixin } from "./client/first-day-mixin";
+import { HeartbeatMixin } from "./client/heartbeat-mixin";
 import { IntegrationsMixin } from "./client/integrations-mixin";
 import { MeProfileMixin } from "./client/me-profile-mixin";
 import type { BaseCtor } from "./client/mixin";
@@ -78,6 +79,7 @@ export const MIXINS = [
   PlanMixin,
   PushMixin,
   ChannelsMixin,
+  HeartbeatMixin,
   SpacesMixin,
   OrgsMixin,
   MeProfileMixin,

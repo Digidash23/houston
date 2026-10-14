@@ -65,6 +65,7 @@ export class HoustonSdk implements SdkModules {
   readonly plan: SdkModules["plan"];
   readonly push: SdkModules["push"];
   readonly channels: SdkModules["channels"];
+  readonly heartbeat: SdkModules["heartbeat"];
   readonly routines: SdkModules["routines"];
   readonly skills: SdkModules["skills"];
   readonly files: SdkModules["files"];
@@ -130,6 +131,7 @@ export class HoustonSdk implements SdkModules {
     this.plan = moduleFactories.createPlanModule(ctx);
     this.push = moduleFactories.createPushModule(ctx);
     this.channels = moduleFactories.createChannelsModule(ctx);
+    this.heartbeat = moduleFactories.createHeartbeatModule(ctx);
     this.routines = moduleFactories.createRoutinesModule(ctx);
     this.skills = moduleFactories.createSkillsModule(ctx);
     this.files = moduleFactories.createFilesModule(ctx);

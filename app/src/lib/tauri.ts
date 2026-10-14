@@ -36,6 +36,7 @@ import type {
 import {
   type DismissInteractionOutcome,
   plusCheckoutRefusal,
+  type TimezoneSeedResult,
 } from "@houston/sdk";
 import type { PushDeviceRegistration } from "@houston/wire-types";
 import { shouldUseClaudeDesktopLogin } from "../components/shell/provider-login-url";
@@ -1189,6 +1190,11 @@ export const tauriPreferences = {
     call<string | null>("get_preference", () => getEngine().getPreference(key)),
   set: (key: string, value: string | null) =>
     call<void>("set_preference", () => getEngine().setPreference(key, value)),
+  /** The SDK's create-only seed, pinned to one workspace's space. */
+  seedTimezone: (workspaceId: string, detected: string) =>
+    call<TimezoneSeedResult>("seed_timezone", () =>
+      getEngine().seedTimezone(workspaceId, detected),
+    ),
 };
 
 // ─── Sidebar layout ───────────────────────────────────────────────────

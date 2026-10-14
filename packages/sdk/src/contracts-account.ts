@@ -1,8 +1,8 @@
 /**
  * The account's contract: who the caller is (session, profile, API keys), the
  * space they work in (org roster, spaces, teams, workspaces, the subscription
- * behind a team), the preferences that follow them across surfaces, and the
- * appearance of the device they are working on (which does not follow them).
+ * behind a team), and the appearance of the device they are working on
+ * (which does not follow them). Their preferences: contracts-preferences.ts.
  *
  * Re-exported wholesale by the package barrel; import from `@houston/sdk`.
  */
@@ -136,12 +136,6 @@ export {
   type PlusCheckoutRefusal,
   plusCheckoutRefusal,
 } from "./modules/plan/refusals";
-// ===== Preferences module contract =====================================
-export {
-  PreferencesCommand,
-  type PreferencesCommandType,
-  type PreferencesModule,
-} from "./modules/preferences";
 // ===== Session module contract =========================================
 // `createAuthFetch` + `SESSION_TOKEN_KEY` are host-facing: the host composes the
 // auth-fetch into `ports.fetch` before constructing the SDK (see the module).

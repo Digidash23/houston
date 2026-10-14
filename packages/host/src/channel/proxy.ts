@@ -263,7 +263,7 @@ export class ProxyChannel implements RuntimeChannel {
     conversationId: string,
     text: string,
     pin?: TurnPin,
-    { actingUser, actingAs, limits, routine }: FireTurnOptions = {},
+    { actingUser, actingAs, limits, routine, nonce }: FireTurnOptions = {},
   ): Promise<void> {
     // A turn begins here for every programmatic fire (a routine, a trigger, a
     // mission's first turn): the host records which conversation this agent is
@@ -306,6 +306,7 @@ export class ProxyChannel implements RuntimeChannel {
           },
           body: JSON.stringify({
             text,
+            ...(nonce ? { nonce } : {}),
             ...(pin?.provider ? { provider: pin.provider } : {}),
             ...(pin?.model ? { model: pin.model } : {}),
             ...(pin?.effort ? { effort: pin.effort } : {}),

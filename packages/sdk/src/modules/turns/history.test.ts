@@ -1,4 +1,4 @@
-import { AUTO_CONTINUE_MARKER } from "@houston/protocol";
+import { AUTO_CONTINUE_MARKER, encodeHeartbeat } from "@houston/protocol";
 import type { ChatMessage } from "@houston/runtime-client";
 import { describe, expect, it } from "vitest";
 import { historyToFeed } from "./history";
@@ -72,6 +72,15 @@ describe("historyToFeed", () => {
         turnId: "t-1",
       },
     ]);
+    expect(feed.some((f) => f.feed_type === "assistant_text")).toBe(true);
+  });
+
+  it("folds away the morning briefing's hidden prompt", () => {
+    const feed = historyToFeed([
+      { role: "user", content: encodeHeartbeat("Brief them."), ts: 1 },
+      { role: "assistant", content: "Good morning", ts: 2 },
+    ]);
+    expect(feed.some((f) => f.feed_type === "user_message")).toBe(false);
     expect(feed.some((f) => f.feed_type === "assistant_text")).toBe(true);
   });
 

@@ -148,13 +148,17 @@ A person's message can grant one `createAgent` call with the constrained name, c
 | `updateRoutine` | PATCH | confirmed: host approval required | visible | agentId: resolved:agents; id: resolved:routines; updates: free text |
 | `dismissPlanAnnouncement` | POST | unconfirmed: This only records that the announcement was seen. | only the person seeing the announcement may dismiss it. | none |
 | `getContext` | GET | unconfirmed: read-only HTTP GET | visible | kind: enum |
+| `getHeartbeat` | GET | unconfirmed: read-only HTTP GET | visible | none |
 | `getMyProfile` | GET | unconfirmed: read-only HTTP GET | visible | none |
 | `getPlan` | GET | unconfirmed: read-only HTTP GET | visible | none |
 | `getPreference` | GET | unconfirmed: read-only HTTP GET | UI plumbing; an untyped key/value store the app reads for its own device settings. | key: free text |
+| `preferences.seedTimezone` | unroutable | unconfirmed: withheld from dispatch | UI plumbing; the app runs it on its own at sign-in with the zone of the screen the person is sitting at. | input: free text |
 | `preferences.setLocale` | PATCH | unconfirmed: Reversible display preference; the app's own language picker changes it with one click. | visible | workspaceId: resolved:workspaces; locale: free text |
 | `putPushPresence` | PUT | unconfirmed: withheld from dispatch | presence must reflect the actual client window, not a chat action. | input: free text |
 | `registerDevice` | PUT | unconfirmed: withheld from dispatch | a native device's private FCM token and installation id are required. | deviceId: free text; input: free text |
+| `runHeartbeatNow` | POST | unconfirmed: withheld from dispatch | the briefing is a turn on the AI Manager itself, and it never starts while the manager is mid-turn, so a call from inside the manager's own turn is always refused (turn_running). | none |
 | `setContext` | PUT | confirmed: host approval required | visible | kind: enum; content: free text |
+| `setHeartbeat` | PUT | unconfirmed: A reversible personal preference the settings screen changes with one click. | visible | patch: free text |
 | `setMyProfile` | PUT | unconfirmed: Reversible personal display overrides; costs nothing and changes no permissions. | visible | update: free text |
 | `setPreference` | PUT | unconfirmed: withheld from dispatch | UI plumbing; an open key/value write that can clobber any app setting. | key: free text; value: free text |
 | `unregisterDevice` | DELETE | unconfirmed: withheld from dispatch | only the device being unregistered can identify its installation. | deviceId: free text |

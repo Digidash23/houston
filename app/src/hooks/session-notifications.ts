@@ -1,7 +1,8 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { ASSISTANT_VIEW_ID } from "../components/assistant/id";
 import { logger } from "../lib/logger";
 import {
-  type NotificationNav,
+  type NotificationClickTarget,
   shouldArmNotificationNav,
   shouldNavigateOnAppActivation,
 } from "../lib/notification-nav";
@@ -13,9 +14,10 @@ import {
 import { osIsTauri, osShowSessionNotification } from "../lib/os-bridge";
 import { osIsNativeMobile } from "../lib/os-bridge/platform";
 import { isMac } from "../lib/platform";
+import { useUIStore } from "../stores/ui";
 import { navigateToNotificationTarget } from "./session-notification-navigate";
 
-let pendingNotificationNav: NotificationNav | null = null;
+let pendingNotificationNav: NotificationClickTarget | null = null;
 let pendingNavTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function describePendingNotificationNav() {
@@ -30,13 +32,17 @@ export async function consumePendingNav() {
     clearTimeout(pendingNavTimer);
     pendingNavTimer = null;
   }
+  if ("assistant" in nav) {
+    useUIStore.getState().setViewMode(ASSISTANT_VIEW_ID);
+    return;
+  }
   await navigateToNotificationTarget(nav);
 }
 
 export async function sendSessionNotification(
   title: string,
   body: string,
-  nav?: NotificationNav,
+  nav?: NotificationClickTarget,
 ) {
   if (osIsNativeMobile()) return;
   try {
@@ -85,9 +91,7 @@ export async function sendSessionNotification(
       },
       5 * 60 * 1000,
     );
-    logger.debug(
-      `[notification] pending nav set: agentId=${nav.agentId} sessionKey=${nav.sessionKey}`,
-    );
+    logger.debug(`[notification] pending nav set: ${JSON.stringify(nav)}`);
   } catch (e) {
     logger.error(`[notification] Failed: ${e}`);
   }

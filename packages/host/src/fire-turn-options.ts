@@ -16,4 +16,8 @@ export interface FireTurnOptions {
    *  mission's or first day's fire: the standing channel marks its request
    *  with `ROUTINE_FIRE_HEADER`. */
   routine?: true;
+  /** The sender's retry identity for the message (the runtime admission
+   *  nonce): the persisted user message carries it, so the caller can find
+   *  its own turn in the transcript later (the morning briefing does). */
+  nonce?: string;
 }

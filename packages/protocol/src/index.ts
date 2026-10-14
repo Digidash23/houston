@@ -9,6 +9,7 @@ export * from "./domain/config";
 export * from "./domain/delegation";
 export * from "./domain/file-refusal";
 export * from "./domain/first-day";
+export * from "./domain/heartbeat";
 export * from "./domain/interaction";
 // The closed hands-on vocabulary is a VALUE, and `./domain/interaction` may
 // only re-export types from its neighbour (see the note there), so the two
@@ -37,6 +38,7 @@ export * from "./mission-title";
 export * from "./model-call-report";
 export * from "./model-windows";
 export * from "./plan-min-interval";
+export * from "./preference-create";
 export * from "./provider-catalog";
 export * from "./provider-error";
 export * from "./push-report";

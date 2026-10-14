@@ -12,6 +12,7 @@ import { parseSidebarLayout } from "@houston/protocol";
 import { SEED_WORKSPACE_ID } from "./config";
 import { json } from "./http";
 import { handleCustom } from "./routes-custom-integrations";
+import { handlePreference } from "./routes-preferences";
 import * as state from "./state";
 
 /** The personal workspace wire shape the gateway/host return (account.ts
@@ -113,23 +114,6 @@ function handleIntegrations(
     return json({ error: "not found" }, 404);
   }
   return handleComposio(method, rest.slice(1), body);
-}
-
-function handlePreference(
-  method: string,
-  key: string,
-  body: Record<string, unknown> | undefined,
-): Response {
-  if (method === "GET") return json({ value: state.getPreference(key) });
-  if (method === "PUT") {
-    const value =
-      body?.value === null || body?.value === undefined
-        ? null
-        : String(body.value);
-    state.setPreference(key, value);
-    return json({ value });
-  }
-  return json({ error: "not found" }, 404);
 }
 
 /** Route a user-scoped gateway request, or return `undefined` to fall through. */
