@@ -7,6 +7,7 @@ import { BackBarScreen } from "../shell/back-bar-screen";
 import { ApiKeysSection } from "./sections/api-keys";
 import { ChannelsSection } from "./sections/channels";
 import { MigrationSection } from "./sections/migration";
+import { MorningBriefingSection } from "./sections/morning-briefing";
 import { PlanSection } from "./sections/plan";
 import { ReportBugSection } from "./sections/report-bug";
 import { ShortcutsSection } from "./sections/shortcuts";
@@ -42,6 +43,10 @@ export function SettingsSectionBody({
             <ApiKeysSection />
           )}
         {active === "channels" && <ChannelsSection />}
+        {active === "morningBriefing" &&
+          settingsSectionAvailable("morningBriefing", capabilities) && (
+            <MorningBriefingSection />
+          )}
         {active === "shortcuts" && <ShortcutsSection />}
         {active === "reportBug" && <ReportBugSection />}
         {active === "migration" && <MigrationSection />}

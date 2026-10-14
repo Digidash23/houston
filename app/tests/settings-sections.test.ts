@@ -14,7 +14,15 @@ describe("SETTINGS_SECTION_IDS", () => {
   it("is the exact section set: the standing setup, nothing else", () => {
     deepStrictEqual(
       [...SETTINGS_SECTION_IDS],
-      ["plan", "apiKeys", "channels", "shortcuts", "reportBug", "migration"],
+      [
+        "plan",
+        "apiKeys",
+        "channels",
+        "morningBriefing",
+        "shortcuts",
+        "reportBug",
+        "migration",
+      ],
     );
   });
 });
@@ -66,6 +74,12 @@ describe("settingsSectionAvailable", () => {
     strictEqual(settingsSectionAvailable("apiKeys", { apiKeys: false }), false);
     strictEqual(settingsSectionAvailable("apiKeys", { plan: true }), false);
     strictEqual(settingsSectionAvailable("apiKeys", null), false);
+    strictEqual(
+      settingsSectionAvailable("morningBriefing", { heartbeat: true }),
+      true,
+    );
+    strictEqual(settingsSectionAvailable("morningBriefing", {}), false);
+    strictEqual(settingsSectionAvailable("morningBriefing", null), false);
   });
 });
 

@@ -1,3 +1,4 @@
+import { channelUnavailableReason } from "@houston/engine-adapter";
 import { classifyHeartbeatFailure } from "@houston/sdk";
 import {
   AsyncButton,
@@ -10,6 +11,7 @@ import {
 } from "@houston-ai/core";
 import { Clock, Sunrise, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useChannels } from "../../../hooks/queries/use-channels";
 import {
   useHeartbeat,
   useRunHeartbeatNow,
@@ -22,21 +24,20 @@ import {
 } from "../../../lib/heartbeat-times";
 import { useUIStore } from "../../../stores/ui";
 import { ASSISTANT_VIEW_ID } from "../../assistant/id";
-import { SettingsControlRow } from "../settings-row";
+import { SettingsCard, SettingsControlRow } from "../settings-row";
 
 /**
- * The AI Manager's morning briefing: on/off, the time it arrives, and "brief
- * me now". Rendered only where the deployment serves it
- * (`capabilities.heartbeat`, gated by the caller). `channelsAvailable` is the
- * same gate the Channels row uses: only then does the copy promise Slack or
- * WhatsApp delivery.
+ * The AI Manager's morning briefing screen: on/off, the time it arrives, and
+ * "brief me now". Opened from its Settings row only where the deployment serves
+ * it (`capabilities.heartbeat`). The copy promises Slack or WhatsApp delivery
+ * only under the same gate the Channels row uses.
  */
-export function MorningBriefingSection({
-  channelsAvailable,
-}: {
-  channelsAvailable: boolean;
-}) {
+export function MorningBriefingSection() {
   const { t, i18n } = useTranslation("settings");
+  const channels = useChannels();
+  const channelsAvailable =
+    !!channels.data ||
+    channelUnavailableReason(channels.error) === "not-configured";
   const addToast = useUIStore((s) => s.addToast);
   const heartbeat = useHeartbeat(true);
   const setHeartbeat = useSetHeartbeat();
@@ -70,55 +71,57 @@ export function MorningBriefingSection({
   };
 
   return (
-    <>
-      <SettingsControlRow
-        icon={Sunrise}
-        title={t("morningBriefing.title")}
-        description={
-          channelsAvailable
-            ? t("morningBriefing.descriptionWithChannels")
-            : t("morningBriefing.description")
-        }
-      >
-        <Switch
-          checked={state?.enabled ?? true}
-          disabled={!state}
-          onCheckedChange={(enabled) => setHeartbeat.mutate({ enabled })}
-          aria-label={t("morningBriefing.title")}
-        />
-      </SettingsControlRow>
-      {state?.enabled && (
-        <SettingsControlRow icon={Clock} title={t("morningBriefing.time")}>
-          <Select
-            value={state.time}
-            onValueChange={(time) => setHeartbeat.mutate({ time })}
-          >
-            <SelectTrigger
-              aria-label={t("morningBriefing.timeLabel")}
-              className="w-32 rounded-lg"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {heartbeatTimeOptions(state.time).map((time) => (
-                <SelectItem key={time} value={time}>
-                  {formatHeartbeatTime(time, i18n.language)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <section>
+      <h2 className="mb-1 text-lg font-semibold">
+        {t("morningBriefing.title")}
+      </h2>
+      <p className="mb-6 text-sm text-ink-muted">
+        {channelsAvailable
+          ? t("morningBriefing.descriptionWithChannels")
+          : t("morningBriefing.description")}
+      </p>
+      <SettingsCard>
+        <SettingsControlRow icon={Sunrise} title={t("morningBriefing.enabled")}>
+          <Switch
+            checked={state?.enabled ?? true}
+            disabled={!state}
+            onCheckedChange={(enabled) => setHeartbeat.mutate({ enabled })}
+            aria-label={t("morningBriefing.enabled")}
+          />
         </SettingsControlRow>
-      )}
-      <SettingsControlRow
-        icon={Zap}
-        title={t("morningBriefing.runNow.title")}
-        description={t("morningBriefing.runNow.description")}
-        stack
-      >
-        <AsyncButton variant="outline" size="sm" onClick={handleRunNow}>
-          {t("morningBriefing.runNow.action")}
-        </AsyncButton>
-      </SettingsControlRow>
-    </>
+        {state?.enabled && (
+          <SettingsControlRow icon={Clock} title={t("morningBriefing.time")}>
+            <Select
+              value={state.time}
+              onValueChange={(time) => setHeartbeat.mutate({ time })}
+            >
+              <SelectTrigger
+                aria-label={t("morningBriefing.timeLabel")}
+                className="w-32 rounded-lg"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {heartbeatTimeOptions(state.time).map((time) => (
+                  <SelectItem key={time} value={time}>
+                    {formatHeartbeatTime(time, i18n.language)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </SettingsControlRow>
+        )}
+        <SettingsControlRow
+          icon={Zap}
+          title={t("morningBriefing.runNow.title")}
+          description={t("morningBriefing.runNow.description")}
+          stack
+        >
+          <AsyncButton variant="outline" size="sm" onClick={handleRunNow}>
+            {t("morningBriefing.runNow.action")}
+          </AsyncButton>
+        </SettingsControlRow>
+      </SettingsCard>
+    </section>
   );
 }

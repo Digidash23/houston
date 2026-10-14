@@ -72,6 +72,8 @@
   },
   "morningBriefing": {
     "title": "Resumen de la mañana",
+    "navDescription": "Un resumen diario de lo que necesita tu atención",
+    "enabled": "Envíame el resumen de la mañana",
     "description": "Cada mañana Houston revisa a tu equipo y te cuenta qué necesita tu atención. Te llega en tu chat con Houston.",
     "descriptionWithChannels": "Cada mañana Houston revisa a tu equipo y te cuenta qué necesita tu atención. Te llega en tu chat con Houston, y también en Slack o WhatsApp si los conectaste.",
     "time": "Enviarlo a las",
