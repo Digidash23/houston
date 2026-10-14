@@ -7,6 +7,7 @@ import {
   type ObjectStore,
   startHydrate,
 } from "@houston/runtime-client/object-sync";
+import { turnArchiveLoader } from "./turn-archive-fetch";
 import { watchDeferredFiles } from "./turn-deferred-watch";
 import { startLazyTurnFilesystem } from "./turn-filesystem-lazy";
 import type {
@@ -166,6 +167,14 @@ export async function startTurnFilesystem(opts: {
       generationAware: started.listed.generationAware,
       immediateWrites: new Set(),
       ...(watched ? watched : {}),
+      loadArchive: turnArchiveLoader({
+        store: opts.store,
+        prefix: opts.prefix,
+        storeRoot,
+        dataRel: layout.dataRel,
+        manifest: started.manifest,
+        maxBytes: maxBytes ?? TURN_HYDRATE_MAX_BYTES,
+      }),
     };
     const hydrated = started.done.then(
       () => filesystem,

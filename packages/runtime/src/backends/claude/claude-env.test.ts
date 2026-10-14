@@ -101,3 +101,17 @@ test("an ambient plan never reaches the subprocess", () => {
     else process.env.CLAUDE_CODE_SUBSCRIPTION_TYPE = saved;
   }
 });
+
+test("every env asks the CLI to scrub credentials from the model's commands", () => {
+  for (const token of [
+    { kind: "api-key" as const, value: "sk-ant-api03-x" },
+    { kind: "oauth-token" as const, value: "sk-ant-oat01-x" },
+    undefined,
+  ]) {
+    const env = buildClaudeEnv(token, {
+      configDir: "/cfg",
+      shellFencePath: null,
+    });
+    expect(env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, token?.kind).toBe("1");
+  }
+});

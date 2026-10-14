@@ -5,7 +5,7 @@ import type {
 } from "@houston/engine-adapter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryKeys } from "../../lib/query-keys";
-import { isExpectedShareError } from "../../lib/share-via-team";
+import { isExpectedMoveAnswer } from "../../lib/share-error";
 import { tauriOrg } from "../../lib/tauri";
 
 /**
@@ -45,8 +45,9 @@ export function useOrgs(
  * terminal `done` BEFORE inviting (C8 share pipeline order is a contract rule).
  *
  * This hook is used ONLY by the share-via-team flow, which renders every C8 move
- * refusal the SDK classifies (`isMoveRefusalCode`) inline as a `MoveFailedStep`. So we `silence` those expected states from `call()`'s
- * generic red bug toast + Sentry report — the inline step is their sole surface.
+ * refusal inline as a `MoveFailedStep` and treats `agent_moved` as done. So we
+ * `silence` every expected move answer (`isExpectedMoveAnswer`) from `call()`'s
+ * generic red bug toast + Sentry report — the flow is their sole surface.
  * Any OTHER move failure still toasts + captures.
  */
 export function useMoveAgent() {
@@ -57,7 +58,7 @@ export function useMoveAgent() {
   >({
     mutationFn: ({ agentSlugOrId, toSlug }) =>
       tauriOrg.moveAgent(agentSlugOrId, toSlug, {
-        silence: isExpectedShareError,
+        silence: isExpectedMoveAnswer,
       }),
   });
 }

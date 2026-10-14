@@ -1,5 +1,5 @@
 import type { BillingSummary, OrgRole } from "@houston/engine-adapter";
-import { shareErrorCode } from "./share-via-team.ts";
+import { shareErrorCode } from "./share-error.ts";
 
 /**
  * Pure, DOM-free logic behind the C8 team-status surfaces (the trial countdown

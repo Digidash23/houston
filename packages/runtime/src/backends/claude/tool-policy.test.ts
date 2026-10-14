@@ -240,11 +240,33 @@ test("Glob: a `..`-escaping pattern with no path is denied", async () => {
   ).toBe("deny");
 });
 
-test("Grep: an absolute pattern with no path is denied", async () => {
+test("Grep: the pattern is a regex, not a path; only `path` is judged", async () => {
   const can = makeCanUseTool(workspace());
+  expect((await decide(can, "Grep", { pattern: "/api/v1/" })).behavior).toBe(
+    "allow",
+  );
   expect(
-    (await decide(can, "Grep", { pattern: "/etc/**/*.conf" })).behavior,
+    (await decide(can, "Grep", { pattern: "x", path: "/etc" })).behavior,
   ).toBe("deny");
+});
+
+test("every policy carries the credential deny rules", () => {
+  for (const input of [
+    { localBash: true },
+    { localBash: false },
+    { localBash: true, mode: "plan" as const },
+    { localBash: true, personalAssistant: true },
+    { localBash: true, personalAssistant: true, mode: "plan" as const },
+  ]) {
+    const { disallowedTools } = buildToolPolicy(input);
+    for (const rule of [
+      "Read(**/auth.json)",
+      "Read(**/auth-users/**)",
+      "Read(**/claude-login/**)",
+      "Edit(**/auth.json)",
+    ])
+      expect(disallowedTools, JSON.stringify(input)).toContain(rule);
+  }
 });
 
 test("Glob: a benign relative pattern with no path is allowed", async () => {

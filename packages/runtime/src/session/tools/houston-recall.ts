@@ -97,7 +97,7 @@ function textResult(
 /** Where a conversation's full history is read from. */
 export type HistoryReader = (
   conversationId: string,
-) => ReturnType<typeof getHistory>;
+) => ReturnType<typeof getHistory> | Promise<ReturnType<typeof getHistory>>;
 
 /**
  * `readHistory` defaults to this runtime's own transcript store. A pooled turn
@@ -136,7 +136,7 @@ export function makeHoustonRecallTool(
       }
       // ONE full read: the store is parse-cache-backed, so re-reading per term
       // would re-walk the whole transcript for nothing.
-      const history = readHistory(conversationId);
+      const history = await readHistory(conversationId);
       const messages = history?.messages ?? [];
       const totalMessages = history?.totalMessages ?? 0;
       const needle = query.toLowerCase();

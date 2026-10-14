@@ -15,6 +15,7 @@ import {
 import {
   contains,
   existingBoundaries,
+  foldName,
   type RootBoundary,
   resolveLikePi,
 } from "./fs-guard-paths";
@@ -167,10 +168,11 @@ export class WorkspaceGuard {
 
   private assertProtectedWritable(proven: string): void {
     for (const { family, refusal } of PROTECTED_WRITES) {
-      const store = join(this.root, ".houston", family);
+      const store = foldName(join(this.root, ".houston", family));
+      const target = foldName(proven);
       // The flat pre-v0.4 file too: the boot layout migration moves it into
       // the store when the store holds no document yet.
-      if (contains(proven, store) || proven === `${store}.json`)
+      if (contains(target, store) || target === `${store}.json`)
         throw new refusal();
     }
     for (const { canonical, lexical } of this.readOnlyBoundaries) {
