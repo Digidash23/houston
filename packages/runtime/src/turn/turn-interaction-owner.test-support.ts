@@ -98,8 +98,9 @@ export interface PooledTurnOptions {
   failLive?: string;
   /** The conversation's read under the claim never answers until aborted. */
   hangReread?: boolean;
-  /** Hold the live read of this key until the conversation is read again
-   *  under the claim, or 1 s passes. */
+  /** Hold hydration's live read of this key until the conversation is read
+   *  again under the claim, or 1 s passes. Later reads of the key (the
+   *  activity stamp refreshing its document) pass through unrecorded. */
   holdLive?: string;
 }
 
@@ -134,6 +135,7 @@ export async function pooledTurn(
   const turnlog: string[] = [];
   const reads = { full: 0, notModified: 0 };
   const order: string[] = [];
+  let liveHeld = false;
   let reread: () => void = () => {};
   const rereadSeen = new Promise<void>((resolve) => {
     reread = resolve;
@@ -148,7 +150,12 @@ export async function pooledTurn(
       return new Response("denied", { status: options.failHydration });
     if (options.failLive && path.endsWith(`/objects/${options.failLive}`))
       return new Response("denied", { status: 403 });
-    if (options.holdLive && path.endsWith(`/objects/${options.holdLive}`)) {
+    if (
+      options.holdLive &&
+      !liveHeld &&
+      path.endsWith(`/objects/${options.holdLive}`)
+    ) {
+      liveHeld = true;
       await Promise.race([
         rereadSeen,
         new Promise((resolve) => setTimeout(resolve, 1000)),
