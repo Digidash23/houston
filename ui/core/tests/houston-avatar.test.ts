@@ -5,6 +5,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   avatarHelmetSize,
+  HELMET_PATHS,
   HoustonAvatar,
 } from "../src/components/houston-avatar.tsx";
 import {
@@ -12,6 +13,7 @@ import {
   EMPLOYEE_METAL_SHADE,
   employeeAvatarPaint,
   employeeMetalColors,
+  hexColorMix,
 } from "../src/employee-metal.ts";
 
 const PAINT = "var(--ht-agent-navy)";
@@ -45,7 +47,58 @@ describe("employee metal recipe", () => {
   });
 });
 
+describe("hexColorMix", () => {
+  it("mixes opaque hex colours channel by channel, like color-mix in srgb", () => {
+    assert.equal(hexColorMix("#ffffff", 0.25, "#000000"), "#404040");
+    assert.equal(hexColorMix("#1b6b3a", 1, "#0d0d0d"), "#1b6b3a");
+    assert.equal(hexColorMix("#1b6b3a", 0, "#0d0d0d"), "#0d0d0d");
+    assert.equal(hexColorMix("#f00", 0.5, "#0000ff"), "#800080");
+    for (const bad of ["#0000ffcc", "#12345", "var(--ht-agent-navy)", "red"])
+      assert.throws(() => hexColorMix(bad, 0.5, "#000000"), /opaque/);
+  });
+
+  it("drives the same metal recipe to plain hex for a canvas", () => {
+    const metal = employeeMetalColors(
+      "#1b6b3a",
+      "#ffffff",
+      "#0d0d0d",
+      hexColorMix,
+    );
+    for (const value of Object.values(metal))
+      assert.match(value, /^#[0-9a-f]{6}$/);
+  });
+});
+
 describe("HoustonAvatar", () => {
+  it("keeps the helmet's visor bar where its rect transform put it", () => {
+    // Was <rect width="15.334" height="16.211"
+    // transform="translate(258.6 409.939) rotate(-89.717)">.
+    const t = (-89.717 * Math.PI) / 180;
+    const corners = [
+      [0, 0],
+      [15.334, 0],
+      [15.334, 16.211],
+      [0, 16.211],
+    ].map(([x, y]) => [
+      258.6 + x * Math.cos(t) - y * Math.sin(t),
+      409.939 + x * Math.sin(t) + y * Math.cos(t),
+    ]);
+    const bar = HELMET_PATHS.find((d) => d.startsWith("M258.600"));
+    const points = [...(bar ?? "").matchAll(/(-?[\d.]+),(-?[\d.]+)/g)].map(
+      (m) => [Number(m[1]), Number(m[2])],
+    );
+    assert.equal(points.length, 4);
+    points.forEach(([x, y], i) => {
+      assert.ok(Math.abs(x - corners[i][0]) < 0.001, `x ${i}`);
+      assert.ok(Math.abs(y - corners[i][1]) < 0.001, `y ${i}`);
+    });
+  });
+
+  it("draws every helmet path", () => {
+    const html = renderToStaticMarkup(createElement(HoustonAvatar));
+    assert.equal(html.match(/<path /g)?.length, HELMET_PATHS.length);
+  });
+
   it("wears the employee metal with the helmet in relief", () => {
     for (const diameter of [16, 20, 24, 32, 40]) {
       const html = renderToStaticMarkup(

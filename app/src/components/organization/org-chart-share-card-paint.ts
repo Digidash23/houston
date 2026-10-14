@@ -20,7 +20,7 @@ import {
   NODE,
   stackedHeight,
 } from "./org-chart-share-card-geometry";
-import { accent, centred, face } from "./org-chart-share-card-marks";
+import { centred, face, helmetAvatar } from "./org-chart-share-card-marks";
 import { FONT, fitText, wrapLines } from "./org-chart-share-card-text";
 
 export type { ShareCardText };
@@ -122,7 +122,7 @@ function paintStacked(
     return;
   }
   let y = box.y + (box.h - stackedHeight(shape, lines.length)) / 2;
-  const markY = y + s.extent / 2;
+  const markY = y + s.mark / 2;
   if (node.kind === "person")
     face(
       ctx,
@@ -133,8 +133,8 @@ function paintStacked(
       assets.photos.get(node.person.userId),
     );
   else if (node.kind === "agent")
-    accent(ctx, cx, markY, s.dot, s.halo, agentAccent(node.agent.color));
-  y += s.extent + s.gap;
+    helmetAvatar(ctx, cx, markY, s.mark, agentAccent(node.agent.color));
+  y += s.mark + s.gap;
   ctx.textBaseline = "middle";
   track(ctx, -0.2);
   for (const line of lines) {

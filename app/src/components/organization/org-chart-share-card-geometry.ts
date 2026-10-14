@@ -19,34 +19,25 @@ export const CARD_TEXT = {
 /**
  * The node shapes. `root` is a wide card with a tile and the name; `column`
  * (the first row: people, a personal space's AI Employees, "+N") stacks a
- * 56px mark over the name; `leaf` (an AI Employee under its person) stacks a
- * colour dot in its halo over the name. Every stacked card centres what it
- * holds, and a name takes at most {@link NAME_LINES} lines, so the worst
- * case still fits inside the card. The
- * type sizes stay legible when LinkedIn shows the image around 550px wide
- * (0.46x): a 24px name lands near 11px.
- *
- * `extent` is how tall the mark really paints: a leaf's halo reaches past
- * its dot, so the block is measured from the halo.
+ * 56px mark (a face, or an AI Employee's helmet avatar) over the name;
+ * `leaf` (an AI Employee under its person) stacks a smaller helmet avatar
+ * over the name. Every stacked card centres what it holds, and a name takes
+ * at most {@link NAME_LINES} lines, so the worst case still fits inside the
+ * card. The type sizes stay legible when LinkedIn shows the image around
+ * 550px wide (0.46x): a 24px name lands near 11px.
  */
 export const NODE = {
   root: { h: 80, w: 420, tile: 44, name: 28 },
   column: {
     h: 140,
     mark: 56,
-    extent: 56,
-    dot: 11,
-    halo: 21,
     gap: 12,
     name: 24,
     nameLine: 28,
   },
   leaf: {
     h: 96,
-    mark: 16,
-    extent: 27,
-    dot: 7,
-    halo: 13.5,
+    mark: 30,
     gap: 8,
     name: 21,
     nameLine: 25,
@@ -62,10 +53,10 @@ export type StackedShape = "column" | "leaf";
 /** A name may take two lines. */
 export const NAME_LINES = 2;
 
-/** How tall a stacked card's content is, mark (or halo) included. */
+/** How tall a stacked card's content is, mark included. */
 export function stackedHeight(shape: StackedShape, nameLines: number): number {
   const s = NODE[shape];
-  return s.extent + (nameLines > 0 ? s.gap + nameLines * s.nameLine : 0);
+  return s.mark + (nameLines > 0 ? s.gap + nameLines * s.nameLine : 0);
 }
 
 export type CardNode =

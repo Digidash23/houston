@@ -9,7 +9,7 @@ import {
 } from "../src/components/organization/org-chart-share-card-geometry.ts";
 
 describe("share card content budget", () => {
-  it("fits the worst case of every stacked card inside it, halo and padding included", () => {
+  it("fits the worst case of every stacked card inside it, mark and padding included", () => {
     for (const shape of ["column", "leaf"] as StackedShape[]) {
       for (let names = 0; names <= NAME_LINES; names++) {
         const height = stackedHeight(shape, names);
@@ -18,10 +18,6 @@ describe("share card content budget", () => {
           `${shape}: ${names} name lines = ${height}px in ${NODE[shape].h}px`,
         );
       }
-      // The block is measured from what the mark really paints: the photo
-      // or "+N" disc, or the dot's halo, whichever reaches further.
-      const s = NODE[shape];
-      ok(s.extent >= Math.max(s.mark, s.halo * 2), `${shape} extent`);
     }
   });
 

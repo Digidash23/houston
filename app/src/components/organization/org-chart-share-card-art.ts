@@ -5,7 +5,8 @@ import { AGENT_COLORS } from "@houston-ai/core";
  * on a canvas that cannot read CSS variables, so its paper, ink and shadows
  * are authored here (the sanctioned raw-hex exception in DESIGN.md §3.1,
  * like the Agent Store's og-card). Clean and light on purpose: it lands in
- * a white feed. AI Employees still wear their own token colour as an accent.
+ * a white feed. AI Employees still wear their own token colour, on their
+ * helmet avatar.
  */
 
 export const ART = {
@@ -50,7 +51,8 @@ export function agentAccent(stored: string | undefined): string {
     (c) => c.id === stored || c.light === stored || c.dark === stored,
   );
   if (entry) return entry.light;
-  if (stored && /^#[0-9a-f]{3,8}$/i.test(stored)) return stored;
+  // Opaque hex only: the helmet metal mixes it channel by channel.
+  if (stored && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(stored)) return stored;
   return AGENT_COLORS[0].light;
 }
 
