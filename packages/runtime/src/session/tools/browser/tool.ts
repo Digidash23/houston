@@ -24,6 +24,7 @@ import { type BrowserPool, sharedBrowserPool } from "./pool";
 import { redactUrl } from "./redact-url";
 import { runBrowserAction } from "./run-action";
 import { browserStatePath, saveState } from "./state-store";
+import { untrusted } from "./untrusted";
 
 export interface BrowserToolOptions {
   /** The agent's workspace; its sign-ins live under `.houston/browser/`. */
@@ -159,7 +160,7 @@ export function makeBrowserTool({
         if (error instanceof BrowserToolError)
           return browserFailure(error.code, error.message);
         if (error instanceof Error && isPageFailure(error))
-          return browserFailure("page_error", firstLine(error.message));
+          return browserFailure("page_error", pageFailure(error.message));
         throw error;
       }
     },
@@ -177,6 +178,12 @@ function isPageFailure(error: Error): boolean {
   );
 }
 
-function firstLine(message: string): string {
-  return `${message.split("\n")[0]} Take a snapshot to see the page as it is now.`;
+/**
+ * Playwright's message can quote the page: an evaluate error carries the
+ * text the page threw, a blocked click the HTML of what covers it. Fenced
+ * like any other page content so a hostile page cannot speak as the tool.
+ */
+function pageFailure(message: string): string {
+  const line = message.split("\n")[0] ?? message;
+  return `The browser refused the action:\n${untrusted(line)}\nTake a snapshot to see the page as it is now.`;
 }

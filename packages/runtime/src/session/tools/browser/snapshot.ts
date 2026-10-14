@@ -1,4 +1,5 @@
 import type { Frame, Page } from "playwright-core";
+import { unquoteItemKeys } from "./aria-keys";
 import {
   documentOf,
   lookEpoch,
@@ -126,7 +127,9 @@ export const STILL_LOADING =
  */
 export async function ariaTree(page: Page): Promise<string | null> {
   try {
-    return await page.ariaSnapshot({ mode: "ai", timeout: 5_000 });
+    return unquoteItemKeys(
+      await page.ariaSnapshot({ mode: "ai", timeout: 5_000 }),
+    );
   } catch (error) {
     if (error instanceof Error && error.name === "TimeoutError") return null;
     throw error;

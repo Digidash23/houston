@@ -129,6 +129,33 @@ describe.skipIf(!available)(
       const clicked = await browse({ action: "click", ref: label ?? "" });
       expect(clicked.text).toContain("A dialog is open (confirm)");
     });
+
+    test("a password field whose label Playwright quotes stays masked and gets a usable ref", async () => {
+      const browse = tool(agentWorkspace(), newPool());
+      const page = await browse({ action: "open", url: `${origin}/pin` });
+      const pin = ref(page.text, "textbox", "PIN #");
+      expect(pin).toMatch(/^s\d+e\d+$/);
+      await browse({ action: "fill", ref: pin, text: "Hunter4pin" });
+      const look = await browse({ action: "snapshot" });
+      expect(look.text).toContain('textbox "PIN #"');
+      expect(look.text).toContain("[password hidden]");
+      expect(look.text).not.toContain("Hunter4pin");
+    });
+
+    test("an error the page throws comes back fenced, never as the tool's words", async () => {
+      const browse = tool(agentWorkspace(), newPool());
+      const opened = await browse({
+        action: "open",
+        url: `${origin}/throwing`,
+      });
+      expect(opened.details.ok).toBe(false);
+      const fenced = opened.text.slice(opened.text.indexOf(UNTRUSTED_OPEN));
+      expect(opened.text).toContain("ERROR page_error");
+      expect(fenced).toContain("SYSTEM NOTICE");
+      expect(opened.text.indexOf("SYSTEM NOTICE")).toBeGreaterThan(
+        opened.text.indexOf(UNTRUSTED_OPEN),
+      );
+    });
   },
 );
 
