@@ -1,4 +1,5 @@
 import { channelUnavailableReason } from "@houston/engine-adapter";
+import { useIsMobile } from "@houston-ai/core";
 import {
   Bug,
   CloudUpload,
@@ -11,6 +12,8 @@ import { useTranslation } from "react-i18next";
 import { useChannels } from "../../hooks/queries/use-channels";
 import { useCapabilities } from "../../hooks/use-capabilities";
 import { genericErrorDescription } from "../../lib/error-report";
+import { osIsNativeMobile } from "../../lib/os-bridge/platform";
+import { canPurchaseInApp } from "../../lib/purchase-policy";
 import {
   type SettingsSectionId,
   settingsSectionAvailable,
@@ -50,6 +53,8 @@ export function SettingsIndex({
   const { t } = useTranslation("settings");
   const channels = useChannels();
   const { capabilities } = useCapabilities();
+  // A structural fork, not a layout tweak: a phone has no keyboard shortcuts.
+  const surface = { touch: useIsMobile() || osIsNativeMobile() };
   const channelsAvailable =
     !!channels.data ||
     channelUnavailableReason(channels.error) === "not-configured";
@@ -82,7 +87,9 @@ export function SettingsIndex({
             <SettingsRow
               icon={CreditCard}
               title={t("plan:title")}
-              description={t("plan:nav")}
+              description={
+                canPurchaseInApp() ? t("plan:nav") : t("plan:native.nav")
+              }
               onClick={() => onSelect("plan")}
             />
           )}
@@ -109,12 +116,14 @@ export function SettingsIndex({
               onClick={() => onSelect("apiKeys")}
             />
           )}
-          <SettingsRow
-            icon={Keyboard}
-            title={t("settings:nav.shortcuts")}
-            description={t("settings:index.rows.shortcuts")}
-            onClick={() => onSelect("shortcuts")}
-          />
+          {settingsSectionAvailable("shortcuts", capabilities, surface) && (
+            <SettingsRow
+              icon={Keyboard}
+              title={t("settings:nav.shortcuts")}
+              description={t("settings:index.rows.shortcuts")}
+              onClick={() => onSelect("shortcuts")}
+            />
+          )}
           <SettingsRow
             icon={Bug}
             title={t("settings:nav.reportBug")}

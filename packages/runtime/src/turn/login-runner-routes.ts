@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { type LoginRunner, loadLoginRunner } from "./login-runner";
-import { json, readJson } from "./server-http";
+import { json, readJson, wireErrorMessage } from "./server-http";
 
 export function makeLoginRunnerRoutes(injected?: LoginRunner) {
   let runner: Promise<LoginRunner> | undefined;
@@ -98,7 +98,7 @@ export function makeLoginRunnerRoutes(injected?: LoginRunner) {
         path === "/login/api-key" ? 502 : 400,
         api
           ? api.failure(requested, error)
-          : { error: error instanceof Error ? error.message : String(error) },
+          : { error: wireErrorMessage(error) },
       );
     }
   };

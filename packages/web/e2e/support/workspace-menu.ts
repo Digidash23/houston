@@ -51,16 +51,30 @@ export function accountMenuTrigger(page: Page): Locator {
     : workspaceMenuTrigger(page);
 }
 
-/** Open the account menu (through the More card on the phone). */
+/** Open the account menu: the rail's menu, or on the phone the More card's
+ *  account page it drills into. */
 export async function openAccountMenu(page: Page): Promise<Locator> {
   if (isPhone(page)) {
     await openMoreMenu(page, "click");
     await accountMenuTrigger(page).click();
-    const menu = workspaceMenu(page);
-    await expect(menu).toBeVisible();
-    return menu;
+    const accountPage = moreMenu(page).getByTestId("more-account-page");
+    await expect(accountPage).toBeVisible();
+    return accountPage;
   }
   return openWorkspaceMenu(page);
+}
+
+/** One of the account's actions: a menu item on the desktop, a row of the
+ *  More card's account page on the phone. */
+export function accountAction(
+  page: Page,
+  account: Locator,
+  name: string,
+): Locator {
+  return account.getByRole(isPhone(page) ? "button" : "menuitem", {
+    name,
+    exact: true,
+  });
 }
 
 /** A control the desktop rail carries by its tour anchor: a connect row. */

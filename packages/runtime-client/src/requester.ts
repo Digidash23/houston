@@ -1,3 +1,4 @@
+import { trimTrailingSlashes } from "./trim-slashes";
 import type { EngineClientConfig } from "./types";
 
 /** A non-2xx response from the engine. `status` is the upstream HTTP status;
@@ -52,11 +53,4 @@ export function createRequester(config: EngineClientConfig): Requester {
   }
 
   return { request, json };
-}
-
-/** Strip trailing `/`s with a linear scan (a `/\/+$/` regex is polynomial). */
-function trimTrailingSlashes(url: string): string {
-  let end = url.length;
-  while (end > 0 && url[end - 1] === "/") end--;
-  return url.slice(0, end);
 }

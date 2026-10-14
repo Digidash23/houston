@@ -20,6 +20,7 @@
  */
 
 import { streamGlobalEvents } from "@houston/runtime-client";
+import { trimTrailingSlashes } from "@houston/runtime-client/trim-slashes";
 import type { Clock, SdkLogger } from "../../ports";
 import { ACTIVITY_CHANGED_EVENT } from "./types";
 
@@ -52,7 +53,7 @@ export function startActivitiesEventStream(
 ): () => void {
   const ac = new AbortController();
   const { clock, logger, handlers } = deps;
-  const root = deps.baseUrl.replace(/\/+$/, "");
+  const root = trimTrailingSlashes(deps.baseUrl);
   void streamGlobalEvents({
     url: () => `${root}/v1/events`,
     fetch: deps.fetch,

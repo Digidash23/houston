@@ -38,6 +38,7 @@ import {
   plusCheckoutRefusal,
   type TimezoneSeedResult,
 } from "@houston/sdk";
+import type { PushDeviceRegistration } from "@houston/wire-types";
 import { shouldUseClaudeDesktopLogin } from "../components/shell/provider-login-url";
 import { actingUser } from "./acting-user";
 import { isAgentGoneError, isStaleRosterReadError } from "./agent-gone";
@@ -86,6 +87,7 @@ import { surfacePlanMinInterval } from "./plan-min-interval";
 import { isProviderLoginSessionLostError } from "./provider-login-session-lost";
 import { toDisplayProviderIdOrNull } from "./provider-overrides";
 import { normalizeLegacyModel } from "./providers";
+import { canPurchaseInApp } from "./purchase-policy";
 import { healStaleRosterFromError } from "./roster-heal";
 import { isSharedSkillsUnconfiguredError } from "./shared-skills-availability";
 import { isStaleAttachmentError } from "./stale-attachment";
@@ -239,9 +241,16 @@ async function surfaceError(
   // OTHER write (member-add, agent config, etc.).
   if (isNeedsUpgradeError(err)) {
     const { showExpectedStateToast } = await import("./error-toast");
+    // The store apps never sell, so there the toast states the limit
+    // without sending anyone to ask for an upgrade.
+    const purchasable = canPurchaseInApp();
     showExpectedStateToast(
-      i18n.t("teams:degrade.writeBlockedTitle"),
-      i18n.t("teams:degrade.writeBlockedBody"),
+      purchasable
+        ? i18n.t("teams:degrade.writeBlockedTitle")
+        : i18n.t("teams:native.writeBlockedTitle"),
+      purchasable
+        ? i18n.t("teams:degrade.writeBlockedBody")
+        : i18n.t("teams:native.writeBlockedBody"),
     );
     return true;
   }
@@ -2085,4 +2094,30 @@ export const tauriChannels = {
   /** Open the authorization page; a popup blocker's refusal is the answer. */
   openSlack: (url: string) =>
     channelCall("open_slack", () => tauriSystem.openUrl(url)),
+};
+
+/** Device-scoped C23 push operations. Background failures are reported without a toast. */
+export const tauriPush = {
+  deviceId: () =>
+    call("push_device_id", () => getEngine().pushDeviceId(), undefined, {
+      toast: false,
+    }),
+  register: (id: string, input: PushDeviceRegistration) =>
+    call(
+      "push_register",
+      () => getEngine().registerPushDevice(id, input),
+      undefined,
+      { toast: false },
+    ),
+  unregister: (id: string, signal?: AbortSignal) =>
+    call(
+      "push_unregister",
+      () => getEngine().unregisterPushDevice(id, signal),
+      undefined,
+      { toast: false },
+    ),
+  startPresence: (
+    foreground: () => boolean,
+    onError: (error: unknown) => void,
+  ) => getEngine().startPushPresence(foreground, onError),
 };

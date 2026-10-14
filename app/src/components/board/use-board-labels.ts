@@ -44,6 +44,11 @@ export function useBoardLabels(surface: BoardLabelSurface = "board"): {
       folderReadFailed: t("chat:composer.folderReadFailed"),
       folderFileCount: (count: number) =>
         t("chat:composer.folderFileCount", { count }),
+      submit: t("chat:composer.submit"),
+      stop: t("chat:composer.stop"),
+      attachFiles: t("chat:composer.attachFiles"),
+      removeAttachment: (name: string) =>
+        t("chat:composer.removeAttachment", { name }),
     },
   };
 }

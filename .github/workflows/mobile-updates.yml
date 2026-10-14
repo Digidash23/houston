@@ -1,0 +1,201 @@
+name: Mobile OTA updates
+
+on:
+  push:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Roll back to an existing bundle, or raise the required native build once the store builds are live
+        required: true
+        type: choice
+        options: [rollback, raise-required-native-build]
+      channel:
+        description: Channel to change
+        required: true
+        type: choice
+        options: [preview, production]
+      version:
+        description: Existing bundle version to restore (rollback only)
+        required: false
+        type: string
+      required_native_build:
+        description: New required native build (raise only); every store build at or above it must already be live
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: mobile-updates-${{ github.event_name == 'workflow_dispatch' && inputs.channel || github.event_name == 'push' && 'preview' || 'production' }}
+  cancel-in-progress: false
+
+env:
+  # The web bundle build runs out of heap at Node's default limit on hosted
+  # runners (same setting as release.yml).
+  NODE_OPTIONS: --max-old-space-size=4096
+
+jobs:
+  publish:
+    if: ${{ github.repository == 'gethouston/houston' && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main') && (github.event_name != 'release' || startsWith(github.event.release.tag_name, 'cloud-v')) }}
+    # The signing key lives only in this environment, whose deployment rule
+    # admits main and cloud-v* tags (store/release.md), so an edited workflow
+    # dispatched from another branch cannot sign a manifest.
+    environment: mobile-updates
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.channel || github.event_name == 'push' && 'preview' || 'production' }}
+      BASE_URL: https://storage.googleapis.com/houston-mobile-updates
+      ACTION: ${{ github.event_name == 'workflow_dispatch' && inputs.action || 'publish' }}
+      ROLLBACK_VERSION: ${{ inputs.version }}
+      RAISE_REQUIRED: ${{ inputs.required_native_build }}
+    steps:
+      - name: Checkout release or main
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
+          # Full history: the publish compares this commit with main and with
+          # the commit the channel's live manifest was built from.
+          fetch-depth: 0
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Auth to GCP
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+        with:
+          workload_identity_provider: projects/1056698080170/locations/global/workloadIdentityPools/github/providers/houston
+          service_account: github-deploy-web@gethouston.iam.gserviceaccount.com
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+      - name: Refuse off-main or older commits
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        run: |
+          set -euo pipefail
+          live_sha=
+          if gcloud storage ls "gs://houston-mobile-updates/$CHANNEL/manifest.json" >/dev/null 2>&1; then
+            live=$(gcloud storage cat "gs://houston-mobile-updates/$CHANNEL/manifest.json" | jq -r .version)
+            live_sha=${live##*+}
+            [[ "$live_sha" =~ ^[0-9a-f]{7,}$ ]] || { echo "::error::Live manifest version $live names no commit"; exit 1; }
+          fi
+          packages/mobile/scripts/ota-commit-guard.sh origin/main HEAD "$live_sha"
+      - name: Build mobile bundle
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        env:
+          VITE_CONTROL_PLANE_URL: ${{ github.event_name == 'push' && secrets.HOSTED_ENGINE_URL_STAGING || secrets.HOSTED_ENGINE_URL }}
+          VITE_AGENTSTORE_GATEWAY_URL: ${{ github.event_name == 'push' && secrets.HOSTED_ENGINE_URL_STAGING || secrets.HOSTED_ENGINE_URL }}
+          VITE_CLIENT_METRICS_GATEWAY_URL: ${{ github.event_name == 'push' && secrets.HOSTED_ENGINE_URL_STAGING || secrets.HOSTED_ENGINE_URL }}
+          VITE_AGENTSTORE_SITE_URL: ${{ github.event_name == 'push' && 'https://staging-agents.gethouston.ai' || '' }}
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_APPLE_SERVICE_ID: ${{ vars.FIREBASE_APPLE_SERVICE_ID }}
+          POSTHOG_KEY: ${{ secrets.POSTHOG_KEY }}
+          POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          HOUSTON_MOBILE_UPDATE_PUBKEY: ${{ secrets.HOUSTON_MOBILE_UPDATE_PUBKEY }}
+          HOUSTON_MOBILE_STORE_URL_IOS: ${{ vars.HOUSTON_MOBILE_STORE_URL_IOS }}
+          HOUSTON_MOBILE_STORE_URL_ANDROID: ${{ vars.HOUSTON_MOBILE_STORE_URL_ANDROID }}
+          HOUSTON_MOBILE_UPDATE_BASE_URL: https://storage.googleapis.com/houston-mobile-updates
+        run: |
+          set -euo pipefail
+          test -n "$VITE_CONTROL_PLANE_URL" || { echo '::error::Gateway URL is absent'; exit 1; }
+          test -n "$HOUSTON_MOBILE_UPDATE_PUBKEY" || { echo '::error::HOUSTON_MOBILE_UPDATE_PUBKEY is absent'; exit 1; }
+          test "$GITHUB_RUN_ATTEMPT" -lt 100
+          export HOUSTON_MOBILE_BUILTIN_SEQUENCE=$((GITHUB_RUN_ID * 100 + GITHUB_RUN_ATTEMPT))
+          HOUSTON_MOBILE_DEPLOY_ENV="$CHANNEL" pnpm --filter houston-mobile build
+          find packages/mobile/dist -name "*.map" -delete
+          cd packages/mobile/dist
+          zip -q -r ../update.zip .
+      - name: Select bundle version and compatibility
+        run: |
+          set -euo pipefail
+          current_required=1
+          current_version=
+          if gcloud storage ls "gs://houston-mobile-updates/$CHANNEL/manifest.json" >/dev/null 2>&1; then
+            gcloud storage cat "gs://houston-mobile-updates/$CHANNEL/manifest.json" > packages/mobile/current-manifest.json
+            current_required=$(jq -r '.required_native_build' packages/mobile/current-manifest.json)
+            current_version=$(jq -r '.version' packages/mobile/current-manifest.json)
+          fi
+          [[ "$current_required" =~ ^[0-9]+$ ]] || { echo '::error::Current manifest has no valid required_native_build'; exit 1; }
+          required=$current_required
+          upload_zip=false
+          case "$ACTION" in
+            rollback)
+              [[ "$ROLLBACK_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+\+[0-9a-f]{7,}$ ]] || { echo '::error::Invalid bundle version'; exit 1; }
+              gcloud storage cp "gs://houston-mobile-updates/$CHANNEL/$ROLLBACK_VERSION.zip" packages/mobile/update.zip
+              unzip -p packages/mobile/update.zip version.json > packages/mobile/version.json
+              ;;
+            raise-required-native-build)
+              test -n "$current_version" || { echo '::error::No manifest to raise on this channel'; exit 1; }
+              [[ "$RAISE_REQUIRED" =~ ^[1-9][0-9]*$ ]] || { echo '::error::Invalid required_native_build'; exit 1; }
+              test "$RAISE_REQUIRED" -gt "$current_required" || { echo "::error::required_native_build must exceed the current $current_required"; exit 1; }
+              gcloud storage cp "gs://houston-mobile-updates/$CHANNEL/$current_version.zip" packages/mobile/update.zip
+              unzip -p packages/mobile/update.zip version.json > packages/mobile/version.json
+              required=$RAISE_REQUIRED
+              ;;
+            publish)
+              built=$(jq -r .version packages/mobile/dist/version.json)
+              if gcloud storage ls "gs://houston-mobile-updates/$CHANNEL/$built.zip" >/dev/null 2>&1; then
+                # A rerun of a published commit: the object is cached as
+                # immutable for a year, so sign its published bytes instead of
+                # replacing them with a rebuild whose sha256 differs.
+                echo "::notice::$built.zip already published; re-signing its bytes"
+                gcloud storage cp "gs://houston-mobile-updates/$CHANNEL/$built.zip" packages/mobile/update.zip
+                unzip -p packages/mobile/update.zip version.json > packages/mobile/version.json
+              else
+                upload_zip=true
+                cp packages/mobile/dist/version.json packages/mobile/version.json
+              fi
+              ;;
+            *) echo "::error::Unknown action $ACTION"; exit 1 ;;
+          esac
+          if [ "$ACTION" = publish ] && [ "$upload_zip" = true ]; then
+            min=$(jq -r .min_native_build packages/mobile/native-compat.json)
+          else
+            min=$(unzip -p packages/mobile/update.zip native-compat.json | jq -r .min_native_build)
+          fi
+          # Publishing and rolling back never raise the required floor: users on
+          # older builds would be gated before any store build is live. Raising
+          # it is the separate raise-required-native-build dispatch.
+          jq -n --argjson min "$min" --argjson required "$required" \
+            '{min_native_build: $min, required_native_build: $required}' > packages/mobile/compat-to-sign.json
+          VERSION=$(jq -r .version packages/mobile/version.json)
+          echo "version=$VERSION" >> "$GITHUB_ENV"
+          echo "upload_zip=$upload_zip" >> "$GITHUB_ENV"
+      - name: Sign manifest
+        env:
+          HOUSTON_MOBILE_UPDATE_SIGNING_KEY: ${{ secrets.HOUSTON_MOBILE_UPDATE_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$HOUSTON_MOBILE_UPDATE_SIGNING_KEY" || { echo '::error::HOUSTON_MOBILE_UPDATE_SIGNING_KEY is absent'; exit 1; }
+          test "$GITHUB_RUN_ATTEMPT" -lt 100
+          export HOUSTON_MOBILE_UPDATE_SEQUENCE=$((GITHUB_RUN_ID * 100 + GITHUB_RUN_ATTEMPT))
+          if gcloud storage ls "gs://houston-mobile-updates/$CHANNEL/manifest.json" >/dev/null 2>&1; then
+            current=$(gcloud storage cat "gs://houston-mobile-updates/$CHANNEL/manifest.json" | jq -r '.sequence // 0')
+            test "$HOUSTON_MOBILE_UPDATE_SEQUENCE" -gt "$current" || { echo '::error::OTA sequence must increase for this channel'; exit 1; }
+          fi
+          pnpm exec tsx packages/mobile/scripts/sign-update.ts \
+            packages/mobile/update.zip packages/mobile/version.json packages/mobile/compat-to-sign.json \
+            "$CHANNEL" "$BASE_URL" packages/mobile/manifest.json
+      - name: Upload zip, then manifest
+        run: |
+          set -euo pipefail
+          if [ "$upload_zip" = true ]; then
+            # Never overwrite: clients and caches hold these bytes for a year.
+            gcloud storage cp --if-generation-match=0 \
+              --cache-control='public,max-age=31536000,immutable' \
+              packages/mobile/update.zip "gs://houston-mobile-updates/$CHANNEL/$version.zip"
+          fi
+          gcloud storage cp --cache-control='no-store' packages/mobile/manifest.json \
+            "gs://houston-mobile-updates/$CHANNEL/manifest.json"

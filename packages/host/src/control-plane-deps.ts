@@ -1,6 +1,6 @@
 import type { Capabilities } from "@houston/protocol";
 import type { MountAdmin } from "./admin-seam";
-import type { ManagerDeps } from "./control-plane-deps-manager";
+import type { ControlPlaneAssistantDeps } from "./control-plane-assistant-deps";
 import type { SharedEndpointStore } from "./credentials/remote-shared-endpoint-store";
 import type { ViewFamily } from "./docs/view-capture";
 import type { Agent, Workspace, WorkspaceRuntime } from "./domain/types";
@@ -30,7 +30,7 @@ import type { Vfs } from "./vfs";
  * pod) differs from another ONLY in what it sets here — an absent dependency is
  * a documented, named refusal on the routes that need it, never a crash.
  */
-export interface ControlPlaneDeps extends ManagerDeps {
+export interface ControlPlaneDeps extends ControlPlaneAssistantDeps {
   verifier: TokenVerifier;
   /** Authenticated agent-scoped request seen for this agent id (docs/projector binding). */
   addressedAgent?: (agentId: string) => void;
@@ -159,6 +159,8 @@ export interface ControlPlaneDeps extends ManagerDeps {
   triggersEnabled?: boolean;
   /** Turn-end model-call reports, forwarded to the gateway (managed pods). */
   modelCallReports?: MissionsDeps["modelCallReports"];
+  /** Managed-pod push ingest; absent on desktop and self-host. */
+  pushReports?: MissionsDeps["pushReports"];
   corsOrigin?: string;
   /**
    * Prometheus exposition for GET /metrics (HOU-1011): the boot-span ledger,

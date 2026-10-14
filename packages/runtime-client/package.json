@@ -15,6 +15,10 @@
       "types": "./src/object-sync/index.ts",
       "import": "./src/object-sync/index.ts"
     },
+    "./trim-slashes": {
+      "types": "./src/trim-slashes.ts",
+      "import": "./src/trim-slashes.ts"
+    },
     "./sentry": {
       "types": "./src/sentry/index.ts",
       "import": "./src/sentry/index.ts"
