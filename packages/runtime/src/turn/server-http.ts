@@ -71,3 +71,14 @@ export function json(
   });
   res.end(JSON.stringify(body));
 }
+
+/**
+ * The text a caught failure may put in a response: an Error's message, never
+ * the thrown value itself. A non-Error throw can carry anything (a stack, a
+ * request body), so it goes to the log and the wire gets a fixed string.
+ */
+export function wireErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  console.error("[turn] non-Error thrown:", error);
+  return "internal error";
+}

@@ -21,7 +21,7 @@ export function useArchivedChatProps(
   archivedPanel: ArchivedPanel,
 ) {
   const { t } = useTranslation("board");
-  const { labels } = useBoardLabels();
+  const { labels, composerLabels } = useBoardLabels();
   const addToast = useUIStore((s) => s.addToast);
   const { selectedItem, activeAgent } = data;
   const { panel, attachmentValidation, openHref, onSendMessage } =
@@ -55,6 +55,7 @@ export function useArchivedChatProps(
       <AgentPanelAvatar color={activeAgent?.color} running={false} />
     ),
     labels,
+    composerLabels,
     cardLabels: {
       deleteTooltip: t("cardActions.deleteTooltip"),
       deleteTitle: (name: string) => t("deleteCard.titleWithName", { name }),

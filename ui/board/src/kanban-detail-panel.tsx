@@ -157,7 +157,9 @@ export const KanbanDetailPanel = forwardRef<
                 type="button"
                 onClick={onClose}
                 aria-label={closeLabel}
-                className="size-7 flex items-center justify-center rounded-md text-ink-muted hover:text-ink hover:bg-hover/50 transition-colors shrink-0"
+                // Phone hit-slop: 8px out except 4px toward the actions menu,
+                // whose own 8px slop then meets it across the row's 12px gap.
+                className="relative size-7 flex items-center justify-center rounded-md text-ink-muted hover:text-ink hover:bg-hover/50 transition-colors shrink-0 after:absolute after:-inset-y-2 after:-left-1 after:-right-2 md:after:hidden"
               >
                 <XIcon className="size-4" strokeWidth={1.75} />
               </button>

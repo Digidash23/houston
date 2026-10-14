@@ -1,5 +1,6 @@
 import type { LoginInfo } from "@houston/runtime-client";
 import type { ExportedCredential } from "../auth/export";
+import { wireErrorMessage } from "./server-http";
 
 export interface CaptureCredential {
   kind: "oauth" | "api_key";
@@ -98,10 +99,7 @@ export async function loadLoginRunner(): Promise<LoginRunner> {
       };
     },
     failure: (provider, error) => ({
-      error: login.loginFailureMessage(
-        provider,
-        error instanceof Error ? error.message : String(error),
-      ),
+      error: login.loginFailureMessage(provider, wireErrorMessage(error)),
       ...(error &&
       typeof error === "object" &&
       "kind" in error &&

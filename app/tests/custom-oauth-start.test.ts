@@ -66,6 +66,25 @@ describe("startCustomOAuth", () => {
     deepStrictEqual(h.opened, [URL]);
   });
 
+  it("awaits an async (native) navigation and falls back when it refuses", async () => {
+    let settled = false;
+    const tab: ReservedTab = {
+      navigate: async () => {
+        await Promise.resolve();
+        settled = true;
+        return false;
+      },
+      discard: () => {},
+    };
+    const h = harness({ tab, opens: false });
+    deepStrictEqual(await startCustomOAuth(h.deps), {
+      authorizeUrl: URL,
+      opened: false,
+    });
+    strictEqual(settled, true);
+    deepStrictEqual(h.opened, [URL]);
+  });
+
   it("reports a refused open as a result, keeping the URL for a manual click", async () => {
     const h = harness({ opens: false });
     deepStrictEqual(await startCustomOAuth(h.deps), {

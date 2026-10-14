@@ -33,7 +33,11 @@
       "failed": "Voice typing didn't work this time. Please try again.",
       "unsupportedTitle": "Voice typing isn't available on this computer",
       "unsupportedBody": "This computer's processor is too old for voice typing. Everything else keeps working normally."
-    }
+    },
+    "submit": "Submit",
+    "stop": "Stop",
+    "attachFiles": "Attach files",
+    "removeAttachment": "Remove {{name}}"
   },
   "mentions": {
     "listAriaLabel": "Mention a teammate"
@@ -457,6 +461,7 @@
     "argument": "{{name}} \"{{value}}\"",
     "exactValue": "The exact {{name}}:",
     "truncated_one": "[and {{formatted}} more character, all of which would be written]",
-    "truncated_other": "[and {{formatted}} more characters, all of which would be written]"
+    "truncated_other": "[and {{formatted}} more characters, all of which would be written]",
+    "storeRefusalOk": "Got it"
   }
 }

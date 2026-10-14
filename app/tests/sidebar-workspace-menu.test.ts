@@ -100,12 +100,22 @@ describe("the account menu", () => {
     inOrder(ACCOUNT_MENU, [
       "open(PROFILE_VIEW_ID)",
       "open(ABOUT_ME_VIEW_ID)",
-      'label={t("accountMenu.signOut")}',
+      'label: t("accountMenu.signOut")',
     ]);
     assert.equal(ACCOUNT_MENU.match(/<MenuItemRow/g)?.length, 3);
+    // The phone's account page lists the same three actions, in that order.
+    inOrder(ACCOUNT_MENU, [
+      "...(profileAvailable ? [profileAction] : [])",
+      "aboutMeAction,",
+      "...(profile ? [signOutAction] : [])",
+    ]);
     // Profile only where the deployment serves it; Sign out only with an
     // identity to sign out of.
-    assert.ok(ACCOUNT_MENU.includes("{profileAvailable && ("));
+    assert.ok(
+      ACCOUNT_MENU.includes(
+        "{profileAvailable && <MenuItemRow {...profileAction} />}",
+      ),
+    );
     assert.ok(
       ACCOUNT_MENU.includes('logAndReportError("account-sign-out", e)'),
     );

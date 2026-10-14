@@ -57,6 +57,7 @@ export async function startCustomOAuth(
     deps.tab?.discard();
     throw err;
   }
-  if (deps.tab?.navigate(authorizeUrl)) return { authorizeUrl, opened: true };
+  if (await deps.tab?.navigate(authorizeUrl))
+    return { authorizeUrl, opened: true };
   return { authorizeUrl, opened: await deps.open(authorizeUrl) };
 }

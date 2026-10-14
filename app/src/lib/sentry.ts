@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/browser";
+import { nativeTelemetryTag } from "./native-telemetry";
 import { confirmDelivery, recordDelivery } from "./sentry-delivery";
 import { currentClientDeployment } from "./sentry-deployment";
 import { sentrySendInDevEnabled } from "./sentry-dev";
@@ -121,6 +122,8 @@ export function initSentry(): void {
   // Houston deployment this client is part of, in the SAME vocabulary the
   // engine uses, so one filter spans a deployment's whole stack.
   Sentry.setTag("deployment", currentClientDeployment());
+  const { surface } = nativeTelemetryTag();
+  if (surface) Sentry.setTag("surface", surface);
 }
 
 /**

@@ -150,3 +150,37 @@ describe("useSettingsLanding source", () => {
     ok(/ready\.current =[^;]*!capabilitiesLoading/.test(src));
   });
 });
+
+describe("keyboard shortcuts on a touch surface", () => {
+  it("exists only where there is a keyboard", () => {
+    strictEqual(settingsSectionAvailable("shortcuts", null), true);
+    strictEqual(
+      settingsSectionAvailable("shortcuts", null, { touch: false }),
+      true,
+    );
+    // A phone width or a store app at any width: no shortcuts row.
+    strictEqual(
+      settingsSectionAvailable("shortcuts", null, { touch: true }),
+      false,
+    );
+    // Touch hides only the shortcuts; the other rows keep their own rules.
+    strictEqual(
+      settingsSectionAvailable("reportBug", null, { touch: true }),
+      true,
+    );
+  });
+
+  it("the index forks on phone width or the native app, never the UA", () => {
+    const src = readFileSync(
+      new URL("../src/components/settings/settings-index.tsx", import.meta.url),
+      "utf8",
+    );
+    ok(src.includes("useIsMobile() || osIsNativeMobile()"));
+    ok(
+      src.includes(
+        'settingsSectionAvailable("shortcuts", capabilities, surface)',
+      ),
+    );
+    strictEqual(/navigator\.userAgent/.test(src), false);
+  });
+});
