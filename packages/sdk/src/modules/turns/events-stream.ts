@@ -1,4 +1,5 @@
 import { streamGlobalEvents } from "@houston/runtime-client";
+import { trimTrailingSlashes } from "@houston/runtime-client/trim-slashes";
 import type { Clock, SdkLogger } from "../../ports";
 
 const CONVERSATIONS_CHANGED_EVENT = "ConversationsChanged";
@@ -24,7 +25,7 @@ export interface TurnsStreamDeps {
 export function startTurnsEventStream(deps: TurnsStreamDeps): () => void {
   const ac = new AbortController();
   const { clock, logger, handlers } = deps;
-  const root = deps.baseUrl.replace(/\/+$/, "");
+  const root = trimTrailingSlashes(deps.baseUrl);
   void streamGlobalEvents({
     url: () => `${root}/v1/events`,
     fetch: deps.fetch,

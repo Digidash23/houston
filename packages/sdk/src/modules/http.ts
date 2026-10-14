@@ -17,6 +17,7 @@
  * operation silently disappears from what the assistant can do.
  */
 
+import { trimTrailingSlashes } from "@houston/runtime-client/trim-slashes";
 import { parseComputeRefusalText, retryAfterMsOf } from "@houston/wire-types";
 import type { Clock, SdkPorts } from "../ports";
 
@@ -84,7 +85,7 @@ export function moduleScope(
   Failure: new (message: string, status: number) => SdkHttpError,
 ): HttpScope {
   return {
-    baseUrl: ctx.config.baseUrl.replace(/\/+$/, ""),
+    baseUrl: trimTrailingSlashes(ctx.config.baseUrl),
     ports: ctx.config.ports,
     onUnauthorized: () => ctx.authExpiry.notifyExpired(),
     fail: (message, status) =>

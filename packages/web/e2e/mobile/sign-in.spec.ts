@@ -39,3 +39,30 @@ test("sign-in is usable at a phone width through to the code entry", async ({
   await expect(codeInput).toBeVisible();
   expect(await overflow()).toBeLessThanOrEqual(0);
 });
+
+test("each provider is a full-width 44px row at 360px", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto("/");
+  const field = page.getByPlaceholder("you@example.com");
+  await expect(field).toBeVisible();
+  const providers = ["Google", "Apple", "Microsoft"].map((name) =>
+    page.getByRole("button", { name: `Continue with ${name}` }),
+  );
+  const boxes = [];
+  for (const button of providers) {
+    // The visible label is the phone's: a lone glyph in a wide pill reads as
+    // nothing, and Apple's option must match the others.
+    await expect(button).toContainText("Continue with");
+    const box = await button.boundingBox();
+    if (!box) throw new Error("provider button not laid out");
+    boxes.push(box);
+  }
+  for (const box of boxes) {
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.width).toBe(boxes[0]?.width);
+  }
+  // Stacked, one per row, as wide as the address row above the send button.
+  expect(boxes[1]?.y).toBeGreaterThan((boxes[0]?.y ?? 0) + 43);
+  const fieldBox = await field.boundingBox();
+  expect(fieldBox?.height).toBeGreaterThanOrEqual(44);
+});

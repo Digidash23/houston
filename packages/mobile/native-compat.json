@@ -1,0 +1,5 @@
+{
+  "min_native_build": 101,
+  "required_native_build": 101,
+  "native_fingerprint_sha256": "1deda835f890e7ace319f726646be7d8b0330d6650f59e680dc3f20fb1eb5006"
+}

@@ -1,10 +1,6 @@
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@houston-ai/core";
 import { sidebarSheetRowClasses } from "@houston-ai/layout";
-import type { ReactNode } from "react";
+import { ChevronRight } from "lucide-react";
+import type { ReactNode, Ref } from "react";
 import type { MenuRow } from "./menu-row";
 
 function RowFace(props: { icon: ReactNode; label: string }) {
@@ -40,34 +36,27 @@ export function MobileMoreRowButton({ row }: { row: MenuRow }) {
 }
 
 /**
- * The More card's account row: the person's portrait and "Your account",
- * opening the same account menu as the portrait in the rail's foot
- * (`sidebar-account-menu.tsx`), upward, since the row sits low in the card.
+ * The More card's account row: the person's portrait and "Your account". It
+ * drills into the card's account page (`mobile-more-account.tsx`), the
+ * phone's form of the rail's account menu, so the chevron says it goes
+ * deeper rather than somewhere else.
  */
 export function MobileAccountRow(props: {
   label: string;
   avatar: ReactNode;
-  menu: ReactNode;
+  onOpen: () => void;
+  ref?: Ref<HTMLButtonElement>;
 }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          data-testid="more-account"
-          className={sidebarSheetRowClasses}
-        >
-          <RowFace icon={props.avatar} label={props.label} />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        side="top"
-        align="start"
-        collisionPadding={8}
-        className="w-60"
-      >
-        {props.menu}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <button
+      ref={props.ref}
+      type="button"
+      data-testid="more-account"
+      onClick={props.onOpen}
+      className={sidebarSheetRowClasses}
+    >
+      <RowFace icon={props.avatar} label={props.label} />
+      <ChevronRight className="size-4 shrink-0 text-ink-muted" aria-hidden />
+    </button>
   );
 }

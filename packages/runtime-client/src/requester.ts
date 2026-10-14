@@ -1,3 +1,4 @@
+import { trimTrailingSlashes } from "./trim-slashes";
 import type { EngineClientConfig } from "./types";
 
 /** A non-2xx response from the engine. `status` is the upstream HTTP status;
@@ -27,7 +28,7 @@ export interface Requester {
 
 /** Build a {@link Requester} from an {@link EngineClientConfig}. */
 export function createRequester(config: EngineClientConfig): Requester {
-  const base = config.baseUrl.replace(/\/+$/, "");
+  const base = trimTrailingSlashes(config.baseUrl);
   const token = config.token;
   const fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
 

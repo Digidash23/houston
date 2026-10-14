@@ -136,6 +136,7 @@ import {
   normalizeLegacyModel,
   validEffortOrDefault,
 } from "../lib/providers";
+import { blocksPurchaseUrl } from "../lib/purchase-policy";
 import { queryKeys } from "../lib/query-keys";
 import { reportRejection } from "../lib/report-rejection";
 import { showSendFailedToast } from "../lib/send-error-toast";
@@ -1466,7 +1467,10 @@ export function useAgentChatPanel({
     [path, selectedSessionKey, resolveSendPin, turnMode, addToast, t],
   );
   const renderLink = useCallback<NonNullable<AIBoardProps["renderLink"]>>(
-    ({ href }) => {
+    ({ href, children }) => {
+      // A payment link (a checkout the AI Manager started elsewhere) is
+      // plain text in the store apps, which never sell.
+      if (blocksPurchaseUrl(href)) return <span>{children}</span>;
       if (!integrationsEnabled || !agent) return undefined;
       const toolkit = parseToolkitFromHref(href);
       if (!toolkit) return undefined;
@@ -2316,42 +2320,51 @@ export function useAgentChatPanel({
     // ONE row at both breakpoints. A phone composer has no room for five
     // labelled pills, so there the Skills entry lives in the composer's "+"
     // menu (see `attachMenu`), the effort pill is its gauge icon alone, and
-    // the pickers drop their chevrons. Desktop is unchanged.
+    // the pickers drop their chevrons. On a phone each control is a 44px
+    // target, and the pickers scroll sideways (scrollbar hidden) when a long
+    // model name or a translated mode will not fit, while the context ring
+    // stays pinned at the right edge. The scroller's 2px phone padding keeps
+    // the pickers' focus rings inside its clip. Desktop is unchanged.
     return () => (
       <div
         data-testid="composer-toolbar"
         className="flex w-full items-center gap-1 md:gap-2"
       >
-        <button
-          type="button"
-          onClick={() => setPickerOpen(true)}
-          className="hidden md:inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-xs font-medium text-ink-muted whitespace-nowrap hover:text-ink hover:bg-hover transition-colors"
+        <div
+          data-testid="composer-toolbar-pickers"
+          className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto p-0.5 [scrollbar-width:none] md:gap-2 md:overflow-visible md:p-0"
         >
-          <Play className="size-3 fill-current" />
-          {t("composerSkill.browse")}
-        </button>
-        <ChatModeSelector
-          mode={turnMode}
-          onSelect={handleModeSelect}
-          agent={agent}
-        />
-        <ChatModelSelector
-          provider={displayModelPin.provider}
-          model={displayModelPin.model}
-          onSelect={selectModel}
-          open={modelPickerOpen}
-          onOpenChange={setModelPickerOpen}
-          agent={agent}
-          allowedModels={allowedModels}
-        />
-        <ChatEffortSelector
-          provider={displayModelPin.provider}
-          model={displayModelPin.model}
-          effort={displayModelPin.effort}
-          onSelect={selectEffort}
-          agent={agent}
-        />
-        <div className="ml-auto">
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            className="hidden md:inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-xs font-medium text-ink-muted whitespace-nowrap hover:text-ink hover:bg-hover transition-colors"
+          >
+            <Play className="size-3 fill-current" />
+            {t("composerSkill.browse")}
+          </button>
+          <ChatModeSelector
+            mode={turnMode}
+            onSelect={handleModeSelect}
+            agent={agent}
+          />
+          <ChatModelSelector
+            provider={displayModelPin.provider}
+            model={displayModelPin.model}
+            onSelect={selectModel}
+            open={modelPickerOpen}
+            onOpenChange={setModelPickerOpen}
+            agent={agent}
+            allowedModels={allowedModels}
+          />
+          <ChatEffortSelector
+            provider={displayModelPin.provider}
+            model={displayModelPin.model}
+            effort={displayModelPin.effort}
+            onSelect={selectEffort}
+            agent={agent}
+          />
+        </div>
+        <div className="shrink-0">
           <ContextIndicator
             usage={contextUsage}
             contextWindow={contextWindow}
