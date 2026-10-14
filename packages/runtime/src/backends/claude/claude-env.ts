@@ -1,7 +1,10 @@
 import { isAbsolute } from "node:path";
 import { firstByteDeadlineMs } from "../../ai/first-byte";
 import { config } from "../../config";
-import { claudeShellFencePath } from "../../session/claude-shell-fence";
+import {
+  claudeShellFencePath,
+  claudeShellPrefix,
+} from "../../session/claude-shell-fence";
 import type { ClaudeToken } from "./backend-types";
 import { tokenEnv } from "./claude-token-env";
 import { CREDENTIAL_ENV_VARS } from "./credential-env-vars";
@@ -153,7 +156,7 @@ export function buildClaudeEnv(
     opts.shellFencePath === undefined
       ? claudeShellFencePath()
       : opts.shellFencePath;
-  if (fence !== null) env.CLAUDE_CODE_SHELL_PREFIX = fence;
+  if (fence !== null) env.CLAUDE_CODE_SHELL_PREFIX = claudeShellPrefix(fence);
   // Claude Code's request timeout covers only the wait for the response
   // headers, and it retries a request that timed out: the CLI's own
   // cancel-and-resend at the first-byte deadline (ai/first-byte.ts). A stream

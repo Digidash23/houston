@@ -14,9 +14,10 @@ function shellWord(value: string): string {
 
 /**
  * The wrapper the Claude CLI runs its Bash tool through when
- * `CLAUDE_CODE_SHELL_PREFIX` names it: the CLI appends the whole command as
- * ONE argument (verified against Claude Code 2.1), so `$1` is the command and
- * the wrapper re-enters bash under the cap. `$BASH` is the interpreter running
+ * `CLAUDE_CODE_SHELL_PREFIX` names it (`claudeShellPrefix`): the CLI appends
+ * the whole command as ONE argument after `-c` (verified against Claude Code
+ * 2.1), so `$1` is the command once `-c` is shifted off, and the wrapper
+ * re-enters bash under the cap. `$BASH` is the interpreter running
  * this script (always set inside a bash script), the same one the CLI chose.
  *
  * With a tool shell (config.toolShell) the wrapper hands the command to it
@@ -34,9 +35,12 @@ export function claudeShellFenceScript(
   return [
     "#!/bin/bash",
     "# Written by the Houston runtime (session/child-memory-fence.ts).",
-    toolShell === null
-      ? "# Runs the Claude CLI's shell commands under a per-process memory cap."
-      : "# Runs the Claude CLI's shell commands as the deployment's tool user.",
+    toolShell !== null
+      ? "# Runs the Claude CLI's shell commands as the deployment's tool user."
+      : capBytes !== null
+        ? "# Runs the Claude CLI's shell commands under a per-process memory cap."
+        : "# Runs the Claude CLI's shell commands without its credentials.",
+    'if [ "$1" = "-c" ]; then shift; fi',
     ...(capBytes === null ? [] : [bashMemoryFencePrefix(capBytes)]),
     `unset ${CREDENTIAL_ENV_VARS.join(" ")}`,
     toolShell === null
@@ -44,6 +48,17 @@ export function claudeShellFenceScript(
       : `exec ${shellWord(toolShell)} -c "$1"`,
     "",
   ].join("\n");
+}
+
+/**
+ * The `CLAUDE_CODE_SHELL_PREFIX` value for the wrapper at `fencePath`. Claude
+ * Code splits the prefix at its LAST " -" into an executable it shell-quotes
+ * and raw arguments, so a bare path containing " -" (an agent folder named
+ * "Writer - Draft") would run the wrong file. The trailing `-c` is always that
+ * last " -", which keeps the whole path one quoted word.
+ */
+export function claudeShellPrefix(fencePath: string): string {
+  return `${fencePath} -c`;
 }
 
 /**

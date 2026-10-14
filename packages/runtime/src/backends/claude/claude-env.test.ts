@@ -44,7 +44,7 @@ test("the shell fence rides CLAUDE_CODE_SHELL_PREFIX, and only the fence does", 
       shellFencePath: "/data/bin/claude-shell-fence",
     });
     expect(fenced.CLAUDE_CODE_SHELL_PREFIX).toBe(
-      "/data/bin/claude-shell-fence",
+      "/data/bin/claude-shell-fence -c",
     );
 
     // No container limit → no wrapper; the ambient one never passes through.

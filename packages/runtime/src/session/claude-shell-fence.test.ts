@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   claudeShellFenceScript,
+  claudeShellPrefix,
   ensureClaudeShellFence,
 } from "./claude-shell-fence";
 
@@ -52,6 +53,7 @@ describe("without a tool shell", () => {
         "#!/bin/bash",
         "# Written by the Houston runtime (session/child-memory-fence.ts).",
         "# Runs the Claude CLI's shell commands under a per-process memory cap.",
+        'if [ "$1" = "-c" ]; then shift; fi',
         "ulimit -d 786432 2>/dev/null",
         "unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_CODE_SUBSCRIPTION_TYPE",
         'exec "$BASH" -c "$1"',
@@ -231,3 +233,34 @@ describe("with a tool shell", () => {
     },
   );
 });
+
+// Claude Code 2.1.293's own composition of CLAUDE_CODE_SHELL_PREFIX: split at
+// the LAST " -", shell-quote the part before it, pass the rest raw, then the
+// quoted command.
+function cliCommandLine(prefix: string, command: string): string {
+  const at = prefix.lastIndexOf(" -");
+  return at > 0
+    ? `${shellQuote(prefix.slice(0, at))} ${prefix.slice(at + 1)} ${shellQuote(command)}`
+    : `${shellQuote(prefix)} ${shellQuote(command)}`;
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'\\''`)}'`;
+}
+
+test.skipIf(process.platform === "win32")(
+  "the prefix runs the fence from a folder whose name has a dash",
+  () => {
+    const dir = join(scratch("fence-dash-"), "Writer - Draft", "bin");
+    const prefix = claudeShellPrefix(ensureClaudeShellFence(dir, null));
+    const out = execFileSync(
+      "/bin/bash",
+      ["-c", cliCommandLine(prefix, "echo \"[$ANTHROPIC_API_KEY] 'a b'\"")],
+      {
+        encoding: "utf8",
+        env: { PATH: process.env.PATH, ANTHROPIC_API_KEY: "sk-ant-api03-x" },
+      },
+    );
+    expect(out).toBe("[] 'a b'\n");
+  },
+);
