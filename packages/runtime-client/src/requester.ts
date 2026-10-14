@@ -27,7 +27,7 @@ export interface Requester {
 
 /** Build a {@link Requester} from an {@link EngineClientConfig}. */
 export function createRequester(config: EngineClientConfig): Requester {
-  const base = config.baseUrl.replace(/\/+$/, "");
+  const base = trimTrailingSlashes(config.baseUrl);
   const token = config.token;
   const fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
 
@@ -52,4 +52,11 @@ export function createRequester(config: EngineClientConfig): Requester {
   }
 
   return { request, json };
+}
+
+/** Strip trailing `/`s with a linear scan (a `/\/+$/` regex is polynomial). */
+function trimTrailingSlashes(url: string): string {
+  let end = url.length;
+  while (end > 0 && url[end - 1] === "/") end--;
+  return url.slice(0, end);
 }
