@@ -102,16 +102,31 @@ test("an ambient plan never reaches the subprocess", () => {
   }
 });
 
-test("every env asks the CLI to scrub credentials from the model's commands", () => {
-  for (const token of [
-    { kind: "api-key" as const, value: "sk-ant-api03-x" },
-    { kind: "oauth-token" as const, value: "sk-ant-oat01-x" },
-    undefined,
-  ]) {
-    const env = buildClaudeEnv(token, {
-      configDir: "/cfg",
-      shellFencePath: null,
-    });
-    expect(env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, token?.kind).toBe("1");
+test("off Linux every env asks the CLI to scrub credentials from the model's commands", () => {
+  for (const platform of ["darwin", "win32"] as const) {
+    for (const token of [
+      { kind: "api-key" as const, value: "sk-ant-api03-x" },
+      { kind: "oauth-token" as const, value: "sk-ant-oat01-x" },
+      undefined,
+    ]) {
+      const env = buildClaudeEnv(token, {
+        configDir: "/cfg",
+        shellFencePath: null,
+        platform,
+      });
+      expect(env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, platform).toBe("1");
+    }
   }
+});
+
+// The CLI's Linux build exits 1 at startup ("bubblewrap is required for
+// subprocess env scrubbing") when scrub is on and bwrap is missing, which
+// failed every Claude turn on E2B.
+test("on Linux the env never turns on the CLI's scrub", () => {
+  const env = buildClaudeEnv(
+    { kind: "api-key", value: "sk-ant-api03-x" },
+    { configDir: "/cfg", shellFencePath: null, platform: "linux" },
+  );
+  expect(env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).toBeUndefined();
+  expect(env.ANTHROPIC_API_KEY).toBe("sk-ant-api03-x");
 });

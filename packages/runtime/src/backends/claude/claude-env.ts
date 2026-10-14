@@ -4,6 +4,7 @@ import { config } from "../../config";
 import { claudeShellFencePath } from "../../session/claude-shell-fence";
 import type { ClaudeToken } from "./backend-types";
 import { tokenEnv } from "./claude-token-env";
+import { CREDENTIAL_ENV_VARS } from "./credential-env-vars";
 
 /**
  * Building the environment for the Claude Agent SDK subprocess.
@@ -22,21 +23,6 @@ import { tokenEnv } from "./claude-token-env";
  * agent could call the control plane's `/sandbox/credential` directly and pull
  * the workspace's real provider tokens — defeating the short-TTL Gate-#2 design.
  */
-
-/**
- * Every env var the Claude Agent SDK reads to authenticate. The SDK honors all
- * three (verified in the installed `sdk.mjs`): a setup/OAuth token via
- * `CLAUDE_CODE_OAUTH_TOKEN`, and an API key via either `ANTHROPIC_API_KEY` or
- * the `ANTHROPIC_AUTH_TOKEN` alias. We never copy these from the ambient env;
- * exactly the one for the connected credential is set, so exactly one survives.
- */
-const CREDENTIAL_ENV_VARS = [
-  "CLAUDE_CODE_OAUTH_TOKEN",
-  "ANTHROPIC_API_KEY",
-  "ANTHROPIC_AUTH_TOKEN",
-  // Not a secret, but a fact about the credential: never inherited.
-  "CLAUDE_CODE_SUBSCRIPTION_TYPE",
-] as const;
 
 /**
  * The ALLOWLIST of ambient env vars copied verbatim into the subprocess.
@@ -136,6 +122,7 @@ export function buildClaudeEnv(
     credentialStorageDir?: string;
     homeDir?: string;
     shellFencePath?: string | null;
+    platform?: NodeJS.Platform;
   },
 ): Record<string, string> {
   const env: Record<string, string> = {};
@@ -150,8 +137,11 @@ export function buildClaudeEnv(
   env.CLAUDE_CODE_DISABLE_ATTACHMENTS = "1";
   // Scrub mode keeps the CLI's credential variables out of the commands the
   // model runs. It also forces permissionMode "default", the mode Houston
-  // already runs in.
-  env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB = "1";
+  // already runs in. The CLI's Linux build exits at startup with it on unless
+  // bubblewrap is installed, and no Houston Linux image ships bubblewrap, so
+  // there the shell fence unsets those variables for the tool user instead.
+  if ((opts.platform ?? process.platform) !== "linux")
+    env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB = "1";
   const fence =
     opts.shellFencePath === undefined
       ? claudeShellFencePath()

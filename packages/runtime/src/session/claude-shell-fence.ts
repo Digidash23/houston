@@ -1,5 +1,6 @@
 import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { CREDENTIAL_ENV_VARS } from "../backends/claude/credential-env-vars";
 import { config } from "../config";
 import {
   bashMemoryFencePrefix,
@@ -20,7 +21,9 @@ function shellWord(value: string): string {
  *
  * With a tool shell (config.toolShell) the wrapper hands the command to it
  * instead, so it runs as the deployment's tool user; the cap line, when there
- * is a cap, still runs first and the tool shell inherits it.
+ * is a cap, still runs first and the tool shell inherits it. The CLI's
+ * credential variables are unset first: the tool shell keeps the environment,
+ * and on Linux the CLI's own scrub is off (backends/claude/claude-env.ts).
  */
 export function claudeShellFenceScript(
   capBytes: number | null,
@@ -35,6 +38,7 @@ export function claudeShellFenceScript(
       ? "# Runs the Claude CLI's shell commands under a per-process memory cap."
       : "# Runs the Claude CLI's shell commands as the deployment's tool user.",
     ...(capBytes === null ? [] : [bashMemoryFencePrefix(capBytes)]),
+    ...(toolShell === null ? [] : [`unset ${CREDENTIAL_ENV_VARS.join(" ")}`]),
     toolShell === null
       ? 'exec "$BASH" -c "$1"'
       : `exec ${shellWord(toolShell)} -c "$1"`,

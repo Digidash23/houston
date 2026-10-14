@@ -113,6 +113,36 @@ describe("with a tool shell", () => {
     },
   );
 
+  test.skipIf(process.platform === "win32")(
+    "the tool shell never sees the CLI's credential variables",
+    () => {
+      const root = scratch("fence-env-");
+      const toolShell = join(root, "tool-shell");
+      writeFileSync(toolShell, '#!/bin/bash\nexec /bin/bash -c "$2"\n');
+      chmodSync(toolShell, 0o755);
+      const fence = ensureClaudeShellFence(join(root, "bin"), null, toolShell);
+
+      const out = execFileSync(
+        "/bin/bash",
+        [
+          fence,
+          'echo "[$ANTHROPIC_API_KEY][$ANTHROPIC_AUTH_TOKEN][$CLAUDE_CODE_OAUTH_TOKEN][$KEEP]"',
+        ],
+        {
+          encoding: "utf8",
+          env: {
+            PATH: process.env.PATH,
+            ANTHROPIC_API_KEY: "sk-ant-api03-x",
+            ANTHROPIC_AUTH_TOKEN: "sk-ant-api03-y",
+            CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-z",
+            KEEP: "kept",
+          },
+        },
+      );
+      expect(out).toBe("[][][][kept]\n");
+    },
+  );
+
   test("the runtime writes the wrapper even with no memory cap", async () => {
     process.env.HOUSTON_TOOL_SHELL = TOOL_SHELL;
     process.env.HOUSTON_DATA_DIR = scratch("fence-data-");
