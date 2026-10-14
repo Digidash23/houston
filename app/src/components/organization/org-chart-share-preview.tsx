@@ -48,6 +48,7 @@ export function OrgChartSharePreview({
   return (
     <div className="relative aspect-square w-full overflow-hidden rounded-xl shadow-card ht-hairline">
       <Skeleton
+        role={shown ? undefined : "img"}
         aria-label={shown ? undefined : t("orgChart.share.drawing")}
         aria-hidden={shown || undefined}
         className={cn(

@@ -77,27 +77,35 @@ export function OrgChartShareDialog({
             )}
           </div>
         </div>
-        {line?.line && (
-          <p role="status" className="text-sm text-pretty text-ink">
-            {line.line === "blocked"
+        {/* Always mounted, so a screen reader announces the line when it
+            arrives; only its words change. Empty, it is sr-only, which takes
+            it out of the layout (and the dialog's gap) without hiding it. */}
+        <p
+          role="status"
+          className={cn(
+            "text-sm text-pretty text-ink",
+            !line?.line && "sr-only",
+          )}
+        >
+          {line?.line &&
+            (line.line === "blocked"
               ? t("orgChart.share.linkedInBlocked")
-              : t(`orgChart.share.${line.line}`)}
-            {line.blocked && line.url && (
-              <>
-                {" "}
-                <a
-                  href={line.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={share.followBlocked}
-                  className="font-medium text-link underline underline-offset-2"
-                >
-                  {t("orgChart.share.openLinkedIn")}
-                </a>
-              </>
-            )}
-          </p>
-        )}
+              : t(`orgChart.share.${line.line}`))}
+          {line?.blocked && line.url && (
+            <>
+              {" "}
+              <a
+                href={line.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={share.followBlocked}
+                className="font-medium text-link underline underline-offset-2"
+              >
+                {t("orgChart.share.openLinkedIn")}
+              </a>
+            </>
+          )}
+        </p>
       </DialogContent>
     </Dialog>
   );
