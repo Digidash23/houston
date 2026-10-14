@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { unquoteItemKeys } from "./aria-keys";
+import { maskPasswords } from "./mask-passwords";
 import { stampRefs } from "./refs";
-import { maskPasswords } from "./snapshot";
 import { parseTree } from "./snapshot-tree";
 
 test("a single-quoted item key reads like any other item", () => {

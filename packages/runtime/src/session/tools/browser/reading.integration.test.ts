@@ -142,6 +142,22 @@ describe.skipIf(!available)(
       expect(look.text).not.toContain("Hunter4pin");
     });
 
+    test("a password field with a placeholder stays masked", async () => {
+      const browse = tool(agentWorkspace(), newPool());
+      const page = await browse({
+        action: "open",
+        url: `${origin}/placeholder`,
+      });
+      await browse({
+        action: "fill",
+        ref: ref(page.text, "textbox", "Password"),
+        text: "Hunter5pw",
+      });
+      const look = await browse({ action: "snapshot" });
+      expect(look.text).toContain("[password hidden]");
+      expect(look.text).not.toContain("Hunter5pw");
+    });
+
     test("an error the page throws comes back fenced, never as the tool's words", async () => {
       const browse = tool(agentWorkspace(), newPool());
       const opened = await browse({

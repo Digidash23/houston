@@ -1,10 +1,6 @@
 import { expect, test } from "vitest";
-import {
-  capText,
-  cutOffHint,
-  maskPasswords,
-  SNAPSHOT_MAX_CHARS,
-} from "./snapshot";
+import { maskPasswords } from "./mask-passwords";
+import { capText, cutOffHint, SNAPSHOT_MAX_CHARS } from "./snapshot";
 
 test("a snapshot under the cap is returned untouched", () => {
   const text = '- button "Sign in" [ref=e2]';
@@ -67,6 +63,25 @@ test("a password is masked as Playwright prints it: whitespace collapsed, contro
   expect(masked.match(/\[password hidden\]/g)).toHaveLength(5);
   expect(maskPasswords('- textbox "F" [ref=e6]: tab here', ["tab\there"])).toBe(
     '- textbox "F" [ref=e6]: [password hidden]',
+  );
+});
+
+test("a password printed as a placeholder textbox's text child is masked; a sibling's text is not", () => {
+  const tree = [
+    '- textbox "Password" [ref=e5]:',
+    "  - /placeholder: Enter your password",
+    "  - text: hunter22",
+    '- paragraph "Hint" [ref=e6]:',
+    "  - text: hunter22",
+  ].join("\n");
+  expect(maskPasswords(tree, ["hunter22"])).toBe(
+    [
+      '- textbox "Password" [ref=e5]:',
+      "  - /placeholder: Enter your password",
+      "  - text: [password hidden]",
+      '- paragraph "Hint" [ref=e6]:',
+      "  - text: hunter22",
+    ].join("\n"),
   );
 });
 

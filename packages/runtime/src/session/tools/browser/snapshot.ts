@@ -6,10 +6,10 @@ import {
   previousRefs,
   rememberLook,
 } from "./look-memory";
+import { maskPasswords } from "./mask-passwords";
 import type { BrowserTab } from "./open-tab";
 import { redactUrl } from "./redact-url";
 import { nextGeneration, stampRefs } from "./refs";
-import { unquoted } from "./snapshot-tree";
 import { FULL_VIEW, type SnapshotView, viewTree } from "./snapshot-view";
 import { untrusted } from "./untrusted";
 
@@ -134,46 +134,4 @@ export async function ariaTree(page: Page): Promise<string | null> {
     if (error instanceof Error && error.name === "TimeoutError") return null;
     throw error;
   }
-}
-
-/**
- * A textbox line's head (role, quoted name, `[attr]` marks) and its value.
- * Anchored on the head, not the last "]: ": a password "ab]: cd" contains
- * one, and matching there masked only its tail.
- */
-const TEXTBOX_VALUE =
-  /^(\s*- textbox(?: "(?:[^"\\]|\\.)*")?(?: \[[^\]]*\])*: )(.*)$/;
-
-/**
- * The accessibility tree prints a textbox's value, password fields included.
- * Masked by value on textbox lines only, so a short password never blanks
- * ordinary page text that happens to contain it.
- */
-export function maskPasswords(
-  tree: string,
-  secrets: readonly string[],
-): string {
-  const hidden = new Set(secrets.map(asPrinted).filter((s) => s.length > 0));
-  if (hidden.size === 0) return tree;
-  return tree
-    .split("\n")
-    .map((line) => {
-      const match = TEXTBOX_VALUE.exec(line);
-      return match?.[2] !== undefined &&
-        hidden.has(asPrinted(unquoted(match[2])))
-        ? `${match[1]}[password hidden]`
-        : line;
-    })
-    .join("\n");
-}
-
-/**
- * Playwright's own whitespace normalization of a printed value: a password
- * "correct  horse" prints as "correct horse" and must still match.
- */
-function asPrinted(value: string): string {
-  return value
-    .replace(/[\u200b\u00ad]/g, "")
-    .trim()
-    .replace(/\s+/g, " ");
 }
