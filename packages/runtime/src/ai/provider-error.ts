@@ -739,7 +739,7 @@ function isServerError(lower: string, status: number | null): boolean {
     // these keep the verdict when the body is truncated (HOU-1156).
     lower.includes("got status: unavailable") ||
     lower.includes("experiencing high demand") ||
-    isRetriedServerFailure(lower) ||
+    isRetriedServerFailure(lower, status) ||
     // Gemini's malformed-generation finish reasons — MALFORMED_FUNCTION_CALL
     // (the model emitted an unparseable tool call) and MALFORMED_RESPONSE (a
     // newer value the SDK enum doesn't even carry yet) — arrive flattened as
