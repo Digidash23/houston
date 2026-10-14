@@ -49,36 +49,36 @@ describe("the query key", () => {
     const base = ["provider-statuses", "anthropic"];
     const personal = providerStatusesQueryKey({
       base,
-      catalogUpdatedAt: 7,
+      providerIds: ["anthropic"],
       workspaceId: "personal",
     });
     const team = providerStatusesQueryKey({
       base,
-      catalogUpdatedAt: 7,
+      providerIds: ["anthropic"],
       workspaceId: "org:00000000000000ab",
     });
     deepStrictEqual(personal, [
       "provider-statuses",
       "anthropic",
-      7,
+      ["anthropic"],
       "personal",
     ]);
     strictEqual(JSON.stringify(personal) === JSON.stringify(team), false);
   });
 
-  it("still re-keys on the catalog hydration", () => {
+  it("re-keys when the catalog hydration grows the probed set", () => {
     const base = ["provider-statuses"];
-    const before = providerStatusesQueryKey({
+    const seed = providerStatusesQueryKey({
       base,
-      catalogUpdatedAt: 0,
+      providerIds: ["anthropic"],
       workspaceId: null,
     });
-    const after = providerStatusesQueryKey({
+    const hydrated = providerStatusesQueryKey({
       base,
-      catalogUpdatedAt: 1,
+      providerIds: ["anthropic", "openai"],
       workspaceId: null,
     });
-    strictEqual(JSON.stringify(before) === JSON.stringify(after), false);
+    strictEqual(JSON.stringify(seed) === JSON.stringify(hydrated), false);
   });
 });
 
@@ -255,6 +255,16 @@ describe("the picker hook is actually wired to the gate", () => {
     strictEqual(hook.includes("providerProbeReady"), true);
     strictEqual(hook.includes("enabled: probeReady"), true);
     strictEqual(hook.includes("providerStatusesLoading"), true);
+  });
+
+  it("keys on the probed ids, never on when the catalog was fetched (H-055)", () => {
+    // A reconnect re-reads the unchanged catalog with a new fetch time. A key
+    // that moved with it dropped the statuses the composer's send pin waits
+    // on, and every send sat out the 15 s settle timeout.
+    const keyCall = hook.slice(hook.indexOf("providerStatusesQueryKey({"));
+    const keyArgs = keyCall.slice(0, keyCall.indexOf("})"));
+    strictEqual(keyArgs.includes("providerIds"), true);
+    strictEqual(/updatedAt/i.test(keyArgs), false);
   });
 
   it("throws on an unreachable scan and self-heals on an interval", () => {
