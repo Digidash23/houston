@@ -153,15 +153,27 @@ export function maskPasswords(
   tree: string,
   secrets: readonly string[],
 ): string {
-  const hidden = new Set(secrets.filter((s) => s.length > 0));
+  const hidden = new Set(secrets.map(asPrinted).filter((s) => s.length > 0));
   if (hidden.size === 0) return tree;
   return tree
     .split("\n")
     .map((line) => {
       const match = TEXTBOX_VALUE.exec(line);
-      return match?.[2] !== undefined && hidden.has(unquoted(match[2]))
+      return match?.[2] !== undefined &&
+        hidden.has(asPrinted(unquoted(match[2])))
         ? `${match[1]}[password hidden]`
         : line;
     })
     .join("\n");
+}
+
+/**
+ * Playwright's own whitespace normalization of a printed value: a password
+ * "correct  horse" prints as "correct horse" and must still match.
+ */
+function asPrinted(value: string): string {
+  return value
+    .replace(/[\u200b\u00ad]/g, "")
+    .trim()
+    .replace(/\s+/g, " ");
 }

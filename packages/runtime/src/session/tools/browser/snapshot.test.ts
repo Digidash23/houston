@@ -49,6 +49,27 @@ test("a password field's value is masked; the same text elsewhere is not", () =>
   expect(maskPasswords(tree, [])).toBe(tree);
 });
 
+test("a password is masked as Playwright prints it: whitespace collapsed, control characters escaped", () => {
+  const tree = [
+    '- textbox "A" [ref=e1]: correct horse',
+    '- textbox "B" [ref=e2]: lead',
+    '- textbox "C" [ref=e3]: "ab\\x01cd"',
+    '- textbox "D" [ref=e4]: "s3cr\\x85t"',
+    '- textbox "E" [ref=e5]: "back\\\\x41slash"',
+  ].join("\n");
+  const masked = maskPasswords(tree, [
+    "correct  horse",
+    " lead",
+    "ab\x01cd",
+    "s3cr\x85t",
+    "back\\x41slash",
+  ]);
+  expect(masked.match(/\[password hidden\]/g)).toHaveLength(5);
+  expect(maskPasswords('- textbox "F" [ref=e6]: tab here', ["tab\there"])).toBe(
+    '- textbox "F" [ref=e6]: [password hidden]',
+  );
+});
+
 test('a password holding "]: " is masked whole, not from its last "]: "', () => {
   const line = '- textbox "Secret" [active] [ref=e8]: "ab]: cd"';
   expect(maskPasswords(line, ["ab]: cd"])).toBe(

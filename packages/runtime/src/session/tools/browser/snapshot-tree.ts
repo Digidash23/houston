@@ -110,11 +110,19 @@ export function renderTree(
   return out.join("\n");
 }
 
-/** The tree YAML-quotes a value with special characters ("a: b"). */
+/**
+ * The tree YAML-quotes a value with special characters ("a: b"). Its only
+ * escape JSON lacks is `\xNN` for control characters, so those are
+ * rewritten as `\u00NN` (an escaped backslash before an "x" is left alone).
+ */
 export function unquoted(value: string): string {
   if (!value.startsWith('"')) return value;
   try {
-    const parsed: unknown = JSON.parse(value);
+    const parsed: unknown = JSON.parse(
+      value.replace(/\\(?:\\|x([0-9a-f]{2}))/g, (sequence, hex?: string) =>
+        hex === undefined ? sequence : `\\u00${hex}`,
+      ),
+    );
     return typeof parsed === "string" ? parsed : value;
   } catch {
     // Not JSON-quoted after all: compare it as printed.
