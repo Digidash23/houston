@@ -66,6 +66,12 @@ export class CustomIntegrationManager {
     };
   }
 
+  /** Sign-ins this host started and still holds in memory, waiting on the
+   *  person's browser: a host that stops now loses them. */
+  get pendingOAuthAttempts(): number {
+    return this.attempts.pendingCount();
+  }
+
   /** Whether this deployment can run the browser sign-in at all. */
   get oauthSupported(): boolean {
     return this.oauth.callbackUrl !== undefined;

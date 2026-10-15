@@ -1,4 +1,5 @@
 import { loadRoutineRuns } from "@houston/domain";
+import { assistantApprovals } from "../assistant/approvals";
 import type { Agent, Workspace } from "../domain/types";
 import type { RuntimeChannel } from "../ports";
 import type { Vfs } from "../vfs";
@@ -68,6 +69,12 @@ async function activityStatus(
   // loginPending and activeWrites let a caller that ignores open reads still
   // see real work.
   const activeWrites = deps.agentWriteCount ? deps.agentWriteCount() : 0;
+  // State held only in this process and waiting on a person, reported apart
+  // like a pending sign-in (never busy): approval cards and their unspent
+  // answers for this agent (each expires on its own), and custom-integration
+  // sign-ins waiting on the browser (host-wide; a managed pod hosts one agent).
+  const pendingApprovals = assistantApprovals.pendingCount(ctx.agent.id);
+  const pendingOAuth = deps.customIntegrations?.pendingOAuthAttempts ?? 0;
   return {
     busy: turnBusy || runningRoutineRuns > 0 || activeRequests > 0,
     runtime,
@@ -76,6 +83,8 @@ async function activityStatus(
     runningRoutineRuns,
     activeRequests,
     activeWrites,
+    pendingApprovals,
+    pendingOAuth,
   };
 }
 

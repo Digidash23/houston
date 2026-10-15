@@ -1,17 +1,14 @@
-import { randomBytes } from "node:crypto";
-import { approvalKey } from "./approval-key";
 import {
-  APPROVAL_TTL_MS,
   type ApprovalDecision,
   type ApprovalOutcome,
   type ApprovalRequest,
   type ConsumeApprovalInput,
   type IssueApprovalInput,
+  newApprovalRequest,
 } from "./approval-record";
 import { authorizesApprovalCall, inApprovalScope } from "./approval-scope";
 import { GrantStore } from "./grants";
 import { ApprovalMessageGuard } from "./message-guard";
-import { approvalArgs } from "./summary";
 
 /**
  * Where a destructive Houston operation's approval actually lives: in the HOST,
@@ -61,21 +58,7 @@ export class ApprovalStore {
   /** Raise one approval card's request. The id is what the card carries back. */
   issue(input: IssueApprovalInput): ApprovalRequest {
     this.prune();
-    const at = this.now();
-    const request: ApprovalRequest = {
-      requestId: randomBytes(16).toString("hex"),
-      key: approvalKey(input.operation, input.params),
-      operation: input.operation,
-      agentId: input.agentId,
-      conversationId: input.conversationId,
-      summary: input.summary,
-      ...(input.detail ? { detail: input.detail } : {}),
-      // Derived from the SAME params the key is computed over, never passed in
-      // beside them: the card's arguments and the approved call cannot drift.
-      args: approvalArgs(input.params),
-      createdAt: at,
-      expiresAt: at + APPROVAL_TTL_MS,
-    };
+    const request = newApprovalRequest(input, this.now());
     this.byId.set(request.requestId, request);
     return request;
   }
@@ -185,6 +168,19 @@ export class ApprovalStore {
     return [...this.byId.values()].some((request) =>
       inApprovalScope(request, agentId, conversationId),
     );
+  }
+
+  /**
+   * How many unexpired records this agent holds across its conversations: cards
+   * still in front of someone and answers not yet spent. They live only in this
+   * process, so a host that stops while any are held asks those people again.
+   */
+  pendingCount(agentId: string): number {
+    this.prune();
+    let count = 0;
+    for (const request of this.byId.values())
+      if (inApprovalScope(request, agentId)) count++;
+    return count;
   }
 
   /** An expired record is already useless, and the map is unbounded otherwise. */

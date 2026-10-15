@@ -4,7 +4,9 @@ import { Readable } from "node:stream";
 import { createRoutineRun, saveRoutineRuns } from "@houston/domain";
 import type { Capabilities, Routine, RoutineRun } from "@houston/protocol";
 import { beforeEach, expect, test, vi } from "vitest";
+import { assistantApprovals } from "../assistant/approvals";
 import { MemoryCredentialStore } from "../credentials/store";
+import type { CustomIntegrationManager } from "../integrations/custom/manager";
 import type {
   CaptureResult,
   ChannelCtx,
@@ -199,6 +201,8 @@ test("reports idle activity without falling through to runtime dispatch", async 
     runningRoutineRuns: 0,
     activeRequests: 0,
     activeWrites: 0,
+    pendingApprovals: 0,
+    pendingOAuth: 0,
   });
   expect(channel.dispatched).toEqual([]);
 });
@@ -215,6 +219,8 @@ test("reports busy when the channel has an active turn", async () => {
     runningRoutineRuns: 0,
     activeRequests: 0,
     activeWrites: 0,
+    pendingApprovals: 0,
+    pendingOAuth: 0,
   });
 });
 
@@ -231,6 +237,8 @@ test("reports busy when a routine run is still running", async () => {
     runningRoutineRuns: 1,
     activeRequests: 0,
     activeWrites: 0,
+    pendingApprovals: 0,
+    pendingOAuth: 0,
   });
 });
 
@@ -285,6 +293,34 @@ test("reports a running turn and held writes apart from open reads", async () =>
     activeRequests: 2,
     activeWrites: 1,
   });
+});
+
+test("reports approvals and custom sign-ins held in memory apart from busy", async () => {
+  // Both wait on a person and live only in this process: a pod slept under
+  // them asks that person again. Neither is a turn, so `busy` is unchanged.
+  assistantApprovals.issue({
+    operation: "delete_agent",
+    params: { agent: "x" },
+    agentId,
+    conversationId: "whatsapp",
+    summary: "s",
+  });
+  deps.customIntegrations = {
+    pendingOAuthAttempts: 2,
+  } as unknown as CustomIntegrationManager;
+  try {
+    expect((await activity()).json).toMatchObject({
+      busy: false,
+      turnBusy: false,
+      pendingApprovals: 1,
+      pendingOAuth: 2,
+    });
+    // Another agent's card is not this agent's.
+    expect(assistantApprovals.pendingCount("someone-else")).toBe(0);
+  } finally {
+    assistantApprovals.retireExcept(agentId, "whatsapp", []);
+  }
+  expect((await activity()).json).toMatchObject({ pendingApprovals: 0 });
 });
 
 test("POST /conversations/:cid/dismiss-interaction reaches the runtime dispatch", async () => {

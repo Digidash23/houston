@@ -979,6 +979,8 @@
       "activeWrites",
       "busy",
       "loginPending",
+      "pendingApprovals",
+      "pendingOAuth",
       "runningRoutineRuns",
       "runtime",
       "turnBusy"
@@ -21423,6 +21425,8 @@
       "activeWrites",
       "busy",
       "loginPending",
+      "pendingApprovals",
+      "pendingOAuth",
       "runningRoutineRuns",
       "runtime",
       "turnBusy"

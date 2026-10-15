@@ -108,6 +108,17 @@ describe("CustomOAuthAttempts", () => {
     expect(attempts.take("s2")).not.toBeNull();
   });
 
+  it("pendingCount counts the unexpired attempts", () => {
+    const attempts = new CustomOAuthAttempts();
+    expect(attempts.pendingCount()).toBe(0);
+    attempts.put("s1", attempt("acme"));
+    attempts.put("s2", attempt("globex"));
+    attempts.put("s3", { ...attempt("initech"), expiresAtMs: Date.now() - 1 });
+    expect(attempts.pendingCount()).toBe(2);
+    attempts.take("s1");
+    expect(attempts.pendingCount()).toBe(1);
+  });
+
   it("an expired attempt is not honored", () => {
     const attempts = new CustomOAuthAttempts();
     attempts.put("s1", { ...attempt("acme"), expiresAtMs: Date.now() - 1 });
