@@ -18,6 +18,7 @@ import {
   channelCardState,
   channelProviderCards,
 } from "./channel-provider-cards";
+import { ChannelsHeader } from "./channels-header";
 import { ChannelsSlackCard } from "./channels-slack-card";
 import { SlackCompletionStatus } from "./channels-slack-completion";
 import { ChannelsWhatsAppCard } from "./channels-whatsapp-card";
@@ -43,6 +44,7 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
   const headings = useRef<
     Partial<Record<ChannelProviderId, HTMLHeadingElement | null>>
   >({});
+  const title = useRef<HTMLHeadingElement>(null);
   // A landed connection spends the hand-off that produced it: clear its code
   // and its "finish in Slack" line so nothing invites a second, dead attempt.
   const { query, connections, watches, watch } = useWatchedChannels(
@@ -144,15 +146,7 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
   };
   return (
     <section className="space-y-6">
-      <header>
-        <h2 className="mb-1 text-lg font-semibold text-ink">
-          {t("channels.title")}
-        </h2>
-        <p className="text-sm text-ink-muted">{t("channels.intro")}</p>
-        <p className="mt-2 text-sm text-ink-muted">
-          {t("channels.space", { name: spaceName })}
-        </p>
-      </header>
+      <ChannelsHeader spaceName={spaceName} titleRef={title} />
       <SlackCompletionStatus
         completing={complete.isPending}
         landed={landed}
@@ -189,7 +183,10 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
         providers={query.data?.providers ?? []}
         onClose={() => setTarget(null)}
         onConfirm={(connection) => disconnect(connection.id)}
-        onFocusCard={(provider) => headings.current[provider]?.focus()}
+        // Removing a provider's last account can remove its card too.
+        onFocusCard={(provider) =>
+          (headings.current[provider] ?? title.current)?.focus()
+        }
       />
     </section>
   );

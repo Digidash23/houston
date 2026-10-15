@@ -256,8 +256,8 @@
   },
   "channels": {
     "title": "Canales",
-    "navDescription": "Habla con Houston desde Slack o WhatsApp",
-    "intro": "Habla con Houston donde estés. Continúa la misma conversación en la app, en Slack y en WhatsApp.",
+    "navDescription": "Habla con Houston desde tus apps de mensajería",
+    "intro": "Habla con Houston donde estés. Continúa la misma conversación en la app y en las apps de mensajería que conectes.",
     "space": "Espacio de Houston: {{name}}",
     "newCode": "Obtener un nuevo código de conexión",
     "copy": "Copiar comando",

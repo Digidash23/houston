@@ -445,6 +445,16 @@ test("WhatsApp that is not set up keeps a number already connected removable", a
   await expect(
     page.getByRole("button", { name: "Add another number" }),
   ).toHaveCount(0);
+  await page.getByRole("button", { name: "Disconnect •••• 1111" }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Disconnect", exact: true })
+    .click();
+  // The last number took its card with it: the section title holds focus.
+  await expect(whatsAppCard(page)).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Channels", exact: true }),
+  ).toBeFocused();
 });
 
 test("unconfigured Slack gives setup guidance while retaining disconnect", async ({
