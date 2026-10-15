@@ -1,0 +1,52 @@
+diff --git a/lib/coreBundle.js b/lib/coreBundle.js
+index 784c72f35ba86abda9d937b092f51078b559f4e3..2171646eb601fff534feab5f96df523c30f8dd69 100644
+--- a/lib/coreBundle.js
++++ b/lib/coreBundle.js
+@@ -11889,7 +11889,8 @@ var init_package = __esm({
+     "use strict";
+     import_path8 = __toESM(require("path"));
+     packageRoot = import_path8.default.join(__dirname, "..");
+-    packageJSON = require(import_path8.default.join(packageRoot, "package.json"));
++    // Houston patch: a static require, so `bun build --compile` embeds it.
++    packageJSON = require("../package.json");
+     binPath = import_path8.default.join(packageRoot, "bin");
+   }
+ });
+@@ -35212,7 +35213,8 @@ ${e.stack}`);
+         return [...new Set(executables)];
+       }
+     };
+-    registry = new Registry(require(import_path19.default.join(packageRoot, "browsers.json")));
++    // Houston patch: a static require, so `bun build --compile` embeds it.
++    registry = new Registry(require("../browsers.json"));
+   }
+ });
+ 
+diff --git a/lib/package.js b/lib/package.js
+index 607f39ea91d75d70824ff14ac84f4d8ccfc92ea0..88b07b397242622abc6015cb808551bacf9fdf44 100644
+--- a/lib/package.js
++++ b/lib/package.js
+@@ -36,7 +36,8 @@ __export(package_exports, {
+ module.exports = __toCommonJS(package_exports);
+ var import_path = __toESM(require("path"));
+ const packageRoot = import_path.default.join(__dirname, "..");
+-const packageJSON = require(import_path.default.join(packageRoot, "package.json"));
++// Houston patch: a static require, so `bun build --compile` embeds it.
++const packageJSON = require("../package.json");
+ const binPath = import_path.default.join(packageRoot, "bin");
+ function libPath(...parts) {
+   return import_path.default.join(packageRoot, "lib", ...parts);
+diff --git a/lib/serverRegistry.js b/lib/serverRegistry.js
+index 0e8831d396370b9f1588e68535cca0fb119c461e..b9528350f2893d4096039c44a3263722dc9ba3cb 100644
+--- a/lib/serverRegistry.js
++++ b/lib/serverRegistry.js
+@@ -1733,7 +1733,8 @@ var esm_default = { watch, FSWatcher };
+ // packages/playwright-core/src/package.ts
+ var import_path = __toESM(require("path"));
+ var packageRoot = import_path.default.join(__dirname, "..");
+-var packageJSON = require(import_path.default.join(packageRoot, "package.json"));
++// Houston patch: a static require, so `bun build --compile` embeds it.
++var packageJSON = require("../package.json");
+ var binPath = import_path.default.join(packageRoot, "bin");
+ 
+ // packages/playwright-core/src/serverRegistry.ts

@@ -113,7 +113,7 @@ test("never two asks in flight, and a failed ask keeps the warm going", async ()
     return new Response(null, { status: 404 });
   }) as unknown as typeof fetch;
   const warmer = new ProviderWarmer({ fetch: fetchImpl, everyMs: 1_000 });
-  warmer.start("https://opencode.ai/zen/v1", 30_000);
+  warmer.start("https://opencode.ai/inference/v1", 30_000);
   await vi.advanceTimersByTimeAsync(20_000);
   expect(most).toBe(1);
   expect(calls).toBeGreaterThan(1);

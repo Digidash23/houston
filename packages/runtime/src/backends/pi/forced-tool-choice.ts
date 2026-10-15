@@ -84,7 +84,13 @@ export function planForcedToolCall(
   }
 }
 
-/** Mid-conversation effort models always run adaptive thinking in pi. */
+/**
+ * pi 1.3.0 can disable thinking on a mid-conversation effort model whose map
+ * allows "off", but then it drops the per-message effort entries while keeping
+ * the signed thinking blocks, and Anthropic signs those entries as part of the
+ * prefix. So a forced pass there is refused, like a model that cannot turn
+ * thinking off.
+ */
 function anthropicThinkingCanBeOff(model: Model<Api>): boolean {
   if (!model.reasoning) return true;
   const compat: object | undefined = model.compat;

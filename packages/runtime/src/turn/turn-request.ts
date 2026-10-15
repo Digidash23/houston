@@ -1,5 +1,6 @@
 import type { WireFrame } from "@houston/runtime-client";
 import { claudePlanBinding } from "../auth/claude-plan";
+import { turnTokenExpiry } from "./turn-deadline";
 import type { TurnSessionRequest } from "./turn-session";
 import type { TurnSessionStartupTask } from "./turn-session-startup";
 import type { TurnOutcome, TurnSandboxHandle } from "./turn-session-types";
@@ -38,6 +39,7 @@ export function turnSessionRequest(
     ...(turn.routine ? { routineFire: true } : {}),
     author: turn.actingAs,
     ...(claudePlan ? { claudePlan } : {}),
+    tokenExpiresAt: turnTokenExpiry(turn.hostToken, Date.now()),
     ...(turn.grant ? { grant: { scopes: turn.grant.scopes } } : {}),
     ...(turn.coordinator ? { role: "coordinator" as const } : {}),
     ...(sandbox ? { sandbox } : {}),

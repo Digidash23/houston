@@ -112,6 +112,8 @@ test("pi's always-on custom tool set is exactly the ungated Houston tools", () =
       // secret. Registering it is what SHADOWS pi's built-in bash, which would
       // otherwise hand a model-directed shell this runtime's sandbox token.
       "bash",
+      // Needs no grant: a machine without a browser gets a named refusal.
+      "browser",
     ]),
   );
 });
@@ -293,4 +295,14 @@ test("the assistant family stays absent when the deployment did not opt in", asy
     expect(base.tools).not.toContain(name);
     expect(base.customTools).not.toContain(name);
   }
+});
+
+test("pi registers the browser for an ordinary agent, never for the coordinator", async () => {
+  expect(base.tools).toContain("browser");
+  expect(base.customTools).toContain("browser");
+  const coordinator = await reimportWithAssistantEnv({
+    HOUSTON_ASSISTANT_ROLE: "coordinator",
+  });
+  expect(coordinator.tools).not.toContain("browser");
+  expect(coordinator.customTools).not.toContain("browser");
 });

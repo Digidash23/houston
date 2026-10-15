@@ -1,8 +1,11 @@
 import { Storage } from "@google-cloud/storage";
 import {
+  landStream,
   type ObjectMetadata,
   ObjectNotFoundError,
   type ObjectStore,
+  privateDirOf,
+  type ReadResult,
 } from "@houston/runtime-client/object-sync";
 
 // Partial responses must retain nextPageToken or the client cannot auto-page.
@@ -43,9 +46,19 @@ export class GcsStore implements ObjectStore {
       .sort((left, right) => left.key.localeCompare(right.key));
   }
 
-  async download(key: string, destFile: string): Promise<void> {
+  async download(key: string, destFile: string): Promise<ReadResult> {
     try {
-      await this.bucket.file(key).download({ destination: destFile });
+      const file = this.bucket.file(key);
+      // The client's own download writes in place with the umask's mode
+      // (group-writable under a tool shell) and follows a planted symlink:
+      // sign-in state lands through an owner-only temp file and a rename.
+      // A refused private directory lands nothing, and hydrate skips it.
+      if (privateDirOf(destFile))
+        return (await landStream(() => file.createReadStream(), destFile))
+          ? {}
+          : { refused: true };
+      await file.download({ destination: destFile });
+      return {};
     } catch (error) {
       // Same taxonomy as the HTTP store: a listed object deleted before the
       // read is a vanished object, and readers treat it as an absent key.

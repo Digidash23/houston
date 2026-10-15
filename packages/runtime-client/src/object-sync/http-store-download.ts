@@ -1,11 +1,6 @@
-import { randomUUID } from "node:crypto";
-import { createWriteStream } from "node:fs";
-import { mkdir, rename, rm } from "node:fs/promises";
-import { dirname } from "node:path";
 import { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
-import { atomicTempPath } from "@houston/protocol";
+import { landStream } from "./land-file";
 import type { ReadResult } from "./object-store";
 
 /** Atomically land one successful object GET and retain its generation. */
@@ -18,18 +13,12 @@ export async function downloadFile(
   if (!response.body) {
     throw new Error(`object store GET ${key} returned no response body`);
   }
-  await mkdir(dirname(destFile), { recursive: true });
-  const tempFile = atomicTempPath(destFile, randomUUID());
-  try {
-    await pipeline(
-      Readable.fromWeb(response.body as NodeReadableStream),
-      createWriteStream(tempFile),
-      ...(signal ? [{ signal }] : []),
-    );
-    await rename(tempFile, destFile);
-  } catch (error) {
-    await rm(tempFile, { force: true });
-    throw error;
+  const body = response.body;
+  const open = () => Readable.fromWeb(body as NodeReadableStream);
+  if (!(await landStream(open, destFile, signal))) {
+    // Refused: release the connection instead of leaving the body unread.
+    await body.cancel();
+    return { refused: true };
   }
   const generation = response.headers.get("X-Houston-Generation");
   return generation && generation !== "0" ? { generation } : {};

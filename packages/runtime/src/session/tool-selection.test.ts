@@ -26,6 +26,7 @@ describe("buildToolSelection", () => {
       "suggest_reusable",
       SUGGEST_ACTIONS_TOOL_NAME,
       "bash",
+      "browser",
     ]);
     expect(selection.includeRunCode).toBe(false);
   });
@@ -41,6 +42,7 @@ describe("buildToolSelection", () => {
       "suggest_reusable",
       SUGGEST_ACTIONS_TOOL_NAME,
       "run_code",
+      "browser",
     ]);
     expect(selection.includeRunCode).toBe(true);
   });
@@ -55,6 +57,7 @@ describe("buildToolSelection", () => {
       "ask_user",
       "suggest_reusable",
       SUGGEST_ACTIONS_TOOL_NAME,
+      "browser",
     ]);
     expect(selection.toolNames).not.toContain("bash");
     expect(selection.toolNames).not.toContain("run_code");
@@ -82,6 +85,7 @@ describe("buildToolSelection", () => {
       SUGGEST_ACTIONS_TOOL_NAME,
       "request_provider_connection",
       "request_hands_on",
+      "browser",
       "integration_search",
       "integration_execute",
       "request_connection",
@@ -111,6 +115,7 @@ describe("buildToolSelection", () => {
       "suggest_reusable",
       SUGGEST_ACTIONS_TOOL_NAME,
       "save_routine",
+      "browser",
     ]);
   });
 
@@ -146,6 +151,7 @@ describe("buildToolSelection", () => {
       "suggest_reusable",
       SUGGEST_ACTIONS_TOOL_NAME,
       "save_learning",
+      "browser",
     ]);
   });
 
@@ -253,6 +259,7 @@ describe("planToolNames", () => {
       "edit",
       "write",
       "bash",
+      "browser",
       "integration_search",
       "integration_execute",
       "request_connection",
@@ -301,6 +308,7 @@ describe("autoToolNames", () => {
       "request_provider_connection",
       "request_hands_on",
       "bash",
+      "browser",
       "integration_search",
       "integration_execute",
       "request_connection",
@@ -336,6 +344,7 @@ describe("autoToolNames", () => {
       ...CLAMPED_FILE_TOOL_NAMES,
       "suggest_reusable",
       SUGGEST_ACTIONS_TOOL_NAME,
+      "browser",
     ]);
   });
 
@@ -583,4 +592,33 @@ test("directory tools reach regular agents with missions, never the coordinator"
   }).toolNames;
   expect(coordinator).not.toContain("list_agents");
   expect(coordinator).not.toContain("read_agent");
+});
+
+describe("browser gating", () => {
+  const ordinary = buildToolSelection({
+    codeExecution: "disabled",
+    integrations: false,
+  });
+
+  test("an ordinary agent browses in execute and auto, never in plan", () => {
+    expect(toolNamesForMode("execute", ordinary.toolNames)).toContain(
+      "browser",
+    );
+    expect(toolNamesForMode("auto", ordinary.toolNames)).toContain("browser");
+    expect(toolNamesForMode("plan", ordinary.toolNames)).not.toContain(
+      "browser",
+    );
+  });
+
+  test("the coordinator never browses, whatever the deployment grants", () => {
+    const coordinator = buildToolSelection({
+      codeExecution: "local",
+      integrations: true,
+      saveRoutine: true,
+      missions: true,
+      assistant: true,
+      personalAssistant: true,
+    });
+    expect(coordinator.toolNames).not.toContain("browser");
+  });
 });

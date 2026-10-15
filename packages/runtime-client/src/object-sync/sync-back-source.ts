@@ -1,0 +1,104 @@
+import { createHash } from "node:crypto";
+import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, join } from "node:path";
+import { fileSha256 } from "./file-hash";
+import { readPrivateFile } from "./private-file";
+import { PRIVATE_FILE_MODE, privateDirOf } from "./private-paths";
+
+/**
+ * What a sync pass hashes and uploads for one walked file. `path` is the
+ * file itself, or for sign-in state a private copy: the hash and the upload
+ * read the same bytes, which passed the per-file check.
+ */
+export interface SyncSource {
+  hash: string;
+  size: number;
+  path: string;
+  dispose(): Promise<void>;
+}
+
+/** Gone (or not a file): out of the next manifest, like a pre-walk delete. */
+export const SOURCE_GONE = "gone";
+/** Refused sign-in state: neither uploaded nor deleted, its entry kept. */
+export const SOURCE_REFUSED = "refused";
+
+/** The one file the browser tool keeps under `.houston/browser`. */
+const STATE_FILE = "state.json";
+
+/** Refusals already logged: a standing sync re-reads every tick. */
+const logged = new Set<string>();
+
+const kept = async () => {};
+
+/**
+ * The bytes a sync pass may upload for `abs`. A path outside a private
+ * directory is hashed and uploaded by path, as before. Sign-in state is read
+ * ONCE through readPrivateFile's checked descriptor into an owner-only copy
+ * in a fresh owner-only temp directory, so a `.houston/browser` swapped in
+ * after the check can never feed the upload.
+ */
+export async function syncSource(
+  abs: string,
+): Promise<SyncSource | typeof SOURCE_GONE | typeof SOURCE_REFUSED> {
+  if (privateDirOf(abs)) return privateSource(abs);
+  try {
+    const info = await stat(abs);
+    if (!info.isFile()) return SOURCE_GONE;
+    const hash = await fileSha256(abs, info.size);
+    return { hash, size: info.size, path: abs, dispose: kept };
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return SOURCE_GONE;
+    throw err;
+  }
+}
+
+function refuse(abs: string, problem: string): typeof SOURCE_REFUSED {
+  const line = `${abs} ${problem}`;
+  if (!logged.has(line)) {
+    logged.add(line);
+    console.error(`[object-sync] not syncing sign-in state: ${line}`);
+  }
+  return SOURCE_REFUSED;
+}
+
+/**
+ * The browser tool keeps exactly one file here: a Playwright storage state.
+ * Anything else under the directory was put there by someone else (the tool
+ * user can rename one of the worker's own folders to `browser`), so it is
+ * never uploaded under a sign-in key.
+ */
+function isStorageState(body: Buffer): boolean {
+  try {
+    const state: unknown = JSON.parse(body.toString("utf8"));
+    if (typeof state !== "object" || state === null) return false;
+    const { cookies, origins } = state as Record<string, unknown>;
+    return Array.isArray(cookies) && Array.isArray(origins);
+  } catch {
+    // Not JSON: not a storage state; the caller refuses and logs it.
+    return false;
+  }
+}
+
+async function privateSource(
+  abs: string,
+): Promise<SyncSource | typeof SOURCE_GONE | typeof SOURCE_REFUSED> {
+  if (basename(abs) !== STATE_FILE)
+    return refuse(abs, "is not the browser's state file");
+  const read = await readPrivateFile(abs);
+  if (read.kind === "missing") return SOURCE_GONE;
+  if (read.kind === "refused") return refuse(abs, read.problem);
+  if (!isStorageState(read.body))
+    return refuse(abs, "is not a browser storage state");
+  const dir = await mkdtemp(join(tmpdir(), "houston-private-sync-"));
+  const dispose = () => rm(dir, { recursive: true, force: true });
+  try {
+    const path = join(dir, "object");
+    await writeFile(path, read.body, { mode: PRIVATE_FILE_MODE, flag: "wx" });
+    const hash = createHash("sha256").update(read.body).digest("hex");
+    return { hash, size: read.body.length, path, dispose };
+  } catch (error) {
+    await dispose();
+    throw error;
+  }
+}

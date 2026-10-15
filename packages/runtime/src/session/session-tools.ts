@@ -13,6 +13,7 @@ import { personalAssistant } from "./runtime-role";
 import { withToolCallLog } from "./tool-call-log";
 import { buildToolSelection } from "./tool-selection";
 import { makeAskUserTool } from "./tools/ask-user";
+import { makeBrowserTool } from "./tools/browser/tool";
 import { makeClampedFileTools } from "./tools/clamped-fs";
 import { makeIdTokenProvider } from "./tools/gcp-id-token";
 import { makePlanReadyTool } from "./tools/plan-ready";
@@ -106,6 +107,13 @@ export const toolSelection = buildToolSelection({
 const bashTool = toolSelection.toolNames.includes("bash")
   ? makeScrubbedBashTool(config.workspaceDir)
   : null;
+/**
+ * Shared with the Claude backend so both providers browse with one policy.
+ * This server serves the live view routes itself, so `handoff` is offered.
+ */
+export const browserToolOptions = toolSelection.toolNames.includes("browser")
+  ? { workspaceDir: config.workspaceDir, liveView: true }
+  : undefined;
 // One runtime serves one workspace, so a limiter built once here IS the
 // per-workspace budget (turn mode builds the tool per turn and shares its own).
 const runCodeTool = toolSelection.includeRunCode
@@ -140,6 +148,7 @@ export const piCustomTools = [
   suggestReusableTool,
   suggestActionsTool,
   ...(bashTool ? [bashTool] : []),
+  ...(browserToolOptions ? [makeBrowserTool(browserToolOptions)] : []),
   ...(runCodeTool ? [runCodeTool] : []),
   ...(saveRoutineTool ? [saveRoutineTool] : []),
   ...(saveLearningTool ? [saveLearningTool] : []),

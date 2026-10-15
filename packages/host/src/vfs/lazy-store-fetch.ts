@@ -44,6 +44,11 @@ export async function fetchObject(
     const read = opts.store.downloadVersioned
       ? await opts.store.downloadVersioned(storeKey, dest)
       : await opts.store.download(storeKey, dest);
+    // A refused private directory (private-paths.ts) landed nothing: there
+    // is no file to measure, and a stale one there must not be taken.
+    if (read?.refused) {
+      throw new LazyReadRefusedError("private", key, meta.size, maxObjectBytes);
+    }
     const { size } = await stat(dest);
     if (size > maxObjectBytes) {
       throw new LazyReadRefusedError("object", key, size, maxObjectBytes);

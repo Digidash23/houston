@@ -11,6 +11,17 @@ const BATCH_KEYS = 128;
 const BATCH_PARALLEL = 4;
 
 /**
+ * A key whose private directory was refused (private-paths.ts): nothing
+ * landed, so it stays out of the manifest (a manifest entry with no file
+ * would read as a local delete) and the hydrate goes on without it.
+ */
+export function skipRefusedLanding(key: string): void {
+  console.error(
+    `[object-sync] hydrate left ${key} out: its private directory was refused`,
+  );
+}
+
+/**
  * Land as many entries as the store will inline through `downloadMany`, one
  * round trip per chunk instead of per object. Returns the entries the store
  * answered `fallback` for, which the caller downloads one by one.
@@ -78,6 +89,10 @@ async function landChunk(
     }
     if (outcome.status === "missing") {
       await rm(dest(entry.rel), { force: true });
+      continue;
+    }
+    if (outcome.status === "refused") {
+      skipRefusedLanding(entry.key);
       continue;
     }
     const { size } = await stat(dest(entry.rel));

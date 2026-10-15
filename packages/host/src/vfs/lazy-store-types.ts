@@ -13,25 +13,39 @@ import type {
 export const UNREAD_HASH = "unread:owned-without-download";
 
 /**
- * A read the lazy tree refuses: one object over the per-object cap, or the
- * op's materialized total over its budget. Raised before the bytes move (or
- * right after, when the manifest size turned out stale). The op layer maps
+ * A read the lazy tree refuses: one object over the per-object cap, the
+ * op's materialized total over its budget, or sign-in state whose private
+ * directory the store refused to land in (`private`: nothing landed).
+ * Raised before the bytes move (or right after, when the manifest size
+ * turned out stale). The op layer maps
  * it to "unavailable while asleep" for a read and to a decline for a write,
  * never to a partial result.
  */
 export class LazyReadRefusedError extends Error {
   constructor(
-    readonly reason: "object" | "total",
+    readonly reason: "object" | "total" | "private",
     readonly key: string,
     readonly size: number,
     readonly maxBytes: number,
   ) {
-    super(
-      reason === "object"
-        ? `${key} is ${size} bytes, over the ${maxBytes}-byte cap for a read while the agent sleeps`
-        : `reading ${key} (${size} bytes) would exceed the ${maxBytes}-byte budget of this operation`,
-    );
+    super(refusalMessage(reason, key, size, maxBytes));
     this.name = "LazyReadRefusedError";
+  }
+}
+
+function refusalMessage(
+  reason: LazyReadRefusedError["reason"],
+  key: string,
+  size: number,
+  maxBytes: number,
+): string {
+  switch (reason) {
+    case "object":
+      return `${key} is ${size} bytes, over the ${maxBytes}-byte cap for a read while the agent sleeps`;
+    case "total":
+      return `reading ${key} (${size} bytes) would exceed the ${maxBytes}-byte budget of this operation`;
+    case "private":
+      return `${key} was not read: its private directory is not this process's own`;
   }
 }
 

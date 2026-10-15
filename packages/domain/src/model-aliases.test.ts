@@ -130,5 +130,9 @@ test("an open-catalog gateway carries only its renames", () => {
     "kimi-k2.6": "kimi-k2.7-code",
     "qwen3.7-max": "qwen3.8-max",
     "space-bunny-free": "space-bunny",
+    "deepseek-v4-flash": "deepseek-v4.1-flash",
+    "deepseek-v4-flash-vision-exp": "deepseek-v4.1-flash",
+    "minimax-m2.7": "minimax-m3",
+    "grok-4.6": "grok-4.7",
   });
 });

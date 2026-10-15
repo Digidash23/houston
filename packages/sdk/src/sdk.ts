@@ -71,6 +71,7 @@ export class HoustonSdk implements SdkModules {
   readonly skills: SdkModules["skills"];
   readonly files: SdkModules["files"];
   readonly migration: SdkModules["migration"];
+  readonly browser: SdkModules["browser"];
   /** The per-agent engine client every module resolves its calls through — the
    *  seam a host binds when it drives the re-exported turn machinery itself. */
   readonly clientFor: (agentId: string) => HoustonEngineClient;
@@ -141,6 +142,7 @@ export class HoustonSdk implements SdkModules {
     this.skills = moduleFactories.createSkillsModule(ctx);
     this.files = moduleFactories.createFilesModule(ctx);
     this.migration = moduleFactories.createMigrationModule(ctx);
+    this.browser = moduleFactories.createBrowserModule(ctx);
     // =====================================================================
   }
 

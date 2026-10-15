@@ -3,7 +3,7 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
-## v131 - 2026-10-15
+## v133 - 2026-10-15
 
 Messaging channels settings reads like the integrations. Each provider card
 shows its brand mark and a description, and a connected card wears the green
@@ -11,6 +11,33 @@ Connected status, lists its Slack workspaces or WhatsApp numbers with a
 disconnect on every row, and ends the list with "Add another workspace" or
 "Add another number". An empty card keeps one Connect button; an unavailable
 card keeps its accounts removable and offers nothing new.
+
+## v132 - 2026-10-13
+
+The browser hand-off reads at a glance. The chat card shows a soft live dot
+while it waits and keeps Open and how it ended in the same place under the
+text, so the card never changes height: a green Done chip, or a quiet chip
+for not finished, time ran out and no longer waiting. The live view no
+longer cuts the instruction mid-sentence (a phone shows three lines with
+Show more), its close is the dialogs' own small X, a page-shaped skeleton
+waits for the first frame, the time left sits by the answers and turns to
+the attention colour in its last minute, and I'm done is clearly the main
+answer with Cancel beside it. The sheet rises from the bottom and the
+dialog scales in, both leaving faster than they arrive.
+
+## v131 - 2026-10-10
+
+An AI Employee can hand its browser to the person. When a website needs the
+person themselves (signing in, a verification code, a captcha), the chat
+shows a card naming the site with an Open button, and Open shows the live
+page: the person taps, types and scrolls on it, then presses I'm done (or
+Cancel), and the employee carries on from that page. Passwords never pass
+through the chat. On phones the page opens as a full-height sheet sized for
+the phone; on desktop as a large dialog. The card stays in one place while
+the employee works and after it finishes, with the employee's reply under
+it, and while the card waits that reply stays still. After the hand-off the
+card keeps how it ended: done, not finished, time ran out, or no longer
+waiting.
 
 ## v130 - 2026-10-14
 
