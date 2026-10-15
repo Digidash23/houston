@@ -119,3 +119,15 @@ test("only a routine fire is marked one; a person's send in its chat is not", ()
   expect(fire.routineFire).toBe(true);
   expect(chat.routineFire).toBeUndefined();
 });
+
+test("the session carries when the turn's host token expires, read from its exp", () => {
+  const exp = Math.floor(Date.now() / 1000) + 600;
+  const claims = Buffer.from(JSON.stringify({ exp })).toString("base64url");
+  const turn = turnSessionRequest(
+    { ...base, hostToken: `turn-v1.${claims}.sig` },
+    "t1",
+    emit,
+    signal,
+  );
+  expect(turn.tokenExpiresAt).toBe(exp * 1000);
+});

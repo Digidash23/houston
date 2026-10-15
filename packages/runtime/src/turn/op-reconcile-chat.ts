@@ -18,7 +18,9 @@ export type ChatSettle =
   /** Nothing to write: the turn answered, or the chat moved on past it. */
   | { skipped: "answered" | "superseded" | "unknown_turn" }
   /** The transcript is over the worker's read cap. */
-  | { tooLarge: true };
+  | { tooLarge: true }
+  /** The read was refused as sign-in state (never a real chat path). */
+  | { privateRefused: true };
 
 /**
  * Give a dead turn the reply its sandbox never wrote: the interruption line
@@ -47,7 +49,10 @@ export async function settleAbandonedChat(
     // Materialize the one chat on a lazy tree; the file helpers read disk.
     await filesystem.vfs.readBytes(fileRel);
   } catch (error) {
-    if (error instanceof LazyReadRefusedError) return { tooLarge: true };
+    if (error instanceof LazyReadRefusedError)
+      return error.reason === "private"
+        ? { privateRefused: true }
+        : { tooLarge: true };
     throw error;
   }
   const dir = join(filesystem.dataDir, "conversations");

@@ -70,30 +70,25 @@ function withPlainName(name: string, description: string): string {
   return `This is the \`${name}\` tool (your instructions refer to it as \`${name}\`). ${description}`;
 }
 
-/** A single MCP text content block — the only shape Houston's tools emit. */
-interface McpTextContent {
-  type: "text";
-  text: string;
-}
+/** The MCP content blocks Houston's tools emit: text, and `browser` screenshots. */
+type McpContent =
+  | { type: "text"; text: string }
+  | { type: "image"; data: string; mimeType: string };
 
-/**
- * Map a pi tool result onto the MCP `CallToolResult` content shape. Every
- * bridged tool returns text; a non-text block (never produced today) is coerced
- * to a JSON string rather than dropped.
- */
+/** Map a pi tool result onto the MCP `CallToolResult` content shape. */
 function toCallToolResult(
   result: AgentToolResult<unknown>,
   toolName: string,
 ): {
-  content: McpTextContent[];
+  content: McpContent[];
   isError?: true;
   structuredContent?: { mission: { id: string; title: string; agent: string } };
 } {
   const content = result.content.map(
-    (c): McpTextContent =>
+    (c): McpContent =>
       c.type === "text"
         ? { type: "text", text: c.text }
-        : { type: "text", text: JSON.stringify(c) },
+        : { type: "image", data: c.data, mimeType: c.mimeType },
   );
   const details = result.details;
   if (reportsNotDone(details)) return { content, isError: true };

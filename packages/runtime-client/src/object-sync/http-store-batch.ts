@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, rename, rm, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { rename, rm, writeFile } from "node:fs/promises";
 import { atomicTempPath } from "@houston/protocol";
 import { objectStoreResponseError } from "./http-store-errors";
 import type {
@@ -9,6 +8,7 @@ import type {
   ReadOptions,
 } from "./object-store";
 import { withOperationSignal } from "./operation-signal";
+import { landingMode, mkdirForLanding } from "./private-paths";
 
 type BatchPost = (init: RequestInit) => Promise<Response>;
 
@@ -71,7 +71,10 @@ export async function landHttpBatch(
     const entry = destByKey.get(header.key);
     if (!entry) throw new Error(`object store batch returned ${header.key}`);
     if (header.status === 200) {
-      await writeAtomically(entry.destFile, content);
+      if (!(await writeAtomically(entry.destFile, content))) {
+        outcomes.set(header.key, { status: "refused" });
+        continue;
+      }
       outcomes.set(header.key, {
         status: "ok",
         ...(header.generation && header.generation !== "0"
@@ -90,14 +93,23 @@ export async function landHttpBatch(
   return outcomes;
 }
 
-export async function writeAtomically(destFile: string, content: Buffer) {
-  await mkdir(dirname(destFile), { recursive: true });
+/** Land `content` at `destFile`; false when its private directory was refused. */
+export async function writeAtomically(
+  destFile: string,
+  content: Buffer,
+): Promise<boolean> {
+  if (!(await mkdirForLanding(destFile))) return false;
   const tempFile = atomicTempPath(destFile, randomUUID());
   try {
-    await writeFile(tempFile, content);
+    // "wx": never through a file or symlink already at the temp path.
+    await writeFile(tempFile, content, {
+      ...landingMode(destFile),
+      flag: "wx",
+    });
     await rename(tempFile, destFile);
   } catch (error) {
     await rm(tempFile, { force: true });
     throw error;
   }
+  return true;
 }

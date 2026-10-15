@@ -5,6 +5,8 @@ import {
   type ToolSelection,
 } from "../session/tool-selection";
 import { makeAskUserTool } from "../session/tools/ask-user";
+import { BROWSER_TOOL_NAME } from "../session/tools/browser/name";
+import { makeBrowserTool } from "../session/tools/browser/tool";
 import { credentialTools } from "../session/tools/credential-tools";
 import { makeIntegrationTools } from "../session/tools/integrations";
 import { makePlanReadyTool } from "../session/tools/plan-ready";
@@ -19,6 +21,7 @@ import {
   buildTurnCoordinatorTools,
   turnAssistantOptions,
 } from "./turn-coordinator-tools";
+import { turnHandoffBudget, turnTokenExpiry } from "./turn-deadline";
 import type { TurnSessionRequest } from "./turn-session";
 
 function capabilities(turn: TurnSessionRequest) {
@@ -129,5 +132,31 @@ export function buildTurnCommonTools(
     ...(codeSandbox ? [codeSandbox] : []),
     ...buildTurnHostTools(turn),
     ...buildTurnCoordinatorTools(turn, dataDir, loadArchive),
+  ];
+}
+
+/**
+ * The `browser` tool for this turn's workspace, when the selection admits it
+ * (never a coordinator). Built per turn because the workspace is; the browser
+ * process itself is shared across turns. `liveView` is the turn grant's
+ * `browser-live` scope: `handoff` is offered only when the gateway will carry
+ * the person's live view to this worker. A hand-off ends before the turn's
+ * host token does (turn-deadline.ts); with no expiry known, the TTL from now.
+ */
+export function buildTurnBrowserTool(
+  selection: ToolSelection,
+  workspaceDir: string,
+  liveView: boolean,
+  tokenExpiresAt: number | undefined,
+  now: () => number = Date.now,
+): PiBackendDeps["customTools"] {
+  if (!selection.toolNames.includes(BROWSER_TOOL_NAME)) return [];
+  const expiresAt = tokenExpiresAt ?? turnTokenExpiry(undefined, now());
+  return [
+    makeBrowserTool({
+      workspaceDir,
+      liveView,
+      handoffBudget: turnHandoffBudget(expiresAt, now),
+    }),
   ];
 }

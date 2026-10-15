@@ -112,8 +112,12 @@ echo "=== bun build --compile ($BUN_TARGET) → $OUT ==="
 # bundled offsets. No Sentry-side upload needed — frames arrive readable.
 # Gondolin (the pool worker's code micro-VM) stays out: the desktop runtime
 # never runs in `vm` mode, and the package is QEMU glue it cannot use.
+# chromium-bidi stays out too: playwright-core requires it only for Firefox's
+# WebDriver BiDi, which the browser tool never launches, and bun cannot
+# resolve those optional requires at compile time.
 bun build --compile --sourcemap --target="$BUN_TARGET" \
-  --external @earendil-works/gondolin "$ENTRY" --outfile "$OUT"
+  --external @earendil-works/gondolin --external chromium-bidi \
+  "$ENTRY" --outfile "$OUT"
 chmod +x "$OUT"
 
 SIZE="$(du -h "$OUT" | cut -f1)"

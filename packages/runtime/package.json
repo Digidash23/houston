@@ -22,6 +22,7 @@
     "@houston/protocol": "workspace:*",
     "@houston/runtime-client": "workspace:*",
     "@houston/wire-types": "workspace:*",
+    "playwright-core": "1.64.0",
     "tsx": "4.23.0",
     "typebox": "1.1.38",
     "zod": "4.4.3"

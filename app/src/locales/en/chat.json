@@ -463,5 +463,42 @@
     "truncated_one": "[and {{formatted}} more character, all of which would be written]",
     "truncated_other": "[and {{formatted}} more characters, all of which would be written]",
     "storeRefusalOk": "Got it"
+  },
+  "browserHandoff": {
+    "heading": "Your turn on {{site}}",
+    "headingNoSite": "Your turn in the browser",
+    "open": "Open",
+    "openLabel": "Open the browser for {{site}}",
+    "openLabelNoSite": "Open the browser",
+    "done": "Done",
+    "cancelled": "Not finished",
+    "expired": "Time ran out",
+    "ended": "No longer waiting"
+  },
+  "browserLive": {
+    "privacy": "What you type goes to the website. This AI Employee keeps the sign-in for later, never your password.",
+    "back": "Back",
+    "address": "Web address",
+    "addressRefused": "Only website addresses can be opened here.",
+    "finish": "I'm done",
+    "cancel": "Cancel",
+    "close": "Close",
+    "connecting": "Connecting",
+    "reconnecting": "Reconnecting",
+    "lost": "The connection was lost.",
+    "retry": "Try again",
+    "endedDone": "Done. You can close this.",
+    "endedCancelled": "You closed the browser.",
+    "endedExpired": "Time ran out. Ask in the chat to try again.",
+    "endedNone": "This browser is no longer waiting for you.",
+    "notOwner": "Only the person who asked can use this browser.",
+    "tapToType": "Tap the page to type",
+    "leavePage": "Tab and Escape go to the website. Press Shift+Escape to get back to the browser controls.",
+    "website": "Website",
+    "timeLeft": "{{minutes}} min left",
+    "timeLeftLastMinute": "Less than a minute left",
+    "showMore": "Show more",
+    "showLess": "Show less",
+    "title": "Browser"
   }
 }

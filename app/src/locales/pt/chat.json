@@ -463,5 +463,42 @@
     "truncated_one": "[e mais {{formatted}} caractere, que também seria escrito]",
     "truncated_other": "[e mais {{formatted}} caracteres, que também seriam escritos]",
     "storeRefusalOk": "Entendi"
+  },
+  "browserHandoff": {
+    "heading": "Sua vez em {{site}}",
+    "headingNoSite": "Sua vez no navegador",
+    "open": "Abrir",
+    "openLabel": "Abrir o navegador para {{site}}",
+    "openLabelNoSite": "Abrir o navegador",
+    "done": "Pronto",
+    "cancelled": "Não terminado",
+    "expired": "O tempo acabou",
+    "ended": "Não está mais esperando"
+  },
+  "browserLive": {
+    "privacy": "O que você digita vai para o site. Este funcionário de IA guarda o login para depois, nunca a sua senha.",
+    "back": "Voltar",
+    "address": "Endereço da web",
+    "addressRefused": "Aqui só é possível abrir endereços de sites.",
+    "finish": "Terminei",
+    "cancel": "Cancelar",
+    "close": "Fechar",
+    "connecting": "Conectando",
+    "reconnecting": "Reconectando",
+    "lost": "A conexão caiu.",
+    "retry": "Tentar de novo",
+    "endedDone": "Pronto. Você já pode fechar isto.",
+    "endedCancelled": "Você fechou o navegador.",
+    "endedExpired": "O tempo acabou. Peça no chat para tentar de novo.",
+    "endedNone": "Este navegador não está mais esperando por você.",
+    "notOwner": "Só a pessoa que pediu pode usar este navegador.",
+    "tapToType": "Toque na página para digitar",
+    "leavePage": "Tab e Esc vão para o site. Pressione Shift+Esc para voltar aos controles do navegador.",
+    "website": "Site",
+    "timeLeft": "Faltam {{minutes}} min",
+    "timeLeftLastMinute": "Falta menos de um minuto",
+    "showMore": "Ver mais",
+    "showLess": "Ver menos",
+    "title": "Navegador"
   }
 }

@@ -23,7 +23,7 @@ import { awaitDeferredFiles, gateTurnTools } from "./turn-deferred-files";
 import { POOLED_TURN_TRANSPORT } from "./turn-pi-transport";
 import type { TurnDirectories, TurnSessionRequest } from "./turn-session";
 import { turnSharedSkillsDir } from "./turn-shared-skills";
-import { buildTurnCommonTools } from "./turn-toolset";
+import { buildTurnBrowserTool, buildTurnCommonTools } from "./turn-toolset";
 
 type TurnTool = PiBackendDeps["customTools"][number];
 
@@ -91,12 +91,15 @@ export function createTurnBackend(
 ): HarnessBackend {
   const { workspaceDir, dataDir, turnRoot, workspaceReady, loadArchive } =
     deps.directories;
-  const commonTools = buildTurnCommonTools(
-    deps.turn,
-    deps.codeSandbox,
-    dataDir,
-    loadArchive,
-  );
+  const commonTools = [
+    ...buildTurnCommonTools(deps.turn, deps.codeSandbox, dataDir, loadArchive),
+    ...buildTurnBrowserTool(
+      deps.toolSelection,
+      workspaceDir,
+      deps.turn.grant?.scopes.includes("browser-live") === true,
+      deps.turn.tokenExpiresAt,
+    ),
+  ];
   if (provider === "anthropic") {
     const backend = createClaudeBackend({
       workspaceDir,

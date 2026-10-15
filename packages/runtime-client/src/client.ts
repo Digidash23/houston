@@ -1,10 +1,10 @@
+import { EngineBrowserClient } from "./client-browser";
 import {
   type EventStreamOptions,
   parseSendAccepted,
   type SendAccepted,
   type SendOptions,
 } from "./client-contract";
-import { EngineConversationsClient } from "./client-conversations";
 import { createRequester, EngineError, type Requester } from "./requester";
 import { readEventStream } from "./sse-read";
 import type {
@@ -41,7 +41,7 @@ export { EngineError };
  *   await engine.sendMessage("abc", "List the files here");
  *   // ac.abort() stops observing; the turn keeps running server-side.
  */
-export class HoustonEngineClient extends EngineConversationsClient {
+export class HoustonEngineClient extends EngineBrowserClient {
   private readonly requester: Requester;
 
   constructor(config: EngineClientConfig) {
@@ -49,7 +49,7 @@ export class HoustonEngineClient extends EngineConversationsClient {
     this.requester = createRequester(config);
   }
 
-  private request(path: string, init?: RequestInit): Promise<Response> {
+  protected request(path: string, init?: RequestInit): Promise<Response> {
     return this.requester.request(path, init);
   }
 

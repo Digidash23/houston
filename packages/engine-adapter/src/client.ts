@@ -32,6 +32,7 @@ import { AssistantMixin } from "./client/assistant-mixin";
 import { HoustonClientBase } from "./client/base";
 import { BillingMixin } from "./client/billing-mixin";
 import { BootMixin } from "./client/boot-mixin";
+import { BrowserLiveMixin } from "./client/browser-live-mixin";
 import { ChannelsMixin } from "./client/channels-mixin";
 import { ChatControlsMixin } from "./client/chat-controls-mixin";
 import { ChatHistoryMixin } from "./client/chat-history-mixin";
@@ -92,6 +93,7 @@ export const MIXINS = [
   ChatSendMixin,
   ChatControlsMixin,
   ChatPrewarmMixin,
+  BrowserLiveMixin,
   SkillsMixin,
   RoutinesMixin,
   SharedSkillsMixin,

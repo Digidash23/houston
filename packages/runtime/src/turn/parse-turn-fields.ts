@@ -29,6 +29,7 @@ const GRANT_SCOPES: readonly TurnGrantScope[] = [
   "integrations",
   "agent-writes",
   "code-run",
+  "browser-live",
 ];
 
 export function parseGrant(value: unknown): TurnGrant {

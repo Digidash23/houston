@@ -2,8 +2,8 @@ import type { WireFrame } from "@houston/runtime-client";
 import { runWithActingContext } from "../session/acting-context";
 import { runWithConversationScope } from "../session/bus";
 import type { startClaimHeartbeat } from "./claim-heartbeat";
-import { localModelContextForTurn } from "./local-model-context";
 import type { TurnServerDeps } from "./server-types";
+import { turnActingContext } from "./turn-acting-context";
 import { finishTurnDurability } from "./turn-durability";
 import type { TurnFilesystem } from "./turn-filesystem";
 import type { createTurnLog } from "./turn-log";
@@ -73,20 +73,11 @@ export async function executeReadyTurn(input: {
     try {
       outcome = await runWithConversationScope(input.scope, () =>
         runWithActingContext(
-          {
-            credentialScopeKey: `u:turn:${input.turn.workspaceId}:${input.turn.agentId}`,
-            authPath: input.authPath,
-            ...(input.turn.actingToken
-              ? { actingAs: input.turn.actingToken }
-              : {}),
-            localModelTransport: localModelContextForTurn(
-              input.turn,
-              input.deps.poolStoreUrl,
-            ),
-            ...(input.turn.actingAs
-              ? { actingUser: input.turn.actingAs.userId }
-              : {}),
-          },
+          turnActingContext(
+            input.turn,
+            input.authPath,
+            input.deps.poolStoreUrl,
+          ),
           () => {
             const directories = {
               ...input.filesystem,

@@ -36,6 +36,8 @@ export interface OperationPolicy {
 
 // biome-ignore format: one operation per line - the policy diff IS the review.
 export const OPERATION_POLICY_FLOOR: Readonly<Record<string, OperationPolicy>> = {
+  "browser.input": { group: "chat", confirm: false, hidden: true, route: "POST /agents/{agentId}/conversations/{conversationId}/browser/input", rawResponse: true },
+  "browser.watch": { group: "chat", confirm: false, hidden: true, route: "GET /agents/{agentId}/conversations/{conversationId}/browser/live", rawResponse: true },
   "conversations.delete": { group: "chat", confirm: true, hidden: false, route: "DELETE /agents/{agentId}/conversations/{id}", rawResponse: true },
   "conversations.list": { group: "chat", confirm: false, hidden: false, route: "GET /agents/{agentId}/conversations", rawResponse: false },
   "conversations.rename": { group: "chat", confirm: false, hidden: false, route: "PATCH /agents/{agentId}/conversations/{id}", rawResponse: true },

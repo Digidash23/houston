@@ -83,8 +83,8 @@ export class HttpObjectStore implements ObjectStore {
     key: string,
     destFile: string,
     opts?: ReadOptions,
-  ): Promise<void> {
-    await this.downloadVersioned(key, destFile, opts);
+  ): Promise<ReadResult> {
+    return this.downloadVersioned(key, destFile, opts);
   }
 
   /** Download one object and preserve the generation from its GET response. */

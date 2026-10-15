@@ -14,7 +14,12 @@ import { assistantOptions } from "./assistant-family";
 import { hostIntegrations } from "./host-tools";
 import { SYSTEM_PROMPT } from "./resource-loader";
 import { personalAssistant } from "./runtime-role";
-import { fileToolGuard, piCustomTools, toolSelection } from "./session-tools";
+import {
+  browserToolOptions,
+  fileToolGuard,
+  piCustomTools,
+  toolSelection,
+} from "./session-tools";
 
 /**
  * The long-lived server's backend registrations, wired from this runtime's tool
@@ -96,6 +101,7 @@ function registerAnthropicBackend(): void {
       // SAME coordinator clamp as the pi path: the assistant's surface must not
       // depend on which provider the user happens to be on.
       personalAssistant,
+      browser: browserToolOptions,
     }),
   );
 }

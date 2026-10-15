@@ -2,6 +2,7 @@ import type { AssistantRuntimeRole } from "@houston/domain/assistant-role";
 import type { ClaudeSubscriptionType } from "../../auth/claude-plan";
 import type { ToolSelection } from "../../session/tool-selection";
 import type { AssistantToolOptions } from "../../session/tools/assistant";
+import type { BrowserToolOptions } from "../../session/tools/browser/tool";
 import type { WorkspaceGuardOptions } from "../../session/tools/fs-guard";
 import type { IntegrationToolOptions } from "../../session/tools/integrations";
 import type { CompactionCheckpoints } from "../../store/conversation-compaction";
@@ -53,6 +54,8 @@ export interface ClaudeBackendDeps {
    *  process's own; a pooled turn passes the turn's (`null` included). */
   role?: AssistantRuntimeRole | null;
   tools?: BridgedPiTool[];
+  /** The long-lived runtime's `browser` tool options (a turn passes `tools`). */
+  browser?: BrowserToolOptions;
   /** External SDK adapter for tests that must not spawn a process. */
   sdk?: ClaudeSdk;
   /** Optional import already running during pooled-turn hydration. */

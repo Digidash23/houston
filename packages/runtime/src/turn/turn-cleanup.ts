@@ -1,5 +1,7 @@
 import { rm } from "node:fs/promises";
 import { releaseConversation } from "../session/bus";
+import { sharedHandoffs } from "../session/tools/browser/live/registry";
+import { sharedBrowserPool } from "../session/tools/browser/pool";
 import type { startClaimHeartbeat } from "./claim-heartbeat";
 import type {
   TurnFilesystem,
@@ -35,6 +37,21 @@ async function hydrationIsQuiet(
   return quiet;
 }
 
+/**
+ * Close the browser contexts this turn opened in its workspace, saving their
+ * sign-ins first, before the root is removed: the browser process is shared,
+ * so a context left open would outlive the turn and its idle sweep would
+ * write into a deleted workspace. A hand-off still waiting would hold the
+ * context's queue for minutes, so it ends first. Never throws (the pool logs).
+ */
+async function closeTurnBrowser(
+  root: string,
+  conversationId: string,
+): Promise<void> {
+  sharedHandoffs.end(conversationId, "cancelled");
+  await sharedBrowserPool.closeUnder(root);
+}
+
 /** Release every per-turn resource even when an earlier cleanup step fails. */
 export async function cleanupTurn(input: {
   root: string;
@@ -46,6 +63,7 @@ export async function cleanupTurn(input: {
   hydrationSettleTimeoutMs?: number;
   removeRoot?: (root: string) => Promise<void>;
   closeSse?: () => void;
+  closeBrowser?: (root: string, conversationId: string) => Promise<void>;
 }): Promise<void> {
   try {
     await input.sandbox?.dispose().catch((error: unknown) => {
@@ -61,6 +79,10 @@ export async function cleanupTurn(input: {
     } finally {
       releaseConversation(input.scope, input.conversationId);
       try {
+        await (input.closeBrowser ?? closeTurnBrowser)(
+          input.root,
+          input.conversationId,
+        );
         const quiet = input.hydration
           ? await hydrationIsQuiet(
               input.hydration,

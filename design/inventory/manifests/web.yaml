@@ -13,7 +13,7 @@
 
 surface: web
 enforced: true
-inventoryVersion: 130
+inventoryVersion: 132
 
 components:
   manager-avatar:
@@ -144,6 +144,14 @@ components:
   chat-started-mission-card:
     status: implemented
     ref: "@houston-ai/chat ChatStartedMissionCard; app/src/hooks/use-started-mission-summary.tsx resolves employees and opens their mission chats"
+
+  chat-browser-handoff-card:
+    status: implemented
+    ref: "@houston-ai/chat BrowserHandoffCard; app/src/components/browser/use-browser-handoff-cards.tsx lays the feed out with browserHandoffFeedRows from @houston/sdk/browser-handoff (app/src/lib/browser-handoff-feed.ts)"
+
+  browser-live-view:
+    status: implemented
+    ref: "@houston-ai/chat BrowserLiveView; app/src/components/browser/browser-live-dialog.tsx frames it (sheet or dialog) and app/src/hooks/use-browser-live.ts binds the SDK connection"
 
   chat-parent-mission-link:
     status: implemented

@@ -23,9 +23,13 @@ import { build } from "esbuild";
 //  - @earendil-works/gondolin: finds its guest assets and QEMU helpers from
 //    its own package directory (import.meta.dirname). Lazily imported, and
 //    only by a pool worker in `vm` code-execution mode.
+//  - playwright-core: reads its own package.json through __dirname (absent
+//    in this ESM bundle), requires optional chromium-bidi modules esbuild
+//    cannot resolve, and locates its browsers relative to its package.
+//    Lazily imported by the browser tool on first use only.
 //  - *.node native addons load via the filesystem by design.
 const externalImport =
-  /^@anthropic-ai\/claude-agent-sdk(?:\/|$)|^@silvia-odwyer\/photon-node(?:\/|$)|^@earendil-works\/pi-coding-agent(?:\/|$)|^@earendil-works\/gondolin(?:\/|$)|\.node$/;
+  /^@anthropic-ai\/claude-agent-sdk(?:\/|$)|^@silvia-odwyer\/photon-node(?:\/|$)|^@earendil-works\/pi-coding-agent(?:\/|$)|^@earendil-works\/gondolin(?:\/|$)|^playwright-core(?:\/|$)|\.node$/;
 
 const externalNodeModules = {
   name: "external-unbundleables",
@@ -93,6 +97,7 @@ await Promise.all([
     "@anthropic-ai/claude-agent-sdk",
     "@earendil-works/pi-coding-agent",
     "@earendil-works/gondolin",
+    "playwright-core",
   ]) {
     if (!emitted.includes(`"${specifier}"`)) {
       throw new Error(

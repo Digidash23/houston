@@ -97,4 +97,18 @@ describe("a host card that shows its own progress", () => {
   it("leaves the thinking line to a card that does not", () => {
     equal(shouldShowThinkingIndicator([card()], "submitted"), true);
   });
+
+  it("keeps it with a finished reply placed under the card", () => {
+    const under = [card(true), message("assistant")];
+    equal(shouldShowThinkingIndicator(under, "submitted"), false);
+    equal(
+      shouldShowThinkingIndicator([card(), message("assistant")], "submitted"),
+      true,
+    );
+  });
+
+  it("gives it up once the person writes after the card", () => {
+    const after = [card(true), message("assistant"), message("user")];
+    equal(shouldShowThinkingIndicator(after, "submitted"), true);
+  });
 });

@@ -63,6 +63,11 @@ export interface TurnSessionRequest {
   /** The plan the gateway served with this turn's Claude token, bound to it. */
   claudePlan?: ClaudePlanBinding;
   context?: ProvidedContext;
+  /**
+   * When the turn's host token expires (epoch ms, turn-deadline.ts), read at
+   * acceptance: work that must finish before the final sync ends before it.
+   */
+  tokenExpiresAt?: number;
   /** Non-secret capability scopes copied from the parsed turn grant. */
   grant?: { scopes: TurnGrantScope[] };
   /**

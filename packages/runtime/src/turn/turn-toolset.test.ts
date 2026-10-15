@@ -88,6 +88,7 @@ test("an absent grant preserves the host-proxying all-off set", () => {
     "ask_user",
     "suggest_reusable",
     "suggest_actions",
+    "browser",
   ]);
   expect(buildTurnHostTools(turn)).toEqual([]);
 });

@@ -108,6 +108,20 @@ export const PROXY_MEMBERS: ProxyMember[] = [
     rest: "conversations/:conversationId/messages",
     engines: BOTH,
   },
+  // The browser hand-off live view (transport/browser-live-route.ts): frames
+  // down an SSE stream, the person's input up. The Go gateway serves these to
+  // E2B turns itself (it proxies to the turn's sandbox), so this host's own
+  // Cloud Run dispatch never sees them: STANDING describes that dispatch.
+  {
+    method: "GET",
+    rest: "conversations/:conversationId/browser/live",
+    engines: STANDING,
+  },
+  {
+    method: "POST",
+    rest: "conversations/:conversationId/browser/input",
+    engines: STANDING,
+  },
   // Create-with-AI's one-shot (generate-route.ts).
   { method: "POST", rest: "generate-agent", engines: STANDING },
 ];

@@ -9,7 +9,11 @@ export interface ObjectMetadata {
 /** Manifest + object seam used by read/write shared-prefix mirrors. */
 export interface ManifestObjectStore {
   manifest(prefix?: string): Promise<ObjectMetadata[]>;
-  download(key: string, destFile: string): Promise<void>;
+  download(
+    key: string,
+    destFile: string,
+    // biome-ignore lint/suspicious/noConfusingVoidType: additive port widening must accept existing void-returning stores.
+  ): Promise<import("./object-store").ReadResult | void>;
   upload(
     srcFile: string,
     key: string,

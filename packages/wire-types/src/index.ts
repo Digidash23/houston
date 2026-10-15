@@ -9,6 +9,8 @@
 
 export * from "./activities";
 export * from "./agents";
+export * from "./browser-live";
+export * from "./browser-live-parse";
 export * from "./channels";
 export * from "./channels-refusals";
 export * from "./channels-whatsapp";
