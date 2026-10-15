@@ -31,9 +31,11 @@ test("Haiku 5.5 reasons like the rest of the 5.5 lineup", () => {
   const m = haiku();
   const s = sonnet();
   if (!m || !s) throw new Error("catalog rows missing");
-  // Adaptive thinking only, always on: same levels as Sonnet 5.5.
-  expect(m.thinkingLevelMap).toEqual(s.thinkingLevelMap);
-  expect(getSupportedThinkingLevels(m)).toEqual(getSupportedThinkingLevels(s));
+  // Adaptive thinking, same levels as Sonnet 5.5 plus "off" (pi 1.3.0).
+  expect(getSupportedThinkingLevels(m)).toEqual([
+    "off",
+    ...getSupportedThinkingLevels(s),
+  ]);
   // Only the default temperature is accepted. Mid-conversation effort, system
   // messages and tool changes all apply, as on Sonnet 5.5.
   expect(m.compat).toMatchObject({
