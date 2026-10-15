@@ -7,10 +7,13 @@ import { nextGeneration } from "./refs";
 /** Tabs being closed on purpose: their last page closing is not a fallback. */
 const closing = new WeakSet<BrowserTab>();
 
-/** Close the tab's context without it reopening a page on the way out. */
+/**
+ * Close the tab's context (a backup tab: its whole remote browser and
+ * session) without it reopening a page on the way out.
+ */
 export async function closeContext(tab: BrowserTab): Promise<void> {
   closing.add(tab);
-  await tab.context.close();
+  await (tab.backup ? tab.backup.dispose() : tab.context.close());
 }
 
 /** Pages one conversation may keep open; sign-in flows open a few popups. */

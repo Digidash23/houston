@@ -1,4 +1,5 @@
 import { BrowserToolError } from "./errors";
+import type { BrowserTab } from "./open-tab";
 import type { Slot } from "./pool-slot";
 import { closeContext } from "./tab-pages";
 
@@ -81,12 +82,19 @@ export async function settledWithin(
  * opening; a context that will not close is left to the browser's exit.
  */
 async function abandon(slot: Slot): Promise<void> {
-  const pending = slot.tab;
+  // A backup tab still being tried is a paid session: it goes too.
+  const pending = [slot.tab, slot.spare];
   slot.tab = null;
-  const close = async () => {
+  slot.spare = null;
+  slot.epoch += 1;
+  const close = async (opening: Promise<BrowserTab> | null) => {
     // A failed open already reached its caller; here it means nothing to close.
-    const tab = await pending?.catch(() => undefined);
+    const tab = await opening?.catch(() => undefined);
     if (tab) await closeContext(tab);
   };
-  await settledWithin(close(), CLOSE_GRACE_MS, "closing a stuck context");
+  await settledWithin(
+    Promise.all(pending.map(close)),
+    CLOSE_GRACE_MS,
+    "closing a stuck context",
+  );
 }

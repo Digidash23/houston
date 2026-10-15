@@ -1,4 +1,4 @@
-import type { Page } from "playwright-core";
+import type { Page, Response } from "playwright-core";
 import { BrowserToolError } from "./errors";
 import { fenceRefusal, takeFenceRefusal } from "./fence-refusals";
 import type { BrowserTab } from "./open-tab";
@@ -46,11 +46,11 @@ export async function guardLanding(tab: BrowserTab): Promise<void> {
  * issued before that is "interrupted" by it. Waiting for it here keeps one
  * failed page from failing the model's next `open` too.
  */
-async function goto(page: Page, href: string): Promise<void> {
+async function goto(page: Page, href: string): Promise<Response | null> {
   try {
     // "commit", not "domcontentloaded": a page whose head script stalls is
     // still usable, and `settle` + the snapshot already wait a bounded time.
-    await page.goto(href, { waitUntil: "commit" });
+    return await page.goto(href, { waitUntil: "commit" });
   } catch (error) {
     if (error instanceof Error && error.message.includes("net::ERR_"))
       await errorPageCommitted(page);
@@ -60,11 +60,15 @@ async function goto(page: Page, href: string): Promise<void> {
 
 /**
  * Open `href` in the tab, refusing it as the model's `url_refused` when the
- * fence proxy stopped the page or a hop of its redirects.
+ * fence proxy stopped the page or a hop of its redirects. Answers the main
+ * document's response (null for a same-document jump).
  */
-export async function openUrl(tab: BrowserTab, href: string): Promise<void> {
+export async function openUrl(
+  tab: BrowserTab,
+  href: string,
+): Promise<Response | null> {
   try {
-    await goto(tab.page, href);
+    return await goto(tab.page, href);
   } catch (error) {
     const fenced = takeFenceRefusal(tab, new URL(href).hostname);
     if (fenced !== null) throw fenceRefusal(fenced);

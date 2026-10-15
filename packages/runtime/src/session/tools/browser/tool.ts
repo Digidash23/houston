@@ -20,9 +20,9 @@ import {
 import { handoffOwner, NO_TIME_LEFT, runHandoff } from "./handoff";
 import { type HandoffRegistry, sharedHandoffs } from "./live/registry";
 import { BROWSER_TOOL_NAME } from "./name";
+import { actOn } from "./open-fallback";
 import { type BrowserPool, sharedBrowserPool } from "./pool";
 import { redactUrl } from "./redact-url";
-import { runBrowserAction } from "./run-action";
 import { browserStatePath, saveState } from "./state-store";
 import { untrusted } from "./untrusted";
 
@@ -147,8 +147,9 @@ export function makeBrowserTool({
         return await pool.run(
           key,
           statePath,
-          async (tab) => {
-            const outcome = await runBrowserAction(tab, action, signal);
+          async (opened, swap) => {
+            // An `open` a site blocked may end on the backup browser's tab.
+            const { tab, outcome } = await actOn(opened, action, swap, signal);
             if (outcome.mutated) await saveState(tab);
             return {
               content: outcome.content,
