@@ -65,7 +65,7 @@ function description(liveView: boolean): string {
 
 const CLOSED_SAVED = "Closed the browser. Sign-ins are saved.";
 const CLOSED_UNSAVED =
-  "Closed the browser. The page had stopped responding, so sign-ins from this last visit may not be saved.";
+  "Closed the browser, but saving didn't finish, so sign-ins from this last visit may not be saved.";
 
 const NO_LIVE_VIEW =
   "There is no way to show this browser to the person here. Tell them what to sign in to.";
