@@ -4,7 +4,7 @@ import { type FeedFrame, historyToFeed } from "./history";
 import { resolveModelSettings } from "./model-settings";
 import { observeConversation } from "./observe-stream";
 import { readPastOwnTurns } from "./read-past-own-turns";
-import { joinInFlight } from "./single-flight";
+import { type Flight, joinInFlight } from "./single-flight";
 import { type StreamRegistry, streamKey } from "./stream-registry";
 import type { TurnSendInput } from "./turn-inputs";
 import { streamTurn, type TurnWirePin } from "./turn-stream";
@@ -45,7 +45,7 @@ export function createTurnOperations(
     string,
     { agentId: string; conversationId: string }
   >();
-  const observing = new Map<string, Promise<void>>();
+  const observing = new Map<string, Flight<void>>();
   /**
    * Start a turn against the agent's sandbox client (`clientFor(agentId)` — the
    * host nests turn/settings routes under `/agents/<id>`). A model/effort pick
@@ -124,8 +124,8 @@ export function createTurnOperations(
     const client = ctx.clientFor(agentId);
     const key = streamKey(agentId, conversationId);
     observed.set(key, { agentId, conversationId });
-    // One per chat at a time: change events landing while its read waits out
-    // a send join it, instead of each queueing a read for the turn's end.
+    // One per chat at a time: change events landing while its read is out
+    // join it and ask for one more read, instead of each queueing their own.
     return joinInFlight(observing, key, async () => {
       // A send that overtook the read must not have its turn replaced by it.
       const { value, mark } = await readPastOwnTurns(registry, key, () =>

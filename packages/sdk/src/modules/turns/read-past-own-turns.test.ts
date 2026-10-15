@@ -13,6 +13,7 @@ import { ScopeStore } from "../../store";
 import type { FeedOutput } from "./feed-output";
 import { createTurnsModule } from "./index";
 import { readPastOwnTurns } from "./read-past-own-turns";
+import { type Flight, joinInFlight } from "./single-flight";
 import { StreamRegistry, streamKey } from "./stream-registry";
 import { streamTurn } from "./turn-stream";
 import { type ConversationVM, conversationScope } from "./vm-output";
@@ -241,11 +242,12 @@ test("observe seeds the read taken past a send, never the one it overtook", asyn
   );
 });
 
-test("observe calls on one chat share a single read", async () => {
-  // Each change event observes again; while a read waits out a send they
-  // must join it, not each queue a read for the turn's end.
+test("observe calls on one chat share a read, and a join reads once more", async () => {
+  // Each change event observes again. While a read is out they join it, and
+  // the joins ask for one more read after it: they may stand for a change the
+  // first read missed. Joins during one read coalesce into that one.
   const store = new ScopeStore();
-  const answer = deferred<ChatMessage[]>();
+  const answers = [deferred<ChatMessage[]>(), deferred<ChatMessage[]>()];
   let reads = 0;
   const client = {
     async streamEvents(_id: string, o: { onEvent: (f: WireFrame) => void }) {
@@ -255,7 +257,7 @@ test("observe calls on one chat share a single read", async () => {
       });
     },
     async getHistory() {
-      reads++;
+      const answer = answers[reads++] ?? deferred<ChatMessage[]>();
       return { id: "c1", title: "", messages: await answer.promise };
     },
   } as unknown as HoustonEngineClient;
@@ -277,10 +279,26 @@ test("observe calls on one chat share a single read", async () => {
 
   const first = mod.observe("c1", "");
   const second = mod.observe("c1", "");
-  answer.resolve([]);
-  await Promise.all([first, second]);
-  expect(reads).toBe(1);
-
-  await mod.observe("c1", ""); // settled: the next one reads anew
+  const third = mod.observe("c1", "");
+  answers[0].resolve([]);
+  await tick();
+  expect(reads).toBe(2); // the joins asked for one more read, not two
+  answers[1].resolve([{ role: "user", content: "later", ts: 1 }]);
+  await Promise.all([first, second, third]);
   expect(reads).toBe(2);
+  expect(
+    (store.getSnapshot(conversationScope("", "c1")) as ConversationVM).feed.map(
+      (f) => f.data,
+    ),
+  ).toContain("later");
+});
+
+test("a call nobody joined runs once", async () => {
+  let reads = 0;
+  const inFlight = new Map<string, Flight<number>>();
+  await expect(joinInFlight(inFlight, "k", async () => ++reads)).resolves.toBe(
+    1,
+  );
+  expect(reads).toBe(1);
+  expect(inFlight.size).toBe(0);
 });
