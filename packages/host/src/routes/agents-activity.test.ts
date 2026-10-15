@@ -4,7 +4,9 @@ import { Readable } from "node:stream";
 import { createRoutineRun, saveRoutineRuns } from "@houston/domain";
 import type { Capabilities, Routine, RoutineRun } from "@houston/protocol";
 import { beforeEach, expect, test, vi } from "vitest";
+import { assistantApprovals } from "../assistant/approvals";
 import { MemoryCredentialStore } from "../credentials/store";
+import type { CustomIntegrationManager } from "../integrations/custom/manager";
 import type {
   CaptureResult,
   ChannelCtx,
@@ -199,6 +201,8 @@ test("reports idle activity without falling through to runtime dispatch", async 
     runningRoutineRuns: 0,
     activeRequests: 0,
     activeWrites: 0,
+    pendingApprovals: 0,
+    pendingOAuth: 0,
   });
   expect(channel.dispatched).toEqual([]);
 });
@@ -215,6 +219,8 @@ test("reports busy when the channel has an active turn", async () => {
     runningRoutineRuns: 0,
     activeRequests: 0,
     activeWrites: 0,
+    pendingApprovals: 0,
+    pendingOAuth: 0,
   });
 });
 
@@ -231,6 +237,8 @@ test("reports busy when a routine run is still running", async () => {
     runningRoutineRuns: 1,
     activeRequests: 0,
     activeWrites: 0,
+    pendingApprovals: 0,
+    pendingOAuth: 0,
   });
 });
 
@@ -287,6 +295,34 @@ test("reports a running turn and held writes apart from open reads", async () =>
   });
 });
 
+test("reports approvals and custom sign-ins held in memory apart from busy", async () => {
+  // Both wait on a person and live only in this process: a pod slept under
+  // them asks that person again. Neither is a turn, so `busy` is unchanged.
+  assistantApprovals.issue({
+    operation: "delete_agent",
+    params: { agent: "x" },
+    agentId,
+    conversationId: "whatsapp",
+    summary: "s",
+  });
+  deps.customIntegrations = {
+    pendingOAuthAttempts: 2,
+  } as unknown as CustomIntegrationManager;
+  try {
+    expect((await activity()).json).toMatchObject({
+      busy: false,
+      turnBusy: false,
+      pendingApprovals: 1,
+      pendingOAuth: 2,
+    });
+    // Another agent's card is not this agent's.
+    expect(assistantApprovals.pendingCount("someone-else")).toBe(0);
+  } finally {
+    assistantApprovals.retireExcept(agentId, "whatsapp", []);
+  }
+  expect((await activity()).json).toMatchObject({ pendingApprovals: 0 });
+});
+
 test("POST /conversations/:cid/dismiss-interaction reaches the runtime dispatch", async () => {
   const path = `/agents/${encodeURIComponent(agentId)}/conversations/c1/dismiss-interaction`;
   const url = new URL(path, "http://host.local");
@@ -318,6 +354,8 @@ test("pod probe: a genuinely idle host answers busy:false", async () => {
     activeRequests: 0,
     runningRoutineRuns: 0,
     busyAgents: 0,
+    pendingApprovals: 0,
+    pendingOAuth: 0,
   });
 });
 
@@ -328,6 +366,8 @@ test("pod probe: any agent with an active turn flips the pod busy", async () => 
     activeRequests: 0,
     runningRoutineRuns: 0,
     busyAgents: 1,
+    pendingApprovals: 0,
+    pendingOAuth: 0,
   });
 });
 
@@ -349,6 +389,8 @@ test("pod probe: sums running routine runs across EVERY workspace, not one user'
     activeRequests: 0,
     runningRoutineRuns: 2,
     busyAgents: 2,
+    pendingApprovals: 0,
+    pendingOAuth: 0,
   });
 });
 
@@ -362,6 +404,8 @@ test("pod probe: held /agents/* requests count once, with NO self-subtraction", 
     activeRequests: 1,
     runningRoutineRuns: 0,
     busyAgents: 0,
+    pendingApprovals: 0,
+    pendingOAuth: 0,
   });
 });
 
@@ -372,6 +416,8 @@ test("pod probe: an unprobeable agent reads busy, never a false idle", async () 
     activeRequests: 0,
     runningRoutineRuns: 0,
     busyAgents: 1,
+    pendingApprovals: 0,
+    pendingOAuth: 0,
   });
 
   // A probe that throws (runtime unreachable) counts the same way.
@@ -383,7 +429,37 @@ test("pod probe: an unprobeable agent reads busy, never a false idle", async () 
     activeRequests: 0,
     runningRoutineRuns: 0,
     busyAgents: 1,
+    pendingApprovals: 0,
+    pendingOAuth: 0,
   });
+});
+
+test("pod probe: sums held approvals over the pod's agents and reports custom sign-ins", async () => {
+  // Never busy (the pre-roll and the original idle rule read busy alone):
+  // the cloud waker reads these counts on their own.
+  const ws = await store.getOrCreatePersonalWorkspace("alice");
+  const other = await store.createAgent({ workspaceId: ws.id, name: "Other" });
+  for (const id of [agentId, other.id])
+    assistantApprovals.issue({
+      operation: "delete_agent",
+      params: { agent: id },
+      agentId: id,
+      conversationId: "c1",
+      summary: "s",
+    });
+  deps.customIntegrations = {
+    pendingOAuthAttempts: 1,
+  } as unknown as CustomIntegrationManager;
+  try {
+    expect(await podActivityStatus(deps)).toMatchObject({
+      busy: false,
+      pendingApprovals: 2,
+      pendingOAuth: 1,
+    });
+  } finally {
+    assistantApprovals.clear(agentId);
+    assistantApprovals.clear(other.id);
+  }
 });
 
 test("GET /activity over HTTP: 401 unauthenticated; a held per-agent stream keeps the pod busy", async () => {
@@ -430,6 +506,8 @@ test("GET /activity over HTTP: 401 unauthenticated; a held per-agent stream keep
       activeRequests: 0,
       runningRoutineRuns: 0,
       busyAgents: 0,
+      pendingApprovals: 0,
+      pendingOAuth: 0,
     });
 
     const held = fetch(

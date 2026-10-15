@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CustomOAuthAttempts } from "./oauth-flow";
+import { CustomOAuthAttempts } from "./oauth-attempts";
 import {
   type CustomOAuthDeps,
   completeOAuthOp,

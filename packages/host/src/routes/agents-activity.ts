@@ -1,4 +1,5 @@
 import { loadRoutineRuns } from "@houston/domain";
+import { assistantApprovals } from "../assistant/approvals";
 import type { Agent, Workspace } from "../domain/types";
 import type { RuntimeChannel } from "../ports";
 import type { Vfs } from "../vfs";
@@ -68,6 +69,12 @@ async function activityStatus(
   // loginPending and activeWrites let a caller that ignores open reads still
   // see real work.
   const activeWrites = deps.agentWriteCount ? deps.agentWriteCount() : 0;
+  // State held only in this process and waiting on a person, reported apart
+  // like a pending sign-in (never busy): approval cards and their unspent
+  // answers for this agent (each expires on its own), and custom-integration
+  // sign-ins waiting on the browser (host-wide; a managed pod hosts one agent).
+  const pendingApprovals = assistantApprovals.pendingCount(ctx.agent.id);
+  const pendingOAuth = deps.customIntegrations?.pendingOAuthAttempts ?? 0;
   return {
     busy: turnBusy || runningRoutineRuns > 0 || activeRequests > 0,
     runtime,
@@ -76,6 +83,8 @@ async function activityStatus(
     runningRoutineRuns,
     activeRequests,
     activeWrites,
+    pendingApprovals,
+    pendingOAuth,
   };
 }
 
@@ -122,6 +131,8 @@ export async function podActivityStatus(deps: AgentRouteDeps): Promise<{
   activeRequests: number;
   runningRoutineRuns: number;
   busyAgents: number;
+  pendingApprovals: number;
+  pendingOAuth: number;
 }> {
   // The counter is pod-global (server.ts counts /agents/*-prefixed requests),
   // so read it ONCE — and unlike the per-agent probe above, /activity is not
@@ -129,9 +140,13 @@ export async function podActivityStatus(deps: AgentRouteDeps): Promise<{
   const activeRequests = deps.agentRequestCount ? deps.agentRequestCount() : 0;
   let runningRoutineRuns = 0;
   let busyAgents = 0;
+  // Held in memory and waiting on a person, as on the per-agent probe: summed
+  // over the pod's agents, and never part of busy.
+  let pendingApprovals = 0;
   for (const workspace of await deps.store.listWorkspaces()) {
     const channel = channelFor(deps, workspace);
     for (const agent of await deps.store.listAgents(workspace.id)) {
+      pendingApprovals += assistantApprovals.pendingCount(agent.id);
       if (!channel || !deps.vfs) {
         busyAgents++;
         continue;
@@ -155,5 +170,7 @@ export async function podActivityStatus(deps: AgentRouteDeps): Promise<{
     activeRequests,
     runningRoutineRuns,
     busyAgents,
+    pendingApprovals,
+    pendingOAuth: deps.customIntegrations?.pendingOAuthAttempts ?? 0,
   };
 }

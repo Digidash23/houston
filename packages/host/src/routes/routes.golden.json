@@ -318,6 +318,8 @@
       "activeRequests",
       "busy",
       "busyAgents",
+      "pendingApprovals",
+      "pendingOAuth",
       "runningRoutineRuns"
     ],
     "forwarded": []
@@ -979,6 +981,8 @@
       "activeWrites",
       "busy",
       "loginPending",
+      "pendingApprovals",
+      "pendingOAuth",
       "runningRoutineRuns",
       "runtime",
       "turnBusy"
@@ -18538,6 +18542,8 @@
       "activeRequests",
       "busy",
       "busyAgents",
+      "pendingApprovals",
+      "pendingOAuth",
       "runningRoutineRuns"
     ],
     "forwarded": []
@@ -21423,6 +21429,8 @@
       "activeWrites",
       "busy",
       "loginPending",
+      "pendingApprovals",
+      "pendingOAuth",
       "runningRoutineRuns",
       "runtime",
       "turnBusy"

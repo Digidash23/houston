@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  beginCustomOAuth,
-  CustomOAuthAttempts,
-  settleCustomOAuth,
-} from "./oauth-flow";
+import { CustomOAuthAttempts } from "./oauth-attempts";
+import { beginCustomOAuth, settleCustomOAuth } from "./oauth-flow";
 import type { CustomIntegrationDef } from "./types";
 
 const ENDPOINT = "https://mcp.example.com/mcp";
@@ -106,6 +103,17 @@ describe("CustomOAuthAttempts", () => {
     attempts.put("s2", attempt("acme"));
     expect(attempts.take("s1")).toBeNull();
     expect(attempts.take("s2")).not.toBeNull();
+  });
+
+  it("pendingCount counts the unexpired attempts", () => {
+    const attempts = new CustomOAuthAttempts();
+    expect(attempts.pendingCount()).toBe(0);
+    attempts.put("s1", attempt("acme"));
+    attempts.put("s2", attempt("globex"));
+    attempts.put("s3", { ...attempt("initech"), expiresAtMs: Date.now() - 1 });
+    expect(attempts.pendingCount()).toBe(2);
+    attempts.take("s1");
+    expect(attempts.pendingCount()).toBe(1);
   });
 
   it("an expired attempt is not honored", () => {

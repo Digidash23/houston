@@ -6,7 +6,10 @@
  * each one keeps.
  */
 
+import { randomBytes } from "node:crypto";
 import type { ApprovalArg } from "@houston/protocol/approval";
+import { approvalKey } from "./approval-key";
+import { approvalArgs } from "./summary";
 
 /** How long a request — and the receipt it becomes — stays usable. */
 export const APPROVAL_TTL_MS = 10 * 60_000;
@@ -57,4 +60,25 @@ export interface ConsumeApprovalInput {
   params: Record<string, unknown>;
   agentId: string;
   conversationId: string;
+}
+
+/** A fresh, unanswered request for one call, issued at `at`. */
+export function newApprovalRequest(
+  input: IssueApprovalInput,
+  at: number,
+): ApprovalRequest {
+  return {
+    requestId: randomBytes(16).toString("hex"),
+    key: approvalKey(input.operation, input.params),
+    operation: input.operation,
+    agentId: input.agentId,
+    conversationId: input.conversationId,
+    summary: input.summary,
+    ...(input.detail ? { detail: input.detail } : {}),
+    // Derived from the SAME params the key is computed over, never passed in
+    // beside them: the card's arguments and the approved call cannot drift.
+    args: approvalArgs(input.params),
+    createdAt: at,
+    expiresAt: at + APPROVAL_TTL_MS,
+  };
 }

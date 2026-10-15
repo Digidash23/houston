@@ -172,3 +172,30 @@ test("clearing a conversation forgets its requests and leaves the others", () =>
   expect(store.hasPending(AGENT, "other")).toBe(true);
   expect(elsewhere.conversationId).toBe("other");
 });
+
+test("pendingCount counts this agent's unexpired records in every conversation", () => {
+  let now = 1_000;
+  const store = new ApprovalStore(() => now);
+  const raise = (agentId: string, conversationId: string) =>
+    store.issue({
+      operation: "del",
+      params: { id: conversationId },
+      agentId,
+      conversationId,
+      summary: "s",
+    });
+  expect(store.pendingCount(AGENT)).toBe(0);
+  raise(AGENT, CONV);
+  const answered = raise(AGENT, "whatsapp");
+  raise("Personal/other", CONV);
+  // An answer not yet spent is still held here.
+  store.decide({
+    requestId: answered.requestId,
+    agentId: AGENT,
+    conversationId: "whatsapp",
+    decision: "approve",
+  });
+  expect(store.pendingCount(AGENT)).toBe(2);
+  now += APPROVAL_TTL_MS;
+  expect(store.pendingCount(AGENT)).toBe(0);
+});

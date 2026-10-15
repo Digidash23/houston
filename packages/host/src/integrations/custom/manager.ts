@@ -4,7 +4,8 @@ import { setCustomCredential } from "./credential-op";
 import { type DetectResult, detectSource } from "./detect";
 import { editDetails } from "./edit-details";
 import type { CustomExecutorHost } from "./executor-host";
-import { type CustomOAuthAttempt, CustomOAuthAttempts } from "./oauth-flow";
+import { CustomOAuthAttempts } from "./oauth-attempts";
+import type { CustomOAuthAttempt } from "./oauth-flow";
 import {
   completeOAuthOp,
   completeOAuthWithAttempt,
@@ -64,6 +65,12 @@ export class CustomIntegrationManager {
       ...this.oauth,
       onChanged: this.onChanged,
     };
+  }
+
+  /** Sign-ins this host started and still holds in memory, waiting on the
+   *  person's browser: a host that stops now loses them. */
+  get pendingOAuthAttempts(): number {
+    return this.attempts.pendingCount();
   }
 
   /** Whether this deployment can run the browser sign-in at all. */
