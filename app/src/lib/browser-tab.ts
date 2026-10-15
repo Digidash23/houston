@@ -98,8 +98,10 @@ export function reserveBrowserTab(
       if (!navigated && !tab.closed) tab.close();
     },
     hold: (line) => {
+      // A navigated tab is cross-origin: reading its `document` throws.
+      if (navigated || tab.closed) return;
       const doc = tab.document;
-      if (navigated || tab.closed || !doc?.body) return;
+      if (!doc?.body) return;
       doc.title = line;
       doc.body.style.cssText = HOLDING_STYLE;
       doc.body.textContent = line;

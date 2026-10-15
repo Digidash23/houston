@@ -21,8 +21,6 @@ const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
 
 beforeEach(() => {
   process.env.AGENTSTORE_GATEWAY_URL = "http://gateway.cluster.test/";
-  process.env.NEXT_PUBLIC_AGENTSTORE_GATEWAY_URL =
-    "https://gateway.public.test";
   vi.stubGlobal("fetch", fetchMock);
   vi.spyOn(console, "warn").mockImplementation(() => {});
   fetchMock.mockReset();
@@ -32,7 +30,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   delete process.env.AGENTSTORE_GATEWAY_URL;
-  delete process.env.NEXT_PUBLIC_AGENTSTORE_GATEWAY_URL;
 });
 
 const json = (body: unknown, status = 200) =>
@@ -55,6 +52,7 @@ describe("getOrgChartShare", () => {
       `http://gateway.cluster.test/v1/org-chart-shares/${ID}`,
     );
     expect((init as NextInit).next?.revalidate).toBe(3600);
+    expect(init?.cache).toBeUndefined();
     expect((init as NextInit).signal).toBeInstanceOf(AbortSignal);
     expect(timeoutSpy).toHaveBeenCalledWith(ORG_CHART_FETCH_TIMEOUT_MS);
   });
@@ -101,7 +99,11 @@ describe("getOrgChartImage", () => {
     expect(String(url)).toBe(
       `http://gateway.cluster.test/v1/org-chart-shares/${ID}/image`,
     );
+    // The PNG stays out of Next's data cache; the card's header caches it.
+    expect(init?.cache).toBe("no-store");
+    expect((init as NextInit).next).toBeUndefined();
     expect((init as NextInit).signal).toBeInstanceOf(AbortSignal);
+    expect(timeoutSpy).toHaveBeenCalledWith(ORG_CHART_FETCH_TIMEOUT_MS);
   });
 
   it("tells a missing picture from one it could not get", async () => {
@@ -126,23 +128,21 @@ describe("getOrgChartImage", () => {
 
 describe("orgChartPageView", () => {
   it("shows the share as published", () => {
-    expect(orgChartPageView(ID, { kind: "found", share: RECORD })).toEqual({
+    expect(orgChartPageView({ kind: "found", share: RECORD })).toEqual({
       title: "Acme",
       imageUrl: RECORD.imageUrl,
-      generic: false,
     });
   });
 
-  it("still shows the picture, under a plain title, when the record could not be read", () => {
-    expect(orgChartPageView(ID, { kind: "unavailable" })).toEqual({
+  it("shows a plain title and no picture when the record could not be read", () => {
+    expect(orgChartPageView({ kind: "unavailable" })).toEqual({
       title: ORG_CHART_GENERIC_TITLE,
-      imageUrl: `https://gateway.public.test/v1/org-chart-shares/${ID}/image`,
-      generic: true,
+      imageUrl: null,
     });
   });
 
   it("is a 404 only for a share that does not exist", () => {
-    expect(orgChartPageView(ID, { kind: "not_found" })).toBeNull();
+    expect(orgChartPageView({ kind: "not_found" })).toBeNull();
   });
 });
 

@@ -1,10 +1,16 @@
 import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { OgChartCard } from "./og-chart-card";
-import { OrgChartFallbackCard, orgChartOgImage } from "./org-chart-og";
+import {
+  FALLBACK_CACHE_CONTROL,
+  OrgChartFallbackCard,
+  orgChartOgImage,
+} from "./org-chart-og";
 
 const ID = "AbCdEfGhIjKlMnOpQrSt_-";
 const DATA = "data:image/png;base64,iVBORw==";
+/** What Next 15.5 stamps on every `ImageResponse`. */
+const IMMUTABLE = "public, immutable, no-transform, max-age=31536000";
 
 vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -15,7 +21,7 @@ function renderer(fail?: (card: ReactElement) => boolean) {
     drawn.push(card.type);
     if (fail?.(card)) throw new Error("satori choked");
     return new Response(new Uint8Array([1, 2, 3]), {
-      headers: { "content-type": "image/png" },
+      headers: { "content-type": "image/png", "cache-control": IMMUTABLE },
     });
   };
   return { drawn, render };
@@ -29,6 +35,8 @@ describe("orgChartOgImage", () => {
       render,
     });
     expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe(IMMUTABLE);
+    expect(res.headers.get("content-type")).toBe("image/png");
     expect(drawn).toEqual([OgChartCard]);
   });
 
@@ -40,6 +48,8 @@ describe("orgChartOgImage", () => {
         render,
       });
       expect(res.status).toBe(200);
+      expect(res.headers.get("cache-control")).toBe(FALLBACK_CACHE_CONTROL);
+      expect(res.headers.get("content-type")).toBe("image/png");
       expect(drawn).toEqual([OrgChartFallbackCard]);
     }
   });
@@ -60,6 +70,7 @@ describe("orgChartOgImage", () => {
       render: choking.render,
     });
     expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("public, max-age=60");
     expect(choking.drawn).toEqual([OgChartCard, OrgChartFallbackCard]);
   });
 });

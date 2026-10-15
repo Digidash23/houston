@@ -115,9 +115,12 @@ async function publishedLink(deps: ShareRunDeps): Promise<string | null> {
       return null;
     },
   );
+  // Once the upload settles the patience timer has nothing left to cut.
+  const settled = new AbortController();
+  void publishing.finally(() => settled.abort());
   return Promise.race([
     publishing,
-    deps.wait(PUBLISH_PATIENCE_MS).then(() => {
+    deps.wait(PUBLISH_PATIENCE_MS, settled.signal).then(() => {
       patience.abort();
       return null;
     }),

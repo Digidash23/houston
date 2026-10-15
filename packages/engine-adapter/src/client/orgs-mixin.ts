@@ -125,17 +125,37 @@ export function OrgsMixin<TBase extends BaseCtor>(Base: TBase) {
     // ---- sharing — hosted gateway only ----
     // A deployment with no gateway keeps no shared pictures: the same
     // `unavailable` the gateway answers when it has no blob store, without
-    // sending the picture anywhere.
+    // sending the picture anywhere. `signal` aborts the whole publish, the
+    // capability probe included (a probe that hangs must not hold the caller
+    // past its own patience; the memoized probe itself runs on).
     async publishOrgChartShare(
       input: OrgChartShareInput,
       signal?: AbortSignal,
     ): Promise<OrgChartShareResult> {
-      if (!(await deploymentIsGateway(this.ctx)))
-        return { kind: "refused", code: "unavailable" };
-      return viaSdk("/v1/org-chart-shares", () =>
-        this.ctx.sdk.org.publishOrgChartShare(input, signal),
-      );
+      return untilAborted(signal, async () => {
+        if (!(await deploymentIsGateway(this.ctx)))
+          return { kind: "refused", code: "unavailable" };
+        return viaSdk("/v1/org-chart-shares", () =>
+          this.ctx.sdk.org.publishOrgChartShare(input, signal),
+        );
+      });
     }
   }
   return Orgs;
+}
+
+/** `work`, or a rejection with `signal`'s reason as soon as it aborts. */
+function untilAborted<T>(
+  signal: AbortSignal | undefined,
+  work: () => Promise<T>,
+): Promise<T> {
+  if (!signal) return work();
+  if (signal.aborted) return Promise.reject(signal.reason);
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    signal.addEventListener("abort", onAbort, { once: true });
+    work()
+      .then(resolve, reject)
+      .finally(() => signal.removeEventListener("abort", onAbort));
+  });
 }

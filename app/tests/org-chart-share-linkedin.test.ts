@@ -187,20 +187,43 @@ describe("Share on LinkedIn without the page", () => {
     deepStrictEqual(reports, []);
   });
 
-  it("ignores a page published after the share stopped waiting", async () => {
-    let publish: (result: OrgChartShareResult) => void = () => {};
-    const { deps, calls, reports } = harness({
-      publish: () =>
-        new Promise((resolve) => {
-          publish = resolve;
-        }),
-      wait: async () => {},
+  it("ignores what the upload answers after the share stopped waiting", async () => {
+    const late: OrgChartShareResult[] = [
+      PUBLISHED,
+      { kind: "refused", code: "too_large" },
+    ];
+    for (const answer of late) {
+      let publish: (result: OrgChartShareResult) => void = () => {};
+      const { deps, calls, reports } = harness({
+        publish: () =>
+          new Promise((resolve) => {
+            publish = resolve;
+          }),
+        wait: async () => {},
+      });
+      const outcome = await shareOrgChart(deps);
+      publish(answer);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      deepStrictEqual(
+        calls.filter((call) => call.startsWith("navigate:")),
+        ["navigate:Hello gethouston.ai"],
+      );
+      strictEqual(outcome.kind === "linkedin" && outcome.image, "copied");
+      deepStrictEqual(reports, []);
+    }
+  });
+
+  it("clears the patience timer once the upload settles", async () => {
+    let cancel: AbortSignal | undefined;
+    const { deps } = harness({
+      wait: (_ms, given) => {
+        cancel = given;
+        return new Promise(() => {});
+      },
     });
-    await shareOrgChart(deps);
-    publish({ kind: "refused", code: "too_large" });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    strictEqual(calls.includes(`navigate:Hello ${PAGE}`), false);
-    deepStrictEqual(reports, []);
+    const outcome = await shareOrgChart(deps);
+    strictEqual(outcome.kind === "linkedin" && outcome.image, "linked");
+    strictEqual(cancel?.aborted, true);
   });
 
   it("uploads nothing when the drawing failed", async () => {

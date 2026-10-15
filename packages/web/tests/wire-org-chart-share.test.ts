@@ -118,6 +118,37 @@ describe("publishOrgChartShare", () => {
     expect(shareCalls()).toEqual([]);
   });
 
+  test("asks the route when the capability probe fails, and lets its answer decide", async () => {
+    stubRouted((call) =>
+      call.url === `${BASE}/v1/capabilities`
+        ? json(500, { error: "boom" })
+        : json(201, PUBLISHED),
+    );
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await expect(
+      client().publishOrgChartShare({ image: png(), title: "Acme" }),
+    ).resolves.toEqual({ kind: "published", ...PUBLISHED });
+    expect(shareCalls()).toHaveLength(1);
+  });
+
+  test("an abort ends a publish still waiting on the capability probe, and sends nothing", async () => {
+    stubRouted((call) =>
+      call.url === `${BASE}/v1/capabilities`
+        ? new Promise<Response>(() => {})
+        : json(201, PUBLISHED),
+    );
+    const controller = new AbortController();
+    const publishing = client().publishOrgChartShare(
+      { image: png(), title: "Acme" },
+      controller.signal,
+    );
+    controller.abort(new DOMException("patience", "AbortError"));
+
+    await expect(publishing).rejects.toMatchObject({ name: "AbortError" });
+    expect(shareCalls()).toEqual([]);
+  });
+
   test("surfaces a server failure as the engine error the app catches", async () => {
     stubDeployment(GATEWAY_CAPS, () => json(500, { error: "boom" }));
 

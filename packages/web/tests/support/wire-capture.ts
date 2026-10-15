@@ -66,7 +66,7 @@ export interface WireCapture {
   /** Answer the requests in order, one queued response each. */
   stubResponses(...responses: Response[]): void;
   /** Answer from the recorded call itself (route on its path or method). */
-  stubRouted(respond: (call: Call) => Response): void;
+  stubRouted(respond: (call: Call) => Response | Promise<Response>): void;
 }
 
 /** Create the harness. Call it at a spec's top level, before anything stubs. */
@@ -87,7 +87,9 @@ export function createWireCapture(): WireCapture {
     return call;
   };
 
-  const stubRouted = (respond: (call: Call) => Response): void => {
+  const stubRouted = (
+    respond: (call: Call) => Response | Promise<Response>,
+  ): void => {
     globalThis.fetch = vi.fn(async (input: unknown, init?: RequestInit) =>
       respond(record(input, init)),
     ) as unknown as typeof fetch;

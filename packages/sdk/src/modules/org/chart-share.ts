@@ -47,7 +47,7 @@ export const ORG_CHART_SHARE_FALLBACK_TITLE = "Our AI team";
  * title, except the zero-width joiner it keeps: the glue inside emoji such as
  * a family or a profession with a skin tone.
  */
-const UNPRINTABLE = /(?!‍)[\p{Cc}\p{Cf}]/gu;
+const UNPRINTABLE = /(?!\u200D)[\p{Cc}\p{Cf}]/gu;
 
 /**
  * The title as the gateway takes it: control and format characters dropped
@@ -60,7 +60,7 @@ export function orgChartShareTitle(title: string): string {
     .slice(0, ORG_CHART_SHARE_TITLE_MAX)
     .join("")
     .trim();
-  return /[^\s‍]/u.test(cut) ? cut : ORG_CHART_SHARE_FALLBACK_TITLE;
+  return /[^\s\u200D]/u.test(cut) ? cut : ORG_CHART_SHARE_FALLBACK_TITLE;
 }
 
 /**

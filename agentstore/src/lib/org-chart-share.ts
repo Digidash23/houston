@@ -4,14 +4,16 @@
  * its share card.
  *
  * SERVER ONLY: reads go to the in-cluster `AGENTSTORE_GATEWAY_URL` and send no
- * credentials. A share never changes once published, so a read is cached for
- * an hour. Nothing here throws: a slow, refused (the gateway caps public reads
- * per IP, and every store render comes from one) or failed read answers
- * `unavailable`, and the page still renders off the id alone, because the
- * picture's address is derived from it. Only the gateway's 404 means the
+ * credentials. A share never changes once published, so the record is cached
+ * for an hour; the picture is not (its card's own response header caches it).
+ * Nothing here throws: a slow, refused (the gateway caps public reads per IP,
+ * and every store render comes from one) or failed read answers `unavailable`,
+ * and the page still renders under a plain title, without the picture: its
+ * public address is only known from the record (the build bakes one gateway
+ * address that staging and prod share). Only the gateway's 404 means the
  * share does not exist.
  */
-import { clientGatewayBase, serverGatewayBase } from "./store-api-types";
+import { serverGatewayBase } from "./store-api-types";
 
 export interface OrgChartShare {
   id: string;
@@ -44,11 +46,6 @@ export function isOrgChartShareId(id: string): boolean {
 
 const imagePath = (id: string) => `/v1/org-chart-shares/${id}/image`;
 
-/** The picture's public address, for a browser's `<img>`. */
-export function publicOrgChartImageUrl(id: string): string {
-  return `${clientGatewayBase()}${imagePath(id)}`;
-}
-
 function isWebUrl(value: unknown): value is string {
   if (typeof value !== "string") return false;
   try {
@@ -75,11 +72,21 @@ export function parseOrgChartShare(value: unknown): OrgChartShare | null {
   return { id, title, imageUrl, createdAt };
 }
 
-/** One cached, time-boxed gateway read; `null` when no answer came back. */
-async function gatewayGet(path: string): Promise<Response | null> {
+/**
+ * One time-boxed gateway read; `null` when no answer came back. `cached`
+ * keeps it in Next's data cache for an hour; a picture is never kept there
+ * (a PNG body would churn the in-memory cache, and one over 2 MB logs a
+ * warning on every request).
+ */
+async function gatewayGet(
+  path: string,
+  cached: boolean,
+): Promise<Response | null> {
   try {
     return await fetch(`${serverGatewayBase()}${path}`, {
-      next: { revalidate: REVALIDATE_SECONDS },
+      ...(cached
+        ? { next: { revalidate: REVALIDATE_SECONDS } }
+        : { cache: "no-store" as const }),
       signal: AbortSignal.timeout(ORG_CHART_FETCH_TIMEOUT_MS),
     });
   } catch (err) {
@@ -99,7 +106,7 @@ export async function getOrgChartShare(
 ): Promise<OrgChartShareLookup> {
   if (!isOrgChartShareId(id)) return { kind: "not_found" };
   const path = `/v1/org-chart-shares/${id}`;
-  const res = await gatewayGet(path);
+  const res = await gatewayGet(path, true);
   if (!res) return { kind: "unavailable" };
   if (res.status === 404) return { kind: "not_found" };
   if (!res.ok) return unavailable(path, `gateway answered ${res.status}`);
@@ -119,7 +126,7 @@ export async function getOrgChartImage(
 ): Promise<OrgChartImageLookup> {
   if (!isOrgChartShareId(id)) return { kind: "not_found" };
   const path = imagePath(id);
-  const res = await gatewayGet(path);
+  const res = await gatewayGet(path, false);
   if (!res) return { kind: "unavailable" };
   if (res.status === 404) return { kind: "not_found" };
   if (!res.ok) return unavailable(path, `gateway answered ${res.status}`);
@@ -137,31 +144,21 @@ export async function getOrgChartImage(
   }
 }
 
-/** What the `/o/[id]` page shows: the share, or the id's picture under a plain title. */
+/** What the `/o/[id]` page shows: the share, or a plain title without its picture. */
 export interface OrgChartPageView {
   title: string;
-  imageUrl: string;
-  /** The record could not be read, so the title is the plain one. */
-  generic: boolean;
+  /** `null` when the record could not be read: the picture's address is in it. */
+  imageUrl: string | null;
 }
 
 /** The page's title when the record could not be read. */
 export const ORG_CHART_GENERIC_TITLE = "An AI team on Houston";
 
 export function orgChartPageView(
-  id: string,
   lookup: OrgChartShareLookup,
 ): OrgChartPageView | null {
   if (lookup.kind === "not_found") return null;
   if (lookup.kind === "found")
-    return {
-      title: lookup.share.title,
-      imageUrl: lookup.share.imageUrl,
-      generic: false,
-    };
-  return {
-    title: ORG_CHART_GENERIC_TITLE,
-    imageUrl: publicOrgChartImageUrl(id),
-    generic: true,
-  };
+    return { title: lookup.share.title, imageUrl: lookup.share.imageUrl };
+  return { title: ORG_CHART_GENERIC_TITLE, imageUrl: null };
 }

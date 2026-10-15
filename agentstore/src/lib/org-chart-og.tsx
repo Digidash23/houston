@@ -11,7 +11,15 @@ import type { OrgChartImageLookup } from "./org-chart-share";
  *
  * The render is drained here, not handed back as a stream, so a failure
  * inside it is caught while there is still a card to send instead.
+ *
+ * Next stamps every `ImageResponse` immutable for a year. Only the chart's
+ * own card earns that (a share never changes); the branded card stands in
+ * for a passing failure, so it is kept for a minute and LinkedIn or a CDN
+ * asks again soon after.
  */
+
+/** The branded card's cache line: short, so a passing failure is not pinned. */
+export const FALLBACK_CACHE_CONTROL = "public, max-age=60";
 
 export interface OrgChartOgDeps {
   image: (id: string) => Promise<OrgChartImageLookup>;
@@ -28,12 +36,14 @@ export function OrgChartFallbackCard(): ReactElement {
   );
 }
 
-async function drained(res: Response): Promise<Response> {
+async function drained(
+  res: Response,
+  cacheControl?: string,
+): Promise<Response> {
   if (!res.ok) throw new Error(`card render answered ${res.status}`);
-  return new Response(await res.arrayBuffer(), {
-    status: 200,
-    headers: res.headers,
-  });
+  const headers = new Headers(res.headers);
+  if (cacheControl) headers.set("cache-control", cacheControl);
+  return new Response(await res.arrayBuffer(), { status: 200, headers });
 }
 
 export async function orgChartOgImage(
@@ -47,5 +57,5 @@ export async function orgChartOgImage(
   } catch (err) {
     console.error(`agentstore: org chart card ${id} failed`, err);
   }
-  return drained(deps.render(<OrgChartFallbackCard />));
+  return drained(deps.render(<OrgChartFallbackCard />), FALLBACK_CACHE_CONTROL);
 }

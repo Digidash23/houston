@@ -12,8 +12,9 @@ import { siteBase } from "@/lib/site-config";
  * comes from this route's opengraph-image; a person who follows the link
  * sees the whole chart and a way to build their own team. Never indexed:
  * the link is the person's to share, not the store's to list. A gateway that
- * cannot answer still gets the chart shown (its address comes from the id)
- * under a plain title; only an unknown share is a 404.
+ * cannot answer gets a plain title and the way to build a team, without the
+ * chart (its address is in the record it could not read); only an unknown
+ * share is a 404.
  */
 
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ interface PageParams {
  * an abort signal is left out of Next's own request dedupe.
  */
 const pageView = cache(async (id: string) =>
-  orgChartPageView(id, await getOrgChartShare(id)),
+  orgChartPageView(await getOrgChartShare(id)),
 );
 
 export async function generateMetadata({
@@ -69,19 +70,23 @@ export default async function OrgChartSharePage({ params }: PageParams) {
   return (
     <main className="canvas-screen min-h-dvh bg-background text-ink">
       <StoreNav />
-      <div className="mx-auto grid w-full max-w-[1040px] gap-8 px-6 pt-8 pb-16 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] md:items-center md:gap-12 md:px-8 md:pt-12">
-        {/* biome-ignore lint/performance/noImgElement: the chart is served by the gateway, not a build-time asset */}
-        <img
-          src={view.imageUrl}
-          alt={
-            view.generic
-              ? "An org chart of AI Employees"
-              : `The org chart of ${view.title}`
-          }
-          width={CHART_SIZE}
-          height={CHART_SIZE}
-          className="h-auto w-full rounded-2xl shadow-card"
-        />
+      <div
+        className={
+          view.imageUrl
+            ? "mx-auto grid w-full max-w-[1040px] gap-8 px-6 pt-8 pb-16 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] md:items-center md:gap-12 md:px-8 md:pt-12"
+            : "mx-auto grid w-full max-w-[640px] gap-8 px-6 pt-8 pb-16 md:px-8 md:pt-12"
+        }
+      >
+        {view.imageUrl && (
+          // biome-ignore lint/performance/noImgElement: the chart is served by the gateway, not a build-time asset
+          <img
+            src={view.imageUrl}
+            alt={`The org chart of ${view.title}`}
+            width={CHART_SIZE}
+            height={CHART_SIZE}
+            className="h-auto w-full rounded-2xl shadow-card"
+          />
+        )}
         <div className="flex flex-col items-start gap-4">
           <h1 className="text-balance font-normal text-2xl md:text-3xl">
             {view.title}

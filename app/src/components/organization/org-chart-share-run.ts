@@ -45,7 +45,8 @@ export interface ShareRunDeps {
    * the run fails before pointing it anywhere.
    */
   reserveTab: () => ReservedTab | null;
-  wait: (ms: number) => Promise<void>;
+  /** Resolves after `ms`; `cancel` clears the timer (it then never resolves). */
+  wait: (ms: number, cancel: AbortSignal) => Promise<void>;
   /** Open in the browser; `false` when it did not take the URL. */
   open: (url: string) => Promise<boolean>;
   /** Save as a download; `false` when the person cancelled the save. */

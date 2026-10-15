@@ -106,6 +106,22 @@ describe("reserveBrowserTab", () => {
     strictEqual(closed.tab.document.body?.textContent, "");
   });
 
+  it("never reads a navigated or closed tab's document, which is cross-origin", () => {
+    for (const leave of ["navigate", "close"] as const) {
+      const { tab } = fakeTab();
+      const reserved = reserveBrowserTab(() => tab);
+      if (leave === "navigate")
+        reserved?.navigate("https://www.linkedin.com/feed/");
+      else tab.closed = true;
+      Object.defineProperty(tab, "document", {
+        get() {
+          throw new DOMException("Blocked a frame", "SecurityError");
+        },
+      });
+      reserved?.hold("late");
+    }
+  });
+
   it("does nothing until it is asked: an OAuth tab stays blank", () => {
     const { tab } = fakeTab();
     reserveBrowserTab(() => tab)?.navigate("https://oauth.example/slack");

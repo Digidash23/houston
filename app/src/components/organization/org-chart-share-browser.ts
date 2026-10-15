@@ -1,11 +1,12 @@
-import { type ReservedTab, reserveBrowserTab } from "../../lib/browser-tab";
+import { reserveBrowserTab } from "../../lib/browser-tab";
 import { logAndReportError } from "../../lib/error-report";
 import { openExternalUrl } from "../../lib/open-external-url";
 import { osIsTauri } from "../../lib/os-bridge/platform";
 import { saveBlob } from "../../lib/save-blob";
 import { tauriOrg } from "../../lib/tauri";
-import { isExpectedClipboardRefusal } from "./org-chart-share-linkedin";
+import { copyImageWith } from "./org-chart-share-copy";
 import type { ShareRunDeps } from "./org-chart-share-run";
+import { shareTabReserver } from "./org-chart-share-tab";
 import type { ShareImageDraw } from "./use-share-card-image";
 
 /**
@@ -42,27 +43,22 @@ export function browserShareDeps(
         .publishChartShare(png, title, signal)
         .finally(() => publishing(false));
     },
-    // The desktop shell hands URLs to the OS, which has no gesture rule.
-    reserveTab: () => (osIsTauri() ? null : holdingTab(holding)),
-    wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    reserveTab: shareTabReserver(holding, {
+      tauri: osIsTauri(),
+      reserve: () => reserveBrowserTab(),
+      report: logAndReportError,
+    }),
+    wait: (ms, cancel) =>
+      new Promise((resolve) => {
+        const timer = setTimeout(resolve, ms);
+        cancel.addEventListener("abort", () => clearTimeout(timer), {
+          once: true,
+        });
+      }),
     open: openExternalUrl,
     save: async (file) => (await saveBlob(file.name, file)).kind === "saved",
     report: logAndReportError,
   };
-}
-
-/**
- * A tab claimed for the composer, showing `line` while the upload runs. A
- * holding line that cannot be written is reported and the share goes on.
- */
-function holdingTab(line: string): ReservedTab | null {
-  const tab = reserveBrowserTab();
-  try {
-    tab?.hold(line);
-  } catch (error) {
-    logAndReportError("org_chart_share_holding", error);
-  }
-  return tab;
 }
 
 /** Whether this browser can put a PNG on the clipboard. */
@@ -79,24 +75,9 @@ function writeImage(png: Promise<File>): Promise<void> {
   return navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
 }
 
-/**
- * The dialog's Copy image: `true` once the PNG is on the clipboard. A refused
- * write reports unless the drawing failed (it reported itself) or the browser
- * refused it (the person's setup, not a bug).
- */
+/** The dialog's Copy image (`copyImageWith`) on this browser's clipboard. */
 export function copyImageToClipboard(png: Promise<File>): Promise<boolean> {
-  return writeImage(png).then(
-    () => true,
-    async (error: unknown) => {
-      const drawn = await png.then(
-        () => true,
-        () => false,
-      );
-      if (drawn && !isExpectedClipboardRefusal(error))
-        logAndReportError("org_chart_share_copy_image", error);
-      return false;
-    },
-  );
+  return copyImageWith(writeImage, logAndReportError, png);
 }
 
 /** The dialog's Download image: `true` once saved, `false` when cancelled. */
