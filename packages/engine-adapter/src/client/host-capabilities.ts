@@ -25,10 +25,27 @@ export function deploymentServes(
   ctx: AdapterContext,
   flag: "agentConfigLibrary" | "integrationSessionSink",
 ): Promise<boolean> {
+  return deploymentCaps(ctx).then((caps) => caps?.[flag] !== false);
+}
+
+/**
+ * Whether this deployment is the hosted gateway, read off the same memo: the
+ * gateway is the only deployment that advertises `spaces`, while the desktop
+ * sidecar and self-host never do. (`ctx.cp` cannot tell: the app sets it on
+ * every delivery path, desktop included.) A failed probe answers `true`, so the
+ * gateway-only route is asked and its own 404/503 decides.
+ */
+export function deploymentIsGateway(ctx: AdapterContext): Promise<boolean> {
+  return deploymentCaps(ctx).then(
+    (caps) => caps === null || caps.spaces === true,
+  );
+}
+
+function deploymentCaps(ctx: AdapterContext) {
   ctx.deploymentCaps ??= getCapabilities(ctx).catch((err) => {
     console.warn("[capabilities] deployment probe failed", err);
     ctx.deploymentCaps = undefined;
     return null;
   });
-  return ctx.deploymentCaps.then((caps) => caps?.[flag] !== false);
+  return ctx.deploymentCaps;
 }

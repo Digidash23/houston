@@ -5,11 +5,12 @@ import { z } from "zod";
  *
  * `POST /v1/org-chart-shares` takes multipart `file` (a PNG, at most
  * {@link ORG_CHART_SHARE_MAX_BYTES}) and `title` (1 to
- * {@link ORG_CHART_SHARE_TITLE_MAX} characters) and answers 201 with
+ * {@link ORG_CHART_SHARE_TITLE_MAX} code points, trimmed, with no control or
+ * format character but the zero-width joiner) and answers 201 with
  * {@link OrgChartSharePublished}: the public page a LinkedIn post links to,
- * whose preview image is the uploaded chart. Both reads are public:
- * `GET /v1/org-chart-shares/{id}` ({@link OrgChartShareRecord}) and
- * `GET /v1/org-chart-shares/{id}/image` (the PNG bytes).
+ * whose preview image is the uploaded chart. Both reads are public and only
+ * the Agent Store site reads them: `GET /v1/org-chart-shares/{id}` (the
+ * record) and `GET /v1/org-chart-shares/{id}/image` (the PNG bytes).
  */
 
 export const ORG_CHART_SHARE_MAX_BYTES = 6 * 1024 * 1024;
@@ -26,14 +27,6 @@ export const orgChartSharePublishedSchema = z.object({
 export type OrgChartSharePublished = z.infer<
   typeof orgChartSharePublishedSchema
 >;
-
-export const orgChartShareRecordSchema = z.object({
-  id: z.string().regex(SHARE_ID),
-  title: z.string().min(1).max(ORG_CHART_SHARE_TITLE_MAX),
-  imageUrl: z.url({ protocol: /^https?$/ }),
-  createdAt: z.iso.datetime(),
-});
-export type OrgChartShareRecord = z.infer<typeof orgChartShareRecordSchema>;
 
 /**
  * Why a publish did not happen, read off the answer.

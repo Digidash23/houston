@@ -17,6 +17,8 @@ export interface Call {
   body: string | null;
   /** A multipart body, which `body` (bytes as text) cannot hold. */
   form: FormData | null;
+  /** The abort signal the request was issued with, if any. */
+  signal: AbortSignal | null;
   headers: Headers;
 }
 
@@ -78,6 +80,7 @@ export function createWireCapture(): WireCapture {
       method: (init?.method ?? "GET").toUpperCase(),
       body: typeof init?.body === "string" ? init.body : null,
       form: init?.body instanceof FormData ? init.body : null,
+      signal: init?.signal ?? null,
       headers: new Headers(init?.headers),
     };
     calls.push(call);

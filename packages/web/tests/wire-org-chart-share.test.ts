@@ -1,6 +1,7 @@
 import { HoustonClient } from "@houston/engine-adapter/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
+  type Call,
   createWireCapture,
   installLocalStorage,
   json,
@@ -13,18 +14,22 @@ import {
  * Pinned literally: the whole URL, the method, the multipart parts, and the
  * headers the gateway routes on. A multipart body carries its own
  * Content-Type (with the boundary), so the JSON one every other gateway call
- * stamps must be absent here.
+ * stamps must be absent here. The adapter asks only a deployment whose
+ * capabilities say it is the gateway (`spaces`), so each spec answers that
+ * probe first.
  */
 
 const BASE = "http://host";
+const SHARES = `${BASE}/v1/org-chart-shares`;
 const ID = "AbCdEfGhIjKlMnOpQrSt_-";
 const PUBLISHED = {
   id: ID,
   imageUrl: `https://gateway.gethouston.ai/v1/org-chart-shares/${ID}/image`,
   pageUrl: `https://agents.gethouston.ai/o/${ID}`,
 };
+const GATEWAY_CAPS = { profile: "cloud", spaces: true };
 
-const { calls, reset, restore, stubFetch } = createWireCapture();
+const { calls, reset, restore, stubRouted } = createWireCapture();
 
 beforeEach(() => {
   installLocalStorage();
@@ -36,26 +41,39 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function client(controlPlane = true) {
-  const c = new HoustonClient({ baseUrl: BASE, token: "t", controlPlane });
+function client() {
+  const c = new HoustonClient({
+    baseUrl: BASE,
+    token: "t",
+    controlPlane: true,
+  });
   c.setActiveOrg(ORG);
   return c;
 }
+
+/** Capabilities answer `caps`; the share route answers `share()`. */
+function stubDeployment(caps: object, share: (call: Call) => Response) {
+  stubRouted((call) =>
+    call.url === `${BASE}/v1/capabilities` ? json(200, caps) : share(call),
+  );
+}
+
+const shareCalls = () => calls.filter((call) => call.url === SHARES);
 
 const png = () =>
   new Blob([new Uint8Array([137, 80, 78, 71])], { type: "image/png" });
 
 describe("publishOrgChartShare", () => {
   test("POSTs multipart {file, title}, authorized and space-scoped", async () => {
-    stubFetch(() => json(201, PUBLISHED));
+    stubDeployment(GATEWAY_CAPS, () => json(201, PUBLISHED));
     const image = png();
 
     await expect(
       client().publishOrgChartShare({ image, title: "Acme & Co" }),
     ).resolves.toEqual({ kind: "published", ...PUBLISHED });
-    expect(calls).toHaveLength(1);
-    const [call] = calls;
-    expect(call.url).toBe(`${BASE}/v1/org-chart-shares`);
+    expect(shareCalls()).toHaveLength(1);
+    const [call] = shareCalls();
+    expect(call.url).toBe(SHARES);
     expect(call.method).toBe("POST");
     expect(call.body).toBeNull();
     expect(call.headers.get("Content-Type")).toBeNull();
@@ -72,25 +90,36 @@ describe("publishOrgChartShare", () => {
     );
   });
 
+  test("hands the caller's abort signal to the request", async () => {
+    stubDeployment(GATEWAY_CAPS, () => json(201, PUBLISHED));
+    const controller = new AbortController();
+
+    await client().publishOrgChartShare(
+      { image: png(), title: "Acme" },
+      controller.signal,
+    );
+    expect(shareCalls()[0]?.signal).toBe(controller.signal);
+  });
+
   test("answers the gateway's 503 as unavailable, typed", async () => {
-    stubFetch(() => json(503, { error: "no blob store" }));
+    stubDeployment(GATEWAY_CAPS, () => json(503, { error: "no blob store" }));
 
     await expect(
       client().publishOrgChartShare({ image: png(), title: "Acme" }),
     ).resolves.toEqual({ kind: "refused", code: "unavailable" });
   });
 
-  test("asks nothing where there is no gateway", async () => {
-    stubFetch(() => json(201, PUBLISHED));
+  test("sends nothing to a deployment that is not the gateway", async () => {
+    stubDeployment({ profile: "local" }, () => json(201, PUBLISHED));
 
     await expect(
-      client(false).publishOrgChartShare({ image: png(), title: "Acme" }),
+      client().publishOrgChartShare({ image: png(), title: "Acme" }),
     ).resolves.toEqual({ kind: "refused", code: "unavailable" });
-    expect(calls).toEqual([]);
+    expect(shareCalls()).toEqual([]);
   });
 
   test("surfaces a server failure as the engine error the app catches", async () => {
-    stubFetch(() => json(500, { error: "boom" }));
+    stubDeployment(GATEWAY_CAPS, () => json(500, { error: "boom" }));
 
     await expect(
       client().publishOrgChartShare({ image: png(), title: "Acme" }),

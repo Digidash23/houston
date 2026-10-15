@@ -1,4 +1,4 @@
-import { deepStrictEqual, strictEqual } from "node:assert";
+import { deepStrictEqual, rejects, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
 import type { OrgChartShareResult } from "@houston/engine-adapter";
 import {
@@ -35,6 +35,7 @@ function harness(overrides: Partial<ShareRunDeps> = {}) {
       return true;
     },
     discard: () => calls.push("discard"),
+    hold: () => {},
   };
   const deps: ShareRunDeps = {
     post: (link) => `Hello ${link}`,
@@ -112,7 +113,11 @@ describe("Share on LinkedIn with the chart's page", () => {
 
   it("opens normally when the person closed the claimed tab", async () => {
     const { deps, calls } = harness();
-    deps.reserveTab = () => ({ navigate: () => false, discard: () => {} });
+    deps.reserveTab = () => ({
+      navigate: () => false,
+      discard: () => {},
+      hold: () => {},
+    });
     const outcome = await shareOrgChart(deps);
     strictEqual(calls.at(-1), `open:Hello ${PAGE}`);
     strictEqual(outcome.kind === "linkedin" && outcome.opened, true);
@@ -164,6 +169,40 @@ describe("Share on LinkedIn without the page", () => {
     deepStrictEqual(reports, []);
   });
 
+  it("aborts a slow upload, and reports nothing when it then gives up", async () => {
+    let signal: AbortSignal | undefined;
+    const { deps, reports } = harness({
+      publish: (_file, given) => {
+        signal = given;
+        return new Promise((_, reject) =>
+          given.addEventListener("abort", () => reject(given.reason)),
+        );
+      },
+      wait: async () => {},
+    });
+    const outcome = await shareOrgChart(deps);
+    strictEqual(signal?.aborted, true);
+    strictEqual(outcome.kind === "linkedin" && outcome.image, "copied");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    deepStrictEqual(reports, []);
+  });
+
+  it("ignores a page published after the share stopped waiting", async () => {
+    let publish: (result: OrgChartShareResult) => void = () => {};
+    const { deps, calls, reports } = harness({
+      publish: () =>
+        new Promise((resolve) => {
+          publish = resolve;
+        }),
+      wait: async () => {},
+    });
+    await shareOrgChart(deps);
+    publish({ kind: "refused", code: "too_large" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    strictEqual(calls.includes(`navigate:Hello ${PAGE}`), false);
+    deepStrictEqual(reports, []);
+  });
+
   it("uploads nothing when the drawing failed", async () => {
     const failed = Promise.reject(new Error("no canvas"));
     failed.catch(() => {});
@@ -172,6 +211,42 @@ describe("Share on LinkedIn without the page", () => {
     deepStrictEqual(calls, ["copy", "tab", "navigate:Hello gethouston.ai"]);
     strictEqual(outcome.kind === "linkedin" && outcome.image, "none");
     deepStrictEqual(reports, []);
+  });
+});
+
+describe("the claimed tab", () => {
+  it("is discarded when the post cannot be built, and the failure is thrown once", async () => {
+    const { deps, calls, reports } = harness({
+      post: () => {
+        throw new URIError("URI malformed");
+      },
+    });
+    await rejects(shareOrgChart(deps), URIError);
+    strictEqual(calls.includes("discard"), true);
+    strictEqual(
+      calls.some((call) => call.startsWith("navigate:")),
+      false,
+    );
+    deepStrictEqual(reports, []);
+  });
+
+  it("is discarded when pointing it at the composer throws", async () => {
+    const { deps, calls } = harness();
+    deps.reserveTab = () => ({
+      navigate: () => {
+        throw new Error("location refused");
+      },
+      discard: () => calls.push("discard"),
+      hold: () => {},
+    });
+    await rejects(shareOrgChart(deps), /location refused/);
+    strictEqual(calls.at(-1), "discard");
+  });
+
+  it("is never discarded once it shows the composer", async () => {
+    const { deps, calls } = harness();
+    await shareOrgChart(deps);
+    strictEqual(calls.includes("discard"), false);
   });
 });
 

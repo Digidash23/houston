@@ -7,7 +7,8 @@
  * else to send the person (the bare post, the picture on the clipboard) and
  * has to know which refusals are worth reporting
  * (`isExpectedOrgChartShareRefusal`). Only an answer that is neither (a 500,
- * an unreadable 201) throws.
+ * an unreadable 201) throws, and so does an abort through `signal` (the
+ * fetch's own `AbortError`): the caller that aborted no longer wants an answer.
  */
 
 import {
@@ -29,35 +30,52 @@ export type OrgChartShareResult =
       retryAfterMs?: number;
     };
 
-/**
- * The title as the gateway takes it: trimmed, and cut at
- * {@link ORG_CHART_SHARE_TITLE_MAX} characters (code points, so a cut never
- * splits an emoji). Empty when nothing is left.
- */
-export function orgChartShareTitle(title: string): string {
-  return Array.from(title.trim())
-    .slice(0, ORG_CHART_SHARE_TITLE_MAX)
-    .join("")
-    .trim();
+/** What `publishOrgChartShare` takes: the drawn PNG and the name it is drawn under. */
+export interface OrgChartShareInput {
+  image: Blob;
+  title: string;
 }
 
 /**
- * The upload `publishOrgChartShare` sends, or the refusal an input earns
- * before any request: a title with nothing left once trimmed, or a picture
- * over the gateway's cap.
+ * The page's title when the given one has nothing printable left. Plain
+ * English like the page that shows it (the Agent Store site is English-only).
+ */
+export const ORG_CHART_SHARE_FALLBACK_TITLE = "Our AI team";
+
+/**
+ * Control (Cc) and format (Cf) characters, which the gateway refuses in a
+ * title, except the zero-width joiner it keeps: the glue inside emoji such as
+ * a family or a profession with a skin tone.
+ */
+const UNPRINTABLE = /(?!‍)[\p{Cc}\p{Cf}]/gu;
+
+/**
+ * The title as the gateway takes it: control and format characters dropped
+ * (bidi overrides, zero-width spaces), trimmed, and cut at
+ * {@link ORG_CHART_SHARE_TITLE_MAX} code points so a cut never splits an
+ * emoji. A title with nothing visible left becomes {@link ORG_CHART_SHARE_FALLBACK_TITLE}.
+ */
+export function orgChartShareTitle(title: string): string {
+  const cut = Array.from(title.replace(UNPRINTABLE, "").trim())
+    .slice(0, ORG_CHART_SHARE_TITLE_MAX)
+    .join("")
+    .trim();
+  return /[^\s‍]/u.test(cut) ? cut : ORG_CHART_SHARE_FALLBACK_TITLE;
+}
+
+/**
+ * The upload `publishOrgChartShare` sends for the facade's `{ image, title }`,
+ * or the refusal a picture over the gateway's cap earns before any request.
  */
 export function orgChartShareUpload(
-  image: Blob,
-  title: string,
+  input: OrgChartShareInput,
 ): FormData | OrgChartShareResult {
-  const name = orgChartShareTitle(title);
-  if (!name) return { kind: "refused", code: "invalid_title" };
-  if (image.size > ORG_CHART_SHARE_MAX_BYTES)
+  if (input.image.size > ORG_CHART_SHARE_MAX_BYTES)
     return { kind: "refused", code: "too_large" };
-  const form = new FormData();
-  form.append("file", image, "org-chart.png");
-  form.append("title", name);
-  return form;
+  const upload = new FormData();
+  upload.append("file", input.image, "org-chart.png");
+  upload.append("title", orgChartShareTitle(input.title));
+  return upload;
 }
 
 /**
@@ -67,22 +85,28 @@ export function orgChartShareUpload(
  * Uploads the PNG with the space's name as its title and answers the page's
  * address, which a post links to so the picture shows as its preview. A
  * deployment that keeps no shared pictures, a 429, a lapsed session, a device
- * with no connection and a picture or title the gateway will not take all
- * answer `refused` with their code, never a throw.
- * @param upload The multipart `file` (the PNG the share dialog drew) and
- *   `title`, as orgChartShareUpload builds it.
+ * with no connection and a picture the gateway will not take all answer
+ * `refused` with their code, never a throw. A title with nothing printable
+ * left is published under a plain fallback rather than refused.
+ * @param upload The facade's `{ image, title }` as multipart, built by
+ *   `orgChartShareUpload`: `file` (the PNG the share dialog drew, at most
+ *   6 MiB) and `title` (the space's name, or the person's in a personal
+ *   space). The route reads its body off this parameter, so the facade
+ *   builds it.
  * @assistant group:org hidden: the share dialog draws the picture on the person's device; the assistant has no picture of the chart to send.
  * @assistant unschematized: the picture is binary multipart, which no JSON schema describes.
  */
 export async function publishOrgChartShare(
   scope: HttpScope,
   upload: FormData,
+  signal?: AbortSignal,
 ): Promise<OrgChartShareResult> {
   let res: Response;
   try {
     res = await httpRequest(scope, "/v1/org-chart-shares", {
       method: "POST",
       body: upload,
+      signal,
     });
   } catch (err) {
     if (isTransportFailure(err)) return { kind: "refused", code: "offline" };

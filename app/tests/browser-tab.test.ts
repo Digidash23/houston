@@ -1,11 +1,16 @@
 import { deepStrictEqual, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
-import { reserveBrowserTab, type TabHandle } from "../src/lib/browser-tab.ts";
+import {
+  type HoldingDocument,
+  reserveBrowserTab,
+  type TabHandle,
+} from "../src/lib/browser-tab.ts";
 
 function fakeTab() {
   const log: string[] = [];
-  const tab: TabHandle & { hrefs: string[] } = {
+  const tab: TabHandle & { hrefs: string[]; document: HoldingDocument } = {
     closed: false,
+    document: { title: "", body: { textContent: "", style: { cssText: "" } } },
     opener: { some: "window" },
     hrefs: [],
     location: {
@@ -76,5 +81,35 @@ describe("reserveBrowserTab", () => {
     reserved?.navigate("https://oauth.example/slack");
     reserved?.discard();
     deepStrictEqual(used.log, [], "the OAuth page stays open");
+  });
+
+  it("holds a line in the empty tab, and leaves a navigated or closed one alone", () => {
+    const empty = fakeTab();
+    reserveBrowserTab(() => empty.tab)?.hold("Preparing your post...");
+    strictEqual(empty.tab.document.title, "Preparing your post...");
+    strictEqual(empty.tab.document.body?.textContent, "Preparing your post...");
+    strictEqual(
+      empty.tab.document.body?.style.cssText.includes("Canvas"),
+      true,
+    );
+
+    const used = fakeTab();
+    const reserved = reserveBrowserTab(() => used.tab);
+    reserved?.navigate("https://www.linkedin.com/feed/");
+    reserved?.hold("late");
+    strictEqual(used.tab.document.title, "");
+
+    const closed = fakeTab();
+    const gone = reserveBrowserTab(() => closed.tab);
+    closed.tab.closed = true;
+    gone?.hold("late");
+    strictEqual(closed.tab.document.body?.textContent, "");
+  });
+
+  it("does nothing until it is asked: an OAuth tab stays blank", () => {
+    const { tab } = fakeTab();
+    reserveBrowserTab(() => tab)?.navigate("https://oauth.example/slack");
+    strictEqual(tab.document.title, "");
+    strictEqual(tab.document.body?.textContent, "");
   });
 });

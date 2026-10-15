@@ -3,7 +3,6 @@ import {
   isExpectedOrgChartShareRefusal,
   ORG_CHART_SHARE_REFUSALS,
   orgChartSharePublishedSchema,
-  orgChartShareRecordSchema,
   orgChartShareRefusalOf,
 } from "./org-chart-share";
 
@@ -33,25 +32,6 @@ describe("orgChartSharePublishedSchema", () => {
       { ...ok, imageUrl: undefined },
     ])
       expect(orgChartSharePublishedSchema.safeParse(bad).success).toBe(false);
-  });
-});
-
-describe("orgChartShareRecordSchema", () => {
-  it("reads the public record and bounds the title", () => {
-    const record = {
-      id: ID,
-      title: "Acme",
-      imageUrl: "https://g/i",
-      createdAt: "2026-10-15T00:00:00Z",
-    };
-    expect(orgChartShareRecordSchema.parse(record)).toEqual(record);
-    expect(
-      orgChartShareRecordSchema.safeParse({ ...record, title: "" }).success,
-    ).toBe(false);
-    expect(
-      orgChartShareRecordSchema.safeParse({ ...record, title: "x".repeat(121) })
-        .success,
-    ).toBe(false);
   });
 });
 

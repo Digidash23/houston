@@ -3,10 +3,14 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { analytics } from "../../lib/analytics";
 import { logAndReportError } from "../../lib/error-report";
-import { saveBlob } from "../../lib/save-blob";
-import { browserShareDeps } from "./org-chart-share-browser";
-import { isExpectedClipboardRefusal } from "./org-chart-share-linkedin";
+import {
+  browserShareDeps,
+  canCopyImage,
+  copyImageToClipboard,
+  downloadShareImage,
+} from "./org-chart-share-browser";
 import { sharePostText, shareTitle } from "./org-chart-share-model";
+import { createPendingRuns } from "./org-chart-share-pending";
 import {
   type ShareOutcome,
   type ShareRunDeps,
@@ -53,9 +57,11 @@ export function useOrgChartShare(tree: OrgTree, phone: boolean) {
     timer.current = null;
   }, []);
   const [publishing, setPublishing] = useState(false);
-  const pending = useCallback((next: boolean) => {
-    if (live.current) setPublishing(next);
-  }, []);
+  const pendingRuns = useRef(
+    createPendingRuns((next) => {
+      if (live.current) setPublishing(next);
+    }),
+  );
   useEffect(() => {
     live.current = true;
     return () => {
@@ -104,7 +110,11 @@ export function useOrgChartShare(tree: OrgTree, phone: boolean) {
   // Nothing is awaited before the run starts: the clipboard write and the
   // open must stay inside the click. A synchronous throw (a name
   // encodeURIComponent refuses) reports like any other failure.
-  const run = (deps: ShareRunDeps, started: number): Promise<void> => {
+  const run = (
+    deps: ShareRunDeps,
+    started: number,
+    pending: (next: boolean) => void,
+  ): Promise<void> => {
     const fail = (error: unknown) =>
       logAndReportError("org_chart_share", error);
     try {
@@ -120,44 +130,33 @@ export function useOrgChartShare(tree: OrgTree, phone: boolean) {
 
   const linkedIn = () => {
     try {
+      // Bound at start: a dropped click must not take the running one's flag.
+      let pending: (next: boolean) => void = () => {};
       const deps = browserShareDeps(
         (link) => sharePostText(t, tree, link),
         shareTitle(tree),
         current(),
         phone,
-        pending,
+        (next) => pending(next),
+        t("orgChart.share.preparingTab"),
       );
       const started = session.current;
-      if (usesShareSheet(deps)) void run(deps, started);
-      else flight.current(() => run(deps, started));
+      const start = () => {
+        pending = pendingRuns.current();
+        return run(deps, started, pending);
+      };
+      if (usesShareSheet(deps)) void start();
+      else flight.current(start);
     } catch (error) {
       logAndReportError("org_chart_share", error);
     }
   };
 
-  const download = async () => {
-    const drawing = current();
-    try {
-      const file = await drawing.png;
-      const saved = await saveBlob(file.name, file);
-      if (saved.kind === "saved") track("download", tree);
-    } catch (error) {
-      // A failed drawing already reported; the preview offers Try again.
-      if (!drawing.failed) logAndReportError("org_chart_share_save", error);
-    }
-  };
-
-  const canCopy =
-    typeof navigator !== "undefined" &&
-    typeof navigator.clipboard?.write === "function" &&
-    typeof globalThis.ClipboardItem === "function";
-
   // The write takes the image as a promise and starts in the click's tick.
   const copyImage = () => {
-    const { png } = current();
-    navigator.clipboard
-      .write([new ClipboardItem({ "image/png": png })])
-      .then(() => {
+    copyImageToClipboard(current().png)
+      .then((copied) => {
+        if (!copied) return;
         track("copy_image", tree);
         if (!live.current) return;
         dispatch({ type: "copied" });
@@ -167,14 +166,9 @@ export function useOrgChartShare(tree: OrgTree, phone: boolean) {
           COPIED_MS,
         );
       })
-      .catch(async (error: unknown) => {
-        const drawn = await png.then(
-          () => true,
-          () => false,
-        );
-        if (drawn && !isExpectedClipboardRefusal(error))
-          logAndReportError("org_chart_share_copy_image", error);
-      });
+      .catch((error: unknown) =>
+        logAndReportError("org_chart_share_copy_image", error),
+      );
   };
 
   const followBlocked = () => {
@@ -190,8 +184,11 @@ export function useOrgChartShare(tree: OrgTree, phone: boolean) {
     followBlocked,
     linkedIn,
     publishing,
-    download: () => void download(),
-    canCopy,
+    download: () =>
+      void downloadShareImage(current()).then((saved) => {
+        if (saved) track("download", tree);
+      }),
+    canCopy: canCopyImage(),
     copied: state.copied,
     copyImage,
   };

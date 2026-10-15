@@ -1932,13 +1932,14 @@ export const tauriOrg = {
     call("org_compute_usage", () => getEngine().computeUsage(days)),
   /** Publish the org chart picture as a public page for a post to link to.
    *  Refusals resolve typed; the share run reports what is worth reporting,
-   *  so a throw is not surfaced here a second time. */
-  publishChartShare: (image: Blob, title: string) =>
+   *  so a throw is not surfaced here a second time. `signal` aborts the
+   *  upload once the share stops waiting for it. */
+  publishChartShare: (image: Blob, title: string, signal?: AbortSignal) =>
     call(
       "publish_org_chart_share",
-      () => getEngine().publishOrgChartShare({ image, title }),
+      () => getEngine().publishOrgChartShare({ image, title }, signal),
       undefined,
-      { toast: false, capture: false },
+      { toast: false, capture: false, silence: () => Boolean(signal?.aborted) },
     ),
   /** C8 spaces: the caller's spaces + pending invites. Degrades to an empty
    *  result off-spaces (the switcher then shows only the personal workspace). */

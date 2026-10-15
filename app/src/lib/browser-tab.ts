@@ -22,6 +22,18 @@ export interface ReservedTab {
   navigate: (url: string) => boolean | Promise<boolean>;
   /** Close the tab if it never received a URL (the link never came). */
   discard: () => void;
+  /**
+   * Show `line` (authored, translated copy) in the still-empty tab, as its
+   * title and a centered sentence, for a wait the person can see. Callers that
+   * navigate straight away (the OAuth links) skip it and keep a blank tab.
+   */
+  hold: (line: string) => void;
+}
+
+/** The slice of the empty tab's `document` {@link ReservedTab.hold} writes. */
+export interface HoldingDocument {
+  title: string;
+  body: { textContent: string | null; style: { cssText: string } } | null;
 }
 
 /** The slice of a `WindowProxy` a reservation touches; injectable for tests. */
@@ -30,7 +42,16 @@ export interface TabHandle {
   opener: unknown;
   location: { href: string };
   close: () => void;
+  /** Same-origin while the tab is still `about:blank`. */
+  document?: HoldingDocument;
 }
+
+/**
+ * The holding line's look: system colors and font only, so it follows the
+ * person's light or dark setting with no value of its own to keep in sync.
+ */
+const HOLDING_STYLE =
+  "margin:0;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;text-align:center;font:16px/1.5 system-ui,sans-serif;color-scheme:light dark;background:Canvas;color:GrayText";
 
 /** Opens an empty tab. `null` means the browser refused (popup blocker). */
 export type TabOpener = () => TabHandle | null;
@@ -55,6 +76,8 @@ export function reserveBrowserTab(
         return tauriSystem.openUrl(url);
       },
       discard: () => {},
+      // No tab is open yet: the in-app browser opens on navigate.
+      hold: () => {},
     };
   }
   const tab = open();
@@ -73,6 +96,13 @@ export function reserveBrowserTab(
     },
     discard: () => {
       if (!navigated && !tab.closed) tab.close();
+    },
+    hold: (line) => {
+      const doc = tab.document;
+      if (navigated || tab.closed || !doc?.body) return;
+      doc.title = line;
+      doc.body.style.cssText = HOLDING_STYLE;
+      doc.body.textContent = line;
     },
   };
 }

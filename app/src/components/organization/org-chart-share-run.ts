@@ -34,11 +34,15 @@ export interface ShareRunDeps {
    * browser has no image clipboard. It takes the promise, not the blob.
    */
   copyImage: ((png: Promise<File>) => Promise<void>) | undefined;
-  /** Publish the image as a page of its own, for the post to link to. */
-  publish: (png: File) => Promise<OrgChartShareResult>;
+  /**
+   * Publish the image as a page of its own, for the post to link to. `signal`
+   * aborts the upload once the share stops waiting for it.
+   */
+  publish: (png: File, signal: AbortSignal) => Promise<OrgChartShareResult>;
   /**
    * An empty tab claimed in the click, to point at the composer once the post
-   * is known; `null` where none could be or need be claimed.
+   * is known; `null` where none could be or need be claimed. Discarded when
+   * the run fails before pointing it anywhere.
    */
   reserveTab: () => ReservedTab | null;
   wait: (ms: number) => Promise<void>;

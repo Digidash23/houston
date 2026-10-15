@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { SdkConfig, SdkPorts } from "../../ports";
 import { HoustonSdk } from "../../sdk";
 import { memoryKv } from "../../test-ports";
-import { orgChartShareTitle } from "./chart-share";
+import {
+  ORG_CHART_SHARE_FALLBACK_TITLE,
+  orgChartShareTitle,
+} from "./chart-share";
 
 const BASE = "http://127.0.0.1:4317";
 const ID = "AbCdEfGhIjKlMnOpQrSt_-";
@@ -119,11 +122,8 @@ describe("publishOrgChartShare", () => {
     ).rejects.toThrow(/unreadable/);
   });
 
-  it("refuses an empty title and an oversized picture without asking", async () => {
+  it("refuses an oversized picture without asking", async () => {
     const { sdk, calls } = makeSdk(() => json(PUBLISHED, 201));
-    await expect(
-      sdk.org.publishOrgChartShare({ image: png(), title: "   " }),
-    ).resolves.toEqual({ kind: "refused", code: "invalid_title" });
     await expect(
       sdk.org.publishOrgChartShare({
         image: png(6 * 1024 * 1024 + 1),
@@ -132,6 +132,33 @@ describe("publishOrgChartShare", () => {
     ).resolves.toEqual({ kind: "refused", code: "too_large" });
     expect(calls).toEqual([]);
   });
+
+  it("publishes a blank title under the fallback", async () => {
+    const { sdk, calls } = makeSdk(() => json(PUBLISHED, 201));
+    await sdk.org.publishOrgChartShare({ image: png(), title: "   " });
+    const form = calls[0]?.init?.body as FormData;
+    expect(form.get("title")).toBe(ORG_CHART_SHARE_FALLBACK_TITLE);
+  });
+
+  it("hands the caller's abort signal to fetch, and rejects once it fires", async () => {
+    const controller = new AbortController();
+    const { sdk, calls } = makeSdk(
+      () =>
+        new Promise<Response>((_, reject) => {
+          controller.signal.addEventListener("abort", () =>
+            reject(controller.signal.reason),
+          );
+        }),
+    );
+    const publishing = sdk.org.publishOrgChartShare(
+      { image: png(), title: "Acme" },
+      controller.signal,
+    );
+    await Promise.resolve();
+    expect(calls[0]?.init?.signal).toBe(controller.signal);
+    controller.abort();
+    await expect(publishing).rejects.toMatchObject({ name: "AbortError" });
+  });
 });
 
 describe("orgChartShareTitle", () => {
@@ -139,5 +166,26 @@ describe("orgChartShareTitle", () => {
     const long = `${"a".repeat(119)}🚀🚀`;
     expect(Array.from(orgChartShareTitle(long))).toHaveLength(120);
     expect(orgChartShareTitle(long).endsWith("🚀")).toBe(true);
+  });
+
+  it("keeps the zero-width joiner inside an emoji", () => {
+    const family = "\u{1F468}\u200D\u{1F469}\u200D\u{1F467}";
+    expect(orgChartShareTitle(`Acme ${family}`)).toBe(`Acme ${family}`);
+  });
+
+  it("drops bidi overrides, zero-width spaces and control characters", () => {
+    expect(orgChartShareTitle("\u202EAc\u200Bme\u0007\u2066")).toBe("Acme");
+  });
+
+  it("falls back when nothing printable is left", () => {
+    for (const blank of ["", "   ", "\u200B\u202E", "\u200D", " \u0000 "])
+      expect(orgChartShareTitle(blank)).toBe(ORG_CHART_SHARE_FALLBACK_TITLE);
+  });
+
+  it("keeps a lone surrogate without throwing", () => {
+    expect(() => orgChartShareTitle("Acme \uD83D")).not.toThrow();
+    expect(orgChartShareTitle(`${"a".repeat(119)}\uD83D\uD83D`)).toHaveLength(
+      120,
+    );
   });
 });

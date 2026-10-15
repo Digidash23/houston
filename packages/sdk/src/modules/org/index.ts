@@ -22,6 +22,7 @@ import type { ModuleContext } from "../../module-context";
 import { moduleScope } from "../http";
 import { field, requireString, requireStrings } from "../payload";
 import {
+  type OrgChartShareInput,
   type OrgChartShareResult,
   orgChartShareUpload,
   publishOrgChartShare,
@@ -56,7 +57,11 @@ import {
   type UsageRow,
 } from "./usage";
 
-export type { OrgChartShareResult } from "./chart-share";
+export {
+  ORG_CHART_SHARE_FALLBACK_TITLE,
+  type OrgChartShareInput,
+  type OrgChartShareResult,
+} from "./chart-share";
 export { OrgHttpError } from "./http";
 export type {
   AddOrgMemberResult,
@@ -98,11 +103,14 @@ export interface OrgModule {
   orgUsage(days: number): Promise<UsageRow[]>;
   /** Per (agent, day) engine running time over the last `days` days. */
   computeUsage(days: number): Promise<ComputeUsage>;
-  /** Publish the org chart picture as a public page; refusals are typed. */
-  publishOrgChartShare(input: {
-    image: Blob;
-    title: string;
-  }): Promise<OrgChartShareResult>;
+  /**
+   * Publish the org chart picture as a public page; refusals are typed. An
+   * abort through `signal` rejects with the fetch's `AbortError`.
+   */
+  publishOrgChartShare(
+    input: OrgChartShareInput,
+    signal?: AbortSignal,
+  ): Promise<OrgChartShareResult>;
 }
 
 function requireBlob(payload: unknown, key: string): Blob {
@@ -140,14 +148,20 @@ export function createOrgModule(ctx: ModuleContext): OrgModule {
   ctx.registerCommand(OrgCommand.ComputeUsage, (p) =>
     computeUsage(scope, requireNumber(p, "days")),
   );
-  const publishChartShare = (image: Blob, title: string) => {
-    const upload = orgChartShareUpload(image, title);
+  const publishChartShare = (
+    input: OrgChartShareInput,
+    signal?: AbortSignal,
+  ): Promise<OrgChartShareResult> => {
+    const upload = orgChartShareUpload(input);
     return upload instanceof FormData
-      ? publishOrgChartShare(scope, upload)
+      ? publishOrgChartShare(scope, upload, signal)
       : Promise.resolve(upload);
   };
   ctx.registerCommand(OrgCommand.PublishChartShare, (p) =>
-    publishChartShare(requireBlob(p, "image"), requireString(p, "title")),
+    publishChartShare({
+      image: requireBlob(p, "image"),
+      title: requireString(p, "title"),
+    }),
   );
 
   return {
@@ -161,6 +175,6 @@ export function createOrgModule(ctx: ModuleContext): OrgModule {
     orgAudit: (before, limit) => orgAudit(scope, before, limit),
     orgUsage: (days) => orgUsage(scope, days),
     computeUsage: (days) => computeUsage(scope, days),
-    publishOrgChartShare: ({ image, title }) => publishChartShare(image, title),
+    publishOrgChartShare: publishChartShare,
   };
 }

@@ -62,23 +62,31 @@ export function shareToLinkedIn(deps: ShareRunDeps): Promise<ShareOutcome> {
     copying = refused(deps, link, error);
   }
   const tab = deps.reserveTab();
-  return link.then(async (page) => {
-    const url = linkedInShareUrl(deps.post(page ?? SHARE_SITE_LINK));
-    const opened = await openComposer(deps, tab, url);
-    const image: ImageHandoff = page
-      ? "linked"
-      : (await copying)
-        ? "copied"
-        : await saveInstead(deps);
-    return { kind: "linkedin", url, opened, image };
-  });
+  return link
+    .then(async (page) => {
+      const url = linkedInShareUrl(deps.post(page ?? SHARE_SITE_LINK));
+      const opened = await openComposer(deps, tab, url);
+      const image: ImageHandoff = page
+        ? "linked"
+        : (await copying)
+          ? "copied"
+          : await saveInstead(deps);
+      return { kind: "linkedin", url, opened, image } as const;
+    })
+    .catch((error: unknown) => {
+      // The claimed tab never got the composer (a post `encodeURIComponent`
+      // refuses, a navigate that threw): close it rather than leave it blank.
+      // The caller reports the failure, once.
+      tab?.discard();
+      throw error;
+    });
 }
 
 /**
  * The chart's page, or null to go without it: the drawing failed (it
  * reported itself), the upload was refused or failed, or it outlasted
- * {@link PUBLISH_PATIENCE_MS}. Never rejects. Only a refusal nothing outside
- * Houston explains, or a failure, is reported.
+ * {@link PUBLISH_PATIENCE_MS} (and was aborted). Never rejects. Only a refusal
+ * nothing outside Houston explains, or a failure, is reported.
  */
 async function publishedLink(deps: ShareRunDeps): Promise<string | null> {
   let file: File;
@@ -87,8 +95,12 @@ async function publishedLink(deps: ShareRunDeps): Promise<string | null> {
   } catch {
     return null;
   }
-  const publishing = deps.publish(file).then(
+  // Past the patience the upload is aborted: a late success would publish a
+  // page no post links to. Whatever it then settles with was asked for.
+  const patience = new AbortController();
+  const publishing = deps.publish(file, patience.signal).then(
     (result) => {
+      if (patience.signal.aborted) return null;
       if (result.kind === "published") return result.pageUrl;
       if (!isExpectedOrgChartShareRefusal(result.code))
         deps.report(
@@ -98,13 +110,17 @@ async function publishedLink(deps: ShareRunDeps): Promise<string | null> {
       return null;
     },
     (error: unknown) => {
-      deps.report("org_chart_share_publish", error);
+      if (!patience.signal.aborted)
+        deps.report("org_chart_share_publish", error);
       return null;
     },
   );
   return Promise.race([
     publishing,
-    deps.wait(PUBLISH_PATIENCE_MS).then(() => null),
+    deps.wait(PUBLISH_PATIENCE_MS).then(() => {
+      patience.abort();
+      return null;
+    }),
   ]);
 }
 

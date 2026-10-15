@@ -2,7 +2,8 @@ import type { CSSProperties, ReactElement, ReactNode } from "react";
 
 /**
  * Shared layout for the store's OpenGraph share cards (the default site card,
- * the per-agent card under /a/[slug], and the org chart card under /o/[id]). Rendered by next/og ImageResponse
+ * the per-agent card under /a/[slug], and the paper of the org chart card
+ * under /o/[id]). Rendered by next/og ImageResponse
  * (Satori), so only its CSS subset is used: flex layout, gradients, no
  * external assets — the space look is painted with gradients + star dots so
  * a card never depends on a network fetch.
@@ -44,7 +45,26 @@ export const OG_TEXT = {
   kicker: "rgba(255,255,255,0.6)",
 } as const;
 
-/** The space backdrop every card is painted on: the gradients and stars. */
+/**
+ * The org chart share picture's own paper and inks, as the app paints it
+ * (`app/src/components/organization/org-chart-share-card-art.ts`, `ART` and
+ * `GRID`), so the card around a shared chart continues the picture instead of
+ * framing it in the starfield. This file is the store's one home for raw
+ * colour values.
+ */
+export const OG_PAPER = {
+  paper: "#fafaf9",
+  dot: "rgba(17, 17, 16, 0.075)",
+  ink: "#111110",
+  muted: "#6b6b66",
+  hairline: "#e7e7e4",
+  shadow:
+    "0 1px 2px rgba(17, 17, 16, 0.06), 0 18px 40px rgba(17, 17, 16, 0.10)",
+  /** The dot grid's pitch and dot radius, in px. */
+  grid: { step: 24, r: 1.1 },
+} as const;
+
+/** The space backdrop the store's own cards are painted on: the gradients and stars. */
 export function OgBackdrop({
   style,
   children,
