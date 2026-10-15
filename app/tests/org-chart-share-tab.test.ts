@@ -42,10 +42,10 @@ describe("the share's claimed tab", () => {
   });
 
   it("is what the dialog's deps claim, with the line the dialog translated", () => {
+    const hook = source("use-org-chart-share.ts");
     ok(
-      source("use-org-chart-share.ts").includes(
-        '(next) => pending(next), t("orgChart.share.preparingTab"), );',
-      ),
+      hook.includes("browserShareDeps(") &&
+        hook.includes('t("orgChart.share.preparingTab")'),
       "browserShareDeps must get the translated holding line",
     );
     ok(

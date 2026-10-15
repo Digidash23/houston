@@ -113,12 +113,15 @@ describe("reserveBrowserTab", () => {
       if (leave === "navigate")
         reserved?.navigate("https://www.linkedin.com/feed/");
       else tab.closed = true;
+      let reads = 0;
       Object.defineProperty(tab, "document", {
         get() {
+          reads += 1;
           throw new DOMException("Blocked a frame", "SecurityError");
         },
       });
       reserved?.hold("late");
+      strictEqual(reads, 0, `${leave}: document read`);
     }
   });
 

@@ -50,6 +50,7 @@ export function browserShareDeps(
     }),
     wait: (ms, cancel) =>
       new Promise((resolve) => {
+        if (cancel.aborted) return;
         const timer = setTimeout(resolve, ms);
         cancel.addEventListener("abort", () => clearTimeout(timer), {
           once: true,
