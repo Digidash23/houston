@@ -161,11 +161,22 @@ const describeReason = (reason: unknown): string =>
  * logged) and the final error is surfaced once, by hand, down the same path
  * `call()` would have used.
  */
-export async function sweepWithRetry(agentPaths: string[]) {
+export async function sweepWithRetry(
+  agentPaths: string[],
+  signal?: AbortSignal,
+) {
   for (let attempt = 0; ; attempt += 1) {
+    // An abort during the backoff ends the run before another attempt goes out.
+    signal?.throwIfAborted();
     try {
-      return await tauriConversations.listAll(agentPaths, { surface: false });
+      return await tauriConversations.listAll(
+        agentPaths,
+        { surface: false },
+        signal,
+      );
     } catch (err) {
+      // Abandoned by its query, not failed: nothing to retry or surface.
+      if (signal?.aborted) throw err;
       const next = planSweepAttempt(attempt, isTransientEngineError(err));
       if (next.surface) {
         // Same silence as the engine layer's (`tauriConversations.listAll`):

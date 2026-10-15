@@ -20,7 +20,13 @@
  * place) reroutes the SDK's calls too, with no extra threading.
  */
 
-import { HoustonSdk, type KeyValueStore, type SdkLogger } from "@houston/sdk";
+import {
+  createFanOutGate,
+  type FanOutGate,
+  HoustonSdk,
+  type KeyValueStore,
+  type SdkLogger,
+} from "@houston/sdk";
 import { createDevicePrefsStore } from "./client/device-prefs";
 // The barrel, never `cp/transient-retry` directly: the web suite mocks
 // `./control-plane` wholesale and a submodule import would bypass the mock.
@@ -141,6 +147,17 @@ export function createEngineSdk(opts: EngineSdkOptions): HoustonSdk {
       // failed save (`turns.importMessages`, PRODUCT-2040). Shared: this runs
       // on every bearer rotation and per space.
       pageLifecycle: sharedPageLifecycle(),
+      // One bound per page, not per SDK: this runs on every bearer rotation
+      // and per space, and a rotation mid-sweep must not open a second gate.
+      fanOut: sharedFanOutGate(),
     },
   });
+}
+
+let fanOutGate: FanOutGate | undefined;
+
+/** The page's one roster-wide read bound, shared by every SDK built here. */
+export function sharedFanOutGate(): FanOutGate {
+  fanOutGate ??= createFanOutGate();
+  return fanOutGate;
 }

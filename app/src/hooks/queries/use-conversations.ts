@@ -51,9 +51,12 @@ export function useAllConversations(agentPaths: string[]) {
   }, [roster]);
   return useQuery({
     queryKey,
-    queryFn: async () => {
+    // `signal` aborts when the query is removed (a space switch) or a refetch
+    // replaces this one: the sweep's still-queued reads are dropped instead
+    // of going out under the next space's header.
+    queryFn: async ({ signal }) => {
       const startedAt = Date.now();
-      const { items, failedAgents } = await sweepWithRetry(agentPaths);
+      const { items, failedAgents } = await sweepWithRetry(agentPaths, signal);
       // A partial sweep must never present itself as the whole board: the
       // agents that did not answer keep their last-known missions (HOU-981).
       const failedPaths = failedAgents.map((f) => f.agentPath);
