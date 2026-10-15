@@ -48,12 +48,15 @@ export class StreamRegistry {
   private readonly turnStarts = new Map<string, number>();
 
   /**
-   * Count a turn this owner starts on `key`. Noted before its optimistic
-   * bubble, so any history read already out by then is provably older than
-   * the turn the feed is about to show.
+   * Count a turn this owner starts on `key`, and answer `key`. Noted before
+   * its optimistic bubble, so any history read already out by then is
+   * provably older than the turn the feed is about to show. A send refused
+   * before it went out (a duplicate) is counted too: a read it overtook is
+   * only taken again, never trusted less.
    */
-  noteTurnStart(key: string): void {
+  noteTurnStart(key: string): string {
     this.turnStarts.set(key, this.turnsStarted(key) + 1);
+    return key;
   }
   /**
    * How many turns this owner has started on `key`. A history read takes it

@@ -159,6 +159,22 @@ test("disjoint tails: the server window wins over an unowned ancient feed", () =
   ).toBe("replace");
 });
 
+test("a whole transcript missing the prompt this client sent keeps the feed", () => {
+  // The read answered before the host persisted the prompt: a fold from the
+  // transcript's first message cannot be a tail that starts past it.
+  const feed = [user("sent here"), reply("its reply")];
+  const fold = [user("earlier"), reply("answer")];
+  const whole = { wholeTranscript: true, sentHere: true };
+  expect(decideServerSeed(feed, fold, false, whole)).toBe("skip");
+  // Nothing sent here (a cache paint), or a tail window: the server wins.
+  expect(
+    decideServerSeed(feed, fold, false, { ...whole, sentHere: false }),
+  ).toBe("replace");
+  expect(
+    decideServerSeed(feed, fold, false, { ...whole, wholeTranscript: false }),
+  ).toBe("replace");
+});
+
 test("no user anchor on either side falls back to richer-wins", () => {
   expect(decideServerSeed([reply("a")], [reply("a"), reply("b")], false)).toBe(
     "replace",

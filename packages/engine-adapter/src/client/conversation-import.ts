@@ -3,7 +3,7 @@ import type {
   ConversationImportRequest,
   ConversationImportResult,
 } from "@houston/wire-types";
-import { historyReadMark, seedConversationVm } from "../conversation-seed";
+import { readPastOwnTurnsOn, seedConversationVm } from "../conversation-seed";
 import { CHAT_OPEN_WINDOW } from "../history-window";
 import { DEFAULT_AGENT_PATH } from "../synthetic";
 import { runtimeScope } from "./chat-scope";
@@ -26,10 +26,12 @@ async function reseed(
   agentPath: string,
   conversationId: string,
 ): Promise<void> {
-  const mark = historyReadMark(agentPath, conversationId);
-  const history = await ctx.sdk
-    .clientFor(runtimeScope(ctx, agentPath))
-    .getHistory(conversationId, { limit: CHAT_OPEN_WINDOW });
+  const client = ctx.sdk.clientFor(runtimeScope(ctx, agentPath));
+  const { value: history, mark } = await readPastOwnTurnsOn(
+    agentPath,
+    conversationId,
+    () => client.getHistory(conversationId, { limit: CHAT_OPEN_WINDOW }),
+  );
   seedConversationVm(
     agentPath,
     conversationId,

@@ -172,8 +172,7 @@ export async function streamTurn(
     (response) => output.firstResponse?.(agentPath, sessionKey, response),
     opts.tuning?.firstResponseTimeoutMs,
   );
-  const key = streamKey(agentPath, sessionKey);
-  registry.noteTurnStart(key);
+  const key = registry.noteTurnStart(streamKey(agentPath, sessionKey));
   // Status BEFORE the bubble: `running: false` must mean settled-or-idle, so a
   // watcher can't mistake the optimistic-push snapshot for a settled turn.
   output.sessionStatus(agentPath, sessionKey, "running");

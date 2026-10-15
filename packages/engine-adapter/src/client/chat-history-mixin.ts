@@ -4,7 +4,11 @@ import {
   type CachedFrame,
   writeCachedConversation,
 } from "../conversation-cache";
-import { historyReadMark, seedConversationVm } from "../conversation-seed";
+import {
+  historyReadMark,
+  readPastOwnTurnsOn,
+  seedConversationVm,
+} from "../conversation-seed";
 import { CHAT_OPEN_WINDOW, SEARCH_SCAN_WINDOW } from "../history-window";
 import { historyToFeed, isConversationNotFound } from "../translate";
 import { observeConversation } from "../turn-stream";
@@ -19,18 +23,10 @@ import type { BaseCtor } from "./mixin";
  * fetch land in the same tick — and both want the identical windowed read +
  * VM seed. Sharing the in-flight promise halves the open traffic; bulk reads
  * (`observe: false`) never join it — they read a different window and take a
- * different path through the cache.
- *
- * A read joins only one that went out at the same {@link historyReadMark}.
- * After this client sends, the `ConversationsChanged` its prompt fires asks
- * for the transcript holding that prompt; joining a read from before the send
- * would answer it with the older transcript and never read again, leaving the
- * chat without the turn it just ran.
+ * different path through the cache. Joining after a send is safe: the read in
+ * flight reads again past the turn (see `readPastOwnTurnsOn`).
  */
-const openLoadsInFlight = new Map<
-  string,
-  { mark: number; load: Promise<ChatHistoryEntry[]> }
->();
+const openLoadsInFlight = new Map<string, Promise<ChatHistoryEntry[]>>();
 
 export function ChatHistoryMixin<TBase extends BaseCtor>(Base: TBase) {
   class ChatHistory extends Base {
@@ -43,19 +39,12 @@ export function ChatHistoryMixin<TBase extends BaseCtor>(Base: TBase) {
         return this.loadChatHistoryNow(agentPath, sessionKey, opts);
       }
       const key = `${agentPath}|${sessionKey}`;
-      const mark = historyReadMark(agentPath, sessionKey);
       const inFlight = openLoadsInFlight.get(key);
-      if (inFlight?.mark === mark) return inFlight.load;
-      const load: Promise<ChatHistoryEntry[]> = this.loadChatHistoryNow(
-        agentPath,
-        sessionKey,
-        opts,
-      ).finally(() => {
-        // A newer read may have taken the key meanwhile: leave it in place.
-        if (openLoadsInFlight.get(key)?.load === load)
-          openLoadsInFlight.delete(key);
-      });
-      openLoadsInFlight.set(key, { mark, load });
+      if (inFlight) return inFlight;
+      const load = this.loadChatHistoryNow(agentPath, sessionKey, opts).finally(
+        () => openLoadsInFlight.delete(key),
+      );
+      openLoadsInFlight.set(key, load);
       return load;
     }
 
@@ -82,10 +71,17 @@ export function ChatHistoryMixin<TBase extends BaseCtor>(Base: TBase) {
         // were the "search takes 15 seconds" cost. A pre-windowing server
         // ignores `limit` and returns everything — `offset`/`totalMessages`
         // then default to the full-transcript shape.
-        const mark = historyReadMark(agentPath, sessionKey);
-        const history = await engine.getHistory(sessionKey, {
-          limit: observing ? CHAT_OPEN_WINDOW : SEARCH_SCAN_WINDOW,
-        });
+        const read = () =>
+          engine.getHistory(sessionKey, {
+            limit: observing ? CHAT_OPEN_WINDOW : SEARCH_SCAN_WINDOW,
+          });
+        // An open read a send overtook is taken again past that turn. A bulk
+        // scan never seeds, so its first answer is the one it wants.
+        const { value: history, mark } = observing
+          ? await readPastOwnTurnsOn(agentPath, sessionKey, read)
+          : { value: await read(), mark: 0 };
+        // Still overtaken after the retries: neither cached nor seeded.
+        const current = historyReadMark(agentPath, sessionKey) === mark;
         const sdkFeed = sdkHistoryToFeed(history.messages);
         const window = {
           earliestLoaded: history.offset ?? 0,
@@ -97,7 +93,7 @@ export function ChatHistoryMixin<TBase extends BaseCtor>(Base: TBase) {
         // which a board-wide search paid once per mission, and it would evict
         // the conversations the user actually opens in favour of ones they only
         // ever searched through.
-        if (this.ctx.cp && observing) {
+        if (this.ctx.cp && observing && current) {
           void writeCachedConversation(agentPath, sessionKey, sdkFeed);
         }
         // Observer mode: a loaded chat may have a turn in flight that THIS client

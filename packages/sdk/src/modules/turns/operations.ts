@@ -3,6 +3,7 @@ import { type FeedOutput, MultiplexFeedOutput } from "./feed-output";
 import { type FeedFrame, historyToFeed } from "./history";
 import { resolveModelSettings } from "./model-settings";
 import { observeConversation } from "./observe-stream";
+import { readPastOwnTurns } from "./read-past-own-turns";
 import { type StreamRegistry, streamKey } from "./stream-registry";
 import type { TurnSendInput } from "./turn-inputs";
 import { streamTurn, type TurnWirePin } from "./turn-stream";
@@ -121,9 +122,13 @@ export function createTurnOperations(
     const client = ctx.clientFor(agentId);
     const key = streamKey(agentId, conversationId);
     observed.set(key, { agentId, conversationId });
-    const { messages } = await client.getHistory(conversationId);
+    // A send that overtook the read must not have its turn replaced by it.
+    const { value, mark } = await readPastOwnTurns(registry, key, () =>
+      client.getHistory(conversationId),
+    );
+    const { messages } = value;
     const output = new MultiplexFeedOutput([...defaults, ...external]);
-    if (!registry.get(key))
+    if (!registry.get(key) && registry.turnsStarted(key) === mark)
       vm.seedHistory(agentId, conversationId, historyToFeed(messages));
     observeConversation(
       client,

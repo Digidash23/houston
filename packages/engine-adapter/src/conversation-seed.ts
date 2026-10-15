@@ -2,6 +2,8 @@ import {
   conversationScope,
   type FeedFrame,
   type HistoryWindowVM,
+  type MarkedRead,
+  readPastOwnTurns,
   streamKey,
 } from "@houston/sdk";
 import { registry } from "./adapter-streams";
@@ -16,6 +18,16 @@ import { conversationStore, conversationVm } from "./vm";
  */
 export function historyReadMark(agentPath: string, sessionKey: string): number {
   return registry.turnsStarted(streamKey(agentPath, sessionKey));
+}
+
+/** The SDK's `readPastOwnTurns` over this adapter's streams: a history read
+ *  a send overtook is taken again once that turn let go. */
+export function readPastOwnTurnsOn<T>(
+  agentPath: string,
+  sessionKey: string,
+  read: () => Promise<T>,
+): Promise<MarkedRead<T>> {
+  return readPastOwnTurns(registry, streamKey(agentPath, sessionKey), read);
 }
 
 /**
@@ -70,6 +82,10 @@ export function seedConversationVm(
     curFeed,
     frames,
     current?.historyWindow !== undefined,
+    {
+      wholeTranscript: window.earliestLoaded === 0,
+      sentHere: registry.turnsStarted(key) > 0,
+    },
   );
   if (decision === "replace") {
     conversationVm.seedHistory(agentPath, sessionKey, frames, window);

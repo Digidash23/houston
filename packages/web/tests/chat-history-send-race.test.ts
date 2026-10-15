@@ -13,6 +13,11 @@ import { installLocalStorage, json } from "./support/wire-capture";
  * prompt with a feed holding nothing but the turn, which reads as a newer
  * server tail: it replaced the turn, and the goal card the person just sent
  * vanished (CI, onboarding-team-roster.spec.ts).
+ *
+ * The app reaches this read once: the chat-history query's first fetch joins
+ * every change event that lands while it is out. So each spec below makes
+ * ONE `loadChatHistory` call, and that call must end with the whole
+ * conversation seeded.
  */
 
 const BASE = "http://host";
@@ -35,17 +40,20 @@ const withTurn: ChatMessage[] = [
 
 let seq = 0;
 let sk: string;
-let historyReads: string[];
+let historyReads: number;
 /** The first history read, answered only when a spec says so. */
 let answerFirstRead: (messages: ChatMessage[]) => void;
+/** Ends the turn: its stream sends `done`. */
+let finishTurn: () => void;
 
 const chunk = (frames: object[]) =>
   new TextEncoder().encode(
     frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join(""),
   );
 
-/** The turn's stream: `sync` at once, the turn once the send named its nonce. */
-const sse = (turn: (nonce: string) => object[], sent: Promise<string>) =>
+/** The turn's stream: `sync` at once, the prompt's echo and the reply once
+ *  the send named its nonce, `done` once the spec ends the turn. */
+const sse = (sent: Promise<string>, done: Promise<void>) =>
   new Response(
     new ReadableStream({
       async start(controller) {
@@ -54,51 +62,57 @@ const sse = (turn: (nonce: string) => object[], sent: Promise<string>) =>
             { type: "sync", data: { running: false, partial: "", seq: 0 } },
           ]),
         );
-        controller.enqueue(chunk(turn(await sent)));
+        const nonce = await sent;
+        controller.enqueue(
+          chunk([
+            {
+              type: "user",
+              data: { content: "hidden", ts: 3, nonce },
+              turnId: "t1",
+              seq: 1,
+            },
+            { type: "text", data: REPLY, turnId: "t1", seq: 2 },
+          ]),
+        );
+        await done;
+        controller.enqueue(
+          chunk([{ type: "done", data: null, turnId: "t1", seq: 3 }]),
+        );
         controller.close();
       },
     }),
     { status: 200, headers: { "Content-Type": "text/event-stream" } },
   );
 
+const deferred = <T>() => {
+  let resolve: (value: T) => void = () => {};
+  const promise = new Promise<T>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+};
+
 beforeEach(() => {
   installLocalStorage();
   sk = `send-race-${seq++}`;
-  historyReads = [];
-  let send: (nonce: string) => void = () => {};
-  const sent = new Promise<string>((resolve) => {
-    send = resolve;
-  });
-  const firstRead = new Promise<Response>((resolve) => {
-    answerFirstRead = (messages) =>
-      resolve(json(200, { id: sk, title: "", messages }));
-  });
+  historyReads = 0;
+  const firstRead = deferred<ChatMessage[]>();
+  answerFirstRead = firstRead.resolve;
+  const sent = deferred<string>();
+  const done = deferred<void>();
+  finishTurn = () => done.resolve();
   globalThis.fetch = vi.fn(async (input: unknown, init?: RequestInit) => {
     const url = String(input);
     if (url.includes("/messages?")) {
-      historyReads.push(url);
-      return historyReads.length === 1
-        ? firstRead
-        : json(200, { id: sk, title: "", messages: withTurn });
+      historyReads++;
+      const messages = historyReads === 1 ? await firstRead.promise : withTurn;
+      return json(200, { id: sk, title: "", messages });
     }
     if (init?.method === "POST" && url.endsWith("/messages")) {
-      send((JSON.parse(String(init.body)) as { nonce: string }).nonce);
+      sent.resolve((JSON.parse(String(init.body)) as { nonce: string }).nonce);
       return json(202, { ok: true, id: sk, turnId: "t1" });
     }
-    if (url.endsWith("/events"))
-      return sse(
-        (nonce) => [
-          {
-            type: "user",
-            data: { content: "hidden", ts: 3, nonce },
-            turnId: "t1",
-            seq: 1,
-          },
-          { type: "text", data: REPLY, turnId: "t1", seq: 2 },
-          { type: "done", data: null, turnId: "t1", seq: 3 },
-        ],
-        sent,
-      );
+    if (url.endsWith("/events")) return sse(sent.promise, done.promise);
     return json(200, { ok: true, items: [] });
   }) as unknown as typeof fetch;
 });
@@ -112,52 +126,82 @@ const client = () =>
 
 function vm() {
   return conversationStore.getSnapshot(conversationScope(AGENT, sk)) as
-    | { running: boolean; feed: { feed_type: string; data: unknown }[] }
+    | {
+        running: boolean;
+        feed: { feed_type: string; data: unknown }[];
+        historyWindow?: { earliestLoaded: number; total: number };
+      }
     | undefined;
 }
-const feed = () => (vm()?.feed ?? []).map((f) => [f.feed_type, f.data]);
+const feed = () =>
+  (vm()?.feed ?? [])
+    .filter((f) => f.feed_type !== "final_result")
+    .map((f) => [f.feed_type, f.data]);
+const whole = [
+  ["user_message", "earlier question"],
+  ["assistant_text", "earlier answer"],
+  ["user_message", GOAL],
+  ["assistant_text", REPLY],
+];
 
-/** Open the chat, then send into it while the open read is still out. */
-async function sendOverTheOpenRead(c: HoustonClient) {
-  const open = c.loadChatHistory(AGENT, sk);
-  await vi.waitUntil(() => historyReads.length === 1);
-  const started = c.startSession(AGENT, {
+const send = (c: HoustonClient) =>
+  c.startSession(AGENT, {
     sessionKey: sk,
     prompt: "hidden",
     displayText: GOAL,
   });
-  await started;
-  await vi.waitUntil(
-    () => vm()?.running === false && feed().some(([, d]) => d === REPLY),
-  );
-  // Wrapped: an async function returning the read itself would wait on it.
-  return { open };
-}
+const replied = () => vi.waitUntil(() => feed().some(([, d]) => d === REPLY));
+const settled = () => vi.waitUntil(() => vm()?.running === false);
 
-test("a read that went out before the send never replaces the turn it missed", async () => {
-  const { open } = await sendOverTheOpenRead(client());
+test("an open read a send overtook reads again once the turn settles", async () => {
+  const c = client();
+  const open = c.loadChatHistory(AGENT, sk);
+  await vi.waitUntil(() => historyReads === 1);
+  await send(c);
+  await replied();
 
-  answerFirstRead(earlier);
+  answerFirstRead(earlier); // the transcript from before the send
+  await new Promise((r) => setTimeout(r, 20));
+  expect(historyReads).toBe(1); // the turn still holds the chat
+  finishTurn();
   await open;
 
-  expect(feed()).toContainEqual(["user_message", GOAL]);
-  expect(feed()).toContainEqual(["assistant_text", REPLY]);
-  expect(feed()).not.toContainEqual(["user_message", "earlier question"]);
+  expect(historyReads).toBe(2);
+  expect(feed()).toEqual(whole);
+  // Stamped, so the chat knows where the server transcript starts.
+  expect(vm()?.historyWindow).toEqual({ earliestLoaded: 0, total: 4 });
 });
 
-test("a read asked for after the send goes out fresh instead of joining the older one", async () => {
+test("an open read answered after the turn settled reads again at once", async () => {
   const c = client();
-  const { open } = await sendOverTheOpenRead(c);
+  const open = c.loadChatHistory(AGENT, sk);
+  await vi.waitUntil(() => historyReads === 1);
+  await send(c);
+  finishTurn();
+  await settled();
 
-  // The turn's ConversationsChanged asks the open chat to read again.
-  await c.loadChatHistory(AGENT, sk);
-  expect(historyReads).toHaveLength(2);
   answerFirstRead(earlier);
   await open;
 
-  expect(feed().filter(([type]) => type !== "final_result")).toEqual([
-    ["user_message", "earlier question"],
-    ["assistant_text", "earlier answer"],
+  expect(historyReads).toBe(2);
+  expect(feed()).toEqual(whole);
+});
+
+test("a whole transcript read before the host kept the prompt leaves the turn", async () => {
+  const c = client();
+  await send(c);
+  await replied();
+  // Out after the send, answered as if the host had not persisted it yet.
+  const open = c.loadChatHistory(AGENT, sk);
+  await vi.waitUntil(() => historyReads === 1);
+  finishTurn();
+  await settled();
+
+  answerFirstRead(earlier);
+  await open;
+
+  expect(historyReads).toBe(1);
+  expect(feed()).toEqual([
     ["user_message", GOAL],
     ["assistant_text", REPLY],
   ]);
