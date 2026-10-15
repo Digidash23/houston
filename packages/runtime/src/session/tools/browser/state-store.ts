@@ -97,6 +97,12 @@ export interface StateHolder {
   context: BrowserContext;
   statePath: string;
   base: StorageState;
+  /**
+   * What of this context may be saved; all of it when unset. A backup tab
+   * keeps to its site, so a visit there never overwrites another site's
+   * sign-in it was not given.
+   */
+  scope?: (state: StorageState) => StorageState;
 }
 
 /** Saves per file, in order: each one reads the file the previous one wrote. */
@@ -121,7 +127,8 @@ export function saveState(holder: StateHolder): Promise<void> {
 }
 
 async function writeMerged(holder: StateHolder): Promise<void> {
-  const ours = await holder.context.storageState({ indexedDB: true });
+  const all = await holder.context.storageState({ indexedDB: true });
+  const ours = holder.scope ? holder.scope(all) : all;
   const theirs = (await readState(holder.statePath)) ?? EMPTY_STATE;
   const merged = mergeStorageState(holder.base, ours, theirs);
   if (!(await ensureStateDir(holder.statePath))) return;

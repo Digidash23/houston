@@ -31,6 +31,7 @@ export function backupState(state: StorageState, host: string): StorageState {
 function sameSite(domain: string, host: string): boolean {
   const d = domain.replace(/^\./, "").toLowerCase();
   const h = host.toLowerCase();
+  if (!d || !h) return false;
   const site = h.replace(/^www\./, "");
   return h === d || h.endsWith(`.${d}`) || d === site || d.endsWith(`.${site}`);
 }

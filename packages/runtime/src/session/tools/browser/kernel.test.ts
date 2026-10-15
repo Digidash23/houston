@@ -13,7 +13,7 @@ import {
 import { fakeBrowser } from "./kernel-browser.test-support";
 import { backupFromEnv, kernelBackup } from "./kernel-tab";
 import { EMPTY_STATE } from "./state-merge";
-import { browserStatePath, saveState } from "./state-store";
+import { browserStatePath, readState, saveState } from "./state-store";
 import { closeContext } from "./tab-pages";
 
 const KEY = "sk_kernel_secret";
@@ -319,4 +319,52 @@ test("Kernel gets only the blocked site's sign-ins", () => {
   expect(kept.origins.map((o) => o.origin)).toEqual([
     "https://login.shop.example",
   ]);
+});
+
+test("saving from the Kernel tab never overwrites another site's sign-in", async () => {
+  const statePath = browserStatePath(agentWorkspace("kernel-save-"));
+  const other = { origin: "https://other.example", localStorage: [] };
+  await saveState({
+    // SAFETY: saveState reads only storageState from the context.
+    context: {
+      storageState: async () => ({
+        cookies: [cookie("sid"), cookie("mail", "mail.other.example")],
+        origins: [other],
+      }),
+    } as unknown as BrowserContext,
+    statePath,
+    base: EMPTY_STATE,
+  });
+  const { kernel } = fakeApi();
+  const remote = fakeBrowser();
+  const tab = await kernelBackup(kernel, async () => remote.browser).open(
+    statePath,
+    3,
+    "www.shop.example",
+  );
+  // The Kernel tab wandered onto the other site, signed out there.
+  Object.assign(remote.context, {
+    storageState: async () => ({
+      cookies: [
+        { ...cookie("sid"), value: "new" },
+        { ...cookie("mail", "mail.other.example"), value: "anon" },
+      ],
+      origins: [
+        {
+          origin: "https://other.example",
+          localStorage: [{ name: "a", value: "1" }],
+        },
+      ],
+    }),
+  });
+  await saveState(tab);
+  const saved = await readState(statePath);
+  expect(saved?.cookies.map((c) => [c.domain, c.value])).toEqual(
+    expect.arrayContaining([
+      [".shop.example", "new"],
+      ["mail.other.example", "v"],
+    ]),
+  );
+  expect(saved?.origins).toEqual([other]);
+  await closeContext(tab);
 });

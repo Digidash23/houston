@@ -106,6 +106,9 @@ export async function openKernelTab(
     const page = context.pages()[0] ?? (await context.newPage());
     await page.setViewportSize(DESKTOP_VIEWPORT);
     const tab = await wireTab(context, page, statePath, saved, maxPages);
+    tab.scope = (state) => backupState(state, host);
+    // A base wider than the scope would read the rest as signed out.
+    tab.base = tab.scope(tab.base);
     const owned = browser;
     tab.backup = {
       host,
