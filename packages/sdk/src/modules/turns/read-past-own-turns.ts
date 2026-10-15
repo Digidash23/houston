@@ -1,3 +1,4 @@
+import { EngineError } from "@houston/runtime-client";
 import type { StreamRegistry } from "./stream-registry";
 
 /** One history read and the {@link StreamRegistry.turnsStarted} count it went
@@ -36,11 +37,25 @@ export async function readPastOwnTurns<T>(
   for (;;) {
     const mark = registry.turnsStarted(key);
     const overtakenAtStart = registry.ownsUnacceptedSend(key);
-    const value = await read();
+    const overtaken = () =>
+      overtakenAtStart || registry.turnsStarted(key) !== mark;
+    let value: T;
+    try {
+      value = await read();
+    } catch (e) {
+      // A new chat answers not-found until the host stores its first prompt:
+      // overtaken, that is no verdict on the chat. Wait the turn out.
+      if (!isNotFound(e) || !overtaken()) throw e;
+      await registry.ownTurnLeft(key);
+      if (registry.disposals !== disposals) throw e;
+      continue;
+    }
     if (registry.disposals !== disposals) return { value, mark: null };
-    if (!overtakenAtStart && registry.turnsStarted(key) === mark)
-      return { value, mark };
+    if (!overtaken()) return { value, mark };
     await registry.ownTurnLeft(key);
     if (registry.disposals !== disposals) return { value, mark: null };
   }
 }
+
+const isNotFound = (e: unknown): boolean =>
+  e instanceof EngineError && e.status === 404;

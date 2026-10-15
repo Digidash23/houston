@@ -209,9 +209,10 @@ test("settles the interrupted turn from history by turnId across a turn boundary
   // into it. The foreign turn itself may show: once ours settled, the chat
   // reads the transcript again and observes the turn now running.
   await expect(page.getByText(/Session error/)).not.toBeVisible();
-  await expect(page.getByText(/You said: .test boundary./)).not.toContainText(
-    /someone else/,
+  await expect(agentRow(page, "test boundary")).not.toContainText(
+    "someone else",
   );
+  await expect(userRow(page, "someone else's turn")).toHaveCount(1);
 });
 
 /**

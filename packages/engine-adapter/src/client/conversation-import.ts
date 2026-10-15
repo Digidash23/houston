@@ -4,8 +4,8 @@ import type {
   ConversationImportResult,
 } from "@houston/wire-types";
 import {
+  historyReadMark,
   ownTurnHolds,
-  readPastOwnTurnsOn,
   seedConversationVm,
 } from "../conversation-seed";
 import { CHAT_OPEN_WINDOW } from "../history-window";
@@ -30,16 +30,15 @@ async function reseed(
   agentPath: string,
   conversationId: string,
 ): Promise<void> {
-  // A turn this client sent holds the chat: its stream owns the feed, and
-  // the import's own ConversationsChanged reads it in once the chat is free.
-  // Waiting the turn out here would hold the caller's save for a whole turn.
+  // A turn this client sent holds the chat: its stream owns the feed and
+  // would refuse the seed. The chat's next read brings the lines in.
   if (ownTurnHolds(agentPath, conversationId)) return;
-  const client = ctx.sdk.clientFor(runtimeScope(ctx, agentPath));
-  const { value: history, mark } = await readPastOwnTurnsOn(
-    agentPath,
-    conversationId,
-    () => client.getHistory(conversationId, { limit: CHAT_OPEN_WINDOW }),
-  );
+  // One plain read: the caller's save never waits on a turn. A send that
+  // starts while it is out moves the mark, and the seed then refuses it.
+  const mark = historyReadMark(agentPath, conversationId);
+  const history = await ctx.sdk
+    .clientFor(runtimeScope(ctx, agentPath))
+    .getHistory(conversationId, { limit: CHAT_OPEN_WINDOW });
   seedConversationVm(
     agentPath,
     conversationId,

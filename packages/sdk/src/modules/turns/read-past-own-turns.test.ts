@@ -1,8 +1,9 @@
-import type {
-  ChatMessage,
-  EventStreamOptions,
-  HoustonEngineClient,
-  WireFrame,
+import {
+  type ChatMessage,
+  EngineError,
+  type EventStreamOptions,
+  type HoustonEngineClient,
+  type WireFrame,
 } from "@houston/runtime-client";
 import { afterEach, expect, test } from "vitest";
 import { createAuthExpiryNotifier } from "../../auth-expiry";
@@ -124,6 +125,31 @@ test("a read sent after the engine took the send is trusted", async () => {
   expect(registry.ownsTurn(key)).toBe(true);
 });
 
+test("an overtaken read the host answers not-found reads again after the turn", async () => {
+  // A new chat 404s until the host stores its first prompt.
+  const key = streamKey("agent", "new-chat");
+  void streamTurn(engine, "agent", "new-chat", "hi", silent, registry);
+  let reads = 0;
+  const read = readPastOwnTurns(registry, key, async () => {
+    reads++;
+    if (reads === 1) throw new EngineError(404, "not found");
+    return "the chat";
+  });
+  await tick();
+  expect(reads).toBe(1);
+
+  letGo(key);
+  await expect(read).resolves.toEqual({ value: "the chat", mark: 1 });
+});
+
+test("a not-found read nothing overtook is the answer", async () => {
+  const key = streamKey("agent", "missing-chat");
+  const read = readPastOwnTurns(registry, key, async () => {
+    throw new EngineError(404, "not found");
+  });
+  await expect(read).rejects.toMatchObject({ status: 404 });
+});
+
 test("a read reads again for as long as sends keep overtaking it", async () => {
   const key = streamKey("agent", "busy-chat");
   let reads = 0;
@@ -213,4 +239,48 @@ test("observe seeds the read taken past a send, never the one it overtook", asyn
   expect(vm().feed.map((f) => f.data)).toEqual(
     expect.arrayContaining(["earlier", "answer", "hi", "hi there"]),
   );
+});
+
+test("observe calls on one chat share a single read", async () => {
+  // Each change event observes again; while a read waits out a send they
+  // must join it, not each queue a read for the turn's end.
+  const store = new ScopeStore();
+  const answer = deferred<ChatMessage[]>();
+  let reads = 0;
+  const client = {
+    async streamEvents(_id: string, o: { onEvent: (f: WireFrame) => void }) {
+      o.onEvent({
+        type: "sync",
+        data: { running: false, partial: "", seq: 0 },
+      });
+    },
+    async getHistory() {
+      reads++;
+      return { id: "c1", title: "", messages: await answer.promise };
+    },
+  } as unknown as HoustonEngineClient;
+  const logger = { debug() {}, info() {}, warn() {}, error() {} };
+  const mod = createTurnsModule(
+    {
+      config: {
+        baseUrl: "http://x",
+        ports: { logger } as unknown as SdkConfig["ports"],
+        reactivity: false,
+      },
+      store,
+      clientFor: () => client,
+      authExpiry: createAuthExpiryNotifier(store),
+      registerCommand: () => {},
+    },
+    async () => {},
+  );
+
+  const first = mod.observe("c1", "");
+  const second = mod.observe("c1", "");
+  answer.resolve([]);
+  await Promise.all([first, second]);
+  expect(reads).toBe(1);
+
+  await mod.observe("c1", ""); // settled: the next one reads anew
+  expect(reads).toBe(2);
 });

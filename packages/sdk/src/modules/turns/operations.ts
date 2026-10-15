@@ -4,6 +4,7 @@ import { type FeedFrame, historyToFeed } from "./history";
 import { resolveModelSettings } from "./model-settings";
 import { observeConversation } from "./observe-stream";
 import { readPastOwnTurns } from "./read-past-own-turns";
+import { joinInFlight } from "./single-flight";
 import { type StreamRegistry, streamKey } from "./stream-registry";
 import type { TurnSendInput } from "./turn-inputs";
 import { streamTurn, type TurnWirePin } from "./turn-stream";
@@ -44,6 +45,7 @@ export function createTurnOperations(
     string,
     { agentId: string; conversationId: string }
   >();
+  const observing = new Map<string, Promise<void>>();
   /**
    * Start a turn against the agent's sandbox client (`clientFor(agentId)` — the
    * host nests turn/settings routes under `/agents/<id>`). A model/effort pick
@@ -122,23 +124,27 @@ export function createTurnOperations(
     const client = ctx.clientFor(agentId);
     const key = streamKey(agentId, conversationId);
     observed.set(key, { agentId, conversationId });
-    // A send that overtook the read must not have its turn replaced by it.
-    const { value, mark } = await readPastOwnTurns(registry, key, () =>
-      client.getHistory(conversationId),
-    );
-    if (mark === null) return; // torn down while it waited
-    const { messages } = value;
-    const output = new MultiplexFeedOutput([...defaults, ...external]);
-    if (!registry.get(key) && registry.turnsStarted(key) === mark)
-      vm.seedHistory(agentId, conversationId, historyToFeed(messages));
-    observeConversation(
-      client,
-      agentId,
-      conversationId,
-      output,
-      messages.length,
-      registry,
-    );
+    // One per chat at a time: change events landing while its read waits out
+    // a send join it, instead of each queueing a read for the turn's end.
+    return joinInFlight(observing, key, async () => {
+      // A send that overtook the read must not have its turn replaced by it.
+      const { value, mark } = await readPastOwnTurns(registry, key, () =>
+        client.getHistory(conversationId),
+      );
+      if (mark === null) return; // torn down while it waited
+      const { messages } = value;
+      const output = new MultiplexFeedOutput([...defaults, ...external]);
+      if (!registry.get(key) && registry.turnsStarted(key) === mark)
+        vm.seedHistory(agentId, conversationId, historyToFeed(messages));
+      observeConversation(
+        client,
+        agentId,
+        conversationId,
+        output,
+        messages.length,
+        registry,
+      );
+    });
   };
 
   /**
