@@ -6,6 +6,7 @@ import {
   isShareCancel,
   linkedInShareUrl,
   SHARE_CARD_CAPS,
+  SHARE_SITE_LINK,
   shareFileName,
   sharePostText,
   shareTitle,
@@ -51,23 +52,43 @@ const tree = (personal: boolean, name = "Acme & Co") =>
 describe("sharePostText", () => {
   it("says it is the company's AI Employees, in Houston, ending on gethouston.ai", () => {
     strictEqual(
-      sharePostText(i18n.getFixedT("en", "teams"), tree(false)),
+      sharePostText(
+        i18n.getFixedT("en", "teams"),
+        tree(false),
+        SHARE_SITE_LINK,
+      ),
       "This is my organization. These are all the AI Employees at Acme & Co, working in Houston.\n\ngethouston.ai",
     );
   });
 
   it("speaks of the person's own AI Employees in a personal space", () => {
-    const text = sharePostText(i18n.getFixedT("en", "teams"), tree(true));
+    const text = sharePostText(
+      i18n.getFixedT("en", "teams"),
+      tree(true),
+      SHARE_SITE_LINK,
+    );
     strictEqual(
       text,
       "These are all my AI Employees, working in Houston.\n\ngethouston.ai",
     );
   });
 
+  it("ends on the chart's page when it has one", () => {
+    const page = "https://agents.gethouston.ai/o/AbCdEfGhIjKlMnOpQrSt_-";
+    strictEqual(
+      sharePostText(i18n.getFixedT("en", "teams"), tree(true), page),
+      `These are all my AI Employees, working in Houston.\n\n${page}`,
+    );
+  });
+
   it("ships every language with no em dash, no hashtag, and the link last", () => {
     for (const lng of ["en", "es", "pt"]) {
       for (const subject of [tree(false), tree(true)]) {
-        const text = sharePostText(i18n.getFixedT(lng, "teams"), subject);
+        const text = sharePostText(
+          i18n.getFixedT(lng, "teams"),
+          subject,
+          SHARE_SITE_LINK,
+        );
         ok(!text.includes("—"), `${lng}: ${text}`);
         ok(!text.includes("{{"), `${lng}: ${text}`);
         ok(!text.includes("#"), `${lng}: ${text}`);
@@ -75,9 +96,11 @@ describe("sharePostText", () => {
         ok(text.endsWith("gethouston.ai"), `${lng}: ${text}`);
       }
       ok(
-        sharePostText(i18n.getFixedT(lng, "teams"), tree(false)).includes(
-          "Acme & Co",
-        ),
+        sharePostText(
+          i18n.getFixedT(lng, "teams"),
+          tree(false),
+          SHARE_SITE_LINK,
+        ).includes("Acme & Co"),
         lng,
       );
     }

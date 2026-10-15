@@ -1,7 +1,7 @@
 import { deepStrictEqual, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
+import { isExpectedClipboardRefusal } from "../src/components/organization/org-chart-share-linkedin.ts";
 import {
-  isExpectedClipboardRefusal,
   type ShareOutcome,
   type ShareRunDeps,
   shareLanding,
@@ -27,7 +27,7 @@ function harness(overrides: Partial<ShareRunDeps> = {}) {
   const calls: string[] = [];
   const reports: string[] = [];
   const deps: ShareRunDeps = {
-    post: "Hello",
+    post: (link) => `Hello ${link}`,
     png: Promise.resolve(PNG),
     ready: PNG,
     phone: false,
@@ -35,6 +35,9 @@ function harness(overrides: Partial<ShareRunDeps> = {}) {
     copyImage: async () => {
       calls.push("copy");
     },
+    publish: async () => ({ kind: "refused", code: "unavailable" }),
+    reserveTab: () => null,
+    wait: () => new Promise(() => {}),
     open: async (url) => {
       calls.push(`open:${new URL(url).host}`);
       return true;
@@ -50,7 +53,7 @@ function harness(overrides: Partial<ShareRunDeps> = {}) {
 }
 
 describe("shareOrgChart on desktop", () => {
-  it("starts the image copy, then opens LinkedIn, in the click's own tick", async () => {
+  it("starts the image copy in the click's own tick, then opens LinkedIn once the upload is refused", async () => {
     const drawing = deferred<File>();
     const copied = deferred<void>();
     const { deps, calls } = harness({ png: drawing.promise, ready: null });
@@ -61,18 +64,19 @@ describe("shareOrgChart on desktop", () => {
       return copied.promise;
     };
     const running = shareOrgChart(deps);
-    // Synchronously, before the drawing or the copy settles: both started,
-    // the copy first, and the copy was handed the drawing itself.
-    deepStrictEqual(calls, ["copy", "open:www.linkedin.com"]);
-    strictEqual(handed, drawing.promise);
+    // Synchronously, before the drawing or the upload settles: the copy
+    // started, handed a promise of the image.
+    deepStrictEqual(calls, ["copy"]);
     drawing.resolve(PNG);
     copied.resolve();
+    strictEqual(await (handed as unknown as Promise<File>), PNG);
     const outcome = await running;
+    deepStrictEqual(calls, ["copy", "open:www.linkedin.com"]);
     deepStrictEqual(outcome.kind === "linkedin" && outcome.image, "copied");
     strictEqual(
       outcome.kind === "linkedin" &&
         new URL(outcome.url).searchParams.get("text"),
-      "Hello",
+      "Hello gethouston.ai",
     );
   });
 
@@ -161,7 +165,7 @@ describe("shareOrgChart on a phone", () => {
       },
     };
     deepStrictEqual(await shareOrgChart(deps), { kind: "native" });
-    deepStrictEqual(shared, [{ files: [PNG], text: "Hello" }]);
+    deepStrictEqual(shared, [{ files: [PNG], text: "Hello gethouston.ai" }]);
     deepStrictEqual(calls, []);
   });
 

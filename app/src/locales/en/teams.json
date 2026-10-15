@@ -592,6 +592,7 @@
       "drawing": "Drawing your org chart...",
       "failed": "The image could not be drawn.",
       "linkedIn": "Share on LinkedIn",
+      "linkedInPreparing": "Preparing your post...",
       "download": "Download image",
       "copyImage": "Copy image",
       "copiedImage": "Copied",
@@ -601,8 +602,8 @@
       "openLinkedIn": "Open LinkedIn",
       "cardCounts": "{{people}}, {{agents}}",
       "site": "gethouston.ai",
-      "post": "This is my organization. These are all the AI Employees at {{company}}, working in Houston.\n\ngethouston.ai",
-      "postPersonal": "These are all my AI Employees, working in Houston.\n\ngethouston.ai"
+      "post": "This is my organization. These are all the AI Employees at {{company}}, working in Houston.\n\n{{link}}",
+      "postPersonal": "These are all my AI Employees, working in Houston.\n\n{{link}}"
     }
   },
   "phoneEmployee": {

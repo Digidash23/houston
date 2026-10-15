@@ -484,6 +484,14 @@
     "classification": "sdk"
   },
   {
+    "pattern": "/v1/heartbeat",
+    "methods": [
+      "GET",
+      "PUT"
+    ],
+    "classification": "sdk"
+  },
+  {
     "pattern": "/v1/integrations",
     "methods": [
       "GET"
@@ -639,6 +647,22 @@
       "GET"
     ],
     "classification": "sdk"
+  },
+  {
+    "pattern": "/v1/org-chart-shares/{id}",
+    "methods": [
+      "GET"
+    ],
+    "classification": "store-client",
+    "reason": "the Agent Store website's server reads it to render the public share page; no signed-in Houston surface calls it"
+  },
+  {
+    "pattern": "/v1/org-chart-shares/{id}/image",
+    "methods": [
+      "GET"
+    ],
+    "classification": "infra",
+    "reason": "link-preview crawlers and the share page's \u003cimg\u003e load these image bytes directly, so no client method wraps the request"
   },
   {
     "pattern": "/v1/org/audit",
@@ -816,6 +840,14 @@
     ],
     "classification": "infra",
     "reason": "Stripe posts subscription events here and the signature HMAC over the raw body is the trust boundary; no user session exists"
+  },
+  {
+    "pattern": "/internal/v1/pool/assistant-routine-turns",
+    "methods": [
+      "POST"
+    ],
+    "classification": "internal-control-plane",
+    "reason": "the control plane hands an AI Manager's scheduled or trigger routine fire to the gateway's pool dispatcher, which runs it as the manager's coordinator, with the internal bearer; a fire has no user session"
   },
   {
     "pattern": "/internal/v1/pool/reconciles",
@@ -1113,6 +1145,13 @@
     "reason": "a pooled turn worker calls it with the turn's grant token so the agent's run_code tool reaches the Cloud Run sandbox without the worker holding GCP IAM; never a user client"
   },
   {
+    "pattern": "/v1/heartbeat/run",
+    "methods": [
+      "POST"
+    ],
+    "classification": "sdk"
+  },
+  {
     "pattern": "/v1/hooks/{routineId}/{secret}",
     "methods": [
       "POST"
@@ -1200,6 +1239,13 @@
   },
   {
     "pattern": "/v1/me/routines/resume",
+    "methods": [
+      "POST"
+    ],
+    "classification": "sdk"
+  },
+  {
+    "pattern": "/v1/org-chart-shares",
     "methods": [
       "POST"
     ],

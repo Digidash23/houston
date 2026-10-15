@@ -26,6 +26,7 @@ export const OrgCommand = {
   Audit: "org/audit",
   Usage: "org/usage",
   ComputeUsage: "org/computeUsage",
+  PublishChartShare: "org/publishChartShare",
 } as const;
 
 export type OrgCommandType = (typeof OrgCommand)[keyof typeof OrgCommand];

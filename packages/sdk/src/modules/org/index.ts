@@ -20,7 +20,12 @@
 
 import type { ModuleContext } from "../../module-context";
 import { moduleScope } from "../http";
-import { requireString, requireStrings } from "../payload";
+import { field, requireString, requireStrings } from "../payload";
+import {
+  type OrgChartShareResult,
+  orgChartShareUpload,
+  publishOrgChartShare,
+} from "./chart-share";
 import {
   addOrgMember,
   deleteOrgInvite,
@@ -51,6 +56,7 @@ import {
   type UsageRow,
 } from "./usage";
 
+export type { OrgChartShareResult } from "./chart-share";
 export { OrgHttpError } from "./http";
 export type {
   AddOrgMemberResult,
@@ -92,6 +98,17 @@ export interface OrgModule {
   orgUsage(days: number): Promise<UsageRow[]>;
   /** Per (agent, day) engine running time over the last `days` days. */
   computeUsage(days: number): Promise<ComputeUsage>;
+  /** Publish the org chart picture as a public page; refusals are typed. */
+  publishOrgChartShare(input: {
+    image: Blob;
+    title: string;
+  }): Promise<OrgChartShareResult>;
+}
+
+function requireBlob(payload: unknown, key: string): Blob {
+  const value = field(payload, key);
+  if (!(value instanceof Blob)) throw new Error(`'${key}' must be a picture`);
+  return value;
 }
 
 export function createOrgModule(ctx: ModuleContext): OrgModule {
@@ -123,6 +140,15 @@ export function createOrgModule(ctx: ModuleContext): OrgModule {
   ctx.registerCommand(OrgCommand.ComputeUsage, (p) =>
     computeUsage(scope, requireNumber(p, "days")),
   );
+  const publishChartShare = (image: Blob, title: string) => {
+    const upload = orgChartShareUpload(image, title);
+    return upload instanceof FormData
+      ? publishOrgChartShare(scope, upload)
+      : Promise.resolve(upload);
+  };
+  ctx.registerCommand(OrgCommand.PublishChartShare, (p) =>
+    publishChartShare(requireBlob(p, "image"), requireString(p, "title")),
+  );
 
   return {
     getOrg: () => getOrg(scope),
@@ -135,5 +161,6 @@ export function createOrgModule(ctx: ModuleContext): OrgModule {
     orgAudit: (before, limit) => orgAudit(scope, before, limit),
     orgUsage: (days) => orgUsage(scope, days),
     computeUsage: (days) => computeUsage(scope, days),
+    publishOrgChartShare: ({ image, title }) => publishChartShare(image, title),
   };
 }

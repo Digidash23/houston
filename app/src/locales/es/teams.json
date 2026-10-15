@@ -592,6 +592,7 @@
       "drawing": "Dibujando tu organigrama...",
       "failed": "No se pudo dibujar la imagen.",
       "linkedIn": "Compartir en LinkedIn",
+      "linkedInPreparing": "Preparando tu publicación...",
       "download": "Descargar imagen",
       "copyImage": "Copiar imagen",
       "copiedImage": "Copiada",
@@ -601,8 +602,8 @@
       "openLinkedIn": "Abrir LinkedIn",
       "cardCounts": "{{people}}, {{agents}}",
       "site": "gethouston.ai",
-      "post": "Esta es mi organización. Estos son todos los empleados de IA de {{company}}, trabajando en Houston.\n\ngethouston.ai",
-      "postPersonal": "Estos son todos mis empleados de IA, trabajando en Houston.\n\ngethouston.ai"
+      "post": "Esta es mi organización. Estos son todos los empleados de IA de {{company}}, trabajando en Houston.\n\n{{link}}",
+      "postPersonal": "Estos son todos mis empleados de IA, trabajando en Houston.\n\n{{link}}"
     }
   },
   "phoneEmployee": {

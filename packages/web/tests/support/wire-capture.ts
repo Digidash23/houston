@@ -15,6 +15,8 @@ export interface Call {
   url: string;
   method: string;
   body: string | null;
+  /** A multipart body, which `body` (bytes as text) cannot hold. */
+  form: FormData | null;
   headers: Headers;
 }
 
@@ -75,6 +77,7 @@ export function createWireCapture(): WireCapture {
       url: String(input),
       method: (init?.method ?? "GET").toUpperCase(),
       body: typeof init?.body === "string" ? init.body : null,
+      form: init?.body instanceof FormData ? init.body : null,
       headers: new Headers(init?.headers),
     };
     calls.push(call);

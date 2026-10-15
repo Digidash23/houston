@@ -6,6 +6,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  Spinner,
 } from "@houston-ai/core";
 import { Check, Copy, Download, Linkedin } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
@@ -16,10 +17,11 @@ import type { useOrgChartShare } from "./use-org-chart-share";
 
 /**
  * Share the org chart: the image as it will be posted, Share on LinkedIn,
- * then Download image and Copy image. After Share on LinkedIn one line
- * under the buttons says where the image went (on the clipboard, or saved),
- * so the person knows to paste it; the dialog stays open, so the line is
- * still there when they come back from LinkedIn.
+ * then Download image and Copy image. Share on LinkedIn posts a link whose
+ * preview is the image; where it could not, one line under the buttons says
+ * where the image went (on the clipboard, or saved), so the person knows to
+ * paste it. The dialog stays open, so the line is still there when they
+ * come back from LinkedIn.
  */
 export function OrgChartShareDialog({
   share,
@@ -42,8 +44,19 @@ export function OrgChartShareDialog({
         <OrgChartSharePreview preview={share.preview} onRetry={share.retry} />
         <div className="flex flex-col gap-2">
           <ShareButton
-            icon={<Linkedin className="size-4" />}
-            label={t("orgChart.share.linkedIn")}
+            icon={
+              share.publishing ? (
+                <Spinner aria-hidden />
+              ) : (
+                <Linkedin className="size-4" />
+              )
+            }
+            label={t(
+              share.publishing
+                ? "orgChart.share.linkedInPreparing"
+                : "orgChart.share.linkedIn",
+            )}
+            disabled={share.publishing}
             className="h-10 w-full"
             onClick={share.linkedIn}
           />

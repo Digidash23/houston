@@ -21,14 +21,22 @@ export type Translate = (
   options?: Record<string, unknown>,
 ) => string;
 
+/** Where the post points when the chart has no page of its own. */
+export const SHARE_SITE_LINK = "gethouston.ai";
+
 /**
- * The post that goes with the image: the space's name, then where to get
- * Houston. A personal space speaks of the person's own AI Employees.
+ * The post that goes with the image: the space's name, then `link`, the
+ * chart's own page (whose preview is the image) or {@link SHARE_SITE_LINK}.
+ * A personal space speaks of the person's own AI Employees.
  */
-export function sharePostText(t: Translate, tree: OrgTree): string {
+export function sharePostText(
+  t: Translate,
+  tree: OrgTree,
+  link: string,
+): string {
   return tree.root.kind === "person"
-    ? t("orgChart.share.postPersonal")
-    : t("orgChart.share.post", { company: tree.root.name });
+    ? t("orgChart.share.postPersonal", { link })
+    : t("orgChart.share.post", { company: tree.root.name, link });
 }
 
 /** The name the chart is drawn under: the space, or the personal space's person. */
@@ -56,7 +64,8 @@ export function shareFileName(company: string): string {
 
 /**
  * LinkedIn's compose link with the post text filled in. It cannot carry an
- * image, so the image travels on the clipboard (or as a saved file).
+ * image: the image travels as the preview of a link in the post, else on the
+ * clipboard (or as a saved file).
  */
 export function linkedInShareUrl(text: string): string {
   return `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(text)}`;
@@ -86,12 +95,14 @@ export function isShareBusy(error: unknown): boolean {
 }
 
 /**
- * How a share left, as tracked: LinkedIn with the image on the clipboard,
+ * How a share left, as tracked: LinkedIn with the image as the preview of the
+ * chart's page linked in the post, LinkedIn with the image on the clipboard,
  * LinkedIn with the image saved as a file instead, LinkedIn with the post
  * alone (the image could not be drawn or saved), the phone's share sheet,
  * or the dialog's Download image and Copy image.
  */
 export type ShareChannel =
+  | "linkedin_link"
   | "linkedin"
   | "linkedin_download"
   | "linkedin_text_only"

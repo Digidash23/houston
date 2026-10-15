@@ -1,3 +1,4 @@
+import type { OrgChartShareResult } from "@houston/sdk";
 import type * as controlPlane from "../control-plane";
 import { HoustonEngineError } from "./errors";
 import type { BaseCtor } from "./mixin";
@@ -117,6 +118,19 @@ export function OrgsMixin<TBase extends BaseCtor>(Base: TBase) {
         throw new Error("compute usage requires the hosted gateway");
       return viaSdk("/v1/org/compute-usage", () =>
         this.ctx.sdk.org.computeUsage(days),
+      );
+    }
+
+    // ---- sharing — hosted gateway only ----
+    // A deployment with no gateway keeps no shared pictures: the same
+    // `unavailable` the gateway answers when it has no blob store.
+    async publishOrgChartShare(input: {
+      image: Blob;
+      title: string;
+    }): Promise<OrgChartShareResult> {
+      if (!this.ctx.cp) return { kind: "refused", code: "unavailable" };
+      return viaSdk("/v1/org-chart-shares", () =>
+        this.ctx.sdk.org.publishOrgChartShare(input),
       );
     }
   }

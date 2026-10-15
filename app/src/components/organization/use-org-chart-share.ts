@@ -1,13 +1,13 @@
 import { isTauri } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { analytics } from "../../lib/analytics";
 import { logAndReportError } from "../../lib/error-report";
 import { saveBlob } from "../../lib/save-blob";
 import { browserShareDeps } from "./org-chart-share-browser";
-import { type ShareChannel, sharePostText } from "./org-chart-share-model";
+import { isExpectedClipboardRefusal } from "./org-chart-share-linkedin";
+import { sharePostText, shareTitle } from "./org-chart-share-model";
 import {
-  isExpectedClipboardRefusal,
   type ShareOutcome,
   type ShareRunDeps,
   shareLanding,
@@ -19,6 +19,7 @@ import {
   replacesShownImage,
   shareDialogReducer,
 } from "./org-chart-share-state";
+import { shareCounts, trackShare as track } from "./org-chart-share-track";
 import type { OrgTree } from "./org-chart-tree";
 import { createSingleFlight } from "./single-flight";
 import { useShareCardImage } from "./use-share-card-image";
@@ -26,24 +27,14 @@ import { useShareCardImage } from "./use-share-card-image";
 /** How long Copy image reads "Copied". */
 const COPIED_MS = 2000;
 
-/** Counts only: no names ride a share event. */
-function counts(tree: OrgTree) {
-  return { agent_count: tree.counts.agents, people_count: tree.counts.people };
-}
-function track(channel: ShareChannel, tree: OrgTree) {
-  analytics.track("org_chart_shared", {
-    share_channel: channel,
-    ...counts(tree),
-  });
-}
-
 /**
  * The share dialog's state and actions over the image drawn ahead
  * (`useShareCardImage`). Share on LinkedIn keeps the clipboard write and
- * the open inside the click and is single-flight (a double click would
- * open LinkedIn twice); the phone's share sheet is left ungated, since a
- * sheet that never settles would kill the button and a second tap is
- * already quiet. Unexpected failures report and show nothing.
+ * the tab inside the click, reads as pending while the image uploads, and is
+ * single-flight (a double click would open LinkedIn twice); the phone's
+ * share sheet is left ungated, since a sheet that never settles would kill
+ * the button and a second tap is already quiet. Unexpected failures report
+ * and show nothing.
  */
 export function useOrgChartShare(tree: OrgTree, phone: boolean) {
   const { t } = useTranslation("teams");
@@ -60,6 +51,10 @@ export function useOrgChartShare(tree: OrgTree, phone: boolean) {
   const clearTimer = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
+  }, []);
+  const [publishing, setPublishing] = useState(false);
+  const pending = useCallback((next: boolean) => {
+    if (live.current) setPublishing(next);
   }, []);
   useEffect(() => {
     live.current = true;
@@ -84,7 +79,7 @@ export function useOrgChartShare(tree: OrgTree, phone: boolean) {
 
   const setOpen = (next: boolean) => {
     if (next) {
-      analytics.track("org_chart_share_opened", counts(tree));
+      analytics.track("org_chart_share_opened", shareCounts(tree));
       clearTimer();
     }
     dispatch({ type: next ? "open" : "close" });
@@ -115,7 +110,8 @@ export function useOrgChartShare(tree: OrgTree, phone: boolean) {
     try {
       return shareOrgChart(deps)
         .then((outcome) => land(outcome, started))
-        .catch(fail);
+        .catch(fail)
+        .finally(() => pending(false));
     } catch (error) {
       fail(error);
       return Promise.resolve();
@@ -124,7 +120,13 @@ export function useOrgChartShare(tree: OrgTree, phone: boolean) {
 
   const linkedIn = () => {
     try {
-      const deps = browserShareDeps(sharePostText(t, tree), current(), phone);
+      const deps = browserShareDeps(
+        (link) => sharePostText(t, tree, link),
+        shareTitle(tree),
+        current(),
+        phone,
+        pending,
+      );
       const started = session.current;
       if (usesShareSheet(deps)) void run(deps, started);
       else flight.current(() => run(deps, started));
@@ -187,6 +189,7 @@ export function useOrgChartShare(tree: OrgTree, phone: boolean) {
     line: state.line,
     followBlocked,
     linkedIn,
+    publishing,
     download: () => void download(),
     canCopy,
     copied: state.copied,
