@@ -1,7 +1,6 @@
-import type { Browser } from "playwright-core";
 import { CLOSE_GRACE_MS, settledWithin } from "./action-deadline";
 import { dismissPending } from "./dialogs";
-import { type BrowserTab, openTab } from "./open-tab";
+import type { BrowserTab } from "./open-tab";
 import { saveState } from "./state-store";
 import { closeContext } from "./tab-pages";
 
@@ -9,6 +8,8 @@ import { closeContext } from "./tab-pages";
 export interface Slot {
   statePath: string;
   tab: Promise<BrowserTab> | null;
+  /** A backup tab being tried, not yet the slot's (open-fallback.ts). */
+  spare: Promise<BrowserTab> | null;
   chain: Promise<void>;
   pending: number;
   lastUsed: number;
@@ -18,6 +19,7 @@ export function newSlot(statePath: string): Slot {
   return {
     statePath,
     tab: null,
+    spare: null,
     chain: Promise.resolve(),
     pending: 0,
     lastUsed: Date.now(),
@@ -27,8 +29,7 @@ export function newSlot(statePath: string): Slot {
 /** The slot's open tab, or a fresh one when it never opened or its browser died. */
 export async function liveTab(
   slot: Slot,
-  ensureBrowser: () => Promise<Browser>,
-  maxPages: number,
+  openLocal: (statePath: string) => Promise<BrowserTab>,
 ): Promise<BrowserTab> {
   // A failed open already reached its own caller as a refusal; here it only
   // means "open again".
@@ -38,9 +39,8 @@ export async function liveTab(
       tab.page = tab.context.pages().at(-1) ?? (await tab.context.newPage());
     return tab;
   }
-  const opened = ensureBrowser().then((browser) =>
-    openTab(browser, slot.statePath, maxPages),
-  );
+  // A backup tab whose remote browser dropped comes back local.
+  const opened = openLocal(slot.statePath);
   slot.tab = opened;
   return opened;
 }
@@ -53,7 +53,16 @@ export async function disposeSlot(slot: Slot): Promise<boolean> {
   const pending = slot.tab;
   slot.tab = null;
   const tab = await pending?.catch(() => undefined);
-  if (!tab?.context.browser()?.isConnected()) return true;
+  return tab ? disposeTab(tab) : true;
+}
+
+/** Save one tab's sign-ins and close it; false when the save did not finish. */
+async function disposeTab(tab: BrowserTab): Promise<boolean> {
+  if (!tab.context.browser()?.isConnected()) {
+    // Nothing left to save, but a backup session may still be billing.
+    await tab.backup?.dispose();
+    return true;
+  }
   // A page frozen behind a dialog cannot hand over its storage; a page that
   // stopped answering cannot either, so the save is bounded and the close
   // happens regardless (sign-ins were already saved after each change).

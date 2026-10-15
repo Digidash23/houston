@@ -1,6 +1,7 @@
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import type { Locator } from "playwright-core";
 import type { BrowserAction } from "./actions";
+import type { Block } from "./block-detect";
 import {
   answerDialog,
   dialogNotice,
@@ -11,6 +12,7 @@ import {
 import { clearFenceRefusal } from "./fence-refusals";
 import { lookEpoch, SupersededError } from "./look-memory";
 import { guardLanding, openUrl, settle } from "./navigate";
+import { readBlock } from "./page-block";
 import { pageText } from "./page-text";
 import type { BrowserTab } from "./pool";
 import { redactUrl } from "./redact-url";
@@ -30,9 +32,14 @@ export interface ActionOutcome {
   content: (TextContent | ImageContent)[];
   /** The action may have changed sign-ins, so the state is saved after it. */
   mutated: boolean;
+  /** The anti-bot wall an `open` landed on, when asked to look (`detect`). */
+  blocked?: Block;
 }
 
-type PageAction = Exclude<BrowserAction, { action: "close" | "handoff" }>;
+export type PageAction = Exclude<
+  BrowserAction,
+  { action: "close" | "handoff" }
+>;
 
 async function isPasswordField(field: Locator): Promise<boolean> {
   return field.evaluate(
@@ -68,6 +75,7 @@ export async function runBrowserAction(
   tab: BrowserTab,
   action: PageAction,
   signal?: AbortSignal,
+  detect = false,
 ): Promise<ActionOutcome> {
   clearFenceRefusal(tab);
   const pending = pendingDialog(tab);
@@ -76,7 +84,9 @@ export async function runBrowserAction(
       return { content: [text(dialogNotice(pending))], mutated: false };
     throw dialogOpenError(pending);
   }
-  const raced = await raceDialog(tab, () => perform(tab, action, signal));
+  const raced = await raceDialog(tab, () =>
+    perform(tab, action, signal, detect),
+  );
   if (raced.done) return raced.value;
   return {
     content: [
@@ -91,7 +101,8 @@ export async function runBrowserAction(
 async function perform(
   tab: BrowserTab,
   action: PageAction,
-  signal?: AbortSignal,
+  signal: AbortSignal | undefined,
+  detect: boolean,
 ): Promise<ActionOutcome> {
   const page = tab.page;
   const epoch = lookEpoch(tab);
@@ -116,8 +127,11 @@ async function perform(
   switch (action.action) {
     case "open": {
       const url = checkBrowserUrl(action.url);
-      await openUrl(tab, url.href);
-      return withSnapshot(`Opened ${redactUrl(url.href)}.`, true, action.view);
+      const response = await openUrl(tab, url.href);
+      const lead = `Opened ${redactUrl(url.href)}.`;
+      const opened = await withSnapshot(lead, true, action.view);
+      const blocked = detect ? await readBlock(tab, response) : null;
+      return blocked ? { ...opened, blocked } : opened;
     }
     case "snapshot":
       return {

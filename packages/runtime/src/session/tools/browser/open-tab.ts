@@ -1,9 +1,9 @@
 import type { BrowserLiveLayout } from "@houston/wire-types";
-import type { Browser, Page } from "playwright-core";
+import type { Browser, BrowserContext, Page } from "playwright-core";
 import { watchDialogs } from "./dialogs";
 import { watchFence } from "./fence-refusals";
 import { DESKTOP_VIEWPORT } from "./live/layout";
-import { EMPTY_STATE } from "./state-merge";
+import { EMPTY_STATE, type StorageState } from "./state-merge";
 import { readState, type StateHolder } from "./state-store";
 import { followPages } from "./tab-pages";
 
@@ -16,6 +16,11 @@ export interface BrowserTab extends StateHolder {
   layout: BrowserLiveLayout;
   /** Told whenever `page` changes to another page (a popup, a closed tab). */
   onPageChange: Set<(page: Page) => void>;
+  /**
+   * Set when the tab runs on the backup browser (kernel-tab.ts): the site it
+   * was opened for, and how its whole remote browser goes away.
+   */
+  backup?: { host: string; dispose: () => Promise<void> };
 }
 
 /**
@@ -36,11 +41,22 @@ export async function openTab(
     viewport: DESKTOP_VIEWPORT,
     acceptDownloads: false,
   });
+  return wireTab(context, await context.newPage(), statePath, saved, maxPages);
+}
+
+/** The tab every opener builds once it has a context and its first page. */
+export async function wireTab(
+  context: BrowserContext,
+  page: Page,
+  statePath: string,
+  saved: StorageState | undefined,
+  maxPages: number,
+): Promise<BrowserTab> {
   context.setDefaultTimeout(15_000);
   context.setDefaultNavigationTimeout(30_000);
   const tab: BrowserTab = {
     context,
-    page: await context.newPage(),
+    page,
     statePath,
     base: {
       cookies: await context.cookies(),

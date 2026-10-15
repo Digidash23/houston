@@ -1,12 +1,16 @@
 import { sep } from "node:path";
 import type { Browser } from "playwright-core";
 import { ACTION_DEADLINE_MS, withinDeadline } from "./action-deadline";
+import { type BackupBrowser, backupFromEnv } from "./kernel-tab";
 import { launchBrowser } from "./launch";
-import type { BrowserTab } from "./open-tab";
+import { LocalBrowser } from "./local-browser";
+import { type BrowserTab, openTab } from "./open-tab";
 import { disposeSlot, liveTab, newSlot, type Slot } from "./pool-slot";
 import { maxTabPages } from "./tab-pages";
+import { slotSwap, type TabSwap } from "./tab-swap";
 
 export type { BrowserTab } from "./open-tab";
+export type { TabSwap } from "./tab-swap";
 
 export interface BrowserPoolOptions {
   launch?: () => Promise<Browser>;
@@ -16,6 +20,11 @@ export interface BrowserPoolOptions {
   maxPages?: number;
   /** One action's time limit (action-deadline.ts); tests shorten it. */
   deadlineMs?: number;
+  /**
+   * Where a blocked site's page goes (open-fallback.ts). By default Kernel
+   * when KERNEL_API_KEY is set; none when `launch` is given (tests).
+   */
+  backup?: BackupBrowser | null;
 }
 
 export const BROWSER_IDLE_MS = 5 * 60_000;
@@ -26,19 +35,25 @@ export const BROWSER_IDLE_MS = 5 * 60_000;
  * one conversation run in order, so a `close` or an idle sweep never lands in
  * the middle of an action. A context untouched for `idleMs` is saved and
  * closed, and the browser goes with the last one. A browser that crashed, or
- * a page the site closed, is replaced on the next call.
+ * a page the site closed, is replaced on the next call. A conversation moved
+ * to the backup browser owns that remote browser; closing its tab ends it.
  */
 export class BrowserPool {
-  private browser: Promise<Browser> | null = null;
+  private readonly browser: LocalBrowser;
   private readonly slots = new Map<string, Slot>();
   private sweepTimer: NodeJS.Timeout | null = null;
-  private readonly launch: () => Promise<Browser>;
+  private readonly backup: () => BackupBrowser | null;
   private readonly idleMs: number;
   private readonly maxPages: number;
   private readonly deadlineMs: number;
 
   constructor(options: BrowserPoolOptions = {}) {
-    this.launch = options.launch ?? (() => launchBrowser());
+    this.browser = new LocalBrowser(options.launch ?? (() => launchBrowser()));
+    const given = options.backup ?? null;
+    this.backup =
+      options.backup !== undefined || options.launch
+        ? () => given
+        : backupFromEnv(process.env);
     this.idleMs = options.idleMs ?? BROWSER_IDLE_MS;
     this.maxPages = options.maxPages ?? maxTabPages(process.env);
     this.deadlineMs = options.deadlineMs ?? ACTION_DEADLINE_MS;
@@ -53,7 +68,7 @@ export class BrowserPool {
   run<T>(
     key: string,
     statePath: string,
-    fn: (tab: BrowserTab) => Promise<T>,
+    fn: (tab: BrowserTab, swap: TabSwap) => Promise<T>,
     signal?: AbortSignal,
     extraMs = 0,
   ): Promise<T> {
@@ -65,11 +80,10 @@ export class BrowserPool {
     const queued = slot;
     return this.enqueue(queued, async () => {
       signal?.throwIfAborted();
-      const work = liveTab(
-        queued,
-        () => this.ensureBrowser(),
-        this.maxPages,
-      ).then(fn);
+      const openLocal = (statePath: string) =>
+        this.browser.get().then((b) => openTab(b, statePath, this.maxPages));
+      const swap = slotSwap(queued, this.backup(), openLocal, this.maxPages);
+      const work = liveTab(queued, openLocal).then((tab) => fn(tab, swap));
       return withinDeadline(queued, work, this.deadlineMs + extraMs);
     });
   }
@@ -123,7 +137,7 @@ export class BrowserPool {
     const keys = [...this.slots.keys()];
     const results = await Promise.allSettled(keys.map((k) => this.closeTab(k)));
     for (const key of keys) this.slots.delete(key);
-    await this.closeBrowser();
+    await this.browser.close();
     for (const result of results)
       if (result.status === "rejected")
         console.error("[browser] saving sign-ins failed", result.reason);
@@ -161,28 +175,8 @@ export class BrowserPool {
     await Promise.all(idle.map(([key]) => this.closeTab(key)));
     for (const [key, slot] of idle)
       if (slot.pending === 0 && !slot.tab) this.slots.delete(key);
-    if (this.slots.size === 0) await this.closeBrowser();
+    if (this.slots.size === 0) await this.browser.close();
     else this.armSweep();
-  }
-
-  private async closeBrowser(): Promise<void> {
-    const browser = this.browser;
-    // Cleared before awaiting, so a call arriving now launches a fresh one.
-    this.browser = null;
-    // A launch that failed was the refusal of the call that started it.
-    await (await browser?.catch(() => undefined))?.close();
-  }
-
-  private ensureBrowser(): Promise<Browser> {
-    if (!this.browser) {
-      const launching = this.launch();
-      this.browser = launching;
-      const forget = () => {
-        if (this.browser === launching) this.browser = null;
-      };
-      launching.then((browser) => browser.on("disconnected", forget), forget);
-    }
-    return this.browser;
   }
 }
 
