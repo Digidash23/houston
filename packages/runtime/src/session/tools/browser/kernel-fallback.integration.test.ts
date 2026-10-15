@@ -23,6 +23,13 @@ const available = await browserAvailable();
  */
 const site = createServer((req, res) => {
   const cookies = req.headers.cookie ?? "";
+  // Full Chrome (CI's) fetches the favicon after /signin: walled, it would
+  // mark this browser before the test's own blocked visit.
+  if (req.url === "/favicon.ico") {
+    res.writeHead(404);
+    res.end();
+    return;
+  }
   if (req.url === "/signin") {
     res.writeHead(200, {
       "content-type": "text/html",
