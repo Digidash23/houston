@@ -1,7 +1,7 @@
 import type { Server } from "node:http";
 import { loadRoutineRuns, saveRoutines } from "@houston/domain";
 import type { Capabilities, Routine } from "@houston/protocol";
-import { beforeEach, expect, test } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import { TurnFireError } from "../channel/fire-error";
 import { MemoryCredentialStore } from "../credentials/store";
 import type { FireTurnOptions } from "../fire-turn-options";
@@ -344,6 +344,29 @@ test("a token on a routine with no recorded creator is refused the same way", as
   const res = await post([EVENT], "alice", { actingAs: actingAs("creator-1") });
   expect(res.status).toBe(400);
   expect(channel.fired).toHaveLength(0);
+});
+
+test("on an AI Manager pod its own person fires a routine stamped with anyone, and nobody else does", async () => {
+  // Only that person reaches the manager, so the control plane fires every
+  // manager routine as them, whatever created_by an earlier write recorded.
+  vi.stubEnv("HOUSTON_MANAGED_CLOUD", "1");
+  vi.stubEnv("HOUSTON_ASSISTANT_USER_ID", "member");
+  try {
+    await seedRoutine(routine({ created_by: "org-owner" }));
+    const refused = await post([EVENT], "alice", {
+      actingAs: actingAs("someone-else"),
+    });
+    expect(refused.status).toBe(400);
+    expect(channel.fired).toHaveLength(0);
+    const token = actingAs("member");
+    const res = await post([EVENT], "alice", { actingAs: token });
+    expect(res.status).toBe(200);
+    expect(channel.fired).toEqual([
+      expect.objectContaining({ actingAs: token }),
+    ]);
+  } finally {
+    vi.unstubAllEnvs();
+  }
 });
 
 test("a non-string actingAs is a 400", async () => {
