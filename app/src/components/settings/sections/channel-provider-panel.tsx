@@ -65,7 +65,7 @@ export function ChannelProviderPanel({
               ref={headingRef}
               id={headingId}
               tabIndex={-1}
-              className="text-sm font-medium text-ink outline-none"
+              className="rounded-sm text-sm font-medium text-ink outline-none focus-visible:ring-2 focus-visible:ring-focus"
             >
               {name}
             </h3>
