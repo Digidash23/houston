@@ -1,32 +1,8 @@
 export * from "./stream-tuning";
 
-/**
- * One live subscription per conversation, whoever opened it: a turn we sent
- * (`streamTurn`) or a passive observer (`observeConversation`). The registry
- * keeps the two from double-subscribing — duplicate streams would render
- * every frame twice.
- */
-export interface ActiveStream {
-  kind: "turn" | "observer";
-  dispose: () => void;
-  /** Last seen envelope seq — the observer→turn handoff cursor. */
-  lastSeq?: number;
-  /**
-   * A turn whose send waits behind another turn or for room (`send-hold.ts`):
-   * the queue watchdog never flushes over it.
-   */
-  held?: boolean;
-  /**
-   * Stop a turn whose send the engine has not accepted yet (held, or waiting
-   * for room): its POST and re-sends end at once. It answers the `finish` to
-   * call once the engine's own cancel answered, when the turn then settles as
-   * stopped; null once the send was accepted (the engine's cancel stops it).
-   */
-  stopUnsent?: () => (() => void) | null;
-}
+import type { ActiveStream } from "./active-stream";
 
-export const streamKey = (agentPath: string, sessionKey: string): string =>
-  JSON.stringify([agentPath, sessionKey]);
+export { type ActiveStream, streamKey } from "./active-stream";
 
 /**
  * The set of live conversation streams for ONE owner (one {@link
@@ -46,6 +22,7 @@ export class StreamRegistry {
   private readonly leaving = new Set<() => void>();
   /** Turns this owner started per key, ever. Never cleared, so it only grows. */
   private readonly turnStarts = new Map<string, number>();
+  private disposeCount = 0;
 
   /**
    * Count a turn this owner starts on `key`, and answer `key`. Noted before
@@ -65,6 +42,34 @@ export class StreamRegistry {
    */
   turnsStarted(key: string): number {
     return this.turnStarts.get(key) ?? 0;
+  }
+  /** Whether a turn this owner sent holds `key`: its stream, or its send
+   *  still handing off over an observer. Someone else's turn is not one. */
+  ownsTurn(key: string): boolean {
+    return this.active.get(key)?.kind === "turn" || this.sending.has(key);
+  }
+  /** Whether such a turn's send is still out: the engine has not taken it
+   *  ({@link ActiveStream.accepted}), so the host may not hold its prompt. */
+  ownsUnacceptedSend(key: string): boolean {
+    const entry = this.active.get(key);
+    return this.sending.has(key) || (entry?.kind === "turn" && !entry.accepted);
+  }
+  /** Resolves once {@link ownsTurn} is false for `key`. A teardown
+   *  ({@link disposeAll}) releases every key, so it never outlives one. */
+  ownTurnLeft(key: string): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const check = () => {
+        if (this.ownsTurn(key)) return;
+        this.leaving.delete(check);
+        resolve();
+      };
+      this.leaving.add(check);
+      check();
+    });
+  }
+  /** How many teardowns ({@link disposeAll}) this registry has seen. */
+  get disposals(): number {
+    return this.disposeCount;
   }
 
   get(key: string): ActiveStream | undefined {
@@ -142,6 +147,9 @@ export class StreamRegistry {
   }
   endSend(key: string): void {
     this.sending.delete(key);
+    // A refused handoff ends its send with no entry change: wake the reads
+    // waiting on it, not only those waiting on an entry.
+    this.wakeLeaving();
   }
   /** Whether `key`'s send lock is still held (a teardown releases it). */
   isSending(key: string): boolean {
@@ -159,6 +167,7 @@ export class StreamRegistry {
     this.active.clear();
     this.sending.clear();
     this.sendStops.clear();
+    this.disposeCount++;
     this.wakeLeaving();
   }
 }

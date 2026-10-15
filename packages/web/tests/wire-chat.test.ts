@@ -1,6 +1,7 @@
 import { bus } from "@houston/engine-adapter/bus";
 import { HoustonClient } from "@houston/engine-adapter/client";
 import { CHAT_OPEN_WINDOW } from "@houston/engine-adapter/history-window";
+import { disposeAllStreams } from "@houston/engine-adapter/turn-stream";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import {
   type Call,
@@ -39,6 +40,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // A spec's turn must not outlive it: a turn still holding SK would make the
+  // next spec's history read wait it out.
+  disposeAllStreams();
   restore();
   vi.clearAllMocks();
 });

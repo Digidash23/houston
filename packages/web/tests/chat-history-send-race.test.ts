@@ -45,6 +45,10 @@ let historyReads: number;
 let answerFirstRead: (messages: ChatMessage[]) => void;
 /** Ends the turn: its stream sends `done`. */
 let finishTurn: () => void;
+/** Makes the host refuse every send, before it persists the prompt. */
+let refuseSends: () => void;
+/** Holds the host's answer to the next send until the returned call. */
+let holdSends: () => () => void;
 
 const chunk = (frames: object[]) =>
   new TextEncoder().encode(
@@ -101,6 +105,16 @@ beforeEach(() => {
   const sent = deferred<string>();
   const done = deferred<void>();
   finishTurn = () => done.resolve();
+  let refusing = false;
+  refuseSends = () => {
+    refusing = true;
+  };
+  let accepted: Promise<void> = Promise.resolve();
+  holdSends = () => {
+    const gate = deferred<void>();
+    accepted = gate.promise;
+    return () => gate.resolve();
+  };
   globalThis.fetch = vi.fn(async (input: unknown, init?: RequestInit) => {
     const url = String(input);
     if (url.includes("/messages?")) {
@@ -109,6 +123,8 @@ beforeEach(() => {
       return json(200, { id: sk, title: "", messages });
     }
     if (init?.method === "POST" && url.endsWith("/messages")) {
+      if (refusing) return json(400, { error: "message too long" });
+      await accepted;
       sent.resolve((JSON.parse(String(init.body)) as { nonce: string }).nonce);
       return json(202, { ok: true, id: sk, turnId: "t1" });
     }
@@ -187,22 +203,41 @@ test("an open read answered after the turn settled reads again at once", async (
   expect(feed()).toEqual(whole);
 });
 
-test("a whole transcript read before the host kept the prompt leaves the turn", async () => {
+test("a read sent before the host took the send waits the turn out", async () => {
+  // Out after the send started but before its 202: the answer may predate
+  // the prompt, so only a read after the turn is trusted.
+  const accept = holdSends();
   const c = client();
-  await send(c);
-  await replied();
-  // Out after the send, answered as if the host had not persisted it yet.
+  void send(c);
   const open = c.loadChatHistory(AGENT, sk);
   await vi.waitUntil(() => historyReads === 1);
+  answerFirstRead(earlier);
+  accept();
+  await replied();
+  expect(historyReads).toBe(1);
   finishTurn();
+  await open;
+
+  expect(historyReads).toBe(2);
+  expect(feed()).toEqual(whole);
+});
+
+test("after a refused send, the next read is the server's transcript", async () => {
+  // The host never took the prompt, so it is in no read to come: holding the
+  // feed for it would keep the chat from its history for good.
+  refuseSends();
+  const c = client();
+  await send(c);
   await settled();
 
+  const open = c.loadChatHistory(AGENT, sk);
+  await vi.waitUntil(() => historyReads === 1);
   answerFirstRead(earlier);
   await open;
 
   expect(historyReads).toBe(1);
   expect(feed()).toEqual([
-    ["user_message", GOAL],
-    ["assistant_text", REPLY],
+    ["user_message", "earlier question"],
+    ["assistant_text", "earlier answer"],
   ]);
 });

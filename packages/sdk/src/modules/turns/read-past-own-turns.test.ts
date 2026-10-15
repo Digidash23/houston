@@ -11,10 +11,7 @@ import type { SdkConfig } from "../../ports";
 import { ScopeStore } from "../../store";
 import type { FeedOutput } from "./feed-output";
 import { createTurnsModule } from "./index";
-import {
-  OVERTAKEN_READ_RETRIES,
-  readPastOwnTurns,
-} from "./read-past-own-turns";
+import { readPastOwnTurns } from "./read-past-own-turns";
 import { StreamRegistry, streamKey } from "./stream-registry";
 import { streamTurn } from "./turn-stream";
 import { type ConversationVM, conversationScope } from "./vm-output";
@@ -77,6 +74,13 @@ test("a turn is counted on its conversation before its bubble is pushed", () => 
   expect(registry.turnsStarted(streamKey("agent", "other"))).toBe(0);
 });
 
+/** End the turn holding `key` the way its own `finally` does. */
+const letGo = (key: string) => {
+  const entry = registry.get(key);
+  if (entry) registry.release(key, entry);
+};
+const tick = () => new Promise((r) => setTimeout(r, 10));
+
 test("a read a send overtook is read again once that turn let go", async () => {
   const key = streamKey("agent", "fresh-chat");
   const first = deferred<string>();
@@ -86,25 +90,75 @@ test("a read a send overtook is read again once that turn let go", async () => {
 
   void streamTurn(engine, "agent", "fresh-chat", "hi", silent, registry);
   first.resolve("before the turn");
-  await new Promise((r) => setTimeout(r, 10));
+  await tick();
   expect(reads).toBe(1); // the turn still holds the conversation
 
-  registry.disposeAll();
+  letGo(key);
   await expect(read).resolves.toEqual({ value: "after the turn", mark: 1 });
   expect(reads).toBe(2);
 });
 
-test("a read every retry finds overtaken comes back with its stale mark", async () => {
+test("a read sent before the engine took the send is overtaken too", async () => {
+  // Out after the send started, it may be answered before the host took the
+  // prompt: only a read after the turn is trusted.
+  const key = streamKey("agent", "held-chat");
+  void streamTurn(engine, "agent", "held-chat", "hi", silent, registry);
+  let reads = 0;
+  const read = readPastOwnTurns(registry, key, async () => ++reads);
+  await tick();
+  expect(reads).toBe(1);
+
+  letGo(key);
+  await expect(read).resolves.toEqual({ value: 2, mark: 1 });
+});
+
+test("a read sent after the engine took the send is trusted", async () => {
+  // The host holds the prompt by then; the running turn's stream owns the
+  // feed, so the read neither waits it out nor reads again.
+  const key = streamKey("agent", "taken-chat");
+  void streamTurn(engine, "agent", "taken-chat", "hi", silent, registry);
+  await tick(); // the 202 landed
+  let reads = 0;
+  const read = await readPastOwnTurns(registry, key, async () => ++reads);
+  expect(read).toEqual({ value: 1, mark: 1 });
+  expect(registry.ownsTurn(key)).toBe(true);
+});
+
+test("a read reads again for as long as sends keep overtaking it", async () => {
   const key = streamKey("agent", "busy-chat");
   let reads = 0;
   const { value, mark } = await readPastOwnTurns(registry, key, async () => {
     reads++;
-    registry.noteTurnStart(key); // a send lands during every read
+    if (reads <= 3) registry.noteTurnStart(key); // a send lands during it
     return reads;
   });
-  expect(reads).toBe(OVERTAKEN_READ_RETRIES + 1);
-  expect(value).toBe(reads);
-  expect(mark).not.toBe(registry.turnsStarted(key));
+  expect(value).toBe(4);
+  expect(mark).toBe(registry.turnsStarted(key));
+});
+
+test("a refused handoff send lets a waiting read go", async () => {
+  // The handoff's send lock ends with no stream entry changing hands.
+  const key = streamKey("agent", "handoff-chat");
+  registry.beginSend(key);
+  let reads = 0;
+  const read = readPastOwnTurns(registry, key, async () => ++reads);
+  await tick();
+  expect(reads).toBe(1);
+
+  registry.endSend(key);
+  await expect(read).resolves.toEqual({ value: 2, mark: 0 });
+});
+
+test("a teardown ends the wait without reading on a gone client", async () => {
+  const key = streamKey("agent", "gone-chat");
+  void streamTurn(engine, "agent", "gone-chat", "hi", silent, registry);
+  let reads = 0;
+  const read = readPastOwnTurns(registry, key, async () => ++reads);
+  await tick();
+
+  registry.disposeAll();
+  await expect(read).resolves.toEqual({ value: 1, mark: null });
+  expect(reads).toBe(1);
 });
 
 test("observe seeds the read taken past a send, never the one it overtook", async () => {

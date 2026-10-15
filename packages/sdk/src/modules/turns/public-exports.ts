@@ -48,11 +48,7 @@ export {
 export { type FeedFrame, historyToFeed } from "./history";
 export { noticeEndsTurn } from "./notice-ends-turn";
 export { observeConversation } from "./observe-stream";
-export {
-  type MarkedRead,
-  OVERTAKEN_READ_RETRIES,
-  readPastOwnTurns,
-} from "./read-past-own-turns";
+export { type MarkedRead, readPastOwnTurns } from "./read-past-own-turns";
 export {
   COMPUTE_BUSY_MESSAGE,
   computeBusyRefusal,

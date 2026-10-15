@@ -80,8 +80,10 @@ export function ChatHistoryMixin<TBase extends BaseCtor>(Base: TBase) {
         const { value: history, mark } = observing
           ? await readPastOwnTurnsOn(agentPath, sessionKey, read)
           : { value: await read(), mark: 0 };
-        // Still overtaken after the retries: neither cached nor seeded.
-        const current = historyReadMark(agentPath, sessionKey) === mark;
+        // Torn down while it waited (`null`): neither cached, seeded nor
+        // observed.
+        const current =
+          mark !== null && historyReadMark(agentPath, sessionKey) === mark;
         const sdkFeed = sdkHistoryToFeed(history.messages);
         const window = {
           earliestLoaded: history.offset ?? 0,
@@ -105,7 +107,7 @@ export function ChatHistoryMixin<TBase extends BaseCtor>(Base: TBase) {
         // for BULK history reads (mission search, board scans) that load N
         // conversations at a time and must not spawn N streams — only a real
         // conversation open observes (the default).
-        if (observing) {
+        if (observing && current) {
           // Seed FIRST (the chat opens complete), then attach: the observer
           // renders any in-flight turn live into the same VM. Seeding is a no-op
           // when a live stream already owns this conversation (see

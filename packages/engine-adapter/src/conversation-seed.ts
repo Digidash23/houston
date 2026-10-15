@@ -20,8 +20,14 @@ export function historyReadMark(agentPath: string, sessionKey: string): number {
   return registry.turnsStarted(streamKey(agentPath, sessionKey));
 }
 
+/** Whether a turn this client sent holds the conversation (the SDK's
+ *  `StreamRegistry.ownsTurn` over this adapter's streams). */
+export function ownTurnHolds(agentPath: string, sessionKey: string): boolean {
+  return registry.ownsTurn(streamKey(agentPath, sessionKey));
+}
+
 /** The SDK's `readPastOwnTurns` over this adapter's streams: a history read
- *  a send overtook is taken again once that turn let go. */
+ *  a send of this client overtook is taken again once that turn let go. */
 export function readPastOwnTurnsOn<T>(
   agentPath: string,
   sessionKey: string,
@@ -57,18 +63,19 @@ export function readPastOwnTurnsOn<T>(
  * the feed holds nothing but that turn (a chat opened as the turn was sent):
  * the fold and the feed share no prompt, which reads as a newer server tail,
  * and the fold would replace the turn. Only a read that went out after the
- * turn started may seed.
+ * turn started may seed; a server read gets there through
+ * {@link readPastOwnTurnsOn}. `null`: a read the client was torn down under.
  */
 export function seedConversationVm(
   agentPath: string,
   sessionKey: string,
   frames: FeedFrame[],
-  readMark: number,
+  readMark: number | null,
   window?: HistoryWindowVM,
 ): void {
   const key = streamKey(agentPath, sessionKey);
   if (registry.get(key)) return;
-  if (registry.turnsStarted(key) !== readMark) return;
+  if (readMark === null || registry.turnsStarted(key) !== readMark) return;
   const current = conversationStore.getSnapshot(
     conversationScope(agentPath, sessionKey),
   ) as { feed?: SeedFrame[]; historyWindow?: HistoryWindowVM } | undefined;
@@ -82,10 +89,6 @@ export function seedConversationVm(
     curFeed,
     frames,
     current?.historyWindow !== undefined,
-    {
-      wholeTranscript: window.earliestLoaded === 0,
-      sentHere: registry.turnsStarted(key) > 0,
-    },
   );
   if (decision === "replace") {
     conversationVm.seedHistory(agentPath, sessionKey, frames, window);

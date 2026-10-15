@@ -59,19 +59,11 @@ export interface SeedFrame {
  * skips instead of discarding the loaded pages, while an UNSTAMPED longer
  * paint (a cache) is replaced so the on-screen feed maps to real server
  * indices before load-older arms.
- *
- * `fold.wholeTranscript` = the fold starts at the transcript's first
- * message, and `fold.sentHere` = this client has sent on the
- * conversation. Together they settle the disjoint case the other way: a
- * whole transcript lacking the feed's latest prompt is no tail that starts
- * past it, so that prompt is one this client sent and the host has not
- * persisted yet.
  */
 export function decideServerSeed(
   current: readonly SeedFrame[],
   incoming: readonly SeedFrame[],
   currentHasWindow: boolean,
-  fold: { wholeTranscript?: boolean; sentHere?: boolean } = {},
 ): "replace" | "stamp" | "skip" {
   if (current.length === 0) return incoming.length > 0 ? "replace" : "skip";
   if (incoming.length === 0) return "skip";
@@ -97,7 +89,6 @@ export function decideServerSeed(
     // the newer superset.
     if (containsUser(incoming, curLastUser)) return "replace";
     if (containsUser(current, incLastUser)) return "skip";
-    if (fold.wholeTranscript && fold.sentHere) return "skip";
     // Disjoint (the tail window starts beyond everything on screen): the
     // server is authoritative for a feed no stream owns.
     return "replace";

@@ -62,7 +62,6 @@ export {
   MultiplexFeedOutput,
   messageLimitRefusal,
   noticeEndsTurn,
-  OVERTAKEN_READ_RETRIES,
   observeConversation,
   type PendingInteraction,
   PREWARM_REFRESH_MS,

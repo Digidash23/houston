@@ -126,6 +126,7 @@ export function createTurnOperations(
     const { value, mark } = await readPastOwnTurns(registry, key, () =>
       client.getHistory(conversationId),
     );
+    if (mark === null) return; // torn down while it waited
     const { messages } = value;
     const output = new MultiplexFeedOutput([...defaults, ...external]);
     if (!registry.get(key) && registry.turnsStarted(key) === mark)

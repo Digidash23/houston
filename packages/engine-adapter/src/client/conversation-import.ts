@@ -3,7 +3,11 @@ import type {
   ConversationImportRequest,
   ConversationImportResult,
 } from "@houston/wire-types";
-import { readPastOwnTurnsOn, seedConversationVm } from "../conversation-seed";
+import {
+  ownTurnHolds,
+  readPastOwnTurnsOn,
+  seedConversationVm,
+} from "../conversation-seed";
 import { CHAT_OPEN_WINDOW } from "../history-window";
 import { DEFAULT_AGENT_PATH } from "../synthetic";
 import { runtimeScope } from "./chat-scope";
@@ -26,6 +30,10 @@ async function reseed(
   agentPath: string,
   conversationId: string,
 ): Promise<void> {
+  // A turn this client sent holds the chat: its stream owns the feed, and
+  // the import's own ConversationsChanged reads it in once the chat is free.
+  // Waiting the turn out here would hold the caller's save for a whole turn.
+  if (ownTurnHolds(agentPath, conversationId)) return;
   const client = ctx.sdk.clientFor(runtimeScope(ctx, agentPath));
   const { value: history, mark } = await readPastOwnTurnsOn(
     agentPath,
