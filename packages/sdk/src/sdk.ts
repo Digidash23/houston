@@ -32,6 +32,7 @@ import {
   isCommandEnvelope,
 } from "./commands";
 import { createEngineClients } from "./engine-clients";
+import { createFanOutGate, type FanOutGate } from "./fan-out";
 import type { ModuleContext } from "./module-context";
 import type { SdkConfig } from "./ports";
 import { moduleFactories, type SdkModules } from "./sdk-modules";
@@ -74,12 +75,16 @@ export class HoustonSdk implements SdkModules {
   /** The per-agent engine client every module resolves its calls through — the
    *  seam a host binds when it drives the re-exported turn machinery itself. */
   readonly clientFor: (agentId: string) => HoustonEngineClient;
+  /** The one bound on this client's roster-wide reads (`./fan-out`). */
+  readonly fanOut: FanOutGate;
 
   constructor(config: SdkConfig) {
     this.store = new ScopeStore();
     this.authExpiry = createAuthExpiryNotifier(this.store);
     this.commands = new CommandRegistry();
     this.clientFor = createEngineClients(config);
+    this.fanOut =
+      config.ports.fanOut ?? createFanOutGate({ timers: config.ports.clock });
 
     const ctx: ModuleContext = {
       config,

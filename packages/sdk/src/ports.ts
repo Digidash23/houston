@@ -10,6 +10,8 @@
  * Nothing here imports `node:*`; the SDK is browser-safe.
  */
 
+import type { FanOutGate } from "./fan-out";
+
 /**
  * A minimal string-keyed persistent store (e.g. `localStorage`, the desktop
  * keychain, an in-memory map in tests). Async so keychain-backed
@@ -123,6 +125,12 @@ export interface SdkPorts {
   logger: SdkLogger;
   /** The page's unload signal, when there is a page. See {@link PageLifecycle}. */
   pageLifecycle?: PageLifecycle;
+  /**
+   * The bound on roster-wide reads (`./fan-out`). A host that rebuilds its SDK
+   * (every bearer rotation, one per space) passes one shared gate so the bound
+   * holds across them; omitted, each SDK gets its own.
+   */
+  fanOut?: FanOutGate;
 }
 
 /**

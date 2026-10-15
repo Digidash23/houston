@@ -127,7 +127,9 @@ export function ActivitiesMixin<TBase extends BaseCtor>(Base: TBase) {
       );
     }
     /**
-     * The cross-agent sweep: one read per agent, in parallel.
+     * The cross-agent sweep: one read per agent, through the SDK's fan-out
+     * gate (`@houston/sdk` `AGENT_FAN_OUT_LIMIT` at a time). Aborting `signal`
+     * drops the reads still queued and rejects with its reason.
      *
      * PARTIAL-TOLERANT by contract (HOU-981). `Promise.all` rejected the whole
      * sweep when a SINGLE agent's read failed — one pod that never woke blanked
@@ -141,10 +143,16 @@ export function ActivitiesMixin<TBase extends BaseCtor>(Base: TBase) {
      */
     async listAllConversations(
       agentPaths: string[],
+      opts?: { signal?: AbortSignal },
     ): Promise<AllConversationsResult> {
-      const settled = await Promise.allSettled(
-        agentPaths.map((p) => this.listConversations(p)),
+      const settled = await this.ctx.sdk.fanOut.settle(
+        agentPaths,
+        (p) => this.listConversations(p),
+        opts,
       );
+      // A caller that walked away (its query was removed on a space switch)
+      // gets no partial answer: the reads it dropped never ran.
+      opts?.signal?.throwIfAborted();
       const conversations: ConversationEntry[] = [];
       const failedAgents: FailedAgentRead[] = [];
       settled.forEach((outcome, i) => {

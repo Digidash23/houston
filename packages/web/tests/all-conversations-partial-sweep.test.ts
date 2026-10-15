@@ -1,4 +1,5 @@
 import { HoustonClient } from "@houston/engine-adapter/client";
+import { AGENT_FAN_OUT_LIMIT } from "@houston/sdk";
 import { afterEach, expect, test, vi } from "vitest";
 
 /**
@@ -121,4 +122,69 @@ test("an empty roster sweeps to an empty, COMPLETE answer", async () => {
     conversations: [],
     failedAgents: [],
   });
+});
+
+/** Answer every board read empty after `ms`, tracking how many overlap. */
+function stubSlowReads(ms = 1) {
+  const load = { inFlight: 0, peak: 0, calls: 0 };
+  globalThis.fetch = vi.fn(async () => {
+    load.calls++;
+    load.inFlight++;
+    load.peak = Math.max(load.peak, load.inFlight);
+    await new Promise((r) => setTimeout(r, ms));
+    load.inFlight--;
+    return new Response(JSON.stringify({ items: [] }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as unknown as typeof fetch;
+  return load;
+}
+
+const rosterOf = (n: number, prefix = "agent") =>
+  Array.from({ length: n }, (_, i) => `${prefix}-${i}`);
+
+test("a large roster is read a few agents at a time, not all at once", async () => {
+  // Every app load swept a 105-agent space with 105 simultaneous reads; a
+  // reload mid-sweep cancelled all of them in the same instant.
+  const load = stubSlowReads();
+  const roster = rosterOf(40);
+
+  const result = await client().listAllConversations(roster);
+
+  expect(result.failedAgents).toEqual([]);
+  expect(load.calls).toBe(roster.length);
+  expect(load.peak).toBeLessThanOrEqual(AGENT_FAN_OUT_LIMIT);
+  expect(load.peak).toBeGreaterThan(1);
+});
+
+test("the bound holds across a bearer rotation mid-sweep", async () => {
+  // Every hosted token refresh rebuilds the client's SDK; a gate per SDK
+  // would let the second sweep run beside the first one's queue.
+  const load = stubSlowReads(5);
+  const c = client();
+  const first = c.listAllConversations(rosterOf(30, "first"));
+  c.setEndpoint({ ...CFG, token: "rotated" });
+  const second = c.listAllConversations(rosterOf(30, "second"));
+
+  await Promise.all([first, second]);
+
+  expect(load.calls).toBe(60);
+  expect(load.peak).toBeLessThanOrEqual(AGENT_FAN_OUT_LIMIT);
+});
+
+test("an aborted sweep drops its queued reads and rejects", async () => {
+  // A space switch removes the sweep's query; its queued reads must not go
+  // out later under the next space's header.
+  const load = stubSlowReads(5);
+  const controller = new AbortController();
+  const sweep = client().listAllConversations(rosterOf(40), {
+    signal: controller.signal,
+  });
+  await new Promise((r) => setTimeout(r, 0));
+  controller.abort();
+
+  await expect(sweep).rejects.toThrow();
+  await new Promise((r) => setTimeout(r, 20));
+  expect(load.calls).toBe(AGENT_FAN_OUT_LIMIT);
 });
