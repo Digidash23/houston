@@ -122,12 +122,17 @@ const WALLS: readonly Wall[] = [
   },
 ];
 
+const SCRIPT_OR_STYLE =
+  /<script\b[\s\S]*?<\/script[^>]*>|<style\b[\s\S]*?<\/style[^>]*>/i;
+
 /** The anti-bot wall `page` shows, or null for any other page. */
 export function pageBlock(page: LoadedPage): Block | null {
   const wall = WALLS.find((w) => w.matches(page));
   if (wall) return { reason: wall.reason };
   if (!denied(page.status)) return null;
-  const prose = page.html.replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, "");
+  // Only tested for words, never rendered: scripts and styles are dropped
+  // so a word in code does not count as the page saying it.
+  const prose = page.html.split(SCRIPT_OR_STYLE).join("\n");
   return BOT_WORDS.test(`${page.title}\n${prose}`)
     ? { reason: "denied_status" }
     : null;

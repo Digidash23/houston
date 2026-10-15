@@ -81,6 +81,19 @@ Reference #18.6f2d1402.1728000000.1a2b3c</p><p>https://errors.edgesuite.net/18.6
 };
 
 describe("pageBlock", () => {
+  test("a denied page's scripts and styles are not its words", () => {
+    const code =
+      "<script>const t = 'unusual traffic';</script><style>.captcha{}</style >";
+    expect(
+      pageBlock(page(403, "Forbidden", `<h1>Forbidden</h1>${code}`)),
+    ).toBeNull();
+    expect(
+      pageBlock(
+        page(403, "Forbidden", `${code}<p>Please solve the captcha.</p>`),
+      ),
+    ).toEqual({ reason: "denied_status" });
+  });
+
   test.each(Object.entries(WALLS))("%s is a block", (name, wall) => {
     const reason =
       name === "generic"
