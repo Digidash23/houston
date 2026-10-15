@@ -2,7 +2,9 @@ import {
   mockChannels,
   openChannels,
   SLACK_CONNECTION,
+  slackCard,
   WHATSAPP_CODES,
+  whatsAppCard,
 } from "./support/channels";
 import { expect, test } from "./support/fixtures";
 import { AUTH_WEB_URL, signInAsViewer } from "./support/identity";
@@ -11,6 +13,32 @@ test.use({ baseURL: AUTH_WEB_URL });
 
 const TICKET = "Tk7-ticket.value_~9";
 const WAITING = "Waiting for your message…";
+
+test("connected Slack names its workspace and offers another", async ({
+  page,
+}) => {
+  await mockChannels(page);
+  await openChannels(page);
+  const slack = slackCard(page);
+  await expect(slack.getByText("Connected", { exact: true })).toBeVisible();
+  const workspaces = slack.getByRole("list");
+  await expect(slack.getByText("Workspaces", { exact: true })).toBeVisible();
+  await expect(
+    workspaces.getByText("Ada · Houston team", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    workspaces.getByRole("button", { name: "Add another workspace" }),
+  ).toBeVisible();
+  await expect(
+    slack.getByRole("button", { name: "Connect Slack", exact: true }),
+  ).toHaveCount(0);
+  // WhatsApp holds no number: no status, just the way in.
+  const whatsApp = whatsAppCard(page);
+  await expect(whatsApp.getByText("Connected", { exact: true })).toHaveCount(0);
+  await expect(
+    whatsApp.getByRole("button", { name: "Connect WhatsApp" }),
+  ).toBeVisible();
+});
 
 test("Channels provides an existing-installation command and confirms disconnect", async ({
   page,
@@ -26,25 +54,30 @@ test("Channels provides an existing-installation command and confirms disconnect
   await expect(
     page.getByRole("textbox", { name: "Slack connection command" }),
   ).toHaveValue("connect ABCD-1234");
-  await page.getByRole("button", { name: "Disconnect", exact: true }).click();
+  const disconnect = page.getByRole("button", {
+    name: "Disconnect Ada · Houston team",
+  });
+  await disconnect.click();
   const confirmation = page.getByRole("alertdialog");
-  await expect(confirmation).toBeVisible();
+  await expect(
+    confirmation.getByRole("heading", { name: "Disconnect Slack?" }),
+  ).toBeVisible();
   await confirmation.getByRole("button", { name: "Cancel" }).click();
   await expect(
     page.getByText("Ada · Houston team", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Disconnect", exact: true }).click();
+  await disconnect.click();
   await confirmation
     .getByRole("button", { name: "Disconnect", exact: true })
     .click();
   await expect(
     page.getByText("Ada · Houston team", { exact: true }),
   ).toHaveCount(0);
+  const slack = slackCard(page);
   await expect(
-    page
-      .getByText("Connect a messaging account to message Houston directly.")
-      .first(),
+    slack.getByRole("button", { name: "Connect Slack", exact: true }),
   ).toBeVisible();
+  await expect(slack.getByText("Connected", { exact: true })).toHaveCount(0);
   expect(calls).toEqual([
     { method: "POST", path: "/v1/channels/slack/link", body: {} },
     {
@@ -147,8 +180,10 @@ test("a WhatsApp connection landing ends the wait and clears the spent code", as
     page.getByRole("textbox", { name: "WhatsApp connection command" }),
   ).toHaveCount(0);
   await expect(page.getByRole("img", { name: /^QR code/ })).toHaveCount(0);
+  const whatsApp = whatsAppCard(page);
+  await expect(whatsApp.getByText("Connected", { exact: true })).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Connect WhatsApp" }),
+    whatsApp.getByRole("button", { name: "Add another number" }),
   ).toBeVisible();
 });
 
@@ -162,7 +197,7 @@ test("a Slack connection landing clears the spent code and the finish line", asy
   });
   const { connections } = await mockChannels(page);
   await openChannels(page);
-  await page.getByRole("button", { name: "Connect Slack" }).click();
+  await page.getByRole("button", { name: "Add another workspace" }).click();
   const finish = page.getByText(
     "Finish connecting in Slack, then return here.",
   );
@@ -207,10 +242,7 @@ test("disconnecting a WhatsApp connection names WhatsApp", async ({ page }) => {
   });
   await openChannels(page);
   await expect(page.getByText("•••• 1111", { exact: true })).toBeVisible();
-  await page
-    .getByRole("button", { name: "Disconnect", exact: true })
-    .nth(1)
-    .click();
+  await page.getByRole("button", { name: "Disconnect •••• 1111" }).click();
   const confirmation = page.getByRole("alertdialog");
   await expect(
     confirmation.getByRole("heading", { name: "Disconnect WhatsApp?" }),
@@ -260,7 +292,7 @@ test("a new WhatsApp code waits until a disconnect settles", async ({
     await route.fallback();
   });
   await openChannels(page);
-  await page.getByRole("button", { name: "Disconnect", exact: true }).click();
+  await page.getByRole("button", { name: "Disconnect •••• 1111" }).click();
   await page
     .getByRole("alertdialog")
     .getByRole("button", { name: "Disconnect", exact: true })
@@ -295,7 +327,7 @@ test("unconfigured WhatsApp keeps its own guidance while Slack remains connectab
     page.getByRole("button", { name: "Connect WhatsApp" }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "Connect Slack" }),
+    page.getByRole("button", { name: "Add another workspace" }),
   ).toBeVisible();
 });
 
@@ -308,9 +340,16 @@ test("unconfigured Slack gives setup guidance while retaining disconnect", async
   await expect(
     page.getByRole("button", { name: "Connect Slack", exact: true }),
   ).toHaveCount(0);
+  // The workspace stays listed and removable, but nothing offers another.
   await expect(
-    page.getByRole("button", { name: "Disconnect", exact: true }),
+    page.getByRole("button", { name: "Disconnect Ada · Houston team" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Add another workspace" }),
+  ).toHaveCount(0);
+  await expect(
+    slackCard(page).getByText("Connected", { exact: true }),
+  ).toHaveCount(0);
 });
 
 test("public callback opens Channels after authenticated reload", async ({

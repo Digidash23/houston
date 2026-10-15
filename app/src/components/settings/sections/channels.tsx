@@ -1,10 +1,12 @@
 import {
   type ChannelConnection,
+  type ChannelProviderId,
   channelUnavailableReason,
   slackCompletionFailure,
 } from "@houston/engine-adapter";
 import { channelWatchActive } from "@houston/sdk/channels/watch";
 import { Button, Skeleton } from "@houston-ai/core";
+import { RotateCw } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useChannelActions } from "../../../hooks/queries/use-channels";
@@ -15,6 +17,7 @@ import { useWorkspaceStore } from "../../../stores/workspaces";
 import { ChannelDisconnectDialog } from "./channel-disconnect-dialog";
 import {
   type ChannelProviderCard,
+  channelCardState,
   channelProviderCards,
 } from "./channel-provider-cards";
 import { ChannelsSlackCard } from "./channels-slack-card";
@@ -71,22 +74,23 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
     landed,
     slackCompletionFailure(complete.error),
   );
-  const slackUnavailable = [connect.error, complete.error, link.error].some(
-    (error) => channelUnavailableReason(error) === "not-configured",
-  );
-  const whatsAppUnavailable =
-    channelUnavailableReason(linkWhatsApp.error) === "not-configured";
+  const refused: Record<ChannelProviderId, boolean> = {
+    slack: [connect.error, complete.error, link.error].some(
+      (error) => channelUnavailableReason(error) === "not-configured",
+    ),
+    whatsapp: channelUnavailableReason(linkWhatsApp.error) === "not-configured",
+  };
   /** One card per provider; a provider with no case here fails to compile. */
   const renderCard = ({ provider, connections: own }: ChannelProviderCard) => {
     const id = provider.id;
+    const state = channelCardState(provider.configured && !refused[id], own);
     switch (id) {
       case "slack":
         return (
           <ChannelsSlackCard
             key={id}
             name={provider.name}
-            connectable={provider.configured && !slackUnavailable}
-            connections={own}
+            state={state}
             busy={busy}
             connecting={connect.isPending}
             handoff={slackHandoff(connect.data, reopen.data)}
@@ -111,8 +115,7 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
           <ChannelsWhatsAppCard
             key={id}
             name={provider.name}
-            connectable={provider.configured && !whatsAppUnavailable}
-            connections={own}
+            state={state}
             busy={busy}
             waiting={channelWatchActive(
               watches.whatsapp,
@@ -170,11 +173,11 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
         cards.map(renderCard)
       )}
       <Button
-        variant="outline"
+        variant="ghost"
         size="sm"
         disabled={query.isFetching}
         onClick={() => {
-          if (slackUnavailable || whatsAppUnavailable) {
+          if (refused.slack || refused.whatsapp) {
             connect.reset();
             link.reset();
             linkWhatsApp.reset();
@@ -183,6 +186,7 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
           void query.refetch();
         }}
       >
+        <RotateCw className="size-4" />
         {t("channels.refresh")}
       </Button>
       <ChannelDisconnectDialog

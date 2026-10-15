@@ -3,6 +3,15 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v131 - 2026-10-15
+
+Messaging channels settings reads like the integrations. Each provider card
+shows its brand mark and a description, and a connected card wears the green
+Connected status, lists its Slack workspaces or WhatsApp numbers with a
+disconnect on every row, and ends the list with "Add another workspace" or
+"Add another number". An empty card keeps one Connect button; an unavailable
+card keeps its accounts removable and offers nothing new.
+
 ## v130 - 2026-10-14
 
 The org chart looks like one, and leads Admin > Org chart, above the hero

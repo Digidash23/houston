@@ -165,3 +165,13 @@ export async function openChannels(page: Page) {
     page.getByRole("heading", { name: "Channels", exact: true }),
   ).toBeVisible();
 }
+
+/** The Slack provider card, a region named by its heading. */
+export function slackCard(page: Page) {
+  return page.getByRole("region", { name: "Slack", exact: true });
+}
+
+/** The WhatsApp provider card, a region named by its heading. */
+export function whatsAppCard(page: Page) {
+  return page.getByRole("region", { name: "WhatsApp", exact: true });
+}

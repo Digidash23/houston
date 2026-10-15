@@ -27,3 +27,22 @@ export function channelProviderCards(
       : [];
   });
 }
+
+/**
+ * What one provider card shows. An unavailable provider still lists the
+ * connections it holds, so they stay disconnectable after setup is undone.
+ */
+export type ChannelCardState =
+  | { kind: "unavailable"; connections: ChannelConnection[] }
+  | { kind: "empty" }
+  | { kind: "connected"; connections: ChannelConnection[] };
+
+export function channelCardState(
+  connectable: boolean,
+  connections: ChannelConnection[],
+): ChannelCardState {
+  if (!connectable) return { kind: "unavailable", connections };
+  return connections.length > 0
+    ? { kind: "connected", connections }
+    : { kind: "empty" };
+}

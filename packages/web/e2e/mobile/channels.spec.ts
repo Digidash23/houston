@@ -1,6 +1,7 @@
 import {
   mockChannels,
   openChannels,
+  slackCard,
   WHATSAPP_CODES,
 } from "../support/channels";
 import { expect, test } from "../support/fixtures";
@@ -15,6 +16,33 @@ import { AUTH_WEB_URL } from "../support/identity";
  */
 
 test.use({ baseURL: AUTH_WEB_URL });
+
+test("a connected card stacks its status, its accounts, and the way to add one", async ({
+  page,
+}) => {
+  await mockChannels(page);
+  await openChannels(page);
+  const slack = slackCard(page);
+  await expect(slack.getByText("Connected", { exact: true })).toBeVisible();
+  const add = slack.getByRole("button", { name: "Add another workspace" });
+  const disconnect = slack.getByRole("button", {
+    name: "Disconnect Ada · Houston team",
+  });
+  await expect(add).toBeVisible();
+  // Thumb-sized on a phone: the row's own disconnect is no hover affordance.
+  const [addBox, disconnectBox] = await Promise.all([
+    add.boundingBox(),
+    disconnect.boundingBox(),
+  ]);
+  expect(addBox?.height).toBeGreaterThanOrEqual(44);
+  expect(disconnectBox?.height).toBeGreaterThanOrEqual(36);
+  await disconnect.tap();
+  await expect(
+    page.getByRole("alertdialog").getByRole("heading", {
+      name: "Disconnect Slack?",
+    }),
+  ).toBeVisible();
+});
 
 test("Open WhatsApp spans the phone and the command waits behind a disclosure", async ({
   page,

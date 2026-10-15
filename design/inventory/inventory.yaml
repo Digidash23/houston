@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 130
+version: 131
 
 components:
   - id: agent-delegation-settings
@@ -2272,10 +2272,18 @@ components:
   - id: messaging-channels-settings
     title: Messaging channels settings
     purpose: Connect messaging identities to the personal assistant in the selected Houston space.
-    anatomy: [section-header, space-label, provider-card, connection-list, connect-action, pairing-command, whatsapp-qr, disconnect-confirmation]
+    anatomy: [section-header, space-label, provider-card, provider-logo, connected-status, account-list, account-disconnect, add-account-row, connect-action, pairing-command, whatsapp-qr, disconnect-confirmation, refresh-action]
     states: [loading, empty, connected, connecting, completing, pairing-code, expired-code, waiting, link-refused, unavailable]
     variants: [phone, desktop]
     behavior: >-
+      Each provider card shows the brand mark, its name and a one-line
+      description. A connected card wears the same green Connected status as
+      the integrations, lists its accounts (Slack workspaces, WhatsApp numbers)
+      each with its own always-visible disconnect, and ends the list with an
+      add-another row that runs the same connect flow; an account that lands
+      while the card is open fades in. An empty card offers one Connect button.
+      An unavailable card says setup is unfinished, keeps any accounts it holds
+      disconnectable, and offers no way to connect more.
       OAuth connects Slack; an expiring command pairs an existing Slack installation.
       WhatsApp pairs through an expiring command sent to Houston's number, opened
       from a full-width phone link or a desktop QR code (dark on a light tile in
@@ -2291,8 +2299,9 @@ components:
       assistant links resolve live membership before selecting the linked
       conversation's space.
     a11y: >-
-      Real labeled buttons, "Open WhatsApp" as a real link, a read-only labeled command input, labeled QR code, status messages,
-      and a focus-managed disconnect confirmation. All controls remain visible.
+      Each provider card is a region named by its heading. Real labeled buttons (each account's disconnect is named
+      "Disconnect" plus the account), "Open WhatsApp" as a real link, a read-only labeled command input, labeled QR code,
+      status messages, and a focus-managed disconnect confirmation. All controls remain visible.
     since: 94
 
   - id: api-keys-settings
