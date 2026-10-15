@@ -2,6 +2,7 @@ import {
   accountBlockedCard,
   providerAccountBlockedRefusal,
 } from "./account-blocked-refusal";
+import { SEND_IN_FLIGHT_MESSAGE } from "./stream-tuning";
 import { messageLimitRefusal } from "./turn-errors";
 import { sendRefusal } from "./turn-running";
 import type { TurnSink } from "./turn-sink";
@@ -62,3 +63,14 @@ export function refusedResendItem(e: unknown): unknown {
     fails_pending: true,
   };
 }
+
+/**
+ * The feed item for a duplicate send, refused before it went out: it never
+ * sent a second turn, so its optimistic bubble fails and never reads as
+ * delivered. The first turn keeps rendering.
+ */
+export const duplicateSendItem = {
+  feed_type: "system_message",
+  data: SEND_IN_FLIGHT_MESSAGE,
+  fails_pending: true,
+} as const;

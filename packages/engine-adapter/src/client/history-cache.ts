@@ -9,7 +9,7 @@ import {
   type CachedFrame,
   readCachedConversation,
 } from "../conversation-cache";
-import { seedConversationVm } from "../turn-stream";
+import { historyReadMark, seedConversationVm } from "../conversation-seed";
 
 /**
  * Paint a chat from the last locally persisted transcript BEFORE the network
@@ -26,9 +26,10 @@ export async function seedFromCache(
   agentPath: string,
   sessionKey: string,
 ): Promise<CachedFrame[] | null> {
+  const mark = historyReadMark(agentPath, sessionKey);
   const frames = await readCachedConversation(agentPath, sessionKey);
   if (frames && frames.length > 0) {
-    seedConversationVm(agentPath, sessionKey, frames);
+    seedConversationVm(agentPath, sessionKey, frames, mark);
   }
   return frames;
 }

@@ -1,34 +1,22 @@
 import type { HoustonEngineClient } from "@houston/runtime-client";
 import {
   type BoardStatus,
-  conversationScope,
   type FeedAuthor,
-  type FeedFrame,
   type FeedMention,
-  type HistoryWindowVM,
   MultiplexFeedOutput,
   type PendingInteraction,
-  StreamRegistry,
   type StreamTuning,
   type StreamTurnOptions,
   observeConversation as sdkObserveConversation,
   streamTurn as sdkStreamTurn,
   streamKey,
 } from "@houston/sdk";
+import { registry } from "./adapter-streams";
 import { cachePersistOutput } from "./cache-persist";
 import { createBusFeedOutput } from "./feed-output";
-import { decideServerSeed, type SeedFrame } from "./history-window";
-import { conversationStore, conversationVm } from "./vm";
+import { conversationVm } from "./vm";
 
 export type { StreamTuning } from "@houston/sdk";
-
-/**
- * The web adapter's OWN stream set — module-scoped, so the single adapter keeps
- * exactly one registry (its historical global-singleton behavior) while an SDK
- * instance owns a separate one and the two never cross-abort. Threaded into
- * every SDK turn/observer call below.
- */
-const registry = new StreamRegistry();
 
 /**
  * A turn THIS client dispatched on the conversation, as the queue watchdog
@@ -87,57 +75,9 @@ function composedOutput(
 }
 
 /**
- * Seed the conversation VM from a loaded history fold — unless a live turn or
- * observer already owns the conversation (that stream's feed IS the VM;
- * re-seeding would clobber its in-flight bubble), or the VM already holds a
- * feed the fold would make poorer. The guard is what makes a RACED history
- * read harmless: a load fired mid-turn can resolve just after settle (the
- * registry entry already released) carrying a fold persisted BEFORE the reply
- * — replacing the settled live feed with it would eat the reply.
- *
- * Two seed shapes (HOU-819):
- * - Cache paint (no `window`): the historical richer-wins length guard — the
- *   paint only ever fills an emptier VM.
- * - Windowed server read (`window` set): the fold is a TAIL, so it can be
- *   shorter than the feed yet strictly newer (a teammate's turn landed while
- *   this chat was closed and cache-painted) — {@link decideServerSeed}
- *   anchors on user-message content (never cross-clock timestamps), replaces
- *   on newer/richer, stamps the window without reseeding on identical
- *   content, and skips on poorer (or when the feed holds loaded pages /
- *   unconfirmed sends the fold lacks).
- */
-export function seedConversationVm(
-  agentPath: string,
-  sessionKey: string,
-  frames: FeedFrame[],
-  window?: HistoryWindowVM,
-): void {
-  if (registry.get(streamKey(agentPath, sessionKey))) return;
-  const current = conversationStore.getSnapshot(
-    conversationScope(agentPath, sessionKey),
-  ) as { feed?: SeedFrame[]; historyWindow?: HistoryWindowVM } | undefined;
-  const curFeed = current?.feed ?? [];
-  if (!window) {
-    if (curFeed.length >= frames.length) return;
-    conversationVm.seedHistory(agentPath, sessionKey, frames);
-    return;
-  }
-  const decision = decideServerSeed(
-    curFeed,
-    frames,
-    current?.historyWindow !== undefined,
-  );
-  if (decision === "replace") {
-    conversationVm.seedHistory(agentPath, sessionKey, frames, window);
-  } else if (decision === "stamp") {
-    conversationVm.stampHistoryWindow(agentPath, sessionKey, window);
-  }
-}
-
-/**
  * Fold the edit-and-resend rewind (PRODUCT-1217) into the conversation VM:
  * drop the feed tail from the edited user turn onward. Called AFTER the
- * runtime accepted the truncation. Explicit because {@link seedConversationVm}
+ * runtime accepted the truncation. Explicit because `seedConversationVm`
  * deliberately skips a shorter server fold — the loaded-pages guard would
  * swallow the rewind and leave the dropped turns on screen.
  */
