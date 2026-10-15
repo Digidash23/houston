@@ -81,7 +81,11 @@ export const tauriConversations = {
         ),
   /** @param options pass `{ surface: false }` for an attempt the caller will
    *  retry — the failure it surfaces is the LAST one, exactly once. */
-  listAll: (agentPaths: string[], options?: EngineCallOptions) => {
+  listAll: (
+    agentPaths: string[],
+    options?: EngineCallOptions,
+    signal?: AbortSignal,
+  ) => {
     // A JUST-CREATED agent has no conversations yet and its read would hold
     // the whole bulk scan — sweep only past those. An EXISTING asleep agent
     // stays IN the sweep: dropping it resolves Mission Control without its
@@ -114,7 +118,7 @@ export const tauriConversations = {
       "list_all_conversations",
       async () => {
         const { conversations, failedAgents } =
-          await getEngine().listAllConversations(reachable);
+          await getEngine().listAllConversations(reachable, { signal });
         const { stale, failed } = partitionStaleRosterReads(failedAgents);
         if (stale.length > 0) {
           logger.warn(

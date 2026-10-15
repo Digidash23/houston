@@ -52,6 +52,11 @@ export * from "./contracts-account";
 export * from "./contracts-agent";
 export * from "./contracts-conversation";
 export * from "./contracts-preferences";
+export {
+  AGENT_FAN_OUT_LIMIT,
+  createFanOutGate,
+  type FanOutGate,
+} from "./fan-out";
 export * from "./local-model-bridge";
 export type { ModuleContext } from "./module-context";
 export {
