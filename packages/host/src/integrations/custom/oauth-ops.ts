@@ -1,10 +1,10 @@
 import type { CustomExecutorHost } from "./executor-host";
 import { TOKEN_VARIABLE } from "./executor-host";
+import type { CustomOAuthAttempts } from "./oauth-attempts";
 import { parseBundle } from "./oauth-bundle";
 import {
   beginCustomOAuth,
   type CustomOAuthAttempt,
-  type CustomOAuthAttempts,
   settleCustomOAuth,
 } from "./oauth-flow";
 import { type CustomSecretStore, secretIdFor } from "./secrets";

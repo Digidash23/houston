@@ -39,8 +39,6 @@ export interface CustomOAuthAttempt {
 
 const ATTEMPT_TTL_MS = 10 * 60 * 1000;
 
-export { CustomOAuthAttempts } from "./oauth-attempts";
-
 const oauthFailed = (context: string, err: unknown): CustomIntegrationError =>
   new CustomIntegrationError(
     "oauth_failed",

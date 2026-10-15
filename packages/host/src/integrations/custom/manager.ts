@@ -4,7 +4,8 @@ import { setCustomCredential } from "./credential-op";
 import { type DetectResult, detectSource } from "./detect";
 import { editDetails } from "./edit-details";
 import type { CustomExecutorHost } from "./executor-host";
-import { type CustomOAuthAttempt, CustomOAuthAttempts } from "./oauth-flow";
+import { CustomOAuthAttempts } from "./oauth-attempts";
+import type { CustomOAuthAttempt } from "./oauth-flow";
 import {
   completeOAuthOp,
   completeOAuthWithAttempt,

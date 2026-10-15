@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  beginCustomOAuth,
-  CustomOAuthAttempts,
-  settleCustomOAuth,
-} from "./oauth-flow";
+import { CustomOAuthAttempts } from "./oauth-attempts";
+import { beginCustomOAuth, settleCustomOAuth } from "./oauth-flow";
 import type { CustomIntegrationDef } from "./types";
 
 const ENDPOINT = "https://mcp.example.com/mcp";

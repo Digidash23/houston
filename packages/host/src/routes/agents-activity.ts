@@ -131,6 +131,8 @@ export async function podActivityStatus(deps: AgentRouteDeps): Promise<{
   activeRequests: number;
   runningRoutineRuns: number;
   busyAgents: number;
+  pendingApprovals: number;
+  pendingOAuth: number;
 }> {
   // The counter is pod-global (server.ts counts /agents/*-prefixed requests),
   // so read it ONCE — and unlike the per-agent probe above, /activity is not
@@ -138,9 +140,13 @@ export async function podActivityStatus(deps: AgentRouteDeps): Promise<{
   const activeRequests = deps.agentRequestCount ? deps.agentRequestCount() : 0;
   let runningRoutineRuns = 0;
   let busyAgents = 0;
+  // Held in memory and waiting on a person, as on the per-agent probe: summed
+  // over the pod's agents, and never part of busy.
+  let pendingApprovals = 0;
   for (const workspace of await deps.store.listWorkspaces()) {
     const channel = channelFor(deps, workspace);
     for (const agent of await deps.store.listAgents(workspace.id)) {
+      pendingApprovals += assistantApprovals.pendingCount(agent.id);
       if (!channel || !deps.vfs) {
         busyAgents++;
         continue;
@@ -164,5 +170,7 @@ export async function podActivityStatus(deps: AgentRouteDeps): Promise<{
     activeRequests,
     runningRoutineRuns,
     busyAgents,
+    pendingApprovals,
+    pendingOAuth: deps.customIntegrations?.pendingOAuthAttempts ?? 0,
   };
 }

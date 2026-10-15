@@ -354,6 +354,8 @@ test("pod probe: a genuinely idle host answers busy:false", async () => {
     activeRequests: 0,
     runningRoutineRuns: 0,
     busyAgents: 0,
+    pendingApprovals: 0,
+    pendingOAuth: 0,
   });
 });
 
@@ -364,6 +366,8 @@ test("pod probe: any agent with an active turn flips the pod busy", async () => 
     activeRequests: 0,
     runningRoutineRuns: 0,
     busyAgents: 1,
+    pendingApprovals: 0,
+    pendingOAuth: 0,
   });
 });
 
@@ -385,6 +389,8 @@ test("pod probe: sums running routine runs across EVERY workspace, not one user'
     activeRequests: 0,
     runningRoutineRuns: 2,
     busyAgents: 2,
+    pendingApprovals: 0,
+    pendingOAuth: 0,
   });
 });
 
@@ -398,6 +404,8 @@ test("pod probe: held /agents/* requests count once, with NO self-subtraction", 
     activeRequests: 1,
     runningRoutineRuns: 0,
     busyAgents: 0,
+    pendingApprovals: 0,
+    pendingOAuth: 0,
   });
 });
 
@@ -408,6 +416,8 @@ test("pod probe: an unprobeable agent reads busy, never a false idle", async () 
     activeRequests: 0,
     runningRoutineRuns: 0,
     busyAgents: 1,
+    pendingApprovals: 0,
+    pendingOAuth: 0,
   });
 
   // A probe that throws (runtime unreachable) counts the same way.
@@ -419,7 +429,37 @@ test("pod probe: an unprobeable agent reads busy, never a false idle", async () 
     activeRequests: 0,
     runningRoutineRuns: 0,
     busyAgents: 1,
+    pendingApprovals: 0,
+    pendingOAuth: 0,
   });
+});
+
+test("pod probe: sums held approvals over the pod's agents and reports custom sign-ins", async () => {
+  // Never busy (the pre-roll and the original idle rule read busy alone):
+  // the cloud waker reads these counts on their own.
+  const ws = await store.getOrCreatePersonalWorkspace("alice");
+  const other = await store.createAgent({ workspaceId: ws.id, name: "Other" });
+  for (const id of [agentId, other.id])
+    assistantApprovals.issue({
+      operation: "delete_agent",
+      params: { agent: id },
+      agentId: id,
+      conversationId: "c1",
+      summary: "s",
+    });
+  deps.customIntegrations = {
+    pendingOAuthAttempts: 1,
+  } as unknown as CustomIntegrationManager;
+  try {
+    expect(await podActivityStatus(deps)).toMatchObject({
+      busy: false,
+      pendingApprovals: 2,
+      pendingOAuth: 1,
+    });
+  } finally {
+    assistantApprovals.clear(agentId);
+    assistantApprovals.clear(other.id);
+  }
 });
 
 test("GET /activity over HTTP: 401 unauthenticated; a held per-agent stream keeps the pod busy", async () => {
@@ -466,6 +506,8 @@ test("GET /activity over HTTP: 401 unauthenticated; a held per-agent stream keep
       activeRequests: 0,
       runningRoutineRuns: 0,
       busyAgents: 0,
+      pendingApprovals: 0,
+      pendingOAuth: 0,
     });
 
     const held = fetch(
