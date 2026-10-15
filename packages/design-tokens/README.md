@@ -112,7 +112,7 @@ before anything imports it:
 
 | File | Surface | Shape |
 | --- | --- | --- |
-| `dist/css/tokens.css` | web / desktop | `--ht-*` custom properties (colour + elevation): light on `:root`, dark on `[data-theme="dark"]`, then one full set per imported palette on `[data-palette="<id>"]`. **The same variable names the app + `@houston-ai/*` already consume.** |
+| `dist/css/tokens.css` | web / desktop | `--ht-*` custom properties (colour + elevation): light on `:root`, dark on `[data-theme="dark"]`, then one full set per imported palette on `[data-palette="<id>"]`. A trailing `:root` block carries the theme-independent `--ht-duration-*`, `--ht-easing-*` and `--ht-space-*`. **The same variable names the app + `@houston-ai/*` already consume.** |
 | `dist/ts/tokens.ts` | SDK / web JS | Typed `as const` objects: `color.{light,dark}`, `shadow.{light,dark}` (box-shadow strings per tier), `palettes` + `PaletteId` (the picker's library, each with four resolved swatch hexes), `space`, `radius`, `fontSize`, `fontWeight`, `duration`, `durationMs`, `easing`. |
 
 ## The zero-diff story (web/desktop adoption)

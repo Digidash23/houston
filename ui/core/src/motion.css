@@ -195,3 +195,17 @@
 @media (prefers-reduced-motion: reduce) {
   .sidebar-disclosure-in { animation: none; }
 }
+
+/* A list row that arrives while the person watches, such as a connection
+   finished in another app. Entrance only, transform + opacity only, the fast
+   duration on the entrance curve; reduced motion keeps the row static. */
+@keyframes row-land-in {
+  from { opacity: 0; transform: translateY(var(--ht-space-4)); }
+  to { opacity: 1; transform: none; }
+}
+.row-land-in {
+  animation: row-land-in var(--ht-duration-fast) var(--ht-easing-entrance);
+}
+@media (prefers-reduced-motion: reduce) {
+  .row-land-in { animation: none; }
+}

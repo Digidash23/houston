@@ -1,21 +1,20 @@
 import type { ChannelConnection, ChannelLink } from "@houston/engine-adapter";
 import { Button } from "@houston-ai/core";
-import { MessageSquare, Plus } from "lucide-react";
+import type { Ref } from "react";
 import { useTranslation } from "react-i18next";
 import type { SlackHandoff } from "../../../lib/channel-handoff";
-import { SettingsCard } from "../settings-row";
-import { ChannelConnectionRow } from "./channel-connection-row";
 import { ChannelLinkCommand } from "./channel-link-command";
+import type { ChannelCardState } from "./channel-provider-cards";
+import { ChannelProviderPanel } from "./channel-provider-panel";
 
 /**
- * The Slack row: who is connected, and the two ways to connect. The browser
- * hand-off speaks for itself — "finish in Slack" only once the page is really
- * open, and the page offered behind a click when the browser refused it.
+ * The Slack card's connect flow. The browser hand-off speaks for itself:
+ * "finish in Slack" only once the page is really open, and the page offered
+ * behind a click when the browser refused it.
  */
 export function ChannelsSlackCard({
   name,
-  connectable,
-  connections,
+  state,
   busy,
   connecting,
   handoff,
@@ -24,11 +23,10 @@ export function ChannelsSlackCard({
   onOpen,
   onLink,
   onDisconnect,
+  headingRef,
 }: {
   name: string;
-  /** Slack is set up for this deployment and no action has said otherwise. */
-  connectable: boolean;
-  connections: ChannelConnection[];
+  state: ChannelCardState;
   busy: boolean;
   connecting: boolean;
   handoff: SlackHandoff;
@@ -37,81 +35,58 @@ export function ChannelsSlackCard({
   onOpen: (url: string) => void;
   onLink: () => void;
   onDisconnect: (connection: ChannelConnection) => void;
+  headingRef: Ref<HTMLHeadingElement>;
 }) {
   const { t } = useTranslation("settings");
   return (
-    <SettingsCard>
-      <div className="space-y-4 p-4">
-        <div className="flex items-center gap-3">
-          <MessageSquare className="size-5 text-ink-muted" />
-          <h3 className="text-sm font-medium text-ink">{name}</h3>
-        </div>
-        {!connections.length && (
-          <p className="text-sm text-ink-muted">{t("channels.empty")}</p>
-        )}
-        {connections.map((connection) => (
-          <ChannelConnectionRow
-            key={connection.id}
-            connection={connection}
-            busy={busy}
-            onDisconnect={onDisconnect}
-          />
-        ))}
-        {connectable ? (
-          <div className="space-y-3">
-            <Button disabled={busy} onClick={onConnect}>
-              <Plus className="size-4" />
-              {t(
-                connecting
-                  ? "channels.slack.connecting"
-                  : "channels.slack.connect",
-              )}
-            </Button>
-            {handoff.kind === "open" && (
-              <p role="status" className="text-sm text-ink-muted">
-                {t("channels.slack.finishInSlack")}
-              </p>
-            )}
-            {handoff.kind === "blocked" && (
-              <div className="space-y-2">
-                <p role="status" className="text-sm text-ink-muted">
-                  {t("channels.slack.blocked")}
-                </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() => onOpen(handoff.url)}
-                >
-                  {t("channels.slack.openSlack")}
-                </Button>
-              </div>
-            )}
-            <div>
-              <Button
-                variant="link"
-                className="h-auto whitespace-normal p-0 text-left"
-                disabled={busy}
-                onClick={onLink}
-              >
-                {t(link ? "channels.newCode" : "channels.slack.alreadyAdded")}
-              </Button>
-            </div>
-            {link && (
-              <ChannelLinkCommand
-                key={link.code}
-                link={link}
-                instruction={t("channels.slack.linkInstructions")}
-                label={t("channels.slack.commandLabel")}
-              />
-            )}
-          </div>
-        ) : (
+    <ChannelProviderPanel
+      provider="slack"
+      name={name}
+      state={state}
+      busy={busy}
+      actionLabel={connecting ? t("channels.slack.connecting") : undefined}
+      onConnect={onConnect}
+      onDisconnect={onDisconnect}
+      headingRef={headingRef}
+    >
+      {handoff.kind === "open" && (
+        <p role="status" className="text-sm text-ink-muted">
+          {t("channels.slack.finishInSlack")}
+        </p>
+      )}
+      {handoff.kind === "blocked" && (
+        <div className="space-y-2">
           <p role="status" className="text-sm text-ink-muted">
-            {t("channels.slack.notConfigured")}
+            {t("channels.slack.blocked")}
           </p>
-        )}
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            onClick={() => onOpen(handoff.url)}
+          >
+            {t("channels.slack.openSlack")}
+          </Button>
+        </div>
+      )}
+      <div>
+        <Button
+          variant="link"
+          className="h-auto whitespace-normal p-0 text-left"
+          disabled={busy}
+          onClick={onLink}
+        >
+          {t(link ? "channels.newCode" : "channels.slack.alreadyAdded")}
+        </Button>
       </div>
-    </SettingsCard>
+      {link && (
+        <ChannelLinkCommand
+          key={link.code}
+          link={link}
+          instruction={t("channels.slack.linkInstructions")}
+          label={t("channels.slack.commandLabel")}
+        />
+      )}
+    </ChannelProviderPanel>
   );
 }

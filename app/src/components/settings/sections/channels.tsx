@@ -1,23 +1,26 @@
 import {
   type ChannelConnection,
+  type ChannelProviderId,
   channelUnavailableReason,
-  slackCompletionFailure,
 } from "@houston/engine-adapter";
 import { channelWatchActive } from "@houston/sdk/channels/watch";
 import { Button, Skeleton } from "@houston-ai/core";
-import { useState } from "react";
+import { RotateCw } from "lucide-react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useChannelActions } from "../../../hooks/queries/use-channels";
 import { useSlackCompletion } from "../../../hooks/use-slack-completion";
 import { slackHandoff } from "../../../lib/channel-handoff";
-import { slackCompletionResult } from "../../../lib/slack-completion";
 import { useWorkspaceStore } from "../../../stores/workspaces";
 import { ChannelDisconnectDialog } from "./channel-disconnect-dialog";
 import {
   type ChannelProviderCard,
+  channelCardState,
   channelProviderCards,
 } from "./channel-provider-cards";
+import { ChannelsHeader } from "./channels-header";
 import { ChannelsSlackCard } from "./channels-slack-card";
+import { SlackCompletionStatus } from "./channels-slack-completion";
 import { ChannelsWhatsAppCard } from "./channels-whatsapp-card";
 import { useWatchedChannels } from "./use-watched-channels";
 
@@ -38,6 +41,10 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
     disconnecting,
   } = useChannelActions();
   const [target, setTarget] = useState<ChannelConnection | null>(null);
+  const headings = useRef<
+    Partial<Record<ChannelProviderId, HTMLHeadingElement | null>>
+  >({});
+  const title = useRef<HTMLHeadingElement>(null);
   // A landed connection spends the hand-off that produced it: clear its code
   // and its "finish in Slack" line so nothing invites a second, dead attempt.
   const { query, connections, watches, watch } = useWatchedChannels(
@@ -67,26 +74,26 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
     link.isPending ||
     linkWhatsApp.isPending ||
     disconnecting;
-  const completionFailed = slackCompletionResult(
-    landed,
-    slackCompletionFailure(complete.error),
-  );
-  const slackUnavailable = [connect.error, complete.error, link.error].some(
-    (error) => channelUnavailableReason(error) === "not-configured",
-  );
-  const whatsAppUnavailable =
-    channelUnavailableReason(linkWhatsApp.error) === "not-configured";
+  const refused: Record<ChannelProviderId, boolean> = {
+    slack: [connect.error, complete.error, link.error].some(
+      (error) => channelUnavailableReason(error) === "not-configured",
+    ),
+    whatsapp: channelUnavailableReason(linkWhatsApp.error) === "not-configured",
+  };
   /** One card per provider; a provider with no case here fails to compile. */
   const renderCard = ({ provider, connections: own }: ChannelProviderCard) => {
     const id = provider.id;
+    const state = channelCardState(provider.configured && !refused[id], own);
+    const headingRef = (heading: HTMLHeadingElement | null) => {
+      headings.current[id] = heading;
+    };
     switch (id) {
       case "slack":
         return (
           <ChannelsSlackCard
             key={id}
             name={provider.name}
-            connectable={provider.configured && !slackUnavailable}
-            connections={own}
+            state={state}
             busy={busy}
             connecting={connect.isPending}
             handoff={slackHandoff(connect.data, reopen.data)}
@@ -104,6 +111,7 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
               })
             }
             onDisconnect={setTarget}
+            headingRef={headingRef}
           />
         );
       case "whatsapp":
@@ -111,8 +119,7 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
           <ChannelsWhatsAppCard
             key={id}
             name={provider.name}
-            connectable={provider.configured && !whatsAppUnavailable}
-            connections={own}
+            state={state}
             busy={busy}
             waiting={channelWatchActive(
               watches.whatsapp,
@@ -128,6 +135,7 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
               })
             }
             onDisconnect={setTarget}
+            headingRef={headingRef}
           />
         );
       default: {
@@ -138,28 +146,12 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
   };
   return (
     <section className="space-y-6">
-      <header>
-        <h2 className="mb-1 text-lg font-semibold text-ink">
-          {t("channels.title")}
-        </h2>
-        <p className="text-sm text-ink-muted">{t("channels.intro")}</p>
-        <p className="mt-2 text-sm text-ink-muted">
-          {t("channels.space", { name: spaceName })}
-        </p>
-      </header>
-      {complete.isPending ? (
-        <p role="status" className="text-sm text-ink-muted">
-          {t("channels.slack.completing")}
-        </p>
-      ) : completionFailed ? (
-        <p role="status" className="text-sm text-ink-muted">
-          {t(
-            completionFailed === "taken"
-              ? "channels.slack.completeAlready"
-              : "channels.slack.completeInvalid",
-          )}
-        </p>
-      ) : null}
+      <ChannelsHeader spaceName={spaceName} titleRef={title} />
+      <SlackCompletionStatus
+        completing={complete.isPending}
+        landed={landed}
+        error={complete.error}
+      />
       {query.isPending ? (
         <Skeleton className="h-32 w-full rounded-xl" />
       ) : unavailable || (query.data && cards.length === 0) ? (
@@ -170,11 +162,11 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
         cards.map(renderCard)
       )}
       <Button
-        variant="outline"
+        variant="ghost"
         size="sm"
         disabled={query.isFetching}
         onClick={() => {
-          if (slackUnavailable || whatsAppUnavailable) {
+          if (refused.slack || refused.whatsapp) {
             connect.reset();
             link.reset();
             linkWhatsApp.reset();
@@ -183,6 +175,7 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
           void query.refetch();
         }}
       >
+        <RotateCw className="size-4" />
         {t("channels.refresh")}
       </Button>
       <ChannelDisconnectDialog
@@ -190,6 +183,10 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
         providers={query.data?.providers ?? []}
         onClose={() => setTarget(null)}
         onConfirm={(connection) => disconnect(connection.id)}
+        // Removing a provider's last account can remove its card too.
+        onFocusCard={(provider) =>
+          (headings.current[provider] ?? title.current)?.focus()
+        }
       />
     </section>
   );

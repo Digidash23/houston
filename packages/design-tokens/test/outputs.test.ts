@@ -122,3 +122,18 @@ describe("generated CSS elevation", () => {
     );
   });
 });
+
+describe("generated CSS motion and spacing", () => {
+  const css = readFileSync(
+    fileURLToPath(new URL("../dist/css/tokens.css", import.meta.url)),
+    "utf8",
+  );
+  const value = (name: string): string | undefined =>
+    new RegExp(`--ht-${name}\\s*:\\s*([^;]+);`).exec(css)?.[1]?.trim();
+
+  it("exposes the entrance recipe's duration, curve and nudge as variables", () => {
+    expect(value("duration-fast")).toBe("200ms");
+    expect(value("easing-entrance")).toBe("cubic-bezier(0.16, 1, 0.3, 1)");
+    expect(value("space-4")).toBe("4px");
+  });
+});

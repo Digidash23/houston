@@ -29,6 +29,11 @@ interface ConfirmDialogProps {
   // biome-ignore lint/suspicious/noConfusingVoidType: sync handlers return void, async ones return a Promise
   onConfirm: () => void | Promise<unknown>;
   pendingLabel?: string;
+  /**
+   * Radix's close focus hook. Prevent the event to choose where focus lands,
+   * such as when confirming removed the element that opened the dialog.
+   */
+  onCloseAutoFocus?: (event: Event) => void;
 }
 
 function isThenable(value: unknown): value is Promise<unknown> {
@@ -47,6 +52,7 @@ export function ConfirmDialog({
   variant = "destructive",
   onConfirm,
   pendingLabel,
+  onCloseAutoFocus,
 }: ConfirmDialogProps) {
   const [pending, setPending] = React.useState(false);
   // Same-frame rage clicks land before React commits `disabled` (HOU-465), so
@@ -92,7 +98,7 @@ export function ConfirmDialog({
         onOpenChange(next);
       }}
     >
-      <AlertDialogContent>
+      <AlertDialogContent onCloseAutoFocus={onCloseAutoFocus}>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
