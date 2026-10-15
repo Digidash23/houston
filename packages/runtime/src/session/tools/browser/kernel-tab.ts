@@ -1,4 +1,5 @@
 import type { Browser } from "playwright-core";
+import { backupState } from "./backup-state";
 import {
   createKernelSession,
   deleteKernelSession,
@@ -9,12 +10,11 @@ import {
 } from "./kernel";
 import { DESKTOP_VIEWPORT } from "./live/layout";
 import { type BrowserTab, wireTab } from "./open-tab";
-import type { StorageState } from "./state-merge";
 import { readState } from "./state-store";
 
 /** Where a conversation's tab goes when a site blocks the local browser. */
 export interface BackupBrowser {
-  /** A tab loaded with the same saved sign-ins, opened for `host`. */
+  /** A tab loaded with `host`'s saved sign-ins (backup-state.ts). */
   open(statePath: string, maxPages: number, host: string): Promise<BrowserTab>;
 }
 
@@ -100,8 +100,9 @@ export async function openKernelTab(
     browser.once("disconnected", () => void release());
     const context = browser.contexts()[0];
     if (!context) throw new KernelError("no_default_context");
-    const saved = await readState(statePath);
-    if (saved) await context.setStorageState(withoutWallCookies(saved));
+    const stored = await readState(statePath);
+    const saved = stored ? backupState(stored, host) : undefined;
+    if (saved) await context.setStorageState(saved);
     const page = context.pages()[0] ?? (await context.newPage());
     await page.setViewportSize(DESKTOP_VIEWPORT);
     const tab = await wireTab(context, page, statePath, saved, maxPages);
@@ -126,19 +127,4 @@ export async function openKernelTab(
     await release();
     throw error;
   }
-}
-
-/**
- * Anti-bot vendors' own cookies (Cloudflare, Akamai, PerimeterX, DataDome,
- * Imperva, AWS WAF). They mark the browser that earned them; one a blocked
- * browser earned gets the backup blocked as well (seen with PerimeterX).
- */
-const WALL_COOKIE =
-  /^(?:__cf_bm|cf_clearance|_abck|bm_sz|bm_sv|ak_bmsc|_px\w*|pxcts|datadome|incap_ses_\w*|visid_incap_\w*|nlbi_\w*|aws-waf-token)$/;
-
-export function withoutWallCookies(state: StorageState): StorageState {
-  return {
-    ...state,
-    cookies: state.cookies.filter((c) => !WALL_COOKIE.test(c.name)),
-  };
 }

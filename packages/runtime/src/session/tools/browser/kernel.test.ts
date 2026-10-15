@@ -1,5 +1,6 @@
 import type { BrowserContext } from "playwright-core";
 import { afterEach, expect, test, vi } from "vitest";
+import { backupState } from "./backup-state";
 import { agentWorkspace } from "./browser.test-support";
 import {
   createKernelSession,
@@ -10,7 +11,7 @@ import {
   kernelFrom,
 } from "./kernel";
 import { fakeBrowser } from "./kernel-browser.test-support";
-import { backupFromEnv, kernelBackup, withoutWallCookies } from "./kernel-tab";
+import { backupFromEnv, kernelBackup } from "./kernel-tab";
 import { EMPTY_STATE } from "./state-merge";
 import { browserStatePath, saveState } from "./state-store";
 import { closeContext } from "./tab-pages";
@@ -213,10 +214,10 @@ test("a session that never connects is deleted, and the CDP url never logged", a
   expect(logged(error)).not.toContain("jwt");
 });
 
-const cookie = (name: string) => ({
+const cookie = (name: string, domain = ".shop.example") => ({
   name,
   value: "v",
-  domain: ".shop.example",
+  domain,
   path: "/",
   expires: -1,
   httpOnly: true,
@@ -232,7 +233,17 @@ test("the saved sign-ins load into the Kernel tab, the wall's cookies left out",
       localStorage: [{ name: "t", value: "1" }],
     },
   ];
-  const ours = { cookies: [cookie("sid"), cookie("cf_clearance")], origins };
+  const ours = {
+    cookies: [
+      cookie("sid"),
+      cookie("cf_clearance"),
+      cookie("mail", "mail.other.example"),
+    ],
+    origins: [
+      ...origins,
+      { origin: "https://other.example", localStorage: [] },
+    ],
+  };
   await saveState({
     // SAFETY: saveState reads only storageState from the context.
     context: { storageState: async () => ours } as unknown as BrowserContext,
@@ -269,6 +280,43 @@ test("sign-ins carry over to Kernel; anti-bot vendors' cookies do not", () => {
     "visid_incap_456",
     "aws-waf-token",
   ];
-  const kept = withoutWallCookies({ cookies: names.map(cookie), origins: [] });
+  const kept = backupState(
+    { cookies: names.map((n) => cookie(n)), origins: [] },
+    "www.shop.example",
+  );
   expect(kept.cookies.map((c) => c.name)).toEqual(["sid", "session-token"]);
+});
+
+test("Kernel gets only the blocked site's sign-ins", () => {
+  const domains = [
+    ".shop.example",
+    "shop.example",
+    "www.shop.example",
+    "login.shop.example",
+    ".example",
+    "other.example",
+    "shop.example.evil",
+    "evilshop.example",
+  ];
+  const kept = backupState(
+    {
+      cookies: domains.map((d) => cookie(d, d)),
+      origins: [
+        { origin: "https://login.shop.example", localStorage: [] },
+        { origin: "https://other.example", localStorage: [] },
+        { origin: "not a url", localStorage: [] },
+      ],
+    },
+    "www.shop.example",
+  );
+  expect(kept.cookies.map((c) => c.domain)).toEqual([
+    ".shop.example",
+    "shop.example",
+    "www.shop.example",
+    "login.shop.example",
+    ".example",
+  ]);
+  expect(kept.origins.map((o) => o.origin)).toEqual([
+    "https://login.shop.example",
+  ]);
 });
