@@ -5,6 +5,7 @@ import {
   initEngineSentry,
   installConsoleCapture,
 } from "@houston/runtime-client/sentry";
+import { managedOwnerSub } from "../assistant/manager-owner";
 import {
   LOCAL_CAPABILITIES,
   MANAGED_CLOUD_CAPABILITIES,
@@ -223,10 +224,11 @@ const host = buildLocalHost({
   // gateway-fronted, so a self-host that set the env would lose it.
   gatewayFronted: process.env.HOUSTON_MANAGED_CLOUD === "1",
   // The org owner's canonical user id, stamped into managed pods by the
-  // control plane. Backfills `created_by` on pre-rollout routines at boot and
-  // backstops routine writes that carry no acting header — an authorless
-  // routine is one the control-plane fire planner refuses to fire.
-  ownerSub: process.env.HOUSTON_USER_ID || undefined,
+  // control plane, or on an AI Manager pod the manager's own person, whose
+  // routines they all are. Backfills `created_by` on pre-rollout routines at
+  // boot and backstops routine writes that carry no acting header — an
+  // authorless routine is one the control-plane fire planner refuses to fire.
+  ownerSub: managedOwnerSub(),
   // Dev launcher only (scripts/dev/control-plane.sh): its managed-cloud "pods"
   // are processes on the developer's machine, so their egress reaches loopback
   // and the public-HTTPS endpoint validation must not apply. Real pods never
