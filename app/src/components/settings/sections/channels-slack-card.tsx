@@ -1,5 +1,6 @@
 import type { ChannelConnection, ChannelLink } from "@houston/engine-adapter";
 import { Button } from "@houston-ai/core";
+import type { Ref } from "react";
 import { useTranslation } from "react-i18next";
 import type { SlackHandoff } from "../../../lib/channel-handoff";
 import { ChannelLinkCommand } from "./channel-link-command";
@@ -22,6 +23,7 @@ export function ChannelsSlackCard({
   onOpen,
   onLink,
   onDisconnect,
+  headingRef,
 }: {
   name: string;
   state: ChannelCardState;
@@ -33,6 +35,7 @@ export function ChannelsSlackCard({
   onOpen: (url: string) => void;
   onLink: () => void;
   onDisconnect: (connection: ChannelConnection) => void;
+  headingRef: Ref<HTMLHeadingElement>;
 }) {
   const { t } = useTranslation("settings");
   return (
@@ -44,6 +47,7 @@ export function ChannelsSlackCard({
       actionLabel={connecting ? t("channels.slack.connecting") : undefined}
       onConnect={onConnect}
       onDisconnect={onDisconnect}
+      headingRef={headingRef}
     >
       {handoff.kind === "open" && (
         <p role="status" className="text-sm text-ink-muted">

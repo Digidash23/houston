@@ -2,17 +2,15 @@ import {
   type ChannelConnection,
   type ChannelProviderId,
   channelUnavailableReason,
-  slackCompletionFailure,
 } from "@houston/engine-adapter";
 import { channelWatchActive } from "@houston/sdk/channels/watch";
 import { Button, Skeleton } from "@houston-ai/core";
 import { RotateCw } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useChannelActions } from "../../../hooks/queries/use-channels";
 import { useSlackCompletion } from "../../../hooks/use-slack-completion";
 import { slackHandoff } from "../../../lib/channel-handoff";
-import { slackCompletionResult } from "../../../lib/slack-completion";
 import { useWorkspaceStore } from "../../../stores/workspaces";
 import { ChannelDisconnectDialog } from "./channel-disconnect-dialog";
 import {
@@ -21,6 +19,7 @@ import {
   channelProviderCards,
 } from "./channel-provider-cards";
 import { ChannelsSlackCard } from "./channels-slack-card";
+import { SlackCompletionStatus } from "./channels-slack-completion";
 import { ChannelsWhatsAppCard } from "./channels-whatsapp-card";
 import { useWatchedChannels } from "./use-watched-channels";
 
@@ -41,6 +40,9 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
     disconnecting,
   } = useChannelActions();
   const [target, setTarget] = useState<ChannelConnection | null>(null);
+  const headings = useRef<
+    Partial<Record<ChannelProviderId, HTMLHeadingElement | null>>
+  >({});
   // A landed connection spends the hand-off that produced it: clear its code
   // and its "finish in Slack" line so nothing invites a second, dead attempt.
   const { query, connections, watches, watch } = useWatchedChannels(
@@ -70,10 +72,6 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
     link.isPending ||
     linkWhatsApp.isPending ||
     disconnecting;
-  const completionFailed = slackCompletionResult(
-    landed,
-    slackCompletionFailure(complete.error),
-  );
   const refused: Record<ChannelProviderId, boolean> = {
     slack: [connect.error, complete.error, link.error].some(
       (error) => channelUnavailableReason(error) === "not-configured",
@@ -84,6 +82,9 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
   const renderCard = ({ provider, connections: own }: ChannelProviderCard) => {
     const id = provider.id;
     const state = channelCardState(provider.configured && !refused[id], own);
+    const headingRef = (heading: HTMLHeadingElement | null) => {
+      headings.current[id] = heading;
+    };
     switch (id) {
       case "slack":
         return (
@@ -108,6 +109,7 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
               })
             }
             onDisconnect={setTarget}
+            headingRef={headingRef}
           />
         );
       case "whatsapp":
@@ -131,6 +133,7 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
               })
             }
             onDisconnect={setTarget}
+            headingRef={headingRef}
           />
         );
       default: {
@@ -150,19 +153,11 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
           {t("channels.space", { name: spaceName })}
         </p>
       </header>
-      {complete.isPending ? (
-        <p role="status" className="text-sm text-ink-muted">
-          {t("channels.slack.completing")}
-        </p>
-      ) : completionFailed ? (
-        <p role="status" className="text-sm text-ink-muted">
-          {t(
-            completionFailed === "taken"
-              ? "channels.slack.completeAlready"
-              : "channels.slack.completeInvalid",
-          )}
-        </p>
-      ) : null}
+      <SlackCompletionStatus
+        completing={complete.isPending}
+        landed={landed}
+        error={complete.error}
+      />
       {query.isPending ? (
         <Skeleton className="h-32 w-full rounded-xl" />
       ) : unavailable || (query.data && cards.length === 0) ? (
@@ -194,6 +189,7 @@ function ChannelsBody({ spaceName }: { spaceName: string }) {
         providers={query.data?.providers ?? []}
         onClose={() => setTarget(null)}
         onConfirm={(connection) => disconnect(connection.id)}
+        onFocusCard={(provider) => headings.current[provider]?.focus()}
       />
     </section>
   );

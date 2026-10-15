@@ -35,7 +35,7 @@ test("a connected card stacks its status, its accounts, and the way to add one",
     disconnect.boundingBox(),
   ]);
   expect(addBox?.height).toBeGreaterThanOrEqual(44);
-  expect(disconnectBox?.height).toBeGreaterThanOrEqual(36);
+  expect(disconnectBox?.height).toBeGreaterThanOrEqual(44);
   await disconnect.tap();
   await expect(
     page.getByRole("alertdialog").getByRole("heading", {

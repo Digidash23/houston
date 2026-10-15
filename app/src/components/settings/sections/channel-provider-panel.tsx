@@ -4,8 +4,8 @@ import type {
 } from "@houston/engine-adapter";
 import { Button } from "@houston-ai/core";
 import { Plus } from "lucide-react";
-import type { ReactNode } from "react";
-import { useId, useState } from "react";
+import type { ReactNode, Ref } from "react";
+import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ConnectionStatusBadge } from "../../integrations/connection-status-badge";
 import { SettingsCard } from "../settings-row";
@@ -17,7 +17,8 @@ import { CHANNEL_PROVIDER_DISPLAY } from "./channel-provider-display";
  * One messaging provider's card: its mark, whether it is connected, the
  * accounts it holds, and the way to connect one more. `children` is the
  * provider's own connect flow (Slack's hand-off, WhatsApp's code), shown only
- * while the provider can connect.
+ * while the provider can connect. The heading takes focus when a disconnect
+ * removes the row whose button opened the confirmation.
  */
 export function ChannelProviderPanel({
   provider,
@@ -27,6 +28,7 @@ export function ChannelProviderPanel({
   actionLabel,
   onConnect,
   onDisconnect,
+  headingRef,
   children,
 }: {
   provider: ChannelProviderId;
@@ -37,15 +39,18 @@ export function ChannelProviderPanel({
   actionLabel?: string;
   onConnect: () => void;
   onDisconnect: (connection: ChannelConnection) => void;
+  headingRef: Ref<HTMLHeadingElement>;
   children?: ReactNode;
 }) {
   const { t } = useTranslation("settings");
   const display = CHANNEL_PROVIDER_DISPLAY[provider];
   const headingId = useId();
-  const [initialIds] = useState(
-    () =>
-      new Set(state.kind === "empty" ? [] : state.connections.map((c) => c.id)),
-  );
+  const connections = state.kind === "empty" ? [] : state.connections;
+  const [seenIds] = useState(() => new Set(connections.map((c) => c.id)));
+  // After commit, so every row that rendered this pass read the set first.
+  useEffect(() => {
+    for (const connection of connections) seenIds.add(connection.id);
+  }, [connections, seenIds]);
   return (
     <SettingsCard>
       <section aria-labelledby={headingId} className="space-y-4 p-4">
@@ -56,7 +61,12 @@ export function ChannelProviderPanel({
             className="size-10 shrink-0 rounded-lg object-contain"
           />
           <div className="min-w-0 flex-1">
-            <h3 id={headingId} className="text-sm font-medium text-ink">
+            <h3
+              ref={headingRef}
+              id={headingId}
+              tabIndex={-1}
+              className="text-sm font-medium text-ink outline-none"
+            >
               {name}
             </h3>
             {state.kind === "connected" && (
@@ -65,11 +75,11 @@ export function ChannelProviderPanel({
             <p className="text-sm text-ink-muted">{t(display.description)}</p>
           </div>
         </div>
-        {state.kind !== "empty" && state.connections.length > 0 && (
+        {connections.length > 0 && (
           <ChannelAccountList
             title={t(display.accountsTitle)}
-            connections={state.connections}
-            initialIds={initialIds}
+            connections={connections}
+            seenIds={seenIds}
             busy={busy}
             addLabel={
               state.kind === "connected"
