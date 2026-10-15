@@ -103,11 +103,17 @@ export const MODEL_ALIASES: Partial<
   // same model (same 1M window and output cap) out of preview, so a pin on it
   // now draws plan usage. It is still the cheapest runnable home; with no row
   // the pin would fall to glm-5.2, which costs about 9x more.
+  // 1.3.0 dropped four rows, each for its next version at the same price.
+  // deepseek-v4.1-flash also takes images, so the vision pin keeps them.
   "opencode-go": {
     "glm-5.1": "glm-5.2",
     "kimi-k2.6": "kimi-k2.7-code",
     "qwen3.7-max": "qwen3.8-max",
     "space-bunny-free": "space-bunny",
+    "deepseek-v4-flash": "deepseek-v4.1-flash",
+    "deepseek-v4-flash-vision-exp": "deepseek-v4.1-flash",
+    "minimax-m2.7": "minimax-m3",
+    "grok-4.6": "grok-4.7",
   },
 };
 

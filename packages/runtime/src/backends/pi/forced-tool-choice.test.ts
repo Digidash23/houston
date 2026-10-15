@@ -37,6 +37,7 @@ test("each allowlisted API gets its native forced form", () => {
       // Anthropic refuses a forced tool beside thinking.
       undefined,
     ],
+
     [model("google-generative-ai", "google"), "any", "minimal"],
     [model("google-vertex", "google-vertex"), "any", "minimal"],
   ];
@@ -64,6 +65,14 @@ test("everything off the allowlist is unsupported, with a reason", () => {
     model("anthropic-messages", "anthropic", {
       reasoning: true,
       compat: { supportsMidConvoEffort: true },
+      thinkingLevelMap: { off: null, minimal: null },
+    }),
+    // Haiku 5.5's shape since pi 1.3.0: "off" is a level, but disabling
+    // thinking there breaks the signed prefix of the replayed history.
+    model("anthropic-messages", "anthropic", {
+      reasoning: true,
+      compat: { supportsMidConvoEffort: true },
+      thinkingLevelMap: { minimal: null, low: "low" },
     }),
     model("anthropic-messages", "anthropic", {
       reasoning: true,

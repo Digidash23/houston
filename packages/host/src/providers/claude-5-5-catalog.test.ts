@@ -22,10 +22,10 @@ test("GET /v1/catalog advertises Claude Opus, Sonnet and Haiku 5.5 under anthrop
     expect(row?.name, id).toBe(name);
     expect(row?.reasoning, id).toBe(true);
     expect(row?.contextWindow, id).toBe(1_000_000);
-    // Always-thinking with a LOW floor: pi's map nulls both "off" and
-    // "minimal", unlike Opus 5 (which keeps "minimal"), so the effort
-    // selector starts at low.
+    // pi's map nulls "minimal" on all three, so above "off" the effort
+    // selector starts at low. Only Haiku can turn thinking off (pi 1.3.0).
     expect(row?.thinkingLevels, id).toEqual([
+      ...(id === "claude-haiku-5-5" ? ["off"] : []),
       "low",
       "medium",
       "high",
