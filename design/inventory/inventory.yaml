@@ -2328,8 +2328,10 @@ components:
       each with its own always-visible disconnect, and ends the list with an
       add-another row that runs the same connect flow; an account that lands
       while the card is open fades in. An empty card offers one Connect button.
-      An unavailable card says setup is unfinished, keeps any accounts it holds
-      disconnectable, and offers no way to connect more.
+      A provider the deployment has not set up shows no card until its
+      credentials exist; if the person already holds an account there, the card
+      stays, says setup is unfinished, keeps those accounts disconnectable, and
+      offers no way to connect more.
       OAuth connects Slack; an expiring command pairs an existing Slack installation.
       WhatsApp pairs through an expiring command sent to Houston's number, opened
       from a full-width phone link or a desktop QR code (dark on a light tile in

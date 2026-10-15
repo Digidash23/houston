@@ -408,18 +408,43 @@ test("a deployment that lists no known provider says channels are unavailable", 
   ).toBeVisible();
 });
 
-test("unconfigured WhatsApp keeps its own guidance while Slack remains connectable", async ({
+test("WhatsApp that is not set up shows no card while Slack remains connectable", async ({
   page,
 }) => {
   await mockChannels(page, { whatsappConfigured: false });
   await openChannels(page);
-  await expect(page.getByText(/finish setting up WhatsApp/)).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Connect WhatsApp" }),
-  ).toHaveCount(0);
+  await expect(slackCard(page)).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Add another workspace" }),
   ).toBeVisible();
+  await expect(whatsAppCard(page)).toHaveCount(0);
+  await expect(page.getByText(/finish setting up WhatsApp/)).toHaveCount(0);
+});
+
+test("WhatsApp that is not set up keeps a number already connected removable", async ({
+  page,
+}) => {
+  await mockChannels(page, {
+    whatsappConfigured: false,
+    connections: [
+      {
+        id: "connection-wa",
+        provider: "whatsapp",
+        accountLabel: "•••• 1111",
+        spaceId: "personal",
+        createdAt: "2026-09-08T13:00:00Z",
+      },
+    ],
+  });
+  await openChannels(page);
+  await expect(whatsAppCard(page)).toBeVisible();
+  await expect(page.getByText(/finish setting up WhatsApp/)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Disconnect •••• 1111" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Add another number" }),
+  ).toHaveCount(0);
 });
 
 test("unconfigured Slack gives setup guidance while retaining disconnect", async ({

@@ -9,8 +9,9 @@ Messaging channels settings reads like the integrations. Each provider card
 shows its brand mark and a description, and a connected card wears the green
 Connected status, lists its Slack workspaces or WhatsApp numbers with a
 disconnect on every row, and ends the list with "Add another workspace" or
-"Add another number". An empty card keeps one Connect button; an unavailable
-card keeps its accounts removable and offers nothing new.
+"Add another number". An empty card keeps one Connect button. A provider
+this deployment has not set up shows no card until it is, unless the person
+already holds an account there, which stays removable.
 
 ## v132 - 2026-10-13
 
