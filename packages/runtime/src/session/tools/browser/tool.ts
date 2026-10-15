@@ -63,6 +63,10 @@ function description(liveView: boolean): string {
   ].join(" ");
 }
 
+const CLOSED_SAVED = "Closed the browser. Sign-ins are saved.";
+const CLOSED_UNSAVED =
+  "Closed the browser. The page had stopped responding, so sign-ins from this last visit may not be saved.";
+
 const NO_LIVE_VIEW =
   "There is no way to show this browser to the person here. Tell them what to sign in to.";
 
@@ -108,7 +112,7 @@ export function makeBrowserTool({
           touch: () => pool.touch(key),
         }),
       signal,
-      true,
+      BROWSER_HANDOFF_LIMIT_MS,
     );
   };
   return defineTool({
@@ -129,12 +133,12 @@ export function makeBrowserTool({
         if (action.action === "handoff")
           return await handOver(key, action, signal);
         if (action.action === "close") {
-          await pool.closeTab(key);
+          const saved = await pool.closeTab(key);
           return {
             content: [
               {
                 type: "text" as const,
-                text: "Closed the browser. Sign-ins are saved.",
+                text: saved ? CLOSED_SAVED : CLOSED_UNSAVED,
               },
             ],
             details: { ok: true, action: action.action },

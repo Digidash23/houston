@@ -47,8 +47,9 @@ export async function withinDeadline<T>(
 }
 
 /**
- * Whether `work` settled within `ms`. A step that never settles is left
- * behind, logged as `what`: used where a frozen page must not block a close.
+ * Whether `work` succeeded within `ms`. A failure is logged and a step that
+ * never settles is left behind, both as `what`: used where a frozen page
+ * must not block a close.
  */
 export async function settledWithin(
   work: Promise<unknown>,
@@ -61,7 +62,7 @@ export async function settledWithin(
       () => true,
       (error: unknown) => {
         console.error(`[browser] ${what} failed`, error);
-        return true;
+        return null;
       },
     ),
     new Promise<false>((resolve) => {
@@ -69,8 +70,9 @@ export async function settledWithin(
     }),
   ]);
   clearTimeout(grace);
-  if (!settled) console.error(`[browser] ${what} did not finish; left behind`);
-  return settled;
+  if (settled === false)
+    console.error(`[browser] ${what} did not finish; left behind`);
+  return settled === true;
 }
 
 /**

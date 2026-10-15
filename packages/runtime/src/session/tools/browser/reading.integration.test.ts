@@ -188,7 +188,7 @@ describe.skipIf(!available)(
       await new Promise((resolve) => setTimeout(resolve, 2_000));
       const started = Date.now();
       const closed = await browse({ action: "close" });
-      expect(closed.text).toContain("Closed the browser");
+      expect(closed.text).toContain("may not be saved");
       expect(Date.now() - started).toBeLessThan(15_000);
     });
 

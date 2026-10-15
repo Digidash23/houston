@@ -47,15 +47,15 @@ export class BrowserPool {
   /**
    * Run `fn` on `key`'s tab after every earlier call for `key` has finished.
    * A call whose turn was stopped while it queued is dropped, not run. A call
-   * past the deadline closes the tab; `untimed` is for a hand-off, which
-   * waits on the person and carries its own limit.
+   * past the deadline closes the tab; a hand-off adds the time it waits on
+   * the person (`extraMs`), so the steps after still have a bound.
    */
   run<T>(
     key: string,
     statePath: string,
     fn: (tab: BrowserTab) => Promise<T>,
     signal?: AbortSignal,
-    untimed = false,
+    extraMs = 0,
   ): Promise<T> {
     let slot = this.slots.get(key);
     if (!slot) {
@@ -70,7 +70,7 @@ export class BrowserPool {
         () => this.ensureBrowser(),
         this.maxPages,
       ).then(fn);
-      return untimed ? work : withinDeadline(queued, work, this.deadlineMs);
+      return withinDeadline(queued, work, this.deadlineMs + extraMs);
     });
   }
 
@@ -83,10 +83,10 @@ export class BrowserPool {
     if (slot) slot.lastUsed = Date.now();
   }
 
-  /** Save and close one conversation's context; the browser stays up. */
-  async closeTab(key: string): Promise<void> {
+  /** Save and close one conversation's context; false when the save did not finish. */
+  async closeTab(key: string): Promise<boolean> {
     const slot = this.slots.get(key);
-    if (slot) await this.enqueue(slot, () => disposeSlot(slot));
+    return slot ? this.enqueue(slot, () => disposeSlot(slot)) : true;
   }
 
   /**

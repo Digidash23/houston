@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { withinDeadline } from "./action-deadline";
+import { settledWithin, withinDeadline } from "./action-deadline";
 import { BrowserToolError } from "./errors";
 import type { BrowserTab } from "./open-tab";
 import { newSlot } from "./pool-slot";
@@ -68,4 +68,21 @@ test("a tab whose opening is what hangs is left behind after the grace period", 
   err.mockRestore();
   warn.mockRestore();
   vi.useRealTimers();
+});
+
+test("settledWithin is true only when the step succeeds", async () => {
+  const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  await expect(settledWithin(Promise.resolve(), 50, "a step")).resolves.toBe(
+    true,
+  );
+  await expect(
+    settledWithin(Promise.reject(new Error("no")), 50, "a step"),
+  ).resolves.toBe(false);
+  await expect(
+    settledWithin(new Promise(() => undefined), 20, "a step"),
+  ).resolves.toBe(false);
+  expect(err).toHaveBeenCalledWith(
+    "[browser] a step did not finish; left behind",
+  );
+  err.mockRestore();
 });

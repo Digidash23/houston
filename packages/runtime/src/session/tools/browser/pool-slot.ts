@@ -45,12 +45,15 @@ export async function liveTab(
   return opened;
 }
 
-/** Save the slot's sign-ins and close its context; the browser stays up. */
-export async function disposeSlot(slot: Slot): Promise<void> {
+/**
+ * Save the slot's sign-ins and close its context; the browser stays up.
+ * False when the save failed or ran out of time.
+ */
+export async function disposeSlot(slot: Slot): Promise<boolean> {
   const pending = slot.tab;
   slot.tab = null;
   const tab = await pending?.catch(() => undefined);
-  if (!tab?.context.browser()?.isConnected()) return;
+  if (!tab?.context.browser()?.isConnected()) return true;
   // A page frozen behind a dialog cannot hand over its storage; a page that
   // stopped answering cannot either, so the save is bounded and the close
   // happens regardless (sign-ins were already saved after each change).
@@ -59,7 +62,11 @@ export async function disposeSlot(slot: Slot): Promise<void> {
     await saveState(tab);
   };
   try {
-    await settledWithin(save(), CLOSE_GRACE_MS, "saving sign-ins on close");
+    return await settledWithin(
+      save(),
+      CLOSE_GRACE_MS,
+      "saving sign-ins on close",
+    );
   } finally {
     await closeContext(tab);
   }

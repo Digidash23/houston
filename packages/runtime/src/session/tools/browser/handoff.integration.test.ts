@@ -110,6 +110,16 @@ describe.skipIf(!available)(
       expect(readFileSync(browserStatePath(ws), "utf8")).toContain('"sid"');
     });
 
+    test("a hand-off outlasts the per-action deadline: it waits on the person", async () => {
+      const { registry, run } = start({ pool: newPool({ deadlineMs: 300 }) });
+      const pending = run({ ...handoff, url: `${origin}/login` });
+      const session = await until(() => registry.get("chat"));
+      await sleep(900);
+      session.finish("done");
+      const result = await pending;
+      expect(result.details).toMatchObject({ ok: true, action: "handoff" });
+    });
+
     test("nobody finishing in time ends the hand-off as expired", async () => {
       const { registry, run } = start({ limitMs: 200 });
       const result = await run(handoff);
