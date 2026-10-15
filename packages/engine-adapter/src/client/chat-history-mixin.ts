@@ -4,9 +4,10 @@ import {
   type CachedFrame,
   writeCachedConversation,
 } from "../conversation-cache";
+import { historyReadMark, seedConversationVm } from "../conversation-seed";
 import { CHAT_OPEN_WINDOW, SEARCH_SCAN_WINDOW } from "../history-window";
 import { historyToFeed, isConversationNotFound } from "../translate";
-import { observeConversation, seedConversationVm } from "../turn-stream";
+import { observeConversation } from "../turn-stream";
 import { setActivityStatus } from "./activity-status";
 import { cachedFallbackTranscript, seedFromCache } from "./history-cache";
 import { loadOlderPage } from "./load-older";
@@ -19,8 +20,17 @@ import type { BaseCtor } from "./mixin";
  * VM seed. Sharing the in-flight promise halves the open traffic; bulk reads
  * (`observe: false`) never join it — they read a different window and take a
  * different path through the cache.
+ *
+ * A read joins only one that went out at the same {@link historyReadMark}.
+ * After this client sends, the `ConversationsChanged` its prompt fires asks
+ * for the transcript holding that prompt; joining a read from before the send
+ * would answer it with the older transcript and never read again, leaving the
+ * chat without the turn it just ran.
  */
-const openLoadsInFlight = new Map<string, Promise<ChatHistoryEntry[]>>();
+const openLoadsInFlight = new Map<
+  string,
+  { mark: number; load: Promise<ChatHistoryEntry[]> }
+>();
 
 export function ChatHistoryMixin<TBase extends BaseCtor>(Base: TBase) {
   class ChatHistory extends Base {
@@ -33,12 +43,19 @@ export function ChatHistoryMixin<TBase extends BaseCtor>(Base: TBase) {
         return this.loadChatHistoryNow(agentPath, sessionKey, opts);
       }
       const key = `${agentPath}|${sessionKey}`;
+      const mark = historyReadMark(agentPath, sessionKey);
       const inFlight = openLoadsInFlight.get(key);
-      if (inFlight) return inFlight;
-      const load = this.loadChatHistoryNow(agentPath, sessionKey, opts).finally(
-        () => openLoadsInFlight.delete(key),
-      );
-      openLoadsInFlight.set(key, load);
+      if (inFlight?.mark === mark) return inFlight.load;
+      const load: Promise<ChatHistoryEntry[]> = this.loadChatHistoryNow(
+        agentPath,
+        sessionKey,
+        opts,
+      ).finally(() => {
+        // A newer read may have taken the key meanwhile: leave it in place.
+        if (openLoadsInFlight.get(key)?.load === load)
+          openLoadsInFlight.delete(key);
+      });
+      openLoadsInFlight.set(key, { mark, load });
       return load;
     }
 
@@ -65,6 +82,7 @@ export function ChatHistoryMixin<TBase extends BaseCtor>(Base: TBase) {
         // were the "search takes 15 seconds" cost. A pre-windowing server
         // ignores `limit` and returns everything — `offset`/`totalMessages`
         // then default to the full-transcript shape.
+        const mark = historyReadMark(agentPath, sessionKey);
         const history = await engine.getHistory(sessionKey, {
           limit: observing ? CHAT_OPEN_WINDOW : SEARCH_SCAN_WINDOW,
         });
@@ -98,7 +116,7 @@ export function ChatHistoryMixin<TBase extends BaseCtor>(Base: TBase) {
           // seedConversationVm) — its feed IS the VM. The VM seed is the SDK's
           // UNMAPPED fold: the VM carries engine provider ids uniformly (seeded
           // and live alike); the app's binding hook owns the old-id remap.
-          seedConversationVm(agentPath, sessionKey, sdkFeed, window);
+          seedConversationVm(agentPath, sessionKey, sdkFeed, mark, window);
           observeConversation(
             engine,
             agentPath,

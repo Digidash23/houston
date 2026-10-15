@@ -44,6 +44,25 @@ export class StreamRegistry {
 
   /** Wakers for callers waiting on an entry to leave its key. */
   private readonly leaving = new Set<() => void>();
+  /** Turns this owner started per key, ever. Never cleared, so it only grows. */
+  private readonly turnStarts = new Map<string, number>();
+
+  /**
+   * Count a turn this owner starts on `key`. Noted before its optimistic
+   * bubble, so any history read already out by then is provably older than
+   * the turn the feed is about to show.
+   */
+  noteTurnStart(key: string): void {
+    this.turnStarts.set(key, this.turnsStarted(key) + 1);
+  }
+  /**
+   * How many turns this owner has started on `key`. A history read takes it
+   * when it goes out: if it moved by the time the read answers, the fold
+   * predates a turn on screen and must not replace the feed holding it.
+   */
+  turnsStarted(key: string): number {
+    return this.turnStarts.get(key) ?? 0;
+  }
 
   get(key: string): ActiveStream | undefined {
     return this.active.get(key);

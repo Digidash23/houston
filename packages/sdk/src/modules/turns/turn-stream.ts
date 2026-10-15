@@ -172,6 +172,8 @@ export async function streamTurn(
     (response) => output.firstResponse?.(agentPath, sessionKey, response),
     opts.tuning?.firstResponseTimeoutMs,
   );
+  const key = streamKey(agentPath, sessionKey);
+  registry.noteTurnStart(key);
   // Status BEFORE the bubble: `running: false` must mean settled-or-idle, so a
   // watcher can't mistake the optimistic-push snapshot for a settled turn.
   output.sessionStatus(agentPath, sessionKey, "running");
@@ -212,7 +214,6 @@ export async function streamTurn(
   const board = new TurnBoardWrites(output, agentPath, sessionKey);
   void board.persist("running", null);
 
-  const key = streamKey(agentPath, sessionKey);
   const nonce = opts.nonce ?? randomNonce();
   const prior = registry.get(key);
   // A previous turn's stream must be disposed (aborted), never silently
