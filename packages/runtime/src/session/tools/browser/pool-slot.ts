@@ -1,4 +1,5 @@
 import type { Browser } from "playwright-core";
+import { CLOSE_GRACE_MS, settledWithin } from "./action-deadline";
 import { dismissPending } from "./dialogs";
 import { type BrowserTab, openTab } from "./open-tab";
 import { saveState } from "./state-store";
@@ -50,10 +51,15 @@ export async function disposeSlot(slot: Slot): Promise<void> {
   slot.tab = null;
   const tab = await pending?.catch(() => undefined);
   if (!tab?.context.browser()?.isConnected()) return;
-  try {
-    // A page frozen behind a dialog cannot hand over its storage.
+  // A page frozen behind a dialog cannot hand over its storage; a page that
+  // stopped answering cannot either, so the save is bounded and the close
+  // happens regardless (sign-ins were already saved after each change).
+  const save = async () => {
     await dismissPending(tab);
     await saveState(tab);
+  };
+  try {
+    await settledWithin(save(), CLOSE_GRACE_MS, "saving sign-ins on close");
   } finally {
     await closeContext(tab);
   }

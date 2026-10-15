@@ -58,7 +58,7 @@ function description(liveView: boolean): string {
     "Sign-ins are remembered for this agent across conversations.",
     "For plain downloads or APIs, the shell is faster; use this for pages that need signing in, clicking through, or JavaScript.",
     liveView
-      ? "When a site needs the person themselves (signing in, a verification code, a captcha), first say in one sentence what they need to do, then call handoff with text naming it; it waits until they finish (up to 10 minutes) and returns the page. Never ask for a password or a code in chat."
+      ? "When a site needs the person themselves (signing in, a verification code, a captcha), first say in one sentence what they need to do, then call handoff with text naming it; it waits until they finish (up to 10 minutes) and returns the page. Hand over only for a step the person must do; when a site blocks you, shows an error or will not load, say so in the chat instead of handing the browser over. Never ask for a password or a code in chat."
       : "If a site asks for a password the user has not given you, stop and tell them they need to sign in themselves; never ask for a password in chat.",
   ].join(" ");
 }
@@ -108,6 +108,7 @@ export function makeBrowserTool({
           touch: () => pool.touch(key),
         }),
       signal,
+      true,
     );
   };
   return defineTool({

@@ -1,5 +1,6 @@
 import { sep } from "node:path";
 import type { Browser } from "playwright-core";
+import { ACTION_DEADLINE_MS, withinDeadline } from "./action-deadline";
 import { launchBrowser } from "./launch";
 import type { BrowserTab } from "./open-tab";
 import { disposeSlot, liveTab, newSlot, type Slot } from "./pool-slot";
@@ -13,6 +14,8 @@ export interface BrowserPoolOptions {
   idleMs?: number;
   /** Pages one conversation may keep open; by default 3 in turn mode, else 8 (tab-pages.ts). */
   maxPages?: number;
+  /** One action's time limit (action-deadline.ts); tests shorten it. */
+  deadlineMs?: number;
 }
 
 export const BROWSER_IDLE_MS = 5 * 60_000;
@@ -32,22 +35,27 @@ export class BrowserPool {
   private readonly launch: () => Promise<Browser>;
   private readonly idleMs: number;
   private readonly maxPages: number;
+  private readonly deadlineMs: number;
 
   constructor(options: BrowserPoolOptions = {}) {
     this.launch = options.launch ?? (() => launchBrowser());
     this.idleMs = options.idleMs ?? BROWSER_IDLE_MS;
     this.maxPages = options.maxPages ?? maxTabPages(process.env);
+    this.deadlineMs = options.deadlineMs ?? ACTION_DEADLINE_MS;
   }
 
   /**
    * Run `fn` on `key`'s tab after every earlier call for `key` has finished.
-   * A call whose turn was stopped while it queued is dropped, not run.
+   * A call whose turn was stopped while it queued is dropped, not run. A call
+   * past the deadline closes the tab; `untimed` is for a hand-off, which
+   * waits on the person and carries its own limit.
    */
   run<T>(
     key: string,
     statePath: string,
     fn: (tab: BrowserTab) => Promise<T>,
     signal?: AbortSignal,
+    untimed = false,
   ): Promise<T> {
     let slot = this.slots.get(key);
     if (!slot) {
@@ -57,9 +65,12 @@ export class BrowserPool {
     const queued = slot;
     return this.enqueue(queued, async () => {
       signal?.throwIfAborted();
-      return fn(
-        await liveTab(queued, () => this.ensureBrowser(), this.maxPages),
-      );
+      const work = liveTab(
+        queued,
+        () => this.ensureBrowser(),
+        this.maxPages,
+      ).then(fn);
+      return untimed ? work : withinDeadline(queued, work, this.deadlineMs);
     });
   }
 

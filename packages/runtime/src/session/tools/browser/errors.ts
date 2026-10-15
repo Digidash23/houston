@@ -15,6 +15,8 @@ export type BrowserErrorCode =
   | "stale_ref"
   /** The page has a dialog open, which must be answered first (dialogs.ts). */
   | "dialog_open"
+  /** One action ran past its deadline; the context was closed (action-deadline.ts). */
+  | "page_unresponsive"
   /** A hand-off that ended without the person finishing, or could not start. */
   | BrowserHandoffFailure;
 

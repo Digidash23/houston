@@ -11,7 +11,7 @@ import {
   tool,
 } from "./browser.test-support";
 import { pagesSite } from "./browser-pages.test-support";
-import type { BrowserPool } from "./pool";
+import type { BrowserPool, BrowserPoolOptions } from "./pool";
 import { browserStatePath } from "./state-store";
 import { makeBrowserTool } from "./tool";
 import { UNTRUSTED_OPEN } from "./untrusted";
@@ -21,8 +21,8 @@ const server = pagesSite();
 const origin = available ? `http://${SITE_HOST}:${await listen(server)}` : "";
 
 const pools: BrowserPool[] = [];
-const newPool = () => {
-  const pool = fixturePool();
+const newPool = (options: BrowserPoolOptions = {}) => {
+  const pool = fixturePool(options);
   pools.push(pool);
   return pool;
 };
@@ -156,6 +156,40 @@ describe.skipIf(!available)(
       const look = await browse({ action: "snapshot" });
       expect(look.text).toContain("[password hidden]");
       expect(look.text).not.toContain("Hunter5pw");
+    });
+
+    test("a page that never finishes loading is closed at the deadline, and the next open works", async () => {
+      const browse = tool(agentWorkspace(), newPool({ deadlineMs: 3_000 }));
+      const started = Date.now();
+      const frozen = await browse({ action: "open", url: `${origin}/freeze` });
+      expect(Date.now() - started).toBeLessThan(15_000);
+      expect(frozen.details.ok).toBe(false);
+      expect(frozen.text).toContain("ERROR page_unresponsive");
+      const next = await browse({ action: "open", url: `${origin}/article` });
+      expect(next.details.ok).toBe(true);
+      expect(next.text).toContain("Page: Story");
+    });
+
+    test("a page that hangs after loading fails the next look at the deadline, and closing still finishes", async () => {
+      const browse = tool(agentWorkspace(), newPool({ deadlineMs: 3_000 }));
+      const opened = await browse({
+        action: "open",
+        url: `${origin}/freeze-later`,
+      });
+      expect(opened.text).toContain("Ready");
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
+      const look = await browse({ action: "snapshot" });
+      expect(look.text).toContain("ERROR page_unresponsive");
+      const again = await browse({
+        action: "open",
+        url: `${origin}/freeze-later`,
+      });
+      expect(again.details.ok).toBe(true);
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
+      const started = Date.now();
+      const closed = await browse({ action: "close" });
+      expect(closed.text).toContain("Closed the browser");
+      expect(Date.now() - started).toBeLessThan(15_000);
     });
 
     test("an error the page throws comes back fenced, never as the tool's words", async () => {

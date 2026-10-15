@@ -37,7 +37,7 @@ export function browserParameters({ handoff }: { handoff: boolean }) {
       names.map((name) => Type.Literal(name)),
       {
         description: handoff
-          ? `${ACTIONS_LEAD}; handoff: let the person use this browser themselves (to sign in, enter a code, or solve a captcha) and wait until they finish.`
+          ? `${ACTIONS_LEAD}; handoff: let the person use this browser themselves (to sign in, enter a code, or solve a captcha) and wait until they finish. Never to show them an error or a blocked page.`
           : `${ACTIONS_LEAD}.`,
       },
     ),
