@@ -1,4 +1,5 @@
 import type { Routine } from "@houston/protocol";
+import { actingMayRunRoutine } from "../assistant/manager-owner";
 import { actingSubFromHeader } from "../auth/acting";
 
 /**
@@ -31,7 +32,6 @@ export function assertActingIsCreator(
   actingAs: string,
   routine: Routine,
 ): void {
-  const sub = actingSubFromHeader(actingAs);
-  if (!sub || !routine.created_by || sub !== routine.created_by)
+  if (!actingMayRunRoutine(actingSubFromHeader(actingAs), routine))
     throw new TriggerCreatorMismatchError(routine.id);
 }

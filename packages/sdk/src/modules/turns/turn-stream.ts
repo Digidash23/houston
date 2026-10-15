@@ -12,12 +12,15 @@ import type { PersonStop } from "./person-stop";
 import { randomNonce } from "./random-nonce";
 import { computeBusyRefusal } from "./send-busy";
 import { observerSettled } from "./send-hold";
-import { refusedResendItem, settleRefusedSend } from "./send-refusal-item";
+import {
+  duplicateSendItem,
+  refusedResendItem,
+  settleRefusedSend,
+} from "./send-refusal-item";
 import { armHandoffStop, sendUntilAccepted } from "./send-wait";
 import {
   type ActiveStream,
   PRESETTLED_POLL_MS,
-  SEND_IN_FLIGHT_MESSAGE,
   SEND_LOST_MESSAGE,
   SEND_VERDICT_MS,
   STREAM_FAILURE_BUDGET,
@@ -172,6 +175,7 @@ export async function streamTurn(
     (response) => output.firstResponse?.(agentPath, sessionKey, response),
     opts.tuning?.firstResponseTimeoutMs,
   );
+  const key = registry.noteTurnStart(streamKey(agentPath, sessionKey));
   // Status BEFORE the bubble: `running: false` must mean settled-or-idle, so a
   // watcher can't mistake the optimistic-push snapshot for a settled turn.
   output.sessionStatus(agentPath, sessionKey, "running");
@@ -212,7 +216,6 @@ export async function streamTurn(
   const board = new TurnBoardWrites(output, agentPath, sessionKey);
   void board.persist("running", null);
 
-  const key = streamKey(agentPath, sessionKey);
   const nonce = opts.nonce ?? randomNonce();
   const prior = registry.get(key);
   // A previous turn's stream must be disposed (aborted), never silently
@@ -244,13 +247,7 @@ export async function streamTurn(
   // resolves once the engine's cancel answered.
   let stoppedBeforeSend: PersonStop | undefined;
   const refuseDuplicate = () => {
-    // The duplicate never sent a second turn — fail its optimistic bubble so
-    // it never reads as delivered (the first turn keeps rendering).
-    output.pushFeedItem(agentPath, sessionKey, {
-      feed_type: "system_message",
-      data: SEND_IN_FLIGHT_MESSAGE,
-      fails_pending: true,
-    });
+    output.pushFeedItem(agentPath, sessionKey, duplicateSendItem);
     firstResponse.resolve("error");
   };
   if (prior?.kind !== "observer" && registry.isSending(key)) {
@@ -362,6 +359,7 @@ export async function streamTurn(
   // send below is still out, since its later verdict reaches nobody.
   const entry: ActiveStream = {
     kind: "turn",
+    accepted: sent, // the handoff's send already landed
     dispose: () => {
       firstResponse.dispose();
       ac.abort();

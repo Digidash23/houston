@@ -461,6 +461,25 @@ test("a mismatched acting subject is a stable permanent refusal", async () => {
   expect(await bus.get(`routine:fired:r1:${FIRE_AT}`)).toBeNull();
 });
 
+test("an AI Manager pod fires its routines as its own person", async () => {
+  // Only that person reaches the manager, so a routine an earlier write
+  // stamped with the org owner is theirs too: the control plane fires it so.
+  vi.stubEnv("HOUSTON_MANAGED_CLOUD", "1");
+  vi.stubEnv("HOUSTON_ASSISTANT_USER_ID", "member");
+  try {
+    await seedRoutines([routine()]);
+    const res = await postFire({
+      routineId: "r1",
+      fireAt: FIRE_AT,
+      actingAs: actingAs("member"),
+    });
+    expect(await res.json()).toMatchObject({ result: "fired" });
+    expect(channel.fired).toHaveLength(1);
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
+
 test("a creator-less legacy routine has no owner fallback", async () => {
   await seedRoutines([routine({ created_by: undefined })]);
   const res = await postFire({

@@ -3,9 +3,13 @@ import type {
   ConversationImportRequest,
   ConversationImportResult,
 } from "@houston/wire-types";
+import {
+  historyReadMark,
+  ownTurnHolds,
+  seedConversationVm,
+} from "../conversation-seed";
 import { CHAT_OPEN_WINDOW } from "../history-window";
 import { DEFAULT_AGENT_PATH } from "../synthetic";
-import { seedConversationVm } from "../turn-stream";
 import { runtimeScope } from "./chat-scope";
 import type { AdapterContext } from "./context";
 import { toHoustonEngineError, viaSdk } from "./sdk-error";
@@ -26,6 +30,12 @@ async function reseed(
   agentPath: string,
   conversationId: string,
 ): Promise<void> {
+  // A turn this client sent holds the chat: its stream owns the feed and
+  // would refuse the seed. The chat's next read brings the lines in.
+  if (ownTurnHolds(agentPath, conversationId)) return;
+  // One plain read: the caller's save never waits on a turn. A send that
+  // starts while it is out moves the mark, and the seed then refuses it.
+  const mark = historyReadMark(agentPath, conversationId);
   const history = await ctx.sdk
     .clientFor(runtimeScope(ctx, agentPath))
     .getHistory(conversationId, { limit: CHAT_OPEN_WINDOW });
@@ -33,6 +43,7 @@ async function reseed(
     agentPath,
     conversationId,
     sdkHistoryToFeed(history.messages),
+    mark,
     {
       earliestLoaded: history.offset ?? 0,
       total: history.totalMessages ?? history.messages.length,

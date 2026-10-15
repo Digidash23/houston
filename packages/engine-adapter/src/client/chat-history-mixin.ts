@@ -4,9 +4,14 @@ import {
   type CachedFrame,
   writeCachedConversation,
 } from "../conversation-cache";
+import {
+  historyReadMark,
+  readPastOwnTurnsOn,
+  seedConversationVm,
+} from "../conversation-seed";
 import { CHAT_OPEN_WINDOW, SEARCH_SCAN_WINDOW } from "../history-window";
 import { historyToFeed, isConversationNotFound } from "../translate";
-import { observeConversation, seedConversationVm } from "../turn-stream";
+import { observeConversation } from "../turn-stream";
 import { setActivityStatus } from "./activity-status";
 import { cachedFallbackTranscript, seedFromCache } from "./history-cache";
 import { loadOlderPage } from "./load-older";
@@ -18,7 +23,8 @@ import type { BaseCtor } from "./mixin";
  * fetch land in the same tick — and both want the identical windowed read +
  * VM seed. Sharing the in-flight promise halves the open traffic; bulk reads
  * (`observe: false`) never join it — they read a different window and take a
- * different path through the cache.
+ * different path through the cache. Joining after a send is safe: the read in
+ * flight reads again past the turn (see `readPastOwnTurnsOn`).
  */
 const openLoadsInFlight = new Map<string, Promise<ChatHistoryEntry[]>>();
 
@@ -65,9 +71,19 @@ export function ChatHistoryMixin<TBase extends BaseCtor>(Base: TBase) {
         // were the "search takes 15 seconds" cost. A pre-windowing server
         // ignores `limit` and returns everything — `offset`/`totalMessages`
         // then default to the full-transcript shape.
-        const history = await engine.getHistory(sessionKey, {
-          limit: observing ? CHAT_OPEN_WINDOW : SEARCH_SCAN_WINDOW,
-        });
+        const read = () =>
+          engine.getHistory(sessionKey, {
+            limit: observing ? CHAT_OPEN_WINDOW : SEARCH_SCAN_WINDOW,
+          });
+        // An open read a send overtook is taken again past that turn. A bulk
+        // scan never seeds, so its first answer is the one it wants.
+        const { value: history, mark } = observing
+          ? await readPastOwnTurnsOn(agentPath, sessionKey, read)
+          : { value: await read(), mark: 0 };
+        // Torn down while it waited (`null`): neither cached, seeded nor
+        // observed.
+        const current =
+          mark !== null && historyReadMark(agentPath, sessionKey) === mark;
         const sdkFeed = sdkHistoryToFeed(history.messages);
         const window = {
           earliestLoaded: history.offset ?? 0,
@@ -79,7 +95,7 @@ export function ChatHistoryMixin<TBase extends BaseCtor>(Base: TBase) {
         // which a board-wide search paid once per mission, and it would evict
         // the conversations the user actually opens in favour of ones they only
         // ever searched through.
-        if (this.ctx.cp && observing) {
+        if (this.ctx.cp && observing && current) {
           void writeCachedConversation(agentPath, sessionKey, sdkFeed);
         }
         // Observer mode: a loaded chat may have a turn in flight that THIS client
@@ -91,14 +107,14 @@ export function ChatHistoryMixin<TBase extends BaseCtor>(Base: TBase) {
         // for BULK history reads (mission search, board scans) that load N
         // conversations at a time and must not spawn N streams — only a real
         // conversation open observes (the default).
-        if (observing) {
+        if (observing && current) {
           // Seed FIRST (the chat opens complete), then attach: the observer
           // renders any in-flight turn live into the same VM. Seeding is a no-op
           // when a live stream already owns this conversation (see
           // seedConversationVm) — its feed IS the VM. The VM seed is the SDK's
           // UNMAPPED fold: the VM carries engine provider ids uniformly (seeded
           // and live alike); the app's binding hook owns the old-id remap.
-          seedConversationVm(agentPath, sessionKey, sdkFeed, window);
+          seedConversationVm(agentPath, sessionKey, sdkFeed, mark, window);
           observeConversation(
             engine,
             agentPath,

@@ -1,5 +1,6 @@
 import type { ServerResponse } from "node:http";
 import { loadRoutines } from "@houston/domain";
+import { actingMayRunRoutine } from "../assistant/manager-owner";
 import { ACTING_AS_HEADER, actingSubFromHeader } from "../auth/acting";
 import {
   burnRoutineFireInstant,
@@ -119,9 +120,10 @@ defineRoute({
 
     // Pods do not hold the gateway HMAC key. On this pod-token-authenticated
     // internal route, match the strongest existing trusted-gateway pattern:
-    // decode the minted payload and require its subject to equal created_by.
+    // decode the minted payload and require its subject to equal created_by
+    // (or, on an AI Manager pod, the manager's own person).
     const actingSub = actingSubFromHeader(body.actingAs);
-    if (!actingSub || !routine.created_by || actingSub !== routine.created_by)
+    if (!actingMayRunRoutine(actingSub, routine))
       return json(res, 400, {
         error: "acting-as subject does not match routine creator",
         code: "routine_creator_mismatch",

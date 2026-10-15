@@ -205,9 +205,14 @@ test("settles the interrupted turn from history by turnId across a turn boundary
   await expect(page.getByText(/You said: .test boundary./)).toBeVisible({
     timeout: 15_000,
   });
-  // ...with no error surface, and without splicing the foreign turn's reply.
+  // ...with no error surface, and without splicing the foreign turn's reply
+  // into it. The foreign turn itself may show: once ours settled, the chat
+  // reads the transcript again and observes the turn now running.
   await expect(page.getByText(/Session error/)).not.toBeVisible();
-  await expect(page.getByText(/someone else.s turn/)).not.toBeVisible();
+  await expect(agentRow(page, "test boundary")).not.toContainText(
+    "someone else",
+  );
+  await expect(userRow(page, "someone else's turn")).toHaveCount(1);
 });
 
 /**

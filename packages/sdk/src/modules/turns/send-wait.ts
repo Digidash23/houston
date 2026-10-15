@@ -99,7 +99,10 @@ export async function sendUntilAccepted(
         busySince: turn.firstSentAt,
       },
     );
-    if (!stop) return accepted;
+    if (!stop) {
+      entry.accepted = true;
+      return accepted;
+    }
     // The 202 landed in the same tick as the Stop: the Stop wins, and the
     // engine's cancel stops the turn it took.
     throw stoppedError();
