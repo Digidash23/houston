@@ -1,4 +1,6 @@
+import type { BrowserContext } from "playwright-core";
 import { afterEach, expect, test, vi } from "vitest";
+import { agentWorkspace } from "./browser.test-support";
 import {
   createKernelSession,
   deleteKernelSession,
@@ -9,6 +11,8 @@ import {
 } from "./kernel";
 import { fakeBrowser } from "./kernel-browser.test-support";
 import { backupFromEnv, kernelBackup, withoutWallCookies } from "./kernel-tab";
+import { EMPTY_STATE } from "./state-merge";
+import { browserStatePath, saveState } from "./state-store";
 import { closeContext } from "./tab-pages";
 
 const KEY = "sk_kernel_secret";
@@ -55,14 +59,17 @@ afterEach(() => vi.restoreAllMocks());
 
 test("the key is the switch; without it the fallback is off, said once with the remedy", () => {
   expect(kernelFrom({ KERNEL_API_KEY: " k " })).toEqual({ apiKey: "k" });
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
   const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
   const backup = backupFromEnv({ KERNEL_API_KEY: "  " });
   expect(backup()).toBeNull();
   expect(backup()).toBeNull();
-  expect(error).toHaveBeenCalledOnce();
-  expect(error.mock.calls[0]?.[0]).toContain(
+  expect(warn).toHaveBeenCalledOnce();
+  expect(warn.mock.calls[0]?.[0]).toContain(
     "[browser] Kernel fallback off: KERNEL_API_KEY is not set",
   );
+  // An ERROR line is a Sentry event; a desktop without the key broke nothing.
+  expect(error).not.toHaveBeenCalled();
 });
 
 test("with the key, the backup is Kernel and nothing is logged", () => {
@@ -133,11 +140,16 @@ test("an unreachable or slow API is a code, not a crash", async () => {
   });
 });
 
-test("an answer without a CDP url is refused", async () => {
-  const { kernel } = fakeApi(() => Response.json({ session_id: "k-2" }));
+test("an answer without a CDP url is refused, and its session deleted", async () => {
+  const { kernel, deletes } = fakeApi(() =>
+    Response.json({ session_id: "k-2" }),
+  );
   await expect(createKernelSession(kernel)).rejects.toMatchObject({
     code: "no_session_in_answer",
   });
+  expect(deletes().map((c) => c.url)).toEqual([
+    "https://api.onkernel.com/browsers/k-2",
+  ]);
 });
 
 test("deleting a session is a bodiless DELETE", async () => {
@@ -201,17 +213,47 @@ test("a session that never connects is deleted, and the CDP url never logged", a
   expect(logged(error)).not.toContain("jwt");
 });
 
-test("sign-ins carry over to Kernel; anti-bot vendors' cookies do not", () => {
-  const cookie = (name: string) => ({
-    name,
-    value: "v",
-    domain: ".shop.example",
-    path: "/",
-    expires: -1,
-    httpOnly: true,
-    secure: true,
-    sameSite: "Lax" as const,
+const cookie = (name: string) => ({
+  name,
+  value: "v",
+  domain: ".shop.example",
+  path: "/",
+  expires: -1,
+  httpOnly: true,
+  secure: true,
+  sameSite: "Lax" as const,
+});
+
+test("the saved sign-ins load into the Kernel tab, the wall's cookies left out", async () => {
+  const statePath = browserStatePath(agentWorkspace("kernel-state-"));
+  const origins = [
+    {
+      origin: "https://shop.example",
+      localStorage: [{ name: "t", value: "1" }],
+    },
+  ];
+  const ours = { cookies: [cookie("sid"), cookie("cf_clearance")], origins };
+  await saveState({
+    // SAFETY: saveState reads only storageState from the context.
+    context: { storageState: async () => ours } as unknown as BrowserContext,
+    statePath,
+    base: EMPTY_STATE,
   });
+  const { kernel } = fakeApi();
+  const remote = fakeBrowser();
+  const tab = await kernelBackup(kernel, async () => remote.browser).open(
+    statePath,
+    3,
+    "shop.example",
+  );
+  expect(remote.context.setStorageState).toHaveBeenCalledExactlyOnceWith({
+    cookies: [cookie("sid")],
+    origins,
+  });
+  await closeContext(tab);
+});
+
+test("sign-ins carry over to Kernel; anti-bot vendors' cookies do not", () => {
   const names = [
     "sid",
     "session-token",

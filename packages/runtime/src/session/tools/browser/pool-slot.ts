@@ -10,6 +10,11 @@ export interface Slot {
   tab: Promise<BrowserTab> | null;
   /** A backup tab being tried, not yet the slot's (open-fallback.ts). */
   spare: Promise<BrowserTab> | null;
+  /**
+   * Bumped when a call past its deadline is abandoned: that call keeps
+   * running, and must not move the tab under the calls queued after it.
+   */
+  epoch: number;
   chain: Promise<void>;
   pending: number;
   lastUsed: number;
@@ -20,6 +25,7 @@ export function newSlot(statePath: string): Slot {
     statePath,
     tab: null,
     spare: null,
+    epoch: 0,
     chain: Promise.resolve(),
     pending: 0,
     lastUsed: Date.now(),

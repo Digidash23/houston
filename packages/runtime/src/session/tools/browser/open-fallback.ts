@@ -8,7 +8,7 @@ import {
   type PageAction,
   runBrowserAction,
 } from "./run-action";
-import type { TabSwap } from "./tab-swap";
+import { SlotAbandoned, type TabSwap } from "./tab-swap";
 import { checkBrowserUrl } from "./url-policy";
 
 type OpenAction = Extract<BrowserAction, { action: "open" }>;
@@ -105,10 +105,12 @@ async function tryBackup(
   } catch (error) {
     await swap.dropBackup();
     if (signal?.aborted) throw error;
-    console.error(
-      `[browser] Kernel fallback failed for ${host}`,
-      failureCode(error),
-    );
+    // A site that walls Kernel too is the web, and an abandoned call already
+    // reached the model as its deadline: neither is a fault (no Sentry event).
+    const expected =
+      error instanceof StillBlocked || error instanceof SlotAbandoned;
+    const log = expected ? console.warn : console.error;
+    log(`[browser] Kernel fallback failed for ${host}`, failureCode(error));
     return null;
   }
 }

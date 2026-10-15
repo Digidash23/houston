@@ -2,7 +2,10 @@
  * Which anti-bot wall stopped the page. A block moves the conversation's tab
  * to the backup browser (Kernel), a third party that then sees the page and
  * its cookies, so every rule needs a vendor's own marker: an ordinary
- * "Forbidden" or "Access denied, please sign in" is never a block.
+ * "Forbidden" or "Access denied, please sign in" is never a block. A marker
+ * a page could merely quote (an article or a forum post about the wall) only
+ * counts as a tag (the serialized DOM escapes a quoted `<`) or with a denied
+ * status.
  */
 export type BlockReason =
   | "cloudflare"
@@ -76,11 +79,12 @@ const WALLS: readonly Wall[] = [
   },
   {
     reason: "perimeterx",
-    matches: ({ title, html }) =>
-      /id=["']px-captcha["']/.test(html) ||
+    matches: ({ status, title, html }) =>
+      /<div[^>]+id=["']px-captcha["']/.test(html) ||
       (/^robot or human\??$/i.test(title.trim()) &&
         /perimeterx|_pxAppId|px-cloud|px-cdn/i.test(html)) ||
-      (/Press (?:&amp;|&) Hold/.test(html) &&
+      (denied(status) &&
+        /Press (?:&amp;|&) Hold/.test(html) &&
         /perimeterx|_pxAppId/i.test(html)),
   },
   {
@@ -90,7 +94,11 @@ const WALLS: readonly Wall[] = [
   },
   {
     reason: "imperva",
-    matches: ({ html }) => /Incapsula incident ID/i.test(html),
+    // Its block page frames or loads `_Incapsula_Resource`, often on a 200.
+    matches: ({ status, html }) =>
+      /Incapsula incident ID/i.test(html) &&
+      (denied(status) ||
+        /<(?:iframe|script)[^>]+src=["'][^"']*_Incapsula_Resource/i.test(html)),
   },
   {
     reason: "aws_waf",
@@ -103,8 +111,11 @@ const WALLS: readonly Wall[] = [
     reason: "amazon",
     // Its robot check, and the 503 "dogs" page it throttles robots with.
     matches: ({ status, title, html }) =>
-      /\/errors\/validateCaptcha/.test(html) ||
-      /To discuss automated access to Amazon data please contact/.test(html) ||
+      /<form[^>]+action=["'][^"']*\/errors\/validateCaptcha/.test(html) ||
+      (denied(status) &&
+        /To discuss automated access to Amazon data please contact/.test(
+          html,
+        )) ||
       (status === 503 &&
         /^sorry! something went wrong!?$/i.test(title.trim()) &&
         /amazon\.com|media-amazon\.com|ssl-images-amazon/i.test(html)),

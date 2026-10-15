@@ -86,6 +86,7 @@ async function abandon(slot: Slot): Promise<void> {
   const pending = [slot.tab, slot.spare];
   slot.tab = null;
   slot.spare = null;
+  slot.epoch += 1;
   const close = async (opening: Promise<BrowserTab> | null) => {
     // A failed open already reached its caller; here it means nothing to close.
     const tab = await opening?.catch(() => undefined);

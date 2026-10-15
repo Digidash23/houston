@@ -63,6 +63,16 @@ Reference #18.6f2d1402.1728000000.1a2b3c</p><p>https://errors.edgesuite.net/18.6
     "Sorry! Something went wrong!",
     `<a href="/ref=cs_503_logo"><img src="https://images-na.ssl-images-amazon.com/images/G/01/error/logo._TTD_.png"></a>`,
   ),
+  perimeterx_hold: page(
+    403,
+    "Access to this page has been denied",
+    `<p>Press &amp; Hold to confirm you are a human (and not a bot).</p><script>window._pxAppId = 'PXu6b0qd2S';</script>`,
+  ),
+  imperva_denied: page(
+    403,
+    "",
+    `<p>Request unsuccessful. Incapsula incident ID: 1234000560012345678-123456789</p>`,
+  ),
   generic: page(
     429,
     "Too many requests",
@@ -117,6 +127,32 @@ describe("pageBlock", () => {
       page(503, "Sorry! Something went wrong!", "<p>Down for maintenance</p>"),
     ],
     ["no response at all", page(null, "", "")],
+    // A forum post asking about each wall, its HTML quoted as the DOM
+    // serializes text: `<` escaped, quotes and words left as they are.
+    [
+      "a page quoting Imperva's block text",
+      page(
+        200,
+        "Scraper gets blocked",
+        `<p>I get "Request unsuccessful. Incapsula incident ID: 123-456".</p><pre>&lt;iframe src="/_Incapsula_Resource?CWUDNSAI=24"&gt;</pre>`,
+      ),
+    ],
+    [
+      "a page quoting Amazon's robot check",
+      page(
+        200,
+        "Amazon scraping help",
+        `<p>It says "To discuss automated access to Amazon data please contact api-services-support@amazon.com".</p><pre>&lt;form action="/errors/validateCaptcha"&gt;</pre>`,
+      ),
+    ],
+    [
+      "a page quoting PerimeterX's challenge",
+      page(
+        200,
+        "Bypass Press & Hold?",
+        `<p>PerimeterX shows Press &amp; Hold.</p><pre>&lt;div id="px-captcha"&gt;&lt;/div&gt; window._pxAppId</pre>`,
+      ),
+    ],
   ])("%s is not", (_, loaded) => {
     expect(pageBlock(loaded)).toBeNull();
   });

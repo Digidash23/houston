@@ -104,8 +104,21 @@ test("Kernel's proxy refusing the site keeps the local page and logs the code", 
   expect(acted.tab).toBe(local);
   expect(texts(acted.outcome)[0]).toBe(BLOCKED_NOTE);
   expect(swap.dropBackup).toHaveBeenCalled();
-  expect(JSON.stringify(vi.mocked(console.error).mock.calls)).toContain(
+  // Logged as a warning: a site Kernel refuses too is no fault of ours.
+  expect(JSON.stringify(vi.mocked(console.warn).mock.calls)).toContain(
     "provider_blacklisted",
+  );
+  expect(console.error).not.toHaveBeenCalled();
+});
+
+test("Kernel itself failing is an error the operator hears about", async () => {
+  run.mockResolvedValueOnce(page("Blocked", { reason: "cloudflare" }));
+  const swap = fakeSwap(() =>
+    Promise.reject(new KernelError("401:unauthorized")),
+  );
+  await openWithFallback(local, OPEN, swap);
+  expect(JSON.stringify(vi.mocked(console.error).mock.calls)).toContain(
+    "401:unauthorized",
   );
 });
 

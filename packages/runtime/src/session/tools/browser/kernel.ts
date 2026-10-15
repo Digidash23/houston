@@ -39,12 +39,13 @@ export class KernelError extends Error {
 
 /**
  * The backup browser's settings, or null. The key IS the switch: absent, the
- * fallback is off and that is logged with its remedy.
+ * fallback is off and that is logged with its remedy, as a warning: an ERROR
+ * line is a Sentry event, and nothing broke on a desktop without the key.
  */
 export function kernelFrom(env: Env): Kernel | null {
   const apiKey = env.KERNEL_API_KEY?.trim();
   if (apiKey) return { apiKey };
-  console.error(
+  console.warn(
     "[browser] Kernel fallback off: KERNEL_API_KEY is not set. Set it to open sites that block this browser through a Kernel browser.",
   );
   return null;
@@ -68,12 +69,18 @@ export async function createKernelSession(
     session_id?: unknown;
     cdp_ws_url?: unknown;
   };
-  if (
-    typeof body.session_id !== "string" ||
-    typeof body.cdp_ws_url !== "string"
-  )
-    throw new KernelError("no_session_in_answer");
-  return { id: body.session_id, connectUrl: body.cdp_ws_url };
+  const id = typeof body.session_id === "string" ? body.session_id : null;
+  if (id !== null && typeof body.cdp_ws_url === "string")
+    return { id, connectUrl: body.cdp_ws_url };
+  // A session we cannot drive still bills until it is deleted.
+  if (id !== null)
+    await deleteKernelSession(kernel, id).catch((error: unknown) =>
+      console.error(
+        "[browser] ending a Kernel session failed",
+        kernelCode(error),
+      ),
+    );
+  throw new KernelError("no_session_in_answer");
 }
 
 /** End a session now: it is billed until it ends. */
