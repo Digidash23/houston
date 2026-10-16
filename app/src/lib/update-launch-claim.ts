@@ -1,4 +1,4 @@
-import type { LaunchClaim } from "./update-policy";
+import type { CheckOrigin } from "./update-policy";
 
 /**
  * Which update check is THE launch check: the first one this app process
@@ -27,7 +27,7 @@ function storage(): Storage | null {
 
 /** Hands the launch origin to the first caller of this process and the
  *  mid-session origin to every caller after it. */
-export function claimLaunchCheck(): LaunchClaim {
+export function claimLaunchCheck(): CheckOrigin {
   const store = storage();
   if (claimedInMemory || store?.getItem(STORAGE_KEY) === "1") return "poll";
   claimedInMemory = true;

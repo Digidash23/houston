@@ -1,6 +1,6 @@
 import { check } from "@tauri-apps/plugin-updater";
 import { analytics } from "./analytics";
-import type { UpdateCheckOutcome, UpdateOrigin } from "./update-policy";
+import type { CheckOrigin, UpdateCheckOutcome } from "./update-policy";
 import type { UpdateInfo, UpdateStatus } from "./update-status";
 
 export type AvailableUpdate = NonNullable<Awaited<ReturnType<typeof check>>>;
@@ -16,7 +16,7 @@ export type FoundUpdate = { update: AvailableUpdate; info: UpdateInfo };
  * status before the check, so a re-sighting of the same release stays quiet.
  */
 export async function runUpdateCheck(
-  origin: UpdateOrigin,
+  origin: CheckOrigin,
   previous: UpdateStatus,
 ): Promise<{ result: CheckResult; found: FoundUpdate | null }> {
   try {

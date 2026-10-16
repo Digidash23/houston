@@ -93,7 +93,10 @@ export type AnalyticsProperty =
   // Org chart sharing: how the image left, and the chart's people count
   // (its AI Employees ride `agent_count`).
   | "share_channel"
-  | "people_count";
+  | "people_count"
+  // Why a return after a long absence held its install (update_return_held):
+  // turn | draft | busy.
+  | "reason";
 
 export const ALLOWED_PROPS = new Set<AnalyticsProperty>([
   "provider",
@@ -144,4 +147,5 @@ export const ALLOWED_PROPS = new Set<AnalyticsProperty>([
   "outcome",
   "share_channel",
   "people_count",
+  "reason",
 ]);

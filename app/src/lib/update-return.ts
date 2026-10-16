@@ -8,23 +8,27 @@ import type { UpdateStatus } from "./update-status";
  * are pinned by tests, not by leaving a laptop closed overnight.
  */
 
-/** How long the window must be hidden or unfocused before coming back counts
- *  as a return. Longer than a lunch or a meeting (the person is still
- *  mid-task after those), shorter than a night or a weekend, the absences the
- *  stale fleet showed. */
+/** How long the window must be away before coming back counts as a return.
+ *  Longer than a lunch or a meeting (the person is still mid-task after
+ *  those), shorter than a night or a weekend, the absences the stale fleet
+ *  showed. Every absence is judged against this, a sleep included. */
 export const LONG_ABSENCE_MS = 4 * 60 * 60 * 1000;
 
-/** How late the check-interval tick must land to mean the machine slept:
- *  timers do not run during sleep, so a tick due every
- *  UPDATE_CHECK_INTERVAL_MS that arrives this much past its slot proves a
- *  gap. Wide enough that a throttled hidden webview never passes for one. */
+/** How late the check-interval tick must land to prove that timers did not
+ *  run: a tick due every UPDATE_CHECK_INTERVAL_MS that arrives this much
+ *  past its slot means the machine slept or the webview was suspended. The
+ *  gap only dates an absence from the last tick before it; the 4h rule then
+ *  judges that absence like any other, so what caused the gap, or a webview
+ *  throttle that somehow delayed a tick this much, never installs anything
+ *  by itself. */
 export const SLEEP_GAP_MS = 10 * 60 * 1000;
 
 export interface AbsenceState {
-  /** When the window went away (blur or hidden), or null while in front. */
+  /** When the window went away (blur, hidden, or the last tick before a
+   *  gap), or null while the person is here. */
   awaySince: number | null;
-  /** The machine slept during the current absence. */
-  sleptAway: boolean;
+  /** The last check-interval tick, or the last absence that ended: a gap in
+   *  the timers is measured from here. */
   lastTickAt: number;
 }
 
@@ -32,82 +36,114 @@ export interface AbsenceState {
  *  saw before: a remount can never arm a return install, only an absence
  *  this mount watched end can. */
 export function initialAbsence(now: number): AbsenceState {
-  return { awaySince: null, sleptAway: false, lastTickAt: now };
+  return { awaySince: null, lastTickAt: now };
 }
 
+/** The window events the tracker reads, named as the DOM fires them. Which
+ *  of them start an absence and which one ends it is the policy below. */
 export type AbsenceEvent =
-  /** The window blurred or went hidden. */
-  | { kind: "away"; at: number }
-  /** The window is focused or visible again. */
-  | { kind: "back"; at: number }
-  /** The check interval fired. */
-  | { kind: "tick"; at: number };
+  | { kind: "blur"; at: number }
+  | { kind: "hidden"; at: number }
+  | { kind: "visible"; at: number }
+  | { kind: "focus"; at: number }
+  /** The check interval fired; `focused` is `document.hasFocus()` then. */
+  | { kind: "tick"; at: number; focused: boolean };
 
 export interface AbsenceStep {
   state: AbsenceState;
-  /** This event is a return after a long absence. */
+  /** This event ends an absence of LONG_ABSENCE_MS or more. */
   returned: boolean;
 }
 
-/** One event through the tracker. A return fires once per absence: the
- *  state is reset the moment it is reported. */
+/** One event through the tracker. The return signal is the window's focus:
+ *  a document turning visible is another window moving off Houston's, with
+ *  no person behind it. A return is reported once per absence and consumed
+ *  on the spot. */
 export function absenceStep(
   state: AbsenceState,
   event: AbsenceEvent,
 ): AbsenceStep {
   switch (event.kind) {
-    case "away":
-      // The first goodbye starts the clock; a hide after a blur keeps it.
-      return {
-        state:
-          state.awaySince === null ? { ...state, awaySince: event.at } : state,
-        returned: false,
-      };
-    case "back": {
-      if (state.awaySince === null) return { state, returned: false };
-      const long = event.at - state.awaySince >= LONG_ABSENCE_MS;
-      return {
-        state: { ...state, awaySince: null, sleptAway: false },
-        returned: long || state.sleptAway,
-      };
-    }
+    case "blur":
+    case "hidden":
+      return { state: away(state, event.at), returned: false };
+    case "visible":
+      return { state, returned: false };
+    case "focus":
+      return comeBack(state, event.at);
     case "tick": {
-      const late = event.at - state.lastTickAt - UPDATE_CHECK_INTERVAL_MS;
-      const next = { ...state, lastTickAt: event.at };
-      if (late < SLEEP_GAP_MS) return { state: next, returned: false };
-      // Woke with the window away: the person is not back yet, their next
-      // focus is the return.
-      if (state.awaySince !== null) {
-        return { state: { ...next, sleptAway: true }, returned: false };
+      const gap = event.at - state.lastTickAt - UPDATE_CHECK_INTERVAL_MS;
+      if (gap < SLEEP_GAP_MS) {
+        // Timers ran, so a window focused now has a person in front of it:
+        // an absence no focus event closed is forgotten, never judged late.
+        const awaySince = event.focused ? null : state.awaySince;
+        return { state: { awaySince, lastTickAt: event.at }, returned: false };
       }
-      return { state: next, returned: true };
+      // Timers did not run: the person has been away since the last tick
+      // at the latest. With the window focused no focus event will follow,
+      // so this tick is the return; otherwise the next focus is.
+      const slept = away(state, state.lastTickAt);
+      return event.focused
+        ? comeBack(slept, event.at)
+        : { state: { ...slept, lastTickAt: event.at }, returned: false };
     }
   }
 }
 
+/** The earliest goodbye starts the clock; a later one keeps it. */
+function away(state: AbsenceState, at: number): AbsenceState {
+  const awaySince =
+    state.awaySince === null ? at : Math.min(state.awaySince, at);
+  return { ...state, awaySince };
+}
+
+/** Judge the absence that ends now and consume it: both clocks restart
+ *  here, so a late tick after a focus cannot report the same absence twice. */
+function comeBack(state: AbsenceState, at: number): AbsenceStep {
+  if (state.awaySince === null) return { state, returned: false };
+  return {
+    state: { awaySince: null, lastTickAt: at },
+    returned: at - state.awaySince >= LONG_ABSENCE_MS,
+  };
+}
+
 export interface ReturnInputs {
   status: UpdateStatus;
+  /** This build talks to a remote engine (`isRemoteEngine`), so a relaunch
+   *  kills nothing but this window. */
+  engineRemote: boolean;
   /** A turn this device sent is still out (`ownTurnInFlight`). */
   turnInFlight: boolean;
   /** A composer holds unsent words or files, or a card is half-walked. */
   draftPending: boolean;
 }
 
-/** What a return does: install the release a poll already fetched, run a
- *  check with return semantics, or hold (the pill stays) because something
- *  the person could lose is in flight or the updater is mid-step. */
-export type ReturnAction = "install" | "check" | "hold";
+/** Why a staged release was not installed at a return. */
+export type ReturnHoldReason = "turn" | "draft" | "busy";
+
+/** What a return does: install the release a poll already staged, hold it
+ *  (the pill stays) because something the person could lose is in flight or
+ *  the updater is mid-step, or nothing beyond the ordinary background check,
+ *  whose find waits for the next return. */
+export type ReturnAction =
+  | { kind: "install" }
+  | { kind: "hold"; reason: ReturnHoldReason }
+  | { kind: "check" };
 
 export function returnAction({
   status,
+  engineRemote,
   turnInFlight,
   draftPending,
 }: ReturnInputs): ReturnAction {
-  if (turnInFlight || draftPending) return "hold";
+  if (!engineRemote) return { kind: "check" };
   if (status.state === "downloading" || status.state === "installing") {
-    return "hold";
+    return { kind: "hold", reason: "busy" };
   }
-  return status.state === "downloaded" ? "install" : "check";
+  if (status.state !== "downloaded") return { kind: "check" };
+  if (turnInFlight) return { kind: "hold", reason: "turn" };
+  if (draftPending) return { kind: "hold", reason: "draft" };
+  return { kind: "install" };
 }
 
 /** Whether any composer holds unsent words or files, or any in-chat card is

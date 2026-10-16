@@ -1,19 +1,21 @@
-import type { AutoInstallOrigin, UpdateOrigin } from "./update-policy";
+import type { UpdateOrigin } from "./update-policy";
 
 export interface UpdateInfo {
   currentVersion: string;
   version: string;
-  /** Which check found it: the launch check, or a mid-session re-check. The
-   *  policy layer picks the presentation from this, so it rides on every
-   *  state after `available`. */
+  /** Which check found it (the launch check or a mid-session re-check), or
+   *  `return` on the statuses of a return's install. The policy layer picks
+   *  the presentation from this, so it rides on every state after
+   *  `available`. */
   origin: UpdateOrigin;
 }
 
 export type UpdateErrorPhase = "download" | "install" | "relaunch";
 
-/** What set the install off: the user's own click, or one of the two silent
- *  installs, at launch or at a return after a long absence. */
-export type InstallSource = "user" | AutoInstallOrigin;
+/** What set the install off: the user's own click on the pill, the silent
+ *  launch-time install, or a return after a long absence installing the
+ *  release a poll staged (`update-return.ts`). */
+export type InstallSource = "user" | "launch" | "return";
 
 /** The updater's states: check → available → downloading → downloaded →
  *  installing → relaunch, or error at any step after `available`. */

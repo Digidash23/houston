@@ -24,7 +24,7 @@ export function UpdateChecker({ collapsed = false }: { collapsed?: boolean }) {
 
   if (status.state === "idle" || status.state === "available") return null;
 
-  if (updatePresentation(status.info.origin) === "launch") {
+  if (updatePresentation(status) === "launch") {
     return (
       <UpdateLaunchOverlay
         status={status}

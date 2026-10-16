@@ -12,7 +12,6 @@ import { updateDownloadOutcome } from "../lib/update-download-failure";
 import { reportUpdateDownloadFailure } from "../lib/update-download-report";
 import { claimLaunchCheck } from "../lib/update-launch-claim";
 import {
-  checkOrigin,
   type DownloadTrigger,
   shouldReportDownloadFailure,
   shouldSkipDownload,
@@ -55,29 +54,25 @@ export function useUpdateMachine() {
     statusRef.current = status;
   }, [status]);
 
-  // `returned`: the check is a return after a long absence, the one moment
-  // after the launch check whose find installs at once. The launch check is
-  // the first of the PROCESS (`update-launch-claim.ts`), never of a mount.
-  const runCheck = useCallback(
-    async (returned: boolean): Promise<CheckResult> => {
-      const origin = checkOrigin(claimLaunchCheck(), returned);
-      if (busyRef.current || updateCheckBlocked(statusRef.current)) {
-        return { outcome: "skipped" };
-      }
-      const { result, found } = await runUpdateCheck(origin, statusRef.current);
-      if (result.outcome === "none") {
-        updateRef.current = null;
-        infoRef.current = null;
-        setStatus({ state: "idle" });
-      } else if (found) {
-        updateRef.current = found.update;
-        infoRef.current = found.info;
-        setStatus({ state: "available", info: found.info });
-      }
-      return result;
-    },
-    [],
-  );
+  // The launch check is the first of the PROCESS (`update-launch-claim.ts`),
+  // never of a mount; every later check is a poll.
+  const runCheck = useCallback(async (): Promise<CheckResult> => {
+    const origin = claimLaunchCheck();
+    if (busyRef.current || updateCheckBlocked(statusRef.current)) {
+      return { outcome: "skipped" };
+    }
+    const { result, found } = await runUpdateCheck(origin, statusRef.current);
+    if (result.outcome === "none") {
+      updateRef.current = null;
+      infoRef.current = null;
+      setStatus({ state: "idle" });
+    } else if (found) {
+      updateRef.current = found.update;
+      infoRef.current = found.info;
+      setStatus({ state: "available", info: found.info });
+    }
+    return result;
+  }, []);
 
   /** Fetch the release into the shell's staging buffer; true once it can
    *  be installed. A failure is reported (once per version), never shown:
@@ -135,23 +130,27 @@ export function useUpdateMachine() {
       setStatus({ state: "error", info, phase: "relaunch" });
   }, []);
 
-  /** Install the downloaded release and relaunch into it; downloads first
-   *  when nothing is buffered yet (the launch-time path). On Windows the
-   *  install hands off to the installer and exits this process. */
+  /** Install the staged release and relaunch into it; downloads first when
+   *  nothing is buffered yet (the launch-time path and the person's own
+   *  retry). On Windows the install hands off to the installer and exits
+   *  this process. */
   const installAndRelaunch = useCallback(
     async (source: InstallSource) => {
       if (busyRef.current) return;
-      // A return adopts the release a poll fetched: from here on it is the
-      // return's find, so the launch overlay covers the install, not the pill.
-      if (source === "return" && infoRef.current) {
-        infoRef.current = { ...infoRef.current, origin: "return" };
+      if (statusRef.current.state !== "downloaded") {
+        // A return installs only what a poll already staged, so nothing
+        // async runs between its gates and the install; the others fetch.
+        if (source === "return" || !(await download(source))) return;
       }
-      if (statusRef.current.state !== "downloaded" && !(await download(source)))
-        return;
       const update = updateRef.current;
-      const info = infoRef.current;
+      const found = infoRef.current;
       const bytesRid = bytesRidRef.current;
-      if (!update || !info || bytesRid === null) return;
+      if (!update || !found || bytesRid === null) return;
+      // A return's install runs behind the launch overlay, so its statuses
+      // carry the return. The find itself stays the poll's (`infoRef`): a
+      // retry after a failure downloads and reports as the poll it was.
+      const info: UpdateInfo =
+        source === "return" ? { ...found, origin: "return" } : found;
 
       busyRef.current = true;
       analytics.track("update_accepted", {
@@ -159,10 +158,10 @@ export function useUpdateMachine() {
         to_version: info.version,
         source,
       });
+      setStatus({ state: "installing", info });
       try {
         // Captured BEFORE the install: on macOS the install moves the bundle.
         appPathRef.current = await osCurrentAppBundlePath();
-        setStatus({ state: "installing", info });
         await osInstallUpdate(update.rid, bytesRid);
         bytesRidRef.current = null;
       } catch (error) {

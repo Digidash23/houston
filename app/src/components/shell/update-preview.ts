@@ -76,7 +76,7 @@ export function useUpdatePreview(collapsed = false): ReactElement | null {
   if (!status || status.state === "idle" || status.state === "available") {
     return null;
   }
-  if (updatePresentation(status.info.origin) === "launch") {
+  if (updatePresentation(status) === "launch") {
     return createElement(UpdateLaunchOverlay, {
       status,
       onRetry: () => setStatus(null),

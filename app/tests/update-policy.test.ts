@@ -1,8 +1,6 @@
 import { ok, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
 import {
-  autoInstallOrigin,
-  checkOrigin,
   downloadAttemptBudget,
   FOCUS_RECHECK_MIN_GAP_MS,
   LAUNCH_DOWNLOAD_ATTEMPTS,
@@ -16,44 +14,55 @@ import {
   updateCheckJustStuck,
   updatePresentation,
 } from "../src/lib/update-policy.ts";
+import type { UpdateInfo, UpdateStatus } from "../src/lib/update-status.ts";
+
+const found = (origin: UpdateInfo["origin"]): UpdateInfo => ({
+  currentVersion: "0.6.23",
+  version: "1.0.8",
+  origin,
+});
+
+/** Every status after `available` for one origin, keyed by state. */
+function statuses(
+  origin: UpdateInfo["origin"],
+): Record<string, Exclude<UpdateStatus, { state: "idle" }>> {
+  const info = found(origin);
+  return {
+    available: { state: "available", info },
+    downloading: { state: "downloading", info, progress: 40 },
+    downloaded: { state: "downloaded", info },
+    installing: { state: "installing", info },
+    errorDownload: { state: "error", info, phase: "download" },
+    errorInstall: { state: "error", info, phase: "install" },
+    errorRelaunch: { state: "error", info, phase: "relaunch" },
+  };
+}
 
 // The presentation follows the find, not the release: a launch-check find
-// installs behind the upgrading overlay (nothing is running yet); anything
-// later downloads silently and waits for the user's own restart, so a working
+// installs behind the upgrading overlay (nothing is running yet); a poll's
+// find downloads silently and waits for the user's own restart, so a working
 // user is never yanked out of a task.
 describe("updatePresentation", () => {
-  it("installs immediately for a launch-check find", () => {
-    strictEqual(updatePresentation("launch"), "launch");
+  it("keeps a launch-check find behind the overlay in every state", () => {
+    for (const status of Object.values(statuses("launch"))) {
+      strictEqual(updatePresentation(status), "launch", status.state);
+    }
   });
 
-  it("downloads in the background for a mid-session find", () => {
-    strictEqual(updatePresentation("poll"), "background");
+  it("keeps a mid-session find in the background in every state", () => {
+    for (const status of Object.values(statuses("poll"))) {
+      strictEqual(updatePresentation(status), "background", status.state);
+    }
   });
 
-  it("installs immediately for a find at a return after a long absence", () => {
-    strictEqual(updatePresentation("return"), "launch");
-  });
-});
-
-describe("autoInstallOrigin", () => {
-  it("names the two origins whose find installs at once", () => {
-    strictEqual(autoInstallOrigin("launch"), "launch");
-    strictEqual(autoInstallOrigin("return"), "return");
-    strictEqual(autoInstallOrigin("poll"), null);
-  });
-});
-
-// The process's one launch check wins whatever moment it runs in; after it,
-// the return is the only other check whose find installs at once.
-describe("checkOrigin", () => {
-  it("keeps the launch claim", () => {
-    strictEqual(checkOrigin("launch", false), "launch");
-    strictEqual(checkOrigin("launch", true), "launch");
-  });
-
-  it("marks a later check by whether it is a return", () => {
-    strictEqual(checkOrigin("poll", true), "return");
-    strictEqual(checkOrigin("poll", false), "poll");
+  // A return's install runs behind the overlay like a launch, but the
+  // overlay cannot be dismissed and the app under it works, so its error
+  // goes to the pill instead of trapping the person.
+  it("covers a return's install, but sends its error to the pill", () => {
+    const byState = statuses("return");
+    strictEqual(updatePresentation(byState.installing), "launch");
+    strictEqual(updatePresentation(byState.errorInstall), "background");
+    strictEqual(updatePresentation(byState.errorRelaunch), "background");
   });
 });
 
@@ -132,9 +141,8 @@ describe("shouldReportDownloadFailure", () => {
 // short budget and leaves the rest to the next poll; the shell's partial
 // survives either way, so nothing is lost by stopping early.
 describe("downloadAttemptBudget", () => {
-  it("gives a launch or return find the first request and one resume", () => {
+  it("gives a launch find the first request and one resume", () => {
     strictEqual(downloadAttemptBudget("launch"), LAUNCH_DOWNLOAD_ATTEMPTS);
-    strictEqual(downloadAttemptBudget("return"), LAUNCH_DOWNLOAD_ATTEMPTS);
     strictEqual(LAUNCH_DOWNLOAD_ATTEMPTS, 2);
   });
 
@@ -150,7 +158,6 @@ describe("shouldSkipDownload", () => {
   it("skips the release the disk refused for the automatic triggers", () => {
     strictEqual(shouldSkipDownload("1.0.6", "1.0.6", "poll"), true);
     strictEqual(shouldSkipDownload("1.0.6", "1.0.6", "launch"), true);
-    strictEqual(shouldSkipDownload("1.0.6", "1.0.6", "return"), true);
   });
 
   // The launch overlay cannot be dismissed and its only way out is Retry:

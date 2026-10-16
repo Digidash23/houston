@@ -8,16 +8,19 @@ import {
   draftPending,
   initialAbsence,
   LONG_ABSENCE_MS,
+  type ReturnInputs,
   returnAction,
   SLEEP_GAP_MS,
 } from "../src/lib/update-return.ts";
 import type { UpdateStatus } from "../src/lib/update-status.ts";
 
-const HOUR = 60 * 60 * 1000;
+const MINUTE = 60 * 1000;
+const HOUR = 60 * MINUTE;
 const T0 = 1_700_000_000_000;
+const TICK = UPDATE_CHECK_INTERVAL_MS;
 
 /** Feed events the way the hook does: one ref, one step per event, and the
- *  list of events that reported a return. */
+ *  indexes of the events that reported a return. */
 function run(start: AbsenceState, events: AbsenceEvent[]): number[] {
   let state = start;
   const returns: number[] = [];
@@ -33,20 +36,19 @@ describe("absenceStep", () => {
   it("treats a short blur as nothing", () => {
     deepStrictEqual(
       run(initialAbsence(T0), [
-        { kind: "away", at: T0 + 1_000 },
-        { kind: "back", at: T0 + 20 * 60 * 1000 },
+        { kind: "blur", at: T0 + 1_000 },
+        { kind: "focus", at: T0 + 20 * MINUTE },
       ]),
       [],
     );
   });
 
-  it("reports a return once after a hide of the threshold or longer", () => {
+  it("reports a return once after a blur of the threshold or longer", () => {
     deepStrictEqual(
       run(initialAbsence(T0), [
-        { kind: "away", at: T0 },
-        { kind: "back", at: T0 + LONG_ABSENCE_MS },
-        // Focus and visibility both fire on the way back: one return.
-        { kind: "back", at: T0 + LONG_ABSENCE_MS + 10 },
+        { kind: "blur", at: T0 },
+        { kind: "focus", at: T0 + LONG_ABSENCE_MS },
+        { kind: "focus", at: T0 + LONG_ABSENCE_MS + 10 },
       ]),
       [1],
     );
@@ -55,40 +57,113 @@ describe("absenceStep", () => {
   it("keeps the first goodbye's clock when a hide follows a blur", () => {
     deepStrictEqual(
       run(initialAbsence(T0), [
-        { kind: "away", at: T0 },
-        { kind: "away", at: T0 + 3 * HOUR },
-        { kind: "back", at: T0 + 4 * HOUR },
+        { kind: "blur", at: T0 },
+        { kind: "hidden", at: T0 + 3 * HOUR },
+        { kind: "focus", at: T0 + 4 * HOUR },
       ]),
       [2],
     );
   });
 
-  it("reports a return when the interval tick lands after a sleep", () => {
-    const onTime = T0 + UPDATE_CHECK_INTERVAL_MS + 2_000;
+  it("counts hidden as away but a visibility change alone as no return", () => {
     deepStrictEqual(
       run(initialAbsence(T0), [
-        { kind: "tick", at: onTime },
-        { kind: "tick", at: onTime + UPDATE_CHECK_INTERVAL_MS + SLEEP_GAP_MS },
+        { kind: "hidden", at: T0 },
+        { kind: "visible", at: T0 + 5 * HOUR },
+        { kind: "focus", at: T0 + 5 * HOUR + 1 },
+      ]),
+      [2],
+    );
+  });
+
+  it("does not arm on a short sleep", () => {
+    deepStrictEqual(
+      run(initialAbsence(T0), [
+        { kind: "tick", at: T0 + TICK, focused: true },
+        { kind: "tick", at: T0 + 2 * TICK + 15 * MINUTE, focused: true },
+      ]),
+      [],
+    );
+  });
+
+  it("returns at the wake tick after a long sleep with the window focused", () => {
+    deepStrictEqual(
+      run(initialAbsence(T0), [
+        { kind: "tick", at: T0 + TICK, focused: true },
+        { kind: "tick", at: T0 + TICK + 5 * HOUR, focused: true },
       ]),
       [1],
     );
   });
 
-  it("holds a sleep seen while away until the person is back", () => {
+  it("dates a sleep from the last tick before it", () => {
+    const lastTick = T0 + TICK;
     deepStrictEqual(
       run(initialAbsence(T0), [
-        { kind: "away", at: T0 + 1_000 },
-        { kind: "tick", at: T0 + UPDATE_CHECK_INTERVAL_MS + SLEEP_GAP_MS },
-        { kind: "back", at: T0 + UPDATE_CHECK_INTERVAL_MS + SLEEP_GAP_MS + 5 },
+        { kind: "tick", at: lastTick, focused: true },
+        { kind: "tick", at: lastTick + LONG_ABSENCE_MS - 1, focused: true },
       ]),
-      [2],
+      [],
+    );
+    deepStrictEqual(
+      run(initialAbsence(T0), [
+        { kind: "tick", at: lastTick, focused: true },
+        { kind: "tick", at: lastTick + LONG_ABSENCE_MS, focused: true },
+      ]),
+      [1],
+    );
+  });
+
+  it("holds a sleep seen with the window away until the focus", () => {
+    deepStrictEqual(
+      run(initialAbsence(T0), [
+        { kind: "blur", at: T0 + 1_000 },
+        { kind: "tick", at: T0 + 5 * HOUR, focused: false },
+        { kind: "tick", at: T0 + 5 * HOUR + TICK, focused: false },
+        { kind: "focus", at: T0 + 5 * HOUR + TICK + 5 },
+      ]),
+      [3],
+    );
+  });
+
+  it("reports one return for a focus followed by the late tick", () => {
+    deepStrictEqual(
+      run(initialAbsence(T0), [
+        { kind: "blur", at: T0 },
+        { kind: "focus", at: T0 + 5 * HOUR },
+        { kind: "tick", at: T0 + 5 * HOUR + 1_000, focused: true },
+      ]),
+      [1],
+    );
+  });
+
+  it("reports one return for a late tick followed by the focus", () => {
+    deepStrictEqual(
+      run(initialAbsence(T0), [
+        { kind: "blur", at: T0 },
+        { kind: "tick", at: T0 + 5 * HOUR, focused: true },
+        { kind: "focus", at: T0 + 5 * HOUR + 1_000 },
+      ]),
+      [1],
     );
   });
 
   it("ignores a tick that is merely late, not asleep", () => {
     deepStrictEqual(
       run(initialAbsence(T0), [
-        { kind: "tick", at: T0 + UPDATE_CHECK_INTERVAL_MS + SLEEP_GAP_MS - 1 },
+        { kind: "tick", at: T0 + TICK + SLEEP_GAP_MS - 1, focused: true },
+      ]),
+      [],
+    );
+  });
+
+  it("forgets an absence no focus closed once a tick finds the window in front", () => {
+    deepStrictEqual(
+      run(initialAbsence(T0), [
+        { kind: "hidden", at: T0 },
+        { kind: "tick", at: T0 + TICK, focused: true },
+        { kind: "blur", at: T0 + 6 * HOUR },
+        { kind: "focus", at: T0 + 6 * HOUR + 1 },
       ]),
       [],
     );
@@ -101,8 +176,8 @@ describe("absenceStep", () => {
     const mountedAt = T0 + 9 * HOUR;
     deepStrictEqual(
       run(initialAbsence(mountedAt), [
-        { kind: "back", at: mountedAt + 1 },
-        { kind: "tick", at: mountedAt + UPDATE_CHECK_INTERVAL_MS },
+        { kind: "focus", at: mountedAt + 1 },
+        { kind: "tick", at: mountedAt + TICK, focused: true },
       ]),
       [],
     );
@@ -111,81 +186,73 @@ describe("absenceStep", () => {
   it("starts a fresh absence after a return", () => {
     deepStrictEqual(
       run(initialAbsence(T0), [
-        { kind: "away", at: T0 },
-        { kind: "back", at: T0 + 5 * HOUR },
-        { kind: "away", at: T0 + 5 * HOUR + 1 },
-        { kind: "back", at: T0 + 5 * HOUR + 2 },
+        { kind: "blur", at: T0 },
+        { kind: "focus", at: T0 + 5 * HOUR },
+        { kind: "blur", at: T0 + 5 * HOUR + 1 },
+        { kind: "focus", at: T0 + 5 * HOUR + 2 },
       ]),
       [1],
     );
   });
 });
 
-const idle: UpdateStatus = { state: "idle" };
 const info = { currentVersion: "0.6.23", version: "1.0.8", origin: "poll" };
 const downloaded: UpdateStatus = { state: "downloaded", info } as const;
+const clear: ReturnInputs = {
+  status: downloaded,
+  engineRemote: true,
+  turnInFlight: false,
+  draftPending: false,
+};
 
 describe("returnAction", () => {
-  it("installs the release a poll already fetched", () => {
-    strictEqual(
-      returnAction({
-        status: downloaded,
-        turnInFlight: false,
-        draftPending: false,
-      }),
-      "install",
-    );
+  it("installs the release a poll already staged", () => {
+    deepStrictEqual(returnAction(clear), { kind: "install" });
   });
 
-  it("checks with return semantics when nothing is downloaded", () => {
-    strictEqual(
-      returnAction({ status: idle, turnInFlight: false, draftPending: false }),
-      "check",
-    );
-    strictEqual(
-      returnAction({
-        status: { state: "error", info, phase: "download" },
-        turnInFlight: false,
-        draftPending: false,
-      }),
-      "check",
-    );
+  it("runs the ordinary check, never an install, with nothing staged", () => {
+    const unstaged: UpdateStatus[] = [
+      { state: "idle" },
+      { state: "available", info },
+      { state: "error", info, phase: "download" },
+      { state: "error", info: { ...info, origin: "return" }, phase: "install" },
+    ];
+    for (const status of unstaged) {
+      deepStrictEqual(returnAction({ ...clear, status }), { kind: "check" });
+    }
   });
 
-  it("holds for a turn in flight", () => {
-    strictEqual(
-      returnAction({
-        status: downloaded,
-        turnInFlight: true,
-        draftPending: false,
-      }),
-      "hold",
-    );
+  it("never installs on a local-engine build", () => {
+    deepStrictEqual(returnAction({ ...clear, engineRemote: false }), {
+      kind: "check",
+    });
   });
 
-  it("holds for an unsent draft", () => {
-    strictEqual(
-      returnAction({ status: idle, turnInFlight: false, draftPending: true }),
-      "hold",
-    );
+  it("holds for a turn this device sent, and says so", () => {
+    deepStrictEqual(returnAction({ ...clear, turnInFlight: true }), {
+      kind: "hold",
+      reason: "turn",
+    });
   });
 
-  it("holds while a download or install is busy", () => {
-    strictEqual(
+  it("holds for an unsent draft, and says so", () => {
+    deepStrictEqual(returnAction({ ...clear, draftPending: true }), {
+      kind: "hold",
+      reason: "draft",
+    });
+  });
+
+  it("holds while the updater is mid-step, and says so", () => {
+    deepStrictEqual(
       returnAction({
+        ...clear,
         status: { state: "downloading", info, progress: 40 },
-        turnInFlight: false,
-        draftPending: false,
       }),
-      "hold",
+      { kind: "hold", reason: "busy" },
     );
-    strictEqual(
-      returnAction({
-        status: { state: "installing", info },
-        turnInFlight: false,
-        draftPending: false,
-      }),
-      "hold",
+    deepStrictEqual(
+      returnAction({ ...clear, status: { state: "installing", info } }),
+      { kind: "hold", reason: "busy" },
     );
   });
 });
