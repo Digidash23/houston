@@ -47,7 +47,7 @@ let draftDuringBundlePath = false;
 };
 const tracked: Array<[string, unknown]> = [];
 mock.module(new URL("../src/lib/analytics.ts", import.meta.url).href, {
-  exports: {
+  namedExports: {
     analytics: {
       track: (name: string, props: unknown) => {
         tracked.push([name, props]);
@@ -56,11 +56,11 @@ mock.module(new URL("../src/lib/analytics.ts", import.meta.url).href, {
   },
 });
 mock.module(new URL("../src/lib/error-report.ts", import.meta.url).href, {
-  exports: { reportError: () => undefined },
+  namedExports: { reportError: () => undefined },
 });
 mock.module(
   new URL("../src/lib/update-download-report.ts", import.meta.url).href,
-  { exports: { reportUpdateDownloadFailure: () => undefined } },
+  { namedExports: { reportUpdateDownloadFailure: () => undefined } },
 );
 
 const React = await import("react");
@@ -157,6 +157,24 @@ describe("a return's install", () => {
       "the bundle path is captured before the install moves it",
     );
     strictEqual(draft, false);
+    await act(async () => root.unmount());
+  });
+
+  it("never holds the person's own click on the pill", async () => {
+    const { machine, root } = await stagedMachine();
+    draft = true;
+    await act(async () => {
+      await machine.installAndRelaunch("user");
+    });
+    deepStrictEqual(sent("install_update"), [
+      ["install_update", { rid: 7, bytes_rid: 9 }],
+    ]);
+    deepStrictEqual(tracked, [
+      [
+        "update_accepted",
+        { from_version: "0.6.23", to_version: "1.0.8", source: "user" },
+      ],
+    ]);
     await act(async () => root.unmount());
   });
 });
