@@ -7,6 +7,7 @@ import {
   parseSlackAuthorization,
   parseSlackCompletion,
   parseWhatsAppLink,
+  type SlackConnectSurface,
   slackTicket,
   type WhatsAppLink,
 } from "@houston/wire-types";
@@ -42,11 +43,14 @@ export function ChannelsMixin<TBase extends BaseCtor>(Base: TBase) {
         ),
       );
     }
-    async connectSlack(signal?: AbortSignal): Promise<string> {
+    async connectSlack(
+      surface?: SlackConnectSurface,
+      signal?: AbortSignal,
+    ): Promise<string> {
       this.requireGateway();
       return parseSlackAuthorization(
         await viaSdk("/v1/channels/slack/connect", () =>
-          this.ctx.sdk.channels.connectSlack(signal),
+          this.ctx.sdk.channels.connectSlack(surface, signal),
         ),
       );
     }

@@ -314,7 +314,7 @@ pub fn run() {
             tauri::async_runtime::spawn_blocking(move || {
                 commands::update_stage::prune_abandoned_partials(&handle);
             });
-            // Deep-link handler. Two `houston://` URLs matter today:
+            // Deep-link handler. These `houston://` URLs matter today:
             //  - `houston://auth-callback?<query>` — the Apple sign-in return.
             //    Apple rejects `127.0.0.1` redirects, so Apple's callback comes
             //    back through the gateway's HTTPS bridge, which deep-links the
@@ -323,6 +323,9 @@ pub fn run() {
             //    the loopback — those providers accept it and reject custom
             //    schemes). CSRF `state` is enforced webview-side, so a forged
             //    link can never complete a sign-in it didn't start.
+            //  - `houston://settings/plan` and `houston://settings/channels`
+            //    (the Billing return and the desktop Slack connect return),
+            //    forwarded for the settings landing.
             //  - `houston://open` (the loopback success page's "Open Houston"
             //    button) and anything else — purely a focus affordance.
             // Runtime `houston://` scheme registration. Only macOS registers
@@ -363,6 +366,7 @@ pub fn run() {
                     for url in event.urls() {
                         if auth::is_auth_callback_deep_link(url.as_str())
                             || auth::is_plan_settings_deep_link(url.as_str())
+                            || auth::is_channels_settings_deep_link(url.as_str())
                         {
                             auth::emit_deep_link(&handle, url.as_str());
                         }

@@ -30,6 +30,15 @@ export interface ChannelStatus {
   connections: ChannelConnection[];
 }
 
+/**
+ * A surface that needs the gateway to send the browser back somewhere other
+ * than the web app once Slack approves: the desktop app, through its
+ * `houston://settings/channels` deep link. No surface means the web app.
+ */
+export const SLACK_CONNECT_SURFACES = ["desktop"] as const;
+
+export type SlackConnectSurface = (typeof SLACK_CONNECT_SURFACES)[number];
+
 export interface ChannelLink {
   code: string;
   expiresAt: string;

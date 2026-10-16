@@ -12,6 +12,7 @@ import { silenceChannelCall } from "../../lib/channel-silence";
 import { logAndReportError } from "../../lib/error-report";
 import { runOptimisticWrite } from "../../lib/optimistic-core";
 import { tellOptimisticRefusal } from "../../lib/optimistic-write";
+import { osIsTauri } from "../../lib/os-bridge";
 import { queryKeys } from "../../lib/query-keys";
 import { refetchAfterWrite } from "../../lib/refetch-after-write";
 import { tauriChannels } from "../../lib/tauri";
@@ -58,7 +59,10 @@ export function useChannelActions() {
   const connect = useMutation({
     mutationFn: (): Promise<SlackAuthorization> =>
       inChannelWorkspace(spaceId, async (assertCurrent, signal) => {
-        const url = await tauriChannels.connectSlack(signal);
+        // A desktop-started connect must finish in the desktop app, which
+        // only the gateway's `houston://` return can reach.
+        const surface = osIsTauri() ? "desktop" : undefined;
+        const url = await tauriChannels.connectSlack(surface, signal);
         assertCurrent();
         // The browser can REFUSE the open (a popup blocker on web). The
         // section must not claim a tab the user never saw, so the answer is

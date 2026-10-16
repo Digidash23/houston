@@ -94,6 +94,10 @@ test("channels mixin uses live authenticated current-space gateway transport", a
     calls.slice(0, 5).every((call) => call.org === "0123456789abcdef"),
   ).toBe(true);
   expect(calls[5].org).toBe(null);
+  expect(calls[1]).toMatchObject({
+    body: "{}",
+    contentType: "application/json",
+  });
   expect(calls[4]).toMatchObject({
     method: "POST",
     url: "https://gateway.test/v1/channels/whatsapp/link",
@@ -102,6 +106,24 @@ test("channels mixin uses live authenticated current-space gateway transport", a
     body: "{}",
     contentType: "application/json",
   });
+});
+
+test("each connect surface sends its own body byte for byte", async () => {
+  const bodies: (string | null)[] = [];
+  globalThis.fetch = vi.fn(async (_url, init) => {
+    bodies.push(typeof init?.body === "string" ? init.body : null);
+    return Response.json({
+      url: "https://slack.com/oauth/v2/authorize?state=opaque",
+    });
+  });
+  const client = new HoustonClient({
+    baseUrl: "https://gateway.test",
+    token: "token",
+    controlPlane: true,
+  });
+  await client.connectSlack();
+  await client.connectSlack("desktop");
+  expect(bodies).toEqual(["{}", '{"surface":"desktop"}']);
 });
 
 test("a local deployment exposes channels as unsupported without a network request", async () => {
@@ -159,7 +181,7 @@ test("a space-switch abort reaches the hosted OAuth request without retry", asyn
     token: "token",
     controlPlane: true,
   });
-  const pending = client.connectSlack(controller.signal);
+  const pending = client.connectSlack(undefined, controller.signal);
   await ready;
   controller.abort();
   await expect(pending).rejects.toMatchObject({ name: "AbortError" });

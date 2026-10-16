@@ -29,9 +29,11 @@ import {
   type ChannelLink,
   type ChannelStatus,
   ChannelsCommand,
+  optionalSurface,
   requireTicket,
   type SlackAuthorization,
   type SlackCompletion,
+  type SlackConnectSurface,
   type WhatsAppLink,
 } from "./types";
 
@@ -44,16 +46,24 @@ export type {
   ChannelsCommandType,
   SlackAuthorization,
   SlackCompletion,
+  SlackConnectSurface,
   WhatsAppLink,
 } from "./types";
-export { CHANNEL_PROVIDER_IDS, ChannelsCommand } from "./types";
+export {
+  CHANNEL_PROVIDER_IDS,
+  ChannelsCommand,
+  SLACK_CONNECT_SURFACES,
+} from "./types";
 
 /** The typed facade for the channels family. Every call throws on a non-2xx. */
 export interface ChannelsModule {
   /** The deployment's providers and the active space's connections. */
   getChannels(signal?: AbortSignal): Promise<ChannelStatus>;
-  /** Slack's hosted authorization URL for the person's browser to open. */
-  connectSlack(signal?: AbortSignal): Promise<SlackAuthorization>;
+  /** Slack's hosted authorization URL; `surface` is where the browser returns. */
+  connectSlack(
+    surface?: SlackConnectSurface,
+    signal?: AbortSignal,
+  ): Promise<SlackAuthorization>;
   /** An expiring code that pairs an already-installed Slack workspace. */
   linkSlack(signal?: AbortSignal): Promise<ChannelLink>;
   /** An expiring code and prefilled message for WhatsApp pairing. */
@@ -76,7 +86,7 @@ export function createChannelsModule(ctx: ModuleContext): ChannelsModule {
 
   const module: ChannelsModule = {
     getChannels: (signal) => getChannels(scope, signal),
-    connectSlack: (signal) => connectSlack(scope, signal),
+    connectSlack: (surface, signal) => connectSlack(scope, surface, signal),
     linkSlack: (signal) => linkSlack(scope, signal),
     linkWhatsApp: (signal) => linkWhatsApp(scope, signal),
     completeSlack: (ticket, signal) => completeSlack(scope, ticket, signal),
@@ -85,8 +95,8 @@ export function createChannelsModule(ctx: ModuleContext): ChannelsModule {
   };
 
   ctx.registerCommand(ChannelsCommand.Get, () => module.getChannels());
-  ctx.registerCommand(ChannelsCommand.ConnectSlack, () =>
-    module.connectSlack(),
+  ctx.registerCommand(ChannelsCommand.ConnectSlack, (p) =>
+    module.connectSlack(optionalSurface(p)),
   );
   ctx.registerCommand(ChannelsCommand.LinkSlack, () => module.linkSlack());
   ctx.registerCommand(ChannelsCommand.LinkWhatsApp, () =>

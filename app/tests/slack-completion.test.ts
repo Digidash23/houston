@@ -32,7 +32,7 @@ describe("why a Slack connection did not happen", () => {
 
 describe("taking the queued completion", () => {
   const take = (
-    latch: { current: boolean },
+    latch: { current: SlackCompletion | null },
     queue: { value: SlackCompletion | null },
   ) =>
     takeSlackCompletion(
@@ -44,7 +44,7 @@ describe("taking the queued completion", () => {
     );
 
   it("waits for the landing instead of closing over an empty queue", () => {
-    const latch = { current: false };
+    const latch: { current: SlackCompletion | null } = { current: null };
     const queue: { value: SlackCompletion | null } = { value: null };
     // The section mounted before the landing queued anything: taking nothing
     // must not spend the one take there is.
@@ -54,7 +54,7 @@ describe("taking the queued completion", () => {
   });
 
   it("hands the ticket over exactly once and clears it", () => {
-    const latch = { current: false };
+    const latch: { current: SlackCompletion | null } = { current: null };
     const queue: { value: SlackCompletion | null } = {
       value: { kind: "ticket", ticket },
     };
@@ -62,5 +62,40 @@ describe("taking the queued completion", () => {
     strictEqual(queue.value, null);
     queue.value = { kind: "ticket", ticket };
     strictEqual(take(latch, queue), null);
+    strictEqual(queue.value, null);
+  });
+
+  it("takes a new ticket from a later connect while the section stays mounted", () => {
+    const latch: { current: SlackCompletion | null } = { current: null };
+    const queue: { value: SlackCompletion | null } = {
+      value: { kind: "ticket", ticket },
+    };
+    deepStrictEqual(take(latch, queue), { kind: "ticket", ticket });
+    queue.value = { kind: "ticket", ticket: "Second-ticket_42" };
+    deepStrictEqual(take(latch, queue), {
+      kind: "ticket",
+      ticket: "Second-ticket_42",
+    });
+  });
+
+  it("drops the very completion it already took, as a re-run effect reads it", () => {
+    const latch: { current: SlackCompletion | null } = { current: null };
+    const queued: SlackCompletion = { kind: "invalid" };
+    deepStrictEqual(
+      takeSlackCompletion(
+        latch,
+        () => queued,
+        () => {},
+      ),
+      { kind: "invalid" },
+    );
+    strictEqual(
+      takeSlackCompletion(
+        latch,
+        () => queued,
+        () => {},
+      ),
+      null,
+    );
   });
 });

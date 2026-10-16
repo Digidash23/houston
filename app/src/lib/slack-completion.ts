@@ -23,25 +23,31 @@ export function slackCompletionResult(
 }
 
 /**
- * Take the queued completion, at most once. The latch closes over a value that
- * was actually TAKEN, never over the attempt: the Channels body can mount
+ * Take the queued completion, each one at most once. The latch holds the last
+ * completion actually TAKEN, never the attempt: the Channels body can mount
  * before the landing has queued anything, and a take that found an empty queue
  * must leave the next one free.
  *
- * What stops a second redemption across a remount is the queue itself — the
- * value is cleared in the same pass it is read, and nothing re-queues it — so
- * the gateway is never asked to redeem a spent ticket, which it answers with
- * the same 404 it gives a stranger.
+ * The desktop app keeps Channels mounted across connects, so a NEW ticket must
+ * still pass, while the same ticket delivered twice (the cold-start read and
+ * the live listener can both carry the launching link) is dropped: the
+ * gateway answers a spent ticket with the same 404 it gives a stranger. A
+ * duplicate is cleared too, so a later mount never redeems it either.
  */
 export function takeSlackCompletion(
-  latch: { current: boolean },
+  latch: { current: SlackCompletion | null },
   read: () => SlackCompletion | null,
   clear: () => void,
 ): SlackCompletion | null {
-  if (latch.current) return null;
   const pending = read();
   if (!pending) return null;
-  latch.current = true;
   clear();
+  if (latch.current && sameCompletion(latch.current, pending)) return null;
+  latch.current = pending;
   return pending;
+}
+
+function sameCompletion(a: SlackCompletion, b: SlackCompletion): boolean {
+  if (a === b) return true;
+  return a.kind === "ticket" && b.kind === "ticket" && a.ticket === b.ticket;
 }

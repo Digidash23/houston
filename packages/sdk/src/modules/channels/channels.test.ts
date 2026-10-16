@@ -85,6 +85,17 @@ describe("the channels requests", () => {
     ]);
   });
 
+  it("asks for the desktop return only on a desktop-started connect", async () => {
+    const url = "https://slack.com/oauth/v2/authorize?state=opaque";
+    const { sdk, calls } = ok({ url });
+    await sdk.channels.connectSlack();
+    await sdk.channels.connectSlack("desktop");
+    expect(calls.map((call) => call.body)).toEqual([
+      "{}",
+      '{"surface":"desktop"}',
+    ]);
+  });
+
   it("mints a pairing code for an already-installed workspace", async () => {
     const link = { code: "ABCD-1234", expiresAt: "2026-09-08T13:00:00Z" };
     const { sdk, calls } = ok(link);
@@ -187,6 +198,21 @@ describe("the dispatch path", () => {
       expect(result.ok).toBe(false);
     }
     expect(calls).toEqual([]);
+  });
+
+  it("dispatches a connect with its surface and refuses an unknown one", async () => {
+    const url = "https://slack.com/oauth/v2/authorize?state=opaque";
+    const { sdk, calls } = ok({ url });
+    const connect = (payload?: unknown) =>
+      sdk.dispatch({ id: "5", type: ChannelsCommand.ConnectSlack, payload });
+    expect(await connect()).toMatchObject({ ok: true, value: { url } });
+    expect(await connect({ surface: "desktop" })).toMatchObject({ ok: true });
+    expect(await connect({ surface: "web" })).toMatchObject({ ok: false });
+    expect(await connect({ surface: "mobile" })).toMatchObject({ ok: false });
+    expect(calls.map((call) => call.body)).toEqual([
+      "{}",
+      '{"surface":"desktop"}',
+    ]);
   });
 
   it("reads the listing through dispatch with no payload at all", async () => {

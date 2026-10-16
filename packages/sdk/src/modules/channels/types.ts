@@ -14,7 +14,7 @@
  * kept in step by hand, exactly like `BillingSummary`.
  */
 
-import { requireString } from "../payload";
+import { field, requireString } from "../payload";
 
 /** The write vocabulary — the same handlers back the facade and `dispatch`. */
 export const ChannelsCommand = {
@@ -70,6 +70,14 @@ export interface WhatsAppLink extends ChannelLink {
   url: string;
 }
 
+/**
+ * A surface the gateway sends the browser back to once Slack approves, other
+ * than the web app it returns to when none is named.
+ */
+export const SLACK_CONNECT_SURFACES = ["desktop"] as const;
+
+export type SlackConnectSurface = (typeof SLACK_CONNECT_SURFACES)[number];
+
 /** Slack's own authorization endpoint, for the person's browser to open. */
 export interface SlackAuthorization {
   url: string;
@@ -95,4 +103,16 @@ export function requireTicket(payload: unknown, key: string): string {
     throw new Error(`'${key}' is not a completion ticket`);
   }
   return value;
+}
+
+/** The return surface off an untrusted command payload; absent means web. */
+export function optionalSurface(
+  payload: unknown,
+): SlackConnectSurface | undefined {
+  const value = field(payload, "surface");
+  if (value === undefined) return undefined;
+  if (!SLACK_CONNECT_SURFACES.includes(value as SlackConnectSurface)) {
+    throw new Error("'surface' must be desktop when given");
+  }
+  return value as SlackConnectSurface;
 }

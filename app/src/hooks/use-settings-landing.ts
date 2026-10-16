@@ -7,6 +7,7 @@ import {
   applySettingsLanding,
   captureSettingsLanding,
   type SettingsLanding,
+  settingsLandingFromDeepLink,
 } from "../lib/settings-landing";
 import {
   type SettingsSectionId,
@@ -27,6 +28,17 @@ function land(
   useUIStore
     .getState()
     .openSettings(settingsLandingSection(section, capabilities));
+}
+
+function applyLanding(
+  landing: SettingsLanding,
+  capabilities: Capabilities | null,
+): void {
+  applySettingsLanding(landing, {
+    open: (section) => land(section, capabilities),
+    hand: (completion) =>
+      useUIStore.getState().setPendingSlackCompletion(completion),
+  });
 }
 
 /**
@@ -62,11 +74,17 @@ export function useSettingsLanding() {
         for (const link of links) {
           const section = settingsSectionFromDeepLink(link);
           if (section) pendingPath.current = section;
+          const landing = settingsLandingFromDeepLink(link);
+          if (landing.kind === "settings") pending.current = landing;
         }
-        if (pendingPath.current && ready.current) {
+        if (!ready.current) return;
+        if (pendingPath.current) {
           land(pendingPath.current, capabilitiesRef.current);
           pendingPath.current = null;
         }
+        const landing = pending.current;
+        pending.current = { kind: "absent" };
+        applyLanding(landing, capabilitiesRef.current);
       })
       .catch((error: unknown) =>
         reportError(
@@ -81,9 +99,14 @@ export function useSettingsLanding() {
     let unlisten: (() => void) | undefined;
     void listenDeepLink((value) => {
       const section = settingsSectionFromDeepLink(value);
-      if (!section) return;
-      if (ready.current) land(section, capabilitiesRef.current);
-      else pendingPath.current = section;
+      if (section) {
+        if (ready.current) land(section, capabilitiesRef.current);
+        else pendingPath.current = section;
+      }
+      const landing = settingsLandingFromDeepLink(value);
+      if (landing.kind === "absent") return;
+      if (ready.current) applyLanding(landing, capabilitiesRef.current);
+      else pending.current = landing;
     })
       .then((stop) => {
         if (disposed) stop();
@@ -107,13 +130,8 @@ export function useSettingsLanding() {
       land(pendingPath.current, capabilitiesRef.current);
       pendingPath.current = null;
     }
-    if (pending.current.kind === "absent") return;
     const landing = pending.current;
     pending.current = { kind: "absent" };
-    applySettingsLanding(landing, {
-      open: (section) => land(section, capabilitiesRef.current),
-      hand: (completion) =>
-        useUIStore.getState().setPendingSlackCompletion(completion),
-    });
+    applyLanding(landing, capabilitiesRef.current);
   }, [session, space, capabilitiesLoading]);
 }

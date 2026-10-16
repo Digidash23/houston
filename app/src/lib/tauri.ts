@@ -38,7 +38,10 @@ import {
   plusCheckoutRefusal,
   type TimezoneSeedResult,
 } from "@houston/sdk";
-import type { PushDeviceRegistration } from "@houston/wire-types";
+import type {
+  PushDeviceRegistration,
+  SlackConnectSurface,
+} from "@houston/wire-types";
 import { shouldUseClaudeDesktopLogin } from "../components/shell/provider-login-url";
 import { actingUser } from "./acting-user";
 import { isAgentGoneError, isStaleRosterReadError } from "./agent-gone";
@@ -2077,8 +2080,13 @@ const channelCall = <T>(label: ChannelCall, fn: () => Promise<T>) =>
 export const tauriChannels = {
   list: (signal?: AbortSignal) =>
     channelCall("list_channels", () => getEngine().getChannels(signal)),
-  connectSlack: (signal?: AbortSignal) =>
-    channelCall("connect_slack", () => getEngine().connectSlack(signal)),
+  connectSlack: (
+    surface: SlackConnectSurface | undefined,
+    signal?: AbortSignal,
+  ) =>
+    channelCall("connect_slack", () =>
+      getEngine().connectSlack(surface, signal),
+    ),
   linkSlack: (signal?: AbortSignal) =>
     channelCall("link_slack", () => getEngine().linkSlack(signal)),
   linkWhatsApp: (signal?: AbortSignal) =>
