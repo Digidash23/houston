@@ -1,3 +1,5 @@
+import type { UpdateStatus } from "./update-status";
+
 /**
  * Update policy model (pure logic; `useUpdateChecker` + the surfaces consume it).
  *
@@ -14,9 +16,30 @@
  * - `poll` — a background re-check found it mid-session. The release
  *   downloads silently; nothing is shown until it is on disk. Then a small
  *   "Restart to update" pill sits in the window corner and the user restarts
- *   whenever they like. Nothing else ever triggers that install: no countdown,
- *   no modal, no auto-relaunch. A turn in flight, a draft being typed, a
- *   co-located engine mid-task: none of it can be killed by the updater.
+ *   whenever they like. No countdown, no modal: a turn in flight, a draft
+ *   being typed, a co-located engine mid-task, none of it can be killed by
+ *   the updater. One moment besides the pill's click installs that release:
+ * - `return` — the person came back after a long absence (`update-return.ts`):
+ *   the window was unfocused for hours, or the machine slept that long. The
+ *   desktop app is rarely quit (macOS keeps it running, laptops sleep and
+ *   wake), so a poll's download would otherwise sit on the pill for weeks.
+ *   A return installs the release a poll already STAGED, synchronously at
+ *   the moment its gates pass (no turn this device sent, no unsent composer
+ *   words or half-walked card, the updater not mid-step). It never runs a
+ *   check of its own, so nothing the person starts meanwhile can be overtaken
+ *   by a find: a return with nothing staged runs the ordinary background
+ *   check, and that find waits for the next return. Remote engines only
+ *   (`isRemoteEngine`): on the local-engine build a relaunch kills the
+ *   bundled host sidecar, with its routine runs and the turns other clients
+ *   sent, which `ownTurnInFlight` cannot see. There the pill stays the only
+ *   mid-session install. On a remote-engine build the relaunch still kills
+ *   the in-process local-model bridge (`app/src-tauri/src/local_bridge`)
+ *   and drops any turn it is relaying, for this person or a teammate sharing
+ *   it, exactly as the pill's click and the launch install do. The bridge
+ *   exposes no in-flight relay count, and holding on "connected" would stop
+ *   every bridge user from updating, so no gate reads it. `return` is never
+ *   a find: a release's info carries it only on the statuses of a return's
+ *   install.
  *
  * Detection stays pull-based: the Tauri updater polls the release feed's
  * manifest. There is no push channel to a desktop build, and no server-side
@@ -29,10 +52,16 @@
  * manually" nudge per run.
  */
 
-export type UpdateOrigin = "launch" | "poll";
+/** The moment a check runs in: the process's one launch check, or a
+ *  background poll (`update-launch-claim.ts` hands it out). */
+export type CheckOrigin = "launch" | "poll";
 
-/** How a found release is presented: the launch overlay, or the silent
- *  background download that ends in the restart pill. */
+/** What a release's info carries: the check that found it, or `return` on
+ *  the statuses of a return's install. */
+export type UpdateOrigin = CheckOrigin | "return";
+
+/** How a release is presented: the launch overlay, or the silent background
+ *  download that ends in the restart pill. */
 export type UpdatePresentation = "launch" | "background";
 
 /** Background re-check cadence. Short enough that an active user has the
@@ -44,9 +73,19 @@ export const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
  *  bursts (Cmd-Tab flurries) and must not turn into a request storm. */
 export const FOCUS_RECHECK_MIN_GAP_MS = 60 * 1000;
 
-/** Which presentation a found release gets. */
-export function updatePresentation(origin: UpdateOrigin): UpdatePresentation {
-  return origin === "launch" ? "launch" : "background";
+/** Which presentation a release gets, from where it was found and where it
+ *  stands. A launch find runs behind the overlay throughout; a poll find
+ *  stays in the background. A return's install runs behind the overlay like
+ *  a launch, but its error goes to the pill: the overlay cannot be dismissed,
+ *  and the person it would cover has a working app under it. */
+export function updatePresentation(
+  status: Exclude<UpdateStatus, { state: "idle" }>,
+): UpdatePresentation {
+  if (status.info.origin === "poll") return "background";
+  if (status.info.origin === "return" && status.state === "error") {
+    return "background";
+  }
+  return "launch";
 }
 
 /** True when a focus-triggered re-check is due. */
@@ -101,21 +140,20 @@ export function shouldReportDownloadFailure(
 }
 
 /** Attempts one download call makes before leaving the rest to the next
- *  poll (the shell keeps the partial either way). The launch-time install
- *  holds the user behind an overlay, so it gets the first request and one
- *  resume; a background poll can afford the shell's whole ladder. */
+ *  poll (the shell keeps the partial either way). A download behind the
+ *  overlay holds the user, so it gets the first request and one resume; a
+ *  background poll can afford the shell's whole ladder. */
 export const LAUNCH_DOWNLOAD_ATTEMPTS = 2;
 export const POLL_DOWNLOAD_ATTEMPTS = 5;
 
 export function downloadAttemptBudget(origin: UpdateOrigin): number {
-  return origin === "launch"
-    ? LAUNCH_DOWNLOAD_ATTEMPTS
-    : POLL_DOWNLOAD_ATTEMPTS;
+  return origin === "poll" ? POLL_DOWNLOAD_ATTEMPTS : LAUNCH_DOWNLOAD_ATTEMPTS;
 }
 
 /** What asked for a download: the launch find or a background poll (both
- *  automatic), or the person's own retry. */
-export type DownloadTrigger = UpdateOrigin | "user";
+ *  automatic), or the person's own retry. A return never downloads: it
+ *  installs only what a poll already staged. */
+export type DownloadTrigger = CheckOrigin | "user";
 
 /**
  * A download the disk refused is not retried AUTOMATICALLY for that release

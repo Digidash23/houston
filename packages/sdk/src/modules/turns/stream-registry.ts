@@ -54,6 +54,15 @@ export class StreamRegistry {
     const entry = this.active.get(key);
     return this.sending.has(key) || (entry?.kind === "turn" && !entry.accepted);
   }
+  /** Whether a turn this owner sent holds ANY conversation: what the desktop
+   *  updater asks before an install would pull the app out from under a send. */
+  ownsAnyTurn(): boolean {
+    if (this.sending.size > 0) return true;
+    for (const entry of this.active.values()) {
+      if (entry.kind === "turn") return true;
+    }
+    return false;
+  }
   /** Resolves once {@link ownsTurn} is false for `key`. A teardown
    *  ({@link disposeAll}) releases every key, so it never outlives one. */
   ownTurnLeft(key: string): Promise<void> {

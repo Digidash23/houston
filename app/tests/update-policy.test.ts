@@ -14,18 +14,55 @@ import {
   updateCheckJustStuck,
   updatePresentation,
 } from "../src/lib/update-policy.ts";
+import type { UpdateInfo, UpdateStatus } from "../src/lib/update-status.ts";
+
+const found = (origin: UpdateInfo["origin"]): UpdateInfo => ({
+  currentVersion: "0.6.23",
+  version: "1.0.8",
+  origin,
+});
+
+/** Every status after `available` for one origin, keyed by state. */
+function statuses(
+  origin: UpdateInfo["origin"],
+): Record<string, Exclude<UpdateStatus, { state: "idle" }>> {
+  const info = found(origin);
+  return {
+    available: { state: "available", info },
+    downloading: { state: "downloading", info, progress: 40 },
+    downloaded: { state: "downloaded", info },
+    installing: { state: "installing", info },
+    errorDownload: { state: "error", info, phase: "download" },
+    errorInstall: { state: "error", info, phase: "install" },
+    errorRelaunch: { state: "error", info, phase: "relaunch" },
+  };
+}
 
 // The presentation follows the find, not the release: a launch-check find
-// installs behind the upgrading overlay (nothing is running yet); anything
-// later downloads silently and waits for the user's own restart, so a working
+// installs behind the upgrading overlay (nothing is running yet); a poll's
+// find downloads silently and waits for the user's own restart, so a working
 // user is never yanked out of a task.
 describe("updatePresentation", () => {
-  it("installs immediately for a launch-check find", () => {
-    strictEqual(updatePresentation("launch"), "launch");
+  it("keeps a launch-check find behind the overlay in every state", () => {
+    for (const status of Object.values(statuses("launch"))) {
+      strictEqual(updatePresentation(status), "launch", status.state);
+    }
   });
 
-  it("downloads in the background for a mid-session find", () => {
-    strictEqual(updatePresentation("poll"), "background");
+  it("keeps a mid-session find in the background in every state", () => {
+    for (const status of Object.values(statuses("poll"))) {
+      strictEqual(updatePresentation(status), "background", status.state);
+    }
+  });
+
+  // A return's install runs behind the overlay like a launch, but the
+  // overlay cannot be dismissed and the app under it works, so its error
+  // goes to the pill instead of trapping the person.
+  it("covers a return's install, but sends its error to the pill", () => {
+    const byState = statuses("return");
+    strictEqual(updatePresentation(byState.installing), "launch");
+    strictEqual(updatePresentation(byState.errorInstall), "background");
+    strictEqual(updatePresentation(byState.errorRelaunch), "background");
   });
 });
 

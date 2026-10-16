@@ -1,4 +1,5 @@
 import { createElement, type ReactElement, useEffect, useState } from "react";
+import { updatePresentation } from "../../lib/update-policy";
 import type { UpdateInfo, UpdateStatus } from "../../lib/update-status";
 import { UpdateLaunchOverlay } from "./update-launch-overlay";
 import { UpdatePill, type UpdatePillStatus } from "./update-pill";
@@ -75,7 +76,7 @@ export function useUpdatePreview(collapsed = false): ReactElement | null {
   if (!status || status.state === "idle" || status.state === "available") {
     return null;
   }
-  if (status.info.origin === "launch") {
+  if (updatePresentation(status) === "launch") {
     return createElement(UpdateLaunchOverlay, {
       status,
       onRetry: () => setStatus(null),

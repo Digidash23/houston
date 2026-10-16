@@ -1,32 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { analytics } from "../lib/analytics";
-import { reportError } from "../lib/error-report";
-import {
-  osCurrentAppBundlePath,
-  osDownloadUpdate,
-  osInstallUpdate,
-} from "../lib/os-bridge";
 import {
   type AvailableUpdate,
   type CheckResult,
   runUpdateCheck,
 } from "../lib/update-check";
+import { downloadReleaseBytes } from "../lib/update-download";
 import { updateDownloadOutcome } from "../lib/update-download-failure";
-import {
-  applyDownloadEvent,
-  type DownloadTally,
-  EMPTY_DOWNLOAD_TALLY,
-} from "../lib/update-download-progress";
 import { reportUpdateDownloadFailure } from "../lib/update-download-report";
+import { installStagedRelease } from "../lib/update-install";
 import { claimLaunchCheck } from "../lib/update-launch-claim";
 import {
   type DownloadTrigger,
-  downloadAttemptBudget,
   shouldReportDownloadFailure,
   shouldSkipDownload,
-  type UpdateOrigin,
 } from "../lib/update-policy";
 import { relaunchInstalledRelease } from "../lib/update-relaunch";
+import type { ReturnHold } from "../lib/update-return";
 import {
   type InstallSource,
   type UpdateInfo,
@@ -38,22 +29,20 @@ export type { InstallSource, UpdateInfo, UpdateStatus };
 
 /**
  * The updater state machine: check → available → downloading → downloaded →
- * installing → relaunch (or error). Scheduling (when checks run) and policy
- * (what a find does) live in `useUpdateChecker`; this hook only moves
- * between states.
+ * installing → relaunch (or error). Scheduling and policy (when checks run,
+ * what a find does) live in `useUpdateChecker`; this hook only moves states.
+ * The steps themselves are the libs it calls (`update-check.ts`,
+ * `update-download.ts`, `update-install.ts`, `update-relaunch.ts`).
  *
- * Download and install are two steps on purpose: the release downloads in
- * the background while the user keeps working, and the install (msiexec
- * hand-off + process exit on Windows, bundle swap on macOS) runs only when
- * something explicitly asks for it. Both are the shell's own commands over
- * the plugin's `Update` resource: the plugin's single-shot download died
- * mid-stream on a 300 MB asset with no resume (PRODUCT-1727).
+ * `returnHold` is the checker's live read of what the person could lose; the
+ * machine asks it once more right before a return's install.
  */
-export function useUpdateMachine() {
+export function useUpdateMachine({ returnHold }: { returnHold: ReturnHold }) {
   const [status, setStatus] = useState<UpdateStatus>({ state: "idle" });
   const updateRef = useRef<AvailableUpdate | null>(null);
   const infoRef = useRef<UpdateInfo | null>(null);
   const statusRef = useRef<UpdateStatus>(status);
+  const returnHoldRef = useRef(returnHold);
   const busyRef = useRef(false);
   const appPathRef = useRef<string | null>(null);
   // Staged release bytes (a shell resource id) once a download landed.
@@ -65,14 +54,14 @@ export function useUpdateMachine() {
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
+  useEffect(() => {
+    returnHoldRef.current = returnHold;
+  }, [returnHold]);
 
+  // The launch check is the first of the PROCESS (`update-launch-claim.ts`),
+  // never of a mount; every later check is a poll.
   const runCheck = useCallback(async (): Promise<CheckResult> => {
-    // The first check of the PROCESS is the launch check: the user just
-    // opened the app and hasn't started working. Everything after is
-    // mid-session. Claimed outside React on purpose: this hook is remounted
-    // with <App/> on every identity change, and a per-mount flag would
-    // re-run the launch-time install on a user mid-task.
-    const origin: UpdateOrigin = claimLaunchCheck();
+    const origin = claimLaunchCheck();
     if (busyRef.current || updateCheckBlocked(statusRef.current)) {
       return { outcome: "skipped" };
     }
@@ -91,10 +80,9 @@ export function useUpdateMachine() {
 
   /** Fetch the release into the shell's staging buffer; true once it can
    *  be installed. A failure is reported (once per version), never shown:
-   *  the next check finds the release again and the download re-runs, and
-   *  the shell carries on from the bytes it kept on disk rather than from
-   *  zero, so a link that drops every few minutes still gets there. A
-   *  release the disk refused is not asked for again by a poll this
+   *  the next check finds the release again and the shell resumes from the
+   *  bytes it kept, so a link that drops every few minutes still gets there.
+   *  A release the disk refused is not asked for again by a poll this
    *  session; the person's own retry always is. */
   const download = useCallback(
     async (trigger: DownloadTrigger): Promise<boolean> => {
@@ -106,17 +94,12 @@ export function useUpdateMachine() {
         return false;
 
       busyRef.current = true;
-      let tally: DownloadTally = EMPTY_DOWNLOAD_TALLY;
       try {
         setStatus({ state: "downloading", info, progress: null });
-        bytesRidRef.current = await osDownloadUpdate(
+        bytesRidRef.current = await downloadReleaseBytes(
           update.rid,
-          downloadAttemptBudget(info.origin),
-          (event) => {
-            const next = applyDownloadEvent(tally, event);
-            tally = next.tally;
-            setStatus({ state: "downloading", info, progress: next.progress });
-          },
+          info.origin,
+          (progress) => setStatus({ state: "downloading", info, progress }),
         );
         setStatus({ state: "downloaded", info });
         analytics.track("update_downloaded", {
@@ -151,46 +134,62 @@ export function useUpdateMachine() {
       setStatus({ state: "error", info, phase: "relaunch" });
   }, []);
 
-  /** Install the downloaded release and relaunch into it; downloads first
-   *  when nothing is buffered yet (the launch-time path). On Windows the
-   *  install hands off to the installer and exits this process. */
+  /** Install the staged release and relaunch into it; downloads first when
+   *  nothing is buffered yet (the launch-time path and the person's own
+   *  retry). */
   const installAndRelaunch = useCallback(
     async (source: InstallSource) => {
       if (busyRef.current) return;
-      if (statusRef.current.state !== "downloaded" && !(await download(source)))
-        return;
+      if (statusRef.current.state !== "downloaded") {
+        // A return installs only what a poll already staged, so no download
+        // runs between its gates and the install; the others fetch.
+        if (source === "return" || !(await download(source))) return;
+      }
       const update = updateRef.current;
-      const info = infoRef.current;
+      const found = infoRef.current;
       const bytesRid = bytesRidRef.current;
-      if (!update || !info || bytesRid === null) return;
+      if (!update || !found || bytesRid === null) return;
+      // A return's install runs behind the launch overlay, so its statuses
+      // carry the return. The find itself stays the poll's (`infoRef`): a
+      // retry after a failure downloads and reports as the poll it was.
+      const info: UpdateInfo =
+        source === "return" ? { ...found, origin: "return" } : found;
 
       busyRef.current = true;
-      analytics.track("update_accepted", {
-        from_version: info.currentVersion,
-        to_version: info.version,
+      // Committed before the first await: a keystroke queued behind a return
+      // event would otherwise reach the still-mounted composer and start a
+      // draft the relaunch drops. The overlay takes focus as it mounts.
+      flushSync(() => setStatus({ state: "installing", info }));
+      const result = await installStagedRelease({
+        rid: update.rid,
+        bytesRid,
+        info,
         source,
+        lastLook: () => (source === "return" ? returnHoldRef.current() : null),
       });
-      try {
-        // Captured BEFORE the install: on macOS the install moves the bundle.
-        appPathRef.current = await osCurrentAppBundlePath();
-        setStatus({ state: "installing", info });
-        await osInstallUpdate(update.rid, bytesRid);
-        bytesRidRef.current = null;
-      } catch (error) {
-        console.error("[updater] install failed", error);
-        reportError("update_install", `install of ${info.version}`, error);
+      busyRef.current = false;
+      if (result.outcome === "held") {
+        // Back on the pill, with the poll's own find.
+        setStatus({ state: "downloaded", info: found });
+        return;
+      }
+      if (result.outcome === "failed") {
         setStatus({ state: "error", info, phase: "install" });
         return;
-      } finally {
-        busyRef.current = false;
       }
+      appPathRef.current = result.appPath;
+      bytesRidRef.current = null;
       await relaunchInstalledApp();
     },
     [download, relaunchInstalledApp],
   );
 
+  /** The status as of now, for decisions made inside event listeners. */
+  const currentStatus = useCallback(() => statusRef.current, []);
+
   return {
     status,
+    currentStatus,
     runCheck,
     download,
     installAndRelaunch,

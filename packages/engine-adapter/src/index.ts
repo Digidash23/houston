@@ -34,6 +34,9 @@ export {
 // keys the app's list-query persistence to the same gateway+user identity.
 export { clearConversationCache } from "./conversation-cache";
 export { conversationCacheScope } from "./conversation-cache-identity";
+// A turn this client sent is still out: the desktop updater holds an
+// install at a return while one is.
+export { ownTurnInFlight } from "./conversation-seed";
 // The app installs its reporting path here for failures the adapter absorbs.
 export { type AdapterErrorSink, setAdapterErrorSink } from "./error-sink";
 // Every sent turn's first response (its first visible text, or how it ended
