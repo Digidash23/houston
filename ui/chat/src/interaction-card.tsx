@@ -26,6 +26,8 @@ import { useInteractionShortcuts } from "./use-interaction-shortcuts";
 import { useStepperState } from "./use-stepper-state";
 import { useStepperTransitions } from "./use-stepper-transitions";
 
+const NO_FILES: readonly File[] = [];
+
 export type {
   ChatInteractionAnswer,
   ChatInteractionBrand,
@@ -110,7 +112,7 @@ export function ChatInteractionCard({
     stepId,
     selectedId,
     draft,
-    hasFiles: (attach?.files.length ?? 0) > 0,
+    files: attach?.files ?? NO_FILES,
     attachedAnswer: labels?.attachedAnswer ?? "See attached",
     onSend,
   });

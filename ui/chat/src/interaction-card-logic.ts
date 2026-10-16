@@ -10,6 +10,7 @@ import {
   normalizeAnswer,
   optionLabel,
 } from "./interaction-card-model.ts";
+import { type FileClaim, releaseClaim } from "./interaction-file-claim.ts";
 
 export type {
   ChatInteractionAnswer,
@@ -45,10 +46,8 @@ export interface StepperState {
   reached: number;
   answers: AnswerMap;
   drafts: DraftMap;
-  /** The question step the panel's attached files were sent from. Only that
-   *  step may be answered by files alone, so a "See attached" answer never
-   *  spreads to the questions after it. */
-  attachedStepId?: string;
+  /** The step the attached files alone answered (`interaction-file-claim`). */
+  fileClaim?: FileClaim;
 }
 
 /** The result of a transition: the next state plus, when the last step was
@@ -143,10 +142,13 @@ export function goForward(state: StepperState): StepperState {
 /** Advance past the current step, optionally committing a question answer.
  *  Returns `completed` when the current step is the last one. */
 function advance(
-  state: StepperState,
+  from: StepperState,
   steps: ChatInteractionStep[],
   commit?: { stepId: string; answer: StepAnswer; clearDraft: boolean },
 ): Transition {
+  const state = commit
+    ? releaseClaim(from, commit.stepId, commit.answer)
+    : from;
   let answers = state.answers;
   let drafts = state.drafts;
   if (commit) {
@@ -218,12 +220,12 @@ export function skipStep(
   steps: ChatInteractionStep[],
 ): Transition {
   const stepId = steps[state.current]?.id;
-  if (stepId === undefined || !(stepId in state.answers)) {
-    return advance(state, steps);
-  }
-  const answers = { ...state.answers };
+  if (stepId === undefined) return advance(state, steps);
+  const released = releaseClaim(state, stepId);
+  if (!(stepId in released.answers)) return advance(released, steps);
+  const answers = { ...released.answers };
   delete answers[stepId];
-  return advance({ ...state, answers }, steps);
+  return advance({ ...released, answers }, steps);
 }
 
 /** Advance past a connect step once the app reports it connected. */
