@@ -12,11 +12,13 @@ import {
   type LinkedInCompletionResult,
   linkedInCompletionStep,
   redeemLinkedIn,
+  reportHoldOnce,
 } from "../src/lib/linkedin-completion.ts";
 import {
   applySettingsLanding,
   captureSettingsLanding,
   carriesTicket,
+  type SlackCompletion,
   settingsLanding,
   settingsLandingFromDeepLink,
 } from "../src/lib/settings-landing.ts";
@@ -197,5 +199,19 @@ describe("linkedInCompletionStep", () => {
     strictEqual(read(true, false, true), "redeem");
     // No capabilities to read at all: the local host serves no LinkedIn.
     strictEqual(read(null), "drop");
+  });
+});
+
+describe("reportHoldOnce", () => {
+  it("reports a held ticket once however often its page remounts", () => {
+    let reports = 0;
+    const queued: SlackCompletion = { kind: "ticket", ticket: "t-1" };
+    // Each call stands for a mount of the page holding the same queued ticket.
+    reportHoldOnce(queued, () => reports++);
+    reportHoldOnce(queued, () => reports++);
+    strictEqual(reports, 1);
+    // A newer ticket held in turn still reports.
+    reportHoldOnce({ kind: "ticket", ticket: "t-2" }, () => reports++);
+    strictEqual(reports, 2);
   });
 });

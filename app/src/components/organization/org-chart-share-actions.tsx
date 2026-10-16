@@ -89,7 +89,12 @@ export function SharePrimary({ share }: { share: Share }) {
               ? "orgChart.share.posting"
               : "orgChart.share.postButton",
           )}
-          disabled={step.posting || !share.ready || words.kind !== "ok"}
+          disabled={
+            step.posting ||
+            share.postHeld ||
+            !share.ready ||
+            words.kind !== "ok"
+          }
           className={primary}
           onClick={share.post}
         />

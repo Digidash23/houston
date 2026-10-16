@@ -45,8 +45,9 @@ export interface LinkedInPostInput {
 
 /**
  * A post either went up (`postUrl` is LinkedIn's page for it, `null` when
- * LinkedIn gave no readable id: it is up all the same) or was refused with a
- * typed code. Only an answer that is neither (a 500) throws.
+ * LinkedIn gave no readable id: it is up all the same), was refused with a
+ * typed code, or is `unknown`: no answer came in time, and it may be up. Only
+ * an answer that is none of these (a 500) throws.
  */
 export type LinkedInPostResult =
   | { kind: "posted"; postUrn: string | null; postUrl: string | null }
@@ -55,4 +56,5 @@ export type LinkedInPostResult =
       code: LinkedInRefusalCode;
       /** The 429's `Retry-After`, when it carried a readable one. */
       retryAfterMs?: number;
-    };
+    }
+  | { kind: "unknown" };

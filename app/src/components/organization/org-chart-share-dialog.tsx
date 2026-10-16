@@ -96,6 +96,7 @@ export function OrgChartShareDialog({
             <ShareStatusLine
               line={share.line}
               onFollowBlocked={share.followBlocked}
+              onDismissUnconfirmed={share.dismissUnconfirmed}
             />
           </div>
         </div>

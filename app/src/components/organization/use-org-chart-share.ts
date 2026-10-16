@@ -1,29 +1,22 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useCapabilities } from "../../hooks/use-capabilities";
 import { analytics } from "../../lib/analytics";
 import { logAndReportError } from "../../lib/error-report";
 import { openExternalUrl } from "../../lib/open-external-url";
-import { osIsNativeMobile } from "../../lib/os-bridge/platform";
 import {
   canCopyImage,
-  coarsePointer,
   copyImageToClipboard,
   downloadShareImage,
   pasteDeps,
-  shareSheet,
 } from "./org-chart-share-browser";
 import { createLinkedInGate } from "./org-chart-share-gate";
 import { shareAltText, sharePostText } from "./org-chart-share-model";
 import { shareByPaste } from "./org-chart-share-paste";
-import {
-  type ShareLanding,
-  shareRoute,
-  shareViaSheet,
-} from "./org-chart-share-run";
+import { type ShareLanding, shareViaSheet } from "./org-chart-share-run";
 import {
   INITIAL_SHARE_DIALOG,
+  isPostHeld,
   replacesShownImage,
   shareDialogReducer,
 } from "./org-chart-share-state";
@@ -32,6 +25,7 @@ import { shareCounts, trackShare as track } from "./org-chart-share-track";
 import type { OrgTree } from "./org-chart-tree";
 import { useLinkedInPost } from "./use-linkedin-post";
 import { useShareCardImage } from "./use-share-card-image";
+import { useShareRoute } from "./use-share-route";
 
 /** How long Copy image reads "Copied". */
 const COPIED_MS = 2000;
@@ -48,7 +42,6 @@ const COPIED_MS = 2000;
  */
 export function useOrgChartShare(tree: OrgTree) {
   const { t } = useTranslation("teams");
-  const { capabilities } = useCapabilities();
   const { preview, file, retry, current } = useShareCardImage(tree);
   const [gate] = useState(() => createLinkedInGate(() => performance.now()));
   const [state, dispatch] = useReducer(
@@ -83,14 +76,7 @@ export function useOrgChartShare(tree: OrgTree) {
     dispatch({ type: "redrawn", url: drawnUrl });
   }, [drawnUrl, clearTimer]);
 
-  const route = shareRoute({
-    tauri: isTauri(),
-    nativeMobile: osIsNativeMobile(),
-    coarse: coarsePointer(),
-    sheet: shareSheet(),
-    image: file,
-    linkedin: capabilities?.linkedinShare === true,
-  });
+  const route = useShareRoute(file);
   const linkedIn = useLinkedInPost({
     enabled: state.open && route.kind === "post",
     state,
@@ -181,6 +167,9 @@ export function useOrgChartShare(tree: OrgTree) {
     post: () => {
       if (file) void linkedIn.post(file, text, shareAltText(t, tree));
     },
+    /** A post that may be up waits for the person to check LinkedIn. */
+    postHeld: isPostHeld(state),
+    dismissUnconfirmed: () => dispatch({ type: "unconfirmedDismissed" }),
     viewPost: (url: string) =>
       void openExternalUrl(url, { command: "linkedin_view_post" }),
     disconnect: linkedIn.disconnect,

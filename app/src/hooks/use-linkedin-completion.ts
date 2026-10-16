@@ -1,6 +1,6 @@
 import type { LinkedInConnection } from "@houston/engine-adapter";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { reportError } from "../lib/error-report";
 import { showExpectedStateToast } from "../lib/error-toast";
 import i18n from "../lib/i18n";
@@ -8,6 +8,7 @@ import type { Session } from "../lib/identity/session";
 import {
   linkedInCompletionStep,
   redeemLinkedIn,
+  reportHoldOnce,
 } from "../lib/linkedin-completion";
 import { tauriLinkedIn } from "../lib/linkedin-facade";
 import { queryKeys } from "../lib/query-keys";
@@ -32,18 +33,16 @@ export function useLinkedInCompletion() {
     isLoading,
     isError,
   });
-  const reportedHold = useRef(false);
   useEffect(() => {
     if (!queued || step === "wait") return;
     if (step === "hold") {
       // The ticket stays queued for the capabilities read's next try.
-      if (!reportedHold.current)
+      return reportHoldOnce(queued, () =>
         reportError(
           "linkedin_completion",
           "LinkedIn return held: capabilities did not load",
-        );
-      reportedHold.current = true;
-      return;
+        ),
+      );
     }
     const pending = takeSlackCompletion(
       () => useUIStore.getState().pendingLinkedInCompletion,

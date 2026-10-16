@@ -69,6 +69,8 @@ export function shareRoute(env: {
  *   long.
  * - `retry`: LinkedIn failed the post.
  * - `posted`: the post is up.
+ * - `unconfirmed`: no answer came in time, so the post may be up; it links
+ *   to the feed, and Post waits until the person dismisses it.
  */
 export type ShareLine =
   | { kind: "copied" }
@@ -82,7 +84,8 @@ export type ShareLine =
   | { kind: "reconnect" }
   | { kind: "wait"; retryAfterMs?: number }
   | { kind: "retry" }
-  | { kind: "posted" };
+  | { kind: "posted" }
+  | { kind: "unconfirmed" };
 
 /** What the dialog does once a share lands. */
 export interface ShareLanding {

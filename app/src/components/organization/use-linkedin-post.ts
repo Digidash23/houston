@@ -18,38 +18,25 @@ import {
   useLinkedInActions,
   useLinkedInConnection,
 } from "../../hooks/queries/use-linkedin";
+import { useSession } from "../../hooks/use-session";
 import { logAndReportError } from "../../lib/error-report";
 import { showConnectivityErrorToast } from "../../lib/error-toast";
 import { tauriLinkedIn } from "../../lib/linkedin-facade";
 import { useWorkspaceStore } from "../../stores/workspaces";
 import { linkedInConnectPorts } from "./linkedin-connect-ports";
-import { useLinkedInPostSlot, useLinkedInPosts } from "./linkedin-post-store";
+import { LinkedInPostRefusedError, refusalLine } from "./linkedin-post-refusal";
+import {
+  linkedInPostKey,
+  useLinkedInPostSlot,
+  useLinkedInPosts,
+} from "./linkedin-post-store";
 import { jpegOf, postableImage } from "./org-chart-share-encode";
 import { createLinkedInGate } from "./org-chart-share-gate";
-import type { ShareLine } from "./org-chart-share-run";
 import type {
   ShareDialogAction,
   ShareDialogState,
 } from "./org-chart-share-state";
 import { type ConnectPhase, connectionRead } from "./org-chart-share-step";
-
-/** A post the gateway refused for what this client sent: a bug to report. */
-export class LinkedInPostRefusedError extends Error {
-  override name = "LinkedInPostRefusedError";
-}
-
-/** The line a refusal leaves under the button; `null` says nothing. */
-function refusalLine(
-  action: LinkedInRefusalAction,
-  retryAfterMs: number | undefined,
-): ShareLine | null {
-  if (action === "reconnect") return { kind: "reconnect" };
-  if (action === "retry") return { kind: "retry" };
-  if (action !== "wait") return null;
-  return retryAfterMs === undefined
-    ? { kind: "wait" }
-    : { kind: "wait", retryAfterMs };
-}
 
 /**
  * Posting from the share dialog: the connection read (polled while a connect
@@ -67,8 +54,10 @@ export function useLinkedInPost(input: {
 }) {
   const { t, i18n } = useTranslation("teams");
   const { enabled, state, dispatch, session } = input;
-  // One post out per space, held outside the page that started it.
-  const postKey = useWorkspaceStore((s) => s.current?.id ?? "");
+  // One post out per person and space, held outside the page that started it.
+  const uid = useSession().data?.uid ?? null;
+  const space = useWorkspaceStore((s) => s.current?.id ?? "");
+  const postKey = linkedInPostKey(uid, space);
   const slot = useLinkedInPostSlot(postKey);
   const attempt = state.connect;
   const query = useLinkedInConnection(enabled, attempt?.watch ?? null);
@@ -78,14 +67,18 @@ export function useLinkedInPost(input: {
   // the first tab then failed. Checked before the click claims a tab.
   const [gate] = useState(() => createLinkedInGate(() => performance.now()));
 
-  // A post that went up, here or while this page was gone, is said once by
+  // A post that settled, here or while this page was gone, is said once by
   // the opening on screen; before paint, so Post never flashes back.
-  const landed = slot.landed;
+  const { landed, unconfirmed } = slot;
   useLayoutEffect(() => {
-    if (!state.open || landed === null) return;
-    dispatch({ type: "posted", postUrl: landed });
+    if (!state.open || (landed === null && !unconfirmed)) return;
+    dispatch(
+      landed === null
+        ? { type: "postUnconfirmed" }
+        : { type: "posted", postUrl: landed },
+    );
     useLinkedInPosts.getState().shown(postKey);
-  }, [state.open, landed, postKey, dispatch]);
+  }, [state.open, landed, unconfirmed, postKey, dispatch]);
 
   // The attempt ends when the connection lands or its window closes.
   const connected = query.data?.connected === true;
@@ -146,7 +139,8 @@ export function useLinkedInPost(input: {
 
   const post = async (file: File, text: string, altText: string) => {
     const posts = useLinkedInPosts.getState();
-    if (!posts.start(postKey)) return;
+    const claim = posts.start(postKey);
+    if (!claim) return;
     dispatch({ type: "posting" });
     try {
       let image: Blob;
@@ -157,9 +151,12 @@ export function useLinkedInPost(input: {
         return refused("quiet");
       }
       const result = await tauriLinkedIn.postImage({ image, text, altText });
+      // Signed out or in meanwhile: nothing of it reaches the next person.
+      if (!posts.holds(claim)) return;
+      if (result.kind === "unknown") return posts.unconfirmed(claim);
       if (result.kind === "posted") {
         input.onPosted();
-        return posts.posted(postKey, linkedInPostLink(result.postUrl));
+        return posts.posted(claim, linkedInPostLink(result.postUrl));
       }
       const action = linkedInRefusalAction(result.code);
       if (action === "report")
@@ -170,9 +167,9 @@ export function useLinkedInPost(input: {
       refused(action, result.retryAfterMs);
     } catch {
       // tauriLinkedIn.postImage reported the failure; the button comes back.
-      refused("quiet");
+      if (posts.holds(claim)) refused("quiet");
     } finally {
-      posts.ended(postKey);
+      posts.ended(claim);
     }
   };
 

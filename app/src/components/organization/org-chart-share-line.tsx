@@ -1,6 +1,10 @@
-import { linkedInRetryMinutes } from "@houston/sdk/linkedin/policy";
+import {
+  LINKEDIN_FEED_URL,
+  linkedInRetryMinutes,
+} from "@houston/sdk/linkedin/policy";
 import { cn } from "@houston-ai/core";
 import { useTranslation } from "react-i18next";
+import { FallbackLink } from "../shell/fallback-link";
 import type { ShareLine } from "./org-chart-share-run";
 
 /** A rate limit names its wait when the gateway said how long. */
@@ -23,9 +27,12 @@ function useLineText(line: ShareLine | null): string | null {
 export function ShareStatusLine({
   line,
   onFollowBlocked,
+  onDismissUnconfirmed,
 }: {
   line: ShareLine | null;
   onFollowBlocked: () => void;
+  /** The person checked LinkedIn: Post comes back. */
+  onDismissUnconfirmed: () => void;
 }) {
   const { t } = useTranslation("teams");
   const text = useLineText(line);
@@ -50,6 +57,26 @@ export function ShareStatusLine({
           </a>
         </>
       )}
+      {line?.kind === "unconfirmed" && (
+        <>
+          {" "}
+          <FallbackLink
+            href={LINKEDIN_FEED_URL}
+            command="linkedin_open_feed"
+            className="font-medium"
+          >
+            {t("orgChart.share.openLinkedIn")}
+          </FallbackLink>
+          <span aria-hidden> · </span>
+          <button
+            type="button"
+            onClick={onDismissUnconfirmed}
+            className="rounded-sm font-medium text-ink underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          >
+            {t("orgChart.share.unconfirmedDismiss")}
+          </button>
+        </>
+      )}
     </p>
   );
 }
@@ -61,4 +88,5 @@ const LINE_KEY = {
   wait: "orgChart.share.rateLimited",
   retry: "orgChart.share.postFailed",
   posted: "orgChart.share.posted",
+  unconfirmed: "orgChart.share.unconfirmed",
 } as const satisfies Record<Exclude<ShareLine["kind"], "blocked">, string>;

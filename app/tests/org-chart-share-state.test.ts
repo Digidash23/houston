@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import type { ShareLine } from "../src/components/organization/org-chart-share-run.ts";
 import {
   INITIAL_SHARE_DIALOG,
+  isPostHeld,
   replacesShownImage,
   type ShareDialogAction,
   shareDialogReducer,
@@ -202,5 +203,58 @@ describe("shareDialogReducer", () => {
     );
     deepStrictEqual(refused.line, { kind: "reconnect" });
     strictEqual(refused.postUrl, null);
+  });
+});
+
+describe("a post with no answer in time", () => {
+  const unconfirmed = () =>
+    run({ type: "open" }, { type: "posting" }, { type: "postUnconfirmed" });
+
+  it("says it may be up and holds Post", () => {
+    const state = unconfirmed();
+    deepStrictEqual(state.line, { kind: "unconfirmed" });
+    strictEqual(state.postUrl, null);
+    strictEqual(isPostHeld(state), true);
+  });
+
+  it("keeps Post held through a redrawn picture", () => {
+    const redrawn = shareDialogReducer(unconfirmed(), {
+      type: "redrawn",
+      url: "blob:next",
+    });
+    strictEqual(isPostHeld(redrawn), true);
+  });
+
+  it("gives Post back once the person dismisses the line", () => {
+    const dismissed = shareDialogReducer(unconfirmed(), {
+      type: "unconfirmedDismissed",
+    });
+    strictEqual(dismissed.line, null);
+    strictEqual(isPostHeld(dismissed), false);
+  });
+
+  it("gives Post back in the next opening, after the person checked", () => {
+    const reopened = [
+      { type: "close" },
+      { type: "open" },
+    ] satisfies ShareDialogAction[];
+    strictEqual(
+      isPostHeld(reopened.reduce(shareDialogReducer, unconfirmed())),
+      false,
+    );
+  });
+
+  it("never dismisses another line", () => {
+    const refused = run(
+      { type: "open" },
+      { type: "postRefused", line: { kind: "retry" } },
+      { type: "unconfirmedDismissed" },
+    );
+    deepStrictEqual(refused.line, { kind: "retry" });
+  });
+
+  it("says nothing with the dialog closed", () => {
+    const closed = run({ type: "postUnconfirmed" });
+    strictEqual(closed.line, null);
   });
 });

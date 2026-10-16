@@ -609,6 +609,8 @@
       "rateLimitedIn_one": "You have posted a lot in the last hour. Try again in {{count}} minute.",
       "rateLimitedIn_other": "You have posted a lot in the last hour. Try again in {{count}} minutes.",
       "postFailed": "LinkedIn did not take the post. Try again in a moment.",
+      "unconfirmed": "We couldn't confirm the post. Check LinkedIn before posting again.",
+      "unconfirmedDismiss": "I checked",
       "download": "Download image",
       "copyImage": "Copy image",
       "copiedImage": "Copied",

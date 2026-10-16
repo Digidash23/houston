@@ -609,6 +609,8 @@
       "rateLimitedIn_one": "Você publicou muito na última hora. Tente de novo em {{count}} minuto.",
       "rateLimitedIn_other": "Você publicou muito na última hora. Tente de novo em {{count}} minutos.",
       "postFailed": "O LinkedIn não aceitou a publicação. Tente de novo em um instante.",
+      "unconfirmed": "Não conseguimos confirmar a publicação. Confira o LinkedIn antes de publicar de novo.",
+      "unconfirmedDismiss": "Já conferi",
       "download": "Baixar imagem",
       "copyImage": "Copiar imagem",
       "copiedImage": "Copiada",

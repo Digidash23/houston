@@ -68,3 +68,19 @@ export function linkedInCompletionStep(read: {
   if (read.isLoading) return "wait";
   return read.isError ? "hold" : "drop";
 }
+
+/** The queued returns whose hold was already reported, by the queued entry. */
+const reportedHolds = new WeakSet<SlackCompletion>();
+
+/**
+ * Reports a held return once per queued ticket: a remount of the page that
+ * holds it says nothing again, and a newer ticket held in turn still reports.
+ */
+export function reportHoldOnce(
+  queued: SlackCompletion,
+  report: () => void,
+): void {
+  if (reportedHolds.has(queued)) return;
+  reportedHolds.add(queued);
+  report();
+}

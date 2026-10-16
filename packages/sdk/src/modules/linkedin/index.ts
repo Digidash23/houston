@@ -24,6 +24,7 @@ import {
   getLinkedInConnection,
   postLinkedInImage,
 } from "./http";
+import { withPostDeadline } from "./post-deadline";
 import {
   LinkedInCommand,
   type LinkedInCompletion,
@@ -70,8 +71,9 @@ export interface LinkedInModule {
   disconnect(signal?: AbortSignal): Promise<void>;
   /**
    * Post the picture with its words. Refusals are typed, including the ones
-   * earned before any request (words or a picture the gateway would refuse);
-   * an abort through `input.signal` rejects with the signal's reason.
+   * earned before any request (words or a picture the gateway would refuse).
+   * No answer within three minutes is `unknown`: the post
+   * may be up. An abort through `input.signal` rejects with its reason.
    */
   postImage(input: LinkedInPostInput): Promise<LinkedInPostResult>;
 }
@@ -107,7 +109,9 @@ export function createLinkedInModule(ctx: ModuleContext): LinkedInModule {
     postImage: async (input) => {
       const upload = linkedInUpload(input);
       if (!(upload instanceof FormData)) return upload;
-      return postLinkedInImage(scope, upload, input.signal);
+      return withPostDeadline(ctx.config.ports.clock, input.signal, (signal) =>
+        postLinkedInImage(scope, upload, signal),
+      );
     },
   };
 

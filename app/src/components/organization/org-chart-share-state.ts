@@ -57,6 +57,10 @@ export type ShareDialogAction =
   | ({ type: "connectEnded"; line?: ShareLine } & AttemptTag)
   | { type: "posting" }
   | { type: "posted"; postUrl: string }
+  /** No answer came in time: the post may be up. */
+  | { type: "postUnconfirmed" }
+  /** The person checked LinkedIn and dismissed the unconfirmed line. */
+  | { type: "unconfirmedDismissed" }
   | { type: "postRefused"; line: ShareLine | null };
 
 export const INITIAL_SHARE_DIALOG: ShareDialogState = {
@@ -90,7 +94,12 @@ export function shareDialogReducer(
     case "close":
       return { ...state, open: false, connect: null };
     case "redrawn":
-      return { ...state, line: null, copied: false };
+      // A new picture changes nothing about a post that may be up.
+      return {
+        ...state,
+        line: isPostHeld(state) ? state.line : null,
+        copied: false,
+      };
     case "landed":
       return here ? { ...state, line: action.line } : state;
     case "copied":
@@ -121,9 +130,21 @@ export function shareDialogReducer(
       return state.open
         ? { ...state, postUrl: action.postUrl, line: { kind: "posted" } }
         : state;
+    case "postUnconfirmed":
+      return state.open ? { ...state, line: { kind: "unconfirmed" } } : state;
+    case "unconfirmedDismissed":
+      return isPostHeld(state) ? { ...state, line: null } : state;
     case "postRefused":
       return state.open ? { ...state, line: action.line } : state;
   }
+}
+
+/**
+ * Whether Post waits: a post that may be up is never retried blind. Until
+ * the person dismisses the line, or opens the dialog again after checking.
+ */
+export function isPostHeld(state: ShareDialogState): boolean {
+  return state.line?.kind === "unconfirmed";
 }
 
 /**
