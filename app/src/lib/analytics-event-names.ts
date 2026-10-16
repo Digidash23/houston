@@ -196,9 +196,10 @@ export type AnalyticsEventName =
   | "org_chart_shared"
   // Update lifecycle (closes the symbolication-coverage feedback loop).
   // update_offered: the check found a release; update_downloaded: it landed
-  // in the updater's buffer (`source`: launch | poll, which check found it);
-  // update_accepted: the install starting (`source`: user | launch, the
-  // restart pill's click vs the silent launch-time install).
+  // in the updater's buffer (`source`: launch | poll | return, which check
+  // found it); update_accepted: the install starting (`source`: user |
+  // launch | return, the restart pill's click vs the two silent installs, at
+  // launch and at a return after a long absence).
   | "update_offered"
   | "update_downloaded"
   | "update_accepted"

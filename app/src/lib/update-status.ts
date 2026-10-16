@@ -1,4 +1,4 @@
-import type { UpdateOrigin } from "./update-policy";
+import type { AutoInstallOrigin, UpdateOrigin } from "./update-policy";
 
 export interface UpdateInfo {
   currentVersion: string;
@@ -11,9 +11,9 @@ export interface UpdateInfo {
 
 export type UpdateErrorPhase = "download" | "install" | "relaunch";
 
-/** What set the install off: the user's own click, or the silent
- *  launch-time install. */
-export type InstallSource = "user" | "launch";
+/** What set the install off: the user's own click, or one of the two silent
+ *  installs, at launch or at a return after a long absence. */
+export type InstallSource = "user" | AutoInstallOrigin;
 
 /** The updater's states: check → available → downloading → downloaded →
  *  installing → relaunch, or error at any step after `available`. */

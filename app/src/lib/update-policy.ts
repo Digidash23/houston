@@ -2,7 +2,7 @@
  * Update policy model (pure logic; `useUpdateChecker` + the surfaces consume it).
  *
  * A release is never installed out from under a working user. The updater
- * finds a release in one of two moments, and the moment decides the shape:
+ * finds a release in one of three moments, and the moment decides the shape:
  *
  * - `launch` — the launch check found it. Nothing is running yet, so the
  *   install runs right away behind a calm "upgrading Houston" overlay and the
@@ -17,6 +17,17 @@
  *   whenever they like. Nothing else ever triggers that install: no countdown,
  *   no modal, no auto-relaunch. A turn in flight, a draft being typed, a
  *   co-located engine mid-task: none of it can be killed by the updater.
+ * - `return` — the person came back after a long absence (`update-return.ts`):
+ *   the window was hidden or unfocused for hours, or the machine slept. The
+ *   desktop app is rarely quit (macOS keeps it running, laptops sleep and
+ *   wake), so a poll's download would otherwise sit on the pill for weeks.
+ *   The return is the moment the window is visible or focused again, when
+ *   nothing has started yet, the same reasoning the launch moment rests on,
+ *   so the next check gets launch semantics: a release found then, or one a
+ *   poll already fetched, installs behind the launch overlay and relaunches.
+ *   It is held back (the pill stays) while anything the person could lose is
+ *   in flight on this device: a turn this device sent, unsent composer words
+ *   or a half-walked card, or a download or install already running.
  *
  * Detection stays pull-based: the Tauri updater polls the release feed's
  * manifest. There is no push channel to a desktop build, and no server-side
@@ -29,7 +40,14 @@
  * manually" nudge per run.
  */
 
-export type UpdateOrigin = "launch" | "poll";
+export type UpdateOrigin = "launch" | "poll" | "return";
+
+/** The origins whose find installs at once behind the launch overlay: the
+ *  launch check, and a return after a long absence. */
+export type AutoInstallOrigin = Exclude<UpdateOrigin, "poll">;
+
+/** What the per-process launch claim hands a check (`update-launch-claim.ts`). */
+export type LaunchClaim = "launch" | "poll";
 
 /** How a found release is presented: the launch overlay, or the silent
  *  background download that ends in the restart pill. */
@@ -44,9 +62,26 @@ export const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
  *  bursts (Cmd-Tab flurries) and must not turn into a request storm. */
 export const FOCUS_RECHECK_MIN_GAP_MS = 60 * 1000;
 
+/** The origin a find installs under at once, or null for a background find. */
+export function autoInstallOrigin(
+  origin: UpdateOrigin,
+): AutoInstallOrigin | null {
+  return origin === "poll" ? null : origin;
+}
+
 /** Which presentation a found release gets. */
 export function updatePresentation(origin: UpdateOrigin): UpdatePresentation {
-  return origin === "launch" ? "launch" : "background";
+  return autoInstallOrigin(origin) ? "launch" : "background";
+}
+
+/** The moment a check runs in. The process's one launch check wins; after it,
+ *  a return after a long absence, else an ordinary poll. */
+export function checkOrigin(
+  claim: LaunchClaim,
+  returned: boolean,
+): UpdateOrigin {
+  if (claim === "launch") return "launch";
+  return returned ? "return" : "poll";
 }
 
 /** True when a focus-triggered re-check is due. */
@@ -101,20 +136,20 @@ export function shouldReportDownloadFailure(
 }
 
 /** Attempts one download call makes before leaving the rest to the next
- *  poll (the shell keeps the partial either way). The launch-time install
- *  holds the user behind an overlay, so it gets the first request and one
- *  resume; a background poll can afford the shell's whole ladder. */
+ *  poll (the shell keeps the partial either way). An install behind the
+ *  overlay (launch or return) holds the user, so it gets the first request
+ *  and one resume; a background poll can afford the shell's whole ladder. */
 export const LAUNCH_DOWNLOAD_ATTEMPTS = 2;
 export const POLL_DOWNLOAD_ATTEMPTS = 5;
 
 export function downloadAttemptBudget(origin: UpdateOrigin): number {
-  return origin === "launch"
+  return autoInstallOrigin(origin)
     ? LAUNCH_DOWNLOAD_ATTEMPTS
     : POLL_DOWNLOAD_ATTEMPTS;
 }
 
-/** What asked for a download: the launch find or a background poll (both
- *  automatic), or the person's own retry. */
+/** What asked for a download: the launch find, a background poll or a
+ *  return (all automatic), or the person's own retry. */
 export type DownloadTrigger = UpdateOrigin | "user";
 
 /**

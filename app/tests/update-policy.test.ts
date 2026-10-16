@@ -1,6 +1,8 @@
 import { ok, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
 import {
+  autoInstallOrigin,
+  checkOrigin,
   downloadAttemptBudget,
   FOCUS_RECHECK_MIN_GAP_MS,
   LAUNCH_DOWNLOAD_ATTEMPTS,
@@ -26,6 +28,32 @@ describe("updatePresentation", () => {
 
   it("downloads in the background for a mid-session find", () => {
     strictEqual(updatePresentation("poll"), "background");
+  });
+
+  it("installs immediately for a find at a return after a long absence", () => {
+    strictEqual(updatePresentation("return"), "launch");
+  });
+});
+
+describe("autoInstallOrigin", () => {
+  it("names the two origins whose find installs at once", () => {
+    strictEqual(autoInstallOrigin("launch"), "launch");
+    strictEqual(autoInstallOrigin("return"), "return");
+    strictEqual(autoInstallOrigin("poll"), null);
+  });
+});
+
+// The process's one launch check wins whatever moment it runs in; after it,
+// the return is the only other check whose find installs at once.
+describe("checkOrigin", () => {
+  it("keeps the launch claim", () => {
+    strictEqual(checkOrigin("launch", false), "launch");
+    strictEqual(checkOrigin("launch", true), "launch");
+  });
+
+  it("marks a later check by whether it is a return", () => {
+    strictEqual(checkOrigin("poll", true), "return");
+    strictEqual(checkOrigin("poll", false), "poll");
   });
 });
 
@@ -104,8 +132,9 @@ describe("shouldReportDownloadFailure", () => {
 // short budget and leaves the rest to the next poll; the shell's partial
 // survives either way, so nothing is lost by stopping early.
 describe("downloadAttemptBudget", () => {
-  it("gives a launch find the first request and one resume", () => {
+  it("gives a launch or return find the first request and one resume", () => {
     strictEqual(downloadAttemptBudget("launch"), LAUNCH_DOWNLOAD_ATTEMPTS);
+    strictEqual(downloadAttemptBudget("return"), LAUNCH_DOWNLOAD_ATTEMPTS);
     strictEqual(LAUNCH_DOWNLOAD_ATTEMPTS, 2);
   });
 
@@ -121,6 +150,7 @@ describe("shouldSkipDownload", () => {
   it("skips the release the disk refused for the automatic triggers", () => {
     strictEqual(shouldSkipDownload("1.0.6", "1.0.6", "poll"), true);
     strictEqual(shouldSkipDownload("1.0.6", "1.0.6", "launch"), true);
+    strictEqual(shouldSkipDownload("1.0.6", "1.0.6", "return"), true);
   });
 
   // The launch overlay cannot be dismissed and its only way out is Retry:

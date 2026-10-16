@@ -40,6 +40,17 @@ describe("useUpdateMachine download trigger", () => {
     ok(checker.includes('void download("poll")'));
   });
 
+  // The return moment (update-return.ts) reaches the machine as its own
+  // source: the install it starts files `update_accepted` with
+  // `source: "return"`, and the check it runs carries the return into
+  // `checkOrigin`, after the per-process launch claim.
+  it("hands the return moment through as its own source", () => {
+    ok(checker.includes('void installAndRelaunch("return")'));
+    ok(checker.includes("void check(true)"));
+    ok(machine.includes("checkOrigin(claimLaunchCheck(), returned)"));
+    ok(machine.includes('if (source === "return" && infoRef.current)'));
+  });
+
   it("latches only on give_up, before the once-per-version report", () => {
     const giveUp = machine.indexOf(
       'if (outcome === "give_up") gaveUpRef.current = info.version;',

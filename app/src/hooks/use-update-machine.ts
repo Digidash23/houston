@@ -1,30 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { analytics } from "../lib/analytics";
 import { reportError } from "../lib/error-report";
-import {
-  osCurrentAppBundlePath,
-  osDownloadUpdate,
-  osInstallUpdate,
-} from "../lib/os-bridge";
+import { osCurrentAppBundlePath, osInstallUpdate } from "../lib/os-bridge";
 import {
   type AvailableUpdate,
   type CheckResult,
   runUpdateCheck,
 } from "../lib/update-check";
+import { downloadReleaseBytes } from "../lib/update-download";
 import { updateDownloadOutcome } from "../lib/update-download-failure";
-import {
-  applyDownloadEvent,
-  type DownloadTally,
-  EMPTY_DOWNLOAD_TALLY,
-} from "../lib/update-download-progress";
 import { reportUpdateDownloadFailure } from "../lib/update-download-report";
 import { claimLaunchCheck } from "../lib/update-launch-claim";
 import {
+  checkOrigin,
   type DownloadTrigger,
-  downloadAttemptBudget,
   shouldReportDownloadFailure,
   shouldSkipDownload,
-  type UpdateOrigin,
 } from "../lib/update-policy";
 import { relaunchInstalledRelease } from "../lib/update-relaunch";
 import {
@@ -38,16 +29,14 @@ export type { InstallSource, UpdateInfo, UpdateStatus };
 
 /**
  * The updater state machine: check → available → downloading → downloaded →
- * installing → relaunch (or error). Scheduling (when checks run) and policy
- * (what a find does) live in `useUpdateChecker`; this hook only moves
- * between states.
+ * installing → relaunch (or error). Scheduling and policy (when checks run,
+ * what a find does) live in `useUpdateChecker`; this hook only moves states.
  *
- * Download and install are two steps on purpose: the release downloads in
- * the background while the user keeps working, and the install (msiexec
- * hand-off + process exit on Windows, bundle swap on macOS) runs only when
- * something explicitly asks for it. Both are the shell's own commands over
- * the plugin's `Update` resource: the plugin's single-shot download died
- * mid-stream on a 300 MB asset with no resume (PRODUCT-1727).
+ * Download and install are two steps on purpose: the release downloads while
+ * the user keeps working, and the install (msiexec hand-off + exit on
+ * Windows, bundle swap on macOS) runs only when something asks for it. Both
+ * are the shell's own commands over the plugin's `Update` resource: its
+ * single-shot download died mid-stream on a 300 MB asset (PRODUCT-1727).
  */
 export function useUpdateMachine() {
   const [status, setStatus] = useState<UpdateStatus>({ state: "idle" });
@@ -66,35 +55,35 @@ export function useUpdateMachine() {
     statusRef.current = status;
   }, [status]);
 
-  const runCheck = useCallback(async (): Promise<CheckResult> => {
-    // The first check of the PROCESS is the launch check: the user just
-    // opened the app and hasn't started working. Everything after is
-    // mid-session. Claimed outside React on purpose: this hook is remounted
-    // with <App/> on every identity change, and a per-mount flag would
-    // re-run the launch-time install on a user mid-task.
-    const origin: UpdateOrigin = claimLaunchCheck();
-    if (busyRef.current || updateCheckBlocked(statusRef.current)) {
-      return { outcome: "skipped" };
-    }
-    const { result, found } = await runUpdateCheck(origin, statusRef.current);
-    if (result.outcome === "none") {
-      updateRef.current = null;
-      infoRef.current = null;
-      setStatus({ state: "idle" });
-    } else if (found) {
-      updateRef.current = found.update;
-      infoRef.current = found.info;
-      setStatus({ state: "available", info: found.info });
-    }
-    return result;
-  }, []);
+  // `returned`: the check is a return after a long absence, the one moment
+  // after the launch check whose find installs at once. The launch check is
+  // the first of the PROCESS (`update-launch-claim.ts`), never of a mount.
+  const runCheck = useCallback(
+    async (returned: boolean): Promise<CheckResult> => {
+      const origin = checkOrigin(claimLaunchCheck(), returned);
+      if (busyRef.current || updateCheckBlocked(statusRef.current)) {
+        return { outcome: "skipped" };
+      }
+      const { result, found } = await runUpdateCheck(origin, statusRef.current);
+      if (result.outcome === "none") {
+        updateRef.current = null;
+        infoRef.current = null;
+        setStatus({ state: "idle" });
+      } else if (found) {
+        updateRef.current = found.update;
+        infoRef.current = found.info;
+        setStatus({ state: "available", info: found.info });
+      }
+      return result;
+    },
+    [],
+  );
 
   /** Fetch the release into the shell's staging buffer; true once it can
    *  be installed. A failure is reported (once per version), never shown:
-   *  the next check finds the release again and the download re-runs, and
-   *  the shell carries on from the bytes it kept on disk rather than from
-   *  zero, so a link that drops every few minutes still gets there. A
-   *  release the disk refused is not asked for again by a poll this
+   *  the next check finds the release again and the shell resumes from the
+   *  bytes it kept, so a link that drops every few minutes still gets there.
+   *  A release the disk refused is not asked for again by a poll this
    *  session; the person's own retry always is. */
   const download = useCallback(
     async (trigger: DownloadTrigger): Promise<boolean> => {
@@ -106,17 +95,12 @@ export function useUpdateMachine() {
         return false;
 
       busyRef.current = true;
-      let tally: DownloadTally = EMPTY_DOWNLOAD_TALLY;
       try {
         setStatus({ state: "downloading", info, progress: null });
-        bytesRidRef.current = await osDownloadUpdate(
+        bytesRidRef.current = await downloadReleaseBytes(
           update.rid,
-          downloadAttemptBudget(info.origin),
-          (event) => {
-            const next = applyDownloadEvent(tally, event);
-            tally = next.tally;
-            setStatus({ state: "downloading", info, progress: next.progress });
-          },
+          info.origin,
+          (progress) => setStatus({ state: "downloading", info, progress }),
         );
         setStatus({ state: "downloaded", info });
         analytics.track("update_downloaded", {
@@ -157,6 +141,11 @@ export function useUpdateMachine() {
   const installAndRelaunch = useCallback(
     async (source: InstallSource) => {
       if (busyRef.current) return;
+      // A return adopts the release a poll fetched: from here on it is the
+      // return's find, so the launch overlay covers the install, not the pill.
+      if (source === "return" && infoRef.current) {
+        infoRef.current = { ...infoRef.current, origin: "return" };
+      }
       if (statusRef.current.state !== "downloaded" && !(await download(source)))
         return;
       const update = updateRef.current;
@@ -189,8 +178,12 @@ export function useUpdateMachine() {
     [download, relaunchInstalledApp],
   );
 
+  /** The status as of now, for decisions made inside event listeners. */
+  const currentStatus = useCallback(() => statusRef.current, []);
+
   return {
     status,
+    currentStatus,
     runCheck,
     download,
     installAndRelaunch,
