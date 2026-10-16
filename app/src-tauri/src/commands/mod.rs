@@ -11,6 +11,7 @@ pub mod portable;
 pub mod save_file;
 pub mod update;
 mod update_attempt;
+mod update_client;
 mod update_failure;
 mod update_fetch;
 mod update_partial;

@@ -1,17 +1,12 @@
 use super::StagedReleases;
-use crate::commands::update_failure::DownloadFailure;
+use crate::commands::update_failure::{DownloadFailure, DownloadFailureKind};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use tokio::sync::oneshot;
 
-fn counted<'a>(
-    fetches: &'a AtomicU32,
-    bytes: &'static [u8],
-) -> impl std::future::Future<Output = Result<Vec<u8>, DownloadFailure>> + 'a {
-    async move {
-        fetches.fetch_add(1, Ordering::SeqCst);
-        Ok(bytes.to_vec())
-    }
+async fn counted(fetches: &AtomicU32, bytes: &'static [u8]) -> Result<Vec<u8>, DownloadFailure> {
+    fetches.fetch_add(1, Ordering::SeqCst);
+    Ok(bytes.to_vec())
 }
 
 #[tokio::test]
@@ -137,4 +132,67 @@ async fn forgotten_bytes_are_fetched_again() {
         .await
         .unwrap();
     assert_eq!(fetches.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
+async fn a_caller_queued_behind_a_failed_attempt_gets_its_failure_without_fetching() {
+    let staged = Arc::new(StagedReleases::default());
+    let fetches = Arc::new(AtomicU32::new(0));
+    let (release, released) = oneshot::channel::<()>();
+    let (started, has_started) = oneshot::channel::<()>();
+
+    let first = tokio::spawn({
+        let staged = staged.clone();
+        async move {
+            staged
+                .admitted_or_fetch("1.0.8", "sig", || async move {
+                    started.send(()).unwrap();
+                    released.await.unwrap();
+                    Err(DownloadFailure::signature("bad".to_string(), 3))
+                })
+                .await
+        }
+    });
+    has_started.await.unwrap();
+    let second = tokio::spawn({
+        let (staged, fetches) = (staged.clone(), fetches.clone());
+        async move {
+            staged
+                .admitted_or_fetch("1.0.8", "sig", || counted(&fetches, b"again"))
+                .await
+        }
+    });
+    for _ in 0..3 {
+        tokio::task::yield_now().await;
+    }
+    release.send(()).unwrap();
+
+    assert!(first.await.unwrap().is_err());
+    let shared = second.await.unwrap().unwrap_err();
+    assert_eq!(shared.kind, DownloadFailureKind::Signature);
+    assert_eq!(fetches.load(Ordering::SeqCst), 0);
+
+    staged
+        .admitted_or_fetch("1.0.8", "sig", || counted(&fetches, b"release"))
+        .await
+        .unwrap();
+    assert_eq!(fetches.load(Ordering::SeqCst), 1, "a later caller fetches");
+}
+
+#[tokio::test]
+async fn admitted_bytes_are_found_only_under_their_signature_until_forgotten() {
+    let staged = StagedReleases::default();
+    let fetches = AtomicU32::new(0);
+    assert!(staged.admitted("1.0.8", "sig").is_none());
+    staged
+        .admitted_or_fetch("1.0.8", "sig", || counted(&fetches, b"release"))
+        .await
+        .unwrap();
+    assert_eq!(
+        staged.admitted("1.0.8", "sig").unwrap().as_slice(),
+        b"release"
+    );
+    assert!(staged.admitted("1.0.8", "other-sig").is_none());
+    staged.forget("1.0.8");
+    assert!(staged.admitted("1.0.8", "sig").is_none());
 }
