@@ -82,3 +82,22 @@ test("a read refused the same way is replayed with the refreshed bearer", async 
   await client().linkedInConnection();
   expect(bearers()).toEqual(["Bearer bearer-ada", "Bearer bearer-grace"]);
 });
+
+// With no bearer at send time the transport would wait for a refresh, and
+// whoever is signed in when it lands would own the post.
+test("a post with no bearer is refused without waiting for a refresh", async () => {
+  engine.token = "";
+  const refresh = vi.fn(async () => "bearer-grace");
+  (
+    globalThis as unknown as { window: Record<string, unknown> }
+  ).window.__HOUSTON_SESSION_REFRESH__ = refresh;
+  stubRouted(async () => json(201, {}));
+  const png = new Blob([new Uint8Array([137, 80, 78, 71])], {
+    type: "image/png",
+  });
+  await expect(
+    client().postLinkedInImage({ image: png, text: "Hi" }),
+  ).resolves.toEqual({ kind: "refused", code: "signed_out" });
+  expect(calls).toHaveLength(0);
+  expect(refresh).not.toHaveBeenCalled();
+});

@@ -138,6 +138,10 @@ export function gatewayAuthFetch(
         ? settleWithoutReplay(res, sent)
         : settleGatewayResponse(res, sent, send);
     if (!bearer && inControlPlaneMode()) {
+      // A request that must not replay must not wait for a refresh either:
+      // another account can sign in during the wait and the body would go out
+      // under their bearer.
+      if (refusesAuthReplay(init)) return signedOutResponse();
       const fresh = await refreshLiveToken();
       if (!fresh) return signedOutResponse();
       return settle(await send(fresh), fresh);
