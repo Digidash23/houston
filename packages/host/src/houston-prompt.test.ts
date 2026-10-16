@@ -222,6 +222,28 @@ test("suggest_actions is MANDATORY on every non-blocking finish, in BOTH mirrors
   expect(rs).not.toContain(norm("Skip the call only when"));
 });
 
+test("a needed file is asked for as an ask_user question answered by attaching it, in BOTH mirrors", () => {
+  const rust = readFileSync(
+    fileURLToPath(
+      new URL(
+        "../../../app/src-tauri/src/houston_prompt/base.rs",
+        import.meta.url,
+      ),
+    ),
+    "utf8",
+  );
+  const ts = norm(houstonSystemPrompt());
+  const rs = norm(rust);
+  for (const phrase of [
+    "When you need a file, image, or document from the user, ask for it with an `ask_user` question they answer by attaching it: they add it with the + button in the card's answer box, and it arrives with their answer.",
+    "Never offer attaching a file as an option, because picking an option sends no file.",
+  ]) {
+    const needle = norm(phrase);
+    expect(ts).toContain(needle);
+    expect(rs).toContain(needle);
+  }
+});
+
 test("blocking questions, choices, and approvals route through the ask_user tool", () => {
   const p = houstonSystemPrompt();
   expect(p).toContain("ask_user");
