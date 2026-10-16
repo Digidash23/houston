@@ -21,7 +21,8 @@ const NO_FILES: readonly File[] = [];
  * still unclaimed, so each file question in a card gets its own. `fileAnswer`
  * lights the send up with an empty field; `onSendAnswer` records
  * `attachedAnswer` as the answer when nothing was typed and claims the
- * files; on a `wantsFiles` question a typed answer claims them too. `stepFiles` are the files that answer this step.
+ * files, and on a `wantsFiles` question a typed answer claims them too.
+ * `stepFiles` are the files that answer this step.
  */
 export function useFileAnswer(args: {
   state: StepperState;

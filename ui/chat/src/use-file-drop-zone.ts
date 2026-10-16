@@ -132,12 +132,12 @@ export function useFileDropZone(
       const dropped = collectDroppedItems(e.dataTransfer);
       if (dropped.length === 0) return;
       const deliver = onFilesRef.current;
+      const handler = onDropErrorRef.current;
       resolveDroppedFiles(dropped).then(
         (files) => {
           if (files.length > 0) deliver(files);
         },
         (error) => {
-          const handler = onDropErrorRef.current;
           if (!handler) throw error;
           handler(error);
         },

@@ -1,11 +1,10 @@
-// The question steps the panel's attached files alone answered ("See
-// attached"). Pure, like interaction-card-logic.ts, which applies the
+// Which question step each attached file answers. Pure, like interaction-card-logic.ts, which applies the
 // releases inside its transitions.
 
 import type { StepAnswer, StepperState } from "./interaction-card-logic.ts";
 
-/** The files one step's "See attached" answer stands for, so that answer
- *  never spreads to the questions after it. A claim lives only while every
+/** The files one step's answer stands for, so they never also answer the
+ *  questions after it. A claim lives only while every
  *  file it was made with is still attached and its answer still stands: a
  *  removed file or a changed answer hands the files back. */
 export interface FileClaim {

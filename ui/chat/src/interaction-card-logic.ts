@@ -46,7 +46,7 @@ export interface StepperState {
   reached: number;
   answers: AnswerMap;
   drafts: DraftMap;
-  /** The steps the attached files alone answered (`interaction-file-claim`). */
+  /** Which steps the attached files answer (`interaction-file-claim`). */
   fileClaims?: FileClaims;
 }
 
