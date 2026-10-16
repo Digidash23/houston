@@ -6,7 +6,8 @@
  * forwards it. Never shown to a user, never read by a client.
  */
 
-/** One model request: request out, response opened, first answer token. */
+/** One model request: request out, response opened, first block, first
+ *  answer token. */
 export interface ModelCallTiming {
   /** The provider id the call went to. A bare string on purpose: custom and
    *  OpenAI-compatible endpoints pass their own ids through, and the gateway
@@ -21,6 +22,12 @@ export interface ModelCallTiming {
    * time before the first answer token is inside this span.
    */
   firstTokenMs?: number;
+  /**
+   * Response opened to the first content block of any kind, thinking
+   * included: the provider's own latency, without the time the model spends
+   * thinking before it answers. Absent when the response held no block.
+   */
+  firstBlockMs?: number;
   /** Input tokens billed without a cache hit. */
   inputTokens: number;
   cacheReadTokens: number;
@@ -76,14 +83,18 @@ function parseCall(value: unknown): ModelCallTiming | undefined {
   if (typeof c.provider !== "string" || typeof c.model !== "string")
     return undefined;
   if (!numbers.every(finiteNonNegative)) return undefined;
-  if (c.firstTokenMs !== undefined && !finiteNonNegative(c.firstTokenMs))
-    return undefined;
+  for (const optional of [c.firstTokenMs, c.firstBlockMs])
+    if (optional !== undefined && !finiteNonNegative(optional))
+      return undefined;
   return {
     provider: c.provider,
     model: c.model,
     ttfbMs: c.ttfbMs as number,
     ...(c.firstTokenMs !== undefined
       ? { firstTokenMs: c.firstTokenMs as number }
+      : {}),
+    ...(c.firstBlockMs !== undefined
+      ? { firstBlockMs: c.firstBlockMs as number }
       : {}),
     inputTokens: c.inputTokens as number,
     cacheReadTokens: c.cacheReadTokens as number,
