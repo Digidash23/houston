@@ -20,9 +20,13 @@ interface UsageLike {
 /** Block types that are the reply's first answer token (not thinking). */
 const ANSWER_BLOCKS = new Set(["text", "tool_use", "server_tool_use"]);
 
-type OpenCall = Omit<ModelCallTiming, "ttfbMs" | "firstTokenMs"> & {
+type OpenCall = Omit<
+  ModelCallTiming,
+  "ttfbMs" | "firstTokenMs" | "firstBlockMs"
+> & {
   requestAt: number;
   openedAt: number;
+  firstBlockAt?: number;
   firstTokenAt?: number;
   /** The CLI's own request-to-`message_start` time, when it stamps one. */
   cliTtfbMs?: number;
@@ -105,8 +109,10 @@ function claudeCallSteps(
           : {}),
       };
     } else if (ev.type === "content_block_start" && open) {
+      const at = now();
+      open.firstBlockAt ??= at;
       if (ANSWER_BLOCKS.has(ev.content_block?.type ?? ""))
-        open.firstTokenAt ??= now();
+        open.firstTokenAt ??= at;
     } else if (ev.type === "message_delta" && open && ev.usage) {
       // The delta's usage is cumulative for the response and may restate the
       // input split; a field it omits keeps the message_start value.
@@ -124,6 +130,7 @@ function claudeCallSteps(
       const {
         requestAt: sent,
         openedAt,
+        firstBlockAt,
         firstTokenAt,
         cliTtfbMs,
         ...rest
@@ -138,6 +145,9 @@ function claudeCallSteps(
             ttfbMs: Math.max(0, Math.round(cliTtfbMs ?? openedAt - sent)),
             ...(firstTokenAt !== undefined
               ? { firstTokenMs: Math.round(firstTokenAt - openedAt) }
+              : {}),
+            ...(firstBlockAt !== undefined
+              ? { firstBlockMs: Math.round(firstBlockAt - openedAt) }
               : {}),
           },
         },

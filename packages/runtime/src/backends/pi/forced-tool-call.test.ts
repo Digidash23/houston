@@ -144,6 +144,7 @@ test("extends the last request with the reply and the hidden instruction, forced
     provider: "openai-codex",
     ttfbMs: 100,
     firstTokenMs: 100,
+    firstBlockMs: 100,
     cacheReadTokens: 9_000,
     outputTokens: 25,
   });

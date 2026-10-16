@@ -54,6 +54,7 @@ test("one request: request -> opened -> first answer token -> usage", () => {
     model: "claude-sonnet-5-5",
     ttfbMs: 1800,
     firstTokenMs: 600,
+    firstBlockMs: 400,
     inputTokens: 12,
     cacheReadTokens: 20_000,
     cacheWriteTokens: 300,
@@ -70,8 +71,8 @@ test("a tool call is a first answer token; each turn_start opens a new call", ()
   c.advance(50);
   timer(update("toolcall_start"));
   expect(
-    timer(ev({ type: "message_end", message: assistant() }))?.firstTokenMs,
-  ).toBe(50);
+    timer(ev({ type: "message_end", message: assistant() })),
+  ).toMatchObject({ firstTokenMs: 50, firstBlockMs: 50 });
   c.advance(700); // the tool runs: not request time
   timer(ev({ type: "turn_start" }));
   c.advance(2500);
@@ -79,6 +80,7 @@ test("a tool call is a first answer token; each turn_start opens a new call", ()
   const second = timer(ev({ type: "message_end", message: assistant() }));
   expect(second?.ttfbMs).toBe(2500);
   expect(second?.firstTokenMs).toBeUndefined();
+  expect(second?.firstBlockMs).toBeUndefined();
 });
 
 test("an errored or aborted call reports nothing; the retry is timed from its send", () => {
