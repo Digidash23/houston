@@ -512,3 +512,17 @@ describe("isEngineWakingError (SDK activity-write shape)", () => {
     strictEqual(isEngineWakingError(err), false);
   });
 });
+
+// An org chart share retry that fails after an earlier refusal throws the raw
+// SDK error as its cause, so the org module's error must classify like the
+// others.
+describe("isEngineWakingError on the org module's SDK error", () => {
+  it("classifies a waking 503 as quiet", () => {
+    const err = new Error('{"error":"engine unavailable"}') as Error & {
+      status: number;
+    };
+    err.name = "OrgHttpError";
+    err.status = 503;
+    strictEqual(isEngineWakingError(err), true);
+  });
+});

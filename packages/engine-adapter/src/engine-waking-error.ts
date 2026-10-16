@@ -108,6 +108,7 @@ const AGENT_POD_UNUSABLE_502 = "agent pod unusable";
 const SDK_HTTP_ERROR_NAMES = new Set([
   "AgentsHttpError",
   "ActivitiesHttpError",
+  "OrgHttpError",
 ]);
 
 /** The gateway `error` reason out of a raw response body (an SDK http error's
