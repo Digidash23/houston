@@ -16,7 +16,6 @@ import { shareByPaste } from "./org-chart-share-paste";
 import { type ShareLanding, shareViaSheet } from "./org-chart-share-run";
 import {
   INITIAL_SHARE_DIALOG,
-  isPostHeld,
   replacesShownImage,
   shareDialogReducer,
 } from "./org-chart-share-state";
@@ -167,9 +166,8 @@ export function useOrgChartShare(tree: OrgTree) {
     post: () => {
       if (file) void linkedIn.post(file, text, shareAltText(t, tree));
     },
-    /** A post that may be up waits for the person to check LinkedIn. */
-    postHeld: isPostHeld(state),
-    dismissUnconfirmed: () => dispatch({ type: "unconfirmedDismissed" }),
+    postHeld: linkedIn.held,
+    dismissUnconfirmed: linkedIn.dismissUnconfirmed,
     viewPost: (url: string) =>
       void openExternalUrl(url, { command: "linkedin_view_post" }),
     disconnect: linkedIn.disconnect,

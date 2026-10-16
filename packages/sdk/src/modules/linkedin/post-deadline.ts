@@ -14,11 +14,18 @@ export const LINKEDIN_POST_DEADLINE_MS = 3 * 60_000;
  * a refusal: a blind retry could post the same picture twice. Raced rather
  * than awaited, so a transport that ignores the abort still settles. An abort
  * by the caller still rejects with the caller's reason.
+ *
+ * The deadline covers the wait for an answer only: once `post` calls
+ * `answered` (the 2xx headers arrived, so the post is up) the clock stops,
+ * and reading the rest is bounded by the post itself.
  */
 export function withPostDeadline(
   clock: Clock,
   callerSignal: AbortSignal | undefined,
-  post: (signal: AbortSignal) => Promise<LinkedInPostResult>,
+  post: (
+    signal: AbortSignal,
+    answered: () => void,
+  ) => Promise<LinkedInPostResult>,
 ): Promise<LinkedInPostResult> {
   const controller = new AbortController();
   const forward = () => controller.abort(callerSignal?.reason);
@@ -33,8 +40,11 @@ export function withPostDeadline(
   });
   // The race subscribes to both, so the abandoned request's late rejection
   // is handled, not unhandled.
-  return Promise.race([post(controller.signal), deadline]).finally(() => {
-    clock.clearTimeout(timer);
-    callerSignal?.removeEventListener("abort", forward);
-  });
+  const answered = () => clock.clearTimeout(timer);
+  return Promise.race([post(controller.signal, answered), deadline]).finally(
+    () => {
+      clock.clearTimeout(timer);
+      callerSignal?.removeEventListener("abort", forward);
+    },
+  );
 }

@@ -12,8 +12,9 @@ import type { ShareLine } from "./org-chart-share-run.ts";
  * A post is the exception: it is public and the gateway may take a minute,
  * so it outlives the opening, and the page, that started it. Whether one is
  * out lives in `linkedin-post-store.ts`; its result lands in whichever
- * opening is on screen, and one that went up while none was is said in the
- * next one.
+ * opening is on screen, one that went up while none was is said in the next
+ * one, and one that may be up is said in every opening until the person
+ * checked LinkedIn.
  */
 
 /** One Connect LinkedIn click, tagged so a stale one's results are dropped. */
@@ -97,7 +98,7 @@ export function shareDialogReducer(
       // A new picture changes nothing about a post that may be up.
       return {
         ...state,
-        line: isPostHeld(state) ? state.line : null,
+        line: saysUnconfirmed(state) ? state.line : null,
         copied: false,
       };
     case "landed":
@@ -133,17 +134,18 @@ export function shareDialogReducer(
     case "postUnconfirmed":
       return state.open ? { ...state, line: { kind: "unconfirmed" } } : state;
     case "unconfirmedDismissed":
-      return isPostHeld(state) ? { ...state, line: null } : state;
+      return saysUnconfirmed(state) ? { ...state, line: null } : state;
     case "postRefused":
       return state.open ? { ...state, line: action.line } : state;
   }
 }
 
 /**
- * Whether Post waits: a post that may be up is never retried blind. Until
- * the person dismisses the line, or opens the dialog again after checking.
+ * Whether the line says a post may be up. Whether Post waits is the post
+ * slot's to say (`isPostHeld`), held in every opening until the person
+ * checked.
  */
-export function isPostHeld(state: ShareDialogState): boolean {
+function saysUnconfirmed(state: ShareDialogState): boolean {
   return state.line?.kind === "unconfirmed";
 }
 

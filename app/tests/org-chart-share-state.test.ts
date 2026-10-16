@@ -1,9 +1,14 @@
 import { deepStrictEqual, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
+import {
+  IDLE_LINKEDIN_POST,
+  isPostHeld,
+  linkedInPostKey,
+  useLinkedInPosts,
+} from "../src/components/organization/linkedin-post-store.ts";
 import type { ShareLine } from "../src/components/organization/org-chart-share-run.ts";
 import {
   INITIAL_SHARE_DIALOG,
-  isPostHeld,
   replacesShownImage,
   type ShareDialogAction,
   shareDialogReducer,
@@ -210,38 +215,43 @@ describe("a post with no answer in time", () => {
   const unconfirmed = () =>
     run({ type: "open" }, { type: "posting" }, { type: "postUnconfirmed" });
 
-  it("says it may be up and holds Post", () => {
+  it("says it may be up", () => {
     const state = unconfirmed();
     deepStrictEqual(state.line, { kind: "unconfirmed" });
     strictEqual(state.postUrl, null);
-    strictEqual(isPostHeld(state), true);
   });
 
-  it("keeps Post held through a redrawn picture", () => {
+  it("keeps saying so through a redrawn picture", () => {
     const redrawn = shareDialogReducer(unconfirmed(), {
       type: "redrawn",
       url: "blob:next",
     });
-    strictEqual(isPostHeld(redrawn), true);
+    deepStrictEqual(redrawn.line, { kind: "unconfirmed" });
   });
 
-  it("gives Post back once the person dismisses the line", () => {
+  it("drops the line once the person dismisses it", () => {
     const dismissed = shareDialogReducer(unconfirmed(), {
       type: "unconfirmedDismissed",
     });
     strictEqual(dismissed.line, null);
-    strictEqual(isPostHeld(dismissed), false);
   });
 
-  it("gives Post back in the next opening, after the person checked", () => {
-    const reopened = [
-      { type: "close" },
-      { type: "open" },
-    ] satisfies ShareDialogAction[];
-    strictEqual(
-      isPostHeld(reopened.reduce(shareDialogReducer, unconfirmed())),
-      false,
-    );
+  // Closing, reopening or leaving the page is not checking LinkedIn.
+  it("holds Post in the next opening, until the person checked", () => {
+    const key = linkedInPostKey("uid-ada", "space-a");
+    const posts = useLinkedInPosts.getState();
+    const claim = posts.start("uid-ada", "space-a");
+    if (!claim) throw new Error("the slot was taken");
+    posts.unconfirmed(claim);
+    posts.ended(claim);
+    // The dialog's own state starts over in each opening; the slot does not.
+    const reopened = run({ type: "close" }, { type: "open" });
+    strictEqual(reopened.line, null);
+    const slot = () =>
+      useLinkedInPosts.getState().slots[key] ?? IDLE_LINKEDIN_POST;
+    strictEqual(isPostHeld(slot()), true);
+    posts.dismissUnconfirmed(key);
+    strictEqual(isPostHeld(slot()), false);
   });
 
   it("never dismisses another line", () => {

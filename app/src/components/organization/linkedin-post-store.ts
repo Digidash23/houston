@@ -3,21 +3,22 @@ import { create } from "zustand";
 /**
  * A LinkedIn post outlives the org chart page that started it: the gateway
  * finishes it even after the person navigates away. Whether one is out, and
- * how one settled with no dialog open to say so, therefore live here, never
- * in the page: coming back while a post is out still shows Posting (never a
- * second Post button), and a post that settled while the page was gone is
- * said in the next opening.
+ * how one settled, therefore live here, never in the page: coming back while
+ * a post is out still shows Posting (never a second Post button), a post
+ * that went up while the page was gone is said in the next opening, and a
+ * post that may be up holds Post in every opening until the person says they
+ * checked LinkedIn ({@link LinkedInPostStore.dismissUnconfirmed}).
  *
  * A slot belongs to the signed-in person in one space
  * ({@link linkedInPostKey}): every account's personal space has the same id.
- * Signing out or in empties every slot ({@link reset}), and a post still out
- * then settles into nothing, through its stale {@link LinkedInPostClaim}.
+ * A post's {@link LinkedInPostClaim} names its person, and its result is
+ * applied only while that person is signed in (`linkedin-post-run.ts`).
  */
 export interface LinkedInPostSlot {
   posting: boolean;
   /** A post that went up and no open dialog has shown yet. */
   landed: string | null;
-  /** A post with no answer in time (it may be up) no open dialog has shown. */
+  /** A post that may be up: Post waits until the person checked LinkedIn. */
   unconfirmed: boolean;
 }
 
@@ -32,29 +33,38 @@ export function linkedInPostKey(uid: string | null, space: string): string {
   return JSON.stringify([uid, space]);
 }
 
-/** One post's hold on its slot, void once the identity changes. */
+/** One post's hold on its slot, made by `uid`. */
 export interface LinkedInPostClaim {
   key: string;
-  epoch: number;
+  uid: string | null;
+}
+
+/** Whether Post waits: a post that may be up is never retried blind. */
+export function isPostHeld(slot: LinkedInPostSlot): boolean {
+  return slot.unconfirmed;
 }
 
 interface LinkedInPostStore {
   slots: Record<string, LinkedInPostSlot>;
-  /** Bumped by every {@link reset}: older claims settle into nothing. */
-  epoch: number;
-  /** Claims the slot; `null` while a post from it is already out. */
-  start: (key: string) => LinkedInPostClaim | null;
-  /** Whether `claim` was made by the identity signed in now. */
-  holds: (claim: LinkedInPostClaim) => boolean;
+  /** Claims the slot; `null` while a post from it is out or held. */
+  start: (uid: string | null, space: string) => LinkedInPostClaim | null;
+  /** Whether `claim` was made by `uid`, the person signed in now. */
+  holds: (claim: LinkedInPostClaim, uid: string | null) => boolean;
   /** The post went up: held until an open dialog shows it. */
   posted: (claim: LinkedInPostClaim, postUrl: string) => void;
-  /** No answer in time: held until an open dialog says so. */
+  /** It may be up: held until the person checked LinkedIn. */
   unconfirmed: (claim: LinkedInPostClaim) => void;
   /** The post is over, whatever came of it. */
   ended: (claim: LinkedInPostClaim) => void;
-  /** An open dialog said how the post settled. */
+  /** An open dialog showed the post that went up. */
   shown: (key: string) => void;
-  /** The signed-in identity changed: every slot goes. */
+  /** The person checked LinkedIn: Post comes back. */
+  dismissUnconfirmed: (key: string) => void;
+  /**
+   * The signed-in identity changed: every slot goes but the ones with a post
+   * still out. Those stay Posting, so the same person signing back in is
+   * never offered a second Post; nobody else's key ever reads them.
+   */
   reset: () => void;
 }
 
@@ -66,29 +76,31 @@ export const useLinkedInPosts = create<LinkedInPostStore>((set, get) => {
         [key]: { ...(s.slots[key] ?? IDLE_LINKEDIN_POST), ...next },
       },
     }));
-  const holds = (claim: LinkedInPostClaim) => claim.epoch === get().epoch;
-  const settle = (
-    claim: LinkedInPostClaim,
-    next: Partial<LinkedInPostSlot>,
-  ) => {
-    if (holds(claim)) patch(claim.key, next);
-  };
   return {
     slots: {},
-    epoch: 0,
-    start: (key) => {
-      if (get().slots[key]?.posting) return null;
-      patch(key, { posting: true, landed: null, unconfirmed: false });
-      return { key, epoch: get().epoch };
+    start: (uid, space) => {
+      const key = linkedInPostKey(uid, space);
+      const slot = get().slots[key];
+      if (slot?.posting || slot?.unconfirmed) return null;
+      patch(key, { posting: true, landed: null });
+      return { key, uid };
     },
-    holds,
+    holds: (claim, uid) => claim.uid === uid,
     posted: (claim, postUrl) =>
-      settle(claim, { posting: false, landed: postUrl }),
+      patch(claim.key, { posting: false, landed: postUrl }),
     unconfirmed: (claim) =>
-      settle(claim, { posting: false, unconfirmed: true }),
-    ended: (claim) => settle(claim, { posting: false }),
-    shown: (key) => patch(key, { landed: null, unconfirmed: false }),
-    reset: () => set((s) => ({ slots: {}, epoch: s.epoch + 1 })),
+      patch(claim.key, { posting: false, unconfirmed: true }),
+    ended: (claim) => patch(claim.key, { posting: false }),
+    shown: (key) => patch(key, { landed: null }),
+    dismissUnconfirmed: (key) => patch(key, { unconfirmed: false }),
+    reset: () =>
+      set((s) => ({
+        slots: Object.fromEntries(
+          Object.entries(s.slots)
+            .filter(([, slot]) => slot.posting)
+            .map(([key]) => [key, { ...IDLE_LINKEDIN_POST, posting: true }]),
+        ),
+      })),
   };
 });
 

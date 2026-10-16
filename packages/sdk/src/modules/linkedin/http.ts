@@ -9,12 +9,12 @@ import {
   type LinkedInConnectReturn,
   linkedInConnectionSchema,
   linkedInConnectSchema,
-  linkedInPostedSchema,
-  linkedInRefusalOf,
 } from "@houston/wire-types";
 import { isTransportFailure } from "../../transport-failure";
 import { gatewayRefusedLoopback } from "../channels/connect-return";
 import { type HttpScope, httpRequest, SdkHttpError } from "../http";
+import { withPostDeadline } from "./post-deadline";
+import { postedPost, refusedPost, unansweredPost } from "./post-outcome";
 import type {
   LinkedInCompletion,
   LinkedInConnectAnswer,
@@ -136,8 +136,11 @@ export async function disconnectLinkedIn(
  * connected, a rate limit, LinkedIn failing, a deployment with no LinkedIn
  * key, no connection to the network, a picture or words the gateway will not
  * take), never a throw. Any 2xx is a post, its link `null` when the gateway
- * could not name it. Only an answer that is neither throws, and so does an
- * abort through `signal`.
+ * could not name it or its body stalled. A post that may be up is `unknown`,
+ * never a refusal: a connection cut after the request left, or a bare 502 or
+ * 504 from a proxy in front of the gateway. Only an answer that is none of
+ * these throws, and so does an abort through `signal` before any answer. No
+ * answer within three minutes is `unknown` too ({@link withPostDeadline}).
  * @param upload Multipart: `image` (a PNG or JPEG of at most 5 MiB, no taller
  *   than 4:5 and no wider than 3:1), `text` (1 to 3000 characters once
  *   trimmed) and an optional `altText`. The route reads its body off this
@@ -145,45 +148,34 @@ export async function disconnectLinkedIn(
  * @assistant group:org hidden: the share dialog draws the picture on the person's device and the person must press Post on words they can see and edit; the assistant has no picture to send.
  * @assistant unschematized: the picture is binary multipart, which no JSON schema describes.
  */
-export async function postLinkedInImage(
+export function postLinkedInImage(
   scope: HttpScope,
   upload: FormData,
   signal?: AbortSignal,
 ): Promise<LinkedInPostResult> {
-  let res: Response;
-  try {
-    res = await httpRequest(scope, "/v1/linkedin/posts", {
-      method: "POST",
-      body: upload,
-      signal,
-    });
-  } catch (err) {
-    if (signal?.aborted) throw err;
-    if (isTransportFailure(err)) return { kind: "refused", code: "offline" };
-    if (!(err instanceof SdkHttpError)) throw err;
-    const code = linkedInRefusalOf(err.status, err.message);
-    if (!code) throw err;
-    return err.retryAfterMs === undefined
-      ? { kind: "refused", code }
-      : { kind: "refused", code, retryAfterMs: err.retryAfterMs };
-  }
-  // Any 2xx is a published post: the gateway answers `201 {}` when LinkedIn
-  // gave no readable id, and failing it would invite posting it twice.
-  // A body stream that dies after the 2xx still means the post is up.
-  const body = await res.text().catch(() => "");
-  const parsed = linkedInPostedSchema.safeParse(jsonOrNull(body));
-  if (parsed.success) return { kind: "posted", ...parsed.data };
-  scope.ports.logger.warn("linkedin post went up with no readable id", {
-    status: res.status,
+  return withPostDeadline(scope.ports.clock, signal, async (wait, answered) => {
+    // Its own controller, so a stalled body can be cut once the deadline
+    // stopped at the answer.
+    const request = new AbortController();
+    const follow = () => request.abort(wait.reason);
+    if (wait.aborted) follow();
+    else wait.addEventListener("abort", follow, { once: true });
+    let res: Response;
+    try {
+      res = await httpRequest(scope, "/v1/linkedin/posts", {
+        method: "POST",
+        body: upload,
+        signal: request.signal,
+      });
+    } catch (err) {
+      if (wait.aborted) throw err;
+      if (isTransportFailure(err)) return unansweredPost(err);
+      if (!(err instanceof SdkHttpError)) throw err;
+      const refused = refusedPost(err);
+      if (!refused) throw err;
+      return refused;
+    }
+    answered();
+    return postedPost(scope, res, () => request.abort());
   });
-  return { kind: "posted", postUrn: null, postUrl: null };
-}
-
-/** A body that is not JSON reads as none. */
-function jsonOrNull(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
 }

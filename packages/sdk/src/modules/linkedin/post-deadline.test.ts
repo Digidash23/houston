@@ -57,6 +57,18 @@ describe("a LinkedIn post's deadline", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it("stops at the answer: reading the rest is never unknown", async () => {
+    const result = withPostDeadline(clock, undefined, async (_, answered) => {
+      await new Promise((r) => setTimeout(r, LINKEDIN_POST_DEADLINE_MS - 1));
+      answered();
+      // The body takes past the deadline.
+      await new Promise((r) => setTimeout(r, 2));
+      return POSTED;
+    });
+    await vi.advanceTimersByTimeAsync(LINKEDIN_POST_DEADLINE_MS + 1);
+    await expect(result).resolves.toEqual(POSTED);
+  });
+
   it("still rejects with the caller's abort", async () => {
     const controller = new AbortController();
     const { post } = hung(true);

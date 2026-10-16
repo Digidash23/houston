@@ -1,9 +1,11 @@
 import { LINKEDIN_IMAGE_MAX_BYTES } from "@houston/wire-types";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SdkConfig, SdkPorts } from "../../ports";
 import { HoustonSdk } from "../../sdk";
 import { memoryKv } from "../../test-ports";
 import { checkLinkedInText, LinkedInCommand, LinkedInHttpError } from "./index";
+import { LINKEDIN_POST_DEADLINE_MS } from "./post-deadline";
+import { LINKEDIN_POST_BODY_MS } from "./post-outcome";
 
 const BASE = "http://127.0.0.1:4317";
 const AUTHORIZE =
@@ -19,7 +21,12 @@ interface Recorded {
   body: string | FormData | null;
 }
 
-function makeSdk(answer: (call: Recorded) => Response | Promise<Response>) {
+const NO_CLOCK = { now: () => 0, setTimeout: () => 0, clearTimeout: () => {} };
+
+function makeSdk(
+  answer: (call: Recorded) => Response | Promise<Response>,
+  clock: SdkPorts["clock"] = NO_CLOCK,
+) {
   const calls: Recorded[] = [];
   const fetchImpl = vi.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -38,7 +45,7 @@ function makeSdk(answer: (call: Recorded) => Response | Promise<Response>) {
     fetch: fetchImpl as unknown as typeof fetch,
     storage: memoryKv(new Map()),
     devicePreferences: memoryKv(),
-    clock: { now: () => 0, setTimeout: () => 0, clearTimeout: () => {} },
+    clock,
     logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   };
   const config: SdkConfig = { baseUrl: BASE, ports, reactivity: false };
@@ -266,13 +273,50 @@ describe("postImage", () => {
     });
   });
 
-  it("answers offline when no answer reached the device", async () => {
+  it.each([
+    "The Internet connection appears to be offline.",
+    "A server with the specified hostname could not be found.",
+    "Could not connect to the server.",
+  ])("answers offline when the request never left: %s", async (message) => {
     const { sdk } = makeSdk(() => {
-      throw new TypeError("Failed to fetch");
+      throw new TypeError(message);
     });
     await expect(
       sdk.linkedin.postImage({ image: png(), text: "Hi" }),
     ).resolves.toEqual({ kind: "refused", code: "offline" });
+  });
+
+  // The gateway may have taken the post before the connection broke.
+  it.each([
+    "The network connection was lost.",
+    "Load failed",
+    "Failed to fetch",
+    "The request timed out.",
+  ])("answers unknown when the connection broke after sending: %s", async (message) => {
+    const { sdk } = makeSdk(() => {
+      throw new TypeError(message);
+    });
+    await expect(
+      sdk.linkedin.postImage({ image: png(), text: "Hi" }),
+    ).resolves.toEqual({ kind: "unknown" });
+  });
+
+  it.each([
+    [504, ""],
+    [502, "<html>bad gateway</html>"],
+    [502, JSON.stringify({ code: "upstream_reset" })],
+  ])("answers unknown for a proxy's bare %i", async (status, body) => {
+    const { sdk } = makeSdk(() => new Response(body, { status }));
+    await expect(
+      sdk.linkedin.postImage({ image: png(), text: "Hi" }),
+    ).resolves.toEqual({ kind: "unknown" });
+  });
+
+  it("keeps the gateway's own 502 linkedin_failed a refusal", async () => {
+    const { sdk } = makeSdk(() => refusal(502, "linkedin_failed"));
+    await expect(
+      sdk.linkedin.postImage({ image: png(), text: "Hi" }),
+    ).resolves.toEqual({ kind: "refused", code: "linkedin_failed" });
   });
 
   it("throws on a failure that is not a refusal", async () => {
@@ -304,6 +348,38 @@ describe("postImage", () => {
         sdk.linkedin.postImage({ image: png(), text: "Hi" }),
       ).resolves.toEqual(posted);
     }
+  });
+
+  describe("a 201 whose body stalls", () => {
+    afterEach(() => vi.useRealTimers());
+
+    it("is posted with no link, even past the deadline", async () => {
+      vi.useFakeTimers();
+      const clock: SdkPorts["clock"] = {
+        now: () => Date.now(),
+        setTimeout: (fn, ms) => setTimeout(fn, ms) as unknown as number,
+        clearTimeout: (id) => clearTimeout(id),
+      };
+      const { sdk } = makeSdk(async () => {
+        // The headers come a moment before the deadline, the body never.
+        await new Promise((r) => setTimeout(r, LINKEDIN_POST_DEADLINE_MS - 1));
+        return new Response(new ReadableStream({ start() {} }), {
+          status: 201,
+        });
+      }, clock);
+      const aborts = vi.spyOn(AbortController.prototype, "abort");
+      const result = sdk.linkedin.postImage({ image: png(), text: "Hi" });
+      await vi.advanceTimersByTimeAsync(LINKEDIN_POST_DEADLINE_MS - 1);
+      await vi.advanceTimersByTimeAsync(LINKEDIN_POST_BODY_MS);
+      await expect(result).resolves.toEqual({
+        kind: "posted",
+        postUrn: null,
+        postUrl: null,
+      });
+      // Only the stalled body was cut, once.
+      expect(aborts).toHaveBeenCalledTimes(1);
+      aborts.mockRestore();
+    });
   });
 
   it("rejects with the abort when the caller aborts", async () => {
