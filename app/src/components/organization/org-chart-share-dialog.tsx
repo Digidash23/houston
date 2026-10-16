@@ -17,10 +17,11 @@ import type { useOrgChartShare } from "./use-org-chart-share";
 
 /**
  * Share the org chart: the image as it will be posted, Share on LinkedIn,
- * then Download image and Copy image. Share on LinkedIn posts a link whose
- * preview is the image; where it could not, one line under the buttons says
- * where the image went (on the clipboard, or saved), so the person knows to
- * paste it. The dialog stays open, so the line is still there when they
+ * then Download image and Copy image. Share on LinkedIn reads "Preparing your
+ * post..." until the chart's page is published, then posts its link, whose
+ * preview is the image; where there is no page, one line under the buttons
+ * says where the image went (on the clipboard, or saved), so the person knows
+ * to paste it. The dialog stays open, so the line is still there when they
  * come back from LinkedIn.
  */
 export function OrgChartShareDialog({
@@ -45,18 +46,18 @@ export function OrgChartShareDialog({
         <div className="flex flex-col gap-2">
           <ShareButton
             icon={
-              share.publishing ? (
+              share.preparing ? (
                 <Spinner aria-hidden />
               ) : (
                 <Linkedin className="size-4" />
               )
             }
             label={t(
-              share.publishing
+              share.preparing
                 ? "orgChart.share.linkedInPreparing"
                 : "orgChart.share.linkedIn",
             )}
-            disabled={share.publishing}
+            disabled={share.preparing}
             className="h-10 w-full"
             onClick={share.linkedIn}
           />

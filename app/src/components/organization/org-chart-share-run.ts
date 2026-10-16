@@ -1,5 +1,3 @@
-import type { OrgChartShareResult } from "@houston/engine-adapter";
-import type { ReservedTab } from "../../lib/browser-tab.ts";
 import { shareToLinkedIn } from "./org-chart-share-linkedin.ts";
 import {
   isShareBusy,
@@ -34,19 +32,6 @@ export interface ShareRunDeps {
    * browser has no image clipboard. It takes the promise, not the blob.
    */
   copyImage: ((png: Promise<File>) => Promise<void>) | undefined;
-  /**
-   * Publish the image as a page of its own, for the post to link to. `signal`
-   * aborts the upload once the share stops waiting for it.
-   */
-  publish: (png: File, signal: AbortSignal) => Promise<OrgChartShareResult>;
-  /**
-   * An empty tab claimed in the click, to point at the composer once the post
-   * is known; `null` where none could be or need be claimed. Discarded when
-   * the run fails before pointing it anywhere.
-   */
-  reserveTab: () => ReservedTab | null;
-  /** Resolves after `ms`; `cancel` clears the timer (it then never resolves). */
-  wait: (ms: number, cancel: AbortSignal) => Promise<void>;
   /** Open in the browser; `false` when it did not take the URL. */
   open: (url: string) => Promise<boolean>;
   /** Save as a download; `false` when the person cancelled the save. */
@@ -69,10 +54,14 @@ export type ShareOutcome =
 /**
  * Share the org chart in one click. On a phone that can share files, the
  * share sheet takes the image and the post (the LinkedIn app reads both).
- * Everywhere else LinkedIn's composer opens with a post that links to the
- * image (`org-chart-share-linkedin.ts`).
+ * Everywhere else LinkedIn's composer opens with a post that links to `page`,
+ * the chart's own page published when the dialog opened, or without it
+ * (`org-chart-share-linkedin.ts`).
  */
-export function shareOrgChart(deps: ShareRunDeps): Promise<ShareOutcome> {
+export function shareOrgChart(
+  deps: ShareRunDeps,
+  page: string | null,
+): Promise<ShareOutcome> {
   const { ready, sheet } = deps;
   if (ready && sheet && usesShareSheet(deps))
     return sheet
@@ -86,7 +75,7 @@ export function shareOrgChart(deps: ShareRunDeps): Promise<ShareOutcome> {
           return { kind: "failed" };
         },
       );
-  return shareToLinkedIn(deps);
+  return shareToLinkedIn(deps, page);
 }
 
 /** Whether this share goes through the phone's share sheet. */

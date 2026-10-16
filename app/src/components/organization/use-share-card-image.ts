@@ -118,5 +118,7 @@ export function useShareCardImage(tree: OrgTree) {
       : held.url
         ? { status: "ready", url: held.url }
         : { status: "drawing" };
-  return { current, preview, retry: start };
+  /** The drawn PNG, once the preview shows it. */
+  const file = preview.status === "ready" ? (held?.ready ?? null) : null;
+  return { current, preview, file, retry: start };
 }

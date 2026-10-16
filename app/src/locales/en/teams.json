@@ -593,7 +593,6 @@
       "failed": "The image could not be drawn.",
       "linkedIn": "Share on LinkedIn",
       "linkedInPreparing": "Preparing your post...",
-      "preparingTab": "Preparing your LinkedIn post...",
       "download": "Download image",
       "copyImage": "Copy image",
       "copiedImage": "Copied",
@@ -603,6 +602,8 @@
       "openLinkedIn": "Open LinkedIn",
       "cardCounts": "{{people}}, {{agents}}",
       "site": "gethouston.ai",
+      "linkCardTagline": "AI Employees working in Houston",
+      "linkCardCall": "Build your AI team · gethouston.ai",
       "post": "This is my organization. These are all the AI Employees at {{company}}, working in Houston.\n\n{{link}}",
       "postPersonal": "These are all my AI Employees, working in Houston.\n\n{{link}}"
     }

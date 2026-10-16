@@ -1,5 +1,3 @@
-import { isExpectedOrgChartShareRefusal } from "@houston/wire-types";
-import type { ReservedTab } from "../../lib/browser-tab.ts";
 import { linkedInShareUrl, SHARE_SITE_LINK } from "./org-chart-share-model.ts";
 import type {
   ImageHandoff,
@@ -10,14 +8,12 @@ import type {
 /**
  * Share on LinkedIn, away from the phone's share sheet. DOM-free.
  *
- * The image is published as a page of its own and the post links to it, so
- * LinkedIn's composer shows the image as the link's preview. Where publishing
- * is refused or fails, the post ends on gethouston.ai and the image goes on
- * the clipboard (or is saved as a file), as it did before pages existed.
+ * With the chart's own page (published when the dialog opened) the post links
+ * to it, and LinkedIn's composer shows the picture as the link's preview: the
+ * composer opens and nothing else happens. Without one (publishing refused,
+ * failed, or not served here) the post ends on gethouston.ai and the image
+ * goes on the clipboard, or is saved as a file when the clipboard refuses.
  */
-
-/** How long the composer waits on the upload before going without the link. */
-export const PUBLISH_PATIENCE_MS = 12_000;
 
 /**
  * A clipboard the browser refused: a write it did not allow (no focus, no
@@ -33,120 +29,48 @@ export function isExpectedClipboardRefusal(error: unknown): boolean {
 }
 
 /**
- * The clipboard write and the tab both start in the click's own tick, before
- * any `await`: Safari only lets a page write the clipboard or open a tab while
- * the click is still being handled. The write starts first because opening a
- * tab takes focus from the page. It takes the image as a promise that settles
- * only once the upload has: the image when the post goes without a link, a
- * rejection (which writes nothing) when the link carries it. The tab opens
- * empty and is pointed at the composer once the post is known; where no tab
- * could be claimed (the desktop shell, whose open has no gesture rule), the
- * composer opens then.
+ * The clipboard write and the open both start in the click's own tick, with
+ * no `await` before either: Safari only lets a page write the clipboard or
+ * open a tab while the click is still being handled. The write starts first
+ * because opening a tab takes focus from the page, and it takes the image as
+ * a promise, so a drawing still under way does not break the gesture.
  */
-export function shareToLinkedIn(deps: ShareRunDeps): Promise<ShareOutcome> {
-  const link = publishedLink(deps);
-  const forClipboard = link.then((page) =>
-    page ? Promise.reject(new Error("the post links the image")) : deps.png,
-  );
-  // The write may never read this promise (no clipboard, a throw).
-  forClipboard.catch(() => {});
+export function shareToLinkedIn(
+  deps: ShareRunDeps,
+  page: string | null,
+): Promise<ShareOutcome> {
+  if (page) {
+    const url = linkedInShareUrl(deps.post(page));
+    return deps
+      .open(url)
+      .then((opened) => ({ kind: "linkedin", url, opened, image: "linked" }));
+  }
+  const url = linkedInShareUrl(deps.post(SHARE_SITE_LINK));
   let copying: Promise<boolean>;
   try {
     copying = deps.copyImage
-      ? deps.copyImage(forClipboard).then(
+      ? deps.copyImage(deps.png).then(
           () => true,
-          (error: unknown) => refused(deps, link, error),
+          (error: unknown) => refused(deps, error),
         )
       : Promise.resolve(false);
   } catch (error) {
-    copying = refused(deps, link, error);
+    copying = refused(deps, error);
   }
-  const tab = deps.reserveTab();
-  return link
-    .then(async (page) => {
-      const url = linkedInShareUrl(deps.post(page ?? SHARE_SITE_LINK));
-      const opened = await openComposer(deps, tab, url);
-      const image: ImageHandoff = page
-        ? "linked"
-        : (await copying)
-          ? "copied"
-          : await saveInstead(deps);
-      return { kind: "linkedin", url, opened, image } as const;
-    })
-    .catch((error: unknown) => {
-      // The claimed tab never got the composer (a post `encodeURIComponent`
-      // refuses, a navigate that threw): close it rather than leave it blank.
-      // The caller reports the failure, once.
-      tab?.discard();
-      throw error;
-    });
+  const opening = deps.open(url);
+  return Promise.all([opening, copying]).then(async ([opened, copied]) => ({
+    kind: "linkedin",
+    url,
+    opened,
+    image: copied ? "copied" : await saveInstead(deps),
+  }));
 }
 
 /**
- * The chart's page, or null to go without it: the drawing failed (it
- * reported itself), the upload was refused or failed, or it outlasted
- * {@link PUBLISH_PATIENCE_MS} (and was aborted). Never rejects. Only a refusal
- * nothing outside Houston explains, or a failure, is reported.
+ * A refused write reports only when it is neither the browser's own refusal
+ * nor the drawing failing (which reported when it failed).
  */
-async function publishedLink(deps: ShareRunDeps): Promise<string | null> {
-  let file: File;
-  try {
-    file = await deps.png;
-  } catch {
-    return null;
-  }
-  // Past the patience the upload is aborted: a late success would publish a
-  // page no post links to. Whatever it then settles with was asked for.
-  const patience = new AbortController();
-  const publishing = deps.publish(file, patience.signal).then(
-    (result) => {
-      if (patience.signal.aborted) return null;
-      if (result.kind === "published") return result.pageUrl;
-      if (!isExpectedOrgChartShareRefusal(result.code))
-        deps.report(
-          "org_chart_share_publish",
-          new Error(`org chart share refused: ${result.code}`),
-        );
-      return null;
-    },
-    (error: unknown) => {
-      if (!patience.signal.aborted)
-        deps.report("org_chart_share_publish", error);
-      return null;
-    },
-  );
-  // Once the upload settles the patience timer has nothing left to cut.
-  const settled = new AbortController();
-  void publishing.finally(() => settled.abort());
-  return Promise.race([
-    publishing,
-    deps.wait(PUBLISH_PATIENCE_MS, settled.signal).then(() => {
-      patience.abort();
-      return null;
-    }),
-  ]);
-}
-
-async function openComposer(
-  deps: ShareRunDeps,
-  tab: ReservedTab | null,
-  url: string,
-): Promise<boolean> {
-  if (tab && (await tab.navigate(url))) return true;
-  return deps.open(url);
-}
-
-/**
- * A refused write reports only when the post went without the link (else the
- * refusal was asked for), the drawing did not fail (it reported itself), and
- * it is not the browser's own refusal.
- */
-async function refused(
-  deps: ShareRunDeps,
-  link: Promise<string | null>,
-  error: unknown,
-): Promise<false> {
-  if (await link) return false;
+async function refused(deps: ShareRunDeps, error: unknown): Promise<false> {
   const drawn = await deps.png.then(
     () => true,
     () => false,

@@ -665,6 +665,14 @@
     "reason": "link-preview crawlers and the share page's \u003cimg\u003e load these image bytes directly, so no client method wraps the request"
   },
   {
+    "pattern": "/v1/org-chart-shares/{id}/preview",
+    "methods": [
+      "GET"
+    ],
+    "classification": "infra",
+    "reason": "link-preview crawlers load this card as the share page's og:image directly, so no client method wraps the request"
+  },
+  {
     "pattern": "/v1/org/audit",
     "methods": [
       "GET"

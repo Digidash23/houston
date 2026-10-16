@@ -1,9 +1,8 @@
-import type { CSSProperties, ReactElement, ReactNode } from "react";
+import type { ReactElement } from "react";
 
 /**
- * Shared layout for the store's OpenGraph share cards (the default site card,
- * the per-agent card under /a/[slug], and the paper of the org chart card
- * under /o/[id]). Rendered by next/og ImageResponse
+ * Shared layout for the store's OpenGraph share cards (the default site card
+ * and the per-agent card under /a/[slug]). Rendered by next/og ImageResponse
  * (Satori), so only its CSS subset is used: flex layout, gradients, no
  * external assets — the space look is painted with gradients + star dots so
  * a card never depends on a network fetch.
@@ -38,53 +37,27 @@ export interface OgCardProps {
   chip?: string;
 }
 
-/** The card's text colours, for a layout that composes {@link OgBackdrop}. */
-export const OG_TEXT = {
-  ink: "#ffffff",
-  muted: "rgba(255,255,255,0.72)",
-  kicker: "rgba(255,255,255,0.6)",
-} as const;
-
-/**
- * The org chart share picture's own paper and inks, as the app paints it
- * (`app/src/components/organization/org-chart-share-card-art.ts`, `ART` and
- * `GRID`), so the card around a shared chart continues the picture instead of
- * framing it in the starfield. This file is the store's one home for raw
- * colour values.
- */
-export const OG_PAPER = {
-  paper: "#fafaf9",
-  dot: "rgba(17, 17, 16, 0.075)",
-  ink: "#111110",
-  muted: "#6b6b66",
-  hairline: "#e7e7e4",
-  shadow:
-    "0 1px 2px rgba(17, 17, 16, 0.06), 0 18px 40px rgba(17, 17, 16, 0.10)",
-  /** The dot grid's pitch and dot radius, in px. */
-  grid: { step: 24, r: 1.1 },
-} as const;
-
-/** The space backdrop the store's own cards are painted on: the gradients and stars. */
-export function OgBackdrop({
-  style,
-  children,
-}: {
-  style?: CSSProperties;
-  children: ReactNode;
-}): ReactElement {
+export function OgCard({
+  kicker,
+  title,
+  subtitle,
+  chip,
+}: OgCardProps): ReactElement {
   return (
     <div
       style={{
         width: "100%",
         height: "100%",
         display: "flex",
+        flexDirection: "column",
+        justifyContent: "flex-end",
+        padding: 72,
         backgroundColor: "#05060d",
         backgroundImage:
           "radial-gradient(ellipse 90% 70% at 75% 10%, rgba(96,110,180,0.35), rgba(5,6,13,0) 60%), radial-gradient(ellipse 70% 55% at 15% 85%, rgba(180,120,80,0.18), rgba(5,6,13,0) 55%)",
-        color: OG_TEXT.ink,
+        color: "#ffffff",
         fontFamily: "sans-serif",
         position: "relative",
-        ...style,
       }}
     >
       {STARS.map((star) => (
@@ -102,25 +75,7 @@ export function OgBackdrop({
           }}
         />
       ))}
-      {children}
-    </div>
-  );
-}
 
-export function OgCard({
-  kicker,
-  title,
-  subtitle,
-  chip,
-}: OgCardProps): ReactElement {
-  return (
-    <OgBackdrop
-      style={{
-        flexDirection: "column",
-        justifyContent: "flex-end",
-        padding: 72,
-      }}
-    >
       {chip ? (
         <div
           style={{
@@ -146,7 +101,7 @@ export function OgCard({
           fontSize: 28,
           letterSpacing: 2,
           textTransform: "uppercase",
-          color: OG_TEXT.kicker,
+          color: "rgba(255,255,255,0.6)",
           marginBottom: 18,
         }}
       >
@@ -169,13 +124,13 @@ export function OgCard({
           display: "flex",
           fontSize: 32,
           lineHeight: 1.4,
-          color: OG_TEXT.muted,
+          color: "rgba(255,255,255,0.72)",
           marginTop: 22,
           maxWidth: 940,
         }}
       >
         {subtitle}
       </div>
-    </OgBackdrop>
+    </div>
   );
 }

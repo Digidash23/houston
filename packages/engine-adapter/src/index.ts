@@ -15,6 +15,7 @@ export type {
   BrowserLiveConnectionState,
   BrowserLiveConnectOptions,
   BrowserLiveHandlers,
+  OrgChartShareInput,
   OrgChartShareResult,
 } from "@houston/sdk";
 export * from "@houston/wire-types";

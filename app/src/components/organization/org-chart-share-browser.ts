@@ -1,65 +1,39 @@
-import { reserveBrowserTab } from "../../lib/browser-tab";
 import { logAndReportError } from "../../lib/error-report";
 import { openExternalUrl } from "../../lib/open-external-url";
-import { osIsTauri } from "../../lib/os-bridge/platform";
 import { saveBlob } from "../../lib/save-blob";
-import { tauriOrg } from "../../lib/tauri";
 import { copyImageWith } from "./org-chart-share-copy";
 import type { ShareRunDeps } from "./org-chart-share-run";
-import { shareTabReserver } from "./org-chart-share-tab";
 import type { ShareImageDraw } from "./use-share-card-image";
 
-/**
- * The share run's deps bound to this browser (or the desktop webview).
- * `title` names the published page; `publishing` brackets the upload, for
- * the button's pending state; `holding` is the line the claimed tab shows
- * while it waits for the composer.
- */
+/** The share run's deps bound to this browser (or the desktop webview). */
 export function browserShareDeps(
   post: (link: string) => string,
-  title: string,
   drawing: ShareImageDraw,
   phone: boolean,
-  publishing: (pending: boolean) => void,
-  holding: string,
 ): ShareRunDeps {
   return {
     post,
     png: drawing.png,
     ready: drawing.ready,
     phone,
-    sheet:
-      typeof navigator.share === "function" &&
-      typeof navigator.canShare === "function"
-        ? {
-            canShare: (data) => navigator.canShare(data),
-            share: (data) => navigator.share(data),
-          }
-        : undefined,
+    sheet: shareSheet(),
     copyImage: canCopyImage() ? writeImage : undefined,
-    publish: (png, signal) => {
-      publishing(true);
-      return tauriOrg
-        .publishChartShare(png, title, signal)
-        .finally(() => publishing(false));
-    },
-    reserveTab: shareTabReserver(holding, {
-      tauri: osIsTauri(),
-      reserve: () => reserveBrowserTab(),
-      report: logAndReportError,
-    }),
-    wait: (ms, cancel) =>
-      new Promise((resolve) => {
-        if (cancel.aborted) return;
-        const timer = setTimeout(resolve, ms);
-        cancel.addEventListener("abort", () => clearTimeout(timer), {
-          once: true,
-        });
-      }),
     open: openExternalUrl,
     save: async (file) => (await saveBlob(file.name, file)).kind === "saved",
     report: logAndReportError,
   };
+}
+
+/** `navigator.share` and `canShare`, where there is a share sheet. */
+export function shareSheet(): ShareRunDeps["sheet"] {
+  return typeof navigator !== "undefined" &&
+    typeof navigator.share === "function" &&
+    typeof navigator.canShare === "function"
+    ? {
+        canShare: (data) => navigator.canShare(data),
+        share: (data) => navigator.share(data),
+      }
+    : undefined;
 }
 
 /** Whether this browser can put a PNG on the clipboard. */

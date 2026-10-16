@@ -4,16 +4,19 @@ import { z } from "zod";
  * A shared org chart picture (`/v1/org-chart-shares`, gateway only).
  *
  * `POST /v1/org-chart-shares` takes multipart `file` (a PNG, at most
- * {@link ORG_CHART_SHARE_MAX_BYTES}) and `title` (1 to
- * {@link ORG_CHART_SHARE_TITLE_MAX} code points, trimmed, with no control or
- * format character but the zero-width joiner) and answers 201 with
- * {@link OrgChartSharePublished}: the public page a LinkedIn post links to,
- * whose preview image is the uploaded chart. Both reads are public and only
- * the Agent Store site reads them: `GET /v1/org-chart-shares/{id}` (the
- * record) and `GET /v1/org-chart-shares/{id}/image` (the PNG bytes).
+ * {@link ORG_CHART_SHARE_MAX_BYTES}), an optional `preview` (the 1200 x 630
+ * link card drawn around it, at most {@link ORG_CHART_SHARE_PREVIEW_MAX_BYTES})
+ * and `title` (1 to {@link ORG_CHART_SHARE_TITLE_MAX} code points, trimmed,
+ * with no control or format character but the zero-width joiner) and answers
+ * 201 with {@link OrgChartSharePublished}: the public page a LinkedIn post
+ * links to, whose preview image is the card (the chart itself when no card
+ * came). The reads are public and only the Agent Store site and link-preview
+ * crawlers make them: `GET /v1/org-chart-shares/{id}` (the record),
+ * `/image` and `/preview` (the bytes).
  */
 
 export const ORG_CHART_SHARE_MAX_BYTES = 6 * 1024 * 1024;
+export const ORG_CHART_SHARE_PREVIEW_MAX_BYTES = 2 * 1024 * 1024;
 export const ORG_CHART_SHARE_TITLE_MAX = 120;
 
 /** 22 base64url characters: 16 random bytes. */
@@ -22,6 +25,8 @@ const SHARE_ID = /^[A-Za-z0-9_-]{22}$/;
 export const orgChartSharePublishedSchema = z.object({
   id: z.string().regex(SHARE_ID),
   imageUrl: z.url({ protocol: /^https?$/ }),
+  /** Absent when the upload carried no preview card. */
+  previewUrl: z.url({ protocol: /^https?$/ }).optional(),
   pageUrl: z.url({ protocol: /^https?$/ }),
 });
 export type OrgChartSharePublished = z.infer<
@@ -35,7 +40,10 @@ export type OrgChartSharePublished = z.infer<
  *    gateway or host that does not serve the route at all).
  *  - `rate_limited`: 429; the refusal's `Retry-After` rides beside it.
  *  - `signed_out`: 401; the session lapsed and the auth-expiry signal fired.
+ *  - `account_deleted`: 410 `account_deleted`; the account is being deleted.
  *  - `offline`: no answer reached the device.
+ *  - `timed_out`: an answer did not come back in time and the upload was
+ *    given up on (a slow connection, not a refusal the gateway made).
  *  - `too_large` (413), `not_an_image` (415, or a 400 `invalid_image` /
  *    `no_file`), `invalid_title` (a 400 `invalid_title`): the gateway
  *    refused what the client sent.
@@ -46,7 +54,9 @@ export const ORG_CHART_SHARE_REFUSALS = [
   "unavailable",
   "rate_limited",
   "signed_out",
+  "account_deleted",
   "offline",
+  "timed_out",
   "too_large",
   "not_an_image",
   "invalid_title",
@@ -90,6 +100,8 @@ export function orgChartShareRefusalOf(
     case 501:
     case 503:
       return "unavailable";
+    case 410:
+      return bodyCode(body) === "account_deleted" ? "account_deleted" : null;
     case 413:
       return "too_large";
     case 415:
@@ -104,7 +116,7 @@ export function orgChartShareRefusalOf(
 /**
  * Whether a refusal is a state of the deployment, the network or the session,
  * which nothing in Houston did wrong. The other three mean the gateway
- * refused a picture and title the client drew itself, which is a bug.
+ * refused a picture, card or title the client drew itself, which is a bug.
  */
 export function isExpectedOrgChartShareRefusal(
   code: OrgChartShareRefusalCode,
@@ -113,6 +125,8 @@ export function isExpectedOrgChartShareRefusal(
     code === "unavailable" ||
     code === "rate_limited" ||
     code === "signed_out" ||
-    code === "offline"
+    code === "account_deleted" ||
+    code === "offline" ||
+    code === "timed_out"
   );
 }

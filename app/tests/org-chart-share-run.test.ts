@@ -35,9 +35,6 @@ function harness(overrides: Partial<ShareRunDeps> = {}) {
     copyImage: async () => {
       calls.push("copy");
     },
-    publish: async () => ({ kind: "refused", code: "unavailable" }),
-    reserveTab: () => null,
-    wait: () => new Promise(() => {}),
     open: async (url) => {
       calls.push(`open:${new URL(url).host}`);
       return true;
@@ -53,7 +50,7 @@ function harness(overrides: Partial<ShareRunDeps> = {}) {
 }
 
 describe("shareOrgChart on desktop", () => {
-  it("starts the image copy in the click's own tick, then opens LinkedIn once the upload is refused", async () => {
+  it("starts the image copy, then opens LinkedIn, in the click's own tick", async () => {
     const drawing = deferred<File>();
     const copied = deferred<void>();
     const { deps, calls } = harness({ png: drawing.promise, ready: null });
@@ -63,15 +60,14 @@ describe("shareOrgChart on desktop", () => {
       calls.push("copy");
       return copied.promise;
     };
-    const running = shareOrgChart(deps);
-    // Synchronously, before the drawing or the upload settles: the copy
-    // started, handed a promise of the image.
-    deepStrictEqual(calls, ["copy"]);
+    const running = shareOrgChart(deps, null);
+    // Synchronously, before the drawing or the copy settles: both started,
+    // the copy first, and the copy was handed the drawing itself.
+    deepStrictEqual(calls, ["copy", "open:www.linkedin.com"]);
+    strictEqual(handed, drawing.promise);
     drawing.resolve(PNG);
     copied.resolve();
-    strictEqual(await (handed as unknown as Promise<File>), PNG);
     const outcome = await running;
-    deepStrictEqual(calls, ["copy", "open:www.linkedin.com"]);
     deepStrictEqual(outcome.kind === "linkedin" && outcome.image, "copied");
     strictEqual(
       outcome.kind === "linkedin" &&
@@ -85,7 +81,7 @@ describe("shareOrgChart on desktop", () => {
       copyImage: () =>
         Promise.reject(new DOMException("no focus", "NotAllowedError")),
     });
-    const outcome = await shareOrgChart(deps);
+    const outcome = await shareOrgChart(deps, null);
     deepStrictEqual(calls, [
       "open:www.linkedin.com",
       "save:acme-org-chart.png",
@@ -96,7 +92,7 @@ describe("shareOrgChart on desktop", () => {
 
   it("saves the image where there is no image clipboard at all", async () => {
     const { deps, calls } = harness({ copyImage: undefined });
-    const outcome = await shareOrgChart(deps);
+    const outcome = await shareOrgChart(deps, null);
     deepStrictEqual(calls, [
       "open:www.linkedin.com",
       "save:acme-org-chart.png",
@@ -110,7 +106,7 @@ describe("shareOrgChart on desktop", () => {
         throw new TypeError("boom");
       },
     });
-    const outcome = await shareOrgChart(deps);
+    const outcome = await shareOrgChart(deps, null);
     strictEqual(outcome.kind === "linkedin" && outcome.image, "saved");
     deepStrictEqual(reports, ["org_chart_share_copy_image"]);
   });
@@ -123,7 +119,7 @@ describe("shareOrgChart on desktop", () => {
       ready: null,
       copyImage: (png) => png.then(() => {}),
     });
-    const outcome = await shareOrgChart(deps);
+    const outcome = await shareOrgChart(deps, null);
     deepStrictEqual(calls, ["open:www.linkedin.com"]);
     strictEqual(outcome.kind === "linkedin" && outcome.image, "none");
     deepStrictEqual(reports, []);
@@ -131,7 +127,7 @@ describe("shareOrgChart on desktop", () => {
 
   it("says when the browser blocked the tab", async () => {
     const { deps } = harness({ open: async () => false });
-    const outcome = await shareOrgChart(deps);
+    const outcome = await shareOrgChart(deps, null);
     strictEqual(outcome.kind === "linkedin" && outcome.opened, false);
   });
 
@@ -140,7 +136,7 @@ describe("shareOrgChart on desktop", () => {
       copyImage: undefined,
       save: () => Promise.reject(new Error("disk full")),
     });
-    const outcome = await shareOrgChart(deps);
+    const outcome = await shareOrgChart(deps, null);
     strictEqual(outcome.kind === "linkedin" && outcome.image, "none");
     deepStrictEqual(reports, ["org_chart_share_download"]);
   });
@@ -164,7 +160,7 @@ describe("shareOrgChart on a phone", () => {
         shared.push(data);
       },
     };
-    deepStrictEqual(await shareOrgChart(deps), { kind: "native" });
+    deepStrictEqual(await shareOrgChart(deps, null), { kind: "native" });
     deepStrictEqual(shared, [{ files: [PNG], text: "Hello gethouston.ai" }]);
     deepStrictEqual(calls, []);
   });
@@ -174,7 +170,7 @@ describe("shareOrgChart on a phone", () => {
       phone: true,
       sheet: sheet(() => Promise.reject(new DOMException("x", "AbortError"))),
     });
-    deepStrictEqual(await shareOrgChart(deps), { kind: "cancelled" });
+    deepStrictEqual(await shareOrgChart(deps, null), { kind: "cancelled" });
     deepStrictEqual(reports, []);
   });
 
@@ -185,7 +181,7 @@ describe("shareOrgChart on a phone", () => {
         Promise.reject(new DOMException("busy", "InvalidStateError")),
       ),
     });
-    deepStrictEqual(await shareOrgChart(deps), { kind: "cancelled" });
+    deepStrictEqual(await shareOrgChart(deps, null), { kind: "cancelled" });
     deepStrictEqual(reports, []);
   });
 
@@ -194,7 +190,7 @@ describe("shareOrgChart on a phone", () => {
       phone: true,
       sheet: sheet(() => Promise.reject(new Error("boom"))),
     });
-    deepStrictEqual(await shareOrgChart(deps), { kind: "failed" });
+    deepStrictEqual(await shareOrgChart(deps, null), { kind: "failed" });
     deepStrictEqual(reports, ["org_chart_share_native"]);
   });
 
@@ -205,7 +201,7 @@ describe("shareOrgChart on a phone", () => {
       { sheet: undefined },
     ]) {
       const { deps, calls } = harness({ phone: true, ...overrides });
-      const outcome = await shareOrgChart(deps);
+      const outcome = await shareOrgChart(deps, null);
       strictEqual(outcome.kind, "linkedin");
       deepStrictEqual(calls, ["copy", "open:www.linkedin.com"]);
     }
@@ -236,7 +232,7 @@ describe("shareOrgChart on a phone", () => {
 
   it("never uses the sheet at desktop width", async () => {
     const { deps } = harness({ sheet: sheet(async () => {}) });
-    strictEqual((await shareOrgChart(deps)).kind, "linkedin");
+    strictEqual((await shareOrgChart(deps, null)).kind, "linkedin");
   });
 });
 

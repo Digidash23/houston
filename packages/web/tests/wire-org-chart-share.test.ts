@@ -14,9 +14,9 @@ import {
  * Pinned literally: the whole URL, the method, the multipart parts, and the
  * headers the gateway routes on. A multipart body carries its own
  * Content-Type (with the boundary), so the JSON one every other gateway call
- * stamps must be absent here. The adapter asks only a deployment whose
- * capabilities say it is the gateway (`spaces`), so each spec answers that
- * probe first.
+ * stamps must be absent here. The surface hands in the deployment's own
+ * capabilities; the SDK decides from them, so nothing here probes
+ * `/v1/capabilities`.
  */
 
 const BASE = "http://host";
@@ -27,7 +27,7 @@ const PUBLISHED = {
   imageUrl: `https://gateway.gethouston.ai/v1/org-chart-shares/${ID}/image`,
   pageUrl: `https://agents.gethouston.ai/o/${ID}`,
 };
-const GATEWAY_CAPS = { profile: "cloud", spaces: true };
+const GATEWAY = { spaces: true };
 
 const { calls, reset, restore, stubRouted } = createWireCapture();
 
@@ -51,28 +51,32 @@ function client() {
   return c;
 }
 
-/** Capabilities answer `caps`; the share route answers `share()`. */
-function stubDeployment(caps: object, share: (call: Call) => Response) {
+/** The share route answers `share()`; anything else is a 404. */
+function stubShare(share: (call: Call) => Response | Promise<Response>) {
   stubRouted((call) =>
-    call.url === `${BASE}/v1/capabilities` ? json(200, caps) : share(call),
+    call.url === SHARES ? share(call) : json(404, { error: "not_found" }),
   );
 }
 
-const shareCalls = () => calls.filter((call) => call.url === SHARES);
-
-const png = () =>
-  new Blob([new Uint8Array([137, 80, 78, 71])], { type: "image/png" });
+const png = (...bytes: number[]) =>
+  new Blob([new Uint8Array([137, 80, 78, 71, ...bytes])], {
+    type: "image/png",
+  });
 
 describe("publishOrgChartShare", () => {
-  test("POSTs multipart {file, title}, authorized and space-scoped", async () => {
-    stubDeployment(GATEWAY_CAPS, () => json(201, PUBLISHED));
-    const image = png();
+  test("POSTs multipart {file, preview, title}, authorized and space-scoped", async () => {
+    stubShare(() => json(201, PUBLISHED));
 
     await expect(
-      client().publishOrgChartShare({ image, title: "Acme & Co" }),
+      client().publishOrgChartShare({
+        image: png(),
+        preview: png(1, 2),
+        title: "Acme & Co",
+        deployment: GATEWAY,
+      }),
     ).resolves.toEqual({ kind: "published", ...PUBLISHED });
-    expect(shareCalls()).toHaveLength(1);
-    const [call] = shareCalls();
+    expect(calls).toHaveLength(1);
+    const [call] = calls;
     expect(call.url).toBe(SHARES);
     expect(call.method).toBe("POST");
     expect(call.body).toBeNull();
@@ -80,7 +84,7 @@ describe("publishOrgChartShare", () => {
     expect(call.headers.get("Authorization")).toBe("Bearer t");
     expect(call.headers.get("x-houston-org")).toBe(ORG);
     const form = call.form as FormData;
-    expect([...form.keys()]).toEqual(["file", "title"]);
+    expect([...form.keys()]).toEqual(["file", "preview", "title"]);
     expect(form.get("title")).toBe("Acme & Co");
     const file = form.get("file") as File;
     expect(file.name).toBe("org-chart.png");
@@ -88,72 +92,90 @@ describe("publishOrgChartShare", () => {
     expect(new Uint8Array(await file.arrayBuffer())).toEqual(
       new Uint8Array([137, 80, 78, 71]),
     );
+    const preview = form.get("preview") as File;
+    expect(preview.name).toBe("org-chart-preview.png");
+    expect(preview.type).toBe("image/png");
+    expect(new Uint8Array(await preview.arrayBuffer())).toEqual(
+      new Uint8Array([137, 80, 78, 71, 1, 2]),
+    );
   });
 
-  test("hands the caller's abort signal to the request", async () => {
-    stubDeployment(GATEWAY_CAPS, () => json(201, PUBLISHED));
-    const controller = new AbortController();
+  test("reads the preview card's address off the 201", async () => {
+    const previewUrl = `https://gateway.gethouston.ai/v1/org-chart-shares/${ID}/preview`;
+    stubShare(() => json(201, { ...PUBLISHED, previewUrl }));
 
-    await client().publishOrgChartShare(
-      { image: png(), title: "Acme" },
-      controller.signal,
-    );
-    expect(shareCalls()[0]?.signal).toBe(controller.signal);
+    await expect(
+      client().publishOrgChartShare({
+        image: png(),
+        preview: png(1),
+        title: "Acme",
+        deployment: GATEWAY,
+      }),
+    ).resolves.toEqual({ kind: "published", ...PUBLISHED, previewUrl });
+  });
+
+  test("sends {file, title} alone when there is no card", async () => {
+    stubShare(() => json(201, PUBLISHED));
+
+    await client().publishOrgChartShare({
+      image: png(),
+      title: "Acme",
+      deployment: GATEWAY,
+    });
+    expect([...(calls[0]?.form as FormData).keys()]).toEqual(["file", "title"]);
   });
 
   test("answers the gateway's 503 as unavailable, typed", async () => {
-    stubDeployment(GATEWAY_CAPS, () => json(503, { error: "no blob store" }));
+    stubShare(() => json(503, { error: "not_configured" }));
 
     await expect(
-      client().publishOrgChartShare({ image: png(), title: "Acme" }),
+      client().publishOrgChartShare({
+        image: png(),
+        title: "Acme",
+        deployment: GATEWAY,
+      }),
     ).resolves.toEqual({ kind: "refused", code: "unavailable" });
   });
 
   test("sends nothing to a deployment that is not the gateway", async () => {
-    stubDeployment({ profile: "local" }, () => json(201, PUBLISHED));
+    stubShare(() => json(201, PUBLISHED));
 
     await expect(
-      client().publishOrgChartShare({ image: png(), title: "Acme" }),
+      client().publishOrgChartShare({
+        image: png(),
+        title: "Acme",
+        deployment: {},
+      }),
     ).resolves.toEqual({ kind: "refused", code: "unavailable" });
-    expect(shareCalls()).toEqual([]);
+    expect(calls).toEqual([]);
   });
 
-  test("asks the route when the capability probe fails, and lets its answer decide", async () => {
-    stubRouted((call) =>
-      call.url === `${BASE}/v1/capabilities`
-        ? json(500, { error: "boom" })
-        : json(201, PUBLISHED),
-    );
-    vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    await expect(
-      client().publishOrgChartShare({ image: png(), title: "Acme" }),
-    ).resolves.toEqual({ kind: "published", ...PUBLISHED });
-    expect(shareCalls()).toHaveLength(1);
-  });
-
-  test("an abort ends a publish still waiting on the capability probe, and sends nothing", async () => {
-    stubRouted((call) =>
-      call.url === `${BASE}/v1/capabilities`
-        ? new Promise<Response>(() => {})
-        : json(201, PUBLISHED),
-    );
+  test("an abort ends the publish and aborts the request it sent", async () => {
+    stubShare(() => new Promise<Response>(() => {}));
     const controller = new AbortController();
-    const publishing = client().publishOrgChartShare(
-      { image: png(), title: "Acme" },
-      controller.signal,
-    );
-    controller.abort(new DOMException("patience", "AbortError"));
+    const publishing = client().publishOrgChartShare({
+      image: png(),
+      title: "Acme",
+      deployment: GATEWAY,
+      signal: controller.signal,
+    });
+    await vi.waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0]?.signal?.aborted).toBe(false);
+    controller.abort(new DOMException("closed", "AbortError"));
 
     await expect(publishing).rejects.toMatchObject({ name: "AbortError" });
-    expect(shareCalls()).toEqual([]);
+    expect(calls[0]?.signal?.aborted).toBe(true);
   });
 
   test("surfaces a server failure as the engine error the app catches", async () => {
-    stubDeployment(GATEWAY_CAPS, () => json(500, { error: "boom" }));
+    stubShare(() => json(500, { error: "boom" }));
 
     await expect(
-      client().publishOrgChartShare({ image: png(), title: "Acme" }),
+      client().publishOrgChartShare({
+        image: png(),
+        title: "Acme",
+        deployment: GATEWAY,
+      }),
     ).rejects.toMatchObject({ name: "HoustonEngineError", status: 500 });
   });
 });

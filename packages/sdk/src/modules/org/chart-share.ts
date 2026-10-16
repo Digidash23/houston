@@ -1,18 +1,20 @@
 /**
  * Publishing a picture of the org chart as a public page: the link a LinkedIn
- * post carries, which LinkedIn unfurls into a preview of the picture.
+ * post carries, which LinkedIn unfurls into the preview card uploaded with it.
  *
- * Every answer the route can give that is not a published page comes back as
- * a typed refusal rather than a throw, because a surface always has somewhere
- * else to send the person (the bare post, the picture on the clipboard) and
- * has to know which refusals are worth reporting
- * (`isExpectedOrgChartShareRefusal`). Only an answer that is neither (a 500,
- * an unreadable 201) throws, and so does an abort through `signal` (the
- * fetch's own `AbortError`): the caller that aborted no longer wants an answer.
+ * Every answer that is not a published page comes back as a typed refusal
+ * rather than a throw, because a surface always has somewhere else to send
+ * the person (the bare post, the picture on the clipboard) and has to know
+ * which refusals are worth reporting (`isExpectedOrgChartShareRefusal`). Only
+ * an answer that is neither (a 500, an unreadable 201) throws, and so does an
+ * abort through the caller's `signal`, with the signal's reason, the moment it
+ * fires: the caller that aborted no longer wants an answer.
  */
 
 import {
+  type Capabilities,
   ORG_CHART_SHARE_MAX_BYTES,
+  ORG_CHART_SHARE_PREVIEW_MAX_BYTES,
   ORG_CHART_SHARE_TITLE_MAX,
   type OrgChartShareRefusalCode,
   orgChartSharePublishedSchema,
@@ -22,7 +24,14 @@ import { isTransportFailure } from "../../transport-failure";
 import { type HttpScope, httpRequest, SdkHttpError } from "../http";
 
 export type OrgChartShareResult =
-  | { kind: "published"; id: string; pageUrl: string; imageUrl: string }
+  | {
+      kind: "published";
+      id: string;
+      pageUrl: string;
+      imageUrl: string;
+      /** Absent when no preview card went up (or the gateway kept none). */
+      previewUrl?: string;
+    }
   | {
       kind: "refused";
       code: OrgChartShareRefusalCode;
@@ -30,10 +39,27 @@ export type OrgChartShareResult =
       retryAfterMs?: number;
     };
 
-/** What `publishOrgChartShare` takes: the drawn PNG and the name it is drawn under. */
+/** What `publishOrgChartShare` takes. */
 export interface OrgChartShareInput {
+  /** The drawn chart, a PNG. */
   image: Blob;
+  /**
+   * The 1200 x 630 link card drawn around `image`, which the page's preview
+   * shows. Without it the preview is the square chart itself.
+   */
+  preview?: Blob;
+  /** The name the chart is drawn under. */
   title: string;
+  /**
+   * The deployment's own description (`/v1/capabilities`) when the surface
+   * has it. Only the hosted gateway (the one deployment that advertises
+   * `spaces`) keeps shared pictures, so anywhere else the publish is refused
+   * `unavailable` without sending the picture. Unknown (`null`, absent): the
+   * route is asked and its own 404 or 503 decides.
+   */
+  deployment?: Pick<Capabilities, "spaces"> | null;
+  /** Aborts the publish; it then rejects with the signal's reason. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -64,16 +90,31 @@ export function orgChartShareTitle(title: string): string {
 }
 
 /**
- * The upload `publishOrgChartShare` sends for the facade's `{ image, title }`,
- * or the refusal a picture over the gateway's cap earns before any request.
+ * The upload `publishOrgChartShare` sends for the facade's input, or the
+ * refusal it earns before any request: a deployment that keeps no shared
+ * pictures, or a picture or card over the gateway's cap.
  */
 export function orgChartShareUpload(
   input: OrgChartShareInput,
 ): FormData | OrgChartShareResult {
-  if (input.image.size > ORG_CHART_SHARE_MAX_BYTES)
+  if (input.deployment && input.deployment.spaces !== true)
+    return { kind: "refused", code: "unavailable" };
+  const { image, preview } = input;
+  if (
+    image.size > ORG_CHART_SHARE_MAX_BYTES ||
+    (preview && preview.size > ORG_CHART_SHARE_PREVIEW_MAX_BYTES)
+  )
     return { kind: "refused", code: "too_large" };
   const upload = new FormData();
-  upload.append("file", input.image, "org-chart.png");
+  upload.append("file", image, "org-chart.png");
+  if (preview)
+    upload.append(
+      "preview",
+      preview,
+      preview.type === "image/jpeg"
+        ? "org-chart-preview.jpg"
+        : "org-chart-preview.png",
+    );
   upload.append("title", orgChartShareTitle(input.title));
   return upload;
 }
@@ -82,15 +123,17 @@ export function orgChartShareUpload(
  * Publishes a picture of the org chart as a public page anyone with the link
  * can open.
  *
- * Uploads the PNG with the space's name as its title and answers the page's
- * address, which a post links to so the picture shows as its preview. A
- * deployment that keeps no shared pictures, a 429, a lapsed session, a device
- * with no connection and a picture the gateway will not take all answer
- * `refused` with their code, never a throw. A title with nothing printable
- * left is published under a plain fallback rather than refused.
- * @param upload The facade's `{ image, title }` as multipart, built by
+ * Uploads the PNG and its link card with the space's name as its title and
+ * answers the page's address, which a post links to so the card shows as its
+ * preview. A deployment that keeps no shared pictures, a 429, a lapsed
+ * session, a device with no connection, an upload that outlasts its deadline
+ * and a picture the gateway will not take all answer `refused` with their
+ * code, never a throw. A title with nothing printable left is published under
+ * a plain fallback rather than refused.
+ * @param upload The facade's input as multipart, built by
  *   `orgChartShareUpload`: `file` (the PNG the share dialog drew, at most
- *   6 MiB) and `title` (the space's name, or the person's in a personal
+ *   6 MiB), `preview` (the 1200 x 630 card drawn around it, at most 2 MiB,
+ *   optional) and `title` (the space's name, or the person's in a personal
  *   space). The route reads its body off this parameter, so the facade
  *   builds it.
  * @assistant group:org hidden: the share dialog draws the picture on the person's device; the assistant has no picture of the chart to send.

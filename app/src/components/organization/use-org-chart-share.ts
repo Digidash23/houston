@@ -1,5 +1,5 @@
 import { isTauri } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { analytics } from "../../lib/analytics";
 import { logAndReportError } from "../../lib/error-report";
@@ -8,12 +8,12 @@ import {
   canCopyImage,
   copyImageToClipboard,
   downloadShareImage,
+  shareSheet,
 } from "./org-chart-share-browser";
-import { sharePostText, shareTitle } from "./org-chart-share-model";
-import { createPendingRuns } from "./org-chart-share-pending";
+import { sharePostText } from "./org-chart-share-model";
+import { linkedInAction } from "./org-chart-share-publish";
 import {
   type ShareOutcome,
-  type ShareRunDeps,
   shareLanding,
   shareOrgChart,
   usesShareSheet,
@@ -27,22 +27,23 @@ import { shareCounts, trackShare as track } from "./org-chart-share-track";
 import type { OrgTree } from "./org-chart-tree";
 import { createSingleFlight } from "./single-flight";
 import { useShareCardImage } from "./use-share-card-image";
+import { useSharePublish } from "./use-share-publish";
 
 /** How long Copy image reads "Copied". */
 const COPIED_MS = 2000;
 
 /**
  * The share dialog's state and actions over the image drawn ahead
- * (`useShareCardImage`). Share on LinkedIn keeps the clipboard write and
- * the tab inside the click, reads as pending while the image uploads, and is
- * single-flight (a double click would open LinkedIn twice); the phone's
- * share sheet is left ungated, since a sheet that never settles would kill
- * the button and a second tap is already quiet. Unexpected failures report
- * and show nothing.
+ * (`useShareCardImage`) and the chart's page published while the dialog is
+ * open (`org-chart-share-publish.ts`). Share on LinkedIn does all its work
+ * inside the click and is single-flight (a double click would open LinkedIn
+ * twice); the phone's share sheet is left ungated, since a sheet that never
+ * settles would kill the button and a second tap is already quiet.
+ * Unexpected failures report and show nothing.
  */
 export function useOrgChartShare(tree: OrgTree, phone: boolean) {
   const { t } = useTranslation("teams");
-  const { current, preview, retry } = useShareCardImage(tree);
+  const { current, preview, file, retry } = useShareCardImage(tree);
   const flight = useRef(createSingleFlight());
   const [state, dispatch] = useReducer(
     shareDialogReducer,
@@ -56,12 +57,6 @@ export function useOrgChartShare(tree: OrgTree, phone: boolean) {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
   }, []);
-  const [publishing, setPublishing] = useState(false);
-  const pendingRuns = useRef(
-    createPendingRuns((next) => {
-      if (live.current) setPublishing(next);
-    }),
-  );
   useEffect(() => {
     live.current = true;
     return () => {
@@ -69,6 +64,11 @@ export function useOrgChartShare(tree: OrgTree, phone: boolean) {
       clearTimer();
     };
   }, [clearTimer]);
+  const sheet = file
+    ? usesShareSheet({ phone, ready: file, sheet: shareSheet() })
+    : false;
+  const publish = useSharePublish(tree, state, file, sheet);
+
   // A redrawn image is a different picture: what was said about the old one
   // no longer holds. Only replacing a picture that was on screen resets: the
   // first image arriving must not wipe the line of a share started while it
@@ -107,48 +107,31 @@ export function useOrgChartShare(tree: OrgTree, phone: boolean) {
     });
   };
 
+  const action = linkedInAction(preview.status, sheet, publish);
+
   // Nothing is awaited before the run starts: the clipboard write and the
   // open must stay inside the click. A synchronous throw (a name
   // encodeURIComponent refuses) reports like any other failure.
-  const run = (
-    deps: ShareRunDeps,
-    started: number,
-    pending: (next: boolean) => void,
-  ): Promise<void> => {
+  const linkedIn = () => {
+    if (action.kind === "preparing") return;
     const fail = (error: unknown) =>
       logAndReportError("org_chart_share", error);
     try {
-      return shareOrgChart(deps)
-        .then((outcome) => land(outcome, started))
-        .catch(fail)
-        .finally(() => pending(false));
-    } catch (error) {
-      fail(error);
-      return Promise.resolve();
-    }
-  };
-
-  const linkedIn = () => {
-    try {
-      // Bound at start: a dropped click must not take the running one's flag.
-      let pending: (next: boolean) => void = () => {};
       const deps = browserShareDeps(
         (link) => sharePostText(t, tree, link),
-        shareTitle(tree),
         current(),
         phone,
-        (next) => pending(next),
-        t("orgChart.share.preparingTab"),
       );
       const started = session.current;
-      const start = () => {
-        pending = pendingRuns.current();
-        return run(deps, started, pending);
-      };
+      const page = action.kind === "link" ? action.pageUrl : null;
+      const start = () =>
+        shareOrgChart(deps, page)
+          .then((outcome) => land(outcome, started))
+          .catch(fail);
       if (usesShareSheet(deps)) void start();
       else flight.current(start);
     } catch (error) {
-      logAndReportError("org_chart_share", error);
+      fail(error);
     }
   };
 
@@ -183,7 +166,7 @@ export function useOrgChartShare(tree: OrgTree, phone: boolean) {
     line: state.line,
     followBlocked,
     linkedIn,
-    publishing,
+    preparing: action.kind === "preparing",
     download: () =>
       void downloadShareImage(current()).then((saved) => {
         if (saved) track("download", tree);
