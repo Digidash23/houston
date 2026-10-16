@@ -1,5 +1,9 @@
 import type { ServerResponse } from "node:http";
 import { loadRoutines } from "@houston/domain";
+import {
+  ROUTINE_NOT_FOUND,
+  ROUTINE_NOT_FOUND_REASON,
+} from "@houston/protocol/routine-refusal";
 import type { Agent, Workspace } from "../domain/types";
 import type { WorkspacePaths } from "../paths";
 import type { RuntimeChannel } from "../ports";
@@ -77,7 +81,11 @@ defineRoute({
     if (!wiring) return;
     const { items: routines } = await loadRoutines(wiring.vfs, wiring.root);
     const routine = routines.find((r) => r.id === params.routineId);
-    if (!routine) return json(res, 404, { error: "routine not found" });
+    if (!routine)
+      return json(res, 404, {
+        error: ROUTINE_NOT_FOUND_REASON,
+        code: ROUTINE_NOT_FOUND,
+      });
     // The firer wraps the workspace's channel — the exact path
     // ChannelRoutineFirer takes for the scheduler. fireRoutineRun records the
     // run, then fires; a fire failure marks the run errored AND rethrows, so

@@ -135,6 +135,7 @@ export {
 // ===== Routines module contract ========================================
 export {
   isPlanMinIntervalRefusal,
+  isRoutineGone,
   isWebhookKeyNotCreatorRefusal,
   type NewRoutine,
   planMinIntervalRefusal,

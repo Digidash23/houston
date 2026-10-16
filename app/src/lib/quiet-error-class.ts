@@ -20,6 +20,7 @@ import { isUploadInterruptedError } from "@houston/sdk/files/upload-interrupted"
 import { bridgeQuietClass } from "@houston/sdk/local-model-bridge/quiet";
 import type { QuietErrorClass } from "@houston/sdk/quiet-error-class";
 import { isPlanMinIntervalRefusal } from "@houston/sdk/routines/plan-floor-quiet";
+import { isRoutineGone } from "@houston/sdk/routines/routine-gone";
 import { isWebhookKeyNotCreatorRefusal } from "@houston/sdk/routines/webhook-key-access";
 import { isBugIntakeUnavailable } from "./bug-report-failure.ts";
 import { isEngineWakingError } from "./engine-waking-error.ts";
@@ -51,6 +52,11 @@ export type { QuietErrorClass } from "@houston/sdk/quiet-error-class";
  * `isWebhookKeyNotCreatorRefusal`): the chip already hides the action for
  * them, so this covers a stale routine row, with authored copy and no report.
  *
+ * `routine_gone` is a routine write or run-now refused because the routine no
+ * longer exists (the SDK's `isRoutineGone`): deleted elsewhere, or a list a
+ * stale mirror served (HOUSTON-APP-5JZ / 5K0). Authored copy, plus one
+ * fingerprinted warning, since a burst of them means the mirror is stale.
+ *
  * `first_day_no_provider` is a first-day start refused because the person has
  * no AI connected (the SDK's `isFirstDayNoProvider`): the start button offers
  * the connect flow instead when it can tell, so this covers a stale provider
@@ -70,6 +76,7 @@ export function classifyQuietError(err: unknown): QuietErrorClass | null {
   if (isNoBrowserFailure(err)) return "no_url_handler";
   if (isPlanMinIntervalRefusal(err)) return "plan_min_interval";
   if (isWebhookKeyNotCreatorRefusal(err)) return "webhook_not_creator";
+  if (isRoutineGone(err)) return "routine_gone";
   if (isFirstDayNoProvider(err)) return "first_day_no_provider";
   if (isBugIntakeUnavailable(err)) return "bug_intake_unavailable";
   const bridge = bridgeQuietClass(err);

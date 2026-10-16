@@ -949,6 +949,7 @@
     "contentType": "application/json; charset=utf-8",
     "errorCode": "routine not found",
     "bodyKeys": [
+      "code",
       "error"
     ],
     "forwarded": []
@@ -1196,6 +1197,7 @@
     "contentType": "application/json; charset=utf-8",
     "errorCode": "routine not found",
     "bodyKeys": [
+      "code",
       "error"
     ],
     "forwarded": []
@@ -1205,6 +1207,7 @@
     "contentType": "application/json; charset=utf-8",
     "errorCode": "routine not found",
     "bodyKeys": [
+      "code",
       "error"
     ],
     "forwarded": []

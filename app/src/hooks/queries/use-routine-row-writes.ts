@@ -3,6 +3,7 @@ import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { optimisticWrite } from "../../lib/optimistic-write";
 import { queryKeys } from "../../lib/query-keys";
+import { refetchIfRoutineGone } from "../../lib/routine-gone-surface";
 import { removeRoutineFromList } from "../../lib/routine-optimistic";
 import {
   addOptimisticRun,
@@ -89,6 +90,9 @@ export function useRoutineRowWrites() {
         title: t("toasts.runError"),
         description: t("toasts.runErrorBody"),
       },
+      // A run-now of a routine the list showed but the host lacks.
+      onError: (err) =>
+        refetchIfRoutineGone(qc, queryKeys.routines(target.agentPath), err),
     });
     const key = runKey(target);
     startingRuns.set(key, settled);

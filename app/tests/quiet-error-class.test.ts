@@ -170,6 +170,40 @@ describe("classifyQuietError", () => {
       "engine_waking",
     );
   });
+
+  // HOUSTON-APP-5JZ / 5K0: a write against a routine a stale list still showed.
+  it("names a routine write's typed 404 routine_gone, never an agent 404", () => {
+    for (const body of [
+      { error: "routine not found", code: "routine_not_found" },
+      { error: "routine not found" },
+    ])
+      strictEqual(
+        classifyQuietError(
+          named("HoustonEngineError", "routine not found (engine error 404)", {
+            status: 404,
+            body,
+          }),
+        ),
+        "routine_gone",
+      );
+    strictEqual(
+      classifyQuietError(
+        named("RoutinesHttpError", '{"error":"routine not found"}', {
+          status: 404,
+        }),
+      ),
+      "routine_gone",
+    );
+    strictEqual(
+      classifyQuietError(
+        named("HoustonEngineError", "agent not found (engine error 404)", {
+          status: 404,
+          body: { error: "agent not found" },
+        }),
+      ),
+      null,
+    );
+  });
 });
 
 describe("quietErrorDetails", () => {
