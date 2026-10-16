@@ -10,7 +10,7 @@ import {
   normalizeAnswer,
   optionLabel,
 } from "./interaction-card-model.ts";
-import { type FileClaim, releaseClaim } from "./interaction-file-claim.ts";
+import { type FileClaims, releaseClaim } from "./interaction-file-claim.ts";
 
 export type {
   ChatInteractionAnswer,
@@ -46,8 +46,8 @@ export interface StepperState {
   reached: number;
   answers: AnswerMap;
   drafts: DraftMap;
-  /** The step the attached files alone answered (`interaction-file-claim`). */
-  fileClaim?: FileClaim;
+  /** The steps the attached files alone answered (`interaction-file-claim`). */
+  fileClaims?: FileClaims;
 }
 
 /** The result of a transition: the next state plus, when the last step was

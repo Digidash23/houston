@@ -1,7 +1,7 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { ChatPanelProps } from "./chat-panel-types";
 import type { MessageMention } from "./types";
-import { useAttachmentIntake } from "./use-attachment-intake";
+import { ingestAttachments } from "./use-attachment-intake";
 import { useDropErrorNotice } from "./use-drop-error-notice";
 import { useFileDropZone } from "./use-file-drop-zone";
 import { useSessionFiles } from "./use-session-files";
@@ -34,20 +34,34 @@ export function useChatPanelAttachments({
   onNotice,
   composerLabels,
 }: AttachmentOptions) {
-  const { files, setFiles, releaseFiles } = useSessionFiles(
+  const { files, setFiles, releaseFiles, ingestInto } = useSessionFiles(
     sessionKey,
     attachments,
     onAttachmentsChange,
   );
-  const addDroppedFiles = useAttachmentIntake({
-    files,
-    setFiles,
+  const intake = {
     prepareAttachments,
     onAttachmentRejections,
     onNotice,
     duplicateNotice: composerLabels?.fileAlreadyInChat,
     tooManyNotice: composerLabels?.tooManyFiles,
+  };
+  const latestIntake = useRef(intake);
+  useEffect(() => {
+    latestIntake.current = intake;
   });
+  // Bound to this render's conversation, read when it runs: a drop resolves
+  // after its read, possibly once the drop target that caught it is gone.
+  const addDroppedFiles = useCallback(
+    (incoming: File[]) =>
+      ingestInto(sessionKey, (current, write) =>
+        ingestAttachments(
+          { ...latestIntake.current, files: current, setFiles: write },
+          incoming,
+        ),
+      ),
+    [ingestInto, sessionKey],
+  );
   const onDropError = useDropErrorNotice(onNotice, composerLabels);
   const { isDraggingOver, dropProps } = useFileDropZone(
     addDroppedFiles,
@@ -66,6 +80,7 @@ export function useChatPanelAttachments({
     files,
     setFiles,
     releaseFiles,
+    addDroppedFiles,
     handleSend,
     isDraggingOver,
     dropProps,

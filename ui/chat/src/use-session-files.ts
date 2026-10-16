@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface SessionFiles {
   files: File[];
@@ -7,6 +7,13 @@ export interface SessionFiles {
    *  read at call time: a send that settles after the user switched
    *  conversations, or added a file meanwhile, removes only what it sent. */
   releaseFiles: (sent: readonly File[]) => void;
+  /** Merge files into `sessionKey`'s list as of the call, not of the render
+   *  that made the callback: a dropped folder resolves after its read, when
+   *  the user may have attached more or moved to another conversation. */
+  ingestInto: (
+    sessionKey: string,
+    ingest: (files: File[], setFiles: (next: File[]) => void) => void,
+  ) => void;
 }
 
 /**
@@ -50,7 +57,21 @@ export function useSessionFiles(
     },
     [controlled],
   );
-  return { files, setFiles, releaseFiles };
+  const latest = useRef({ byKey, attachments, onAttachmentsChange });
+  useEffect(() => {
+    latest.current = { byKey, attachments, onAttachmentsChange };
+  });
+  const ingestInto = useCallback<SessionFiles["ingestInto"]>((key, ingest) => {
+    const now = latest.current;
+    if (now.attachments !== undefined) {
+      ingest(now.attachments, (next) => now.onAttachmentsChange?.(next));
+      return;
+    }
+    ingest(now.byKey[key] ?? NONE, (next) =>
+      setByKey((prev) => withList(prev, key, next)),
+    );
+  }, []);
+  return { files, setFiles, releaseFiles, ingestInto };
 }
 
 const NONE: File[] = [];

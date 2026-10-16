@@ -48,7 +48,9 @@ export type ChatInteractionStep =
       hideFreeText?: boolean;
       /** The question is answered with a file: a large upload area sits above
        *  the answer row (only when the card shares a ChatPanel's attachment
-       *  list, so the files have somewhere to go). */
+       *  list, so the files have somewhere to go). The answer field always
+       *  shows, `hideFreeText` notwithstanding: its send is how files alone
+       *  answer. */
       wantsFiles?: boolean;
       /** A presentational app-identity lockup: when the question concerns an
        *  integration, the app resolves the toolkit to this brand so the modal's

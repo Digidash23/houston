@@ -20,6 +20,8 @@ import { useDropErrorNotice } from "./use-drop-error-notice";
 /** What a question's answer row needs to offer the composer's attach surface. */
 export interface CardAttach extends ComposerAttachments {
   labels?: ChatComposerLabels;
+  /** Takes the files dropped on a drop target inside the card. */
+  addDroppedFiles: (incoming: File[]) => void;
   /** Reports a failed folder drop on a drop target inside the card. */
   onDropError: (error: unknown) => void;
 }
@@ -111,7 +113,12 @@ export function useCardAttachments(
   );
   return {
     attach: panel
-      ? { ...composer, labels: panel.composerLabels, onDropError }
+      ? {
+          ...composer,
+          labels: panel.composerLabels,
+          addDroppedFiles: panel.addDroppedFiles,
+          onDropError,
+        }
       : null,
     complete,
     pending,

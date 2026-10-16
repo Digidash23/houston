@@ -16,8 +16,9 @@ import type { CardAttach } from "./use-card-attachments";
  *  above the row: the card replaced the composer, so this is the one place
  *  they are visible, and they leave with whichever answer completes the card
  *  (a typed one or a picked option). `uploadArea` says the step's upload
- *  area already shows them and opens the picker, so the row drops its chips
- *  and its "+" and keeps only the field (which still takes a pasted file). */
+ *  area shows this step's files and opens the picker, so the row drops its
+ *  chips and its "+" and keeps only the field (which still takes a pasted
+ *  file). */
 export function QuestionAnswerRow({
   disabled,
   draft,

@@ -61,6 +61,9 @@ export interface FileDropZoneProps {
 export interface FileDropZone {
   isDraggingOver: boolean;
   dropProps: FileDropZoneProps;
+  /** Forget a drag in progress, for a target that stops receiving drag
+   *  events before the drag ends. */
+  reset: () => void;
 }
 
 export function useFileDropZone(
@@ -142,8 +145,14 @@ export function useFileDropZone(
     [hasFiles],
   );
 
+  const reset = useCallback(() => {
+    dragDepthRef.current = 0;
+    setIsDraggingOver(false);
+  }, []);
+
   return {
     isDraggingOver,
     dropProps: { onDragEnter, onDragOver, onDragLeave, onDrop },
+    reset,
   };
 }

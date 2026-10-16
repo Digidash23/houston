@@ -68,6 +68,7 @@ export function InteractionQuestionStep({
   selectedId,
   attach,
   fileAnswer,
+  stepFiles,
   onOption,
   onDraftChange,
   onSend,
@@ -81,6 +82,8 @@ export function InteractionQuestionStep({
   attach: CardAttach | null;
   /** The attached files alone can answer this step (see the card). */
   fileAnswer: boolean;
+  /** The attached files that answer this step, shown under its upload area. */
+  stepFiles: readonly File[];
   onOption: (optionId: string) => void;
   onDraftChange: (value: string) => void;
   onSend: () => void;
@@ -101,6 +104,7 @@ export function InteractionQuestionStep({
         <InteractionUploadArea
           attach={upload}
           disabled={disabled}
+          files={stepFiles}
           label={copy.upload}
         />
       ) : null}
@@ -164,7 +168,12 @@ export function InteractionQuestionStep({
           disabled={disabled}
           draft={draft}
           fileAnswer={fileAnswer}
-          hideFreeText={optionsPresent && step.hideFreeText === true}
+          // Files alone can only be sent from the field's send button.
+          hideFreeText={
+            optionsPresent &&
+            step.hideFreeText === true &&
+            step.wantsFiles !== true
+          }
           onDraftChange={onDraftChange}
           onSubmit={onSend}
           placeholder={

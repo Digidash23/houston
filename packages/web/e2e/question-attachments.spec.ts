@@ -217,3 +217,60 @@ test("the upload area is visible at phone width", async ({ page, request }) => {
     page.getByPlaceholder("Or type your answer..."),
   ).toBeInViewport();
 });
+
+test("each file question in one card is answered by its own file", async ({
+  page,
+  request,
+}) => {
+  await request.post(`${FAKE_HOST_URL}/__test__/chat-interaction`, {
+    data: {
+      interaction: {
+        steps: [
+          {
+            kind: "question",
+            id: "q-logo",
+            question: "Your logo?",
+            wantsFiles: true,
+          },
+          {
+            kind: "question",
+            id: "q-photo",
+            question: "A product photo?",
+            wantsFiles: true,
+          },
+        ],
+      },
+    },
+  });
+  await startMission(page, "make my product page");
+  await expect(page.getByText("Your logo?")).toBeVisible({ timeout: 15_000 });
+
+  const pick = async (name: string) => {
+    const chooser = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: "Upload your files" }).click();
+    await (await chooser).setFiles({
+      name,
+      mimeType: "image/png",
+      buffer: PNG,
+    });
+  };
+  const send = page.getByRole("button", { name: "Send", exact: true });
+
+  await pick("logo.png");
+  await send.click();
+  await expect(page.getByText("A product photo?")).toBeVisible();
+  // The logo answered the first question, so it is not this one's answer.
+  await expect(
+    page.getByRole("button", { name: "Remove logo.png" }),
+  ).toHaveCount(0);
+  await expect(send).toBeDisabled();
+
+  await pick("photo.png");
+  await expect(
+    page.getByRole("button", { name: "Remove photo.png" }),
+  ).toBeVisible();
+  await send.click();
+  await expect(page.getByText("2 files attached")).toBeVisible({
+    timeout: 15_000,
+  });
+});

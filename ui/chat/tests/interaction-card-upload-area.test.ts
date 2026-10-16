@@ -5,6 +5,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import {
+  attach,
   byLabel,
   type Completion,
   card,
@@ -22,7 +23,7 @@ import {
   win,
 } from "./support/card-attachments-harness.ts";
 
-const { act } = await import("react");
+const { act, createElement: h, useState } = await import("react");
 const { createRoot } = await import("react-dom/client");
 
 const photo = file("photo.png");
@@ -131,6 +132,75 @@ describe("question card upload area", () => {
     assert.equal(done.length, 1);
     assert.equal(done[0].answers[0].answer, "See attached");
     assert.deepEqual(done[0].files, [photo]);
+  });
+
+  it("adds a drop that resolves after the card moved on to the newer files", async () => {
+    const done: Completion[] = [];
+    const logo = file("logo.png");
+    mountLog(
+      panel(card([{ ...PICK, id: "q-char", wantsFiles: true }, OPEN], done)),
+    );
+    const area = uploadArea();
+    assert.ok(area, "no upload area");
+    // The drop reads its files asynchronously; the user moves on before it
+    // resolves, so the area is gone by then.
+    drag(area, ["dragenter", "dragover", "drop"], [photo]);
+    click(option("The fox"));
+    assert.equal(uploadArea(), undefined);
+    attach([logo]);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    assert.equal(chips("logo.png"), 1);
+    assert.equal(chips("photo.png"), 1);
+    click(sendButton());
+    assert.deepEqual(done[0].files, [logo, photo]);
+  });
+
+  it("keeps a drop on the area from reaching the panel's own drop target", async () => {
+    const writes: File[][] = [];
+    function Controlled() {
+      const [files, setFiles] = useState<File[]>([]);
+      return panel(card([WANTS], []), {
+        attachments: files,
+        onAttachmentsChange: (next: File[]) => {
+          writes.push(next);
+          setFiles(next);
+        },
+      });
+    }
+    mountLog(h(Controlled));
+    const area = uploadArea();
+    assert.ok(area, "no upload area");
+    await dropOn(area, [photo]);
+    assert.deepEqual(writes, [[photo]]);
+  });
+
+  it("clears its highlight when the card turns disabled mid-drag", () => {
+    const { render } = mountLog(panel(card([WANTS], [])));
+    const area = () => {
+      const el = uploadArea();
+      assert.ok(el, "no upload area");
+      return el;
+    };
+    drag(area(), ["dragenter", "dragover"], [photo]);
+    assert.equal(area().dataset.dragging, "true");
+
+    render(panel(card([WANTS], [], { disabled: true })));
+    assert.equal(area().dataset.dragging, undefined);
+
+    // The next drag starts from a clean count, so leaving clears it.
+    render(panel(card([WANTS], [])));
+    drag(area(), ["dragenter", "dragover", "dragleave"], [photo]);
+    assert.equal(area().dataset.dragging, undefined);
+  });
+
+  it("keeps the answer field even when the options hide free text", () => {
+    mountLog(
+      panel(card([{ ...PICK, wantsFiles: true, hideFreeText: true }], [])),
+    );
+    assert.ok(win.document.querySelector("textarea"), "no answer field");
   });
 
   it("sends a file dropped on the area with the typed answer", async () => {
