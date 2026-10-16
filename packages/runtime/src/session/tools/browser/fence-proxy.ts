@@ -16,7 +16,11 @@ import {
   judgeTarget,
 } from "./fence-target";
 import { headEnd, MAX_HEAD_BYTES, parseProxyRequest } from "./fence-wire";
-import { ownAddresses, type PrivateNetworks } from "./ip-ranges";
+import {
+  type OwnAddresses,
+  ownAddresses,
+  type PrivateNetworks,
+} from "./ip-ranges";
 
 export type { FenceConnect } from "./fence-dial";
 
@@ -24,12 +28,14 @@ export type { FenceConnect } from "./fence-dial";
  * The proxy's network, for tests: name resolution, outbound connects, how
  * long one connect attempt may take, this machine's own addresses, how long
  * a request head may take to arrive, and judging plus connecting at most.
+ * `own` is read on every check: interfaces come and go while the browser
+ * stays open (a Wi-Fi change), and reading them is a cheap local call.
  */
 export interface FenceNet {
   lookup?: FenceLookup;
   connect?: FenceConnect;
   attemptMs?: number;
-  own?: ReturnType<typeof ownAddresses>;
+  own?: () => OwnAddresses;
   headMs?: number;
   connectBoundMs?: number;
 }
@@ -64,7 +70,7 @@ export async function startFenceProxy(
   const lookup = net.lookup ?? lookupFor(privateNetworks);
   const connect =
     net.connect ?? ((host, port) => netConnect({ host, port, noDelay: true }));
-  const own = net.own ?? ownAddresses();
+  const own = net.own ?? (() => ownAddresses());
   const refusals = new Map<string, number>();
   const sockets = new Set<Socket>();
   const track = (socket: Socket) => {
@@ -78,7 +84,7 @@ export async function startFenceProxy(
         host,
         privateNetworks,
         (name) => lookup(name, signal),
-        own,
+        own(),
       );
     } catch (error) {
       // The browser left, or the connect bound ran out: nothing failed.

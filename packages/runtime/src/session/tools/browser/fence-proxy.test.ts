@@ -246,8 +246,19 @@ test("a dead or silent first answer falls through to the next checked address", 
 
 test("this machine's own address is refused even where private networks are allowed", async () => {
   const { port } = await proxy("allowed", {
-    own: ownAddresses({ en0: [{ address: "10.0.0.7" }] }),
+    own: () => ownAddresses({ en0: [{ address: "10.0.0.7" }] }),
   });
+  const reply = await exchange(port, "CONNECT lan.test:443 HTTP/1.1\r\n\r\n");
+  expect(reply).toMatch(/^HTTP\/1\.1 403 /);
+  expect(dialed).toEqual([]);
+});
+
+test("an address this machine gains after the proxy starts is refused too", async () => {
+  let interfaces: Record<string, { address: string }[]> = {};
+  const { port } = await proxy("allowed", {
+    own: () => ownAddresses(interfaces),
+  });
+  interfaces = { en0: [{ address: "10.0.0.7" }] };
   const reply = await exchange(port, "CONNECT lan.test:443 HTTP/1.1\r\n\r\n");
   expect(reply).toMatch(/^HTTP\/1\.1 403 /);
   expect(dialed).toEqual([]);
