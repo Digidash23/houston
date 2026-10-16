@@ -84,10 +84,10 @@ export {
   type ChannelsCommandType,
   ChannelsHttpError,
   type ChannelsModule,
-  SLACK_CONNECT_SURFACES,
+  SLACK_CONNECT_RETURNS,
   type SlackAuthorization,
   type SlackCompletion,
-  type SlackConnectSurface,
+  type SlackConnectReturn,
 } from "./modules/channels";
 // ===== Org module contract =============================================
 export {

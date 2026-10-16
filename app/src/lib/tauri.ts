@@ -40,7 +40,7 @@ import {
 } from "@houston/sdk";
 import type {
   PushDeviceRegistration,
-  SlackConnectSurface,
+  SlackConnectReturn,
 } from "@houston/wire-types";
 import { shouldUseClaudeDesktopLogin } from "../components/shell/provider-login-url";
 import { actingUser } from "./acting-user";
@@ -2081,11 +2081,11 @@ export const tauriChannels = {
   list: (signal?: AbortSignal) =>
     channelCall("list_channels", () => getEngine().getChannels(signal)),
   connectSlack: (
-    surface: SlackConnectSurface | undefined,
+    returnTo: SlackConnectReturn | undefined,
     signal?: AbortSignal,
   ) =>
     channelCall("connect_slack", () =>
-      getEngine().connectSlack(surface, signal),
+      getEngine().connectSlack(returnTo, signal),
     ),
   linkSlack: (signal?: AbortSignal) =>
     channelCall("link_slack", () => getEngine().linkSlack(signal)),

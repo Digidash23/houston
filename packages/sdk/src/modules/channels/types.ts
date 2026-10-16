@@ -71,12 +71,13 @@ export interface WhatsAppLink extends ChannelLink {
 }
 
 /**
- * A surface the gateway sends the browser back to once Slack approves, other
- * than the web app it returns to when none is named.
+ * Where the gateway sends the browser once Slack approves, other than the web
+ * app it returns to when none is named: `app` is the `houston://` deep link
+ * back into an installed app.
  */
-export const SLACK_CONNECT_SURFACES = ["desktop"] as const;
+export const SLACK_CONNECT_RETURNS = ["app"] as const;
 
-export type SlackConnectSurface = (typeof SLACK_CONNECT_SURFACES)[number];
+export type SlackConnectReturn = (typeof SLACK_CONNECT_RETURNS)[number];
 
 /** Slack's own authorization endpoint, for the person's browser to open. */
 export interface SlackAuthorization {
@@ -105,14 +106,14 @@ export function requireTicket(payload: unknown, key: string): string {
   return value;
 }
 
-/** The return surface off an untrusted command payload; absent means web. */
-export function optionalSurface(
+/** The return target off an untrusted command payload; absent or null means web. */
+export function optionalReturn(
   payload: unknown,
-): SlackConnectSurface | undefined {
-  const value = field(payload, "surface");
-  if (value === undefined) return undefined;
-  if (!SLACK_CONNECT_SURFACES.includes(value as SlackConnectSurface)) {
-    throw new Error("'surface' must be desktop when given");
+): SlackConnectReturn | undefined {
+  const value = field(payload, "returnTo");
+  if (value === undefined || value === null) return undefined;
+  if (!SLACK_CONNECT_RETURNS.includes(value as SlackConnectReturn)) {
+    throw new Error("'returnTo' must be app when given");
   }
-  return value as SlackConnectSurface;
+  return value as SlackConnectReturn;
 }

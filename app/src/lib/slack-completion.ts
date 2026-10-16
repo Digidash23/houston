@@ -23,31 +23,17 @@ export function slackCompletionResult(
 }
 
 /**
- * Take the queued completion, each one at most once. The latch holds the last
- * completion actually TAKEN, never the attempt: the Channels body can mount
- * before the landing has queued anything, and a take that found an empty queue
- * must leave the next one free.
- *
- * The desktop app keeps Channels mounted across connects, so a NEW ticket must
- * still pass, while the same ticket delivered twice (the cold-start read and
- * the live listener can both carry the launching link) is dropped: the
- * gateway answers a spent ticket with the same 404 it gives a stranger. A
- * duplicate is cleared too, so a later mount never redeems it either.
+ * Take the queued completion and clear it in the same pass. `read` must answer
+ * the queue as it is NOW, not a render's snapshot of it: an effect that runs
+ * twice over one render (StrictMode, a dependency change) then finds the queue
+ * already empty, so a ticket is never redeemed twice from one hand-over. A
+ * replayed deep link never reaches the queue at all (`settings-link-gate.ts`).
  */
 export function takeSlackCompletion(
-  latch: { current: SlackCompletion | null },
   read: () => SlackCompletion | null,
   clear: () => void,
 ): SlackCompletion | null {
   const pending = read();
-  if (!pending) return null;
-  clear();
-  if (latch.current && sameCompletion(latch.current, pending)) return null;
-  latch.current = pending;
+  if (pending) clear();
   return pending;
-}
-
-function sameCompletion(a: SlackCompletion, b: SlackCompletion): boolean {
-  if (a === b) return true;
-  return a.kind === "ticket" && b.kind === "ticket" && a.ticket === b.ticket;
 }

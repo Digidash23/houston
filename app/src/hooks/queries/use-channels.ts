@@ -61,8 +61,8 @@ export function useChannelActions() {
       inChannelWorkspace(spaceId, async (assertCurrent, signal) => {
         // A desktop-started connect must finish in the desktop app, which
         // only the gateway's `houston://` return can reach.
-        const surface = osIsTauri() ? "desktop" : undefined;
-        const url = await tauriChannels.connectSlack(surface, signal);
+        const returnTo = osIsTauri() ? "app" : undefined;
+        const url = await tauriChannels.connectSlack(returnTo, signal);
         assertCurrent();
         // The browser can REFUSE the open (a popup blocker on web). The
         // section must not claim a tab the user never saw, so the answer is

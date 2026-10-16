@@ -31,13 +31,14 @@ export interface ChannelStatus {
 }
 
 /**
- * A surface that needs the gateway to send the browser back somewhere other
- * than the web app once Slack approves: the desktop app, through its
- * `houston://settings/channels` deep link. No surface means the web app.
+ * Where the gateway sends the browser once Slack approves, when it is not the
+ * web app: `app` is the deep link back into an installed app
+ * (`houston://settings/channels`). It names the mechanism, not the client, so
+ * every shell that registers the scheme can ask for it. None means the web app.
  */
-export const SLACK_CONNECT_SURFACES = ["desktop"] as const;
+export const SLACK_CONNECT_RETURNS = ["app"] as const;
 
-export type SlackConnectSurface = (typeof SLACK_CONNECT_SURFACES)[number];
+export type SlackConnectReturn = (typeof SLACK_CONNECT_RETURNS)[number];
 
 export interface ChannelLink {
   code: string;

@@ -108,7 +108,7 @@ test("channels mixin uses live authenticated current-space gateway transport", a
   });
 });
 
-test("each connect surface sends its own body byte for byte", async () => {
+test("each connect return target sends its own body byte for byte", async () => {
   const bodies: (string | null)[] = [];
   globalThis.fetch = vi.fn(async (_url, init) => {
     bodies.push(typeof init?.body === "string" ? init.body : null);
@@ -122,8 +122,8 @@ test("each connect surface sends its own body byte for byte", async () => {
     controlPlane: true,
   });
   await client.connectSlack();
-  await client.connectSlack("desktop");
-  expect(bodies).toEqual(["{}", '{"surface":"desktop"}']);
+  await client.connectSlack("app");
+  expect(bodies).toEqual(["{}", '{"return":"app"}']);
 });
 
 test("a local deployment exposes channels as unsupported without a network request", async () => {

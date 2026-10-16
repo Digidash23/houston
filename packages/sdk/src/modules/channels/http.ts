@@ -19,7 +19,7 @@ import type {
   ChannelStatus,
   SlackAuthorization,
   SlackCompletion,
-  SlackConnectSurface,
+  SlackConnectReturn,
   WhatsAppLink,
 } from "./types";
 
@@ -47,21 +47,21 @@ export async function getChannels(
  * Begin the Slack OAuth install for the active space. Returns Slack's own
  * hosted authorization `{url}`, which the person's browser opens; nothing is
  * bound until they come back and the ticket is redeemed by completeSlack.
- * @param surface Omit it to return to the web app. `desktop` returns to the
- *   desktop app instead, which a desktop-started connect needs so the ticket
- *   reaches the app that will redeem it.
+ * @param returnTo Omit it to return to the web app. `app` returns through the
+ *   `houston://` deep link into the installed app instead, which a connect
+ *   started there needs so the ticket reaches the app that will redeem it.
  * @assistant group:channels
  * @assistant hidden: answers with an authorization URL that only the person's own browser may open, and whoever finishes in Slack is who the connection would be offered to.
  */
 export async function connectSlack(
   scope: HttpScope,
-  surface?: SlackConnectSurface,
+  returnTo?: SlackConnectReturn,
   signal?: AbortSignal,
 ): Promise<SlackAuthorization> {
-  // An absent surface drops out of the JSON, so a web connect still sends `{}`.
+  // An absent target drops out of the JSON, so a web connect still sends `{}`.
   const res = await httpRequest(scope, "/v1/channels/slack/connect", {
     method: "POST",
-    body: JSON.stringify({ surface }),
+    body: JSON.stringify({ return: returnTo }),
     signal,
   });
   return (await res.json()) as SlackAuthorization;

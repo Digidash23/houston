@@ -85,15 +85,12 @@ describe("the channels requests", () => {
     ]);
   });
 
-  it("asks for the desktop return only on a desktop-started connect", async () => {
+  it("asks for the app return only on a connect started in the app", async () => {
     const url = "https://slack.com/oauth/v2/authorize?state=opaque";
     const { sdk, calls } = ok({ url });
     await sdk.channels.connectSlack();
-    await sdk.channels.connectSlack("desktop");
-    expect(calls.map((call) => call.body)).toEqual([
-      "{}",
-      '{"surface":"desktop"}',
-    ]);
+    await sdk.channels.connectSlack("app");
+    expect(calls.map((call) => call.body)).toEqual(["{}", '{"return":"app"}']);
   });
 
   it("mints a pairing code for an already-installed workspace", async () => {
@@ -200,18 +197,20 @@ describe("the dispatch path", () => {
     expect(calls).toEqual([]);
   });
 
-  it("dispatches a connect with its surface and refuses an unknown one", async () => {
+  it("dispatches a connect with its return target and refuses an unknown one", async () => {
     const url = "https://slack.com/oauth/v2/authorize?state=opaque";
     const { sdk, calls } = ok({ url });
     const connect = (payload?: unknown) =>
       sdk.dispatch({ id: "5", type: ChannelsCommand.ConnectSlack, payload });
     expect(await connect()).toMatchObject({ ok: true, value: { url } });
-    expect(await connect({ surface: "desktop" })).toMatchObject({ ok: true });
-    expect(await connect({ surface: "web" })).toMatchObject({ ok: false });
-    expect(await connect({ surface: "mobile" })).toMatchObject({ ok: false });
+    expect(await connect({ returnTo: null })).toMatchObject({ ok: true });
+    expect(await connect({ returnTo: "app" })).toMatchObject({ ok: true });
+    expect(await connect({ returnTo: "desktop" })).toMatchObject({ ok: false });
+    expect(await connect({ returnTo: "web" })).toMatchObject({ ok: false });
     expect(calls.map((call) => call.body)).toEqual([
       "{}",
-      '{"surface":"desktop"}',
+      "{}",
+      '{"return":"app"}',
     ]);
   });
 
