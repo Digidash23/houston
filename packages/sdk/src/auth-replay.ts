@@ -6,7 +6,9 @@
  * `cp/bearer-recovery.ts`). For most requests that heals an expired token. For
  * one that acts in the person's name somewhere else (a LinkedIn post), the
  * current bearer may belong to someone who signed in since, and the replay
- * would act as them. Such a request carries this mark, and its 401 stands.
+ * would act as them. Such a request carries this mark: it is replayed only
+ * when the refreshed bearer names the same person, and never sent while there
+ * is no bearer at all.
  *
  * The mark rides the `RequestInit` as a symbol key, so it never reaches the
  * wire: object spreads copy it and `fetch` ignores it. Dependency-free: the
@@ -17,7 +19,7 @@ const NO_AUTH_REPLAY: unique symbol = Symbol.for("houston.sdk.noAuthReplay");
 
 type Marked = RequestInit & { [NO_AUTH_REPLAY]?: true };
 
-/** `init` marked so its 401 is never replayed under another bearer. */
+/** `init` marked so it never goes out under another person's bearer. */
 export function withoutAuthReplay(init: RequestInit | undefined): RequestInit {
   const marked: Marked = { ...init, [NO_AUTH_REPLAY]: true };
   return marked;

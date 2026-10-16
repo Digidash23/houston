@@ -89,8 +89,9 @@ export function liveToken(fallback: string): string {
  * re-read from storage, so its response settles through the same recovery as
  * any other attempt (PRODUCT-1737).
  *
- * A request marked by `@houston/sdk/auth-replay` is never replayed: its 401
- * stands, because the bearer current by then may be another person's.
+ * A request marked by `@houston/sdk/auth-replay` never goes out under another
+ * person: with no bearer it is refused without waiting for a refresh, and its
+ * 401 is replayed once only when the refreshed bearer names the same person.
  */
 export function gatewayAuthFetch(
   fallbackToken: string,

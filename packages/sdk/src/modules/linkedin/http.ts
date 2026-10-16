@@ -142,8 +142,9 @@ export async function disconnectLinkedIn(
  * 504 from a proxy in front of the gateway. Only an answer that is none of
  * these throws, and so does an abort through `signal` before any answer. No
  * answer within three minutes is `unknown` too ({@link withPostDeadline}).
- * The post goes out once: a 401 is a `signed_out` refusal, never replayed
- * under a refreshed bearer that may be someone who signed in since.
+ * The post never goes out under another person: a 401 is replayed once only
+ * when the refreshed bearer names the same person (a token that went stale
+ * while the device slept), and is otherwise a `signed_out` refusal.
  * @param upload Multipart: `image` (a PNG or JPEG of at most 5 MiB, no taller
  *   than 4:5 and no wider than 3:1), `text` (1 to 3000 characters once
  *   trimmed) and an optional `altText`. The route reads its body off this

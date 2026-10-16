@@ -10,9 +10,9 @@ import {
 
 /**
  * The transport answers a 401 by refreshing the session and replaying with
- * the bearer current then. A LinkedIn post is never replayed: by the time its
- * 401 lands, someone else may be signed in, and the replay would post the
- * first person's picture on the second person's LinkedIn.
+ * the bearer current then. A LinkedIn post is replayed only for the same
+ * person: by the time its 401 lands, someone else may be signed in, and a
+ * replay as them would post the first person's picture on their LinkedIn.
  */
 
 const BASE = "http://host";
