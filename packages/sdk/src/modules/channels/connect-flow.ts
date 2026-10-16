@@ -8,10 +8,11 @@
  * approving browser comes back over plain `http://127.0.0.1` with no "Open
  * Houston?" prompt. A listener that cannot start falls back to the `app` deep
  * link, which still finishes in the app after that prompt, and so does a
- * gateway that predates `loopback` (`connectSlack` retries it once).
+ * gateway that refused the loopback return (`connectSlack` retries it once).
  *
  * A listener no browser can reach any more is freed: the gateway took another
- * return, the connect failed, or the page could not be opened. One the browser
+ * return, the connect failed, the surface moved on, or the page could not be
+ * opened. One the browser
  * merely refused to open stays up, since the surface offers the page again.
  */
 
@@ -35,6 +36,9 @@ export interface SlackConnectPorts {
   listener: SlackReturnListener | null;
   /** A fresh base64url nonce for the loopback `state`. */
   newState(): string;
+  /** Throws when the surface moved on (another space, another person) since
+   *  the connect began. Checked right before the page opens. */
+  assertCurrent(): void;
   /** Opens the page outside the app; false when the browser refused it. */
   open(url: string): Promise<boolean>;
   /** Reports what the person never sees: a failure, or a gateway skew. */
@@ -50,7 +54,7 @@ export interface SlackConnectStarted {
 /** Raised to the report path when a gateway refused the loopback return. */
 export class SlackLoopbackRefusedError extends Error {
   constructor() {
-    super("the gateway predates the loopback return; fell back to app");
+    super("the gateway refused the loopback return; fell back to app");
     this.name = "SlackLoopbackRefusedError";
   }
 }
@@ -78,6 +82,7 @@ export async function startSlackConnect(
       ports.report("connect_slack_loopback", new SlackLoopbackRefusedError());
       await free();
     }
+    ports.assertCurrent();
     return { url: answer.url, opened: await ports.open(answer.url) };
   } catch (error) {
     await free();

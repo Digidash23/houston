@@ -12,6 +12,7 @@ import type { SlackAuthorization } from "../../lib/channel-handoff";
 import { silenceChannelCall } from "../../lib/channel-silence";
 import { logAndReportError } from "../../lib/error-report";
 import { generateState } from "../../lib/identity/pkce";
+import { normalizeLocale } from "../../lib/locale";
 import { runOptimisticWrite } from "../../lib/optimistic-core";
 import { tellOptimisticRefusal } from "../../lib/optimistic-write";
 import {
@@ -55,7 +56,7 @@ export function useChannels(watches: ChannelWatches = {}) {
 
 export function useChannelActions() {
   const qc = useQueryClient();
-  const { t } = useTranslation("settings");
+  const { t, i18n } = useTranslation("settings");
   const spaceId = useWorkspaceStore((s) => s.current?.id);
   const invalidateHere = () => {
     if (useWorkspaceStore.getState().current?.id === spaceId) {
@@ -64,6 +65,7 @@ export function useChannelActions() {
   };
   // The desktop's Slack return page, rendered by the shell in this language.
   const returnCopy = () => ({
+    lang: normalizeLocale(i18n.resolvedLanguage) ?? "en",
     success: {
       heading: t("channels.slack.returnPage.returnHeading"),
       body: t("channels.slack.returnPage.returnBody"),
@@ -93,6 +95,7 @@ export function useChannelActions() {
               }
             : null,
           newState: generateState,
+          assertCurrent,
           open: tauriChannels.openSlack,
           report: logAndReportError,
         }),

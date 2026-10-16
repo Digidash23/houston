@@ -8,6 +8,7 @@
  */
 
 import { isTauri } from "@tauri-apps/api/core";
+import type { SupportedLocale } from "../locale.ts";
 import { invokeNative } from "./invoke.ts";
 
 /** The outcome of asking the shell to bind a loopback listener. */
@@ -84,9 +85,10 @@ export interface ChannelsLoopbackPageCopy {
   body: string;
 }
 
-/** Both pages the Slack return listener can serve, and the success page's
- *  "Open Houston" button. */
+/** Both pages the Slack return listener can serve, the success page's
+ *  "Open Houston" button, and the language they are written in. */
 export interface ChannelsLoopbackCopy {
+  lang: SupportedLocale;
   success: ChannelsLoopbackPageCopy;
   stale: ChannelsLoopbackPageCopy;
   openButton: string;

@@ -1,6 +1,6 @@
 /**
  * The Slack connect's return target off an untrusted command payload, and the
- * one gateway answer that means "this gateway predates the loopback return".
+ * one gateway answer that means "the gateway refused the loopback return".
  */
 
 import {
@@ -46,12 +46,13 @@ export function parseSlackConnectReturn(
 }
 
 /**
- * A gateway that predates the loopback return refuses its body as a plain
- * `400 {"code":"invalid_request"}`. Only that answer to a loopback request
- * earns the one `app` retry: any other refusal is real, and an aborted
- * connect is the caller's own decision.
+ * The gateway refused the loopback return: a plain
+ * `400 {"code":"invalid_request"}` to a loopback request. A gateway that
+ * predates `loopback` answers that, and so does one that rejects this body.
+ * Only that answer earns the one `app` retry: any other refusal is real, and
+ * an aborted connect is the caller's own decision.
  */
-export function gatewayPredatesLoopback(
+export function gatewayRefusedLoopback(
   returnTo: SlackConnectReturn | undefined,
   error: unknown,
   signal: AbortSignal | undefined,

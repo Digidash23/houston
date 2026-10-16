@@ -11,6 +11,8 @@
 //! tab replaying an old consent) gets {@link stale_page} and the listener stays
 //! up for the real one.
 
+pub use super::page_lang::PageLang;
+
 /// Uses the `r##"…"##` delimiter because the inlined SVG contains
 /// `fill="#161615"` — the `"#` sequence would close a plain `r#"…"#`.
 const LOGO_SVG: &str = r##"<svg class="logo" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 412.248 448.898" role="img" aria-label="Houston">
@@ -71,7 +73,13 @@ fn escape(text: &str) -> String {
 
 /// One page shell shared by every outcome, so they cannot drift apart visually.
 /// `button` is the label of the "Open Houston" deep link, when the page has one.
-pub(crate) fn page(title: &str, heading: &str, body: &str, button: Option<&str>) -> String {
+pub(crate) fn page(
+    lang: PageLang,
+    title: &str,
+    heading: &str,
+    body: &str,
+    button: Option<&str>,
+) -> String {
     let action = match button {
         Some(label) => format!(
             r#"<a class="btn" href="houston://open">{}</a>"#,
@@ -80,9 +88,10 @@ pub(crate) fn page(title: &str, heading: &str, body: &str, button: Option<&str>)
         None => String::new(),
     };
     let (title, heading, body) = (escape(title), escape(heading), escape(body));
+    let lang = lang.tag();
     format!(
         r#"<!DOCTYPE html>
-<html lang="en">
+<html lang="{lang}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -104,6 +113,7 @@ pub(crate) fn page(title: &str, heading: &str, body: &str, button: Option<&str>)
 /// Served for the redirect this attempt was waiting for.
 pub fn success_page() -> String {
     page(
+        PageLang::En,
         "Houston \u{2014} Signed in",
         "You're signed in",
         "You can close this tab and return to Houston.",
@@ -115,6 +125,7 @@ pub fn success_page() -> String {
 /// KEEPS waiting after this, so the user's real sign-in is not consumed.
 pub fn stale_page() -> String {
     page(
+        PageLang::En,
         "Houston \u{2014} Old sign-in tab",
         "This sign-in link has expired",
         "It came from an earlier sign-in attempt. You can close this tab and finish signing in from the Houston window.",
@@ -166,7 +177,7 @@ mod tests {
             escape(r#"<script>alert("x")</script> & co"#),
             "&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; co"
         );
-        let html = page("a<b", "c&d", "e>f", Some("\"g\""));
+        let html = page(PageLang::En, "a<b", "c&d", "e>f", Some("\"g\""));
         assert!(html.contains("<title>a&lt;b</title>"));
         assert!(html.contains("<h1>c&amp;d</h1>"));
         assert!(html.contains("<p>e&gt;f</p>"));
@@ -175,6 +186,8 @@ mod tests {
 
     #[test]
     fn the_sign_in_pages_keep_their_english_copy() {
+        assert!(success_page().contains(r#"<html lang="en">"#));
+        assert!(stale_page().contains(r#"<html lang="en">"#));
         assert!(success_page().contains("<h1>You're signed in</h1>"));
         assert!(success_page().contains(r#"href="houston://open">Open Houston</a>"#));
     }

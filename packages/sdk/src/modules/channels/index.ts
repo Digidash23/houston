@@ -61,7 +61,7 @@ export interface ChannelsModule {
   getChannels(signal?: AbortSignal): Promise<ChannelStatus>;
   /**
    * Slack's hosted authorization URL; `returnTo` is where the browser returns.
-   * A gateway that predates `loopback` gets one retry as `app`, and `accepted`
+   * A gateway that refuses `loopback` gets one retry as `app`, and `accepted`
    * names the return the URL leads back to.
    */
   connectSlack(

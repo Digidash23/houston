@@ -79,7 +79,7 @@ export interface SlackAuthorization {
 /**
  * A connect's answer: the authorization URL, and the return the gateway took
  * for it. `null` is the web app (none named). It differs from the one asked
- * for only when a gateway that predates `loopback` was asked for it and the
+ * for only when the gateway refused a `loopback` return and the
  * connect fell back to `app`, which leaves the desktop listener unused.
  */
 export interface SlackConnectAnswer extends SlackAuthorization {

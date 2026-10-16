@@ -37,11 +37,11 @@ function gateway(...answers: Array<() => Response>) {
   return { sdk, bodies };
 }
 
-const predatesLoopback = () => json({ code: "invalid_request" }, 400);
+const refusesLoopback = () => json({ code: "invalid_request" }, 400);
 
-describe("a loopback connect against a gateway that predates it", () => {
+describe("a loopback connect the gateway refuses", () => {
   it("asks once more for the app return and says the gateway took app", async () => {
-    const { sdk, bodies } = gateway(predatesLoopback, () => json({ url: URL }));
+    const { sdk, bodies } = gateway(refusesLoopback, () => json({ url: URL }));
     expect(await sdk.channels.connectSlack(LOOPBACK)).toEqual({
       url: URL,
       accepted: "app",
@@ -53,7 +53,7 @@ describe("a loopback connect against a gateway that predates it", () => {
   });
 
   it("retries only once, so an app return refused the same way fails", async () => {
-    const { sdk, bodies } = gateway(predatesLoopback, predatesLoopback);
+    const { sdk, bodies } = gateway(refusesLoopback, refusesLoopback);
     await expect(sdk.channels.connectSlack(LOOPBACK)).rejects.toMatchObject({
       name: "ChannelsHttpError",
       status: 400,
@@ -96,12 +96,12 @@ describe("a connect the skew retry leaves alone", () => {
   });
 
   it("never retries an app or web connect", async () => {
-    const app = gateway(predatesLoopback);
+    const app = gateway(refusesLoopback);
     await expect(
       app.sdk.channels.connectSlack({ kind: "app" }),
     ).rejects.toMatchObject({ status: 400 });
     expect(app.bodies).toEqual(['{"return":"app"}']);
-    const web = gateway(predatesLoopback);
+    const web = gateway(refusesLoopback);
     await expect(web.sdk.channels.connectSlack()).rejects.toMatchObject({
       status: 400,
     });
@@ -112,7 +112,7 @@ describe("a connect the skew retry leaves alone", () => {
     const controller = new AbortController();
     const { sdk, bodies } = gateway(() => {
       controller.abort();
-      return predatesLoopback();
+      return refusesLoopback();
     });
     await expect(
       sdk.channels.connectSlack(LOOPBACK, controller.signal),
@@ -123,7 +123,7 @@ describe("a connect the skew retry leaves alone", () => {
   it("does not retry an aborted request", async () => {
     const controller = new AbortController();
     controller.abort();
-    const { sdk, bodies } = gateway(predatesLoopback);
+    const { sdk, bodies } = gateway(refusesLoopback);
     await expect(
       sdk.channels.connectSlack(LOOPBACK, controller.signal),
     ).rejects.toMatchObject({ name: "AbortError" });

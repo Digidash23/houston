@@ -135,7 +135,7 @@ test("each connect return target sends its own body byte for byte", async () => 
   ]);
 });
 
-test("a gateway that predates the loopback return gets one app retry", async () => {
+test("a gateway that refuses the loopback return gets one app retry", async () => {
   const bodies: (string | null)[] = [];
   const answers = [
     Response.json({ code: "invalid_request" }, { status: 400 }),

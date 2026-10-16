@@ -19,12 +19,15 @@ interface Options {
   accepted?: SlackConnectAnswer["accepted"];
   connectFails?: boolean;
   open?: "opened" | "refused" | "throws";
+  /** The person switches space while the skewed listener is being freed. */
+  movesDuringCancel?: boolean;
 }
 
 /** Fake ports that record every step in order, and every report. */
 function harness(opts: Options = {}) {
   const steps: string[] = [];
   const reported: string[] = [];
+  let moved = false;
   const ports: SlackConnectPorts = {
     connect: async (returnTo: SlackConnectReturn | undefined) => {
       steps.push(`connect ${JSON.stringify(returnTo ?? null)}`);
@@ -44,10 +47,14 @@ function harness(opts: Options = {}) {
             },
             cancel: async (attemptId) => {
               steps.push(`cancel ${attemptId}`);
+              if (opts.movesDuringCancel) moved = true;
               if (opts.cancelFails) throw new Error("lock poisoned");
             },
           },
     newState: () => STATE,
+    assertCurrent: () => {
+      if (moved) throw new DOMException("Channel scope changed", "AbortError");
+    },
     open: async (url) => {
       steps.push(`open ${url}`);
       if (opts.open === "throws") throw new Error("no browser");
@@ -130,6 +137,21 @@ describe("a desktop Slack connect", () => {
     });
     await expect(startSlackConnect(ports)).rejects.toThrow("no browser");
     expect(reported).toEqual(["cancel_channels_loopback: lock poisoned"]);
+  });
+
+  it("opens nothing for a space left while the skewed listener was freed", async () => {
+    const { steps, ports } = harness({
+      accepted: "app",
+      movesDuringCancel: true,
+    });
+    await expect(startSlackConnect(ports)).rejects.toThrow(
+      "Channel scope changed",
+    );
+    expect(steps).toEqual([
+      `start ${STATE}`,
+      `connect ${LOOPBACK}`,
+      "cancel 7",
+    ]);
   });
 
   it("cancels a skewed listener once, even when the open then fails", async () => {
