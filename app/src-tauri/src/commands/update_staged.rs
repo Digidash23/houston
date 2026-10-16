@@ -28,9 +28,9 @@ struct SlotState {
     /// Attempts that have ended, and how the last one failed. A caller that
     /// queued while an attempt ran gets that attempt's failure instead of
     /// running its own: a bad signature or a full disk would only repeat,
-    /// 330 MB later.
+    /// 330 MB later. Shared only under the same signature, like the bytes.
     ended: u64,
-    failed: Option<DownloadFailure>,
+    failed: Option<(String, DownloadFailure)>,
 }
 
 /// One version. `download` is held for a whole attempt, which is what makes
@@ -95,7 +95,11 @@ impl StagedReleases {
             if let Some(found) = state.admitted.as_ref().filter(|a| a.signature == signature) {
                 return Ok(found.bytes.clone());
             }
-            if let (true, Some(failed)) = (state.ended != seen, &state.failed) {
+            if let Some((_, failed)) = state
+                .failed
+                .as_ref()
+                .filter(|(signed, _)| state.ended != seen && signed == signature)
+            {
                 return Err(failed.clone());
             }
         }
@@ -110,7 +114,7 @@ impl StagedReleases {
                 });
                 state.failed = None;
             }
-            Err(failed) => state.failed = Some(failed.clone()),
+            Err(failed) => state.failed = Some((signature.to_string(), failed.clone())),
         }
         result
     }
