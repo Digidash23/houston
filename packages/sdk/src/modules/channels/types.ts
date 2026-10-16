@@ -14,7 +14,7 @@
  * kept in step by hand, exactly like `BillingSummary`.
  */
 
-import { field, requireString } from "../payload";
+import { requireString } from "../payload";
 
 /** The write vocabulary — the same handlers back the facade and `dispatch`. */
 export const ChannelsCommand = {
@@ -70,15 +70,6 @@ export interface WhatsAppLink extends ChannelLink {
   url: string;
 }
 
-/**
- * Where the gateway sends the browser once Slack approves, other than the web
- * app it returns to when none is named: `app` is the `houston://` deep link
- * back into an installed app.
- */
-export const SLACK_CONNECT_RETURNS = ["app"] as const;
-
-export type SlackConnectReturn = (typeof SLACK_CONNECT_RETURNS)[number];
-
 /** Slack's own authorization endpoint, for the person's browser to open. */
 export interface SlackAuthorization {
   url: string;
@@ -104,16 +95,4 @@ export function requireTicket(payload: unknown, key: string): string {
     throw new Error(`'${key}' is not a completion ticket`);
   }
   return value;
-}
-
-/** The return target off an untrusted command payload; absent or null means web. */
-export function optionalReturn(
-  payload: unknown,
-): SlackConnectReturn | undefined {
-  const value = field(payload, "returnTo");
-  if (value === undefined || value === null) return undefined;
-  if (!SLACK_CONNECT_RETURNS.includes(value as SlackConnectReturn)) {
-    throw new Error("'returnTo' must be app when given");
-  }
-  return value as SlackConnectReturn;
 }

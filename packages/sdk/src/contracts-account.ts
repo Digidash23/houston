@@ -84,7 +84,6 @@ export {
   type ChannelsCommandType,
   ChannelsHttpError,
   type ChannelsModule,
-  SLACK_CONNECT_RETURNS,
   type SlackAuthorization,
   type SlackCompletion,
   type SlackConnectReturn,

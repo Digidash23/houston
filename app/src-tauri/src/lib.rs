@@ -7,6 +7,7 @@ mod child_guard;
 #[cfg_attr(not(windows), allow(dead_code))]
 mod git_bash;
 mod claude_login;
+mod channels_loopback;
 mod codex_oauth_loopback;
 mod commands;
 mod dictation;
@@ -379,6 +380,9 @@ pub fn run() {
             // OAuth sign-in redirect). Managed unconditionally so
             // `start_oauth_loopback` / `cancel_oauth_loopback` work in every mode.
             app.manage(oauth_loopback::OauthLoopbackState::default());
+            // The desktop Slack connect's return listeners: a registry apart
+            // from sign-in's, so neither can supersede or cancel the other.
+            app.manage(channels_loopback::ChannelsLoopbackState::default());
 
             // Cancel-side state for the native Claude sign-in. Managed
             // unconditionally so `start_claude_login` / `cancel_claude_login`
@@ -513,6 +517,11 @@ pub fn run() {
             // when the frontend abandons an attempt.
             oauth_loopback::start_oauth_loopback,
             oauth_loopback::cancel_oauth_loopback,
+            // Loopback return for a desktop-started Slack connect: the gateway
+            // redirects here instead of the `houston://` link, so the browser
+            // shows no "Open Houston?" prompt.
+            channels_loopback::start_channels_loopback,
+            channels_loopback::cancel_channels_loopback,
             // One-shot loopback listener for the OpenAI Codex OAuth redirect —
             // binds the fixed port 1455 OpenAI registered and forwards the raw
             // callback query to the webview as `codex-oauth://callback`.

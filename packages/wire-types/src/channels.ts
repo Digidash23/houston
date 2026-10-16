@@ -32,13 +32,15 @@ export interface ChannelStatus {
 
 /**
  * Where the gateway sends the browser once Slack approves, when it is not the
- * web app: `app` is the deep link back into an installed app
- * (`houston://settings/channels`). It names the mechanism, not the client, so
- * every shell that registers the scheme can ask for it. None means the web app.
+ * web app (none named). `app` is the deep link into an installed app
+ * (`houston://settings/channels`), which the browser asks about first.
+ * `loopback` is the desktop shell's listener on `127.0.0.1:<port>`, reached
+ * with no prompt; it answers only a redirect carrying `state`. Mirrors the
+ * SDK's `SlackConnectReturn`, kept in step by hand like the rest of this file.
  */
-export const SLACK_CONNECT_RETURNS = ["app"] as const;
-
-export type SlackConnectReturn = (typeof SLACK_CONNECT_RETURNS)[number];
+export type SlackConnectReturn =
+  | { kind: "app" }
+  | { kind: "loopback"; port: number; state: string };
 
 export interface ChannelLink {
   code: string;

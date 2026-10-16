@@ -16,7 +16,11 @@
 
 import type { ModuleContext } from "../../module-context";
 import { moduleScope, SdkHttpError } from "../http";
-import { requireString } from "../payload";
+import { field, requireString } from "../payload";
+import {
+  parseSlackConnectReturn,
+  type SlackConnectReturn,
+} from "./connect-return";
 import {
   completeSlack,
   connectSlack,
@@ -29,14 +33,13 @@ import {
   type ChannelLink,
   type ChannelStatus,
   ChannelsCommand,
-  optionalReturn,
   requireTicket,
   type SlackAuthorization,
   type SlackCompletion,
-  type SlackConnectReturn,
   type WhatsAppLink,
 } from "./types";
 
+export type { SlackConnectReturn } from "./connect-return";
 export type {
   ChannelConnection,
   ChannelLink,
@@ -46,14 +49,9 @@ export type {
   ChannelsCommandType,
   SlackAuthorization,
   SlackCompletion,
-  SlackConnectReturn,
   WhatsAppLink,
 } from "./types";
-export {
-  CHANNEL_PROVIDER_IDS,
-  ChannelsCommand,
-  SLACK_CONNECT_RETURNS,
-} from "./types";
+export { CHANNEL_PROVIDER_IDS, ChannelsCommand } from "./types";
 
 /** The typed facade for the channels family. Every call throws on a non-2xx. */
 export interface ChannelsModule {
@@ -96,7 +94,7 @@ export function createChannelsModule(ctx: ModuleContext): ChannelsModule {
 
   ctx.registerCommand(ChannelsCommand.Get, () => module.getChannels());
   ctx.registerCommand(ChannelsCommand.ConnectSlack, (p) =>
-    module.connectSlack(optionalReturn(p)),
+    module.connectSlack(parseSlackConnectReturn(field(p, "returnTo"))),
   );
   ctx.registerCommand(ChannelsCommand.LinkSlack, () => module.linkSlack());
   ctx.registerCommand(ChannelsCommand.LinkWhatsApp, () =>

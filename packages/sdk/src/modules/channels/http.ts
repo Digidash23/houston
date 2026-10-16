@@ -14,12 +14,12 @@
  */
 
 import { type HttpScope, httpRequest } from "../http";
+import type { SlackConnectReturn } from "./connect-return";
 import type {
   ChannelLink,
   ChannelStatus,
   SlackAuthorization,
   SlackCompletion,
-  SlackConnectReturn,
   WhatsAppLink,
 } from "./types";
 
@@ -48,8 +48,9 @@ export async function getChannels(
  * hosted authorization `{url}`, which the person's browser opens; nothing is
  * bound until they come back and the ticket is redeemed by completeSlack.
  * @param returnTo Omit it to return to the web app. `app` returns through the
- *   `houston://` deep link into the installed app instead, which a connect
- *   started there needs so the ticket reaches the app that will redeem it.
+ *   `houston://` deep link into an installed app; `loopback` redirects to the
+ *   desktop shell's listener on `127.0.0.1:<port>`, which waits for `state`.
+ *   Either way the ticket reaches the app that will redeem it.
  * @assistant group:channels
  * @assistant hidden: answers with an authorization URL that only the person's own browser may open, and whoever finishes in Slack is who the connection would be offered to.
  */
@@ -58,10 +59,15 @@ export async function connectSlack(
   returnTo?: SlackConnectReturn,
   signal?: AbortSignal,
 ): Promise<SlackAuthorization> {
-  // An absent target drops out of the JSON, so a web connect still sends `{}`.
   const res = await httpRequest(scope, "/v1/channels/slack/connect", {
     method: "POST",
-    body: JSON.stringify({ return: returnTo }),
+    // Absent fields drop out of the JSON: a web connect sends `{}`, an app
+    // one `{"return":"app"}`, in the key order the wire tests pin.
+    body: JSON.stringify({
+      return: returnTo?.kind,
+      port: returnTo?.port,
+      state: returnTo?.state,
+    }),
     signal,
   });
   return (await res.json()) as SlackAuthorization;

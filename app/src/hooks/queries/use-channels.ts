@@ -10,11 +10,17 @@ import { channelsWithout } from "../../lib/account-cache-patches";
 import type { SlackAuthorization } from "../../lib/channel-handoff";
 import { silenceChannelCall } from "../../lib/channel-silence";
 import { logAndReportError } from "../../lib/error-report";
+import { generateState } from "../../lib/identity/pkce";
 import { runOptimisticWrite } from "../../lib/optimistic-core";
 import { tellOptimisticRefusal } from "../../lib/optimistic-write";
-import { osIsTauri } from "../../lib/os-bridge";
+import {
+  osCancelChannelsLoopback,
+  osIsTauri,
+  osStartChannelsLoopback,
+} from "../../lib/os-bridge";
 import { queryKeys } from "../../lib/query-keys";
 import { refetchAfterWrite } from "../../lib/refetch-after-write";
+import { connectSlackWithReturn } from "../../lib/slack-connect-return";
 import { tauriChannels } from "../../lib/tauri";
 import { useWorkspaceStore } from "../../stores/workspaces";
 import { inChannelWorkspace } from "../channel-workspace-scope";
@@ -59,11 +65,28 @@ export function useChannelActions() {
   const connect = useMutation({
     mutationFn: (): Promise<SlackAuthorization> =>
       inChannelWorkspace(spaceId, async (assertCurrent, signal) => {
-        // A desktop-started connect must finish in the desktop app, which
-        // only the gateway's `houston://` return can reach.
-        const returnTo = osIsTauri() ? "app" : undefined;
-        const url = await tauriChannels.connectSlack(returnTo, signal);
-        assertCurrent();
+        // A desktop-started connect must finish in the desktop app, which a
+        // return to the web app would never reach.
+        const url = await connectSlackWithReturn(
+          async (returnTo) => {
+            const authorize = await tauriChannels.connectSlack(
+              returnTo,
+              signal,
+            );
+            assertCurrent();
+            return authorize;
+          },
+          {
+            listener: osIsTauri()
+              ? {
+                  start: osStartChannelsLoopback,
+                  cancel: osCancelChannelsLoopback,
+                }
+              : null,
+            newState: generateState,
+            report: logAndReportError,
+          },
+        );
         // The browser can REFUSE the open (a popup blocker on web). The
         // section must not claim a tab the user never saw, so the answer is
         // carried back and it offers the page behind a click instead.

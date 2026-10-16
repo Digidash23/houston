@@ -8,16 +8,48 @@
 //! attempt's CSRF `state` is now handed down here so a foreign callback is
 //! answered with the "stale tab" page and the listener KEEPS WAITING.
 
-use tauri::AppHandle;
+use std::time::Duration;
+
+use tauri::{AppHandle, Manager};
 use tokio::net::TcpStream;
 
 use super::listener::BoundSockets;
 use super::pages::{stale_page, success_page};
+use super::state::OauthLoopbackState;
 use crate::loopback_util::{read_request_target, split_target, write_response};
 
 /// Path the provider redirects to. Kept narrow so a stray request to `/` or
 /// `/favicon.ico` isn't mistaken for the callback.
 pub const CALLBACK_PATH: &str = "/auth/callback";
+
+/// What one kind of loopback listens for and what it does with its callback.
+/// Every route shares the state check, the emit, the page and the focus; only
+/// these differ, so a route can never accept another route's redirect.
+pub struct LoopbackRoute {
+    /// Log prefix, so a sign-in line never reads as a Slack one.
+    pub tag: &'static str,
+    /// The only path whose requests are decided; everything else is a 404.
+    pub path: &'static str,
+    /// How long the listener waits before freeing its port.
+    pub timeout: Duration,
+    /// The `auth://deep-link` payload built from the accepted query.
+    pub deep_link: fn(&str) -> String,
+    pub success_page: fn() -> String,
+    pub stale_page: fn() -> String,
+    /// Drop the attempt from its registry once the listener has exited.
+    pub release: fn(&AppHandle, u64) -> Result<(), String>,
+}
+
+/// The OAuth sign-in redirect (Google loopback+PKCE and the brokered flow).
+pub static SIGN_IN: LoopbackRoute = LoopbackRoute {
+    tag: "oauth-loopback",
+    path: CALLBACK_PATH,
+    timeout: Duration::from_secs(300),
+    deep_link: callback_deep_link,
+    success_page,
+    stale_page,
+    release: |app, id| app.state::<OauthLoopbackState>().clear_if(id),
+};
 
 /// What to do with a request that hit the callback path.
 #[derive(Debug, PartialEq, Eq)]
@@ -79,9 +111,9 @@ pub fn callback_deep_link(query: &str) -> String {
 /// may have closed the socket already, and the sign-in outcome does not depend
 /// on the page rendering. This is the documented event-callback exception to
 /// the no-silent-failure rule — there is no UI thread here to toast on.
-async fn respond(stream: &mut tokio::net::TcpStream, status: &str, body: &str) {
+async fn respond(tag: &str, stream: &mut tokio::net::TcpStream, status: &str, body: &str) {
     if let Err(e) = write_response(stream, status, body).await {
-        tracing::warn!("[oauth-loopback] could not write the {status} response: {e}");
+        tracing::warn!("[{tag}] could not write the {status} response: {e}");
     }
 }
 
@@ -109,39 +141,41 @@ pub async fn serve_callback(
     sockets: &BoundSockets,
     app: &AppHandle,
     expected_state: &str,
+    route: &LoopbackRoute,
 ) -> Result<(), String> {
+    let tag = route.tag;
     loop {
         let mut stream = accept_any(sockets).await?;
 
         let target = match read_request_target(&mut stream).await {
             Ok(t) => t,
             Err(e) => {
-                tracing::warn!("[oauth-loopback] unreadable request: {e}");
-                respond(&mut stream, "400 Bad Request", "Bad request").await;
+                tracing::warn!("[{tag}] unreadable request: {e}");
+                respond(tag, &mut stream, "400 Bad Request", "Bad request").await;
                 continue;
             }
         };
 
         let (path, query) = split_target(&target);
 
-        if path != CALLBACK_PATH {
-            respond(&mut stream, "404 Not Found", "Not found").await;
+        if path != route.path {
+            respond(tag, &mut stream, "404 Not Found", "Not found").await;
             continue;
         }
 
         if decide(query, expected_state) == CallbackDecision::Stale {
             tracing::warn!(
-                "[oauth-loopback] ignoring a callback whose state belongs to an older attempt; still listening"
+                "[{tag}] ignoring a callback whose state belongs to an older attempt; still listening"
             );
-            respond(&mut stream, "200 OK", &stale_page()).await;
+            respond(tag, &mut stream, "200 OK", &(route.stale_page)()).await;
             continue;
         }
 
-        // Hand the code to the webview through the `auth://deep-link` event so
-        // the JS PKCE exchange + GCIP sign-in run with the in-memory verifier.
-        crate::auth::emit_deep_link(app, &callback_deep_link(query));
+        // Hand the query to the webview through the `auth://deep-link` event,
+        // the same channel an OS deep link of that shape arrives on.
+        crate::auth::emit_deep_link(app, &(route.deep_link)(query));
 
-        respond(&mut stream, "200 OK", &success_page()).await;
+        respond(tag, &mut stream, "200 OK", &(route.success_page)()).await;
 
         crate::window_focus::bring_to_front(app);
 

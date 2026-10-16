@@ -70,6 +70,35 @@ export function osCancelOauthLoopback(attemptId: number): Promise<void> {
   return invokeNative<void>("cancel_oauth_loopback", { attempt_id: attemptId });
 }
 
+/** A bound Slack return listener: the port the connect request names, and the
+ *  id {@link osCancelChannelsLoopback} acts on. */
+export interface ChannelsLoopbackStart {
+  port: number;
+  attemptId: number;
+}
+
+/** Bind a `127.0.0.1` listener for the gateway's return from a desktop Slack
+ * connect, so the browser lands back in Houston with no "Open Houston?"
+ * prompt. It answers only a `/channels/slack` redirect carrying
+ * `expectedState`, emits `houston://settings/channels?slack=<ticket>` on the
+ * deep-link channel, focuses the app, and frees itself after ten minutes. Its
+ * registry is apart from sign-in's, so neither cancels the other. Desktop only. */
+export function osStartChannelsLoopback(
+  expectedState: string,
+): Promise<ChannelsLoopbackStart> {
+  return invokeNative<ChannelsLoopbackStart>("start_channels_loopback", {
+    expected_state: expectedState,
+  });
+}
+
+/** Free a Slack return listener whose connect never reached the browser. A
+ * no-op for an id that already ended. Desktop only. */
+export function osCancelChannelsLoopback(attemptId: number): Promise<void> {
+  return invokeNative<void>("cancel_channels_loopback", {
+    attempt_id: attemptId,
+  });
+}
+
 /** Bind a one-shot localhost listener for the Codex/OpenAI OAuth redirect. On
  * success the native side emits `codex-oauth://callback` with the raw
  * `code=...&state=...` query string once OpenAI bounces the browser back;

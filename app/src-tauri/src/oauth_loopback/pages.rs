@@ -95,6 +95,27 @@ pub fn stale_page() -> String {
     )
 }
 
+/// Served for the gateway's return from the Slack connect this listener started.
+pub fn slack_success_page() -> String {
+    page(
+        "Houston \u{00b7} Slack connected",
+        "Slack is connected",
+        "You can close this tab and return to Houston.",
+        true,
+    )
+}
+
+/// Served for a Slack return carrying another attempt's `state`. The listener
+/// keeps waiting for its own.
+pub fn slack_stale_page() -> String {
+    page(
+        "Houston \u{00b7} Old Slack tab",
+        "This Slack link has expired",
+        "It came from an earlier attempt to connect Slack. You can close this tab and connect Slack again from Houston.",
+        false,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -123,5 +144,16 @@ mod tests {
         assert!(page.contains("expired"));
         assert!(!page.contains("houston://open"));
         assert!(page.contains("<svg"));
+    }
+
+    #[test]
+    fn slack_pages_speak_about_slack_not_sign_in() {
+        let success = slack_success_page();
+        assert!(success.contains("<h1>Slack is connected</h1>"));
+        assert!(success.contains(r#"href="houston://open""#));
+        assert!(!success.contains("signed in"));
+        let stale = slack_stale_page();
+        assert!(stale.contains("<h1>This Slack link has expired</h1>"));
+        assert!(!stale.contains("houston://open"));
     }
 }

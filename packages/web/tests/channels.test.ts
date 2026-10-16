@@ -122,8 +122,17 @@ test("each connect return target sends its own body byte for byte", async () => 
     controlPlane: true,
   });
   await client.connectSlack();
-  await client.connectSlack("app");
-  expect(bodies).toEqual(["{}", '{"return":"app"}']);
+  await client.connectSlack({ kind: "app" });
+  await client.connectSlack({
+    kind: "loopback",
+    port: 53124,
+    state: "q9X-_3abcDEF4567",
+  });
+  expect(bodies).toEqual([
+    "{}",
+    '{"return":"app"}',
+    '{"return":"loopback","port":53124,"state":"q9X-_3abcDEF4567"}',
+  ]);
 });
 
 test("a local deployment exposes channels as unsupported without a network request", async () => {
