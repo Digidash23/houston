@@ -20,6 +20,7 @@ import {
   InteractionQuestionStep,
   type QuestionStepCopy,
 } from "./interaction-question-step";
+import { useCardAttachments } from "./use-card-attachments";
 import { useInteractionShortcuts } from "./use-interaction-shortcuts";
 import { useStepperState } from "./use-stepper-state";
 import { useStepperTransitions } from "./use-stepper-transitions";
@@ -85,8 +86,15 @@ export function ChatInteractionCard({
     recommended: labels?.recommended ?? "Recommended",
   };
   const progress = labels?.progress ?? defaultProgress;
+  const { attach, complete } = useCardAttachments(onComplete);
   const { onOption, onSend, onSkip, onConnected, onSignedIn, onSaved, onDone } =
-    useStepperTransitions({ current, disabled, onComplete, steps, update });
+    useStepperTransitions({
+      current,
+      disabled,
+      onComplete: complete,
+      steps,
+      update,
+    });
 
   const stepId = step?.id ?? "";
   const [open, setOpen] = useState(true);
@@ -100,6 +108,13 @@ export function ChatInteractionCard({
     (text: string) => update((s) => setDraft(s, stepId, text)),
     [stepId, update],
   );
+  // Files with no words still answer: the files ARE the answer.
+  const attachedAnswer = labels?.attachedAnswer ?? "See attached";
+  const hasFiles = (attach?.files.length ?? 0) > 0;
+  const onSendAnswer = useCallback(() => {
+    if (hasFiles && draft.trim() === "") onDraftChange(attachedAnswer);
+    onSend();
+  }, [hasFiles, draft, onDraftChange, attachedAnswer, onSend]);
 
   useInteractionShortcuts({
     active: !disabled && open,
@@ -165,12 +180,13 @@ export function ChatInteractionCard({
 
   return (
     <InteractionQuestionStep
+      attach={attach}
       chrome={chrome}
       copy={copy}
       draft={draft}
       onDraftChange={onDraftChange}
       onOption={onOption}
-      onSend={onSend}
+      onSend={onSendAnswer}
       onSkip={onSkip}
       selectedId={selectedId}
       step={step}

@@ -74,7 +74,13 @@ export function buildAttachmentText(
     path,
     name: names[i] ?? fileNameFromPath(path),
   }));
-  const json = JSON.stringify({ message: text.trim(), files });
+  // No ">" may reach the marker: the text can itself carry a marker (an
+  // interaction card's answers sent with files), and its "-->" would close
+  // this comment early. JSON.parse reads the escape back as ">".
+  const json = JSON.stringify({ message: text.trim(), files }).replace(
+    />/g,
+    "\\u003e",
+  );
   return `${MARKER_PREFIX}${json}${MARKER_SUFFIX}\n\n${prompt}`;
 }
 

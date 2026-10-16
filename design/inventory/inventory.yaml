@@ -36,7 +36,7 @@
 #   a11y     roles / labels / focus expectations the surface must honor
 #   since    inventory version this component first appeared in
 
-version: 133
+version: 134
 
 components:
   - id: agent-delegation-settings
@@ -471,8 +471,8 @@ components:
   - id: interaction-card
     title: Interaction card
     purpose: In-chat surface shown when the agent pauses mid-turn to gather what it needs before continuing; a stepper that walks the user through one step at a time (questions, then sign-in, then connections, then action approvals), replacing the composer while pending.
-    anatomy: [modal-shell, modal-header, step-title, step-title-icon, pager, collapse-chevron, dismiss-action, bounded-scroll-body, option-row, number-badge, recommended-chip, selected-arrow, free-text-escape-field, pencil-adornment, footer-row, unified-decline, decline-esc-hint, step-cta, return-key-glyph, trailing-free-text-row, app-logo, integration-name, reason-line, explainer-line, connected-check, waiting-note, hire-color-dot, hire-role, hire-instructions-disclosure]
-    states: [single-step, multi-step, collapsed, with-options, single-option, recommended-option, free-text-only, signin-step, connect-step, connecting, connected, skipped, revisited, reconsider, abandoned, disabled, hire-instructions-collapsed, hire-instructions-expanded]
+    anatomy: [modal-shell, modal-header, step-title, step-title-icon, pager, collapse-chevron, dismiss-action, bounded-scroll-body, option-row, number-badge, recommended-chip, selected-arrow, free-text-escape-field, pencil-adornment, attach-action, attachment-chips, footer-row, unified-decline, decline-esc-hint, step-cta, return-key-glyph, trailing-free-text-row, app-logo, integration-name, reason-line, explainer-line, connected-check, waiting-note, hire-color-dot, hire-role, hire-instructions-disclosure]
+    states: [single-step, multi-step, collapsed, with-options, single-option, recommended-option, free-text-only, with-attachments, signin-step, connect-step, connecting, connected, skipped, revisited, reconsider, abandoned, disabled, hire-instructions-collapsed, hire-instructions-expanded]
     variants: [choice, open-ended, signin, connect, provider-connect, hands-on, hire-approval, mixed-sequence]
     behavior: >-
       Rendered from the turn's pending interaction (steps[]: 1-3 question steps,
@@ -612,7 +612,15 @@ components:
       actually runs on that conversation, whoever started it (this person, a
       routine, a teammate or another device), or the card is dismissed. A send
       the server refuses keeps it.
-    a11y: one step announced at a time, its question read as the modal title; option rows are role=radio in a radiogroup, keyboard-selectable by the left number badge's position digit and visible at rest (no hover gate), showing label + optional Recommended chip only (no description); the free-text escape field (a bordered text input with a leading pencil adornment, no embedded control) is always present on question steps and follows the fixed footer on signin/connect/credential steps; the pager's Back/Forward chevrons, collapse chevron, and dismiss X are labeled icon buttons; collapsed cards retain one muted, truncated context line; the footer's unified decline is a labeled button with an Esc keycap hint on every kind, and signin/connect add a labeled filled CTA (Enter fires it, Esc declines); a hands-on step adds TWO labeled footer buttons beside that decline, an outline "Done" confirm and a filled "Open" CTA carrying the return-key glyph (Enter opens the screen the card's title names), both absent when the screen is unrecognised or not this person's to open, so the decline is the only way on; the Manager's inline API-key card instead pairs an outline "Done" with a filled "Create key" submit (Enter in the labeled "Key name" field creates), then a filled "Done" alone once the key is shown, and the inline API access card has a single filled "Done" beside the decline. While collapsed, step shortcuts are inert; while a turn runs, every action except the collapse chevron is disabled. The "N of M" pager copy is visible text.
+      A question step that replaces the chat's composer carries the chat's
+      attachments: its answer row has the composer's "+" (beside the skip when
+      the question hides its free text), the attached files show as the
+      composer's chips above the row, whether picked, pasted, or dropped
+      anywhere on the chat while the card is up, and whichever answer completes
+      the card (a typed one, a picked option) sends them with it. Files with no
+      typed words answer a free-text question on their own. Dismissing the card
+      leaves them in the restored composer.
+    a11y: one step announced at a time, its question read as the modal title; option rows are role=radio in a radiogroup, keyboard-selectable by the left number badge's position digit and visible at rest (no hover gate), showing label + optional Recommended chip only (no description); the free-text escape field (a bordered text input with a leading pencil adornment; on a composer-replacing question it leads instead with the labeled attach button, and each attached file's chip has a labeled remove button) is always present on question steps and follows the fixed footer on signin/connect/credential steps; the pager's Back/Forward chevrons, collapse chevron, and dismiss X are labeled icon buttons; collapsed cards retain one muted, truncated context line; the footer's unified decline is a labeled button with an Esc keycap hint on every kind, and signin/connect add a labeled filled CTA (Enter fires it, Esc declines); a hands-on step adds TWO labeled footer buttons beside that decline, an outline "Done" confirm and a filled "Open" CTA carrying the return-key glyph (Enter opens the screen the card's title names), both absent when the screen is unrecognised or not this person's to open, so the decline is the only way on; the Manager's inline API-key card instead pairs an outline "Done" with a filled "Create key" submit (Enter in the labeled "Key name" field creates), then a filled "Done" alone once the key is shown, and the inline API access card has a single filled "Done" beside the decline. While collapsed, step shortcuts are inert; while a turn runs, every action except the collapse chevron is disabled. The "N of M" pager copy is visible text.
     since: 4
 
   - id: interaction-approval-card

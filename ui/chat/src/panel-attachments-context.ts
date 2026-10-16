@@ -1,0 +1,30 @@
+import { createContext, useContext } from "react";
+import type { ChatPanelProps } from "./chat-panel-types";
+
+/**
+ * The ChatPanel's ONE attachment list, handed to whatever input is on screen.
+ * A `composerOverride` that replaces the composer (an ask_user card) is then
+ * the only place the user can see or add files, so it reads and writes this
+ * same list: a file dropped anywhere on the panel shows up in the card, and
+ * leaves with the card's answer instead of waiting for a later message.
+ */
+export interface PanelAttachments
+  extends Pick<
+    ChatPanelProps,
+    | "prepareAttachments"
+    | "onAttachmentRejections"
+    | "onNotice"
+    | "composerLabels"
+  > {
+  files: File[];
+  setFiles: (files: File[]) => void;
+}
+
+export const PanelAttachmentsContext = createContext<PanelAttachments | null>(
+  null,
+);
+
+/** The enclosing ChatPanel's attachments, or `null` outside a ChatPanel. */
+export function usePanelAttachments(): PanelAttachments | null {
+  return useContext(PanelAttachmentsContext);
+}

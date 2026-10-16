@@ -11,6 +11,10 @@ import { ChatInput } from "./chat-input";
 import { ChatPanelLog } from "./chat-panel-log";
 import type { ChatPanelProps } from "./chat-panel-types";
 import { deriveStatus } from "./chat-status";
+import {
+  type PanelAttachments,
+  PanelAttachmentsContext,
+} from "./panel-attachments-context";
 import { useChatPanelAttachments } from "./use-chat-panel-attachments";
 
 export type { ChatPanelProps } from "./chat-panel-types";
@@ -51,6 +55,24 @@ export function ChatPanel(props: ChatPanelProps) {
   const messages = useMemo(() => feedItemsToMessages(feedItems), [feedItems]);
   const { files, setFiles, handleSend, isDraggingOver, dropProps } =
     useChatPanelAttachments(props);
+  const panelAttachments = useMemo<PanelAttachments>(
+    () => ({
+      files,
+      setFiles,
+      prepareAttachments,
+      onAttachmentRejections,
+      onNotice,
+      composerLabels,
+    }),
+    [
+      files,
+      setFiles,
+      prepareAttachments,
+      onAttachmentRejections,
+      onNotice,
+      composerLabels,
+    ],
+  );
 
   useEffect(() => {
     if (composerFocusToken === undefined) return;
@@ -89,7 +111,17 @@ export function ChatPanel(props: ChatPanelProps) {
           gap, avoiding doubled spacing between the two. */}
       {composerOverride && (
         <div className="shrink-0 px-4 pt-2 pb-3">
-          <div className="max-w-3xl mx-auto">{composerOverride}</div>
+          <div className="max-w-3xl mx-auto">
+            {/* Only a REPLACING override takes the attachments over: above
+                the composer, the composer still shows and sends them. */}
+            <PanelAttachmentsContext.Provider
+              value={
+                composerOverrideMode === "replace" ? panelAttachments : null
+              }
+            >
+              {composerOverride}
+            </PanelAttachmentsContext.Provider>
+          </div>
         </div>
       )}
       {!(composerOverride && composerOverrideMode === "replace") && (

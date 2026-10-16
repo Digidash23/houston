@@ -3,6 +3,7 @@ import { analytics } from "../../lib/analytics";
 import {
   buildAttachmentPrompt,
   joinModelContext,
+  prepareAttachmentSend,
 } from "../../lib/attachment-message";
 import { classifyFileKind } from "../../lib/file-kind";
 import { showSendFailedToast } from "../../lib/send-error-toast";
@@ -105,8 +106,12 @@ export async function sendBoardMessage(
     return;
   }
   try {
-    const paths = await tauriAttachments.save(scopeId, files);
-    const prompt = buildAttachmentPrompt(text, files, paths, promptContext);
+    const { prompt, queuedPreview } = await prepareAttachmentSend(
+      text,
+      files,
+      (picked) => tauriAttachments.save(scopeId, picked),
+      promptContext,
+    );
     await tauriChat.send(path, prompt, sessionKey, {
       providerOverride: overrides.providerOverride,
       modelOverride: overrides.modelOverride,
@@ -120,10 +125,7 @@ export async function sendBoardMessage(
       displayText: promptContext && files.length === 0 ? text : undefined,
       // If the conversation is mid-turn the adapter holds this send; the
       // queued bubble shows the user's words, not the built prompt.
-      queuedPreview: {
-        text,
-        attachmentNames: files.map((f) => f.name),
-      },
+      queuedPreview,
     });
     setSessionLoading(sessionKey, true);
     if (isTypedSend(overrides))

@@ -1,15 +1,13 @@
 "use client";
 
+import { QuestionAnswerRow } from "./interaction-answer-row";
 import { hasSelectableOptions } from "./interaction-card-logic";
-import {
-  BrandLogo,
-  QuestionAnswerRow,
-  QuestionStepBody,
-} from "./interaction-card-parts";
+import { BrandLogo, QuestionStepBody } from "./interaction-card-parts";
 import type { QuestionStep, StepChrome } from "./interaction-card-props";
 import { InteractionDetail } from "./interaction-detail";
 import { HireApprovalDetails } from "./interaction-hire-details";
 import { InteractionModal, InteractionModalTitle } from "./interaction-modal";
+import type { CardAttach } from "./use-card-attachments";
 
 /** The already-translated copy a question step renders, resolved by the card. */
 export interface QuestionStepCopy {
@@ -40,6 +38,7 @@ export function InteractionQuestionStep({
   copy,
   draft,
   selectedId,
+  attach,
   onOption,
   onDraftChange,
   onSend,
@@ -50,6 +49,7 @@ export function InteractionQuestionStep({
   copy: QuestionStepCopy;
   draft: string;
   selectedId: string | null;
+  attach: CardAttach | null;
   onOption: (optionId: string) => void;
   onDraftChange: (value: string) => void;
   onSend: () => void;
@@ -120,6 +120,7 @@ export function InteractionQuestionStep({
       }
       trailing={
         <QuestionAnswerRow
+          attach={attach}
           disabled={disabled}
           draft={draft}
           hideFreeText={optionsPresent && step.hideFreeText === true}

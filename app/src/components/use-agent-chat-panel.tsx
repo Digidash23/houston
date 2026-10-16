@@ -81,7 +81,10 @@ import { useWelcomeGreetingRevealed } from "../hooks/use-welcome-greeting";
 import { deriveActiveInteraction } from "../lib/active-interaction";
 import { isWelcomeSessionKey } from "../lib/agent-welcome";
 import { analytics } from "../lib/analytics";
-import { attachmentReferences } from "../lib/attachment-message";
+import {
+  attachmentReferences,
+  prepareAttachmentSend,
+} from "../lib/attachment-message";
 import {
   encodeAutoContinueMessage,
   filterAutoContinueFeedItems,
@@ -102,6 +105,7 @@ import {
   logAndReportError,
 } from "../lib/error-report";
 import { showExpectedStateToast } from "../lib/error-toast";
+import { classifyFileKind } from "../lib/file-kind";
 import { skillDisplayTitle } from "../lib/humanize-skill-name";
 import { providerForModel, providerOffersModel } from "../lib/model-labels";
 import { isModelNotAllowedError } from "../lib/model-not-allowed";
@@ -1550,8 +1554,17 @@ export function useAgentChatPanel({
   // turn a host-issued request id into a usable approval, and the HOST — the
   // process holding the credential — reads them off the request and drops them
   // before the runtime ever sees the turn.
+  //
+  // `files` are the ones the user attached in the card (it replaces the
+  // composer, so it owns the panel's attachments): they are saved and named in
+  // the prompt exactly like a composer send, so they arrive WITH the answer.
   const sendInteractionMessage = useCallback(
-    (text: string, mode?: TurnMode, approvals?: MessageApproval[]) => {
+    (
+      text: string,
+      mode?: TurnMode,
+      approvals?: MessageApproval[],
+      files: readonly File[] = [],
+    ) => {
       // A provider connect claims its ONE resume of the conversation before the
       // reply is composed, so a reply that never leaves the client has to give
       // that claim back — otherwise the user's retry is refused by a guard
@@ -1564,21 +1577,35 @@ export function useAgentChatPanel({
         releaseResumes();
         return;
       }
-      resolveSendPin()
-        .then((pin) =>
-          tauriChat.send(path, text, selectedSessionKey, {
+      Promise.all([
+        resolveSendPin(),
+        files.length > 0
+          ? prepareAttachmentSend(text, files, (picked) =>
+              tauriAttachments.save(selectedSessionKey, picked),
+            )
+          : null,
+      ])
+        .then(([pin, attached]) =>
+          tauriChat.send(path, attached?.prompt ?? text, selectedSessionKey, {
             providerOverride: pin.provider,
             modelOverride: pin.model,
             effortOverride: pin.effort,
             modeOverride: mode ?? turnMode,
             ...(approvals?.length ? { approvals } : {}),
+            ...(attached ? { queuedPreview: attached.queuedPreview } : {}),
           }),
         )
         // Two-arg `then`, not `.then().catch()`: the rejection handler must stay
         // exclusive to the SEND, or a throw inside the handoff callback would
         // be reported to the user as a failed message.
         .then(
-          () => onSendReactivatedRef.current?.(),
+          () => {
+            for (const f of files)
+              analytics.track("file_attached", {
+                file_kind: classifyFileKind(f),
+              });
+            onSendReactivatedRef.current?.();
+          },
           (err: unknown) => {
             releaseResumes();
             showSendFailedToast(err);
@@ -1611,6 +1638,7 @@ export function useAgentChatPanel({
       collapse: t("chat:interaction.collapse"),
       expand: t("chat:interaction.expand"),
       recommended: t("chat:interaction.recommended"),
+      attachedAnswer: t("chat:questionCard.attachedAnswer"),
       progress: (current: number, total: number) =>
         t("chat:questionCard.progress", { current, total }),
     }),

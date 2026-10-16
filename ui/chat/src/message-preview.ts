@@ -13,7 +13,8 @@
  *    the Skill's one-line description (never the slug/marker). Falls through
  *    to "" so the surface can hide an empty subtitle rather than echo the
  *    card title.
- *  - Attachment: the text the user typed (absolute paths stay hidden).
+ *  - Attachment: the text the user typed (absolute paths stay hidden),
+ *    itself decoded when it carries an interaction-answers marker.
  *  - Plain text: returned unchanged.
  *
  * Lives next to the marker decoders so every consumer (mission cards,
@@ -37,7 +38,9 @@ export function messagePreviewText(body: string | null | undefined): string {
   }
 
   const attachment = decodeAttachmentMessage(body);
-  if (attachment) return attachment.message.trim();
+  // The typed text may itself be marked (an interaction card's answers sent
+  // with files), so it previews through the same decoders.
+  if (attachment) return messagePreviewText(attachment.message.trim());
 
   // Interaction-answers ride behind an HTML-comment marker followed by the flat
   // "<question>: <answer>" text the model reads. Decode to a clean one-line

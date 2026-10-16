@@ -79,7 +79,7 @@ export function ChatInteractionStepper({
     [steps, agentId, sessionKey, accountScope, outcomes],
   );
   const onComplete = useCallback(
-    (answers: ChatInteractionAnswer[]) => {
+    (answers: ChatInteractionAnswer[], files: File[]) => {
       // A connect flow that outlived this card advances the instance it was
       // started from, which can complete the sequence all over again. That
       // reply belongs to a card the user already left: it would send answers
@@ -97,6 +97,7 @@ export function ChatInteractionStepper({
         }),
         undefined,
         approvalsFromAnswers(mapped, answers),
+        files,
       );
     },
     [isLive, mapped, onSend, outcomes, steps, t],

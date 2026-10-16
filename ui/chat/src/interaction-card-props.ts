@@ -76,6 +76,9 @@ export interface ChatInteractionCardLabels {
   dismiss?: string;
   collapse?: string;
   expand?: string;
+  /** The answer recorded for a free-text question sent with files and no
+   *  typed words ("See attached"). */
+  attachedAnswer?: string;
   /** The soft "Recommended" chip beside a marked option's label. */
   recommended?: string;
   /** Pager progress copy, e.g. "1 of 3" (shown for a multi-step sequence). */
@@ -92,8 +95,12 @@ export interface ChatInteractionCardProps {
    *  on the id, so two steps sharing one collide and a late callback captured on
    *  either can advance the other. */
   steps: ChatInteractionStep[];
-  /** Receives every question answer, in step order, once the last step is done. */
-  onComplete: (answers: ChatInteractionAnswer[]) => void;
+  /** Receives every question answer, in step order, once the last step is
+   *  done, plus the files attached through the card. Files exist only when the
+   *  card sits in a ChatPanel's composer-replacing slot: it then shares the
+   *  panel's attachment list, and the list is emptied as it is handed over, so
+   *  the caller must send them with the answer. */
+  onComplete: (answers: ChatInteractionAnswer[], files: File[]) => void;
   /** Renders a connect step as its OWN `InteractionModal` — the `(icon)
    *  Connect <App>` header title, the reason body, the footer's unified
    *  decline + Connect CTA, and the trailing free-text row — wiring the supplied
