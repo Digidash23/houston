@@ -1,5 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { loadRoutines, removeById, saveRoutines } from "@houston/domain";
+import {
+  ROUTINE_NOT_FOUND,
+  ROUTINE_NOT_FOUND_REASON,
+} from "@houston/protocol/routine-refusal";
 import type { Vfs } from "../vfs";
 import { withDocLock } from "./doc-lock";
 import { json, readJson } from "./http";
@@ -8,6 +12,11 @@ import {
   type RoutineWriteOptions,
   updateRoutineChecked,
 } from "./routine-write";
+
+const ROUTINE_GONE = {
+  error: ROUTINE_NOT_FOUND_REASON,
+  code: ROUTINE_NOT_FOUND,
+};
 
 /**
  * The `routines` typed-family CRUD for the authenticated agent-data route, split
@@ -65,7 +74,7 @@ export async function handleRoutinesData(
       { ...opts, actorSub: opts.createdBy },
     );
     if ("notFound" in result) {
-      json(res, 404, { error: "routine not found" });
+      json(res, 404, ROUTINE_GONE);
       return true;
     }
     if ("error" in result) {
@@ -87,7 +96,7 @@ export async function handleRoutinesData(
       return true;
     });
     if (!found) {
-      json(res, 404, { error: "routine not found" });
+      json(res, 404, ROUTINE_GONE);
       return true;
     }
     fireChange();

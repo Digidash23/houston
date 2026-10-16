@@ -1,5 +1,6 @@
 import type { WireFrame } from "@houston/runtime-client";
 import type { ObjectStore } from "@houston/runtime-client/object-sync";
+import { healRoutinesMirror } from "./op-routine-heal";
 import type { TurnServerDeps } from "./server-types";
 import { mutateTurnDocument, TurnDocConflictError } from "./turn-doc-cas";
 import { type TurnFilesystem, turnRoutineRunsKey } from "./turn-filesystem";
@@ -28,6 +29,9 @@ export async function answerRoutineStartFailure(
     data: {
       message: error instanceof Error ? error.message : String(error),
       code: error instanceof RoutineTurnError ? error.code : "routine_error",
+      ...(error instanceof RoutineTurnError && error.changed.length > 0
+        ? { changed: error.changed }
+        : {}),
     },
     turnId: input.turnId,
   } as WireFrame);
@@ -75,6 +79,8 @@ export async function startRoutineRun(input: {
         "routine_busy",
         `run history changed under every attempt to start ${turnId}`,
       );
+    if (error instanceof RoutineTurnError && error.code === "no_routine")
+      error.changed = await healMissingRoutine(input);
     throw error;
   }
   const published = await publishTurnRunsDoc(
@@ -88,6 +94,34 @@ export async function startRoutineRun(input: {
       `[turn] routine run ${turnId} row is in the store, its doc lags until the run ends: ${failed}`,
     );
   return phase;
+}
+
+/**
+ * A run-now the gateway dispatched off its asleep routines mirror for a
+ * routine the store lacks: re-project the routines doc under this turn's
+ * claim BEFORE the error frame goes out, so the refetch that follows the
+ * gateway's 404 reads the healed list instead of the same ghost.
+ */
+async function healMissingRoutine(input: {
+  deps: TurnServerDeps;
+  turn: TurnRequest;
+  filesystem: TurnFilesystem;
+  resolved: { store: ObjectStore; prefix: string };
+}): Promise<string[]> {
+  const { turn } = input;
+  if (turn.shadow || !turn.claim || !turn.hostToken || !turn.routine) return [];
+  return healRoutinesMirror(
+    input.deps,
+    {
+      gcsPrefix: turn.gcsPrefix,
+      hostToken: turn.hostToken,
+      claim: { token: turn.claim.token, bootId: turn.claim.bootId },
+      conversationId: turn.conversationId,
+    },
+    input.resolved,
+    input.filesystem.workspaceRel,
+    turn.routine.id,
+  );
 }
 
 /** The turn a routine phase runs: its prompt, its pin, and Autopilot. */

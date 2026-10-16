@@ -1,6 +1,7 @@
 import { syncBack } from "@houston/runtime-client/object-sync";
 import { partialSyncReply, projectDurableOp } from "./op-durability";
 import type { OpResult } from "./op-result";
+import { healRoutinesMirror, staleRoutineWriteId } from "./op-routine-heal";
 import type { OpRequest } from "./parse-op-request";
 import type { TurnServerDeps } from "./server-types";
 import type { announcedOpEvents } from "./turn-changed-events";
@@ -72,6 +73,16 @@ export async function syncOp(input: {
         source: resolved,
         prefix: resolved.prefix,
       });
+    } else {
+      const ghost = staleRoutineWriteId(op.op, result);
+      if (ghost)
+        announce = await healRoutinesMirror(
+          deps,
+          turnLike,
+          resolved,
+          filesystem.workspaceRel,
+          ghost,
+        );
     }
   }
   return { announce, reply: null };

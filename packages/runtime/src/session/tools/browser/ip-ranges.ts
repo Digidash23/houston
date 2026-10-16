@@ -145,7 +145,7 @@ function ipKey(ip: { bits: number; value: bigint }): string {
 }
 
 /**
- * Every address on this machine's interfaces, read when a fence proxy starts.
+ * Every address on this machine's interfaces, read on every fence check.
  * With private networks allowed (desktop, self-host) the machine's LAN or
  * public address would otherwise reach whatever listens on 0.0.0.0 here,
  * the host's own port included. `interfaces` is the tests' seam.

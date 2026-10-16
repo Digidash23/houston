@@ -17,6 +17,7 @@
  */
 
 import { type HttpScope, httpRequest, SdkHttpError } from "../http";
+import { isRoutineGone } from "./routine-gone";
 import type { NewRoutine, Routine, RoutineUpdate } from "./types";
 
 /** A failed routine request. `status` is the upstream HTTP status. */
@@ -107,7 +108,8 @@ export async function updateRoutine(
 }
 
 /**
- * Deletes a routine so it stops running on its schedule.
+ * Deletes a routine so it stops running on its schedule. The route answers
+ * 404 with code `routine_not_found` when no routine has that id.
  * @param agentId The agent this acts on, by the id listAgents returns. An
  *   agent's name is not its id, so read the id from listAgents first.
  * @param id The routine to delete, by the id listRoutines returns.
@@ -119,9 +121,19 @@ export async function deleteRoutine(
   agentId: string,
   id: string,
 ): Promise<void> {
-  await httpRequest(
-    scope,
-    `/agents/${encodeURIComponent(agentId)}/routines/${encodeURIComponent(id)}`,
-    { method: "DELETE" },
-  );
+  try {
+    await httpRequest(
+      scope,
+      `/agents/${encodeURIComponent(agentId)}/routines/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    );
+  } catch (error) {
+    // Idempotent for SDK callers (the catalog's raw route still answers the
+    // 404): the routine was deleted elsewhere or listed from a stale mirror,
+    // and the end state already holds. The worker that answered re-projects
+    // the routines doc; if that doc PUT fails it logs an error and the row
+    // can reappear on the next list read until a later projection lands.
+    if (isRoutineGone(error)) return;
+    throw error;
+  }
 }

@@ -4,6 +4,10 @@
  * attachments (packages/engine-adapter/src/control-plane.ts).
  */
 
+import {
+  ROUTINE_NOT_FOUND,
+  ROUTINE_NOT_FOUND_REASON,
+} from "@houston/protocol/routine-refusal";
 import { json, noContent } from "./http";
 import * as state from "./state";
 
@@ -33,7 +37,7 @@ export function handleActivities(
   const aid = rest[2];
   if (method === "PATCH") {
     const updated = state.updateActivity(id, aid, body ?? {});
-    return updated ? json(updated) : json({ error: {} }, 404);
+    return updated ? json(updated) : json({ error: "activity not found" }, 404);
   }
   if (method === "DELETE") {
     state.deleteActivity(id, aid);
@@ -93,7 +97,9 @@ export function handleRoutines(
   const rid = rest[2];
   if (rest.length === 3 && method === "PATCH") {
     const updated = state.updateRoutine(id, rid, body ?? {});
-    return updated ? json(updated) : json({ error: {} }, 404);
+    return updated
+      ? json(updated)
+      : json({ error: ROUTINE_NOT_FOUND_REASON, code: ROUTINE_NOT_FOUND }, 404);
   }
   if (rest.length === 3 && method === "DELETE") {
     state.deleteRoutine(id, rid);
