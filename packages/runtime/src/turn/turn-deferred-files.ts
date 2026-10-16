@@ -1,6 +1,7 @@
 import { TOOL_GATE_DENY_AFTER_MS } from "../backends/claude/tool-gate-hook";
 import type { PiBackendDeps } from "../backends/pi/backend";
 import type { FileSnapshot } from "../session/file-changes";
+import { TurnSetupError } from "./turn-layout";
 import { captureWorkspaceSnapshot } from "./turn-session-success";
 
 type TurnTool = PiBackendDeps["customTools"][number];
@@ -31,6 +32,12 @@ export async function awaitDeferredFiles(
   try {
     await Promise.race([ready, late, ...(stop ? [stop.stopped] : [])]);
   } catch (error) {
+    // Sending again cannot shrink the person's files.
+    if (error instanceof TurnSetupError && error.code === "hydrate_over_cap")
+      throw new Error(
+        "The agent's files are too large to load in a conversation, so its tools cannot run. You can still answer without them.",
+        { cause: error },
+      );
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(
       `The agent's files did not load for this turn (${detail}), so its tools cannot run. Ask the user to send the message again.`,

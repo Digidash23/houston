@@ -36,6 +36,7 @@ export function startTurnRequestFilesystem(input: {
   root: string;
   turn: Pick<TurnRequest, "claim" | "conversationId" | "actingAs">;
   maxBytes?: number;
+  deferredMaxBytes?: number;
   timings: Record<string, number>;
 }) {
   const claimed = Boolean(input.turn.claim);
@@ -53,6 +54,9 @@ export function startTurnRequestFilesystem(input: {
           ),
           excludes: [...CLAIMED_TURN_EXCLUDES],
           defer: deferredWorkspaceFile,
+          ...(input.deferredMaxBytes !== undefined
+            ? { deferredMaxBytes: input.deferredMaxBytes }
+            : {}),
           deferredReadTimeoutMs: DEFERRED_READ_TIMEOUT_MS,
           deferredParallel: DEFERRED_PARALLEL,
         }

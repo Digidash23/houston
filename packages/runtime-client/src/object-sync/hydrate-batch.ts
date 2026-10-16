@@ -2,7 +2,11 @@ import { readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { fileSha256 } from "./file-hash";
 import type { HydrateManifest } from "./hydrate";
-import type { HydrateDownloadState, HydrateEntry } from "./hydrate-download";
+import type {
+  HydrateBudget,
+  HydrateDownloadState,
+  HydrateEntry,
+} from "./hydrate-download";
 import type { ObjectStore } from "./object-store";
 import { keepsMergeBase } from "./sync-back-doc-merge";
 
@@ -31,7 +35,7 @@ export async function hydrateBatched(opts: {
   destDir: string;
   entries: HydrateEntry[];
   manifest: HydrateManifest;
-  maxBytes: number;
+  budget: HydrateBudget;
   state: HydrateDownloadState;
   /** Keep the board's bytes as its merge base, as the one-by-one path does. */
   keepMergeBase?: boolean;
@@ -96,9 +100,9 @@ async function landChunk(
       continue;
     }
     const { size } = await stat(dest(entry.rel));
-    opts.state.total += size;
-    if (opts.state.total > opts.maxBytes) {
-      throw opts.limitError(opts.state.total);
+    opts.budget.landed += size;
+    if (opts.budget.landed > opts.budget.maxBytes) {
+      throw opts.limitError(opts.budget.landed);
     }
     opts.manifest.set(entry.rel, {
       hash: await fileSha256(dest(entry.rel), size),
