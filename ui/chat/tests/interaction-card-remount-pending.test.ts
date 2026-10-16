@@ -78,7 +78,7 @@ describe("question card completion across a remount", () => {
     assert.equal(seen.at(-1), false);
   });
 
-  it("does not hold back a different interaction's card", () => {
+  it("does not hold back a different interaction's card", async () => {
     const done: Completion[] = [];
     const pending = deferred();
     const seen: boolean[] = [];
@@ -98,5 +98,7 @@ describe("question card completion across a remount", () => {
     render(panel(null));
     render(panel(restored("conv-a:two")));
     assert.equal(done.length, 2);
+    pending.resolve(true);
+    await flush();
   });
 });

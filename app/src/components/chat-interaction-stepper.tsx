@@ -2,6 +2,7 @@ import type { ChatInteractionAnswer } from "@houston-ai/chat";
 import { ChatInteractionCard } from "@houston-ai/chat";
 import { type ReactNode, useCallback, useMemo } from "react";
 import { approvalsFromAnswers } from "../lib/interaction-approvals";
+import { interactionCompletionKey } from "../lib/interaction-completion-key";
 import { useAgentStore } from "../stores/agents";
 import { interactionDraftKey } from "../stores/interaction-drafts";
 import {
@@ -106,7 +107,7 @@ export function ChatInteractionStepper({
   return (
     <ChatInteractionCard
       {...cards}
-      completionKey={`${sessionKey ?? ""}:${identity}`}
+      completionKey={interactionCompletionKey(agentId, sessionKey, identity)}
       labels={labels}
       onComplete={onComplete}
       onDismiss={onDismiss}
