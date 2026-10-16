@@ -31,7 +31,7 @@ import {
  * under the header, the first row spreads across as equal columns
  * (`org-chart-share-columns.ts`), and each person's AI Employees stack under
  * them, then one "+N" for the rest. The caps (`SHARE_CARD_CAPS`,
- * `capShareColumns`) keep the worst case inside the room at a zoom of at
+ * `shareCardCaps`) keep the worst case inside the room at a zoom of at
  * least 1, so no name or role is ever drawn under `SHARE_MIN_TYPE`.
  */
 

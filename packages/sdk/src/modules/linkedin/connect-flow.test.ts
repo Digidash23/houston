@@ -19,6 +19,7 @@ function harness(overrides: Partial<LinkedInConnectPorts> = {}) {
       return { url: URL_, accepted: returnTo?.kind ?? null };
     },
     listener: null,
+    appReturn: false,
     newState: () => STATE,
     tab: null,
     open: async (url) => {
@@ -48,6 +49,17 @@ const tab = (log: string[], navigates: boolean) => ({
     return navigates;
   },
   discard: () => log.push("discard"),
+});
+
+describe("startLinkedInConnect in the native mobile app", () => {
+  it("asks for the app deep link and opens LinkedIn in the in-app browser", async () => {
+    const h = harness({ appReturn: true });
+    await expect(startLinkedInConnect(h.ports)).resolves.toEqual({
+      kind: "opened",
+    });
+    expect(h.asked).toEqual([{ kind: "app" }]);
+    expect(h.log).toEqual([`open ${URL_}`]);
+  });
 });
 
 describe("startLinkedInConnect on the web", () => {

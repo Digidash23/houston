@@ -18,23 +18,32 @@ import type { SlackCompletion } from "./settings-landing.ts";
 export type LinkedInCompletionResult = "connected" | "unredeemable";
 
 export interface LinkedInCompletionPorts {
+  /** Who is signed in now (the session's user id), or null. */
+  identity: () => string | null;
   complete: (ticket: string) => Promise<LinkedInCompletion>;
   landed: (connection: LinkedInConnection) => void;
   tell: (result: LinkedInCompletionResult) => void;
 }
 
-/** A failed redemption already reported through the facade: nothing to tell. */
+/**
+ * A failed redemption already reported through the facade: nothing to tell.
+ * An answer that comes back to someone else (signed out, or another account
+ * signed in, while it was out) is dropped: it would put one person's LinkedIn
+ * in the cache the next person's share dialog reads.
+ */
 export async function redeemLinkedIn(
   pending: SlackCompletion,
   ports: LinkedInCompletionPorts,
 ): Promise<void> {
   if (pending.kind === "invalid") return ports.tell("unredeemable");
+  const startedAs = ports.identity();
   let result: LinkedInCompletion;
   try {
     result = await ports.complete(pending.ticket);
   } catch {
     return;
   }
+  if (startedAs === null || ports.identity() !== startedAs) return;
   if (result.kind === "invalid") return ports.tell("unredeemable");
   ports.landed(result.connection);
   ports.tell("connected");

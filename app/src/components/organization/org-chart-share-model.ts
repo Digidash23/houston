@@ -21,20 +21,16 @@ export const SHARE_CARD_CAPS: OrgTreeCaps = {
 export const SHARE_TEAM_COLUMNS = 4;
 
 /**
- * `tree` with the people row cut so it and its "+N people" fit
+ * The caps for a team of `people`, so its first row and its "+N people" fit
  * {@link SHARE_TEAM_COLUMNS}: four people show, five or more show three and
- * "+N". The cut people join the "+N"; the counts line still names everyone.
+ * "+N". `buildOrgTree` picks who shows in one ranked pass (owners, then people
+ * with AI Employees, then the rest), so the cut never drops someone with AI
+ * Employees for someone without; the counts line still names everyone.
  */
-export function capShareColumns(tree: OrgTree): OrgTree {
-  const { branches, morePeople } = tree;
-  const columns = branches.length + (morePeople > 0 ? 1 : 0);
-  if (columns <= SHARE_TEAM_COLUMNS) return tree;
-  const keep = SHARE_TEAM_COLUMNS - 1;
-  return {
-    ...tree,
-    branches: branches.slice(0, keep),
-    morePeople: morePeople + branches.length - keep,
-  };
+export function shareCardCaps(people: number): OrgTreeCaps {
+  return people > SHARE_TEAM_COLUMNS
+    ? { ...SHARE_CARD_CAPS, people: SHARE_TEAM_COLUMNS - 1 }
+    : SHARE_CARD_CAPS;
 }
 
 /** The subset of i18next's `t` the post builder needs. */

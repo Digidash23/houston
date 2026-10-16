@@ -62,7 +62,7 @@ describe("the LinkedIn return", () => {
         cleaned = url;
       },
     );
-    strictEqual(cleaned, "/?settings=linkedin");
+    strictEqual(cleaned, "/");
   });
 
   it("hands the completion over without opening a settings section", () => {
@@ -108,11 +108,13 @@ describe("redeemLinkedIn", () => {
   const run = async (
     pending: Parameters<typeof redeemLinkedIn>[0],
     answer: () => Promise<LinkedInCompletion>,
+    identity: () => string | null = () => "uid-ada",
   ) => {
     const told: LinkedInCompletionResult[] = [];
     const landed: LinkedInConnection[] = [];
     const asked: string[] = [];
     await redeemLinkedIn(pending, {
+      identity,
       complete: (value) => {
         asked.push(value);
         return answer();
@@ -152,5 +154,22 @@ describe("redeemLinkedIn", () => {
     );
     deepStrictEqual(r.told, []);
     deepStrictEqual(r.landed, []);
+  });
+
+  it("drops an answer that lands after sign-out or under another account", async () => {
+    for (const after of [null, "uid-bob"]) {
+      let who: string | null = "uid-ada";
+      const r = await run(
+        { kind: "ticket", ticket },
+        async () => {
+          who = after;
+          return { kind: "connected", connection };
+        },
+        () => who,
+      );
+      deepStrictEqual(r.asked, [ticket]);
+      deepStrictEqual(r.landed, [], `${after}`);
+      deepStrictEqual(r.told, [], `${after}`);
+    }
   });
 });

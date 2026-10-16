@@ -17,6 +17,8 @@ import {
 } from "../src/components/organization/org-chart-share-state.ts";
 import {
   type ConnectionRead,
+  type ConnectPhase,
+  connectionRead,
   shareStep,
 } from "../src/components/organization/org-chart-share-step.ts";
 
@@ -30,6 +32,10 @@ const ready = (connected: boolean): ConnectionRead => ({
     : { connected: false },
 });
 
+/** As `useLinkedInPost` reads the attempt. */
+const phaseOf = (state: ShareDialogState): ConnectPhase =>
+  !state.connect ? "idle" : state.connect.minting ? "minting" : "waiting";
+
 const step = (
   linkedin: boolean,
   state: ShareDialogState,
@@ -39,7 +45,7 @@ const step = (
   shareStep({
     route: shareRoute({ ...env, linkedin }).kind,
     connection,
-    watching: state.watch !== null,
+    connecting: phaseOf(state),
     posting: state.posting,
     postUrl: state.postUrl,
   });
@@ -51,6 +57,24 @@ describe("the share dialog's primary button", () => {
     deepStrictEqual(step(false, opened, { status: "pending" }), {
       kind: "share",
       via: "paste",
+    });
+  });
+
+  it("keeps the connection on screen when only a background refetch failed", () => {
+    const connection = {
+      connected: true as const,
+      name: "Ada",
+      expiresAt: "2026-12-01T00:00:00Z",
+    };
+    deepStrictEqual(connectionRead({ data: connection, isError: true }), {
+      status: "ready",
+      connection,
+    });
+    deepStrictEqual(connectionRead({ data: undefined, isError: true }), {
+      status: "error",
+    });
+    deepStrictEqual(connectionRead({ data: undefined, isError: false }), {
+      status: "pending",
     });
   });
 
@@ -67,16 +91,27 @@ describe("the share dialog's primary button", () => {
   it("connects, polls while LinkedIn's window is open, then posts", () => {
     deepStrictEqual(step(true, opened, ready(false)), {
       kind: "connect",
-      waiting: false,
+      phase: "idle",
     });
     const watch = startLinkedInConnectWatch(0);
-    const connecting = shareDialogReducer(opened, {
+    const tag = { session: opened.session, attempt: 1 };
+    const minting = shareDialogReducer(opened, {
       type: "connecting",
+      ...tag,
       watch,
+    });
+    // Busy from the click on: a second click cannot mint a second state.
+    deepStrictEqual(step(true, minting, ready(false)), {
+      kind: "connect",
+      phase: "minting",
+    });
+    const connecting = shareDialogReducer(minting, {
+      type: "connectOpened",
+      ...tag,
     });
     deepStrictEqual(step(true, connecting, ready(false)), {
       kind: "connect",
-      waiting: true,
+      phase: "waiting",
     });
     deepStrictEqual(
       linkedInConnectPollMs(watch, { connected: false }, 1),
@@ -92,7 +127,10 @@ describe("the share dialog's primary button", () => {
       ),
       false,
     );
-    const ended = shareDialogReducer(connecting, { type: "watchEnded" });
+    const ended = shareDialogReducer(connecting, {
+      type: "connectEnded",
+      ...tag,
+    });
     deepStrictEqual(step(true, ended, landed), {
       kind: "post",
       name: "Ada",
@@ -110,7 +148,6 @@ describe("the share dialog's primary button", () => {
     const posting = shareDialogReducer(opened, { type: "posting" });
     const posted = shareDialogReducer(posting, {
       type: "posted",
-      session: posting.session,
       postUrl: POST_URL,
     });
     deepStrictEqual(step(true, posted, ready(true)), {
@@ -127,13 +164,12 @@ describe("the share dialog's primary button", () => {
     );
     const refused = shareDialogReducer(posting, {
       type: "postRefused",
-      session: posting.session,
       line: { kind: "reconnect" },
     });
     // The surface marks the cached connection disconnected.
     deepStrictEqual(step(true, refused, ready(false)), {
       kind: "connect",
-      waiting: false,
+      phase: "idle",
     });
     deepStrictEqual(refused.line, { kind: "reconnect" });
   });

@@ -5,9 +5,9 @@ import { listenDeepLink } from "../lib/identity/deep-link-listen";
 import { osCurrentDeepLinks } from "../lib/os-bridge";
 import {
   applySettingsLanding,
-  captureSettingsLanding,
   type SettingsLanding,
   settingsLandingFromDeepLink,
+  takeBootLanding,
 } from "../lib/settings-landing";
 import {
   createHandedLinks,
@@ -73,9 +73,10 @@ const handedLinks = createHandedLinks(
 );
 
 /**
- * Apply a public link once the app can act on it. The ticket is captured and
- * stripped from the URL on mount, before the wait for sign-in and workspace
- * loading — it lives in memory from then on, never in the address bar. A
+ * Apply a public link once the app can act on it. The web entry captured the
+ * landing and stripped it from the URL at boot, before analytics started
+ * (`captureBootLanding`); this takes it from memory on mount, then waits
+ * for sign-in and workspace loading. A
  * section also waits for the deployment's capabilities, so a Billing link where
  * the plan is not served lands on the Settings index, never a blank screen.
  * The OS deep link is re-read on every mount, which rescues one that arrived
@@ -107,7 +108,7 @@ export function useSettingsLanding() {
     // already on screen, passing its state through, so the stack's index
     // survives and no entry is pushed or dropped.
     void gate.offer({
-      landing: captureSettingsLanding(window.location.href, (url) =>
+      landing: takeBootLanding(window.location.href, (url) =>
         window.history.replaceState(window.history.state, "", url),
       ),
       link: null,

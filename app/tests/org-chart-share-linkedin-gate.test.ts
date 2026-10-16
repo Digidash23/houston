@@ -7,7 +7,7 @@ import { describe, it } from "node:test";
 import {
   createLinkedInGate,
   LINKEDIN_OPEN_COOLDOWN_MS,
-} from "../src/components/organization/org-chart-share-state.ts";
+} from "../src/components/organization/org-chart-share-gate.ts";
 
 /** A clock the test moves by hand. */
 function clock() {

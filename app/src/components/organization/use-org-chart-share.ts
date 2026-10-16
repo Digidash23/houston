@@ -13,6 +13,7 @@ import {
   pasteDeps,
   shareSheet,
 } from "./org-chart-share-browser";
+import { createLinkedInGate } from "./org-chart-share-gate";
 import { shareAltText, sharePostText } from "./org-chart-share-model";
 import { shareByPaste } from "./org-chart-share-paste";
 import {
@@ -21,7 +22,6 @@ import {
   shareViaSheet,
 } from "./org-chart-share-run";
 import {
-  createLinkedInGate,
   INITIAL_SHARE_DIALOG,
   replacesShownImage,
   shareDialogReducer,
@@ -99,7 +99,7 @@ export function useOrgChartShare(tree: OrgTree) {
   const step = shareStep({
     route: route.kind,
     connection: linkedIn.connection,
-    watching: state.watch !== null,
+    connecting: linkedIn.connectPhase,
     posting: state.posting,
     postUrl: state.postUrl,
   });

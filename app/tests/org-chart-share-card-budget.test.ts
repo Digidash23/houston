@@ -4,6 +4,7 @@ import {
   CARD_PADDING,
   NAME_LINES,
   NODE,
+  SHARE_MIN_TYPE,
   type StackedShape,
   stackedHeight,
 } from "../src/components/organization/org-chart-share-card-geometry.ts";
@@ -38,5 +39,9 @@ describe("share card content budget", () => {
   it("fits the one-line cards", () => {
     ok(NODE.root.tile + CARD_PADDING * 2 <= NODE.root.h);
     ok(NODE.moreLeaf.name + CARD_PADDING * 2 <= NODE.moreLeaf.h);
+  });
+
+  it("draws the +N under a person no smaller than a name", () => {
+    ok(NODE.moreLeaf.name >= SHARE_MIN_TYPE.name);
   });
 });

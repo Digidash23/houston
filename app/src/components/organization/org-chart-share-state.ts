@@ -3,12 +3,27 @@ import type { ShareLine } from "./org-chart-share-run.ts";
 
 /**
  * The share dialog's state. Pure and DOM-free. Each opening is a new
- * `session`: a share started in one session never writes into a later one
- * (closed and reopened while LinkedIn was opening), and a new session starts
- * with no line, the post's own words, no connect under way and Copy image
- * unflipped. A redrawn image drops the line and the flip: what was said about
- * the old picture no longer holds.
+ * `session`: a share or a connect started in one session never writes into a
+ * later one (closed and reopened while LinkedIn was opening), and a new
+ * session starts with no line, the post's own words, no connect under way and
+ * Copy image unflipped. A redrawn image drops the line and the flip: what was
+ * said about the old picture no longer holds.
+ *
+ * A post is the exception: it is public and the gateway may take a minute,
+ * so it outlives the opening that started it. Reopening while it is out
+ * still shows Posting (never a second Post button), and its result lands in
+ * whichever opening is on screen; a post that went up while none was says so
+ * in the next one.
  */
+
+/** One Connect LinkedIn click, tagged so a stale one's results are dropped. */
+export interface ConnectAttempt {
+  id: number;
+  /** Asking the gateway for LinkedIn's page; nothing is open yet. */
+  minting: boolean;
+  /** The connection is polled until it lands or this runs out. */
+  watch: LinkedInConnectWatch;
+}
 
 export interface ShareDialogState {
   open: boolean;
@@ -17,12 +32,18 @@ export interface ShareDialogState {
   copied: boolean;
   /** The post as the person edited it; `null` keeps the authored words. */
   text: string | null;
-  /** A LinkedIn connect under way: the connection is polled until it ends. */
-  watch: LinkedInConnectWatch | null;
+  /** The LinkedIn connect under way in this opening. */
+  connect: ConnectAttempt | null;
+  /** A post is out, whichever opening started it. */
   posting: boolean;
-  /** LinkedIn's page for the post made in this opening. */
+  /** LinkedIn's page for the post just made. */
   postUrl: string | null;
+  /** A post that went up while the dialog was closed: the next opening says so. */
+  heldPost: string | null;
 }
+
+/** Names the opening and the connect attempt a result belongs to. */
+type AttemptTag = { session: number; attempt: number };
 
 export type ShareDialogAction =
   | { type: "open" }
@@ -33,12 +54,14 @@ export type ShareDialogAction =
   | { type: "copied" }
   | { type: "copiedDone" }
   | { type: "edited"; text: string }
-  | { type: "connecting"; watch: LinkedInConnectWatch }
-  /** The connect is over: landed, given up on, or never opened. */
-  | { type: "watchEnded" }
+  | ({ type: "connecting"; watch: LinkedInConnectWatch } & AttemptTag)
+  /** LinkedIn's page is open: the attempt now waits on the connection. */
+  | ({ type: "connectOpened" } & AttemptTag)
+  /** The attempt is over: landed, given up on, or never opened. */
+  | ({ type: "connectEnded"; line?: ShareLine } & AttemptTag)
   | { type: "posting" }
-  | { type: "posted"; session: number; postUrl: string }
-  | { type: "postRefused"; session: number; line: ShareLine | null };
+  | { type: "posted"; postUrl: string }
+  | { type: "postRefused"; line: ShareLine | null };
 
 export const INITIAL_SHARE_DIALOG: ShareDialogState = {
   open: false,
@@ -46,25 +69,35 @@ export const INITIAL_SHARE_DIALOG: ShareDialogState = {
   line: null,
   copied: false,
   text: null,
-  watch: null,
+  connect: null,
   posting: false,
   postUrl: null,
+  heldPost: null,
 };
+
+/** Whether `tag` names the attempt on screen now. */
+function current(state: ShareDialogState, tag: AttemptTag): boolean {
+  return tag.session === state.session && state.connect?.id === tag.attempt;
+}
 
 export function shareDialogReducer(
   state: ShareDialogState,
   action: ShareDialogAction,
 ): ShareDialogState {
-  const here = "session" in action && action.session === state.session;
+  const here =
+    "session" in action && action.session === state.session && state.open;
   switch (action.type) {
     case "open":
       return {
         ...INITIAL_SHARE_DIALOG,
         open: true,
         session: state.session + 1,
+        posting: state.posting,
+        postUrl: state.heldPost,
+        line: state.heldPost ? { kind: "posted" } : null,
       };
     case "close":
-      return { ...state, open: false, watch: null };
+      return { ...state, open: false, connect: null };
     case "redrawn":
       return { ...state, line: null, copied: false };
     case "landed":
@@ -76,22 +109,36 @@ export function shareDialogReducer(
     case "edited":
       return { ...state, text: action.text };
     case "connecting":
-      return { ...state, watch: action.watch, line: null };
-    case "watchEnded":
-      return { ...state, watch: null };
+      return here
+        ? {
+            ...state,
+            connect: { id: action.attempt, minting: true, watch: action.watch },
+            line: null,
+          }
+        : state;
+    case "connectOpened":
+      return current(state, action) && state.connect
+        ? { ...state, connect: { ...state.connect, minting: false } }
+        : state;
+    case "connectEnded":
+      return current(state, action)
+        ? { ...state, connect: null, line: action.line ?? state.line }
+        : state;
     case "posting":
       return { ...state, posting: true, line: null };
     case "posted":
-      return here
+      return state.open
         ? {
             ...state,
             posting: false,
             postUrl: action.postUrl,
             line: { kind: "posted" },
           }
-        : state;
+        : { ...state, posting: false, heldPost: action.postUrl };
     case "postRefused":
-      return here ? { ...state, posting: false, line: action.line } : state;
+      return state.open
+        ? { ...state, posting: false, line: action.line }
+        : { ...state, posting: false };
   }
 }
 
@@ -104,42 +151,4 @@ export function replacesShownImage(
   next: string | null,
 ): boolean {
   return previous !== null && previous !== next;
-}
-
-/** How long clicks on Share on LinkedIn are ignored after one settled. */
-export const LINKEDIN_OPEN_COOLDOWN_MS = 1000;
-
-/**
- * The gate on opening LinkedIn: one share at a time, and none within
- * {@link LINKEDIN_OPEN_COOLDOWN_MS} of the last one starting or settling.
- * Running one at a time is not enough: an open settles in a microtask, so a
- * double click (two event turns some 50 ms apart) opened two composers. The
- * first click runs the task synchronously, inside the click. Returns whether
- * the task started; a task that throws before returning its promise
- * releases the gate and the throw is rethrown.
- */
-export function createLinkedInGate(
-  now: () => number,
-  cooldownMs = LINKEDIN_OPEN_COOLDOWN_MS,
-) {
-  let running = false;
-  let last = Number.NEGATIVE_INFINITY;
-  return (task: () => Promise<unknown>): boolean => {
-    if (running || now() - last < cooldownMs) return false;
-    running = true;
-    last = now();
-    const release = () => {
-      running = false;
-      last = now();
-    };
-    let pending: Promise<unknown>;
-    try {
-      pending = task();
-    } catch (error) {
-      release();
-      throw error;
-    }
-    pending.then(release, release);
-    return true;
-  };
 }

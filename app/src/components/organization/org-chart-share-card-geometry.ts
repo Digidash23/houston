@@ -103,7 +103,7 @@ export const NODE = {
     role: SHARE_MIN_TYPE.role,
     roleLine: 28,
   },
-  moreLeaf: { h: 56, name: 24 },
+  moreLeaf: { h: 56, name: SHARE_MIN_TYPE.name },
 } as const;
 
 /** The least room left between a stacked card's content and its edges. */

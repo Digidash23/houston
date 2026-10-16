@@ -5,10 +5,30 @@ import {
   isLinkedInUnavailableError,
   LINKEDIN_CONNECT_POLL_MS,
   LINKEDIN_CONNECT_WATCH_MS,
+  LINKEDIN_FEED_URL,
   linkedInConnectPollMs,
+  linkedInPostLink,
   linkedInRefusalAction,
+  linkedInRetryMinutes,
   startLinkedInConnectWatch,
 } from "./policy";
+
+describe("after a post", () => {
+  it("links the post, or the feed when LinkedIn named none", () => {
+    const url = "https://www.linkedin.com/feed/update/urn:li:share:7/";
+    expect(linkedInPostLink(url)).toBe(url);
+    expect(linkedInPostLink(null)).toBe(LINKEDIN_FEED_URL);
+  });
+
+  it("rounds a rate limit's wait up to whole minutes", () => {
+    expect(linkedInRetryMinutes(undefined)).toBeNull();
+    expect(linkedInRetryMinutes(0)).toBeNull();
+    expect(linkedInRetryMinutes(1_000)).toBe(1);
+    expect(linkedInRetryMinutes(60_000)).toBe(1);
+    expect(linkedInRetryMinutes(61_000)).toBe(2);
+    expect(linkedInRetryMinutes(3_600_000)).toBe(60);
+  });
+});
 
 describe("the connect watch", () => {
   const watch = startLinkedInConnectWatch(1_000);

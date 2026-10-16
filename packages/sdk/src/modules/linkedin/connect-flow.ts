@@ -10,7 +10,9 @@
  * desktop binds a loopback listener first and names its port and a fresh
  * `state`, so the approving browser comes back over plain `127.0.0.1` with no
  * prompt; a listener that cannot start, or a gateway that refuses it, falls
- * back to the `app` deep link. Either way the signed-in app redeems the
+ * back to the `app` deep link. A native mobile app has no listener and no
+ * web session in the browser it opens (an in-app browser), so it asks for
+ * the `app` deep link straight away. Either way the signed-in app redeems the
  * ticket (`linkedin.complete`): a connect is never completed by polling.
  *
  * A listener no browser can reach any more is freed: the gateway took another
@@ -42,8 +44,13 @@ export interface LinkedInConnectPorts {
   connect(
     returnTo: LinkedInConnectReturn | undefined,
   ): Promise<LinkedInConnectAnswer>;
-  /** Null where nothing can listen on the device (web). */
+  /** Null where nothing can listen on the device (web, native mobile). */
   listener: LinkedInReturnListener | null;
+  /**
+   * With no listener, whether the app takes the `houston://` deep link back
+   * (native mobile): the page it opens is not the app's own session.
+   */
+  appReturn: boolean;
   /** A fresh base64url nonce for the loopback `state`. */
   newState(): string;
   /** The tab the click claimed, or null where none was (or could be). */
@@ -122,7 +129,11 @@ interface BoundReturn {
 }
 
 async function bindReturn(ports: LinkedInConnectPorts): Promise<BoundReturn> {
-  if (ports.listener === null) return { returnTo: undefined, attemptId: null };
+  if (ports.listener === null)
+    return {
+      returnTo: ports.appReturn ? { kind: "app" } : undefined,
+      attemptId: null,
+    };
   const state = ports.newState();
   try {
     const { port, attemptId } = await ports.listener.start(state);

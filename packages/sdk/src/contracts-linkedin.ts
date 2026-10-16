@@ -7,6 +7,7 @@
  */
 // ===== LinkedIn module contract ========================================
 export {
+  checkLinkedInText,
   isPostableLinkedInText,
   LinkedInCommand,
   type LinkedInCommandType,
@@ -19,6 +20,7 @@ export {
   type LinkedInPostInput,
   type LinkedInPostResult,
   type LinkedInRefusalCode,
+  type LinkedInTextCheck,
 } from "./modules/linkedin";
 export {
   type LinkedInConnectPorts,
@@ -33,9 +35,12 @@ export {
   isLinkedInUnavailableError,
   LINKEDIN_CONNECT_POLL_MS,
   LINKEDIN_CONNECT_WATCH_MS,
+  LINKEDIN_FEED_URL,
   type LinkedInConnectWatch,
   type LinkedInRefusalAction,
   linkedInConnectPollMs,
+  linkedInPostLink,
   linkedInRefusalAction,
+  linkedInRetryMinutes,
   startLinkedInConnectWatch,
 } from "./modules/linkedin/policy";

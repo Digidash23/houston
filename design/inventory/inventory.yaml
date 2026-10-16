@@ -1664,14 +1664,17 @@ components:
       files, the button is Share on LinkedIn and hands the sheet the image
       and the words. Where the deployment can post to LinkedIn, the button
       is Connect LinkedIn until the person's LinkedIn is connected (it opens
-      LinkedIn's page and waits, saying to finish there; LinkedIn sends the
-      browser back to Houston, which connects it and says so in a toast,
-      telling a tab that opened for it that it can be closed), then Post to
-      LinkedIn with "Posting as <name>" and Disconnect under it; it reads
-      Posting... while the post goes up, then View post, with "Posted to
-      LinkedIn." on the line. A connection LinkedIn dropped brings Connect
-      back with a line saying to connect again; too many posts, or LinkedIn
-      failing, says so on the line. Everywhere else Share on LinkedIn opens
+      LinkedIn's page and waits, busy, saying to finish there with Start
+      over beside it; LinkedIn sends the browser, or the mobile app, back to
+      Houston, which connects it and says so in a toast, telling a tab that
+      opened for it that it can be closed), then Post to LinkedIn with
+      "Posting as <name>" and Disconnect under it; words too long for
+      LinkedIn say by how much under it; it reads Posting... while the post
+      goes up, even after the dialog is closed and opened again, then View
+      post, with "Posted to LinkedIn." on the line. A connection LinkedIn
+      dropped brings Connect back with a line saying to connect again; too
+      many posts (with the wait in minutes when known), or LinkedIn failing,
+      says so on the line. Everywhere else Share on LinkedIn opens
       LinkedIn's composer with the words while the image goes on the
       clipboard, and the line says "Image copied. Paste it into your
       LinkedIn post."; where the clipboard refuses, the image is saved and

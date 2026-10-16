@@ -9,10 +9,7 @@ import {
   SHARE_MIN_TYPE,
 } from "../src/components/organization/org-chart-share-card-geometry.ts";
 import { shareCardLayout } from "../src/components/organization/org-chart-share-layout.ts";
-import {
-  capShareColumns,
-  SHARE_CARD_CAPS,
-} from "../src/components/organization/org-chart-share-model.ts";
+import { shareCardCaps } from "../src/components/organization/org-chart-share-model.ts";
 import { buildOrgTree } from "../src/components/organization/org-chart-tree.ts";
 import type { Box } from "../src/components/organization/org-chart-tree-paths.ts";
 
@@ -35,11 +32,9 @@ const roster = (n: number): OrgMember[] => [
 ];
 const layout = (agents: Agent[], members: OrgMember[], personal = false) =>
   shareCardLayout(
-    capShareColumns(
-      buildOrgTree(
-        { agents, members, name: "Acme", personal },
-        SHARE_CARD_CAPS,
-      ),
+    buildOrgTree(
+      { agents, members, name: "Acme", personal },
+      shareCardCaps(members.length),
     ),
     {
       morePeople: (n) => `+${n} people`,

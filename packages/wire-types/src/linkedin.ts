@@ -22,7 +22,8 @@ import type { SlackConnectReturn } from "./channels-connect-return";
  *  - `POST /v1/linkedin/posts` takes multipart `image` (PNG or JPEG, at most
  *    {@link LINKEDIN_IMAGE_MAX_BYTES}, height/width at most 1.25 and
  *    width/height at most 3), `text` (1 to {@link LINKEDIN_TEXT_MAX}
- *    characters once trimmed) and an optional `altText` (at most
+ *    characters once trimmed and escaped, {@link linkedInCommentaryLength})
+ *    and an optional `altText` (at most
  *    {@link LINKEDIN_ALT_TEXT_MAX}), and answers 201 {@link LinkedInPosted}.
  *
  * A refusal body is `{"code": "<code>", "error": "<message>"}`; the plain
@@ -45,6 +46,24 @@ export function linkedInTicket(value: unknown): string {
 export const LINKEDIN_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 export const LINKEDIN_TEXT_MAX = 3000;
 export const LINKEDIN_ALT_TEXT_MAX = 4086;
+
+/**
+ * LinkedIn's "little text" reserved characters. The gateway backslash-escapes
+ * each one so the words post exactly as written, and counts the commentary
+ * after escaping, so every one of them costs two of the 3000 characters.
+ */
+export const LINKEDIN_RESERVED_CHARS = "\\|{}@[]()<>#*_~";
+
+/**
+ * The commentary's length as the gateway counts it: code points (not UTF-16
+ * units) once every reserved character carries its backslash.
+ */
+export function linkedInCommentaryLength(text: string): number {
+  let length = 0;
+  for (const char of text)
+    length += LINKEDIN_RESERVED_CHARS.includes(char) ? 2 : 1;
+  return length;
+}
 
 const AUTHORIZE_URL = "https://www.linkedin.com/oauth/v2/authorization";
 const POST_URL = /^https:\/\/www\.linkedin\.com\/feed\/update\/[^/?#]+\/?$/;

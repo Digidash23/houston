@@ -1,10 +1,17 @@
 import { startLinkedInConnect } from "@houston/sdk/linkedin/connect-flow";
 import {
   type LinkedInRefusalAction,
+  linkedInPostLink,
   linkedInRefusalAction,
   startLinkedInConnectWatch,
 } from "@houston/sdk/linkedin/policy";
-import { type Dispatch, type RefObject, useEffect, useRef } from "react";
+import {
+  type Dispatch,
+  type RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import {
   useLinkedInActions,
@@ -15,12 +22,13 @@ import { showConnectivityErrorToast } from "../../lib/error-toast";
 import { tauriLinkedIn } from "../../lib/linkedin-facade";
 import { linkedInConnectPorts } from "./linkedin-connect-ports";
 import { jpegOf, postableImage } from "./org-chart-share-encode";
+import { createLinkedInGate } from "./org-chart-share-gate";
 import type { ShareLine } from "./org-chart-share-run";
 import type {
   ShareDialogAction,
   ShareDialogState,
 } from "./org-chart-share-state";
-import type { ConnectionRead } from "./org-chart-share-step";
+import { type ConnectPhase, connectionRead } from "./org-chart-share-step";
 
 /** A post the gateway refused for what this client sent: a bug to report. */
 export class LinkedInPostRefusedError extends Error {
@@ -28,16 +36,23 @@ export class LinkedInPostRefusedError extends Error {
 }
 
 /** The line a refusal leaves under the button; `null` says nothing. */
-const REFUSAL_LINE: Partial<Record<LinkedInRefusalAction, ShareLine>> = {
-  reconnect: { kind: "reconnect" },
-  wait: { kind: "wait" },
-  retry: { kind: "retry" },
-};
+function refusalLine(
+  action: LinkedInRefusalAction,
+  retryAfterMs: number | undefined,
+): ShareLine | null {
+  if (action === "reconnect") return { kind: "reconnect" };
+  if (action === "retry") return { kind: "retry" };
+  if (action !== "wait") return null;
+  return retryAfterMs === undefined
+    ? { kind: "wait" }
+    : { kind: "wait", retryAfterMs };
+}
 
 /**
  * Posting from the share dialog: the connection read (polled while a connect
- * is under way), Connect LinkedIn, Post to LinkedIn and Disconnect. Writes go
- * into the dialog's reducer under the session they started in.
+ * is under way), Connect LinkedIn, Post to LinkedIn and Disconnect. A connect
+ * writes only into the opening and attempt it started in; a post, into
+ * whichever opening is on screen when it lands (`shareDialogReducer`).
  */
 export function useLinkedInPost(input: {
   enabled: boolean;
@@ -48,66 +63,75 @@ export function useLinkedInPost(input: {
 }) {
   const { t, i18n } = useTranslation("teams");
   const { enabled, state, dispatch, session } = input;
-  const query = useLinkedInConnection(enabled, state.watch);
+  const attempt = state.connect;
+  const query = useLinkedInConnection(enabled, attempt?.watch ?? null);
   const actions = useLinkedInActions();
-  const inFlight = useRef(false);
+  const posting = useRef(false);
+  const attempts = useRef(0);
+  // A double click minted two states, and the gateway keeps only the last:
+  // the first tab then failed. Checked before the click claims a tab.
+  const [gate] = useState(() => createLinkedInGate(() => performance.now()));
 
-  // The watch ends when the connection lands or its window closes.
+  // The attempt ends when the connection lands or its window closes.
   const connected = query.data?.connected === true;
+  const opening = state.session;
   useEffect(() => {
-    if (!state.watch) return;
-    if (connected) return dispatch({ type: "watchEnded" });
+    if (!attempt) return;
+    const tag = { session: opening, attempt: attempt.id };
+    if (connected) return dispatch({ type: "connectEnded", ...tag });
     const timer = setTimeout(
-      () => dispatch({ type: "watchEnded" }),
-      Math.max(0, state.watch.until - Date.now()),
+      () => dispatch({ type: "connectEnded", ...tag }),
+      Math.max(0, attempt.watch.until - Date.now()),
     );
     return () => clearTimeout(timer);
-  }, [state.watch, connected, dispatch]);
+  }, [attempt, opening, connected, dispatch]);
 
-  // Inside the click: a browser only grants LinkedIn's tab there.
+  // Inside the click: a browser only grants LinkedIn's tab there. Starting
+  // over is the same click: a new attempt, whose state replaces the old one
+  // at the gateway, and the old attempt's results are dropped.
   const connect = () => {
-    const started = session.current;
-    const ports = linkedInConnectPorts(t, i18n.resolvedLanguage);
-    dispatch({
-      type: "connecting",
-      watch: startLinkedInConnectWatch(Date.now()),
-    });
-    startLinkedInConnect(ports).then(
-      (landed) => {
-        if (landed.kind === "opened") return;
-        dispatch({ type: "watchEnded" });
-        if (landed.kind === "blocked")
+    gate(() => {
+      const tag = { session: session.current, attempt: ++attempts.current };
+      const ports = linkedInConnectPorts(t, i18n.resolvedLanguage);
+      dispatch({
+        type: "connecting",
+        ...tag,
+        watch: startLinkedInConnectWatch(Date.now()),
+      });
+      return startLinkedInConnect(ports).then(
+        (landed) => {
+          if (landed.kind === "opened")
+            return dispatch({ type: "connectOpened", ...tag });
           dispatch({
-            type: "landed",
-            session: started,
-            line: { kind: "blocked", url: landed.url, channel: null },
+            type: "connectEnded",
+            ...tag,
+            line:
+              landed.kind === "blocked"
+                ? { kind: "blocked", url: landed.url, channel: null }
+                : undefined,
           });
-      },
-      // tauriLinkedIn.connect already reported it (or silenced a deployment
-      // with no LinkedIn); the connect is simply over.
-      () => {
-        dispatch({ type: "watchEnded" });
-        void actions.recheck();
-      },
-    );
+        },
+        // tauriLinkedIn.connect already reported it (or silenced a deployment
+        // with no LinkedIn); the connect is simply over.
+        () => {
+          dispatch({ type: "connectEnded", ...tag });
+          void actions.recheck();
+        },
+      );
+    });
   };
 
-  const refused = (started: number, action: LinkedInRefusalAction) => {
+  const refused = (action: LinkedInRefusalAction, retryAfterMs?: number) => {
     if (action === "reconnect") actions.markDisconnected();
     if (action === "fallback") void actions.recheck();
     if (action === "offline")
       showConnectivityErrorToast("linkedin_post", "LinkedIn post: offline");
-    dispatch({
-      type: "postRefused",
-      session: started,
-      line: REFUSAL_LINE[action] ?? null,
-    });
+    dispatch({ type: "postRefused", line: refusalLine(action, retryAfterMs) });
   };
 
   const post = async (file: File, text: string, altText: string) => {
-    if (inFlight.current) return;
-    inFlight.current = true;
-    const started = session.current;
+    if (posting.current) return;
+    posting.current = true;
     dispatch({ type: "posting" });
     try {
       let image: Blob;
@@ -115,15 +139,14 @@ export function useLinkedInPost(input: {
         image = await postableImage(file, jpegOf);
       } catch (error) {
         logAndReportError("org_chart_share_encode", error);
-        return refused(started, "quiet");
+        return refused("quiet");
       }
       const result = await tauriLinkedIn.postImage({ image, text, altText });
       if (result.kind === "posted") {
         input.onPosted();
         return dispatch({
           type: "posted",
-          session: started,
-          postUrl: result.postUrl,
+          postUrl: linkedInPostLink(result.postUrl),
         });
       }
       const action = linkedInRefusalAction(result.code);
@@ -132,23 +155,24 @@ export function useLinkedInPost(input: {
           "linkedin_post",
           new LinkedInPostRefusedError(`LinkedIn post refused: ${result.code}`),
         );
-      refused(started, action);
+      refused(action, result.retryAfterMs);
     } catch {
       // tauriLinkedIn.postImage reported the failure; the button comes back.
-      refused(started, "quiet");
+      refused("quiet");
     } finally {
-      inFlight.current = false;
+      posting.current = false;
     }
   };
 
-  const connection: ConnectionRead = query.isError
-    ? { status: "error" }
-    : query.data
-      ? { status: "ready", connection: query.data }
-      : { status: "pending" };
+  const connectPhase: ConnectPhase = !attempt
+    ? "idle"
+    : attempt.minting
+      ? "minting"
+      : "waiting";
 
   return {
-    connection,
+    connection: connectionRead(query),
+    connectPhase,
     connect,
     post,
     disconnect: () => actions.disconnect.mutate(),

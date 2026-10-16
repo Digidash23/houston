@@ -1,6 +1,18 @@
+import { linkedInRetryMinutes } from "@houston/sdk/linkedin/policy";
 import { cn } from "@houston-ai/core";
 import { useTranslation } from "react-i18next";
 import type { ShareLine } from "./org-chart-share-run";
+
+/** A rate limit names its wait when the gateway said how long. */
+function useLineText(line: ShareLine | null): string | null {
+  const { t } = useTranslation("teams");
+  if (!line || line.kind === "blocked") return null;
+  const minutes =
+    line.kind === "wait" ? linkedInRetryMinutes(line.retryAfterMs) : null;
+  return minutes === null
+    ? t(LINE_KEY[line.kind])
+    : t("orgChart.share.rateLimitedIn", { count: minutes });
+}
 
 /**
  * The one line under the share dialog's buttons (`ShareLine`). Always
@@ -16,12 +28,13 @@ export function ShareStatusLine({
   onFollowBlocked: () => void;
 }) {
   const { t } = useTranslation("teams");
+  const text = useLineText(line);
   return (
     <p
       role="status"
       className={cn("text-sm text-pretty text-ink", !line && "sr-only")}
     >
-      {line && line.kind !== "blocked" && t(LINE_KEY[line.kind])}
+      {text}
       {line?.kind === "blocked" && (
         <>
           {line.image && `${t(LINE_KEY[line.image])} `}

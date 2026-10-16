@@ -79,19 +79,24 @@ function slackCompletion(values: string[]): SlackCompletion | null {
   return { kind: "ticket", ticket: values[0] };
 }
 
-/** The URL a consumed callback leaves behind: the same page, minus the ticket. */
-export function withoutSlackTicket(href: string): string {
+/**
+ * The URL a captured landing leaves behind: the same page minus the landing
+ * (`settings`, and the `slack` or `linkedin` ticket), which lives in memory
+ * from then on.
+ */
+export function withoutLanding(href: string): string {
   const url = new URL(href);
+  url.searchParams.delete("settings");
   url.searchParams.delete("slack");
   url.searchParams.delete("linkedin");
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
 /**
- * Read the callback and take the ticket out of the address bar in the same
- * pass, holding it in memory from here on. Reading and stripping are ONE step
- * on purpose: applying the landing waits for sign-in and workspace loading,
- * and a bearer secret sitting in `window.location` for that long is one that
+ * Read the callback and take it out of the address bar in the same pass,
+ * holding it in memory from here on. Reading and stripping are ONE step on
+ * purpose: applying the landing waits for sign-in and workspace loading, and
+ * a bearer secret sitting in `window.location` for that long is one that
  * analytics, session replay and the next crash report can all capture.
  *
  * `clean` receives the URL to put in place of the current one; anything shaped
@@ -102,7 +107,38 @@ export function captureSettingsLanding(
   clean: (url: string) => void,
 ): SettingsLanding {
   const landing = settingsLanding(new URL(href).search);
-  if (carriesTicket(landing)) clean(withoutSlackTicket(href));
+  if (landing.kind !== "absent") clean(withoutLanding(href));
+  return landing;
+}
+
+/** The page's landing: not read yet, read and held, or handed over. */
+let boot: { landing: SettingsLanding } | "taken" | null = null;
+
+/**
+ * Capture the page's landing at boot, before analytics and Sentry start: the
+ * first event (`session_started`, with PostHog's `$current_url`) and Sentry's
+ * navigation breadcrumbs would otherwise carry the ticket. Runs once; a
+ * later call is a no-op. The web entry calls it before the app loads.
+ */
+export function captureBootLanding(
+  href: string,
+  clean: (url: string) => void,
+): void {
+  if (boot === null) boot = { landing: captureSettingsLanding(href, clean) };
+}
+
+/**
+ * The landing the page booted with, handed over once (`absent` after). An
+ * entry that never captured one (the desktop app) captures it now.
+ */
+export function takeBootLanding(
+  href: string,
+  clean: (url: string) => void,
+): SettingsLanding {
+  captureBootLanding(href, clean);
+  if (boot === null || boot === "taken") return { kind: "absent" };
+  const { landing } = boot;
+  boot = "taken";
   return landing;
 }
 

@@ -59,7 +59,8 @@ export function shareRoute(env: {
  *   from opening; the line links to `url`, and following it tracks `channel`.
  *   `image` says where the picture went first, on the paste route.
  * - `reconnect`: LinkedIn no longer honors the connection.
- * - `wait`: too many posts for now.
+ * - `wait`: too many posts for now; `retryAfterMs` when the gateway said how
+ *   long.
  * - `retry`: LinkedIn failed the post.
  * - `posted`: the post is up.
  */
@@ -73,7 +74,7 @@ export type ShareLine =
       image?: "copied" | "saved";
     }
   | { kind: "reconnect" }
-  | { kind: "wait" }
+  | { kind: "wait"; retryAfterMs?: number }
   | { kind: "retry" }
   | { kind: "posted" };
 

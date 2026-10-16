@@ -135,7 +135,8 @@ export async function disconnectLinkedIn(
  * Every answer that is not a post comes back as a typed refusal (not
  * connected, a rate limit, LinkedIn failing, a deployment with no LinkedIn
  * key, no connection to the network, a picture or words the gateway will not
- * take), never a throw. Only an answer that is neither throws, and so does an
+ * take), never a throw. Any 2xx is a post, its link `null` when the gateway
+ * could not name it. Only an answer that is neither throws, and so does an
  * abort through `signal`.
  * @param upload Multipart: `image` (a PNG or JPEG of at most 5 MiB, no taller
  *   than 4:5 and no wider than 3:1), `text` (1 to 3000 characters once
@@ -166,10 +167,21 @@ export async function postLinkedInImage(
       ? { kind: "refused", code }
       : { kind: "refused", code, retryAfterMs: err.retryAfterMs };
   }
-  const parsed = linkedInPostedSchema.safeParse(await res.json());
-  if (!parsed.success)
-    throw new Error(
-      `linkedin post answered ${res.status} with an unreadable body`,
-    );
-  return { kind: "posted", ...parsed.data };
+  // Any 2xx is a published post: the gateway answers `201 {}` when LinkedIn
+  // gave no readable id, and failing it would invite posting it twice.
+  const parsed = linkedInPostedSchema.safeParse(jsonOrNull(await res.text()));
+  if (parsed.success) return { kind: "posted", ...parsed.data };
+  scope.ports.logger.warn("linkedin post went up with no readable id", {
+    status: res.status,
+  });
+  return { kind: "posted", postUrn: null, postUrl: null };
+}
+
+/** A body that is not JSON reads as none. */
+function jsonOrNull(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }

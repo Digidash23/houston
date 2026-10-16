@@ -27,6 +27,13 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="app.gethouston.ai" android:path="/" />
             </intent-filter>
+            <!-- A LinkedIn connect's return (houston://settings/linkedin?linkedin=<ticket>). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="houston" android:host="settings" android:path="/linkedin" />
+            </intent-filter>
         </activity>
 
         <provider

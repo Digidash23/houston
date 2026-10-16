@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   LINKEDIN_REFUSALS,
   linkedInBodyCode,
+  linkedInCommentaryLength,
   linkedInConnectionSchema,
   linkedInConnectSchema,
   linkedInPostedSchema,
@@ -107,5 +108,17 @@ describe("linkedin answers", () => {
         postUrl: "https://evil.example/feed/update/urn:li:share:7/",
       }),
     ).toThrow();
+  });
+});
+
+describe("linkedInCommentaryLength", () => {
+  test("counts each reserved character twice, as the gateway escapes it", () => {
+    expect(linkedInCommentaryLength("plain words")).toBe(11);
+    expect(linkedInCommentaryLength("\\|{}@[]()<>#*_~")).toBe(30);
+    expect(linkedInCommentaryLength("#hiring @Acme (team_one)")).toBe(29);
+  });
+
+  test("counts code points, not UTF-16 units", () => {
+    expect(linkedInCommentaryLength("🚀é")).toBe(2);
   });
 });

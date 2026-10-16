@@ -13,8 +13,12 @@ for the person, its button connects their LinkedIn once (LinkedIn's own page,
 which sends them back to Houston to finish; the dialog notices on its own)
 and then posts the picture and the words
 as them, says who it posts as with a Disconnect, and offers View post once it
-is up. Elsewhere sharing keeps the copy and paste way, and phones and iPads
-keep their share sheet. Desktop sets the picture beside the words.
+is up. Connect stays busy while LinkedIn's page is open, with Start over
+beside it; a post keeps reading Posting... across closing and reopening the
+dialog; words too long for LinkedIn say by how much, and a rate limit says
+how many minutes to wait. Elsewhere sharing keeps the copy and paste way, and
+phones and iPads keep their share sheet. Desktop sets the picture beside the
+words.
 
 ## v133 - 2026-10-15
 

@@ -46,7 +46,11 @@ export type {
   LinkedInRefusalCode,
 } from "./types";
 export { LinkedInCommand } from "./types";
-export { isPostableLinkedInText } from "./upload";
+export {
+  checkLinkedInText,
+  isPostableLinkedInText,
+  type LinkedInTextCheck,
+} from "./upload";
 
 /** The typed facade for the linkedin family. */
 export interface LinkedInModule {

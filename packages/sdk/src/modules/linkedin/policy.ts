@@ -46,6 +46,25 @@ export function linkedInConnectPollMs(
   return LINKEDIN_CONNECT_POLL_MS;
 }
 
+/** LinkedIn's own feed: a post that went up with no readable link tops it. */
+export const LINKEDIN_FEED_URL = "https://www.linkedin.com/feed/";
+
+/** Where View post goes: the post's own page, or the person's feed. */
+export function linkedInPostLink(postUrl: string | null): string {
+  return postUrl ?? LINKEDIN_FEED_URL;
+}
+
+/**
+ * A rate limit's wait in whole minutes, rounded up so the person never comes
+ * back early, or `null` when the gateway did not say.
+ */
+export function linkedInRetryMinutes(
+  retryAfterMs: number | undefined,
+): number | null {
+  if (retryAfterMs === undefined || !(retryAfterMs > 0)) return null;
+  return Math.max(1, Math.ceil(retryAfterMs / 60_000));
+}
+
 /**
  * What a refused post means for the person:
  *  - `reconnect`: the connection is gone; connect again, then post.

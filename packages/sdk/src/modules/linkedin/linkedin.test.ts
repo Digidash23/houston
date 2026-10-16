@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { SdkConfig, SdkPorts } from "../../ports";
 import { HoustonSdk } from "../../sdk";
 import { memoryKv } from "../../test-ports";
-import { LinkedInCommand, LinkedInHttpError } from "./index";
+import { checkLinkedInText, LinkedInCommand, LinkedInHttpError } from "./index";
 
 const BASE = "http://127.0.0.1:4317";
 const AUTHORIZE =
@@ -190,6 +190,11 @@ describe("postImage", () => {
       "invalid_text",
     ],
     [
+      "words that pass 3000 only once escaped",
+      { image: png(), text: "#_".repeat(751) },
+      "invalid_text",
+    ],
+    [
       "a picture of another type",
       { image: new Blob(["x"], { type: "image/gif" }), text: "Hi" },
       "unsupported_media_type",
@@ -214,6 +219,25 @@ describe("postImage", () => {
     await expect(
       sdk.linkedin.postImage({ image: png(), text }),
     ).resolves.toEqual({ kind: "posted", ...POSTED });
+  });
+
+  it("takes words exactly 3000 long once escaped", async () => {
+    const { sdk, calls } = makeSdk(() => json(POSTED, 201));
+    const text = `${"@".repeat(1000)}${"x".repeat(1000)}`;
+    await expect(
+      sdk.linkedin.postImage({ image: png(), text }),
+    ).resolves.toEqual({ kind: "posted", ...POSTED });
+    // Sent as written: the gateway does the escaping.
+    expect((calls[0].body as FormData).get("text")).toBe(text);
+  });
+
+  it("says by how much words run over once escaped", () => {
+    expect(checkLinkedInText("  ")).toEqual({ kind: "empty" });
+    expect(checkLinkedInText("Hi #team")).toEqual({ kind: "ok" });
+    expect(checkLinkedInText("(".repeat(1501))).toEqual({
+      kind: "tooLong",
+      over: 2,
+    });
   });
 
   it.each([
@@ -251,15 +275,25 @@ describe("postImage", () => {
     ).resolves.toEqual({ kind: "refused", code: "offline" });
   });
 
-  it("throws on a failure that is not a refusal, and on an unreadable 201", async () => {
+  it("throws on a failure that is not a refusal", async () => {
     const failing = makeSdk(() => json({ error: "boom" }, 500));
     await expect(
       failing.sdk.linkedin.postImage({ image: png(), text: "Hi" }),
     ).rejects.toBeInstanceOf(LinkedInHttpError);
-    const unreadable = makeSdk(() => json({ postUrl: "x" }, 201));
-    await expect(
-      unreadable.sdk.linkedin.postImage({ image: png(), text: "Hi" }),
-    ).rejects.toThrow(/unreadable/);
+  });
+
+  it("takes any 2xx as a post, with no link when its id is unreadable", async () => {
+    const posted = { kind: "posted", postUrn: null, postUrl: null };
+    for (const answer of [
+      () => json({}, 201),
+      () => json({ postUrl: "x" }, 201),
+      () => new Response("", { status: 201 }),
+    ]) {
+      const { sdk } = makeSdk(answer);
+      await expect(
+        sdk.linkedin.postImage({ image: png(), text: "Hi" }),
+      ).resolves.toEqual(posted);
+    }
   });
 
   it("rejects with the abort when the caller aborts", async () => {

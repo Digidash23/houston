@@ -94,49 +94,131 @@ describe("shareDialogReducer", () => {
     );
   });
 
-  it("watches a connect until it ends or the dialog closes", () => {
+  it("ties a connect to its opening and attempt, dropping stale results", () => {
     const watch = { until: 600_000 };
-    const connecting = run({ type: "open" }, { type: "connecting", watch });
-    deepStrictEqual(connecting.watch, watch);
+    const open = run({ type: "open" });
+    const tag = { session: open.session, attempt: 1 };
+    const minting = shareDialogReducer(open, {
+      type: "connecting",
+      ...tag,
+      watch,
+    });
+    deepStrictEqual(minting.connect, { id: 1, minting: true, watch });
+    const waiting = shareDialogReducer(minting, {
+      type: "connectOpened",
+      ...tag,
+    });
+    strictEqual(waiting.connect?.minting, false);
+    // Started over: attempt 2 replaces 1, whose late results change nothing.
+    const restarted = shareDialogReducer(waiting, {
+      type: "connecting",
+      session: open.session,
+      attempt: 2,
+      watch,
+    });
     strictEqual(
-      shareDialogReducer(connecting, { type: "watchEnded" }).watch,
+      shareDialogReducer(restarted, { type: "connectEnded", ...tag }),
+      restarted,
+    );
+    strictEqual(
+      shareDialogReducer(restarted, { type: "connectOpened", ...tag }),
+      restarted,
+    );
+    strictEqual(
+      shareDialogReducer(restarted, {
+        type: "connectEnded",
+        session: open.session,
+        attempt: 2,
+      }).connect,
       null,
     );
-    strictEqual(shareDialogReducer(connecting, { type: "close" }).watch, null);
   });
 
-  it("lands a post in the opening it started in, and never in a later one", () => {
+  it("drops a connect from an earlier opening, and ends it on close", () => {
+    const watch = { until: 600_000 };
+    const first = run(
+      { type: "open" },
+      {
+        type: "connecting",
+        session: 1,
+        attempt: 1,
+        watch,
+      },
+    );
+    strictEqual(shareDialogReducer(first, { type: "close" }).connect, null);
+    const reopened = run(
+      { type: "open" },
+      { type: "connecting", session: 1, attempt: 1, watch },
+      { type: "close" },
+      { type: "open" },
+      { type: "connecting", session: 2, attempt: 2, watch },
+    );
+    const stale = shareDialogReducer(reopened, {
+      type: "connectEnded",
+      session: 1,
+      attempt: 1,
+      line: { kind: "blocked", url: "https://x.test", channel: null },
+    });
+    strictEqual(stale, reopened);
+    // A connect started after the dialog closed lands nowhere.
+    const closed = run({ type: "open" }, { type: "close" });
+    strictEqual(
+      shareDialogReducer(closed, {
+        type: "connecting",
+        session: 1,
+        attempt: 3,
+        watch,
+      }).connect,
+      null,
+    );
+  });
+
+  it("keeps a post going across a reopen, and lands it in the opening on screen", () => {
+    const url = "https://www.linkedin.com/feed/update/urn:li:share:7/";
     const posting = run({ type: "open" }, { type: "posting" });
     strictEqual(posting.posting, true);
-    const url = "https://www.linkedin.com/feed/update/urn:li:share:7/";
-    const posted = shareDialogReducer(posting, {
-      type: "posted",
-      session: posting.session,
-      postUrl: url,
-    });
-    strictEqual(posted.postUrl, url);
-    strictEqual(posted.posting, false);
-    deepStrictEqual(posted.line, { kind: "posted" });
-    const later = run(
+    // Closed and reopened while the post is out: still Posting, never Post.
+    const reopened = run(
       { type: "open" },
       { type: "posting" },
       { type: "close" },
       { type: "open" },
     );
-    strictEqual(
-      shareDialogReducer(later, { type: "posted", session: 1, postUrl: url })
-        .postUrl,
-      null,
-    );
+    strictEqual(reopened.posting, true);
+    const posted = shareDialogReducer(reopened, {
+      type: "posted",
+      postUrl: url,
+    });
+    strictEqual(posted.posting, false);
+    strictEqual(posted.postUrl, url);
+    deepStrictEqual(posted.line, { kind: "posted" });
   });
 
-  it("says why a post was refused, and lets the person try again", () => {
-    const posting = run({ type: "open" }, { type: "posting" });
-    const refused = shareDialogReducer(posting, {
-      type: "postRefused",
-      session: posting.session,
-      line: { kind: "reconnect" },
-    });
+  it("says a post went up while the dialog was closed on the next opening", () => {
+    const url = "https://www.linkedin.com/feed/update/urn:li:share:7/";
+    const closed = run(
+      { type: "open" },
+      { type: "posting" },
+      { type: "close" },
+      { type: "posted", postUrl: url },
+    );
+    strictEqual(closed.posting, false);
+    const next = shareDialogReducer(closed, { type: "open" });
+    strictEqual(next.postUrl, url);
+    deepStrictEqual(next.line, { kind: "posted" });
+    // Said once: the opening after that starts fresh.
+    const after = [{ type: "close" }, { type: "open" }] as const;
+    strictEqual(after.reduce(shareDialogReducer, next).postUrl, null);
+  });
+
+  it("says why a post was refused, in whichever opening is on screen", () => {
+    const refused = run(
+      { type: "open" },
+      { type: "posting" },
+      { type: "close" },
+      { type: "open" },
+      { type: "postRefused", line: { kind: "reconnect" } },
+    );
     strictEqual(refused.posting, false);
     deepStrictEqual(refused.line, { kind: "reconnect" });
     strictEqual(refused.postUrl, null);

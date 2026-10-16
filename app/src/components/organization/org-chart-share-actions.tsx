@@ -1,4 +1,4 @@
-import { isPostableLinkedInText } from "@houston/sdk";
+import { checkLinkedInText } from "@houston/sdk";
 import { Button, cn, Spinner } from "@houston-ai/core";
 import { ExternalLink, Linkedin } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
@@ -28,17 +28,22 @@ export function ShareButton({
 }
 
 const linkedInIcon = <Linkedin className="size-4" />;
+const INLINE_LINK =
+  "rounded-sm font-medium text-ink underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50";
 const spinner = <Spinner aria-hidden />;
 
 /**
  * The dialog's primary button for where it stands (`shareStep`), with what
  * belongs right under it: whose LinkedIn a post goes to (and Disconnect), or
- * that a connect is waiting on the LinkedIn window.
+ * that a connect is waiting on the LinkedIn window (and Start over). The
+ * post's words are checked as the gateway counts them (`checkLinkedInText`);
+ * copy and paste only needs some.
  */
 export function SharePrimary({ share }: { share: Share }) {
   const { t } = useTranslation("teams");
   const { step } = share;
-  const empty = !isPostableLinkedInText(share.text);
+  const words = checkLinkedInText(share.text);
+  const empty = words.kind === "empty";
   const primary = "h-10 w-full";
 
   if (step.kind === "posted")
@@ -54,14 +59,22 @@ export function SharePrimary({ share }: { share: Share }) {
     return (
       <div className="flex flex-col gap-2">
         <ShareButton
-          icon={step.waiting ? spinner : linkedInIcon}
+          icon={step.phase === "idle" ? linkedInIcon : spinner}
           label={t("orgChart.share.connect")}
+          disabled={step.phase !== "idle"}
           className={primary}
           onClick={share.connect}
         />
-        {step.waiting && (
-          <p className="text-xs text-pretty text-ink-muted">
-            {t("orgChart.share.connectWaiting")}
+        {step.phase === "waiting" && (
+          <p className="flex flex-wrap items-center gap-x-1 text-xs text-pretty text-ink-muted">
+            <span>{t("orgChart.share.connectWaiting")}</span>
+            <button
+              type="button"
+              onClick={share.connect}
+              className={INLINE_LINK}
+            >
+              {t("orgChart.share.connectRestart")}
+            </button>
           </p>
         )}
       </div>
@@ -76,10 +89,15 @@ export function SharePrimary({ share }: { share: Share }) {
               ? "orgChart.share.posting"
               : "orgChart.share.postButton",
           )}
-          disabled={step.posting || !share.ready || empty}
+          disabled={step.posting || !share.ready || words.kind !== "ok"}
           className={primary}
           onClick={share.post}
         />
+        {words.kind === "tooLong" && (
+          <p className="text-xs text-pretty text-ink">
+            {t("orgChart.share.tooLong", { count: words.over })}
+          </p>
+        )}
         <p className="flex min-w-0 flex-wrap items-center gap-x-1 text-xs text-ink-muted">
           <span className="min-w-0 truncate">
             {t("orgChart.share.postingAs", { name: step.name })}
@@ -89,7 +107,7 @@ export function SharePrimary({ share }: { share: Share }) {
             type="button"
             disabled={share.disconnecting || step.posting}
             onClick={share.disconnect}
-            className="rounded-sm font-medium text-ink underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50"
+            className={INLINE_LINK}
           >
             {t("orgChart.share.disconnect")}
           </button>

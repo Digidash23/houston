@@ -44,12 +44,12 @@ export interface LinkedInPostInput {
 }
 
 /**
- * A post either went up (`postUrl` is LinkedIn's page for it) or was refused
- * with a typed code. Only an answer that is neither (a 500, an unreadable
- * 201) throws.
+ * A post either went up (`postUrl` is LinkedIn's page for it, `null` when
+ * LinkedIn gave no readable id: it is up all the same) or was refused with a
+ * typed code. Only an answer that is neither (a 500) throws.
  */
 export type LinkedInPostResult =
-  | { kind: "posted"; postUrn: string; postUrl: string }
+  | { kind: "posted"; postUrn: string | null; postUrl: string | null }
   | {
       kind: "refused";
       code: LinkedInRefusalCode;
