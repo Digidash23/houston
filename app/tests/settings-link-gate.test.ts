@@ -139,9 +139,24 @@ describe("handing over a settings link", () => {
     const shell = mount(createHandedLinks(ledger, (e) => reported.push(e)));
     await shell.offerLink(link);
     deepStrictEqual(shell.applied, [channelsWith(ticket)]);
-    deepStrictEqual(reported, []);
+    strictEqual(reported.length, 1);
+    ok(reported[0] instanceof SyntaxError);
     const stored: unknown = JSON.parse(String(ledger.value));
     ok(Array.isArray(stored) && stored.length === 1);
+  });
+
+  it("shows a malformed ticket's error once per app run", async () => {
+    const handed = createHandedLinks(memoryLedger(), () => {});
+    const malformed = "houston://settings/channels?slack=x";
+    const shell = mount(handed);
+    await shell.offerLink(malformed);
+    await shell.offerLink(malformed);
+    const remounted = mount(handed);
+    await remounted.offerLink(malformed);
+    deepStrictEqual(shell.applied, [
+      { kind: "settings", section: "channels", slack: { kind: "invalid" } },
+    ]);
+    deepStrictEqual(remounted.applied, []);
   });
 
   it("ignores a link that is not a channels landing", async () => {

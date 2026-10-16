@@ -7,9 +7,9 @@ import type { SettingsLanding } from "./settings-landing.ts";
  * `houston://settings/channels?slack=<ticket>` again. Redeeming it again asks
  * the gateway for a spent ticket, which it answers with the same 404 it gives a
  * stranger, and after a sign-out it would post one account's ticket as
- * another. A link is therefore handed over once per app run: remembered in
- * memory for this webview, and as a SHA-256 digest (never the ticket) in
- * session storage so a reload remembers it too.
+ * another. A link carrying a completion is therefore handed over once per app
+ * run: remembered in memory for this webview, and as a SHA-256 digest (never
+ * the ticket) in session storage so a reload remembers it too.
  */
 export interface HandedLinks {
   /** True the first time `link` is claimed in this app run, false after. */
@@ -38,7 +38,7 @@ export function createHandedLinks(
       claimed.add(link);
       try {
         const digest = await sha256Hex(link);
-        const seen = ledgerDigests(ledger.read());
+        const seen = ledgerDigests(ledger.read(), report);
         if (seen.includes(digest)) return false;
         ledger.write(JSON.stringify([...seen, digest].slice(-LEDGER_LIMIT)));
       } catch (error) {
@@ -50,13 +50,17 @@ export function createHandedLinks(
   };
 }
 
-function ledgerDigests(raw: string | null): string[] {
+function ledgerDigests(
+  raw: string | null,
+  report: (error: unknown) => void,
+): string[] {
   if (raw === null) return [];
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
-  } catch {
-    // A corrupt ledger is replaced by the next write instead of failing forever.
+  } catch (error) {
+    // Reported, then treated as empty so the next write replaces it.
+    report(error);
     return [];
   }
   return Array.isArray(parsed)
@@ -75,8 +79,10 @@ async function sha256Hex(value: string): Promise<string> {
 }
 
 /**
- * Where a landing came from. A deep link names its text so a replay of it is
- * dropped; the web callback's ticket was stripped from the address bar as it
+ * Where a landing came from. A deep link names its text so a replay of one
+ * carrying a completion is dropped; a bare `houston://settings/channels` spends
+ * nothing and applies on every offer, a remount's replay included, as
+ * `houston://settings/plan` does. The web callback's ticket was stripped from the address bar as it
  * was read, so it can never come back and carries none.
  */
 export type LandingOffer = { landing: SettingsLanding; link: string | null };
@@ -97,8 +103,8 @@ export interface LandingGate {
 
 /**
  * Hold the latest landing until sign-in, the space and capabilities are in,
- * then apply it once. A link already handed over is dropped before anything
- * opens, so a replay does not even pop Settings open.
+ * then apply it once. A completion link already handed over is dropped before
+ * anything opens, so its replay does not even pop Settings open.
  */
 export function createLandingGate(ports: LandingGatePorts): LandingGate {
   let held: LandingOffer | null = null;
