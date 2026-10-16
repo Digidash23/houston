@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
 import { startHydrate } from "./hydrate";
-import { LocalDirStore, type ObjectStore } from "./object-store";
+import {
+  type BatchReadOutcome,
+  LocalDirStore,
+  type ObjectStore,
+} from "./object-store";
 
 const PREFIX = "p";
 
@@ -25,6 +29,22 @@ function unsized(inner: LocalDirStore): ObjectStore {
     download: (k, d, o) => inner.download(k, d, o),
     upload: (s, k, o) => inner.upload(s, k, o),
     delete: (k, o) => inner.delete(k, o),
+  };
+}
+
+/** `unsized`, plus a batch route that inlines every key, so the deferred
+ *  set lands through hydrate-batch.ts. */
+function batched(inner: LocalDirStore): ObjectStore {
+  return {
+    ...unsized(inner),
+    async downloadMany(entries, opts) {
+      const outcomes = new Map<string, BatchReadOutcome>();
+      for (const { key, destFile } of entries) {
+        await inner.download(key, destFile, opts);
+        outcomes.set(key, { status: "ok" });
+      }
+      return outcomes;
+    },
   };
 }
 
@@ -123,5 +143,40 @@ test("without a deferred budget the deferred set gets its own budget of the crit
   await expect(started.deferred).rejects.toMatchObject({
     name: "HydrateLimitError",
     maxBytes: 12,
+  });
+});
+
+test("batched deferred reads count against the deferred budget, not the critical one", async () => {
+  const fits = await startHydrate(
+    batched(
+      store({
+        "state.json": "0123456789",
+        "files/a.bin": "a".repeat(40),
+        "files/b.bin": "b".repeat(40),
+      }),
+    ),
+    PREFIX,
+    mkdtempSync(join(tmpdir(), "d-")),
+    { maxBytes: 12, deferredMaxBytes: 100, defer: later },
+  );
+  await fits.deferred;
+  expect(fits.manifest.has("files/b.bin")).toBe(true);
+
+  const over = await startHydrate(
+    batched(
+      store({
+        "state.json": "0123456789",
+        "files/a.bin": "a".repeat(80),
+        "files/b.bin": "b".repeat(80),
+      }),
+    ),
+    PREFIX,
+    mkdtempSync(join(tmpdir(), "d-")),
+    { maxBytes: 12, deferredMaxBytes: 100, defer: later },
+  );
+  await over.done;
+  await expect(over.deferred).rejects.toMatchObject({
+    name: "HydrateLimitError",
+    maxBytes: 100,
   });
 });
