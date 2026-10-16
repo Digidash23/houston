@@ -3,6 +3,8 @@ import type {
   AttachmentInvocation,
   AttachmentReference,
 } from "./attachment-message";
+import { decodeInteractionAnswersMessage } from "./interaction-answers-message.ts";
+import { UserInteractionAnswersMessage } from "./user-interaction-answers-message.tsx";
 
 export interface UserAttachmentMessageLabels {
   attachmentCount?: (count: number) => string;
@@ -23,9 +25,13 @@ export function UserAttachmentMessage({
   labels,
 }: UserAttachmentMessageProps) {
   const message = invocation.message.trim();
+  // An interaction card's answers sent with files: the answers keep their
+  // receipt, the files their badge.
+  const answers = decodeInteractionAnswersMessage(message);
   return (
     <div className="flex max-w-md flex-col items-end gap-2">
-      {message.length > 0 && (
+      {answers && <UserInteractionAnswersMessage payload={answers} />}
+      {!answers && message.length > 0 && (
         <div className="inline-block max-w-full rounded-2xl bg-chip px-4 py-2.5 text-left text-sm leading-6 text-ink">
           <span className="whitespace-pre-wrap break-words">{message}</span>
         </div>

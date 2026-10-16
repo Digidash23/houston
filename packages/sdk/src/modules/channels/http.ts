@@ -13,12 +13,15 @@
  * error to report.
  */
 
+import type { SlackConnectReturn } from "@houston/wire-types";
 import { type HttpScope, httpRequest } from "../http";
+import { gatewayRefusedLoopback } from "./connect-return";
 import type {
   ChannelLink,
   ChannelStatus,
   SlackAuthorization,
   SlackCompletion,
+  SlackConnectAnswer,
   WhatsAppLink,
 } from "./types";
 
@@ -46,19 +49,40 @@ export async function getChannels(
  * Begin the Slack OAuth install for the active space. Returns Slack's own
  * hosted authorization `{url}`, which the person's browser opens; nothing is
  * bound until they come back and the ticket is redeemed by completeSlack.
+ * @param returnTo Omit it to return to the web app. `app` returns through the
+ *   `houston://` deep link into an installed app; `loopback` redirects to the
+ *   desktop shell's listener on `127.0.0.1:<port>`, which waits for `state`.
+ *   Either way the ticket reaches the app that will redeem it. When the
+ *   gateway refuses `loopback`, the connect asks once more for `app`;
+ *   `accepted` says which return the answer's URL leads back to.
  * @assistant group:channels
  * @assistant hidden: answers with an authorization URL that only the person's own browser may open, and whoever finishes in Slack is who the connection would be offered to.
  */
 export async function connectSlack(
   scope: HttpScope,
+  returnTo?: SlackConnectReturn,
   signal?: AbortSignal,
-): Promise<SlackAuthorization> {
-  const res = await httpRequest(scope, "/v1/channels/slack/connect", {
-    method: "POST",
-    body: JSON.stringify({}),
-    signal,
-  });
-  return (await res.json()) as SlackAuthorization;
+): Promise<SlackConnectAnswer> {
+  let res: Response;
+  try {
+    res = await httpRequest(scope, "/v1/channels/slack/connect", {
+      method: "POST",
+      // Absent fields drop out of the JSON: a web connect sends `{}`, an app
+      // one `{"return":"app"}`, in the key order the wire tests pin.
+      body: JSON.stringify({
+        return: returnTo?.kind,
+        port: returnTo?.port,
+        state: returnTo?.state,
+      }),
+      signal,
+    });
+  } catch (error) {
+    if (!gatewayRefusedLoopback(returnTo, error, signal)) throw error;
+    // Exactly once: the retry names `app`, which never matches again.
+    return connectSlack(scope, { kind: "app" }, signal);
+  }
+  const { url } = (await res.json()) as SlackAuthorization;
+  return { url, accepted: returnTo?.kind ?? null };
 }
 
 /**

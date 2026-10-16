@@ -31,36 +31,39 @@ describe("why a Slack connection did not happen", () => {
 });
 
 describe("taking the queued completion", () => {
-  const take = (
-    latch: { current: boolean },
-    queue: { value: SlackCompletion | null },
-  ) =>
+  const take = (queue: { value: SlackCompletion | null }) =>
     takeSlackCompletion(
-      latch,
       () => queue.value,
       () => {
         queue.value = null;
       },
     );
 
-  it("waits for the landing instead of closing over an empty queue", () => {
-    const latch = { current: false };
+  it("takes nothing from an empty queue and leaves the next take free", () => {
     const queue: { value: SlackCompletion | null } = { value: null };
-    // The section mounted before the landing queued anything: taking nothing
-    // must not spend the one take there is.
-    strictEqual(take(latch, queue), null);
+    strictEqual(take(queue), null);
     queue.value = { kind: "ticket", ticket };
-    deepStrictEqual(take(latch, queue), { kind: "ticket", ticket });
+    deepStrictEqual(take(queue), { kind: "ticket", ticket });
   });
 
-  it("hands the ticket over exactly once and clears it", () => {
-    const latch = { current: false };
+  it("hands one queued ticket over once and clears it", () => {
     const queue: { value: SlackCompletion | null } = {
       value: { kind: "ticket", ticket },
     };
-    deepStrictEqual(take(latch, queue), { kind: "ticket", ticket });
+    deepStrictEqual(take(queue), { kind: "ticket", ticket });
     strictEqual(queue.value, null);
-    queue.value = { kind: "ticket", ticket };
-    strictEqual(take(latch, queue), null);
+    strictEqual(take(queue), null);
+  });
+
+  it("takes a new ticket from a later connect while the section stays mounted", () => {
+    const queue: { value: SlackCompletion | null } = {
+      value: { kind: "ticket", ticket },
+    };
+    deepStrictEqual(take(queue), { kind: "ticket", ticket });
+    queue.value = { kind: "ticket", ticket: "Second-ticket_42" };
+    deepStrictEqual(take(queue), {
+      kind: "ticket",
+      ticket: "Second-ticket_42",
+    });
   });
 });

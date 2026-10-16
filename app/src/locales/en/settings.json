@@ -286,7 +286,14 @@
       "alreadyAdded": "Already added Houston to Slack?",
       "linkInstructions": "Open your direct message with Houston in Slack and send this command.",
       "commandLabel": "Slack connection command",
-      "notConfigured": "Slack connections are not ready for this Houston space. Ask your Houston administrator to finish setting up Slack, then refresh."
+      "notConfigured": "Slack connections are not ready for this Houston space. Ask your Houston administrator to finish setting up Slack, then refresh.",
+      "returnPage": {
+        "returnHeading": "Return to Houston",
+        "returnBody": "Houston is finishing your Slack connection. You can close this tab.",
+        "openHouston": "Open Houston",
+        "staleHeading": "This Slack link has expired",
+        "staleBody": "It came from an earlier attempt to connect Slack. You can close this tab and connect Slack again from Houston."
+      }
     },
     "whatsapp": {
       "description": "Message Houston on WhatsApp.",

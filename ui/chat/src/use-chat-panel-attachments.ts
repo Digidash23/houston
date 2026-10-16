@@ -1,15 +1,14 @@
-import { TooManyAttachmentFilesError } from "@houston-ai/core";
 import { useCallback } from "react";
 import type { ChatPanelProps } from "./chat-panel-types";
 import type { MessageMention } from "./types";
-import {
-  DEFAULT_TOO_MANY_FILES_NOTICE,
-  useAttachmentIntake,
-} from "./use-attachment-intake";
-import { useControllable, useFileDropZone } from "./use-file-drop-zone";
+import { ingestAttachments } from "./use-attachment-intake";
+import { useDropErrorNotice } from "./use-drop-error-notice";
+import { useFileDropZone } from "./use-file-drop-zone";
+import { useSessionFiles } from "./use-session-files";
 
 type AttachmentOptions = Pick<
   ChatPanelProps,
+  | "sessionKey"
   | "onSend"
   | "attachments"
   | "onAttachmentsChange"
@@ -22,9 +21,11 @@ type AttachmentOptions = Pick<
 /**
  * ChatPanel's attachments. They live at panel level so the ENTIRE panel is a
  * drop target, not just the composer. Controlled props are forwarded;
- * otherwise the files are managed here and cleared after a send.
+ * otherwise the files are kept per conversation (`useSessionFiles`) and the
+ * sent ones removed after a send.
  */
 export function useChatPanelAttachments({
+  sessionKey,
   onSend,
   attachments,
   onAttachmentsChange,
@@ -33,50 +34,63 @@ export function useChatPanelAttachments({
   onNotice,
   composerLabels,
 }: AttachmentOptions) {
-  const [files, setFiles] = useControllable<File[]>(
+  const { files, setFiles, releaseFiles, ingestInto } = useSessionFiles(
+    sessionKey,
     attachments,
     onAttachmentsChange,
-    [],
   );
-  const isFilesControlled = attachments !== undefined;
-  const addDroppedFiles = useAttachmentIntake({
-    files,
-    setFiles,
-    prepareAttachments,
-    onAttachmentRejections,
-    onNotice,
-    duplicateNotice: composerLabels?.fileAlreadyInChat,
-    tooManyNotice: composerLabels?.tooManyFiles,
-  });
-  const tooManyFilesNotice = composerLabels?.tooManyFiles;
-  const folderReadFailedNotice = composerLabels?.folderReadFailed;
-  const onDropError = useCallback(
-    (error: unknown) => {
-      // No notice channel → rethrow: the failure surfaces as an unhandled
-      // rejection (Sentry) instead of being silently swallowed.
-      if (!onNotice) throw error;
-      onNotice(
-        error instanceof TooManyAttachmentFilesError
-          ? (tooManyFilesNotice ?? DEFAULT_TOO_MANY_FILES_NOTICE)
-          : (folderReadFailedNotice ??
-              "Couldn't read the dropped folder. Try the attach button instead."),
-      );
-    },
-    [onNotice, tooManyFilesNotice, folderReadFailedNotice],
+  const duplicateNotice = composerLabels?.fileAlreadyInChat;
+  const tooManyNotice = composerLabels?.tooManyFiles;
+  // Bound to this render's conversation and its file rules, its list read
+  // when it runs: a drop resolves after its read, possibly once the panel
+  // shows another conversation or the drop target that caught it is gone.
+  const addDroppedFiles = useCallback(
+    (incoming: File[]) =>
+      ingestInto(sessionKey, (current, write) =>
+        ingestAttachments(
+          {
+            prepareAttachments,
+            onAttachmentRejections,
+            onNotice,
+            duplicateNotice,
+            tooManyNotice,
+            files: current,
+            setFiles: write,
+          },
+          incoming,
+        ),
+      ),
+    [
+      ingestInto,
+      sessionKey,
+      prepareAttachments,
+      onAttachmentRejections,
+      onNotice,
+      duplicateNotice,
+      tooManyNotice,
+    ],
   );
+  const onDropError = useDropErrorNotice(onNotice, composerLabels);
   const { isDraggingOver, dropProps } = useFileDropZone(
     addDroppedFiles,
     onDropError,
   );
 
-  // In controlled mode the parent is responsible for clearing.
   const handleSend = useCallback(
     async (text: string, sent: File[], mentions: MessageMention[]) => {
       await onSend(text, sent, mentions);
-      if (!isFilesControlled) setFiles([]);
+      releaseFiles(sent);
     },
-    [onSend, isFilesControlled, setFiles],
+    [onSend, releaseFiles],
   );
 
-  return { files, setFiles, handleSend, isDraggingOver, dropProps };
+  return {
+    files,
+    setFiles,
+    releaseFiles,
+    addDroppedFiles,
+    handleSend,
+    isDraggingOver,
+    dropProps,
+  };
 }

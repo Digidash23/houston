@@ -513,3 +513,16 @@ test("a hands-on errand is a BLOCKING step, void once the user closes the missio
     }),
   ).toEqual({ kind: "clear" });
 });
+
+test("a question step's wantsFiles flag is optional and must be a boolean", () => {
+  const question = { kind: "question", id: "q1", question: "Send the logo?" };
+  // Persisted before the flag existed: still a valid question.
+  expect(isInteractionStep(question)).toBe(true);
+  expect(isInteractionStep({ ...question, wantsFiles: true })).toBe(true);
+  expect(isInteractionStep({ ...question, wantsFiles: false })).toBe(true);
+  expect(isInteractionStep({ ...question, wantsFiles: "yes" })).toBe(false);
+  // Kept verbatim through the parse, so the card can read it.
+  expect(
+    parsePendingInteraction({ steps: [{ ...question, wantsFiles: true }] }),
+  ).toEqual({ steps: [{ ...question, wantsFiles: true }] });
+});

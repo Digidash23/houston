@@ -35,6 +35,7 @@ export const isInteractionStep = (v: unknown): v is InteractionStep => {
       typeof v.question === "string" &&
       (v.detail === undefined || typeof v.detail === "string") &&
       (v.toolkit === undefined || typeof v.toolkit === "string") &&
+      (v.wantsFiles === undefined || typeof v.wantsFiles === "boolean") &&
       (v.requestId === undefined || typeof v.requestId === "string")
     );
   if (v.kind === "signin")
