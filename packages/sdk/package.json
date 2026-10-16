@@ -27,6 +27,10 @@
       "types": "./src/job-description.ts",
       "import": "./src/job-description.ts"
     },
+    "./org/chart-share-failure": {
+      "types": "./src/modules/org/chart-share-failure.ts",
+      "import": "./src/modules/org/chart-share-failure.ts"
+    },
     "./first-day": {
       "types": "./src/first-day.ts",
       "import": "./src/first-day.ts"

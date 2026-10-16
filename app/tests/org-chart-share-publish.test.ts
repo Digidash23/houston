@@ -4,6 +4,7 @@ import type {
   OrgChartShareInput,
   OrgChartShareResult,
 } from "@houston/engine-adapter";
+import { OrgChartShareFailure } from "@houston/sdk/org/chart-share-failure";
 import {
   createSharePublisher,
   linkedInAction,
@@ -42,6 +43,7 @@ function harness(
   const states: SharePublish["status"][] = [];
   const sent: OrgChartShareInput[] = [];
   const reports: string[] = [];
+  const errors: unknown[] = [];
   let last: SharePublish = { status: "idle" };
   const publisher = createSharePublisher(
     {
@@ -49,7 +51,10 @@ function harness(
         sent.push(input);
         return answer(input) as Promise<OrgChartShareResult>;
       },
-      report: (command) => reports.push(command),
+      report: (command, error) => {
+        reports.push(command);
+        errors.push(error);
+      },
       cardDeadlineMs,
     },
     (state) => {
@@ -57,7 +62,7 @@ function harness(
       states.push(state.status);
     },
   );
-  return { publisher, states, sent, reports, last: () => last };
+  return { publisher, states, sent, reports, errors, last: () => last };
 }
 
 const job = (image: File, card = async () => CARD): SharePublishJob => ({
@@ -192,6 +197,25 @@ describe("the share dialog's publish", () => {
     await settle();
     strictEqual(broken.last().status, "failed");
     deepStrictEqual(broken.reports, ["org_chart_share_publish"]);
+  });
+
+  it("reports the card and the title a failed retry got past, beside the failure itself", async () => {
+    const cause = new Error("500");
+    const h = harness(async () => {
+      throw new OrgChartShareFailure(cause, {
+        previewRefused: "invalid_preview_size",
+        titleRefused: true,
+      });
+    });
+    h.publisher.start(job(png()));
+    await settle();
+    strictEqual(h.last().status, "failed");
+    deepStrictEqual(h.reports, [
+      "org_chart_share_card",
+      "org_chart_share_publish",
+      "org_chart_share_publish",
+    ]);
+    strictEqual(h.errors[2], cause);
   });
 
   it("is ready with a page the gateway took without its card, and reports the card once", async () => {

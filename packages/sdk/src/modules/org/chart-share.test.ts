@@ -4,6 +4,7 @@ import { HoustonSdk } from "../../sdk";
 import { memoryKv } from "../../test-ports";
 import { ORG_CHART_SHARE_FALLBACK_TITLE } from "./chart-share";
 import { ORG_CHART_SHARE_DEADLINE_MS } from "./chart-share-deadline";
+import { OrgChartShareFailure } from "./chart-share-failure";
 
 const BASE = "http://127.0.0.1:4317";
 const ID = "AbCdEfGhIjKlMnOpQrSt_-";
@@ -313,6 +314,73 @@ describe("publishOrgChartShare", () => {
       retryAfterMs: 30_000,
       previewRefused: "invalid_preview_size",
     });
+  });
+
+  it("carries the card's refusal on a retry that fails outright", async () => {
+    const answers = [
+      json({ error: "invalid_preview_size" }, 400),
+      json({ error: "boom" }, 500),
+    ];
+    const { sdk } = makeSdk(() => answers.shift() ?? json({}, 500));
+    const failed = await sdk.org
+      .publishOrgChartShare({ image: png(), preview: png(5), title: "Acme" })
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
+    expect(failed).toBeInstanceOf(OrgChartShareFailure);
+    const failure = failed as OrgChartShareFailure;
+    expect(failure.detours).toEqual({ previewRefused: "invalid_preview_size" });
+    expect(failure.cause).toMatchObject({ status: 500 });
+    expect(failure).not.toHaveProperty("status");
+  });
+
+  it("carries the title's refusal on a retry that fails outright", async () => {
+    const answers = [
+      json({ error: "invalid_title" }, 400),
+      json({ error: "boom" }, 500),
+    ];
+    const { sdk } = makeSdk(() => answers.shift() ?? json({}, 500));
+    const failed = await sdk.org
+      .publishOrgChartShare({ image: png(), title: "Acme" })
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
+    expect(failed).toBeInstanceOf(OrgChartShareFailure);
+    expect((failed as OrgChartShareFailure).detours).toEqual({
+      titleRefused: true,
+    });
+  });
+
+  it("throws a failure as itself when nothing was got past", async () => {
+    const { sdk } = makeSdk(() => json({ error: "boom" }, 500));
+    const failed = await sdk.org
+      .publishOrgChartShare({ image: png(), title: "Acme" })
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
+    expect(failed).not.toBeInstanceOf(OrgChartShareFailure);
+    expect(failed).toMatchObject({ status: 500 });
+  });
+
+  it("keeps an oversized card's drop when the chart itself is refused too_large", async () => {
+    const { sdk, calls } = makeSdk(() =>
+      json({ error: "image_too_large" }, 413),
+    );
+    await expect(
+      sdk.org.publishOrgChartShare({
+        image: png(),
+        preview: png(2 * 1024 * 1024 + 1),
+        title: "Acme",
+      }),
+    ).resolves.toEqual({
+      kind: "refused",
+      code: "too_large",
+      previewRefused: "too_large",
+    });
+    expect(calls).toHaveLength(1);
   });
 
   it("drops the card, then the title, at most three attempts in all", async () => {

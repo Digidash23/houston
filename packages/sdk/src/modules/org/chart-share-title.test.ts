@@ -96,6 +96,55 @@ const FOUND_REFUSED: Record<string, string> = {
   "lone surrogate": "Acme \ud83d",
 };
 
+/**
+ * What each refused vector cleans into: visible text survives, and only a
+ * title with nothing left falls back to `ORG_CHART_SHARE_FALLBACK_TITLE`.
+ */
+const CLEANED: Record<string, string> = {
+  "blank title": ORG_CHART_SHARE_FALLBACK_TITLE,
+  "long title": "\u00e9".repeat(120),
+  "control char title": "ab",
+  "bidi override title": "ab",
+  "zero-width title": "ab",
+  "joiner run title": "Acme",
+  "joiner-only title": ORG_CHART_SHARE_FALLBACK_TITLE,
+  "doubled joiner title": "a\u200Db",
+  "leading joiner title": "Acme",
+  "non-joiner run title": "Acme",
+  "joiner beside a space title": "a b",
+  "joiner before a mark title": "a\u0301",
+  "joiner mark chain title": "a\u0301\u0301",
+  "joiner virama chain title": "\u09B0\u200D\u09CD\u09CD",
+  "stray tag character": "ab",
+  "tags without a flag": "a",
+  "flag tags never cancelled": "\u{1F3F4}",
+  "flag with too few tags": "\u{1F3F4}",
+  "flag with too many tags": "\u{1F3F4}",
+  "flag with an uppercase tag": "\u{1F3F4}",
+  "tag after a complete flag": ENGLAND,
+  "language tag": "ab",
+  "other subdivision flag": "\u{1F3F4}",
+  "flag tags prefix of a recommended one": "\u{1F3F4}",
+  "smuggled variation selectors": "Acme\uFE0F",
+  "supplementary variation selector": "Acme",
+  "variation selector 1": "Acme",
+  "mongolian variation selector": "Acme",
+  "emoji selector leading": "Acme",
+  "emoji selector after a space": "Acme x",
+  "emoji selector after a mark": "e\u0301",
+  "emoji selector after a joiner": "a\uFE0F",
+  "text and emoji selectors stacked": "\u2764\uFE0E",
+  "combining grapheme joiner": "ab",
+  "hangul filler": "ab",
+  "halfwidth hangul filler": "ab",
+  "trailing joiner": "Acme",
+  "joiner after a space": "Acme",
+  "selector after a combining mark": "Cafe\u0301",
+  "selector after a subdivision flag": `Acme ${ENGLAND}`,
+  "cut leaving a trailing joiner": `${"a".repeat(119)}\u{1F468}`,
+  "lone surrogate": "Acme \uFFFD",
+};
+
 describe("isAcceptedOrgChartShareTitle", () => {
   it.each(Object.entries(GATEWAY_REFUSED))("refuses %s", (_, title) => {
     expect(isAcceptedOrgChartShareTitle(title)).toBe(false);
@@ -119,8 +168,16 @@ describe("isAcceptedOrgChartShareTitle", () => {
 describe("orgChartShareTitle", () => {
   it.each(
     Object.entries({ ...GATEWAY_REFUSED, ...FOUND_REFUSED }),
-  )("cleans %s into a title the gateway accepts", (_, title) => {
-    expect(isAcceptedOrgChartShareTitle(orgChartShareTitle(title))).toBe(true);
+  )("cleans %s into the title it pins, which the gateway accepts", (name, title) => {
+    const cleaned = orgChartShareTitle(title);
+    expect(cleaned).toBe(CLEANED[name]);
+    expect(isAcceptedOrgChartShareTitle(cleaned)).toBe(true);
+  });
+
+  it("pins a cleaned title for every refused vector", () => {
+    expect(Object.keys(CLEANED).sort()).toEqual(
+      Object.keys({ ...GATEWAY_REFUSED, ...FOUND_REFUSED }).sort(),
+    );
   });
 
   it.each(

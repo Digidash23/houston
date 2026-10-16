@@ -46,7 +46,7 @@ const COPIED_MS = 2000;
 export function useOrgChartShare(tree: OrgTree, phone: boolean) {
   const { t } = useTranslation("teams");
   const { current, preview, file, retry } = useShareCardImage(tree);
-  const [gate] = useState(() => createLinkedInGate(Date.now));
+  const [gate] = useState(() => createLinkedInGate(() => performance.now()));
   const [state, dispatch] = useReducer(
     shareDialogReducer,
     INITIAL_SHARE_DIALOG,

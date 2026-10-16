@@ -58,6 +58,7 @@ export {
   type OrgChartShareInput,
   type OrgChartShareResult,
 } from "./chart-share";
+export { OrgChartShareFailure } from "./chart-share-failure";
 export { OrgHttpError } from "./http";
 export type {
   AddOrgMemberResult,
@@ -105,7 +106,8 @@ export interface OrgModule {
    * dropped and the page goes up without it (`previewRefused`); a title it
    * refuses is replaced by `ORG_CHART_SHARE_FALLBACK_TITLE`
    * (`titleRefused`). Both ride on a refusal too, when a retry was refused
-   * for another reason. An abort through `input.signal` rejects with the
+   * for another reason, and on an `OrgChartShareFailure` when a retry
+   * failed outright. An abort through `input.signal` rejects with the
    * signal's reason.
    */
   publishOrgChartShare(input: OrgChartShareInput): Promise<OrgChartShareResult>;

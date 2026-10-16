@@ -94,6 +94,7 @@ export {
   type ComputeUsage,
   type ComputeUsageRow,
   ORG_ROLES,
+  OrgChartShareFailure,
   type OrgChartShareInput,
   type OrgChartShareResult,
   OrgCommand,

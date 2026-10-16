@@ -8,6 +8,7 @@ import {
   orgChartShareUpload,
   publishOrgChartShare,
 } from "./chart-share";
+import { OrgChartShareFailure } from "./chart-share-failure";
 import {
   ORG_CHART_SHARE_FALLBACK_TITLE,
   orgChartShareTitle,
@@ -33,15 +34,16 @@ export const ORG_CHART_SHARE_DEADLINE_MS = 60_000;
  * Each kind of retry happens once, so a publish makes at most three
  * attempts. Every attempt spends one of the person's gateway upload slots
  * (30 an hour, C25): a refused card costs two. What each retry got past is
- * written into `detours` as it happens, so an answer that comes later (a
- * refusal, the deadline) still carries it.
+ * written into `progress` as it happens, so an answer that comes later (a
+ * refusal, a failure, the deadline) still carries it.
  */
 async function publishWithRetries(
   scope: HttpScope,
   input: OrgChartShareInput,
   signal: AbortSignal,
-  detours: OrgChartShareDetours,
+  progress: Progress,
 ): Promise<OrgChartShareResult> {
+  const { detours } = progress;
   const card = input.preview;
   let preview = card && fitsPreviewCap(card) ? card : undefined;
   if (card && !preview) detours.previewRefused = "too_large";
@@ -53,6 +55,7 @@ async function publishWithRetries(
     if (answer.kind !== "refused") return answer;
     if (preview && mayBePreviewRefusal(answer.code)) {
       detours.previewRefused ??= answer.code;
+      progress.cardRetried = true;
       preview = undefined;
     } else if (
       answer.code === "invalid_title" &&
@@ -67,18 +70,33 @@ async function publishWithRetries(
   }
 }
 
+/** What a publish got past so far, and how. */
+interface Progress {
+  detours: OrgChartShareDetours;
+  /**
+   * The gateway refused a card that was sent, and an attempt went without
+   * it. Unset when the card was only dropped for being over the cap: the
+   * gateway never saw it, so its refusal says nothing about the card.
+   */
+  cardRetried?: true;
+}
+
 /**
  * `result` with what the publish got past, unless its own refusal is that
- * same one: then the retry showed the card or the title was not the
- * problem, and the refusal is the whole answer.
+ * same one on a retry made without the card or under the fallback title:
+ * then the card or the title was not the problem, and the refusal is the
+ * whole answer.
  */
 function withDetours(
   result: OrgChartShareResult,
-  detours: OrgChartShareDetours,
+  { detours, cardRetried }: Progress,
 ): OrgChartShareResult {
   const code = result.kind === "refused" ? result.code : null;
   const out = { ...result };
-  if (detours.previewRefused && detours.previewRefused !== code)
+  if (
+    detours.previewRefused &&
+    !(cardRetried && detours.previewRefused === code)
+  )
     out.previewRefused = detours.previewRefused;
   if (detours.titleRefused && code !== "invalid_title") out.titleRefused = true;
   return out;
@@ -90,7 +108,8 @@ function withDetours(
  * {@link ORG_CHART_SHARE_DEADLINE_MS} and the caller's `signal`. The
  * caller's abort rejects with its reason as soon as it fires, without waiting
  * for the transport to notice (a token refresh in flight need not read the
- * signal).
+ * signal). Any other failure after a refused card or title rejects with an
+ * {@link OrgChartShareFailure} carrying those refusals.
  */
 export function publishChartShare(
   scope: HttpScope,
@@ -100,7 +119,7 @@ export function publishChartShare(
   if (signal?.aborted) return Promise.reject(signal.reason);
   const { clock } = scope.ports;
   const request = new AbortController();
-  const detours: OrgChartShareDetours = {};
+  const progress: Progress = { detours: {} };
   return new Promise<OrgChartShareResult>((resolve, reject) => {
     let open = true;
     const settle = (finish: () => void) => {
@@ -121,14 +140,22 @@ export function publishChartShare(
           request.abort(
             new DOMException("org chart share timed out", "TimeoutError"),
           );
-          resolve(withDetours({ kind: "refused", code: "timed_out" }, detours));
+          resolve(
+            withDetours({ kind: "refused", code: "timed_out" }, progress),
+          );
         }),
       ORG_CHART_SHARE_DEADLINE_MS,
     );
     signal?.addEventListener("abort", onAbort, { once: true });
-    publishWithRetries(scope, input, request.signal, detours).then(
-      (result) => settle(() => resolve(withDetours(result, detours))),
-      (error: unknown) => settle(() => reject(error)),
+    publishWithRetries(scope, input, request.signal, progress).then(
+      (result) => settle(() => resolve(withDetours(result, progress))),
+      (error: unknown) => settle(() => reject(failure(error, progress))),
     );
   });
+}
+
+/** `error`, carrying what the publish got past when there is any. */
+function failure(error: unknown, { detours }: Progress): unknown {
+  if (!detours.previewRefused && !detours.titleRefused) return error;
+  return new OrgChartShareFailure(error, { ...detours });
 }

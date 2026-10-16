@@ -2,6 +2,10 @@ import type {
   OrgChartShareInput,
   OrgChartShareResult,
 } from "@houston/engine-adapter";
+import {
+  type OrgChartShareDetours,
+  OrgChartShareFailure,
+} from "@houston/sdk/org/chart-share-failure";
 import { isExpectedOrgChartShareRefusal } from "@houston/wire-types";
 
 /**
@@ -79,15 +83,16 @@ function drawCard(
 
 /**
  * What the publish got past (a card or a title the gateway refused), each
- * reported once whatever the answer: the client drew or wrote it wrong.
+ * reported once whatever the answer, a failure included: the client drew or
+ * wrote it wrong.
  */
-function reportDetours(deps: SharePublishDeps, result: OrgChartShareResult) {
-  if (result.previewRefused)
+function reportDetours(deps: SharePublishDeps, detours: OrgChartShareDetours) {
+  if (detours.previewRefused)
     deps.report(
       "org_chart_share_card",
-      new Error(`link card refused: ${result.previewRefused}`),
+      new Error(`link card refused: ${detours.previewRefused}`),
     );
-  if (result.titleRefused)
+  if (detours.titleRefused)
     deps.report(
       "org_chart_share_publish",
       new Error("org chart share title refused: invalid_title"),
@@ -123,7 +128,11 @@ export async function publishPage(
         new Error(`org chart share refused: ${result.code}`),
       );
   } catch (error) {
-    if (!signal.aborted) deps.report("org_chart_share_publish", error);
+    if (signal.aborted) return null;
+    if (error instanceof OrgChartShareFailure) {
+      reportDetours(deps, error.detours);
+      deps.report("org_chart_share_publish", error.cause);
+    } else deps.report("org_chart_share_publish", error);
   }
   return null;
 }
