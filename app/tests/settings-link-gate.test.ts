@@ -115,6 +115,35 @@ describe("handing over a settings link", () => {
     deepStrictEqual(claims, []);
   });
 
+  it("opens Channels every time the bare failure-page link is clicked", async () => {
+    const handed = createHandedLinks(memoryLedger(), () => {});
+    const bare = "houston://settings/channels";
+    const shell = mount(handed);
+    await shell.offerLink(bare);
+    await shell.offerLink(bare);
+    const remounted = mount(handed);
+    await remounted.offerLink(bare);
+    const channels: SettingsLanding = {
+      kind: "settings",
+      section: "channels",
+      slack: null,
+    };
+    deepStrictEqual(shell.applied, [channels, channels]);
+    deepStrictEqual(remounted.applied, [channels]);
+  });
+
+  it("replaces a corrupt ledger instead of failing every claim", async () => {
+    const ledger = memoryLedger();
+    ledger.value = "{not json";
+    const reported: unknown[] = [];
+    const shell = mount(createHandedLinks(ledger, (e) => reported.push(e)));
+    await shell.offerLink(link);
+    deepStrictEqual(shell.applied, [channelsWith(ticket)]);
+    deepStrictEqual(reported, []);
+    const stored: unknown = JSON.parse(String(ledger.value));
+    ok(Array.isArray(stored) && stored.length === 1);
+  });
+
   it("ignores a link that is not a channels landing", async () => {
     const shell = mount(createHandedLinks(memoryLedger(), () => {}));
     await shell.offerLink("houston://settings/plan");

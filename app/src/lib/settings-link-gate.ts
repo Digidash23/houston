@@ -52,7 +52,13 @@ export function createHandedLinks(
 
 function ledgerDigests(raw: string | null): string[] {
   if (raw === null) return [];
-  const parsed: unknown = JSON.parse(raw);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    // A corrupt ledger is replaced by the next write instead of failing forever.
+    return [];
+  }
   return Array.isArray(parsed)
     ? parsed.filter((value): value is string => typeof value === "string")
     : [];
@@ -98,8 +104,12 @@ export function createLandingGate(ports: LandingGatePorts): LandingGate {
   let held: LandingOffer | null = null;
   const deliver = async ({ landing, link }: LandingOffer) => {
     try {
-      if (link === null || (await ports.handed.claim(link)))
-        ports.apply(landing);
+      // Only a link carrying a completion is spent by applying it. A bare
+      // `houston://settings/channels` (the gateway's failure page) must open
+      // Channels every time it is clicked.
+      const spends =
+        link !== null && landing.kind === "settings" && landing.slack !== null;
+      if (!spends || (await ports.handed.claim(link))) ports.apply(landing);
     } catch (error) {
       ports.report(error);
     }
