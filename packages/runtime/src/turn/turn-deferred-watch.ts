@@ -1,3 +1,4 @@
+import { HydrateLimitError } from "@houston/runtime-client/object-sync";
 import { turnHydrationError } from "./turn-hydration-error";
 
 /** Why the deferred set stopped when the prompt no longer needed it. */
@@ -46,8 +47,16 @@ export function watchDeferredFiles(
         throw error;
       }
       if (timings) timings.t_deferred_failed = performance.now();
-      const detail = error instanceof Error ? error.message : String(error);
-      console.error(`[turn] deferred_files_failed cause=${detail}`);
+      if (error instanceof HydrateLimitError) {
+        // The person's files outgrew the budget: true on every send until
+        // they shrink, so it is logged with its size, not reported as a fault.
+        console.info(
+          `[turn] deferred_files_over_budget listed=${error.observedBytes} max=${error.maxBytes}`,
+        );
+      } else {
+        const detail = error instanceof Error ? error.message : String(error);
+        console.error(`[turn] deferred_files_failed cause=${detail}`);
+      }
       throw turnHydrationError(error);
     },
   );

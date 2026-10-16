@@ -13,6 +13,7 @@ import {
   CLAIMED_TURN_EXCLUDES,
   startTurnRequestFilesystem,
 } from "./turn-claimed-hydration";
+import { deferredWorkspaceFile } from "./turn-deferred-rule";
 import { startTurnFilesystem, syncTurnFilesystem } from "./turn-filesystem";
 
 const MiB = 1024 * 1024;
@@ -101,17 +102,23 @@ test("the store sync, a pooled turn and a settings op share the package-store li
   expect(STORE_ROOT_PACKAGE_EXCLUDES).toEqual([".pnpm-store/"]);
 });
 
-test("the listed store is over the cap with its package store", async () => {
+test("the package store counts toward the startup cap; the agent's own files do not", async () => {
   const { store } = listedStore();
+  // Startup set: the package store and .houston, 1,191 MiB. The agent's own
+  // files (1,588 MiB) load behind the prompt on their own budget.
   await expect(
     startTurnFilesystem({
       store,
       prefix: PREFIX,
       root: mkdtempSync(join(tmpdir(), "pkg-root-")),
       claimed: true,
-      defer: (rel) => rel.split("/").length > 4,
+      maxBytes: 1024 * MiB,
+      defer: deferredWorkspaceFile,
     }),
-  ).rejects.toMatchObject({ code: "hydrate_over_cap" });
+  ).rejects.toMatchObject({
+    code: "hydrate_over_cap",
+    message: expect.stringContaining("1024 MiB"),
+  });
 });
 
 test("a pooled turn hydrates the listed store without its package store", async () => {

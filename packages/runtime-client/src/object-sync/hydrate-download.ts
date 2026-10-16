@@ -13,19 +13,25 @@ export interface HydrateEntry {
 }
 
 export interface HydrateDownloadState {
-  total: number;
   failed: boolean;
   firstError?: unknown;
   fail: (error: unknown) => void;
 }
 
-/** Download one hydration batch while sharing the cap and failure latch. */
+/** Landed bytes counted against one cap. A deferring hydration keeps one for
+ *  the critical set and one for the deferred files (hydrate.ts). */
+export interface HydrateBudget {
+  landed: number;
+  readonly maxBytes: number;
+}
+
+/** Download one hydration batch while sharing a budget and the failure latch. */
 export async function downloadHydrationEntries(opts: {
   store: Pick<ObjectStore, "download" | "downloadMany">;
   destDir: string;
   entries: HydrateEntry[];
   manifest: HydrateManifest;
-  maxBytes: number;
+  budget: HydrateBudget;
   concurrency: number;
   state: HydrateDownloadState;
   /** Keep the board's bytes as its merge base (worker stores only). */
@@ -44,7 +50,7 @@ export async function downloadHydrationEntries(opts: {
       : opts.entries;
   let next = 0;
   const worker = async () => {
-    while (!opts.state.failed && opts.state.total <= opts.maxBytes) {
+    while (!opts.state.failed && opts.budget.landed <= opts.budget.maxBytes) {
       const entry = entries[next++];
       if (!entry) return;
       const { generation, key, rel } = entry;
@@ -59,9 +65,9 @@ export async function downloadHydrationEntries(opts: {
           continue;
         }
         const { size } = await stat(dest);
-        opts.state.total += size;
-        if (opts.state.total > opts.maxBytes) {
-          throw opts.limitError(opts.state.total);
+        opts.budget.landed += size;
+        if (opts.budget.landed > opts.budget.maxBytes) {
+          throw opts.limitError(opts.budget.landed);
         }
         opts.manifest.set(rel, {
           hash: await fileSha256(dest, size),
