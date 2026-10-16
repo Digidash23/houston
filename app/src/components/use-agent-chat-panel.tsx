@@ -19,7 +19,6 @@
 
 // Subpath import (like `lib/active-interaction.ts`): value imports from the
 // package index only resolve under bundler resolution.
-import type { MessageApproval } from "@houston/protocol/approval";
 import { hasOnlySuggestionSteps } from "@houston/protocol/interaction";
 import { setupGreetingCopy } from "@houston/sdk/first-day";
 import type { AIBoardProps } from "@houston-ai/board";
@@ -81,10 +80,7 @@ import { useWelcomeGreetingRevealed } from "../hooks/use-welcome-greeting";
 import { deriveActiveInteraction } from "../lib/active-interaction";
 import { isWelcomeSessionKey } from "../lib/agent-welcome";
 import { analytics } from "../lib/analytics";
-import {
-  attachmentReferences,
-  prepareAttachmentSend,
-} from "../lib/attachment-message";
+import { attachmentReferences } from "../lib/attachment-message";
 import {
   encodeAutoContinueMessage,
   filterAutoContinueFeedItems,
@@ -105,7 +101,6 @@ import {
   logAndReportError,
 } from "../lib/error-report";
 import { showExpectedStateToast } from "../lib/error-toast";
-import { classifyFileKind } from "../lib/file-kind";
 import { skillDisplayTitle } from "../lib/humanize-skill-name";
 import { providerForModel, providerOffersModel } from "../lib/model-labels";
 import { isModelNotAllowedError } from "../lib/model-not-allowed";
@@ -116,10 +111,6 @@ import {
 } from "../lib/model-selector-lock";
 import { osIsTauri } from "../lib/os-bridge";
 import { resolvePlanReadyOverride } from "../lib/plan-ready";
-import {
-  providerConnectStepScope,
-  releaseProviderConnectStepResumes,
-} from "../lib/provider-connect-step-memory";
 import {
   providerConnectionState,
   providerIsConnected,
@@ -143,7 +134,6 @@ import {
 import { blocksPurchaseUrl } from "../lib/purchase-policy";
 import { queryKeys } from "../lib/query-keys";
 import { reportRejection } from "../lib/report-rejection";
-import { showSendFailedToast } from "../lib/send-error-toast";
 import { sendPinSettled } from "../lib/send-pin-gate";
 import {
   buildSkillClaudePrompt,
@@ -209,6 +199,7 @@ import { useChatDisplayLabels } from "./use-chat-display-labels";
 import { type ChatMentionProps, useChatMentions } from "./use-chat-mentions";
 import { useChatSenderAvatars } from "./use-chat-sender-avatars";
 import { usePersistedInteraction } from "./use-persisted-interaction";
+import { useSendInteractionMessage } from "./use-send-interaction-message";
 import { useToolkitBrandResolver } from "./use-toolkit-brand-resolver";
 import { UserSkillMessage } from "./user-skill-message";
 
@@ -1531,89 +1522,19 @@ export function useAgentChatPanel({
   const interactionKey =
     activeInteraction?.steps.map((s) => s.id).join(",") ?? null;
 
-  // Sends the composed interaction reply as a normal user message through the
-  // existing follow-up send path; the turn start clears the interaction, so the
-  // card retires through the same reactivity. A failure surfaces (no silent
-  // swallow) — the composer is gone, so a toast is the only channel left.
-  //
-  // This is the ONE send every interaction card routes through (stepper
-  // completion, suggested-action bubble, save-as-reusable, plan-ready), so all
-  // four report through `onSendReactivated` from here. It is not the only send
-  // this hook owns, and EVERY one of them reports: the Skill submit above, the
-  // integration-connected nudge, and the two error-card retries in
-  // `renderSystemMessage` each fire the callback from their own await/handler.
-  // A send that starts a turn re-activates an archived mission, so a send that
-  // stays silent strands the user on a list the conversation just left.
-  //
-  // `mode` overrides the composer's pinned Mode for the one send: a suggested
-  // follow-up action asks the agent to DO the thing, so it runs in `execute`
-  // like the save-as-reusable send, never in plan. Omitted → the pinned mode
-  // (an answered question resumes the turn the user was already having).
-  // `approvals` carries the receipts for any approval cards the sequence
-  // answered. They ride the send as their OWN field: only a user message can
-  // turn a host-issued request id into a usable approval, and the HOST — the
-  // process holding the credential — reads them off the request and drops them
-  // before the runtime ever sees the turn.
-  //
-  // `files` are the ones the user attached in the card (it replaces the
-  // composer, so it owns the panel's attachments): they are saved and named in
-  // the prompt exactly like a composer send, so they arrive WITH the answer.
-  const sendInteractionMessage = useCallback(
-    (
-      text: string,
-      mode?: TurnMode,
-      approvals?: MessageApproval[],
-      files: readonly File[] = [],
-    ) => {
-      // A provider connect claims its ONE resume of the conversation before the
-      // reply is composed, so a reply that never leaves the client has to give
-      // that claim back — otherwise the user's retry is refused by a guard
-      // standing for a nudge the agent never heard.
-      const releaseResumes = () =>
-        releaseProviderConnectStepResumes(
-          providerConnectStepScope(agent?.id ?? "", selectedSessionKey),
-        );
-      if (!path || !selectedSessionKey) {
-        releaseResumes();
-        return;
-      }
-      Promise.all([
-        resolveSendPin(),
-        files.length > 0
-          ? prepareAttachmentSend(text, files, (picked) =>
-              tauriAttachments.save(selectedSessionKey, picked),
-            )
-          : null,
-      ])
-        .then(([pin, attached]) =>
-          tauriChat.send(path, attached?.prompt ?? text, selectedSessionKey, {
-            providerOverride: pin.provider,
-            modelOverride: pin.model,
-            effortOverride: pin.effort,
-            modeOverride: mode ?? turnMode,
-            ...(approvals?.length ? { approvals } : {}),
-            ...(attached ? { queuedPreview: attached.queuedPreview } : {}),
-          }),
-        )
-        // Two-arg `then`, not `.then().catch()`: the rejection handler must stay
-        // exclusive to the SEND, or a throw inside the handoff callback would
-        // be reported to the user as a failed message.
-        .then(
-          () => {
-            for (const f of files)
-              analytics.track("file_attached", {
-                file_kind: classifyFileKind(f),
-              });
-            onSendReactivatedRef.current?.();
-          },
-          (err: unknown) => {
-            releaseResumes();
-            showSendFailedToast(err);
-          },
-        );
-    },
-    [agent?.id, path, selectedSessionKey, resolveSendPin, turnMode],
-  );
+  // The ONE send every interaction card routes through (see the hook). It is
+  // not the only send this hook owns, and EVERY one of them reports through
+  // `onSendReactivated`: the Skill submit above, the integration-connected
+  // nudge, and the two error-card retries in `renderSystemMessage` each fire
+  // the callback from their own await/handler.
+  const sendInteractionMessage = useSendInteractionMessage({
+    agentId: agent?.id ?? "",
+    path,
+    sessionKey: selectedSessionKey,
+    turnMode,
+    resolveSendPin,
+    onSendReactivatedRef,
+  });
 
   // Resolves a question step's `toolkit` to the app's presentational brand (logo
   // + name) so a question that concerns an integration wears the app's identity

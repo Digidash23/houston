@@ -93,8 +93,9 @@ test("the card keys its memory by the whole request, never the bare step id", ()
     panel.includes("conversationId: selectedSessionKey"),
     "the panel supplies the conversation half of the identity",
   );
+  const send = readSrc("../src/components/use-send-interaction-message.ts");
   ok(
-    panel.includes("releaseProviderConnectStepResumes("),
+    send.includes("releaseProviderConnectStepResumes("),
     "a resume whose turn never sent gives its claim back",
   );
 });

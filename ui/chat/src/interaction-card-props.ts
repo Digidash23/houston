@@ -85,6 +85,21 @@ export interface ChatInteractionCardLabels {
   progress?: (current: number, total: number) => string;
 }
 
+/**
+ * A card's completion. `files` is non-empty only when the card sits in a
+ * ChatPanel's composer-replacing slot (it shares the panel's attachment list)
+ * and at least one question was answered; the caller must send them with the
+ * answer. Return a promise of whether the reply was accepted: `true` removes
+ * the handed files from the panel, `false` keeps them for a retry, and the
+ * card takes no second completion until it settles. A plain `void` return
+ * counts as accepted. The promise must never reject.
+ */
+export type CardCompletion = (
+  answers: ChatInteractionAnswer[],
+  files: File[],
+  // biome-ignore lint/suspicious/noConfusingVoidType: a plain `void` callback (one that sends no files) must stay assignable.
+) => void | Promise<boolean>;
+
 export interface ChatInteractionCardProps {
   /** The ordered interaction steps (>=1 total). Any mix of step kinds in any
    *  order — the stepper walks them front to back exactly as given; no kind is
@@ -96,11 +111,8 @@ export interface ChatInteractionCardProps {
    *  either can advance the other. */
   steps: ChatInteractionStep[];
   /** Receives every question answer, in step order, once the last step is
-   *  done, plus the files attached through the card. Files exist only when the
-   *  card sits in a ChatPanel's composer-replacing slot: it then shares the
-   *  panel's attachment list, and the list is emptied as it is handed over, so
-   *  the caller must send them with the answer. */
-  onComplete: (answers: ChatInteractionAnswer[], files: File[]) => void;
+   *  done, plus the files attached through the card. See {@link CardCompletion}. */
+  onComplete: CardCompletion;
   /** Renders a connect step as its OWN `InteractionModal` — the `(icon)
    *  Connect <App>` header title, the reason body, the footer's unified
    *  decline + Connect CTA, and the trailing free-text row — wiring the supplied

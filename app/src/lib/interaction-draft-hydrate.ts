@@ -33,9 +33,9 @@ export function hydrateParkedState(
   for (const id of dropped) delete answers[id];
   const reached = Math.min(state.reached, firstDropped);
   return {
+    ...state,
     current: Math.min(state.current, reached),
     reached,
     answers,
-    drafts: state.drafts,
   };
 }

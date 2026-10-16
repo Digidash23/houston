@@ -86,8 +86,8 @@ export function ChatInteractionStepper({
       // they are still editing on the card in front of them. The returning
       // card's connect step self-reports an already-connected toolkit on mount,
       // so nothing is lost by dropping this.
-      if (!isLive()) return;
-      onSend(
+      if (!isLive()) return Promise.resolve(false);
+      return onSend(
         interactionReplyMessage({
           steps,
           answers,

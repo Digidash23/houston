@@ -53,12 +53,19 @@ export function ChatPanel(props: ChatPanelProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const status = statusProp ?? deriveStatus(feedItems, isLoading);
   const messages = useMemo(() => feedItemsToMessages(feedItems), [feedItems]);
-  const { files, setFiles, handleSend, isDraggingOver, dropProps } =
-    useChatPanelAttachments(props);
+  const {
+    files,
+    setFiles,
+    releaseFiles,
+    handleSend,
+    isDraggingOver,
+    dropProps,
+  } = useChatPanelAttachments(props);
   const panelAttachments = useMemo<PanelAttachments>(
     () => ({
       files,
       setFiles,
+      releaseFiles,
       prepareAttachments,
       onAttachmentRejections,
       onNotice,
@@ -67,6 +74,7 @@ export function ChatPanel(props: ChatPanelProps) {
     [
       files,
       setFiles,
+      releaseFiles,
       prepareAttachments,
       onAttachmentRejections,
       onNotice,

@@ -23,6 +23,7 @@ export function QuestionAnswerRow({
   sendLabel,
   hideFreeText = false,
   attach,
+  fileAnswer,
   skip,
   onDraftChange,
   onSubmit,
@@ -33,6 +34,7 @@ export function QuestionAnswerRow({
   sendLabel: string;
   hideFreeText?: boolean;
   attach?: CardAttach | null;
+  fileAnswer: boolean;
   skip: {
     label: string;
     escLabel: string;
@@ -68,6 +70,7 @@ export function QuestionAnswerRow({
             <FreeTextRow
               attach={attach}
               disabled={disabled}
+              fileAnswer={fileAnswer}
               onChange={onDraftChange}
               onSubmit={onSubmit}
               placeholder={placeholder}

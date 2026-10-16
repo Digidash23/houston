@@ -6,10 +6,12 @@ import {
   DEFAULT_TOO_MANY_FILES_NOTICE,
   useAttachmentIntake,
 } from "./use-attachment-intake";
-import { useControllable, useFileDropZone } from "./use-file-drop-zone";
+import { useFileDropZone } from "./use-file-drop-zone";
+import { useSessionFiles } from "./use-session-files";
 
 type AttachmentOptions = Pick<
   ChatPanelProps,
+  | "sessionKey"
   | "onSend"
   | "attachments"
   | "onAttachmentsChange"
@@ -22,9 +24,11 @@ type AttachmentOptions = Pick<
 /**
  * ChatPanel's attachments. They live at panel level so the ENTIRE panel is a
  * drop target, not just the composer. Controlled props are forwarded;
- * otherwise the files are managed here and cleared after a send.
+ * otherwise the files are kept per conversation (`useSessionFiles`) and the
+ * sent ones removed after a send.
  */
 export function useChatPanelAttachments({
+  sessionKey,
   onSend,
   attachments,
   onAttachmentsChange,
@@ -33,10 +37,10 @@ export function useChatPanelAttachments({
   onNotice,
   composerLabels,
 }: AttachmentOptions) {
-  const [files, setFiles] = useControllable<File[]>(
+  const { files, setFiles, releaseFiles } = useSessionFiles(
+    sessionKey,
     attachments,
     onAttachmentsChange,
-    [],
   );
   const isFilesControlled = attachments !== undefined;
   const addDroppedFiles = useAttachmentIntake({
@@ -73,10 +77,17 @@ export function useChatPanelAttachments({
   const handleSend = useCallback(
     async (text: string, sent: File[], mentions: MessageMention[]) => {
       await onSend(text, sent, mentions);
-      if (!isFilesControlled) setFiles([]);
+      if (!isFilesControlled) releaseFiles(sent);
     },
-    [onSend, isFilesControlled, setFiles],
+    [onSend, isFilesControlled, releaseFiles],
   );
 
-  return { files, setFiles, handleSend, isDraggingOver, dropProps };
+  return {
+    files,
+    setFiles,
+    releaseFiles,
+    handleSend,
+    isDraggingOver,
+    dropProps,
+  };
 }

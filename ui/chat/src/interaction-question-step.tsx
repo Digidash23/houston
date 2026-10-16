@@ -3,7 +3,11 @@
 import { QuestionAnswerRow } from "./interaction-answer-row";
 import { hasSelectableOptions } from "./interaction-card-logic";
 import { BrandLogo, QuestionStepBody } from "./interaction-card-parts";
-import type { QuestionStep, StepChrome } from "./interaction-card-props";
+import type {
+  ChatInteractionCardLabels,
+  QuestionStep,
+  StepChrome,
+} from "./interaction-card-props";
 import { InteractionDetail } from "./interaction-detail";
 import { HireApprovalDetails } from "./interaction-hire-details";
 import { InteractionModal, InteractionModalTitle } from "./interaction-modal";
@@ -17,6 +21,20 @@ export interface QuestionStepCopy {
   send: string;
   esc: string;
   recommended: string;
+}
+
+/** The card's labels resolved to a question step's copy, English defaults. */
+export function questionStepCopy(
+  labels: ChatInteractionCardLabels | undefined,
+): QuestionStepCopy {
+  return {
+    placeholder: labels?.placeholder ?? "Type your answer...",
+    escapePlaceholder: labels?.escapePlaceholder ?? "Type another option...",
+    skip: labels?.skip ?? "Skip",
+    send: labels?.send ?? "Send",
+    esc: labels?.esc ?? "Esc",
+    recommended: labels?.recommended ?? "Recommended",
+  };
 }
 
 /**
@@ -39,6 +57,7 @@ export function InteractionQuestionStep({
   draft,
   selectedId,
   attach,
+  fileAnswer,
   onOption,
   onDraftChange,
   onSend,
@@ -50,6 +69,8 @@ export function InteractionQuestionStep({
   draft: string;
   selectedId: string | null;
   attach: CardAttach | null;
+  /** The attached files alone can answer this step (see the card). */
+  fileAnswer: boolean;
   onOption: (optionId: string) => void;
   onDraftChange: (value: string) => void;
   onSend: () => void;
@@ -123,6 +144,7 @@ export function InteractionQuestionStep({
           attach={attach}
           disabled={disabled}
           draft={draft}
+          fileAnswer={fileAnswer}
           hideFreeText={optionsPresent && step.hideFreeText === true}
           onDraftChange={onDraftChange}
           onSubmit={onSend}

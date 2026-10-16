@@ -18,6 +18,10 @@ export interface PanelAttachments
   > {
   files: File[];
   setFiles: (files: File[]) => void;
+  /** Remove exactly the given File objects from the panel's CURRENT lists.
+   *  A completion settles after its upload, when the card may be gone and
+   *  the list may have grown, so it must never write back a snapshot. */
+  releaseFiles: (sent: readonly File[]) => void;
 }
 
 export const PanelAttachmentsContext = createContext<PanelAttachments | null>(

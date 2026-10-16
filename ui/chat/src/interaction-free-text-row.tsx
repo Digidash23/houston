@@ -24,6 +24,7 @@ export function FreeTextRow({
   sendLabel,
   disabled,
   attach,
+  fileAnswer = false,
   onChange,
   onSubmit,
 }: {
@@ -32,11 +33,13 @@ export function FreeTextRow({
   sendLabel: string;
   disabled: boolean;
   attach?: CardAttach | null;
+  /** The attached files alone can answer, so the send lights up empty. */
+  fileAnswer?: boolean;
   onChange: (value: string) => void;
   onSubmit: () => void;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const canSend = value.trim().length > 0 || (attach?.files.length ?? 0) > 0;
+  const canSend = value.trim().length > 0 || fileAnswer;
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: focus-delegation surface — the real widget is the <textarea> inside; clicking the field's padding focuses it (mirrors the composer). role="presentation" is correct, no widget role applies.
     <div

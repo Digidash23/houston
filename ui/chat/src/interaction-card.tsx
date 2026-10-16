@@ -18,9 +18,10 @@ import type {
 import type { InteractionModalPager } from "./interaction-modal";
 import {
   InteractionQuestionStep,
-  type QuestionStepCopy,
+  questionStepCopy,
 } from "./interaction-question-step";
 import { useCardAttachments } from "./use-card-attachments";
+import { useFileAnswer } from "./use-file-answer";
 import { useInteractionShortcuts } from "./use-interaction-shortcuts";
 import { useStepperState } from "./use-stepper-state";
 import { useStepperTransitions } from "./use-stepper-transitions";
@@ -69,7 +70,7 @@ export function ChatInteractionCard({
   onDismiss,
   state: controlled,
   onStateChange,
-  disabled = false,
+  disabled: disabledProp = false,
   labels,
 }: ChatInteractionCardProps) {
   const [state, update] = useStepperState(controlled, onStateChange);
@@ -77,16 +78,11 @@ export function ChatInteractionCard({
   const total = steps.length;
   const current = Math.min(state.current, total - 1);
   const step = steps[current];
-  const copy: QuestionStepCopy = {
-    placeholder: labels?.placeholder ?? "Type your answer...",
-    escapePlaceholder: labels?.escapePlaceholder ?? "Type another option...",
-    skip: labels?.skip ?? "Skip",
-    send: labels?.send ?? "Send",
-    esc: labels?.esc ?? "Esc",
-    recommended: labels?.recommended ?? "Recommended",
-  };
+  const copy = questionStepCopy(labels);
   const progress = labels?.progress ?? defaultProgress;
-  const { attach, complete } = useCardAttachments(onComplete);
+  const { attach, complete, pending } = useCardAttachments(onComplete);
+  // A reply carrying files is still uploading: nothing may complete again.
+  const disabled = disabledProp || pending;
   const { onOption, onSend, onSkip, onConnected, onSignedIn, onSaved, onDone } =
     useStepperTransitions({
       current,
@@ -108,13 +104,16 @@ export function ChatInteractionCard({
     (text: string) => update((s) => setDraft(s, stepId, text)),
     [stepId, update],
   );
-  // Files with no words still answer: the files ARE the answer.
-  const attachedAnswer = labels?.attachedAnswer ?? "See attached";
-  const hasFiles = (attach?.files.length ?? 0) > 0;
-  const onSendAnswer = useCallback(() => {
-    if (hasFiles && draft.trim() === "") onDraftChange(attachedAnswer);
-    onSend();
-  }, [hasFiles, draft, onDraftChange, attachedAnswer, onSend]);
+  const { fileAnswer, onSendAnswer } = useFileAnswer({
+    state,
+    update,
+    stepId,
+    selectedId,
+    draft,
+    hasFiles: (attach?.files.length ?? 0) > 0,
+    attachedAnswer: labels?.attachedAnswer ?? "See attached",
+    onSend,
+  });
 
   useInteractionShortcuts({
     active: !disabled && open,
@@ -184,6 +183,7 @@ export function ChatInteractionCard({
       chrome={chrome}
       copy={copy}
       draft={draft}
+      fileAnswer={fileAnswer}
       onDraftChange={onDraftChange}
       onOption={onOption}
       onSend={onSendAnswer}

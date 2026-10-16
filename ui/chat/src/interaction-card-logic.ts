@@ -45,6 +45,10 @@ export interface StepperState {
   reached: number;
   answers: AnswerMap;
   drafts: DraftMap;
+  /** The question step the panel's attached files were sent from. Only that
+   *  step may be answered by files alone, so a "See attached" answer never
+   *  spreads to the questions after it. */
+  attachedStepId?: string;
 }
 
 /** The result of a transition: the next state plus, when the last step was
@@ -152,6 +156,7 @@ function advance(
   const last = isLastStep(state.current, steps.length);
   const nextCurrent = last ? state.current : state.current + 1;
   const next: StepperState = {
+    ...state,
     current: nextCurrent,
     reached: Math.max(state.reached, nextCurrent),
     answers,
