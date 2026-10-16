@@ -135,7 +135,7 @@ export function gatewayAuthFetch(
     const bearer = getToken?.() ?? liveToken(fallbackToken);
     const settle = (res: Response, sent: string) =>
       refusesAuthReplay(init)
-        ? settleWithoutReplay(res, sent)
+        ? settleWithoutReplay(res, sent, send)
         : settleGatewayResponse(res, sent, send);
     if (!bearer && inControlPlaneMode()) {
       // A request that must not replay must not wait for a refresh either:

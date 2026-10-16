@@ -101,3 +101,42 @@ test("a post with no bearer is refused without waiting for a refresh", async () 
   expect(calls).toHaveLength(0);
   expect(refresh).not.toHaveBeenCalled();
 });
+
+const jwtFor = (sub: string, n: number) =>
+  `h.${btoa(JSON.stringify({ sub, n })).replace(/=+$/, "")}.s`;
+
+// A token gone stale while the laptop slept heals: the refreshed bearer names
+// the same person, so the post goes out once more, as them.
+test("a post refused for a stale token of the same person is replayed once", async () => {
+  engine.token = jwtFor("ada", 1);
+  stubRouted(async () => {
+    if (calls.length > 1) return json(201, {});
+    engine.token = jwtFor("ada", 2);
+    return json(401, { error: "token expired" });
+  });
+  const png = new Blob([new Uint8Array([137, 80, 78, 71])], {
+    type: "image/png",
+  });
+  await expect(
+    client().postLinkedInImage({ image: png, text: "Hi" }),
+  ).resolves.toMatchObject({ kind: "posted" });
+  expect(bearers()).toEqual([
+    `Bearer ${jwtFor("ada", 1)}`,
+    `Bearer ${jwtFor("ada", 2)}`,
+  ]);
+});
+
+test("a post refused when the refresh names someone else is not replayed", async () => {
+  engine.token = jwtFor("ada", 1);
+  stubRouted(async () => {
+    engine.token = jwtFor("grace", 1);
+    return json(401, { error: "token expired" });
+  });
+  const png = new Blob([new Uint8Array([137, 80, 78, 71])], {
+    type: "image/png",
+  });
+  await expect(
+    client().postLinkedInImage({ image: png, text: "Hi" }),
+  ).resolves.toEqual({ kind: "refused", code: "signed_out" });
+  expect(bearers()).toEqual([`Bearer ${jwtFor("ada", 1)}`]);
+});
