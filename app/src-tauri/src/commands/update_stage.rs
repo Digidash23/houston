@@ -5,59 +5,33 @@
 //! plugin's single-shot request lacks), the finished file is verified against
 //! the release signature exactly as the plugin would (`update_verify`), then
 //! staged in the resource table until the frontend asks for the install.
+//! One download per release runs at a time; a second call joins it
+//! (`update_staged`).
 
+use super::update_client::{client_for, updater_pubkey};
 use super::update_failure::DownloadFailure;
 use super::update_fetch::{attempt_budget, fetch_with_resume, DownloadEvent};
 use super::update_partial::{OpenError, PartialDownload};
 use super::update_partial_dir::prune_abandoned;
+use super::update_staged::STAGED;
 use super::update_verify::admit_release;
 use reqwest::header::{HeaderValue, ACCEPT};
 use std::path::PathBuf;
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, Resource, ResourceId, Runtime, Webview};
 use tauri_plugin_updater::Update;
 
-/// A silent stall reads as a failure after this long, so it can be resumed
-/// instead of hanging the download for the rest of the session.
-const READ_TIMEOUT: Duration = Duration::from_secs(60);
-
 const PARTIALS_DIR: &str = "updates";
 
-/// The verified release bytes, waiting for `install_update`.
-struct StagedUpdate(Vec<u8>);
+/// Names the verified release bytes waiting for `install_update`. The bytes
+/// stay in `STAGED`: every call for a release gets a handle of its own, and
+/// a handle that held the bytes would keep 330 MB alive past the install.
+struct StagedUpdate {
+    version: String,
+    signature: String,
+}
 impl Resource for StagedUpdate {}
-
-fn client_for(update: &Update) -> Result<reqwest::Client, DownloadFailure> {
-    let mut builder = reqwest::Client::builder()
-        .user_agent(format!("houston-app/{}", env!("CARGO_PKG_VERSION")))
-        .read_timeout(READ_TIMEOUT);
-    if let Some(timeout) = update.timeout {
-        builder = builder.timeout(timeout);
-    }
-    if update.no_proxy {
-        builder = builder.no_proxy();
-    } else if let Some(ref proxy) = update.proxy {
-        let proxy = reqwest::Proxy::all(proxy.as_str())
-            .map_err(|e| DownloadFailure::other(format!("invalid updater proxy: {e}")))?;
-        builder = builder.proxy(proxy);
-    }
-    builder
-        .build()
-        .map_err(|e| DownloadFailure::other(format!("build download client: {e}")))
-}
-
-fn updater_pubkey<R: Runtime>(webview: &Webview<R>) -> Result<String, DownloadFailure> {
-    webview
-        .config()
-        .plugins
-        .0
-        .get("updater")
-        .and_then(|cfg| cfg.get("pubkey"))
-        .and_then(|key| key.as_str())
-        .map(str::to_string)
-        .ok_or_else(|| DownloadFailure::other("updater pubkey missing from tauri.conf.json"))
-}
 
 /// `<app cache dir>/updates`: where a half-downloaded release waits for the
 /// next poll. A cache dir on purpose: the OS may purge it, and a purge only
@@ -102,6 +76,8 @@ fn take_update<R: Runtime>(
 /// (clamped; the launch-time install asks for a short one). Resolves with the
 /// staged resource id for `install_update`. A rejection for a dropped link
 /// leaves the partial on disk; the next call picks it up where it stopped.
+/// A call for a release another call is downloading waits for that one and
+/// shares its outcome; it gets no progress events of its own.
 #[tauri::command(rename_all = "snake_case")]
 pub async fn download_update<R: Runtime>(
     webview: Webview<R>,
@@ -110,13 +86,30 @@ pub async fn download_update<R: Runtime>(
     on_event: Channel<DownloadEvent>,
 ) -> Result<ResourceId, DownloadFailure> {
     let update = take_update(&webview, rid)?;
-    let pubkey = updater_pubkey(&webview)?;
-    let client = client_for(&update)?;
+    STAGED
+        .admitted_or_fetch(&update.version, &update.signature, || {
+            fetch_and_admit(&webview, &update, attempts, on_event)
+        })
+        .await?;
+    Ok(webview.resources_table().add(StagedUpdate {
+        version: update.version,
+        signature: update.signature,
+    }))
+}
+
+async fn fetch_and_admit<R: Runtime>(
+    webview: &Webview<R>,
+    update: &Update,
+    attempts: Option<u32>,
+    on_event: Channel<DownloadEvent>,
+) -> Result<Vec<u8>, DownloadFailure> {
+    let pubkey = updater_pubkey(webview)?;
+    let client = client_for(update)?;
     let mut headers = update.headers.clone();
     if !headers.contains_key(ACCEPT) {
         headers.insert(ACCEPT, HeaderValue::from_static("application/octet-stream"));
     }
-    let dir = partials_dir(&webview);
+    let dir = partials_dir(webview);
     let mut partial =
         match PartialDownload::open(&dir, &update.version, update.download_url.as_str()) {
             Ok(partial) => partial,
@@ -140,8 +133,7 @@ pub async fn download_update<R: Runtime>(
         },
     )
     .await?;
-    let bytes = admit_release(partial, &update.signature, &pubkey).await?;
-    Ok(webview.resources_table().add(StagedUpdate(bytes)))
+    admit_release(partial, &update.signature, &pubkey).await
 }
 
 /// Install the staged bytes through the plugin's installer (bundle swap on
@@ -157,7 +149,19 @@ pub async fn install_update<R: Runtime>(
         .resources_table()
         .get::<StagedUpdate>(bytes_rid)
         .map_err(|e| format!("staged update {bytes_rid} is gone: {e}"))?;
-    update.install(&staged.0).map_err(|e| e.to_string())?;
+    if staged.version != update.version {
+        return Err(format!(
+            "staged update {bytes_rid} holds {}, not {}",
+            staged.version, update.version
+        ));
+    }
+    let bytes = STAGED
+        .admitted(&staged.version, &staged.signature)
+        .ok_or_else(|| format!("staged bytes of {} are gone", staged.version))?;
+    update
+        .install(bytes.as_slice())
+        .map_err(|e| e.to_string())?;
+    STAGED.forget(&staged.version, &staged.signature);
     // Windows never reaches here (the installer hand-off exits the process);
     // on macOS the bytes are on disk now and the buffer can go.
     webview
