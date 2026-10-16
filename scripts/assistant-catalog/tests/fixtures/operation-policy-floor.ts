@@ -104,7 +104,7 @@ export const OPERATION_POLICY_FLOOR: Readonly<Record<string, OperationPolicy>> =
   deleteFile: { group: "files", confirm: true, hidden: false, route: "DELETE /agents/{agentPath}/files", rawResponse: false },
   deleteOrg: { group: "spaces", confirm: true, hidden: true, route: "DELETE /v1/orgs/{slug}", rawResponse: false },
   deleteOrgInvite: { group: "org", confirm: true, hidden: false, route: "DELETE /v1/org/invites/{inviteId}", rawResponse: false },
-  deleteRoutine: { group: "routines", confirm: true, hidden: false, route: "DELETE /agents/{agentId}/routines/{id}", rawResponse: false },
+  deleteRoutine: { group: "routines", confirm: true, hidden: false, route: "DELETE /agents/{agentId}/routines/{id}", rawResponse: true },
   deleteSharedSkill: { group: "skills", confirm: true, hidden: false, route: "DELETE /v1/workspaces/{workspaceId}/shared-skills/{slug}", rawResponse: false },
   deleteSkill: { group: "skills", confirm: true, hidden: false, route: "DELETE /agents/{agentId}/skills/{slug}", rawResponse: false },
   detectAgentCustomIntegration: { group: "integrations", confirm: true, hidden: false, route: "POST /agents/{agentSlugOrId}/integrations/custom/detect", rawResponse: true },
