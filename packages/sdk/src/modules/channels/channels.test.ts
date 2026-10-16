@@ -75,13 +75,30 @@ describe("the channels requests", () => {
   it("starts the Slack install with an empty JSON body", async () => {
     const url = "https://slack.com/oauth/v2/authorize?state=opaque";
     const { sdk, calls } = ok({ url });
-    expect(await sdk.channels.connectSlack()).toEqual({ url });
+    expect(await sdk.channels.connectSlack()).toEqual({ url, accepted: null });
     expect(calls).toEqual([
       {
         method: "POST",
         url: `${BASE}/v1/channels/slack/connect`,
         body: "{}",
       },
+    ]);
+  });
+
+  it("names each return target in its own body, byte for byte", async () => {
+    const url = "https://slack.com/oauth/v2/authorize?state=opaque";
+    const { sdk, calls } = ok({ url });
+    await sdk.channels.connectSlack();
+    await sdk.channels.connectSlack({ kind: "app" });
+    await sdk.channels.connectSlack({
+      kind: "loopback",
+      port: 53124,
+      state: "q9X-_3abcDEF4567",
+    });
+    expect(calls.map((call) => call.body)).toEqual([
+      "{}",
+      '{"return":"app"}',
+      '{"return":"loopback","port":53124,"state":"q9X-_3abcDEF4567"}',
     ]);
   });
 
@@ -187,6 +204,44 @@ describe("the dispatch path", () => {
       expect(result.ok).toBe(false);
     }
     expect(calls).toEqual([]);
+  });
+
+  it("dispatches a connect with its return target and refuses a malformed one", async () => {
+    const url = "https://slack.com/oauth/v2/authorize?state=opaque";
+    const { sdk, calls } = ok({ url });
+    const connect = (payload?: unknown) =>
+      sdk.dispatch({ id: "5", type: ChannelsCommand.ConnectSlack, payload });
+    const loopback = {
+      kind: "loopback",
+      port: 53124,
+      state: "q9X-_3abcDEF4567",
+    };
+    expect(await connect()).toMatchObject({ ok: true, value: { url } });
+    expect(await connect({ returnTo: null })).toMatchObject({ ok: true });
+    expect(await connect({ returnTo: { kind: "app" } })).toMatchObject({
+      ok: true,
+    });
+    expect(await connect({ returnTo: loopback })).toMatchObject({ ok: true });
+    const refused = [
+      "app",
+      { kind: "desktop" },
+      { ...loopback, port: 80 },
+      { ...loopback, port: 65536 },
+      { ...loopback, port: 5312.5 },
+      { ...loopback, port: "53124" },
+      { ...loopback, state: "short" },
+      { ...loopback, state: "has spaces in the nonce" },
+      { kind: "loopback", port: 53124 },
+    ];
+    for (const returnTo of refused) {
+      expect(await connect({ returnTo })).toMatchObject({ ok: false });
+    }
+    expect(calls.map((call) => call.body)).toEqual([
+      "{}",
+      "{}",
+      '{"return":"app"}',
+      '{"return":"loopback","port":53124,"state":"q9X-_3abcDEF4567"}',
+    ]);
   });
 
   it("reads the listing through dispatch with no payload at all", async () => {

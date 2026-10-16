@@ -33,6 +33,31 @@ export function settingsLanding(search: string): SettingsLanding {
   };
 }
 
+/**
+ * The desktop return of a desktop-started Slack connect: the gateway's
+ * callback page opens `houston://settings/channels?slack=<ticket>`, the same
+ * landing the web callback carries in its query.
+ */
+export function settingsLandingFromDeepLink(value: string): SettingsLanding {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return { kind: "absent" };
+  }
+  if (
+    url.protocol !== "houston:" ||
+    url.hostname !== "settings" ||
+    !/^\/channels\/?$/.test(url.pathname)
+  )
+    return { kind: "absent" };
+  return {
+    kind: "settings",
+    section: "channels",
+    slack: slackCompletion(url.searchParams.getAll("slack")),
+  };
+}
+
 function slackCompletion(values: string[]): SlackCompletion | null {
   if (!values.length) return null;
   // A truncated, duplicated or rewritten ticket can never be redeemed, and

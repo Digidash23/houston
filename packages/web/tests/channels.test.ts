@@ -94,6 +94,10 @@ test("channels mixin uses live authenticated current-space gateway transport", a
     calls.slice(0, 5).every((call) => call.org === "0123456789abcdef"),
   ).toBe(true);
   expect(calls[5].org).toBe(null);
+  expect(calls[1]).toMatchObject({
+    body: "{}",
+    contentType: "application/json",
+  });
   expect(calls[4]).toMatchObject({
     method: "POST",
     url: "https://gateway.test/v1/channels/whatsapp/link",
@@ -102,6 +106,66 @@ test("channels mixin uses live authenticated current-space gateway transport", a
     body: "{}",
     contentType: "application/json",
   });
+});
+
+test("each connect return target sends its own body byte for byte", async () => {
+  const bodies: (string | null)[] = [];
+  globalThis.fetch = vi.fn(async (_url, init) => {
+    bodies.push(typeof init?.body === "string" ? init.body : null);
+    return Response.json({
+      url: "https://slack.com/oauth/v2/authorize?state=opaque",
+    });
+  });
+  const client = new HoustonClient({
+    baseUrl: "https://gateway.test",
+    token: "token",
+    controlPlane: true,
+  });
+  await client.connectSlack();
+  await client.connectSlack({ kind: "app" });
+  await client.connectSlack({
+    kind: "loopback",
+    port: 53124,
+    state: "q9X-_3abcDEF4567",
+  });
+  expect(bodies).toEqual([
+    "{}",
+    '{"return":"app"}',
+    '{"return":"loopback","port":53124,"state":"q9X-_3abcDEF4567"}',
+  ]);
+});
+
+test("a gateway that refuses the loopback return gets one app retry", async () => {
+  const bodies: (string | null)[] = [];
+  const answers = [
+    Response.json({ code: "invalid_request" }, { status: 400 }),
+    Response.json({ url: "https://slack.com/oauth/v2/authorize?state=opaque" }),
+  ];
+  globalThis.fetch = vi.fn(async (_url, init) => {
+    bodies.push(typeof init?.body === "string" ? init.body : null);
+    const answer = answers.shift();
+    if (!answer) throw new Error("no answer left");
+    return answer;
+  });
+  const client = new HoustonClient({
+    baseUrl: "https://gateway.test",
+    token: "token",
+    controlPlane: true,
+  });
+  expect(
+    await client.connectSlack({
+      kind: "loopback",
+      port: 53124,
+      state: "q9X-_3abcDEF4567",
+    }),
+  ).toEqual({
+    url: "https://slack.com/oauth/v2/authorize?state=opaque",
+    accepted: "app",
+  });
+  expect(bodies).toEqual([
+    '{"return":"loopback","port":53124,"state":"q9X-_3abcDEF4567"}',
+    '{"return":"app"}',
+  ]);
 });
 
 test("a local deployment exposes channels as unsupported without a network request", async () => {
@@ -159,7 +223,7 @@ test("a space-switch abort reaches the hosted OAuth request without retry", asyn
     token: "token",
     controlPlane: true,
   });
-  const pending = client.connectSlack(controller.signal);
+  const pending = client.connectSlack(undefined, controller.signal);
   await ready;
   controller.abort();
   await expect(pending).rejects.toMatchObject({ name: "AbortError" });

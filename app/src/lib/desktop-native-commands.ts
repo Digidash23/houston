@@ -80,6 +80,16 @@ export const DESKTOP_NATIVE_COMMANDS = [
     "oauth-loopback",
     "frees it on an abandoned attempt",
   ],
+  [
+    "start_channels_loopback",
+    "oauth-loopback",
+    "binds the Slack connect's return port",
+  ],
+  [
+    "cancel_channels_loopback",
+    "oauth-loopback",
+    "frees it when no browser will return to it",
+  ],
   ["start_codex_oauth_loopback", "oauth-loopback", "binds OpenAI's fixed port"],
   [
     "start_claude_login",

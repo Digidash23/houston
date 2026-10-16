@@ -59,6 +59,10 @@
       "types": "./src/modules/routines/plan-floor-quiet.ts",
       "import": "./src/modules/routines/plan-floor-quiet.ts"
     },
+    "./channels/connect-flow": {
+      "types": "./src/modules/channels/connect-flow.ts",
+      "import": "./src/modules/channels/connect-flow.ts"
+    },
     "./channels/watch": {
       "types": "./src/modules/channels/watch.ts",
       "import": "./src/modules/channels/watch.ts"

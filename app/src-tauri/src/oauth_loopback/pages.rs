@@ -2,13 +2,16 @@
 //!
 //! The listener serves no other assets, so the Houston helmet is inlined as SVG
 //! (no `<img src>` to 404) and the "Open Houston" button is a `houston://open`
-//! deep link that focuses the app (handled in `lib.rs`). Copy matches the
-//! English-only sign-in flow; when that flow gets i18n these strings move with it.
+//! deep link that focuses the app (handled in `lib.rs`). The sign-in copy
+//! matches the English-only sign-in flow; the Slack return's copy arrives from
+//! the webview already translated, so every string is HTML-escaped here.
 //!
 //! Two outcomes, two pages: the redirect we were waiting for gets
 //! {@link success_page}; a redirect carrying somebody ELSE's `state` (a restored
 //! tab replaying an old consent) gets {@link stale_page} and the listener stays
 //! up for the real one.
+
+pub use super::page_lang::PageLang;
 
 /// Uses the `r##"…"##` delimiter because the inlined SVG contains
 /// `fill="#161615"` — the `"#` sequence would close a plain `r#"…"#`.
@@ -46,16 +49,49 @@ const STYLE: &str = r#"
     a.btn:hover { opacity: 0.9; }
 "#;
 
-/// One page shell shared by both outcomes, so they cannot drift apart visually.
-fn page(title: &str, heading: &str, body: &str, button: bool) -> String {
-    let action = if button {
-        r#"<a class="btn" href="houston://open">Open Houston</a>"#
-    } else {
-        ""
+/// The two pages one listener serves, rendered once when it starts.
+pub struct LoopbackPages {
+    pub success: String,
+    pub stale: String,
+}
+
+/// Escapes text for an HTML element body. The page has no attribute that takes
+/// passed text, so `'` needs nothing.
+fn escape(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// One page shell shared by every outcome, so they cannot drift apart visually.
+/// `button` is the label of the "Open Houston" deep link, when the page has one.
+pub(crate) fn page(
+    lang: PageLang,
+    title: &str,
+    heading: &str,
+    body: &str,
+    button: Option<&str>,
+) -> String {
+    let action = match button {
+        Some(label) => format!(
+            r#"<a class="btn" href="houston://open">{}</a>"#,
+            escape(label)
+        ),
+        None => String::new(),
     };
+    let (title, heading, body) = (escape(title), escape(heading), escape(body));
+    let lang = lang.tag();
     format!(
         r#"<!DOCTYPE html>
-<html lang="en">
+<html lang="{lang}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -77,10 +113,11 @@ fn page(title: &str, heading: &str, body: &str, button: bool) -> String {
 /// Served for the redirect this attempt was waiting for.
 pub fn success_page() -> String {
     page(
+        PageLang::En,
         "Houston \u{2014} Signed in",
         "You're signed in",
         "You can close this tab and return to Houston.",
-        true,
+        Some("Open Houston"),
     )
 }
 
@@ -88,11 +125,20 @@ pub fn success_page() -> String {
 /// KEEPS waiting after this, so the user's real sign-in is not consumed.
 pub fn stale_page() -> String {
     page(
+        PageLang::En,
         "Houston \u{2014} Old sign-in tab",
         "This sign-in link has expired",
         "It came from an earlier sign-in attempt. You can close this tab and finish signing in from the Houston window.",
-        false,
+        None,
     )
+}
+
+/// The sign-in listener's pages.
+pub fn sign_in_pages() -> LoopbackPages {
+    LoopbackPages {
+        success: success_page(),
+        stale: stale_page(),
+    }
 }
 
 #[cfg(test)]
@@ -123,5 +169,26 @@ mod tests {
         assert!(page.contains("expired"));
         assert!(!page.contains("houston://open"));
         assert!(page.contains("<svg"));
+    }
+
+    #[test]
+    fn passed_text_is_html_escaped() {
+        assert_eq!(
+            escape(r#"<script>alert("x")</script> & co"#),
+            "&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; co"
+        );
+        let html = page(PageLang::En, "a<b", "c&d", "e>f", Some("\"g\""));
+        assert!(html.contains("<title>a&lt;b</title>"));
+        assert!(html.contains("<h1>c&amp;d</h1>"));
+        assert!(html.contains("<p>e&gt;f</p>"));
+        assert!(html.contains(r#"href="houston://open">&quot;g&quot;</a>"#));
+    }
+
+    #[test]
+    fn the_sign_in_pages_keep_their_english_copy() {
+        assert!(success_page().contains(r#"<html lang="en">"#));
+        assert!(stale_page().contains(r#"<html lang="en">"#));
+        assert!(success_page().contains("<h1>You're signed in</h1>"));
+        assert!(success_page().contains(r#"href="houston://open">Open Houston</a>"#));
     }
 }

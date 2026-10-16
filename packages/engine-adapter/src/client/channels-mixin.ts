@@ -1,3 +1,4 @@
+import type { SlackConnectAnswer } from "@houston/sdk";
 import {
   type ChannelConnection,
   type ChannelLink,
@@ -7,6 +8,7 @@ import {
   parseSlackAuthorization,
   parseSlackCompletion,
   parseWhatsAppLink,
+  type SlackConnectReturn,
   slackTicket,
   type WhatsAppLink,
 } from "@houston/wire-types";
@@ -42,13 +44,18 @@ export function ChannelsMixin<TBase extends BaseCtor>(Base: TBase) {
         ),
       );
     }
-    async connectSlack(signal?: AbortSignal): Promise<string> {
+    async connectSlack(
+      returnTo?: SlackConnectReturn,
+      signal?: AbortSignal,
+    ): Promise<SlackConnectAnswer> {
       this.requireGateway();
-      return parseSlackAuthorization(
-        await viaSdk("/v1/channels/slack/connect", () =>
-          this.ctx.sdk.channels.connectSlack(signal),
-        ),
+      const answer = await viaSdk("/v1/channels/slack/connect", () =>
+        this.ctx.sdk.channels.connectSlack(returnTo, signal),
       );
+      return {
+        url: parseSlackAuthorization(answer),
+        accepted: answer.accepted,
+      };
     }
     async linkSlack(signal?: AbortSignal): Promise<ChannelLink> {
       this.requireGateway();
