@@ -23,9 +23,11 @@ export interface ModelCallTiming {
    */
   firstTokenMs?: number;
   /**
-   * Response opened to the first content block of any kind, thinking
-   * included: the provider's own latency, without the time the model spends
-   * thinking before it answers. Absent when the response held no block.
+   * Response opened to the first block the stream shows, thinking included.
+   * It leaves out thinking only when the provider streams it as a block
+   * (Anthropic, Codex Responses). A provider that reasons without streaming
+   * it reports the same value as `firstTokenMs`. A delay before the
+   * response opens is in `ttfbMs`. Absent when the response held no block.
    */
   firstBlockMs?: number;
   /** Input tokens billed without a cache hit. */
