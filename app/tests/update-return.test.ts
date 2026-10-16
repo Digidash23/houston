@@ -10,7 +10,9 @@ import {
   LONG_ABSENCE_MS,
   type ReturnInputs,
   returnAction,
+  returnLossHold,
   SLEEP_GAP_MS,
+  windowInFront,
 } from "../src/lib/update-return.ts";
 import type { UpdateStatus } from "../src/lib/update-status.ts";
 
@@ -65,14 +67,34 @@ describe("absenceStep", () => {
     );
   });
 
-  it("counts hidden as away but a visibility change alone as no return", () => {
+  it("counts hidden as away but an unfocused visibility change as no return", () => {
     deepStrictEqual(
       run(initialAbsence(T0), [
         { kind: "hidden", at: T0 },
-        { kind: "visible", at: T0 + 5 * HOUR },
+        { kind: "visible", at: T0 + 5 * HOUR, focused: false },
         { kind: "focus", at: T0 + 5 * HOUR + 1 },
       ]),
       [2],
+    );
+  });
+
+  // A desktop that never sleeps, locked overnight with Houston frontmost:
+  // the lock hides the document while `hasFocus()` stays true, so every
+  // tick reads `focused: false` (`windowInFront`), and the unlock is a
+  // `visible` with focus and no `focus` event behind it.
+  it("returns once at the unlock of a desktop locked overnight", () => {
+    const ticks: AbsenceEvent[] = [];
+    for (let at = T0 + TICK; at <= T0 + 8 * HOUR; at += TICK) {
+      ticks.push({ kind: "tick", at, focused: false });
+    }
+    deepStrictEqual(
+      run(initialAbsence(T0), [
+        { kind: "hidden", at: T0 },
+        ...ticks,
+        { kind: "visible", at: T0 + 8 * HOUR + 1, focused: true },
+        { kind: "tick", at: T0 + 8 * HOUR + TICK, focused: true },
+      ]),
+      [ticks.length + 1],
     );
   });
 
@@ -157,10 +179,22 @@ describe("absenceStep", () => {
     );
   });
 
-  it("forgets an absence no focus closed once a tick finds the window in front", () => {
+  it("keeps a hidden window's absence through its ticks", () => {
     deepStrictEqual(
       run(initialAbsence(T0), [
         { kind: "hidden", at: T0 },
+        { kind: "tick", at: T0 + TICK, focused: false },
+        { kind: "tick", at: T0 + 2 * TICK, focused: false },
+        { kind: "focus", at: T0 + 6 * HOUR },
+      ]),
+      [3],
+    );
+  });
+
+  it("forgets an absence no focus closed once a tick finds the window in front", () => {
+    deepStrictEqual(
+      run(initialAbsence(T0), [
+        { kind: "blur", at: T0 },
         { kind: "tick", at: T0 + TICK, focused: true },
         { kind: "blur", at: T0 + 6 * HOUR },
         { kind: "focus", at: T0 + 6 * HOUR + 1 },
@@ -253,6 +287,39 @@ describe("returnAction", () => {
     deepStrictEqual(
       returnAction({ ...clear, status: { state: "installing", info } }),
       { kind: "hold", reason: "busy" },
+    );
+  });
+});
+
+describe("windowInFront", () => {
+  const doc = (
+    hasFocus: boolean,
+    visibilityState: DocumentVisibilityState,
+  ) => ({
+    hasFocus: () => hasFocus,
+    visibilityState,
+  });
+
+  it("needs the key window on screen, so a locked desktop reads as away", () => {
+    strictEqual(windowInFront(doc(true, "visible")), true);
+    strictEqual(windowInFront(doc(true, "hidden")), false);
+    strictEqual(windowInFront(doc(false, "visible")), false);
+  });
+});
+
+describe("returnLossHold", () => {
+  it("names the turn before the draft, and nothing when both are clear", () => {
+    strictEqual(
+      returnLossHold({ turnInFlight: true, draftPending: true }),
+      "turn",
+    );
+    strictEqual(
+      returnLossHold({ turnInFlight: false, draftPending: true }),
+      "draft",
+    );
+    strictEqual(
+      returnLossHold({ turnInFlight: false, draftPending: false }),
+      null,
     );
   });
 });

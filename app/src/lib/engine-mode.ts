@@ -177,13 +177,15 @@ export type ResolvedEngine =
  * sidecar / injected config. There is no runtime chooser.
  */
 export function resolveEngine(env: EngineModeEnv): ResolvedEngine {
-  if (env.VITE_NEW_ENGINE_URL) {
-    return { kind: "static-host", url: env.VITE_NEW_ENGINE_URL };
-  }
-  if (env.VITE_HOSTED_ENGINE_URL) {
+  // Trimmed like the shell's own read of the same two flags (`lib.rs`), so
+  // a blank-but-set URL cannot skip the sidecar here and spawn it there.
+  const staticHost = env.VITE_NEW_ENGINE_URL?.trim();
+  if (staticHost) return { kind: "static-host", url: staticHost };
+  const hosted = env.VITE_HOSTED_ENGINE_URL?.trim();
+  if (hosted) {
     return hostedAuthMode(env) === "oauth"
-      ? { kind: "hosted-oauth", url: env.VITE_HOSTED_ENGINE_URL }
-      : { kind: "hosted-static", url: env.VITE_HOSTED_ENGINE_URL };
+      ? { kind: "hosted-oauth", url: hosted }
+      : { kind: "hosted-static", url: hosted };
   }
   return { kind: "sidecar" };
 }

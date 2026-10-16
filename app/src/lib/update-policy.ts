@@ -32,8 +32,14 @@ import type { UpdateStatus } from "./update-status";
  *   (`isRemoteEngine`): on the local-engine build a relaunch kills the
  *   bundled host sidecar, with its routine runs and the turns other clients
  *   sent, which `ownTurnInFlight` cannot see. There the pill stays the only
- *   mid-session install. `return` is never a find: a release's info carries
- *   it only on the statuses of a return's install.
+ *   mid-session install. On a remote-engine build the relaunch still kills
+ *   the in-process local-model bridge (`app/src-tauri/src/local_bridge`)
+ *   and drops any turn it is relaying, for this person or a teammate sharing
+ *   it, exactly as the pill's click and the launch install do. The bridge
+ *   exposes no in-flight relay count, and holding on "connected" would stop
+ *   every bridge user from updating, so no gate reads it. `return` is never
+ *   a find: a release's info carries it only on the statuses of a return's
+ *   install.
  *
  * Detection stays pull-based: the Tauri updater polls the release feed's
  * manifest. There is no push channel to a desktop build, and no server-side

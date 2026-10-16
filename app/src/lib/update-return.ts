@@ -40,14 +40,23 @@ export function initialAbsence(now: number): AbsenceState {
 }
 
 /** The window events the tracker reads, named as the DOM fires them. Which
- *  of them start an absence and which one ends it is the policy below. */
+ *  of them start an absence and which ones end it is the policy below.
+ *  `focused` is `windowInFront(document)` at the event. */
 export type AbsenceEvent =
   | { kind: "blur"; at: number }
   | { kind: "hidden"; at: number }
-  | { kind: "visible"; at: number }
+  | { kind: "visible"; at: number; focused: boolean }
   | { kind: "focus"; at: number }
-  /** The check interval fired; `focused` is `document.hasFocus()` then. */
   | { kind: "tick"; at: number; focused: boolean };
+
+/** Whether a person can be in front of the window: it is the key window AND
+ *  on screen. A locked screen hides the document while `hasFocus()` stays
+ *  true, so focus alone would read a desktop locked overnight as present. */
+export function windowInFront(
+  doc: Pick<Document, "hasFocus" | "visibilityState">,
+): boolean {
+  return doc.hasFocus() && doc.visibilityState === "visible";
+}
 
 export interface AbsenceStep {
   state: AbsenceState;
@@ -55,10 +64,11 @@ export interface AbsenceStep {
   returned: boolean;
 }
 
-/** One event through the tracker. The return signal is the window's focus:
- *  a document turning visible is another window moving off Houston's, with
- *  no person behind it. A return is reported once per absence and consumed
- *  on the spot. */
+/** One event through the tracker. The return signal is the window coming to
+ *  the front: a focus, or the key window coming on screen (an unlock on a
+ *  desktop that never slept). A document turning visible without focus is
+ *  another window moving off Houston's, with no person behind it. A return
+ *  is reported once per absence and consumed on the spot. */
 export function absenceStep(
   state: AbsenceState,
   event: AbsenceEvent,
@@ -68,14 +78,16 @@ export function absenceStep(
     case "hidden":
       return { state: away(state, event.at), returned: false };
     case "visible":
-      return { state, returned: false };
+      return event.focused
+        ? comeBack(state, event.at)
+        : { state, returned: false };
     case "focus":
       return comeBack(state, event.at);
     case "tick": {
       const gap = event.at - state.lastTickAt - UPDATE_CHECK_INTERVAL_MS;
       if (gap < SLEEP_GAP_MS) {
-        // Timers ran, so a window focused now has a person in front of it:
-        // an absence no focus event closed is forgotten, never judged late.
+        // Timers ran, so a window in front now has a person before it: an
+        // absence no focus event closed is forgotten, never judged late.
         const awaySince = event.focused ? null : state.awaySince;
         return { state: { awaySince, lastTickAt: event.at }, returned: false };
       }
@@ -110,7 +122,10 @@ function comeBack(state: AbsenceState, at: number): AbsenceStep {
 export interface ReturnInputs {
   status: UpdateStatus;
   /** This build talks to a remote engine (`isRemoteEngine`), so a relaunch
-   *  kills nothing but this window. */
+   *  kills no sidecar. It still drops any turn the in-process local-model
+   *  bridge (`app/src-tauri/src/local_bridge`) is relaying, for this person
+   *  or a teammate sharing it, as the pill and the launch install do; the
+   *  bridge exposes no in-flight relay count, so nothing gates on it. */
   engineRemote: boolean;
   /** A turn this device sent is still out (`ownTurnInFlight`). */
   turnInFlight: boolean;
@@ -121,6 +136,10 @@ export interface ReturnInputs {
 /** Why a staged release was not installed at a return. */
 export type ReturnHoldReason = "turn" | "draft" | "busy";
 
+/** A live read of the loss gates (`returnLossHold` over the stores), handed
+ *  to the machine for the last look before an install. */
+export type ReturnHold = () => ReturnHoldReason | null;
+
 /** What a return does: install the release a poll already staged, hold it
  *  (the pill stays) because something the person could lose is in flight or
  *  the updater is mid-step, or nothing beyond the ordinary background check,
@@ -130,20 +149,30 @@ export type ReturnAction =
   | { kind: "hold"; reason: ReturnHoldReason }
   | { kind: "check" };
 
-export function returnAction({
-  status,
-  engineRemote,
-  turnInFlight,
-  draftPending,
-}: ReturnInputs): ReturnAction {
+export function returnAction(inputs: ReturnInputs): ReturnAction {
+  const { status, engineRemote } = inputs;
   if (!engineRemote) return { kind: "check" };
   if (status.state === "downloading" || status.state === "installing") {
     return { kind: "hold", reason: "busy" };
   }
   if (status.state !== "downloaded") return { kind: "check" };
-  if (turnInFlight) return { kind: "hold", reason: "turn" };
-  if (draftPending) return { kind: "hold", reason: "draft" };
-  return { kind: "install" };
+  const reason = returnLossHold(inputs);
+  return reason === null ? { kind: "install" } : { kind: "hold", reason };
+}
+
+/** The gates on what the person could lose. A return reads them twice: at
+ *  the return, and again right before the install, past the one await (the
+ *  bundle path) a keystroke queued behind the return can land in. */
+export function returnLossHold({
+  turnInFlight,
+  draftPending,
+}: Pick<ReturnInputs, "turnInFlight" | "draftPending">): Exclude<
+  ReturnHoldReason,
+  "busy"
+> | null {
+  if (turnInFlight) return "turn";
+  if (draftPending) return "draft";
+  return null;
 }
 
 /** Whether any composer holds unsent words or files, or any in-chat card is

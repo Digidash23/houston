@@ -16,7 +16,10 @@ import {
   absenceStep,
   draftPending,
   initialAbsence,
+  type ReturnInputs,
   returnAction,
+  returnLossHold,
+  windowInFront,
 } from "../lib/update-return";
 import { useDraftStore } from "../stores/drafts";
 import { useInteractionDraftStore } from "../stores/interaction-drafts";
@@ -27,6 +30,20 @@ export type {
   UpdateInfo,
   UpdateStatus,
 } from "./use-update-machine";
+
+/** What the person could lose to a relaunch right now, read live: a turn
+ *  this device sent, or a composer's unsent words, files or half-walked
+ *  card. Read at the return and again right before the install. */
+function lossGates(): Pick<ReturnInputs, "turnInFlight" | "draftPending"> {
+  return {
+    turnInFlight: ownTurnInFlight(),
+    draftPending: draftPending(
+      useDraftStore.getState().drafts,
+      useInteractionDraftStore.getState().parked,
+    ),
+  };
+}
+const returnHold = () => returnLossHold(lossGates());
 
 /**
  * Update policy. The machine (use-update-machine) knows HOW to download and
@@ -52,7 +69,7 @@ export function useUpdateChecker() {
     download,
     installAndRelaunch,
     relaunchInstalledApp,
-  } = useUpdateMachine();
+  } = useUpdateMachine({ returnHold });
   const lastCheckAtRef = useRef<number | null>(null);
   // Consecutive check FAILURES. A client that can never reach the release
   // feed would strand on an old build silently (the check is fail-open) —
@@ -85,11 +102,7 @@ export function useUpdateChecker() {
     const action = returnAction({
       status: currentStatus(),
       engineRemote: isRemoteEngine(),
-      turnInFlight: ownTurnInFlight(),
-      draftPending: draftPending(
-        useDraftStore.getState().drafts,
-        useInteractionDraftStore.getState().parked,
-      ),
+      ...lossGates(),
     });
     if (action.kind === "install") void installAndRelaunch("return");
     else if (action.kind === "hold") {
@@ -130,7 +143,7 @@ export function useUpdateChecker() {
       const event: AbsenceEvent = {
         kind: "tick",
         at: Date.now(),
-        focused: document.hasFocus(),
+        focused: windowInFront(document),
       };
       if (!track(event)) void check();
     };
@@ -152,8 +165,12 @@ export function useUpdateChecker() {
       track({ kind: "blur", at: Date.now() });
     };
     const visibility = () => {
-      const kind = document.visibilityState === "hidden" ? "hidden" : "visible";
-      track({ kind, at: Date.now() });
+      const at = Date.now();
+      track(
+        document.visibilityState === "hidden"
+          ? { kind: "hidden", at }
+          : { kind: "visible", at, focused: windowInFront(document) },
+      );
     };
     window.addEventListener("blur", blur);
     window.addEventListener("focus", focus);
