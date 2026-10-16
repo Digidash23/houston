@@ -11,15 +11,8 @@ import {
 
 /**
  * Share on LinkedIn in one click. DOM-free: the browser, the publish and
- * the clock's patience are handed in.
- *
- * In a browser the click claims a tab before anything else (a tab is only
- * granted inside the click), shows the holding line in it, publishes the
- * chart's page with its link card, then points the tab at LinkedIn's
- * composer with a post that links to the page, whose preview is the
- * picture. The desktop app publishes, then opens the browser. A touch
- * device with a share sheet that takes files hands it the picture and
- * publishes nothing. A drawing already published opens the composer at
+ * the clock's patience are handed in. Each route (`ShareRoute`) says how the
+ * click reaches LinkedIn; a drawing already published opens the composer at
  * once, inside the click, with no tab claimed first.
  *
  * A publish that fails (refused, offline, a deployment that keeps no shared
@@ -102,7 +95,10 @@ export function createLinkedInShare(
     set({ publishing: null });
   };
 
-  function publishThenOpen(click: LinkedInClick, image: File) {
+  async function publishThenOpen(
+    click: LinkedInClick,
+    image: File,
+  ): Promise<ShareLanding> {
     // Any throw from the post comes before a tab is claimed.
     const fallback = linkedInShareUrl(click.post(SHARE_SITE_LINK));
     const job = click.job(image);
@@ -115,14 +111,19 @@ export function createLinkedInShare(
     const mine: Run = { image, abort: new AbortController(), tab };
     run = mine;
     set({ publishing: image });
-    const patience = setTimeout(
-      () =>
-        mine.abort.abort(
-          new DOMException("org chart share page too slow", "TimeoutError"),
-        ),
-      deps.patienceMs ?? SHARE_PATIENCE_MS,
-    );
-    return deps.publish(job, mine.abort.signal).then((pageUrl) => {
+    // Only running out of patience is a failure: `publish` answers null on
+    // any abort, and a closed dialog or a redraw is the person moving on.
+    const patience = setTimeout(() => {
+      if (run !== mine || mine.abort.signal.aborted) return;
+      const slow = new DOMException(
+        "org chart share page too slow",
+        "TimeoutError",
+      );
+      mine.abort.abort(slow);
+      deps.report("org_chart_share_publish", slow);
+    }, deps.patienceMs ?? SHARE_PATIENCE_MS);
+    try {
+      const pageUrl = await deps.publish(job, mine.abort.signal);
       clearTimeout(patience);
       // Closed or redrawn: `stop` already closed the tab.
       if (run !== mine) return NO_LANDING;
@@ -132,17 +133,23 @@ export function createLinkedInShare(
           ? { publishing: null, page: { image, pageUrl } }
           : { publishing: null },
       );
-      try {
-        const url = pageUrl ? linkedInShareUrl(click.post(pageUrl)) : fallback;
-        return openComposer(click.route.kind, tab, deps.open, url, {
-          channel: pageUrl ? "linkedin_link" : "linkedin_text_only",
-          notAttached: !pageUrl,
-        });
-      } catch (error) {
-        tab?.discard();
-        throw error;
+      const url = pageUrl ? linkedInShareUrl(click.post(pageUrl)) : fallback;
+      return await openComposer(click.route.kind, tab, deps.open, url, {
+        channel: pageUrl ? "linkedin_link" : "linkedin_text_only",
+        notAttached: !pageUrl,
+      });
+    } catch (error) {
+      // Nothing may outlive a failed click: the timer, the button's
+      // "Preparing...", the holding tab (a no-op once it navigated).
+      clearTimeout(patience);
+      if (run === mine) {
+        run = null;
+        set({ publishing: null });
       }
-    });
+      tab?.discard();
+      deps.report("org_chart_share", error);
+      return NO_LANDING;
+    }
   }
 
   return {
@@ -191,5 +198,3 @@ export function createLinkedInShare(
     },
   };
 }
-
-export type LinkedInShare = ReturnType<typeof createLinkedInShare>;

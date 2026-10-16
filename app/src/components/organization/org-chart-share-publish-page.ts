@@ -103,7 +103,7 @@ function reportDetours(deps: SharePublishDeps, detours: OrgChartShareDetours) {
  * The page's address, or null to share without it. Never rejects. Only a
  * refusal nothing outside Houston explains, or a failure, is reported, and
  * a card or title the gateway refused on the way is reported once; an
- * aborted publish says nothing.
+ * aborted publish says nothing (the caller reports its own timeout).
  */
 export async function publishPage(
   deps: SharePublishDeps,

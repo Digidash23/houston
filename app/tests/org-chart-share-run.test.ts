@@ -18,24 +18,39 @@ const sheet = (
 ): ShareSheet => ({ canShare: () => canShare, share });
 
 describe("shareRoute", () => {
+  const env = {
+    tauri: false,
+    native: false,
+    coarse: true,
+    sheet: sheet(),
+    image: PNG,
+  };
+
   it("takes the share sheet only on a touch device whose sheet takes the picture", () => {
-    const env = { tauri: false, coarse: true, sheet: sheet(), image: PNG };
     strictEqual(shareRoute(env).kind, "sheet");
+    strictEqual(shareRoute({ ...env, coarse: false }).kind, "tab");
+  });
+
+  it("claims no tab on a touch device whose sheet cannot take the picture", () => {
+    // iPad Safari suspends the Houston tab once a claimed tab takes focus.
     for (const overrides of [
-      { coarse: false },
       { sheet: undefined },
       { sheet: sheet(async () => {}, false) },
       { image: null },
     ])
-      strictEqual(shareRoute({ ...env, ...overrides }).kind, "tab");
+      strictEqual(shareRoute({ ...env, ...overrides }).kind, "plain");
+  });
+
+  it("claims no tab in the mobile app, whose browser opens after an await", () => {
+    strictEqual(
+      shareRoute({ ...env, native: true, coarse: false, sheet: undefined })
+        .kind,
+      "plain",
+    );
   });
 
   it("is the desktop app's own way in the desktop app", () => {
-    strictEqual(
-      shareRoute({ tauri: true, coarse: true, sheet: sheet(), image: PNG })
-        .kind,
-      "shell",
-    );
+    strictEqual(shareRoute({ ...env, tauri: true }).kind, "shell");
   });
 });
 
@@ -80,6 +95,14 @@ describe("openComposer", () => {
         notAttached: false,
         blocked: { url: URL_, channel: "linkedin_link" },
       },
+    );
+  });
+
+  it("offers LinkedIn's link when the mobile app's browser refused the open", async () => {
+    strictEqual(
+      (await openComposer("plain", null, async () => false, URL_, share))
+        .blocked?.url,
+      URL_,
     );
   });
 

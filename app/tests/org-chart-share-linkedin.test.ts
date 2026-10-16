@@ -149,7 +149,7 @@ describe("Share on LinkedIn in a browser, in one click", () => {
     strictEqual(h.log.at(-1), "navigate:Hello gethouston.ai");
   });
 
-  it("gives up on a slow page at its patience, aborting the upload", async () => {
+  it("gives up on a slow page at its patience, aborting the upload and reporting it once", async () => {
     const h = harness({ patienceMs: 5 });
     const landing = h.share.click(click(png()));
     await settle(20);
@@ -157,6 +157,58 @@ describe("Share on LinkedIn in a browser, in one click", () => {
     strictEqual(h.signals[0]?.reason?.name, "TimeoutError");
     strictEqual((await landing)?.notAttached, true);
     strictEqual(h.log.at(-1), "navigate:Hello gethouston.ai");
+    deepStrictEqual(
+      h.log.filter((l) => l.startsWith("report")),
+      ["report:org_chart_share_publish"],
+    );
+  });
+
+  it("reports nothing when the dialog closes or the chart is redrawn mid-publish", async () => {
+    // A publish deaf to its abort keeps going past the patience.
+    const h = harness({
+      patienceMs: 5,
+      publish: () => new Promise<string | null>(() => {}),
+    });
+    h.share.click(click(png()));
+    h.share.end();
+    const image = png();
+    h.share.follow(image);
+    h.share.click(click(image));
+    h.share.follow(png());
+    await settle(20);
+    ok(!h.log.some((l) => l.startsWith("report")));
+  });
+
+  it("closes the tab and reports once when pointing it at LinkedIn throws", async () => {
+    const h = harness();
+    h.tab.navigate = () => {
+      throw new DOMException("cross-origin", "SecurityError");
+    };
+    const landing = h.share.click(click(png()));
+    h.pages[0]?.resolve(PAGE);
+    deepStrictEqual(await landing, {
+      channel: null,
+      notAttached: false,
+      blocked: null,
+    });
+    deepStrictEqual(h.log.slice(-2), ["discard", "report:org_chart_share"]);
+    strictEqual(h.share.state().publishing, null);
+  });
+
+  it("frees the button and closes the tab when the publish rejects", async () => {
+    const h = harness({
+      patienceMs: 5,
+      publish: () => Promise.reject(new Error("reporter threw")),
+    });
+    const landing = h.share.click(click(png()));
+    strictEqual((await landing)?.channel, null);
+    deepStrictEqual(h.log.slice(-2), ["discard", "report:org_chart_share"]);
+    strictEqual(h.share.state().publishing, null);
+    await settle(20);
+    // The patience timer died with the click: no timeout report.
+    strictEqual(h.log.filter((l) => l.startsWith("report")).length, 1);
+    // And the button takes the next click.
+    ok(h.share.click(click(png())) !== null);
   });
 
   it("aborts the upload and closes the tab when the dialog closes mid-publish", async () => {
@@ -222,6 +274,28 @@ describe("Share on LinkedIn in a browser, in one click", () => {
   });
 });
 
+describe("Share on LinkedIn with no tab to claim", () => {
+  const PLAIN: ShareRoute = { kind: "plain" };
+
+  it("publishes, then opens LinkedIn plainly, never claiming a tab", async () => {
+    const h = harness();
+    const landing = h.share.click(click(png(), PLAIN));
+    deepStrictEqual(h.log, ["publish"]);
+    h.pages[0]?.resolve(PAGE);
+    strictEqual((await landing)?.channel, "linkedin_link");
+    deepStrictEqual(h.log, ["publish", `open:Hello ${PAGE}`]);
+  });
+
+  it("links to LinkedIn in the dialog when the open is refused", async () => {
+    const h = harness({ open: async () => false });
+    const landing = h.share.click(click(png(), PLAIN));
+    h.pages[0]?.resolve(PAGE);
+    const { blocked, channel } = (await landing) ?? {};
+    strictEqual(channel, null);
+    strictEqual(textOf(blocked?.url ?? ""), `Hello ${PAGE}`);
+  });
+});
+
 describe("Share on LinkedIn in the desktop app", () => {
   it("publishes, then opens the browser, with no tab to claim", async () => {
     const h = harness();
@@ -251,7 +325,13 @@ describe("Share on LinkedIn on a touch device", () => {
         shared.push(data);
       },
     };
-    const route = shareRoute({ tauri: false, coarse: true, sheet, image });
+    const route = shareRoute({
+      tauri: false,
+      native: false,
+      coarse: true,
+      sheet,
+      image,
+    });
     strictEqual(route.kind, "sheet");
     const h = harness();
     strictEqual((await h.share.click(click(image, route)))?.channel, "native");

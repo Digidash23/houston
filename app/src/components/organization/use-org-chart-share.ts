@@ -3,6 +3,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { analytics } from "../../lib/analytics";
 import { logAndReportError } from "../../lib/error-report";
+import { osIsNativeMobile } from "../../lib/os-bridge/platform";
 import {
   canCopyImage,
   coarsePointer,
@@ -110,6 +111,7 @@ export function useOrgChartShare(tree: OrgTree) {
     try {
       const route = shareRoute({
         tauri: isTauri(),
+        native: osIsNativeMobile(),
         coarse: coarsePointer(),
         sheet: shareSheet(),
         image: file,

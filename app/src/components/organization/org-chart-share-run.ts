@@ -24,18 +24,25 @@ export interface ShareSheet {
  *   focus, so a publish behind a tab would never finish.
  * - `shell`: the desktop app. The OS opens the browser whenever it is asked,
  *   so the click publishes, then opens LinkedIn.
+ * - `plain`: the mobile app, or a touch device with no sheet for files. No
+ *   tab is claimed (the mobile app opens its browser on demand; a claimed
+ *   tab would suspend this one), so the click publishes, then opens
+ *   LinkedIn, and a refused open leaves the link in the dialog.
  * - `tab`: a browser with a fine pointer. A new tab is only granted inside
- *   the click, so the click claims one at once and points it at LinkedIn
- *   once the chart's page is up.
+ *   the click, so the click claims one at once, shows the holding line in
+ *   it, and points it at LinkedIn once the chart's page is up.
  */
 export type ShareRoute =
   | { kind: "sheet"; sheet: ShareSheet }
   | { kind: "shell" }
+  | { kind: "plain" }
   | { kind: "tab" };
 
 /** A capability check, never platform sniffing. */
 export function shareRoute(env: {
   tauri: boolean;
+  /** The Capacitor app: its browser opens after an await. */
+  native: boolean;
   /** `matchMedia("(pointer: coarse)")`: the primary pointer is a finger. */
   coarse: boolean;
   sheet: ShareSheet | undefined;
@@ -46,6 +53,7 @@ export function shareRoute(env: {
   const { sheet, image } = env;
   if (env.coarse && sheet && image && sheet.canShare({ files: [image] }))
     return { kind: "sheet", sheet };
+  if (env.coarse || env.native) return { kind: "plain" };
   return { kind: "tab" };
 }
 
