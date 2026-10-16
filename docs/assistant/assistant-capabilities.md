@@ -105,7 +105,7 @@ Calling an operation returns the host's raw response. Where the adapter function
 - `agentTriggerStatus`: Checks whether an agent's routine triggers are ready.
 - `cancelRoutineRun`: Stops a routine run that is currently under way. **Confirmation required.**
 - `createRoutine`: Creates a routine so an agent repeats work on a schedule. **Confirmation required.**
-- `deleteRoutine`: Deletes a routine so it stops running on its schedule. **Confirmation required.**
+- `deleteRoutine`: Deletes a routine so it stops running on its schedule. The route answers 404 with code `routine_not_found` when no routine has that id. **Confirmation required.**
 - `keepRoutine`: Choose the one Free routine that keeps firing. **Confirmation required.**
 - `listPlanRoutines`: List the person's enabled routines across all spaces.
 - `listRoutineRuns`: Lists the times an agent's routines have run, including any run in progress.

@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { createRoutine, docKey } from "@houston/domain";
 import { FsVfs } from "@houston/host/src/vfs";
 import type { RoutineRun } from "@houston/protocol";
+import type { WireFrame } from "@houston/runtime-client";
 import {
   fileSha256,
   ObjectNotFoundError,
@@ -11,15 +12,22 @@ import {
   StoreConflictError,
 } from "@houston/runtime-client/object-sync";
 import { afterEach, beforeEach, expect, test } from "vitest";
+import { ROUTINE_HEAL_BUDGET_MS } from "./op-routine-heal";
+import { fakePoolStore, POOL_STORE_URL } from "./pool-store.test-support";
 import type { TurnServerDeps } from "./server-types";
 import type { TurnFilesystem } from "./turn-filesystem";
 import { RoutineTurnError } from "./turn-routine";
-import { startRoutineRun } from "./turn-routine-start";
+import {
+  answerRoutineStartFailure,
+  startRoutineRun,
+} from "./turn-routine-start";
 import type { TurnRequest } from "./types";
 
 /**
  * A pooled routine run is visible while it runs: its running row reaches the
- * store and the run history doc before the turn starts.
+ * store and the run history doc before the turn starts. A run-now of a routine
+ * the store lacks (dispatched off a stale routines mirror) heals that mirror
+ * before it fails.
  */
 
 const WS = "workspaces/Personal/Bob";
@@ -234,4 +242,116 @@ test("the same turn re-dispatched after its run settled never runs twice", async
     RoutineTurnError,
   );
   expect(stored()).toEqual([settled]);
+});
+
+/** The routine is gone from the store and the hydrated tree alike. */
+async function sandboxWithoutRoutine() {
+  const filesystem = await sandbox([]);
+  objects.set(ROUTINES, { body: "[]", generation: 2 });
+  await writeFile(join(root, ROUTINES), "[]");
+  return filesystem;
+}
+
+function poolDeps(
+  options: { failDocs?: boolean; hangPuts?: boolean; mirror?: unknown[] } = {},
+) {
+  const pool = fakePoolStore("ws/w1/bob");
+  // The gateway's asleep mirror still lists the deleted routine.
+  pool.docs.set("routines", { doc: options.mirror ?? [routine], revision: 1 });
+  const fetchImpl = (async (input: unknown, init?: RequestInit) => {
+    const isDoc = String(input).includes("/v1/pod/docs/");
+    if (options.failDocs && isDoc)
+      return new Response("unavailable", { status: 503 });
+    if (options.hangPuts && isDoc && init?.method === "PUT")
+      return new Promise<Response>((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () =>
+          reject(init.signal?.reason),
+        );
+      });
+    return pool.fetchImpl(input as RequestInfo, init);
+  }) as typeof fetch;
+  const deps: Pick<
+    TurnServerDeps,
+    "poolStoreUrl" | "fetchImpl" | "activityDocRetryDelaysMs"
+  > = { poolStoreUrl: POOL_STORE_URL, fetchImpl, activityDocRetryDelaysMs: [] };
+  return { pool, deps: deps as TurnServerDeps };
+}
+
+async function errorFrame(error: unknown) {
+  const frames: WireFrame[] = [];
+  await answerRoutineStartFailure(
+    { turnId: "t1", emit: (f) => frames.push(f), turnLog: null as never },
+    error,
+  );
+  return frames[0] as unknown as { data: Record<string, unknown> };
+}
+
+test("a run-now of a routine the store lacks heals the routines doc before failing", async () => {
+  const filesystem = await sandboxWithoutRoutine();
+  const { pool, deps } = poolDeps();
+
+  const error = await start(filesystem, deps).catch((e: unknown) => e);
+
+  expect(error).toBeInstanceOf(RoutineTurnError);
+  expect((error as RoutineTurnError).code).toBe("no_routine");
+  expect((error as RoutineTurnError).changed).toEqual(["RoutinesChanged"]);
+  const puts = pool.docPuts.filter((p) => p.family === "routines");
+  expect(puts).toHaveLength(1);
+  expect(puts[0]?.claim).toBe("routine-r1");
+  expect(JSON.stringify(puts[0]?.doc)).not.toContain('"r1"');
+  // No run row was written for a routine that does not exist.
+  expect(stored()).toEqual([]);
+  // The gateway fans the healed family out from the error frame.
+  expect((await errorFrame(error)).data).toMatchObject({
+    code: "no_routine",
+    changed: ["RoutinesChanged"],
+  });
+});
+
+test("a heal whose doc never lands still fails no_routine and announces nothing", async () => {
+  const filesystem = await sandboxWithoutRoutine();
+  const { pool, deps } = poolDeps({ failDocs: true });
+
+  const error = await start(filesystem, deps).catch((e: unknown) => e);
+
+  expect((error as RoutineTurnError).code).toBe("no_routine");
+  expect((error as RoutineTurnError).changed).toEqual([]);
+  expect(pool.docPuts).toEqual([]);
+  expect((await errorFrame(error)).data.changed).toBeUndefined();
+});
+
+test("a busy routine re-projects nothing", async () => {
+  const filesystem = await sandbox([], [running("other")]);
+  const { pool, deps } = poolDeps();
+
+  const error = await start(filesystem, deps).catch((e: unknown) => e);
+
+  expect((error as RoutineTurnError).code).toBe("routine_busy");
+  expect(pool.docPuts.filter((p) => p.family === "routines")).toEqual([]);
+});
+
+test("a run-now whose mirror already omits the routine re-projects nothing", async () => {
+  const filesystem = await sandboxWithoutRoutine();
+  const { pool, deps } = poolDeps({ mirror: [] });
+
+  const error = await start(filesystem, deps).catch((e: unknown) => e);
+
+  expect((error as RoutineTurnError).code).toBe("no_routine");
+  expect((error as RoutineTurnError).changed).toEqual([]);
+  expect(pool.docPuts).toEqual([]);
+  expect((await errorFrame(error)).data.changed).toBeUndefined();
+});
+
+test("a heal whose doc PUT hangs gives up within budget and announces nothing", async () => {
+  const filesystem = await sandboxWithoutRoutine();
+  const { pool, deps } = poolDeps({ hangPuts: true });
+  const started = Date.now();
+
+  const error = await start(filesystem, deps).catch((e: unknown) => e);
+
+  expect(Date.now() - started).toBeLessThan(ROUTINE_HEAL_BUDGET_MS + 1_000);
+  expect((error as RoutineTurnError).code).toBe("no_routine");
+  expect((error as RoutineTurnError).changed).toEqual([]);
+  expect(pool.docPuts).toEqual([]);
+  expect((await errorFrame(error)).data.changed).toBeUndefined();
 });

@@ -63,6 +63,7 @@ export {
   planMinIntervalRefusal,
 } from "./plan-floor-quiet";
 export { viewerIsRoutineCreator } from "./routine-creator";
+export { isRoutineGone } from "./routine-gone";
 export { type RoutineSnoozeNotice, routineSnoozeNotice } from "./snooze";
 export type {
   NewRoutine,

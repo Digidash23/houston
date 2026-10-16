@@ -1,12 +1,7 @@
 import { useUIStore } from "../stores/ui";
-import { isAgentWarmingRefusal } from "./agent-warming-refusal";
 import { logAndReportError } from "./error-report";
-import {
-  type OptimisticFailureCopy,
-  type OptimisticWrite,
-  runOptimisticWrite,
-} from "./optimistic-core";
-import { wasToldUser } from "./user-told-mark";
+import { type OptimisticWrite, runOptimisticWrite } from "./optimistic-core";
+import { createOptimisticRefusal } from "./optimistic-refusal";
 
 export type {
   OptimisticFailureCopy,
@@ -14,23 +9,11 @@ export type {
   OptimisticWrite,
 } from "./optimistic-core";
 
-/**
- * The refusal surface of every optimistic write. The change the user saw is
- * visibly undone, so silence would read as a glitch: the caller's authored
- * copy says what did not happen. Two refusals already have their surface and
- * get nothing more: one `call()` (`lib/tauri.ts`) explained with its own
- * expected-state copy (last owner, expired trial, offline, waking), and the
- * warming guard's refusal, whose "almost ready" dialog is already open.
- */
-export function tellOptimisticRefusal(
-  command: string,
-  err: unknown,
-  copy: OptimisticFailureCopy,
-): void {
-  if (wasToldUser(err) || isAgentWarmingRefusal(err)) return;
-  logAndReportError(command, err);
-  useUIStore.getState().addToast({ ...copy, variant: "error" });
-}
+/** The refusal surface of every optimistic write (`optimistic-refusal.ts`). */
+export const tellOptimisticRefusal = createOptimisticRefusal({
+  report: logAndReportError,
+  addToast: (toast) => useUIStore.getState().addToast(toast),
+});
 
 /**
  * Paint a user's create / update / delete in the cache NOW and send it in the

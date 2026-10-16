@@ -107,12 +107,17 @@ export async function runForcedToolCall(input: {
   ];
   const requestAt = now();
   let openedAt: number | undefined;
+  let firstBlockAt: number | undefined;
   let firstTokenAt: number | undefined;
   const stream = input.runtime.streamSimple(sent.model, { messages }, options);
   for await (const event of stream) {
     if (event.type === "start") openedAt ??= now();
-    else if (event.type === "toolcall_start" || event.type === "text_start")
-      firstTokenAt ??= now();
+    else if (event.type === "thinking_start") firstBlockAt ??= now();
+    else if (event.type === "toolcall_start" || event.type === "text_start") {
+      const at = now();
+      firstBlockAt ??= at;
+      firstTokenAt ??= at;
+    }
   }
   const message = await stream.result();
   if (message.stopReason === "error" || message.stopReason === "aborted")
@@ -126,6 +131,9 @@ export async function runForcedToolCall(input: {
           ttfbMs: Math.max(0, Math.round(openedAt - requestAt)),
           ...(firstTokenAt !== undefined
             ? { firstTokenMs: Math.round(firstTokenAt - openedAt) }
+            : {}),
+          ...(firstBlockAt !== undefined
+            ? { firstBlockMs: Math.round(firstBlockAt - openedAt) }
             : {}),
           inputTokens: message.usage?.input ?? 0,
           cacheReadTokens: message.usage?.cacheRead ?? 0,

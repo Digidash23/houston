@@ -263,6 +263,10 @@ test("an unknown routine 404s, never fires", async () => {
     },
   );
   expect(res.status).toBe(404);
+  expect(await res.json()).toEqual({
+    error: "routine not found",
+    code: "routine_not_found",
+  });
   expect(channel.fired).toHaveLength(0);
 });
 

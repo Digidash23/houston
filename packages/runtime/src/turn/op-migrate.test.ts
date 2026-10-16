@@ -103,14 +103,15 @@ test("two complete agent trees under one prefix are refused as layout_unexpected
   expect(fake.uploads).toEqual([]);
 });
 
-test("a tree over the hydration cap is refused as hydrate_over_cap", async () => {
+test("files the migration reads over the hydration cap are refused before any download", async () => {
   const fake = legacy();
-  fake.put(`${AGENT}/.houston/backups/snapshot.tgz`, "x".repeat(4096));
+  fake.put(`${AGENT}/.houston/activity/activity.json`, "x".repeat(4096));
 
   const { status, answer } = await run(fake, { maxHydrateBytes: 1024 });
 
   expect(status).toBe(500);
   expect(answer.code).toBe("hydrate_over_cap");
+  expect(fake.downloads).toEqual([]);
   expect(fake.uploads).toEqual([]);
 });
 

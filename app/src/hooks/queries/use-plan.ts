@@ -5,6 +5,7 @@ import { useState } from "react";
 import { reportError } from "../../lib/error-report";
 import { refuseNativePurchase } from "../../lib/purchase-policy";
 import { queryKeys } from "../../lib/query-keys";
+import { refetchIfRoutineGone } from "../../lib/routine-gone-surface";
 import { tauriOrg, tauriSystem } from "../../lib/tauri";
 import { useCapabilities } from "../use-capabilities";
 
@@ -96,6 +97,10 @@ export function useKeepRoutine() {
         client.invalidateQueries({ queryKey: queryKeys.planRoutines() }),
       ]);
     },
+    // The gateway's `routine_not_found`: the routine was deleted since the
+    // list loaded, so refresh it (the toast is the quiet surface's).
+    onError: (err) =>
+      refetchIfRoutineGone(client, queryKeys.planRoutines(), err),
   });
 }
 

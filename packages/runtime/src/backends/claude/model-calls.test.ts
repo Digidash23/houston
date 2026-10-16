@@ -49,6 +49,8 @@ test("spawn-to-init, then one call per Messages API response", () => {
         model: "claude-opus-5-5",
         ttfbMs: 2100,
         firstTokenMs: 1500,
+        // The thinking block opened first: the 1200 ms after it is thinking.
+        firstBlockMs: 300,
         inputTokens: 3,
         cacheReadTokens: 18_000,
         cacheWriteTokens: 500,
@@ -65,7 +67,7 @@ test("spawn-to-init, then one call per Messages API response", () => {
   const [second] = timer(stream({ type: "message_stop" }));
   expect(second).toMatchObject({
     type: "call",
-    call: { ttfbMs: 1700, firstTokenMs: 0, inputTokens: 40 },
+    call: { ttfbMs: 1700, firstTokenMs: 0, firstBlockMs: 0, inputTokens: 40 },
   });
 });
 
@@ -130,4 +132,16 @@ test("a malformed stream event never throws into the turn", () => {
   expect(timer(messageStart({ input_tokens: 1 }))).toEqual([]);
   expect(timer(stream({ type: "message_stop" }))).toEqual([]);
   warn.mockRestore();
+});
+
+test("a response that only thought has a first block and no first token", () => {
+  const c = clock();
+  const timer = createClaudeCallTimer(c.now);
+  timer(init);
+  timer(messageStart({ input_tokens: 1 }));
+  c.advance(250);
+  timer(blockStart("redacted_thinking"));
+  const [call] = timer(stream({ type: "message_stop" }));
+  expect(call).toMatchObject({ call: { firstBlockMs: 250 } });
+  expect(call?.type === "call" && call.call.firstTokenMs).toBeUndefined();
 });

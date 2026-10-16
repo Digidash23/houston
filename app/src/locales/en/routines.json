@@ -286,7 +286,9 @@
     "runError": "Couldn't start the routine",
     "runErrorBody": "It didn't run. Try again in a moment.",
     "stopError": "Couldn't stop the run",
-    "stopErrorBody": "It may still be running. Try again in a moment."
+    "stopErrorBody": "It may still be running. Try again in a moment.",
+    "goneTitle": "This routine no longer exists",
+    "goneBody": "It was deleted, so there is nothing left to change or run."
   },
   "webhook": {
     "createAddress": "Create webhook address",

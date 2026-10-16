@@ -15,6 +15,10 @@
     "./first-day-refusal": {
       "types": "./src/first-day-refusal.ts",
       "import": "./src/first-day-refusal.ts"
+    },
+    "./routine-refusal": {
+      "types": "./src/routine-refusal.ts",
+      "import": "./src/routine-refusal.ts"
     }
   },
   "files": [

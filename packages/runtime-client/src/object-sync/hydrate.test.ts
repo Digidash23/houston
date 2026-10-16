@@ -814,6 +814,39 @@ test("a deferring hydrate refuses an over-cap listing before downloading the bul
   expect(existsSync(join(work, "workspace", "notes.txt"))).toBe(false);
 });
 
+test("capListed refuses a filtered listing over the cap before downloading it", async () => {
+  const { storeRoot, store, work } = setup();
+  seed(storeRoot, PREFIX, {
+    "workspace/notes.txt": "0123456789",
+    "workspace/big.bin": "0123456789",
+    "workspace/skipped.bin": "x".repeat(4096),
+  });
+  await expect(
+    startHydrate(store, PREFIX, work, {
+      maxBytes: 12,
+      capListed: true,
+      filter: (rel) => rel !== "workspace/skipped.bin",
+    }),
+  ).rejects.toMatchObject({ name: "HydrateLimitError", observedBytes: 20 });
+  expect(existsSync(join(work, "workspace", "notes.txt"))).toBe(false);
+  expect(existsSync(join(work, "workspace", "big.bin"))).toBe(false);
+});
+
+test("capListed counts only what the filter admits", async () => {
+  const { storeRoot, store, work } = setup();
+  seed(storeRoot, PREFIX, {
+    "workspace/notes.txt": "0123456789",
+    "workspace/skipped.bin": "x".repeat(4096),
+  });
+  const started = await startHydrate(store, PREFIX, work, {
+    maxBytes: 12,
+    capListed: true,
+    filter: (rel) => rel !== "workspace/skipped.bin",
+  });
+  await started.done;
+  expect([...started.manifest.keys()]).toEqual(["workspace/notes.txt"]);
+});
+
 test("hydrate without a defer predicate resolves deferred with done", async () => {
   const { storeRoot, store, work } = setup();
   seed(storeRoot, PREFIX, { "workspace/uploads/photo.png": "x" });

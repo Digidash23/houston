@@ -150,6 +150,22 @@ describe("routines module — an agent's scheduled work", () => {
     ]);
   });
 
+  it("treats deleting a routine that is already gone as done", async () => {
+    const { sdk } = makeSdk(() =>
+      json({ error: "routine not found", code: "routine_not_found" }, 404),
+    );
+    await expect(
+      sdk.routines.deleteRoutine("a1", "r1"),
+    ).resolves.toBeUndefined();
+  });
+
+  it("still fails a delete the agent itself refused", async () => {
+    const { sdk } = makeSdk(() => json({ error: "agent not found" }, 404));
+    await expect(sdk.routines.deleteRoutine("a1", "r1")).rejects.toMatchObject({
+      status: 404,
+    });
+  });
+
   it("fires a routine now against its /run sub-path", async () => {
     const { sdk, calls } = makeSdk(() => new Response(null, { status: 202 }));
 

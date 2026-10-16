@@ -6,8 +6,9 @@
 /** `network` is the device's link; `upstream` is the release host answering
  *  a transient status (a 5xx / 429) for the whole retry budget (PRODUCT-1811).
  *  Both are expected states. `http` is any other status, final on first
- *  sight. `in_progress` is another download of the same release already
- *  running in the shell (a remounted hook asked twice): nothing happened.
+ *  sight. `in_progress` is another download holding the same partial file
+ *  in the shell: nothing happened. A remounted hook asking again does not
+ *  get it; the shell joins it to the running download instead.
  *  `storage_full` is the disk refusing the bytes: quiet, and not retried for
  *  that release this session. */
 export type UpdateDownloadFailureKind =

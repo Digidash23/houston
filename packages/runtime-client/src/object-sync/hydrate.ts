@@ -161,7 +161,7 @@ export async function startHydrate(
     : remainingCandidates;
   const defer = opts.defer;
   const later = defer ? remaining.filter(({ rel }) => defer(rel)) : [];
-  if (later.length)
+  if (later.length || opts.capListed)
     assertListedWithinCap([...priority, ...remaining], sizes, maxBytes);
   const done = download(
     later.length ? remaining.filter(({ rel }) => !defer?.(rel)) : remaining,

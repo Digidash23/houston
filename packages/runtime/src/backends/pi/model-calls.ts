@@ -6,8 +6,9 @@ import type { ModelCallTiming } from "@houston/protocol";
  * `turn_start` precedes each request (the auth refresh and context transform
  * before the fetch count as request time); an auto-retry's request goes out
  * after its backoff. The assistant `message_start` fires when the provider's
- * response opens, and the first `text_start` / `toolcall_start` is the first
- * answer token. A call that errored or was aborted reports nothing: its
+ * response opens, the first `thinking_start` / `text_start` /
+ * `toolcall_start` is the first block, and the first `text_start` /
+ * `toolcall_start` is the first answer token. A call that errored or was aborted reports nothing: its
  * timings describe a failure, not the provider's latency.
  */
 export function createPiCallTimer(
@@ -15,19 +16,25 @@ export function createPiCallTimer(
 ): (event: AgentSessionEvent) => ModelCallTiming | null {
   let requestAt: number | undefined;
   let openedAt: number | undefined;
+  let firstBlockAt: number | undefined;
   let firstTokenAt: number | undefined;
   return (e) => {
     if (e.type === "turn_start") {
       requestAt = now();
-      openedAt = firstTokenAt = undefined;
+      openedAt = firstBlockAt = firstTokenAt = undefined;
     } else if (e.type === "auto_retry_start") {
       requestAt = now() + e.delayMs;
-      openedAt = firstTokenAt = undefined;
+      openedAt = firstBlockAt = firstTokenAt = undefined;
     } else if (e.type === "message_start" && e.message.role === "assistant") {
       openedAt ??= now();
     } else if (e.type === "message_update") {
       const t = e.assistantMessageEvent.type;
-      if (t === "text_start" || t === "toolcall_start") firstTokenAt ??= now();
+      if (t === "thinking_start") firstBlockAt ??= now();
+      if (t === "text_start" || t === "toolcall_start") {
+        const at = now();
+        firstBlockAt ??= at;
+        firstTokenAt ??= at;
+      }
     } else if (e.type === "message_end" && e.message.role === "assistant") {
       const msg = e.message;
       const call =
@@ -42,13 +49,16 @@ export function createPiCallTimer(
               ...(firstTokenAt !== undefined
                 ? { firstTokenMs: Math.round(firstTokenAt - openedAt) }
                 : {}),
+              ...(firstBlockAt !== undefined
+                ? { firstBlockMs: Math.round(firstBlockAt - openedAt) }
+                : {}),
               inputTokens: msg.usage?.input ?? 0,
               cacheReadTokens: msg.usage?.cacheRead ?? 0,
               cacheWriteTokens: msg.usage?.cacheWrite ?? 0,
               outputTokens: msg.usage?.output ?? 0,
             }
           : null;
-      requestAt = openedAt = firstTokenAt = undefined;
+      requestAt = openedAt = firstBlockAt = firstTokenAt = undefined;
       return call;
     }
     return null;

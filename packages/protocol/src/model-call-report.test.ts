@@ -9,6 +9,7 @@ const call = {
   model: "claude-sonnet-5-5",
   ttfbMs: 1800,
   firstTokenMs: 600,
+  firstBlockMs: 200,
   inputTokens: 12,
   cacheReadTokens: 20_000,
   cacheWriteTokens: 300,
@@ -41,14 +42,19 @@ test("a bad call or startup entry is dropped alone", () => {
   const parsed = parseModelCallReport({
     ...report,
     startupMs: { harness_init: -1, session_build: 5, other: 9 },
-    calls: [call, { ...call, ttfbMs: Number.NaN }, { ...call, model: 3 }],
+    calls: [
+      call,
+      { ...call, ttfbMs: Number.NaN },
+      { ...call, model: 3 },
+      { ...call, firstBlockMs: -1 },
+    ],
   });
   expect(parsed?.startupMs).toEqual({ session_build: 5 });
   expect(parsed?.calls).toEqual([call]);
 });
 
-test("firstTokenMs stays optional", () => {
-  const { firstTokenMs: _, ...noToken } = call;
+test("firstTokenMs and firstBlockMs stay optional", () => {
+  const { firstTokenMs: _, firstBlockMs: __, ...noToken } = call;
   expect(parseModelCallReport({ ...report, calls: [noToken] })?.calls).toEqual([
     noToken,
   ]);
