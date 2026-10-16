@@ -1,3 +1,4 @@
+import { ORG_CHART_SHARE_PREVIEW_SIZE } from "@houston/wire-types";
 import { FONT, type Measurer, wrapLines } from "./org-chart-share-card-text.ts";
 
 /**
@@ -9,7 +10,8 @@ import { FONT, type Measurer, wrapLines } from "./org-chart-share-card-text.ts";
  * Pure: it only needs something that measures.
  */
 
-export const LINK_CARD = { width: 1200, height: 630 } as const;
+/** The one size the gateway takes a card at (anything else is refused). */
+export const LINK_CARD = ORG_CHART_SHARE_PREVIEW_SIZE;
 
 /** The gap between the card's edge and the chart. */
 const INSET = 28;

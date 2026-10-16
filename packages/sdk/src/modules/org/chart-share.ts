@@ -15,13 +15,18 @@ import {
   type Capabilities,
   ORG_CHART_SHARE_MAX_BYTES,
   ORG_CHART_SHARE_PREVIEW_MAX_BYTES,
-  ORG_CHART_SHARE_TITLE_MAX,
   type OrgChartShareRefusalCode,
   orgChartSharePublishedSchema,
   orgChartShareRefusalOf,
 } from "@houston/wire-types";
 import { isTransportFailure } from "../../transport-failure";
 import { type HttpScope, httpRequest, SdkHttpError } from "../http";
+import { orgChartShareTitle } from "./chart-share-title";
+
+export {
+  ORG_CHART_SHARE_FALLBACK_TITLE,
+  orgChartShareTitle,
+} from "./chart-share-title";
 
 export type OrgChartShareResult =
   | {
@@ -31,6 +36,12 @@ export type OrgChartShareResult =
       imageUrl: string;
       /** Absent when no preview card went up (or the gateway kept none). */
       previewUrl?: string;
+      /**
+       * The card was refused (by the gateway, or before sending it for being
+       * over its cap) and the page went up without it, previewing the square
+       * chart. Always a card the client drew wrong, so worth reporting.
+       */
+      previewRefused?: OrgChartShareRefusalCode;
     }
   | {
       kind: "refused";
@@ -63,47 +74,20 @@ export interface OrgChartShareInput {
 }
 
 /**
- * The page's title when the given one has nothing printable left. Plain
- * English like the page that shows it (the Agent Store site is English-only).
- */
-export const ORG_CHART_SHARE_FALLBACK_TITLE = "Our AI team";
-
-/**
- * Control (Cc) and format (Cf) characters, which the gateway refuses in a
- * title, except the zero-width joiner it keeps: the glue inside emoji such as
- * a family or a profession with a skin tone.
- */
-const UNPRINTABLE = /(?!\u200D)[\p{Cc}\p{Cf}]/gu;
-
-/**
- * The title as the gateway takes it: control and format characters dropped
- * (bidi overrides, zero-width spaces), trimmed, and cut at
- * {@link ORG_CHART_SHARE_TITLE_MAX} code points so a cut never splits an
- * emoji. A title with nothing visible left becomes {@link ORG_CHART_SHARE_FALLBACK_TITLE}.
- */
-export function orgChartShareTitle(title: string): string {
-  const cut = Array.from(title.replace(UNPRINTABLE, "").trim())
-    .slice(0, ORG_CHART_SHARE_TITLE_MAX)
-    .join("")
-    .trim();
-  return /[^\s\u200D]/u.test(cut) ? cut : ORG_CHART_SHARE_FALLBACK_TITLE;
-}
-
-/**
- * The upload `publishOrgChartShare` sends for the facade's input, or the
- * refusal it earns before any request: a deployment that keeps no shared
- * pictures, or a picture or card over the gateway's cap.
+ * The upload `publishOrgChartShare` sends for the facade's input with
+ * `preview` as its card (none when absent), or the refusal it earns before
+ * any request: a deployment that keeps no shared pictures, or a picture over
+ * the gateway's cap. The card's own cap is the caller's to check
+ * (`fitsPreviewCap`): an oversized card is dropped, never a refusal.
  */
 export function orgChartShareUpload(
   input: OrgChartShareInput,
-): FormData | OrgChartShareResult {
+  preview: Blob | undefined,
+): FormData | Extract<OrgChartShareResult, { kind: "refused" }> {
   if (input.deployment && input.deployment.spaces !== true)
     return { kind: "refused", code: "unavailable" };
-  const { image, preview } = input;
-  if (
-    image.size > ORG_CHART_SHARE_MAX_BYTES ||
-    (preview && preview.size > ORG_CHART_SHARE_PREVIEW_MAX_BYTES)
-  )
+  const { image } = input;
+  if (image.size > ORG_CHART_SHARE_MAX_BYTES)
     return { kind: "refused", code: "too_large" };
   const upload = new FormData();
   upload.append("file", image, "org-chart.png");
@@ -117,6 +101,24 @@ export function orgChartShareUpload(
     );
   upload.append("title", orgChartShareTitle(input.title));
   return upload;
+}
+
+/** Whether a card is within the gateway's cap for one. */
+export function fitsPreviewCap(preview: Blob): boolean {
+  return preview.size <= ORG_CHART_SHARE_PREVIEW_MAX_BYTES;
+}
+
+/**
+ * A refusal that may be the card's alone (the gateway answers a bad `file`
+ * and a bad `preview` with the same codes), so the publish is worth one more
+ * try without it.
+ */
+export function mayBePreviewRefusal(code: OrgChartShareRefusalCode): boolean {
+  return (
+    code === "too_large" ||
+    code === "not_an_image" ||
+    code === "invalid_preview_size"
+  );
 }
 
 /**

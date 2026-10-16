@@ -8,7 +8,7 @@ import type {
 /**
  * Share on LinkedIn, away from the phone's share sheet. DOM-free.
  *
- * With the chart's own page (published when the dialog opened) the post links
+ * With the chart's own page (published by the first click) the post links
  * to it, and LinkedIn's composer shows the picture as the link's preview: the
  * composer opens and nothing else happens. Without one (publishing refused,
  * failed, or not served here) the post ends on gethouston.ai and the image

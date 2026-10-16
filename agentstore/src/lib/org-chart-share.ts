@@ -3,8 +3,10 @@
  * `GET /v1/org-chart-shares/{id}` for the `/o/[id]` page and its link preview.
  *
  * SERVER ONLY: reads go to the in-cluster `AGENTSTORE_GATEWAY_URL` and send no
- * credentials. The record is cached for five minutes, so an account purge
- * takes the page down soon after. LinkedIn keeps a post's preview from the
+ * credentials. The record is read fresh on every render (`no-store`): Next's
+ * data cache would keep serving a 200 after a purge, because an upstream 404
+ * never replaces a cached 200. The gateway's own `Cache-Control` covers HTTP
+ * caches in front of the page. LinkedIn keeps a post's preview from the
  * moment it is posted, so a record that cannot be read is never papered over
  * with a generic page: one failed read is asked again, and a second throws,
  * so the page answers 5xx and the composer shows no card (which the person
@@ -21,7 +23,7 @@ export interface OrgChartShare {
   title: string;
   /** The square chart, 1200 x 1200. */
   imageUrl: string;
-  /** The 1200 x 630 link card; absent when none was uploaded. */
+  /** The 1200 x 630 link card; null when none was uploaded. */
   previewUrl: string | null;
   createdAt: string;
 }
@@ -33,8 +35,6 @@ export type OrgChartShareLookup =
 
 /** 22 base64url characters: what the gateway mints. */
 const SHARE_ID = /^[A-Za-z0-9_-]{22}$/;
-
-export const ORG_CHART_REVALIDATE_SECONDS = 300;
 
 /** How long a render waits on the gateway before it counts the read as failed. */
 export const ORG_CHART_FETCH_TIMEOUT_MS = 4000;
@@ -70,7 +70,8 @@ export function parseOrgChartShare(value: unknown): OrgChartShare | null {
     typeof title !== "string" ||
     !title.trim() ||
     !isWebUrl(imageUrl) ||
-    (previewUrl !== undefined && !isWebUrl(previewUrl)) ||
+    // The gateway omits an absent card; a `null` is read as absent too.
+    (previewUrl != null && !isWebUrl(previewUrl)) ||
     typeof createdAt !== "string"
   )
     return null;
@@ -88,7 +89,7 @@ async function readOnce(id: string): Promise<OrgChartShareLookup> {
   let res: Response;
   try {
     res = await fetch(`${serverGatewayBase()}${path}`, {
-      next: { revalidate: ORG_CHART_REVALIDATE_SECONDS },
+      cache: "no-store",
       signal: AbortSignal.timeout(ORG_CHART_FETCH_TIMEOUT_MS),
     });
   } catch (err) {

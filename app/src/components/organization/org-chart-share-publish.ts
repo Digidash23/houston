@@ -1,49 +1,68 @@
-import type {
-  OrgChartShareInput,
-  OrgChartShareResult,
-} from "@houston/engine-adapter";
-import { isExpectedOrgChartShareRefusal } from "@houston/wire-types";
+import {
+  publishPage,
+  type SharePublishDeps,
+  type SharePublishJob,
+} from "./org-chart-share-publish-page.ts";
+
+export type {
+  SharePublishDeps,
+  SharePublishJob,
+} from "./org-chart-share-publish-page.ts";
 
 /**
- * The chart's own page, published while the share dialog is open, so Share
- * on LinkedIn has its link the moment it is clicked. DOM-free.
+ * The chart's own page, which a LinkedIn post links to, published in two
+ * explicit steps. DOM-free.
  *
- * Publishing starts when the dialog opens (once the image is drawn) rather
- * than in the click: a browser that suspends the page once LinkedIn's tab
- * takes focus (iPad Safari) would never finish an upload started there, and
- * LinkedIn keeps a post's preview from the moment it is posted, so the page
- * and its card must already exist. One publish per opening; closing the
- * dialog aborts one under way. A page published for the same drawing is
- * kept, so reopening the dialog on an unchanged chart publishes nothing new.
+ * Nothing is published until the person asks: the dialog opening, Download
+ * image and Copy image never make the chart public. The first click on Share
+ * on LinkedIn publishes (the button reads "Preparing your post..."); once the
+ * page exists the same button reads Open LinkedIn, and that click opens the
+ * composer with nothing awaited before the open, so a browser that only
+ * opens a tab inside the click (iPad Safari) still does. A publish that
+ * fails leaves the button on Share on LinkedIn, and the next click shares
+ * without a page (the image on the clipboard): a clipboard write needs a
+ * click of its own, so the failure never runs it by itself.
+ *
+ * A publication belongs to one drawing. When the chart is redrawn (the
+ * roster changed while the dialog was open) a page or a failure for the old
+ * drawing is dropped and a publish of it is aborted, so LinkedIn never gets
+ * the old page; the next click publishes the new drawing.
  */
 
 export type SharePublish =
   | { status: "idle" }
-  | { status: "publishing" }
-  | { status: "ready"; pageUrl: string }
-  | { status: "failed" };
+  | { status: "publishing"; image: File }
+  | { status: "ready"; image: File; pageUrl: string }
+  | { status: "failed"; image: File };
 
 export const SHARE_PUBLISH_IDLE: SharePublish = { status: "idle" };
 
-export interface SharePublishDeps {
-  /** `sdk.org.publishOrgChartShare`, bound. */
-  publish: (input: OrgChartShareInput) => Promise<OrgChartShareResult>;
-  report: (command: string, error: unknown) => void;
-}
-
-/** One opening's publish. */
-export interface SharePublishJob {
-  image: File;
-  title: string;
-  /** Draws the 1200 x 630 link card around `image`. */
-  card: (image: File) => Promise<Blob>;
-  deployment: OrgChartShareInput["deployment"];
+/** `publish` as it stands for `image`: one about another drawing is idle. */
+export function publishFor(
+  publish: SharePublish,
+  image: File | null,
+): SharePublish {
+  return publish.status !== "idle" && publish.image === image
+    ? publish
+    : SHARE_PUBLISH_IDLE;
 }
 
 export interface SharePublisher {
-  /** Publish for dialog session `session`; ignored once it has begun. */
-  begin(session: number, job: SharePublishJob): void;
-  /** The dialog closed: abort an upload under way, forget the session. */
+  /**
+   * Publish `job.image` (the first click on Share on LinkedIn). Ignored
+   * while that drawing is publishing, published or failed.
+   */
+  start(job: SharePublishJob): void;
+  /**
+   * The drawing on screen is `image` (null while one draws): a publication
+   * for any other drops to idle, aborting its upload.
+   */
+  follow(image: File | null): void;
+  /**
+   * The dialog closed: an upload under way is aborted and a failure
+   * forgotten (the next opening may try again). A published page stays with
+   * its drawing, so reopening on the same chart publishes nothing new.
+   */
   end(): void;
 }
 
@@ -52,91 +71,58 @@ export function createSharePublisher(
   onChange: (state: SharePublish) => void,
 ): SharePublisher {
   let state: SharePublish = SHARE_PUBLISH_IDLE;
-  let session: number | null = null;
   let running: AbortController | null = null;
-  let kept: { image: File; pageUrl: string } | null = null;
   const set = (next: SharePublish) => {
     state = next;
     onChange(next);
   };
+  const drop = (why: string) => {
+    running?.abort(new DOMException(why, "AbortError"));
+    running = null;
+    if (state.status !== "idle") set(SHARE_PUBLISH_IDLE);
+  };
   return {
-    begin(next, job) {
-      if (session === next) return;
-      running?.abort(new DOMException("superseded", "AbortError"));
-      session = next;
-      if (kept?.image === job.image) {
-        running = null;
-        set({ status: "ready", pageUrl: kept.pageUrl });
-        return;
-      }
+    start(job) {
+      if (publishFor(state, job.image).status !== "idle") return;
+      drop("superseded");
       const run = new AbortController();
       running = run;
-      set({ status: "publishing" });
+      const { image } = job;
+      set({ status: "publishing", image });
       void publishPage(deps, job, run.signal).then((pageUrl) => {
         if (run.signal.aborted) return;
         running = null;
-        if (pageUrl) kept = { image: job.image, pageUrl };
-        set(pageUrl ? { status: "ready", pageUrl } : { status: "failed" });
+        set(
+          pageUrl
+            ? { status: "ready", image, pageUrl }
+            : { status: "failed", image },
+        );
       });
     },
+    follow(image) {
+      if (state.status !== "idle" && state.image !== image)
+        drop("chart redrawn");
+    },
     end() {
-      running?.abort(new DOMException("share dialog closed", "AbortError"));
-      running = null;
-      session = null;
-      if (state.status !== "idle") set(SHARE_PUBLISH_IDLE);
+      if (state.status !== "ready") drop("share dialog closed");
     },
   };
-}
-
-/**
- * The page's address, or null to share without it. Never rejects. A card
- * that cannot be drawn is reported and the chart goes up without it (the
- * page then previews the square chart). Only a refusal nothing outside
- * Houston explains, or a failure, is reported; an aborted publish is not.
- */
-async function publishPage(
-  deps: SharePublishDeps,
-  job: SharePublishJob,
-  signal: AbortSignal,
-): Promise<string | null> {
-  let preview: Blob | undefined;
-  try {
-    preview = await job.card(job.image);
-  } catch (error) {
-    deps.report("org_chart_share_card", error);
-  }
-  if (signal.aborted) return null;
-  try {
-    const result = await deps.publish({
-      image: job.image,
-      preview,
-      title: job.title,
-      deployment: job.deployment,
-      signal,
-    });
-    if (result.kind === "published") return result.pageUrl;
-    if (!isExpectedOrgChartShareRefusal(result.code))
-      deps.report(
-        "org_chart_share_publish",
-        new Error(`org chart share refused: ${result.code}`),
-      );
-  } catch (error) {
-    if (!signal.aborted) deps.report("org_chart_share_publish", error);
-  }
-  return null;
 }
 
 /** What Share on LinkedIn does when clicked, and how it reads. */
 export type LinkedInAction =
   /** Disabled, "Preparing your post...": the image or its page is coming. */
   | { kind: "preparing" }
-  /** The phone's share sheet takes the image. */
+  /** The phone's share sheet takes the image; nothing is published. */
   | { kind: "sheet" }
-  /** The composer opens with the page's link. */
+  /** "Share on LinkedIn": the click publishes the chart's page. */
+  | { kind: "publish" }
+  /** "Open LinkedIn": the composer opens with the page's link. */
   | { kind: "link"; pageUrl: string }
-  /** The composer opens without a link; the image goes on the clipboard. */
+  /** "Share on LinkedIn": the composer opens without a link; the image goes on the clipboard. */
   | { kind: "fallback" };
 
+/** `publish` must already be the drawing's own (`publishFor`). */
 export function linkedInAction(
   drawing: "drawing" | "failed" | "ready",
   sheet: boolean,
@@ -145,8 +131,14 @@ export function linkedInAction(
   if (drawing === "failed") return { kind: "fallback" };
   if (drawing === "drawing") return { kind: "preparing" };
   if (sheet) return { kind: "sheet" };
-  if (publish.status === "ready")
-    return { kind: "link", pageUrl: publish.pageUrl };
-  if (publish.status === "failed") return { kind: "fallback" };
-  return { kind: "preparing" };
+  switch (publish.status) {
+    case "idle":
+      return { kind: "publish" };
+    case "publishing":
+      return { kind: "preparing" };
+    case "ready":
+      return { kind: "link", pageUrl: publish.pageUrl };
+    case "failed":
+      return { kind: "fallback" };
+  }
 }

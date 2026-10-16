@@ -125,6 +125,31 @@ describe("publishOrgChartShare", () => {
     expect([...(calls[0]?.form as FormData).keys()]).toEqual(["file", "title"]);
   });
 
+  test("posts once more as {file, title} when the gateway refuses the card's size", async () => {
+    const answers = [
+      json(400, { error: "invalid_preview_size" }),
+      json(201, PUBLISHED),
+    ];
+    stubShare(() => answers.shift() ?? json(500, {}));
+
+    await expect(
+      client().publishOrgChartShare({
+        image: png(),
+        preview: png(1),
+        title: "Acme",
+        deployment: GATEWAY,
+      }),
+    ).resolves.toEqual({
+      kind: "published",
+      ...PUBLISHED,
+      previewRefused: "invalid_preview_size",
+    });
+    expect(calls.map((c) => [...(c.form as FormData).keys()])).toEqual([
+      ["file", "preview", "title"],
+      ["file", "title"],
+    ]);
+  });
+
   test("answers the gateway's 503 as unavailable, typed", async () => {
     stubShare(() => json(503, { error: "not_configured" }));
 

@@ -25,10 +25,6 @@ const EN = {
 };
 
 describe("linkCardLayout", () => {
-  it("is LinkedIn's 1.91:1 card", () => {
-    deepStrictEqual(LINK_CARD, { width: 1200, height: 630 });
-  });
-
   it("insets the square chart 28px on the left, top and bottom", () => {
     const { chart } = linkCardLayout(ctx, EN);
     deepStrictEqual(chart, { x: 28, y: 28, size: 574, radius: 18 });

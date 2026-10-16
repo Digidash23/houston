@@ -34,8 +34,9 @@ const COPIED_MS = 2000;
 
 /**
  * The share dialog's state and actions over the image drawn ahead
- * (`useShareCardImage`) and the chart's page published while the dialog is
- * open (`org-chart-share-publish.ts`). Share on LinkedIn does all its work
+ * (`useShareCardImage`) and the chart's page, published in two explicit
+ * steps (`org-chart-share-publish.ts`): the first click on Share on LinkedIn
+ * publishes, the next one opens LinkedIn. Opening LinkedIn does all its work
  * inside the click and is single-flight (a double click would open LinkedIn
  * twice); the phone's share sheet is left ungated, since a sheet that never
  * settles would kill the button and a second tap is already quiet.
@@ -67,7 +68,11 @@ export function useOrgChartShare(tree: OrgTree, phone: boolean) {
   const sheet = file
     ? usesShareSheet({ phone, ready: file, sheet: shareSheet() })
     : false;
-  const publish = useSharePublish(tree, state, file, sheet);
+  const { publish, start: startPublish } = useSharePublish(
+    tree,
+    state.open,
+    file,
+  );
 
   // A redrawn image is a different picture: what was said about the old one
   // no longer holds. Only replacing a picture that was on screen resets: the
@@ -114,6 +119,10 @@ export function useOrgChartShare(tree: OrgTree, phone: boolean) {
   // encodeURIComponent refuses) reports like any other failure.
   const linkedIn = () => {
     if (action.kind === "preparing") return;
+    if (action.kind === "publish") {
+      startPublish();
+      return;
+    }
     const fail = (error: unknown) =>
       logAndReportError("org_chart_share", error);
     try {
@@ -166,7 +175,12 @@ export function useOrgChartShare(tree: OrgTree, phone: boolean) {
     line: state.line,
     followBlocked,
     linkedIn,
-    preparing: action.kind === "preparing",
+    linkedInStep:
+      action.kind === "preparing"
+        ? ("preparing" as const)
+        : action.kind === "link"
+          ? ("open" as const)
+          : ("share" as const),
     download: () =>
       void downloadShareImage(current()).then((saved) => {
         if (saved) track("download", tree);

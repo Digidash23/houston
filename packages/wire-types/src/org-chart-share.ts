@@ -4,10 +4,13 @@ import { z } from "zod";
  * A shared org chart picture (`/v1/org-chart-shares`, gateway only).
  *
  * `POST /v1/org-chart-shares` takes multipart `file` (a PNG, at most
- * {@link ORG_CHART_SHARE_MAX_BYTES}), an optional `preview` (the 1200 x 630
- * link card drawn around it, at most {@link ORG_CHART_SHARE_PREVIEW_MAX_BYTES})
+ * {@link ORG_CHART_SHARE_MAX_BYTES}), an optional `preview` (the link card
+ * drawn around it, exactly {@link ORG_CHART_SHARE_PREVIEW_SIZE}, at most
+ * {@link ORG_CHART_SHARE_PREVIEW_MAX_BYTES})
  * and `title` (1 to {@link ORG_CHART_SHARE_TITLE_MAX} code points, trimmed,
- * with no control or format character but the zero-width joiner) and answers
+ * with no control, format or default-ignorable code point but the
+ * zero-width joiner, an emoji presentation selector after a visible
+ * character, and the three standard subdivision flags) and answers
  * 201 with {@link OrgChartSharePublished}: the public page a LinkedIn post
  * links to, whose preview image is the card (the chart itself when no card
  * came). The reads are public and only the Agent Store site and link-preview
@@ -18,6 +21,11 @@ import { z } from "zod";
 export const ORG_CHART_SHARE_MAX_BYTES = 6 * 1024 * 1024;
 export const ORG_CHART_SHARE_PREVIEW_MAX_BYTES = 2 * 1024 * 1024;
 export const ORG_CHART_SHARE_TITLE_MAX = 120;
+/** The only size the gateway takes a preview card at. */
+export const ORG_CHART_SHARE_PREVIEW_SIZE = {
+  width: 1200,
+  height: 630,
+} as const;
 
 /** 22 base64url characters: 16 random bytes. */
 const SHARE_ID = /^[A-Za-z0-9_-]{22}$/;
@@ -45,8 +53,10 @@ export type OrgChartSharePublished = z.infer<
  *  - `timed_out`: an answer did not come back in time and the upload was
  *    given up on (a slow connection, not a refusal the gateway made).
  *  - `too_large` (413), `not_an_image` (415, or a 400 `invalid_image` /
- *    `no_file`), `invalid_title` (a 400 `invalid_title`): the gateway
- *    refused what the client sent.
+ *    `no_file`), `invalid_title` (a 400 `invalid_title`),
+ *    `invalid_preview_size` (a 400 `invalid_preview_size`: a card that is
+ *    not exactly {@link ORG_CHART_SHARE_PREVIEW_SIZE}): the gateway refused
+ *    what the client sent.
  *
  * The gateway's refusal body is `{"error": "<code>"}`.
  */
@@ -60,6 +70,7 @@ export const ORG_CHART_SHARE_REFUSALS = [
   "too_large",
   "not_an_image",
   "invalid_title",
+  "invalid_preview_size",
 ] as const;
 export type OrgChartShareRefusalCode =
   (typeof ORG_CHART_SHARE_REFUSALS)[number];
@@ -89,6 +100,7 @@ export function orgChartShareRefusalOf(
     case 400: {
       const code = bodyCode(body);
       if (code === "invalid_title") return "invalid_title";
+      if (code === "invalid_preview_size") return "invalid_preview_size";
       return code === "invalid_image" || code === "no_file"
         ? "not_an_image"
         : null;
@@ -115,8 +127,8 @@ export function orgChartShareRefusalOf(
 
 /**
  * Whether a refusal is a state of the deployment, the network or the session,
- * which nothing in Houston did wrong. The other three mean the gateway
- * refused a picture, card or title the client drew itself, which is a bug.
+ * which nothing in Houston did wrong. The others mean the gateway refused a
+ * picture, card or title the client drew itself, which is a bug.
  */
 export function isExpectedOrgChartShareRefusal(
   code: OrgChartShareRefusalCode,

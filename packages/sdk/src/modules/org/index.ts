@@ -101,8 +101,9 @@ export interface OrgModule {
   computeUsage(days: number): Promise<ComputeUsage>;
   /**
    * Publish the org chart picture (and its link card) as a public page;
-   * refusals are typed. An abort through `input.signal` rejects with the
-   * signal's reason.
+   * refusals are typed. A card the gateway refuses (or would, by size) is
+   * dropped and the page goes up without it (`previewRefused`). An abort
+   * through `input.signal` rejects with the signal's reason.
    */
   publishOrgChartShare(input: OrgChartShareInput): Promise<OrgChartShareResult>;
 }

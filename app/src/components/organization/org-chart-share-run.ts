@@ -52,10 +52,10 @@ export type ShareOutcome =
   | { kind: "linkedin"; url: string; opened: boolean; image: ImageHandoff };
 
 /**
- * Share the org chart in one click. On a phone that can share files, the
+ * Share the org chart. On a phone that can share files, the
  * share sheet takes the image and the post (the LinkedIn app reads both).
  * Everywhere else LinkedIn's composer opens with a post that links to `page`,
- * the chart's own page published when the dialog opened, or without it
+ * the chart's own page published by the first click, or without it
  * (`org-chart-share-linkedin.ts`).
  */
 export function shareOrgChart(

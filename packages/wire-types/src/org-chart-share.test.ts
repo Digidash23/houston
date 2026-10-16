@@ -62,6 +62,9 @@ describe("orgChartShareRefusalOf", () => {
     expect(orgChartShareRefusalOf(400, '{"error":"no_file"}')).toBe(
       "not_an_image",
     );
+    expect(
+      orgChartShareRefusalOf(400, '{"error":"invalid_preview_size"}'),
+    ).toBe("invalid_preview_size");
     expect(orgChartShareRefusalOf(401)).toBe("signed_out");
     expect(orgChartShareRefusalOf(410, '{"error":"account_deleted"}')).toBe(
       "account_deleted",

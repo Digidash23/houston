@@ -43,7 +43,7 @@ const json = (body: unknown, status = 200) =>
 type NextInit = RequestInit & { next?: { revalidate?: number } };
 
 describe("getOrgChartShare", () => {
-  it("reads the record off the in-cluster gateway, time-boxed and cached for five minutes", async () => {
+  it("reads the record fresh off the in-cluster gateway, time-boxed", async () => {
     fetchMock.mockResolvedValue(json(WIRE));
     await expect(getOrgChartShare(ID)).resolves.toEqual({
       kind: "found",
@@ -53,8 +53,10 @@ describe("getOrgChartShare", () => {
     expect(String(url)).toBe(
       `http://gateway.cluster.test/v1/org-chart-shares/${ID}`,
     );
-    expect((init as NextInit).next?.revalidate).toBe(300);
-    expect(init?.cache).toBeUndefined();
+    // Next's data cache would keep a purged share's 200: an upstream 404
+    // never replaces a cached 200.
+    expect(init?.cache).toBe("no-store");
+    expect((init as NextInit).next).toBeUndefined();
     expect((init as NextInit).signal).toBeInstanceOf(AbortSignal);
     expect(timeoutSpy).toHaveBeenCalledWith(ORG_CHART_FETCH_TIMEOUT_MS);
   });
@@ -65,6 +67,18 @@ describe("getOrgChartShare", () => {
       kind: "found",
       share: { ...WIRE, previewUrl: PREVIEW },
     });
+  });
+
+  it("is not_found once the gateway forgets a share it answered before", async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(WIRE))
+      .mockResolvedValueOnce(json({ error: "not_found" }, 404));
+    await expect(getOrgChartShare(ID)).resolves.toMatchObject({
+      kind: "found",
+    });
+    await expect(getOrgChartShare(ID)).resolves.toEqual({ kind: "not_found" });
+    for (const [, init] of fetchMock.mock.calls)
+      expect(init?.cache).toBe("no-store");
   });
 
   it("is not_found for the gateway's 404, and for an id never minted without asking", async () => {
@@ -154,5 +168,9 @@ describe("parseOrgChartShare", () => {
     ).toBeNull();
     expect(parseOrgChartShare({ ...WIRE, title: "  " })).toBeNull();
     expect(parseOrgChartShare(WIRE)).toEqual(RECORD);
+  });
+
+  it("reads a null preview as a share with no card", () => {
+    expect(parseOrgChartShare({ ...WIRE, previewUrl: null })).toEqual(RECORD);
   });
 });

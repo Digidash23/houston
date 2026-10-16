@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useCapabilities } from "../../hooks/use-capabilities";
 import { logAndReportError } from "../../lib/error-report";
@@ -7,32 +7,33 @@ import { renderShareLinkCard } from "./org-chart-share-link-card";
 import { shareTitle } from "./org-chart-share-model";
 import {
   createSharePublisher,
+  publishFor,
   SHARE_PUBLISH_IDLE,
   type SharePublish,
 } from "./org-chart-share-publish";
 import type { OrgTree } from "./org-chart-tree";
 
 /**
- * The chart's page for the share dialog's opening `session`
- * (`createSharePublisher`): published once `file` is drawn while `open`,
- * unless the phone's share sheet takes the image (`sheet`). A chart that
- * changes while the dialog is open keeps the page already under way.
+ * The chart's page for the share dialog (`createSharePublisher`): nothing is
+ * published until `start()` (the first click on Share on LinkedIn). It
+ * follows the drawn `file`, so a redraw drops a page made for the old one,
+ * and closing the dialog (`open` false) aborts an upload under way.
+ * `publish` is always the state of the drawing on screen.
  */
 export function useSharePublish(
   tree: OrgTree,
-  dialog: { open: boolean; session: number },
+  open: boolean,
   file: File | null,
-  sheet: boolean,
-): SharePublish {
+) {
   const { t } = useTranslation("teams");
   const { capabilities } = useCapabilities();
   const live = useRef(true);
-  const [publish, setPublish] = useState<SharePublish>(SHARE_PUBLISH_IDLE);
+  const [state, setState] = useState<SharePublish>(SHARE_PUBLISH_IDLE);
   const [publisher] = useState(() =>
     createSharePublisher(
       { publish: tauriOrg.publishChartShare, report: logAndReportError },
       (next) => {
-        if (live.current) setPublish(next);
+        if (live.current) setState(next);
       },
     ),
   );
@@ -44,14 +45,14 @@ export function useSharePublish(
     };
   }, [publisher]);
 
-  const { open, session } = dialog;
+  useEffect(() => publisher.follow(file), [publisher, file]);
   useEffect(() => {
-    if (!open) {
-      publisher.end();
-      return;
-    }
-    if (!file || sheet) return;
-    publisher.begin(session, {
+    if (!open) publisher.end();
+  }, [publisher, open]);
+
+  const start = useCallback(() => {
+    if (!file) return;
+    publisher.start({
       image: file,
       title: shareTitle(tree),
       card: (image) =>
@@ -61,7 +62,9 @@ export function useSharePublish(
         }),
       deployment: capabilities,
     });
-  }, [open, session, file, sheet, tree, t, capabilities, publisher]);
+  }, [publisher, file, tree, t, capabilities]);
 
-  return publish;
+  // Read against the drawing on screen, so a render between a redraw and
+  // `follow` never offers the old page.
+  return { publish: publishFor(state, file), start };
 }

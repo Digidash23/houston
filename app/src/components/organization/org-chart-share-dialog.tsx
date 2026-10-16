@@ -17,9 +17,10 @@ import type { useOrgChartShare } from "./use-org-chart-share";
 
 /**
  * Share the org chart: the image as it will be posted, Share on LinkedIn,
- * then Download image and Copy image. Share on LinkedIn reads "Preparing your
- * post..." until the chart's page is published, then posts its link, whose
- * preview is the image; where there is no page, one line under the buttons
+ * then Download image and Copy image. Share on LinkedIn publishes the chart's
+ * page when clicked and reads "Preparing your post..." meanwhile, then Open
+ * LinkedIn, which posts the page's link, whose preview is the image; where
+ * there is no page, one line under the buttons
  * says where the image went (on the clipboard, or saved), so the person knows
  * to paste it. The dialog stays open, so the line is still there when they
  * come back from LinkedIn.
@@ -32,6 +33,7 @@ export function OrgChartShareDialog({
   const { t } = useTranslation("teams");
   const ready = share.preview.status === "ready";
   const { line } = share;
+  const preparing = share.linkedInStep === "preparing";
 
   return (
     <Dialog open={share.open} onOpenChange={share.setOpen}>
@@ -46,18 +48,14 @@ export function OrgChartShareDialog({
         <div className="flex flex-col gap-2">
           <ShareButton
             icon={
-              share.preparing ? (
+              preparing ? (
                 <Spinner aria-hidden />
               ) : (
                 <Linkedin className="size-4" />
               )
             }
-            label={t(
-              share.preparing
-                ? "orgChart.share.linkedInPreparing"
-                : "orgChart.share.linkedIn",
-            )}
-            disabled={share.preparing}
+            label={t(LINKEDIN_LABEL[share.linkedInStep])}
+            disabled={preparing}
             className="h-10 w-full"
             onClick={share.linkedIn}
           />
@@ -124,6 +122,12 @@ export function OrgChartShareDialog({
     </Dialog>
   );
 }
+
+const LINKEDIN_LABEL = {
+  share: "orgChart.share.linkedIn",
+  preparing: "orgChart.share.linkedInPreparing",
+  open: "orgChart.share.linkedInReady",
+} as const;
 
 /** A pill that presses in. */
 function ShareButton({
