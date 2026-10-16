@@ -34,7 +34,9 @@ const FIXTURE: Record<string, string> = {
   ".houston/routines.json": '[{"id":"r1","schedule":"0 9 * * *"}]',
   ".houston/config.json": '{"model":"opus"}',
   ".houston/memory/learnings.md": "- Prefers short replies\n",
+  ".houston/routine_runs.json": '[{"id":"run1"}]',
   ".houston/prompts/system.md": "old prompt",
+  ".houston/prompts/self-improvement.md": "old prompt",
   ".houston/routines/routines.schema.json": '{"stale":true}',
   ".houston/backups/2026-09-29/snapshot.tgz": "tarball",
   ".houston/sessions/claude/s1.json": "{}",
@@ -66,11 +68,20 @@ const comparable = (files: Record<string, string>) => {
   return { ...files, [key]: entries.map((entry) => entry.text).join("\n") };
 };
 
-async function migrated(admit: (rel: string) => boolean) {
+/** An agent whose learnings already moved: the flat markdown must stay put. */
+const MOVED_LEARNINGS: Record<string, string> = {
+  ...FIXTURE,
+  ".houston/learnings/learnings.json": '[{"id":"l1","text":"Kept"}]',
+};
+
+async function migrated(
+  fixture: Record<string, string>,
+  admit: (rel: string) => boolean,
+) {
   const workspacesRoot = mkdtempSync(join(tmpdir(), "agent-store-paths-"));
   roots.push(workspacesRoot);
   const agentRoot = join(workspacesRoot, AGENT);
-  for (const [rel, content] of Object.entries(FIXTURE)) {
+  for (const [rel, content] of Object.entries(fixture)) {
     if (!admit(rel)) continue;
     const path = join(agentRoot, ...rel.split("/"));
     mkdirSync(dirname(path), { recursive: true });
@@ -85,15 +96,18 @@ async function migrated(admit: (rel: string) => boolean) {
   return { report, files: comparable(tree(agentRoot)) };
 }
 
-test("the migration over the admitted files lands what it lands over the whole agent", async () => {
-  const whole = await migrated(() => true);
-  const admitted = await migrated((rel) =>
+test.each([
+  ["a legacy agent", FIXTURE],
+  ["an agent whose learnings already moved", MOVED_LEARNINGS],
+])("%s migrates the same over the admitted files as over the whole agent", async (_, fixture) => {
+  const whole = await migrated(fixture, () => true);
+  const admitted = await migrated(fixture, (rel) =>
     AGENT_STORE_MIGRATION_PATHS.has(rel),
   );
 
   expect(admitted.report).toEqual(whole.report);
   expect(whole.report.layoutFiles).toBeGreaterThan(0);
-  const untouched = Object.keys(FIXTURE).filter(
+  const untouched = Object.keys(fixture).filter(
     (rel) => !AGENT_STORE_MIGRATION_PATHS.has(rel),
   );
   const wholeAdmitted = Object.fromEntries(
@@ -101,7 +115,7 @@ test("the migration over the admitted files lands what it lands over the whole a
   );
   expect(admitted.files).toEqual(wholeAdmitted);
   // Nothing outside the admitted paths was written, moved or removed.
-  for (const rel of untouched) expect(whole.files[rel]).toBe(FIXTURE[rel]);
+  for (const rel of untouched) expect(whole.files[rel]).toBe(fixture[rel]);
   for (const rel of Object.keys(whole.files))
     expect(
       AGENT_STORE_MIGRATION_PATHS.has(rel) || untouched.includes(rel),
