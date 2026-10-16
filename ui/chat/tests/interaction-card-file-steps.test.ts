@@ -81,16 +81,24 @@ describe("a question that wants files", () => {
     assert.deepEqual(done[0].files, [brief, photo]);
   });
 
-  it("still takes a typed answer without claiming the files", () => {
+  it("keeps a file sent with typed words on its own question", () => {
     const done: Completion[] = [];
     const logo = file("logo.png");
+    const photo = file("photo.png");
     mountLog(panel(card([LOGO, PHOTO], done)));
     attach([logo]);
-    type("Use the one on our site");
+    type("here is my logo");
     click(sendButton());
 
-    // Nothing claimed the logo, so it can answer this question.
-    assert.equal(chips("logo.png"), 1);
-    assert.equal(sendButton().disabled, false);
+    // The logo answered the first question, so it can't answer this one.
+    assert.equal(chips("logo.png"), 0);
+    assert.equal(sendButton().disabled, true);
+    attach([photo]);
+    click(sendButton());
+    assert.deepEqual(
+      done[0].answers.map((a) => a.answer),
+      ["here is my logo", "See attached"],
+    );
+    assert.deepEqual(done[0].files, [logo, photo]);
   });
 });

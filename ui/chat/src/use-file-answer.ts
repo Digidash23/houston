@@ -6,6 +6,7 @@ import {
   type StepperState,
   setDraft,
 } from "./interaction-card-logic";
+import { normalizeAnswer } from "./interaction-card-model";
 import { claimFiles, stepFiles } from "./interaction-file-claim";
 import type { StepperUpdate } from "./use-stepper-state";
 
@@ -19,8 +20,8 @@ const NO_FILES: readonly File[] = [];
  * attached file to itself; a `wantsFiles` question takes whichever files are
  * still unclaimed, so each file question in a card gets its own. `fileAnswer`
  * lights the send up with an empty field; `onSendAnswer` records
- * `attachedAnswer` as the answer when nothing was typed, and only that send
- * claims the files. `stepFiles` are the files that answer this step.
+ * `attachedAnswer` as the answer when nothing was typed and claims the
+ * files; on a `wantsFiles` question a typed answer claims them too. `stepFiles` are the files that answer this step.
  */
 export function useFileAnswer(args: {
   state: StepperState;
@@ -50,7 +51,8 @@ export function useFileAnswer(args: {
   const fileAnswer = filesHere && selectedId === null;
   const own = mine.files;
   const onSendAnswer = useCallback(() => {
-    if (fileAnswer && draft.trim() === "") {
+    const typed = normalizeAnswer(draft);
+    if (fileAnswer && typed === null) {
       update((s) =>
         setDraft(
           claimFiles(s, stepId, own, attachedAnswer),
@@ -58,8 +60,21 @@ export function useFileAnswer(args: {
           attachedAnswer,
         ),
       );
+    } else if (fileAnswer && wantsFiles && typed !== null) {
+      // "Here is my logo" with the logo attached still answers with the
+      // logo, so the next file question can't take it.
+      update((s) => claimFiles(s, stepId, own, typed));
     }
     onSend();
-  }, [fileAnswer, draft, update, stepId, own, attachedAnswer, onSend]);
+  }, [
+    fileAnswer,
+    wantsFiles,
+    draft,
+    update,
+    stepId,
+    own,
+    attachedAnswer,
+    onSend,
+  ]);
   return { fileAnswer, onSendAnswer, stepFiles: own };
 }
