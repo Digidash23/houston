@@ -14,8 +14,9 @@ export class HydrateLimitError extends Error {
 /**
  * A deferred object lands after its caller has moved on, too late to refuse
  * the whole hydration cleanly, so a hydration that defers checks the cap
- * against the listed sizes before anything downloads. Unsized entries count
- * as zero; the download-time check still bounds them.
+ * against the listed sizes before anything downloads (so does one that asks
+ * for it, `capListed`). Unsized entries count as zero; the download-time
+ * check still bounds them.
  */
 export function assertListedWithinCap(
   entries: readonly { rel: string }[],

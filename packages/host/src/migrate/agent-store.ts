@@ -1,9 +1,15 @@
 import { relative, sep } from "node:path";
+import { FAMILIES } from "@houston/domain";
 import type { Agent, WorkspaceId } from "../domain/types";
 import { LocalPaths } from "../paths";
 import { LocalWorkspaceStore } from "../store/local";
 import { FsVfs } from "../vfs";
-import { migrateAgentLayout } from "./agent-layout";
+import {
+  FLAT_FAMILIES,
+  LEGACY_LEARNINGS_MD,
+  LEGACY_PROMPT_FILES,
+  migrateAgentLayout,
+} from "./agent-layout";
 import { reseedAgentSchema } from "./agent-schemas";
 import { sweepGatewayGroupNotes } from "./gateway-group-notes";
 import { sweepAgentLegacySetup } from "./legacy-setup-directive";
@@ -18,7 +24,9 @@ import { migrateSidebarLayout } from "./sidebar-layout";
  * Bump AGENT_STORE_MIGRATION_VERSION whenever a migration is added here or
  * changes what it writes: the gateway records the version each agent's store
  * reached and runs the op again for every agent behind it. Cloud mirrors the
- * number as pooldispatch.StoreMigrationVersion.
+ * number as pooldispatch.StoreMigrationVersion. A step that reads a new
+ * path also adds it to AGENT_STORE_MIGRATION_PATHS, or a pool worker never
+ * hydrates it.
  */
 export const AGENT_STORE_MIGRATION_VERSION = 1;
 
@@ -38,6 +46,25 @@ export const HOST_ONLY_MIGRATIONS: Record<string, string> = {
   "chat-history":
     "imports the Rust-era desktop SQLite db, which no managed store holds",
 };
+
+/**
+ * Every path in the agent's folder (agent-relative, `/`-joined) the steps
+ * read or write; beyond it they read only the workspace preferences and the
+ * folder listing. The pool's migrate op hydrates only these
+ * (runtime op-migrate-tree.ts), so a store full of user files, chats or
+ * backup tarballs migrates for the cost of a few small documents.
+ */
+export const AGENT_STORE_MIGRATION_PATHS: ReadonlySet<string> = new Set([
+  "CLAUDE.md",
+  "GROUP.md",
+  ...FLAT_FAMILIES.map((family) => `.houston/${family}.json`),
+  ...FAMILIES.flatMap((family) => [
+    `.houston/${family}/${family}.json`,
+    `.houston/${family}/${family}.schema.json`,
+  ]),
+  LEGACY_LEARNINGS_MD,
+  ...LEGACY_PROMPT_FILES,
+]);
 
 export interface AgentStoreMigrationReport {
   /** Flat pre-v0.4 files copied into their family folders. */

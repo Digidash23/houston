@@ -7,19 +7,14 @@ import type { ObjectStore } from "@houston/runtime-client/object-sync";
 import type { MigrateOp } from "./op-grammar-migrate";
 import { moveLegacySecrets } from "./op-migrate-custody";
 import { projectMigratedStore } from "./op-migrate-project";
+import { failed, type MigrateReply, relayed } from "./op-migrate-reply";
 import { syncMigratedTree } from "./op-migrate-sync";
 import { migrateHydrateFilter } from "./op-migrate-tree";
 import type { DocDeps, OpClaimTurn } from "./op-republish";
 import type { OpRequest } from "./parse-op-request";
 import type { TurnServerDeps } from "./server-types";
 import { prepareTurnFilesystem } from "./turn-filesystem";
-import { TurnSetupError } from "./turn-layout";
-
-/** The worker's HTTP answer to `/op` for a migrate. */
-export interface MigrateReply {
-  status: number;
-  body: unknown;
-}
+import { StoreEmptyError, TurnSetupError } from "./turn-layout";
 
 export interface MigrateOpInput {
   deps: DocDeps & Pick<TurnServerDeps, "maxHydrateBytes">;
@@ -32,17 +27,6 @@ export interface MigrateOpInput {
   /** Whether the claim was fenced (checked before anything is written). */
   fenced: () => Promise<boolean>;
 }
-
-const relayed = (status: number, body: unknown): MigrateReply => ({
-  status: 200,
-  body: {
-    ok: true,
-    status,
-    contentType: "application/json",
-    body: JSON.stringify(body),
-    events: [],
-  },
-});
 
 /**
  * The custody move, whose failure leaves the plaintext file and the rest of
@@ -68,9 +52,6 @@ async function moveCustody(
     return { moved: 0, complete: false };
   }
 }
-
-const failed = (code: string, detail: Record<string, unknown> = {}) =>
-  relayed(code === "migration_not_durable" ? 409 : 500, { code, ...detail });
 
 /**
  * The `migrate` op: the host's boot migrations over one agent's store
@@ -101,6 +82,10 @@ export async function executeMigrateOp(
       claimed: true,
       allowLegacyLayout: true,
       filter: migrateHydrateFilter,
+      // A store whose admitted files alone pass the cap refuses before the
+      // bulk download, not after reading up to 2 GiB of it. The check runs
+      // after the priority set, which this filter admits none of.
+      capListed: true,
       ...(input.deps.maxHydrateBytes !== undefined
         ? { maxBytes: input.deps.maxHydrateBytes }
         : {}),
@@ -112,10 +97,11 @@ export async function executeMigrateOp(
     // change instead of spending a sandbox per retry. Anything else stays a
     // bare failure the gateway retries.
     if (!(error instanceof TurnSetupError)) throw error;
+    const code = error instanceof StoreEmptyError ? "store_empty" : error.code;
     console.error(
-      `[op] migrate refused by the store code=${error.code} prefix=${prefix}: ${error.message}`,
+      `[op] migrate refused by the store code=${code} prefix=${prefix}: ${error.message}`,
     );
-    return failed(error.code, { error: error.message });
+    return failed(code, { error: error.message });
   }
   const log = (line: string, error?: unknown) =>
     error === undefined

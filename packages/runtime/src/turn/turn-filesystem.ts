@@ -4,7 +4,6 @@ import { FsVfs } from "@houston/host/src/vfs";
 import {
   DEFAULT_EXCLUDES,
   type HydrateOptions,
-  type ObjectStore,
   startHydrate,
 } from "@houston/runtime-client/object-sync";
 import { turnArchiveLoader } from "./turn-archive-fetch";
@@ -12,6 +11,7 @@ import { watchDeferredFiles } from "./turn-deferred-watch";
 import { startLazyTurnFilesystem } from "./turn-filesystem-lazy";
 import type {
   TurnFilesystem,
+  TurnFilesystemOptions,
   TurnFilesystemPreparation,
 } from "./turn-filesystem-types";
 import { turnHydrationError } from "./turn-hydration-error";
@@ -40,51 +40,22 @@ export const TURN_HYDRATE_MAX_BYTES = 2 * 1024 * 1024 * 1024;
 
 /** Hydrate an isolated store tree and resolve its layout. Claimed turns use
  *  the pool's 2 GiB cap; unclaimed turns keep hydrate's default. */
-export async function prepareTurnFilesystem(opts: {
-  store: ObjectStore;
-  prefix: string;
-  root: string;
-  claimed: boolean;
-  maxBytes?: number;
-  /** Extra hydrate excludes (on top of the defaults), e.g. the runtime tree
-   *  for an op that never reads conversations. */
-  excludes?: string[];
-  filter?: HydrateOptions["filter"];
-  /**
-   * Download nothing up front: list the store, lay out the agent's
-   * directory skeleton, and serve reads through a store-backed vfs that
-   * materializes one object on first touch. Needs a store with a manifest
-   * (a legacy list-only store hydrates eagerly). Only for handlers that
-   * read through the vfs port; a turn's tools read the real filesystem.
-   */
-  lazy?: boolean;
-  /** Lazy only: keep just these listed keys (see turn-filesystem-lazy.ts). */
-  admit?: (relativePath: string) => boolean;
-  /** Only the `migrate` op hydrates a claimed tree its boot migration has
-   *  not reached; everything else refuses it (turn-layout-legacy.ts). */
-  allowLegacyLayout?: boolean;
-}): Promise<TurnFilesystem> {
+export async function prepareTurnFilesystem(
+  opts: TurnFilesystemOptions,
+): Promise<TurnFilesystem> {
   return (await startTurnFilesystem(opts)).hydrated;
 }
 
 /** Resolve the listed layout, then hydrate runtime inputs before the bulk tree. */
-export async function startTurnFilesystem(opts: {
-  store: ObjectStore;
-  prefix: string;
-  root: string;
-  claimed: boolean;
-  maxBytes?: number;
-  excludes?: string[];
-  filter?: HydrateOptions["filter"];
-  /** Eager trees only: keep these out of `hydrated` (`workspaceReady`). */
-  defer?: HydrateOptions["defer"];
-  deferredReadTimeoutMs?: number;
-  deferredParallel?: number;
-  lazy?: boolean;
-  admit?: (relativePath: string) => boolean;
-  allowLegacyLayout?: boolean;
-  timings?: Record<string, number>;
-}): Promise<TurnFilesystemPreparation> {
+export async function startTurnFilesystem(
+  opts: TurnFilesystemOptions & {
+    /** Eager trees only: keep these out of `hydrated` (`workspaceReady`). */
+    defer?: HydrateOptions["defer"];
+    deferredReadTimeoutMs?: number;
+    deferredParallel?: number;
+    timings?: Record<string, number>;
+  },
+): Promise<TurnFilesystemPreparation> {
   const storeRoot = join(opts.root, "store");
   await mkdir(storeRoot, { recursive: true });
   const excludes = opts.excludes
@@ -121,6 +92,7 @@ export async function startTurnFilesystem(opts: {
       excludes,
       keepMergeBase: true,
       ...(opts.filter ? { filter: opts.filter } : {}),
+      ...(opts.capListed ? { capListed: true } : {}),
       ...(opts.defer ? { defer: opts.defer } : {}),
       ...(opts.deferredReadTimeoutMs !== undefined
         ? { deferredReadTimeoutMs: opts.deferredReadTimeoutMs }

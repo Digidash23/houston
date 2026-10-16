@@ -8,6 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import type { HoustonFamily } from "@houston/domain";
 import { atomicTempPath } from "@houston/protocol";
 import { agentRoots } from "./chat-history";
 
@@ -32,11 +33,19 @@ import { agentRoots } from "./chat-history";
  * rewrite here: packages/domain/src/provider-model.ts maps them at read time.
  */
 
-const FLAT_FAMILIES = ["activity", "routines", "routine_runs", "config"];
+export const FLAT_FAMILIES: readonly HoustonFamily[] = [
+  "activity",
+  "routines",
+  "routine_runs",
+  "config",
+];
 
-const LEGACY_PROMPT_FILES = [
-  join(".houston", "prompts", "system.md"),
-  join(".houston", "prompts", "self-improvement.md"),
+/** Agent-relative, `/`-joined (path.join takes them on Windows too). */
+export const LEGACY_LEARNINGS_MD = ".houston/memory/learnings.md";
+
+export const LEGACY_PROMPT_FILES: readonly string[] = [
+  ".houston/prompts/system.md",
+  ".houston/prompts/self-improvement.md",
 ];
 
 export interface MigrateLayoutResult {
@@ -92,7 +101,7 @@ export function migrateAgentLayout(
     }
   }
 
-  const learningsMd = join(agentRoot, ".houston", "memory", "learnings.md");
+  const learningsMd = join(agentRoot, LEGACY_LEARNINGS_MD);
   const learningsNew = join(
     agentRoot,
     ".houston",
