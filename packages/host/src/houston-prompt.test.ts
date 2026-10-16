@@ -235,13 +235,16 @@ test("a needed file is asked for as an ask_user question answered by attaching i
   const ts = norm(houstonSystemPrompt());
   const rs = norm(rust);
   for (const phrase of [
-    "When you need a file, image, or document from the user, ask for it with an `ask_user` question they answer by attaching it: they add it with the + button in the card's answer box, and it arrives with their answer.",
-    "Never offer attaching a file as an option, because picking an option sends no file.",
+    "When you need a file, image, or document from the user, ask for it with an `ask_user` question they answer by attaching it: the user attaches the file to their answer, and it arrives with that answer.",
+    "Never offer attaching a file as an option, because an option can't carry the file itself.",
   ]) {
     const needle = norm(phrase);
     expect(ts).toContain(needle);
     expect(rs).toContain(needle);
   }
+  // Channels like Slack and WhatsApp have no "+" button to point at.
+  expect(ts).not.toContain("+ button");
+  expect(rs).not.toContain("+ button");
 });
 
 test("blocking questions, choices, and approvals route through the ask_user tool", () => {
