@@ -2,8 +2,9 @@
 //!
 //! The listener serves no other assets, so the Houston helmet is inlined as SVG
 //! (no `<img src>` to 404) and the "Open Houston" button is a `houston://open`
-//! deep link that focuses the app (handled in `lib.rs`). Copy matches the
-//! English-only sign-in flow; when that flow gets i18n these strings move with it.
+//! deep link that focuses the app (handled in `lib.rs`). The sign-in copy
+//! matches the English-only sign-in flow; the Slack return's copy arrives from
+//! the webview already translated, so every string is HTML-escaped here.
 //!
 //! Two outcomes, two pages: the redirect we were waiting for gets
 //! {@link success_page}; a redirect carrying somebody ELSE's `state` (a restored
@@ -46,13 +47,39 @@ const STYLE: &str = r#"
     a.btn:hover { opacity: 0.9; }
 "#;
 
-/// One page shell shared by both outcomes, so they cannot drift apart visually.
-fn page(title: &str, heading: &str, body: &str, button: bool) -> String {
-    let action = if button {
-        r#"<a class="btn" href="houston://open">Open Houston</a>"#
-    } else {
-        ""
+/// The two pages one listener serves, rendered once when it starts.
+pub struct LoopbackPages {
+    pub success: String,
+    pub stale: String,
+}
+
+/// Escapes text for an HTML element body. The page has no attribute that takes
+/// passed text, so `'` needs nothing.
+fn escape(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// One page shell shared by every outcome, so they cannot drift apart visually.
+/// `button` is the label of the "Open Houston" deep link, when the page has one.
+pub(crate) fn page(title: &str, heading: &str, body: &str, button: Option<&str>) -> String {
+    let action = match button {
+        Some(label) => format!(
+            r#"<a class="btn" href="houston://open">{}</a>"#,
+            escape(label)
+        ),
+        None => String::new(),
     };
+    let (title, heading, body) = (escape(title), escape(heading), escape(body));
     format!(
         r#"<!DOCTYPE html>
 <html lang="en">
@@ -80,7 +107,7 @@ pub fn success_page() -> String {
         "Houston \u{2014} Signed in",
         "You're signed in",
         "You can close this tab and return to Houston.",
-        true,
+        Some("Open Houston"),
     )
 }
 
@@ -91,29 +118,16 @@ pub fn stale_page() -> String {
         "Houston \u{2014} Old sign-in tab",
         "This sign-in link has expired",
         "It came from an earlier sign-in attempt. You can close this tab and finish signing in from the Houston window.",
-        false,
+        None,
     )
 }
 
-/// Served for the gateway's return from the Slack connect this listener started.
-pub fn slack_success_page() -> String {
-    page(
-        "Houston \u{00b7} Slack connected",
-        "Slack is connected",
-        "You can close this tab and return to Houston.",
-        true,
-    )
-}
-
-/// Served for a Slack return carrying another attempt's `state`. The listener
-/// keeps waiting for its own.
-pub fn slack_stale_page() -> String {
-    page(
-        "Houston \u{00b7} Old Slack tab",
-        "This Slack link has expired",
-        "It came from an earlier attempt to connect Slack. You can close this tab and connect Slack again from Houston.",
-        false,
-    )
+/// The sign-in listener's pages.
+pub fn sign_in_pages() -> LoopbackPages {
+    LoopbackPages {
+        success: success_page(),
+        stale: stale_page(),
+    }
 }
 
 #[cfg(test)]
@@ -147,13 +161,21 @@ mod tests {
     }
 
     #[test]
-    fn slack_pages_speak_about_slack_not_sign_in() {
-        let success = slack_success_page();
-        assert!(success.contains("<h1>Slack is connected</h1>"));
-        assert!(success.contains(r#"href="houston://open""#));
-        assert!(!success.contains("signed in"));
-        let stale = slack_stale_page();
-        assert!(stale.contains("<h1>This Slack link has expired</h1>"));
-        assert!(!stale.contains("houston://open"));
+    fn passed_text_is_html_escaped() {
+        assert_eq!(
+            escape(r#"<script>alert("x")</script> & co"#),
+            "&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; co"
+        );
+        let html = page("a<b", "c&d", "e>f", Some("\"g\""));
+        assert!(html.contains("<title>a&lt;b</title>"));
+        assert!(html.contains("<h1>c&amp;d</h1>"));
+        assert!(html.contains("<p>e&gt;f</p>"));
+        assert!(html.contains(r#"href="houston://open">&quot;g&quot;</a>"#));
+    }
+
+    #[test]
+    fn the_sign_in_pages_keep_their_english_copy() {
+        assert!(success_page().contains("<h1>You're signed in</h1>"));
+        assert!(success_page().contains(r#"href="houston://open">Open Houston</a>"#));
     }
 }

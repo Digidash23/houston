@@ -77,17 +77,35 @@ export interface ChannelsLoopbackStart {
   attemptId: number;
 }
 
+/** One page the Slack return listener serves, in the person's language. The
+ *  shell HTML-escapes every string. */
+export interface ChannelsLoopbackPageCopy {
+  heading: string;
+  body: string;
+}
+
+/** Both pages the Slack return listener can serve, and the success page's
+ *  "Open Houston" button. */
+export interface ChannelsLoopbackCopy {
+  success: ChannelsLoopbackPageCopy;
+  stale: ChannelsLoopbackPageCopy;
+  openButton: string;
+}
+
 /** Bind a `127.0.0.1` listener for the gateway's return from a desktop Slack
  * connect, so the browser lands back in Houston with no "Open Houston?"
  * prompt. It answers only a `/channels/slack` redirect carrying
- * `expectedState`, emits `houston://settings/channels?slack=<ticket>` on the
- * deep-link channel, focuses the app, and frees itself after ten minutes. Its
- * registry is apart from sign-in's, so neither cancels the other. Desktop only. */
+ * `expectedState` and one ticket, emits
+ * `houston://settings/channels?slack=<ticket>` on the deep-link channel,
+ * focuses the app, and frees itself after twelve minutes. Its registry is
+ * apart from sign-in's, so neither cancels the other. Desktop only. */
 export function osStartChannelsLoopback(
   expectedState: string,
+  copy: ChannelsLoopbackCopy,
 ): Promise<ChannelsLoopbackStart> {
   return invokeNative<ChannelsLoopbackStart>("start_channels_loopback", {
     expected_state: expectedState,
+    copy,
   });
 }
 

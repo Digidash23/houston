@@ -1,3 +1,4 @@
+import { startSlackConnect } from "@houston/sdk/channels/connect-flow";
 import {
   type ChannelWatches,
   channelWatchPollMs,
@@ -20,7 +21,6 @@ import {
 } from "../../lib/os-bridge";
 import { queryKeys } from "../../lib/query-keys";
 import { refetchAfterWrite } from "../../lib/refetch-after-write";
-import { connectSlackWithReturn } from "../../lib/slack-connect-return";
 import { tauriChannels } from "../../lib/tauri";
 import { useWorkspaceStore } from "../../stores/workspaces";
 import { inChannelWorkspace } from "../channel-workspace-scope";
@@ -62,36 +62,41 @@ export function useChannelActions() {
       return refetchAfterWrite(qc, queryKeys.channels(spaceId));
     }
   };
+  // The desktop's Slack return page, rendered by the shell in this language.
+  const returnCopy = () => ({
+    success: {
+      heading: t("channels.slack.returnPage.returnHeading"),
+      body: t("channels.slack.returnPage.returnBody"),
+    },
+    stale: {
+      heading: t("channels.slack.returnPage.staleHeading"),
+      body: t("channels.slack.returnPage.staleBody"),
+    },
+    openButton: t("channels.slack.returnPage.openHouston"),
+  });
   const connect = useMutation({
+    // The browser can REFUSE the open (a popup blocker on web). The section
+    // must not claim a tab the user never saw, so the answer is carried back
+    // and it offers the page behind a click instead.
     mutationFn: (): Promise<SlackAuthorization> =>
-      inChannelWorkspace(spaceId, async (assertCurrent, signal) => {
-        // A desktop-started connect must finish in the desktop app, which a
-        // return to the web app would never reach.
-        const url = await connectSlackWithReturn(
-          async (returnTo) => {
-            const authorize = await tauriChannels.connectSlack(
-              returnTo,
-              signal,
-            );
+      inChannelWorkspace(spaceId, (assertCurrent, signal) =>
+        startSlackConnect({
+          connect: async (returnTo) => {
+            const answer = await tauriChannels.connectSlack(returnTo, signal);
             assertCurrent();
-            return authorize;
+            return answer;
           },
-          {
-            listener: osIsTauri()
-              ? {
-                  start: osStartChannelsLoopback,
-                  cancel: osCancelChannelsLoopback,
-                }
-              : null,
-            newState: generateState,
-            report: logAndReportError,
-          },
-        );
-        // The browser can REFUSE the open (a popup blocker on web). The
-        // section must not claim a tab the user never saw, so the answer is
-        // carried back and it offers the page behind a click instead.
-        return { url, opened: await tauriChannels.openSlack(url) };
-      }),
+          listener: osIsTauri()
+            ? {
+                start: (state) => osStartChannelsLoopback(state, returnCopy()),
+                cancel: osCancelChannelsLoopback,
+              }
+            : null,
+          newState: generateState,
+          open: tauriChannels.openSlack,
+          report: logAndReportError,
+        }),
+      ),
   });
   /** Open the same page from a real click, which a popup blocker honors. */
   const reopen = useMutation({

@@ -135,6 +135,39 @@ test("each connect return target sends its own body byte for byte", async () => 
   ]);
 });
 
+test("a gateway that predates the loopback return gets one app retry", async () => {
+  const bodies: (string | null)[] = [];
+  const answers = [
+    Response.json({ code: "invalid_request" }, { status: 400 }),
+    Response.json({ url: "https://slack.com/oauth/v2/authorize?state=opaque" }),
+  ];
+  globalThis.fetch = vi.fn(async (_url, init) => {
+    bodies.push(typeof init?.body === "string" ? init.body : null);
+    const answer = answers.shift();
+    if (!answer) throw new Error("no answer left");
+    return answer;
+  });
+  const client = new HoustonClient({
+    baseUrl: "https://gateway.test",
+    token: "token",
+    controlPlane: true,
+  });
+  expect(
+    await client.connectSlack({
+      kind: "loopback",
+      port: 53124,
+      state: "q9X-_3abcDEF4567",
+    }),
+  ).toEqual({
+    url: "https://slack.com/oauth/v2/authorize?state=opaque",
+    accepted: "app",
+  });
+  expect(bodies).toEqual([
+    '{"return":"loopback","port":53124,"state":"q9X-_3abcDEF4567"}',
+    '{"return":"app"}',
+  ]);
+});
+
 test("a local deployment exposes channels as unsupported without a network request", async () => {
   const fetch = vi.fn();
   globalThis.fetch = fetch;

@@ -14,13 +14,11 @@
  * 401 routes through the shared {@link ModuleContext.authExpiry} notifier.
  */
 
+import type { SlackConnectReturn } from "@houston/wire-types";
 import type { ModuleContext } from "../../module-context";
 import { moduleScope, SdkHttpError } from "../http";
 import { field, requireString } from "../payload";
-import {
-  parseSlackConnectReturn,
-  type SlackConnectReturn,
-} from "./connect-return";
+import { parseSlackConnectReturn } from "./connect-return";
 import {
   completeSlack,
   connectSlack,
@@ -34,12 +32,15 @@ import {
   type ChannelStatus,
   ChannelsCommand,
   requireTicket,
-  type SlackAuthorization,
   type SlackCompletion,
+  type SlackConnectAnswer,
   type WhatsAppLink,
 } from "./types";
 
-export type { SlackConnectReturn } from "./connect-return";
+export type {
+  SlackConnectReturn,
+  SlackConnectReturnKind,
+} from "@houston/wire-types";
 export type {
   ChannelConnection,
   ChannelLink,
@@ -49,6 +50,7 @@ export type {
   ChannelsCommandType,
   SlackAuthorization,
   SlackCompletion,
+  SlackConnectAnswer,
   WhatsAppLink,
 } from "./types";
 export { CHANNEL_PROVIDER_IDS, ChannelsCommand } from "./types";
@@ -57,11 +59,15 @@ export { CHANNEL_PROVIDER_IDS, ChannelsCommand } from "./types";
 export interface ChannelsModule {
   /** The deployment's providers and the active space's connections. */
   getChannels(signal?: AbortSignal): Promise<ChannelStatus>;
-  /** Slack's hosted authorization URL; `returnTo` is where the browser returns. */
+  /**
+   * Slack's hosted authorization URL; `returnTo` is where the browser returns.
+   * A gateway that predates `loopback` gets one retry as `app`, and `accepted`
+   * names the return the URL leads back to.
+   */
   connectSlack(
     returnTo?: SlackConnectReturn,
     signal?: AbortSignal,
-  ): Promise<SlackAuthorization>;
+  ): Promise<SlackConnectAnswer>;
   /** An expiring code that pairs an already-installed Slack workspace. */
   linkSlack(signal?: AbortSignal): Promise<ChannelLink>;
   /** An expiring code and prefilled message for WhatsApp pairing. */

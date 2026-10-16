@@ -52,6 +52,7 @@ use tokio::sync::oneshot;
 
 use callback::{CALLBACK_PATH, SIGN_IN};
 use listener::{bind_exact, bind_first_free, spawn_listener, supersede, BindOutcome, ListenerTask};
+use pages::sign_in_pages;
 pub use state::OauthLoopbackState;
 use state::{ActiveListener, Claim, Installed};
 
@@ -165,6 +166,7 @@ pub async fn start_oauth_loopback(
     spawn_listener(ListenerTask {
         app,
         route: &SIGN_IN,
+        pages: sign_in_pages(),
         sockets,
         attempt_id,
         expected_state,

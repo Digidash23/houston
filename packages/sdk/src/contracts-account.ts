@@ -86,6 +86,7 @@ export {
   type ChannelsModule,
   type SlackAuthorization,
   type SlackCompletion,
+  type SlackConnectAnswer,
   type SlackConnectReturn,
 } from "./modules/channels";
 // ===== Org module contract =============================================

@@ -13,6 +13,7 @@ use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 
 use super::callback::{serve_callback, LoopbackRoute};
+use super::pages::LoopbackPages;
 use super::state::ActiveListener;
 
 /// Loopback ports we try, in order. EVERY port here must be registered as an
@@ -80,6 +81,7 @@ pub async fn bind_exact(port: u16) -> Result<BindOutcome, String> {
 pub struct ListenerTask {
     pub app: AppHandle,
     pub route: &'static LoopbackRoute,
+    pub pages: LoopbackPages,
     pub sockets: BoundSockets,
     pub attempt_id: u64,
     pub expected_state: String,
@@ -95,6 +97,7 @@ pub fn spawn_listener(task: ListenerTask) {
     let ListenerTask {
         app,
         route,
+        pages,
         sockets,
         attempt_id,
         expected_state,
@@ -112,7 +115,7 @@ pub fn spawn_listener(task: ListenerTask) {
             }
             result = tokio::time::timeout(
                 route.timeout,
-                serve_callback(&sockets, &app, &expected_state, route),
+                serve_callback(&sockets, &app, &expected_state, route, &pages),
             ) => {
                 match result {
                     Ok(Ok(())) => {}

@@ -14,17 +14,24 @@ use tauri::{AppHandle, Manager};
 use tokio::net::TcpStream;
 
 use super::listener::BoundSockets;
-use super::pages::{stale_page, success_page};
+use super::pages::LoopbackPages;
 use super::state::OauthLoopbackState;
-use crate::loopback_util::{read_request_target, split_target, write_response};
+use crate::loopback_util::{read_request_target_within, split_target, write_response};
 
 /// Path the provider redirects to. Kept narrow so a stray request to `/` or
 /// `/favicon.ico` isn't mistaken for the callback.
 pub const CALLBACK_PATH: &str = "/auth/callback";
 
+/// How long one connection may take to send its request line. A local socket
+/// that connects and says nothing (a preconnecting browser, a stray probe)
+/// gets a 400 after this instead of holding the listener until it times out.
+pub const READ_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// What one kind of loopback listens for and what it does with its callback.
 /// Every route shares the state check, the emit, the page and the focus; only
-/// these differ, so a route can never accept another route's redirect.
+/// these differ, so a route can never accept another route's redirect. The
+/// pages are per attempt (`ListenerTask::pages`), since their copy may be
+/// translated.
 pub struct LoopbackRoute {
     /// Log prefix, so a sign-in line never reads as a Slack one.
     pub tag: &'static str,
@@ -32,10 +39,10 @@ pub struct LoopbackRoute {
     pub path: &'static str,
     /// How long the listener waits before freeing its port.
     pub timeout: Duration,
-    /// The `auth://deep-link` payload built from the accepted query.
-    pub deep_link: fn(&str) -> String,
-    pub success_page: fn() -> String,
-    pub stale_page: fn() -> String,
+    /// The `auth://deep-link` payload built from a query carrying this
+    /// attempt's `state`. `None` when the query lacks what the route needs: it
+    /// gets the stale page and the listener keeps waiting.
+    pub deep_link: fn(&str) -> Option<String>,
     /// Drop the attempt from its registry once the listener has exited.
     pub release: fn(&AppHandle, u64) -> Result<(), String>,
 }
@@ -45,9 +52,7 @@ pub static SIGN_IN: LoopbackRoute = LoopbackRoute {
     tag: "oauth-loopback",
     path: CALLBACK_PATH,
     timeout: Duration::from_secs(300),
-    deep_link: callback_deep_link,
-    success_page,
-    stale_page,
+    deep_link: |query| Some(callback_deep_link(query)),
     release: |app, id| app.state::<OauthLoopbackState>().clear_if(id),
 };
 
@@ -142,12 +147,13 @@ pub async fn serve_callback(
     app: &AppHandle,
     expected_state: &str,
     route: &LoopbackRoute,
+    pages: &LoopbackPages,
 ) -> Result<(), String> {
     let tag = route.tag;
     loop {
         let mut stream = accept_any(sockets).await?;
 
-        let target = match read_request_target(&mut stream).await {
+        let target = match read_request_target_within(&mut stream, READ_TIMEOUT).await {
             Ok(t) => t,
             Err(e) => {
                 tracing::warn!("[{tag}] unreadable request: {e}");
@@ -163,19 +169,23 @@ pub async fn serve_callback(
             continue;
         }
 
-        if decide(query, expected_state) == CallbackDecision::Stale {
+        let link = match decide(query, expected_state) {
+            CallbackDecision::Accept => (route.deep_link)(query),
+            CallbackDecision::Stale => None,
+        };
+        let Some(link) = link else {
             tracing::warn!(
-                "[{tag}] ignoring a callback whose state belongs to an older attempt; still listening"
+                "[{tag}] ignoring a callback that is not this attempt's; still listening"
             );
-            respond(tag, &mut stream, "200 OK", &(route.stale_page)()).await;
+            respond(tag, &mut stream, "200 OK", &pages.stale).await;
             continue;
-        }
+        };
 
         // Hand the query to the webview through the `auth://deep-link` event,
         // the same channel an OS deep link of that shape arrives on.
-        crate::auth::emit_deep_link(app, &(route.deep_link)(query));
+        crate::auth::emit_deep_link(app, &link);
 
-        respond(tag, &mut stream, "200 OK", &(route.success_page)()).await;
+        respond(tag, &mut stream, "200 OK", &pages.success).await;
 
         crate::window_focus::bring_to_front(app);
 

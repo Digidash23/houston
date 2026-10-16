@@ -75,7 +75,7 @@ describe("the channels requests", () => {
   it("starts the Slack install with an empty JSON body", async () => {
     const url = "https://slack.com/oauth/v2/authorize?state=opaque";
     const { sdk, calls } = ok({ url });
-    expect(await sdk.channels.connectSlack()).toEqual({ url });
+    expect(await sdk.channels.connectSlack()).toEqual({ url, accepted: null });
     expect(calls).toEqual([
       {
         method: "POST",
