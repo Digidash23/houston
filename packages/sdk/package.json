@@ -27,10 +27,6 @@
       "types": "./src/job-description.ts",
       "import": "./src/job-description.ts"
     },
-    "./org/chart-share-failure": {
-      "types": "./src/modules/org/chart-share-failure.ts",
-      "import": "./src/modules/org/chart-share-failure.ts"
-    },
     "./first-day": {
       "types": "./src/first-day.ts",
       "import": "./src/first-day.ts"
@@ -66,6 +62,14 @@
     "./channels/watch": {
       "types": "./src/modules/channels/watch.ts",
       "import": "./src/modules/channels/watch.ts"
+    },
+    "./linkedin/policy": {
+      "types": "./src/modules/linkedin/policy.ts",
+      "import": "./src/modules/linkedin/policy.ts"
+    },
+    "./linkedin/connect-flow": {
+      "types": "./src/modules/linkedin/connect-flow.ts",
+      "import": "./src/modules/linkedin/connect-flow.ts"
     },
     "./routines/routine-gone": {
       "types": "./src/modules/routines/routine-gone.ts",

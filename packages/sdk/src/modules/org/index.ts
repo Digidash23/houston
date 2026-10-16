@@ -20,9 +20,7 @@
 
 import type { ModuleContext } from "../../module-context";
 import { moduleScope } from "../http";
-import { field, requireString, requireStrings } from "../payload";
-import type { OrgChartShareInput, OrgChartShareResult } from "./chart-share";
-import { publishChartShare } from "./chart-share-deadline";
+import { requireString, requireStrings } from "../payload";
 import {
   addOrgMember,
   deleteOrgInvite,
@@ -53,12 +51,6 @@ import {
   type UsageRow,
 } from "./usage";
 
-export {
-  ORG_CHART_SHARE_FALLBACK_TITLE,
-  type OrgChartShareInput,
-  type OrgChartShareResult,
-} from "./chart-share";
-export { OrgChartShareFailure } from "./chart-share-failure";
 export { OrgHttpError } from "./http";
 export type {
   AddOrgMemberResult,
@@ -100,30 +92,6 @@ export interface OrgModule {
   orgUsage(days: number): Promise<UsageRow[]>;
   /** Per (agent, day) engine running time over the last `days` days. */
   computeUsage(days: number): Promise<ComputeUsage>;
-  /**
-   * Publish the org chart picture (and its link card) as a public page;
-   * refusals are typed. A card the gateway refuses (or would, by size) is
-   * dropped and the page goes up without it (`previewRefused`); a title it
-   * refuses is replaced by `ORG_CHART_SHARE_FALLBACK_TITLE`
-   * (`titleRefused`). Both ride on a refusal too, when a retry was refused
-   * for another reason, and on an `OrgChartShareFailure` when a retry
-   * failed outright. An abort through `input.signal` rejects with the
-   * signal's reason.
-   */
-  publishOrgChartShare(input: OrgChartShareInput): Promise<OrgChartShareResult>;
-}
-
-function optionalBlob(payload: unknown, key: string): Blob | undefined {
-  const value = field(payload, key);
-  if (value === undefined) return undefined;
-  if (!(value instanceof Blob)) throw new Error(`'${key}' must be a picture`);
-  return value;
-}
-
-function requireBlob(payload: unknown, key: string): Blob {
-  const value = optionalBlob(payload, key);
-  if (!value) throw new Error(`'${key}' must be a picture`);
-  return value;
 }
 
 export function createOrgModule(ctx: ModuleContext): OrgModule {
@@ -155,13 +123,6 @@ export function createOrgModule(ctx: ModuleContext): OrgModule {
   ctx.registerCommand(OrgCommand.ComputeUsage, (p) =>
     computeUsage(scope, requireNumber(p, "days")),
   );
-  ctx.registerCommand(OrgCommand.PublishChartShare, (p) =>
-    publishChartShare(scope, {
-      image: requireBlob(p, "image"),
-      preview: optionalBlob(p, "preview"),
-      title: requireString(p, "title"),
-    }),
-  );
 
   return {
     getOrg: () => getOrg(scope),
@@ -174,6 +135,5 @@ export function createOrgModule(ctx: ModuleContext): OrgModule {
     orgAudit: (before, limit) => orgAudit(scope, before, limit),
     orgUsage: (days) => orgUsage(scope, days),
     computeUsage: (days) => computeUsage(scope, days),
-    publishOrgChartShare: (input) => publishChartShare(scope, input),
   };
 }

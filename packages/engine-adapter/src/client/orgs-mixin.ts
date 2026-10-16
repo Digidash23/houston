@@ -1,4 +1,3 @@
-import type { OrgChartShareInput, OrgChartShareResult } from "@houston/sdk";
 import type * as controlPlane from "../control-plane";
 import { HoustonEngineError } from "./errors";
 import type { BaseCtor } from "./mixin";
@@ -118,15 +117,6 @@ export function OrgsMixin<TBase extends BaseCtor>(Base: TBase) {
         throw new Error("compute usage requires the hosted gateway");
       return viaSdk("/v1/org/compute-usage", () =>
         this.ctx.sdk.org.computeUsage(days),
-      );
-    }
-
-    // ---- sharing ----
-    async publishOrgChartShare(
-      input: OrgChartShareInput,
-    ): Promise<OrgChartShareResult> {
-      return viaSdk("/v1/org-chart-shares", () =>
-        this.ctx.sdk.org.publishOrgChartShare(input),
       );
     }
   }

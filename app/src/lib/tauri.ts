@@ -24,7 +24,6 @@ import type {
   MessageApproval,
   MessageMention,
   MissionTitle,
-  OrgChartShareInput,
   ProviderAuthState,
   ProviderHealth,
   ProviderUsage,
@@ -1934,21 +1933,6 @@ export const tauriOrg = {
    *  callers gate on `capabilities.computeUsage`. */
   computeUsage: (days: number) =>
     call("org_compute_usage", () => getEngine().computeUsage(days)),
-  /** Publish the org chart picture (and its link card) as a public page for
-   *  a post to link to. Refusals resolve typed; the share dialog reports what
-   *  is worth reporting, so a throw is not surfaced here a second time, and an
-   *  abort (the dialog closed) is silent. */
-  publishChartShare: (input: OrgChartShareInput) =>
-    call(
-      "publish_org_chart_share",
-      () => getEngine().publishOrgChartShare(input),
-      undefined,
-      {
-        toast: false,
-        capture: false,
-        silence: () => Boolean(input.signal?.aborted),
-      },
-    ),
   /** C8 spaces: the caller's spaces + pending invites. Degrades to an empty
    *  result off-spaces (the switcher then shows only the personal workspace). */
   listOrgs: () => call("list_orgs", () => getEngine().listOrgs()),

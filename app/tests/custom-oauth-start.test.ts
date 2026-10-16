@@ -22,7 +22,6 @@ function fakeTab(opts: { closed?: boolean } = {}) {
     discard: () => {
       discarded += 1;
     },
-    hold: () => {},
   };
   return { tab, navigated, discarded: () => discarded };
 }
@@ -76,7 +75,6 @@ describe("startCustomOAuth", () => {
         return false;
       },
       discard: () => {},
-      hold: () => {},
     };
     const h = harness({ tab, opens: false });
     deepStrictEqual(await startCustomOAuth(h.deps), {
