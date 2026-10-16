@@ -59,6 +59,7 @@ export interface TurnFilesystemOptions {
    *  for an op that never reads conversations. */
   excludes?: string[];
   filter?: HydrateOptions["filter"];
+  /** Eager trees only: a lazy tree downloads nothing up front. */
   capListed?: HydrateOptions["capListed"];
   /**
    * Download nothing up front: list the store, lay out the agent's

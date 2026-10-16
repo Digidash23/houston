@@ -36,7 +36,9 @@ export class TurnSetupError extends Error {
 }
 
 /**
- * A claimed run over a store prefix that lists no object. Turns still see
+ * A claimed run over a store prefix that lists no agent tree: nothing at
+ * all, only the workspace preferences, or only root files such as the
+ * legacy secrets. Turns still see
  * `layout_unexpected` (clients and the gateway key on it); the migrate op
  * answers `store_empty` instead, because a listing that is empty for a moment
  * is not the multi-tree layout the gateway blocks until the store changes.

@@ -82,8 +82,9 @@ export async function executeMigrateOp(
       claimed: true,
       allowLegacyLayout: true,
       filter: migrateHydrateFilter,
-      // A store whose admitted files alone pass the cap refuses before its
-      // first download, not after reading up to 2 GiB of it.
+      // A store whose admitted files alone pass the cap refuses before the
+      // bulk download, not after reading up to 2 GiB of it. The check runs
+      // after the priority set, which this filter admits none of.
       capListed: true,
       ...(input.deps.maxHydrateBytes !== undefined
         ? { maxBytes: input.deps.maxHydrateBytes }
