@@ -23,7 +23,7 @@ describe("a LinkedIn post through resetForIdentityChange", () => {
     expect(slots()).toEqual({});
   });
 
-  it("lets a post still out settle into nothing for the next person", async () => {
+  it("settles a post still out into its own person's hold, never the next person's", async () => {
     const claim = useLinkedInPosts.getState().start("uid-ada", "space-a");
     if (!claim) throw new Error("the slot was taken");
     let answer = (_: { kind: "unknown" }) => {};
@@ -41,9 +41,10 @@ describe("a LinkedIn post through resetForIdentityChange", () => {
     signedIn = "uid-grace";
     answer({ kind: "unknown" });
     await expect(outcome).resolves.toBeNull();
-    expect(slots()[linkedInPostKey("uid-ada", "space-a")]).toEqual(
-      IDLE_LINKEDIN_POST,
-    );
+    expect(slots()[linkedInPostKey("uid-ada", "space-a")]).toEqual({
+      ...IDLE_LINKEDIN_POST,
+      unconfirmed: true,
+    });
     expect(slots()[linkedInPostKey("uid-grace", "space-a")]).toBeUndefined();
   });
 });

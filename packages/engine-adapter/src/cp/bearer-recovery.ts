@@ -90,6 +90,16 @@ export function settleGatewayResponse(
 }
 
 /**
+ * Settle a response whose request is never replayed (`@houston/sdk/auth-replay`):
+ * a 401 stands as the gateway answered it, its bearer remembered as rejected.
+ */
+export function settleWithoutReplay(res: Response, bearer: string): Response {
+  if (res.status === 401) noteBearerRejected(bearer);
+  else noteBearerAccepted(bearer);
+  return res;
+}
+
+/**
  * The 401 → refresh → replay seam proper (HOU-687), for a request that was
  * sent with `bearer` and answered `res` (a 401).
  *

@@ -83,6 +83,10 @@
       "types": "./src/modules/files/upload-interrupted.ts",
       "import": "./src/modules/files/upload-interrupted.ts"
     },
+    "./auth-replay": {
+      "types": "./src/auth-replay.ts",
+      "import": "./src/auth-replay.ts"
+    },
     "./transport-failure": {
       "types": "./src/transport-failure.ts",
       "import": "./src/transport-failure.ts"

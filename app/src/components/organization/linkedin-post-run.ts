@@ -23,11 +23,12 @@ export interface LinkedInPostSteps {
 }
 
 /**
- * One claimed post, from the picture to its result in the slot. Every step
- * is checked against the person who claimed it: a post prepared under one
- * identity is never sent under another, and a result that lands after the
- * identity changed is dropped (`null`), so nothing of it reaches the next
- * person. The slot stops Posting either way.
+ * One claimed post, from the picture to its result in the slot. A post
+ * prepared under one identity is never sent under another. Its result always
+ * lands in its person's slot, so a post that may be up still holds Post when
+ * they sign back in; it is said (the outcome) only while they are signed in,
+ * and is `null` otherwise, so nothing of it reaches the next person. The slot
+ * stops Posting either way.
  */
 export async function runLinkedInPost(
   claim: LinkedInPostClaim,
@@ -38,20 +39,28 @@ export async function runLinkedInPost(
   try {
     const image = await steps.prepare();
     if (!mine()) return null;
-    const result = await steps.send(image);
-    if (!mine()) return null;
-    if (result.kind === "unknown") {
-      posts.unconfirmed(claim);
-      return { kind: "unconfirmed" };
-    }
-    if (result.kind === "refused") return result;
-    const postUrl = linkedInPostLink(result.postUrl);
-    posts.posted(claim, postUrl);
-    return { kind: "posted", postUrl };
+    const outcome = settled(claim, await steps.send(image));
+    return mine() ? outcome : null;
   } catch {
     // Already reported by the step that failed (see LinkedInPostSteps).
     return mine() ? { kind: "failed" } : null;
   } finally {
     posts.ended(claim);
   }
+}
+
+/** Records `result` in the claim's own slot (keyed by its person). */
+function settled(
+  claim: LinkedInPostClaim,
+  result: LinkedInPostResult,
+): LinkedInPostOutcome {
+  const posts = useLinkedInPosts.getState();
+  if (result.kind === "unknown") {
+    posts.unconfirmed(claim);
+    return { kind: "unconfirmed" };
+  }
+  if (result.kind === "refused") return result;
+  const postUrl = linkedInPostLink(result.postUrl);
+  posts.posted(claim, postUrl);
+  return { kind: "posted", postUrl };
 }

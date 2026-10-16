@@ -11,8 +11,8 @@ import { create } from "zustand";
  *
  * A slot belongs to the signed-in person in one space
  * ({@link linkedInPostKey}): every account's personal space has the same id.
- * A post's {@link LinkedInPostClaim} names its person, and its result is
- * applied only while that person is signed in (`linkedin-post-run.ts`).
+ * A post's {@link LinkedInPostClaim} names its person, and its result always
+ * lands in that person's slot, signed in or not (`linkedin-post-run.ts`).
  */
 export interface LinkedInPostSlot {
   posting: boolean;
@@ -62,8 +62,9 @@ interface LinkedInPostStore {
   dismissUnconfirmed: (key: string) => void;
   /**
    * The signed-in identity changed: every slot goes but the ones with a post
-   * still out. Those stay Posting, so the same person signing back in is
-   * never offered a second Post; nobody else's key ever reads them.
+   * still out or one that may be up. Those keep Posting or the hold (only
+   * their unshown link goes), so the same person signing back in is never
+   * offered a second Post; nobody else's key ever reads them.
    */
   reset: () => void;
 }
@@ -97,8 +98,8 @@ export const useLinkedInPosts = create<LinkedInPostStore>((set, get) => {
       set((s) => ({
         slots: Object.fromEntries(
           Object.entries(s.slots)
-            .filter(([, slot]) => slot.posting)
-            .map(([key]) => [key, { ...IDLE_LINKEDIN_POST, posting: true }]),
+            .filter(([, slot]) => slot.posting || slot.unconfirmed)
+            .map(([key, slot]) => [key, { ...slot, landed: null }]),
         ),
       })),
   };

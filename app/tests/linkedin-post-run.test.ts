@@ -86,7 +86,7 @@ describe("a LinkedIn post across identities", () => {
     deepStrictEqual(slot(), { ...IDLE_LINKEDIN_POST, unconfirmed: true });
   });
 
-  it("drops the result when someone else signed in", async () => {
+  it("keeps the result in its person's slot, unsaid, when someone else signed in", async () => {
     const post = steps();
     const outcome = runLinkedInPost(claim(), post.run);
     await post.encode();
@@ -94,7 +94,23 @@ describe("a LinkedIn post across identities", () => {
     post.who.uid = "uid-grace";
     await post.answer();
     strictEqual(await outcome, null);
-    deepStrictEqual(slot(), IDLE_LINKEDIN_POST);
+    deepStrictEqual(slot(), { ...IDLE_LINKEDIN_POST, landed: postUrl });
+    const grace = linkedInPostKey("uid-grace", "space-a");
+    strictEqual(useLinkedInPosts.getState().slots[grace], undefined);
+  });
+
+  it("holds Post for its person when a post that may be up settles while they are out", async () => {
+    const post = steps({ kind: "unknown" });
+    const outcome = runLinkedInPost(claim(), post.run);
+    await post.encode();
+    post.who.uid = null;
+    useLinkedInPosts.getState().reset();
+    await post.answer();
+    strictEqual(await outcome, null);
+    deepStrictEqual(slot(), { ...IDLE_LINKEDIN_POST, unconfirmed: true });
+    // Back in: still held until they say they checked.
+    useLinkedInPosts.getState().reset();
+    strictEqual(useLinkedInPosts.getState().start("uid-ada", "space-a"), null);
   });
 
   it("sends nothing when the person signed out while the picture encoded", async () => {

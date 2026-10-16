@@ -87,14 +87,24 @@ describe("a person's LinkedIn post slot in a space", () => {
 });
 
 describe("an identity change", () => {
-  it("clears every slot with no post out", () => {
+  it("clears every slot with no post out or held", () => {
     const posts = useLinkedInPosts.getState();
     const b = claim("uid-ada", "space-b");
     posts.posted(b, url);
+    posts.reset();
+    deepStrictEqual(useLinkedInPosts.getState().slots, {});
+  });
+
+  it("keeps a post that may be up held, so its person checks before Post", () => {
+    const posts = useLinkedInPosts.getState();
     const c = claim("uid-ada", "space-c");
     posts.unconfirmed(c);
     posts.reset();
-    deepStrictEqual(useLinkedInPosts.getState().slots, {});
+    const held = linkedInPostKey("uid-ada", "space-c");
+    deepStrictEqual(useLinkedInPosts.getState().slots, {
+      [held]: { ...IDLE_LINKEDIN_POST, unconfirmed: true },
+    });
+    strictEqual(posts.start("uid-ada", "space-c"), null);
   });
 
   it("keeps a post still out Posting, so its person never posts twice", () => {
