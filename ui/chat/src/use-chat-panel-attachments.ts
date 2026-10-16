@@ -42,7 +42,6 @@ export function useChatPanelAttachments({
     attachments,
     onAttachmentsChange,
   );
-  const isFilesControlled = attachments !== undefined;
   const addDroppedFiles = useAttachmentIntake({
     files,
     setFiles,
@@ -73,13 +72,12 @@ export function useChatPanelAttachments({
     onDropError,
   );
 
-  // In controlled mode the parent is responsible for clearing.
   const handleSend = useCallback(
     async (text: string, sent: File[], mentions: MessageMention[]) => {
       await onSend(text, sent, mentions);
-      if (!isFilesControlled) releaseFiles(sent);
+      releaseFiles(sent);
     },
-    [onSend, isFilesControlled, releaseFiles],
+    [onSend, releaseFiles],
   );
 
   return {

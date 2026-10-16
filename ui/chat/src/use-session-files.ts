@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 
 export interface SessionFiles {
   files: File[];
@@ -16,7 +16,8 @@ export interface SessionFiles {
  * parks the list under its `sessionKey` and hands it back on return.
  *
  * Controlled (`attachments` given): the parent owns the list and its scoping,
- * and this only forwards.
+ * and this only forwards. `releaseFiles` is then a no-op: like the composer's
+ * controlled send, the parent clears what it accepted.
  */
 export function useSessionFiles(
   sessionKey: string,
@@ -25,8 +26,6 @@ export function useSessionFiles(
 ): SessionFiles {
   const [byKey, setByKey] = useState<Record<string, File[]>>({});
   const controlled = attachments !== undefined;
-  const latestControlled = useRef(attachments);
-  latestControlled.current = attachments;
 
   const files = controlled ? attachments : (byKey[sessionKey] ?? NONE);
   const setFiles = useCallback(
@@ -38,14 +37,8 @@ export function useSessionFiles(
   );
   const releaseFiles = useCallback(
     (sent: readonly File[]) => {
-      if (sent.length === 0) return;
+      if (controlled || sent.length === 0) return;
       const keep = (f: File) => !sent.includes(f);
-      if (controlled) {
-        const current = latestControlled.current ?? [];
-        if (current.some((f) => !keep(f)))
-          onAttachmentsChange?.(current.filter(keep));
-        return;
-      }
       setByKey((prev) => {
         let next = prev;
         for (const [key, list] of Object.entries(prev)) {
@@ -55,7 +48,7 @@ export function useSessionFiles(
         return next;
       });
     },
-    [controlled, onAttachmentsChange],
+    [controlled],
   );
   return { files, setFiles, releaseFiles };
 }

@@ -1680,7 +1680,7 @@ export function useAgentChatPanel({
       // No path / session guard here: `sendInteractionMessage` owns that check,
       // and the card only renders on an open conversation anyway.
       void handleModeSelect(mode);
-      sendInteractionMessage(text, mode);
+      void sendInteractionMessage(text, mode);
     },
     [handleModeSelect, sendInteractionMessage],
   );
@@ -1754,7 +1754,7 @@ export function useAgentChatPanel({
             : t("chat:suggestReusable.saveLearningMessage", {
                 title: step.title,
               });
-      sendInteractionMessage(text, "execute");
+      void sendInteractionMessage(text, "execute");
     },
     [sendInteractionMessage, t],
   );

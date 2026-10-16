@@ -47,7 +47,8 @@ describe("question card attachments", () => {
       ["The fox"],
     );
     assert.deepEqual(done[0].files, [photo]);
-    assert.deepEqual(changes, [[]]);
+    // Controlled, like the composer: the parent clears what it accepted.
+    assert.deepEqual(changes, []);
   });
 
   it("answers a free-text question with a picked file and no words", () => {
