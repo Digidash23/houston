@@ -286,7 +286,14 @@
       "alreadyAdded": "¿Ya agregaste Houston a Slack?",
       "linkInstructions": "Abre tu mensaje directo con Houston en Slack y envía este comando.",
       "commandLabel": "Comando de conexión de Slack",
-      "notConfigured": "Las conexiones de Slack aún no están listas para este espacio de Houston. Pídele a tu administrador de Houston que termine de configurar Slack y actualiza."
+      "notConfigured": "Las conexiones de Slack aún no están listas para este espacio de Houston. Pídele a tu administrador de Houston que termine de configurar Slack y actualiza.",
+      "returnPage": {
+        "returnHeading": "Vuelve a Houston",
+        "returnBody": "Houston está terminando de conectar tu Slack. Puedes cerrar esta pestaña.",
+        "openHouston": "Abrir Houston",
+        "staleHeading": "Este enlace de Slack venció",
+        "staleBody": "Viene de un intento anterior de conectar Slack. Puedes cerrar esta pestaña y volver a conectar Slack desde Houston."
+      }
     },
     "whatsapp": {
       "description": "Envíale mensajes a Houston por WhatsApp.",

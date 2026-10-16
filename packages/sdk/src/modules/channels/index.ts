@@ -14,9 +14,11 @@
  * 401 routes through the shared {@link ModuleContext.authExpiry} notifier.
  */
 
+import type { SlackConnectReturn } from "@houston/wire-types";
 import type { ModuleContext } from "../../module-context";
 import { moduleScope, SdkHttpError } from "../http";
-import { requireString } from "../payload";
+import { field, requireString } from "../payload";
+import { parseSlackConnectReturn } from "./connect-return";
 import {
   completeSlack,
   connectSlack,
@@ -30,11 +32,15 @@ import {
   type ChannelStatus,
   ChannelsCommand,
   requireTicket,
-  type SlackAuthorization,
   type SlackCompletion,
+  type SlackConnectAnswer,
   type WhatsAppLink,
 } from "./types";
 
+export type {
+  SlackConnectReturn,
+  SlackConnectReturnKind,
+} from "@houston/wire-types";
 export type {
   ChannelConnection,
   ChannelLink,
@@ -44,6 +50,7 @@ export type {
   ChannelsCommandType,
   SlackAuthorization,
   SlackCompletion,
+  SlackConnectAnswer,
   WhatsAppLink,
 } from "./types";
 export { CHANNEL_PROVIDER_IDS, ChannelsCommand } from "./types";
@@ -52,8 +59,15 @@ export { CHANNEL_PROVIDER_IDS, ChannelsCommand } from "./types";
 export interface ChannelsModule {
   /** The deployment's providers and the active space's connections. */
   getChannels(signal?: AbortSignal): Promise<ChannelStatus>;
-  /** Slack's hosted authorization URL for the person's browser to open. */
-  connectSlack(signal?: AbortSignal): Promise<SlackAuthorization>;
+  /**
+   * Slack's hosted authorization URL; `returnTo` is where the browser returns.
+   * A gateway that refuses `loopback` gets one retry as `app`, and `accepted`
+   * names the return the URL leads back to.
+   */
+  connectSlack(
+    returnTo?: SlackConnectReturn,
+    signal?: AbortSignal,
+  ): Promise<SlackConnectAnswer>;
   /** An expiring code that pairs an already-installed Slack workspace. */
   linkSlack(signal?: AbortSignal): Promise<ChannelLink>;
   /** An expiring code and prefilled message for WhatsApp pairing. */
@@ -76,7 +90,7 @@ export function createChannelsModule(ctx: ModuleContext): ChannelsModule {
 
   const module: ChannelsModule = {
     getChannels: (signal) => getChannels(scope, signal),
-    connectSlack: (signal) => connectSlack(scope, signal),
+    connectSlack: (returnTo, signal) => connectSlack(scope, returnTo, signal),
     linkSlack: (signal) => linkSlack(scope, signal),
     linkWhatsApp: (signal) => linkWhatsApp(scope, signal),
     completeSlack: (ticket, signal) => completeSlack(scope, ticket, signal),
@@ -85,8 +99,8 @@ export function createChannelsModule(ctx: ModuleContext): ChannelsModule {
   };
 
   ctx.registerCommand(ChannelsCommand.Get, () => module.getChannels());
-  ctx.registerCommand(ChannelsCommand.ConnectSlack, () =>
-    module.connectSlack(),
+  ctx.registerCommand(ChannelsCommand.ConnectSlack, (p) =>
+    module.connectSlack(parseSlackConnectReturn(field(p, "returnTo"))),
   );
   ctx.registerCommand(ChannelsCommand.LinkSlack, () => module.linkSlack());
   ctx.registerCommand(ChannelsCommand.LinkWhatsApp, () =>

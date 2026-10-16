@@ -8,12 +8,13 @@
 
 use std::time::Duration;
 
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 
-use super::callback::serve_callback;
-use super::state::{ActiveListener, OauthLoopbackState};
+use super::callback::{serve_callback, LoopbackRoute};
+use super::pages::LoopbackPages;
+use super::state::ActiveListener;
 
 /// Loopback ports we try, in order. EVERY port here must be registered as an
 /// authorized redirect URI on BOTH desktop OAuth registrations: the Google
@@ -29,11 +30,6 @@ const CANDIDATE_PORTS: &[u16] = &[8975, 8976, 8977, 8978];
 /// How long a new attempt waits for the superseded listener to actually release
 /// its port. Short: on expiry we simply bind the next candidate port.
 const SUPERSEDE_WAIT: Duration = Duration::from_secs(1);
-
-/// Give up and free the socket if the browser never comes back (user closed
-/// the consent tab, picked the wrong account and bailed, …). The frontend
-/// calls `start_oauth_loopback` again for a fresh attempt.
-const LISTEN_TIMEOUT: Duration = Duration::from_secs(300);
 
 /// The sockets one attempt listens on. The redirect target may be spelled
 /// `127.0.0.1` (Google) or `localhost` (the GCIP-brokered flow) — and a browser
@@ -84,6 +80,8 @@ pub async fn bind_exact(port: u16) -> Result<BindOutcome, String> {
 /// Everything one spawned listener task owns for the life of an attempt.
 pub struct ListenerTask {
     pub app: AppHandle,
+    pub route: &'static LoopbackRoute,
+    pub pages: LoopbackPages,
     pub sockets: BoundSockets,
     pub attempt_id: u64,
     pub expected_state: String,
@@ -92,10 +90,14 @@ pub struct ListenerTask {
 }
 
 /// Run one attempt's listener in the background until its callback arrives, the
-/// client cancels it, or it times out — then release the port and announce it.
+/// client cancels it, or it times out (the route's `timeout`: the browser never
+/// came back, so the frontend starts a fresh attempt) — then release the port
+/// and announce it.
 pub fn spawn_listener(task: ListenerTask) {
     let ListenerTask {
         app,
+        route,
+        pages,
         sockets,
         attempt_id,
         expected_state,
@@ -103,28 +105,29 @@ pub fn spawn_listener(task: ListenerTask) {
         freed_tx,
     } = task;
     let port = sockets.port;
+    let tag = route.tag;
     tokio::spawn(async move {
         tokio::select! {
             _ = cancel_rx => {
                 tracing::info!(
-                    "[oauth-loopback] attempt {attempt_id} cancelled by client on port {port}; freeing port"
+                    "[{tag}] attempt {attempt_id} cancelled by client on port {port}; freeing port"
                 );
             }
             result = tokio::time::timeout(
-                LISTEN_TIMEOUT,
-                serve_callback(&sockets, &app, &expected_state),
+                route.timeout,
+                serve_callback(&sockets, &app, &expected_state, route, &pages),
             ) => {
                 match result {
                     Ok(Ok(())) => {}
-                    // The listener is a background task: the `start_oauth_loopback`
-                    // command already returned, so there's no Result left to bubble
-                    // up to a toast. This is the documented event-callback exception
-                    // to the no-silent-failure rule. The user-visible safety net is
-                    // the SignInScreen retry.
-                    Ok(Err(e)) => tracing::error!("[oauth-loopback] listener error: {e}"),
+                    // The listener is a background task: its start command
+                    // already returned, so there's no Result left to bubble up
+                    // to a toast. This is the documented event-callback
+                    // exception to the no-silent-failure rule. The user-visible
+                    // safety net is starting the attempt again.
+                    Ok(Err(e)) => tracing::error!("[{tag}] listener error: {e}"),
                     Err(_) => tracing::info!(
-                        "[oauth-loopback] attempt {attempt_id} timed out after {}s on port {port} with no callback; freeing port",
-                        LISTEN_TIMEOUT.as_secs()
+                        "[{tag}] attempt {attempt_id} timed out after {}s on port {port} with no callback; freeing port",
+                        route.timeout.as_secs()
                     ),
                 }
             }
@@ -135,11 +138,11 @@ pub fn spawn_listener(task: ListenerTask) {
         // Leave the registry pointing at nothing rather than at a task that has
         // exited — but only if it still points at US (a newer generation may
         // have taken the slot already).
-        if let Err(e) = app.state::<OauthLoopbackState>().clear_if(attempt_id) {
-            tracing::error!("[oauth-loopback] could not clear the listener slot: {e}");
+        if let Err(e) = (route.release)(&app, attempt_id) {
+            tracing::error!("[{tag}] could not clear the listener slot: {e}");
         }
         if freed_tx.send(()).is_err() {
-            tracing::debug!("[oauth-loopback] nobody was waiting on attempt {attempt_id}'s port");
+            tracing::debug!("[{tag}] nobody was waiting on attempt {attempt_id}'s port");
         }
     });
 }

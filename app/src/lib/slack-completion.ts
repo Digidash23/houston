@@ -23,25 +23,17 @@ export function slackCompletionResult(
 }
 
 /**
- * Take the queued completion, at most once. The latch closes over a value that
- * was actually TAKEN, never over the attempt: the Channels body can mount
- * before the landing has queued anything, and a take that found an empty queue
- * must leave the next one free.
- *
- * What stops a second redemption across a remount is the queue itself — the
- * value is cleared in the same pass it is read, and nothing re-queues it — so
- * the gateway is never asked to redeem a spent ticket, which it answers with
- * the same 404 it gives a stranger.
+ * Take the queued completion and clear it in the same pass. `read` must answer
+ * the queue as it is NOW, not a render's snapshot of it: an effect that runs
+ * twice over one render (StrictMode, a dependency change) then finds the queue
+ * already empty, so a ticket is never redeemed twice from one hand-over. A
+ * replayed deep link never reaches the queue at all (`settings-link-gate.ts`).
  */
 export function takeSlackCompletion(
-  latch: { current: boolean },
   read: () => SlackCompletion | null,
   clear: () => void,
 ): SlackCompletion | null {
-  if (latch.current) return null;
   const pending = read();
-  if (!pending) return null;
-  latch.current = true;
-  clear();
+  if (pending) clear();
   return pending;
 }

@@ -1,8 +1,37 @@
-import type { HydrateListedObject } from "./hydrate";
+export interface HydrateManifestEntry {
+  hash: string;
+  generation?: string;
+  /** Observed bytes of a three-way-merged doc; trusted only if sha256 = hash. */
+  mergeBase?: string;
+}
+
+/** Relative path to the hydrated bytes and their optional remote generation. */
+export type HydrateManifest = Map<string, HydrateManifestEntry>;
+
+/** Store-listing fields available to a caller's hot-set selector. */
+export interface HydrateListedObject {
+  rel: string;
+  updated?: string;
+}
+
+export interface StartedHydration {
+  manifest: HydrateManifest;
+  listed: { rels: string[]; generationAware: boolean };
+  /** Listed objects rejected by the caller's filter. */
+  skippedObjects: number;
+  /** Resolves only after every non-priority, non-deferred object has landed. */
+  done: Promise<void>;
+  /** Resolves after `done` and every `opts.defer` object has landed. */
+  deferred: Promise<void>;
+  /** Stop admitting downloads and cancel adapters that support AbortSignal.
+   *  `reason` becomes the rejection of whatever has not landed yet. */
+  abort: (reason?: unknown) => void;
+}
 
 /** Caller policy for one hydration. */
 export interface HydrateOptions {
-  /** Reject prefixes whose total size exceeds this (default 512 MiB). */
+  /** Reject prefixes whose critical (non-deferred) bytes exceed this
+   *  (default 512 MiB). */
   maxBytes?: number;
   excludes?: string[];
   /**
@@ -33,6 +62,13 @@ export interface HydrateOptions {
    * `deferred`, or its rejection goes unhandled.
    */
   defer?: (rel: string) => boolean;
+  /**
+   * Deferred objects only: their own byte budget, apart from `maxBytes`
+   * (default: `maxBytes`). Over it from the listing, `deferred` rejects with
+   * HydrateLimitError before any deferred download starts and `done` is
+   * unaffected; unsized objects are bounded as they land.
+   */
+  deferredMaxBytes?: number;
   /**
    * Deferred objects only: one store read (an object, or a batch) gives up
    * after this long plus time for its listed bytes (read-timeout.ts),

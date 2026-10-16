@@ -799,18 +799,18 @@ test("startHydrate keeps deferred objects out of done and fetches them after it"
   ]);
 });
 
-test("a deferring hydrate refuses an over-cap listing before downloading the bulk", async () => {
+test("a deferring hydrate refuses an over-cap critical set before downloading it", async () => {
   const { storeRoot, store, work } = setup();
   seed(storeRoot, PREFIX, {
-    "workspace/notes.txt": "eager",
-    "workspace/uploads/photo.png": "0123456789",
+    "workspace/notes.txt": "0123456789abc",
+    "workspace/uploads/photo.png": "x",
   });
   await expect(
     startHydrate(store, PREFIX, work, {
       maxBytes: 12,
       defer: (rel) => rel.startsWith("workspace/uploads/"),
     }),
-  ).rejects.toMatchObject({ name: "HydrateLimitError", observedBytes: 15 });
+  ).rejects.toMatchObject({ name: "HydrateLimitError", observedBytes: 13 });
   expect(existsSync(join(work, "workspace", "notes.txt"))).toBe(false);
 });
 

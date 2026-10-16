@@ -6,6 +6,7 @@ import {
   type SettingsLanding,
   type SlackCompletion,
   settingsLanding,
+  settingsLandingFromDeepLink,
   withoutSlackTicket,
 } from "../src/lib/settings-landing.ts";
 import { useUIStore } from "../src/stores/ui.ts";
@@ -173,5 +174,61 @@ describe("the queued completion", () => {
     useUIStore.getState().setPendingSlackCompletion({ kind: "ticket", ticket });
     useUIStore.getState().reset();
     strictEqual(useUIStore.getState().pendingSlackCompletion, null);
+  });
+});
+
+describe("the desktop Slack return", () => {
+  it("lands the ticket exactly as the web callback does", () => {
+    deepStrictEqual(
+      settingsLandingFromDeepLink(
+        "houston://settings/channels?slack=Tk7-ticket.value_~9",
+      ),
+      {
+        kind: "settings",
+        section: "channels",
+        slack: { kind: "ticket", ticket: "Tk7-ticket.value_~9" },
+      },
+    );
+    deepStrictEqual(
+      settingsLandingFromDeepLink(
+        `houston://settings/channels/?slack=${ticket}`,
+      ),
+      settingsLanding(`?settings=channels&slack=${ticket}`),
+    );
+  });
+  it("reads a mangled or duplicated ticket as a link that cannot connect", () => {
+    for (const link of [
+      "houston://settings/channels?slack=short",
+      "houston://settings/channels?slack=has%20space",
+      `houston://settings/channels?slack=${ticket}&slack=${ticket}`,
+    ])
+      deepStrictEqual(settingsLandingFromDeepLink(link), {
+        kind: "settings",
+        section: "channels",
+        slack: { kind: "invalid" },
+      });
+  });
+  it("opens Channels without a completion when no ticket came back", () => {
+    deepStrictEqual(
+      settingsLandingFromDeepLink("houston://settings/channels"),
+      {
+        kind: "settings",
+        section: "channels",
+        slack: null,
+      },
+    );
+  });
+  it("ignores other sections, schemes, hosts and garbage", () => {
+    for (const link of [
+      "houston://settings/plan",
+      `houston://settings/plan?slack=${ticket}`,
+      `houston://settings/channelsx?slack=${ticket}`,
+      `houston://settings/channels/extra?slack=${ticket}`,
+      `houston://auth-callback/channels?slack=${ticket}`,
+      `https://settings/channels?slack=${ticket}`,
+      `https://app.gethouston.ai/settings/channels?slack=${ticket}`,
+      "not a url",
+    ])
+      deepStrictEqual(settingsLandingFromDeepLink(link), { kind: "absent" });
   });
 });

@@ -9,11 +9,12 @@
  * plain-async and publishes nothing (the billing module's shape).
  *
  * The app-facing copy of these shapes, with the guards that parse a gateway
- * answer before a surface renders it, is `@houston/wire-types`. This package
- * does not depend on it, so the shapes are declared here too and the two are
- * kept in step by hand, exactly like `BillingSummary`.
+ * answer before a surface renders it, is `@houston/wire-types`. The response
+ * shapes are declared here too and kept in step by hand, exactly like
+ * `BillingSummary`; the connect's return target is imported from it whole.
  */
 
+import type { SlackConnectReturnKind } from "@houston/wire-types";
 import { requireString } from "../payload";
 
 /** The write vocabulary — the same handlers back the facade and `dispatch`. */
@@ -73,6 +74,16 @@ export interface WhatsAppLink extends ChannelLink {
 /** Slack's own authorization endpoint, for the person's browser to open. */
 export interface SlackAuthorization {
   url: string;
+}
+
+/**
+ * A connect's answer: the authorization URL, and the return the gateway took
+ * for it. `null` is the web app (none named). It differs from the one asked
+ * for only when the gateway refused a `loopback` return and the
+ * connect fell back to `app`, which leaves the desktop listener unused.
+ */
+export interface SlackConnectAnswer extends SlackAuthorization {
+  accepted: SlackConnectReturnKind | null;
 }
 
 /** What the gateway bound when it redeemed a completion ticket. */
