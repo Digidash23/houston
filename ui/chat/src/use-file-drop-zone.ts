@@ -75,10 +75,10 @@ export function useFileDropZone(
 ): FileDropZone {
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const dragDepthRef = useRef(0);
-  // Folder expansion is async: by the time it resolves, the attachment state
-  // may have moved on (another drop, a remove, a send). Deliver through a ref
-  // so the LATEST ingest callback runs — never a stale closure that would
-  // overwrite newer state.
+  // Folder expansion is async: by the time it resolves the panel may show
+  // another conversation. The callback current AT THE DROP is the one that
+  // runs, so the files land where they were dropped; callers read their
+  // freshest list when it runs, so it never writes back a stale one.
   const onFilesRef = useRef(onFiles);
   const onDropErrorRef = useRef(onDropError);
   useEffect(() => {
@@ -131,9 +131,10 @@ export function useFileDropZone(
       // reads), so the ingest is deferred to the resolved promise.
       const dropped = collectDroppedItems(e.dataTransfer);
       if (dropped.length === 0) return;
+      const deliver = onFilesRef.current;
       resolveDroppedFiles(dropped).then(
         (files) => {
-          if (files.length > 0) onFilesRef.current(files);
+          if (files.length > 0) deliver(files);
         },
         (error) => {
           const handler = onDropErrorRef.current;

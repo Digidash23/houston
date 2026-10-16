@@ -158,6 +158,38 @@ describe("question card upload area", () => {
     assert.deepEqual(done[0].files, [logo, photo]);
   });
 
+  it("lands a panel drop in the conversation it was dropped on", async () => {
+    const rejected: unknown[] = [];
+    const rejectAll = (incoming: File[]) => ({
+      accepted: [],
+      rejected: incoming.map((f) => ({ file: f, reason: "unsupported" })),
+    });
+    const inA = () => panel(card([WANTS], []), { sessionKey: "a" });
+    const { render } = mountLog(inA());
+    const question = Array.from(win.document.querySelectorAll("*")).find(
+      (el) => el.childElementCount === 0 && el.textContent === WANTS.question,
+    );
+    assert.ok(question, "no question text");
+    // Dropped in A; the read resolves after the panel switched to B, whose
+    // conversation refuses every file.
+    drag(question, ["dragenter", "dragover", "drop"], [photo]);
+    render(
+      panel(null, {
+        sessionKey: "b",
+        prepareAttachments: rejectAll,
+        onAttachmentRejections: (r: unknown[]) => rejected.push(...r),
+      }),
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    assert.equal(chips("photo.png"), 0);
+    assert.deepEqual(rejected, []);
+
+    render(inA());
+    assert.equal(chips("photo.png"), 1);
+  });
+
   it("keeps a drop on the area from reaching the panel's own drop target", async () => {
     const writes: File[][] = [];
     function Controlled() {

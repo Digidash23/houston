@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback } from "react";
 import type { ChatPanelProps } from "./chat-panel-types";
 import type { MessageMention } from "./types";
 import { ingestAttachments } from "./use-attachment-intake";
@@ -39,28 +39,36 @@ export function useChatPanelAttachments({
     attachments,
     onAttachmentsChange,
   );
-  const intake = {
-    prepareAttachments,
-    onAttachmentRejections,
-    onNotice,
-    duplicateNotice: composerLabels?.fileAlreadyInChat,
-    tooManyNotice: composerLabels?.tooManyFiles,
-  };
-  const latestIntake = useRef(intake);
-  useEffect(() => {
-    latestIntake.current = intake;
-  });
-  // Bound to this render's conversation, read when it runs: a drop resolves
-  // after its read, possibly once the drop target that caught it is gone.
+  const duplicateNotice = composerLabels?.fileAlreadyInChat;
+  const tooManyNotice = composerLabels?.tooManyFiles;
+  // Bound to this render's conversation and its file rules, its list read
+  // when it runs: a drop resolves after its read, possibly once the panel
+  // shows another conversation or the drop target that caught it is gone.
   const addDroppedFiles = useCallback(
     (incoming: File[]) =>
       ingestInto(sessionKey, (current, write) =>
         ingestAttachments(
-          { ...latestIntake.current, files: current, setFiles: write },
+          {
+            prepareAttachments,
+            onAttachmentRejections,
+            onNotice,
+            duplicateNotice,
+            tooManyNotice,
+            files: current,
+            setFiles: write,
+          },
           incoming,
         ),
       ),
-    [ingestInto, sessionKey],
+    [
+      ingestInto,
+      sessionKey,
+      prepareAttachments,
+      onAttachmentRejections,
+      onNotice,
+      duplicateNotice,
+      tooManyNotice,
+    ],
   );
   const onDropError = useDropErrorNotice(onNotice, composerLabels);
   const { isDraggingOver, dropProps } = useFileDropZone(
