@@ -1,5 +1,9 @@
 import type { Vfs } from "@houston/host/src/vfs";
-import type { HydrateManifest } from "@houston/runtime-client/object-sync";
+import type {
+  HydrateManifest,
+  HydrateOptions,
+  ObjectStore,
+} from "@houston/runtime-client/object-sync";
 import type { ArchiveLoader } from "./turn-archive-fetch";
 import type { TurnLayout } from "./turn-layout";
 
@@ -42,4 +46,31 @@ export interface TurnFilesystemPreparation {
     { ok: true; filesystem: TurnFilesystem } | { ok: false; error: unknown }
   >;
   abortHydration: () => void;
+}
+
+/** What a claimed or unclaimed run asks of its store tree. */
+export interface TurnFilesystemOptions {
+  store: ObjectStore;
+  prefix: string;
+  root: string;
+  claimed: boolean;
+  maxBytes?: number;
+  /** Extra hydrate excludes (on top of the defaults), e.g. the runtime tree
+   *  for an op that never reads conversations. */
+  excludes?: string[];
+  filter?: HydrateOptions["filter"];
+  capListed?: HydrateOptions["capListed"];
+  /**
+   * Download nothing up front: list the store, lay out the agent's
+   * directory skeleton, and serve reads through a store-backed vfs that
+   * materializes one object on first touch. Needs a store with a manifest
+   * (a legacy list-only store hydrates eagerly). Only for handlers that
+   * read through the vfs port; a turn's tools read the real filesystem.
+   */
+  lazy?: boolean;
+  /** Lazy only: keep just these listed keys (see turn-filesystem-lazy.ts). */
+  admit?: (relativePath: string) => boolean;
+  /** Only the `migrate` op hydrates a claimed tree its boot migration has
+   *  not reached; everything else refuses it (turn-layout-legacy.ts). */
+  allowLegacyLayout?: boolean;
 }

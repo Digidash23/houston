@@ -5,6 +5,7 @@ import { expect, test } from "vitest";
 import {
   resolveListedLayout,
   resolveTurnLayout,
+  StoreEmptyError,
   type TurnSetupError,
 } from "./turn-layout";
 
@@ -230,8 +231,11 @@ test("a store holding only the namespace is an empty store", async () => {
   const claimedRoot = await root();
   await expect(
     resolveListedLayout(claimedRoot, PREFS_NAMESPACE, { allowEmpty: false }),
-  ).rejects.toMatchObject({
-    code: "layout_unexpected",
-    message: "hydrated store is empty; a claimed turn needs an existing agent",
-  });
+  ).rejects.toSatisfy(
+    (error) =>
+      error instanceof StoreEmptyError &&
+      error.code === "layout_unexpected" &&
+      error.message ===
+        "hydrated store is empty; a claimed turn needs an existing agent",
+  );
 });

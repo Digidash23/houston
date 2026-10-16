@@ -1,4 +1,5 @@
 import { PREFERENCES_NAMESPACE } from "@houston/domain";
+import { AGENT_STORE_MIGRATION_PATHS } from "@houston/host/src/migrate/agent-store";
 import { agentRouteScope, type OpInclude } from "./op-scope";
 
 /** The pre-custody plaintext custom-integration secrets, at the store root
@@ -9,9 +10,10 @@ export const LEGACY_SECRETS_FILE = "custom-integration-secrets.json";
 export const PREFERENCES_PREFIX = `workspaces/${PREFERENCES_NAMESPACE}/`;
 
 /**
- * What the boot migrations read: the agent's `.houston` tree minus the
- * runtime, its CLAUDE.md and GROUP.md, the workspace preferences and the
- * legacy secrets file. User files, skills, chats and sessions stay in the
+ * What the boot migrations read: the agent files they name
+ * (AGENT_STORE_MIGRATION_PATHS), the workspace preferences and the legacy
+ * secrets file. User files, skills, chats, sessions, the runtime and
+ * anything an agent keeps under `.houston/` (backup tarballs) stay in the
  * store, so a big agent migrates for the cost of its small files.
  */
 export function migrateHydrateFilter(rel: string): boolean {
@@ -19,10 +21,7 @@ export function migrateHydrateFilter(rel: string): boolean {
     return true;
   const parts = rel.split("/");
   if (parts[0] !== "workspaces" || parts.length < 4) return false;
-  const inner = parts.slice(3);
-  if (inner.length === 1)
-    return inner[0] === "CLAUDE.md" || inner[0] === "GROUP.md";
-  return inner[0] === ".houston" && inner[1] !== "runtime";
+  return AGENT_STORE_MIGRATION_PATHS.has(parts.slice(3).join("/"));
 }
 
 /**

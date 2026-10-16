@@ -35,6 +35,7 @@ export function generationStore() {
   const inner = new LocalDirStore(root);
   const uploads: Upload[] = [];
   const deletes: string[] = [];
+  const downloads: string[] = [];
   const hooks: { beforeUpload?: (key: string) => void } = {};
   // Generations as a pool store mints them: an object written outside the
   // store's own writes (put, a racing writer) reads as generation "1".
@@ -53,7 +54,10 @@ export function generationStore() {
         ...o,
         generation: generationOf(o.key),
       })),
-    download: (key, dest) => inner.download(key, dest),
+    download: (key, dest) => {
+      downloads.push(key.slice(PREFIX.length + 1));
+      return inner.download(key, dest);
+    },
     upload: async (src, key, opts?: WriteOptions) => {
       hooks.beforeUpload?.(key);
       cas(key, opts);
@@ -84,7 +88,7 @@ export function generationStore() {
     (await inner.list(PREFIX)).map((k) => k.slice(PREFIX.length + 1));
   const read = (rel: string) =>
     readFileSync(join(root, PREFIX, ...rel.split("/")), "utf8");
-  return { store, uploads, deletes, hooks, put, keys, read };
+  return { store, uploads, deletes, downloads, hooks, put, keys, read };
 }
 
 export interface DocPut {

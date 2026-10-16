@@ -35,6 +35,22 @@ export class TurnSetupError extends Error {
   }
 }
 
+/**
+ * A claimed run over a store prefix that lists no object. Turns still see
+ * `layout_unexpected` (clients and the gateway key on it); the migrate op
+ * answers `store_empty` instead, because a listing that is empty for a moment
+ * is not the multi-tree layout the gateway blocks until the store changes.
+ */
+export class StoreEmptyError extends TurnSetupError {
+  constructor() {
+    super(
+      "layout_unexpected",
+      "hydrated store is empty; a claimed turn needs an existing agent",
+    );
+    this.name = "StoreEmptyError";
+  }
+}
+
 /** Resolved pi directories and their object-store-relative data path. */
 export interface TurnLayout {
   kind: "standing" | "cloudrun";
@@ -128,11 +144,10 @@ export async function resolveTurnLayout(
       dataRel: "data",
     };
   }
+  if (rootEntries.length === 0) throw new StoreEmptyError();
   throw new TurnSetupError(
     "layout_unexpected",
-    rootEntries.length === 0
-      ? "hydrated store is empty; a claimed turn needs an existing agent"
-      : "hydrated store does not contain a recognized agent layout",
+    "hydrated store does not contain a recognized agent layout",
   );
 }
 

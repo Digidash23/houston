@@ -51,4 +51,11 @@ export interface HydrateOptions {
    * base (`SyncBackOptions.workerMerge`). Off for the standing store sync.
    */
   keepMergeBase?: boolean;
+  /**
+   * Refuse with HydrateLimitError when the admitted objects' listed sizes
+   * pass `maxBytes`, before the non-priority downloads start (a deferring
+   * hydration always does). For a caller whose refusal is certain from the
+   * listing and whose download would otherwise run up to the cap first.
+   */
+  capListed?: boolean;
 }
