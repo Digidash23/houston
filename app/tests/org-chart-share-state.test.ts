@@ -173,42 +173,23 @@ describe("shareDialogReducer", () => {
     );
   });
 
-  it("keeps a post going across a reopen, and lands it in the opening on screen", () => {
+  it("lands a post in the opening on screen, and nowhere while closed", () => {
     const url = "https://www.linkedin.com/feed/update/urn:li:share:7/";
-    const posting = run({ type: "open" }, { type: "posting" });
-    strictEqual(posting.posting, true);
-    // Closed and reopened while the post is out: still Posting, never Post.
-    const reopened = run(
+    const posted = run(
       { type: "open" },
       { type: "posting" },
-      { type: "close" },
-      { type: "open" },
-    );
-    strictEqual(reopened.posting, true);
-    const posted = shareDialogReducer(reopened, {
-      type: "posted",
-      postUrl: url,
-    });
-    strictEqual(posted.posting, false);
-    strictEqual(posted.postUrl, url);
-    deepStrictEqual(posted.line, { kind: "posted" });
-  });
-
-  it("says a post went up while the dialog was closed on the next opening", () => {
-    const url = "https://www.linkedin.com/feed/update/urn:li:share:7/";
-    const closed = run(
-      { type: "open" },
-      { type: "posting" },
-      { type: "close" },
       { type: "posted", postUrl: url },
     );
-    strictEqual(closed.posting, false);
-    const next = shareDialogReducer(closed, { type: "open" });
-    strictEqual(next.postUrl, url);
-    deepStrictEqual(next.line, { kind: "posted" });
-    // Said once: the opening after that starts fresh.
+    strictEqual(posted.postUrl, url);
+    deepStrictEqual(posted.line, { kind: "posted" });
+    // Closed: the space's post slot holds the link for the next opening.
+    const closed = run({ type: "open" }, { type: "close" });
+    strictEqual(
+      shareDialogReducer(closed, { type: "posted", postUrl: url }),
+      closed,
+    );
     const after = [{ type: "close" }, { type: "open" }] as const;
-    strictEqual(after.reduce(shareDialogReducer, next).postUrl, null);
+    strictEqual(after.reduce(shareDialogReducer, posted).postUrl, null);
   });
 
   it("says why a post was refused, in whichever opening is on screen", () => {
@@ -219,7 +200,6 @@ describe("shareDialogReducer", () => {
       { type: "open" },
       { type: "postRefused", line: { kind: "reconnect" } },
     );
-    strictEqual(refused.posting, false);
     deepStrictEqual(refused.line, { kind: "reconnect" });
     strictEqual(refused.postUrl, null);
   });

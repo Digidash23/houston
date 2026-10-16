@@ -1,10 +1,14 @@
 import type { LinkedInConnection } from "@houston/engine-adapter";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { reportError } from "../lib/error-report";
 import { showExpectedStateToast } from "../lib/error-toast";
 import i18n from "../lib/i18n";
 import type { Session } from "../lib/identity/session";
-import { redeemLinkedIn } from "../lib/linkedin-completion";
+import {
+  linkedInCompletionStep,
+  redeemLinkedIn,
+} from "../lib/linkedin-completion";
 import { tauriLinkedIn } from "../lib/linkedin-facade";
 import { queryKeys } from "../lib/query-keys";
 import { takeSlackCompletion } from "../lib/slack-completion";
@@ -22,19 +26,32 @@ export function useLinkedInCompletion() {
   const qc = useQueryClient();
   const queued = useUIStore((s) => s.pendingLinkedInCompletion);
   const clear = useUIStore((s) => s.setPendingLinkedInCompletion);
-  const { capabilities, isLoading } = useCapabilities();
-  const served = capabilities?.linkedinShare === true;
+  const { capabilities, isLoading, isError } = useCapabilities();
+  const step = linkedInCompletionStep({
+    linkedinShare: capabilities ? capabilities.linkedinShare === true : null,
+    isLoading,
+    isError,
+  });
+  const reportedHold = useRef(false);
   useEffect(() => {
-    if (!queued || isLoading) return;
+    if (!queued || step === "wait") return;
+    if (step === "hold") {
+      // The ticket stays queued for the capabilities read's next try.
+      if (!reportedHold.current)
+        reportError(
+          "linkedin_completion",
+          "LinkedIn return held: capabilities did not load",
+        );
+      reportedHold.current = true;
+      return;
+    }
     const pending = takeSlackCompletion(
       () => useUIStore.getState().pendingLinkedInCompletion,
       () => clear(null),
     );
-    // A deployment with no LinkedIn (a desktop on its local host, a
-    // self-host) never minted this ticket and cannot redeem it: it is
-    // dropped unasked, as a Slack return there lands on the Settings index
-    // with no Channels to take it.
-    if (!pending || !served) return;
+    // Dropped unasked where LinkedIn is not served, as a Slack return there
+    // lands on the Settings index with no Channels to take it.
+    if (!pending || step === "drop") return;
     void redeemLinkedIn(pending, {
       identity: () =>
         qc.getQueryData<Session | null>(queryKeys.session())?.uid ?? null,
@@ -55,5 +72,5 @@ export function useLinkedInCompletion() {
               i18n.t("teams:orgChart.share.completion.unredeemableBody"),
             ),
     });
-  }, [queued, isLoading, served, clear, qc]);
+  }, [queued, step, clear, qc]);
 }

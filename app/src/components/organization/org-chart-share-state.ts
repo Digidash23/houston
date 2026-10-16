@@ -10,10 +10,10 @@ import type { ShareLine } from "./org-chart-share-run.ts";
  * said about the old picture no longer holds.
  *
  * A post is the exception: it is public and the gateway may take a minute,
- * so it outlives the opening that started it. Reopening while it is out
- * still shows Posting (never a second Post button), and its result lands in
- * whichever opening is on screen; a post that went up while none was says so
- * in the next one.
+ * so it outlives the opening, and the page, that started it. Whether one is
+ * out lives in `linkedin-post-store.ts`; its result lands in whichever
+ * opening is on screen, and one that went up while none was is said in the
+ * next one.
  */
 
 /** One Connect LinkedIn click, tagged so a stale one's results are dropped. */
@@ -34,12 +34,8 @@ export interface ShareDialogState {
   text: string | null;
   /** The LinkedIn connect under way in this opening. */
   connect: ConnectAttempt | null;
-  /** A post is out, whichever opening started it. */
-  posting: boolean;
   /** LinkedIn's page for the post just made. */
   postUrl: string | null;
-  /** A post that went up while the dialog was closed: the next opening says so. */
-  heldPost: string | null;
 }
 
 /** Names the opening and the connect attempt a result belongs to. */
@@ -70,9 +66,7 @@ export const INITIAL_SHARE_DIALOG: ShareDialogState = {
   copied: false,
   text: null,
   connect: null,
-  posting: false,
   postUrl: null,
-  heldPost: null,
 };
 
 /** Whether `tag` names the attempt on screen now. */
@@ -92,9 +86,6 @@ export function shareDialogReducer(
         ...INITIAL_SHARE_DIALOG,
         open: true,
         session: state.session + 1,
-        posting: state.posting,
-        postUrl: state.heldPost,
-        line: state.heldPost ? { kind: "posted" } : null,
       };
     case "close":
       return { ...state, open: false, connect: null };
@@ -125,20 +116,13 @@ export function shareDialogReducer(
         ? { ...state, connect: null, line: action.line ?? state.line }
         : state;
     case "posting":
-      return { ...state, posting: true, line: null };
+      return { ...state, line: null };
     case "posted":
       return state.open
-        ? {
-            ...state,
-            posting: false,
-            postUrl: action.postUrl,
-            line: { kind: "posted" },
-          }
-        : { ...state, posting: false, heldPost: action.postUrl };
+        ? { ...state, postUrl: action.postUrl, line: { kind: "posted" } }
+        : state;
     case "postRefused":
-      return state.open
-        ? { ...state, posting: false, line: action.line }
-        : { ...state, posting: false };
+      return state.open ? { ...state, line: action.line } : state;
   }
 }
 

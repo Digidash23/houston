@@ -111,8 +111,8 @@ export function captureSettingsLanding(
   return landing;
 }
 
-/** The page's landing: not read yet, read and held, or handed over. */
-let boot: { landing: SettingsLanding } | "taken" | null = null;
+/** The page's landing: not read yet, read and held, or handled. */
+let boot: { landing: SettingsLanding } | "handled" | null = null;
 
 /**
  * Capture the page's landing at boot, before analytics and Sentry start: the
@@ -128,18 +128,23 @@ export function captureBootLanding(
 }
 
 /**
- * The landing the page booted with, handed over once (`absent` after). An
- * entry that never captured one (the desktop app) captures it now.
+ * The landing the page booted with, held in memory until a consumer applies
+ * it (`ackBootLanding`): a shell that remounts before sign-in finishes reads
+ * it again, as it once re-read the URL. `absent` once handled. An entry that
+ * never captured one (the desktop app) captures it now.
  */
-export function takeBootLanding(
+export function peekBootLanding(
   href: string,
   clean: (url: string) => void,
 ): SettingsLanding {
   captureBootLanding(href, clean);
-  if (boot === null || boot === "taken") return { kind: "absent" };
-  const { landing } = boot;
-  boot = "taken";
-  return landing;
+  if (boot === null || boot === "handled") return { kind: "absent" };
+  return boot.landing;
+}
+
+/** The boot landing was applied: no later mount sees it again. */
+export function ackBootLanding(): void {
+  boot = "handled";
 }
 
 /** Whether applying `landing` spends a one-time ticket. */

@@ -9,6 +9,7 @@ import {
   type Dispatch,
   type RefObject,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -20,7 +21,9 @@ import {
 import { logAndReportError } from "../../lib/error-report";
 import { showConnectivityErrorToast } from "../../lib/error-toast";
 import { tauriLinkedIn } from "../../lib/linkedin-facade";
+import { useWorkspaceStore } from "../../stores/workspaces";
 import { linkedInConnectPorts } from "./linkedin-connect-ports";
+import { useLinkedInPostSlot, useLinkedInPosts } from "./linkedin-post-store";
 import { jpegOf, postableImage } from "./org-chart-share-encode";
 import { createLinkedInGate } from "./org-chart-share-gate";
 import type { ShareLine } from "./org-chart-share-run";
@@ -51,8 +54,9 @@ function refusalLine(
 /**
  * Posting from the share dialog: the connection read (polled while a connect
  * is under way), Connect LinkedIn, Post to LinkedIn and Disconnect. A connect
- * writes only into the opening and attempt it started in; a post, into
- * whichever opening is on screen when it lands (`shareDialogReducer`).
+ * writes only into the opening and attempt it started in. A post is claimed
+ * and settled in the space's slot (`linkedin-post-store.ts`), which outlives
+ * this page; the dialog on screen shows its result.
  */
 export function useLinkedInPost(input: {
   enabled: boolean;
@@ -63,14 +67,25 @@ export function useLinkedInPost(input: {
 }) {
   const { t, i18n } = useTranslation("teams");
   const { enabled, state, dispatch, session } = input;
+  // One post out per space, held outside the page that started it.
+  const postKey = useWorkspaceStore((s) => s.current?.id ?? "");
+  const slot = useLinkedInPostSlot(postKey);
   const attempt = state.connect;
   const query = useLinkedInConnection(enabled, attempt?.watch ?? null);
   const actions = useLinkedInActions();
-  const posting = useRef(false);
   const attempts = useRef(0);
   // A double click minted two states, and the gateway keeps only the last:
   // the first tab then failed. Checked before the click claims a tab.
   const [gate] = useState(() => createLinkedInGate(() => performance.now()));
+
+  // A post that went up, here or while this page was gone, is said once by
+  // the opening on screen; before paint, so Post never flashes back.
+  const landed = slot.landed;
+  useLayoutEffect(() => {
+    if (!state.open || landed === null) return;
+    dispatch({ type: "posted", postUrl: landed });
+    useLinkedInPosts.getState().shown(postKey);
+  }, [state.open, landed, postKey, dispatch]);
 
   // The attempt ends when the connection lands or its window closes.
   const connected = query.data?.connected === true;
@@ -130,8 +145,8 @@ export function useLinkedInPost(input: {
   };
 
   const post = async (file: File, text: string, altText: string) => {
-    if (posting.current) return;
-    posting.current = true;
+    const posts = useLinkedInPosts.getState();
+    if (!posts.start(postKey)) return;
     dispatch({ type: "posting" });
     try {
       let image: Blob;
@@ -144,10 +159,7 @@ export function useLinkedInPost(input: {
       const result = await tauriLinkedIn.postImage({ image, text, altText });
       if (result.kind === "posted") {
         input.onPosted();
-        return dispatch({
-          type: "posted",
-          postUrl: linkedInPostLink(result.postUrl),
-        });
+        return posts.posted(postKey, linkedInPostLink(result.postUrl));
       }
       const action = linkedInRefusalAction(result.code);
       if (action === "report")
@@ -160,7 +172,7 @@ export function useLinkedInPost(input: {
       // tauriLinkedIn.postImage reported the failure; the button comes back.
       refused("quiet");
     } finally {
-      posting.current = false;
+      posts.ended(postKey);
     }
   };
 
@@ -175,6 +187,7 @@ export function useLinkedInPost(input: {
     connectPhase,
     connect,
     post,
+    posting: slot.posting,
     disconnect: () => actions.disconnect.mutate(),
     disconnecting: actions.disconnect.isPending,
   };

@@ -47,12 +47,13 @@ const step = (
   state: ShareDialogState,
   connection: ConnectionRead,
   env = desktop,
+  posting = false,
 ) =>
   shareStep({
     route: shareRoute({ ...env, linkedin }).kind,
     connection,
     connecting: phaseOf(state),
-    posting: state.posting,
+    posting,
     postUrl: state.postUrl,
   });
 
@@ -142,8 +143,9 @@ describe("the share dialog's primary button", () => {
       name: "Ada",
       posting: false,
     });
+    // The space's post slot says a post is out.
     const posting = shareDialogReducer(ended, { type: "posting" });
-    deepStrictEqual(step(true, posting, landed), {
+    deepStrictEqual(step(true, posting, landed, desktop, true), {
       kind: "post",
       name: "Ada",
       posting: true,

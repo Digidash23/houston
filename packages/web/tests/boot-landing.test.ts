@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   captureBootLanding,
-  takeBootLanding,
+  peekBootLanding,
 } from "@houston/app/lib/settings-landing";
 import { expect, test } from "vitest";
 
@@ -34,7 +34,7 @@ test("the URL is clean when the app starts, and the ticket waits in memory", () 
   });
   expect(url).toBe("https://app.gethouston.ai/");
   expect(url).not.toContain(TICKET);
-  expect(takeBootLanding(url, () => {})).toEqual({
+  expect(peekBootLanding(url, () => {})).toEqual({
     kind: "linkedin",
     completion: { kind: "ticket", ticket: TICKET },
   });

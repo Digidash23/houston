@@ -288,6 +288,16 @@ describe("postImage", () => {
       () => json({}, 201),
       () => json({ postUrl: "x" }, 201),
       () => new Response("", { status: 201 }),
+      // The body stream dies after the 201: the post is still up.
+      () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.error(new Error("stream reset"));
+            },
+          }),
+          { status: 201 },
+        ),
     ]) {
       const { sdk } = makeSdk(answer);
       await expect(

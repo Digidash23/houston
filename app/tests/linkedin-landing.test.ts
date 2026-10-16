@@ -10,6 +10,7 @@ import type {
 } from "@houston/engine-adapter";
 import {
   type LinkedInCompletionResult,
+  linkedInCompletionStep,
   redeemLinkedIn,
 } from "../src/lib/linkedin-completion.ts";
 import {
@@ -171,5 +172,30 @@ describe("redeemLinkedIn", () => {
       deepStrictEqual(r.landed, [], `${after}`);
       deepStrictEqual(r.told, [], `${after}`);
     }
+  });
+});
+
+describe("linkedInCompletionStep", () => {
+  const read = (
+    linkedinShare: boolean | null,
+    isLoading = false,
+    isError = false,
+  ) => linkedInCompletionStep({ linkedinShare, isLoading, isError });
+
+  it("waits for the capabilities read before taking the ticket", () => {
+    strictEqual(read(null, true), "wait");
+  });
+
+  it("holds the ticket when the capabilities read failed", () => {
+    strictEqual(read(null, false, true), "hold");
+  });
+
+  it("redeems where LinkedIn is served, and drops it where it is not", () => {
+    strictEqual(read(true), "redeem");
+    strictEqual(read(false), "drop");
+    // A refetch that failed over a read that landed still knows the answer.
+    strictEqual(read(true, false, true), "redeem");
+    // No capabilities to read at all: the local host serves no LinkedIn.
+    strictEqual(read(null), "drop");
   });
 });

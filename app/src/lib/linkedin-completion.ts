@@ -48,3 +48,23 @@ export async function redeemLinkedIn(
   ports.landed(result.connection);
   ports.tell("connected");
 }
+
+/**
+ * What a queued return waits on: this deployment's capabilities, which say
+ * whether it serves LinkedIn at all. Read before the ticket is taken, so a
+ * failed read holds it (reported) for the read's next try instead of
+ * dropping it. A deployment with no LinkedIn (a desktop on its local host, a
+ * self-host) never minted the ticket and cannot redeem it: `drop`.
+ */
+export type LinkedInCompletionStep = "wait" | "hold" | "redeem" | "drop";
+
+export function linkedInCompletionStep(read: {
+  linkedinShare: boolean | null;
+  isLoading: boolean;
+  isError: boolean;
+}): LinkedInCompletionStep {
+  if (read.linkedinShare !== null)
+    return read.linkedinShare ? "redeem" : "drop";
+  if (read.isLoading) return "wait";
+  return read.isError ? "hold" : "drop";
+}

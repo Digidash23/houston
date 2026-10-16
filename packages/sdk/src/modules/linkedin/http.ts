@@ -169,7 +169,9 @@ export async function postLinkedInImage(
   }
   // Any 2xx is a published post: the gateway answers `201 {}` when LinkedIn
   // gave no readable id, and failing it would invite posting it twice.
-  const parsed = linkedInPostedSchema.safeParse(jsonOrNull(await res.text()));
+  // A body stream that dies after the 2xx still means the post is up.
+  const body = await res.text().catch(() => "");
+  const parsed = linkedInPostedSchema.safeParse(jsonOrNull(body));
   if (parsed.success) return { kind: "posted", ...parsed.data };
   scope.ports.logger.warn("linkedin post went up with no readable id", {
     status: res.status,

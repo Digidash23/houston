@@ -4,10 +4,11 @@ import { reportError } from "../lib/error-report";
 import { listenDeepLink } from "../lib/identity/deep-link-listen";
 import { osCurrentDeepLinks } from "../lib/os-bridge";
 import {
+  ackBootLanding,
   applySettingsLanding,
+  peekBootLanding,
   type SettingsLanding,
   settingsLandingFromDeepLink,
-  takeBootLanding,
 } from "../lib/settings-landing";
 import {
   createHandedLinks,
@@ -75,7 +76,7 @@ const handedLinks = createHandedLinks(
 /**
  * Apply a public link once the app can act on it. The web entry captured the
  * landing and stripped it from the URL at boot, before analytics started
- * (`captureBootLanding`); this takes it from memory on mount, then waits
+ * (`captureBootLanding`); this reads it from memory on mount, then waits
  * for sign-in and workspace loading. A
  * section also waits for the deployment's capabilities, so a Billing link where
  * the plan is not served lands on the Settings index, never a blank screen.
@@ -108,10 +109,12 @@ export function useSettingsLanding() {
     // already on screen, passing its state through, so the stack's index
     // survives and no entry is pushed or dropped.
     void gate.offer({
-      landing: takeBootLanding(window.location.href, (url) =>
+      landing: peekBootLanding(window.location.href, (url) =>
         window.history.replaceState(window.history.state, "", url),
       ),
       link: null,
+      // Held until applied, so a remount before sign-in still has it.
+      applied: ackBootLanding,
     });
     pendingPath.current = settingsSectionFromPath(window.location.pathname);
     void osCurrentDeepLinks()

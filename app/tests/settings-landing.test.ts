@@ -1,13 +1,14 @@
 import { deepStrictEqual, strictEqual } from "node:assert";
 import { afterEach, describe, it } from "node:test";
 import {
+  ackBootLanding,
   applySettingsLanding,
   captureSettingsLanding,
+  peekBootLanding,
   type SettingsLanding,
   type SlackCompletion,
   settingsLanding,
   settingsLandingFromDeepLink,
-  takeBootLanding,
   withoutLanding,
 } from "../src/lib/settings-landing.ts";
 import { useUIStore } from "../src/stores/ui.ts";
@@ -105,17 +106,20 @@ describe("capturing a callback", () => {
     deepStrictEqual(capture("https://app.test/?settings=plan").cleaned, []);
     deepStrictEqual(capture("https://app.test/agents").cleaned, []);
   });
-  it("hands the boot capture over once, from memory", () => {
+  it("holds the boot capture across remounts until it is handled", () => {
     const cleaned: string[] = [];
     const clean = (url: string) => cleaned.push(url);
     const href = `https://app.test/?settings=linkedin&linkedin=${ticket}`;
-    const first = takeBootLanding(href, clean);
-    deepStrictEqual(first, {
+    const landing = {
       kind: "linkedin",
       completion: { kind: "ticket", ticket },
-    });
-    // The same href read again (a remount) neither lands nor cleans twice.
-    deepStrictEqual(takeBootLanding(href, clean), { kind: "absent" });
+    };
+    deepStrictEqual(peekBootLanding(href, clean), landing);
+    // A shell remount before sign-in reads the same landing from memory,
+    // and the URL is never cleaned twice.
+    deepStrictEqual(peekBootLanding("https://app.test/", clean), landing);
+    ackBootLanding();
+    deepStrictEqual(peekBootLanding(href, clean), { kind: "absent" });
     deepStrictEqual(cleaned, ["/"]);
   });
 });
