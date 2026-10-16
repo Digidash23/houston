@@ -76,11 +76,36 @@ export interface ChatInteractionCardLabels {
   dismiss?: string;
   collapse?: string;
   expand?: string;
+  /** The answer recorded for a free-text question sent with files and no
+   *  typed words ("See attached"). */
+  attachedAnswer?: string;
+  /** The upload area's label on a question answered with a file
+   *  ("Upload your files"). */
+  uploadFiles?: string;
+  /** The answer field's placeholder under that upload area
+   *  ("Or type your answer..."). */
+  filePlaceholder?: string;
   /** The soft "Recommended" chip beside a marked option's label. */
   recommended?: string;
   /** Pager progress copy, e.g. "1 of 3" (shown for a multi-step sequence). */
   progress?: (current: number, total: number) => string;
 }
+
+/**
+ * A card's completion. `files` is non-empty only when the card sits in a
+ * ChatPanel's composer-replacing slot (it shares the panel's attachment list)
+ * and at least one question was answered; the caller must send them with the
+ * answer. Return a promise of whether the reply was accepted: `true` releases
+ * the handed files (a no-op for a controlled panel list, whose parent clears
+ * them), `false` keeps them for a retry, and the card takes no second
+ * completion until it settles (see `completionKey`). A plain `void` return
+ * counts as accepted. The promise must never reject.
+ */
+export type CardCompletion = (
+  answers: ChatInteractionAnswer[],
+  files: File[],
+  // biome-ignore lint/suspicious/noConfusingVoidType: a plain `void` callback (one that sends no files) must stay assignable.
+) => void | Promise<boolean>;
 
 export interface ChatInteractionCardProps {
   /** The ordered interaction steps (>=1 total). Any mix of step kinds in any
@@ -92,8 +117,9 @@ export interface ChatInteractionCardProps {
    *  on the id, so two steps sharing one collide and a late callback captured on
    *  either can advance the other. */
   steps: ChatInteractionStep[];
-  /** Receives every question answer, in step order, once the last step is done. */
-  onComplete: (answers: ChatInteractionAnswer[]) => void;
+  /** Receives every question answer, in step order, once the last step is
+   *  done, plus the files attached through the card. See {@link CardCompletion}. */
+  onComplete: CardCompletion;
   /** Renders a connect step as its OWN `InteractionModal` — the `(icon)
    *  Connect <App>` header title, the reason body, the footer's unified
    *  decline + Connect CTA, and the trailing free-text row — wiring the supplied
@@ -144,5 +170,11 @@ export interface ChatInteractionCardProps {
   state?: StepperState;
   onStateChange?: (state: StepperState) => void;
   disabled?: boolean;
+  /** Names THIS card across remounts (e.g. conversation + interaction). While
+   *  a completion under this key is still being sent, every card with the key
+   *  is disabled and takes no completion, so a card remounted mid-upload whose
+   *  restored terminal step completes again on mount cannot send the reply a
+   *  second time. Omitted, the guard lasts only as long as the instance. */
+  completionKey?: string;
   labels?: ChatInteractionCardLabels;
 }

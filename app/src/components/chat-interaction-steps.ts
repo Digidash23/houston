@@ -26,11 +26,14 @@ export interface ChatInteractionStepsArgs {
    *  list its card acts on, so title and card never name different things. */
   resolveProviderName: (providerId: string) => string;
   onDismiss: () => void;
+  /** `files` are the ones attached in the card, sent with the answer.
+   *  Resolves whether the reply was accepted; never rejects. */
   onSend: (
     text: string,
     mode?: TurnMode,
     approvals?: MessageApproval[],
-  ) => void;
+    files?: readonly File[],
+  ) => Promise<boolean>;
   t: InteractionT;
 }
 

@@ -1,5 +1,8 @@
+import { type ToolCall, validateToolArguments } from "@earendil-works/pi-ai";
 import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { expect, test } from "vitest";
+import { z } from "zod";
+import { toZodShape } from "../../backends/claude/schema-to-zod";
 import {
   newInteractionHolder,
   runWithInteractionCapture,
@@ -204,4 +207,71 @@ test("a second ask_user call replaces the questions of the first", async () => {
   expect(holder.pending).toEqual({
     steps: [{ kind: "question", id: "q1", question: "second?" }],
   });
+});
+
+test("threads wantsFiles onto a question answered with a file", async () => {
+  const holder = newInteractionHolder();
+  await runWithInteractionCapture(holder, () =>
+    run({
+      questions: [
+        { question: "Send me the character's image", wantsFiles: true },
+        { question: "Which pose?", wantsFiles: false },
+      ],
+    }),
+  );
+  // Only `true` is recorded: a plain question carries no key.
+  expect(holder.pending).toEqual({
+    steps: [
+      {
+        kind: "question",
+        id: "q1",
+        question: "Send me the character's image",
+        wantsFiles: true,
+      },
+      { kind: "question", id: "q2", question: "Which pose?" },
+    ],
+  });
+});
+
+// `execute` above takes the params as given; a model's call reaches it only
+// after its backend validates the arguments against the tool's schema: pi's
+// TypeBox validation, or the Claude backend's zod shape converted from it.
+const call = (wantsFiles?: unknown) => ({
+  questions: [
+    {
+      question: "Send me your logo",
+      ...(wantsFiles === undefined ? {} : { wantsFiles }),
+    },
+  ],
+});
+
+const recorded = async (params: unknown) => {
+  const holder = newInteractionHolder();
+  await runWithInteractionCapture(holder, () => run(params));
+  return holder.pending?.steps[0];
+};
+
+test("pi's schema validation carries wantsFiles through and refuses a non-boolean", async () => {
+  const validate = (args: unknown) =>
+    validateToolArguments(askUser, {
+      type: "toolCall",
+      id: "c1",
+      name: ASK_USER_TOOL_NAME,
+      arguments: args as ToolCall["arguments"],
+    });
+  expect(await recorded(validate(call()))).not.toHaveProperty("wantsFiles");
+  expect(await recorded(validate(call(true)))).toMatchObject({
+    wantsFiles: true,
+  });
+  expect(() => validate(call("maybe"))).toThrow(/wantsFiles/);
+});
+
+test("the Claude backend's converted schema carries wantsFiles through and refuses a non-boolean", async () => {
+  const schema = z.object(toZodShape(askUser.parameters));
+  const parse = (args: unknown) => schema.parse(args);
+  expect(await recorded(parse(call()))).not.toHaveProperty("wantsFiles");
+  expect(await recorded(parse(call(true)))).toMatchObject({
+    wantsFiles: true,
+  });
+  expect(schema.safeParse(call("maybe")).success).toBe(false);
 });

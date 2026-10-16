@@ -82,6 +82,16 @@ describe("messagePreviewText", () => {
     assert.equal(messagePreviewText(body), "");
   });
 
+  it("previews an interaction card's answers sent with files", () => {
+    const answers =
+      '<!--houston:interaction-answers {"lines":[{"question":"Which character?","answer":"The fox"}]}-->\n\nWhich character?: The fox';
+    const body = `<!--houston:attachments ${JSON.stringify({
+      message: answers,
+      files: [{ name: "fox.png", path: "uploads/fox.png" }],
+    }).replace(/>/g, "\\u003e")}-->\n\n${answers}`;
+    assert.equal(messagePreviewText(body), "Which character?: The fox");
+  });
+
   it("returns plain message bodies unchanged", () => {
     assert.equal(
       messagePreviewText("Review my Q3 numbers"),
