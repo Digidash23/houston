@@ -12,8 +12,8 @@
  *
  * A listener no browser can reach any more is freed: the gateway took another
  * return, the connect failed, the surface moved on, or the page could not be
- * opened. One the browser
- * merely refused to open stays up, since the surface offers the page again.
+ * opened. One the browser merely refused to open stays up, since the surface
+ * offers the page again.
  */
 
 import type { SlackConnectReturn } from "@houston/wire-types";

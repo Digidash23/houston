@@ -1,3 +1,5 @@
+//! What `start_oauth_loopback` answers the frontend.
+
 /// What `start_oauth_loopback` hands back to the frontend.
 #[derive(serde::Serialize)]
 #[serde(tag = "status", rename_all = "camelCase")]
