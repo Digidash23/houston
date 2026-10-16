@@ -161,7 +161,7 @@ pub async fn install_update<R: Runtime>(
     update
         .install(bytes.as_slice())
         .map_err(|e| e.to_string())?;
-    STAGED.forget(&update.version);
+    STAGED.forget(&staged.version, &staged.signature);
     // Windows never reaches here (the installer hand-off exits the process);
     // on macOS the bytes are on disk now and the buffer can go.
     webview

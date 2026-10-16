@@ -64,12 +64,15 @@ impl StagedReleases {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
-    /// The slot of `version`. Asking for a version drops every other one: a
-    /// newer find supersedes whatever was staged of the release before it,
-    /// and its bytes would otherwise stay in memory until the app quits.
+    /// The slot of `version`. Asking for a version drops every other idle
+    /// one: a newer find supersedes whatever was staged of the release before
+    /// it, and its bytes would otherwise stay in memory until the app quits.
+    /// A slot some call still holds (downloading, or waiting on the download)
+    /// stays, or that call's bytes would land nowhere. Clones are only made
+    /// under this lock, so the count is exact here.
     fn slot(&self, version: &str) -> Arc<Slot> {
         let mut slots = self.slots();
-        slots.retain(|staged, _| staged == version);
+        slots.retain(|staged, slot| staged == version || Arc::strong_count(slot) > 1);
         slots.entry(version.to_string()).or_default().clone()
     }
 
@@ -127,9 +130,21 @@ impl StagedReleases {
         (admitted.signature == signature).then(|| admitted.bytes.clone())
     }
 
-    /// Drop `version`'s bytes once they are installed.
-    pub fn forget(&self, version: &str) {
-        self.slots().remove(version);
+    /// Drop the bytes of `version` under `signature` once they are installed.
+    /// Bytes under another signature (a re-signed release that downloaded
+    /// while the installer waited) stay.
+    pub fn forget(&self, version: &str, signature: &str) {
+        let Some(slot) = self.slots().get(version).cloned() else {
+            return;
+        };
+        let mut state = slot.state();
+        if state
+            .admitted
+            .as_ref()
+            .is_some_and(|a| a.signature == signature)
+        {
+            state.admitted = None;
+        }
     }
 }
 

@@ -126,7 +126,7 @@ async fn forgotten_bytes_are_fetched_again() {
         .admitted_or_fetch("1.0.8", "sig", || counted(&fetches, b"release"))
         .await
         .unwrap();
-    staged.forget("1.0.8");
+    staged.forget("1.0.8", "sig");
     staged
         .admitted_or_fetch("1.0.8", "sig", || counted(&fetches, b"release"))
         .await
@@ -193,7 +193,7 @@ async fn admitted_bytes_are_found_only_under_their_signature_until_forgotten() {
         b"release"
     );
     assert!(staged.admitted("1.0.8", "other-sig").is_none());
-    staged.forget("1.0.8");
+    staged.forget("1.0.8", "sig");
     assert!(staged.admitted("1.0.8", "sig").is_none());
 }
 
@@ -233,4 +233,52 @@ async fn a_caller_with_a_new_signature_queued_behind_a_failed_attempt_fetches() 
     assert!(first.await.unwrap().is_err());
     assert_eq!(second.await.unwrap().unwrap().as_slice(), b"new");
     assert_eq!(fetches.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn asking_for_another_version_keeps_a_download_still_running() {
+    let staged = Arc::new(StagedReleases::default());
+    let fetches = AtomicU32::new(0);
+    let (release, released) = oneshot::channel::<()>();
+    let (started, has_started) = oneshot::channel::<()>();
+
+    let running = tokio::spawn({
+        let staged = staged.clone();
+        async move {
+            staged
+                .admitted_or_fetch("1.0.9", "sig", || async move {
+                    started.send(()).unwrap();
+                    released.await.unwrap();
+                    Ok(b"newer".to_vec())
+                })
+                .await
+        }
+    });
+    has_started.await.unwrap();
+    staged
+        .admitted_or_fetch("1.0.8", "sig", || counted(&fetches, b"older"))
+        .await
+        .unwrap();
+    release.send(()).unwrap();
+    running.await.unwrap().unwrap();
+
+    assert_eq!(
+        staged.admitted("1.0.9", "sig").unwrap().as_slice(),
+        b"newer"
+    );
+}
+
+#[tokio::test]
+async fn forgetting_one_signature_keeps_the_bytes_of_another() {
+    let staged = StagedReleases::default();
+    let fetches = AtomicU32::new(0);
+    staged
+        .admitted_or_fetch("1.0.8", "new-sig", || counted(&fetches, b"new"))
+        .await
+        .unwrap();
+    staged.forget("1.0.8", "old-sig");
+    assert_eq!(
+        staged.admitted("1.0.8", "new-sig").unwrap().as_slice(),
+        b"new"
+    );
 }
