@@ -6,6 +6,12 @@ import type { ChatInteractionAnswer } from "./interaction-card-logic";
 import type { CardCompletion } from "./interaction-card-props";
 import { usePanelAttachments } from "./panel-attachments-context";
 import {
+  isCompletionPending,
+  markCompletionPending,
+  settleCompletion,
+  useCompletionPending,
+} from "./pending-completions";
+import {
   type ComposerAttachments,
   useComposerAttachments,
 } from "./use-composer-attachments";
@@ -21,15 +27,21 @@ export interface CardAttach extends ComposerAttachments {
  * ChatPanel slot: a card with no panel list behind it offers no "+", so no
  * consumer ever collects files it has nowhere to send.
  *
- * `complete` hands the files to `onComplete` with the answers, and removes
- * them from the list only once the consumer reports it accepted them: a send
- * that fails keeps them for the retry. Files ride only a completion that
- * answered a question; a declined card or a connect/sign-in-only one leaves
- * them for the composer that returns. One completion is in flight at a time
- * (`pending`), so a second click during the upload cannot send the answer
- * apart from its files.
+ * `complete` hands the files to `onComplete` with the answers, and releases
+ * them (see `PanelAttachments.releaseFiles`) only once the consumer reports
+ * it accepted them: a send that fails keeps them for the retry. Files ride
+ * only a completion that answered a question; a declined card or a
+ * connect/sign-in-only one leaves them for the composer that returns.
+ *
+ * One completion per `completionKey` is in flight at a time (`pending`), so
+ * a second click during the upload cannot send the answer apart from its
+ * files, and neither can a remount of the same card. Without a key the
+ * latch lasts only as long as this instance.
  */
-export function useCardAttachments(onComplete: CardCompletion): {
+export function useCardAttachments(
+  onComplete: CardCompletion,
+  completionKey?: string,
+): {
   attach: CardAttach | null;
   complete: (answers: ChatInteractionAnswer[]) => void;
   pending: boolean;
@@ -60,12 +72,13 @@ export function useCardAttachments(onComplete: CardCompletion): {
       alive.current = false;
     };
   }, []);
-  const inFlight = useRef(false);
-  const [pending, setPending] = useState(false);
+  const [ownKey] = useState(() => Symbol("card-completion"));
+  const key = completionKey ?? ownKey;
+  const pending = useCompletionPending(key);
 
   const complete = useCallback(
     (answers: ChatInteractionAnswer[]) => {
-      if (inFlight.current) return;
+      if (isCompletionPending(key)) return;
       const current = alive.current ? latest.current : null;
       const files = answers.length > 0 ? [...(current?.files ?? [])] : [];
       const result = onComplete(answers, files);
@@ -73,12 +86,10 @@ export function useCardAttachments(onComplete: CardCompletion): {
         current?.releaseFiles(files);
         return;
       }
-      inFlight.current = true;
-      setPending(true);
+      markCompletionPending(key);
       const settle = (accepted: boolean) => {
         if (accepted) current?.releaseFiles(files);
-        inFlight.current = false;
-        if (alive.current) setPending(false);
+        settleCompletion(key);
       };
       // The contract is never to reject; one that does still frees the card
       // and stays an unhandled rejection, so it is reported, not swallowed.
@@ -87,7 +98,7 @@ export function useCardAttachments(onComplete: CardCompletion): {
         throw err;
       });
     },
-    [onComplete],
+    [key, onComplete],
   );
   return {
     attach: panel ? { ...composer, labels: panel.composerLabels } : null,

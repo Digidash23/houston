@@ -106,6 +106,7 @@ export function ChatInteractionStepper({
   return (
     <ChatInteractionCard
       {...cards}
+      completionKey={`${sessionKey ?? ""}:${identity}`}
       labels={labels}
       onComplete={onComplete}
       onDismiss={onDismiss}

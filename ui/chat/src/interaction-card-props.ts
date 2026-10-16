@@ -89,9 +89,10 @@ export interface ChatInteractionCardLabels {
  * A card's completion. `files` is non-empty only when the card sits in a
  * ChatPanel's composer-replacing slot (it shares the panel's attachment list)
  * and at least one question was answered; the caller must send them with the
- * answer. Return a promise of whether the reply was accepted: `true` removes
- * the handed files from the panel, `false` keeps them for a retry, and the
- * card takes no second completion until it settles. A plain `void` return
+ * answer. Return a promise of whether the reply was accepted: `true` releases
+ * the handed files (a no-op for a controlled panel list, whose parent clears
+ * them), `false` keeps them for a retry, and the card takes no second
+ * completion until it settles (see `completionKey`). A plain `void` return
  * counts as accepted. The promise must never reject.
  */
 export type CardCompletion = (
@@ -163,5 +164,11 @@ export interface ChatInteractionCardProps {
   state?: StepperState;
   onStateChange?: (state: StepperState) => void;
   disabled?: boolean;
+  /** Names THIS card across remounts (e.g. conversation + interaction). While
+   *  a completion under this key is still being sent, every card with the key
+   *  is disabled and takes no completion, so a card remounted mid-upload whose
+   *  restored terminal step completes again on mount cannot send the reply a
+   *  second time. Omitted, the guard lasts only as long as the instance. */
+  completionKey?: string;
   labels?: ChatInteractionCardLabels;
 }

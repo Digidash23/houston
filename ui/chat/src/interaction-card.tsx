@@ -73,6 +73,7 @@ export function ChatInteractionCard({
   state: controlled,
   onStateChange,
   disabled: disabledProp = false,
+  completionKey,
   labels,
 }: ChatInteractionCardProps) {
   const [state, update] = useStepperState(controlled, onStateChange);
@@ -82,7 +83,10 @@ export function ChatInteractionCard({
   const step = steps[current];
   const copy = questionStepCopy(labels);
   const progress = labels?.progress ?? defaultProgress;
-  const { attach, complete, pending } = useCardAttachments(onComplete);
+  const { attach, complete, pending } = useCardAttachments(
+    onComplete,
+    completionKey,
+  );
   // A reply carrying files is still uploading: nothing may complete again.
   const disabled = disabledProp || pending;
   const { onOption, onSend, onSkip, onConnected, onSignedIn, onSaved, onDone } =
