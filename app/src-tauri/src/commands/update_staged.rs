@@ -69,7 +69,7 @@ impl StagedReleases {
     /// it, and its bytes would otherwise stay in memory until the app quits.
     /// A slot some call still holds (downloading, or waiting on the download)
     /// stays, or that call's bytes would land nowhere. Clones are only made
-    /// under this lock, so the count is exact here.
+    /// under this lock, so no call can take hold of a slot judged idle here.
     fn slot(&self, version: &str) -> Arc<Slot> {
         let mut slots = self.slots();
         slots.retain(|staged, slot| staged == version || Arc::strong_count(slot) > 1);
