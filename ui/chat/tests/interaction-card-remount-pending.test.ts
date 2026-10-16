@@ -1,4 +1,4 @@
-// PRODUCT-2132 review round 3: a completion still uploading when the user
+// A completion still uploading when the user
 // leaves the conversation stays pending for the card that returns. The
 // remounted card's restored connect step completes again on mount; that must
 // not send the same answer and files a second time.

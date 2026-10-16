@@ -87,9 +87,11 @@ export function useCardAttachments(
         return;
       }
       markCompletionPending(key);
+      // Freed before releasing: a throwing release must not leave every card
+      // with this key disabled until reload.
       const settle = (accepted: boolean) => {
-        if (accepted) current?.releaseFiles(files);
         settleCompletion(key);
+        if (accepted) current?.releaseFiles(files);
       };
       // The contract is never to reject; one that does still frees the card
       // and stays an unhandled rejection, so it is reported, not swallowed.
