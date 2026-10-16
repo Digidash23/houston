@@ -28,7 +28,8 @@ pub enum DownloadEvent {
 /// answering a transient status (a 5xx, 429, 408: PRODUCT-1811), retried the
 /// same way and reported quietly too. `Http` is any other status, final on
 /// first sight: a 404 is how a leaked staging build surfaces. `InProgress`
-/// is another download of the same release already running in this process
+/// is another download holding the same partial file: a backstop, since a
+/// second call for one release joins the first (`update_staged`) instead
 /// (the frontend skips it, nothing to report). `StorageFull` is the disk the
 /// partial lives on refusing the bytes: quiet, and not retried for that
 /// release this session, or every poll would fill the disk again.

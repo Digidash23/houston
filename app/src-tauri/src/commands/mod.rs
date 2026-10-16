@@ -16,6 +16,7 @@ mod update_fetch;
 mod update_partial;
 mod update_partial_dir;
 pub mod update_stage;
+mod update_staged;
 mod update_verify;
 pub mod url_open_failure;
 
