@@ -2,11 +2,11 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { type AgentFileChangeEvent, agentFileEventType } from "@houston/domain";
-import { unzipSync } from "fflate";
 import { importedHistoryNote, messageFor } from "../migrate/reconstruct";
 import type { StoredConversation } from "../migrate/types";
 import type { Vfs } from "../vfs";
 import { importedFileBytes, safeSeedKey } from "./agent-seed";
+import { unzipCapped, ZipLimitError } from "./capped-unzip";
 import {
   classifyMigrationPath,
   MAX_IMPORT_ENTRIES,
@@ -95,24 +95,24 @@ export async function applyMigrationArchive(opts: {
   result: MigrationImportResult;
   events: Set<AgentFileChangeEvent["type"]>;
 }> {
-  let unzipped: Record<string, Uint8Array>;
+  let entries: [string, Uint8Array][];
   try {
-    unzipped = unzipSync(new Uint8Array(opts.bytes));
+    entries = unzipCapped(new Uint8Array(opts.bytes), {
+      maxEntries: MAX_IMPORT_ENTRIES,
+      maxUnpackedBytes: MAX_IMPORT_UNPACKED_BYTES,
+    });
   } catch (err) {
+    if (err instanceof ZipLimitError)
+      throw new MigrationImportError(
+        413,
+        err.breach === "too_many_entries"
+          ? "archive has too many entries"
+          : "archive decompresses too large",
+      );
     throw new MigrationImportError(
       400,
       `not a readable zip archive: ${err instanceof Error ? err.message : String(err)}`,
     );
-  }
-  const entries = Object.entries(unzipped).filter(
-    ([name]) => !name.endsWith("/"),
-  );
-  if (entries.length > MAX_IMPORT_ENTRIES) {
-    throw new MigrationImportError(413, "archive has too many entries");
-  }
-  const unpackedTotal = entries.reduce((sum, [, data]) => sum + data.length, 0);
-  if (unpackedTotal > MAX_IMPORT_UNPACKED_BYTES) {
-    throw new MigrationImportError(413, "archive decompresses too large");
   }
 
   // One listing up front → O(1) existence checks for skip-existing.
