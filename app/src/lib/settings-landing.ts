@@ -5,6 +5,10 @@
  * nothing until this ticket comes back on an authenticated call from a signed-in
  * user. The ticket is therefore taken straight out of the URL as it is read,
  * held in memory, and handed over once.
+ *
+ * A LinkedIn connect comes back the same way, on
+ * `?settings=linkedin&linkedin=<ticket>`: no section opens for it, the ticket
+ * is redeemed and the connection lands wherever the share dialog waits.
  */
 
 /** The shape the gateway mints, mirrored by the engine client's wire guard. */
@@ -16,7 +20,14 @@ export type SlackCompletion =
 
 export type SettingsLanding =
   | { kind: "absent" }
-  | { kind: "settings"; section: "channels"; slack: SlackCompletion | null };
+  | { kind: "settings"; section: "channels"; slack: SlackCompletion | null }
+  | { kind: "linkedin"; completion: SlackCompletion };
+
+/** A LinkedIn return, or absent when it carries no ticket at all. */
+function linkedInLanding(values: string[]): SettingsLanding {
+  const completion = slackCompletion(values);
+  return completion ? { kind: "linkedin", completion } : { kind: "absent" };
+}
 
 export function settingsLanding(search: string): SettingsLanding {
   const params = new URLSearchParams(search);
@@ -24,6 +35,8 @@ export function settingsLanding(search: string): SettingsLanding {
   // (`assistant-landing.ts`). A URL claiming to be both is neither.
   if (params.has("assistant")) return { kind: "absent" };
   const values = params.getAll("settings");
+  if (values.length === 1 && values[0] === "linkedin")
+    return linkedInLanding(params.getAll("linkedin"));
   if (values.length !== 1 || values[0] !== "channels")
     return { kind: "absent" };
   return {
@@ -45,12 +58,11 @@ export function settingsLandingFromDeepLink(value: string): SettingsLanding {
   } catch {
     return { kind: "absent" };
   }
-  if (
-    url.protocol !== "houston:" ||
-    url.hostname !== "settings" ||
-    !/^\/channels\/?$/.test(url.pathname)
-  )
+  if (url.protocol !== "houston:" || url.hostname !== "settings")
     return { kind: "absent" };
+  if (/^\/linkedin\/?$/.test(url.pathname))
+    return linkedInLanding(url.searchParams.getAll("linkedin"));
+  if (!/^\/channels\/?$/.test(url.pathname)) return { kind: "absent" };
   return {
     kind: "settings",
     section: "channels",
@@ -71,6 +83,7 @@ function slackCompletion(values: string[]): SlackCompletion | null {
 export function withoutSlackTicket(href: string): string {
   const url = new URL(href);
   url.searchParams.delete("slack");
+  url.searchParams.delete("linkedin");
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
@@ -89,15 +102,24 @@ export function captureSettingsLanding(
   clean: (url: string) => void,
 ): SettingsLanding {
   const landing = settingsLanding(new URL(href).search);
-  if (landing.kind === "settings" && landing.slack)
-    clean(withoutSlackTicket(href));
+  if (carriesTicket(landing)) clean(withoutSlackTicket(href));
   return landing;
+}
+
+/** Whether applying `landing` spends a one-time ticket. */
+export function carriesTicket(landing: SettingsLanding): boolean {
+  return (
+    landing.kind === "linkedin" ||
+    (landing.kind === "settings" && landing.slack !== null)
+  );
 }
 
 export interface SettingsLandingPorts {
   open: (section: "channels") => void;
   /** Queue the completion for the Channels section, which redeems it once. */
   hand: (completion: SlackCompletion) => void;
+  /** Queue a LinkedIn completion, redeemed once wherever the app is. */
+  linkedIn: (completion: SlackCompletion) => void;
 }
 
 /** Apply one captured callback: open the section, hand the completion over. */
@@ -105,6 +127,10 @@ export function applySettingsLanding(
   landing: SettingsLanding,
   ports: SettingsLandingPorts,
 ): void {
+  if (landing.kind === "linkedin") {
+    ports.linkedIn(landing.completion);
+    return;
+  }
   if (landing.kind !== "settings") return;
   ports.open(landing.section);
   if (landing.slack) ports.hand(landing.slack);

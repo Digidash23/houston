@@ -119,6 +119,7 @@ describe("applying a channels landing", () => {
           calls.push("hand");
           handed.push(completion);
         },
+        linkedIn: () => calls.push("linkedIn"),
       },
     };
   };

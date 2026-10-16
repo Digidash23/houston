@@ -3,14 +3,12 @@ import { describe, it } from "node:test";
 import { isExpectedClipboardRefusal } from "../src/components/organization/org-chart-share-copy.ts";
 import {
   NO_LANDING,
-  openComposer,
   type ShareSheet,
   shareRoute,
   shareViaSheet,
 } from "../src/components/organization/org-chart-share-run.ts";
 
 const PNG = new File(["png"], "acme-org-chart.png", { type: "image/png" });
-const URL_ = "https://www.linkedin.com/feed/?shareActive=true&text=x";
 
 const sheet = (
   share: ShareSheet["share"] = async () => {},
@@ -20,37 +18,37 @@ const sheet = (
 describe("shareRoute", () => {
   const env = {
     tauri: false,
-    native: false,
     coarse: true,
     sheet: sheet(),
     image: PNG,
+    linkedin: true,
   };
 
-  it("takes the share sheet only on a touch device whose sheet takes the picture", () => {
+  it("keeps the share sheet on phones and iPads whose sheet takes the picture, even where Houston can post", () => {
     strictEqual(shareRoute(env).kind, "sheet");
-    strictEqual(shareRoute({ ...env, coarse: false }).kind, "tab");
+    // Before the picture is drawn, a sheet that exists is assumed to take it.
+    strictEqual(shareRoute({ ...env, image: null }).kind, "sheet");
   });
 
-  it("claims no tab on a touch device whose sheet cannot take the picture", () => {
-    // iPad Safari suspends the Houston tab once a claimed tab takes focus.
+  it("posts where the deployment can, on a desktop or a touch device with no sheet for files", () => {
     for (const overrides of [
+      { coarse: false },
       { sheet: undefined },
       { sheet: sheet(async () => {}, false) },
-      { image: null },
+      { tauri: true },
     ])
-      strictEqual(shareRoute({ ...env, ...overrides }).kind, "plain");
+      strictEqual(shareRoute({ ...env, ...overrides }).kind, "post");
   });
 
-  it("claims no tab in the mobile app, whose browser opens after an await", () => {
+  it("copies and pastes where the deployment cannot post", () => {
     strictEqual(
-      shareRoute({ ...env, native: true, coarse: false, sheet: undefined })
-        .kind,
-      "plain",
+      shareRoute({ ...env, coarse: false, linkedin: false }).kind,
+      "paste",
     );
-  });
-
-  it("is the desktop app's own way in the desktop app", () => {
-    strictEqual(shareRoute({ ...env, tauri: true }).kind, "shell");
+    strictEqual(
+      shareRoute({ ...env, tauri: true, linkedin: false }).kind,
+      "paste",
+    );
   });
 });
 
@@ -63,8 +61,13 @@ describe("shareViaSheet", () => {
     return { landing, reports };
   };
 
-  it("tracks the share sheet", async () => {
-    strictEqual((await run(async () => {}).landing).channel, "native");
+  it("hands the picture and the post to the sheet, and tracks it", async () => {
+    let handed: { files: File[]; text: string } | null = null;
+    const { landing } = run(async (data) => {
+      handed = data;
+    });
+    strictEqual((await landing).channel, "native");
+    deepStrictEqual(handed, { files: [PNG], text: "post" });
   });
 
   it("treats closing the sheet, or a second tap while it is up, as quiet", async () => {
@@ -81,39 +84,6 @@ describe("shareViaSheet", () => {
     const { landing, reports } = run(() => Promise.reject(new Error("boom")));
     deepStrictEqual(await landing, NO_LANDING);
     deepStrictEqual(reports, ["org_chart_share_native"]);
-  });
-});
-
-describe("openComposer", () => {
-  const share = { channel: "linkedin_link", notAttached: false } as const;
-
-  it("offers LinkedIn's link when a browser blocked the open", async () => {
-    deepStrictEqual(
-      await openComposer("tab", null, async () => false, URL_, share),
-      {
-        channel: null,
-        notAttached: false,
-        blocked: { url: URL_, channel: "linkedin_link" },
-      },
-    );
-  });
-
-  it("offers LinkedIn's link when the mobile app's browser refused the open", async () => {
-    strictEqual(
-      (await openComposer("plain", null, async () => false, URL_, share))
-        .blocked?.url,
-      URL_,
-    );
-  });
-
-  it("leaves a refusal in the desktop app to the shell's own toast", async () => {
-    deepStrictEqual(
-      await openComposer("shell", null, async () => false, URL_, {
-        channel: "linkedin_text_only",
-        notAttached: true,
-      }),
-      { ...NO_LANDING, notAttached: true },
-    );
   });
 });
 

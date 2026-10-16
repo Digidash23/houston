@@ -6,7 +6,7 @@ import {
   type CardZoom,
   CHART_WIDTH,
   NODE,
-  SQUARE_FRAME,
+  PORTRAIT_FRAME,
 } from "./org-chart-share-card-geometry.ts";
 import {
   type CardWords,
@@ -27,18 +27,17 @@ import {
  * only draws what this places, and the connectors come from the same path
  * module the on-screen chart uses.
  *
- * The image is square (`SQUARE_FRAME`): a chart three levels deep, with
- * each person's AI Employees stacked under them, needs height more than
- * width, and a square image takes the most room LinkedIn's feed gives a
- * post. The link card (`LANDSCAPE_FRAME`) draws the same layout, zoomed
- * into its shorter frame. The root card sits centred under the header, the first row spreads across
- * as equal columns (`org-chart-share-columns.ts`), and each person's AI
- * Employees stack under them, then one "+N" for the rest.
+ * The image is 4:5 portrait (`PORTRAIT_FRAME`). The root card sits centred
+ * under the header, the first row spreads across as equal columns
+ * (`org-chart-share-columns.ts`), and each person's AI Employees stack under
+ * them, then one "+N" for the rest. The caps (`SHARE_CARD_CAPS`,
+ * `capShareColumns`) keep the worst case inside the room at a zoom of at
+ * least 1, so no name or role is ever drawn under `SHARE_MIN_TYPE`.
  */
 
 const TREE = {
   rootY: 252,
-  rowY: 378,
+  rowY: 394,
   /** Space between stacked cards, which the connector spans. */
   gap: 24,
   radius: 12,
@@ -48,8 +47,8 @@ const TREE = {
  * Scale `boxes` (centred on the frame) into the frame's room, clear of the
  * count line above and the footer below. A small team grows to fill it (up
  * to the frame's `maxZoom`), so three cards never sit as a speck in an empty
- * frame; a big one shrinks. The sides keep the columns' own margin, so a
- * full squeezed row is never shrunk.
+ * frame. The sides keep the columns' own margin, so a full row is never
+ * shrunk.
  */
 function zoomFor(boxes: Box[], frame: CardFrame): CardZoom {
   const top = Math.min(...boxes.map((b) => b.y));
@@ -74,7 +73,7 @@ function zoomFor(boxes: Box[], frame: CardFrame): CardZoom {
 export function shareCardLayout(
   tree: OrgTree,
   words: CardWords,
-  frame: CardFrame = SQUARE_FRAME,
+  frame: CardFrame = PORTRAIT_FRAME,
 ): CardLayout {
   const cx = CHART_WIDTH / 2;
   const rootNode: CardNode =
@@ -97,7 +96,7 @@ export function shareCardLayout(
   ];
 
   const columns = columnsOf(tree, words);
-  const slots = columnSlots(columns, frame.squeeze);
+  const slots = columnSlots(columns);
   const secondRowY = TREE.rowY + NODE.column.h + COLUMNS.rowGap;
   columns.forEach((column, index) => {
     const { x, w, row } = slots[index];

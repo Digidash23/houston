@@ -3,10 +3,12 @@ import { before, describe, it } from "node:test";
 import type { OrgMember } from "@houston/engine-adapter";
 import i18next from "i18next";
 import {
+  capShareColumns,
   isShareCancel,
   linkedInShareUrl,
   SHARE_CARD_CAPS,
-  SHARE_SITE_LINK,
+  SHARE_TEAM_COLUMNS,
+  shareAltText,
   shareFileName,
   sharePostText,
   shareTitle,
@@ -50,59 +52,76 @@ const tree = (personal: boolean, name = "Acme & Co") =>
   );
 
 describe("sharePostText", () => {
+  const en = () => i18n.getFixedT("en", "teams");
+
   it("says it is the company's AI Employees, in Houston, ending on gethouston.ai", () => {
     strictEqual(
-      sharePostText(
-        i18n.getFixedT("en", "teams"),
-        tree(false),
-        SHARE_SITE_LINK,
-      ),
+      sharePostText(en(), tree(false)),
       "This is my organization. These are all the AI Employees at Acme & Co, working in Houston.\n\ngethouston.ai",
     );
   });
 
   it("speaks of the person's own AI Employees in a personal space", () => {
-    const text = sharePostText(
-      i18n.getFixedT("en", "teams"),
-      tree(true),
-      SHARE_SITE_LINK,
-    );
     strictEqual(
-      text,
+      sharePostText(en(), tree(true)),
       "These are all my AI Employees, working in Houston.\n\ngethouston.ai",
     );
   });
 
-  it("ends on the chart's page when it has one", () => {
-    const page = "https://agents.gethouston.ai/o/AbCdEfGhIjKlMnOpQrSt_-";
-    strictEqual(
-      sharePostText(i18n.getFixedT("en", "teams"), tree(true), page),
-      `These are all my AI Employees, working in Houston.\n\n${page}`,
-    );
-  });
-
-  it("ships every language with no em dash, no hashtag, and the link last", () => {
+  it("ships every language with no em dash, no hashtag, no link, and the site last", () => {
     for (const lng of ["en", "es", "pt"]) {
       for (const subject of [tree(false), tree(true)]) {
-        const text = sharePostText(
-          i18n.getFixedT(lng, "teams"),
-          subject,
-          SHARE_SITE_LINK,
-        );
+        const t = i18n.getFixedT(lng, "teams");
+        const text = sharePostText(t, subject);
         ok(!text.includes("—"), `${lng}: ${text}`);
         ok(!text.includes("{{"), `${lng}: ${text}`);
         ok(!text.includes("#"), `${lng}: ${text}`);
+        ok(!text.includes("http"), `${lng}: ${text}`);
         ok(text.includes("Houston"), `${lng}: ${text}`);
         ok(text.endsWith("gethouston.ai"), `${lng}: ${text}`);
+        const alt = shareAltText(t, subject);
+        ok(alt.includes(shareTitle(subject)) && !alt.includes("{{"), alt);
       }
       ok(
-        sharePostText(
-          i18n.getFixedT(lng, "teams"),
-          tree(false),
-          SHARE_SITE_LINK,
-        ).includes("Acme & Co"),
+        sharePostText(i18n.getFixedT(lng, "teams"), tree(false)).includes(
+          "Acme & Co",
+        ),
         lng,
       );
+    }
+  });
+});
+
+describe("capShareColumns", () => {
+  const roster = (n: number): OrgMember[] => [
+    { userId: "o", role: "owner", displayName: "Olga Owner" },
+    ...Array.from({ length: n - 1 }, (_, i) => ({
+      userId: `u${i}`,
+      role: "user" as const,
+      displayName: `User ${i}`,
+    })),
+  ];
+  const team = (n: number) =>
+    capShareColumns(
+      buildOrgTree(
+        { agents: [], members: roster(n), name: "Acme", personal: false },
+        SHARE_CARD_CAPS,
+      ),
+    );
+
+  it("keeps four people whole", () => {
+    const four = team(4);
+    strictEqual(four.branches.length, 4);
+    strictEqual(four.morePeople, 0);
+  });
+
+  it("shows three and a +N from five people on, counting everyone", () => {
+    for (const n of [5, 6, 12]) {
+      const capped = team(n);
+      strictEqual(capped.branches.length, SHARE_TEAM_COLUMNS - 1, `${n}`);
+      strictEqual(capped.morePeople, n - 3, `${n}`);
+      strictEqual(capped.counts.people, n);
+      strictEqual(capped.branches[0].person.userId, "o");
     }
   });
 });

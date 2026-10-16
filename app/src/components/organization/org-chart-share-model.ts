@@ -6,14 +6,36 @@ import type { OrgTree, OrgTreeCaps } from "./org-chart-tree.ts";
  */
 
 /**
- * What the square share image holds (`org-chart-share-layout.ts`): six
- * people across, three AI Employees under each, then "+N".
+ * What the share image holds (`org-chart-share-layout.ts`): four people
+ * across with four AI Employees under each, or a personal space's six AI
+ * Employees, then "+N". At these caps the fullest chart still fits the
+ * portrait frame at the minimum type (`SHARE_MIN_TYPE`).
  */
 export const SHARE_CARD_CAPS: OrgTreeCaps = {
-  people: 6,
-  agentsPerPerson: 3,
+  people: 4,
+  agentsPerPerson: 4,
   rootAgents: 6,
 };
+
+/** The most columns a team's first row holds, its "+N people" included. */
+export const SHARE_TEAM_COLUMNS = 4;
+
+/**
+ * `tree` with the people row cut so it and its "+N people" fit
+ * {@link SHARE_TEAM_COLUMNS}: four people show, five or more show three and
+ * "+N". The cut people join the "+N"; the counts line still names everyone.
+ */
+export function capShareColumns(tree: OrgTree): OrgTree {
+  const { branches, morePeople } = tree;
+  const columns = branches.length + (morePeople > 0 ? 1 : 0);
+  if (columns <= SHARE_TEAM_COLUMNS) return tree;
+  const keep = SHARE_TEAM_COLUMNS - 1;
+  return {
+    ...tree,
+    branches: branches.slice(0, keep),
+    morePeople: morePeople + branches.length - keep,
+  };
+}
 
 /** The subset of i18next's `t` the post builder needs. */
 export type Translate = (
@@ -21,22 +43,20 @@ export type Translate = (
   options?: Record<string, unknown>,
 ) => string;
 
-/** Where the post points when the chart has no page of its own. */
-export const SHARE_SITE_LINK = "gethouston.ai";
-
 /**
- * The post that goes with the image: the space's name, then `link`, the
- * chart's own page (whose preview is the image) or {@link SHARE_SITE_LINK}.
- * A personal space speaks of the person's own AI Employees.
+ * The post that goes with the image, ending with the site and no link: the
+ * picture is the post. A personal space speaks of the person's own AI
+ * Employees.
  */
-export function sharePostText(
-  t: Translate,
-  tree: OrgTree,
-  link: string,
-): string {
+export function sharePostText(t: Translate, tree: OrgTree): string {
   return tree.root.kind === "person"
-    ? t("orgChart.share.postPersonal", { link })
-    : t("orgChart.share.post", { company: tree.root.name, link });
+    ? t("orgChart.share.postPersonal")
+    : t("orgChart.share.post", { company: tree.root.name });
+}
+
+/** What the picture shows, for people who cannot see it. */
+export function shareAltText(t: Translate, tree: OrgTree): string {
+  return t("orgChart.share.altText", { name: shareTitle(tree) });
 }
 
 /** The name the chart is drawn under: the space, or the personal space's person. */
@@ -45,27 +65,26 @@ export function shareTitle(tree: OrgTree): string {
 }
 
 /**
- * `<company>-org-chart.png`, safe on every file system: accents folded,
+ * `<company>-org-chart.<ext>`, safe on every file system: accents folded,
  * anything but letters and digits collapsed to one hyphen, capped so a long
  * name never makes an unwieldy file. A name with nothing usable left is
- * just `org-chart.png`.
+ * just `org-chart.<ext>`.
  */
-export function shareFileName(company: string): string {
+export function shareFileName(company: string, ext: "png" | "jpg" = "png") {
   const slug = company
     .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 60)
     .replace(/-+$/, "");
-  return slug ? `${slug}-org-chart.png` : "org-chart.png";
+  return slug ? `${slug}-org-chart.${ext}` : `org-chart.${ext}`;
 }
 
 /**
  * LinkedIn's compose link with the post text filled in. It cannot carry an
- * image: the image travels as the preview of the chart's page linked in the
- * post, else the person adds the downloaded image themselves.
+ * image: the person pastes the copied one, or adds the downloaded one.
  */
 export function linkedInShareUrl(text: string): string {
   return `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(text)}`;
@@ -95,13 +114,14 @@ export function isShareBusy(error: unknown): boolean {
 }
 
 /**
- * How a share left, as tracked: LinkedIn with the image as the preview of
- * the chart's page linked in the post, LinkedIn with the post alone (the
- * page or the image could not be made), the share sheet, or the dialog's
- * Download image and Copy image.
+ * How a share left, as tracked: posted to LinkedIn by Houston, LinkedIn's
+ * composer with the image copied, saved, or with no image, the share sheet,
+ * or the dialog's Download image and Copy image.
  */
 export type ShareChannel =
-  | "linkedin_link"
+  | "linkedin_post"
+  | "linkedin"
+  | "linkedin_download"
   | "linkedin_text_only"
   | "native"
   | "download"

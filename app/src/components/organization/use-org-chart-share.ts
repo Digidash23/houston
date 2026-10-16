@@ -1,28 +1,35 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useCapabilities } from "../../hooks/use-capabilities";
 import { analytics } from "../../lib/analytics";
 import { logAndReportError } from "../../lib/error-report";
-import { osIsNativeMobile } from "../../lib/os-bridge/platform";
+import { openExternalUrl } from "../../lib/open-external-url";
 import {
   canCopyImage,
   coarsePointer,
   copyImageToClipboard,
   downloadShareImage,
+  pasteDeps,
   shareSheet,
 } from "./org-chart-share-browser";
-import type { ShareDrawing } from "./org-chart-share-linkedin";
-import { sharePostText } from "./org-chart-share-model";
-import { type ShareLanding, shareRoute } from "./org-chart-share-run";
+import { shareAltText, sharePostText } from "./org-chart-share-model";
+import { shareByPaste } from "./org-chart-share-paste";
+import {
+  type ShareLanding,
+  shareRoute,
+  shareViaSheet,
+} from "./org-chart-share-run";
 import {
   createLinkedInGate,
   INITIAL_SHARE_DIALOG,
   replacesShownImage,
   shareDialogReducer,
 } from "./org-chart-share-state";
+import { shareStep } from "./org-chart-share-step";
 import { shareCounts, trackShare as track } from "./org-chart-share-track";
 import type { OrgTree } from "./org-chart-tree";
-import { useLinkedInShare } from "./use-linkedin-share";
+import { useLinkedInPost } from "./use-linkedin-post";
 import { useShareCardImage } from "./use-share-card-image";
 
 /** How long Copy image reads "Copied". */
@@ -30,16 +37,17 @@ const COPIED_MS = 2000;
 
 /**
  * The share dialog's state and actions over the image drawn ahead
- * (`useShareCardImage`) and Share on LinkedIn in one click
- * (`org-chart-share-linkedin.ts`). The click does its work inside the event
- * (a browser claims LinkedIn's tab there) and is gated
- * (`createLinkedInGate`: a double click would open LinkedIn twice); the
- * share sheet is left ungated, since a sheet that never settles would kill
- * the button and a second tap is already quiet.
- * Unexpected failures report and show nothing.
+ * (`useShareCardImage`): the editable post, the one primary button
+ * (`shareStep`: share sheet, copy and paste, or Connect then Post to
+ * LinkedIn through `useLinkedInPost`), Download image and Copy image. The
+ * share sheet and copy and paste do their work inside the click (a browser
+ * grants the clipboard and LinkedIn's tab only there); copy and paste is
+ * gated, since a double click would open LinkedIn twice. Unexpected failures
+ * report and show nothing.
  */
 export function useOrgChartShare(tree: OrgTree) {
   const { t } = useTranslation("teams");
+  const { capabilities } = useCapabilities();
   const { preview, file, retry, current } = useShareCardImage(tree);
   const [gate] = useState(() => createLinkedInGate(() => performance.now()));
   const [state, dispatch] = useReducer(
@@ -61,12 +69,9 @@ export function useOrgChartShare(tree: OrgTree) {
       clearTimer();
     };
   }, [clearTimer]);
-  const linkedInShare = useLinkedInShare(tree, state.open, file);
 
-  // A redrawn image is a different picture: what was said about the old one
-  // no longer holds. Only replacing a picture that was on screen resets: the
-  // first image arriving must not wipe the line of a share started while it
-  // was still drawing.
+  // Only replacing a picture that was on screen resets: the first image
+  // arriving must not wipe the line of a share started while it drew.
   const drawnUrl = preview.status === "ready" ? preview.url : null;
   const shownUrl = useRef<string | null>(null);
   useEffect(() => {
@@ -76,6 +81,29 @@ export function useOrgChartShare(tree: OrgTree) {
     clearTimer();
     dispatch({ type: "redrawn", url: drawnUrl });
   }, [drawnUrl, clearTimer]);
+
+  const route = shareRoute({
+    tauri: isTauri(),
+    coarse: coarsePointer(),
+    sheet: shareSheet(),
+    image: file,
+    linkedin: capabilities?.linkedinShare === true,
+  });
+  const linkedIn = useLinkedInPost({
+    enabled: state.open && route.kind === "post",
+    state,
+    dispatch,
+    session,
+    onPosted: () => track("linkedin_post", tree),
+  });
+  const step = shareStep({
+    route: route.kind,
+    connection: linkedIn.connection,
+    watching: state.watch !== null,
+    posting: state.posting,
+    postUrl: state.postUrl,
+  });
+  const text = state.text ?? sharePostText(t, tree);
 
   const setOpen = (next: boolean) => {
     if (next) {
@@ -88,51 +116,29 @@ export function useOrgChartShare(tree: OrgTree) {
   /** Lands a click made in `started`: tracked always, said only there. */
   const land = (landing: ShareLanding, started: number) => {
     if (landing.channel) track(landing.channel, tree);
-    if (!live.current) return;
-    const { notAttached, blocked } = landing;
-    dispatch({
-      type: "landed",
-      session: started,
-      line: { notAttached, blocked },
-    });
+    if (live.current)
+      dispatch({ type: "landed", session: started, line: landing.line });
   };
 
-  const drawing: ShareDrawing =
-    preview.status === "ready" && file
-      ? { status: "ready", image: file }
-      : { status: preview.status === "failed" ? "failed" : "drawing" };
-
-  // Nothing is awaited before the click's work starts: a browser only
-  // grants LinkedIn's tab inside the click. A synchronous throw (a name
-  // encodeURIComponent refuses) reports like any other failure.
-  const linkedIn = () => {
+  // Nothing is awaited before the share starts: the clipboard write and the
+  // open must stay inside the click.
+  const share = () => {
+    const started = session.current;
     const fail = (error: unknown) =>
       logAndReportError("org_chart_share", error);
     try {
-      const route = shareRoute({
-        tauri: isTauri(),
-        native: osIsNativeMobile(),
-        coarse: coarsePointer(),
-        sheet: shareSheet(),
-        image: file,
-      });
-      const started = session.current;
-      const run = () =>
-        (
-          linkedInShare.click({
-            route,
-            drawing,
-            post: (link) => sharePostText(t, tree, link),
-            holding: t("orgChart.share.holding"),
-            job: linkedInShare.job,
-          }) ?? Promise.resolve(null)
-        )
-          .then((landing) => {
-            if (landing) land(landing, started);
-          })
-          .catch(fail);
-      if (route.kind === "sheet") void run();
-      else gate(run);
+      if (route.kind === "sheet") {
+        if (file)
+          void shareViaSheet(route.sheet, file, text, logAndReportError)
+            .then((landing) => land(landing, started))
+            .catch(fail);
+        return;
+      }
+      gate(() =>
+        shareByPaste(pasteDeps(text, current().png, isTauri()))
+          .then((landing) => land(landing, started))
+          .catch(fail),
+      );
     } catch (error) {
       fail(error);
     }
@@ -157,19 +163,29 @@ export function useOrgChartShare(tree: OrgTree) {
       );
   };
 
-  const followBlocked = () => {
-    if (state.line?.blocked) track(state.line.blocked.channel, tree);
-  };
-
+  const line = state.line;
   return {
     open: state.open,
     setOpen,
     preview,
     retry: () => void retry(),
-    line: state.line,
-    followBlocked,
-    linkedIn,
-    preparing: drawing.status === "drawing" || linkedInShare.publishing,
+    ready: file !== null,
+    text,
+    setText: (next: string) => dispatch({ type: "edited", text: next }),
+    step,
+    line,
+    share,
+    connect: linkedIn.connect,
+    post: () => {
+      if (file) void linkedIn.post(file, text, shareAltText(t, tree));
+    },
+    viewPost: (url: string) =>
+      void openExternalUrl(url, { command: "linkedin_view_post" }),
+    disconnect: linkedIn.disconnect,
+    disconnecting: linkedIn.disconnecting,
+    followBlocked: () => {
+      if (line?.kind === "blocked" && line.channel) track(line.channel, tree);
+    },
     download: () =>
       void downloadShareImage(current()).then((saved) => {
         if (saved) track("download", tree);

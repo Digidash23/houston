@@ -12,7 +12,7 @@ import { NODE_ID } from "./org-chart-tree-paths.ts";
  */
 
 export const COLUMNS = {
-  maxWidth: 236,
+  maxWidth: 260,
   gap: 14,
   margin: 56,
   /** Between the cards of a wrapped row, wide enough for a line to drop through. */
@@ -41,6 +41,7 @@ export function columnsOf(tree: OrgTree, words: CardWords): Column[] {
     id: NODE_ID.agent(agent.id),
     node: { kind: "agent", agent },
     label: agent.name,
+    sublabel: agent.role,
   });
   const more = (id: string, count: number): Entry => ({
     id,
@@ -91,15 +92,10 @@ export interface Slot {
   w: number;
 }
 
-/**
- * `count` cards `gap` apart, centred: of the widest width that fits the
- * chart's width when `squeeze`, else all at their widest.
- */
-function row(count: number, gap: number, squeeze: boolean) {
+/** `count` cards of the widest width that fits, `gap` apart, centred. */
+function row(count: number, gap: number) {
   const usable = CHART_WIDTH - COLUMNS.margin * 2 - gap * (count - 1);
-  const w = squeeze
-    ? Math.min(COLUMNS.maxWidth, usable / Math.max(count, 1))
-    : COLUMNS.maxWidth;
+  const w = Math.min(COLUMNS.maxWidth, usable / Math.max(count, 1));
   const left = CHART_WIDTH / 2 - (w * count + gap * (count - 1)) / 2;
   return { w, left, step: w + gap };
 }
@@ -109,25 +105,22 @@ function row(count: number, gap: number, squeeze: boolean) {
  * stacked under them (a personal space's AI Employees, or a team whose
  * people have none yet) wrap onto two lines, the second set in the first's
  * gaps so its lines drop between two cards: seven across would leave each
- * name a few letters wide. Seven is the most `SHARE_CARD_CAPS` lets through;
- * eight would put a slot on a card, so anything wider stays one row.
- * `squeeze`: see `CardFrame.squeeze`.
+ * name a few letters wide. Seven is the most `SHARE_CARD_CAPS` lets through
+ * (a personal space's six AI Employees and its "+N"); eight would put a slot
+ * on a card, so anything wider stays one row.
  */
-export function columnSlots(
-  columns: readonly Column[],
-  squeeze = true,
-): Slot[] {
+export function columnSlots(columns: readonly Column[]): Slot[] {
   const n = columns.length;
   const flat = columns.every((column) => column.stack.length === 0);
   if (!flat || n < 5 || n > 7) {
-    const { w, left, step } = row(n, COLUMNS.gap, squeeze);
+    const { w, left, step } = row(n, COLUMNS.gap);
     return columns.map((_, i) => ({ x: left + i * step, row: 0, w }));
   }
   // 5 -> 3 + 2, 6 -> 4 + 2, 7 -> 4 + 3: the second line always fits the
   // first's gaps symmetrically.
   const first = Math.ceil((n + 1) / 2);
   const second = n - first;
-  const { w, left, step } = row(first, COLUMNS.brickGap, squeeze);
+  const { w, left, step } = row(first, COLUMNS.brickGap);
   return columns.map((_, i) => {
     if (i < first) return { x: left + i * step, row: 0, w };
     const gap = ((i - first) * (first - 2)) / (second - 1);

@@ -1,4 +1,4 @@
-import type { SettingsLanding } from "./settings-landing.ts";
+import { carriesTicket, type SettingsLanding } from "./settings-landing.ts";
 
 /**
  * The OS keeps answering the cold-start read with the link that launched the
@@ -113,8 +113,7 @@ export function createLandingGate(ports: LandingGatePorts): LandingGate {
       // Only a link carrying a completion is spent by applying it. A bare
       // `houston://settings/channels` (the gateway's failure page) must open
       // Channels every time it is clicked.
-      const spends =
-        link !== null && landing.kind === "settings" && landing.slack !== null;
+      const spends = link !== null && carriesTicket(landing);
       if (!spends || (await ports.handed.claim(link))) ports.apply(landing);
     } catch (error) {
       ports.report(error);

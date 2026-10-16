@@ -42,6 +42,8 @@ function applyLanding(
     open: (section) => land(section, capabilities),
     hand: (completion) =>
       useUIStore.getState().setPendingSlackCompletion(completion),
+    linkedIn: (completion) =>
+      useUIStore.getState().setPendingLinkedInCompletion(completion),
   });
 }
 

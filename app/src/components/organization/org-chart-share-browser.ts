@@ -1,6 +1,8 @@
 import { logAndReportError } from "../../lib/error-report";
+import { openExternalUrl } from "../../lib/open-external-url";
 import { saveBlob } from "../../lib/save-blob";
 import { copyImageWith } from "./org-chart-share-copy";
+import type { PasteDeps } from "./org-chart-share-paste";
 import type { ShareSheet } from "./org-chart-share-run";
 import type { ShareImageDraw } from "./use-share-card-image";
 
@@ -35,6 +37,23 @@ export function canCopyImage(): boolean {
 /** One PNG `ClipboardItem`; it takes the promise, so the write starts now. */
 function writeImage(png: Promise<File>): Promise<void> {
   return navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
+}
+
+/** Copy and paste (`shareByPaste`) bound to this browser or the desktop app. */
+export function pasteDeps(
+  post: string,
+  png: Promise<File>,
+  tauri: boolean,
+): PasteDeps {
+  return {
+    post,
+    png,
+    copyImage: canCopyImage() ? writeImage : undefined,
+    open: (url) => openExternalUrl(url, { command: "org_chart_share" }),
+    save: async (file) => (await saveBlob(file.name, file)).kind === "saved",
+    report: logAndReportError,
+    tauri,
+  };
 }
 
 /** The dialog's Copy image (`copyImageWith`) on this browser's clipboard. */
