@@ -144,3 +144,76 @@ test("the card's attach control is visible at phone width", async ({
     page.getByRole("button", { name: "Attach files" }),
   ).toBeInViewport();
 });
+
+const FILE_QUESTION = "Send me the character's image so I can animate it.";
+
+/** A question the agent marked as answered with a file (`wantsFiles`). */
+async function openFileQuestion(page: Page, request: APIRequestContext) {
+  await request.post(`${FAKE_HOST_URL}/__test__/chat-interaction`, {
+    data: {
+      interaction: {
+        steps: [
+          {
+            kind: "question",
+            id: "q-upload",
+            question: FILE_QUESTION,
+            wantsFiles: true,
+          },
+        ],
+      },
+    },
+  });
+  await startMission(page, "animate my character");
+  await expect(page.getByText(FILE_QUESTION)).toBeVisible({ timeout: 15_000 });
+}
+
+test("a question that wants files leads with an upload area and sends the pick", async ({
+  page,
+  request,
+}) => {
+  await openFileQuestion(page, request);
+
+  const upload = page.getByRole("button", { name: "Upload your files" });
+  await expect(upload).toBeVisible();
+  await expect(page.getByPlaceholder("Or type your answer...")).toBeVisible();
+  // The area opens the picker, so the answer row carries no second "+".
+  await expect(page.getByRole("button", { name: "Attach files" })).toHaveCount(
+    0,
+  );
+
+  // The keyboard path: focus the area and press Enter.
+  const chooser = page.waitForEvent("filechooser");
+  await upload.focus();
+  await page.keyboard.press("Enter");
+  await (await chooser).setFiles({
+    name: "character.png",
+    mimeType: "image/png",
+    buffer: PNG,
+  });
+  await expect(
+    page.getByRole("button", { name: "Remove character.png" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+
+  await expect(sentBadge(page, "character.png")).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByPlaceholder(FOLLOW_UP_PLACEHOLDER)).toBeVisible();
+});
+
+test("the upload area is visible at phone width", async ({ page, request }) => {
+  await openFileQuestion(page, request);
+  await page.setViewportSize({ width: 412, height: 860 });
+  await page
+    .getByRole("button", { name: /^animate my character/ })
+    .first()
+    .click();
+  await expect(page.getByText(FILE_QUESTION)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Upload your files" }),
+  ).toBeInViewport();
+  await expect(
+    page.getByPlaceholder("Or type your answer..."),
+  ).toBeInViewport();
+});

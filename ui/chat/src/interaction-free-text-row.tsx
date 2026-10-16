@@ -24,6 +24,7 @@ export function FreeTextRow({
   sendLabel,
   disabled,
   attach,
+  attachButton = true,
   fileAnswer = false,
   onChange,
   onSubmit,
@@ -33,6 +34,9 @@ export function FreeTextRow({
   sendLabel: string;
   disabled: boolean;
   attach?: CardAttach | null;
+  /** Show the leading "+" (off when the step's upload area opens the picker;
+   *  the field still takes a pasted file). */
+  attachButton?: boolean;
   /** The attached files alone can answer, so the send lights up empty. */
   fileAnswer?: boolean;
   onChange: (value: string) => void;
@@ -40,6 +44,7 @@ export function FreeTextRow({
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const canSend = value.trim().length > 0 || fileAnswer;
+  const plus = attachButton ? attach : null;
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: focus-delegation surface — the real widget is the <textarea> inside; clicking the field's padding focuses it (mirrors the composer). role="presentation" is correct, no widget role applies.
     <div
@@ -47,19 +52,19 @@ export function FreeTextRow({
         "mt-1.5 flex cursor-text items-center gap-2 rounded-[28px] border border-line-input bg-transparent pr-1.5 transition-colors dark:bg-line-input/30",
         // The "+" is 4px taller than the send button, so the row trims its
         // vertical padding to keep the pill at the same height.
-        attach ? "gap-1 py-1 pl-1" : "py-1.5 pl-4",
+        plus ? "gap-1 py-1 pl-1" : "py-1.5 pl-4",
         "focus-within:border-focus",
         disabled && "pointer-events-none opacity-50",
       )}
       onClick={() => textareaRef.current?.focus()}
       role="presentation"
     >
-      {attach && (
+      {plus && (
         <ChatInputAttachButton
-          ariaLabel={attach.labels?.attachFiles}
+          ariaLabel={plus.labels?.attachFiles}
           disabled={disabled}
-          onOpenFilePicker={attach.openFilePicker}
-          onOpenFolderPicker={attach.openFolderPicker}
+          onOpenFilePicker={plus.openFilePicker}
+          onOpenFolderPicker={plus.openFolderPicker}
         />
       )}
       <textarea

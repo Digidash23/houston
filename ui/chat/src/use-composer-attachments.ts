@@ -36,6 +36,9 @@ export interface ComposerAttachments {
   openFilePicker: () => void;
   openFolderPicker: () => void;
   removeFiles: (indices: readonly number[]) => void;
+  /** The shared ingest (validation, dedupe, notices) for files from any
+   *  other entry point, such as a nested drop target. */
+  addFiles: (incoming: File[]) => void;
 }
 
 export function useComposerAttachments({
@@ -131,5 +134,6 @@ export function useComposerAttachments({
     openFilePicker,
     openFolderPicker,
     removeFiles,
+    addFiles,
   };
 }

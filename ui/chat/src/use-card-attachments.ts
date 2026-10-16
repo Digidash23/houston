@@ -15,10 +15,13 @@ import {
   type ComposerAttachments,
   useComposerAttachments,
 } from "./use-composer-attachments";
+import { useDropErrorNotice } from "./use-drop-error-notice";
 
 /** What a question's answer row needs to offer the composer's attach surface. */
 export interface CardAttach extends ComposerAttachments {
   labels?: ChatComposerLabels;
+  /** Reports a failed folder drop on a drop target inside the card. */
+  onDropError: (error: unknown) => void;
 }
 
 /**
@@ -55,6 +58,10 @@ export function useCardAttachments(
     onNotice: panel?.onNotice,
     labels: panel?.composerLabels,
   });
+  const onDropError = useDropErrorNotice(
+    panel?.onNotice,
+    panel?.composerLabels,
+  );
   // Read at completion, not at render: a connect step's OAuth hand-off can
   // complete the card long after the render that created its callback. Once
   // the card is unmounted the list belongs to whatever replaced it, so a late
@@ -103,7 +110,9 @@ export function useCardAttachments(
     [key, onComplete],
   );
   return {
-    attach: panel ? { ...composer, labels: panel.composerLabels } : null,
+    attach: panel
+      ? { ...composer, labels: panel.composerLabels, onDropError }
+      : null,
     complete,
     pending,
   };

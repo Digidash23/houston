@@ -15,7 +15,9 @@ import type { CardAttach } from "./use-card-attachments";
  *  With `attach`, the panel's attached files show as the composer's chips
  *  above the row: the card replaced the composer, so this is the one place
  *  they are visible, and they leave with whichever answer completes the card
- *  (a typed one or a picked option). */
+ *  (a typed one or a picked option). `uploadArea` says the step's upload
+ *  area already shows them and opens the picker, so the row drops its chips
+ *  and its "+" and keeps only the field (which still takes a pasted file). */
 export function QuestionAnswerRow({
   disabled,
   draft,
@@ -24,6 +26,7 @@ export function QuestionAnswerRow({
   hideFreeText = false,
   attach,
   fileAnswer,
+  uploadArea = false,
   skip,
   onDraftChange,
   onSubmit,
@@ -35,6 +38,7 @@ export function QuestionAnswerRow({
   hideFreeText?: boolean;
   attach?: CardAttach | null;
   fileAnswer: boolean;
+  uploadArea?: boolean;
   skip: {
     label: string;
     escLabel: string;
@@ -44,9 +48,10 @@ export function QuestionAnswerRow({
   onDraftChange: (value: string) => void;
   onSubmit: () => void;
 }) {
+  const plus = attach && !uploadArea ? attach : null;
   return (
     <>
-      {attach && (
+      {attach && !uploadArea && (
         <div className={cn(attach.files.length > 0 && "mt-3")}>
           <ChatInputAttachments
             files={attach.files}
@@ -62,13 +67,14 @@ export function QuestionAnswerRow({
       <div
         className={cn(
           "flex items-center gap-2",
-          hideFreeText && (attach ? "justify-between" : "justify-end"),
+          hideFreeText && (plus ? "justify-between" : "justify-end"),
         )}
       >
         {!hideFreeText && (
           <div className="min-w-0 flex-1">
             <FreeTextRow
               attach={attach}
+              attachButton={plus !== null}
               disabled={disabled}
               fileAnswer={fileAnswer}
               onChange={onDraftChange}
@@ -79,13 +85,13 @@ export function QuestionAnswerRow({
             />
           </div>
         )}
-        {hideFreeText && attach && (
+        {hideFreeText && plus && (
           <div className="mt-1.5">
             <ChatInputAttachButton
-              ariaLabel={attach.labels?.attachFiles}
+              ariaLabel={plus.labels?.attachFiles}
               disabled={disabled}
-              onOpenFilePicker={attach.openFilePicker}
-              onOpenFolderPicker={attach.openFolderPicker}
+              onOpenFilePicker={plus.openFilePicker}
+              onOpenFolderPicker={plus.openFolderPicker}
             />
           </div>
         )}

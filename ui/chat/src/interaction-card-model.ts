@@ -46,6 +46,10 @@ export type ChatInteractionStep =
        *  answer. Meaningful only when `options` are present — a free-text-only
        *  question ignores it (the field IS the answer). */
       hideFreeText?: boolean;
+      /** The question is answered with a file: a large upload area sits above
+       *  the answer row (only when the card shares a ChatPanel's attachment
+       *  list, so the files have somewhere to go). */
+      wantsFiles?: boolean;
       /** A presentational app-identity lockup: when the question concerns an
        *  integration, the app resolves the toolkit to this brand so the modal's
        *  title shows the app's logo + name (like the connect card) and the

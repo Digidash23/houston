@@ -3,6 +3,14 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
+## v135 - 2026-10-16
+
+A question that asks for a file says so. When the agent needs an image or a
+document, the card leads with a large upload area: a rounded box with a "+"
+and "Upload your files" that opens the file picker and takes dropped files.
+The attached files show right below it, and the text field under it ("Or type
+your answer...") and Skip stay for an answer without a file.
+
 ## v134 - 2026-10-16
 
 A question card can carry files. When the agent asks for an image or a

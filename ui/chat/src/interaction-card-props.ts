@@ -79,6 +79,12 @@ export interface ChatInteractionCardLabels {
   /** The answer recorded for a free-text question sent with files and no
    *  typed words ("See attached"). */
   attachedAnswer?: string;
+  /** The upload area's label on a question answered with a file
+   *  ("Upload your files"). */
+  uploadFiles?: string;
+  /** The answer field's placeholder under that upload area
+   *  ("Or type your answer..."). */
+  filePlaceholder?: string;
   /** The soft "Recommended" chip beside a marked option's label. */
   recommended?: string;
   /** Pager progress copy, e.g. "1 of 3" (shown for a multi-step sequence). */

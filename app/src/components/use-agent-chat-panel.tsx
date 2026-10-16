@@ -1560,6 +1560,8 @@ export function useAgentChatPanel({
       expand: t("chat:interaction.expand"),
       recommended: t("chat:interaction.recommended"),
       attachedAnswer: t("chat:questionCard.attachedAnswer"),
+      uploadFiles: t("chat:questionCard.uploadFiles"),
+      filePlaceholder: t("chat:questionCard.filePlaceholder"),
       progress: (current: number, total: number) =>
         t("chat:questionCard.progress", { current, total }),
     }),

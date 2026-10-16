@@ -1,11 +1,8 @@
-import { TooManyAttachmentFilesError } from "@houston-ai/core";
 import { useCallback } from "react";
 import type { ChatPanelProps } from "./chat-panel-types";
 import type { MessageMention } from "./types";
-import {
-  DEFAULT_TOO_MANY_FILES_NOTICE,
-  useAttachmentIntake,
-} from "./use-attachment-intake";
+import { useAttachmentIntake } from "./use-attachment-intake";
+import { useDropErrorNotice } from "./use-drop-error-notice";
 import { useFileDropZone } from "./use-file-drop-zone";
 import { useSessionFiles } from "./use-session-files";
 
@@ -51,22 +48,7 @@ export function useChatPanelAttachments({
     duplicateNotice: composerLabels?.fileAlreadyInChat,
     tooManyNotice: composerLabels?.tooManyFiles,
   });
-  const tooManyFilesNotice = composerLabels?.tooManyFiles;
-  const folderReadFailedNotice = composerLabels?.folderReadFailed;
-  const onDropError = useCallback(
-    (error: unknown) => {
-      // No notice channel → rethrow: the failure surfaces as an unhandled
-      // rejection (Sentry) instead of being silently swallowed.
-      if (!onNotice) throw error;
-      onNotice(
-        error instanceof TooManyAttachmentFilesError
-          ? (tooManyFilesNotice ?? DEFAULT_TOO_MANY_FILES_NOTICE)
-          : (folderReadFailedNotice ??
-              "Couldn't read the dropped folder. Try the attach button instead."),
-      );
-    },
-    [onNotice, tooManyFilesNotice, folderReadFailedNotice],
-  );
+  const onDropError = useDropErrorNotice(onNotice, composerLabels);
   const { isDraggingOver, dropProps } = useFileDropZone(
     addDroppedFiles,
     onDropError,

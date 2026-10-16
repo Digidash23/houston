@@ -67,7 +67,9 @@
     "forward": "Forward",
     "dismiss": "Dismiss",
     "progress": "{{current}} of {{total}}",
-    "attachedAnswer": "See attached"
+    "attachedAnswer": "See attached",
+    "uploadFiles": "Upload your files",
+    "filePlaceholder": "Or type your answer..."
   },
   "interaction": {
     "providerReason": "Connect {{name}} so I can continue. Your credentials stay out of the conversation.",

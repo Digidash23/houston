@@ -67,7 +67,9 @@
     "forward": "Avançar",
     "dismiss": "Descartar",
     "progress": "{{current}} de {{total}}",
-    "attachedAnswer": "Veja o anexo"
+    "attachedAnswer": "Veja o anexo",
+    "uploadFiles": "Envie seus arquivos",
+    "filePlaceholder": "Ou digite sua resposta..."
   },
   "interaction": {
     "providerReason": "Conecte {{name}} para eu continuar. Suas credenciais ficam fora da conversa.",
