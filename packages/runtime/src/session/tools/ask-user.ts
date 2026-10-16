@@ -60,7 +60,7 @@ const AskUserParams = Type.Object({
       wantsFiles: Type.Optional(
         Type.Boolean({
           description:
-            "Set true when the answer is a file, image or document from the user. The card then shows a large upload area above the answer field, and the files arrive with the answer. Never offer 'attach a file' as an option instead: an option can't carry the file.",
+            "Set true when the answer is a file, image or document from the user. The card then shows a large upload area above the answer field, and the files arrive with the answer. Ask for every file you need in ONE wantsFiles question, never one question per file. Never offer 'attach a file' as an option instead: an option can't carry the file.",
         }),
       ),
     }),
