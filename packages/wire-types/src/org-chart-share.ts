@@ -8,9 +8,10 @@ import { z } from "zod";
  * drawn around it, exactly {@link ORG_CHART_SHARE_PREVIEW_SIZE}, at most
  * {@link ORG_CHART_SHARE_PREVIEW_MAX_BYTES})
  * and `title` (1 to {@link ORG_CHART_SHARE_TITLE_MAX} code points, trimmed,
- * with no control, format or default-ignorable code point but the
- * zero-width joiner, an emoji presentation selector after a visible
- * character, and the three standard subdivision flags) and answers
+ * with no control, format or default-ignorable code point but a zero-width
+ * joiner or non-joiner between drawn characters, an emoji presentation
+ * selector after a drawn character, and the three standard subdivision
+ * flags; the SDK's `isAcceptedOrgChartShareTitle` is the exact rule) and answers
  * 201 with {@link OrgChartSharePublished}: the public page a LinkedIn post
  * links to, whose preview image is the card (the chart itself when no card
  * came). The reads are public and only the Agent Store site and link-preview

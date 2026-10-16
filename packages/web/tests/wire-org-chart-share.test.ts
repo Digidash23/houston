@@ -150,6 +150,26 @@ describe("publishOrgChartShare", () => {
     ]);
   });
 
+  test("posts once more under the fallback title when the gateway refuses the title", async () => {
+    const answers = [
+      json(400, { error: "invalid_title" }),
+      json(201, PUBLISHED),
+    ];
+    stubShare(() => answers.shift() ?? json(500, {}));
+
+    await expect(
+      client().publishOrgChartShare({
+        image: png(),
+        title: "Acme",
+        deployment: GATEWAY,
+      }),
+    ).resolves.toEqual({ kind: "published", ...PUBLISHED, titleRefused: true });
+    expect(calls.map((c) => (c.form as FormData).get("title"))).toEqual([
+      "Acme",
+      "Our AI team",
+    ]);
+  });
+
   test("answers the gateway's 503 as unavailable, typed", async () => {
     stubShare(() => json(503, { error: "not_configured" }));
 

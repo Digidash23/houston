@@ -205,6 +205,26 @@ describe("the share dialog's publish", () => {
     deepStrictEqual(h.reports, ["org_chart_share_card"]);
   });
 
+  it("reports the card and the title it got past once each, on a page or a refusal", async () => {
+    const published = harness(async () => ({
+      ...PUBLISHED,
+      titleRefused: true,
+    }));
+    published.publisher.start(job(png()));
+    await settle();
+    strictEqual(published.last().status, "ready");
+    deepStrictEqual(published.reports, ["org_chart_share_publish"]);
+    const limited = harness(async () => ({
+      kind: "refused",
+      code: "rate_limited",
+      previewRefused: "invalid_preview_size",
+    }));
+    limited.publisher.start(job(png()));
+    await settle();
+    strictEqual(limited.last().status, "failed");
+    deepStrictEqual(limited.reports, ["org_chart_share_card"]);
+  });
+
   it("publishes the chart without its card when the card cannot be drawn", async () => {
     const h = harness(async () => PUBLISHED);
     h.publisher.start(

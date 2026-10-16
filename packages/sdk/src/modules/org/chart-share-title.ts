@@ -1,88 +1,85 @@
 import { ORG_CHART_SHARE_TITLE_MAX } from "@houston/wire-types";
+import {
+  BLACK_FLAG,
+  flagTagsLength,
+  isAcceptedOrgChartShareTitle,
+  isJoiner,
+  isRefusedPoint,
+  isStyleSelector,
+  joinerFits,
+  selectorFits,
+  trimTitleSpace,
+} from "./chart-share-title-rule";
+
+export { isAcceptedOrgChartShareTitle } from "./chart-share-title-rule";
 
 /**
- * The org chart share's title as the gateway takes it. The gateway refuses a
- * title rather than cleaning it, so the client strips everything it would
- * refuse: control (Cc), format (Cf) and default-ignorable code points
- * (bidi overrides, zero-width spaces, variation selectors, tag characters).
- * Three spellings of emoji survive, because emoji need them:
- *  - the zero-width joiner, the glue of a family or a profession emoji;
- *  - U+FE0E / U+FE0F (text or emoji presentation, as in "❤️") right after a
- *    visible character, once;
- *  - the three standard subdivision flags (England, Scotland, Wales) whole:
- *    U+1F3F4, the tag letters, U+E007F.
- */
-
-/**
- * The page's title when the given one has nothing printable left. Plain
- * English like the page that shows it (the Agent Store site is English-only).
+ * The page's title when the given one has nothing the gateway takes left.
+ * Plain English like the page that shows it (the Agent Store site is
+ * English-only).
  */
 export const ORG_CHART_SHARE_FALLBACK_TITLE = "Our AI team";
 
-const ZWJ = "‍";
-const PRESENTATION = /^[︎️]$/u;
-const REFUSED = /^[\p{Cc}\p{Cf}\p{Default_Ignorable_Code_Point}]$/u;
-const SPACE = /^\s$/u;
-/** England, Scotland, Wales: U+1F3F4, tag letters gbeng / gbsct / gbwls, CANCEL TAG. */
-const STANDARD_FLAG =
-  /\u{1F3F4}\u{E0067}\u{E0062}(?:\u{E0065}\u{E006E}\u{E0067}|\u{E0073}\u{E0063}\u{E0074}|\u{E0077}\u{E006C}\u{E0073})\u{E007F}/uy;
-
-/** The title split into code points, with a standard flag as one unit. */
-function units(title: string): string[] {
-  const out: string[] = [];
-  let i = 0;
-  while (i < title.length) {
-    STANDARD_FLAG.lastIndex = i;
-    const flag = STANDARD_FLAG.exec(title);
-    const unit = flag?.[0] ?? String.fromCodePoint(title.codePointAt(i) ?? 0);
-    out.push(unit);
-    i += unit.length;
+/**
+ * The title split into units: one code point, or a whole standard
+ * subdivision flag. A lone surrogate is read as U+FFFD, which is what the
+ * upload's UTF-8 encoding sends for it.
+ */
+function units(title: string): number[][] {
+  const points = Array.from(
+    title.replace(/\p{Cs}/gu, "�"),
+    (c) => c.codePointAt(0) ?? 0,
+  );
+  const out: number[][] = [];
+  for (let i = 0; i < points.length; ) {
+    const point = points[i] ?? 0;
+    const length =
+      1 + (point === BLACK_FLAG ? flagTagsLength(points, i + 1) : 0);
+    out.push(points.slice(i, i + length));
+    i += length;
   }
   return out;
 }
 
-/** The units the gateway keeps, in order. */
-function kept(title: string): string[] {
-  const out: string[] = [];
-  let afterVisible = false;
-  for (const unit of units(title)) {
-    if (unit === ZWJ) {
-      out.push(unit);
-      afterVisible = false;
-    } else if (PRESENTATION.test(unit)) {
-      if (afterVisible) out.push(unit);
-      afterVisible = false;
-    } else if (!REFUSED.test(unit)) {
-      // A refused code point is dropped without ending the visible run
-      // before it: what the gateway judges is the title as sent.
-      out.push(unit);
-      afterVisible = !SPACE.test(unit);
-    }
-  }
-  return out;
-}
-
-const isSpace = (unit: string | undefined) =>
-  unit !== undefined && SPACE.test(unit);
+const isSpaceUnit = (unit: number[] | undefined) =>
+  unit?.length === 1 && trimTitleSpace(String.fromCodePoint(...unit)) === "";
 
 /**
- * The title as the gateway takes it (see above), trimmed, and cut at
- * {@link ORG_CHART_SHARE_TITLE_MAX} code points so a cut never splits an
- * emoji or a flag. A title with nothing visible left becomes
+ * The title as the gateway takes it (`chart-share-title-rule.ts`): the code
+ * points it refuses everywhere stripped, trimmed, cut at
+ * {@link ORG_CHART_SHARE_TITLE_MAX} code points without splitting a flag,
+ * then each joiner and style selector kept only where its neighbours, as
+ * kept, still allow it (a cut or a strip can leave one dangling). A title
+ * the gateway would still refuse, or one with nothing left, becomes
  * {@link ORG_CHART_SHARE_FALLBACK_TITLE}.
  */
 export function orgChartShareTitle(title: string): string {
-  const all = kept(title);
-  while (isSpace(all[0])) all.shift();
-  const cut: string[] = [];
-  let points = 0;
-  for (const unit of all) {
-    const size = Array.from(unit).length;
-    if (points + size > ORG_CHART_SHARE_TITLE_MAX) break;
+  const kept = units(title).filter(
+    ([point = 0, ...tags]) =>
+      tags.length > 0 ||
+      isJoiner(point) ||
+      isStyleSelector(point) ||
+      !isRefusedPoint(point),
+  );
+  while (isSpaceUnit(kept[0])) kept.shift();
+  const cut: number[][] = [];
+  let length = 0;
+  for (const unit of kept) {
+    if (length + unit.length > ORG_CHART_SHARE_TITLE_MAX) break;
     cut.push(unit);
-    points += size;
+    length += unit.length;
   }
-  while (isSpace(cut.at(-1))) cut.pop();
-  const text = cut.join("");
-  return /[^\s‍]/u.test(text) ? text : ORG_CHART_SHARE_FALLBACK_TITLE;
+  const out: number[] = [];
+  cut.forEach(([point = 0, ...tags], i) => {
+    const prev = out.at(-1);
+    if (isStyleSelector(point) && !selectorFits(prev, point)) return;
+    if (isJoiner(point) && !joinerFits(prev, point, cut[i + 1]?.[0])) return;
+    out.push(point, ...tags);
+  });
+  // A joiner keeps only a drawn character or a virama after it, which this
+  // pass never drops, so checking against the next unit as cut is enough.
+  const text = trimTitleSpace(String.fromCodePoint(...out));
+  return isAcceptedOrgChartShareTitle(text)
+    ? text
+    : ORG_CHART_SHARE_FALLBACK_TITLE;
 }

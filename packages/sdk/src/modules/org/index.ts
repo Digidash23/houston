@@ -102,8 +102,11 @@ export interface OrgModule {
   /**
    * Publish the org chart picture (and its link card) as a public page;
    * refusals are typed. A card the gateway refuses (or would, by size) is
-   * dropped and the page goes up without it (`previewRefused`). An abort
-   * through `input.signal` rejects with the signal's reason.
+   * dropped and the page goes up without it (`previewRefused`); a title it
+   * refuses is replaced by `ORG_CHART_SHARE_FALLBACK_TITLE`
+   * (`titleRefused`). Both ride on a refusal too, when a retry was refused
+   * for another reason. An abort through `input.signal` rejects with the
+   * signal's reason.
    */
   publishOrgChartShare(input: OrgChartShareInput): Promise<OrgChartShareResult>;
 }

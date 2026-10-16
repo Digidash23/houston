@@ -78,10 +78,27 @@ function drawCard(
 }
 
 /**
+ * What the publish got past (a card or a title the gateway refused), each
+ * reported once whatever the answer: the client drew or wrote it wrong.
+ */
+function reportDetours(deps: SharePublishDeps, result: OrgChartShareResult) {
+  if (result.previewRefused)
+    deps.report(
+      "org_chart_share_card",
+      new Error(`link card refused: ${result.previewRefused}`),
+    );
+  if (result.titleRefused)
+    deps.report(
+      "org_chart_share_publish",
+      new Error("org chart share title refused: invalid_title"),
+    );
+}
+
+/**
  * The page's address, or null to share without it. Never rejects. Only a
  * refusal nothing outside Houston explains, or a failure, is reported, and
- * a card the gateway refused (the page went up without it) is reported
- * once; an aborted publish says nothing.
+ * a card or title the gateway refused on the way is reported once; an
+ * aborted publish says nothing.
  */
 export async function publishPage(
   deps: SharePublishDeps,
@@ -98,14 +115,8 @@ export async function publishPage(
       deployment: job.deployment,
       signal,
     });
-    if (result.kind === "published") {
-      if (result.previewRefused)
-        deps.report(
-          "org_chart_share_card",
-          new Error(`link card refused: ${result.previewRefused}`),
-        );
-      return result.pageUrl;
-    }
+    reportDetours(deps, result);
+    if (result.kind === "published") return result.pageUrl;
     if (!isExpectedOrgChartShareRefusal(result.code))
       deps.report(
         "org_chart_share_publish",

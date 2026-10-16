@@ -24,31 +24,47 @@ import { type HttpScope, httpRequest, SdkHttpError } from "../http";
 import { orgChartShareTitle } from "./chart-share-title";
 
 export {
+  isAcceptedOrgChartShareTitle,
   ORG_CHART_SHARE_FALLBACK_TITLE,
   orgChartShareTitle,
 } from "./chart-share-title";
 
-export type OrgChartShareResult =
-  | {
-      kind: "published";
-      id: string;
-      pageUrl: string;
-      imageUrl: string;
-      /** Absent when no preview card went up (or the gateway kept none). */
-      previewUrl?: string;
-      /**
-       * The card was refused (by the gateway, or before sending it for being
-       * over its cap) and the page went up without it, previewing the square
-       * chart. Always a card the client drew wrong, so worth reporting.
-       */
-      previewRefused?: OrgChartShareRefusalCode;
-    }
-  | {
-      kind: "refused";
-      code: OrgChartShareRefusalCode;
-      /** The 429's `Retry-After`, when it carried a readable one. */
-      retryAfterMs?: number;
-    };
+/**
+ * What a publish got past on the way to its answer, carried on either kind
+ * of answer (a retry refused for its own reason must not hide the first
+ * refusal). Each is something this client drew or wrote wrong, so each is
+ * worth reporting once. Absent when the answer's own refusal is the same.
+ */
+export interface OrgChartShareDetours {
+  /**
+   * The card was refused (by the gateway, or before sending it for being
+   * over its cap) and the publish went on without it.
+   */
+  previewRefused?: OrgChartShareRefusalCode;
+  /**
+   * The gateway refused the cleaned title (`invalid_title`) and the publish
+   * went on under `ORG_CHART_SHARE_FALLBACK_TITLE`.
+   */
+  titleRefused?: true;
+}
+
+export type OrgChartShareResult = OrgChartShareDetours &
+  (
+    | {
+        kind: "published";
+        id: string;
+        pageUrl: string;
+        imageUrl: string;
+        /** Absent when no preview card went up (or the gateway kept none). */
+        previewUrl?: string;
+      }
+    | {
+        kind: "refused";
+        code: OrgChartShareRefusalCode;
+        /** The 429's `Retry-After`, when it carried a readable one. */
+        retryAfterMs?: number;
+      }
+  );
 
 /** What `publishOrgChartShare` takes. */
 export interface OrgChartShareInput {
@@ -75,7 +91,8 @@ export interface OrgChartShareInput {
 
 /**
  * The upload `publishOrgChartShare` sends for the facade's input with
- * `preview` as its card (none when absent), or the refusal it earns before
+ * `preview` as its card (none when absent) under `title` (the input's,
+ * cleaned, unless a retry says otherwise), or the refusal it earns before
  * any request: a deployment that keeps no shared pictures, or a picture over
  * the gateway's cap. The card's own cap is the caller's to check
  * (`fitsPreviewCap`): an oversized card is dropped, never a refusal.
@@ -83,6 +100,7 @@ export interface OrgChartShareInput {
 export function orgChartShareUpload(
   input: OrgChartShareInput,
   preview: Blob | undefined,
+  title = orgChartShareTitle(input.title),
 ): FormData | Extract<OrgChartShareResult, { kind: "refused" }> {
   if (input.deployment && input.deployment.spaces !== true)
     return { kind: "refused", code: "unavailable" };
@@ -99,7 +117,7 @@ export function orgChartShareUpload(
         ? "org-chart-preview.jpg"
         : "org-chart-preview.png",
     );
-  upload.append("title", orgChartShareTitle(input.title));
+  upload.append("title", title);
   return upload;
 }
 
@@ -130,8 +148,9 @@ export function mayBePreviewRefusal(code: OrgChartShareRefusalCode): boolean {
  * preview. A deployment that keeps no shared pictures, a 429, a lapsed
  * session, a device with no connection, an upload that outlasts its deadline
  * and a picture the gateway will not take all answer `refused` with their
- * code, never a throw. A title with nothing printable left is published under
- * a plain fallback rather than refused.
+ * code, never a throw. The title is cleaned to what the gateway takes, and
+ * one with nothing left (or one the gateway still refuses, on a retry) is
+ * published under a plain fallback rather than refused.
  * @param upload The facade's input as multipart, built by
  *   `orgChartShareUpload`: `file` (the PNG the share dialog drew, at most
  *   6 MiB), `preview` (the 1200 x 630 card drawn around it, at most 2 MiB,

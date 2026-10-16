@@ -1,5 +1,5 @@
 import { isTauri } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { analytics } from "../../lib/analytics";
 import { logAndReportError } from "../../lib/error-report";
@@ -19,13 +19,13 @@ import {
   usesShareSheet,
 } from "./org-chart-share-run";
 import {
+  createLinkedInGate,
   INITIAL_SHARE_DIALOG,
   replacesShownImage,
   shareDialogReducer,
 } from "./org-chart-share-state";
 import { shareCounts, trackShare as track } from "./org-chart-share-track";
 import type { OrgTree } from "./org-chart-tree";
-import { createSingleFlight } from "./single-flight";
 import { useShareCardImage } from "./use-share-card-image";
 import { useSharePublish } from "./use-share-publish";
 
@@ -37,15 +37,16 @@ const COPIED_MS = 2000;
  * (`useShareCardImage`) and the chart's page, published in two explicit
  * steps (`org-chart-share-publish.ts`): the first click on Share on LinkedIn
  * publishes, the next one opens LinkedIn. Opening LinkedIn does all its work
- * inside the click and is single-flight (a double click would open LinkedIn
- * twice); the phone's share sheet is left ungated, since a sheet that never
- * settles would kill the button and a second tap is already quiet.
+ * inside the click and is gated (`createLinkedInGate`: a double click would
+ * open LinkedIn twice); the phone's share sheet is left ungated, since a
+ * sheet that never settles would kill the button and a second tap is
+ * already quiet.
  * Unexpected failures report and show nothing.
  */
 export function useOrgChartShare(tree: OrgTree, phone: boolean) {
   const { t } = useTranslation("teams");
   const { current, preview, file, retry } = useShareCardImage(tree);
-  const flight = useRef(createSingleFlight());
+  const [gate] = useState(() => createLinkedInGate(Date.now));
   const [state, dispatch] = useReducer(
     shareDialogReducer,
     INITIAL_SHARE_DIALOG,
@@ -138,7 +139,7 @@ export function useOrgChartShare(tree: OrgTree, phone: boolean) {
           .then((outcome) => land(outcome, started))
           .catch(fail);
       if (usesShareSheet(deps)) void start();
-      else flight.current(start);
+      else gate(start);
     } catch (error) {
       fail(error);
     }

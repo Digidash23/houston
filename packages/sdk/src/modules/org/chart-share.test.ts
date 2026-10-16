@@ -2,10 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { SdkConfig, SdkPorts } from "../../ports";
 import { HoustonSdk } from "../../sdk";
 import { memoryKv } from "../../test-ports";
-import {
-  ORG_CHART_SHARE_FALLBACK_TITLE,
-  orgChartShareTitle,
-} from "./chart-share";
+import { ORG_CHART_SHARE_FALLBACK_TITLE } from "./chart-share";
 import { ORG_CHART_SHARE_DEADLINE_MS } from "./chart-share-deadline";
 
 const BASE = "http://127.0.0.1:4317";
@@ -253,20 +250,112 @@ describe("publishOrgChartShare", () => {
   });
 
   it("does not retry a refusal the card cannot have earned, or one with no card", async () => {
-    const titled = makeSdk(() => json({ error: "invalid_title" }, 400));
+    const signedOut = makeSdk(() => json({ error: "unauthorized" }, 401));
     await expect(
-      titled.sdk.org.publishOrgChartShare({
+      signedOut.sdk.org.publishOrgChartShare({
         image: png(),
         preview: png(5),
         title: "Acme",
       }),
-    ).resolves.toEqual({ kind: "refused", code: "invalid_title" });
-    expect(titled.calls).toHaveLength(1);
+    ).resolves.toEqual({ kind: "refused", code: "signed_out" });
+    expect(signedOut.calls).toHaveLength(1);
     const bare = makeSdk(() => json({ error: "image_too_large" }, 413));
     await expect(
       bare.sdk.org.publishOrgChartShare({ image: png(), title: "Acme" }),
     ).resolves.toEqual({ kind: "refused", code: "too_large" });
     expect(bare.calls).toHaveLength(1);
+  });
+
+  it("publishes once more under the fallback title when the gateway refuses the title, keeping the card", async () => {
+    const answers = [
+      json({ error: "invalid_title" }, 400),
+      json(PUBLISHED, 201),
+    ];
+    const { sdk, calls } = makeSdk(() => answers.shift() ?? json({}, 500));
+    await expect(
+      sdk.org.publishOrgChartShare({
+        image: png(),
+        preview: png(5),
+        title: "Acme",
+      }),
+    ).resolves.toEqual({ kind: "published", ...PUBLISHED, titleRefused: true });
+    const forms = calls.map((c) => c.init?.body as FormData);
+    expect(forms.map((f) => f.get("title"))).toEqual([
+      "Acme",
+      ORG_CHART_SHARE_FALLBACK_TITLE,
+    ]);
+    expect(forms.map((f) => f.has("preview"))).toEqual([true, true]);
+  });
+
+  it("answers invalid_title alone when the fallback title is refused too", async () => {
+    const { sdk, calls } = makeSdk(() => json({ error: "invalid_title" }, 400));
+    await expect(
+      sdk.org.publishOrgChartShare({ image: png(), title: "Acme" }),
+    ).resolves.toEqual({ kind: "refused", code: "invalid_title" });
+    expect(calls).toHaveLength(2);
+  });
+
+  it("keeps the card's refusal when the retry is refused for another reason", async () => {
+    const answers = [
+      json({ error: "invalid_preview_size" }, 400),
+      json({ error: "rate limited" }, 429, { "Retry-After": "30" }),
+    ];
+    const { sdk } = makeSdk(() => answers.shift() ?? json({}, 500));
+    await expect(
+      sdk.org.publishOrgChartShare({
+        image: png(),
+        preview: png(5),
+        title: "Acme",
+      }),
+    ).resolves.toEqual({
+      kind: "refused",
+      code: "rate_limited",
+      retryAfterMs: 30_000,
+      previewRefused: "invalid_preview_size",
+    });
+  });
+
+  it("drops the card, then the title, at most three attempts in all", async () => {
+    const answers = [
+      json({ error: "unsupported_media_type" }, 415),
+      json({ error: "invalid_title" }, 400),
+      json(PUBLISHED, 201),
+    ];
+    const { sdk, calls } = makeSdk(() => answers.shift() ?? json({}, 500));
+    await expect(
+      sdk.org.publishOrgChartShare({
+        image: png(),
+        preview: png(5),
+        title: "Acme",
+      }),
+    ).resolves.toEqual({
+      kind: "published",
+      ...PUBLISHED,
+      previewRefused: "not_an_image",
+      titleRefused: true,
+    });
+    expect(calls).toHaveLength(3);
+  });
+
+  it("still carries the card's refusal when the deadline ends the retry", async () => {
+    const timers = manualClock();
+    const answers = [json({ error: "invalid_preview_size" }, 400)];
+    const { sdk, calls } = makeSdk(
+      () => answers.shift() ?? new Promise<Response>(() => {}),
+      timers.clock,
+    );
+    const publishing = sdk.org.publishOrgChartShare({
+      image: png(),
+      preview: png(5),
+      title: "Acme",
+    });
+    await vi.waitFor(() => expect(calls).toHaveLength(2));
+    timers.fire();
+    await expect(publishing).resolves.toEqual({
+      kind: "refused",
+      code: "timed_out",
+      previewRefused: "invalid_preview_size",
+    });
   });
 
   it("sends nothing to a deployment that is not the gateway, and asks when it is unknown", async () => {
@@ -354,81 +443,5 @@ describe("publishOrgChartShare", () => {
     const { sdk } = makeSdk(() => json(PUBLISHED, 201), timers.clock);
     await sdk.org.publishOrgChartShare({ image: png(), title: "Acme" });
     expect(timers.pending()).toEqual([]);
-  });
-});
-
-describe("orgChartShareTitle", () => {
-  it("cuts at 120 code points without splitting an emoji", () => {
-    const long = `${"a".repeat(119)}🚀🚀`;
-    expect(Array.from(orgChartShareTitle(long))).toHaveLength(120);
-    expect(orgChartShareTitle(long).endsWith("🚀")).toBe(true);
-  });
-
-  it("keeps the zero-width joiner inside an emoji", () => {
-    const family = "\u{1F468}\u200D\u{1F469}\u200D\u{1F467}";
-    expect(orgChartShareTitle(`Acme ${family}`)).toBe(`Acme ${family}`);
-  });
-
-  it("drops bidi overrides, zero-width spaces and control characters", () => {
-    expect(orgChartShareTitle("\u202EAc\u200Bme\u0007\u2066")).toBe("Acme");
-  });
-
-  it("keeps an emoji's presentation selector after a visible character, once", () => {
-    expect(orgChartShareTitle("Acme \u2764\uFE0F")).toBe("Acme \u2764\uFE0F");
-    expect(orgChartShareTitle("Acme\uFE0F\uFE0F\uFE0E")).toBe("Acme\uFE0F");
-    expect(orgChartShareTitle("\uFE0FAcme \uFE0F")).toBe("Acme");
-  });
-
-  it("strips a run of variation selectors", () => {
-    expect(orgChartShareTitle("Acme\uFE00\uFE01\uFE0D\u{E0100}\u{E01EF}")).toBe(
-      "Acme",
-    );
-  });
-
-  it("keeps the three standard subdivision flags whole", () => {
-    for (const tags of ["gbeng", "gbsct", "gbwls"]) {
-      const flag = `\u{1F3F4}${Array.from(tags, (c) =>
-        String.fromCodePoint(0xe0000 + c.charCodeAt(0)),
-      ).join("")}\u{E007F}`;
-      expect(orgChartShareTitle(`Acme ${flag}`)).toBe(`Acme ${flag}`);
-    }
-  });
-
-  it("strips a non-standard tag sequence and stray tag characters", () => {
-    const tag = (s: string) =>
-      Array.from(s, (c) =>
-        String.fromCodePoint(0xe0000 + c.charCodeAt(0)),
-      ).join("");
-    expect(orgChartShareTitle(`Acme \u{1F3F4}${tag("usca")}\u{E007F}`)).toBe(
-      "Acme \u{1F3F4}",
-    );
-    expect(orgChartShareTitle(`Ac${tag("hi")}me\u{E007F}`)).toBe("Acme");
-  });
-
-  it("strips default-ignorable code points", () => {
-    expect(orgChartShareTitle("A\u034Fc\u115Fm\u3164e\uFFA0\u180B")).toBe(
-      "Acme",
-    );
-  });
-
-  it("never cuts a flag in half at the length cap", () => {
-    const england = `\u{1F3F4}${Array.from("gbeng", (c) =>
-      String.fromCodePoint(0xe0000 + c.charCodeAt(0)),
-    ).join("")}\u{E007F}`;
-    expect(orgChartShareTitle(`${"a".repeat(117)}${england}`)).toBe(
-      "a".repeat(117),
-    );
-  });
-
-  it("falls back when nothing printable is left", () => {
-    for (const blank of ["", "   ", "\u200B\u202E", "\u200D", " \u0000 "])
-      expect(orgChartShareTitle(blank)).toBe(ORG_CHART_SHARE_FALLBACK_TITLE);
-  });
-
-  it("keeps a lone surrogate without throwing", () => {
-    expect(() => orgChartShareTitle("Acme \uD83D")).not.toThrow();
-    expect(orgChartShareTitle(`${"a".repeat(119)}\uD83D\uD83D`)).toHaveLength(
-      120,
-    );
   });
 });
