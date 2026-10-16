@@ -76,6 +76,32 @@ export function buildAttachmentPrompt(
   return encodeAttachmentMessage(text, attachments, prompt);
 }
 
+/** What a send carrying files puts on the wire, beside its overrides. */
+export interface AttachmentSend {
+  prompt: string;
+  /** What the queued bubble shows if the conversation is mid-turn: the
+   *  user's words and file names, never the built prompt. */
+  queuedPreview: { text: string; attachmentNames: string[] };
+}
+
+/**
+ * Save `files` through `save` and build the prompt that names them: the ONE
+ * way every send with attachments (the composer, an interaction card's
+ * answer) reaches the wire.
+ */
+export async function prepareAttachmentSend(
+  text: string,
+  files: readonly File[],
+  save: (files: File[]) => Promise<string[]>,
+  modelContext?: string,
+): Promise<AttachmentSend> {
+  const paths = await save([...files]);
+  return {
+    prompt: buildAttachmentPrompt(text, files, paths, modelContext),
+    queuedPreview: { text, attachmentNames: files.map((f) => f.name) },
+  };
+}
+
 export function attachmentReferences(
   files: readonly File[],
   paths: readonly string[],
@@ -95,7 +121,10 @@ function encodeAttachmentMessage(
     message: userText.trim(),
     files: [...files],
   };
-  const json = JSON.stringify(payload);
+  // No ">" may reach the marker: the text can itself carry a marker (an
+  // interaction card's answers sent with files), and its "-->" would close
+  // this comment early. JSON.parse reads the escape back as ">".
+  const json = JSON.stringify(payload).replace(/>/g, "\\u003e");
   return `${MARKER_PREFIX}${json}${MARKER_SUFFIX}\n\n${claudePrompt}`;
 }
 

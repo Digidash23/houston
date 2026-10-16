@@ -3,7 +3,7 @@
 Every `version` bump in `inventory.yaml` needs a matching entry here (enforced by
 `pnpm check:parity`). Newest first. Use `## vN` headings.
 
-## v134 - 2026-10-16
+## v136 - 2026-10-16
 
 The org chart posts to LinkedIn as a real picture. The share image is a 4:5
 portrait that LinkedIn shows whole, with every name and role large enough to
@@ -19,6 +19,22 @@ dialog; words too long for LinkedIn say by how much, and a rate limit says
 how many minutes to wait. Elsewhere sharing keeps the copy and paste way, and
 phones and iPads keep their share sheet. Desktop sets the picture beside the
 words.
+
+## v135 - 2026-10-16
+
+A question that asks for a file says so. When the agent needs an image or a
+document, the card leads with a large upload area: a rounded box with a "+"
+and "Upload your files" that opens the file picker and takes dropped files.
+The attached files show right below it, and the text field under it ("Or type
+your answer...") and Skip stay for an answer without a file.
+
+## v134 - 2026-10-16
+
+A question card can carry files. When the agent asks for an image or a
+document, the card's answer box has the same "+" as the chat box, the
+attached files show as chips above it (picked, pasted, or dropped anywhere on
+the chat while the card is up), and they go out with the answer, whether it
+is typed or a picked option. Files alone answer an open question.
 
 ## v133 - 2026-10-15
 

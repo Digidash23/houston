@@ -101,3 +101,16 @@ test("decodeAttachmentText returns null when there is no marker or no files", ()
     decodeAttachmentText("<!--houston:attachments {not json}-->\n\nhi"),
   ).toBeNull();
 });
+
+test("a text that carries its own marker cannot close the attachment marker", () => {
+  const answers =
+    '<!--houston:interaction-answers {"lines":[{"answer":"The fox"}]}-->\n\nPick one: The fox';
+  const built = buildAttachmentText(answers, ["uploads/fox.png"], ["fox.png"]);
+  expect(built.split("\n")[0]).toBe(
+    '<!--houston:attachments {"message":"<!--houston:interaction-answers {\\"lines\\":[{\\"answer\\":\\"The fox\\"}]}--\\u003e\\n\\nPick one: The fox","files":[{"path":"uploads/fox.png","name":"fox.png"}]}-->',
+  );
+  expect(decodeAttachmentText(built)).toEqual({
+    displayText: answers,
+    attachments: [{ name: "fox.png" }],
+  });
+});

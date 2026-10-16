@@ -61,6 +61,9 @@ export interface FileDropZoneProps {
 export interface FileDropZone {
   isDraggingOver: boolean;
   dropProps: FileDropZoneProps;
+  /** Forget a drag in progress, for a target that stops receiving drag
+   *  events before the drag ends. */
+  reset: () => void;
 }
 
 export function useFileDropZone(
@@ -72,10 +75,10 @@ export function useFileDropZone(
 ): FileDropZone {
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const dragDepthRef = useRef(0);
-  // Folder expansion is async: by the time it resolves, the attachment state
-  // may have moved on (another drop, a remove, a send). Deliver through a ref
-  // so the LATEST ingest callback runs — never a stale closure that would
-  // overwrite newer state.
+  // Folder expansion is async: by the time it resolves the panel may show
+  // another conversation. The callback current AT THE DROP is the one that
+  // runs, so the files land where they were dropped; callers read their
+  // freshest list when it runs, so it never writes back a stale one.
   const onFilesRef = useRef(onFiles);
   const onDropErrorRef = useRef(onDropError);
   useEffect(() => {
@@ -128,12 +131,13 @@ export function useFileDropZone(
       // reads), so the ingest is deferred to the resolved promise.
       const dropped = collectDroppedItems(e.dataTransfer);
       if (dropped.length === 0) return;
+      const deliver = onFilesRef.current;
+      const handler = onDropErrorRef.current;
       resolveDroppedFiles(dropped).then(
         (files) => {
-          if (files.length > 0) onFilesRef.current(files);
+          if (files.length > 0) deliver(files);
         },
         (error) => {
-          const handler = onDropErrorRef.current;
           if (!handler) throw error;
           handler(error);
         },
@@ -142,8 +146,14 @@ export function useFileDropZone(
     [hasFiles],
   );
 
+  const reset = useCallback(() => {
+    dragDepthRef.current = 0;
+    setIsDraggingOver(false);
+  }, []);
+
   return {
     isDraggingOver,
     dropProps: { onDragEnter, onDragOver, onDragLeave, onDrop },
+    reset,
   };
 }

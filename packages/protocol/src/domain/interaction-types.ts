@@ -98,6 +98,10 @@ export type InteractionStep =
       /** Lowercase toolkit slug (e.g. "gmail") when the question concerns a
        *  connected app: the card shows that app's logo. */
       toolkit?: string;
+      /** The question is answered with a file, image or document: the card
+       *  puts an upload area above its answer field. Absent = a plain question,
+       *  so an interaction persisted before the flag existed reads unchanged. */
+      wantsFiles?: boolean;
       /** Present ONLY on an approval card for a destructive Houston operation:
        *  the host-issued id of the pending request this card decides. The
        *  user's answer travels back carrying it (see `./approval`), which is

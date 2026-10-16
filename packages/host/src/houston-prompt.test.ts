@@ -222,6 +222,32 @@ test("suggest_actions is MANDATORY on every non-blocking finish, in BOTH mirrors
   expect(rs).not.toContain(norm("Skip the call only when"));
 });
 
+test("a needed file is asked for as an ask_user question with wantsFiles, in BOTH mirrors", () => {
+  const rust = readFileSync(
+    fileURLToPath(
+      new URL(
+        "../../../app/src-tauri/src/houston_prompt/base.rs",
+        import.meta.url,
+      ),
+    ),
+    "utf8",
+  );
+  const ts = norm(houstonSystemPrompt());
+  const rs = norm(rust);
+  for (const phrase of [
+    "When you need a file, image, or document from the user, ask for it with an `ask_user` question and set `wantsFiles` on it: the card shows the user an upload area, and the file arrives with their answer.",
+    "Ask for every file you need in ONE `wantsFiles` question, never one question per file.",
+    "Never offer attaching a file as an option, because an option can't carry the file itself.",
+  ]) {
+    const needle = norm(phrase);
+    expect(ts).toContain(needle);
+    expect(rs).toContain(needle);
+  }
+  // Channels like Slack and WhatsApp have no "+" button to point at.
+  expect(ts).not.toContain("+ button");
+  expect(rs).not.toContain("+ button");
+});
+
 test("blocking questions, choices, and approvals route through the ask_user tool", () => {
   const p = houstonSystemPrompt();
   expect(p).toContain("ask_user");

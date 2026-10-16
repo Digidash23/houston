@@ -25,6 +25,40 @@ export interface AttachmentIntakeOptions {
   tooManyNotice?: string;
 }
 
+/** One ingest of `incoming` into `files`, the sequence every entry point
+ *  shares. Plain so a caller can run it against a list read at call time. */
+export function ingestAttachments(
+  {
+    files,
+    setFiles,
+    prepareAttachments,
+    onAttachmentRejections,
+    onNotice,
+    duplicateNotice,
+    tooManyNotice,
+  }: AttachmentIntakeOptions,
+  incoming: File[],
+): void {
+  // A folder pick can sweep in thousands of files (the drop path already
+  // aborts its traversal at the same ceiling). Refuse the whole batch —
+  // attaching a silent subset would misrepresent what the agent gets.
+  if (incoming.length + files.length > MAX_ATTACHMENT_FILES) {
+    onNotice?.(tooManyNotice ?? DEFAULT_TOO_MANY_FILES_NOTICE);
+    return;
+  }
+  const prepared = prepareAttachments
+    ? prepareAttachments(incoming, files)
+    : { accepted: incoming, rejected: [] };
+  if (prepared.rejected.length > 0) {
+    onAttachmentRejections?.(prepared.rejected);
+  }
+  const merged = mergeUniqueFiles(files, prepared.accepted);
+  if (merged.length < files.length + prepared.accepted.length) {
+    onNotice?.(duplicateNotice ?? "File already in chat");
+  }
+  setFiles(merged);
+}
+
 export function useAttachmentIntake({
   files,
   setFiles,
@@ -35,26 +69,19 @@ export function useAttachmentIntake({
   tooManyNotice,
 }: AttachmentIntakeOptions): (incoming: File[]) => void {
   return useCallback(
-    (incoming: File[]) => {
-      // A folder pick can sweep in thousands of files (the drop path already
-      // aborts its traversal at the same ceiling). Refuse the whole batch —
-      // attaching a silent subset would misrepresent what the agent gets.
-      if (incoming.length + files.length > MAX_ATTACHMENT_FILES) {
-        onNotice?.(tooManyNotice ?? DEFAULT_TOO_MANY_FILES_NOTICE);
-        return;
-      }
-      const prepared = prepareAttachments
-        ? prepareAttachments(incoming, files)
-        : { accepted: incoming, rejected: [] };
-      if (prepared.rejected.length > 0) {
-        onAttachmentRejections?.(prepared.rejected);
-      }
-      const merged = mergeUniqueFiles(files, prepared.accepted);
-      if (merged.length < files.length + prepared.accepted.length) {
-        onNotice?.(duplicateNotice ?? "File already in chat");
-      }
-      setFiles(merged);
-    },
+    (incoming: File[]) =>
+      ingestAttachments(
+        {
+          files,
+          setFiles,
+          prepareAttachments,
+          onAttachmentRejections,
+          onNotice,
+          duplicateNotice,
+          tooManyNotice,
+        },
+        incoming,
+      ),
     [
       files,
       setFiles,

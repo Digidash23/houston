@@ -1,15 +1,18 @@
 "use client";
 
+import { QuestionAnswerRow } from "./interaction-answer-row";
 import { hasSelectableOptions } from "./interaction-card-logic";
-import {
-  BrandLogo,
-  QuestionAnswerRow,
-  QuestionStepBody,
-} from "./interaction-card-parts";
-import type { QuestionStep, StepChrome } from "./interaction-card-props";
+import { BrandLogo, QuestionStepBody } from "./interaction-card-parts";
+import type {
+  ChatInteractionCardLabels,
+  QuestionStep,
+  StepChrome,
+} from "./interaction-card-props";
 import { InteractionDetail } from "./interaction-detail";
 import { HireApprovalDetails } from "./interaction-hire-details";
 import { InteractionModal, InteractionModalTitle } from "./interaction-modal";
+import { InteractionUploadArea } from "./interaction-upload-area";
+import type { CardAttach } from "./use-card-attachments";
 
 /** The already-translated copy a question step renders, resolved by the card. */
 export interface QuestionStepCopy {
@@ -19,6 +22,26 @@ export interface QuestionStepCopy {
   send: string;
   esc: string;
   recommended: string;
+  /** The upload area's label on a question answered with a file. */
+  upload: string;
+  /** The answer field's placeholder under that upload area. */
+  filePlaceholder: string;
+}
+
+/** The card's labels resolved to a question step's copy, English defaults. */
+export function questionStepCopy(
+  labels: ChatInteractionCardLabels | undefined,
+): QuestionStepCopy {
+  return {
+    placeholder: labels?.placeholder ?? "Type your answer...",
+    escapePlaceholder: labels?.escapePlaceholder ?? "Type another option...",
+    skip: labels?.skip ?? "Skip",
+    send: labels?.send ?? "Send",
+    esc: labels?.esc ?? "Esc",
+    recommended: labels?.recommended ?? "Recommended",
+    upload: labels?.uploadFiles ?? "Upload your files",
+    filePlaceholder: labels?.filePlaceholder ?? "Or type your answer...",
+  };
 }
 
 /**
@@ -33,6 +56,9 @@ export interface QuestionStepCopy {
  * app's logo + NAME in the title, like the connect card, and moves the question
  * text into the body above the options — one asking system, branded when the app
  * resolved an identity.
+ *
+ * A question answered with a file (`wantsFiles`) puts a large upload area
+ * above its options, and its answer field becomes the "or type it" path.
  */
 export function InteractionQuestionStep({
   step,
@@ -40,6 +66,9 @@ export function InteractionQuestionStep({
   copy,
   draft,
   selectedId,
+  attach,
+  fileAnswer,
+  stepFiles,
   onOption,
   onDraftChange,
   onSend,
@@ -50,6 +79,11 @@ export function InteractionQuestionStep({
   copy: QuestionStepCopy;
   draft: string;
   selectedId: string | null;
+  attach: CardAttach | null;
+  /** The attached files alone can answer this step (see the card). */
+  fileAnswer: boolean;
+  /** The attached files that answer this step, shown under its upload area. */
+  stepFiles: readonly File[];
   onOption: (optionId: string) => void;
   onDraftChange: (value: string) => void;
   onSend: () => void;
@@ -58,12 +92,22 @@ export function InteractionQuestionStep({
   const { disabled } = chrome;
   const optionsPresent = hasSelectableOptions(step.options);
   const brand = step.brand;
+  // No panel list behind the card means nowhere to send a file, so no area.
+  const upload = step.wantsFiles === true ? attach : null;
   // The detail block sits ABOVE the options: it is what the question is about,
   // so it must be read before the answer is picked.
   const body = (
     <div className="flex flex-col gap-2.5">
       {step.hire ? <HireApprovalDetails hire={step.hire} /> : null}
       {step.detail ? <InteractionDetail detail={step.detail} /> : null}
+      {upload ? (
+        <InteractionUploadArea
+          attach={upload}
+          disabled={disabled}
+          files={stepFiles}
+          label={copy.upload}
+        />
+      ) : null}
       <QuestionStepBody
         disabled={disabled}
         onOption={onOption}
@@ -120,14 +164,26 @@ export function InteractionQuestionStep({
       }
       trailing={
         <QuestionAnswerRow
+          attach={attach}
           disabled={disabled}
           draft={draft}
-          hideFreeText={optionsPresent && step.hideFreeText === true}
+          fileAnswer={fileAnswer}
+          // Files alone can only be sent from the field's send button.
+          hideFreeText={
+            optionsPresent &&
+            step.hideFreeText === true &&
+            step.wantsFiles !== true
+          }
           onDraftChange={onDraftChange}
           onSubmit={onSend}
           placeholder={
-            optionsPresent ? copy.escapePlaceholder : copy.placeholder
+            upload
+              ? copy.filePlaceholder
+              : optionsPresent
+                ? copy.escapePlaceholder
+                : copy.placeholder
           }
+          uploadArea={upload !== null}
           sendLabel={copy.send}
           skip={{ label: copy.skip, escLabel: copy.esc, onSkip, disabled }}
         />

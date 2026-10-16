@@ -71,6 +71,10 @@ export interface ChatPanelProps {
   composerFocusToken?: number;
   /** See `ChatMessagesProps.scrollToLatestToken`. */
   scrollToLatestToken?: ChatMessagesProps["scrollToLatestToken"];
+  /** Controlled attachment list. The parent then owns clearing it: the panel
+   *  never removes sent files itself, neither after a composer send nor after
+   *  an ask_user card's accepted reply. Omitted, the panel keeps one list per
+   *  `sessionKey` and drops what each accepted send carried. */
   attachments?: File[];
   onAttachmentsChange?: (files: File[]) => void;
   onNotice?: (message: string) => void;

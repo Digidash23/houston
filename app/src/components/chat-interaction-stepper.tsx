@@ -2,6 +2,7 @@ import type { ChatInteractionAnswer } from "@houston-ai/chat";
 import { ChatInteractionCard } from "@houston-ai/chat";
 import { type ReactNode, useCallback, useMemo } from "react";
 import { approvalsFromAnswers } from "../lib/interaction-approvals";
+import { interactionCompletionKey } from "../lib/interaction-completion-key";
 import { useAgentStore } from "../stores/agents";
 import { interactionDraftKey } from "../stores/interaction-drafts";
 import {
@@ -79,15 +80,15 @@ export function ChatInteractionStepper({
     [steps, agentId, sessionKey, accountScope, outcomes],
   );
   const onComplete = useCallback(
-    (answers: ChatInteractionAnswer[]) => {
+    (answers: ChatInteractionAnswer[], files: File[]) => {
       // A connect flow that outlived this card advances the instance it was
       // started from, which can complete the sequence all over again. That
       // reply belongs to a card the user already left: it would send answers
       // they are still editing on the card in front of them. The returning
       // card's connect step self-reports an already-connected toolkit on mount,
       // so nothing is lost by dropping this.
-      if (!isLive()) return;
-      onSend(
+      if (!isLive()) return Promise.resolve(false);
+      return onSend(
         interactionReplyMessage({
           steps,
           answers,
@@ -97,6 +98,7 @@ export function ChatInteractionStepper({
         }),
         undefined,
         approvalsFromAnswers(mapped, answers),
+        files,
       );
     },
     [isLive, mapped, onSend, outcomes, steps, t],
@@ -105,6 +107,7 @@ export function ChatInteractionStepper({
   return (
     <ChatInteractionCard
       {...cards}
+      completionKey={interactionCompletionKey(agentId, sessionKey, identity)}
       labels={labels}
       onComplete={onComplete}
       onDismiss={onDismiss}

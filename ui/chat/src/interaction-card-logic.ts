@@ -10,6 +10,7 @@ import {
   normalizeAnswer,
   optionLabel,
 } from "./interaction-card-model.ts";
+import { type FileClaims, releaseClaim } from "./interaction-file-claim.ts";
 
 export type {
   ChatInteractionAnswer,
@@ -45,6 +46,8 @@ export interface StepperState {
   reached: number;
   answers: AnswerMap;
   drafts: DraftMap;
+  /** Which steps the attached files answer (`interaction-file-claim`). */
+  fileClaims?: FileClaims;
 }
 
 /** The result of a transition: the next state plus, when the last step was
@@ -139,10 +142,13 @@ export function goForward(state: StepperState): StepperState {
 /** Advance past the current step, optionally committing a question answer.
  *  Returns `completed` when the current step is the last one. */
 function advance(
-  state: StepperState,
+  from: StepperState,
   steps: ChatInteractionStep[],
   commit?: { stepId: string; answer: StepAnswer; clearDraft: boolean },
 ): Transition {
+  const state = commit
+    ? releaseClaim(from, commit.stepId, commit.answer)
+    : from;
   let answers = state.answers;
   let drafts = state.drafts;
   if (commit) {
@@ -152,6 +158,7 @@ function advance(
   const last = isLastStep(state.current, steps.length);
   const nextCurrent = last ? state.current : state.current + 1;
   const next: StepperState = {
+    ...state,
     current: nextCurrent,
     reached: Math.max(state.reached, nextCurrent),
     answers,
@@ -213,12 +220,12 @@ export function skipStep(
   steps: ChatInteractionStep[],
 ): Transition {
   const stepId = steps[state.current]?.id;
-  if (stepId === undefined || !(stepId in state.answers)) {
-    return advance(state, steps);
-  }
-  const answers = { ...state.answers };
+  if (stepId === undefined) return advance(state, steps);
+  const released = releaseClaim(state, stepId);
+  if (!(stepId in released.answers)) return advance(released, steps);
+  const answers = { ...released.answers };
   delete answers[stepId];
-  return advance({ ...state, answers }, steps);
+  return advance({ ...released, answers }, steps);
 }
 
 /** Advance past a connect step once the app reports it connected. */

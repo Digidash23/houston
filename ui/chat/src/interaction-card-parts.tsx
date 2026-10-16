@@ -1,8 +1,8 @@
 "use client";
 
-import { Button, cn, Kbd } from "@houston-ai/core";
-import { ArrowRight, ArrowUp } from "lucide-react";
-import { useRef, useState } from "react";
+import { cn } from "@houston-ai/core";
+import { ArrowRight } from "lucide-react";
+import { useState } from "react";
 import type { ChatInteractionOption } from "./interaction-card-logic";
 
 /** The app-logo lockup image for a branded question's title, sized to match the
@@ -59,66 +59,6 @@ export function QuestionStepBody({
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-/** The question's fixed answer row — the free-text escape field with the
- *  card-wide decline at its right ("type here, or skip" in one glance) —
- *  handed to the modal's `trailing` slot so it never scrolls away with a long
- *  option list. `hideFreeText` drops the field and leaves the skip button
- *  right-aligned alone. */
-export function QuestionAnswerRow({
-  disabled,
-  draft,
-  placeholder,
-  sendLabel,
-  hideFreeText = false,
-  skip,
-  onDraftChange,
-  onSubmit,
-}: {
-  disabled: boolean;
-  draft: string;
-  placeholder: string;
-  sendLabel: string;
-  hideFreeText?: boolean;
-  skip: {
-    label: string;
-    escLabel: string;
-    onSkip: () => void;
-    disabled: boolean;
-  };
-  onDraftChange: (value: string) => void;
-  onSubmit: () => void;
-}) {
-  return (
-    <div
-      className={cn("flex items-center gap-2", hideFreeText && "justify-end")}
-    >
-      {!hideFreeText && (
-        <div className="min-w-0 flex-1">
-          <FreeTextRow
-            disabled={disabled}
-            onChange={onDraftChange}
-            onSubmit={onSubmit}
-            placeholder={placeholder}
-            sendLabel={sendLabel}
-            value={draft}
-          />
-        </div>
-      )}
-      <Button
-        className="mt-1.5 gap-1.5 text-ink-muted"
-        disabled={skip.disabled}
-        onClick={skip.onSkip}
-        size="sm"
-        type="button"
-        variant="outline"
-      >
-        {skip.label}
-        <Kbd>{skip.escLabel}</Kbd>
-      </Button>
     </div>
   );
 }
@@ -196,76 +136,5 @@ export function OptionRow({
         />
       </span>
     </button>
-  );
-}
-
-/** The free-text escape row: the answer field the user types their OWN answer
- *  into. It is a MINIATURE of the real composer so nothing about it needs
- *  learning: the same 28px pill roundness, the same `border-line-input` hairline,
- *  and the same circular arrow-up send button that turns on (bg-action at
- *  full strength) the moment there is text — dimmed while empty, exactly like
- *  the chat input's send. Clicking anywhere in the field focuses the textarea;
- *  typing expands it; Enter or the arrow submits. The card-wide decline is NOT
- *  here — it lives in the modal footer, so this row is purely the input it
- *  looks like. On a free-text-only question (no options) it is the primary
- *  answer field, so it takes a neutral placeholder. */
-export function FreeTextRow({
-  value,
-  placeholder,
-  sendLabel,
-  disabled,
-  onChange,
-  onSubmit,
-}: {
-  value: string;
-  placeholder: string;
-  sendLabel: string;
-  disabled: boolean;
-  onChange: (value: string) => void;
-  onSubmit: () => void;
-}) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const hasText = value.trim().length > 0;
-  return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: focus-delegation surface — the real widget is the <textarea> inside; clicking the field's padding focuses it (mirrors the composer). role="presentation" is correct, no widget role applies.
-    <div
-      className={cn(
-        "mt-1.5 flex cursor-text items-center gap-2 rounded-[28px] border border-line-input bg-transparent py-1.5 pr-1.5 pl-4 transition-colors dark:bg-line-input/30",
-        "focus-within:border-focus",
-        disabled && "pointer-events-none opacity-50",
-      )}
-      onClick={() => textareaRef.current?.focus()}
-      role="presentation"
-    >
-      <textarea
-        className="max-h-40 min-w-0 flex-1 resize-none border-none bg-transparent py-1 text-ink text-sm leading-snug outline-none placeholder:text-ink-muted"
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            onSubmit();
-          }
-        }}
-        placeholder={placeholder}
-        ref={textareaRef}
-        rows={1}
-        value={value}
-      />
-      {/* The composer's send button, verbatim: circular arrow-up that turns on
-          with text (disabled:opacity-30 while empty, like the chat input). */}
-      <button
-        aria-label={sendLabel}
-        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-action text-action-text transition-colors hover:bg-action/90 disabled:opacity-30"
-        disabled={disabled || !hasText}
-        onClick={(e) => {
-          e.stopPropagation();
-          onSubmit();
-        }}
-        type="button"
-      >
-        <ArrowUp className="size-4" />
-      </button>
-    </div>
   );
 }
