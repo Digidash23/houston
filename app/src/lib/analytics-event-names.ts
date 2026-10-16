@@ -197,11 +197,16 @@ export type AnalyticsEventName =
   // Update lifecycle (closes the symbolication-coverage feedback loop).
   // update_offered: the check found a release; update_downloaded: it landed
   // in the updater's buffer (`source`: launch | poll, which check found it);
-  // update_accepted: the install starting (`source`: user | launch, the
-  // restart pill's click vs the silent launch-time install).
+  // update_accepted: the install starting (`source`: user | launch | return,
+  // the restart pill's click vs the two silent installs, at launch and at a
+  // return after a long absence).
   | "update_offered"
   | "update_downloaded"
   | "update_accepted"
+  // A return after a long absence did not install (update-return.ts):
+  // `reason` turn | draft held a staged release back, busy found the
+  // updater mid-step.
+  | "update_return_held"
   // The check itself keeps failing: after UPDATE_CHECK_STUCK_THRESHOLD
   // consecutive failures the client counts as stuck — it may never see an
   // update again (release feed unreachable), so it self-reports once per

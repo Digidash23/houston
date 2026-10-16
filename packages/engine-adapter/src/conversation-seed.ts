@@ -26,6 +26,12 @@ export function ownTurnHolds(agentPath: string, sessionKey: string): boolean {
   return registry.ownsTurn(streamKey(agentPath, sessionKey));
 }
 
+/** Whether a turn this client sent is still out on ANY conversation: the
+ *  desktop updater's nothing-to-lose check before it installs at a return. */
+export function ownTurnInFlight(): boolean {
+  return registry.ownsAnyTurn();
+}
+
 /** The SDK's `readPastOwnTurns` over this adapter's streams: a history read
  *  a send of this client overtook is taken again once that turn let go. */
 export function readPastOwnTurnsOn<T>(

@@ -344,4 +344,28 @@ describe("resolveEngine (HOU-642)", () => {
       { kind: "static-host", url: "https://host.example" },
     );
   });
+
+  // The Rust shell trims both flags before deciding whether to spawn the
+  // sidecar; a blank-but-set URL must resolve to the sidecar here too, or
+  // the app would wait on a host the shell never started.
+  it("reads a whitespace-only URL as unset, like the shell does", () => {
+    deepStrictEqual(
+      resolveEngine({
+        VITE_NEW_ENGINE_URL: "  ",
+        VITE_HOSTED_ENGINE_URL: "\n",
+      }),
+      { kind: "sidecar" },
+    );
+  });
+
+  it("hands out the URL without its surrounding whitespace", () => {
+    deepStrictEqual(
+      resolveEngine({ VITE_NEW_ENGINE_URL: " https://host.example\n" }),
+      { kind: "static-host", url: "https://host.example" },
+    );
+    deepStrictEqual(
+      resolveEngine({ VITE_HOSTED_ENGINE_URL: "\thttps://cloud.example " }),
+      { kind: "hosted-oauth", url: "https://cloud.example" },
+    );
+  });
 });
