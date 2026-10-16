@@ -24,7 +24,13 @@ import {
 
 const PNG = new File(["png"], "acme-org-chart.png", { type: "image/png" });
 const POST_URL = "https://www.linkedin.com/feed/update/urn:li:share:7/";
-const desktop = { tauri: false, coarse: false, sheet: undefined, image: PNG };
+const desktop = {
+  tauri: false,
+  nativeMobile: false,
+  coarse: false,
+  sheet: undefined,
+  image: PNG,
+};
 const ready = (connected: boolean): ConnectionRead => ({
   status: "ready",
   connection: connected
@@ -177,6 +183,7 @@ describe("the share dialog's primary button", () => {
   it("keeps the share sheet on phones and iPads, LinkedIn or not", () => {
     const phone = {
       tauri: false,
+      nativeMobile: false,
       coarse: true,
       sheet: { canShare: () => true, share: async () => {} },
       image: PNG,
@@ -185,6 +192,15 @@ describe("the share dialog's primary button", () => {
       deepStrictEqual(step(linkedin, opened, ready(true), phone), {
         kind: "share",
         via: "sheet",
+      });
+  });
+
+  it("copies and pastes in the iOS or Android app with no file share sheet, never connecting", () => {
+    const app = { ...desktop, nativeMobile: true, coarse: true };
+    for (const connection of [ready(false), ready(true)])
+      deepStrictEqual(step(true, opened, connection, app), {
+        kind: "share",
+        via: "paste",
       });
   });
 });

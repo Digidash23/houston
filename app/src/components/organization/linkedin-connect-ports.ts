@@ -12,8 +12,6 @@ import {
   osIsTauri,
   osStartChannelsLoopback,
 } from "../../lib/os-bridge";
-import { osIsNativeMobile } from "../../lib/os-bridge/platform";
-import { linkedInConnectSurface } from "./linkedin-connect-surface";
 
 type Translate = ReturnType<typeof useTranslation<"teams">>["t"];
 
@@ -36,18 +34,13 @@ function returnCopy(t: Translate, language: string | undefined) {
 /**
  * The effects `startLinkedInConnect` runs, bound here, built INSIDE the
  * click: the web claims LinkedIn's tab now (a browser grants it only there),
- * the desktop binds its return listener and opens the system browser, the
- * mobile app asks for its deep link (`linkedInConnectSurface`).
+ * the desktop binds its return listener and opens the system browser.
  */
 export function linkedInConnectPorts(
   t: Translate,
   language: string | undefined,
 ): LinkedInConnectPorts {
-  const surface = linkedInConnectSurface({
-    tauri: osIsTauri(),
-    nativeMobile: osIsNativeMobile(),
-  });
-  const desktop = surface === "desktop";
+  const desktop = osIsTauri();
   return {
     connect: tauriLinkedIn.connect,
     listener: desktop
@@ -57,9 +50,8 @@ export function linkedInConnectPorts(
           cancel: osCancelChannelsLoopback,
         }
       : null,
-    appReturn: surface === "mobileApp",
     newState: generateState,
-    tab: surface === "web" ? reserveBrowserTab() : null,
+    tab: desktop ? null : reserveBrowserTab(),
     open: (url) => openExternalUrl(url, { command: "linkedin_connect" }),
     report: logAndReportError,
   };

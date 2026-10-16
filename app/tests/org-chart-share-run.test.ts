@@ -18,6 +18,7 @@ const sheet = (
 describe("shareRoute", () => {
   const env = {
     tauri: false,
+    nativeMobile: false,
     coarse: true,
     sheet: sheet(),
     image: PNG,
@@ -38,6 +39,19 @@ describe("shareRoute", () => {
       { tauri: true },
     ])
       strictEqual(shareRoute({ ...env, ...overrides }).kind, "post");
+  });
+
+  it("never posts from the iOS or Android app: its sheet, or copy and paste", () => {
+    strictEqual(shareRoute({ ...env, nativeMobile: true }).kind, "sheet");
+    for (const overrides of [
+      { sheet: undefined },
+      { sheet: sheet(async () => {}, false) },
+      { coarse: false },
+    ])
+      strictEqual(
+        shareRoute({ ...env, nativeMobile: true, ...overrides }).kind,
+        "paste",
+      );
   });
 
   it("copies and pastes where the deployment cannot post", () => {

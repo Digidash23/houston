@@ -19,11 +19,6 @@ const nativeBaselines = [
     min_native_build: 101,
     sha256: "1deda835f890e7ace319f726646be7d8b0330d6650f59e680dc3f20fb1eb5006",
   },
-  {
-    // The houston:// scheme a LinkedIn connect returns through.
-    min_native_build: 201,
-    sha256: "a2ba1ab07467e733e6e53499e4010c374435003d36ec1af91d3826a10f2a79c2",
-  },
 ] as const;
 
 test("a native fingerprint change moves the OTA floor past every older build", () => {

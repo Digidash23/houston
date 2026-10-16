@@ -14,8 +14,7 @@ import { useCapabilities } from "./use-capabilities";
 /**
  * Redeem a LinkedIn connect's return wherever the app is when it lands: the
  * tab the web click claimed (which then says it can be closed), the desktop
- * app the loopback or deep link focused, or the mobile app its deep link
- * opened. The connection goes into the cache the share dialog reads, so its
+ * app the loopback or deep link focused. The connection goes into the cache the share dialog reads, so its
  * button turns to Post at once; an answer that comes back after sign-out, or
  * to another account, is dropped (`redeemLinkedIn`).
  */

@@ -78,12 +78,6 @@
 			<key>CFBundleURLSchemes</key>
 			<array><string>com.googleusercontent.apps.1056698080170-mi2ubklt638ls8v02qgd6ia0bftjrj47</string></array>
 		</dict>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>ai.gethouston.app.houston</string>
-			<key>CFBundleURLSchemes</key>
-			<array><string>houston</string></array>
-		</dict>
 	</array>
 </dict>
 </plist>

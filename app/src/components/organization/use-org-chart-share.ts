@@ -5,6 +5,7 @@ import { useCapabilities } from "../../hooks/use-capabilities";
 import { analytics } from "../../lib/analytics";
 import { logAndReportError } from "../../lib/error-report";
 import { openExternalUrl } from "../../lib/open-external-url";
+import { osIsNativeMobile } from "../../lib/os-bridge/platform";
 import {
   canCopyImage,
   coarsePointer,
@@ -84,6 +85,7 @@ export function useOrgChartShare(tree: OrgTree) {
 
   const route = shareRoute({
     tauri: isTauri(),
+    nativeMobile: osIsNativeMobile(),
     coarse: coarsePointer(),
     sheet: shareSheet(),
     image: file,

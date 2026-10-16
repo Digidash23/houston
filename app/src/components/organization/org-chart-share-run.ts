@@ -21,7 +21,9 @@ export interface ShareSheet {
  *   alike. The sheet carries the picture and the post; the LinkedIn app
  *   reads both.
  * - `post`: the deployment can post for the person (`linkedinShare`):
- *   Houston posts the picture itself, once their LinkedIn is connected.
+ *   Houston posts the picture itself, once their LinkedIn is connected. Never
+ *   in the iOS or Android app: its connect would need a `houston://` return,
+ *   a native change that strands installs on old OTA bundles.
  * - `paste`: everywhere else. LinkedIn's composer opens with the post, and
  *   the picture goes on the clipboard to paste, or is saved to add.
  */
@@ -33,6 +35,8 @@ export type ShareRoute =
 /** A capability check, never platform sniffing. */
 export function shareRoute(env: {
   tauri: boolean;
+  /** The iOS or Android app (`osIsNativeMobile`). */
+  nativeMobile: boolean;
   /** `matchMedia("(pointer: coarse)")`: the primary pointer is a finger. */
   coarse: boolean;
   sheet: ShareSheet | undefined;
@@ -49,7 +53,9 @@ export function shareRoute(env: {
     (!image || sheet.canShare({ files: [image] }))
   )
     return { kind: "sheet", sheet };
-  return env.linkedin ? { kind: "post" } : { kind: "paste" };
+  return env.linkedin && !env.nativeMobile
+    ? { kind: "post" }
+    : { kind: "paste" };
 }
 
 /**
