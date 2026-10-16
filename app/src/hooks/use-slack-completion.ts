@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { SlackCompletion } from "../lib/settings-landing";
 import { takeSlackCompletion } from "../lib/slack-completion";
 import { useUIStore } from "../stores/ui";
@@ -18,14 +18,13 @@ import { useUIStore } from "../stores/ui";
 export function useSlackCompletion(
   redeem: (ticket: string) => void,
 ): SlackCompletion | null {
-  const taken = useRef(false);
   const queued = useUIStore((s) => s.pendingSlackCompletion);
   const clear = useUIStore((s) => s.setPendingSlackCompletion);
   const [completion, setCompletion] = useState<SlackCompletion | null>(null);
   useEffect(() => {
+    if (!queued) return;
     const pending = takeSlackCompletion(
-      taken,
-      () => queued,
+      () => useUIStore.getState().pendingSlackCompletion,
       () => clear(null),
     );
     if (!pending) return;

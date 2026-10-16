@@ -382,9 +382,10 @@ pub async fn auth_remove_item(key: String) -> Result<(), String> {
 
 /// Forward a deep-link URL to the frontend on the `auth://deep-link` channel.
 /// Called by the tauri-plugin-deep-link handler installed in `lib.rs` for the
-/// two shapes it accepts: the OAuth callback, whose `code` (PKCE) or
+/// shapes it accepts: the OAuth callback, whose `code` (PKCE) or
 /// `access_token` + `refresh_token` (implicit) the identity layer installs,
-/// and the Billing settings link, which the settings landing opens.
+/// and the Billing and Channels settings links, which the settings landing
+/// opens.
 pub fn emit_deep_link(handle: &AppHandle, url: &str) {
     if let Err(e) = handle.emit("auth://deep-link", url) {
         tracing::error!("[auth] failed to emit deep-link event: {e}");
@@ -393,7 +394,8 @@ pub fn emit_deep_link(handle: &AppHandle, url: &str) {
 
 /// True iff a real OS deep link is the OAuth-callback shape the identity layer
 /// consumes (`houston://auth-callback?...`) — the Apple bridge's return path.
-/// This and [`is_plan_settings_deep_link`] are the only links forwarded;
+/// This, [`is_plan_settings_deep_link`] and [`is_channels_settings_deep_link`]
+/// are the only links forwarded;
 /// everything else (`houston://open`, unknown paths) stays a focus affordance
 /// only, so an arbitrary link can never inject noise onto the deep-link channel.
 pub fn is_auth_callback_deep_link(url: &str) -> bool {
@@ -401,10 +403,17 @@ pub fn is_auth_callback_deep_link(url: &str) -> bool {
 }
 
 /// True iff a real OS deep link opens Billing (`houston://settings/plan`), the
-/// "Open Houston" return from a Plus checkout. No other settings section is
-/// reachable from outside the app.
+/// "Open Houston" return from a Plus checkout.
 pub fn is_plan_settings_deep_link(url: &str) -> bool {
     has_link_prefix(url, "houston://settings/plan")
+}
+
+/// True iff a real OS deep link opens Channels (`houston://settings/channels`),
+/// the gateway's return from a desktop-started Slack connect, carrying the
+/// one-time completion ticket the webview redeems. No other settings section
+/// is reachable from outside the app.
+pub fn is_channels_settings_deep_link(url: &str) -> bool {
+    has_link_prefix(url, "houston://settings/channels")
 }
 
 /// `url` is exactly `prefix`, optionally followed by a query or a path.
@@ -449,6 +458,23 @@ mod tests {
         assert!(!is_plan_settings_deep_link("houston://settings"));
         assert!(!is_plan_settings_deep_link(
             "https://gethouston.ai/settings/plan"
+        ));
+    }
+
+    #[test]
+    fn the_channels_settings_deep_link_is_forwarded() {
+        assert!(is_channels_settings_deep_link(
+            "houston://settings/channels?slack=Tk7-ticket.value_~9"
+        ));
+        assert!(is_channels_settings_deep_link(
+            "houston://settings/channels/"
+        ));
+        assert!(!is_channels_settings_deep_link(
+            "houston://settings/channelsx?slack=t"
+        ));
+        assert!(!is_channels_settings_deep_link("houston://settings/plan"));
+        assert!(!is_channels_settings_deep_link(
+            "https://app.gethouston.ai/settings/channels?slack=t"
         ));
     }
 
