@@ -205,3 +205,27 @@ test("a second ask_user call replaces the questions of the first", async () => {
     steps: [{ kind: "question", id: "q1", question: "second?" }],
   });
 });
+
+test("threads wantsFiles onto a question answered with a file", async () => {
+  const holder = newInteractionHolder();
+  await runWithInteractionCapture(holder, () =>
+    run({
+      questions: [
+        { question: "Send me the character's image", wantsFiles: true },
+        { question: "Which pose?", wantsFiles: false },
+      ],
+    }),
+  );
+  // Only `true` is recorded: a plain question carries no key.
+  expect(holder.pending).toEqual({
+    steps: [
+      {
+        kind: "question",
+        id: "q1",
+        question: "Send me the character's image",
+        wantsFiles: true,
+      },
+      { kind: "question", id: "q2", question: "Which pose?" },
+    ],
+  });
+});

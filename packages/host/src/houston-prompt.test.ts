@@ -222,7 +222,7 @@ test("suggest_actions is MANDATORY on every non-blocking finish, in BOTH mirrors
   expect(rs).not.toContain(norm("Skip the call only when"));
 });
 
-test("a needed file is asked for as an ask_user question answered by attaching it, in BOTH mirrors", () => {
+test("a needed file is asked for as an ask_user question with wantsFiles, in BOTH mirrors", () => {
   const rust = readFileSync(
     fileURLToPath(
       new URL(
@@ -235,7 +235,7 @@ test("a needed file is asked for as an ask_user question answered by attaching i
   const ts = norm(houstonSystemPrompt());
   const rs = norm(rust);
   for (const phrase of [
-    "When you need a file, image, or document from the user, ask for it with an `ask_user` question they answer by attaching it: the user attaches the file to their answer, and it arrives with that answer.",
+    "When you need a file, image, or document from the user, ask for it with an `ask_user` question and set `wantsFiles` on it: the card shows the user an upload area, and the file arrives with their answer.",
     "Never offer attaching a file as an option, because an option can't carry the file itself.",
   ]) {
     const needle = norm(phrase);

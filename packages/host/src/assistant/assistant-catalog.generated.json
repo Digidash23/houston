@@ -3971,6 +3971,21 @@
                                         "type": "string"
                                       }
                                     ]
+                                  },
+                                  "wantsFiles": {
+                                    "anyOf": [
+                                      {
+                                        "type": "null"
+                                      },
+                                      {
+                                        "const": false,
+                                        "type": "boolean"
+                                      },
+                                      {
+                                        "const": true,
+                                        "type": "boolean"
+                                      }
+                                    ]
                                   }
                                 },
                                 "required": ["id", "kind", "question"],
@@ -10611,6 +10626,21 @@
                                   "type": "string"
                                 }
                               ]
+                            },
+                            "wantsFiles": {
+                              "anyOf": [
+                                {
+                                  "type": "null"
+                                },
+                                {
+                                  "const": false,
+                                  "type": "boolean"
+                                },
+                                {
+                                  "const": true,
+                                  "type": "boolean"
+                                }
+                              ]
                             }
                           },
                           "required": ["id", "kind", "question"],
@@ -11406,6 +11436,21 @@
                                   },
                                   {
                                     "type": "string"
+                                  }
+                                ]
+                              },
+                              "wantsFiles": {
+                                "anyOf": [
+                                  {
+                                    "type": "null"
+                                  },
+                                  {
+                                    "const": false,
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "const": true,
+                                    "type": "boolean"
                                   }
                                 ]
                               }
@@ -12262,6 +12307,21 @@
                                   "type": "string"
                                 }
                               ]
+                            },
+                            "wantsFiles": {
+                              "anyOf": [
+                                {
+                                  "type": "null"
+                                },
+                                {
+                                  "const": false,
+                                  "type": "boolean"
+                                },
+                                {
+                                  "const": true,
+                                  "type": "boolean"
+                                }
+                              ]
                             }
                           },
                           "required": ["id", "kind", "question"],
@@ -12935,6 +12995,21 @@
                                     },
                                     {
                                       "type": "string"
+                                    }
+                                  ]
+                                },
+                                "wantsFiles": {
+                                  "anyOf": [
+                                    {
+                                      "type": "null"
+                                    },
+                                    {
+                                      "const": false,
+                                      "type": "boolean"
+                                    },
+                                    {
+                                      "const": true,
+                                      "type": "boolean"
                                     }
                                   ]
                                 }
@@ -13653,6 +13728,21 @@
                                 },
                                 {
                                   "type": "string"
+                                }
+                              ]
+                            },
+                            "wantsFiles": {
+                              "anyOf": [
+                                {
+                                  "type": "null"
+                                },
+                                {
+                                  "const": false,
+                                  "type": "boolean"
+                                },
+                                {
+                                  "const": true,
+                                  "type": "boolean"
                                 }
                               ]
                             }

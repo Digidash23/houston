@@ -48,6 +48,9 @@ export type InteractionStep =
        *  "gmail"); the app resolves it to the app's identity and BRANDS the
        *  question card's header with the logo + name. Absent = a plain question. */
       toolkit?: string;
+      /** The question is answered with a file: the card shows an upload area
+       *  above its answer field. Absent = a plain question. */
+      wantsFiles?: boolean;
       /** Present ONLY on an approval card for a destructive Houston operation:
        *  the host-issued id of the pending request this card decides. The
        *  user's answer travels back carrying it, which binds the approval to

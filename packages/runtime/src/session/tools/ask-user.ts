@@ -57,6 +57,12 @@ const AskUserParams = Type.Object({
             "Set when the question concerns a connected app: the exact toolkit slug (e.g. 'gmail'). The question card shows the app's logo. Always set it when confirming an app action.",
         }),
       ),
+      wantsFiles: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set true when the answer is a file, image or document from the user. The card then shows a large upload area above the answer field, and the files arrive with the answer. Never offer 'attach a file' as an option instead: an option can't carry the file.",
+        }),
+      ),
     }),
     {
       minItems: 1,
@@ -78,7 +84,7 @@ export function makeAskUserTool() {
     name: "ask_user",
     label: "Ask the user",
     description:
-      "Ask the user up to 3 blocking questions, offer choices, or request approval before continuing. Batch everything you need before you can act into this ONE call - never drip one question per turn. The app shows the batch as a single interactive card in place of the chat input; end your turn right after calling this. ALWAYS use this instead of ending your turn with a question written in plain text.",
+      "Ask the user up to 3 blocking questions, offer choices, request approval, or ask for a file before continuing. To ask for a file, image or document, set wantsFiles on that question. Batch everything you need before you can act into this ONE call - never drip one question per turn. The app shows the batch as a single interactive card in place of the chat input; end your turn right after calling this. ALWAYS use this instead of ending your turn with a question written in plain text.",
     promptSnippet: "Ask the user up to 3 questions and wait for their answers",
     parameters: AskUserParams,
     executionMode: "sequential",
@@ -103,6 +109,7 @@ export function makeAskUserTool() {
           // Passed through verbatim: brands the card with the app's logo when
           // the question confirms a connected-app action.
           ...(q.toolkit ? { toolkit: q.toolkit } : {}),
+          ...(q.wantsFiles === true ? { wantsFiles: true } : {}),
         }),
       );
       recordQuestions(questions);
