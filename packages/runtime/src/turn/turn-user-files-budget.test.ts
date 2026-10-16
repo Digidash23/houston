@@ -11,7 +11,7 @@ import {
   LocalDirStore,
   type ObjectStore,
 } from "@houston/runtime-client/object-sync";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { startTurnRequestFilesystem } from "./turn-claimed-hydration";
 import { awaitDeferredFiles } from "./turn-deferred-files";
 import {
@@ -92,6 +92,8 @@ test("a claimed turn whose user files pass the startup cap still starts and load
 
 test("user files over their own budget refuse only the tools, and sync touches nothing", async () => {
   const { storeRoot, store } = storeWithUserFiles(8 * CRITICAL_CAP);
+  const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
   const preparation = await claimedTurn(store, 2 * CRITICAL_CAP);
   // The prompt still runs: the startup set landed.
   const fs = await preparation.hydrated;
@@ -99,6 +101,14 @@ test("user files over their own budget refuse only the tools, and sync touches n
   await expect(fs.workspaceReady).rejects.toMatchObject({
     code: "hydrate_over_cap",
   });
+  // An expected, lasting state: logged with its size, never as an error
+  // (console.error feeds Sentry on the worker).
+  expect(error).not.toHaveBeenCalled();
+  expect(info).toHaveBeenCalledWith(
+    expect.stringContaining("deferred_files_over_budget listed=8192"),
+  );
+  error.mockRestore();
+  info.mockRestore();
   const refusal = awaitDeferredFiles(fs.workspaceReady);
   await expect(refusal).rejects.toThrow(/too large/);
   // A retry cannot shrink the person's files.

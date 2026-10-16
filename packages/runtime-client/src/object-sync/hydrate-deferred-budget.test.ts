@@ -108,7 +108,7 @@ test("unsized deferred downloads past the deferred budget fail the deferred set"
   });
 });
 
-test("without a deferred budget the deferred set shares the critical cap", async () => {
+test("without a deferred budget the deferred set gets its own budget of the critical size", async () => {
   const files = store({
     "state.json": "0123456789",
     "files/a.bin": "a".repeat(40),
