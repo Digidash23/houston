@@ -44,7 +44,12 @@ import type { BridgeQuietClass } from "@houston/sdk/local-model-bridge/quiet";
  *  `upload_interrupted` is an upload the transport cut before any answer
  *  (`files/upload-interrupted`): a person's action, so it gets copy naming
  *  the upload rather than the offline notice, and its own issue so a proxy
- *  cutting slow uploads is never hidden among network drops again. */
+ *  cutting slow uploads is never hidden among network drops again.
+ *  `routine_gone` is a routine write or run-now whose routine no longer
+ *  exists (`routines/routine-gone`): deleted elsewhere, or a list served
+ *  from a stale mirror. An expected state with its own copy, but unlike the
+ *  plan floor it still reports ONE fingerprinted warning: a burst of them
+ *  means a stale mirror, which is our bug. */
 export type QuietErrorClass =
   | "engine_waking"
   | "offline"
@@ -56,7 +61,8 @@ export type QuietErrorClass =
   | "webhook_not_creator"
   | "first_day_no_provider"
   | "bug_intake_unavailable"
-  | "upload_interrupted";
+  | "upload_interrupted"
+  | "routine_gone";
 
 /**
  * The burst-gate key a quiet-class report collapses on.

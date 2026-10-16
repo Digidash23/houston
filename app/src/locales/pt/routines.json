@@ -286,7 +286,9 @@
     "runError": "Não foi possível iniciar a rotina",
     "runErrorBody": "Ela não foi executada. Tente de novo em instantes.",
     "stopError": "Não foi possível parar a execução",
-    "stopErrorBody": "Ela ainda pode estar em andamento. Tente de novo em instantes."
+    "stopErrorBody": "Ela ainda pode estar em andamento. Tente de novo em instantes.",
+    "goneTitle": "Esta rotina não existe mais",
+    "goneBody": "Ela foi excluída, então não há mais nada para alterar ou executar."
   },
   "webhook": {
     "createAddress": "Criar endereço de webhook",

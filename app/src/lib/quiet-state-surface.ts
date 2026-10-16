@@ -5,6 +5,7 @@ import i18n from "./i18n";
 import { surfacePlanMinInterval } from "./plan-min-interval";
 import type { QuietErrorClass } from "./quiet-error-class";
 import { reportQuietError } from "./quiet-error-report";
+import { surfaceRoutineGone } from "./routine-gone-surface";
 import { showWebhookNotCreatorToast } from "./webhook-not-creator-toast";
 
 /**
@@ -38,6 +39,13 @@ export function surfaceQuietState(
       // and the chip's own line says so. Nothing to report.
       showWebhookNotCreatorToast();
       return true;
+    case "routine_gone":
+      return surfaceRoutineGone(
+        command,
+        message,
+        originalError,
+        reportQuietError,
+      );
     case "first_day_no_provider":
       // A business state: the first day waits for a connected AI. The raw
       // reason stays in the log line; nothing to report.

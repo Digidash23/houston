@@ -286,7 +286,9 @@
     "runError": "No se pudo iniciar la rutina",
     "runErrorBody": "No se ejecutó. Inténtalo de nuevo en un momento.",
     "stopError": "No se pudo detener la ejecución",
-    "stopErrorBody": "Es posible que siga en curso. Inténtalo de nuevo en un momento."
+    "stopErrorBody": "Es posible que siga en curso. Inténtalo de nuevo en un momento.",
+    "goneTitle": "Esta rutina ya no existe",
+    "goneBody": "Se eliminó, así que no queda nada que cambiar ni ejecutar."
   },
   "webhook": {
     "createAddress": "Crear dirección de webhook",

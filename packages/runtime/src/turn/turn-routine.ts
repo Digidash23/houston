@@ -32,6 +32,9 @@ import type { TurnRequest } from "./types";
 export type RoutineTurnFailure = "no_routine" | "routine_busy";
 
 export class RoutineTurnError extends Error {
+  /** The domain events the failure still implies (a healed routines doc),
+   *  carried on the error frame for the gateway to fan out. */
+  changed: readonly string[] = [];
   constructor(
     readonly code: RoutineTurnFailure,
     message: string,

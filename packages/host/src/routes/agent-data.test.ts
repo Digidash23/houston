@@ -486,6 +486,19 @@ test("routines: a PATCH that would leave no wake mechanism is rejected (400), ne
   expect(list.items.find((r) => r.id === routine.id)?.trigger).toEqual(trigger);
 });
 
+test("routines: a PATCH or DELETE of an unknown routine answers the typed 404", async () => {
+  const gone = { error: "routine not found", code: "routine_not_found" };
+  for (const method of ["PATCH", "DELETE"]) {
+    const res = await fetch(`${base}/agents/${agentId}/routines/no-such-id`, {
+      method,
+      headers: auth("alice"),
+      ...(method === "PATCH" ? { body: JSON.stringify({ name: "x" }) } : {}),
+    });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual(gone);
+  }
+});
+
 test("routines: created_by is server-owned and cannot be spoofed", async () => {
   const created = await fetch(`${base}/agents/${agentId}/routines`, {
     method: "POST",
