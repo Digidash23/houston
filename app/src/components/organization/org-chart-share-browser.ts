@@ -1,31 +1,11 @@
 import { logAndReportError } from "../../lib/error-report";
-import { openExternalUrl } from "../../lib/open-external-url";
 import { saveBlob } from "../../lib/save-blob";
 import { copyImageWith } from "./org-chart-share-copy";
-import type { ShareRunDeps } from "./org-chart-share-run";
+import type { ShareSheet } from "./org-chart-share-run";
 import type { ShareImageDraw } from "./use-share-card-image";
 
-/** The share run's deps bound to this browser (or the desktop webview). */
-export function browserShareDeps(
-  post: (link: string) => string,
-  drawing: ShareImageDraw,
-  phone: boolean,
-): ShareRunDeps {
-  return {
-    post,
-    png: drawing.png,
-    ready: drawing.ready,
-    phone,
-    sheet: shareSheet(),
-    copyImage: canCopyImage() ? writeImage : undefined,
-    open: openExternalUrl,
-    save: async (file) => (await saveBlob(file.name, file)).kind === "saved",
-    report: logAndReportError,
-  };
-}
-
 /** `navigator.share` and `canShare`, where there is a share sheet. */
-export function shareSheet(): ShareRunDeps["sheet"] {
+export function shareSheet(): ShareSheet | undefined {
   return typeof navigator !== "undefined" &&
     typeof navigator.share === "function" &&
     typeof navigator.canShare === "function"
@@ -34,6 +14,13 @@ export function shareSheet(): ShareRunDeps["sheet"] {
         share: (data) => navigator.share(data),
       }
     : undefined;
+}
+
+/** Whether the primary pointer is a finger: phones and tablets. */
+export function coarsePointer(): boolean {
+  return (
+    typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches
+  );
 }
 
 /** Whether this browser can put a PNG on the clipboard. */

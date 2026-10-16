@@ -24,9 +24,6 @@ export const ART = {
   moreFill: "#f3f3f1",
   shadowNear: "rgba(17, 17, 16, 0.05)",
   shadowFar: "rgba(17, 17, 16, 0.06)",
-  /** The link card's chart, lifted a little more off its paper. */
-  liftNear: "rgba(17, 17, 16, 0.06)",
-  liftFar: "rgba(17, 17, 16, 0.10)",
 } as const;
 
 /** The dot grid's pitch and dot radius. */

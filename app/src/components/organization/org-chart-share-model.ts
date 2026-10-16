@@ -64,8 +64,8 @@ export function shareFileName(company: string): string {
 
 /**
  * LinkedIn's compose link with the post text filled in. It cannot carry an
- * image: the image travels as the preview of a link in the post, else on the
- * clipboard (or as a saved file).
+ * image: the image travels as the preview of the chart's page linked in the
+ * post, else the person adds the downloaded image themselves.
  */
 export function linkedInShareUrl(text: string): string {
   return `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(text)}`;
@@ -95,16 +95,13 @@ export function isShareBusy(error: unknown): boolean {
 }
 
 /**
- * How a share left, as tracked: LinkedIn with the image as the preview of the
- * chart's page linked in the post, LinkedIn with the image on the clipboard,
- * LinkedIn with the image saved as a file instead, LinkedIn with the post
- * alone (the image could not be drawn or saved), the phone's share sheet,
- * or the dialog's Download image and Copy image.
+ * How a share left, as tracked: LinkedIn with the image as the preview of
+ * the chart's page linked in the post, LinkedIn with the post alone (the
+ * page or the image could not be made), the share sheet, or the dialog's
+ * Download image and Copy image.
  */
 export type ShareChannel =
   | "linkedin_link"
-  | "linkedin"
-  | "linkedin_download"
   | "linkedin_text_only"
   | "native"
   | "download"

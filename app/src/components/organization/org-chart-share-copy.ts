@@ -1,4 +1,15 @@
-import { isExpectedClipboardRefusal } from "./org-chart-share-linkedin.ts";
+/**
+ * A clipboard the browser refused: a write it did not allow (no focus, no
+ * permission). The person's setup, not a bug: nothing to report.
+ */
+export function isExpectedClipboardRefusal(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    error.name === "NotAllowedError"
+  );
+}
 
 /**
  * The dialog's Copy image over a clipboard `write`, DOM-free so it is

@@ -13,8 +13,8 @@ import {
   type ShareCardText,
 } from "./org-chart-share-card-frame";
 import {
-  CARD,
   type CardBox,
+  type CardFrame,
   type CardLayout,
   NAME_LINES,
   NODE,
@@ -170,15 +170,16 @@ function paintBox(
   } else paintStacked(ctx, box, assets);
 }
 
-/** Paint the whole card onto a CARD-sized context. */
+/** Paint the whole card onto a context the size of `frame`. */
 export function paintShareCard(
   ctx: CanvasRenderingContext2D,
   layout: CardLayout,
   text: ShareCardText,
   assets: ShareCardAssets,
+  frame: CardFrame,
 ): void {
-  paintPaper(ctx, CARD.width, CARD.height);
-  paintHeader(ctx, text);
+  paintPaper(ctx, frame.width, frame.height);
+  paintHeader(ctx, text, frame);
   const { zoom } = layout;
   ctx.save();
   ctx.setTransform(zoom.scale, 0, 0, zoom.scale, zoom.x, zoom.y);
@@ -191,5 +192,5 @@ export function paintShareCard(
   }
   for (const box of layout.boxes) paintBox(ctx, box, text, assets);
   ctx.restore();
-  paintFooter(ctx, text, assets.mark);
+  paintFooter(ctx, text, assets.mark, frame);
 }

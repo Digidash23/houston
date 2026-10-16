@@ -17,13 +17,12 @@ import type { useOrgChartShare } from "./use-org-chart-share";
 
 /**
  * Share the org chart: the image as it will be posted, Share on LinkedIn,
- * then Download image and Copy image. Share on LinkedIn publishes the chart's
- * page when clicked and reads "Preparing your post..." meanwhile, then Open
- * LinkedIn, which posts the page's link, whose preview is the image; where
- * there is no page, one line under the buttons
- * says where the image went (on the clipboard, or saved), so the person knows
- * to paste it. The dialog stays open, so the line is still there when they
- * come back from LinkedIn.
+ * then Download image and Copy image. Share on LinkedIn reads "Preparing
+ * your post..." while the chart's page goes up, then LinkedIn opens with a
+ * post that links to it, whose preview is the image. When the image could
+ * not go with the post, one line under the buttons says to download it and
+ * add it; when the browser blocked LinkedIn, it links to it. The dialog
+ * stays open, so the line is still there when they come back.
  */
 export function OrgChartShareDialog({
   share,
@@ -32,8 +31,8 @@ export function OrgChartShareDialog({
 }) {
   const { t } = useTranslation("teams");
   const ready = share.preview.status === "ready";
-  const { line } = share;
-  const preparing = share.linkedInStep === "preparing";
+  const { line, preparing } = share;
+  const said = Boolean(line?.notAttached || line?.blocked);
 
   return (
     <Dialog open={share.open} onOpenChange={share.setOpen}>
@@ -54,7 +53,11 @@ export function OrgChartShareDialog({
                 <Linkedin className="size-4" />
               )
             }
-            label={t(LINKEDIN_LABEL[share.linkedInStep])}
+            label={t(
+              preparing
+                ? "orgChart.share.linkedInPreparing"
+                : "orgChart.share.linkedIn",
+            )}
             disabled={preparing}
             className="h-10 w-full"
             onClick={share.linkedIn}
@@ -94,20 +97,15 @@ export function OrgChartShareDialog({
             it out of the layout (and the dialog's gap) without hiding it. */}
         <p
           role="status"
-          className={cn(
-            "text-sm text-pretty text-ink",
-            !line?.line && "sr-only",
-          )}
+          className={cn("text-sm text-pretty text-ink", !said && "sr-only")}
         >
-          {line?.line &&
-            (line.line === "blocked"
-              ? t("orgChart.share.linkedInBlocked")
-              : t(`orgChart.share.${line.line}`))}
-          {line?.blocked && line.url && (
+          {line?.notAttached && t("orgChart.share.notAttached")}
+          {line?.notAttached && line.blocked && " "}
+          {line?.blocked && (
             <>
-              {" "}
+              {t("orgChart.share.linkedInBlocked")}{" "}
               <a
-                href={line.url}
+                href={line.blocked.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={share.followBlocked}
@@ -122,12 +120,6 @@ export function OrgChartShareDialog({
     </Dialog>
   );
 }
-
-const LINKEDIN_LABEL = {
-  share: "orgChart.share.linkedIn",
-  preparing: "orgChart.share.linkedInPreparing",
-  open: "orgChart.share.linkedInReady",
-} as const;
 
 /** A pill that presses in. */
 function ShareButton({

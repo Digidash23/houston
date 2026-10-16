@@ -8,12 +8,12 @@ import {
   shareDialogReducer,
 } from "../src/components/organization/org-chart-share-state.ts";
 
-const COPIED: ShareLine = { line: "copied", blocked: null, url: "u" };
+const COPIED: ShareLine = { notAttached: true, blocked: null };
 const run = (...actions: ShareDialogAction[]) =>
   actions.reduce(shareDialogReducer, INITIAL_SHARE_DIALOG);
 
 describe("shareDialogReducer", () => {
-  it("says where the image went for a share started in this opening", () => {
+  it("says the picture was not attached for a share started in this opening", () => {
     const open = run({ type: "open" });
     const landed = shareDialogReducer(open, {
       type: "landed",

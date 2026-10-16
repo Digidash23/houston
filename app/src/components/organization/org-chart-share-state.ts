@@ -7,10 +7,11 @@ import type { ShareLanding } from "./org-chart-share-run.ts";
  * session or a redrawn image starts with no line and Copy image unflipped.
  */
 
-/** The line under the dialog's buttons, with LinkedIn's link when blocked. */
-export type ShareLine = Pick<ShareLanding, "line" | "blocked"> & {
-  url: string | null;
-};
+/**
+ * What the dialog says under its buttons: that the picture could not be
+ * attached, and LinkedIn's link when the browser blocked its tab.
+ */
+export type ShareLine = Pick<ShareLanding, "notAttached" | "blocked">;
 
 export interface ShareDialogState {
   open: boolean;
@@ -73,7 +74,7 @@ export function replacesShownImage(
   return previous !== null && previous !== next;
 }
 
-/** How long clicks on Open LinkedIn are ignored after one opened it. */
+/** How long clicks on Share on LinkedIn are ignored after one settled. */
 export const LINKEDIN_OPEN_COOLDOWN_MS = 1000;
 
 /**

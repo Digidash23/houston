@@ -7,14 +7,90 @@ import type { Box } from "./org-chart-tree-paths.ts";
  * painter. Pure and DOM-free.
  */
 
-export const CARD = { width: 1200, height: 1200, pad: 88 } as const;
+/**
+ * A frame the chart is drawn in: its size, its header (the name, then the
+ * counts) and footer (the mark and the site), and the band the chart is
+ * zoomed into between them. The chart itself is laid out once, in a
+ * 1200-unit-wide space, and zoomed to fill the frame's room.
+ */
+export interface CardFrame {
+  width: number;
+  height: number;
+  /** The margin the header and the footer sit in. */
+  pad: number;
+  /** Baselines of the name, the counts and the footer. */
+  titleY: number;
+  countsY: number;
+  footerY: number;
+  /** The name shrinks from `title` to `titleMin` px before it is cut. */
+  type: {
+    title: number;
+    titleMin: number;
+    tracking: number;
+    counts: number;
+    site: number;
+    /** The Houston mark's height. */
+    mark: number;
+  };
+  /** The band the chart is zoomed into, clear of the header and footer. */
+  room: { top: number; bottom: number };
+  /** How far a small team grows to fill the room. */
+  maxZoom: number;
+  /**
+   * Whether the first row squeezes into the 1200 units (the square, which
+   * has height to spare) or runs at full card width and the zoom shrinks
+   * it instead (the landscape link card, which has width to spare).
+   */
+  squeeze: boolean;
+}
 
-/** Baselines of the header lines over the chart, and of the footer. */
-export const CARD_TEXT = {
+/** The square share image. */
+export const SQUARE_FRAME: CardFrame = {
+  width: 1200,
+  height: 1200,
+  pad: 88,
   titleY: 160,
   countsY: 210,
   footerY: 1128,
-} as const;
+  type: {
+    title: 84,
+    titleMin: 52,
+    tracking: -2.5,
+    counts: 30,
+    site: 22,
+    mark: 28,
+  },
+  room: { top: 280, bottom: 1048 },
+  maxZoom: 1.8,
+  squeeze: true,
+};
+
+/**
+ * The 1200 x 630 link card LinkedIn previews the chart's page with: the
+ * same chart, header and footer, scaled for the shorter frame.
+ */
+export const LANDSCAPE_FRAME: CardFrame = {
+  width: 1200,
+  height: 630,
+  pad: 56,
+  titleY: 86,
+  countsY: 124,
+  footerY: 598,
+  type: {
+    title: 50,
+    titleMin: 34,
+    tracking: -1.5,
+    counts: 22,
+    site: 17,
+    mark: 21,
+  },
+  room: { top: 156, bottom: 560 },
+  maxZoom: 1.4,
+  squeeze: false,
+};
+
+/** The width the chart is laid out in, before a frame zooms it. */
+export const CHART_WIDTH = 1200;
 
 /**
  * The node shapes. `root` is a wide card with a tile and the name; `column`

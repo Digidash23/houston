@@ -1,6 +1,6 @@
 import markUrl from "../../assets/houston-black.svg";
 import type { ChartPerson } from "./org-chart-people";
-import { CARD } from "./org-chart-share-card-geometry";
+import { type CardFrame, SQUARE_FRAME } from "./org-chart-share-card-geometry";
 import {
   paintShareCard,
   type ShareCardAssets,
@@ -90,19 +90,30 @@ export class ShareCardError extends Error {
   override name = "ShareCardError";
 }
 
+/** Draw `tree` on a canvas the size of `frame`. */
+export async function drawShareCanvas(
+  tree: OrgTree,
+  text: ShareCardText,
+  words: CardWords,
+  frame: CardFrame,
+): Promise<HTMLCanvasElement> {
+  const assets = await loadAssets(tree);
+  const canvas = document.createElement("canvas");
+  canvas.width = frame.width;
+  canvas.height = frame.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new ShareCardError("canvas 2d context unavailable");
+  paintShareCard(ctx, shareCardLayout(tree, words, frame), text, assets, frame);
+  return canvas;
+}
+
 /** Draw `tree` as the 1200 x 1200 share PNG. */
 export async function renderShareCard(
   tree: OrgTree,
   text: ShareCardText,
   words: CardWords,
 ): Promise<Blob> {
-  const assets = await loadAssets(tree);
-  const canvas = document.createElement("canvas");
-  canvas.width = CARD.width;
-  canvas.height = CARD.height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new ShareCardError("canvas 2d context unavailable");
-  paintShareCard(ctx, shareCardLayout(tree, words), text, assets);
+  const canvas = await drawShareCanvas(tree, text, words, SQUARE_FRAME);
   return new Promise((resolve, reject) =>
     canvas.toBlob((blob) => {
       if (blob) resolve(blob);

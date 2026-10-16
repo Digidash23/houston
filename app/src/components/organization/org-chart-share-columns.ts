@@ -1,7 +1,7 @@
 import {
-  CARD,
   type CardBox,
   type CardNode,
+  CHART_WIDTH,
 } from "./org-chart-share-card-geometry.ts";
 import type { OrgTree, OrgTreeAgent } from "./org-chart-tree.ts";
 import { NODE_ID } from "./org-chart-tree-paths.ts";
@@ -91,11 +91,16 @@ export interface Slot {
   w: number;
 }
 
-/** `count` cards of the widest width that fits, `gap` apart, centred. */
-function row(count: number, gap: number) {
-  const usable = CARD.width - COLUMNS.margin * 2 - gap * (count - 1);
-  const w = Math.min(COLUMNS.maxWidth, usable / Math.max(count, 1));
-  const left = CARD.width / 2 - (w * count + gap * (count - 1)) / 2;
+/**
+ * `count` cards `gap` apart, centred: of the widest width that fits the
+ * chart's width when `squeeze`, else all at their widest.
+ */
+function row(count: number, gap: number, squeeze: boolean) {
+  const usable = CHART_WIDTH - COLUMNS.margin * 2 - gap * (count - 1);
+  const w = squeeze
+    ? Math.min(COLUMNS.maxWidth, usable / Math.max(count, 1))
+    : COLUMNS.maxWidth;
+  const left = CHART_WIDTH / 2 - (w * count + gap * (count - 1)) / 2;
   return { w, left, step: w + gap };
 }
 
@@ -106,19 +111,23 @@ function row(count: number, gap: number) {
  * gaps so its lines drop between two cards: seven across would leave each
  * name a few letters wide. Seven is the most `SHARE_CARD_CAPS` lets through;
  * eight would put a slot on a card, so anything wider stays one row.
+ * `squeeze`: see `CardFrame.squeeze`.
  */
-export function columnSlots(columns: readonly Column[]): Slot[] {
+export function columnSlots(
+  columns: readonly Column[],
+  squeeze = true,
+): Slot[] {
   const n = columns.length;
   const flat = columns.every((column) => column.stack.length === 0);
   if (!flat || n < 5 || n > 7) {
-    const { w, left, step } = row(n, COLUMNS.gap);
+    const { w, left, step } = row(n, COLUMNS.gap, squeeze);
     return columns.map((_, i) => ({ x: left + i * step, row: 0, w }));
   }
   // 5 -> 3 + 2, 6 -> 4 + 2, 7 -> 4 + 3: the second line always fits the
   // first's gaps symmetrically.
   const first = Math.ceil((n + 1) / 2);
   const second = n - first;
-  const { w, left, step } = row(first, COLUMNS.brickGap);
+  const { w, left, step } = row(first, COLUMNS.brickGap, squeeze);
   return columns.map((_, i) => {
     if (i < first) return { x: left + i * step, row: 0, w };
     const gap = ((i - first) * (first - 2)) / (second - 1);

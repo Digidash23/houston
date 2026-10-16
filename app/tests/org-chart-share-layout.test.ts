@@ -2,8 +2,7 @@ import { deepStrictEqual, ok, strictEqual } from "node:assert";
 import { describe, it } from "node:test";
 import type { Agent, OrgMember } from "@houston/engine-adapter";
 import {
-  CARD,
-  CARD_TEXT,
+  SQUARE_FRAME as CARD,
   type CardBox,
   onCard,
 } from "../src/components/organization/org-chart-share-card-geometry.ts";
@@ -94,8 +93,8 @@ describe("shareCardLayout", () => {
     const { boxes, zoom } = big();
     for (const box of boxes.map((b) => ({ ...b, ...onCard(zoom, b) }))) {
       ok(box.x >= 0 && box.x + box.w <= CARD.width, `x ${box.id}`);
-      ok(box.y > CARD_TEXT.countsY + 20, `top ${box.id}`);
-      ok(box.y + box.h < CARD_TEXT.footerY - 40, `bottom ${box.id}`);
+      ok(box.y > CARD.countsY + 20, `top ${box.id}`);
+      ok(box.y + box.h < CARD.footerY - 40, `bottom ${box.id}`);
     }
     noOverlaps(boxes);
   });

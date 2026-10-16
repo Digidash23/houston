@@ -29,8 +29,8 @@ export interface SharePublishDeps {
 export interface SharePublishJob {
   image: File;
   title: string;
-  /** Draws the 1200 x 630 link card around `image`. */
-  card: (image: File) => Promise<Blob>;
+  /** Draws the 1200 x 630 link card of the same chart. */
+  card: () => Promise<Blob>;
   deployment: OrgChartShareInput["deployment"];
 }
 
@@ -69,7 +69,7 @@ function drawCard(
     signal.addEventListener("abort", onAbort, { once: true });
     let card: Promise<Blob>;
     try {
-      card = job.card(job.image);
+      card = job.card();
     } catch (error) {
       card = Promise.reject(error);
     }

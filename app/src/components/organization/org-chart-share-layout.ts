@@ -1,11 +1,12 @@
 import {
-  CARD,
-  CARD_TEXT,
   type CardBox,
+  type CardFrame,
   type CardLayout,
   type CardNode,
   type CardZoom,
+  CHART_WIDTH,
   NODE,
+  SQUARE_FRAME,
 } from "./org-chart-share-card-geometry.ts";
 import {
   type CardWords,
@@ -26,10 +27,11 @@ import {
  * only draws what this places, and the connectors come from the same path
  * module the on-screen chart uses.
  *
- * The card is square (1200 x 1200): a chart three levels deep, with each
- * person's AI Employees stacked under them, needs height more than width,
- * and a square image takes the most room LinkedIn's feed gives a post. The
- * root card sits centred under the header, the first row spreads across
+ * The image is square (`SQUARE_FRAME`): a chart three levels deep, with
+ * each person's AI Employees stacked under them, needs height more than
+ * width, and a square image takes the most room LinkedIn's feed gives a
+ * post. The link card (`LANDSCAPE_FRAME`) draws the same layout, zoomed
+ * into its shorter frame. The root card sits centred under the header, the first row spreads across
  * as equal columns (`org-chart-share-columns.ts`), and each person's AI
  * Employees stack under them, then one "+N" for the rest.
  */
@@ -43,40 +45,38 @@ const TREE = {
 } as const;
 
 /**
- * The room the chart is scaled into: clear of the count line above and the
- * footer below. A small team grows to fill it (up to {@link MAX_ZOOM}), so
- * three cards never sit as a speck in an empty square; a big one shrinks.
+ * Scale `boxes` (centred on the frame) into the frame's room, clear of the
+ * count line above and the footer below. A small team grows to fill it (up
+ * to the frame's `maxZoom`), so three cards never sit as a speck in an empty
+ * frame; a big one shrinks. The sides keep the columns' own margin, so a
+ * full squeezed row is never shrunk.
  */
-const ROOM = {
-  top: CARD_TEXT.countsY + 70,
-  bottom: CARD_TEXT.footerY - 80,
-  /** The margin the columns are laid out in, so a full row is never shrunk. */
-  side: COLUMNS.margin,
-} as const;
-const MAX_ZOOM = 1.8;
-
-/** Scale `boxes` (centred on the card) into {@link ROOM}. */
-function zoomFor(boxes: Box[]): CardZoom {
+function zoomFor(boxes: Box[], frame: CardFrame): CardZoom {
   const top = Math.min(...boxes.map((b) => b.y));
   const bottom = Math.max(...boxes.map((b) => b.y + b.h));
   const left = Math.min(...boxes.map((b) => b.x));
   const right = Math.max(...boxes.map((b) => b.x + b.w));
-  const roomH = ROOM.bottom - ROOM.top;
+  const { room } = frame;
+  const roomH = room.bottom - room.top;
   const scale = Math.min(
-    MAX_ZOOM,
-    (CARD.width - ROOM.side * 2) / (right - left),
+    frame.maxZoom,
+    (frame.width - COLUMNS.margin * 2) / (right - left),
     roomH / (bottom - top),
   );
-  const cx = CARD.width / 2;
+  const cx = CHART_WIDTH / 2;
   return {
     scale,
-    x: cx - cx * scale,
-    y: ROOM.top + (roomH - (bottom - top) * scale) / 2 - top * scale,
+    x: frame.width / 2 - cx * scale,
+    y: room.top + (roomH - (bottom - top) * scale) / 2 - top * scale,
   };
 }
 
-export function shareCardLayout(tree: OrgTree, words: CardWords): CardLayout {
-  const cx = CARD.width / 2;
+export function shareCardLayout(
+  tree: OrgTree,
+  words: CardWords,
+  frame: CardFrame = SQUARE_FRAME,
+): CardLayout {
+  const cx = CHART_WIDTH / 2;
   const rootNode: CardNode =
     tree.root.kind === "person"
       ? { kind: "person", person: tree.root.person }
@@ -97,7 +97,7 @@ export function shareCardLayout(tree: OrgTree, words: CardWords): CardLayout {
   ];
 
   const columns = columnsOf(tree, words);
-  const slots = columnSlots(columns);
+  const slots = columnSlots(columns, frame.squeeze);
   const secondRowY = TREE.rowY + NODE.column.h + COLUMNS.rowGap;
   columns.forEach((column, index) => {
     const { x, w, row } = slots[index];
@@ -124,5 +124,5 @@ export function shareCardLayout(tree: OrgTree, words: CardWords): CardLayout {
     radius: TREE.radius,
     spineInset: 0,
   });
-  return { boxes, path, zoom: zoomFor(boxes) };
+  return { boxes, path, zoom: zoomFor(boxes, frame) };
 }
