@@ -141,13 +141,32 @@ describe("browser hand-off cards in the feed", () => {
       ["user_message", "tool_call", "host_card", "assistant_text"],
     );
     strictEqual(out.at(-1)?.data, "Please sign in.");
-    // Once handed back, the reply streams again where it sits.
-    const back = withBrowserHandoffCards(
-      [...items, result("browser", "The person finished")],
-      true,
-      "c",
+  });
+
+  it("keeps the reply finished once handed back, so the chat shows progress", () => {
+    // After Done the agent works on (here, a permission-gated browser step)
+    // while its reply sits under the card. Drawn as streaming, that reply
+    // would read as live text and hide the chat's thinking line.
+    const items = [
+      user("Go"),
+      { feed_type: "assistant_text_streaming", data: "Please sign in." },
+      call("browser", handoff("https://bank.example.com"), "c1"),
+      result("browser", "The person finished"),
+      call("browser", { action: "open", url: "https://bank.example.com/bill" }),
+    ] as FeedItem[];
+    const out = withBrowserHandoffCards(items, true, "c");
+    deepStrictEqual(
+      out.map((item) => item.feed_type),
+      [
+        "user_message",
+        "tool_call",
+        "tool_result",
+        "host_card",
+        "tool_call",
+        "assistant_text",
+      ],
     );
-    strictEqual(back.at(-1)?.feed_type, "assistant_text_streaming");
+    strictEqual(cardsIn(out)[0].card.ownsProgress, undefined);
   });
 
   it("stays in one place across the turn's end, the reply after it", () => {

@@ -160,7 +160,7 @@ describe("browserHandoffFeedRows", () => {
     ]);
   });
 
-  it("draws the moved reply settled only while its card waits", () => {
+  it("draws a moved reply settled, waiting or handed back", () => {
     const waiting = [user, reply("assistant_text_streaming"), open, handoff];
     const replyRow = (items: BrowserHandoffFeedItem[], running: boolean) =>
       browserHandoffFeedRows(items, running).find(
@@ -171,7 +171,11 @@ describe("browserHandoffFeedRows", () => {
       index: 1,
       settled: true,
     });
-    expect(replyRow(live, true)).toEqual({ kind: "item", index: 2 });
+    expect(replyRow(live, true)).toEqual({
+      kind: "item",
+      index: 2,
+      settled: true,
+    });
   });
 
   describe("never pulls another turn's reply", () => {
