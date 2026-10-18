@@ -80,15 +80,17 @@ function slackCompletion(values: string[]): SlackCompletion | null {
 }
 
 /**
- * The URL a captured landing leaves behind: the same page minus the landing
- * (`settings`, and the `slack` or `linkedin` ticket), which lives in memory
- * from then on.
+ * The URL a captured landing leaves behind: the same page minus its ticket
+ * (`slack` or `linkedin`), which lives in memory from then on. A Channels
+ * landing keeps `?settings=channels`, so a reload still opens Channels; a
+ * LinkedIn return opens no section, so its marker leaves with the ticket.
  */
-export function withoutLanding(href: string): string {
+export function withoutTicket(href: string): string {
   const url = new URL(href);
-  url.searchParams.delete("settings");
   url.searchParams.delete("slack");
   url.searchParams.delete("linkedin");
+  if (url.searchParams.getAll("settings").includes("linkedin"))
+    url.searchParams.delete("settings");
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
@@ -99,16 +101,18 @@ export function withoutLanding(href: string): string {
  * a bearer secret sitting in `window.location` for that long is one that
  * analytics, session replay and the next crash report can all capture.
  *
- * `clean` receives the URL to put in place of the current one; anything shaped
- * like a ticket is stripped, redeemable or not.
+ * `clean` receives the URL to put in place of the current one. Any `slack` or
+ * `linkedin` parameter is stripped, whether or not the landing around it is
+ * one this app accepts: a rejected shape still carries a live ticket.
  */
 export function captureSettingsLanding(
   href: string,
   clean: (url: string) => void,
 ): SettingsLanding {
-  const landing = settingsLanding(new URL(href).search);
-  if (landing.kind !== "absent") clean(withoutLanding(href));
-  return landing;
+  const { search, searchParams } = new URL(href);
+  if (searchParams.has("slack") || searchParams.has("linkedin"))
+    clean(withoutTicket(href));
+  return settingsLanding(search);
 }
 
 /** The page's landing: not read yet, read and held, or handled. */

@@ -9,7 +9,7 @@ import {
   type SlackCompletion,
   settingsLanding,
   settingsLandingFromDeepLink,
-  withoutLanding,
+  withoutTicket,
 } from "../src/lib/settings-landing.ts";
 import { useUIStore } from "../src/stores/ui.ts";
 
@@ -57,14 +57,17 @@ describe("public channels landing", () => {
         slack: { kind: "invalid" },
       });
   });
-  it("strips the landing from the URL and leaves the rest of it alone", () => {
+  it("strips the ticket from the URL and leaves the rest of it alone", () => {
     strictEqual(
-      withoutLanding(
+      withoutTicket(
         `https://app.test/home?settings=channels&slack=${ticket}&x=1#panel`,
       ),
-      "/home?x=1#panel",
+      "/home?settings=channels&x=1#panel",
     );
-    strictEqual(withoutLanding("https://app.test/?settings=channels"), "/");
+    strictEqual(
+      withoutTicket("https://app.test/?settings=channels"),
+      "/?settings=channels",
+    );
   });
 });
 
@@ -86,7 +89,7 @@ describe("capturing a callback", () => {
       section: "channels",
       slack: { kind: "ticket", ticket },
     });
-    deepStrictEqual(cleaned, ["/home#panel"]);
+    deepStrictEqual(cleaned, ["/home?settings=channels#panel"]);
   });
   it("strips anything shaped like a ticket, redeemable or not", () => {
     const { landing, cleaned } = capture(
@@ -97,12 +100,44 @@ describe("capturing a callback", () => {
       section: "channels",
       slack: { kind: "invalid" },
     });
-    deepStrictEqual(cleaned, ["/"]);
+    deepStrictEqual(cleaned, ["/?settings=channels"]);
   });
-  it("consumes a bare landing too, and leaves any other URL as it is", () => {
-    deepStrictEqual(capture("https://app.test/?settings=channels").cleaned, [
-      "/",
-    ]);
+  it("strips a LinkedIn ticket riding on a Channels landing", () => {
+    const { landing, cleaned } = capture(
+      `https://app.test/?settings=channels&linkedin=${ticket}`,
+    );
+    deepStrictEqual(landing, {
+      kind: "settings",
+      section: "channels",
+      slack: null,
+    });
+    deepStrictEqual(cleaned, ["/?settings=channels"]);
+  });
+  it("strips a ticket from a landing shape it refuses to act on", () => {
+    // Nothing redeems these, but each still carries a live ticket that
+    // analytics would capture from the address bar.
+    for (const [href, left] of [
+      [`https://app.test/?slack=${ticket}`, "/"],
+      [
+        `https://app.test/?settings=channels&settings=channels&slack=${ticket}`,
+        "/?settings=channels&settings=channels",
+      ],
+      [
+        `https://app.test/?settings=channels&assistant=x&slack=${ticket}`,
+        "/?settings=channels&assistant=x",
+      ],
+      [
+        `https://app.test/?settings=linkedin&settings=linkedin&linkedin=${ticket}`,
+        "/",
+      ],
+    ] as const) {
+      const { landing, cleaned } = capture(href);
+      deepStrictEqual(landing, { kind: "absent" }, href);
+      deepStrictEqual(cleaned, [left], href);
+    }
+  });
+  it("leaves a URL carrying no ticket exactly as it is", () => {
+    deepStrictEqual(capture("https://app.test/?settings=channels").cleaned, []);
     deepStrictEqual(capture("https://app.test/?settings=plan").cleaned, []);
     deepStrictEqual(capture("https://app.test/agents").cleaned, []);
   });
