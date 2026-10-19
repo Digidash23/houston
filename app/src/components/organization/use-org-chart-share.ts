@@ -88,7 +88,7 @@ export function useOrgChartShare(tree: OrgTree) {
     connection: linkedIn.connection,
     connecting: linkedIn.connectPhase,
     posting: linkedIn.posting,
-    postUrl: state.postUrl,
+    posted: state.posted,
   });
   const text = state.text ?? sharePostText(t, tree);
 

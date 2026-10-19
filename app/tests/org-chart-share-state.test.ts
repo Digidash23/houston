@@ -186,8 +186,8 @@ describe("shareDialogReducer", () => {
       { type: "posting" },
       { type: "posted", postUrl: url },
     );
-    strictEqual(posted.postUrl, url);
-    deepStrictEqual(posted.line, { kind: "posted" });
+    deepStrictEqual(posted.posted, { postUrl: url, opened: false });
+    deepStrictEqual(posted.line, { kind: "posted", opened: false });
     // Closed: the space's post slot holds the link for the next opening.
     const closed = run({ type: "open" }, { type: "close" });
     strictEqual(
@@ -195,7 +195,7 @@ describe("shareDialogReducer", () => {
       closed,
     );
     const after = [{ type: "close" }, { type: "open" }] as const;
-    strictEqual(after.reduce(shareDialogReducer, posted).postUrl, null);
+    strictEqual(after.reduce(shareDialogReducer, posted).posted, null);
   });
 
   it("says why a post was refused, in whichever opening is on screen", () => {
@@ -207,7 +207,7 @@ describe("shareDialogReducer", () => {
       { type: "postRefused", line: { kind: "reconnect" } },
     );
     deepStrictEqual(refused.line, { kind: "reconnect" });
-    strictEqual(refused.postUrl, null);
+    strictEqual(refused.posted, null);
   });
 });
 
@@ -218,7 +218,7 @@ describe("a post with no answer in time", () => {
   it("says it may be up", () => {
     const state = unconfirmed();
     deepStrictEqual(state.line, { kind: "unconfirmed" });
-    strictEqual(state.postUrl, null);
+    strictEqual(state.posted, null);
   });
 
   it("keeps saying so through a redrawn picture", () => {

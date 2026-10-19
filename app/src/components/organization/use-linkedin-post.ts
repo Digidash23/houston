@@ -1,18 +1,8 @@
-import { startLinkedInConnect } from "@houston/sdk/linkedin/connect-flow";
 import {
   type LinkedInRefusalAction,
   linkedInRefusalAction,
-  startLinkedInConnectWatch,
 } from "@houston/sdk/linkedin/policy";
-import {
-  type Dispatch,
-  type RefObject,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
-import { useTranslation } from "react-i18next";
+import { type Dispatch, type RefObject, useLayoutEffect, useRef } from "react";
 import {
   useLinkedInActions,
   useLinkedInConnection,
@@ -22,9 +12,10 @@ import { logAndReportError } from "../../lib/error-report";
 import { showConnectivityErrorToast } from "../../lib/error-toast";
 import { SESSION_QUERY_KEY, type Session } from "../../lib/identity";
 import { tauriLinkedIn } from "../../lib/linkedin-facade";
+import { openExternalUrl } from "../../lib/open-external-url";
 import { queryClient } from "../../lib/query-client";
 import { useWorkspaceStore } from "../../stores/workspaces";
-import { linkedInConnectPorts } from "./linkedin-connect-ports";
+import { openOwnPost } from "./linkedin-post-open";
 import { LinkedInPostRefusedError, refusalLine } from "./linkedin-post-refusal";
 import { runLinkedInPost } from "./linkedin-post-run";
 import {
@@ -34,12 +25,12 @@ import {
   useLinkedInPosts,
 } from "./linkedin-post-store";
 import { jpegOf, postableImage } from "./org-chart-share-encode";
-import { createLinkedInGate } from "./org-chart-share-gate";
 import type {
   ShareDialogAction,
   ShareDialogState,
 } from "./org-chart-share-state";
-import { type ConnectPhase, connectionRead } from "./org-chart-share-step";
+import { connectionRead } from "./org-chart-share-step";
+import { useLinkedInConnect } from "./use-linkedin-connect";
 
 /** Who is signed in now, read when a post's step lands, not at render. */
 const signedIn = () =>
@@ -47,10 +38,10 @@ const signedIn = () =>
 
 /**
  * Posting from the share dialog: the connection read (polled while a connect
- * is under way), Connect LinkedIn, Post to LinkedIn and Disconnect. A connect
- * writes only into the opening and attempt it started in. A post is claimed
- * and settled in the space's slot (`linkedin-post-store.ts`), which outlives
- * this page; the dialog on screen shows its result.
+ * is under way), Connect LinkedIn (`useLinkedInConnect`), Post to LinkedIn
+ * and Disconnect. A post is claimed and settled in the space's slot
+ * (`linkedin-post-store.ts`), which outlives this page; the dialog on screen
+ * shows its result, and the opening that made it opens it (`openOwnPost`).
  */
 export function useLinkedInPost(input: {
   enabled: boolean;
@@ -59,7 +50,6 @@ export function useLinkedInPost(input: {
   session: RefObject<number>;
   onPosted: () => void;
 }) {
-  const { t, i18n } = useTranslation("teams");
   const { enabled, state, dispatch, session } = input;
   // One post out per person and space, held outside the page that started it.
   const uid = useSession().data?.uid ?? null;
@@ -69,10 +59,21 @@ export function useLinkedInPost(input: {
   const attempt = state.connect;
   const query = useLinkedInConnection(enabled, attempt?.watch ?? null);
   const actions = useLinkedInActions();
-  const attempts = useRef(0);
-  // A double click minted two states, and the gateway keeps only the last:
-  // the first tab then failed. Checked before the click claims a tab.
-  const [gate] = useState(() => createLinkedInGate(() => performance.now()));
+  const { connect, connectPhase } = useLinkedInConnect({
+    state,
+    dispatch,
+    session,
+    connected: query.data?.connected === true,
+    recheck: actions.recheck,
+  });
+  // Read when a post settles, after the page may have closed or gone.
+  const onScreen = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    onScreen.current = state.open ? state.session : null;
+    return () => {
+      onScreen.current = null;
+    };
+  });
 
   // A post that went up, here or while this page was gone, is said once by
   // the opening on screen; one that may be up, by every opening until the
@@ -89,55 +90,6 @@ export function useLinkedInPost(input: {
     }
   }, [state.open, landed, unconfirmed, saidUnconfirmed, postKey, dispatch]);
 
-  // The attempt ends when the connection lands or its window closes.
-  const connected = query.data?.connected === true;
-  const opening = state.session;
-  useEffect(() => {
-    if (!attempt) return;
-    const tag = { session: opening, attempt: attempt.id };
-    if (connected) return dispatch({ type: "connectEnded", ...tag });
-    const timer = setTimeout(
-      () => dispatch({ type: "connectEnded", ...tag }),
-      Math.max(0, attempt.watch.until - Date.now()),
-    );
-    return () => clearTimeout(timer);
-  }, [attempt, opening, connected, dispatch]);
-
-  // Inside the click: a browser only grants LinkedIn's tab there. Starting
-  // over is the same click: a new attempt, whose state replaces the old one
-  // at the gateway, and the old attempt's results are dropped.
-  const connect = () => {
-    gate(() => {
-      const tag = { session: session.current, attempt: ++attempts.current };
-      const ports = linkedInConnectPorts(t, i18n.resolvedLanguage);
-      dispatch({
-        type: "connecting",
-        ...tag,
-        watch: startLinkedInConnectWatch(Date.now()),
-      });
-      return startLinkedInConnect(ports).then(
-        (landed) => {
-          if (landed.kind === "opened")
-            return dispatch({ type: "connectOpened", ...tag });
-          dispatch({
-            type: "connectEnded",
-            ...tag,
-            line:
-              landed.kind === "blocked"
-                ? { kind: "blocked", url: landed.url, channel: null }
-                : undefined,
-          });
-        },
-        // tauriLinkedIn.connect already reported it (or silenced a deployment
-        // with no LinkedIn); the connect is simply over.
-        () => {
-          dispatch({ type: "connectEnded", ...tag });
-          void actions.recheck();
-        },
-      );
-    });
-  };
-
   const refused = (action: LinkedInRefusalAction, retryAfterMs?: number) => {
     if (action === "reconnect") actions.markDisconnected();
     if (action === "fallback") void actions.recheck();
@@ -149,6 +101,7 @@ export function useLinkedInPost(input: {
   const post = async (file: File, text: string, altText: string) => {
     const claim = useLinkedInPosts.getState().start(uid, space);
     if (!claim) return;
+    const made = session.current;
     dispatch({ type: "posting" });
     const outcome = await runLinkedInPost(claim, {
       signedIn,
@@ -163,7 +116,14 @@ export function useLinkedInPost(input: {
     // Signed out or in meanwhile: nothing of it reaches the next person.
     if (!outcome || outcome.kind === "unconfirmed") return;
     if (outcome.kind === "failed") return refused("quiet");
-    if (outcome.kind === "posted") return input.onPosted();
+    if (outcome.kind === "posted") {
+      input.onPosted();
+      return openOwnPost(outcome.postUrl, made, {
+        onScreen: () => onScreen.current,
+        open: (url) => openExternalUrl(url, { command: "linkedin_view_post" }),
+        dispatch,
+      });
+    }
     const action = linkedInRefusalAction(outcome.code);
     if (action === "report")
       logAndReportError(
@@ -172,12 +132,6 @@ export function useLinkedInPost(input: {
       );
     refused(action, outcome.retryAfterMs);
   };
-
-  const connectPhase: ConnectPhase = !attempt
-    ? "idle"
-    : attempt.minting
-      ? "minting"
-      : "waiting";
 
   return {
     connection: connectionRead(query),

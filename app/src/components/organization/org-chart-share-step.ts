@@ -13,14 +13,21 @@ import type { ShareRoute } from "./org-chart-share-run.ts";
  *   window and the connection is polled until it lands); the button is busy
  *   in both, and waiting offers to start over.
  * - `post`: Post to LinkedIn, as `name`; `posting` while it goes up.
- * - `posted`: View post, LinkedIn's page for the post just made.
+ * - `posted`: View post, LinkedIn's page for the post just made. `opened`
+ *   once that page opened on its own, so the button no longer leads.
  */
 export type ShareStep =
   | { kind: "share"; via: "sheet" | "paste" }
   | { kind: "checking" }
   | { kind: "connect"; phase: ConnectPhase }
   | { kind: "post"; name: string; posting: boolean }
-  | { kind: "posted"; postUrl: string };
+  | ({ kind: "posted" } & PostedPost);
+
+/** The post made in this opening, and whether its page opened on its own. */
+export interface PostedPost {
+  postUrl: string;
+  opened: boolean;
+}
 
 export type ConnectPhase = "idle" | "minting" | "waiting";
 
@@ -49,17 +56,36 @@ export function shareStep(input: {
   /** Where this opening's connect stands. */
   connecting: ConnectPhase;
   posting: boolean;
-  /** LinkedIn's page for the post made in this opening. */
-  postUrl: string | null;
+  posted: PostedPost | null;
 }): ShareStep {
   const { route, connection } = input;
   if (route === "sheet") return { kind: "share", via: "sheet" };
   if (route === "paste") return { kind: "share", via: "paste" };
-  if (input.postUrl) return { kind: "posted", postUrl: input.postUrl };
+  if (input.posted) return { kind: "posted", ...input.posted };
   if (connection.status === "error") return { kind: "share", via: "paste" };
   if (connection.status === "pending") return { kind: "checking" };
   const { connection: read } = connection;
   if (read.connected)
     return { kind: "post", name: read.name, posting: input.posting };
   return { kind: "connect", phase: input.connecting };
+}
+
+export type PrimaryVariant = "default" | "outline";
+
+/**
+ * How loudly the primary button asks. A step that needs another press after
+ * this one (Connect, then Post) stays quiet, so Post reads as new when it
+ * arrives; View post leads only when the post did not open on its own.
+ */
+const PRIMARY_VARIANT = {
+  share: "default",
+  checking: "default",
+  connect: "outline",
+  post: "default",
+  posted: { opened: "outline", closed: "default" },
+} as const;
+
+export function primaryVariant(step: ShareStep): PrimaryVariant {
+  if (step.kind !== "posted") return PRIMARY_VARIANT[step.kind];
+  return PRIMARY_VARIANT.posted[step.opened ? "opened" : "closed"];
 }

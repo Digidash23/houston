@@ -84,7 +84,8 @@ export type ShareLine =
   | { kind: "reconnect" }
   | { kind: "wait"; retryAfterMs?: number }
   | { kind: "retry" }
-  | { kind: "posted" }
+  /** `opened`: the post's page opened on its own. */
+  | { kind: "posted"; opened: boolean }
   | { kind: "unconfirmed" };
 
 /** What the dialog does once a share lands. */

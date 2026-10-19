@@ -5,6 +5,7 @@ import {
 import { cn } from "@houston-ai/core";
 import { useTranslation } from "react-i18next";
 import { FallbackLink } from "../shell/fallback-link";
+import { LINE_KEY, shareLineKey } from "./org-chart-share-line-copy";
 import type { ShareLine } from "./org-chart-share-run";
 
 /** A rate limit names its wait when the gateway said how long. */
@@ -14,7 +15,7 @@ function useLineText(line: ShareLine | null): string | null {
   const minutes =
     line.kind === "wait" ? linkedInRetryMinutes(line.retryAfterMs) : null;
   return minutes === null
-    ? t(LINE_KEY[line.kind])
+    ? t(shareLineKey(line))
     : t("orgChart.share.rateLimitedIn", { count: minutes });
 }
 
@@ -80,13 +81,3 @@ export function ShareStatusLine({
     </p>
   );
 }
-
-const LINE_KEY = {
-  copied: "orgChart.share.copied",
-  saved: "orgChart.share.saved",
-  reconnect: "orgChart.share.reconnect",
-  wait: "orgChart.share.rateLimited",
-  retry: "orgChart.share.postFailed",
-  posted: "orgChart.share.posted",
-  unconfirmed: "orgChart.share.unconfirmed",
-} as const satisfies Record<Exclude<ShareLine["kind"], "blocked">, string>;

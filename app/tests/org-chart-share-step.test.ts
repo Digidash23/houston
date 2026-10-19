@@ -54,7 +54,7 @@ const step = (
     connection,
     connecting: phaseOf(state),
     posting,
-    postUrl: state.postUrl,
+    posted: state.posted,
   });
 
 const opened = shareDialogReducer(INITIAL_SHARE_DIALOG, { type: "open" });
@@ -161,6 +161,7 @@ describe("the share dialog's primary button", () => {
     deepStrictEqual(step(true, posted, ready(true)), {
       kind: "posted",
       postUrl: POST_URL,
+      opened: false,
     });
   });
 

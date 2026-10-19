@@ -1,5 +1,6 @@
 import type { LinkedInConnectWatch } from "@houston/sdk/linkedin/policy";
 import type { ShareLine } from "./org-chart-share-run.ts";
+import type { PostedPost } from "./org-chart-share-step.ts";
 
 /**
  * The share dialog's state. Pure and DOM-free. Each opening is a new
@@ -35,8 +36,8 @@ export interface ShareDialogState {
   text: string | null;
   /** The LinkedIn connect under way in this opening. */
   connect: ConnectAttempt | null;
-  /** LinkedIn's page for the post just made. */
-  postUrl: string | null;
+  /** The post just made. */
+  posted: PostedPost | null;
 }
 
 /** Names the opening and the connect attempt a result belongs to. */
@@ -58,6 +59,8 @@ export type ShareDialogAction =
   | ({ type: "connectEnded"; line?: ShareLine } & AttemptTag)
   | { type: "posting" }
   | { type: "posted"; postUrl: string }
+  /** The post this opening made opened in the browser on its own. */
+  | { type: "postOpened"; session: number; postUrl: string }
   /** No answer came in time: the post may be up. */
   | { type: "postUnconfirmed" }
   /** The person checked LinkedIn and dismissed the unconfirmed line. */
@@ -71,7 +74,7 @@ export const INITIAL_SHARE_DIALOG: ShareDialogState = {
   copied: false,
   text: null,
   connect: null,
-  postUrl: null,
+  posted: null,
 };
 
 /** Whether `tag` names the attempt on screen now. */
@@ -127,10 +130,14 @@ export function shareDialogReducer(
         : state;
     case "posting":
       return { ...state, line: null };
-    case "posted":
-      return state.open
-        ? { ...state, postUrl: action.postUrl, line: { kind: "posted" } }
-        : state;
+    case "posted": {
+      // The slot can land after the post opened in the browser; that stays.
+      const opened =
+        state.posted?.postUrl === action.postUrl && state.posted.opened;
+      return state.open ? withPosted(state, action.postUrl, opened) : state;
+    }
+    case "postOpened":
+      return here ? withPosted(state, action.postUrl, true) : state;
     case "postUnconfirmed":
       return state.open ? { ...state, line: { kind: "unconfirmed" } } : state;
     case "unconfirmedDismissed":
@@ -138,6 +145,18 @@ export function shareDialogReducer(
     case "postRefused":
       return state.open ? { ...state, line: action.line } : state;
   }
+}
+
+function withPosted(
+  state: ShareDialogState,
+  postUrl: string,
+  opened: boolean,
+): ShareDialogState {
+  return {
+    ...state,
+    posted: { postUrl, opened },
+    line: { kind: "posted", opened },
+  };
 }
 
 /**

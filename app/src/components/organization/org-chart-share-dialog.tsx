@@ -9,11 +9,18 @@ import {
 } from "@houston-ai/core";
 import { Check, Copy, Download } from "lucide-react";
 import { useId } from "react";
-import { useTranslation } from "react-i18next";
-import { ShareButton, SharePrimary } from "./org-chart-share-actions";
+import { Trans, useTranslation } from "react-i18next";
+import { openExternalUrl } from "../../lib/open-external-url";
+import {
+  INLINE_LINK,
+  ShareButton,
+  SharePrimary,
+} from "./org-chart-share-actions";
 import { ShareStatusLine } from "./org-chart-share-line";
 import { OrgChartSharePreview } from "./org-chart-share-preview";
 import type { useOrgChartShare } from "./use-org-chart-share";
+
+const PRIVACY_URL = "https://gethouston.ai/privacy";
 
 /**
  * Share the org chart: the image as it will be posted, the post's words
@@ -63,6 +70,27 @@ export function OrgChartShareDialog({
               onChange={(event) => share.setText(event.target.value)}
               className="min-h-32 resize-none md:min-h-0 md:flex-1"
             />
+            {/* LinkedIn's API terms allow pre-filled words only beside this
+                notice: they are editable and our privacy policy covers them. */}
+            <p className="text-xs text-pretty text-ink-muted">
+              <Trans
+                t={t}
+                i18nKey="orgChart.share.prefilledNotice"
+                components={{
+                  privacy: (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void openExternalUrl(PRIVACY_URL, {
+                          command: "open_privacy_policy",
+                        })
+                      }
+                      className={INLINE_LINK}
+                    />
+                  ),
+                }}
+              />
+            </p>
             <SharePrimary share={share} />
             <div className="grid grid-cols-2 gap-2">
               <ShareButton
