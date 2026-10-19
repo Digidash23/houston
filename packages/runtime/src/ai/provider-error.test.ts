@@ -1410,6 +1410,48 @@ test("Moonshot gate on the broad fallback itself offers no fallback", () => {
     expect(err.suggested_fallback).toBeNull();
 });
 
+test("Vertex 404 'Publisher model … was not found' → model_unavailable", () => {
+  // Verbatim-shaped @google/genai rejection for gemini-4-argon on an API-key
+  // (express mode) project: Vertex's JSON body is itself JSON-encoded into
+  // the outer message, so the inner quotes and newlines arrive escaped.
+  const message =
+    '{"error":{"message":"{\\n  \\"error\\": {\\n    \\"code\\": 404,\\n    \\"message\\": \\"Publisher model `projects/923766833406/locations/us-central1/publishers/google/models/gemini-4-argon` was not found or your project does not have access to it. Ensure you are using a valid model name and that the model is available in this location.\\",\\n    \\"status\\": \\"NOT_FOUND\\"\\n  }\\n}\\n","code":404,"status":"Not Found"}}';
+  const err = classifyProviderError({
+    provider: "google-vertex",
+    model: "gemini-4-argon",
+    message,
+  });
+  expect(err.kind).toBe("model_unavailable");
+  if (err.kind === "model_unavailable") {
+    expect(err.model).toBe("gemini-4-argon");
+    expect(err.reason).toBe("unknown");
+    expect(err.suggested_fallback).toBeNull();
+  }
+});
+
+test("Vertex's older 'Publisher Model … not found.' 404 → model_unavailable", () => {
+  const err = classifyProviderError({
+    provider: "google-vertex",
+    model: "gemini-3.1-pro-preview",
+    message:
+      '{"error":{"code":404,"message":"Publisher Model `projects/my-project/locations/us-central1/publishers/google/models/gemini-3.1-pro-preview` not found.","status":"NOT_FOUND"}}',
+  });
+  expect(err.kind).toBe("model_unavailable");
+});
+
+test("a non-model Google 'not found or no access' 404 stays unknown", () => {
+  // Same wording, but about a cached content, not a model: switching models
+  // would not help, and connect-time verification must not read it as a
+  // working key.
+  const err = classifyProviderError({
+    provider: "google-vertex",
+    model: "gemini-3.5-flash",
+    message:
+      '{"error":{"code":404,"message":"CachedContent `projects/1/locations/us-central1/cachedContents/9` was not found or your project does not have access to it.","status":"NOT_FOUND"}}',
+  });
+  expect(err.kind).toBe("unknown");
+});
+
 test("embedded code extraction stays out of 1xx-3xx (HOU-1156)", () => {
   // A stray non-HTTP application code must never veto the auth branch.
   expect(extractHttpStatus('{"code": 200, "message": "ok-ish"}')).toBeNull();

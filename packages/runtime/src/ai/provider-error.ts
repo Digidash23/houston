@@ -834,7 +834,25 @@ function isNetwork(lower: string): boolean {
 }
 
 function isModelUnavailable(lower: string): boolean {
-  return MODEL_UNAVAILABLE_PATTERNS.some((p) => lower.includes(p));
+  return (
+    MODEL_UNAVAILABLE_PATTERNS.some((p) => lower.includes(p)) ||
+    isVertexPublisherModelMissing(lower)
+  );
+}
+
+/**
+ * Google Vertex AI's 404 for a Google model the project can't call. Two
+ * wordings seen: `Publisher model \`projects/<number>/locations/us-central1/
+ * publishers/google/models/gemini-4-argon\` was not found or your project does
+ * not have access to it.` (API-key express mode, where Gemini 4 Argon isn't
+ * served) and the older `Publisher Model \`…\` not found.` Both name the
+ * model, so the switch-model card fits, not report-bug. Requiring "publisher
+ * model" keeps a non-model Google resource denial with the same "not found"
+ * wording out of this branch (and out of connect-time verification, which
+ * treats `model_unavailable` as proof the key works).
+ */
+function isVertexPublisherModelMissing(lower: string): boolean {
+  return lower.includes("publisher model") && lower.includes("not found");
 }
 
 /**
