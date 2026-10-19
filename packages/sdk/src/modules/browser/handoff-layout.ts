@@ -6,10 +6,12 @@
  * settled transcript puts the reply after the turn's tools. So a reply of the
  * card's turn found before the card moves after that turn's last tool row,
  * where the settled transcript will have it, and the card never jumps across
- * the reply when the turn ends. While that card waits, the moved reply is the
- * chat's last row but nothing streams into it (the turn is blocked on the
- * person), so its row says `settled`: drawn as finished text, leaving the
- * card the turn's progress.
+ * the reply when the turn ends. A moved reply's row says `settled`: drawn as
+ * finished text, never as the chat's streaming tail. It is the chat's last
+ * row but not the feed's live edge, which is the newest tool row: while the
+ * card waits the turn is blocked on the person and the card owns the
+ * progress, and once the person hands back the chat shows its usual in-flight
+ * indicator while the agent works, as it would without a card.
  *
  * Published as `@houston/sdk/browser-handoff` (with the card model) so the
  * app's pure feed mapping imports it without the SDK barrel.
@@ -28,7 +30,8 @@ export type BrowserHandoffFeedRow =
   | {
       kind: "item";
       index: number;
-      /** Draw this streaming reply as finished: its hand-off card waits. */
+      /** Draw this streaming reply as finished: it was moved under a card,
+       *  so it is not where the turn's output lands. */
       settled?: true;
     }
   | { kind: "card"; card: BrowserHandoffCardModel };
@@ -92,8 +95,6 @@ export function browserHandoffFeedRows(
   const cardsAfter = new Map<number, BrowserHandoffCardModel[]>();
   /** Reply index -> the item it now follows. */
   const moved = new Map<number, number>();
-  /** Moved replies whose card waits on the person. */
-  const held = new Set<number>();
   for (const card of cards) {
     const list = cardsAfter.get(card.anchorIndex) ?? [];
     list.push(card);
@@ -102,7 +103,6 @@ export function browserHandoffFeedRows(
     if (reply === null) continue;
     const after = lastToolRow(items, card.anchorIndex);
     moved.set(reply, Math.max(moved.get(reply) ?? after, after));
-    if (card.state === "waiting") held.add(reply);
   }
   const rows: BrowserHandoffFeedRow[] = [];
   items.forEach((_, index) => {
@@ -111,11 +111,7 @@ export function browserHandoffFeedRows(
       rows.push({ kind: "card", card });
     for (const [reply, after] of moved)
       if (after === index)
-        rows.push({
-          kind: "item",
-          index: reply,
-          ...(held.has(reply) ? { settled: true as const } : {}),
-        });
+        rows.push({ kind: "item", index: reply, settled: true });
   });
   return rows;
 }
