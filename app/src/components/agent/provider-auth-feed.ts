@@ -54,19 +54,55 @@ export function isProviderAuthMessage(message: string): boolean {
   return AUTH_PATTERN_RES.some((re) => re.test(message));
 }
 
-export function isProviderAuthFeedItem(item: FeedItem): boolean {
+/** Rows only a model that is signed in can produce. */
+const MODEL_WORK = new Set(["thinking", "thinking_streaming", "tool_call"]);
+
+/**
+ * Whether each row's turn shows the model working. A provider that refuses
+ * the credential never runs the model, so a turn that thought or called a
+ * tool is signed in, and its words are the model's own: a reply telling the
+ * person "Please log in in the browser" during a browser hand-off is not an
+ * auth failure. A turn runs from one user message to the next.
+ */
+function modelRanByRow(items: FeedItem[]): boolean[] {
+  const ran: boolean[] = new Array(items.length).fill(false);
+  let start = 0;
+  const close = (end: number) => {
+    const worked = items
+      .slice(start, end)
+      .some((item) => MODEL_WORK.has(item.feed_type));
+    ran.fill(worked, start, end);
+  };
+  items.forEach((item, index) => {
+    if (item.feed_type !== "user_message") return;
+    close(index);
+    start = index;
+  });
+  close(items.length);
+  return ran;
+}
+
+/**
+ * Whether a row is the provider's auth failure. A tool's result never is: it
+ * is what the tool saw, such as a web page asking its visitor to log in. The
+ * model's words count only from a turn where the model never ran.
+ */
+function isProviderAuthFeedItem(item: FeedItem, modelRan: boolean): boolean {
   switch (item.feed_type) {
-    case "assistant_text":
-    case "assistant_text_streaming":
     case "system_message":
       return (
         item.data === "Checking connection..." ||
         isProviderAuthMessage(item.data)
       );
-    case "tool_result":
-      return isProviderAuthMessage(item.data.content);
+    case "assistant_text":
+    case "assistant_text_streaming":
+      return (
+        !modelRan &&
+        (item.data === "Checking connection..." ||
+          isProviderAuthMessage(item.data))
+      );
     case "final_result":
-      return isProviderAuthMessage(item.data.result);
+      return !modelRan && isProviderAuthMessage(item.data.result);
     default:
       return false;
   }
@@ -81,17 +117,19 @@ function isProviderAuthSessionError(item: FeedItem): boolean {
 
 export function filterProviderAuthFeedItems(items: FeedItem[]): FeedItem[] {
   const hasAuthSignal = providerAuthSignalKey(items) !== null;
+  const ran = modelRanByRow(items);
   return items.filter(
-    (item) =>
-      !isProviderAuthFeedItem(item) &&
+    (item, index) =>
+      !isProviderAuthFeedItem(item, ran[index]) &&
       !(hasAuthSignal && isProviderAuthSessionError(item)),
   );
 }
 
 export function providerAuthSignalKey(items: FeedItem[]): string | null {
+  const ran = modelRanByRow(items);
   for (let index = items.length - 1; index >= 0; index--) {
     const item = items[index];
-    if (isProviderAuthFeedItem(item)) {
+    if (isProviderAuthFeedItem(item, ran[index])) {
       return `${index}:${item.feed_type}`;
     }
   }
