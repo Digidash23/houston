@@ -52,9 +52,25 @@ test("before any visible text it records the r1 step but does NOT end the turn",
   const text = (out.content[0] as { text: string }).text;
   expect(text).toMatch(/did NOT end your turn/i);
   expect(text).toMatch(/never sees your reasoning or tool results/i);
-  expect(text).toMatch(/do not repeat/i);
+  expect(text).toMatch(/they have read nothing from you/i);
+  expect(text).toMatch(/do not repeat the suggestion/i);
   expect(out.terminate).toBeUndefined();
   expect(holder.finish.turnEndedByTool).toBe(false);
+});
+
+test("after visible text in an earlier message it quotes that text back", async () => {
+  const holder = newInteractionHolder();
+  holder.finish.noteAssistantMessageStart();
+  holder.finish.noteAssistantText("Here is your weekly summary.");
+  holder.finish.noteAssistantMessageStart();
+  const out = await runWithInteractionCapture(holder, () =>
+    run({ reusableKind: "skill", title: "Weekly", rationale: "Recurs." }),
+  );
+  expect(out.terminate).toBeUndefined();
+  const text = (out.content[0] as { text: string }).text;
+  expect(text).toContain(
+    "<read_by_user>\nHere is your weekly summary.\n</read_by_user>",
+  );
 });
 
 test("after the closing message it ends the turn like suggest_actions", async () => {

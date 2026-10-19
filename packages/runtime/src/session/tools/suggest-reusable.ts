@@ -1,6 +1,7 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { type Static, Type } from "typebox";
 import { currentTurnFinish, recordSuggestReusable } from "../interaction";
+import { unreadReplyInstruction } from "./unread-reply";
 
 /**
  * The reusable-suggestion tool — the model's end-of-task REFLECTION STEP,
@@ -51,8 +52,9 @@ const ENDED_INSTRUCTION =
   "Your suggestion was recorded. The app shows the user a dismissible card offering to save this work, under the message you already wrote. This ended your turn.";
 
 /** The result when the model called the tool before writing anything visible. */
-const NEEDS_MESSAGE_INSTRUCTION =
-  "Your suggestion was recorded. The app will show the user a dismissible card offering to save this work. Do not repeat the suggestion in plain text and do not ask about it again. You called this before writing anything the user can read in this message, so this did NOT end your turn. Write your closing message now, with suggest_actions, then end. The user never sees your reasoning or tool results: if what you prepared for them exists only there, write it out in full and do not call it 'above'; if you already wrote it earlier in this turn, do not repeat it.";
+function needsMessageInstruction(visibleText: string): string {
+  return `Your suggestion was recorded. The app will show the user a dismissible card offering to save this work. Do not repeat the suggestion in plain text and do not ask about it again. You called this before writing anything the user can read in this message, so this did NOT end your turn. Write your closing message now, with suggest_actions, then end. ${unreadReplyInstruction(visibleText)}`;
+}
 
 /** The reusable-suggestion tool (execute + auto; never plan). */
 export function makeSuggestReusableTool() {
@@ -86,7 +88,12 @@ export function makeSuggestReusableTool() {
       const finish = currentTurnFinish();
       if (!finish?.closingMessageSeen)
         return {
-          content: [{ type: "text" as const, text: NEEDS_MESSAGE_INSTRUCTION }],
+          content: [
+            {
+              type: "text" as const,
+              text: needsMessageInstruction(finish?.visibleText ?? ""),
+            },
+          ],
           details,
         };
       finish.turnEndedByTool = true;

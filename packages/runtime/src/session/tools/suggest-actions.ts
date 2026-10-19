@@ -2,6 +2,7 @@ import { defineTool } from "@earendil-works/pi-coding-agent";
 import { type Static, Type } from "typebox";
 import { Value } from "typebox/value";
 import { currentTurnFinish, recordSuggestActions } from "../interaction";
+import { unreadReplyInstruction } from "./unread-reply";
 
 /**
  * The follow-up-actions tool, available in execute AND auto after a mission
@@ -91,8 +92,9 @@ const ENDED_INSTRUCTION =
  * nothing visible. A deliverable already written earlier in the turn (a
  * previous message) is visible and must not be pasted again.
  */
-const NEEDS_MESSAGE_INSTRUCTION =
-  "Your follow-up actions were recorded. The app will show them as clickable bubbles above the composer. You called this before writing anything the user can read in this message, so this did NOT end your turn. Write your closing message now, then end. The user never sees your reasoning or tool results: if what you prepared for them (a draft, an answer, findings) exists only there, write it out in full in this message and do not call it 'above'. If you already wrote it in visible text earlier in this turn, do not repeat it. Do not repeat the actions in plain text or ask a closing question.";
+function needsMessageInstruction(visibleText: string): string {
+  return `Your follow-up actions were recorded. The app will show them as clickable bubbles above the composer. You called this before writing anything the user can read in this message, so this did NOT end your turn. Write your closing message now, then end. ${unreadReplyInstruction(visibleText)} Do not repeat the actions in plain text or ask a closing question.`;
+}
 
 /** Optional, concrete next steps for a mission that has already completed. */
 export function makeSuggestActionsTool() {
@@ -112,7 +114,12 @@ export function makeSuggestActionsTool() {
       const finish = currentTurnFinish();
       if (!finish?.closingMessageSeen)
         return {
-          content: [{ type: "text" as const, text: NEEDS_MESSAGE_INSTRUCTION }],
+          content: [
+            {
+              type: "text" as const,
+              text: needsMessageInstruction(finish?.visibleText ?? ""),
+            },
+          ],
           details: { actions },
         };
       finish.turnEndedByTool = true;
