@@ -12,10 +12,10 @@ import { logAndReportError } from "../../lib/error-report";
 import { showConnectivityErrorToast } from "../../lib/error-toast";
 import { SESSION_QUERY_KEY, type Session } from "../../lib/identity";
 import { tauriLinkedIn } from "../../lib/linkedin-facade";
-import { openExternalUrl } from "../../lib/open-external-url";
+import { osCanOpenUrlUnprompted, osOpenUrl } from "../../lib/os-bridge";
 import { queryClient } from "../../lib/query-client";
 import { useWorkspaceStore } from "../../stores/workspaces";
-import { openOwnPost } from "./linkedin-post-open";
+import { postAndOpen } from "./linkedin-post-open";
 import { LinkedInPostRefusedError, refusalLine } from "./linkedin-post-refusal";
 import { runLinkedInPost } from "./linkedin-post-run";
 import {
@@ -41,7 +41,7 @@ const signedIn = () =>
  * is under way), Connect LinkedIn (`useLinkedInConnect`), Post to LinkedIn
  * and Disconnect. A post is claimed and settled in the space's slot
  * (`linkedin-post-store.ts`), which outlives this page; the dialog on screen
- * shows its result, and the opening that made it opens it (`openOwnPost`).
+ * shows its result, and the opening that made it opens it (`postAndOpen`).
  */
 export function useLinkedInPost(input: {
   enabled: boolean;
@@ -101,29 +101,29 @@ export function useLinkedInPost(input: {
   const post = async (file: File, text: string, altText: string) => {
     const claim = useLinkedInPosts.getState().start(uid, space);
     if (!claim) return;
-    const made = session.current;
     dispatch({ type: "posting" });
-    const outcome = await runLinkedInPost(claim, {
-      signedIn,
-      prepare: () =>
-        postableImage(file, jpegOf).catch((error: unknown) => {
-          logAndReportError("org_chart_share_encode", error);
-          throw error;
-        }),
-      // tauriLinkedIn.postImage reports a failure that is not a refusal.
-      send: (image) => tauriLinkedIn.postImage({ image, text, altText }),
+    const run = () =>
+      runLinkedInPost(claim, {
+        signedIn,
+        prepare: () =>
+          postableImage(file, jpegOf).catch((error: unknown) => {
+            logAndReportError("org_chart_share_encode", error);
+            throw error;
+          }),
+        // tauriLinkedIn.postImage reports a failure that is not a refusal.
+        send: (image) => tauriLinkedIn.postImage({ image, text, altText }),
+      });
+    const outcome = await postAndOpen(run, {
+      onScreen: () => onScreen.current,
+      mayOpen: osCanOpenUrlUnprompted,
+      open: osOpenUrl,
+      report: (error) => logAndReportError("linkedin_view_post", error),
+      dispatch,
     });
     // Signed out or in meanwhile: nothing of it reaches the next person.
     if (!outcome || outcome.kind === "unconfirmed") return;
     if (outcome.kind === "failed") return refused("quiet");
-    if (outcome.kind === "posted") {
-      input.onPosted();
-      return openOwnPost(outcome.postUrl, made, {
-        onScreen: () => onScreen.current,
-        open: (url) => openExternalUrl(url, { command: "linkedin_view_post" }),
-        dispatch,
-      });
-    }
+    if (outcome.kind === "posted") return input.onPosted();
     const action = linkedInRefusalAction(outcome.code);
     if (action === "report")
       logAndReportError(

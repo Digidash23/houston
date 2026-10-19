@@ -54,6 +54,17 @@ export function osIsNativeMobile(): boolean {
   return osNativeMobilePlatform() !== null;
 }
 
+/**
+ * Whether a URL opened with no click of its own (after a network wait) reaches
+ * the browser without a pop-up warning. The desktop and mobile shells hand it
+ * to the OS. A browser allows it only while the click's user activation is
+ * still live; one without `navigator.userActivation` is tried anyway.
+ */
+export function osCanOpenUrlUnprompted(): boolean {
+  if (osIsTauri() || osIsNativeMobile()) return true;
+  return globalThis.navigator?.userActivation?.isActive !== false;
+}
+
 export function legacyListen<T>(
   event: string,
   handler: (ev: Event<T>) => void,
