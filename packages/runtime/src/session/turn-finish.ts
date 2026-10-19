@@ -25,6 +25,11 @@ export class TurnFinishMarks {
    * same turn never counts.
    */
   closingMessageSeen = false;
+  /**
+   * Every visible text delta of the turn, across all its messages: exactly
+   * what the person has read so far. Thinking never lands here.
+   */
+  visibleText = "";
   /** Set by the tool that ended the turn (an offer after the closing
    *  message): both backends then stop calling the model. */
   turnEndedByTool = false;
@@ -47,6 +52,7 @@ export class TurnFinishMarks {
   /** Note a streamed assistant text delta. Whitespace-only deltas (block
    *  separators) are not a message. */
   noteAssistantText(delta: string): void {
+    this.visibleText += delta;
     if (this.inAssistantMessage && /\S/.test(delta))
       this.closingMessageSeen = true;
   }

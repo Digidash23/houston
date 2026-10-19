@@ -79,3 +79,12 @@ test("a message that ends on plain text completes the reply", () => {
   marks.noteAssistantText("All done.");
   expect(marks.noteReplyBeat({ type: "answer_end" })).toBe(true);
 });
+
+test("visible text gathers every message of the turn, thinking never", () => {
+  const marks = new TurnFinishMarks();
+  marks.noteAssistantText("Looking.");
+  marks.noteAssistantMessageStart();
+  marks.noteAssistantText("\n\nFound it.");
+  marks.noteAssistantMessageStart();
+  expect(marks.visibleText).toBe("Looking.\n\nFound it.");
+});

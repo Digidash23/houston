@@ -70,10 +70,27 @@ test("before any visible text it records the steps but keeps the turn open and a
   // Never "short": the deliverable may exist only in the model's reasoning.
   expect(text).not.toMatch(/short/i);
   expect(text).toMatch(/never sees your reasoning or tool results/i);
-  expect(text).toMatch(/exists only there, write it out in full/i);
-  // A deliverable written in an earlier message of the turn is visible.
-  expect(text).toMatch(/already wrote it .* do not repeat it/i);
-  expect(text).toMatch(/do not repeat/i);
+  expect(text).toMatch(/write it out in full in your closing message/i);
+  expect(text).toMatch(/they have read nothing from you/i);
+  expect(text).toMatch(/do not repeat the actions/i);
+});
+
+test("quotes back the only text the person read this turn, so a link found in a tool result is never called 'above'", async () => {
+  const holder = newInteractionHolder();
+  holder.finish.noteAssistantMessageStart();
+  holder.finish.noteAssistantText("Let me look through your saved work ");
+  holder.finish.noteAssistantText("for that sheet.");
+  // Tool round-trips, then the message whose answer went into its reasoning.
+  holder.finish.noteAssistantMessageStart();
+  holder.finish.noteAssistantMessageStart();
+  const out = await runWithInteractionCapture(holder, () => run({ actions }));
+  expect(out.terminate).toBeUndefined();
+  const text = (out.content[0] as { text: string }).text;
+  expect(text).toContain(
+    "<read_by_user>\nLet me look through your saved work for that sheet.\n</read_by_user>",
+  );
+  expect(text).toMatch(/not in that quote .* is not 'above'/);
+  expect(text).not.toMatch(/if you already wrote it/i);
 });
 
 test("trims action values before recording", async () => {
