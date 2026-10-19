@@ -89,7 +89,9 @@ test("quotes back the only text the person read this turn, so a link found in a 
   expect(text).toContain(
     "<read_by_user>\nLet me look through your saved work for that sheet.\n</read_by_user>",
   );
-  expect(text).toMatch(/not in that quote .* is not 'above'/);
+  expect(text).toMatch(
+    /exists only in your reasoning or tool results .* is not 'above' or 'earlier'/,
+  );
   expect(text).not.toMatch(/if you already wrote it/i);
 });
 
