@@ -12,20 +12,27 @@ import { openExternalUrl } from "../../lib/open-external-url";
 export function FallbackLink({
   href,
   command,
+  tone = "link",
   className,
   children,
 }: {
   href: string;
   /** Triage tag for a failed open on desktop. */
   command: string;
+  /** `ink` keeps the link in the sentence's own color, for fine print. */
+  tone?: "link" | "ink";
   /** Placement only (alignment, spacing, text size). */
   className?: string;
-  children: ReactNode;
+  /** Absent when a `<Trans>` slot supplies the words. */
+  children?: ReactNode;
 }) {
   return (
     <a
       className={cn(
-        "rounded-full text-link underline outline-none focus-visible:ring-2 focus-visible:ring-focus",
+        "rounded-full underline outline-none focus-visible:ring-2 focus-visible:ring-focus",
+        tone === "link"
+          ? "text-link"
+          : "font-medium text-ink underline-offset-2",
         className,
       )}
       href={href}

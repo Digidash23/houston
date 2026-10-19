@@ -224,11 +224,11 @@ const RECORD_CLIPBOARD = () => {
   };
 };
 
-/** A PNG, 1200 x 1200 (IHDR width and height, big-endian). */
+/** A PNG, 1200 x 1500 portrait (IHDR width and height, big-endian). */
 function expectSharePng(bytes: Buffer) {
   expect(bytes.subarray(1, 4).toString("ascii")).toBe("PNG");
   expect(bytes.readUInt32BE(16)).toBe(1200);
-  expect(bytes.readUInt32BE(20)).toBe(1200);
+  expect(bytes.readUInt32BE(20)).toBe(1500);
 }
 
 test("the org chart draws its people and AI Employees, and shares an image from its dialog", async ({
@@ -334,6 +334,10 @@ test("the org chart draws its people and AI Employees, and shares an image from 
   await expect(
     dialog.getByRole("img", { name: "Your org chart as an image" }),
   ).toBeVisible();
+  // Copy and paste leaves the words to LinkedIn: no API terms, no notice.
+  await expect(dialog.getByText(/subject to our Privacy Policy/)).toHaveCount(
+    0,
+  );
 
   // Share on LinkedIn: the composer opens with the post written in.
   const opening = page.waitForEvent("popup");
@@ -374,7 +378,7 @@ test("the org chart draws its people and AI Employees, and shares an image from 
     expectSharePng(await readFile(png));
   }
 
-  // Download image hands over the same 1200 x 1200 PNG.
+  // Download image hands over the same 1200 x 1500 PNG.
   const downloading = page.waitForEvent("download");
   await dialog.getByRole("button", { name: "Download image" }).click();
   const download = await downloading;
