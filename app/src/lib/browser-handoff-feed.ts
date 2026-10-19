@@ -26,10 +26,11 @@ export function browserHandoffCard(
  * The chat's feed with a card after every browser hand-off, laid out by the
  * SDK (`browserHandoffFeedRows`): after the tool's result once it has one,
  * else right after the call, and in the same place before and after the turn
- * ends. A reply of the card's turn sits under the card; while the hand-off
- * waits the SDK marks it `settled` (nothing streams into it then), so it is
- * drawn as finished text, and the card owns the turn's progress: no thinking
- * line under it, no streaming reply after it.
+ * ends. A reply of the card's turn sits under the card, which the SDK marks
+ * `settled`: drawn as finished text, so the chat never reads it as its
+ * streaming tail. While the hand-off waits the card owns the turn's progress;
+ * once the person hands back, the usual thinking line shows while the agent
+ * works on.
  */
 export function withBrowserHandoffCards(
   items: readonly FeedItem[],
