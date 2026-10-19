@@ -484,6 +484,14 @@
     "classification": "sdk"
   },
   {
+    "pattern": "/v1/heartbeat",
+    "methods": [
+      "GET",
+      "PUT"
+    ],
+    "classification": "sdk"
+  },
+  {
     "pattern": "/v1/integrations",
     "methods": [
       "GET"
@@ -818,6 +826,14 @@
     "reason": "Stripe posts subscription events here and the signature HMAC over the raw body is the trust boundary; no user session exists"
   },
   {
+    "pattern": "/internal/v1/pool/assistant-routine-turns",
+    "methods": [
+      "POST"
+    ],
+    "classification": "internal-control-plane",
+    "reason": "the control plane hands an AI Manager's scheduled or trigger routine fire to the gateway's pool dispatcher, which runs it as the manager's coordinator, with the internal bearer; a fire has no user session"
+  },
+  {
     "pattern": "/internal/v1/pool/reconciles",
     "methods": [
       "POST"
@@ -1111,6 +1127,13 @@
     ],
     "classification": "internal-sandbox",
     "reason": "a pooled turn worker calls it with the turn's grant token so the agent's run_code tool reaches the Cloud Run sandbox without the worker holding GCP IAM; never a user client"
+  },
+  {
+    "pattern": "/v1/heartbeat/run",
+    "methods": [
+      "POST"
+    ],
+    "classification": "sdk"
   },
   {
     "pattern": "/v1/hooks/{routineId}/{secret}",
